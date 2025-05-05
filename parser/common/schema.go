@@ -28,17 +28,21 @@ func (s *Schema) Validate() error {
 }
 
 // InputSchema represents the input schema for a component
-type InputSchema Schema
+type InputSchema struct {
+	Schema
+}
 
 // Validate validates the input schema
 func (s *InputSchema) Validate() error {
-	return (*Schema)(s).Validate()
+	return s.Schema.Validate()
 }
 
 // OutputSchema represents the output schema for a component
-type OutputSchema Schema
+type OutputSchema struct {
+	Schema
+}
 
 // Validate validates the output schema
 func (s *OutputSchema) Validate() error {
-	return (*Schema)(s).Validate()
+	return s.Schema.Validate()
 }

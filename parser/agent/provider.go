@@ -4,26 +4,6 @@ import (
 	"encoding/json"
 )
 
-// ProviderName represents the name of a provider
-type ProviderName string
-
-const (
-	ProviderOpenAI ProviderName = "openai"
-	ProviderGroq   ProviderName = "groq"
-)
-
-// ModelName represents the name of a model
-type ModelName string
-
-const (
-	// GPT-4 models
-	ModelGPT4o               ModelName = "gpt-4o"
-	ModelGPT4oMini           ModelName = "gpt-4o-mini"
-	ModelO1Mini              ModelName = "o1-mini"
-	ModelO3Mini              ModelName = "o3-mini"
-	ModelLLama3370bVersatile ModelName = "llama-3.3-70b-versatile"
-)
-
 // MessageRole represents the role of a message
 type MessageRole string
 
@@ -45,6 +25,7 @@ type ProviderConfig struct {
 	Provider         ProviderName      `json:"provider" yaml:"provider"`
 	Model            ModelName         `json:"model" yaml:"model"`
 	APIKey           APIKey            `json:"api_key" yaml:"api_key"`
+	APIURL           string            `json:"api_url" yaml:"api_url"`
 	Temperature      *Temperature      `json:"temperature,omitempty" yaml:"temperature,omitempty"`
 	MaxTokens        *MaxTokens        `json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"`
 	TopP             *TopP             `json:"top_p,omitempty" yaml:"top_p,omitempty"`
@@ -55,4 +36,18 @@ type ProviderConfig struct {
 // AsJSON converts the provider configuration to a JSON value
 func (p *ProviderConfig) AsJSON() (json.RawMessage, error) {
 	return json.Marshal(p)
+}
+
+// NewProviderConfig creates a new ProviderConfig with the API URL populated
+func NewProviderConfig(provider ProviderName, model ModelName, apiKey APIKey) *ProviderConfig {
+	config := &ProviderConfig{
+		Provider: provider,
+		Model:    model,
+		APIKey:   apiKey,
+	}
+	// Populate APIURL using the Provider interface
+	if p := GetProvider(provider); p != nil {
+		config.APIURL = p.GetAPIURL()
+	}
+	return config
 }
