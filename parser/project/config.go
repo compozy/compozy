@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/compozy/compozy/parser/author"
+	"github.com/compozy/compozy/parser/common"
 	"github.com/compozy/compozy/parser/workflow"
 )
 
@@ -41,17 +42,24 @@ type ProjectConfig struct {
 	Environments map[string]*EnvironmentConfig `json:"environments,omitempty" yaml:"environments,omitempty"`
 	Workflows    []*WorkflowSourceConfig       `json:"workflows" yaml:"workflows"`
 
-	cwd string // internal field for current working directory
+	cwd *common.CWD // internal field for current working directory
 }
 
 // SetCWD sets the current working directory for the project
 func (p *ProjectConfig) SetCWD(path string) {
-	p.cwd = path
+	if p.cwd == nil {
+		p.cwd = common.NewCWD(path)
+	} else {
+		p.cwd.Set(path)
+	}
 }
 
 // GetCWD returns the current working directory
 func (p *ProjectConfig) GetCWD() string {
-	return p.cwd
+	if p.cwd == nil {
+		return ""
+	}
+	return p.cwd.Get()
 }
 
 // Load loads a project configuration from a file
@@ -80,7 +88,7 @@ func Load(path string) (*ProjectConfig, error) {
 
 // Validate validates the project configuration
 func (p *ProjectConfig) Validate() error {
-	if p.cwd == "" {
+	if p.cwd == nil || p.cwd.Get() == "" {
 		return &ProjectError{
 			Message: "Missing file path for project",
 			Code:    "MISSING_FILE_PATH",
@@ -101,7 +109,7 @@ func (p *ProjectConfig) Validate() error {
 func (p *ProjectConfig) WorkflowsFromSources() ([]*workflow.WorkflowConfig, error) {
 	var workflows []*workflow.WorkflowConfig
 	for _, wf := range p.Workflows {
-		workflowPath := filepath.Join(p.cwd, wf.Source)
+		workflowPath := p.cwd.Join(wf.Source)
 		wfConfig, err := workflow.Load(workflowPath)
 		if err != nil {
 			return nil, &ProjectError{

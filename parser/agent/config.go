@@ -2,6 +2,7 @@ package agent
 
 import (
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 
@@ -28,22 +29,29 @@ type AgentActionConfig struct {
 	OutputSchema *common.OutputSchema `json:"output,omitempty" yaml:"output,omitempty"`
 	With         *common.WithParams   `json:"with,omitempty" yaml:"with,omitempty"`
 
-	cwd string // internal field for current working directory
+	cwd *common.CWD // internal field for current working directory
 }
 
 // SetCWD sets the current working directory for the action
 func (a *AgentActionConfig) SetCWD(path string) {
-	a.cwd = path
+	if a.cwd == nil {
+		a.cwd = common.NewCWD(path)
+	} else {
+		a.cwd.Set(path)
+	}
 }
 
 // GetCWD returns the current working directory
 func (a *AgentActionConfig) GetCWD() string {
-	return a.cwd
+	if a.cwd == nil {
+		return ""
+	}
+	return a.cwd.Get()
 }
 
 // Validate validates the action configuration
 func (a *AgentActionConfig) Validate() error {
-	if a.cwd == "" {
+	if a.cwd == nil || a.cwd.Get() == "" {
 		return &AgentConfigError{
 			Message: "Missing file path for action: " + string(a.ID),
 			Code:    "MISSING_FILE_PATH",
@@ -86,12 +94,16 @@ type AgentConfig struct {
 	With         *common.WithParams            `json:"with,omitempty" yaml:"with,omitempty"`
 	Env          common.EnvMap                 `json:"env,omitempty" yaml:"env,omitempty"`
 
-	cwd string // internal field for current working directory
+	cwd *common.CWD // internal field for current working directory
 }
 
 // SetCWD sets the current working directory for the agent
 func (a *AgentConfig) SetCWD(path string) {
-	a.cwd = path
+	if a.cwd == nil {
+		a.cwd = common.NewCWD(path)
+	} else {
+		a.cwd.Set(path)
+	}
 	if a.Actions != nil {
 		for _, action := range a.Actions {
 			action.SetCWD(path)
@@ -101,7 +113,10 @@ func (a *AgentConfig) SetCWD(path string) {
 
 // GetCWD returns the current working directory
 func (a *AgentConfig) GetCWD() string {
-	return a.cwd
+	if a.cwd == nil {
+		return ""
+	}
+	return a.cwd.Get()
 }
 
 // Load loads an agent configuration from a file
@@ -124,13 +139,13 @@ func Load(path string) (*AgentConfig, error) {
 		}
 	}
 
-	config.SetCWD(path)
+	config.SetCWD(filepath.Dir(path))
 	return &config, nil
 }
 
 // Validate validates the agent configuration
 func (a *AgentConfig) Validate() error {
-	if a.cwd == "" {
+	if a.cwd == nil || a.cwd.Get() == "" {
 		return &AgentConfigError{
 			Message: "Missing file path for agent",
 			Code:    "MISSING_FILE_PATH",
@@ -156,7 +171,7 @@ func (a *AgentConfig) Validate() error {
 		}
 
 		// Validate the reference against the current working directory
-		if err := ref.Type.Validate(a.cwd); err != nil {
+		if err := ref.Type.Validate(a.cwd.Get()); err != nil {
 			return &AgentConfigError{
 				Message: "Invalid package reference: " + err.Error(),
 				Code:    "INVALID_PACKAGE_REF",

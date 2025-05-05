@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/compozy/compozy/parser/author"
+	"github.com/compozy/compozy/parser/common"
 	"github.com/compozy/compozy/parser/project"
 )
 
@@ -33,17 +34,24 @@ type RegistryConfig struct {
 	Author       *author.Author        `json:"author,omitempty" yaml:"author,omitempty"`
 	Dependencies *project.Dependencies `json:"dependencies,omitempty" yaml:"dependencies,omitempty"`
 
-	cwd string // internal field for current working directory
+	cwd *common.CWD // internal field for current working directory
 }
 
 // SetCWD sets the current working directory for the registry
 func (r *RegistryConfig) SetCWD(path string) {
-	r.cwd = path
+	if r.cwd == nil {
+		r.cwd = common.NewCWD(path)
+	} else {
+		r.cwd.Set(path)
+	}
 }
 
 // GetCWD returns the current working directory
 func (r *RegistryConfig) GetCWD() string {
-	return r.cwd
+	if r.cwd == nil {
+		return ""
+	}
+	return r.cwd.Get()
 }
 
 // Load loads a registry configuration from a file
@@ -72,7 +80,7 @@ func Load(path string) (*RegistryConfig, error) {
 
 // Validate validates the registry configuration
 func (r *RegistryConfig) Validate() error {
-	if r.cwd == "" {
+	if r.cwd == nil || r.cwd.Get() == "" {
 		return &RegistryError{
 			Message: "Missing file path for registry",
 			Code:    "MISSING_FILE_PATH",
@@ -91,7 +99,7 @@ func (r *RegistryConfig) Validate() error {
 	}
 
 	// Validate main path exists
-	mainPath := filepath.Join(r.cwd, string(r.Main))
+	mainPath := r.cwd.Join(string(r.Main))
 	if _, err := os.Stat(mainPath); os.IsNotExist(err) {
 		return &RegistryError{
 			Message: "Main path does not exist: " + string(r.Main),

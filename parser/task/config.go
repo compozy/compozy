@@ -55,17 +55,24 @@ type TaskConfig struct {
 	With         *common.WithParams                  `json:"with,omitempty" yaml:"with,omitempty"`
 	Env          common.EnvMap                       `json:"env,omitempty" yaml:"env,omitempty"`
 
-	cwd string // internal field for current working directory
+	cwd *common.CWD // internal field for current working directory
 }
 
 // SetCWD sets the current working directory for the task
 func (t *TaskConfig) SetCWD(path string) {
-	t.cwd = path
+	if t.cwd == nil {
+		t.cwd = common.NewCWD(path)
+	} else {
+		t.cwd.Set(path)
+	}
 }
 
 // GetCWD returns the current working directory
 func (t *TaskConfig) GetCWD() string {
-	return t.cwd
+	if t.cwd == nil {
+		return ""
+	}
+	return t.cwd.Get()
 }
 
 // Load loads a task configuration from a file
@@ -94,7 +101,7 @@ func Load(path string) (*TaskConfig, error) {
 
 // Validate validates the task configuration
 func (t *TaskConfig) Validate() error {
-	if t.cwd == "" {
+	if t.cwd == nil || t.cwd.Get() == "" {
 		return &TaskError{
 			Message: "Missing file path for task",
 			Code:    "MISSING_FILE_PATH",
@@ -120,7 +127,7 @@ func (t *TaskConfig) Validate() error {
 		}
 
 		// Validate the reference against the current working directory
-		if err := ref.Type.Validate(t.cwd); err != nil {
+		if err := ref.Type.Validate(t.cwd.Get()); err != nil {
 			return &TaskError{
 				Message: "Invalid package reference: " + err.Error(),
 				Code:    "INVALID_PACKAGE_REF",

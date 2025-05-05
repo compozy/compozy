@@ -31,17 +31,24 @@ type ToolConfig struct {
 	With         *common.WithParams            `json:"with,omitempty" yaml:"with,omitempty"`
 	Env          common.EnvMap                 `json:"env,omitempty" yaml:"env,omitempty"`
 
-	cwd string // internal field for current working directory
+	cwd *common.CWD // internal field for current working directory
 }
 
 // SetCWD sets the current working directory for the tool
 func (t *ToolConfig) SetCWD(path string) {
-	t.cwd = path
+	if t.cwd == nil {
+		t.cwd = common.NewCWD(path)
+	} else {
+		t.cwd.Set(path)
+	}
 }
 
 // GetCWD returns the current working directory
 func (t *ToolConfig) GetCWD() string {
-	return t.cwd
+	if t.cwd == nil {
+		return ""
+	}
+	return t.cwd.Get()
 }
 
 // Load loads a tool configuration from a file
@@ -70,7 +77,7 @@ func Load(path string) (*ToolConfig, error) {
 
 // Validate validates the tool configuration
 func (t *ToolConfig) Validate() error {
-	if t.cwd == "" {
+	if t.cwd == nil || t.cwd.Get() == "" {
 		return &ToolError{
 			Message: "Missing file path for tool",
 			Code:    "MISSING_FILE_PATH",
@@ -96,7 +103,7 @@ func (t *ToolConfig) Validate() error {
 		}
 
 		// Validate the reference against the current working directory
-		if err := ref.Type.Validate(t.cwd); err != nil {
+		if err := ref.Type.Validate(t.cwd.Get()); err != nil {
 			return &ToolError{
 				Message: "Invalid package reference: " + err.Error(),
 				Code:    "INVALID_PACKAGE_REF",
@@ -106,7 +113,7 @@ func (t *ToolConfig) Validate() error {
 
 	// Validate execute path if present
 	if t.Execute != nil {
-		executePath := filepath.Join(t.cwd, string(*t.Execute))
+		executePath := t.cwd.Join(string(*t.Execute))
 		executePath, err := filepath.Abs(executePath)
 		if err != nil {
 			return &ToolError{

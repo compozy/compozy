@@ -37,17 +37,24 @@ type WorkflowConfig struct {
 	Agents      []agent.AgentConfig   `json:"agents,omitempty" yaml:"agents,omitempty"`
 	Env         common.EnvMap         `json:"env,omitempty" yaml:"env,omitempty"`
 
-	cwd string // internal field for current working directory
+	cwd *common.CWD // internal field for current working directory
 }
 
 // SetCWD sets the current working directory for the workflow
 func (w *WorkflowConfig) SetCWD(path string) {
-	w.cwd = path
+	if w.cwd == nil {
+		w.cwd = common.NewCWD(path)
+	} else {
+		w.cwd.Set(path)
+	}
 }
 
 // GetCWD returns the current working directory
 func (w *WorkflowConfig) GetCWD() string {
-	return w.cwd
+	if w.cwd == nil {
+		return ""
+	}
+	return w.cwd.Get()
 }
 
 // Load loads a workflow configuration from a file
@@ -95,7 +102,7 @@ func (w *WorkflowConfig) AgentByRef(ref *package_ref.PackageRef) (*agent.AgentCo
 		agentID := agent.AgentID(ref.Type.Value)
 		for _, a := range w.Agents {
 			if a.ID != nil && *a.ID == agentID {
-				a.SetCWD(w.cwd)
+				a.SetCWD(w.cwd.Get())
 				return &a, nil
 			}
 		}
@@ -106,7 +113,7 @@ func (w *WorkflowConfig) AgentByRef(ref *package_ref.PackageRef) (*agent.AgentCo
 		}
 
 	case "file":
-		return agent.Load(filepath.Join(w.cwd, ref.Type.Value))
+		return agent.Load(w.cwd.Join(ref.Type.Value))
 
 	case "dep":
 		return nil, &WorkflowError{
@@ -143,7 +150,7 @@ func (w *WorkflowConfig) ToolByRef(ref *package_ref.PackageRef) (*tool.ToolConfi
 		toolID := tool.ToolID(ref.Type.Value)
 		for _, t := range w.Tools {
 			if t.ID != nil && *t.ID == toolID {
-				t.SetCWD(w.cwd)
+				t.SetCWD(w.cwd.Get())
 				return &t, nil
 			}
 		}
@@ -154,7 +161,7 @@ func (w *WorkflowConfig) ToolByRef(ref *package_ref.PackageRef) (*tool.ToolConfi
 		}
 
 	case "file":
-		return tool.Load(filepath.Join(w.cwd, ref.Type.Value))
+		return tool.Load(w.cwd.Join(ref.Type.Value))
 
 	case "dep":
 		return nil, &WorkflowError{
@@ -184,7 +191,7 @@ func (w *WorkflowConfig) TaskByRef(ref *package_ref.PackageRef) (*task.TaskConfi
 		taskID := task.TaskID(ref.Type.Value)
 		for _, t := range w.Tasks {
 			if t.ID != nil && *t.ID == taskID {
-				t.SetCWD(w.cwd)
+				t.SetCWD(w.cwd.Get())
 				return &t, nil
 			}
 		}
@@ -195,7 +202,7 @@ func (w *WorkflowConfig) TaskByRef(ref *package_ref.PackageRef) (*task.TaskConfi
 		}
 
 	case "file":
-		return task.Load(filepath.Join(w.cwd, ref.Type.Value))
+		return task.Load(w.cwd.Join(ref.Type.Value))
 
 	case "dep":
 		return nil, &WorkflowError{
@@ -213,7 +220,7 @@ func (w *WorkflowConfig) TaskByRef(ref *package_ref.PackageRef) (*task.TaskConfi
 
 // Validate validates the workflow configuration
 func (w *WorkflowConfig) Validate() error {
-	if w.cwd == "" {
+	if w.cwd == nil || w.cwd.Get() == "" {
 		return &WorkflowError{
 			Message: "Missing file path for workflow",
 			Code:    "MISSING_FILE_PATH",
