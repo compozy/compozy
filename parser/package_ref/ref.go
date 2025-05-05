@@ -1,9 +1,12 @@
 package package_ref
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 // Component represents the type of component being referenced
@@ -53,10 +56,54 @@ type RefType struct {
 	Value string
 }
 
-// Parse parses a reference type string
+// ParseRefType parses a reference type string
 func ParseRefType(typeStr, value string) (*RefType, error) {
 	switch typeStr {
-	case "id", "file", "dep":
+	case "id":
+		if strings.TrimSpace(value) == "" {
+			return nil, fmt.Errorf("reference value cannot be empty")
+		}
+		return &RefType{
+			Type:  typeStr,
+			Value: value,
+		}, nil
+	case "file":
+		return &RefType{
+			Type:  typeStr,
+			Value: value,
+		}, nil
+	case "dep":
+		// Split version if present
+		parts := strings.Split(value, "@")
+		basePart := parts[0]
+		version := ""
+		if len(parts) > 1 {
+			version = parts[1]
+		}
+
+		// Split package name if present
+		repoParts := strings.Split(basePart, ":")
+		ownerRepoPart := repoParts[0]
+		packageName := ""
+		if len(repoParts) > 1 {
+			packageName = repoParts[1]
+		}
+
+		// Split owner and repo
+		ownerRepo := strings.Split(ownerRepoPart, "/")
+		if len(ownerRepo) != 2 || ownerRepo[0] == "" || ownerRepo[1] == "" {
+			return nil, fmt.Errorf("dependency reference must include owner and repository (format: owner/repo)")
+		}
+
+		// Reconstruct the value
+		value := fmt.Sprintf("%s/%s", ownerRepo[0], ownerRepo[1])
+		if packageName != "" {
+			value = fmt.Sprintf("%s:%s", value, packageName)
+		}
+		if version != "" {
+			value = fmt.Sprintf("%s@%s", value, version)
+		}
+
 		return &RefType{
 			Type:  typeStr,
 			Value: value,
@@ -73,10 +120,27 @@ func (r *RefType) String() string {
 
 // Validate validates the reference type against a file path
 func (r *RefType) Validate(filePath string) error {
-	if r.Type == "file" {
+	switch r.Type {
+	case "id":
+		if strings.TrimSpace(r.Value) == "" {
+			return fmt.Errorf("reference value cannot be empty")
+		}
+	case "file":
 		path := filepath.Join(filepath.Dir(filePath), r.Value)
 		if !filepath.IsAbs(path) {
 			return fmt.Errorf("file path must be absolute: %s", path)
+		}
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return fmt.Errorf("file not found: %s", path)
+		}
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext != ".yaml" && ext != ".yml" {
+			return fmt.Errorf("invalid file extension: expected yaml or yml, got %s", ext)
+		}
+	case "dep":
+		parts := strings.Split(r.Value, "/")
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return fmt.Errorf("dependency reference must include non-empty owner and repository")
 		}
 	}
 	return nil
@@ -86,6 +150,52 @@ func (r *RefType) Validate(filePath string) error {
 type PackageRef struct {
 	Component Component `json:"component" yaml:"component"`
 	Type      *RefType  `json:"type" yaml:"type"`
+}
+
+// MarshalJSON implements custom JSON marshaling for PackageRef
+func (p *PackageRef) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		Component string `json:"component"`
+		Type      string `json:"type"`
+	}{
+		Component: string(p.Component),
+		Type:      p.Type.String(),
+	})
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for PackageRef
+func (p *PackageRef) UnmarshalJSON(data []byte) error {
+	aux := &struct {
+		Component string `json:"component"`
+		Type      string `json:"type"`
+	}{}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	// Validate component
+	switch aux.Component {
+	case string(ComponentAgent), string(ComponentMcp), string(ComponentTool),
+		string(ComponentTask), string(ComponentWorkflow):
+		p.Component = Component(aux.Component)
+	default:
+		return fmt.Errorf("invalid component: %s", aux.Component)
+	}
+
+	// Parse type
+	parts := strings.SplitN(aux.Type, "=", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid type format: %s", aux.Type)
+	}
+
+	refType, err := ParseRefType(parts[0], parts[1])
+	if err != nil {
+		return err
+	}
+	p.Type = refType
+
+	return nil
 }
 
 // Parse parses a package reference string into a PackageRef
@@ -128,7 +238,7 @@ type PackageRefConfig struct {
 	Use string `json:"use" yaml:"use"`
 }
 
-// New creates a new package reference configuration
+// NewPackageRefConfig creates a new package reference configuration
 func NewPackageRefConfig(value string) *PackageRefConfig {
 	return &PackageRefConfig{
 		Use: value,
