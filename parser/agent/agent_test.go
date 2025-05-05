@@ -199,7 +199,7 @@ func TestAgentConfigValidation(t *testing.T) {
 			name: "Invalid Package Reference",
 			config: &AgentConfig{
 				ID:      &agentID,
-				Use:     &package_ref.PackageRefConfig{},
+				Use:     package_ref.NewPackageRefConfig("invalid"),
 				Config:  &ProviderConfig{},
 				Tools:   []*tool.ToolConfig{},
 				Actions: []*AgentActionConfig{},

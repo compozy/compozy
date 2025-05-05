@@ -154,7 +154,7 @@ func (a *AgentConfig) Validate() error {
 
 	// Validate package reference if present
 	if a.Use != nil {
-		ref, err := a.Use.IntoRef()
+		ref, err := package_ref.Parse(string(*a.Use))
 		if err != nil {
 			return &AgentConfigError{
 				Message: "Invalid package reference: " + err.Error(),

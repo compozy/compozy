@@ -110,7 +110,7 @@ func (t *TaskConfig) Validate() error {
 
 	// Validate package reference if present
 	if t.Use != nil {
-		ref, err := t.Use.IntoRef()
+		ref, err := package_ref.Parse(string(*t.Use))
 		if err != nil {
 			return &TaskError{
 				Message: "Invalid package reference: " + err.Error(),

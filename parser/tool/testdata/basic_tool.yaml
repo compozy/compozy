@@ -1,0 +1,25 @@
+id: code-formatter
+description: A tool for formatting code
+execute: ./format.ts
+input:
+  type: object
+  properties:
+    code:
+      type: string
+      description: The code to format
+    language:
+      type: string
+      description: The programming language
+  required: [code]
+output:
+  type: object
+  properties:
+    formatted_code:
+      type: string
+      description: The formatted code
+  required: [formatted_code]
+env:
+  FORMATTER_VERSION: "1.0.0"
+with:
+  indent_size: 2
+  use_tabs: false

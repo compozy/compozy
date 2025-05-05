@@ -234,18 +234,15 @@ func (p *PackageRef) Value() string {
 }
 
 // PackageRefConfig represents a package reference configuration
-type PackageRefConfig struct {
-	Use string `json:"use" yaml:"use"`
-}
+type PackageRefConfig string
 
 // NewPackageRefConfig creates a new package reference configuration
 func NewPackageRefConfig(value string) *PackageRefConfig {
-	return &PackageRefConfig{
-		Use: value,
-	}
+	ref := PackageRefConfig(value)
+	return &ref
 }
 
 // IntoRef converts the configuration into a package reference
 func (c *PackageRefConfig) IntoRef() (*PackageRef, error) {
-	return Parse(c.Use)
+	return Parse(string(*c))
 }

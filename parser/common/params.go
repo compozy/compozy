@@ -1,9 +1,7 @@
 package common
 
 // WithParams represents parameters for a component
-type WithParams struct {
-	Params map[string]interface{} `json:"params" yaml:"params"`
-}
+type WithParams map[string]interface{}
 
 // EnvMap represents environment variables for a component
 type EnvMap map[string]string

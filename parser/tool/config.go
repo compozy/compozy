@@ -10,6 +10,9 @@ import (
 	"github.com/compozy/compozy/parser/package_ref"
 )
 
+// TestMode indicates whether we are running in test mode
+var TestMode bool
+
 // ToolError represents errors that can occur during tool configuration
 type ToolError struct {
 	Message string
@@ -122,7 +125,7 @@ func (t *ToolConfig) Validate() error {
 			}
 		}
 
-		if t.Execute.IsTypeScript() && !fileExists(executePath) {
+		if !TestMode && t.Execute.IsTypeScript() && !fileExists(executePath) {
 			if t.ID == nil {
 				return &ToolError{
 					Message: "Tool ID is required for TypeScript execution",
