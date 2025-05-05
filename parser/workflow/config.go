@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"dario.cat/mergo"
 	"gopkg.in/yaml.v3"
 
 	"github.com/compozy/compozy/parser/agent"
@@ -258,10 +259,12 @@ func (w *WorkflowConfig) Validate() error {
 
 // Merge merges another workflow configuration into this one
 func (w *WorkflowConfig) Merge(other *WorkflowConfig) error {
-	if w.Env == nil {
-		w.Env = other.Env
-	} else if other.Env != nil {
-		w.Env.Merge(other.Env)
+	// Use mergo to deep merge the configs
+	if err := mergo.Merge(w, other, mergo.WithOverride); err != nil {
+		return &WorkflowError{
+			Message: "Failed to merge workflow configs: " + err.Error(),
+			Code:    "MERGE_ERROR",
+		}
 	}
 	return nil
 }

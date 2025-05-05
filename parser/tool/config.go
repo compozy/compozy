@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"dario.cat/mergo"
 	"gopkg.in/yaml.v3"
 
 	"github.com/compozy/compozy/parser/common"
@@ -164,13 +165,12 @@ func (t *ToolConfig) Validate() error {
 
 // Merge merges another tool configuration into this one
 func (t *ToolConfig) Merge(other *ToolConfig) error {
-	if t.Env == nil {
-		t.Env = other.Env
-	} else if other.Env != nil {
-		t.Env.Merge(other.Env)
-	}
-	if t.With == nil {
-		t.With = other.With
+	// Use mergo to deep merge the configs
+	if err := mergo.Merge(t, other, mergo.WithOverride); err != nil {
+		return &ToolError{
+			Message: "Failed to merge tool configs: " + err.Error(),
+			Code:    "MERGE_ERROR",
+		}
 	}
 	return nil
 }

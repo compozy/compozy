@@ -1,0 +1,41 @@
+id: code-review
+type: decision
+decision:
+  condition: review_score
+  routes:
+    approved: deploy
+    needs_changes: update-code
+    rejected: notify-team
+input:
+  type: object
+  properties:
+    code:
+      type: string
+    review_score:
+      type: number
+  required:
+    - code
+    - review_score
+output:
+  type: object
+  properties:
+    status:
+      type: string
+    comments:
+      type: array
+      items:
+        type: object
+        properties:
+          line:
+            type: number
+          message:
+            type: string
+  required:
+    - status
+env:
+  REVIEW_THRESHOLD: "0.8"
+with:
+  min_score: 0.7
+  max_comments: 10
+on_error:
+  next: retry-task

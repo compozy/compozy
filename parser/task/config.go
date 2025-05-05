@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"dario.cat/mergo"
 	"gopkg.in/yaml.v3"
 
 	"github.com/compozy/compozy/parser/agent"
@@ -191,19 +192,12 @@ func (t *TaskConfig) Validate() error {
 
 // Merge merges another task configuration into this one
 func (t *TaskConfig) Merge(other *TaskConfig) error {
-	if t.Env == nil {
-		t.Env = other.Env
-	} else if other.Env != nil {
-		t.Env.Merge(other.Env)
-	}
-	if t.With == nil {
-		t.With = other.With
-	}
-	if t.OnSuccess == nil {
-		t.OnSuccess = other.OnSuccess
-	}
-	if t.OnError == nil {
-		t.OnError = other.OnError
+	// Use mergo to deep merge the configs
+	if err := mergo.Merge(t, other, mergo.WithOverride); err != nil {
+		return &TaskError{
+			Message: "Failed to merge task configs: " + err.Error(),
+			Code:    "MERGE_ERROR",
+		}
 	}
 	return nil
 }

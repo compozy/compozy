@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"dario.cat/mergo"
 	"gopkg.in/yaml.v3"
 
 	"github.com/compozy/compozy/parser/common"
@@ -213,13 +214,12 @@ func (a *AgentConfig) Validate() error {
 
 // Merge merges another agent configuration into this one
 func (a *AgentConfig) Merge(other *AgentConfig) error {
-	if a.Env == nil {
-		a.Env = other.Env
-	} else if other.Env != nil {
-		a.Env.Merge(other.Env)
-	}
-	if a.With == nil {
-		a.With = other.With
+	// Use mergo to deep merge the configs
+	if err := mergo.Merge(a, other, mergo.WithOverride); err != nil {
+		return &AgentConfigError{
+			Message: "Failed to merge agent configs: " + err.Error(),
+			Code:    "MERGE_ERROR",
+		}
 	}
 	return nil
 }

@@ -1,0 +1,29 @@
+id: code-format
+type: basic
+basic:
+  action: format-code
+input:
+  type: object
+  properties:
+    code:
+      type: string
+    language:
+      type: string
+  required:
+    - code
+output:
+  type: object
+  properties:
+    formatted_code:
+      type: string
+  required:
+    - formatted_code
+env:
+  FORMATTER_VERSION: "1.0.0"
+with:
+  indent_size: 2
+  use_tabs: false
+on_success:
+  next: next-task
+on_error:
+  next: retry-task

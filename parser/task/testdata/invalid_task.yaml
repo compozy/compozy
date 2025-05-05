@@ -1,0 +1,21 @@
+id: invalid-task
+type: basic
+# Missing basic configuration
+input:
+  type: object
+  properties:
+    code:
+      type: string
+  required:
+    - code
+output:
+  type: object
+  properties:
+    result:
+      type: string
+  required:
+    - result
+env:
+  VERSION: "1.0.0"
+with:
+  param1: "value1"
