@@ -1,11 +1,10 @@
 id: code-review
 type: decision
-decision:
-  condition: review_score
-  routes:
-    approved: deploy
-    needs_changes: update-code
-    rejected: notify-team
+condition: review_score
+routes:
+  approved: deploy
+  needs_changes: update-code
+  rejected: notify-team
 input:
   type: object
   properties:

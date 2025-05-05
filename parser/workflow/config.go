@@ -16,6 +16,9 @@ import (
 	"github.com/compozy/compozy/parser/trigger"
 )
 
+// TestMode is used to skip file existence checks during testing
+var TestMode bool
+
 // WorkflowError represents errors that can occur during workflow configuration
 type WorkflowError struct {
 	Message string
@@ -79,6 +82,18 @@ func Load(path string) (*WorkflowConfig, error) {
 	}
 
 	config.SetCWD(filepath.Dir(path))
+
+	// Set CWD for all components
+	for i := range config.Tasks {
+		config.Tasks[i].SetCWD(config.GetCWD())
+	}
+	for i := range config.Tools {
+		config.Tools[i].SetCWD(config.GetCWD())
+	}
+	for i := range config.Agents {
+		config.Agents[i].SetCWD(config.GetCWD())
+	}
+
 	return &config, nil
 }
 
@@ -230,6 +245,9 @@ func (w *WorkflowConfig) Validate() error {
 
 	// Validate tasks
 	for _, t := range w.Tasks {
+		if !TestMode {
+			t.SetCWD(w.cwd.Get())
+		}
 		if err := t.Validate(); err != nil {
 			return err
 		}
@@ -237,6 +255,9 @@ func (w *WorkflowConfig) Validate() error {
 
 	// Validate tools
 	for _, t := range w.Tools {
+		if !TestMode {
+			t.SetCWD(w.cwd.Get())
+		}
 		if err := t.Validate(); err != nil {
 			return err
 		}
@@ -244,8 +265,14 @@ func (w *WorkflowConfig) Validate() error {
 
 	// Validate agents
 	for _, a := range w.Agents {
+		if !TestMode {
+			a.SetCWD(w.cwd.Get())
+		}
 		if err := a.Validate(); err != nil {
-			return err
+			return &WorkflowError{
+				Message: err.Error(),
+				Code:    "AGENT_VALIDATION_ERROR",
+			}
 		}
 	}
 

@@ -1,7 +1,6 @@
 id: code-format
 type: basic
-basic:
-  action: format-code
+action: format-code
 input:
   type: object
   properties:

@@ -153,6 +153,14 @@ func (a *AgentConfig) Validate() error {
 		}
 	}
 
+	// Check required fields
+	if a.ID == nil {
+		return &AgentConfigError{
+			Message: "Agent ID is required",
+			Code:    "MISSING_AGENT_ID",
+		}
+	}
+
 	// Validate package reference if present
 	if a.Use != nil {
 		ref, err := package_ref.Parse(string(*a.Use))

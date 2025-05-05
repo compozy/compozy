@@ -59,6 +59,62 @@ type TaskConfig struct {
 	cwd *common.CWD // internal field for current working directory
 }
 
+// UnmarshalYAML implements custom YAML unmarshaling
+func (t *TaskConfig) UnmarshalYAML(value *yaml.Node) error {
+	// First, unmarshal into a temporary struct to get the type
+	type TempTaskConfig struct {
+		ID           *TaskID                             `yaml:"id,omitempty"`
+		Use          *package_ref.PackageRefConfig       `yaml:"use,omitempty"`
+		Type         TaskType                            `yaml:"type,omitempty"`
+		Action       *agent.ActionID                     `yaml:"action,omitempty"`
+		Condition    TaskCondition                       `yaml:"condition,omitempty"`
+		Routes       map[TaskRoute]TaskRoute             `yaml:"routes,omitempty"`
+		OnSuccess    *transition.SuccessTransitionConfig `yaml:"on_success,omitempty"`
+		OnError      *transition.ErrorTransitionConfig   `yaml:"on_error,omitempty"`
+		Final        *TaskFinal                          `yaml:"final,omitempty"`
+		InputSchema  *common.InputSchema                 `yaml:"input,omitempty"`
+		OutputSchema *common.OutputSchema                `yaml:"output,omitempty"`
+		With         *common.WithParams                  `yaml:"with,omitempty"`
+		Env          common.EnvMap                       `yaml:"env,omitempty"`
+	}
+
+	var temp TempTaskConfig
+	if err := value.Decode(&temp); err != nil {
+		return err
+	}
+
+	// Copy common fields
+	t.ID = temp.ID
+	t.Use = temp.Use
+	t.Type = temp.Type
+	t.OnSuccess = temp.OnSuccess
+	t.OnError = temp.OnError
+	t.Final = temp.Final
+	t.InputSchema = temp.InputSchema
+	t.OutputSchema = temp.OutputSchema
+	t.With = temp.With
+	t.Env = temp.Env
+
+	// Map type-specific fields to the appropriate config
+	switch temp.Type {
+	case TaskTypeBasic:
+		if temp.Action != nil {
+			t.Basic = &BasicTaskConfig{
+				Action: temp.Action,
+			}
+		}
+	case TaskTypeDecision:
+		if temp.Condition != "" || len(temp.Routes) > 0 {
+			t.Decision = &DecisionTaskConfig{
+				Condition: temp.Condition,
+				Routes:    temp.Routes,
+			}
+		}
+	}
+
+	return nil
+}
+
 // SetCWD sets the current working directory for the task
 func (t *TaskConfig) SetCWD(path string) {
 	if t.cwd == nil {
@@ -119,10 +175,10 @@ func (t *TaskConfig) Validate() error {
 			}
 		}
 
-		// Validate that it's a task reference
-		if !ref.Component.IsTask() {
+		// Validate that it's a valid component type
+		if !ref.Component.IsTask() && !ref.Component.IsAgent() && !ref.Component.IsTool() {
 			return &TaskError{
-				Message: "Package reference must be a task",
+				Message: "Package reference must be a task, agent, or tool",
 				Code:    "INVALID_COMPONENT_TYPE",
 			}
 		}
