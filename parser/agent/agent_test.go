@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/parser/common"
 	"github.com/compozy/compozy/parser/package_ref"
 	"github.com/compozy/compozy/parser/testutils"
+	"github.com/compozy/compozy/parser/tool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -197,9 +198,12 @@ func TestAgentConfigValidation(t *testing.T) {
 		{
 			name: "Invalid Package Reference",
 			config: &AgentConfig{
-				ID:         &agentID,
-				PackageRef: &package_ref.PackageRefConfig{},
-				cwd:        common.NewCWD("/test/path"),
+				ID:      &agentID,
+				Use:     &package_ref.PackageRefConfig{},
+				Config:  &ProviderConfig{},
+				Tools:   []*tool.ToolConfig{},
+				Actions: []*AgentActionConfig{},
+				cwd:     common.NewCWD("/test/path"),
 			},
 			wantErr: true,
 			errMsg:  "Invalid package reference",

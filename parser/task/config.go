@@ -43,7 +43,7 @@ type DecisionTaskConfig struct {
 // TaskConfig represents a task configuration
 type TaskConfig struct {
 	ID           *TaskID                             `json:"id,omitempty" yaml:"id,omitempty"`
-	PackageRef   *package_ref.PackageRefConfig       `json:"package_ref,omitempty" yaml:"package_ref,omitempty"`
+	Use          *package_ref.PackageRefConfig       `json:"use,omitempty" yaml:"use,omitempty"`
 	Type         TaskType                            `json:"type,omitempty" yaml:"type,omitempty"`
 	Basic        *BasicTaskConfig                    `json:"basic,omitempty" yaml:"basic,omitempty"`
 	Decision     *DecisionTaskConfig                 `json:"decision,omitempty" yaml:"decision,omitempty"`
@@ -109,8 +109,8 @@ func (t *TaskConfig) Validate() error {
 	}
 
 	// Validate package reference if present
-	if t.PackageRef != nil {
-		ref, err := t.PackageRef.IntoRef()
+	if t.Use != nil {
+		ref, err := t.Use.IntoRef()
 		if err != nil {
 			return &TaskError{
 				Message: "Invalid package reference: " + err.Error(),

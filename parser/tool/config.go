@@ -25,7 +25,7 @@ type ToolConfig struct {
 	ID           *ToolID                       `json:"id,omitempty" yaml:"id,omitempty"`
 	Description  *ToolDescription              `json:"description,omitempty" yaml:"description,omitempty"`
 	Execute      *ToolExecute                  `json:"execute,omitempty" yaml:"execute,omitempty"`
-	PackageRef   *package_ref.PackageRefConfig `json:"package_ref,omitempty" yaml:"package_ref,omitempty"`
+	Use          *package_ref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
 	InputSchema  *common.InputSchema           `json:"input,omitempty" yaml:"input,omitempty"`
 	OutputSchema *common.OutputSchema          `json:"output,omitempty" yaml:"output,omitempty"`
 	With         *common.WithParams            `json:"with,omitempty" yaml:"with,omitempty"`
@@ -85,8 +85,8 @@ func (t *ToolConfig) Validate() error {
 	}
 
 	// Validate package reference if present
-	if t.PackageRef != nil {
-		ref, err := t.PackageRef.IntoRef()
+	if t.Use != nil {
+		ref, err := t.Use.IntoRef()
 		if err != nil {
 			return &ToolError{
 				Message: "Invalid package reference: " + err.Error(),

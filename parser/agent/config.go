@@ -84,7 +84,7 @@ func (a *AgentActionConfig) Validate() error {
 // AgentConfig represents an agent configuration
 type AgentConfig struct {
 	ID           *AgentID                      `json:"id,omitempty" yaml:"id,omitempty"`
-	PackageRef   *package_ref.PackageRefConfig `json:"package_ref,omitempty" yaml:"package_ref,omitempty"`
+	Use          *package_ref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
 	Config       *ProviderConfig               `json:"config,omitempty" yaml:"config,omitempty"`
 	Instructions *Instructions                 `json:"instructions,omitempty" yaml:"instructions,omitempty"`
 	Tools        []*tool.ToolConfig            `json:"tools,omitempty" yaml:"tools,omitempty"`
@@ -153,8 +153,8 @@ func (a *AgentConfig) Validate() error {
 	}
 
 	// Validate package reference if present
-	if a.PackageRef != nil {
-		ref, err := a.PackageRef.IntoRef()
+	if a.Use != nil {
+		ref, err := a.Use.IntoRef()
 		if err != nil {
 			return &AgentConfigError{
 				Message: "Invalid package reference: " + err.Error(),
