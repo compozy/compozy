@@ -184,7 +184,7 @@ func TestWorkflowConfigValidation(t *testing.T) {
 				ID: workflowID,
 			},
 			wantErr: true,
-			errMsg:  "Missing file path for workflow",
+			errMsg:  "Current working directory is required for test-workflow",
 		},
 		{
 			name: "Invalid Task",
@@ -192,6 +192,7 @@ func TestWorkflowConfigValidation(t *testing.T) {
 				ID: workflowID,
 				Tasks: []task.TaskConfig{
 					{
+						ID:   func() *task.TaskID { id := task.TaskID("test-task"); return &id }(),
 						Type: task.TaskTypeBasic,
 					},
 				},
@@ -212,6 +213,7 @@ func TestWorkflowConfigValidation(t *testing.T) {
 				ID: workflowID,
 				Tools: []tool.ToolConfig{
 					{
+						ID:      func() *tool.ToolID { id := tool.ToolID("test-tool"); return &id }(),
 						Execute: func() *tool.ToolExecute { e := tool.ToolExecute("./test.ts"); return &e }(),
 					},
 				},
@@ -224,7 +226,7 @@ func TestWorkflowConfigValidation(t *testing.T) {
 				cwd: common.NewCWD("/test/path"),
 			},
 			wantErr: true,
-			errMsg:  "Tool ID is required for TypeScript execution",
+			errMsg:  "Invalid tool execute path",
 		},
 		{
 			name: "Invalid Agent",
@@ -232,7 +234,7 @@ func TestWorkflowConfigValidation(t *testing.T) {
 				ID: workflowID,
 				Agents: []agent.AgentConfig{
 					{
-						// Empty agent config should trigger validation error
+						ID: func() *agent.AgentID { id := agent.AgentID("test-agent"); return &id }(),
 					},
 				},
 				Trigger: trigger.TriggerConfig{
@@ -244,7 +246,7 @@ func TestWorkflowConfigValidation(t *testing.T) {
 				cwd: common.NewCWD("/test/path"),
 			},
 			wantErr: true,
-			errMsg:  "Agent ID is required",
+			errMsg:  "Agent validation error: Key: 'AgentConfig.Config' Error:Field validation for 'Config' failed on the 'required' tag\nKey: 'AgentConfig.Instructions' Error:Field validation for 'Instructions' failed on the 'required' tag",
 		},
 	}
 

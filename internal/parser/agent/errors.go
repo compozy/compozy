@@ -9,7 +9,6 @@ const (
 	ErrCodeFileOpen             = "FILE_OPEN_ERROR"
 	ErrCodeDecode               = "DECODE_ERROR"
 	ErrCodeMissingPath          = "MISSING_FILE_PATH"
-	ErrCodeMissingAgentID       = "MISSING_AGENT_ID"
 	ErrCodeInvalidPackageRef    = "INVALID_PACKAGE_REF"
 	ErrCodeInvalidComponentType = "INVALID_COMPONENT_TYPE"
 	ErrCodeInvalidInputSchema   = "INVALID_INPUT_SCHEMA"
@@ -22,7 +21,6 @@ const (
 	ErrMsgFileOpen             = "Failed to open agent config file: %s"
 	ErrMsgDecode               = "Failed to decode agent config: %s"
 	ErrMsgMissingPath          = "Missing file path for agent: %s"
-	ErrMsgMissingAgentID       = "Agent ID is required"
 	ErrMsgInvalidPackageRef    = "Invalid package reference: %s"
 	ErrMsgInvalidComponentType = "Package reference must be an agent"
 	ErrMsgInvalidInputSchema   = "Invalid input schema: %s"
@@ -67,10 +65,6 @@ func NewDecodeError(err error) *AgentConfigError {
 
 func NewMissingPathError(action string) *AgentConfigError {
 	return NewErrorf(ErrCodeMissingPath, ErrMsgMissingPath, action)
-}
-
-func NewMissingAgentIDError() *AgentConfigError {
-	return NewError(ErrCodeMissingAgentID, ErrMsgMissingAgentID)
 }
 
 func NewInvalidPackageRefError(err error) *AgentConfigError {

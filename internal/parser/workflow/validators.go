@@ -8,22 +8,6 @@ import (
 	"github.com/compozy/compozy/internal/parser/trigger"
 )
 
-// CWDValidator validates the current working directory
-type CWDValidator struct {
-	cwd *common.CWD
-}
-
-func NewCWDValidator(cwd *common.CWD) *CWDValidator {
-	return &CWDValidator{cwd: cwd}
-}
-
-func (v *CWDValidator) Validate() error {
-	if v.cwd == nil || v.cwd.Get() == "" {
-		return NewMissingPathError()
-	}
-	return nil
-}
-
 // ComponentsValidator validates a list of components
 type ComponentsValidator struct {
 	components []common.ComponentConfig
@@ -39,9 +23,6 @@ func NewComponentsValidator(components []common.ComponentConfig, cwd *common.CWD
 
 func (v *ComponentsValidator) Validate() error {
 	for _, c := range v.components {
-		if !TestMode {
-			c.SetCWD(v.cwd.Get())
-		}
 		if err := c.Validate(); err != nil {
 			switch c.(type) {
 			case *agent.AgentConfig:

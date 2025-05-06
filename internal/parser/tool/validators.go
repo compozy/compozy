@@ -8,22 +8,6 @@ import (
 	"github.com/compozy/compozy/internal/parser/package_ref"
 )
 
-// CWDValidator validates the current working directory
-type CWDValidator struct {
-	cwd *common.CWD
-}
-
-func NewCWDValidator(cwd *common.CWD) *CWDValidator {
-	return &CWDValidator{cwd: cwd}
-}
-
-func (v *CWDValidator) Validate() error {
-	if v.cwd == nil || v.cwd.Get() == "" {
-		return NewMissingPathError()
-	}
-	return nil
-}
-
 // PackageRefValidator validates the package reference
 type PackageRefValidator struct {
 	pkgRef *package_ref.PackageRefConfig
@@ -83,28 +67,6 @@ func (v *ExecuteValidator) Validate() error {
 		return NewInvalidToolExecuteError(executePath)
 	}
 	return nil
-}
-
-// SchemaValidator validates input/output schemas
-type SchemaValidator struct {
-	schema interface{ Validate() error }
-}
-
-func NewSchemaValidator(schema interface{ Validate() error }) *SchemaValidator {
-	return &SchemaValidator{schema: schema}
-}
-
-func (v *SchemaValidator) Validate() error {
-	if v.schema == nil {
-		return nil
-	}
-	if s, ok := v.schema.(*common.InputSchema); ok && s == nil {
-		return nil
-	}
-	if s, ok := v.schema.(*common.OutputSchema); ok && s == nil {
-		return nil
-	}
-	return v.schema.Validate()
 }
 
 // Helper function to check if a file exists

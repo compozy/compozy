@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/package_ref"
 	"github.com/compozy/compozy/internal/parser/tool"
+	v "github.com/compozy/compozy/internal/parser/validator"
 )
 
 // AgentActionConfig represents an agent action configuration
@@ -44,19 +45,18 @@ func (a *AgentActionConfig) GetCWD() string {
 // Validate validates the action configuration
 func (a *AgentActionConfig) Validate() error {
 	validator := common.NewCompositeValidator(
-		NewCWDValidator(a.cwd, (*AgentID)(&a.ID)),
-		NewSchemaValidator(a.InputSchema),
-		NewSchemaValidator(a.OutputSchema),
+		v.NewCWDValidator(a.cwd, string(a.ID)),
+		common.NewStructValidator(a),
 	)
 	return validator.Validate()
 }
 
 // AgentConfig represents an agent configuration
 type AgentConfig struct {
-	ID           *AgentID                      `json:"id,omitempty" yaml:"id,omitempty"`
+	ID           *AgentID                      `json:"id,omitempty" yaml:"id,omitempty" validate:"required"`
 	Use          *package_ref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
-	Config       *ProviderConfig               `json:"config,omitempty" yaml:"config,omitempty"`
-	Instructions *Instructions                 `json:"instructions,omitempty" yaml:"instructions,omitempty"`
+	Config       *ProviderConfig               `json:"config,omitempty" yaml:"config,omitempty" validate:"required"`
+	Instructions *Instructions                 `json:"instructions,omitempty" yaml:"instructions,omitempty" validate:"required"`
 	Tools        []*tool.ToolConfig            `json:"tools,omitempty" yaml:"tools,omitempty"`
 	Actions      []*AgentActionConfig          `json:"actions,omitempty" yaml:"actions,omitempty"`
 	InputSchema  *common.InputSchema           `json:"input,omitempty" yaml:"input,omitempty"`
@@ -109,13 +109,12 @@ func Load(path string) (*AgentConfig, error) {
 
 // Validate validates the agent configuration
 func (a *AgentConfig) Validate() error {
+	// Create a composite validator that combines both custom and struct validation
 	validator := common.NewCompositeValidator(
-		NewCWDValidator(a.cwd, a.ID),
-		NewIDValidator(a.ID),
+		v.NewCWDValidator(a.cwd, string(*a.ID)),
 		NewPackageRefValidator(a.Use, a.cwd),
-		NewSchemaValidator(a.InputSchema),
-		NewSchemaValidator(a.OutputSchema),
 		NewActionsValidator(a.Actions),
+		common.NewStructValidator(a),
 	)
 	return validator.Validate()
 }

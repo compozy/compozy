@@ -114,7 +114,7 @@ func TestAgentActionConfigValidation(t *testing.T) {
 				Prompt: "test prompt",
 			},
 			wantErr: true,
-			errMsg:  "Missing file path for agent: test-action",
+			errMsg:  "Current working directory is required for test-action",
 		},
 	}
 
@@ -182,18 +182,22 @@ func TestAgentConfigValidation(t *testing.T) {
 		{
 			name: "Valid Config",
 			config: &AgentConfig{
-				ID:  &agentID,
-				cwd: common.NewCWD("/test/path"),
+				ID:           &agentID,
+				Config:       &ProviderConfig{},
+				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
+				cwd:          common.NewCWD("/test/path"),
 			},
 			wantErr: false,
 		},
 		{
 			name: "Missing CWD",
 			config: &AgentConfig{
-				ID: &agentID,
+				ID:           &agentID,
+				Config:       &ProviderConfig{},
+				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
 			},
 			wantErr: true,
-			errMsg:  "Missing file path for agent: test-agent",
+			errMsg:  "Current working directory is required",
 		},
 		{
 			name: "Invalid Package Reference",

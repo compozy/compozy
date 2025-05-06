@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/package_ref"
 	"github.com/compozy/compozy/internal/parser/transition"
+	v "github.com/compozy/compozy/internal/parser/validator"
 )
 
 type TaskType string
@@ -84,10 +85,8 @@ func Load(path string) (*TaskConfig, error) {
 // Validate validates the task configuration
 func (t *TaskConfig) Validate() error {
 	validator := common.NewCompositeValidator(
-		NewCWDValidator(t.cwd),
+		v.NewCWDValidator(t.cwd, string(*t.ID)),
 		NewPackageRefValidator(t.Use, t.cwd),
-		NewSchemaValidator(t.InputSchema),
-		NewSchemaValidator(t.OutputSchema),
 		NewTaskTypeValidator(t.Type, t.Action, t.Condition, t.Routes),
 	)
 	return validator.Validate()

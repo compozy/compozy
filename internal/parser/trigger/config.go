@@ -30,7 +30,6 @@ type TriggerConfig struct {
 func (t *TriggerConfig) Validate() error {
 	validator := common.NewCompositeValidator(
 		NewTriggerTypeValidator(t.Type, t.Webhook),
-		NewSchemaValidator(t.InputSchema),
 	)
 	return validator.Validate()
 }

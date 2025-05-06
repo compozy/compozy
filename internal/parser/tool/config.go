@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/package_ref"
+	v "github.com/compozy/compozy/internal/parser/validator"
 )
 
 // TestMode indicates whether we are running in test mode
@@ -67,11 +68,9 @@ func Load(path string) (*ToolConfig, error) {
 // Validate validates the tool configuration
 func (t *ToolConfig) Validate() error {
 	validator := common.NewCompositeValidator(
-		NewCWDValidator(t.cwd),
+		v.NewCWDValidator(t.cwd, string(*t.ID)),
 		NewPackageRefValidator(t.Use, t.cwd),
 		NewExecuteValidator(t.Execute, t.cwd).WithID(t.ID),
-		NewSchemaValidator(t.InputSchema),
-		NewSchemaValidator(t.OutputSchema),
 	)
 	return validator.Validate()
 }

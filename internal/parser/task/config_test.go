@@ -226,7 +226,7 @@ func TestTaskConfigValidation(t *testing.T) {
 				ID: &taskID,
 			},
 			wantErr: true,
-			errMsg:  "Missing file path for task",
+			errMsg:  "Current working directory is required for test-task",
 		},
 		{
 			name: "Invalid Package Reference",

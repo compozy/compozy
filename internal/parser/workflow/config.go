@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/parser/task"
 	"github.com/compozy/compozy/internal/parser/tool"
 	"github.com/compozy/compozy/internal/parser/trigger"
+	v "github.com/compozy/compozy/internal/parser/validator"
 )
 
 // TestMode is used to skip file existence checks during testing
@@ -187,7 +188,7 @@ func (w *WorkflowConfig) TaskByRef(ref *package_ref.PackageRef) (*task.TaskConfi
 func (w *WorkflowConfig) Validate() error {
 	// Validate CWD
 	validator := common.NewCompositeValidator(
-		NewCWDValidator(w.cwd),
+		v.NewCWDValidator(w.cwd, string(w.ID)),
 	)
 	if err := validator.Validate(); err != nil {
 		return err
@@ -196,6 +197,7 @@ func (w *WorkflowConfig) Validate() error {
 	// Validate tasks
 	var taskComponents []common.ComponentConfig
 	for i := range w.Tasks {
+		w.Tasks[i].SetCWD(w.cwd.Get())
 		taskComponents = append(taskComponents, &w.Tasks[i])
 	}
 	if err := NewComponentsValidator(taskComponents, w.cwd).Validate(); err != nil {
@@ -205,6 +207,7 @@ func (w *WorkflowConfig) Validate() error {
 	// Validate tools
 	var toolComponents []common.ComponentConfig
 	for i := range w.Tools {
+		w.Tools[i].SetCWD(w.cwd.Get())
 		toolComponents = append(toolComponents, &w.Tools[i])
 	}
 	if err := NewComponentsValidator(toolComponents, w.cwd).Validate(); err != nil {
@@ -214,6 +217,7 @@ func (w *WorkflowConfig) Validate() error {
 	// Validate agents
 	var agentComponents []common.ComponentConfig
 	for i := range w.Agents {
+		w.Agents[i].SetCWD(w.cwd.Get())
 		agentComponents = append(agentComponents, &w.Agents[i])
 	}
 	if err := NewComponentsValidator(agentComponents, w.cwd).Validate(); err != nil {

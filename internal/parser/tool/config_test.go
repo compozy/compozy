@@ -204,7 +204,7 @@ func TestToolConfigValidation(t *testing.T) {
 				ID: &toolID,
 			},
 			wantErr: true,
-			errMsg:  "Missing file path for tool",
+			errMsg:  "Current working directory is required for test-tool",
 		},
 		{
 			name: "Invalid Package Reference",
