@@ -43,25 +43,12 @@ func (a *AgentActionConfig) GetCWD() string {
 
 // Validate validates the action configuration
 func (a *AgentActionConfig) Validate() error {
-	if a.cwd == nil || a.cwd.Get() == "" {
-		return NewMissingPathError(string(a.ID))
-	}
-
-	// Validate input schema if present
-	if a.InputSchema != nil {
-		if err := a.InputSchema.Validate(); err != nil {
-			return NewInvalidInputSchemaError(err)
-		}
-	}
-
-	// Validate output schema if present
-	if a.OutputSchema != nil {
-		if err := a.OutputSchema.Validate(); err != nil {
-			return NewInvalidOutputSchemaError(err)
-		}
-	}
-
-	return nil
+	validator := common.NewCompositeValidator(
+		NewCWDValidator(a.cwd, (*AgentID)(&a.ID)),
+		NewSchemaValidator(a.InputSchema),
+		NewSchemaValidator(a.OutputSchema),
+	)
+	return validator.Validate()
 }
 
 // AgentConfig represents an agent configuration
@@ -122,88 +109,15 @@ func Load(path string) (*AgentConfig, error) {
 
 // Validate validates the agent configuration
 func (a *AgentConfig) Validate() error {
-	if err := a.validateCWD(); err != nil {
-		return err
-	}
-	if err := a.validateID(); err != nil {
-		return err
-	}
-	if err := a.validatePackageRef(); err != nil {
-		return err
-	}
-	if err := a.validateInputSchema(); err != nil {
-		return err
-	}
-	if err := a.validateOutputSchema(); err != nil {
-		return err
-	}
-	if err := a.validateActions(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (a *AgentConfig) validateCWD() error {
-	if a.cwd == nil || a.cwd.Get() == "" {
-		return NewMissingPathError(string(*a.ID))
-	}
-	return nil
-}
-
-func (a *AgentConfig) validateID() error {
-	if a.ID == nil {
-		return NewMissingAgentIDError()
-	}
-	return nil
-}
-
-func (a *AgentConfig) validatePackageRef() error {
-	if a.Use == nil {
-		return nil
-	}
-	ref, err := package_ref.Parse(string(*a.Use))
-	if err != nil {
-		return NewInvalidPackageRefError(err)
-	}
-	if !ref.Component.IsAgent() {
-		return NewInvalidComponentTypeError()
-	}
-	if err := ref.Type.Validate(a.cwd.Get()); err != nil {
-		return NewInvalidPackageRefError(err)
-	}
-	return nil
-}
-
-func (a *AgentConfig) validateInputSchema() error {
-	if a.InputSchema == nil {
-		return nil
-	}
-	if err := a.InputSchema.Validate(); err != nil {
-		return NewInvalidInputSchemaError(err)
-	}
-	return nil
-}
-
-func (a *AgentConfig) validateOutputSchema() error {
-	if a.OutputSchema == nil {
-		return nil
-	}
-	if err := a.OutputSchema.Validate(); err != nil {
-		return NewInvalidOutputSchemaError(err)
-	}
-	return nil
-}
-
-func (a *AgentConfig) validateActions() error {
-	if a.Actions == nil {
-		return nil
-	}
-	for _, action := range a.Actions {
-		if err := action.Validate(); err != nil {
-			return err
-		}
-	}
-	return nil
+	validator := common.NewCompositeValidator(
+		NewCWDValidator(a.cwd, a.ID),
+		NewIDValidator(a.ID),
+		NewPackageRefValidator(a.Use, a.cwd),
+		NewSchemaValidator(a.InputSchema),
+		NewSchemaValidator(a.OutputSchema),
+		NewActionsValidator(a.Actions),
+	)
+	return validator.Validate()
 }
 
 // Merge merges another agent configuration into this one

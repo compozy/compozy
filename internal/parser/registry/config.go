@@ -64,23 +64,10 @@ func Load(path string) (*RegistryConfig, error) {
 
 // Validate validates the registry configuration
 func (r *RegistryConfig) Validate() error {
-	if r.cwd == nil || r.cwd.Get() == "" {
-		return NewMissingPathError()
-	}
-
-	// Validate component type
-	switch r.Type {
-	case ComponentTypeAgent, ComponentTypeTool, ComponentTypeTask:
-		// Valid types
-	default:
-		return NewInvalidTypeError(string(r.Type))
-	}
-
-	// Validate main path exists
-	mainPath := r.cwd.Join(string(r.Main))
-	if _, err := os.Stat(mainPath); os.IsNotExist(err) {
-		return NewMainPathNotFoundError(string(r.Main))
-	}
-
-	return nil
+	validator := common.NewCompositeValidator(
+		NewCWDValidator(r.cwd),
+		NewComponentTypeValidator(r.Type),
+		NewMainPathValidator(r.cwd, r.Main),
+	)
+	return validator.Validate()
 }

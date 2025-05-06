@@ -83,88 +83,14 @@ func Load(path string) (*TaskConfig, error) {
 
 // Validate validates the task configuration
 func (t *TaskConfig) Validate() error {
-	if err := t.validateCWD(); err != nil {
-		return err
-	}
-	if err := t.validatePackageRef(); err != nil {
-		return err
-	}
-	if err := t.validateInputSchema(); err != nil {
-		return err
-	}
-	if err := t.validateOutputSchema(); err != nil {
-		return err
-	}
-	if err := t.validateTaskType(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (t *TaskConfig) validateCWD() error {
-	if t.cwd == nil || t.cwd.Get() == "" {
-		return NewMissingPathError()
-	}
-	return nil
-}
-
-func (t *TaskConfig) validatePackageRef() error {
-	if t.Use == nil {
-		return nil
-	}
-	ref, err := package_ref.Parse(string(*t.Use))
-	if err != nil {
-		return NewInvalidPackageRefError(err)
-	}
-	if !ref.Component.IsTask() && !ref.Component.IsAgent() && !ref.Component.IsTool() {
-		return NewInvalidTypeError()
-	}
-	if err := ref.Type.Validate(t.cwd.Get()); err != nil {
-		return NewInvalidPackageRefError(err)
-	}
-	return nil
-}
-
-func (t *TaskConfig) validateInputSchema() error {
-	if t.InputSchema == nil {
-		return nil
-	}
-	if err := t.InputSchema.Validate(); err != nil {
-		return NewInvalidInputSchemaError(err)
-	}
-	return nil
-}
-
-func (t *TaskConfig) validateOutputSchema() error {
-	if t.OutputSchema == nil {
-		return nil
-	}
-	if err := t.OutputSchema.Validate(); err != nil {
-		return NewInvalidOutputSchemaError(err)
-	}
-	return nil
-}
-
-func (t *TaskConfig) validateTaskType() error {
-	if t.Type == "" {
-		return nil
-	}
-	switch t.Type {
-	case TaskTypeBasic:
-		if t.Action == nil {
-			return NewInvalidTaskTypeError("Basic task configuration is required for basic task type")
-		}
-	case TaskTypeDecision:
-		if t.Condition == "" && len(t.Routes) == 0 {
-			return NewInvalidTaskTypeError("Decision task configuration is required for decision task type")
-		}
-		if len(t.Routes) == 0 {
-			return NewInvalidDecisionTaskError()
-		}
-	default:
-		return NewInvalidTaskTypeError(string(t.Type))
-	}
-	return nil
+	validator := common.NewCompositeValidator(
+		NewCWDValidator(t.cwd),
+		NewPackageRefValidator(t.Use, t.cwd),
+		NewSchemaValidator(t.InputSchema),
+		NewSchemaValidator(t.OutputSchema),
+		NewTaskTypeValidator(t.Type, t.Action, t.Condition, t.Routes),
+	)
+	return validator.Validate()
 }
 
 // Merge merges another task configuration into this one

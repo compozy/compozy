@@ -6,20 +6,24 @@ import (
 
 // Error codes
 const (
-	ErrCodeFileOpen     = "FILE_OPEN_ERROR"
-	ErrCodeDecode       = "DECODE_ERROR"
-	ErrCodeMissingPath  = "MISSING_FILE_PATH"
-	ErrCodeNoWorkflows  = "NO_WORKFLOWS_DEFINED"
-	ErrCodeWorkflowLoad = "WORKFLOW_LOAD_ERROR"
+	ErrCodeFileOpen        = "FILE_OPEN_ERROR"
+	ErrCodeDecode          = "DECODE_ERROR"
+	ErrCodeMissingPath     = "MISSING_FILE_PATH"
+	ErrCodeNoWorkflows     = "NO_WORKFLOWS_DEFINED"
+	ErrCodeWorkflowLoad    = "WORKFLOW_LOAD_ERROR"
+	ErrCodeInvalidEnv      = "INVALID_ENVIRONMENT"
+	ErrCodeInvalidLogLevel = "INVALID_LOG_LEVEL"
 )
 
 // Error messages
 const (
-	ErrMsgFileOpen     = "Failed to open project config file: %s"
-	ErrMsgDecode       = "Failed to decode project config: %s"
-	ErrMsgMissingPath  = "Missing file path for project"
-	ErrMsgNoWorkflows  = "No workflows defined in project"
-	ErrMsgWorkflowLoad = "Failed to load workflow: %s"
+	ErrMsgFileOpen        = "Failed to open project config file: %s"
+	ErrMsgDecode          = "Failed to decode project config: %s"
+	ErrMsgMissingPath     = "Missing file path for project"
+	ErrMsgNoWorkflows     = "No workflows defined in project"
+	ErrMsgWorkflowLoad    = "Failed to load workflow: %s"
+	ErrMsgInvalidEnv      = "Invalid environment configuration: %s"
+	ErrMsgInvalidLogLevel = "Invalid log level: %s"
 )
 
 // ProjectError represents errors that can occur during project configuration
@@ -67,4 +71,12 @@ func NewNoWorkflowsError() *ProjectError {
 
 func NewWorkflowLoadError(err error) *ProjectError {
 	return NewErrorf(ErrCodeWorkflowLoad, ErrMsgWorkflowLoad, err.Error())
+}
+
+func NewInvalidEnvironmentError(envName string) *ProjectError {
+	return NewErrorf(ErrCodeInvalidEnv, ErrMsgInvalidEnv, envName)
+}
+
+func NewInvalidLogLevelError(level string) *ProjectError {
+	return NewErrorf(ErrCodeInvalidLogLevel, ErrMsgInvalidLogLevel, level)
 }

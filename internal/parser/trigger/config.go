@@ -28,39 +28,9 @@ type TriggerConfig struct {
 
 // Validate validates the trigger configuration
 func (t *TriggerConfig) Validate() error {
-	switch t.Type {
-	case TriggerTypeWebhook:
-		if t.Webhook == nil {
-			return &TriggerError{
-				Message: "Webhook configuration is required for webhook trigger type",
-				Code:    "INVALID_TRIGGER_TYPE",
-			}
-		}
-	default:
-		return &TriggerError{
-			Message: "Invalid trigger type: " + string(t.Type),
-			Code:    "INVALID_TRIGGER_TYPE",
-		}
-	}
-
-	if t.InputSchema != nil {
-		if err := t.InputSchema.Validate(); err != nil {
-			return &TriggerError{
-				Message: "Invalid input schema: " + err.Error(),
-				Code:    "INVALID_INPUT_SCHEMA",
-			}
-		}
-	}
-
-	return nil
-}
-
-// TriggerError represents errors that can occur during trigger configuration
-type TriggerError struct {
-	Message string
-	Code    string
-}
-
-func (e *TriggerError) Error() string {
-	return e.Message
+	validator := common.NewCompositeValidator(
+		NewTriggerTypeValidator(t.Type, t.Webhook),
+		NewSchemaValidator(t.InputSchema),
+	)
+	return validator.Validate()
 }

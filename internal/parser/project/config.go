@@ -72,15 +72,13 @@ func Load(path string) (*ProjectConfig, error) {
 
 // Validate validates the project configuration
 func (p *ProjectConfig) Validate() error {
-	if p.cwd == nil || p.cwd.Get() == "" {
-		return NewMissingPathError()
-	}
-
-	if len(p.Workflows) == 0 {
-		return NewNoWorkflowsError()
-	}
-
-	return nil
+	validator := common.NewCompositeValidator(
+		NewCWDValidator(p.cwd),
+		NewWorkflowsValidator(p.Workflows),
+		NewEnvironmentsValidator(p.Environments),
+		NewDependenciesValidator(p.Dependencies),
+	)
+	return validator.Validate()
 }
 
 // WorkflowsFromSources loads all workflow configurations from their sources

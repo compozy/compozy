@@ -183,58 +183,45 @@ func (w *WorkflowConfig) TaskByRef(ref *package_ref.PackageRef) (*task.TaskConfi
 	}
 }
 
-func validateComponents(w *WorkflowConfig, components []common.ComponentConfig) error {
-	for _, c := range components {
-		if !TestMode {
-			c.SetCWD(w.cwd.Get())
-		}
-		if err := c.Validate(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func validateTrigger(trigger trigger.TriggerConfig) error {
-	if err := trigger.Validate(); err != nil {
-		return NewTriggerValidationError(err)
-	}
-	return nil
-}
-
 // Validate validates the workflow configuration
 func (w *WorkflowConfig) Validate() error {
-	if w.cwd == nil || w.cwd.Get() == "" {
-		return NewMissingPathError()
+	// Validate CWD
+	validator := common.NewCompositeValidator(
+		NewCWDValidator(w.cwd),
+	)
+	if err := validator.Validate(); err != nil {
+		return err
 	}
 
-	// Use the helper functions for validation
+	// Validate tasks
 	var taskComponents []common.ComponentConfig
-	for _, t := range w.Tasks {
-		taskComponents = append(taskComponents, &t)
+	for i := range w.Tasks {
+		taskComponents = append(taskComponents, &w.Tasks[i])
 	}
-	if err := validateComponents(w, taskComponents); err != nil {
-		return err
-	}
-	var toolComponents []common.ComponentConfig
-	for _, t := range w.Tools {
-		toolComponents = append(toolComponents, &t)
-	}
-	if err := validateComponents(w, toolComponents); err != nil {
-		return err
-	}
-	var agentComponents []common.ComponentConfig
-	for _, a := range w.Agents {
-		agentComponents = append(agentComponents, &a)
-	}
-	if err := validateComponents(w, agentComponents); err != nil {
-		return err
-	}
-	if err := validateTrigger(w.Trigger); err != nil {
+	if err := NewComponentsValidator(taskComponents, w.cwd).Validate(); err != nil {
 		return err
 	}
 
-	return nil
+	// Validate tools
+	var toolComponents []common.ComponentConfig
+	for i := range w.Tools {
+		toolComponents = append(toolComponents, &w.Tools[i])
+	}
+	if err := NewComponentsValidator(toolComponents, w.cwd).Validate(); err != nil {
+		return err
+	}
+
+	// Validate agents
+	var agentComponents []common.ComponentConfig
+	for i := range w.Agents {
+		agentComponents = append(agentComponents, &w.Agents[i])
+	}
+	if err := NewComponentsValidator(agentComponents, w.cwd).Validate(); err != nil {
+		return err
+	}
+
+	// Validate trigger
+	return NewTriggerValidator(w.Trigger).Validate()
 }
 
 // Merge merges another workflow configuration into this one

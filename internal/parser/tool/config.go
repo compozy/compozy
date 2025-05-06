@@ -66,84 +66,14 @@ func Load(path string) (*ToolConfig, error) {
 
 // Validate validates the tool configuration
 func (t *ToolConfig) Validate() error {
-	if err := t.validateCWD(); err != nil {
-		return err
-	}
-	if err := t.validatePackageRef(); err != nil {
-		return err
-	}
-	if err := t.validateExecute(); err != nil {
-		return err
-	}
-	if err := t.validateInputSchema(); err != nil {
-		return err
-	}
-	if err := t.validateOutputSchema(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (t *ToolConfig) validateCWD() error {
-	if t.cwd == nil || t.cwd.Get() == "" {
-		return NewMissingPathError()
-	}
-	return nil
-}
-
-func (t *ToolConfig) validatePackageRef() error {
-	if t.Use == nil {
-		return nil
-	}
-	ref, err := t.Use.IntoRef()
-	if err != nil {
-		return NewInvalidPackageRefError(err)
-	}
-	if !ref.Component.IsTool() {
-		return NewInvalidTypeError()
-	}
-	if err := ref.Type.Validate(t.cwd.Get()); err != nil {
-		return NewInvalidPackageRefError(err)
-	}
-	return nil
-}
-
-func (t *ToolConfig) validateExecute() error {
-	if t.Execute == nil {
-		return nil
-	}
-	executePath := t.cwd.Join(string(*t.Execute))
-	executePath, err := filepath.Abs(executePath)
-	if err != nil {
-		return NewInvalidExecutePathError(err)
-	}
-	if !TestMode && t.Execute.IsTypeScript() && !fileExists(executePath) {
-		if t.ID == nil {
-			return NewMissingToolIDError()
-		}
-		return NewInvalidToolExecuteError(executePath)
-	}
-	return nil
-}
-
-func (t *ToolConfig) validateInputSchema() error {
-	if t.InputSchema == nil {
-		return nil
-	}
-	if err := t.InputSchema.Validate(); err != nil {
-		return NewInvalidInputSchemaError(err)
-	}
-	return nil
-}
-
-func (t *ToolConfig) validateOutputSchema() error {
-	if t.OutputSchema == nil {
-		return nil
-	}
-	if err := t.OutputSchema.Validate(); err != nil {
-		return NewInvalidOutputSchemaError(err)
-	}
-	return nil
+	validator := common.NewCompositeValidator(
+		NewCWDValidator(t.cwd),
+		NewPackageRefValidator(t.Use, t.cwd),
+		NewExecuteValidator(t.Execute, t.cwd).WithID(t.ID),
+		NewSchemaValidator(t.InputSchema),
+		NewSchemaValidator(t.OutputSchema),
+	)
+	return validator.Validate()
 }
 
 // Merge merges another tool configuration into this one
@@ -153,10 +83,4 @@ func (t *ToolConfig) Merge(other interface{}) error {
 		return NewMergeError(errors.New("invalid type for merge"))
 	}
 	return mergo.Merge(t, otherConfig, mergo.WithOverride)
-}
-
-// Helper function to check if a file exists
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
