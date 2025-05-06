@@ -11,6 +11,7 @@ const (
 	ErrCodeMissingPath      = "MISSING_FILE_PATH"
 	ErrCodeInvalidType      = "INVALID_COMPONENT_TYPE"
 	ErrCodeMainPathNotFound = "MAIN_PATH_NOT_FOUND"
+	ErrCodeFileClose        = "FILE_CLOSE_ERROR"
 )
 
 // Error messages
@@ -20,6 +21,7 @@ const (
 	ErrMsgMissingPath      = "Missing file path for registry"
 	ErrMsgInvalidType      = "Invalid component type: %s"
 	ErrMsgMainPathNotFound = "Main path does not exist: %s"
+	ErrMsgFileClose        = "Failed to close registry config file: %s"
 )
 
 // RegistryError represents errors that can occur during registry configuration
@@ -67,4 +69,8 @@ func NewInvalidTypeError(componentType string) *RegistryError {
 
 func NewMainPathNotFoundError(mainPath string) *RegistryError {
 	return NewErrorf(ErrCodeMainPathNotFound, ErrMsgMainPathNotFound, mainPath)
+}
+
+func NewFileCloseError(err error) *RegistryError {
+	return NewErrorf(ErrCodeFileClose, ErrMsgFileClose, err.Error())
 }

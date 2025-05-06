@@ -16,6 +16,7 @@ const (
 	ErrCodeInvalidOutputSchema = "INVALID_OUTPUT_SCHEMA"
 	ErrCodeInvalidDecisionTask = "INVALID_DECISION_TASK"
 	ErrCodeMerge               = "MERGE_ERROR"
+	ErrCodeFileClose           = "FILE_CLOSE_ERROR"
 )
 
 // Error messages
@@ -30,6 +31,7 @@ const (
 	ErrMsgInvalidOutputSchema = "Invalid output schema: %s"
 	ErrMsgInvalidDecisionTask = "Decision task must have at least one route"
 	ErrMsgMerge               = "Failed to merge task configs: %s"
+	ErrMsgFileClose           = "Failed to close task config file: %s"
 )
 
 // TaskError represents errors that can occur during task configuration
@@ -97,4 +99,8 @@ func NewInvalidDecisionTaskError() *TaskError {
 
 func NewMergeError(err error) *TaskError {
 	return NewErrorf(ErrCodeMerge, ErrMsgMerge, err.Error())
+}
+
+func NewFileCloseError(err error) *TaskError {
+	return NewErrorf(ErrCodeFileClose, ErrMsgFileClose, err.Error())
 }

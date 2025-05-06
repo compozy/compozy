@@ -14,6 +14,7 @@ const (
 	ErrCodeInvalidInputSchema   = "INVALID_INPUT_SCHEMA"
 	ErrCodeInvalidOutputSchema  = "INVALID_OUTPUT_SCHEMA"
 	ErrCodeMerge                = "MERGE_ERROR"
+	ErrCodeFileClose            = "FILE_CLOSE_ERROR"
 )
 
 // Error messages
@@ -26,6 +27,7 @@ const (
 	ErrMsgInvalidInputSchema   = "Invalid input schema: %s"
 	ErrMsgInvalidOutputSchema  = "Invalid output schema: %s"
 	ErrMsgMerge                = "Failed to merge agent configs: %s"
+	ErrMsgFileClose            = "Failed to close agent config file: %s"
 )
 
 // AgentConfigError represents errors that can occur during agent configuration
@@ -85,4 +87,8 @@ func NewInvalidOutputSchemaError(err error) *AgentConfigError {
 
 func NewMergeError(err error) *AgentConfigError {
 	return NewErrorf(ErrCodeMerge, ErrMsgMerge, err.Error())
+}
+
+func NewFileCloseError(err error) *AgentConfigError {
+	return NewErrorf(ErrCodeFileClose, ErrMsgFileClose, err.Error())
 }

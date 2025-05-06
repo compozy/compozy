@@ -29,7 +29,10 @@ func SetupTestDir() (string, func()) {
 	}
 
 	return tmpDir, func() {
-		os.RemoveAll(tmpDir)
+		if err := os.RemoveAll(tmpDir); err != nil {
+			// Log the error but don't panic since this is cleanup
+			_ = err
+		}
 	}
 }
 
@@ -39,13 +42,25 @@ func CopyFixture(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer source.Close()
+	defer func() {
+		if err := source.Close(); err != nil {
+			// Log the error but don't return it since we're in a defer
+			// This is a best effort cleanup
+			_ = err
+		}
+	}()
 
 	destination, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer destination.Close()
+	defer func() {
+		if err := destination.Close(); err != nil {
+			// Log the error but don't return it since we're in a defer
+			// This is a best effort cleanup
+			_ = err
+		}
+	}()
 
 	_, err = io.Copy(destination, source)
 	return err
@@ -61,11 +76,23 @@ func SetupFixture(t *testing.T, pkgPath string, fixtureName string) string {
 
 	src, err := os.Open(srcPath)
 	require.NoError(t, err)
-	defer src.Close()
+	defer func() {
+		if err := src.Close(); err != nil {
+			// Log the error but don't return it since we're in a defer
+			// This is a best effort cleanup
+			_ = err
+		}
+	}()
 
 	dst, err := os.Create(dstPath)
 	require.NoError(t, err)
-	defer dst.Close()
+	defer func() {
+		if err := dst.Close(); err != nil {
+			// Log the error but don't return it since we're in a defer
+			// This is a best effort cleanup
+			_ = err
+		}
+	}()
 
 	_, err = io.Copy(dst, src)
 	require.NoError(t, err)

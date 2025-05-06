@@ -23,6 +23,7 @@ const (
 	ErrCodeTaskValidationError    = "TASK_VALIDATION_ERROR"
 	ErrCodeTriggerValidationError = "TRIGGER_VALIDATION_ERROR"
 	ErrCodeMerge                  = "MERGE_ERROR"
+	ErrCodeFileClose              = "FILE_CLOSE_ERROR"
 )
 
 // Error messages
@@ -44,6 +45,7 @@ const (
 	ErrMsgTaskValidationError    = "Task validation error: %s"
 	ErrMsgTriggerValidationError = "Trigger validation error: %s"
 	ErrMsgMerge                  = "Failed to merge workflow configs: %s"
+	ErrMsgFileClose              = "Failed to close workflow config file: %s"
 )
 
 // WorkflowError represents errors that can occur during workflow configuration
@@ -139,4 +141,8 @@ func NewTriggerValidationError(err error) *WorkflowError {
 
 func NewMergeError(err error) *WorkflowError {
 	return NewErrorf(ErrCodeMerge, ErrMsgMerge, err.Error())
+}
+
+func NewFileCloseError(err error) *WorkflowError {
+	return NewErrorf(ErrCodeFileClose, ErrMsgFileClose, err.Error())
 }

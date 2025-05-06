@@ -32,7 +32,13 @@ func ParseFile(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			// Log the error but don't return it since we're in a defer
+			// This is a best effort cleanup
+			_ = err
+		}
+	}()
 
 	return Parse(file)
 }

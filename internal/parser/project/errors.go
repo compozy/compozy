@@ -13,6 +13,7 @@ const (
 	ErrCodeWorkflowLoad    = "WORKFLOW_LOAD_ERROR"
 	ErrCodeInvalidEnv      = "INVALID_ENVIRONMENT"
 	ErrCodeInvalidLogLevel = "INVALID_LOG_LEVEL"
+	ErrCodeFileClose       = "FILE_CLOSE_ERROR"
 )
 
 // Error messages
@@ -24,6 +25,7 @@ const (
 	ErrMsgWorkflowLoad    = "Failed to load workflow: %s"
 	ErrMsgInvalidEnv      = "Invalid environment configuration: %s"
 	ErrMsgInvalidLogLevel = "Invalid log level: %s"
+	ErrMsgFileClose       = "Failed to close project config file: %s"
 )
 
 // ProjectError represents errors that can occur during project configuration
@@ -79,4 +81,8 @@ func NewInvalidEnvironmentError(envName string) *ProjectError {
 
 func NewInvalidLogLevelError(level string) *ProjectError {
 	return NewErrorf(ErrCodeInvalidLogLevel, ErrMsgInvalidLogLevel, level)
+}
+
+func NewFileCloseError(err error) *ProjectError {
+	return NewErrorf(ErrCodeFileClose, ErrMsgFileClose, err.Error())
 }

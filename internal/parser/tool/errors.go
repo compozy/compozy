@@ -17,6 +17,7 @@ const (
 	ErrCodeInvalidInputSchema  = "INVALID_INPUT_SCHEMA"
 	ErrCodeInvalidOutputSchema = "INVALID_OUTPUT_SCHEMA"
 	ErrCodeMerge               = "MERGE_ERROR"
+	ErrCodeFileClose           = "FILE_CLOSE_ERROR"
 )
 
 // Error messages
@@ -32,6 +33,7 @@ const (
 	ErrMsgInvalidInputSchema  = "Invalid input schema: %s"
 	ErrMsgInvalidOutputSchema = "Invalid output schema: %s"
 	ErrMsgMerge               = "Failed to merge tool configs: %s"
+	ErrMsgFileClose           = "Failed to close tool config file: %s"
 )
 
 // ToolError represents errors that can occur during tool configuration
@@ -103,4 +105,8 @@ func NewInvalidOutputSchemaError(err error) *ToolError {
 
 func NewMergeError(err error) *ToolError {
 	return NewErrorf(ErrCodeMerge, ErrMsgMerge, err.Error())
+}
+
+func NewFileCloseError(err error) *ToolError {
+	return NewErrorf(ErrCodeFileClose, ErrMsgFileClose, err.Error())
 }

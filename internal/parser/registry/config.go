@@ -50,12 +50,17 @@ func Load(path string) (*RegistryConfig, error) {
 	if err != nil {
 		return nil, NewFileOpenError(err)
 	}
-	defer file.Close()
 
 	var config RegistryConfig
 	decoder := yaml.NewDecoder(file)
-	if err := decoder.Decode(&config); err != nil {
-		return nil, NewDecodeError(err)
+	decodeErr := decoder.Decode(&config)
+	closeErr := file.Close()
+
+	if decodeErr != nil {
+		return nil, NewDecodeError(decodeErr)
+	}
+	if closeErr != nil {
+		return nil, NewFileCloseError(closeErr)
 	}
 
 	config.SetCWD(filepath.Dir(path))
