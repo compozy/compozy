@@ -1,11 +1,12 @@
 package common
 
 import (
-	"bufio"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
-	"strings"
+
+	"github.com/joho/godotenv"
 )
 
 // EnvError represents errors that can occur when handling environment variables
@@ -34,41 +35,16 @@ func NewEnvError(op string, err error) error {
 type EnvMap map[string]string
 
 // FromFile loads environment variables from a file into an EnvMap
-func (e EnvMap) FromFile(path string) (err error) {
-	file, err := os.Open(path)
+func (e EnvMap) FromFile(path string) error {
+	envMap, err := godotenv.Read(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil // Return empty map if file doesn't exist
 		}
-		return NewEnvError("open env file", err)
-	}
-	defer func() {
-		if cerr := file.Close(); cerr != nil && err == nil {
-			err = NewEnvError("close env file", cerr)
-		}
-	}()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-		e[key] = value
-	}
-
-	if err := scanner.Err(); err != nil {
 		return NewEnvError("read env file", err)
 	}
 
+	maps.Copy(e, envMap)
 	return nil
 }
 
