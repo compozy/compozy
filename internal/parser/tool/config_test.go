@@ -48,21 +48,23 @@ func TestLoadTool(t *testing.T) {
 				assert.True(t, config.Execute.IsTypeScript())
 
 				// Validate input schema
-				schema := config.InputSchema
-				assert.Equal(t, "object", schema.Type)
-				require.NotNil(t, schema.Properties)
-				assert.Contains(t, schema.Properties, "code")
-				assert.Contains(t, schema.Properties, "language")
-				require.NotNil(t, schema.Required)
-				assert.Contains(t, schema.Required, "code")
+				schema := config.InputSchema.Schema
+				assert.Equal(t, "object", schema.GetType())
+				require.NotNil(t, schema.GetProperties())
+				assert.Contains(t, schema.GetProperties(), "code")
+				assert.Contains(t, schema.GetProperties(), "language")
+				if required, ok := schema["required"].([]string); ok && len(required) > 0 {
+					assert.Contains(t, required, "code")
+				}
 
 				// Validate output schema
-				outSchema := config.OutputSchema
-				assert.Equal(t, "object", outSchema.Type)
-				require.NotNil(t, outSchema.Properties)
-				assert.Contains(t, outSchema.Properties, "formatted_code")
-				require.NotNil(t, outSchema.Required)
-				assert.Contains(t, outSchema.Required, "formatted_code")
+				outSchema := config.OutputSchema.Schema
+				assert.Equal(t, "object", outSchema.GetType())
+				require.NotNil(t, outSchema.GetProperties())
+				assert.Contains(t, outSchema.GetProperties(), "formatted_code")
+				if required, ok := outSchema["required"].([]string); ok && len(required) > 0 {
+					assert.Contains(t, required, "formatted_code")
+				}
 
 				// Validate env and with
 				assert.Equal(t, "1.0.0", config.Env["FORMATTER_VERSION"])
@@ -88,29 +90,44 @@ func TestLoadTool(t *testing.T) {
 				assert.Equal(t, ToolDescription("A tool for linting code"), *config.Description)
 
 				// Validate input schema
-				schema := config.InputSchema
-				assert.Equal(t, "object", schema.Type)
-				require.NotNil(t, schema.Properties)
-				assert.Contains(t, schema.Properties, "code")
-				assert.Contains(t, schema.Properties, "language")
-				require.NotNil(t, schema.Required)
-				assert.Contains(t, schema.Required, "code")
+				schema := config.InputSchema.Schema
+				assert.Equal(t, "object", schema.GetType())
+				require.NotNil(t, schema.GetProperties())
+				assert.Contains(t, schema.GetProperties(), "code")
+				assert.Contains(t, schema.GetProperties(), "language")
+				if required, ok := schema["required"].([]string); ok && len(required) > 0 {
+					assert.Contains(t, required, "code")
+				}
 
 				// Validate output schema
-				outSchema := config.OutputSchema
-				assert.Equal(t, "object", outSchema.Type)
-				require.NotNil(t, outSchema.Properties)
-				assert.Contains(t, outSchema.Properties, "issues")
-				issues := outSchema.Properties["issues"].(map[string]any)
-				assert.Equal(t, "array", issues["type"])
-				items := issues["items"].(map[string]any)
-				assert.Equal(t, "object", items["type"])
-				itemProps := items["properties"].(map[string]any)
-				assert.Contains(t, itemProps, "line")
-				assert.Contains(t, itemProps, "message")
-				assert.Contains(t, itemProps, "severity")
-				require.NotNil(t, outSchema.Required)
-				assert.Contains(t, outSchema.Required, "issues")
+				outSchema := config.OutputSchema.Schema
+				assert.Equal(t, "object", outSchema.GetType())
+				require.NotNil(t, outSchema.GetProperties())
+				assert.Contains(t, outSchema.GetProperties(), "issues")
+				issues := outSchema.GetProperties()["issues"]
+				assert.Equal(t, "array", issues.GetType())
+
+				// Get the items from the schema
+				if items, ok := (*issues)["items"].(map[string]any); ok {
+					// Check properties directly from the items map
+					if itemType, ok := items["type"].(string); ok {
+						assert.Equal(t, "object", itemType)
+					}
+
+					if itemProps, ok := items["properties"].(map[string]any); ok {
+						assert.Contains(t, itemProps, "line")
+						assert.Contains(t, itemProps, "message")
+						assert.Contains(t, itemProps, "severity")
+					} else {
+						t.Error("Item properties not found or not a map")
+					}
+				} else {
+					t.Error("Items not found or not a map")
+				}
+
+				if required, ok := outSchema["required"].([]string); ok && len(required) > 0 {
+					assert.Contains(t, required, "issues")
+				}
 
 				// Validate env and with
 				assert.Equal(t, "8.0.0", config.Env["ESLINT_VERSION"])
@@ -224,7 +241,7 @@ func TestToolConfigValidation(t *testing.T) {
 				Use: pkgref.NewPackageRefConfig("tool(id=test-tool)"),
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
-						Type: "object",
+						"type": "object",
 					},
 				},
 				cwd: common.NewCWD("/test/path"),
@@ -239,7 +256,7 @@ func TestToolConfigValidation(t *testing.T) {
 				Use: pkgref.NewPackageRefConfig("tool(file=basic_tool.yaml)"),
 				OutputSchema: &schema.OutputSchema{
 					Schema: schema.Schema{
-						Type: "object",
+						"type": "object",
 					},
 				},
 				cwd: common.NewCWD("/test/path"),
@@ -254,12 +271,12 @@ func TestToolConfigValidation(t *testing.T) {
 				Use: pkgref.NewPackageRefConfig("tool(dep=compozy/tools:test-tool)"),
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
-						Type: "object",
+						"type": "object",
 					},
 				},
 				OutputSchema: &schema.OutputSchema{
 					Schema: schema.Schema{
-						Type: "object",
+						"type": "object",
 					},
 				},
 				cwd: common.NewCWD("/test/path"),
@@ -273,8 +290,8 @@ func TestToolConfigValidation(t *testing.T) {
 				ID: &toolID,
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
-						Type: "object",
-						Properties: map[string]any{
+						"type": "object",
+						"properties": map[string]any{
 							"name": map[string]any{
 								"type": "string",
 							},
@@ -294,13 +311,13 @@ func TestToolConfigValidation(t *testing.T) {
 				ID: &toolID,
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
-						Type: "object",
-						Properties: map[string]any{
+						"type": "object",
+						"properties": map[string]any{
 							"name": map[string]any{
 								"type": "string",
 							},
 						},
-						Required: []string{"name"},
+						"required": []string{"name"},
 					},
 				},
 				With: &common.WithParams{

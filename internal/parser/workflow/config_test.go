@@ -197,13 +197,13 @@ func TestWorkflowConfigValidation(t *testing.T) {
 						Type: task.TaskTypeBasic,
 						InputSchema: &schema.InputSchema{
 							Schema: schema.Schema{
-								Type: "object",
-								Properties: map[string]any{
+								"type": "object",
+								"properties": map[string]any{
 									"name": map[string]any{
 										"type": "string",
 									},
 								},
-								Required: []string{"name"},
+								"required": []string{"name"},
 							},
 						},
 						With: &common.WithParams{
@@ -232,13 +232,13 @@ func TestWorkflowConfigValidation(t *testing.T) {
 						Execute: func() *tool.ToolExecute { e := tool.ToolExecute("./test.ts"); return &e }(),
 						InputSchema: &schema.InputSchema{
 							Schema: schema.Schema{
-								Type: "object",
-								Properties: map[string]any{
+								"type": "object",
+								"properties": map[string]any{
 									"name": map[string]any{
 										"type": "string",
 									},
 								},
-								Required: []string{"name"},
+								"required": []string{"name"},
 							},
 						},
 						With: &common.WithParams{
@@ -273,13 +273,13 @@ func TestWorkflowConfigValidation(t *testing.T) {
 						Instructions: func() *agent.Instructions { i := agent.Instructions("Test instructions"); return &i }(),
 						InputSchema: &schema.InputSchema{
 							Schema: schema.Schema{
-								Type: "object",
-								Properties: map[string]any{
+								"type": "object",
+								"properties": map[string]any{
 									"name": map[string]any{
 										"type": "string",
 									},
 								},
-								Required: []string{"name"},
+								"required": []string{"name"},
 							},
 						},
 						With: &common.WithParams{

@@ -1,0 +1,252 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://json-schema.org/draft-07/schema/tool-config",
+  "$ref": "#/$defs/ToolConfig",
+  "$defs": {
+    "EnvMap": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "InputSchema": {
+      "properties": {
+        "type": true,
+        "properties": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Schema"
+          },
+          "type": "object"
+        },
+        "required": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "items": {
+          "$ref": "#/$defs/Schema"
+        },
+        "description": {
+          "type": "string"
+        },
+        "enum": {
+          "items": true,
+          "type": "array"
+        },
+        "additionalProperties": {
+          "type": "boolean"
+        },
+        "pattern": {
+          "type": "string"
+        },
+        "minLength": {
+          "type": "integer"
+        },
+        "maxLength": {
+          "type": "integer"
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        },
+        "format": {
+          "type": "string"
+        },
+        "allOf": {
+          "items": {
+            "$ref": "#/$defs/Schema"
+          },
+          "type": "array"
+        },
+        "anyOf": {
+          "items": {
+            "$ref": "#/$defs/Schema"
+          },
+          "type": "array"
+        },
+        "oneOf": {
+          "items": {
+            "$ref": "#/$defs/Schema"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "OutputSchema": {
+      "properties": {
+        "type": true,
+        "properties": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Schema"
+          },
+          "type": "object"
+        },
+        "required": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "items": {
+          "$ref": "#/$defs/Schema"
+        },
+        "description": {
+          "type": "string"
+        },
+        "enum": {
+          "items": true,
+          "type": "array"
+        },
+        "additionalProperties": {
+          "type": "boolean"
+        },
+        "pattern": {
+          "type": "string"
+        },
+        "minLength": {
+          "type": "integer"
+        },
+        "maxLength": {
+          "type": "integer"
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        },
+        "format": {
+          "type": "string"
+        },
+        "allOf": {
+          "items": {
+            "$ref": "#/$defs/Schema"
+          },
+          "type": "array"
+        },
+        "anyOf": {
+          "items": {
+            "$ref": "#/$defs/Schema"
+          },
+          "type": "array"
+        },
+        "oneOf": {
+          "items": {
+            "$ref": "#/$defs/Schema"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Schema": {
+      "properties": {
+        "type": true,
+        "properties": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Schema"
+          },
+          "type": "object"
+        },
+        "required": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "items": {
+          "$ref": "#/$defs/Schema"
+        },
+        "description": {
+          "type": "string"
+        },
+        "enum": {
+          "items": true,
+          "type": "array"
+        },
+        "additionalProperties": {
+          "type": "boolean"
+        },
+        "pattern": {
+          "type": "string"
+        },
+        "minLength": {
+          "type": "integer"
+        },
+        "maxLength": {
+          "type": "integer"
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        },
+        "format": {
+          "type": "string"
+        },
+        "allOf": {
+          "items": {
+            "$ref": "#/$defs/Schema"
+          },
+          "type": "array"
+        },
+        "anyOf": {
+          "items": {
+            "$ref": "#/$defs/Schema"
+          },
+          "type": "array"
+        },
+        "oneOf": {
+          "items": {
+            "$ref": "#/$defs/Schema"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ToolConfig": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "execute": {
+          "type": "string"
+        },
+        "use": {
+          "type": "string",
+          "pattern": "^(agent|tool|task)\\((id|file|dep)=[^)]+\\)$"
+        },
+        "input": {
+          "$ref": "#/$defs/InputSchema"
+        },
+        "output": {
+          "$ref": "#/$defs/OutputSchema"
+        },
+        "with": {
+          "$ref": "#/$defs/WithParams"
+        },
+        "env": {
+          "$ref": "#/$defs/EnvMap"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "WithParams": {
+      "type": "object"
+    }
+  },
+  "yamlCompatible": true
+}

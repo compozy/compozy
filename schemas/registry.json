@@ -1,0 +1,119 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://json-schema.org/draft-07/schema/registry-config",
+  "$ref": "#/$defs/RegistryConfig",
+  "$defs": {
+    "Author": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "organization": {
+          "type": "string"
+        },
+        "contributors": {
+          "items": {
+            "$ref": "#/$defs/Contributor"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Contributor": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "organization": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Dependencies": {
+      "items": {
+        "$ref": "#/$defs/PackageRef"
+      },
+      "type": "array"
+    },
+    "PackageRef": {
+      "properties": {
+        "component": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/RefType"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RefType": {
+      "properties": {
+        "Type": {
+          "type": "string"
+        },
+        "Value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RegistryConfig": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "main": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "author": {
+          "$ref": "#/$defs/Author"
+        },
+        "dependencies": {
+          "$ref": "#/$defs/Dependencies"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  },
+  "yamlCompatible": true
+}

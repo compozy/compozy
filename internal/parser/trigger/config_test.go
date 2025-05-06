@@ -23,8 +23,8 @@ func TestTriggerConfigValidation(t *testing.T) {
 				},
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
-						Type: "object",
-						Properties: map[string]any{
+						"type": "object",
+						"properties": map[string]any{
 							"payload": map[string]any{
 								"type": "object",
 							},
@@ -59,7 +59,7 @@ func TestTriggerConfigValidation(t *testing.T) {
 				},
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
-						Type: "array",
+						"type": "array",
 					},
 				},
 			},
@@ -75,7 +75,7 @@ func TestTriggerConfigValidation(t *testing.T) {
 				},
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
-						Type: "object",
+						"type": "object",
 					},
 				},
 			},

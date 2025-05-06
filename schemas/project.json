@@ -1,0 +1,134 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://json-schema.org/draft-07/schema/project-config",
+  "$ref": "#/$defs/ProjectConfig",
+  "$defs": {
+    "Author": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "organization": {
+          "type": "string"
+        },
+        "contributors": {
+          "items": {
+            "$ref": "#/$defs/Contributor"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Contributor": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "organization": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Dependencies": {
+      "items": {
+        "$ref": "#/$defs/PackageRef"
+      },
+      "type": "array"
+    },
+    "EnvironmentConfig": {
+      "properties": {
+        "log_level": {
+          "type": "string"
+        },
+        "env_file": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "PackageRef": {
+      "properties": {
+        "component": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/RefType"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ProjectConfig": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/Author"
+        },
+        "dependencies": {
+          "$ref": "#/$defs/Dependencies"
+        },
+        "environments": {
+          "additionalProperties": {
+            "$ref": "#/$defs/EnvironmentConfig"
+          },
+          "type": "object"
+        },
+        "workflows": {
+          "items": {
+            "$ref": "#/$defs/WorkflowSourceConfig"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RefType": {
+      "properties": {
+        "Type": {
+          "type": "string"
+        },
+        "Value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "WorkflowSourceConfig": {
+      "properties": {
+        "source": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  },
+  "yamlCompatible": true
+}

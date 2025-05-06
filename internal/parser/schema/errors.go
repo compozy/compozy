@@ -33,7 +33,7 @@ func NewSchemaError(code string, message string) *SchemaError {
 }
 
 // NewSchemaErrorf creates a new SchemaError with the given code and formatted message
-func NewSchemaErrorf(code string, format string, args ...interface{}) *SchemaError {
+func NewSchemaErrorf(code string, format string, args ...any) *SchemaError {
 	return &SchemaError{
 		Code:    code,
 		Message: fmt.Sprintf(format, args...),

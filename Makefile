@@ -25,6 +25,10 @@ deps:
 	go install gotest.tools/gotestsum@latest
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
+# Generate JSON schemas
+schemagen:
+	go run cmd/schemagen/generate.go -out=./schemas
+
 # Help command
 help:
 	@echo "Available commands:"
@@ -33,4 +37,5 @@ help:
 	@echo "  make clean   - Clean build artifacts"
 	@echo "  make build   - Build the application"
 	@echo "  make deps    - Install development dependencies"
-	@echo "  make help    - Show this help message" 
+	@echo "  make help    - Show this help message"
+	@echo "  make schemagen - Generate JSON schemas"

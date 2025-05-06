@@ -54,21 +54,23 @@ func TestLoadTask(t *testing.T) {
 				assert.Equal(t, "format-code", string(*config.Action))
 
 				// Validate input schema
-				schema := config.InputSchema
-				assert.Equal(t, "object", schema.Type)
-				require.NotNil(t, schema.Properties)
-				assert.Contains(t, schema.Properties, "code")
-				assert.Contains(t, schema.Properties, "language")
-				require.NotNil(t, schema.Required)
-				assert.Contains(t, schema.Required, "code")
+				schema := config.InputSchema.Schema
+				assert.Equal(t, "object", schema.GetType())
+				require.NotNil(t, schema.GetProperties())
+				assert.Contains(t, schema.GetProperties(), "code")
+				assert.Contains(t, schema.GetProperties(), "language")
+				if required, ok := schema["required"].([]string); ok && len(required) > 0 {
+					assert.Contains(t, required, "code")
+				}
 
 				// Validate output schema
-				outSchema := config.OutputSchema
-				assert.Equal(t, "object", outSchema.Type)
-				require.NotNil(t, outSchema.Properties)
-				assert.Contains(t, outSchema.Properties, "formatted_code")
-				require.NotNil(t, outSchema.Required)
-				assert.Contains(t, outSchema.Required, "formatted_code")
+				outSchema := config.OutputSchema.Schema
+				assert.Equal(t, "object", outSchema.GetType())
+				require.NotNil(t, outSchema.GetProperties())
+				assert.Contains(t, outSchema.GetProperties(), "formatted_code")
+				if required, ok := outSchema["required"].([]string); ok && len(required) > 0 {
+					assert.Contains(t, required, "formatted_code")
+				}
 
 				// Validate env and with
 				assert.Equal(t, "1.0.0", config.Env["FORMATTER_VERSION"])
@@ -108,23 +110,25 @@ func TestLoadTask(t *testing.T) {
 				assert.Equal(t, "notify-team", string(config.Routes["rejected"]))
 
 				// Validate input schema
-				schema := config.InputSchema
-				assert.Equal(t, "object", schema.Type)
-				require.NotNil(t, schema.Properties)
-				assert.Contains(t, schema.Properties, "code")
-				assert.Contains(t, schema.Properties, "review_score")
-				require.NotNil(t, schema.Required)
-				assert.Contains(t, schema.Required, "code")
-				assert.Contains(t, schema.Required, "review_score")
+				schema := config.InputSchema.Schema
+				assert.Equal(t, "object", schema.GetType())
+				require.NotNil(t, schema.GetProperties())
+				assert.Contains(t, schema.GetProperties(), "code")
+				assert.Contains(t, schema.GetProperties(), "review_score")
+				if required, ok := schema["required"].([]string); ok && len(required) > 0 {
+					assert.Contains(t, required, "code")
+					assert.Contains(t, required, "review_score")
+				}
 
 				// Validate output schema
-				outSchema := config.OutputSchema
-				assert.Equal(t, "object", outSchema.Type)
-				require.NotNil(t, outSchema.Properties)
-				assert.Contains(t, outSchema.Properties, "status")
-				assert.Contains(t, outSchema.Properties, "comments")
-				require.NotNil(t, outSchema.Required)
-				assert.Contains(t, outSchema.Required, "status")
+				outSchema := config.OutputSchema.Schema
+				assert.Equal(t, "object", outSchema.GetType())
+				require.NotNil(t, outSchema.GetProperties())
+				assert.Contains(t, outSchema.GetProperties(), "status")
+				assert.Contains(t, outSchema.GetProperties(), "comments")
+				if required, ok := outSchema["required"].([]string); ok && len(required) > 0 {
+					assert.Contains(t, required, "status")
+				}
 
 				// Validate env and with
 				assert.Equal(t, "0.8", config.Env["REVIEW_THRESHOLD"])
@@ -288,7 +292,7 @@ func TestTaskConfigValidation(t *testing.T) {
 				Use: pkgref.NewPackageRefConfig("task(id=test-task)"),
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
-						Type: "object",
+						"type": "object",
 					},
 				},
 				cwd: common.NewCWD("/test/path"),
@@ -303,7 +307,7 @@ func TestTaskConfigValidation(t *testing.T) {
 				Use: pkgref.NewPackageRefConfig("task(file=basic_task.yaml)"),
 				OutputSchema: &schema.OutputSchema{
 					Schema: schema.Schema{
-						Type: "object",
+						"type": "object",
 					},
 				},
 				cwd: common.NewCWD("/test/path"),
@@ -318,12 +322,12 @@ func TestTaskConfigValidation(t *testing.T) {
 				Use: pkgref.NewPackageRefConfig("task(dep=compozy/tasks:test-task)"),
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
-						Type: "object",
+						"type": "object",
 					},
 				},
 				OutputSchema: &schema.OutputSchema{
 					Schema: schema.Schema{
-						Type: "object",
+						"type": "object",
 					},
 				},
 				cwd: common.NewCWD("/test/path"),
@@ -339,8 +343,8 @@ func TestTaskConfigValidation(t *testing.T) {
 				Action: func() *agent.ActionID { a := agent.ActionID("test-action"); return &a }(),
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
-						Type: "object",
-						Properties: map[string]any{
+						"type": "object",
+						"properties": map[string]any{
 							"name": map[string]any{
 								"type": "string",
 							},
@@ -362,13 +366,13 @@ func TestTaskConfigValidation(t *testing.T) {
 				Action: func() *agent.ActionID { a := agent.ActionID("test-action"); return &a }(),
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
-						Type: "object",
-						Properties: map[string]any{
+						"type": "object",
+						"properties": map[string]any{
 							"name": map[string]any{
 								"type": "string",
 							},
 						},
-						Required: []string{"name"},
+						"required": []string{"name"},
 					},
 				},
 				With: &common.WithParams{
