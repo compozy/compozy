@@ -119,3 +119,9 @@ func (a *AgentConfig) Merge(other any) error {
 	}
 	return mergo.Merge(a, otherConfig, mergo.WithOverride)
 }
+
+func (a *AgentConfig) LoadID() (string, error) {
+	return common.LoadID(a, a.ID, a.Use, func(path string) (common.Config, error) {
+		return Load(path)
+	})
+}

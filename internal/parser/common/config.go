@@ -5,4 +5,5 @@ type Config interface {
 	GetCWD() string
 	Validate() error
 	Merge(other any) error
+	LoadID() (string, error)
 }

@@ -13,6 +13,9 @@ const (
 	ErrCodeInvalidComponentType = "INVALID_COMPONENT_TYPE"
 	ErrCodeMerge                = "MERGE_ERROR"
 	ErrCodeFileClose            = "FILE_CLOSE_ERROR"
+	ErrCodeMissingIdField       = "MISSING_ID_FIELD"
+	ErrCodeUnimplemented        = "UNIMPLEMENTED"
+	ErrCodeInvalidRef           = "INVALID_REF"
 )
 
 // Error messages
@@ -24,6 +27,9 @@ const (
 	ErrMsgInvalidComponentType = "Package reference must be an agent"
 	ErrMsgMerge                = "Failed to merge agent configs: %s"
 	ErrMsgFileClose            = "Failed to close agent config file: %s"
+	ErrMsgMissingIdField       = "Missing ID field"
+	ErrMsgUnimplemented        = "Feature not implemented: %s"
+	ErrMsgInvalidRef           = "Invalid reference type"
 )
 
 // AgentConfigError represents errors that can occur during agent configuration
@@ -79,6 +85,18 @@ func NewMergeError(err error) *AgentConfigError {
 
 func NewFileCloseError(err error) *AgentConfigError {
 	return NewErrorf(ErrCodeFileClose, ErrMsgFileClose, err.Error())
+}
+
+func NewMissingIdFieldError() *AgentConfigError {
+	return NewError(ErrCodeMissingIdField, ErrMsgMissingIdField)
+}
+
+func NewUnimplementedError(feature string) *AgentConfigError {
+	return NewErrorf(ErrCodeUnimplemented, ErrMsgUnimplemented, feature)
+}
+
+func NewInvalidRefError() *AgentConfigError {
+	return NewError(ErrCodeInvalidRef, ErrMsgInvalidRef)
 }
 
 // InvalidConfigurationError represents an error when the configuration is invalid

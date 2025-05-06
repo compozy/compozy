@@ -76,3 +76,10 @@ func (t *ToolConfig) Merge(other any) error {
 	}
 	return mergo.Merge(t, otherConfig, mergo.WithOverride)
 }
+
+// LoadID loads the ID from either the direct ID field or resolves it from a package reference
+func (t *ToolConfig) LoadID() (string, error) {
+	return common.LoadID(t, t.ID, t.Use, func(path string) (common.Config, error) {
+		return Load(path)
+	})
+}

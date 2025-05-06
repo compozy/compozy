@@ -229,3 +229,9 @@ func (w *WorkflowConfig) Merge(other any) error {
 	}
 	return mergo.Merge(w, otherConfig, mergo.WithOverride)
 }
+
+// LoadID loads the ID from either the direct ID field or resolves it from a package reference
+func (w *WorkflowConfig) LoadID() (string, error) {
+	// Workflow configs don't support package references, so just return the ID
+	return string(w.ID), nil
+}
