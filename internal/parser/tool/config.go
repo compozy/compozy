@@ -14,16 +14,6 @@ import (
 // TestMode indicates whether we are running in test mode
 var TestMode bool
 
-// ToolError represents errors that can occur during tool configuration
-type ToolError struct {
-	Message string
-	Code    string
-}
-
-func (e *ToolError) Error() string {
-	return e.Message
-}
-
 // ToolConfig represents a tool configuration
 type ToolConfig struct {
 	ID           *ToolID                       `json:"id,omitempty" yaml:"id,omitempty"`
@@ -59,20 +49,14 @@ func (t *ToolConfig) GetCWD() string {
 func Load(path string) (*ToolConfig, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, &ToolError{
-			Message: "Failed to open tool config file: " + err.Error(),
-			Code:    "FILE_OPEN_ERROR",
-		}
+		return nil, NewFileOpenError(err)
 	}
 	defer file.Close()
 
 	var config ToolConfig
 	decoder := yaml.NewDecoder(file)
 	if err := decoder.Decode(&config); err != nil {
-		return nil, &ToolError{
-			Message: "Failed to decode tool config: " + err.Error(),
-			Code:    "DECODE_ERROR",
-		}
+		return nil, NewDecodeError(err)
 	}
 
 	config.SetCWD(filepath.Dir(path))
@@ -101,10 +85,7 @@ func (t *ToolConfig) Validate() error {
 
 func (t *ToolConfig) validateCWD() error {
 	if t.cwd == nil || t.cwd.Get() == "" {
-		return &ToolError{
-			Message: "Missing file path for tool",
-			Code:    "MISSING_FILE_PATH",
-		}
+		return NewMissingPathError()
 	}
 	return nil
 }
@@ -115,22 +96,13 @@ func (t *ToolConfig) validatePackageRef() error {
 	}
 	ref, err := t.Use.IntoRef()
 	if err != nil {
-		return &ToolError{
-			Message: "Invalid package reference: " + err.Error(),
-			Code:    "INVALID_PACKAGE_REF",
-		}
+		return NewInvalidPackageRefError(err)
 	}
 	if !ref.Component.IsTool() {
-		return &ToolError{
-			Message: "Package reference must be a tool",
-			Code:    "INVALID_COMPONENT_TYPE",
-		}
+		return NewInvalidTypeError()
 	}
 	if err := ref.Type.Validate(t.cwd.Get()); err != nil {
-		return &ToolError{
-			Message: "Invalid package reference: " + err.Error(),
-			Code:    "INVALID_PACKAGE_REF",
-		}
+		return NewInvalidPackageRefError(err)
 	}
 	return nil
 }
@@ -142,22 +114,13 @@ func (t *ToolConfig) validateExecute() error {
 	executePath := t.cwd.Join(string(*t.Execute))
 	executePath, err := filepath.Abs(executePath)
 	if err != nil {
-		return &ToolError{
-			Message: "Invalid execute path: " + err.Error(),
-			Code:    "INVALID_EXECUTE_PATH",
-		}
+		return NewInvalidExecutePathError(err)
 	}
 	if !TestMode && t.Execute.IsTypeScript() && !fileExists(executePath) {
 		if t.ID == nil {
-			return &ToolError{
-				Message: "Tool ID is required for TypeScript execution",
-				Code:    "MISSING_TOOL_ID",
-			}
+			return NewMissingToolIDError()
 		}
-		return &ToolError{
-			Message: "Invalid tool execute path: " + executePath,
-			Code:    "INVALID_TOOL_EXECUTE",
-		}
+		return NewInvalidToolExecuteError(executePath)
 	}
 	return nil
 }
@@ -167,10 +130,7 @@ func (t *ToolConfig) validateInputSchema() error {
 		return nil
 	}
 	if err := t.InputSchema.Validate(); err != nil {
-		return &ToolError{
-			Message: "Invalid input schema: " + err.Error(),
-			Code:    "INVALID_INPUT_SCHEMA",
-		}
+		return NewInvalidInputSchemaError(err)
 	}
 	return nil
 }
@@ -180,10 +140,7 @@ func (t *ToolConfig) validateOutputSchema() error {
 		return nil
 	}
 	if err := t.OutputSchema.Validate(); err != nil {
-		return &ToolError{
-			Message: "Invalid output schema: " + err.Error(),
-			Code:    "INVALID_OUTPUT_SCHEMA",
-		}
+		return NewInvalidOutputSchemaError(err)
 	}
 	return nil
 }
@@ -191,10 +148,7 @@ func (t *ToolConfig) validateOutputSchema() error {
 // Merge merges another tool configuration into this one
 func (t *ToolConfig) Merge(other *ToolConfig) error {
 	if err := mergo.Merge(t, other, mergo.WithOverride); err != nil {
-		return &ToolError{
-			Message: "Failed to merge tool configs: " + err.Error(),
-			Code:    "MERGE_ERROR",
-		}
+		return NewMergeError(err)
 	}
 	return nil
 }

@@ -11,16 +11,6 @@ import (
 	"github.com/compozy/compozy/internal/parser/workflow"
 )
 
-// ProjectError represents errors that can occur during project configuration
-type ProjectError struct {
-	Message string
-	Code    string
-}
-
-func (e *ProjectError) Error() string {
-	return e.Message
-}
-
 // EnvironmentConfig represents environment configuration
 type EnvironmentConfig struct {
 	LogLevel LogLevel    `json:"log_level" yaml:"log_level"`
@@ -66,20 +56,14 @@ func (p *ProjectConfig) GetCWD() string {
 func Load(path string) (*ProjectConfig, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, &ProjectError{
-			Message: "Failed to open project config file: " + err.Error(),
-			Code:    "FILE_OPEN_ERROR",
-		}
+		return nil, NewFileOpenError(err)
 	}
 	defer file.Close()
 
 	var config ProjectConfig
 	decoder := yaml.NewDecoder(file)
 	if err := decoder.Decode(&config); err != nil {
-		return nil, &ProjectError{
-			Message: "Failed to decode project config: " + err.Error(),
-			Code:    "DECODE_ERROR",
-		}
+		return nil, NewDecodeError(err)
 	}
 
 	config.SetCWD(filepath.Dir(path))
@@ -89,17 +73,11 @@ func Load(path string) (*ProjectConfig, error) {
 // Validate validates the project configuration
 func (p *ProjectConfig) Validate() error {
 	if p.cwd == nil || p.cwd.Get() == "" {
-		return &ProjectError{
-			Message: "Missing file path for project",
-			Code:    "MISSING_FILE_PATH",
-		}
+		return NewMissingPathError()
 	}
 
 	if len(p.Workflows) == 0 {
-		return &ProjectError{
-			Message: "No workflows defined in project",
-			Code:    "NO_WORKFLOWS_DEFINED",
-		}
+		return NewNoWorkflowsError()
 	}
 
 	return nil
@@ -112,10 +90,7 @@ func (p *ProjectConfig) WorkflowsFromSources() ([]*workflow.WorkflowConfig, erro
 		workflowPath := p.cwd.Join(wf.Source)
 		wfConfig, err := workflow.Load(workflowPath)
 		if err != nil {
-			return nil, &ProjectError{
-				Message: "Failed to load workflow: " + err.Error(),
-				Code:    "WORKFLOW_LOAD_ERROR",
-			}
+			return nil, NewWorkflowLoadError(err)
 		}
 		workflows = append(workflows, wfConfig)
 	}

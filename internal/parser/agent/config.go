@@ -1,3 +1,4 @@
+// ... existing code ...
 package agent
 
 import (
@@ -11,16 +12,6 @@ import (
 	"github.com/compozy/compozy/internal/parser/package_ref"
 	"github.com/compozy/compozy/internal/parser/tool"
 )
-
-// AgentConfigError represents errors that can occur during agent configuration
-type AgentConfigError struct {
-	Message string
-	Code    string
-}
-
-func (e *AgentConfigError) Error() string {
-	return e.Message
-}
 
 // AgentActionConfig represents an agent action configuration
 type AgentActionConfig struct {
@@ -53,29 +44,20 @@ func (a *AgentActionConfig) GetCWD() string {
 // Validate validates the action configuration
 func (a *AgentActionConfig) Validate() error {
 	if a.cwd == nil || a.cwd.Get() == "" {
-		return &AgentConfigError{
-			Message: "Missing file path for action: " + string(a.ID),
-			Code:    "MISSING_FILE_PATH",
-		}
+		return NewMissingPathError(string(a.ID))
 	}
 
 	// Validate input schema if present
 	if a.InputSchema != nil {
 		if err := a.InputSchema.Validate(); err != nil {
-			return &AgentConfigError{
-				Message: "Invalid input schema: " + err.Error(),
-				Code:    "INVALID_INPUT_SCHEMA",
-			}
+			return NewInvalidInputSchemaError(err)
 		}
 	}
 
 	// Validate output schema if present
 	if a.OutputSchema != nil {
 		if err := a.OutputSchema.Validate(); err != nil {
-			return &AgentConfigError{
-				Message: "Invalid output schema: " + err.Error(),
-				Code:    "INVALID_OUTPUT_SCHEMA",
-			}
+			return NewInvalidOutputSchemaError(err)
 		}
 	}
 
@@ -124,20 +106,14 @@ func (a *AgentConfig) GetCWD() string {
 func Load(path string) (*AgentConfig, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, &AgentConfigError{
-			Message: "Failed to open agent config file: " + err.Error(),
-			Code:    "FILE_OPEN_ERROR",
-		}
+		return nil, NewFileOpenError(err)
 	}
 	defer file.Close()
 
 	var config AgentConfig
 	decoder := yaml.NewDecoder(file)
 	if err := decoder.Decode(&config); err != nil {
-		return nil, &AgentConfigError{
-			Message: "Failed to decode agent config: " + err.Error(),
-			Code:    "DECODE_ERROR",
-		}
+		return nil, NewDecodeError(err)
 	}
 
 	config.SetCWD(filepath.Dir(path))
@@ -169,20 +145,14 @@ func (a *AgentConfig) Validate() error {
 
 func (a *AgentConfig) validateCWD() error {
 	if a.cwd == nil || a.cwd.Get() == "" {
-		return &AgentConfigError{
-			Message: "Missing file path for agent",
-			Code:    "MISSING_FILE_PATH",
-		}
+		return NewMissingPathError(string(*a.ID))
 	}
 	return nil
 }
 
 func (a *AgentConfig) validateID() error {
 	if a.ID == nil {
-		return &AgentConfigError{
-			Message: "Agent ID is required",
-			Code:    "MISSING_AGENT_ID",
-		}
+		return NewMissingAgentIDError()
 	}
 	return nil
 }
@@ -193,22 +163,13 @@ func (a *AgentConfig) validatePackageRef() error {
 	}
 	ref, err := package_ref.Parse(string(*a.Use))
 	if err != nil {
-		return &AgentConfigError{
-			Message: "Invalid package reference: " + err.Error(),
-			Code:    "INVALID_PACKAGE_REF",
-		}
+		return NewInvalidPackageRefError(err)
 	}
 	if !ref.Component.IsAgent() {
-		return &AgentConfigError{
-			Message: "Package reference must be an agent",
-			Code:    "INVALID_COMPONENT_TYPE",
-		}
+		return NewInvalidComponentTypeError()
 	}
 	if err := ref.Type.Validate(a.cwd.Get()); err != nil {
-		return &AgentConfigError{
-			Message: "Invalid package reference: " + err.Error(),
-			Code:    "INVALID_PACKAGE_REF",
-		}
+		return NewInvalidPackageRefError(err)
 	}
 	return nil
 }
@@ -218,10 +179,7 @@ func (a *AgentConfig) validateInputSchema() error {
 		return nil
 	}
 	if err := a.InputSchema.Validate(); err != nil {
-		return &AgentConfigError{
-			Message: "Invalid input schema: " + err.Error(),
-			Code:    "INVALID_INPUT_SCHEMA",
-		}
+		return NewInvalidInputSchemaError(err)
 	}
 	return nil
 }
@@ -231,10 +189,7 @@ func (a *AgentConfig) validateOutputSchema() error {
 		return nil
 	}
 	if err := a.OutputSchema.Validate(); err != nil {
-		return &AgentConfigError{
-			Message: "Invalid output schema: " + err.Error(),
-			Code:    "INVALID_OUTPUT_SCHEMA",
-		}
+		return NewInvalidOutputSchemaError(err)
 	}
 	return nil
 }
@@ -255,10 +210,7 @@ func (a *AgentConfig) validateActions() error {
 func (a *AgentConfig) Merge(other *AgentConfig) error {
 	// Use mergo to deep merge the configs
 	if err := mergo.Merge(a, other, mergo.WithOverride); err != nil {
-		return &AgentConfigError{
-			Message: "Failed to merge agent configs: " + err.Error(),
-			Code:    "MERGE_ERROR",
-		}
+		return NewMergeError(err)
 	}
 	return nil
 }

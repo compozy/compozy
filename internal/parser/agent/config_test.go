@@ -114,7 +114,7 @@ func TestAgentActionConfigValidation(t *testing.T) {
 				Prompt: "test prompt",
 			},
 			wantErr: true,
-			errMsg:  "Missing file path for action: test-action",
+			errMsg:  "Missing file path for agent: test-action",
 		},
 	}
 
@@ -193,7 +193,7 @@ func TestAgentConfigValidation(t *testing.T) {
 				ID: &agentID,
 			},
 			wantErr: true,
-			errMsg:  "Missing file path for agent",
+			errMsg:  "Missing file path for agent: test-agent",
 		},
 		{
 			name: "Invalid Package Reference",

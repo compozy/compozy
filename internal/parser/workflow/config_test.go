@@ -351,7 +351,7 @@ func TestWorkflowComponentByRef(t *testing.T) {
 			name:    "Invalid Component Type",
 			ref:     "invalid(id=test)",
 			wantErr: true,
-			errMsg:  "invalid package reference format: invalid(id=test)",
+			errMsg:  "Invalid type \"invalid(id=test)\": invalid format",
 		},
 		{
 			name:    "Non-existent Agent",
@@ -376,29 +376,32 @@ func TestWorkflowComponentByRef(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ref, err := package_ref.Parse(tt.ref)
-			if tt.wantErr && tt.errMsg == "invalid package reference format: invalid(id=test)" {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
+			if err != nil {
+				if tt.wantErr {
+					assert.Contains(t, err.Error(), tt.errMsg)
+				} else {
+					t.Errorf("Unexpected error parsing reference: %v", err)
+				}
 				return
 			}
-			require.NoError(t, err)
 
+			var componentErr error
 			switch ref.Component {
 			case package_ref.ComponentAgent:
-				_, err = config.AgentByRef(ref)
+				_, componentErr = config.AgentByRef(ref)
 			case package_ref.ComponentTool:
-				_, err = config.ToolByRef(ref)
+				_, componentErr = config.ToolByRef(ref)
 			case package_ref.ComponentTask:
-				_, err = config.TaskByRef(ref)
+				_, componentErr = config.TaskByRef(ref)
 			default:
 				t.Fatalf("Unsupported component type: %v", ref.Component)
 			}
 
 			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
+				assert.Error(t, componentErr)
+				assert.Contains(t, componentErr.Error(), tt.errMsg)
 			} else {
-				assert.NoError(t, err)
+				assert.NoError(t, componentErr)
 			}
 		})
 	}

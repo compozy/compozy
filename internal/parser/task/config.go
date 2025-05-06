@@ -13,16 +13,6 @@ import (
 	"github.com/compozy/compozy/internal/parser/transition"
 )
 
-// TaskError represents errors that can occur during task configuration
-type TaskError struct {
-	Message string
-	Code    string
-}
-
-func (e *TaskError) Error() string {
-	return e.Message
-}
-
 type TaskType string
 
 const (
@@ -76,20 +66,14 @@ func (t *TaskConfig) GetCWD() string {
 func Load(path string) (*TaskConfig, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, &TaskError{
-			Message: "Failed to open task config file: " + err.Error(),
-			Code:    "FILE_OPEN_ERROR",
-		}
+		return nil, NewFileOpenError(err)
 	}
 	defer file.Close()
 
 	var config TaskConfig
 	decoder := yaml.NewDecoder(file)
 	if err := decoder.Decode(&config); err != nil {
-		return nil, &TaskError{
-			Message: "Failed to decode task config: " + err.Error(),
-			Code:    "DECODE_ERROR",
-		}
+		return nil, NewDecodeError(err)
 	}
 
 	config.SetCWD(filepath.Dir(path))
@@ -118,10 +102,7 @@ func (t *TaskConfig) Validate() error {
 
 func (t *TaskConfig) validateCWD() error {
 	if t.cwd == nil || t.cwd.Get() == "" {
-		return &TaskError{
-			Message: "Missing file path for task",
-			Code:    "MISSING_FILE_PATH",
-		}
+		return NewMissingPathError()
 	}
 	return nil
 }
@@ -132,22 +113,13 @@ func (t *TaskConfig) validatePackageRef() error {
 	}
 	ref, err := package_ref.Parse(string(*t.Use))
 	if err != nil {
-		return &TaskError{
-			Message: "Invalid package reference: " + err.Error(),
-			Code:    "INVALID_PACKAGE_REF",
-		}
+		return NewInvalidPackageRefError(err)
 	}
 	if !ref.Component.IsTask() && !ref.Component.IsAgent() && !ref.Component.IsTool() {
-		return &TaskError{
-			Message: "Package reference must be a task, agent, or tool",
-			Code:    "INVALID_COMPONENT_TYPE",
-		}
+		return NewInvalidTypeError()
 	}
 	if err := ref.Type.Validate(t.cwd.Get()); err != nil {
-		return &TaskError{
-			Message: "Invalid package reference: " + err.Error(),
-			Code:    "INVALID_PACKAGE_REF",
-		}
+		return NewInvalidPackageRefError(err)
 	}
 	return nil
 }
@@ -157,10 +129,7 @@ func (t *TaskConfig) validateInputSchema() error {
 		return nil
 	}
 	if err := t.InputSchema.Validate(); err != nil {
-		return &TaskError{
-			Message: "Invalid input schema: " + err.Error(),
-			Code:    "INVALID_INPUT_SCHEMA",
-		}
+		return NewInvalidInputSchemaError(err)
 	}
 	return nil
 }
@@ -170,10 +139,7 @@ func (t *TaskConfig) validateOutputSchema() error {
 		return nil
 	}
 	if err := t.OutputSchema.Validate(); err != nil {
-		return &TaskError{
-			Message: "Invalid output schema: " + err.Error(),
-			Code:    "INVALID_OUTPUT_SCHEMA",
-		}
+		return NewInvalidOutputSchemaError(err)
 	}
 	return nil
 }
@@ -185,29 +151,17 @@ func (t *TaskConfig) validateTaskType() error {
 	switch t.Type {
 	case TaskTypeBasic:
 		if t.Action == nil {
-			return &TaskError{
-				Message: "Basic task configuration is required for basic task type",
-				Code:    "INVALID_TASK_TYPE",
-			}
+			return NewInvalidTaskTypeError("Basic task configuration is required for basic task type")
 		}
 	case TaskTypeDecision:
 		if t.Condition == "" && len(t.Routes) == 0 {
-			return &TaskError{
-				Message: "Decision task configuration is required for decision task type",
-				Code:    "INVALID_TASK_TYPE",
-			}
+			return NewInvalidTaskTypeError("Decision task configuration is required for decision task type")
 		}
 		if len(t.Routes) == 0 {
-			return &TaskError{
-				Message: "Decision task must have at least one route",
-				Code:    "INVALID_DECISION_TASK",
-			}
+			return NewInvalidDecisionTaskError()
 		}
 	default:
-		return &TaskError{
-			Message: "Invalid task type: " + string(t.Type),
-			Code:    "INVALID_TASK_TYPE",
-		}
+		return NewInvalidTaskTypeError(string(t.Type))
 	}
 	return nil
 }
@@ -216,10 +170,7 @@ func (t *TaskConfig) validateTaskType() error {
 func (t *TaskConfig) Merge(other *TaskConfig) error {
 	// Use mergo to deep merge the configs
 	if err := mergo.Merge(t, other, mergo.WithOverride); err != nil {
-		return &TaskError{
-			Message: "Failed to merge task configs: " + err.Error(),
-			Code:    "MERGE_ERROR",
-		}
+		return NewMergeError(err)
 	}
 	return nil
 }

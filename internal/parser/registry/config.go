@@ -11,16 +11,6 @@ import (
 	"github.com/compozy/compozy/internal/parser/project"
 )
 
-// RegistryError represents errors that can occur during registry configuration
-type RegistryError struct {
-	Message string
-	Code    string
-}
-
-func (e *RegistryError) Error() string {
-	return e.Message
-}
-
 // RegistryConfig represents a registry component configuration
 type RegistryConfig struct {
 	Type         ComponentType         `json:"type" yaml:"type"`
@@ -58,20 +48,14 @@ func (r *RegistryConfig) GetCWD() string {
 func Load(path string) (*RegistryConfig, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, &RegistryError{
-			Message: "Failed to open registry config file: " + err.Error(),
-			Code:    "FILE_OPEN_ERROR",
-		}
+		return nil, NewFileOpenError(err)
 	}
 	defer file.Close()
 
 	var config RegistryConfig
 	decoder := yaml.NewDecoder(file)
 	if err := decoder.Decode(&config); err != nil {
-		return nil, &RegistryError{
-			Message: "Failed to decode registry config: " + err.Error(),
-			Code:    "DECODE_ERROR",
-		}
+		return nil, NewDecodeError(err)
 	}
 
 	config.SetCWD(filepath.Dir(path))
@@ -81,10 +65,7 @@ func Load(path string) (*RegistryConfig, error) {
 // Validate validates the registry configuration
 func (r *RegistryConfig) Validate() error {
 	if r.cwd == nil || r.cwd.Get() == "" {
-		return &RegistryError{
-			Message: "Missing file path for registry",
-			Code:    "MISSING_FILE_PATH",
-		}
+		return NewMissingPathError()
 	}
 
 	// Validate component type
@@ -92,19 +73,13 @@ func (r *RegistryConfig) Validate() error {
 	case ComponentTypeAgent, ComponentTypeTool, ComponentTypeTask:
 		// Valid types
 	default:
-		return &RegistryError{
-			Message: "Invalid component type: " + string(r.Type),
-			Code:    "INVALID_COMPONENT_TYPE",
-		}
+		return NewInvalidTypeError(string(r.Type))
 	}
 
 	// Validate main path exists
 	mainPath := r.cwd.Join(string(r.Main))
 	if _, err := os.Stat(mainPath); os.IsNotExist(err) {
-		return &RegistryError{
-			Message: "Main path does not exist: " + string(r.Main),
-			Code:    "MAIN_PATH_NOT_FOUND",
-		}
+		return NewMainPathNotFoundError(string(r.Main))
 	}
 
 	return nil

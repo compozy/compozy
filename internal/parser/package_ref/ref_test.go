@@ -67,6 +67,12 @@ func TestParse(t *testing.T) {
 				t.Errorf("Parse() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+			if err != nil && tt.wantErr {
+				// Check for structured error type
+				if _, ok := err.(*PackageRefError); !ok {
+					t.Errorf("Parse() error type = %T, want *PackageRefError", err)
+				}
+			}
 			if !tt.wantErr {
 				if got.Component != tt.want.Component {
 					t.Errorf("Parse() component = %v, want %v", got.Component, tt.want.Component)
@@ -326,6 +332,11 @@ func TestParseEdgeCases(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Parse() error = %v, wantErr %v", err, tt.wantErr)
 			}
+			if err != nil && tt.wantErr {
+				if _, ok := err.(*PackageRefError); !ok {
+					t.Errorf("Parse() error type = %T, want *PackageRefError", err)
+				}
+			}
 		})
 	}
 }
@@ -386,6 +397,11 @@ func TestValidateFile(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
+			if err != nil && tt.wantErr {
+				if _, ok := err.(*PackageRefError); !ok {
+					t.Errorf("Validate() error type = %T, want *PackageRefError", err)
+				}
+			}
 		})
 	}
 }
@@ -419,6 +435,10 @@ func TestDeserializeInvalid(t *testing.T) {
 			err := json.Unmarshal([]byte(tt.input), &got)
 			if err == nil {
 				t.Error("Expected error for invalid JSON, got nil")
+			} else {
+				if _, ok := err.(*PackageRefError); !ok {
+					t.Errorf("Unmarshal() error type = %T, want *PackageRefError", err)
+				}
 			}
 		})
 	}
@@ -449,6 +469,10 @@ func TestPackageRefConfigInvalid(t *testing.T) {
 			_, err := config.IntoRef()
 			if err == nil {
 				t.Error("Expected error for invalid config, got nil")
+			} else {
+				if _, ok := err.(*PackageRefError); !ok {
+					t.Errorf("IntoRef() error type = %T, want *PackageRefError", err)
+				}
 			}
 		})
 	}
