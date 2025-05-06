@@ -9,10 +9,10 @@ import (
 	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/author"
 	"github.com/compozy/compozy/internal/parser/common"
+	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/compozy/compozy/internal/parser/task"
 	"github.com/compozy/compozy/internal/parser/tool"
 	"github.com/compozy/compozy/internal/parser/trigger"
-	v "github.com/compozy/compozy/internal/parser/validator"
 )
 
 // TestMode is used to skip file existence checks during testing
@@ -78,7 +78,7 @@ func Load(path string) (*WorkflowConfig, error) {
 func (w *WorkflowConfig) Validate() error {
 	// Validate CWD
 	validator := common.NewCompositeValidator(
-		v.NewCWDValidator(w.cwd, string(w.ID)),
+		schema.NewCWDValidator(w.cwd, string(w.ID)),
 	)
 	if err := validator.Validate(); err != nil {
 		return err

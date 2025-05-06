@@ -1,4 +1,4 @@
-package agent
+package provider
 
 // ProviderName represents the name of a provider
 type ProviderName string

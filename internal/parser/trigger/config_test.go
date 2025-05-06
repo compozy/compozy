@@ -3,7 +3,7 @@ package trigger
 import (
 	"testing"
 
-	"github.com/compozy/compozy/internal/parser/common"
+	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,8 +21,8 @@ func TestTriggerConfigValidation(t *testing.T) {
 				Webhook: &WebhookConfig{
 					URL: "/api/webhook",
 				},
-				InputSchema: &common.InputSchema{
-					Schema: common.Schema{
+				InputSchema: &schema.InputSchema{
+					Schema: schema.Schema{
 						Type: "object",
 						Properties: map[string]any{
 							"payload": map[string]any{
@@ -57,8 +57,8 @@ func TestTriggerConfigValidation(t *testing.T) {
 				Webhook: &WebhookConfig{
 					URL: "/api/webhook",
 				},
-				InputSchema: &common.InputSchema{
-					Schema: common.Schema{
+				InputSchema: &schema.InputSchema{
+					Schema: schema.Schema{
 						Type: "array",
 					},
 				},
@@ -73,8 +73,8 @@ func TestTriggerConfigValidation(t *testing.T) {
 				Webhook: &WebhookConfig{
 					URL: "/api/webhook",
 				},
-				InputSchema: &common.InputSchema{
-					Schema: common.Schema{
+				InputSchema: &schema.InputSchema{
+					Schema: schema.Schema{
 						Type: "object",
 					},
 				},

@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
+	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/compozy/compozy/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -221,8 +222,8 @@ func TestToolConfigValidation(t *testing.T) {
 			config: &ToolConfig{
 				ID:  &toolID,
 				Use: pkgref.NewPackageRefConfig("tool(id=test-tool)"),
-				InputSchema: &common.InputSchema{
-					Schema: common.Schema{
+				InputSchema: &schema.InputSchema{
+					Schema: schema.Schema{
 						Type: "object",
 					},
 				},
@@ -236,8 +237,8 @@ func TestToolConfigValidation(t *testing.T) {
 			config: &ToolConfig{
 				ID:  &toolID,
 				Use: pkgref.NewPackageRefConfig("tool(file=basic_tool.yaml)"),
-				OutputSchema: &common.OutputSchema{
-					Schema: common.Schema{
+				OutputSchema: &schema.OutputSchema{
+					Schema: schema.Schema{
 						Type: "object",
 					},
 				},
@@ -251,13 +252,13 @@ func TestToolConfigValidation(t *testing.T) {
 			config: &ToolConfig{
 				ID:  &toolID,
 				Use: pkgref.NewPackageRefConfig("tool(dep=compozy/tools:test-tool)"),
-				InputSchema: &common.InputSchema{
-					Schema: common.Schema{
+				InputSchema: &schema.InputSchema{
+					Schema: schema.Schema{
 						Type: "object",
 					},
 				},
-				OutputSchema: &common.OutputSchema{
-					Schema: common.Schema{
+				OutputSchema: &schema.OutputSchema{
+					Schema: schema.Schema{
 						Type: "object",
 					},
 				},

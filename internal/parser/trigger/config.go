@@ -2,8 +2,8 @@ package trigger
 
 import (
 	"github.com/compozy/compozy/internal/parser/common"
+	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/compozy/compozy/internal/parser/transition"
-	v "github.com/compozy/compozy/internal/parser/validator"
 	"gopkg.in/yaml.v3"
 )
 
@@ -25,7 +25,7 @@ type TriggerConfig struct {
 	Type        TriggerType                       `json:"type" yaml:"type"`
 	Webhook     *WebhookConfig                    `json:"webhook,omitempty" yaml:"webhook,omitempty"`
 	OnError     *transition.ErrorTransitionConfig `json:"on_error,omitempty" yaml:"on_error,omitempty"`
-	InputSchema *common.InputSchema               `json:"input,omitempty" yaml:"input,omitempty"`
+	InputSchema *schema.InputSchema               `json:"input,omitempty" yaml:"input,omitempty"`
 }
 
 // Load loads a trigger configuration from a YAML file
@@ -47,7 +47,7 @@ func Load(path string) (*TriggerConfig, error) {
 func (t *TriggerConfig) Validate() error {
 	validator := common.NewCompositeValidator(
 		NewTriggerTypeValidator(t.Type, t.Webhook),
-		v.NewSchemaValidator(nil, t.InputSchema, nil),
+		schema.NewSchemaValidator(nil, t.InputSchema, nil),
 	)
 	return validator.Validate()
 }

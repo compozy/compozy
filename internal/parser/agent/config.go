@@ -8,16 +8,17 @@ import (
 
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
+	"github.com/compozy/compozy/internal/parser/provider"
+	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/compozy/compozy/internal/parser/tool"
-	v "github.com/compozy/compozy/internal/parser/validator"
 )
 
 // AgentActionConfig represents an agent action configuration
 type AgentActionConfig struct {
 	ID           ActionID             `json:"id" yaml:"id"`
 	Prompt       ActionPrompt         `json:"prompt" yaml:"prompt"`
-	InputSchema  *common.InputSchema  `json:"input,omitempty" yaml:"input,omitempty"`
-	OutputSchema *common.OutputSchema `json:"output,omitempty" yaml:"output,omitempty"`
+	InputSchema  *schema.InputSchema  `json:"input,omitempty" yaml:"input,omitempty"`
+	OutputSchema *schema.OutputSchema `json:"output,omitempty" yaml:"output,omitempty"`
 	With         *common.WithParams   `json:"with,omitempty" yaml:"with,omitempty"`
 
 	cwd *common.CWD // internal field for current working directory
@@ -43,7 +44,7 @@ func (a *AgentActionConfig) GetCWD() string {
 // Validate validates the action configuration
 func (a *AgentActionConfig) Validate() error {
 	validator := common.NewCompositeValidator(
-		v.NewCWDValidator(a.cwd, string(a.ID)),
+		schema.NewCWDValidator(a.cwd, string(a.ID)),
 		common.NewStructValidator(a),
 	)
 	return validator.Validate()
@@ -53,12 +54,12 @@ func (a *AgentActionConfig) Validate() error {
 type AgentConfig struct {
 	ID           *AgentID                 `json:"id,omitempty" yaml:"id,omitempty" validate:"required"`
 	Use          *pkgref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
-	Config       *ProviderConfig          `json:"config,omitempty" yaml:"config,omitempty" validate:"required"`
+	Config       *provider.ProviderConfig `json:"config,omitempty" yaml:"config,omitempty" validate:"required"`
 	Instructions *Instructions            `json:"instructions,omitempty" yaml:"instructions,omitempty" validate:"required"`
 	Tools        []*tool.ToolConfig       `json:"tools,omitempty" yaml:"tools,omitempty"`
 	Actions      []*AgentActionConfig     `json:"actions,omitempty" yaml:"actions,omitempty"`
-	InputSchema  *common.InputSchema      `json:"input,omitempty" yaml:"input,omitempty"`
-	OutputSchema *common.OutputSchema     `json:"output,omitempty" yaml:"output,omitempty"`
+	InputSchema  *schema.InputSchema      `json:"input,omitempty" yaml:"input,omitempty"`
+	OutputSchema *schema.OutputSchema     `json:"output,omitempty" yaml:"output,omitempty"`
 	With         *common.WithParams       `json:"with,omitempty" yaml:"with,omitempty"`
 	Env          common.EnvMap            `json:"env,omitempty" yaml:"env,omitempty"`
 
@@ -102,8 +103,8 @@ func Load(path string) (*AgentConfig, error) {
 func (a *AgentConfig) Validate() error {
 	// Create a composite validator that combines both custom and struct validation
 	validator := common.NewCompositeValidator(
-		v.NewCWDValidator(a.cwd, string(*a.ID)),
-		v.NewSchemaValidator(a.Use, a.InputSchema, a.OutputSchema),
+		schema.NewCWDValidator(a.cwd, string(*a.ID)),
+		schema.NewSchemaValidator(a.Use, a.InputSchema, a.OutputSchema),
 		NewPackageRefValidator(a.Use, a.cwd),
 		NewActionsValidator(a.Actions),
 		common.NewStructValidator(a),

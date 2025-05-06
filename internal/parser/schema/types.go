@@ -1,4 +1,4 @@
-package common
+package schema
 
 // Schema represents a JSON schema
 type Schema struct {

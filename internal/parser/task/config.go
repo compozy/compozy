@@ -9,8 +9,8 @@ import (
 	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
+	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/compozy/compozy/internal/parser/transition"
-	v "github.com/compozy/compozy/internal/parser/validator"
 )
 
 type TaskType string
@@ -30,8 +30,8 @@ type TaskConfig struct {
 	OnSuccess    *transition.SuccessTransitionConfig `json:"on_success,omitempty" yaml:"on_success,omitempty"`
 	OnError      *transition.ErrorTransitionConfig   `json:"on_error,omitempty" yaml:"on_error,omitempty"`
 	Final        *TaskFinal                          `json:"final,omitempty" yaml:"final,omitempty"`
-	InputSchema  *common.InputSchema                 `json:"input,omitempty" yaml:"input,omitempty"`
-	OutputSchema *common.OutputSchema                `json:"output,omitempty" yaml:"output,omitempty"`
+	InputSchema  *schema.InputSchema                 `json:"input,omitempty" yaml:"input,omitempty"`
+	OutputSchema *schema.OutputSchema                `json:"output,omitempty" yaml:"output,omitempty"`
 	With         *common.WithParams                  `json:"with,omitempty" yaml:"with,omitempty"`
 	Env          common.EnvMap                       `json:"env,omitempty" yaml:"env,omitempty"`
 
@@ -77,8 +77,8 @@ func Load(path string) (*TaskConfig, error) {
 // Validate validates the task configuration
 func (t *TaskConfig) Validate() error {
 	validator := common.NewCompositeValidator(
-		v.NewCWDValidator(t.cwd, string(*t.ID)),
-		v.NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
+		schema.NewCWDValidator(t.cwd, string(*t.ID)),
+		schema.NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
 		NewPackageRefValidator(t.Use, t.cwd),
 		NewTaskTypeValidator(t.Type, t.Action, t.Condition, t.Routes),
 	)

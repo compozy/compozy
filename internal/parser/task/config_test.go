@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
+	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/compozy/compozy/internal/parser/transition"
 	"github.com/compozy/compozy/internal/testutils"
 	"github.com/stretchr/testify/assert"
@@ -285,8 +286,8 @@ func TestTaskConfigValidation(t *testing.T) {
 			config: &TaskConfig{
 				ID:  &taskID,
 				Use: pkgref.NewPackageRefConfig("task(id=test-task)"),
-				InputSchema: &common.InputSchema{
-					Schema: common.Schema{
+				InputSchema: &schema.InputSchema{
+					Schema: schema.Schema{
 						Type: "object",
 					},
 				},
@@ -300,8 +301,8 @@ func TestTaskConfigValidation(t *testing.T) {
 			config: &TaskConfig{
 				ID:  &taskID,
 				Use: pkgref.NewPackageRefConfig("task(file=basic_task.yaml)"),
-				OutputSchema: &common.OutputSchema{
-					Schema: common.Schema{
+				OutputSchema: &schema.OutputSchema{
+					Schema: schema.Schema{
 						Type: "object",
 					},
 				},
@@ -315,13 +316,13 @@ func TestTaskConfigValidation(t *testing.T) {
 			config: &TaskConfig{
 				ID:  &taskID,
 				Use: pkgref.NewPackageRefConfig("task(dep=compozy/tasks:test-task)"),
-				InputSchema: &common.InputSchema{
-					Schema: common.Schema{
+				InputSchema: &schema.InputSchema{
+					Schema: schema.Schema{
 						Type: "object",
 					},
 				},
-				OutputSchema: &common.OutputSchema{
-					Schema: common.Schema{
+				OutputSchema: &schema.OutputSchema{
+					Schema: schema.Schema{
 						Type: "object",
 					},
 				},

@@ -7,6 +7,8 @@ import (
 
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
+	"github.com/compozy/compozy/internal/parser/provider"
+	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/compozy/compozy/internal/parser/tool"
 	"github.com/compozy/compozy/internal/testutils"
 	"github.com/stretchr/testify/assert"
@@ -30,8 +32,8 @@ func TestLoadAgent(t *testing.T) {
 				require.NotNil(t, config.Config.MaxTokens)
 
 				assert.Equal(t, AgentID("code-assistant"), *config.ID)
-				assert.Equal(t, ProviderAnthropic, config.Config.Provider)
-				assert.Equal(t, ModelClaude3Opus, config.Config.Model)
+				assert.Equal(t, provider.ProviderAnthropic, config.Config.Provider)
+				assert.Equal(t, provider.ModelClaude3Opus, config.Config.Model)
 				assert.InDelta(t, float32(0.7), float32(*config.Config.Temperature), 0.0001)
 				assert.Equal(t, uint32(4000), uint32(*config.Config.MaxTokens))
 
@@ -183,7 +185,7 @@ func TestAgentConfigValidation(t *testing.T) {
 			name: "Valid Config",
 			config: &AgentConfig{
 				ID:           &agentID,
-				Config:       &ProviderConfig{},
+				Config:       &provider.ProviderConfig{},
 				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
 				cwd:          common.NewCWD("/test/path"),
 			},
@@ -193,7 +195,7 @@ func TestAgentConfigValidation(t *testing.T) {
 			name: "Missing CWD",
 			config: &AgentConfig{
 				ID:           &agentID,
-				Config:       &ProviderConfig{},
+				Config:       &provider.ProviderConfig{},
 				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
 			},
 			wantErr: true,
@@ -204,7 +206,7 @@ func TestAgentConfigValidation(t *testing.T) {
 			config: &AgentConfig{
 				ID:      &agentID,
 				Use:     pkgref.NewPackageRefConfig("invalid"),
-				Config:  &ProviderConfig{},
+				Config:  &provider.ProviderConfig{},
 				Tools:   []*tool.ToolConfig{},
 				Actions: []*AgentActionConfig{},
 				cwd:     common.NewCWD("/test/path"),
@@ -217,10 +219,10 @@ func TestAgentConfigValidation(t *testing.T) {
 			config: &AgentConfig{
 				ID:           &agentID,
 				Use:          pkgref.NewPackageRefConfig("agent(id=test-agent)"),
-				Config:       &ProviderConfig{},
+				Config:       &provider.ProviderConfig{},
 				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
-				InputSchema: &common.InputSchema{
-					Schema: common.Schema{
+				InputSchema: &schema.InputSchema{
+					Schema: schema.Schema{
 						Type: "object",
 					},
 				},
@@ -234,10 +236,10 @@ func TestAgentConfigValidation(t *testing.T) {
 			config: &AgentConfig{
 				ID:           &agentID,
 				Use:          pkgref.NewPackageRefConfig("agent(file=basic_agent.yaml)"),
-				Config:       &ProviderConfig{},
+				Config:       &provider.ProviderConfig{},
 				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
-				OutputSchema: &common.OutputSchema{
-					Schema: common.Schema{
+				OutputSchema: &schema.OutputSchema{
+					Schema: schema.Schema{
 						Type: "object",
 					},
 				},
@@ -251,15 +253,15 @@ func TestAgentConfigValidation(t *testing.T) {
 			config: &AgentConfig{
 				ID:           &agentID,
 				Use:          pkgref.NewPackageRefConfig("agent(dep=compozy/agents:test-agent)"),
-				Config:       &ProviderConfig{},
+				Config:       &provider.ProviderConfig{},
 				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
-				InputSchema: &common.InputSchema{
-					Schema: common.Schema{
+				InputSchema: &schema.InputSchema{
+					Schema: schema.Schema{
 						Type: "object",
 					},
 				},
-				OutputSchema: &common.OutputSchema{
-					Schema: common.Schema{
+				OutputSchema: &schema.OutputSchema{
+					Schema: schema.Schema{
 						Type: "object",
 					},
 				},

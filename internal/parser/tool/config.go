@@ -8,7 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
-	v "github.com/compozy/compozy/internal/parser/validator"
+	"github.com/compozy/compozy/internal/parser/schema"
 )
 
 // TestMode indicates whether we are running in test mode
@@ -20,8 +20,8 @@ type ToolConfig struct {
 	Description  *ToolDescription         `json:"description,omitempty" yaml:"description,omitempty"`
 	Execute      *ToolExecute             `json:"execute,omitempty" yaml:"execute,omitempty"`
 	Use          *pkgref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
-	InputSchema  *common.InputSchema      `json:"input,omitempty" yaml:"input,omitempty"`
-	OutputSchema *common.OutputSchema     `json:"output,omitempty" yaml:"output,omitempty"`
+	InputSchema  *schema.InputSchema      `json:"input,omitempty" yaml:"input,omitempty"`
+	OutputSchema *schema.OutputSchema     `json:"output,omitempty" yaml:"output,omitempty"`
 	With         *common.WithParams       `json:"with,omitempty" yaml:"with,omitempty"`
 	Env          common.EnvMap            `json:"env,omitempty" yaml:"env,omitempty"`
 
@@ -60,8 +60,8 @@ func Load(path string) (*ToolConfig, error) {
 // Validate validates the tool configuration
 func (t *ToolConfig) Validate() error {
 	validator := common.NewCompositeValidator(
-		v.NewCWDValidator(t.cwd, string(*t.ID)),
-		v.NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
+		schema.NewCWDValidator(t.cwd, string(*t.ID)),
+		schema.NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
 		NewPackageRefValidator(t.Use, t.cwd),
 		NewExecuteValidator(t.Execute, t.cwd).WithID(t.ID),
 	)

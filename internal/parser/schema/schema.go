@@ -1,9 +1,8 @@
-package validator
+package schema
 
 import (
 	"fmt"
 
-	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
 )
 
@@ -38,12 +37,12 @@ const (
 // SchemaValidator validates input and output schemas
 type SchemaValidator struct {
 	pkgRef       *pkgref.PackageRefConfig
-	inputSchema  *common.InputSchema
-	outputSchema *common.OutputSchema
+	inputSchema  *InputSchema
+	outputSchema *OutputSchema
 }
 
 // NewSchemaValidator creates a new SchemaValidator
-func NewSchemaValidator(pkgRef *pkgref.PackageRefConfig, inputSchema *common.InputSchema, outputSchema *common.OutputSchema) *SchemaValidator {
+func NewSchemaValidator(pkgRef *pkgref.PackageRefConfig, inputSchema *InputSchema, outputSchema *OutputSchema) *SchemaValidator {
 	return &SchemaValidator{
 		pkgRef:       pkgRef,
 		inputSchema:  inputSchema,
@@ -52,7 +51,7 @@ func NewSchemaValidator(pkgRef *pkgref.PackageRefConfig, inputSchema *common.Inp
 }
 
 // validateSchema validates the basic structure of a schema
-func (v *SchemaValidator) validateSchema(schema *common.Schema) error {
+func (v *SchemaValidator) validateSchema(schema *Schema) error {
 	if schema == nil {
 		return nil
 	}
