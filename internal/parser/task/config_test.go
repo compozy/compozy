@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/parser/pkgref"
 	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/compozy/compozy/internal/parser/transition"
-	"github.com/compozy/compozy/internal/testutils"
+	"github.com/compozy/compozy/internal/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -159,8 +159,8 @@ func TestLoadTask(t *testing.T) {
 			require.True(t, ok)
 			testDir := filepath.Dir(filename)
 
-			// Setup test fixture using testutils
-			dstPath := testutils.SetupFixture(t, testDir, tt.fixture)
+			// Setup test fixture using utils
+			dstPath := utils.SetupFixture(t, testDir, tt.fixture)
 
 			// Run the test
 			config, err := Load(dstPath)
