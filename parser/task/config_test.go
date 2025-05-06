@@ -40,7 +40,7 @@ func TestLoadTask(t *testing.T) {
 
 				require.NotNil(t, config.ID)
 				require.NotNil(t, config.Type)
-				require.NotNil(t, config.Basic)
+				require.NotNil(t, config.Action)
 				require.NotNil(t, config.InputSchema)
 				require.NotNil(t, config.OutputSchema)
 				require.NotNil(t, config.Env)
@@ -50,7 +50,7 @@ func TestLoadTask(t *testing.T) {
 
 				assert.Equal(t, TaskID("code-format"), *config.ID)
 				assert.Equal(t, TaskTypeBasic, config.Type)
-				assert.Equal(t, "format-code", string(*config.Basic.Action))
+				assert.Equal(t, "format-code", string(*config.Action))
 
 				// Validate input schema
 				schema := config.InputSchema
@@ -88,7 +88,8 @@ func TestLoadTask(t *testing.T) {
 
 				require.NotNil(t, config.ID)
 				require.NotNil(t, config.Type)
-				require.NotNil(t, config.Decision)
+				require.NotEmpty(t, config.Condition)
+				require.NotNil(t, config.Routes)
 				require.NotNil(t, config.InputSchema)
 				require.NotNil(t, config.OutputSchema)
 				require.NotNil(t, config.Env)
@@ -97,13 +98,13 @@ func TestLoadTask(t *testing.T) {
 
 				assert.Equal(t, TaskID("code-review"), *config.ID)
 				assert.Equal(t, TaskTypeDecision, config.Type)
-				assert.Equal(t, "review_score", string(config.Decision.Condition))
-				assert.Equal(t, 3, len(config.Decision.Routes))
+				assert.Equal(t, "review_score", string(config.Condition))
+				assert.Equal(t, 3, len(config.Routes))
 
 				// Validate routes
-				assert.Equal(t, "deploy", string(config.Decision.Routes["approved"]))
-				assert.Equal(t, "update-code", string(config.Decision.Routes["needs_changes"]))
-				assert.Equal(t, "notify-team", string(config.Decision.Routes["rejected"]))
+				assert.Equal(t, "deploy", string(config.Routes["approved"]))
+				assert.Equal(t, "update-code", string(config.Routes["needs_changes"]))
+				assert.Equal(t, "notify-team", string(config.Routes["rejected"]))
 
 				// Validate input schema
 				schema := config.InputSchema
@@ -199,25 +200,21 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Valid Basic Task",
 			config: &TaskConfig{
-				ID:   &taskID,
-				Type: TaskTypeBasic,
-				Basic: &BasicTaskConfig{
-					Action: func() *agent.ActionID { a := agent.ActionID("test-action"); return &a }(),
-				},
-				cwd: common.NewCWD("/test/path"),
+				ID:     &taskID,
+				Type:   TaskTypeBasic,
+				Action: func() *agent.ActionID { a := agent.ActionID("test-action"); return &a }(),
+				cwd:    common.NewCWD("/test/path"),
 			},
 			wantErr: false,
 		},
 		{
 			name: "Valid Decision Task",
 			config: &TaskConfig{
-				ID:   &taskID,
-				Type: TaskTypeDecision,
-				Decision: &DecisionTaskConfig{
-					Condition: "test-condition",
-					Routes: map[TaskRoute]TaskRoute{
-						"route1": "next1",
-					},
+				ID:        &taskID,
+				Type:      TaskTypeDecision,
+				Condition: "test-condition",
+				Routes: map[TaskRoute]TaskRoute{
+					"route1": "next1",
 				},
 				cwd: common.NewCWD("/test/path"),
 			},
@@ -274,13 +271,11 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Decision Task Missing Routes",
 			config: &TaskConfig{
-				ID:   &taskID,
-				Type: TaskTypeDecision,
-				Decision: &DecisionTaskConfig{
-					Condition: "test-condition",
-					Routes:    map[TaskRoute]TaskRoute{},
-				},
-				cwd: common.NewCWD("/test/path"),
+				ID:        &taskID,
+				Type:      TaskTypeDecision,
+				Condition: "test-condition",
+				Routes:    map[TaskRoute]TaskRoute{},
+				cwd:       common.NewCWD("/test/path"),
 			},
 			wantErr: true,
 			errMsg:  "Decision task must have at least one route",

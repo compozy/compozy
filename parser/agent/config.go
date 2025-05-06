@@ -146,77 +146,108 @@ func Load(path string) (*AgentConfig, error) {
 
 // Validate validates the agent configuration
 func (a *AgentConfig) Validate() error {
+	if err := a.validateCWD(); err != nil {
+		return err
+	}
+	if err := a.validateID(); err != nil {
+		return err
+	}
+	if err := a.validatePackageRef(); err != nil {
+		return err
+	}
+	if err := a.validateInputSchema(); err != nil {
+		return err
+	}
+	if err := a.validateOutputSchema(); err != nil {
+		return err
+	}
+	if err := a.validateActions(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (a *AgentConfig) validateCWD() error {
 	if a.cwd == nil || a.cwd.Get() == "" {
 		return &AgentConfigError{
 			Message: "Missing file path for agent",
 			Code:    "MISSING_FILE_PATH",
 		}
 	}
+	return nil
+}
 
-	// Check required fields
+func (a *AgentConfig) validateID() error {
 	if a.ID == nil {
 		return &AgentConfigError{
 			Message: "Agent ID is required",
 			Code:    "MISSING_AGENT_ID",
 		}
 	}
+	return nil
+}
 
-	// Validate package reference if present
-	if a.Use != nil {
-		ref, err := package_ref.Parse(string(*a.Use))
-		if err != nil {
-			return &AgentConfigError{
-				Message: "Invalid package reference: " + err.Error(),
-				Code:    "INVALID_PACKAGE_REF",
-			}
-		}
-
-		// Validate that it's an agent reference
-		if !ref.Component.IsAgent() {
-			return &AgentConfigError{
-				Message: "Package reference must be an agent",
-				Code:    "INVALID_COMPONENT_TYPE",
-			}
-		}
-
-		// Validate the reference against the current working directory
-		if err := ref.Type.Validate(a.cwd.Get()); err != nil {
-			return &AgentConfigError{
-				Message: "Invalid package reference: " + err.Error(),
-				Code:    "INVALID_PACKAGE_REF",
-			}
+func (a *AgentConfig) validatePackageRef() error {
+	if a.Use == nil {
+		return nil
+	}
+	ref, err := package_ref.Parse(string(*a.Use))
+	if err != nil {
+		return &AgentConfigError{
+			Message: "Invalid package reference: " + err.Error(),
+			Code:    "INVALID_PACKAGE_REF",
 		}
 	}
-
-	// Validate input schema if present
-	if a.InputSchema != nil {
-		if err := a.InputSchema.Validate(); err != nil {
-			return &AgentConfigError{
-				Message: "Invalid input schema: " + err.Error(),
-				Code:    "INVALID_INPUT_SCHEMA",
-			}
+	if !ref.Component.IsAgent() {
+		return &AgentConfigError{
+			Message: "Package reference must be an agent",
+			Code:    "INVALID_COMPONENT_TYPE",
 		}
 	}
-
-	// Validate output schema if present
-	if a.OutputSchema != nil {
-		if err := a.OutputSchema.Validate(); err != nil {
-			return &AgentConfigError{
-				Message: "Invalid output schema: " + err.Error(),
-				Code:    "INVALID_OUTPUT_SCHEMA",
-			}
+	if err := ref.Type.Validate(a.cwd.Get()); err != nil {
+		return &AgentConfigError{
+			Message: "Invalid package reference: " + err.Error(),
+			Code:    "INVALID_PACKAGE_REF",
 		}
 	}
+	return nil
+}
 
-	// Validate actions if present
-	if a.Actions != nil {
-		for _, action := range a.Actions {
-			if err := action.Validate(); err != nil {
-				return err
-			}
+func (a *AgentConfig) validateInputSchema() error {
+	if a.InputSchema == nil {
+		return nil
+	}
+	if err := a.InputSchema.Validate(); err != nil {
+		return &AgentConfigError{
+			Message: "Invalid input schema: " + err.Error(),
+			Code:    "INVALID_INPUT_SCHEMA",
 		}
 	}
+	return nil
+}
 
+func (a *AgentConfig) validateOutputSchema() error {
+	if a.OutputSchema == nil {
+		return nil
+	}
+	if err := a.OutputSchema.Validate(); err != nil {
+		return &AgentConfigError{
+			Message: "Invalid output schema: " + err.Error(),
+			Code:    "INVALID_OUTPUT_SCHEMA",
+		}
+	}
+	return nil
+}
+
+func (a *AgentConfig) validateActions() error {
+	if a.Actions == nil {
+		return nil
+	}
+	for _, action := range a.Actions {
+		if err := action.Validate(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

@@ -234,37 +234,8 @@ func (w *WorkflowConfig) TaskByRef(ref *package_ref.PackageRef) (*task.TaskConfi
 	}
 }
 
-// Validate validates the workflow configuration
-func (w *WorkflowConfig) Validate() error {
-	if w.cwd == nil || w.cwd.Get() == "" {
-		return &WorkflowError{
-			Message: "Missing file path for workflow",
-			Code:    "MISSING_FILE_PATH",
-		}
-	}
-
-	// Validate tasks
-	for _, t := range w.Tasks {
-		if !TestMode {
-			t.SetCWD(w.cwd.Get())
-		}
-		if err := t.Validate(); err != nil {
-			return err
-		}
-	}
-
-	// Validate tools
-	for _, t := range w.Tools {
-		if !TestMode {
-			t.SetCWD(w.cwd.Get())
-		}
-		if err := t.Validate(); err != nil {
-			return err
-		}
-	}
-
-	// Validate agents
-	for _, a := range w.Agents {
+func validateAgents(w *WorkflowConfig, agents []agent.AgentConfig) error {
+	for _, a := range agents {
 		if !TestMode {
 			a.SetCWD(w.cwd.Get())
 		}
@@ -275,9 +246,69 @@ func (w *WorkflowConfig) Validate() error {
 			}
 		}
 	}
+	return nil
+}
 
-	// Validate trigger
-	if err := w.Trigger.Validate(); err != nil {
+func validateTools(w *WorkflowConfig, tools []tool.ToolConfig) error {
+	for _, t := range tools {
+		if !TestMode {
+			t.SetCWD(w.cwd.Get())
+		}
+		if err := t.Validate(); err != nil {
+			return &WorkflowError{
+				Message: err.Error(),
+				Code:    "TOOL_VALIDATION_ERROR",
+			}
+		}
+	}
+	return nil
+}
+
+func validateTasks(w *WorkflowConfig, tasks []task.TaskConfig) error {
+	for _, t := range tasks {
+		if !TestMode {
+			t.SetCWD(w.cwd.Get())
+		}
+		if err := t.Validate(); err != nil {
+			return &WorkflowError{
+				Message: err.Error(),
+				Code:    "TASK_VALIDATION_ERROR",
+			}
+		}
+	}
+	return nil
+}
+
+func validateTrigger(trigger trigger.TriggerConfig) error {
+	if err := trigger.Validate(); err != nil {
+		return &WorkflowError{
+			Message: err.Error(),
+			Code:    "TRIGGER_VALIDATION_ERROR",
+		}
+	}
+	return nil
+}
+
+// Validate validates the workflow configuration
+func (w *WorkflowConfig) Validate() error {
+	if w.cwd == nil || w.cwd.Get() == "" {
+		return &WorkflowError{
+			Message: "Missing file path for workflow",
+			Code:    "MISSING_FILE_PATH",
+		}
+	}
+
+	// Use the helper functions for validation
+	if err := validateTasks(w, w.Tasks); err != nil {
+		return err
+	}
+	if err := validateTools(w, w.Tools); err != nil {
+		return err
+	}
+	if err := validateAgents(w, w.Agents); err != nil {
+		return err
+	}
+	if err := validateTrigger(w.Trigger); err != nil {
 		return err
 	}
 

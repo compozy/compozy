@@ -66,8 +66,8 @@ func TestLoadWorkflow(t *testing.T) {
 				assert.Equal(t, "basic", string(task.Type))
 				require.NotNil(t, task.Use)
 				assert.Equal(t, "agent(id=code-assistant)", string(*task.Use))
-				require.NotNil(t, task.Basic)
-				assert.Equal(t, "format-code", string(*task.Basic.Action))
+				require.NotNil(t, task.Action)
+				assert.Equal(t, "format-code", string(*task.Action))
 
 				// Validate tools
 				require.Len(t, config.Tools, 1)
