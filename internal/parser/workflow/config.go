@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/author"
 	"github.com/compozy/compozy/internal/parser/common"
-	"github.com/compozy/compozy/internal/parser/pkgref"
 	"github.com/compozy/compozy/internal/parser/task"
 	"github.com/compozy/compozy/internal/parser/tool"
 	"github.com/compozy/compozy/internal/parser/trigger"
@@ -73,108 +72,6 @@ func Load(path string) (*WorkflowConfig, error) {
 	}
 
 	return config, nil
-}
-
-// AgentByRef finds an agent configuration by its package reference
-func (w *WorkflowConfig) AgentByRef(ref *pkgref.PackageRef) (*agent.AgentConfig, error) {
-	if !ref.Component.IsAgent() {
-		return nil, NewInvalidComponentError("agent")
-	}
-
-	switch ref.Type.Type {
-	case "id":
-		if w.Agents == nil {
-			return nil, NewNoAgentsDefinedError()
-		}
-
-		agentID := agent.AgentID(ref.Type.Value)
-		for i := range w.Agents {
-			if w.Agents[i].ID != nil && *w.Agents[i].ID == agentID {
-				agent := w.Agents[i]
-				agent.SetCWD(w.cwd.Get())
-				return &agent, nil
-			}
-		}
-
-		return nil, NewAgentNotFoundError(ref.Type.Value)
-
-	case "file":
-		return agent.Load(w.cwd.Join(ref.Type.Value))
-
-	case "dep":
-		return nil, NewNotImplementedError()
-
-	default:
-		return nil, NewInvalidRefTypeError("agent")
-	}
-}
-
-// ToolByRef finds a tool configuration by its package reference
-func (w *WorkflowConfig) ToolByRef(ref *pkgref.PackageRef) (*tool.ToolConfig, error) {
-	if !ref.Component.IsTool() {
-		return nil, NewInvalidComponentError("tool")
-	}
-
-	switch ref.Type.Type {
-	case "id":
-		if w.Tools == nil {
-			return nil, NewNoToolsDefinedError()
-		}
-
-		toolID := tool.ToolID(ref.Type.Value)
-		for i := range w.Tools {
-			if w.Tools[i].ID != nil && *w.Tools[i].ID == toolID {
-				tool := w.Tools[i]
-				tool.SetCWD(w.cwd.Get())
-				return &tool, nil
-			}
-		}
-
-		return nil, NewToolNotFoundError(ref.Type.Value)
-
-	case "file":
-		return tool.Load(w.cwd.Join(ref.Type.Value))
-
-	case "dep":
-		return nil, NewNotImplementedError()
-
-	default:
-		return nil, NewInvalidRefTypeError("tool")
-	}
-}
-
-// TaskByRef finds a task configuration by its package reference
-func (w *WorkflowConfig) TaskByRef(ref *pkgref.PackageRef) (*task.TaskConfig, error) {
-	if !ref.Component.IsTask() {
-		return nil, NewInvalidComponentError("task")
-	}
-
-	switch ref.Type.Type {
-	case "id":
-		if w.Tasks == nil {
-			return nil, NewNoTasksDefinedError()
-		}
-
-		taskID := task.TaskID(ref.Type.Value)
-		for i := range w.Tasks {
-			if w.Tasks[i].ID != nil && *w.Tasks[i].ID == taskID {
-				task := w.Tasks[i]
-				task.SetCWD(w.cwd.Get())
-				return &task, nil
-			}
-		}
-
-		return nil, NewTaskNotFoundError(ref.Type.Value)
-
-	case "file":
-		return task.Load(w.cwd.Join(ref.Type.Value))
-
-	case "dep":
-		return nil, NewNotImplementedError()
-
-	default:
-		return nil, NewInvalidRefTypeError("task")
-	}
 }
 
 // Validate validates the workflow configuration
