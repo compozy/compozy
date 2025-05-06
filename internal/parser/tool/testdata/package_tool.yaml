@@ -1,6 +1,5 @@
 id: code-linter
 description: A tool for linting code
-use: tool(id=eslint)
 input:
   type: object
   properties:

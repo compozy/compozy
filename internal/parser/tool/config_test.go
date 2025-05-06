@@ -78,7 +78,6 @@ func TestLoadTool(t *testing.T) {
 
 				require.NotNil(t, config.ID)
 				require.NotNil(t, config.Description)
-				require.NotNil(t, config.Use)
 				require.NotNil(t, config.InputSchema)
 				require.NotNil(t, config.OutputSchema)
 				require.NotNil(t, config.Env)
@@ -86,7 +85,6 @@ func TestLoadTool(t *testing.T) {
 
 				assert.Equal(t, ToolID("code-linter"), *config.ID)
 				assert.Equal(t, ToolDescription("A tool for linting code"), *config.Description)
-				assert.Equal(t, "tool(id=eslint)", string(*config.Use))
 
 				// Validate input schema
 				schema := config.InputSchema
@@ -112,14 +110,6 @@ func TestLoadTool(t *testing.T) {
 				assert.Contains(t, itemProps, "severity")
 				require.NotNil(t, outSchema.Required)
 				assert.Contains(t, outSchema.Required, "issues")
-
-				// Validate package reference
-				require.NotNil(t, config.Use)
-				ref, err := config.Use.IntoRef()
-				require.NoError(t, err)
-				assert.Equal(t, pkgref.ComponentTool, ref.Component)
-				assert.Equal(t, "id", ref.Type.Type)
-				assert.Equal(t, "eslint", ref.Type.Value)
 
 				// Validate env and with
 				assert.Equal(t, "8.0.0", config.Env["ESLINT_VERSION"])
@@ -225,6 +215,56 @@ func TestToolConfigValidation(t *testing.T) {
 			},
 			wantErr: true,
 			errMsg:  "Invalid tool execute path",
+		},
+		{
+			name: "Input Schema Not Allowed with ID Reference",
+			config: &ToolConfig{
+				ID:  &toolID,
+				Use: pkgref.NewPackageRefConfig("tool(id=test-tool)"),
+				InputSchema: &common.InputSchema{
+					Schema: common.Schema{
+						Type: "object",
+					},
+				},
+				cwd: common.NewCWD("/test/path"),
+			},
+			wantErr: true,
+			errMsg:  "Input schema not allowed for reference type id",
+		},
+		{
+			name: "Output Schema Not Allowed with File Reference",
+			config: &ToolConfig{
+				ID:  &toolID,
+				Use: pkgref.NewPackageRefConfig("tool(file=basic_tool.yaml)"),
+				OutputSchema: &common.OutputSchema{
+					Schema: common.Schema{
+						Type: "object",
+					},
+				},
+				cwd: common.NewCWD("/test/path"),
+			},
+			wantErr: true,
+			errMsg:  "Output schema not allowed for reference type file",
+		},
+		{
+			name: "Both Schemas Not Allowed with Dep Reference",
+			config: &ToolConfig{
+				ID:  &toolID,
+				Use: pkgref.NewPackageRefConfig("tool(dep=compozy/tools:test-tool)"),
+				InputSchema: &common.InputSchema{
+					Schema: common.Schema{
+						Type: "object",
+					},
+				},
+				OutputSchema: &common.OutputSchema{
+					Schema: common.Schema{
+						Type: "object",
+					},
+				},
+				cwd: common.NewCWD("/test/path"),
+			},
+			wantErr: true,
+			errMsg:  "Input schema not allowed for reference type dep",
 		},
 	}
 

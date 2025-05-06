@@ -280,6 +280,56 @@ func TestTaskConfigValidation(t *testing.T) {
 			wantErr: true,
 			errMsg:  "Decision task must have at least one route",
 		},
+		{
+			name: "Input Schema Not Allowed with ID Reference",
+			config: &TaskConfig{
+				ID:  &taskID,
+				Use: pkgref.NewPackageRefConfig("task(id=test-task)"),
+				InputSchema: &common.InputSchema{
+					Schema: common.Schema{
+						Type: "object",
+					},
+				},
+				cwd: common.NewCWD("/test/path"),
+			},
+			wantErr: true,
+			errMsg:  "Input schema not allowed for reference type id",
+		},
+		{
+			name: "Output Schema Not Allowed with File Reference",
+			config: &TaskConfig{
+				ID:  &taskID,
+				Use: pkgref.NewPackageRefConfig("task(file=basic_task.yaml)"),
+				OutputSchema: &common.OutputSchema{
+					Schema: common.Schema{
+						Type: "object",
+					},
+				},
+				cwd: common.NewCWD("/test/path"),
+			},
+			wantErr: true,
+			errMsg:  "Output schema not allowed for reference type file",
+		},
+		{
+			name: "Both Schemas Not Allowed with Dep Reference",
+			config: &TaskConfig{
+				ID:  &taskID,
+				Use: pkgref.NewPackageRefConfig("task(dep=compozy/tasks:test-task)"),
+				InputSchema: &common.InputSchema{
+					Schema: common.Schema{
+						Type: "object",
+					},
+				},
+				OutputSchema: &common.OutputSchema{
+					Schema: common.Schema{
+						Type: "object",
+					},
+				},
+				cwd: common.NewCWD("/test/path"),
+			},
+			wantErr: true,
+			errMsg:  "Input schema not allowed for reference type dep",
+		},
 	}
 
 	for _, tt := range tests {

@@ -212,6 +212,62 @@ func TestAgentConfigValidation(t *testing.T) {
 			wantErr: true,
 			errMsg:  "Invalid package reference",
 		},
+		{
+			name: "Input Schema Not Allowed with ID Reference",
+			config: &AgentConfig{
+				ID:           &agentID,
+				Use:          pkgref.NewPackageRefConfig("agent(id=test-agent)"),
+				Config:       &ProviderConfig{},
+				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
+				InputSchema: &common.InputSchema{
+					Schema: common.Schema{
+						Type: "object",
+					},
+				},
+				cwd: common.NewCWD("/test/path"),
+			},
+			wantErr: true,
+			errMsg:  "Input schema not allowed for reference type id",
+		},
+		{
+			name: "Output Schema Not Allowed with File Reference",
+			config: &AgentConfig{
+				ID:           &agentID,
+				Use:          pkgref.NewPackageRefConfig("agent(file=basic_agent.yaml)"),
+				Config:       &ProviderConfig{},
+				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
+				OutputSchema: &common.OutputSchema{
+					Schema: common.Schema{
+						Type: "object",
+					},
+				},
+				cwd: common.NewCWD("/test/data"),
+			},
+			wantErr: true,
+			errMsg:  "Output schema not allowed for reference type file",
+		},
+		{
+			name: "Both Schemas Not Allowed with Dep Reference",
+			config: &AgentConfig{
+				ID:           &agentID,
+				Use:          pkgref.NewPackageRefConfig("agent(dep=compozy/agents:test-agent)"),
+				Config:       &ProviderConfig{},
+				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
+				InputSchema: &common.InputSchema{
+					Schema: common.Schema{
+						Type: "object",
+					},
+				},
+				OutputSchema: &common.OutputSchema{
+					Schema: common.Schema{
+						Type: "object",
+					},
+				},
+				cwd: common.NewCWD("/test/path"),
+			},
+			wantErr: true,
+			errMsg:  "Input schema not allowed for reference type dep",
+		},
 	}
 
 	for _, tt := range tests {

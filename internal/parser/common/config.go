@@ -1,6 +1,6 @@
 package common
 
-type ComponentConfig interface {
+type Config interface {
 	SetCWD(path string)
 	GetCWD() string
 	Validate() error

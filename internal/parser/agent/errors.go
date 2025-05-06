@@ -11,8 +11,6 @@ const (
 	ErrCodeMissingPath          = "MISSING_FILE_PATH"
 	ErrCodeInvalidPackageRef    = "INVALID_PACKAGE_REF"
 	ErrCodeInvalidComponentType = "INVALID_COMPONENT_TYPE"
-	ErrCodeInvalidInputSchema   = "INVALID_INPUT_SCHEMA"
-	ErrCodeInvalidOutputSchema  = "INVALID_OUTPUT_SCHEMA"
 	ErrCodeMerge                = "MERGE_ERROR"
 	ErrCodeFileClose            = "FILE_CLOSE_ERROR"
 )
@@ -24,8 +22,6 @@ const (
 	ErrMsgMissingPath          = "Missing file path for agent: %s"
 	ErrMsgInvalidPackageRef    = "Invalid package reference: %s"
 	ErrMsgInvalidComponentType = "Package reference must be an agent"
-	ErrMsgInvalidInputSchema   = "Invalid input schema: %s"
-	ErrMsgInvalidOutputSchema  = "Invalid output schema: %s"
 	ErrMsgMerge                = "Failed to merge agent configs: %s"
 	ErrMsgFileClose            = "Failed to close agent config file: %s"
 )
@@ -77,18 +73,23 @@ func NewInvalidComponentTypeError() *AgentConfigError {
 	return NewError(ErrCodeInvalidComponentType, ErrMsgInvalidComponentType)
 }
 
-func NewInvalidInputSchemaError(err error) *AgentConfigError {
-	return NewErrorf(ErrCodeInvalidInputSchema, ErrMsgInvalidInputSchema, err.Error())
-}
-
-func NewInvalidOutputSchemaError(err error) *AgentConfigError {
-	return NewErrorf(ErrCodeInvalidOutputSchema, ErrMsgInvalidOutputSchema, err.Error())
-}
-
 func NewMergeError(err error) *AgentConfigError {
 	return NewErrorf(ErrCodeMerge, ErrMsgMerge, err.Error())
 }
 
 func NewFileCloseError(err error) *AgentConfigError {
 	return NewErrorf(ErrCodeFileClose, ErrMsgFileClose, err.Error())
+}
+
+// InvalidConfigurationError represents an error when the configuration is invalid
+type InvalidConfigurationError struct {
+	Message string
+}
+
+func (e InvalidConfigurationError) Error() string {
+	return e.Message
+}
+
+func NewInvalidConfigurationError(message string) error {
+	return InvalidConfigurationError{Message: message}
 }

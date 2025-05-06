@@ -3,10 +3,8 @@ package agent
 import (
 	"errors"
 	"os"
-	"path/filepath"
 
 	"dario.cat/mergo"
-	"gopkg.in/yaml.v3"
 
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
@@ -89,27 +87,15 @@ func (a *AgentConfig) GetCWD() string {
 	return a.cwd.Get()
 }
 
-// Load loads an agent configuration from a file
 func Load(path string) (*AgentConfig, error) {
-	file, err := os.Open(path)
+	config, err := common.LoadConfig[*AgentConfig](path)
 	if err != nil {
-		return nil, NewFileOpenError(err)
+		if os.IsNotExist(err) {
+			return nil, NewFileOpenError(err)
+		}
+		return nil, NewDecodeError(err)
 	}
-
-	var config AgentConfig
-	decoder := yaml.NewDecoder(file)
-	decodeErr := decoder.Decode(&config)
-	closeErr := file.Close()
-
-	if decodeErr != nil {
-		return nil, NewDecodeError(decodeErr)
-	}
-	if closeErr != nil {
-		return nil, NewFileCloseError(closeErr)
-	}
-
-	config.SetCWD(filepath.Dir(path))
-	return &config, nil
+	return config, nil
 }
 
 // Validate validates the agent configuration
@@ -117,6 +103,7 @@ func (a *AgentConfig) Validate() error {
 	// Create a composite validator that combines both custom and struct validation
 	validator := common.NewCompositeValidator(
 		v.NewCWDValidator(a.cwd, string(*a.ID)),
+		v.NewSchemaValidator(a.Use, a.InputSchema, a.OutputSchema),
 		NewPackageRefValidator(a.Use, a.cwd),
 		NewActionsValidator(a.Actions),
 		common.NewStructValidator(a),

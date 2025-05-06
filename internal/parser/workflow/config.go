@@ -1,11 +1,10 @@
 package workflow
 
 import (
+	"errors"
 	"os"
-	"path/filepath"
 
 	"dario.cat/mergo"
-	"gopkg.in/yaml.v3"
 
 	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/author"
@@ -54,24 +53,13 @@ func (w *WorkflowConfig) GetCWD() string {
 
 // Load loads a workflow configuration from a file
 func Load(path string) (*WorkflowConfig, error) {
-	file, err := os.Open(path)
+	config, err := common.LoadConfig[*WorkflowConfig](path)
 	if err != nil {
-		return nil, NewFileOpenError(err)
+		if os.IsNotExist(err) {
+			return nil, NewFileOpenError(err)
+		}
+		return nil, NewDecodeError(err)
 	}
-
-	var config WorkflowConfig
-	decoder := yaml.NewDecoder(file)
-	decodeErr := decoder.Decode(&config)
-	closeErr := file.Close()
-
-	if decodeErr != nil {
-		return nil, NewDecodeError(decodeErr)
-	}
-	if closeErr != nil {
-		return nil, NewFileCloseError(closeErr)
-	}
-
-	config.SetCWD(filepath.Dir(path))
 
 	// Set CWD for all components
 	for i := range config.Tasks {
@@ -84,7 +72,7 @@ func Load(path string) (*WorkflowConfig, error) {
 		config.Agents[i].SetCWD(config.GetCWD())
 	}
 
-	return &config, nil
+	return config, nil
 }
 
 // AgentByRef finds an agent configuration by its package reference
@@ -200,7 +188,7 @@ func (w *WorkflowConfig) Validate() error {
 	}
 
 	// Validate tasks
-	var taskComponents []common.ComponentConfig
+	var taskComponents []common.Config
 	for i := range w.Tasks {
 		w.Tasks[i].SetCWD(w.cwd.Get())
 		taskComponents = append(taskComponents, &w.Tasks[i])
@@ -210,7 +198,7 @@ func (w *WorkflowConfig) Validate() error {
 	}
 
 	// Validate tools
-	var toolComponents []common.ComponentConfig
+	var toolComponents []common.Config
 	for i := range w.Tools {
 		w.Tools[i].SetCWD(w.cwd.Get())
 		toolComponents = append(toolComponents, &w.Tools[i])
@@ -220,7 +208,7 @@ func (w *WorkflowConfig) Validate() error {
 	}
 
 	// Validate agents
-	var agentComponents []common.ComponentConfig
+	var agentComponents []common.Config
 	for i := range w.Agents {
 		w.Agents[i].SetCWD(w.cwd.Get())
 		agentComponents = append(agentComponents, &w.Agents[i])
@@ -234,10 +222,10 @@ func (w *WorkflowConfig) Validate() error {
 }
 
 // Merge merges another workflow configuration into this one
-func (w *WorkflowConfig) Merge(other *WorkflowConfig) error {
-	// Use mergo to deep merge the configs
-	if err := mergo.Merge(w, other, mergo.WithOverride); err != nil {
-		return NewMergeError(err)
+func (w *WorkflowConfig) Merge(other any) error {
+	otherConfig, ok := other.(*WorkflowConfig)
+	if !ok {
+		return NewMergeError(errors.New("invalid type for merge"))
 	}
-	return nil
+	return mergo.Merge(w, otherConfig, mergo.WithOverride)
 }

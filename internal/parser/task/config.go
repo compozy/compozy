@@ -3,10 +3,8 @@ package task
 import (
 	"errors"
 	"os"
-	"path/filepath"
 
 	"dario.cat/mergo"
-	"gopkg.in/yaml.v3"
 
 	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/common"
@@ -66,31 +64,21 @@ func (t *TaskConfig) GetCWD() string {
 
 // Load loads a task configuration from a file
 func Load(path string) (*TaskConfig, error) {
-	file, err := os.Open(path)
+	config, err := common.LoadConfig[*TaskConfig](path)
 	if err != nil {
-		return nil, NewFileOpenError(err)
+		if os.IsNotExist(err) {
+			return nil, NewFileOpenError(err)
+		}
+		return nil, NewDecodeError(err)
 	}
-
-	var config TaskConfig
-	decoder := yaml.NewDecoder(file)
-	decodeErr := decoder.Decode(&config)
-	closeErr := file.Close()
-
-	if decodeErr != nil {
-		return nil, NewDecodeError(decodeErr)
-	}
-	if closeErr != nil {
-		return nil, NewFileCloseError(closeErr)
-	}
-
-	config.SetCWD(filepath.Dir(path))
-	return &config, nil
+	return config, nil
 }
 
 // Validate validates the task configuration
 func (t *TaskConfig) Validate() error {
 	validator := common.NewCompositeValidator(
 		v.NewCWDValidator(t.cwd, string(*t.ID)),
+		v.NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
 		NewPackageRefValidator(t.Use, t.cwd),
 		NewTaskTypeValidator(t.Type, t.Action, t.Condition, t.Routes),
 	)

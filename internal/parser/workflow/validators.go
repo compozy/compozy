@@ -10,11 +10,11 @@ import (
 
 // ComponentsValidator validates a list of components
 type ComponentsValidator struct {
-	components []common.ComponentConfig
+	components []common.Config
 	cwd        *common.CWD
 }
 
-func NewComponentsValidator(components []common.ComponentConfig, cwd *common.CWD) *ComponentsValidator {
+func NewComponentsValidator(components []common.Config, cwd *common.CWD) *ComponentsValidator {
 	return &ComponentsValidator{
 		components: components,
 		cwd:        cwd,

@@ -2,6 +2,7 @@ package common
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 )
 
@@ -40,4 +41,9 @@ func (c *CWD) Validate() error {
 		return ErrCWDNotSet
 	}
 	return nil
+}
+
+// ReadFile reads the contents of a file
+func ReadFile(path string) ([]byte, error) {
+	return os.ReadFile(path)
 }
