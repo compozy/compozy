@@ -1,7 +1,7 @@
 package common
 
 // WithParams represents parameters for a component
-type WithParams map[string]interface{}
+type WithParams map[string]any
 
 // EnvMap represents environment variables for a component
 type EnvMap map[string]string

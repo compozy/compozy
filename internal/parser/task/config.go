@@ -98,7 +98,7 @@ func (t *TaskConfig) Validate() error {
 }
 
 // Merge merges another task configuration into this one
-func (t *TaskConfig) Merge(other interface{}) error {
+func (t *TaskConfig) Merge(other any) error {
 	otherConfig, ok := other.(*TaskConfig)
 	if !ok {
 		return NewMergeError(errors.New("invalid type for merge"))

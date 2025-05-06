@@ -43,7 +43,7 @@ func NewError(code, message string) *PackageRefError {
 }
 
 // NewErrorf creates a new PackageRefError with the given code and formatted message
-func NewErrorf(code, format string, args ...interface{}) *PackageRefError {
+func NewErrorf(code, format string, args ...any) *PackageRefError {
 	return &PackageRefError{
 		Code:    code,
 		Message: fmt.Sprintf(format, args...),

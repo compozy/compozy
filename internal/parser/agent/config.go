@@ -125,7 +125,7 @@ func (a *AgentConfig) Validate() error {
 }
 
 // Merge merges another agent configuration into this one
-func (a *AgentConfig) Merge(other interface{}) error {
+func (a *AgentConfig) Merge(other any) error {
 	otherConfig, ok := other.(*AgentConfig)
 	if !ok {
 		return NewMergeError(errors.New("invalid type for merge"))

@@ -14,5 +14,5 @@ type FrequencyPenalty float32
 type PresencePenalty float32
 
 type ActionResponse struct {
-	Response map[string]interface{} `json:"response" yaml:"response"`
+	Response map[string]any `json:"response" yaml:"response"`
 }

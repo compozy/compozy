@@ -55,7 +55,7 @@ func NewError(code, message string) *ToolError {
 }
 
 // NewErrorf creates a new ToolError with the given code and formatted message
-func NewErrorf(code, format string, args ...interface{}) *ToolError {
+func NewErrorf(code, format string, args ...any) *ToolError {
 	return &ToolError{
 		Code:    code,
 		Message: fmt.Sprintf(format, args...),

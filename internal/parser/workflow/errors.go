@@ -67,7 +67,7 @@ func NewError(code, message string) *WorkflowError {
 }
 
 // NewErrorf creates a new WorkflowError with the given code and formatted message
-func NewErrorf(code, format string, args ...interface{}) *WorkflowError {
+func NewErrorf(code, format string, args ...any) *WorkflowError {
 	return &WorkflowError{
 		Code:    code,
 		Message: fmt.Sprintf(format, args...),

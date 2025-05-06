@@ -81,7 +81,7 @@ func (t *ToolConfig) Validate() error {
 }
 
 // Merge merges another tool configuration into this one
-func (t *ToolConfig) Merge(other interface{}) error {
+func (t *ToolConfig) Merge(other any) error {
 	otherConfig, ok := other.(*ToolConfig)
 	if !ok {
 		return NewMergeError(errors.New("invalid type for merge"))

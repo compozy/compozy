@@ -36,7 +36,7 @@ func NewError(code, message string) *TriggerError {
 }
 
 // NewErrorf creates a new TriggerError with the given code and formatted message
-func NewErrorf(code, format string, args ...interface{}) *TriggerError {
+func NewErrorf(code, format string, args ...any) *TriggerError {
 	return &TriggerError{
 		Code:    code,
 		Message: fmt.Sprintf(format, args...),

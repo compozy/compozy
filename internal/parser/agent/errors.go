@@ -49,7 +49,7 @@ func NewError(code, message string) *AgentConfigError {
 }
 
 // NewErrorf creates a new AgentConfigError with the given code and formatted message
-func NewErrorf(code, format string, args ...interface{}) *AgentConfigError {
+func NewErrorf(code, format string, args ...any) *AgentConfigError {
 	return &AgentConfigError{
 		Code:    code,
 		Message: fmt.Sprintf(format, args...),

@@ -5,7 +5,7 @@ all: test lint
 
 # Run tests using gotestsum
 test:
-	gotestsum --format testname -- ./...
+	gotestsum -- ./...
 
 # Run linter using golangci-lint
 lint:

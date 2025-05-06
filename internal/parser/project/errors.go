@@ -47,7 +47,7 @@ func NewError(code, message string) *ProjectError {
 }
 
 // NewErrorf creates a new ProjectError with the given code and formatted message
-func NewErrorf(code, format string, args ...interface{}) *ProjectError {
+func NewErrorf(code, format string, args ...any) *ProjectError {
 	return &ProjectError{
 		Code:    code,
 		Message: fmt.Sprintf(format, args...),

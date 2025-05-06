@@ -43,7 +43,7 @@ func NewError(code, message string) *RegistryError {
 }
 
 // NewErrorf creates a new RegistryError with the given code and formatted message
-func NewErrorf(code, format string, args ...interface{}) *RegistryError {
+func NewErrorf(code, format string, args ...any) *RegistryError {
 	return &RegistryError{
 		Code:    code,
 		Message: fmt.Sprintf(format, args...),

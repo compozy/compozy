@@ -53,7 +53,7 @@ func NewError(code, message string) *TaskError {
 }
 
 // NewErrorf creates a new TaskError with the given code and formatted message
-func NewErrorf(code, format string, args ...interface{}) *TaskError {
+func NewErrorf(code, format string, args ...any) *TaskError {
 	return &TaskError{
 		Code:    code,
 		Message: fmt.Sprintf(format, args...),
