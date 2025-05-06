@@ -183,37 +183,13 @@ func (w *WorkflowConfig) TaskByRef(ref *package_ref.PackageRef) (*task.TaskConfi
 	}
 }
 
-func validateAgents(w *WorkflowConfig, agents []agent.AgentConfig) error {
-	for _, a := range agents {
+func validateComponents(w *WorkflowConfig, components []common.ComponentConfig) error {
+	for _, c := range components {
 		if !TestMode {
-			a.SetCWD(w.cwd.Get())
+			c.SetCWD(w.cwd.Get())
 		}
-		if err := a.Validate(); err != nil {
-			return NewAgentValidationError(err)
-		}
-	}
-	return nil
-}
-
-func validateTools(w *WorkflowConfig, tools []tool.ToolConfig) error {
-	for _, t := range tools {
-		if !TestMode {
-			t.SetCWD(w.cwd.Get())
-		}
-		if err := t.Validate(); err != nil {
-			return NewToolValidationError(err)
-		}
-	}
-	return nil
-}
-
-func validateTasks(w *WorkflowConfig, tasks []task.TaskConfig) error {
-	for _, t := range tasks {
-		if !TestMode {
-			t.SetCWD(w.cwd.Get())
-		}
-		if err := t.Validate(); err != nil {
-			return NewTaskValidationError(err)
+		if err := c.Validate(); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -233,13 +209,25 @@ func (w *WorkflowConfig) Validate() error {
 	}
 
 	// Use the helper functions for validation
-	if err := validateTasks(w, w.Tasks); err != nil {
+	var taskComponents []common.ComponentConfig
+	for _, t := range w.Tasks {
+		taskComponents = append(taskComponents, &t)
+	}
+	if err := validateComponents(w, taskComponents); err != nil {
 		return err
 	}
-	if err := validateTools(w, w.Tools); err != nil {
+	var toolComponents []common.ComponentConfig
+	for _, t := range w.Tools {
+		toolComponents = append(toolComponents, &t)
+	}
+	if err := validateComponents(w, toolComponents); err != nil {
 		return err
 	}
-	if err := validateAgents(w, w.Agents); err != nil {
+	var agentComponents []common.ComponentConfig
+	for _, a := range w.Agents {
+		agentComponents = append(agentComponents, &a)
+	}
+	if err := validateComponents(w, agentComponents); err != nil {
 		return err
 	}
 	if err := validateTrigger(w.Trigger); err != nil {

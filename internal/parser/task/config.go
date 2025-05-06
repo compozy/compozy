@@ -1,6 +1,7 @@
 package task
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -167,10 +168,10 @@ func (t *TaskConfig) validateTaskType() error {
 }
 
 // Merge merges another task configuration into this one
-func (t *TaskConfig) Merge(other *TaskConfig) error {
-	// Use mergo to deep merge the configs
-	if err := mergo.Merge(t, other, mergo.WithOverride); err != nil {
-		return NewMergeError(err)
+func (t *TaskConfig) Merge(other interface{}) error {
+	otherConfig, ok := other.(*TaskConfig)
+	if !ok {
+		return NewMergeError(errors.New("invalid type for merge"))
 	}
-	return nil
+	return mergo.Merge(t, otherConfig, mergo.WithOverride)
 }

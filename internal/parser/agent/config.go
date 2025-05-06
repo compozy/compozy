@@ -1,7 +1,7 @@
-// ... existing code ...
 package agent
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -207,10 +207,10 @@ func (a *AgentConfig) validateActions() error {
 }
 
 // Merge merges another agent configuration into this one
-func (a *AgentConfig) Merge(other *AgentConfig) error {
-	// Use mergo to deep merge the configs
-	if err := mergo.Merge(a, other, mergo.WithOverride); err != nil {
-		return NewMergeError(err)
+func (a *AgentConfig) Merge(other interface{}) error {
+	otherConfig, ok := other.(*AgentConfig)
+	if !ok {
+		return NewMergeError(errors.New("invalid type for merge"))
 	}
-	return nil
+	return mergo.Merge(a, otherConfig, mergo.WithOverride)
 }

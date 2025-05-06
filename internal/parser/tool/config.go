@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -146,11 +147,12 @@ func (t *ToolConfig) validateOutputSchema() error {
 }
 
 // Merge merges another tool configuration into this one
-func (t *ToolConfig) Merge(other *ToolConfig) error {
-	if err := mergo.Merge(t, other, mergo.WithOverride); err != nil {
-		return NewMergeError(err)
+func (t *ToolConfig) Merge(other interface{}) error {
+	otherConfig, ok := other.(*ToolConfig)
+	if !ok {
+		return NewMergeError(errors.New("invalid type for merge"))
 	}
-	return nil
+	return mergo.Merge(t, otherConfig, mergo.WithOverride)
 }
 
 // Helper function to check if a file exists
