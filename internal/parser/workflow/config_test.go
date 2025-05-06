@@ -7,6 +7,8 @@ import (
 
 	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/common"
+	"github.com/compozy/compozy/internal/parser/provider"
+	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/compozy/compozy/internal/parser/task"
 	"github.com/compozy/compozy/internal/parser/tool"
 	"github.com/compozy/compozy/internal/parser/trigger"
@@ -186,13 +188,27 @@ func TestWorkflowConfigValidation(t *testing.T) {
 			errMsg:  "Current working directory is required for test-workflow",
 		},
 		{
-			name: "Invalid Task",
+			name: "Invalid Task With Params",
 			config: &WorkflowConfig{
 				ID: workflowID,
 				Tasks: []task.TaskConfig{
 					{
 						ID:   func() *task.TaskID { id := task.TaskID("test-task"); return &id }(),
 						Type: task.TaskTypeBasic,
+						InputSchema: &schema.InputSchema{
+							Schema: schema.Schema{
+								Type: "object",
+								Properties: map[string]any{
+									"name": map[string]any{
+										"type": "string",
+									},
+								},
+								Required: []string{"name"},
+							},
+						},
+						With: &common.WithParams{
+							"age": 42,
+						},
 					},
 				},
 				Trigger: trigger.TriggerConfig{
@@ -204,16 +220,30 @@ func TestWorkflowConfigValidation(t *testing.T) {
 				cwd: common.NewCWD("/test/path"),
 			},
 			wantErr: true,
-			errMsg:  "Basic task configuration is required for basic task type",
+			errMsg:  "With parameters invalid for test-task",
 		},
 		{
-			name: "Invalid Tool",
+			name: "Invalid Tool With Params",
 			config: &WorkflowConfig{
 				ID: workflowID,
 				Tools: []tool.ToolConfig{
 					{
 						ID:      func() *tool.ToolID { id := tool.ToolID("test-tool"); return &id }(),
 						Execute: func() *tool.ToolExecute { e := tool.ToolExecute("./test.ts"); return &e }(),
+						InputSchema: &schema.InputSchema{
+							Schema: schema.Schema{
+								Type: "object",
+								Properties: map[string]any{
+									"name": map[string]any{
+										"type": "string",
+									},
+								},
+								Required: []string{"name"},
+							},
+						},
+						With: &common.WithParams{
+							"age": 42,
+						},
 					},
 				},
 				Trigger: trigger.TriggerConfig{
@@ -225,15 +255,36 @@ func TestWorkflowConfigValidation(t *testing.T) {
 				cwd: common.NewCWD("/test/path"),
 			},
 			wantErr: true,
-			errMsg:  "Invalid tool execute path",
+			errMsg:  "With parameters invalid for test-tool",
 		},
 		{
-			name: "Invalid Agent",
+			name: "Invalid Agent With Params",
 			config: &WorkflowConfig{
 				ID: workflowID,
 				Agents: []agent.AgentConfig{
 					{
 						ID: func() *agent.AgentID { id := agent.AgentID("test-agent"); return &id }(),
+						Config: &provider.ProviderConfig{
+							Provider:    "anthropic",
+							Model:       "claude-3-opus",
+							Temperature: func() *provider.Temperature { t := provider.Temperature(0.7); return &t }(),
+							MaxTokens:   func() *provider.MaxTokens { t := provider.MaxTokens(4000); return &t }(),
+						},
+						Instructions: func() *agent.Instructions { i := agent.Instructions("Test instructions"); return &i }(),
+						InputSchema: &schema.InputSchema{
+							Schema: schema.Schema{
+								Type: "object",
+								Properties: map[string]any{
+									"name": map[string]any{
+										"type": "string",
+									},
+								},
+								Required: []string{"name"},
+							},
+						},
+						With: &common.WithParams{
+							"age": 42,
+						},
 					},
 				},
 				Trigger: trigger.TriggerConfig{
@@ -245,7 +296,7 @@ func TestWorkflowConfigValidation(t *testing.T) {
 				cwd: common.NewCWD("/test/path"),
 			},
 			wantErr: true,
-			errMsg:  "Agent validation error: Key: 'AgentConfig.Config' Error:Field validation for 'Config' failed on the 'required' tag\nKey: 'AgentConfig.Instructions' Error:Field validation for 'Instructions' failed on the 'required' tag",
+			errMsg:  "With parameters invalid for test-agent",
 		},
 	}
 

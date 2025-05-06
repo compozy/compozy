@@ -118,6 +118,52 @@ func TestAgentActionConfigValidation(t *testing.T) {
 			wantErr: true,
 			errMsg:  "Current working directory is required for test-action",
 		},
+		{
+			name: "Valid With Params",
+			config: &AgentActionConfig{
+				ID:     "test-action",
+				Prompt: "test prompt",
+				cwd:    common.NewCWD("/test/path"),
+				InputSchema: &schema.InputSchema{
+					Schema: schema.Schema{
+						Type: "object",
+						Properties: map[string]any{
+							"name": map[string]any{
+								"type": "string",
+							},
+						},
+					},
+				},
+				With: &common.WithParams{
+					"name": "test",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Invalid With Params",
+			config: &AgentActionConfig{
+				ID:     "test-action",
+				Prompt: "test prompt",
+				cwd:    common.NewCWD("/test/path"),
+				InputSchema: &schema.InputSchema{
+					Schema: schema.Schema{
+						Type: "object",
+						Properties: map[string]any{
+							"name": map[string]any{
+								"type": "string",
+							},
+						},
+						Required: []string{"name"},
+					},
+				},
+				With: &common.WithParams{
+					"age": 42,
+				},
+			},
+			wantErr: true,
+			errMsg:  "With parameters invalid for test-action",
+		},
 	}
 
 	for _, tt := range tests {
@@ -269,6 +315,54 @@ func TestAgentConfigValidation(t *testing.T) {
 			},
 			wantErr: true,
 			errMsg:  "Input schema not allowed for reference type dep",
+		},
+		{
+			name: "Valid With Params",
+			config: &AgentConfig{
+				ID:           &agentID,
+				Config:       &provider.ProviderConfig{},
+				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
+				InputSchema: &schema.InputSchema{
+					Schema: schema.Schema{
+						Type: "object",
+						Properties: map[string]any{
+							"name": map[string]any{
+								"type": "string",
+							},
+						},
+					},
+				},
+				With: &common.WithParams{
+					"name": "test",
+				},
+				cwd: common.NewCWD("/test/path"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "Invalid With Params",
+			config: &AgentConfig{
+				ID:           &agentID,
+				Config:       &provider.ProviderConfig{},
+				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
+				InputSchema: &schema.InputSchema{
+					Schema: schema.Schema{
+						Type: "object",
+						Properties: map[string]any{
+							"name": map[string]any{
+								"type": "string",
+							},
+						},
+						Required: []string{"name"},
+					},
+				},
+				With: &common.WithParams{
+					"age": 42,
+				},
+				cwd: common.NewCWD("/test/path"),
+			},
+			wantErr: true,
+			errMsg:  "With parameters invalid for test-agent",
 		},
 	}
 

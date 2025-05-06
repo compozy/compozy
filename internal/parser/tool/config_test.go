@@ -267,6 +267,50 @@ func TestToolConfigValidation(t *testing.T) {
 			wantErr: true,
 			errMsg:  "Input schema not allowed for reference type dep",
 		},
+		{
+			name: "Valid With Params",
+			config: &ToolConfig{
+				ID: &toolID,
+				InputSchema: &schema.InputSchema{
+					Schema: schema.Schema{
+						Type: "object",
+						Properties: map[string]any{
+							"name": map[string]any{
+								"type": "string",
+							},
+						},
+					},
+				},
+				With: &common.WithParams{
+					"name": "test",
+				},
+				cwd: common.NewCWD("/test/path"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "Invalid With Params",
+			config: &ToolConfig{
+				ID: &toolID,
+				InputSchema: &schema.InputSchema{
+					Schema: schema.Schema{
+						Type: "object",
+						Properties: map[string]any{
+							"name": map[string]any{
+								"type": "string",
+							},
+						},
+						Required: []string{"name"},
+					},
+				},
+				With: &common.WithParams{
+					"age": 42,
+				},
+				cwd: common.NewCWD("/test/path"),
+			},
+			wantErr: true,
+			errMsg:  "With parameters invalid for test-tool",
+		},
 	}
 
 	for _, tt := range tests {

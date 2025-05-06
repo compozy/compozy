@@ -62,6 +62,7 @@ func (t *ToolConfig) Validate() error {
 	validator := common.NewCompositeValidator(
 		schema.NewCWDValidator(t.cwd, string(*t.ID)),
 		schema.NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
+		schema.NewWithParamsValidator(t.With, t.InputSchema, string(*t.ID)),
 		NewPackageRefValidator(t.Use, t.cwd),
 		NewExecuteValidator(t.Execute, t.cwd).WithID(t.ID),
 	)

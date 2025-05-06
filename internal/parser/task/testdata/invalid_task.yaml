@@ -6,6 +6,8 @@ input:
   properties:
     code:
       type: string
+    param1:
+      type: string
   required:
     - code
 output:
@@ -18,4 +20,5 @@ output:
 env:
   VERSION: "1.0.0"
 with:
+  code: "console.log('hello')"
   param1: "value1"

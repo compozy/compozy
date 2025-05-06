@@ -34,7 +34,7 @@ func NewEnvError(op string, err error) error {
 type EnvMap map[string]string
 
 // FromFile loads environment variables from a file into an EnvMap
-func (e EnvMap) FromFile(path string) error {
+func (e EnvMap) FromFile(path string) (err error) {
 	file, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -42,7 +42,11 @@ func (e EnvMap) FromFile(path string) error {
 		}
 		return NewEnvError("open env file", err)
 	}
-	defer file.Close()
+	defer func() {
+		if cerr := file.Close(); cerr != nil && err == nil {
+			err = NewEnvError("close env file", cerr)
+		}
+	}()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {

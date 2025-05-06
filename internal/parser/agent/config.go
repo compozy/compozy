@@ -45,6 +45,7 @@ func (a *AgentActionConfig) GetCWD() string {
 func (a *AgentActionConfig) Validate() error {
 	validator := common.NewCompositeValidator(
 		schema.NewCWDValidator(a.cwd, string(a.ID)),
+		schema.NewWithParamsValidator(a.With, a.InputSchema, string(a.ID)),
 		common.NewStructValidator(a),
 	)
 	return validator.Validate()
@@ -105,6 +106,7 @@ func (a *AgentConfig) Validate() error {
 	validator := common.NewCompositeValidator(
 		schema.NewCWDValidator(a.cwd, string(*a.ID)),
 		schema.NewSchemaValidator(a.Use, a.InputSchema, a.OutputSchema),
+		schema.NewWithParamsValidator(a.With, a.InputSchema, string(*a.ID)),
 		NewPackageRefValidator(a.Use, a.cwd),
 		NewActionsValidator(a.Actions),
 		common.NewStructValidator(a),
