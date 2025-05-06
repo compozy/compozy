@@ -7,7 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/common"
-	"github.com/compozy/compozy/internal/parser/package_ref"
+	"github.com/compozy/compozy/internal/parser/pkgref"
 	"github.com/compozy/compozy/internal/parser/task"
 	"github.com/compozy/compozy/internal/parser/tool"
 	"github.com/compozy/compozy/internal/parser/trigger"
@@ -377,7 +377,7 @@ func TestWorkflowComponentByRef(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ref, err := package_ref.Parse(tt.ref)
+			ref, err := pkgref.Parse(tt.ref)
 			if err != nil {
 				if tt.wantErr {
 					assert.Contains(t, err.Error(), tt.errMsg)
@@ -389,11 +389,11 @@ func TestWorkflowComponentByRef(t *testing.T) {
 
 			var componentErr error
 			switch ref.Component {
-			case package_ref.ComponentAgent:
+			case pkgref.ComponentAgent:
 				_, componentErr = config.AgentByRef(ref)
-			case package_ref.ComponentTool:
+			case pkgref.ComponentTool:
 				_, componentErr = config.ToolByRef(ref)
-			case package_ref.ComponentTask:
+			case pkgref.ComponentTask:
 				_, componentErr = config.TaskByRef(ref)
 			default:
 				t.Fatalf("Unsupported component type: %v", ref.Component)

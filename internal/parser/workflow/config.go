@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/author"
 	"github.com/compozy/compozy/internal/parser/common"
-	"github.com/compozy/compozy/internal/parser/package_ref"
+	"github.com/compozy/compozy/internal/parser/pkgref"
 	"github.com/compozy/compozy/internal/parser/task"
 	"github.com/compozy/compozy/internal/parser/tool"
 	"github.com/compozy/compozy/internal/parser/trigger"
@@ -88,7 +88,7 @@ func Load(path string) (*WorkflowConfig, error) {
 }
 
 // AgentByRef finds an agent configuration by its package reference
-func (w *WorkflowConfig) AgentByRef(ref *package_ref.PackageRef) (*agent.AgentConfig, error) {
+func (w *WorkflowConfig) AgentByRef(ref *pkgref.PackageRef) (*agent.AgentConfig, error) {
 	if !ref.Component.IsAgent() {
 		return nil, NewInvalidComponentError("agent")
 	}
@@ -122,7 +122,7 @@ func (w *WorkflowConfig) AgentByRef(ref *package_ref.PackageRef) (*agent.AgentCo
 }
 
 // ToolByRef finds a tool configuration by its package reference
-func (w *WorkflowConfig) ToolByRef(ref *package_ref.PackageRef) (*tool.ToolConfig, error) {
+func (w *WorkflowConfig) ToolByRef(ref *pkgref.PackageRef) (*tool.ToolConfig, error) {
 	if !ref.Component.IsTool() {
 		return nil, NewInvalidComponentError("tool")
 	}
@@ -156,7 +156,7 @@ func (w *WorkflowConfig) ToolByRef(ref *package_ref.PackageRef) (*tool.ToolConfi
 }
 
 // TaskByRef finds a task configuration by its package reference
-func (w *WorkflowConfig) TaskByRef(ref *package_ref.PackageRef) (*task.TaskConfig, error) {
+func (w *WorkflowConfig) TaskByRef(ref *pkgref.PackageRef) (*task.TaskConfig, error) {
 	if !ref.Component.IsTask() {
 		return nil, NewInvalidComponentError("task")
 	}

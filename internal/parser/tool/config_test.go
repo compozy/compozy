@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/parser/common"
-	"github.com/compozy/compozy/internal/parser/package_ref"
+	"github.com/compozy/compozy/internal/parser/pkgref"
 	"github.com/compozy/compozy/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -117,7 +117,7 @@ func TestLoadTool(t *testing.T) {
 				require.NotNil(t, config.Use)
 				ref, err := config.Use.IntoRef()
 				require.NoError(t, err)
-				assert.Equal(t, package_ref.ComponentTool, ref.Component)
+				assert.Equal(t, pkgref.ComponentTool, ref.Component)
 				assert.Equal(t, "id", ref.Type.Type)
 				assert.Equal(t, "eslint", ref.Type.Value)
 
@@ -210,7 +210,7 @@ func TestToolConfigValidation(t *testing.T) {
 			name: "Invalid Package Reference",
 			config: &ToolConfig{
 				ID:  &toolID,
-				Use: package_ref.NewPackageRefConfig("invalid"),
+				Use: pkgref.NewPackageRefConfig("invalid"),
 				cwd: common.NewCWD("/test/path"),
 			},
 			wantErr: true,

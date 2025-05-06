@@ -2,16 +2,16 @@ package agent
 
 import (
 	"github.com/compozy/compozy/internal/parser/common"
-	"github.com/compozy/compozy/internal/parser/package_ref"
+	"github.com/compozy/compozy/internal/parser/pkgref"
 )
 
 // PackageRefValidator validates the package reference
 type PackageRefValidator struct {
-	pkgRef *package_ref.PackageRefConfig
+	pkgRef *pkgref.PackageRefConfig
 	cwd    *common.CWD
 }
 
-func NewPackageRefValidator(pkgRef *package_ref.PackageRefConfig, cwd *common.CWD) *PackageRefValidator {
+func NewPackageRefValidator(pkgRef *pkgref.PackageRefConfig, cwd *common.CWD) *PackageRefValidator {
 	return &PackageRefValidator{pkgRef: pkgRef, cwd: cwd}
 }
 
@@ -19,7 +19,7 @@ func (v *PackageRefValidator) Validate() error {
 	if v.pkgRef == nil {
 		return nil
 	}
-	ref, err := package_ref.Parse(string(*v.pkgRef))
+	ref, err := pkgref.Parse(string(*v.pkgRef))
 	if err != nil {
 		return NewInvalidPackageRefError(err)
 	}

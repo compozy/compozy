@@ -7,7 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/common"
-	"github.com/compozy/compozy/internal/parser/package_ref"
+	"github.com/compozy/compozy/internal/parser/pkgref"
 	"github.com/compozy/compozy/internal/parser/transition"
 	"github.com/compozy/compozy/internal/testutils"
 	"github.com/stretchr/testify/assert"
@@ -232,7 +232,7 @@ func TestTaskConfigValidation(t *testing.T) {
 			name: "Invalid Package Reference",
 			config: &TaskConfig{
 				ID:  &taskID,
-				Use: package_ref.NewPackageRefConfig("invalid"),
+				Use: pkgref.NewPackageRefConfig("invalid"),
 				cwd: common.NewCWD("/test/path"),
 			},
 			wantErr: true,

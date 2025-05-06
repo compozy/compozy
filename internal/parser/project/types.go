@@ -1,7 +1,7 @@
 package project
 
 import (
-	"github.com/compozy/compozy/internal/parser/package_ref"
+	"github.com/compozy/compozy/internal/parser/pkgref"
 )
 
 type ProjectName string
@@ -9,7 +9,7 @@ type ProjectVersion string
 type ProjectDescription string
 type LogLevel string
 type EnvFilePath string
-type Dependencies []*package_ref.PackageRef
+type Dependencies []*pkgref.PackageRef
 type Environment string
 
 const (

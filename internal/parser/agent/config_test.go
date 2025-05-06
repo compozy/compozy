@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/parser/common"
-	"github.com/compozy/compozy/internal/parser/package_ref"
+	"github.com/compozy/compozy/internal/parser/pkgref"
 	"github.com/compozy/compozy/internal/parser/tool"
 	"github.com/compozy/compozy/internal/testutils"
 	"github.com/stretchr/testify/assert"
@@ -203,7 +203,7 @@ func TestAgentConfigValidation(t *testing.T) {
 			name: "Invalid Package Reference",
 			config: &AgentConfig{
 				ID:      &agentID,
-				Use:     package_ref.NewPackageRefConfig("invalid"),
+				Use:     pkgref.NewPackageRefConfig("invalid"),
 				Config:  &ProviderConfig{},
 				Tools:   []*tool.ToolConfig{},
 				Actions: []*AgentActionConfig{},

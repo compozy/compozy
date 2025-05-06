@@ -9,7 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/compozy/compozy/internal/parser/common"
-	"github.com/compozy/compozy/internal/parser/package_ref"
+	"github.com/compozy/compozy/internal/parser/pkgref"
 	v "github.com/compozy/compozy/internal/parser/validator"
 )
 
@@ -18,14 +18,14 @@ var TestMode bool
 
 // ToolConfig represents a tool configuration
 type ToolConfig struct {
-	ID           *ToolID                       `json:"id,omitempty" yaml:"id,omitempty"`
-	Description  *ToolDescription              `json:"description,omitempty" yaml:"description,omitempty"`
-	Execute      *ToolExecute                  `json:"execute,omitempty" yaml:"execute,omitempty"`
-	Use          *package_ref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
-	InputSchema  *common.InputSchema           `json:"input,omitempty" yaml:"input,omitempty"`
-	OutputSchema *common.OutputSchema          `json:"output,omitempty" yaml:"output,omitempty"`
-	With         *common.WithParams            `json:"with,omitempty" yaml:"with,omitempty"`
-	Env          common.EnvMap                 `json:"env,omitempty" yaml:"env,omitempty"`
+	ID           *ToolID                  `json:"id,omitempty" yaml:"id,omitempty"`
+	Description  *ToolDescription         `json:"description,omitempty" yaml:"description,omitempty"`
+	Execute      *ToolExecute             `json:"execute,omitempty" yaml:"execute,omitempty"`
+	Use          *pkgref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
+	InputSchema  *common.InputSchema      `json:"input,omitempty" yaml:"input,omitempty"`
+	OutputSchema *common.OutputSchema     `json:"output,omitempty" yaml:"output,omitempty"`
+	With         *common.WithParams       `json:"with,omitempty" yaml:"with,omitempty"`
+	Env          common.EnvMap            `json:"env,omitempty" yaml:"env,omitempty"`
 
 	cwd *common.CWD // internal field for current working directory
 }

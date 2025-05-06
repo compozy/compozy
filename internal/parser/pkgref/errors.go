@@ -1,4 +1,4 @@
-package package_ref
+package pkgref
 
 import (
 	"fmt"

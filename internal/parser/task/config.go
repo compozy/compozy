@@ -10,7 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/common"
-	"github.com/compozy/compozy/internal/parser/package_ref"
+	"github.com/compozy/compozy/internal/parser/pkgref"
 	"github.com/compozy/compozy/internal/parser/transition"
 	v "github.com/compozy/compozy/internal/parser/validator"
 )
@@ -24,9 +24,9 @@ const (
 
 // TaskConfig represents a task configuration
 type TaskConfig struct {
-	ID   *TaskID                       `json:"id,omitempty" yaml:"id,omitempty"`
-	Use  *package_ref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
-	Type TaskType                      `json:"type,omitempty" yaml:"type,omitempty"`
+	ID   *TaskID                  `json:"id,omitempty" yaml:"id,omitempty"`
+	Use  *pkgref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
+	Type TaskType                 `json:"type,omitempty" yaml:"type,omitempty"`
 
 	// Common properties
 	OnSuccess    *transition.SuccessTransitionConfig `json:"on_success,omitempty" yaml:"on_success,omitempty"`
