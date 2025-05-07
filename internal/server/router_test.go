@@ -16,6 +16,52 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNormalizePath(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "path with leading slash",
+			input:    "/test",
+			expected: "/test",
+		},
+		{
+			name:     "path without leading slash",
+			input:    "test",
+			expected: "/test",
+		},
+		{
+			name:     "path with multiple leading slashes",
+			input:    "///test",
+			expected: "/test",
+		},
+		{
+			name:     "path with trailing slash",
+			input:    "test/",
+			expected: "/test/",
+		},
+		{
+			name:     "empty path",
+			input:    "",
+			expected: "/",
+		},
+		{
+			name:     "path with spaces",
+			input:    " test ",
+			expected: "/test",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizePath(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestRegisterRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -24,6 +70,7 @@ func TestRegisterRoutes(t *testing.T) {
 		workflows   []*workflow.WorkflowConfig
 		wantErr     bool
 		errContains string
+		testPaths   []string // Additional paths to test
 	}{
 		{
 			name:      "empty workflows",
@@ -43,38 +90,51 @@ func TestRegisterRoutes(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "valid webhook trigger",
+			name: "valid webhook trigger with leading slash",
 			workflows: []*workflow.WorkflowConfig{
 				{
-					ID: "test-workflow",
 					Trigger: trigger.TriggerConfig{
 						Type: trigger.TriggerTypeWebhook,
-						Webhook: &trigger.WebhookConfig{
+						Config: &trigger.WebhookConfig{
 							URL: "/test-webhook",
 						},
 					},
 				},
 			},
-			wantErr: false,
+			wantErr:   false,
+			testPaths: []string{"/test-webhook"},
+		},
+		{
+			name: "valid webhook trigger without leading slash",
+			workflows: []*workflow.WorkflowConfig{
+				{
+					Trigger: trigger.TriggerConfig{
+						Type: trigger.TriggerTypeWebhook,
+						Config: &trigger.WebhookConfig{
+							URL: "test-webhook",
+						},
+					},
+				},
+			},
+			wantErr:   false,
+			testPaths: []string{"/test-webhook"},
 		},
 		{
 			name: "duplicate webhook URLs",
 			workflows: []*workflow.WorkflowConfig{
 				{
-					ID: "workflow1",
 					Trigger: trigger.TriggerConfig{
 						Type: trigger.TriggerTypeWebhook,
-						Webhook: &trigger.WebhookConfig{
+						Config: &trigger.WebhookConfig{
 							URL: "/test-webhook",
 						},
 					},
 				},
 				{
-					ID: "workflow2",
 					Trigger: trigger.TriggerConfig{
 						Type: trigger.TriggerTypeWebhook,
-						Webhook: &trigger.WebhookConfig{
-							URL: "/test-webhook",
+						Config: &trigger.WebhookConfig{
+							URL: "test-webhook",
 						},
 					},
 				},
@@ -104,12 +164,19 @@ func TestRegisterRoutes(t *testing.T) {
 			// Test registered routes
 			if tt.workflows != nil {
 				for _, workflow := range tt.workflows {
-					if workflow.Trigger.Type == trigger.TriggerTypeWebhook && workflow.Trigger.Webhook != nil {
-						// Make a test request to verify the route is registered
-						rec := httptest.NewRecorder()
-						req, _ := http.NewRequest("POST", string(workflow.Trigger.Webhook.URL), nil)
-						router.ServeHTTP(rec, req)
-						assert.NotEqual(t, http.StatusNotFound, rec.Code, "Route should be registered")
+					if workflow.Trigger.Type == trigger.TriggerTypeWebhook && workflow.Trigger.Config != nil {
+						// Test both with and without leading slash
+						paths := []string{string(workflow.Trigger.Config.URL)}
+						if tt.testPaths != nil {
+							paths = tt.testPaths
+						}
+
+						for _, path := range paths {
+							rec := httptest.NewRecorder()
+							req, _ := http.NewRequest("POST", path, nil)
+							router.ServeHTTP(rec, req)
+							assert.NotEqual(t, http.StatusNotFound, rec.Code, "Route should be registered for path: %s", path)
+						}
 					}
 				}
 			}
@@ -124,7 +191,7 @@ func TestHandleRequest(t *testing.T) {
 		ID: "test-workflow",
 		Trigger: trigger.TriggerConfig{
 			Type: trigger.TriggerTypeWebhook,
-			Webhook: &trigger.WebhookConfig{
+			Config: &trigger.WebhookConfig{
 				URL: "/test-webhook",
 			},
 		},
@@ -140,6 +207,18 @@ func TestHandleRequest(t *testing.T) {
 	}{
 		{
 			name:       "valid JSON request",
+			method:     "POST",
+			path:       "/test-webhook",
+			body:       map[string]any{"key": "value"},
+			wantStatus: http.StatusOK,
+			wantBody: map[string]any{
+				"status":  "success",
+				"message": "Workflow triggered successfully",
+				"data":    map[string]any{},
+			},
+		},
+		{
+			name:       "valid JSON request without leading slash",
 			method:     "POST",
 			path:       "/test-webhook",
 			body:       map[string]any{"key": "value"},

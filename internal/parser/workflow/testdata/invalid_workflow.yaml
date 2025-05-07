@@ -4,7 +4,7 @@ description: "Invalid workflow for testing"
 
 trigger:
   type: webhook
-  webhook:
+  config:
     url: "/test-webhook"
 
 tasks:

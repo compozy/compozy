@@ -1,4 +1,4 @@
-.PHONY: all test lint clean build
+.PHONY: all test lint clean build dev dev-weather deps schemagen help
 
 # Default target
 all: test lint
@@ -18,7 +18,17 @@ clean:
 
 # Build the application
 build:
-	go build -o bin/app ./cmd/app
+	mkdir -p bin
+	go build -o bin/compozy .
+	chmod +x bin/compozy
+
+# Run the development server
+dev:
+	go run . dev
+
+# Run the development server with weather-agent example
+dev-weather:
+	go run . dev --cwd examples/weather-agent
 
 # Install development dependencies
 deps:
@@ -36,6 +46,8 @@ help:
 	@echo "  make lint    - Run linter using golangci-lint"
 	@echo "  make clean   - Clean build artifacts"
 	@echo "  make build   - Build the application"
+	@echo "  make dev     - Run the development server"
+	@echo "  make dev-weather - Run the dev server with weather-agent example"
 	@echo "  make deps    - Install development dependencies"
 	@echo "  make help    - Show this help message"
 	@echo "  make schemagen - Generate JSON schemas"

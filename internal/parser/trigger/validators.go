@@ -3,20 +3,20 @@ package trigger
 // TriggerTypeValidator validates the trigger type and its configuration
 type TriggerTypeValidator struct {
 	triggerType TriggerType
-	webhook     *WebhookConfig
+	config      *WebhookConfig
 }
 
-func NewTriggerTypeValidator(triggerType TriggerType, webhook *WebhookConfig) *TriggerTypeValidator {
+func NewTriggerTypeValidator(triggerType TriggerType, config *WebhookConfig) *TriggerTypeValidator {
 	return &TriggerTypeValidator{
 		triggerType: triggerType,
-		webhook:     webhook,
+		config:      config,
 	}
 }
 
 func (v *TriggerTypeValidator) Validate() error {
 	switch v.triggerType {
 	case TriggerTypeWebhook:
-		if v.webhook == nil {
+		if v.config == nil {
 			return NewMissingWebhookError()
 		}
 	default:

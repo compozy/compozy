@@ -89,8 +89,8 @@ func TestLoadWorkflow(t *testing.T) {
 
 				// Validate trigger
 				assert.Equal(t, "webhook", string(config.Trigger.Type))
-				require.NotNil(t, config.Trigger.Webhook)
-				assert.Equal(t, "/test-webhook", string(config.Trigger.Webhook.URL))
+				require.NotNil(t, config.Trigger.Config)
+				assert.Equal(t, "/test-webhook", string(config.Trigger.Config.URL))
 
 				// Validate env
 				assert.Equal(t, "1.0.0", config.Env["WORKFLOW_VERSION"])
@@ -171,7 +171,7 @@ func TestWorkflowConfigValidation(t *testing.T) {
 				ID: workflowID,
 				Trigger: trigger.TriggerConfig{
 					Type: trigger.TriggerTypeWebhook,
-					Webhook: &trigger.WebhookConfig{
+					Config: &trigger.WebhookConfig{
 						URL: "/test",
 					},
 				},
@@ -213,7 +213,7 @@ func TestWorkflowConfigValidation(t *testing.T) {
 				},
 				Trigger: trigger.TriggerConfig{
 					Type: trigger.TriggerTypeWebhook,
-					Webhook: &trigger.WebhookConfig{
+					Config: &trigger.WebhookConfig{
 						URL: "/test",
 					},
 				},
@@ -248,7 +248,7 @@ func TestWorkflowConfigValidation(t *testing.T) {
 				},
 				Trigger: trigger.TriggerConfig{
 					Type: trigger.TriggerTypeWebhook,
-					Webhook: &trigger.WebhookConfig{
+					Config: &trigger.WebhookConfig{
 						URL: "/test",
 					},
 				},
@@ -289,7 +289,7 @@ func TestWorkflowConfigValidation(t *testing.T) {
 				},
 				Trigger: trigger.TriggerConfig{
 					Type: trigger.TriggerTypeWebhook,
-					Webhook: &trigger.WebhookConfig{
+					Config: &trigger.WebhookConfig{
 						URL: "/test",
 					},
 				},

@@ -4,7 +4,7 @@ description: "Test workflow for code formatting"
 
 trigger:
   type: webhook
-  webhook:
+  config:
     url: "/test-webhook"
   input:
     type: object

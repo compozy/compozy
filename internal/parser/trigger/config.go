@@ -23,7 +23,7 @@ type WebhookConfig struct {
 // TriggerConfig represents a trigger configuration
 type TriggerConfig struct {
 	Type        TriggerType                       `json:"type" yaml:"type"`
-	Webhook     *WebhookConfig                    `json:"webhook,omitempty" yaml:"webhook,omitempty"`
+	Config      *WebhookConfig                    `json:"config,omitempty" yaml:"config,omitempty"`
 	OnError     *transition.ErrorTransitionConfig `json:"on_error,omitempty" yaml:"on_error,omitempty"`
 	InputSchema *schema.InputSchema               `json:"input,omitempty" yaml:"input,omitempty"`
 }
@@ -46,7 +46,7 @@ func Load(path string) (*TriggerConfig, error) {
 // Validate validates the trigger configuration
 func (t *TriggerConfig) Validate() error {
 	validator := common.NewCompositeValidator(
-		NewTriggerTypeValidator(t.Type, t.Webhook),
+		NewTriggerTypeValidator(t.Type, t.Config),
 		schema.NewSchemaValidator(nil, t.InputSchema, nil),
 	)
 	return validator.Validate()
