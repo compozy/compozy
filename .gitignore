@@ -1,2 +1,6 @@
 file_contents.txt
 **/file_contents.txt
+.env
+results.json
+.compozy
+node_modules

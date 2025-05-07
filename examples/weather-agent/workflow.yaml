@@ -1,0 +1,149 @@
+id: weather-agent
+version: 0.1.0
+description: A simple weather agent that provides weather information based on location
+
+trigger:
+  type: webhook
+  config:
+    url: "/weather"
+  input:
+    type: object
+    properties:
+      city:
+        type: string
+        description: The city to get weather information for
+
+tools:
+  - id: weather_tool
+    description: Get the current weather for a specific location
+    execute: ./weather_tool.ts
+    input:
+      type: object
+      properties:
+        city:
+          type: string
+          description: The city to get weather information for
+    output:
+      type: object
+      properties:
+        temperature:
+          type: number
+          description: Current temperature
+        humidity:
+          type: number
+          description: Current humidity percentage
+
+  - id: save_data
+    description: Save the weather data to a file
+    execute: ./save_tool.ts
+    output:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the weather data was saved successfully
+
+agents:
+  - id: inline_agent
+    config:
+      provider: groq
+      model: llama-3.3-70b-versatile
+      api_key: "{{ env.OPENAI_API_KEY }}"
+    instructions: |
+      You are a helpful weather assistant that provides accurate weather information.
+      Your primary function is to help users get weather details for specific locations.
+      When responding:
+        - Keep responses concise but informative
+        - Format temperature according in Celsius
+        - Provide weather information and clothing suggestions based on conditions
+      Use the weather_tool to fetch current weather data.
+    tools:
+      - use: tool(id=weather_tool)
+    actions:
+      - id: get_current_weather
+        prompt: What is the weather in {{ input.city }}?
+        output:
+          type: object
+          properties:
+            weather:
+              type: string
+              description: Current weather conditions (e.g., Sunny, Rainy)
+            temperature:
+              type: number
+              description: Current temperature
+            city:
+              type: string
+              description: The city to get weather information for
+
+      - id: suggest_activities
+        prompt: |
+          Given the current conditions in {{ input.city }}:
+          - Weather: {{ input.weather }}
+          - Temperature: {{ input.temperature }}°C
+          Suggest appropriate activities specifically from {{input.city}} for these weather conditions
+        output:
+          type: object
+          properties:
+            activities:
+              type: array
+              items:
+                type: string
+              description: List of suggested activities based on the weather conditions
+
+      - id: suggest_clothing
+        prompt: |
+          Given the current conditions in {{ input.city }}:
+          - Weather: {{ input.weather }} at {{ input.temperature }}°C
+          - Planned activities: {{ input.activities }}
+        output:
+          type: object
+          properties:
+            clothing:
+              type: array
+              items:
+                type: string
+              description: List of recommended clothing items
+
+tasks:
+  - id: get_current_weather
+    type: basic
+    use: agent(id=inline_agent)
+    action: get_current_weather
+    with:
+      city: "{{ trigger.input.city }}"
+    on_success:
+      next: suggest_activities
+
+  - id: suggest_activities
+    type: basic
+    use: agent(id=inline_agent)
+    action: suggest_activities
+    with:
+      city: "{{ trigger.input.city }}"
+      temperature: "{{ tasks.get_current_weather.output.temperature }}"
+      weather: "{{ tasks.get_current_weather.output.weather }}"
+    on_success:
+      next: suggest_clothing
+
+  - id: suggest_clothing
+    type: basic
+    use: agent(id=inline_agent)
+    action: suggest_clothing
+    with:
+      city: "{{ trigger.input.city }}"
+      temperature: "{{ tasks.get_current_weather.output.temperature }}"
+      weather: "{{ tasks.get_current_weather.output.weather }}"
+      activities: "{{ tasks.suggest_activities.output.activities }}"
+    on_success:
+      next: save_weather_data
+
+  - id: save_weather_data
+    type: basic
+    use: tool(id=save_data)
+    final: true
+    with:
+      city: "{{ trigger.input.city }}"
+      temperature: "{{ tasks.get_current_weather.output.temperature }}"
+      weather: "{{ tasks.get_current_weather.output.weather }}"
+      clothing: "{{ tasks.suggest_clothing.output.clothing }}"
+      activities: "{{ tasks.suggest_activities.output.activities }}"
