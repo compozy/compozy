@@ -15,13 +15,12 @@ import (
 
 // AgentActionConfig represents an agent action configuration
 type AgentActionConfig struct {
-	ID           ActionID             `json:"id" yaml:"id"`
-	Prompt       ActionPrompt         `json:"prompt" yaml:"prompt"`
+	ID           string               `json:"id" yaml:"id"`
+	Prompt       string               `json:"prompt" yaml:"prompt"`
 	InputSchema  *schema.InputSchema  `json:"input,omitempty" yaml:"input,omitempty"`
 	OutputSchema *schema.OutputSchema `json:"output,omitempty" yaml:"output,omitempty"`
 	With         *common.WithParams   `json:"with,omitempty" yaml:"with,omitempty"`
-
-	cwd *common.CWD // internal field for current working directory
+	cwd          *common.CWD          // internal field for current working directory
 }
 
 // SetCWD sets the current working directory for the action
@@ -53,18 +52,17 @@ func (a *AgentActionConfig) Validate() error {
 
 // AgentConfig represents an agent configuration
 type AgentConfig struct {
-	ID           *AgentID                 `json:"id,omitempty" yaml:"id,omitempty" validate:"required"`
+	ID           string                   `json:"id" yaml:"id" validate:"required"`
 	Use          *pkgref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
-	Config       *provider.ProviderConfig `json:"config,omitempty" yaml:"config,omitempty" validate:"required"`
-	Instructions *Instructions            `json:"instructions,omitempty" yaml:"instructions,omitempty" validate:"required"`
-	Tools        []*tool.ToolConfig       `json:"tools,omitempty" yaml:"tools,omitempty"`
+	Config       provider.ProviderConfig  `json:"config" yaml:"config" validate:"required"`
+	Instructions string                   `json:"instructions" yaml:"instructions" validate:"required"`
+	Tools        []tool.ToolConfig        `json:"tools,omitempty" yaml:"tools,omitempty"`
 	Actions      []*AgentActionConfig     `json:"actions,omitempty" yaml:"actions,omitempty"`
 	InputSchema  *schema.InputSchema      `json:"input,omitempty" yaml:"input,omitempty"`
 	OutputSchema *schema.OutputSchema     `json:"output,omitempty" yaml:"output,omitempty"`
 	With         *common.WithParams       `json:"with,omitempty" yaml:"with,omitempty"`
 	Env          common.EnvMap            `json:"env,omitempty" yaml:"env,omitempty"`
-
-	cwd *common.CWD // internal field for current working directory
+	cwd          *common.CWD              // internal field for current working directory
 }
 
 // SetCWD sets the current working directory for the agent
@@ -74,10 +72,8 @@ func (a *AgentConfig) SetCWD(path string) {
 	} else {
 		a.cwd.Set(path)
 	}
-	if a.Actions != nil {
-		for _, action := range a.Actions {
-			action.SetCWD(path)
-		}
+	for i := range a.Actions {
+		a.Actions[i].SetCWD(path)
 	}
 }
 
@@ -89,6 +85,7 @@ func (a *AgentConfig) GetCWD() string {
 	return a.cwd.Get()
 }
 
+// Load loads an agent configuration from a file
 func Load(path string) (*AgentConfig, error) {
 	config, err := common.LoadConfig[*AgentConfig](path)
 	if err != nil {
@@ -102,11 +99,10 @@ func Load(path string) (*AgentConfig, error) {
 
 // Validate validates the agent configuration
 func (a *AgentConfig) Validate() error {
-	// Create a composite validator that combines both custom and struct validation
 	validator := common.NewCompositeValidator(
-		schema.NewCWDValidator(a.cwd, string(*a.ID)),
+		schema.NewCWDValidator(a.cwd, string(a.ID)),
 		schema.NewSchemaValidator(a.Use, a.InputSchema, a.OutputSchema),
-		schema.NewWithParamsValidator(a.With, a.InputSchema, string(*a.ID)),
+		schema.NewWithParamsValidator(a.With, a.InputSchema, string(a.ID)),
 		NewPackageRefValidator(a.Use, a.cwd),
 		NewActionsValidator(a.Actions),
 		common.NewStructValidator(a),
@@ -123,6 +119,7 @@ func (a *AgentConfig) Merge(other any) error {
 	return mergo.Merge(a, otherConfig, mergo.WithOverride)
 }
 
+// LoadID loads the ID from the configuration
 func (a *AgentConfig) LoadID() (string, error) {
 	return common.LoadID(a, a.ID, a.Use, func(path string) (common.Config, error) {
 		return Load(path)

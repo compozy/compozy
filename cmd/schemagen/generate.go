@@ -48,16 +48,6 @@ func GenerateParserSchemas(outDir string) error {
 				return schema
 			}
 			switch t {
-			case reflect.TypeOf(agent.Instructions("")):
-				return &jsonschema.Schema{
-					Type:   "string",
-					Format: "multiline",
-				}
-			case reflect.TypeOf(agent.ActionPrompt("")):
-				return &jsonschema.Schema{
-					Type:   "string",
-					Format: "multiline",
-				}
 			case reflect.TypeOf(pkgref.PackageRefConfig("")):
 				return &jsonschema.Schema{
 					Type:    "string",

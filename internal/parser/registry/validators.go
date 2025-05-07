@@ -43,10 +43,10 @@ func (v *ComponentTypeValidator) Validate() error {
 // MainPathValidator validates that the main path exists
 type MainPathValidator struct {
 	cwd      *common.CWD
-	mainPath ComponentMainPath
+	mainPath string
 }
 
-func NewMainPathValidator(cwd *common.CWD, mainPath ComponentMainPath) *MainPathValidator {
+func NewMainPathValidator(cwd *common.CWD, mainPath string) *MainPathValidator {
 	return &MainPathValidator{
 		cwd:      cwd,
 		mainPath: mainPath,

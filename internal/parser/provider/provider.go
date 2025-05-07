@@ -16,21 +16,21 @@ const (
 
 // Message represents a message configuration
 type Message struct {
-	Role    MessageRole    `json:"role" yaml:"role"`
-	Content MessageContent `json:"content" yaml:"content"`
+	Role    MessageRole `json:"role" yaml:"role"`
+	Content string      `json:"content" yaml:"content"`
 }
 
 // ProviderConfig represents provider-specific configuration options
 type ProviderConfig struct {
-	Provider         ProviderName      `json:"provider" yaml:"provider"`
-	Model            ModelName         `json:"model" yaml:"model"`
-	APIKey           APIKey            `json:"api_key" yaml:"api_key"`
-	APIURL           string            `json:"api_url" yaml:"api_url"`
-	Temperature      *Temperature      `json:"temperature,omitempty" yaml:"temperature,omitempty"`
-	MaxTokens        *MaxTokens        `json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"`
-	TopP             *TopP             `json:"top_p,omitempty" yaml:"top_p,omitempty"`
-	FrequencyPenalty *FrequencyPenalty `json:"frequency_penalty,omitempty" yaml:"frequency_penalty,omitempty"`
-	PresencePenalty  *PresencePenalty  `json:"presence_penalty,omitempty" yaml:"presence_penalty,omitempty"`
+	Provider         ProviderName `json:"provider" yaml:"provider"`
+	Model            ModelName    `json:"model" yaml:"model"`
+	APIKey           string       `json:"api_key" yaml:"api_key"`
+	APIURL           string       `json:"api_url" yaml:"api_url"`
+	Temperature      float32      `json:"temperature,omitempty" yaml:"temperature,omitempty"`
+	MaxTokens        int32        `json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"`
+	TopP             float32      `json:"top_p,omitempty" yaml:"top_p,omitempty"`
+	FrequencyPenalty float32      `json:"frequency_penalty,omitempty" yaml:"frequency_penalty,omitempty"`
+	PresencePenalty  float32      `json:"presence_penalty,omitempty" yaml:"presence_penalty,omitempty"`
 }
 
 // AsJSON converts the provider configuration to a JSON value
@@ -39,7 +39,7 @@ func (p *ProviderConfig) AsJSON() (json.RawMessage, error) {
 }
 
 // NewProviderConfig creates a new ProviderConfig with the API URL populated
-func NewProviderConfig(provider ProviderName, model ModelName, apiKey APIKey) *ProviderConfig {
+func NewProviderConfig(provider ProviderName, model ModelName, apiKey string) *ProviderConfig {
 	config := &ProviderConfig{
 		Provider: provider,
 		Model:    model,

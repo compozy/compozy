@@ -5,7 +5,6 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
 	"github.com/compozy/compozy/internal/parser/schema"
@@ -49,9 +48,9 @@ func TestLoadTask(t *testing.T) {
 				require.NotNil(t, config.OnSuccess)
 				require.NotNil(t, config.OnError)
 
-				assert.Equal(t, TaskID("code-format"), *config.ID)
+				assert.Equal(t, "code-format", config.ID)
 				assert.Equal(t, TaskTypeBasic, config.Type)
-				assert.Equal(t, "format-code", string(*config.Action))
+				assert.Equal(t, "format-code", config.Action)
 
 				// Validate input schema
 				schema := config.InputSchema.Schema
@@ -99,9 +98,9 @@ func TestLoadTask(t *testing.T) {
 				require.NotNil(t, config.With)
 				require.NotNil(t, config.OnError)
 
-				assert.Equal(t, TaskID("code-review"), *config.ID)
+				assert.Equal(t, "code-review", config.ID)
 				assert.Equal(t, TaskTypeDecision, config.Type)
-				assert.Equal(t, "review_score", string(config.Condition))
+				assert.Equal(t, "review_score", config.Condition)
 				assert.Equal(t, 3, len(config.Routes))
 
 				// Validate routes
@@ -195,7 +194,7 @@ func TestLoadTask(t *testing.T) {
 }
 
 func TestTaskConfigValidation(t *testing.T) {
-	taskID := TaskID("test-task")
+	taskID := "test-task"
 	tests := []struct {
 		name    string
 		config  *TaskConfig
@@ -205,9 +204,9 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Valid Basic Task",
 			config: &TaskConfig{
-				ID:     &taskID,
+				ID:     taskID,
 				Type:   TaskTypeBasic,
-				Action: func() *agent.ActionID { a := agent.ActionID("test-action"); return &a }(),
+				Action: "test-action",
 				cwd:    common.NewCWD("/test/path"),
 			},
 			wantErr: false,
@@ -215,10 +214,10 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Valid Decision Task",
 			config: &TaskConfig{
-				ID:        &taskID,
+				ID:        taskID,
 				Type:      TaskTypeDecision,
 				Condition: "test-condition",
-				Routes: map[TaskRoute]TaskRoute{
+				Routes: map[string]string{
 					"route1": "next1",
 				},
 				cwd: common.NewCWD("/test/path"),
@@ -228,7 +227,7 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Missing CWD",
 			config: &TaskConfig{
-				ID:   func() *TaskID { id := TaskID("test-task"); return &id }(),
+				ID:   "test-task",
 				Type: TaskTypeBasic,
 			},
 			wantErr: true,
@@ -237,7 +236,7 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Invalid Package Reference",
 			config: &TaskConfig{
-				ID:  &taskID,
+				ID:  taskID,
 				Use: pkgref.NewPackageRefConfig("invalid"),
 				cwd: common.NewCWD("/test/path"),
 			},
@@ -247,7 +246,7 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Invalid Task Type",
 			config: &TaskConfig{
-				ID:   func() *TaskID { id := TaskID("test-task"); return &id }(),
+				ID:   "test-task",
 				Type: "invalid",
 				cwd:  common.NewCWD("/test/path"),
 			},
@@ -257,7 +256,7 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Basic Task Missing Configuration",
 			config: &TaskConfig{
-				ID:   &taskID,
+				ID:   taskID,
 				Type: TaskTypeBasic,
 				cwd:  common.NewCWD("/test/path"),
 			},
@@ -267,7 +266,7 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Decision Task Missing Configuration",
 			config: &TaskConfig{
-				ID:   &taskID,
+				ID:   taskID,
 				Type: TaskTypeDecision,
 				cwd:  common.NewCWD("/test/path"),
 			},
@@ -277,7 +276,7 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Decision Task Missing Routes",
 			config: &TaskConfig{
-				ID:   func() *TaskID { id := TaskID("test-task"); return &id }(),
+				ID:   "test-task",
 				Type: TaskTypeDecision,
 				cwd:  common.NewCWD("/test/path"),
 			},
@@ -287,7 +286,7 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Input Schema Not Allowed with ID Reference",
 			config: &TaskConfig{
-				ID:  &taskID,
+				ID:  taskID,
 				Use: pkgref.NewPackageRefConfig("task(id=test-task)"),
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
@@ -302,7 +301,7 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Output Schema Not Allowed with File Reference",
 			config: &TaskConfig{
-				ID:  &taskID,
+				ID:  taskID,
 				Use: pkgref.NewPackageRefConfig("task(file=basic_task.yaml)"),
 				OutputSchema: &schema.OutputSchema{
 					Schema: schema.Schema{
@@ -317,7 +316,7 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Both Schemas Not Allowed with Dep Reference",
 			config: &TaskConfig{
-				ID:  &taskID,
+				ID:  taskID,
 				Use: pkgref.NewPackageRefConfig("task(dep=compozy/tasks:test-task)"),
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
@@ -337,9 +336,9 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Valid With Params",
 			config: &TaskConfig{
-				ID:     &taskID,
+				ID:     taskID,
 				Type:   TaskTypeBasic,
-				Action: func() *agent.ActionID { a := agent.ActionID("test-action"); return &a }(),
+				Action: "test-action",
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
 						"type": "object",
@@ -360,7 +359,7 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Invalid With Params",
 			config: &TaskConfig{
-				ID:   func() *TaskID { id := TaskID("test-task"); return &id }(),
+				ID:   "test-task",
 				Type: TaskTypeBasic,
 				cwd:  common.NewCWD("/test/path"),
 				InputSchema: &schema.InputSchema{

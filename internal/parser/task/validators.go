@@ -1,7 +1,6 @@
 package task
 
 import (
-	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
 )
@@ -36,12 +35,12 @@ func (v *PackageRefValidator) Validate() error {
 // TaskTypeValidator validates the task type and its configuration
 type TaskTypeValidator struct {
 	taskType  TaskType
-	action    *agent.ActionID
-	condition TaskCondition
-	routes    map[TaskRoute]TaskRoute
+	action    string
+	condition string
+	routes    map[string]string
 }
 
-func NewTaskTypeValidator(taskType TaskType, action *agent.ActionID, condition TaskCondition, routes map[TaskRoute]TaskRoute) *TaskTypeValidator {
+func NewTaskTypeValidator(taskType TaskType, action string, condition string, routes map[string]string) *TaskTypeValidator {
 	return &TaskTypeValidator{
 		taskType:  taskType,
 		action:    action,
@@ -56,7 +55,7 @@ func (v *TaskTypeValidator) Validate() error {
 	}
 	switch v.taskType {
 	case TaskTypeBasic:
-		if v.action == nil {
+		if v.action == "" {
 			return NewInvalidTaskTypeError("Basic task configuration is required for basic task type")
 		}
 	case TaskTypeDecision:

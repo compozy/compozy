@@ -6,7 +6,6 @@ import (
 
 	"dario.cat/mergo"
 
-	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
 	"github.com/compozy/compozy/internal/parser/schema"
@@ -22,25 +21,25 @@ const (
 
 // TaskConfig represents a task configuration
 type TaskConfig struct {
-	ID   *TaskID                  `json:"id,omitempty" yaml:"id,omitempty"`
+	ID   string                   `json:"id,omitempty" yaml:"id,omitempty"`
 	Use  *pkgref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
 	Type TaskType                 `json:"type,omitempty" yaml:"type,omitempty"`
 
 	// Common properties
 	OnSuccess    *transition.SuccessTransitionConfig `json:"on_success,omitempty" yaml:"on_success,omitempty"`
 	OnError      *transition.ErrorTransitionConfig   `json:"on_error,omitempty" yaml:"on_error,omitempty"`
-	Final        *TaskFinal                          `json:"final,omitempty" yaml:"final,omitempty"`
+	Final        string                              `json:"final,omitempty" yaml:"final,omitempty"`
 	InputSchema  *schema.InputSchema                 `json:"input,omitempty" yaml:"input,omitempty"`
 	OutputSchema *schema.OutputSchema                `json:"output,omitempty" yaml:"output,omitempty"`
 	With         *common.WithParams                  `json:"with,omitempty" yaml:"with,omitempty"`
 	Env          common.EnvMap                       `json:"env,omitempty" yaml:"env,omitempty"`
 
 	// Basic task properties
-	Action *agent.ActionID `json:"action,omitempty" yaml:"action,omitempty"`
+	Action string `json:"action,omitempty" yaml:"action,omitempty"`
 
 	// Decision task properties
-	Condition TaskCondition           `json:"condition,omitempty" yaml:"condition,omitempty"`
-	Routes    map[TaskRoute]TaskRoute `json:"routes,omitempty" yaml:"routes,omitempty"`
+	Condition string            `json:"condition,omitempty" yaml:"condition,omitempty"`
+	Routes    map[string]string `json:"routes,omitempty" yaml:"routes,omitempty"`
 
 	cwd *common.CWD // internal field for current working directory
 }
@@ -77,9 +76,9 @@ func Load(path string) (*TaskConfig, error) {
 // Validate validates the task configuration
 func (t *TaskConfig) Validate() error {
 	validator := common.NewCompositeValidator(
-		schema.NewCWDValidator(t.cwd, string(*t.ID)),
+		schema.NewCWDValidator(t.cwd, t.ID),
 		schema.NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
-		schema.NewWithParamsValidator(t.With, t.InputSchema, string(*t.ID)),
+		schema.NewWithParamsValidator(t.With, t.InputSchema, t.ID),
 		NewPackageRefValidator(t.Use, t.cwd),
 		NewTaskTypeValidator(t.Type, t.Action, t.Condition, t.Routes),
 	)

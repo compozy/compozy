@@ -3,6 +3,8 @@ package tool
 import (
 	"errors"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"dario.cat/mergo"
 
@@ -16,9 +18,9 @@ var TestMode bool
 
 // ToolConfig represents a tool configuration
 type ToolConfig struct {
-	ID           *ToolID                  `json:"id,omitempty" yaml:"id,omitempty"`
-	Description  *ToolDescription         `json:"description,omitempty" yaml:"description,omitempty"`
-	Execute      *ToolExecute             `json:"execute,omitempty" yaml:"execute,omitempty"`
+	ID           string                   `json:"id,omitempty" yaml:"id,omitempty"`
+	Description  string                   `json:"description,omitempty" yaml:"description,omitempty"`
+	Execute      string                   `json:"execute,omitempty" yaml:"execute,omitempty"`
 	Use          *pkgref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
 	InputSchema  *schema.InputSchema      `json:"input,omitempty" yaml:"input,omitempty"`
 	OutputSchema *schema.OutputSchema     `json:"output,omitempty" yaml:"output,omitempty"`
@@ -60,9 +62,9 @@ func Load(path string) (*ToolConfig, error) {
 // Validate validates the tool configuration
 func (t *ToolConfig) Validate() error {
 	validator := common.NewCompositeValidator(
-		schema.NewCWDValidator(t.cwd, string(*t.ID)),
+		schema.NewCWDValidator(t.cwd, t.ID),
 		schema.NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
-		schema.NewWithParamsValidator(t.With, t.InputSchema, string(*t.ID)),
+		schema.NewWithParamsValidator(t.With, t.InputSchema, t.ID),
 		NewPackageRefValidator(t.Use, t.cwd),
 		NewExecuteValidator(t.Execute, t.cwd).WithID(t.ID),
 	)
@@ -83,4 +85,9 @@ func (t *ToolConfig) LoadID() (string, error) {
 	return common.LoadID(t, t.ID, t.Use, func(path string) (common.Config, error) {
 		return Load(path)
 	})
+}
+
+func IsTypeScript(path string) bool {
+	ext := filepath.Ext(path)
+	return strings.EqualFold(ext, ".ts")
 }

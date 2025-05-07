@@ -37,31 +37,31 @@ func (v *PackageRefValidator) Validate() error {
 
 // ExecuteValidator validates the tool execution path
 type ExecuteValidator struct {
-	execute *ToolExecute
+	execute string
 	cwd     *common.CWD
-	id      *ToolID
+	id      string
 }
 
-func NewExecuteValidator(execute *ToolExecute, cwd *common.CWD) *ExecuteValidator {
+func NewExecuteValidator(execute string, cwd *common.CWD) *ExecuteValidator {
 	return &ExecuteValidator{execute: execute, cwd: cwd}
 }
 
-func (v *ExecuteValidator) WithID(id *ToolID) *ExecuteValidator {
+func (v *ExecuteValidator) WithID(id string) *ExecuteValidator {
 	v.id = id
 	return v
 }
 
 func (v *ExecuteValidator) Validate() error {
-	if v.execute == nil {
+	if v.execute == "" {
 		return nil
 	}
-	executePath := v.cwd.Join(string(*v.execute))
+	executePath := v.cwd.Join(v.execute)
 	executePath, err := filepath.Abs(executePath)
 	if err != nil {
 		return NewInvalidExecutePathError(err)
 	}
-	if !TestMode && v.execute.IsTypeScript() && !fileExists(executePath) {
-		if v.id == nil {
+	if !TestMode && IsTypeScript(v.execute) && !fileExists(executePath) {
+		if v.id == "" {
 			return NewMissingToolIDError()
 		}
 		return NewInvalidToolExecuteError(executePath)

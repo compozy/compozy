@@ -20,11 +20,11 @@ var TestMode bool
 
 // WorkflowConfig represents a workflow configuration
 type WorkflowConfig struct {
-	ID          WorkflowID            `json:"id" yaml:"id"`
+	ID          string                `json:"id" yaml:"id"`
 	Tasks       []task.TaskConfig     `json:"tasks" yaml:"tasks"`
 	Trigger     trigger.TriggerConfig `json:"trigger" yaml:"trigger"`
-	Version     *WorkflowVersion      `json:"version,omitempty" yaml:"version,omitempty"`
-	Description *WorkflowDescription  `json:"description,omitempty" yaml:"description,omitempty"`
+	Version     string                `json:"version,omitempty" yaml:"version,omitempty"`
+	Description string                `json:"description,omitempty" yaml:"description,omitempty"`
 	Author      *author.Author        `json:"author,omitempty" yaml:"author,omitempty"`
 	Tools       []tool.ToolConfig     `json:"tools,omitempty" yaml:"tools,omitempty"`
 	Agents      []agent.AgentConfig   `json:"agents,omitempty" yaml:"agents,omitempty"`

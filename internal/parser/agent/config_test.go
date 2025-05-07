@@ -31,15 +31,15 @@ func TestLoadAgent(t *testing.T) {
 				require.NotNil(t, config.Config.Temperature)
 				require.NotNil(t, config.Config.MaxTokens)
 
-				assert.Equal(t, AgentID("code-assistant"), *config.ID)
+				assert.Equal(t, "code-assistant", config.ID)
 				assert.Equal(t, provider.ProviderAnthropic, config.Config.Provider)
 				assert.Equal(t, provider.ModelClaude3Opus, config.Config.Model)
-				assert.InDelta(t, float32(0.7), float32(*config.Config.Temperature), 0.0001)
-				assert.Equal(t, uint32(4000), uint32(*config.Config.MaxTokens))
+				assert.InDelta(t, float32(0.7), config.Config.Temperature, 0.0001)
+				assert.Equal(t, int32(4000), config.Config.MaxTokens)
 
 				require.Len(t, config.Actions, 1)
 				action := config.Actions[0]
-				assert.Equal(t, ActionID("review-code"), action.ID)
+				assert.Equal(t, "review-code", action.ID)
 
 				require.NotNil(t, action.InputSchema)
 				schema := action.InputSchema.Schema
@@ -234,7 +234,7 @@ func TestAgentConfigMerge(t *testing.T) {
 }
 
 func TestAgentConfigValidation(t *testing.T) {
-	agentID := AgentID("test-agent")
+	agentID := "test-agent"
 	tests := []struct {
 		name    string
 		config  *AgentConfig
@@ -244,9 +244,9 @@ func TestAgentConfigValidation(t *testing.T) {
 		{
 			name: "Valid Config",
 			config: &AgentConfig{
-				ID:           &agentID,
-				Config:       &provider.ProviderConfig{},
-				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
+				ID:           agentID,
+				Config:       provider.ProviderConfig{},
+				Instructions: "test instructions",
 				cwd:          common.NewCWD("/test/path"),
 			},
 			wantErr: false,
@@ -254,9 +254,9 @@ func TestAgentConfigValidation(t *testing.T) {
 		{
 			name: "Missing CWD",
 			config: &AgentConfig{
-				ID:           &agentID,
-				Config:       &provider.ProviderConfig{},
-				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
+				ID:           agentID,
+				Config:       provider.ProviderConfig{},
+				Instructions: "test instructions",
 			},
 			wantErr: true,
 			errMsg:  "current working directory is required for test-agent",
@@ -264,10 +264,10 @@ func TestAgentConfigValidation(t *testing.T) {
 		{
 			name: "Invalid Package Reference",
 			config: &AgentConfig{
-				ID:      &agentID,
+				ID:      agentID,
 				Use:     pkgref.NewPackageRefConfig("invalid"),
-				Config:  &provider.ProviderConfig{},
-				Tools:   []*tool.ToolConfig{},
+				Config:  provider.ProviderConfig{},
+				Tools:   []tool.ToolConfig{},
 				Actions: []*AgentActionConfig{},
 				cwd:     common.NewCWD("/test/path"),
 			},
@@ -277,10 +277,10 @@ func TestAgentConfigValidation(t *testing.T) {
 		{
 			name: "Input Schema Not Allowed with ID Reference",
 			config: &AgentConfig{
-				ID:           &agentID,
+				ID:           agentID,
 				Use:          pkgref.NewPackageRefConfig("agent(id=test-agent)"),
-				Config:       &provider.ProviderConfig{},
-				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
+				Config:       provider.ProviderConfig{},
+				Instructions: "test instructions",
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
 						"type": "object",
@@ -294,10 +294,10 @@ func TestAgentConfigValidation(t *testing.T) {
 		{
 			name: "Output Schema Not Allowed with File Reference",
 			config: &AgentConfig{
-				ID:           &agentID,
+				ID:           agentID,
 				Use:          pkgref.NewPackageRefConfig("agent(file=basic_agent.yaml)"),
-				Config:       &provider.ProviderConfig{},
-				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
+				Config:       provider.ProviderConfig{},
+				Instructions: "test instructions",
 				OutputSchema: &schema.OutputSchema{
 					Schema: schema.Schema{
 						"type": "object",
@@ -311,10 +311,10 @@ func TestAgentConfigValidation(t *testing.T) {
 		{
 			name: "Both Schemas Not Allowed with Dep Reference",
 			config: &AgentConfig{
-				ID:           &agentID,
+				ID:           agentID,
 				Use:          pkgref.NewPackageRefConfig("agent(dep=compozy/agents:test-agent)"),
-				Config:       &provider.ProviderConfig{},
-				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
+				Config:       provider.ProviderConfig{},
+				Instructions: "test instructions",
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
 						"type": "object",
@@ -333,9 +333,9 @@ func TestAgentConfigValidation(t *testing.T) {
 		{
 			name: "Valid With Params",
 			config: &AgentConfig{
-				ID:           &agentID,
-				Config:       &provider.ProviderConfig{},
-				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
+				ID:           agentID,
+				Config:       provider.ProviderConfig{},
+				Instructions: "test instructions",
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
 						"type": "object",
@@ -356,9 +356,9 @@ func TestAgentConfigValidation(t *testing.T) {
 		{
 			name: "Invalid With Params",
 			config: &AgentConfig{
-				ID:           &agentID,
-				Config:       &provider.ProviderConfig{},
-				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
+				ID:           agentID,
+				Config:       provider.ProviderConfig{},
+				Instructions: "test instructions",
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
 						"type": "object",

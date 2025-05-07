@@ -96,15 +96,15 @@ func NewMissingPathError(path string) *ConfigError {
 }
 
 // LoadID loads the ID from either the direct ID field or resolves it from a package reference
-func LoadID[T any](
+func LoadID(
 	config Config,
-	id *T,
+	id string,
 	use *pkgref.PackageRefConfig,
 	loadFn func(string) (Config, error),
 ) (string, error) {
 	// If ID is directly set, return it
-	if id != nil {
-		return fmt.Sprintf("%v", *id), nil
+	if id != "" {
+		return id, nil
 	}
 
 	// If no package reference, return error

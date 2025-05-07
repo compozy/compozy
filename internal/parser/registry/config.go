@@ -11,16 +11,24 @@ import (
 	"github.com/compozy/compozy/internal/parser/project"
 )
 
+type ComponentType string
+
+const (
+	ComponentTypeAgent ComponentType = "agent"
+	ComponentTypeTool  ComponentType = "tool"
+	ComponentTypeTask  ComponentType = "task"
+)
+
 // RegistryConfig represents a registry component configuration
 type RegistryConfig struct {
 	Type         ComponentType         `json:"type" yaml:"type"`
-	Name         ComponentName         `json:"name" yaml:"name"`
-	Version      ComponentVersion      `json:"version" yaml:"version"`
-	Main         ComponentMainPath     `json:"main" yaml:"main"`
-	License      *ComponentLicense     `json:"license,omitempty" yaml:"license,omitempty"`
-	Description  *ComponentDescription `json:"description,omitempty" yaml:"description,omitempty"`
-	Repository   *ComponentRepository  `json:"repository,omitempty" yaml:"repository,omitempty"`
-	Tags         []ComponentTag        `json:"tags,omitempty" yaml:"tags,omitempty"`
+	Name         string                `json:"name" yaml:"name"`
+	Version      string                `json:"version" yaml:"version"`
+	Main         string                `json:"main" yaml:"main"`
+	License      string                `json:"license,omitempty" yaml:"license,omitempty"`
+	Description  string                `json:"description,omitempty" yaml:"description,omitempty"`
+	Repository   string                `json:"repository,omitempty" yaml:"repository,omitempty"`
+	Tags         []string              `json:"tags,omitempty" yaml:"tags,omitempty"`
 	Author       *author.Author        `json:"author,omitempty" yaml:"author,omitempty"`
 	Dependencies *project.Dependencies `json:"dependencies,omitempty" yaml:"dependencies,omitempty"`
 

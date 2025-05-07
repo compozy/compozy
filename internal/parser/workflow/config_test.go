@@ -7,6 +7,8 @@ import (
 
 	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/common"
+	"github.com/compozy/compozy/internal/parser/pkgref"
+	"github.com/compozy/compozy/internal/parser/provider"
 	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/compozy/compozy/internal/parser/task"
 	"github.com/compozy/compozy/internal/parser/tool"
@@ -55,41 +57,41 @@ func TestLoadWorkflow(t *testing.T) {
 				require.NotNil(t, config.Trigger)
 				require.NotNil(t, config.Env)
 
-				assert.Equal(t, WorkflowID("test-workflow"), config.ID)
-				assert.Equal(t, WorkflowVersion("1.0.0"), *config.Version)
-				assert.Equal(t, WorkflowDescription("Test workflow for code formatting"), *config.Description)
+				assert.Equal(t, "test-workflow", config.ID)
+				assert.Equal(t, "1.0.0", config.Version)
+				assert.Equal(t, "Test workflow for code formatting", config.Description)
 
 				// Validate tasks
 				require.Len(t, config.Tasks, 2)
 				task := config.Tasks[0]
-				assert.Equal(t, "format-code", string(*task.ID))
+				assert.Equal(t, "format-code", task.ID)
 				assert.Equal(t, "basic", string(task.Type))
 				require.NotNil(t, task.Use)
-				assert.Equal(t, "agent(id=code-assistant)", string(*task.Use))
+				assert.Equal(t, pkgref.NewPackageRefConfig("agent(id=code-assistant)"), task.Use)
 				require.NotNil(t, task.Action)
-				assert.Equal(t, "format-code", string(*task.Action))
+				assert.Equal(t, "format-code", task.Action)
 
 				// Validate tools
 				require.Len(t, config.Tools, 1)
 				tool := config.Tools[0]
-				assert.Equal(t, "code-formatter", string(*tool.ID))
-				assert.Equal(t, "A tool for formatting code", string(*tool.Description))
-				assert.Equal(t, "./format.ts", string(*tool.Execute))
+				assert.Equal(t, "code-formatter", tool.ID)
+				assert.Equal(t, "A tool for formatting code", tool.Description)
+				assert.Equal(t, "./format.ts", tool.Execute)
 
 				// Validate agents
 				require.Len(t, config.Agents, 1)
 				agent := config.Agents[0]
-				assert.Equal(t, "code-assistant", string(*agent.ID))
+				assert.Equal(t, "code-assistant", agent.ID)
 				require.NotNil(t, agent.Config)
-				assert.Equal(t, "anthropic", string(agent.Config.Provider))
-				assert.Equal(t, "claude-3-opus", string(agent.Config.Model))
-				assert.InDelta(t, float32(0.7), float32(*agent.Config.Temperature), 0.0001)
-				assert.Equal(t, uint32(4000), uint32(*agent.Config.MaxTokens))
+				assert.Equal(t, provider.ProviderName("anthropic"), agent.Config.Provider)
+				assert.Equal(t, provider.ModelName("claude-3-opus"), agent.Config.Model)
+				assert.InDelta(t, float32(0.7), agent.Config.Temperature, 0.0001)
+				assert.Equal(t, int32(4000), agent.Config.MaxTokens)
 
 				// Validate trigger
-				assert.Equal(t, "webhook", string(config.Trigger.Type))
+				assert.Equal(t, trigger.TriggerType("webhook"), config.Trigger.Type)
 				require.NotNil(t, config.Trigger.Config)
-				assert.Equal(t, "/test-webhook", string(config.Trigger.Config.URL))
+				assert.Equal(t, "/test-webhook", config.Trigger.Config.URL)
 
 				// Validate env
 				assert.Equal(t, "1.0.0", config.Env["WORKFLOW_VERSION"])
@@ -157,7 +159,7 @@ func TestLoadWorkflow(t *testing.T) {
 }
 
 func TestWorkflowConfigValidation(t *testing.T) {
-	workflowID := WorkflowID("test-workflow")
+	workflowID := "test-workflow"
 	tests := []struct {
 		name    string
 		config  *WorkflowConfig
@@ -193,7 +195,7 @@ func TestWorkflowConfigValidation(t *testing.T) {
 				cwd: common.NewCWD("/test/path"),
 				Tasks: []task.TaskConfig{
 					{
-						ID:   func() *task.TaskID { id := task.TaskID("test-task"); return &id }(),
+						ID:   "test-task",
 						Type: task.TaskTypeBasic,
 						InputSchema: &schema.InputSchema{
 							Schema: schema.Schema{
@@ -222,8 +224,8 @@ func TestWorkflowConfigValidation(t *testing.T) {
 				cwd: common.NewCWD("/test/path"),
 				Tools: []tool.ToolConfig{
 					{
-						ID:      func() *tool.ToolID { id := tool.ToolID("test-tool"); return &id }(),
-						Execute: func() *tool.ToolExecute { e := tool.ToolExecute("./test.ts"); return &e }(),
+						ID:      "test-tool",
+						Execute: "./test.ts",
 						InputSchema: &schema.InputSchema{
 							Schema: schema.Schema{
 								"type": "object",
@@ -251,7 +253,7 @@ func TestWorkflowConfigValidation(t *testing.T) {
 				cwd: common.NewCWD("/test/path"),
 				Agents: []agent.AgentConfig{
 					{
-						ID: func() *agent.AgentID { id := agent.AgentID("test-agent"); return &id }(),
+						ID: "test-agent",
 						Actions: []*agent.AgentActionConfig{
 							{
 								ID:     "test-action",

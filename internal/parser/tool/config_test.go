@@ -42,10 +42,10 @@ func TestLoadTool(t *testing.T) {
 				require.NotNil(t, config.Env)
 				require.NotNil(t, config.With)
 
-				assert.Equal(t, ToolID("code-formatter"), *config.ID)
-				assert.Equal(t, ToolDescription("A tool for formatting code"), *config.Description)
-				assert.Equal(t, ToolExecute("./format.ts"), *config.Execute)
-				assert.True(t, config.Execute.IsTypeScript())
+				assert.Equal(t, "code-formatter", config.ID)
+				assert.Equal(t, "A tool for formatting code", config.Description)
+				assert.Equal(t, "./format.ts", config.Execute)
+				assert.True(t, IsTypeScript(config.Execute))
 
 				// Validate input schema
 				schema := config.InputSchema.Schema
@@ -86,8 +86,8 @@ func TestLoadTool(t *testing.T) {
 				require.NotNil(t, config.Env)
 				require.NotNil(t, config.With)
 
-				assert.Equal(t, ToolID("code-linter"), *config.ID)
-				assert.Equal(t, ToolDescription("A tool for linting code"), *config.Description)
+				assert.Equal(t, "code-linter", config.ID)
+				assert.Equal(t, "A tool for linting code", config.Description)
 
 				// Validate input schema
 				schema := config.InputSchema.Schema
@@ -191,7 +191,7 @@ func TestLoadTool(t *testing.T) {
 }
 
 func TestToolConfigValidation(t *testing.T) {
-	toolID := ToolID("test-tool")
+	toolID := "test-tool"
 	tests := []struct {
 		name    string
 		config  *ToolConfig
@@ -201,7 +201,7 @@ func TestToolConfigValidation(t *testing.T) {
 		{
 			name: "Valid Config",
 			config: &ToolConfig{
-				ID:  &toolID,
+				ID:  toolID,
 				cwd: common.NewCWD("/test/path"),
 			},
 			wantErr: false,
@@ -209,7 +209,7 @@ func TestToolConfigValidation(t *testing.T) {
 		{
 			name: "Missing CWD",
 			config: &ToolConfig{
-				ID: func() *ToolID { id := ToolID("test-tool"); return &id }(),
+				ID: toolID,
 			},
 			wantErr: true,
 			errMsg:  "current working directory is required for test-tool",
@@ -217,7 +217,7 @@ func TestToolConfigValidation(t *testing.T) {
 		{
 			name: "Invalid Package Reference",
 			config: &ToolConfig{
-				ID:  &toolID,
+				ID:  toolID,
 				Use: pkgref.NewPackageRefConfig("invalid"),
 				cwd: common.NewCWD("/test/path"),
 			},
@@ -227,8 +227,8 @@ func TestToolConfigValidation(t *testing.T) {
 		{
 			name: "Invalid Execute Path",
 			config: &ToolConfig{
-				ID:      func() *ToolID { id := ToolID("test-tool"); return &id }(),
-				Execute: func() *ToolExecute { e := ToolExecute("./nonexistent.ts"); return &e }(),
+				ID:      toolID,
+				Execute: "./nonexistent.ts",
 				cwd:     common.NewCWD("/test/path"),
 			},
 			wantErr: true,
@@ -237,7 +237,7 @@ func TestToolConfigValidation(t *testing.T) {
 		{
 			name: "Input Schema Not Allowed with ID Reference",
 			config: &ToolConfig{
-				ID:  &toolID,
+				ID:  toolID,
 				Use: pkgref.NewPackageRefConfig("tool(id=test-tool)"),
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
@@ -252,7 +252,7 @@ func TestToolConfigValidation(t *testing.T) {
 		{
 			name: "Output Schema Not Allowed with File Reference",
 			config: &ToolConfig{
-				ID:  &toolID,
+				ID:  toolID,
 				Use: pkgref.NewPackageRefConfig("tool(file=basic_tool.yaml)"),
 				OutputSchema: &schema.OutputSchema{
 					Schema: schema.Schema{
@@ -267,7 +267,7 @@ func TestToolConfigValidation(t *testing.T) {
 		{
 			name: "Both Schemas Not Allowed with Dep Reference",
 			config: &ToolConfig{
-				ID:  &toolID,
+				ID:  toolID,
 				Use: pkgref.NewPackageRefConfig("tool(dep=compozy/tools:test-tool)"),
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
@@ -287,7 +287,7 @@ func TestToolConfigValidation(t *testing.T) {
 		{
 			name: "Valid With Params",
 			config: &ToolConfig{
-				ID: &toolID,
+				ID: toolID,
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
 						"type": "object",
@@ -308,8 +308,8 @@ func TestToolConfigValidation(t *testing.T) {
 		{
 			name: "Invalid With Params",
 			config: &ToolConfig{
-				ID:      func() *ToolID { id := ToolID("test-tool"); return &id }(),
-				Execute: func() *ToolExecute { e := ToolExecute("./test.ts"); return &e }(),
+				ID:      toolID,
+				Execute: "./test.ts",
 				cwd:     common.NewCWD("/test/path"),
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
@@ -386,7 +386,7 @@ func TestToolConfigMerge(t *testing.T) {
 func TestToolExecuteIsTypeScript(t *testing.T) {
 	tests := []struct {
 		name     string
-		execute  ToolExecute
+		execute  string
 		expected bool
 	}{
 		{
@@ -413,7 +413,7 @@ func TestToolExecuteIsTypeScript(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.execute.IsTypeScript())
+			assert.Equal(t, tt.expected, IsTypeScript(tt.execute))
 		})
 	}
 }

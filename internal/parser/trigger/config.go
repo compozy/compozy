@@ -17,7 +17,7 @@ const (
 
 // WebhookConfig represents a webhook trigger configuration
 type WebhookConfig struct {
-	URL WebhookURL `json:"url" yaml:"url"`
+	URL string `json:"url" yaml:"url"`
 }
 
 // TriggerConfig represents a trigger configuration

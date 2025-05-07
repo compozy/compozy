@@ -8,13 +8,39 @@ import (
 
 	"github.com/compozy/compozy/internal/parser/author"
 	"github.com/compozy/compozy/internal/parser/common"
+	"github.com/compozy/compozy/internal/parser/pkgref"
 	"github.com/compozy/compozy/internal/parser/workflow"
 )
 
+type LogLevel string
+type Dependencies []*pkgref.PackageRef
+type Environment string
+
+const (
+	EnvironmentDevelopment Environment = "development"
+	EnvironmentProduction  Environment = "production"
+	EnvironmentStaging     Environment = "staging"
+
+	LogLevelDebug   LogLevel = "debug"
+	LogLevelInfo    LogLevel = "info"
+	LogLevelWarning LogLevel = "warning"
+	LogLevelError   LogLevel = "error"
+)
+
+// IsValidLogLevel checks if the given log level is valid
+func IsValidLogLevel(level LogLevel) bool {
+	switch level {
+	case LogLevelDebug, LogLevelInfo, LogLevelWarning, LogLevelError:
+		return true
+	default:
+		return false
+	}
+}
+
 // EnvironmentConfig represents environment configuration
 type EnvironmentConfig struct {
-	LogLevel LogLevel    `json:"log_level" yaml:"log_level"`
-	EnvFile  EnvFilePath `json:"env_file" yaml:"env_file"`
+	LogLevel LogLevel `json:"log_level" yaml:"log_level"`
+	EnvFile  string   `json:"env_file" yaml:"env_file"`
 }
 
 // WorkflowSourceConfig represents a workflow source configuration
@@ -24,10 +50,10 @@ type WorkflowSourceConfig struct {
 
 // ProjectConfig represents a project configuration
 type ProjectConfig struct {
-	Name         ProjectName                   `json:"name" yaml:"name"`
-	Version      ProjectVersion                `json:"version" yaml:"version"`
-	Description  *ProjectDescription           `json:"description,omitempty" yaml:"description,omitempty"`
-	Author       *author.Author                `json:"author,omitempty" yaml:"author,omitempty"`
+	Name         string                        `json:"name" yaml:"name"`
+	Version      string                        `json:"version" yaml:"version"`
+	Description  string                        `json:"description,omitempty" yaml:"description,omitempty"`
+	Author       author.Author                 `json:"author,omitempty" yaml:"author,omitempty"`
 	Dependencies *Dependencies                 `json:"dependencies,omitempty" yaml:"dependencies,omitempty"`
 	Environments map[string]*EnvironmentConfig `json:"environments,omitempty" yaml:"environments,omitempty"`
 	Workflows    []*WorkflowSourceConfig       `json:"workflows" yaml:"workflows"`
