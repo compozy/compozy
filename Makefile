@@ -28,7 +28,7 @@ dev:
 
 # Run the development server with weather-agent example
 dev-weather:
-	go run . dev --cwd examples/weather-agent
+	go run . dev --cwd examples/weather-agent --debug
 
 # Install development dependencies
 deps:

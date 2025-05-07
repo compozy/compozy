@@ -1,23 +1,57 @@
 package server
 
 import (
-	"fmt"
 	"time"
 
+	"github.com/compozy/compozy/internal/logger"
 	"github.com/gin-gonic/gin"
 )
 
 // LoggerMiddleware returns a Gin middleware for request logging
 func LoggerMiddleware() gin.HandlerFunc {
-	return gin.LoggerWithFormatter(func(params gin.LogFormatterParams) string {
-		return fmt.Sprintf("[%s] %s %s %d %s\n",
-			params.TimeStamp.Format(time.RFC3339),
-			params.Method,
-			params.Path,
-			params.StatusCode,
-			params.Latency,
+	return func(c *gin.Context) {
+		start := time.Now()
+		path := c.Request.URL.Path
+		raw := c.Request.URL.RawQuery
+
+		// Process request
+		c.Next()
+
+		// Log only when path is not being skipped
+		param := gin.LogFormatterParams{
+			Request: c.Request,
+			Keys:    c.Keys,
+		}
+
+		// Stop timer
+		param.TimeStamp = time.Now()
+		param.Latency = param.TimeStamp.Sub(start)
+
+		param.ClientIP = c.ClientIP()
+		param.Method = c.Request.Method
+		param.StatusCode = c.Writer.Status()
+		param.ErrorMessage = c.Errors.ByType(gin.ErrorTypePrivate).String()
+
+		param.BodySize = c.Writer.Size()
+
+		if raw != "" {
+			path = path + "?" + raw
+		}
+
+		param.Path = path
+
+		// Create structured log entry
+		logger.Info("request completed",
+			"timestamp", param.TimeStamp.Format(time.RFC3339),
+			"latency", param.Latency,
+			"client_ip", param.ClientIP,
+			"method", param.Method,
+			"status_code", param.StatusCode,
+			"body_size", param.BodySize,
+			"path", param.Path,
+			"error", param.ErrorMessage,
 		)
-	})
+	}
 }
 
 // CORSMiddleware returns a Gin middleware for CORS

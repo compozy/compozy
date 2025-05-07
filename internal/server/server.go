@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/compozy/compozy/internal/logger"
 	"github.com/compozy/compozy/internal/parser/workflow"
 	"github.com/gin-gonic/gin"
 )
@@ -34,14 +34,14 @@ func NewAppState(cwd string, workflows []*workflow.WorkflowConfig) (*AppState, e
 		var err error
 		cwd, err = os.Getwd()
 		if err != nil {
-			return nil, NewServerError(ErrInternal, "Failed to get current working directory")
+			return nil, NewServerError(ErrInternalCode, "Failed to get current working directory")
 		}
 	}
 
 	if !filepath.IsAbs(cwd) {
 		absPath, err := filepath.Abs(cwd)
 		if err != nil {
-			return nil, NewServerError(ErrInternal, "Failed to resolve absolute path")
+			return nil, NewServerError(ErrInternalCode, "Failed to resolve absolute path")
 		}
 		cwd = absPath
 	}
@@ -65,7 +65,7 @@ func WithAppState(ctx context.Context, state *AppState) context.Context {
 func GetAppState(ctx context.Context) (*AppState, error) {
 	state, ok := ctx.Value(appStateKey).(*AppState)
 	if !ok {
-		return nil, NewServerError(ErrInternal, "App state not found in context")
+		return nil, NewServerError(ErrInternalCode, "App state not found in context")
 	}
 	return state, nil
 }
@@ -130,7 +130,9 @@ func (s *Server) Run() error {
 	}
 
 	addr := s.Config.FullAddress()
-	log.Printf("Starting server on http://%s", addr)
+	logger.Info("Starting HTTP server",
+		"address", fmt.Sprintf("http://%s", addr),
+	)
 
 	srv := &http.Server{
 		Addr:         addr,
@@ -143,7 +145,10 @@ func (s *Server) Run() error {
 	// Start server in a goroutine
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+			logger.Error("Server failed to start",
+				"error", err,
+			)
+			os.Exit(1)
 		}
 	}()
 
@@ -151,7 +156,7 @@ func (s *Server) Run() error {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("Shutdown signal received, starting graceful shutdown")
+	logger.Debug("Received shutdown signal, initiating graceful shutdown")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -160,6 +165,6 @@ func (s *Server) Run() error {
 		return fmt.Errorf("server shutdown failed: %w", err)
 	}
 
-	log.Println("Server shut down successfully")
+	logger.Info("Server shutdown completed successfully")
 	return nil
 }
