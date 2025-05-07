@@ -7,7 +7,6 @@ import (
 
 	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/common"
-	"github.com/compozy/compozy/internal/parser/provider"
 	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/compozy/compozy/internal/parser/task"
 	"github.com/compozy/compozy/internal/parser/tool"
@@ -182,15 +181,16 @@ func TestWorkflowConfigValidation(t *testing.T) {
 		{
 			name: "Missing CWD",
 			config: &WorkflowConfig{
-				ID: workflowID,
+				ID: "test-workflow",
 			},
 			wantErr: true,
-			errMsg:  "Current working directory is required for test-workflow",
+			errMsg:  "current working directory is required for test-workflow",
 		},
 		{
 			name: "Invalid Task With Params",
 			config: &WorkflowConfig{
-				ID: workflowID,
+				ID:  "test-workflow",
+				cwd: common.NewCWD("/test/path"),
 				Tasks: []task.TaskConfig{
 					{
 						ID:   func() *task.TaskID { id := task.TaskID("test-task"); return &id }(),
@@ -211,21 +211,15 @@ func TestWorkflowConfigValidation(t *testing.T) {
 						},
 					},
 				},
-				Trigger: trigger.TriggerConfig{
-					Type: trigger.TriggerTypeWebhook,
-					Config: &trigger.WebhookConfig{
-						URL: "/test",
-					},
-				},
-				cwd: common.NewCWD("/test/path"),
 			},
 			wantErr: true,
-			errMsg:  "With parameters invalid for test-task",
+			errMsg:  "with parameters invalid for test-task",
 		},
 		{
 			name: "Invalid Tool With Params",
 			config: &WorkflowConfig{
-				ID: workflowID,
+				ID:  "test-workflow",
+				cwd: common.NewCWD("/test/path"),
 				Tools: []tool.ToolConfig{
 					{
 						ID:      func() *tool.ToolID { id := tool.ToolID("test-tool"); return &id }(),
@@ -246,57 +240,43 @@ func TestWorkflowConfigValidation(t *testing.T) {
 						},
 					},
 				},
-				Trigger: trigger.TriggerConfig{
-					Type: trigger.TriggerTypeWebhook,
-					Config: &trigger.WebhookConfig{
-						URL: "/test",
-					},
-				},
-				cwd: common.NewCWD("/test/path"),
 			},
 			wantErr: true,
-			errMsg:  "With parameters invalid for test-tool",
+			errMsg:  "with parameters invalid for test-tool",
 		},
 		{
 			name: "Invalid Agent With Params",
 			config: &WorkflowConfig{
-				ID: workflowID,
+				ID:  "test-workflow",
+				cwd: common.NewCWD("/test/path"),
 				Agents: []agent.AgentConfig{
 					{
 						ID: func() *agent.AgentID { id := agent.AgentID("test-agent"); return &id }(),
-						Config: &provider.ProviderConfig{
-							Provider:    "anthropic",
-							Model:       "claude-3-opus",
-							Temperature: func() *provider.Temperature { t := provider.Temperature(0.7); return &t }(),
-							MaxTokens:   func() *provider.MaxTokens { t := provider.MaxTokens(4000); return &t }(),
-						},
-						Instructions: func() *agent.Instructions { i := agent.Instructions("Test instructions"); return &i }(),
-						InputSchema: &schema.InputSchema{
-							Schema: schema.Schema{
-								"type": "object",
-								"properties": map[string]any{
-									"name": map[string]any{
-										"type": "string",
+						Actions: []*agent.AgentActionConfig{
+							{
+								ID:     "test-action",
+								Prompt: "test prompt",
+								InputSchema: &schema.InputSchema{
+									Schema: schema.Schema{
+										"type": "object",
+										"properties": map[string]any{
+											"name": map[string]any{
+												"type": "string",
+											},
+										},
+										"required": []string{"name"},
 									},
 								},
-								"required": []string{"name"},
+								With: &common.WithParams{
+									"age": 42,
+								},
 							},
 						},
-						With: &common.WithParams{
-							"age": 42,
-						},
 					},
 				},
-				Trigger: trigger.TriggerConfig{
-					Type: trigger.TriggerTypeWebhook,
-					Config: &trigger.WebhookConfig{
-						URL: "/test",
-					},
-				},
-				cwd: common.NewCWD("/test/path"),
 			},
 			wantErr: true,
-			errMsg:  "With parameters invalid for test-agent",
+			errMsg:  "with parameters invalid for test-action",
 		},
 	}
 

@@ -1,41 +1,21 @@
 package schema
 
-import "fmt"
-
-// SchemaError represents a base error type for schema validation
-type SchemaError struct {
-	Message string
-	Code    string
-}
-
-func (e *SchemaError) Error() string {
-	return e.Message
-}
-
-// Error codes
-const (
-	ErrCodeInvalidWithParams = "INVALID_WITH_PARAMS"
-	ErrCodeMissingCWD        = "MISSING_CWD"
+import (
+	"errors"
+	"fmt"
 )
 
-// Error messages
-const (
-	ErrMsgInvalidWithParams = "With parameters invalid for %s: %s"
-	ErrMsgMissingCWD        = "Current working directory is required for %s"
+// Common sentinel errors
+var (
+	ErrInvalidWithParams = errors.New("with parameters invalid")
+	ErrMissingCWD        = errors.New("current working directory is required")
 )
 
-// NewSchemaError creates a new SchemaError with the given code and message
-func NewSchemaError(code string, message string) *SchemaError {
-	return &SchemaError{
-		Code:    code,
-		Message: message,
-	}
+// Error constructors
+func NewInvalidWithParamsError(id string, err error) error {
+	return fmt.Errorf("%w for %s: %w", ErrInvalidWithParams, id, err)
 }
 
-// NewSchemaErrorf creates a new SchemaError with the given code and formatted message
-func NewSchemaErrorf(code string, format string, args ...any) *SchemaError {
-	return &SchemaError{
-		Code:    code,
-		Message: fmt.Sprintf(format, args...),
-	}
+func NewMissingCWDError(id string) error {
+	return fmt.Errorf("%w for %s", ErrMissingCWD, id)
 }

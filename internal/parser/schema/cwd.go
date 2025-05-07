@@ -15,7 +15,7 @@ func NewCWDValidator(cwd *common.CWD, id string) *CWDValidator {
 
 func (v *CWDValidator) Validate() error {
 	if v.cwd == nil || v.cwd.Get() == "" {
-		return NewSchemaErrorf(ErrCodeMissingCWD, ErrMsgMissingCWD, v.id)
+		return NewMissingCWDError(v.id)
 	}
 	return nil
 }

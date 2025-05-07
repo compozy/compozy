@@ -29,7 +29,7 @@ func (v *WithParamsValidator) Validate() error {
 
 	// Use the Schema's Validate method
 	if err := v.inputSchema.Schema.Validate(withData); err != nil {
-		return NewSchemaErrorf(ErrCodeInvalidWithParams, "With parameters invalid for %s: %s", v.id, err.Error())
+		return NewInvalidWithParamsError(v.id, err)
 	}
 
 	return nil

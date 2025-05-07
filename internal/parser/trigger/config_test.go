@@ -30,7 +30,7 @@ func TestTriggerConfigValidation(t *testing.T) {
 				Type: TriggerTypeWebhook,
 			},
 			expectError: true,
-			errMsg:      "Webhook configuration is required for webhook trigger type",
+			errMsg:      "webhook configuration is required for webhook trigger type",
 		},
 		{
 			name: "Invalid Trigger Type",

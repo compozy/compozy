@@ -228,10 +228,11 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Missing CWD",
 			config: &TaskConfig{
-				ID: &taskID,
+				ID:   func() *TaskID { id := TaskID("test-task"); return &id }(),
+				Type: TaskTypeBasic,
 			},
 			wantErr: true,
-			errMsg:  "Current working directory is required for test-task",
+			errMsg:  "current working directory is required for test-task",
 		},
 		{
 			name: "Invalid Package Reference",
@@ -246,12 +247,12 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Invalid Task Type",
 			config: &TaskConfig{
-				ID:   &taskID,
+				ID:   func() *TaskID { id := TaskID("test-task"); return &id }(),
 				Type: "invalid",
 				cwd:  common.NewCWD("/test/path"),
 			},
 			wantErr: true,
-			errMsg:  "Invalid task type",
+			errMsg:  "invalid task type: invalid",
 		},
 		{
 			name: "Basic Task Missing Configuration",
@@ -276,14 +277,12 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Decision Task Missing Routes",
 			config: &TaskConfig{
-				ID:        &taskID,
-				Type:      TaskTypeDecision,
-				Condition: "test-condition",
-				Routes:    map[TaskRoute]TaskRoute{},
-				cwd:       common.NewCWD("/test/path"),
+				ID:   func() *TaskID { id := TaskID("test-task"); return &id }(),
+				Type: TaskTypeDecision,
+				cwd:  common.NewCWD("/test/path"),
 			},
 			wantErr: true,
-			errMsg:  "Decision task must have at least one route",
+			errMsg:  "Decision task configuration is required for decision task type",
 		},
 		{
 			name: "Input Schema Not Allowed with ID Reference",
@@ -361,9 +360,9 @@ func TestTaskConfigValidation(t *testing.T) {
 		{
 			name: "Invalid With Params",
 			config: &TaskConfig{
-				ID:     &taskID,
-				Type:   TaskTypeBasic,
-				Action: func() *agent.ActionID { a := agent.ActionID("test-action"); return &a }(),
+				ID:   func() *TaskID { id := TaskID("test-task"); return &id }(),
+				Type: TaskTypeBasic,
+				cwd:  common.NewCWD("/test/path"),
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
 						"type": "object",
@@ -378,10 +377,9 @@ func TestTaskConfigValidation(t *testing.T) {
 				With: &common.WithParams{
 					"age": 42,
 				},
-				cwd: common.NewCWD("/test/path"),
 			},
 			wantErr: true,
-			errMsg:  "With parameters invalid for test-task",
+			errMsg:  "with parameters invalid for test-task",
 		},
 	}
 

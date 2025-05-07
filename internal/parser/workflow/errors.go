@@ -1,148 +1,101 @@
 package workflow
 
 import (
+	"errors"
 	"fmt"
 )
 
-// Error codes
-const (
-	ErrCodeFileOpen               = "FILE_OPEN_ERROR"
-	ErrCodeDecode                 = "DECODE_ERROR"
-	ErrCodeMissingPath            = "MISSING_FILE_PATH"
-	ErrCodeInvalidComponent       = "INVALID_COMPONENT"
-	ErrCodeNoAgentsDefined        = "NO_AGENTS_DEFINED"
-	ErrCodeAgentNotFound          = "AGENT_NOT_FOUND"
-	ErrCodeNoToolsDefined         = "NO_TOOLS_DEFINED"
-	ErrCodeToolNotFound           = "TOOL_NOT_FOUND"
-	ErrCodeNoTasksDefined         = "NO_TASKS_DEFINED"
-	ErrCodeTaskNotFound           = "TASK_NOT_FOUND"
-	ErrCodeNotImplemented         = "NOT_IMPLEMENTED"
-	ErrCodeInvalidRefType         = "INVALID_REF_TYPE"
-	ErrCodeAgentValidationError   = "AGENT_VALIDATION_ERROR"
-	ErrCodeToolValidationError    = "TOOL_VALIDATION_ERROR"
-	ErrCodeTaskValidationError    = "TASK_VALIDATION_ERROR"
-	ErrCodeTriggerValidationError = "TRIGGER_VALIDATION_ERROR"
-	ErrCodeMerge                  = "MERGE_ERROR"
-	ErrCodeFileClose              = "FILE_CLOSE_ERROR"
+// Common sentinel errors
+var (
+	ErrFileOpen               = errors.New("failed to open workflow config file")
+	ErrDecode                 = errors.New("failed to decode workflow config")
+	ErrMissingPath            = errors.New("missing file path for workflow")
+	ErrInvalidComponent       = errors.New("invalid component")
+	ErrNoAgentsDefined        = errors.New("there's no agents defined in your workflow")
+	ErrAgentNotFound          = errors.New("agent not found")
+	ErrNoToolsDefined         = errors.New("there's no tools defined in your workflow")
+	ErrToolNotFound           = errors.New("tool not found")
+	ErrNoTasksDefined         = errors.New("there's no tasks defined in your workflow")
+	ErrTaskNotFound           = errors.New("task not found")
+	ErrNotImplemented         = errors.New("not implemented yet")
+	ErrInvalidRefType         = errors.New("invalid reference type")
+	ErrAgentValidationError   = errors.New("agent validation error")
+	ErrToolValidationError    = errors.New("tool validation error")
+	ErrTaskValidationError    = errors.New("task validation error")
+	ErrTriggerValidationError = errors.New("trigger validation error")
+	ErrMerge                  = errors.New("failed to merge workflow configs")
+	ErrFileClose              = errors.New("failed to close workflow config file")
 )
 
-// Error messages
-const (
-	ErrMsgFileOpen               = "Failed to open workflow config file: %s"
-	ErrMsgDecode                 = "Failed to decode workflow config: %s"
-	ErrMsgMissingPath            = "Missing file path for workflow"
-	ErrMsgInvalidComponent       = "Invalid component for %s reference"
-	ErrMsgNoAgentsDefined        = "There's no agents defined in your workflow"
-	ErrMsgAgentNotFound          = "Agent not found with reference: %s"
-	ErrMsgNoToolsDefined         = "There's no tools defined in your workflow"
-	ErrMsgToolNotFound           = "Tool not found with reference: %s"
-	ErrMsgNoTasksDefined         = "There's no tasks defined in your workflow"
-	ErrMsgTaskNotFound           = "Task not found with reference: %s"
-	ErrMsgNotImplemented         = "Not implemented yet"
-	ErrMsgInvalidRefType         = "Invalid reference type for %s"
-	ErrMsgAgentValidationError   = "Agent validation error: %s"
-	ErrMsgToolValidationError    = "Tool validation error: %s"
-	ErrMsgTaskValidationError    = "Task validation error: %s"
-	ErrMsgTriggerValidationError = "Trigger validation error: %s"
-	ErrMsgMerge                  = "Failed to merge workflow configs: %s"
-	ErrMsgFileClose              = "Failed to close workflow config file: %s"
-)
-
-// WorkflowError represents errors that can occur during workflow configuration
-type WorkflowError struct {
-	Message string
-	Code    string
+// Error constructors
+func NewFileOpenError(err error) error {
+	return fmt.Errorf("%w: %w", ErrFileOpen, err)
 }
 
-func (e *WorkflowError) Error() string {
-	return e.Message
+func NewDecodeError(err error) error {
+	return fmt.Errorf("%w: %w", ErrDecode, err)
 }
 
-// NewError creates a new WorkflowError with the given code and message
-func NewError(code, message string) *WorkflowError {
-	return &WorkflowError{
-		Code:    code,
-		Message: message,
-	}
+func NewMissingPathError() error {
+	return ErrMissingPath
 }
 
-// NewErrorf creates a new WorkflowError with the given code and formatted message
-func NewErrorf(code, format string, args ...any) *WorkflowError {
-	return &WorkflowError{
-		Code:    code,
-		Message: fmt.Sprintf(format, args...),
-	}
+func NewInvalidComponentError(componentType string) error {
+	return fmt.Errorf("%w for %s reference", ErrInvalidComponent, componentType)
 }
 
-// Common error constructors
-func NewFileOpenError(err error) *WorkflowError {
-	return NewErrorf(ErrCodeFileOpen, ErrMsgFileOpen, err.Error())
+func NewNoAgentsDefinedError() error {
+	return ErrNoAgentsDefined
 }
 
-func NewDecodeError(err error) *WorkflowError {
-	return NewErrorf(ErrCodeDecode, ErrMsgDecode, err.Error())
+func NewAgentNotFoundError(ref string) error {
+	return fmt.Errorf("%w with reference: %s", ErrAgentNotFound, ref)
 }
 
-func NewMissingPathError() *WorkflowError {
-	return NewError(ErrCodeMissingPath, ErrMsgMissingPath)
+func NewNoToolsDefinedError() error {
+	return ErrNoToolsDefined
 }
 
-func NewInvalidComponentError(componentType string) *WorkflowError {
-	return NewErrorf(ErrCodeInvalidComponent, ErrMsgInvalidComponent, componentType)
+func NewToolNotFoundError(ref string) error {
+	return fmt.Errorf("%w with reference: %s", ErrToolNotFound, ref)
 }
 
-func NewNoAgentsDefinedError() *WorkflowError {
-	return NewError(ErrCodeNoAgentsDefined, ErrMsgNoAgentsDefined)
+func NewNoTasksDefinedError() error {
+	return ErrNoTasksDefined
 }
 
-func NewAgentNotFoundError(ref string) *WorkflowError {
-	return NewErrorf(ErrCodeAgentNotFound, ErrMsgAgentNotFound, ref)
+func NewTaskNotFoundError(ref string) error {
+	return fmt.Errorf("%w with reference: %s", ErrTaskNotFound, ref)
 }
 
-func NewNoToolsDefinedError() *WorkflowError {
-	return NewError(ErrCodeNoToolsDefined, ErrMsgNoToolsDefined)
+func NewNotImplementedError() error {
+	return ErrNotImplemented
 }
 
-func NewToolNotFoundError(ref string) *WorkflowError {
-	return NewErrorf(ErrCodeToolNotFound, ErrMsgToolNotFound, ref)
+func NewInvalidRefTypeError(componentType string) error {
+	return fmt.Errorf("%w for %s", ErrInvalidRefType, componentType)
 }
 
-func NewNoTasksDefinedError() *WorkflowError {
-	return NewError(ErrCodeNoTasksDefined, ErrMsgNoTasksDefined)
+func NewAgentValidationError(err error) error {
+	return fmt.Errorf("%w: %w", ErrAgentValidationError, err)
 }
 
-func NewTaskNotFoundError(ref string) *WorkflowError {
-	return NewErrorf(ErrCodeTaskNotFound, ErrMsgTaskNotFound, ref)
+func NewToolValidationError(err error) error {
+	return fmt.Errorf("%w: %w", ErrToolValidationError, err)
 }
 
-func NewNotImplementedError() *WorkflowError {
-	return NewError(ErrCodeNotImplemented, ErrMsgNotImplemented)
+func NewTaskValidationError(err error) error {
+	return fmt.Errorf("%w: %w", ErrTaskValidationError, err)
 }
 
-func NewInvalidRefTypeError(componentType string) *WorkflowError {
-	return NewErrorf(ErrCodeInvalidRefType, ErrMsgInvalidRefType, componentType)
+func NewTriggerValidationError(err error) error {
+	return fmt.Errorf("%w: %w", ErrTriggerValidationError, err)
 }
 
-func NewAgentValidationError(err error) *WorkflowError {
-	return NewErrorf(ErrCodeAgentValidationError, ErrMsgAgentValidationError, err.Error())
+func NewMergeError(err error) error {
+	return fmt.Errorf("%w: %w", ErrMerge, err)
 }
 
-func NewToolValidationError(err error) *WorkflowError {
-	return NewErrorf(ErrCodeToolValidationError, ErrMsgToolValidationError, err.Error())
-}
-
-func NewTaskValidationError(err error) *WorkflowError {
-	return NewErrorf(ErrCodeTaskValidationError, ErrMsgTaskValidationError, err.Error())
-}
-
-func NewTriggerValidationError(err error) *WorkflowError {
-	return NewErrorf(ErrCodeTriggerValidationError, ErrMsgTriggerValidationError, err.Error())
-}
-
-func NewMergeError(err error) *WorkflowError {
-	return NewErrorf(ErrCodeMerge, ErrMsgMerge, err.Error())
-}
-
-func NewFileCloseError(err error) *WorkflowError {
-	return NewErrorf(ErrCodeFileClose, ErrMsgFileClose, err.Error())
+func NewFileCloseError(err error) error {
+	return fmt.Errorf("%w: %w", ErrFileClose, err)
 }

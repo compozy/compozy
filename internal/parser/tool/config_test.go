@@ -143,7 +143,7 @@ func TestLoadTool(t *testing.T) {
 				TestMode = false // Enable file existence check for invalid test
 				err := config.Validate()
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), "Invalid tool execute path")
+				assert.Contains(t, err.Error(), "invalid tool execute path")
 			},
 		},
 	}
@@ -209,10 +209,10 @@ func TestToolConfigValidation(t *testing.T) {
 		{
 			name: "Missing CWD",
 			config: &ToolConfig{
-				ID: &toolID,
+				ID: func() *ToolID { id := ToolID("test-tool"); return &id }(),
 			},
 			wantErr: true,
-			errMsg:  "Current working directory is required for test-tool",
+			errMsg:  "current working directory is required for test-tool",
 		},
 		{
 			name: "Invalid Package Reference",
@@ -227,12 +227,12 @@ func TestToolConfigValidation(t *testing.T) {
 		{
 			name: "Invalid Execute Path",
 			config: &ToolConfig{
-				ID:      &toolID,
+				ID:      func() *ToolID { id := ToolID("test-tool"); return &id }(),
 				Execute: func() *ToolExecute { e := ToolExecute("./nonexistent.ts"); return &e }(),
 				cwd:     common.NewCWD("/test/path"),
 			},
 			wantErr: true,
-			errMsg:  "Invalid tool execute path",
+			errMsg:  "invalid tool execute path: /test/path/nonexistent.ts",
 		},
 		{
 			name: "Input Schema Not Allowed with ID Reference",
@@ -308,7 +308,9 @@ func TestToolConfigValidation(t *testing.T) {
 		{
 			name: "Invalid With Params",
 			config: &ToolConfig{
-				ID: &toolID,
+				ID:      func() *ToolID { id := ToolID("test-tool"); return &id }(),
+				Execute: func() *ToolExecute { e := ToolExecute("./test.ts"); return &e }(),
+				cwd:     common.NewCWD("/test/path"),
 				InputSchema: &schema.InputSchema{
 					Schema: schema.Schema{
 						"type": "object",
@@ -323,10 +325,9 @@ func TestToolConfigValidation(t *testing.T) {
 				With: &common.WithParams{
 					"age": 42,
 				},
-				cwd: common.NewCWD("/test/path"),
 			},
 			wantErr: true,
-			errMsg:  "With parameters invalid for test-tool",
+			errMsg:  "with parameters invalid for test-tool",
 		},
 	}
 

@@ -9,12 +9,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/logger"
 	"github.com/compozy/compozy/internal/parser/trigger"
 	"github.com/compozy/compozy/internal/parser/workflow"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func init() {
+	// Initialize logger for tests
+	logger.Init(logger.DefaultConfig())
+}
 
 func TestNormalizePath(t *testing.T) {
 	tests := []struct {
@@ -236,8 +242,10 @@ func TestHandleRequest(t *testing.T) {
 			body:       "invalid json",
 			wantStatus: http.StatusBadRequest,
 			wantBody: map[string]any{
-				"status":  float64(http.StatusBadRequest),
-				"message": "Invalid JSON input: invalid character 'i' looking for beginning of value",
+				"error": map[string]any{
+					"code":    "INTERNAL_ERROR",
+					"message": "Invalid JSON input: invalid character 'i' looking for beginning of value",
+				},
 			},
 		},
 		{

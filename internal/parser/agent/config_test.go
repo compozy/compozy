@@ -130,7 +130,7 @@ func TestAgentActionConfigValidation(t *testing.T) {
 				Prompt: "test prompt",
 			},
 			wantErr: true,
-			errMsg:  "Current working directory is required for test-action",
+			errMsg:  "current working directory is required for test-action",
 		},
 		{
 			name: "Valid With Params",
@@ -176,7 +176,7 @@ func TestAgentActionConfigValidation(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errMsg:  "With parameters invalid for test-action",
+			errMsg:  "with parameters invalid for test-action",
 		},
 	}
 
@@ -259,7 +259,7 @@ func TestAgentConfigValidation(t *testing.T) {
 				Instructions: func() *Instructions { i := Instructions("test instructions"); return &i }(),
 			},
 			wantErr: true,
-			errMsg:  "Current working directory is required",
+			errMsg:  "current working directory is required for test-agent",
 		},
 		{
 			name: "Invalid Package Reference",
@@ -376,7 +376,7 @@ func TestAgentConfigValidation(t *testing.T) {
 				cwd: common.NewCWD("/test/path"),
 			},
 			wantErr: true,
-			errMsg:  "With parameters invalid for test-agent",
+			errMsg:  "with parameters invalid for test-agent",
 		},
 	}
 

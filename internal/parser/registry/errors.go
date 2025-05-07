@@ -1,76 +1,41 @@
 package registry
 
 import (
+	"errors"
 	"fmt"
 )
 
-// Error codes
-const (
-	ErrCodeFileOpen         = "FILE_OPEN_ERROR"
-	ErrCodeDecode           = "DECODE_ERROR"
-	ErrCodeMissingPath      = "MISSING_FILE_PATH"
-	ErrCodeInvalidType      = "INVALID_COMPONENT_TYPE"
-	ErrCodeMainPathNotFound = "MAIN_PATH_NOT_FOUND"
-	ErrCodeFileClose        = "FILE_CLOSE_ERROR"
+// Common sentinel errors
+var (
+	ErrFileOpen         = errors.New("failed to open registry config file")
+	ErrDecode           = errors.New("failed to decode registry config")
+	ErrMissingPath      = errors.New("missing file path for registry")
+	ErrInvalidType      = errors.New("invalid component type")
+	ErrMainPathNotFound = errors.New("main path does not exist")
+	ErrFileClose        = errors.New("failed to close registry config file")
 )
-
-// Error messages
-const (
-	ErrMsgFileOpen         = "Failed to open registry config file: %s"
-	ErrMsgDecode           = "Failed to decode registry config: %s"
-	ErrMsgMissingPath      = "Missing file path for registry"
-	ErrMsgInvalidType      = "Invalid component type: %s"
-	ErrMsgMainPathNotFound = "Main path does not exist: %s"
-	ErrMsgFileClose        = "Failed to close registry config file: %s"
-)
-
-// RegistryError represents errors that can occur during registry configuration
-type RegistryError struct {
-	Message string
-	Code    string
-}
-
-func (e *RegistryError) Error() string {
-	return e.Message
-}
-
-// NewError creates a new RegistryError with the given code and message
-func NewError(code, message string) *RegistryError {
-	return &RegistryError{
-		Code:    code,
-		Message: message,
-	}
-}
-
-// NewErrorf creates a new RegistryError with the given code and formatted message
-func NewErrorf(code, format string, args ...any) *RegistryError {
-	return &RegistryError{
-		Code:    code,
-		Message: fmt.Sprintf(format, args...),
-	}
-}
 
 // Common error constructors
-func NewFileOpenError(err error) *RegistryError {
-	return NewErrorf(ErrCodeFileOpen, ErrMsgFileOpen, err.Error())
+func NewFileOpenError(err error) error {
+	return fmt.Errorf("%w: %w", ErrFileOpen, err)
 }
 
-func NewDecodeError(err error) *RegistryError {
-	return NewErrorf(ErrCodeDecode, ErrMsgDecode, err.Error())
+func NewDecodeError(err error) error {
+	return fmt.Errorf("%w: %w", ErrDecode, err)
 }
 
-func NewMissingPathError() *RegistryError {
-	return NewError(ErrCodeMissingPath, ErrMsgMissingPath)
+func NewMissingPathError() error {
+	return ErrMissingPath
 }
 
-func NewInvalidTypeError(componentType string) *RegistryError {
-	return NewErrorf(ErrCodeInvalidType, ErrMsgInvalidType, componentType)
+func NewInvalidTypeError(componentType string) error {
+	return fmt.Errorf("%w: %s", ErrInvalidType, componentType)
 }
 
-func NewMainPathNotFoundError(mainPath string) *RegistryError {
-	return NewErrorf(ErrCodeMainPathNotFound, ErrMsgMainPathNotFound, mainPath)
+func NewMainPathNotFoundError(mainPath string) error {
+	return fmt.Errorf("%w: %s", ErrMainPathNotFound, mainPath)
 }
 
-func NewFileCloseError(err error) *RegistryError {
-	return NewErrorf(ErrCodeFileClose, ErrMsgFileClose, err.Error())
+func NewFileCloseError(err error) error {
+	return fmt.Errorf("%w: %w", ErrFileClose, err)
 }

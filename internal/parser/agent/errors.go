@@ -1,102 +1,98 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 )
 
-// Error codes
-const (
-	ErrCodeFileOpen             = "FILE_OPEN_ERROR"
-	ErrCodeDecode               = "DECODE_ERROR"
-	ErrCodeMissingPath          = "MISSING_FILE_PATH"
-	ErrCodeInvalidPackageRef    = "INVALID_PACKAGE_REF"
-	ErrCodeInvalidComponentType = "INVALID_COMPONENT_TYPE"
-	ErrCodeMerge                = "MERGE_ERROR"
-	ErrCodeFileClose            = "FILE_CLOSE_ERROR"
-	ErrCodeMissingIdField       = "MISSING_ID_FIELD"
-	ErrCodeUnimplemented        = "UNIMPLEMENTED"
-	ErrCodeInvalidRef           = "INVALID_REF"
+// Common sentinel errors
+var (
+	ErrFileOpen             = errors.New("failed to open agent config file")
+	ErrDecode               = errors.New("failed to decode agent config")
+	ErrMissingPath          = errors.New("missing file path for agent")
+	ErrInvalidPackageRef    = errors.New("invalid package reference")
+	ErrInvalidComponentType = errors.New("package reference must be an agent")
+	ErrMerge                = errors.New("failed to merge agent configs")
+	ErrFileClose            = errors.New("failed to close agent config file")
+	ErrMissingIdField       = errors.New("missing ID field")
+	ErrUnimplemented        = errors.New("feature not implemented")
+	ErrInvalidRef           = errors.New("invalid reference type")
 )
 
-// Error messages
-const (
-	ErrMsgFileOpen             = "Failed to open agent config file: %s"
-	ErrMsgDecode               = "Failed to decode agent config: %s"
-	ErrMsgMissingPath          = "Missing file path for agent: %s"
-	ErrMsgInvalidPackageRef    = "Invalid package reference: %s"
-	ErrMsgInvalidComponentType = "Package reference must be an agent"
-	ErrMsgMerge                = "Failed to merge agent configs: %s"
-	ErrMsgFileClose            = "Failed to close agent config file: %s"
-	ErrMsgMissingIdField       = "Missing ID field"
-	ErrMsgUnimplemented        = "Feature not implemented: %s"
-	ErrMsgInvalidRef           = "Invalid reference type"
-)
-
-// AgentConfigError represents errors that can occur during agent configuration
-type AgentConfigError struct {
-	Message string
+// AgentError represents errors that can occur during agent operations
+type AgentError struct {
 	Code    string
+	Message string
+	Err     error
 }
 
-func (e *AgentConfigError) Error() string {
-	return e.Message
+func (e *AgentError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("%s: %s (%v)", e.Code, e.Message, e.Err)
+	}
+	return fmt.Sprintf("%s: %s", e.Code, e.Message)
 }
 
-// NewError creates a new AgentConfigError with the given code and message
-func NewError(code, message string) *AgentConfigError {
-	return &AgentConfigError{
+func (e *AgentError) Unwrap() error {
+	return e.Err
+}
+
+// NewAgentError creates a new AgentError
+func NewAgentError(code string, message string) *AgentError {
+	return &AgentError{
 		Code:    code,
 		Message: message,
 	}
 }
 
-// NewErrorf creates a new AgentConfigError with the given code and formatted message
-func NewErrorf(code, format string, args ...any) *AgentConfigError {
-	return &AgentConfigError{
+// WrapAgentError wraps an existing error with an agent error
+func WrapAgentError(code string, message string, err error) *AgentError {
+	return &AgentError{
 		Code:    code,
-		Message: fmt.Sprintf(format, args...),
+		Message: message,
+		Err:     err,
 	}
 }
 
-// Common error constructors
-func NewFileOpenError(err error) *AgentConfigError {
-	return NewErrorf(ErrCodeFileOpen, ErrMsgFileOpen, err.Error())
+// Error constructors
+func NewFileOpenError(err error) error {
+	return fmt.Errorf("%w: %w", ErrFileOpen, err)
 }
 
-func NewDecodeError(err error) *AgentConfigError {
-	return NewErrorf(ErrCodeDecode, ErrMsgDecode, err.Error())
+func NewDecodeError(err error) error {
+	return fmt.Errorf("%w: %w", ErrDecode, err)
 }
 
-func NewMissingPathError(action string) *AgentConfigError {
-	return NewErrorf(ErrCodeMissingPath, ErrMsgMissingPath, action)
+func NewMissingPathError(action string) error {
+	return fmt.Errorf("%w: %s", ErrMissingPath, action)
 }
 
-func NewInvalidPackageRefError(err error) *AgentConfigError {
-	return NewErrorf(ErrCodeInvalidPackageRef, ErrMsgInvalidPackageRef, err.Error())
+func NewInvalidPackageRefError(err error) error {
+	return fmt.Errorf("%w: %w", ErrInvalidPackageRef, err)
 }
 
-func NewInvalidComponentTypeError() *AgentConfigError {
-	return NewError(ErrCodeInvalidComponentType, ErrMsgInvalidComponentType)
+func NewInvalidComponentTypeError() error {
+	return ErrInvalidComponentType
 }
 
-func NewMergeError(err error) *AgentConfigError {
-	return NewErrorf(ErrCodeMerge, ErrMsgMerge, err.Error())
+func NewMergeError(err error) error {
+	return fmt.Errorf("%w: %w", ErrMerge, err)
 }
 
-func NewFileCloseError(err error) *AgentConfigError {
-	return NewErrorf(ErrCodeFileClose, ErrMsgFileClose, err.Error())
+func NewFileCloseError(err error) error {
+	return fmt.Errorf("%w: %w", ErrFileClose, err)
 }
 
-func NewMissingIdFieldError() *AgentConfigError {
-	return NewError(ErrCodeMissingIdField, ErrMsgMissingIdField)
+func NewMissingIdFieldError() error {
+	return ErrMissingIdField
 }
 
-func NewUnimplementedError(feature string) *AgentConfigError {
-	return NewErrorf(ErrCodeUnimplemented, ErrMsgUnimplemented, feature)
+func NewUnimplementedError(feature string) error {
+	return fmt.Errorf("%w: %s", ErrUnimplemented, feature)
 }
 
-func NewInvalidRefError() *AgentConfigError {
-	return NewError(ErrCodeInvalidRef, ErrMsgInvalidRef)
+func NewInvalidRefError() error {
+	return ErrInvalidRef
 }
 
 // InvalidConfigurationError represents an error when the configuration is invalid

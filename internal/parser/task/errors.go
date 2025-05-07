@@ -1,106 +1,66 @@
 package task
 
 import (
+	"errors"
 	"fmt"
 )
 
-// Error codes
-const (
-	ErrCodeFileOpen            = "FILE_OPEN_ERROR"
-	ErrCodeDecode              = "DECODE_ERROR"
-	ErrCodeMissingPath         = "MISSING_FILE_PATH"
-	ErrCodeInvalidPackageRef   = "INVALID_PACKAGE_REF"
-	ErrCodeInvalidType         = "INVALID_COMPONENT_TYPE"
-	ErrCodeInvalidTaskType     = "INVALID_TASK_TYPE"
-	ErrCodeInvalidInputSchema  = "INVALID_INPUT_SCHEMA"
-	ErrCodeInvalidOutputSchema = "INVALID_OUTPUT_SCHEMA"
-	ErrCodeInvalidDecisionTask = "INVALID_DECISION_TASK"
-	ErrCodeMerge               = "MERGE_ERROR"
-	ErrCodeFileClose           = "FILE_CLOSE_ERROR"
+// Common sentinel errors
+var (
+	ErrFileOpen            = errors.New("failed to open task config file")
+	ErrDecode              = errors.New("failed to decode task config")
+	ErrMissingPath         = errors.New("missing file path for task")
+	ErrInvalidPackageRef   = errors.New("invalid package reference")
+	ErrInvalidType         = errors.New("package reference must be a task, agent, or tool")
+	ErrInvalidTaskType     = errors.New("invalid task type")
+	ErrInvalidInputSchema  = errors.New("invalid input schema")
+	ErrInvalidOutputSchema = errors.New("invalid output schema")
+	ErrInvalidDecisionTask = errors.New("decision task must have at least one route")
+	ErrMerge               = errors.New("failed to merge task configs")
+	ErrFileClose           = errors.New("failed to close task config file")
 )
 
-// Error messages
-const (
-	ErrMsgFileOpen            = "Failed to open task config file: %s"
-	ErrMsgDecode              = "Failed to decode task config: %s"
-	ErrMsgMissingPath         = "Missing file path for task"
-	ErrMsgInvalidPackageRef   = "Invalid package reference: %s"
-	ErrMsgInvalidType         = "Package reference must be a task, agent, or tool"
-	ErrMsgInvalidTaskType     = "Invalid task type: %s"
-	ErrMsgInvalidInputSchema  = "Invalid input schema: %s"
-	ErrMsgInvalidOutputSchema = "Invalid output schema: %s"
-	ErrMsgInvalidDecisionTask = "Decision task must have at least one route"
-	ErrMsgMerge               = "Failed to merge task configs: %s"
-	ErrMsgFileClose           = "Failed to close task config file: %s"
-)
-
-// TaskError represents errors that can occur during task configuration
-type TaskError struct {
-	Message string
-	Code    string
+// Error constructors
+func NewFileOpenError(err error) error {
+	return fmt.Errorf("%w: %w", ErrFileOpen, err)
 }
 
-func (e *TaskError) Error() string {
-	return e.Message
+func NewDecodeError(err error) error {
+	return fmt.Errorf("%w: %w", ErrDecode, err)
 }
 
-// NewError creates a new TaskError with the given code and message
-func NewError(code, message string) *TaskError {
-	return &TaskError{
-		Code:    code,
-		Message: message,
-	}
+func NewMissingPathError() error {
+	return ErrMissingPath
 }
 
-// NewErrorf creates a new TaskError with the given code and formatted message
-func NewErrorf(code, format string, args ...any) *TaskError {
-	return &TaskError{
-		Code:    code,
-		Message: fmt.Sprintf(format, args...),
-	}
+func NewInvalidPackageRefError(err error) error {
+	return fmt.Errorf("%w: %w", ErrInvalidPackageRef, err)
 }
 
-// Common error constructors
-func NewFileOpenError(err error) *TaskError {
-	return NewErrorf(ErrCodeFileOpen, ErrMsgFileOpen, err.Error())
+func NewInvalidTypeError() error {
+	return ErrInvalidType
 }
 
-func NewDecodeError(err error) *TaskError {
-	return NewErrorf(ErrCodeDecode, ErrMsgDecode, err.Error())
+func NewInvalidTaskTypeError(taskType string) error {
+	return fmt.Errorf("%w: %s", ErrInvalidTaskType, taskType)
 }
 
-func NewMissingPathError() *TaskError {
-	return NewError(ErrCodeMissingPath, ErrMsgMissingPath)
+func NewInvalidInputSchemaError(err error) error {
+	return fmt.Errorf("%w: %w", ErrInvalidInputSchema, err)
 }
 
-func NewInvalidPackageRefError(err error) *TaskError {
-	return NewErrorf(ErrCodeInvalidPackageRef, ErrMsgInvalidPackageRef, err.Error())
+func NewInvalidOutputSchemaError(err error) error {
+	return fmt.Errorf("%w: %w", ErrInvalidOutputSchema, err)
 }
 
-func NewInvalidTypeError() *TaskError {
-	return NewError(ErrCodeInvalidType, ErrMsgInvalidType)
+func NewInvalidDecisionTaskError() error {
+	return ErrInvalidDecisionTask
 }
 
-func NewInvalidTaskTypeError(taskType string) *TaskError {
-	return NewErrorf(ErrCodeInvalidTaskType, ErrMsgInvalidTaskType, taskType)
+func NewMergeError(err error) error {
+	return fmt.Errorf("%w: %w", ErrMerge, err)
 }
 
-func NewInvalidInputSchemaError(err error) *TaskError {
-	return NewErrorf(ErrCodeInvalidInputSchema, ErrMsgInvalidInputSchema, err.Error())
-}
-
-func NewInvalidOutputSchemaError(err error) *TaskError {
-	return NewErrorf(ErrCodeInvalidOutputSchema, ErrMsgInvalidOutputSchema, err.Error())
-}
-
-func NewInvalidDecisionTaskError() *TaskError {
-	return NewError(ErrCodeInvalidDecisionTask, ErrMsgInvalidDecisionTask)
-}
-
-func NewMergeError(err error) *TaskError {
-	return NewErrorf(ErrCodeMerge, ErrMsgMerge, err.Error())
-}
-
-func NewFileCloseError(err error) *TaskError {
-	return NewErrorf(ErrCodeFileClose, ErrMsgFileClose, err.Error())
+func NewFileCloseError(err error) error {
+	return fmt.Errorf("%w: %w", ErrFileClose, err)
 }
