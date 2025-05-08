@@ -14,7 +14,7 @@ import (
 
 func Test_NewAppState(t *testing.T) {
 	t.Run("Should use current directory when CWD is empty", func(t *testing.T) {
-		state, err := NewAppState("", nil)
+		state, err := NewAppState("", nil, nil)
 		assert.NoError(t, err)
 		assert.NotNil(t, state)
 		assert.NotEmpty(t, state.CWD)
@@ -22,7 +22,7 @@ func Test_NewAppState(t *testing.T) {
 	})
 
 	t.Run("Should convert relative path to absolute", func(t *testing.T) {
-		state, err := NewAppState("test", nil)
+		state, err := NewAppState("test", nil, nil)
 		assert.NoError(t, err)
 		assert.NotNil(t, state)
 		assert.NotEmpty(t, state.CWD)
@@ -30,7 +30,7 @@ func Test_NewAppState(t *testing.T) {
 	})
 
 	t.Run("Should work with absolute path", func(t *testing.T) {
-		state, err := NewAppState("/tmp", nil)
+		state, err := NewAppState("/tmp", nil, nil)
 		assert.NoError(t, err)
 		assert.NotNil(t, state)
 		assert.NotEmpty(t, state.CWD)
@@ -40,7 +40,7 @@ func Test_NewAppState(t *testing.T) {
 
 func Test_AppStateContext(t *testing.T) {
 	t.Run("Should handle app state in context correctly", func(t *testing.T) {
-		state, err := NewAppState("", nil)
+		state, err := NewAppState("", nil, nil)
 		require.NoError(t, err)
 
 		ctx := context.Background()
@@ -58,7 +58,7 @@ func Test_AppStateContext(t *testing.T) {
 }
 
 func Test_ServerCreation(t *testing.T) {
-	state, err := NewAppState("", nil)
+	state, err := NewAppState("", nil, nil)
 	require.NoError(t, err)
 
 	t.Run("Should create server with default config", func(t *testing.T) {
@@ -86,7 +86,7 @@ func Test_ServerCreation(t *testing.T) {
 func Test_HealthEndpoint(t *testing.T) {
 	t.Run("Should return healthy status", func(t *testing.T) {
 		gin.SetMode(gin.TestMode)
-		state, err := NewAppState("", nil)
+		state, err := NewAppState("", nil, nil)
 		require.NoError(t, err)
 
 		server := NewServer(nil, state)
@@ -105,7 +105,7 @@ func Test_HealthEndpoint(t *testing.T) {
 func Test_WebhookEndpoint(t *testing.T) {
 	t.Run("Should return 404 for non-existent webhook", func(t *testing.T) {
 		gin.SetMode(gin.TestMode)
-		state, err := NewAppState("", nil)
+		state, err := NewAppState("", nil, nil)
 		require.NoError(t, err)
 
 		server := NewServer(nil, state)

@@ -6,69 +6,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/compozy/compozy/internal/logger"
-	"github.com/compozy/compozy/internal/parser/workflow"
 	"github.com/gin-gonic/gin"
 )
-
-// Context keys
-type contextKey string
-
-const (
-	appStateKey contextKey = "app_state"
-)
-
-// AppState contains the state shared across the server
-type AppState struct {
-	CWD       string
-	Workflows []*workflow.WorkflowConfig
-}
-
-// NewAppState creates a new AppState
-func NewAppState(cwd string, workflows []*workflow.WorkflowConfig) (*AppState, error) {
-	if cwd == "" {
-		var err error
-		cwd, err = os.Getwd()
-		if err != nil {
-			return nil, NewServerError(ErrInternalCode, "Failed to get current working directory")
-		}
-	}
-
-	if !filepath.IsAbs(cwd) {
-		absPath, err := filepath.Abs(cwd)
-		if err != nil {
-			return nil, NewServerError(ErrInternalCode, "Failed to resolve absolute path")
-		}
-		cwd = absPath
-	}
-
-	if workflows == nil {
-		workflows = []*workflow.WorkflowConfig{}
-	}
-
-	return &AppState{
-		CWD:       cwd,
-		Workflows: workflows,
-	}, nil
-}
-
-// WithAppState adds the app state to the context
-func WithAppState(ctx context.Context, state *AppState) context.Context {
-	return context.WithValue(ctx, appStateKey, state)
-}
-
-// GetAppState retrieves the app state from the context
-func GetAppState(ctx context.Context) (*AppState, error) {
-	state, ok := ctx.Value(appStateKey).(*AppState)
-	if !ok {
-		return nil, NewServerError(ErrInternalCode, "App state not found in context")
-	}
-	return state, nil
-}
 
 // Server represents the HTTP server
 type Server struct {

@@ -58,7 +58,7 @@ func Test_RegisterRoutes(t *testing.T) {
 
 	t.Run("Should handle empty workflows", func(t *testing.T) {
 		router := gin.New()
-		state, err := NewAppState("", nil)
+		state, err := NewAppState("", nil, nil)
 		require.NoError(t, err)
 
 		err = RegisterRoutes(router, state)
@@ -74,7 +74,7 @@ func Test_RegisterRoutes(t *testing.T) {
 					Type: "invalid",
 				},
 			},
-		})
+		}, nil)
 		require.NoError(t, err)
 
 		err = RegisterRoutes(router, state)
@@ -92,7 +92,7 @@ func Test_RegisterRoutes(t *testing.T) {
 					},
 				},
 			},
-		})
+		}, nil)
 		require.NoError(t, err)
 
 		err = RegisterRoutes(router, state)
@@ -116,7 +116,7 @@ func Test_RegisterRoutes(t *testing.T) {
 					},
 				},
 			},
-		})
+		}, nil)
 		require.NoError(t, err)
 
 		err = RegisterRoutes(router, state)
@@ -148,7 +148,7 @@ func Test_RegisterRoutes(t *testing.T) {
 					},
 				},
 			},
-		})
+		}, nil)
 		require.NoError(t, err)
 
 		err = RegisterRoutes(router, state)
@@ -172,7 +172,7 @@ func Test_HandleRequest(t *testing.T) {
 
 	t.Run("Should handle valid JSON request", func(t *testing.T) {
 		router := gin.New()
-		state, err := NewAppState("", []*workflow.WorkflowConfig{testWorkflow})
+		state, err := NewAppState("", []*workflow.WorkflowConfig{testWorkflow}, nil)
 		require.NoError(t, err)
 
 		err = RegisterRoutes(router, state)
@@ -199,7 +199,7 @@ func Test_HandleRequest(t *testing.T) {
 
 	t.Run("Should handle invalid JSON request", func(t *testing.T) {
 		router := gin.New()
-		state, err := NewAppState("", []*workflow.WorkflowConfig{testWorkflow})
+		state, err := NewAppState("", []*workflow.WorkflowConfig{testWorkflow}, nil)
 		require.NoError(t, err)
 
 		err = RegisterRoutes(router, state)
@@ -223,7 +223,7 @@ func Test_HandleRequest(t *testing.T) {
 
 	t.Run("Should return 404 for non-existent webhook", func(t *testing.T) {
 		router := gin.New()
-		state, err := NewAppState("", []*workflow.WorkflowConfig{testWorkflow})
+		state, err := NewAppState("", []*workflow.WorkflowConfig{testWorkflow}, nil)
 		require.NoError(t, err)
 
 		err = RegisterRoutes(router, state)

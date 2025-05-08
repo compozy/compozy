@@ -31,20 +31,22 @@ const (
 
 // Message is the base structure for all protocol messages
 type Message struct {
-	Type    MessageType     `json:"type"`
-	Payload json.RawMessage `json:"payload"`
+	RequestID string          `json:"request_id"`
+	Type      MessageType     `json:"type"`
+	Payload   json.RawMessage `json:"payload"`
 }
 
 // NewMessage creates a new message with the given type and payload
-func NewMessage(messageType MessageType, payload any) (*Message, error) {
+func NewMessage(requestID string, messageType MessageType, payload any) (*Message, error) {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
 	return &Message{
-		Type:    messageType,
-		Payload: payloadBytes,
+		RequestID: requestID,
+		Type:      messageType,
+		Payload:   payloadBytes,
 	}, nil
 }
 
@@ -146,14 +148,13 @@ type ToolResponse struct {
 
 // ErrorMessage represents an error message
 type ErrorMessage struct {
-	RequestID string          `json:"request_id,omitempty"`
-	Message   string          `json:"message"`
-	Stack     string          `json:"stack,omitempty"`
-	Data      json.RawMessage `json:"data,omitempty"`
+	Message string          `json:"message"`
+	Stack   string          `json:"stack,omitempty"`
+	Data    json.RawMessage `json:"data,omitempty"`
 }
 
 // NewErrorMessage creates a new error message
-func NewErrorMessage(message string, requestID string, stack string, data any) (*ErrorMessage, error) {
+func NewErrorMessage(message string, stack string, data any) (*ErrorMessage, error) {
 	var dataJSON json.RawMessage
 	var err error
 
@@ -165,10 +166,9 @@ func NewErrorMessage(message string, requestID string, stack string, data any) (
 	}
 
 	return &ErrorMessage{
-		RequestID: requestID,
-		Message:   message,
-		Stack:     stack,
-		Data:      dataJSON,
+		Message: message,
+		Stack:   stack,
+		Data:    dataJSON,
 	}, nil
 }
 

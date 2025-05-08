@@ -110,8 +110,8 @@ func (s *NatsServer) IsRunning() bool {
 }
 
 // RequestAgent sends an AgentRequest and waits for an AgentResponse or ErrorMessage
-func (s *NatsServer) RequestAgent(req *AgentRequest, timeout time.Duration) (*AgentResponse, error) {
-	msg, err := NewMessage(TypeAgentRequest, req)
+func (s *NatsServer) RequestAgent(execID string, req *AgentRequest, timeout time.Duration) (*AgentResponse, error) {
+	msg, err := NewMessage(execID, TypeAgentRequest, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create agent request message: %w", err)
 	}
@@ -121,7 +121,7 @@ func (s *NatsServer) RequestAgent(req *AgentRequest, timeout time.Duration) (*Ag
 		return nil, fmt.Errorf("failed to marshal agent request message: %w", err)
 	}
 
-	subject := GenAgentRequestSubject(req.AgentID, req.ID)
+	subject := GenAgentRequestSubject(execID, req.AgentID)
 	respMsg, err := s.Conn.Request(subject, data, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send agent request: %w", err)
@@ -151,8 +151,8 @@ func (s *NatsServer) RequestAgent(req *AgentRequest, timeout time.Duration) (*Ag
 }
 
 // RequestTool sends a ToolRequest and waits for a ToolResponse or ErrorMessage
-func (s *NatsServer) RequestTool(req *ToolRequest, timeout time.Duration) (*ToolResponse, error) {
-	msg, err := NewMessage(TypeToolRequest, req)
+func (s *NatsServer) RequestTool(execID string, req *ToolRequest, timeout time.Duration) (*ToolResponse, error) {
+	msg, err := NewMessage(execID, TypeToolRequest, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool request message: %w", err)
 	}
@@ -162,7 +162,7 @@ func (s *NatsServer) RequestTool(req *ToolRequest, timeout time.Duration) (*Tool
 		return nil, fmt.Errorf("failed to marshal tool request message: %w", err)
 	}
 
-	subject := GenToolRequestSubject(req.ToolID, req.ID)
+	subject := GenToolRequestSubject(execID, req.ToolID)
 	respMsg, err := s.Conn.Request(subject, data, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send tool request: %w", err)
@@ -192,8 +192,8 @@ func (s *NatsServer) RequestTool(req *ToolRequest, timeout time.Duration) (*Tool
 }
 
 // PublishLog publishes a log message to the appropriate subject
-func (s *NatsServer) PublishLog(logMsg *LogMessage) error {
-	msg, err := NewMessage(TypeLog, logMsg)
+func (s *NatsServer) PublishLog(execID string, logMsg *LogMessage) error {
+	msg, err := NewMessage(execID, TypeLog, logMsg)
 	if err != nil {
 		return fmt.Errorf("failed to create log message: %w", err)
 	}
@@ -203,13 +203,13 @@ func (s *NatsServer) PublishLog(logMsg *LogMessage) error {
 		return fmt.Errorf("failed to marshal log message: %w", err)
 	}
 
-	subject := GenLogSubject(logMsg.Level)
+	subject := GenLogSubject(execID, logMsg.Level)
 	return s.Conn.Publish(subject, data)
 }
 
 // SubscribeToLogs subscribes to log messages and calls the handler for each message
-func (s *NatsServer) SubscribeToLogs(handler func(*LogMessage)) (*nats.Subscription, error) {
-	subject := GenLogWildcard()
+func (s *NatsServer) SubscribeToLogs(execID string, handler func(*LogMessage)) (*nats.Subscription, error) {
+	subject := GenLogWildcard(execID)
 
 	sub, err := s.Conn.Subscribe(subject, func(msg *nats.Msg) {
 		var message Message
@@ -237,8 +237,8 @@ func (s *NatsServer) SubscribeToLogs(handler func(*LogMessage)) (*nats.Subscript
 }
 
 // SubscribeToLogLevel subscribes to log messages of a specific level
-func (s *NatsServer) SubscribeToLogLevel(level LogLevel, handler func(*LogMessage)) (*nats.Subscription, error) {
-	subject := GenLogSubject(level)
+func (s *NatsServer) SubscribeToLogLevel(execID string, level LogLevel, handler func(*LogMessage)) (*nats.Subscription, error) {
+	subject := GenLogLevelWildcard(execID, level)
 
 	sub, err := s.Conn.Subscribe(subject, func(msg *nats.Msg) {
 		var message Message

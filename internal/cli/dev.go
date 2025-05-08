@@ -14,7 +14,6 @@ import (
 
 // setupLogger initializes the logger with the given configuration
 func setupLogger(logLevel string, logJSON, logSource bool) {
-	// Parse log level
 	var level log.Level
 	switch logLevel {
 	case "debug":
@@ -36,62 +35,6 @@ func setupLogger(logLevel string, logJSON, logSource bool) {
 		AddSource:  logSource,
 		TimeFormat: "15:04:05", // Use time format with seconds
 	})
-}
-
-// handleNatsLogMessage converts and logs a NATS log message using our logger
-func handleNatsLogMessage(msg *nats.LogMessage) {
-	// Convert NATS log level to our logger level
-	var logLevel log.Level
-	switch msg.Level {
-	case nats.DebugLevel:
-		logLevel = log.DebugLevel
-	case nats.InfoLevel:
-		logLevel = log.InfoLevel
-	case nats.WarnLevel:
-		logLevel = log.WarnLevel
-	case nats.ErrorLevel:
-		logLevel = log.ErrorLevel
-	default:
-		logLevel = log.InfoLevel
-	}
-
-	// Add context fields if present
-	fields := make([]any, 0)
-	if msg.Context != nil {
-		for k, v := range msg.Context {
-			fields = append(fields, k, v)
-		}
-	}
-
-	// Log the message with appropriate level
-	switch logLevel {
-	case log.DebugLevel:
-		logger.Debug(msg.Message, fields...)
-	case log.InfoLevel:
-		logger.Info(msg.Message, fields...)
-	case log.WarnLevel:
-		logger.Warn(msg.Message, fields...)
-	case log.ErrorLevel:
-		logger.Error(msg.Message, fields...)
-	}
-}
-
-// setupNatsServer starts the NATS server and sets up log message subscription
-func setupNatsServer() (*nats.NatsServer, error) {
-	// Start NATS server
-	natsServer, err := nats.NewNatsServer(nats.DefaultServerOptions())
-	if err != nil {
-		return nil, err
-	}
-
-	// Subscribe to log messages
-	_, err = natsServer.SubscribeToLogs(handleNatsLogMessage)
-	if err != nil {
-		natsServer.Shutdown() // Clean up on error
-		return nil, err
-	}
-
-	return natsServer, nil
 }
 
 // DevCmd returns the dev command
@@ -116,7 +59,7 @@ func DevCmd() *cobra.Command {
 			setupLogger(logLevel, logJSON, logSource)
 
 			// Setup NATS server
-			natsServer, err := setupNatsServer()
+			natsServer, err := nats.NewNatsServer(nats.DefaultServerOptions())
 			if err != nil {
 				logger.Error("Failed to setup NATS server", "error", err)
 				return err
@@ -158,7 +101,7 @@ func DevCmd() *cobra.Command {
 			}
 
 			// Create app state
-			appState, err := server.NewAppState(cwd, workflows)
+			appState, err := server.NewAppState(cwd, workflows, natsServer)
 			if err != nil {
 				logger.Error("Failed to create app state", "error", err)
 				return err

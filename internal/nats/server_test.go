@@ -54,8 +54,8 @@ func Test_Server(t *testing.T) {
 
 		// Simulate a Deno worker responding to the request
 		agentID := "agent123"
-		requestID := uuid.New().String()
-		subject := GenAgentRequestSubject(agentID, requestID)
+		execID := uuid.New().String()
+		subject := GenAgentRequestSubject(execID, agentID)
 
 		// Create channels for synchronization
 		ready := make(chan struct{})
@@ -84,7 +84,7 @@ func Test_Server(t *testing.T) {
 					Output:  []byte(`{"result": "success"}`),
 					Status:  StatusSuccess,
 				}
-				respMsg, _ := NewMessage(TypeAgentResponse, resp)
+				respMsg, _ := NewMessage(execID, TypeAgentResponse, resp)
 				data, _ := json.Marshal(respMsg)
 				msg.Respond(data)
 			})
@@ -111,10 +111,9 @@ func Test_Server(t *testing.T) {
 
 		// Send request
 		req := NewAgentRequest(agentID, "Process data", AgentActionRequest{ActionID: "action1"}, nil, nil)
-		req.ID = requestID // Ensure ID matches subscription
-		resp, err := server.RequestAgent(req, 2*time.Second)
+		resp, err := server.RequestAgent(execID, req, 2*time.Second)
 		assert.NoError(t, err)
-		assert.Equal(t, requestID, resp.ID)
+		assert.Equal(t, req.ID, resp.ID)
 		assert.Equal(t, agentID, resp.AgentID)
 		assert.Equal(t, StatusSuccess, resp.Status)
 		var output map[string]string
@@ -128,8 +127,8 @@ func Test_Server(t *testing.T) {
 
 		// Simulate a Deno worker responding with an error
 		agentID := "agent123"
-		requestID := uuid.New().String()
-		subject := GenAgentRequestSubject(agentID, requestID)
+		execID := uuid.New().String()
+		subject := GenAgentRequestSubject(execID, agentID)
 
 		// Create channels for synchronization
 		ready := make(chan struct{})
@@ -142,8 +141,8 @@ func Test_Server(t *testing.T) {
 
 			// Subscribe and signal when ready
 			sub, err := nc.Subscribe(subject, func(msg *nats.Msg) {
-				errMsg, _ := NewErrorMessage("Worker failed", requestID, "", nil)
-				respMsg, _ := NewMessage(TypeError, errMsg)
+				errMsg, _ := NewErrorMessage("Worker failed", "", nil)
+				respMsg, _ := NewMessage(execID, TypeError, errMsg)
 				data, _ := json.Marshal(respMsg)
 				msg.Respond(data)
 			})
@@ -170,8 +169,7 @@ func Test_Server(t *testing.T) {
 
 		// Send request
 		req := NewAgentRequest(agentID, "Process data", AgentActionRequest{ActionID: "action1"}, nil, nil)
-		req.ID = requestID
-		_, err := server.RequestAgent(req, 2*time.Second)
+		_, err := server.RequestAgent(execID, req, 2*time.Second)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "error from worker: Worker failed")
 	})
@@ -181,8 +179,9 @@ func Test_Server(t *testing.T) {
 		defer server.Shutdown()
 
 		// No worker responding, expect timeout
+		execID := uuid.New().String()
 		req := NewAgentRequest("agent123", "Process data", AgentActionRequest{ActionID: "action1"}, nil, nil)
-		_, err := server.RequestAgent(req, 1*time.Second)
+		_, err := server.RequestAgent(execID, req, 1*time.Second)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to send agent request")
 	})
@@ -193,8 +192,8 @@ func Test_Server(t *testing.T) {
 
 		// Simulate a Deno worker responding to the request
 		toolID := "tool123"
-		requestID := uuid.New().String()
-		subject := GenToolRequestSubject(toolID, requestID)
+		execID := uuid.New().String()
+		subject := GenToolRequestSubject(execID, toolID)
 
 		// Create channels for synchronization
 		ready := make(chan struct{})
@@ -223,7 +222,7 @@ func Test_Server(t *testing.T) {
 					Output: []byte(`{"result": "tool success"}`),
 					Status: StatusSuccess,
 				}
-				respMsg, _ := NewMessage(TypeToolResponse, resp)
+				respMsg, _ := NewMessage(execID, TypeToolResponse, resp)
 				data, _ := json.Marshal(respMsg)
 				msg.Respond(data)
 			})
@@ -251,10 +250,9 @@ func Test_Server(t *testing.T) {
 		// Send request
 		req, err := NewToolRequest(toolID, "Tool desc", nil, nil, nil)
 		assert.NoError(t, err)
-		req.ID = requestID
-		resp, err := server.RequestTool(req, 2*time.Second)
+		resp, err := server.RequestTool(execID, req, 2*time.Second)
 		assert.NoError(t, err)
-		assert.Equal(t, requestID, resp.ID)
+		assert.Equal(t, req.ID, resp.ID)
 		assert.Equal(t, toolID, resp.ToolID)
 		assert.Equal(t, StatusSuccess, resp.Status)
 		var output map[string]string
@@ -268,8 +266,8 @@ func Test_Server(t *testing.T) {
 
 		// Simulate a Deno worker responding with an error
 		toolID := "tool123"
-		requestID := uuid.New().String()
-		subject := GenToolRequestSubject(toolID, requestID)
+		execID := uuid.New().String()
+		subject := GenToolRequestSubject(execID, toolID)
 
 		// Create channels for synchronization
 		ready := make(chan struct{})
@@ -282,8 +280,8 @@ func Test_Server(t *testing.T) {
 
 			// Subscribe and signal when ready
 			sub, err := nc.Subscribe(subject, func(msg *nats.Msg) {
-				errMsg, _ := NewErrorMessage("Tool failed", requestID, "", nil)
-				respMsg, _ := NewMessage(TypeError, errMsg)
+				errMsg, _ := NewErrorMessage("Tool failed", "", nil)
+				respMsg, _ := NewMessage(execID, TypeError, errMsg)
 				data, _ := json.Marshal(respMsg)
 				msg.Respond(data)
 			})
@@ -311,8 +309,7 @@ func Test_Server(t *testing.T) {
 		// Send request
 		req, err := NewToolRequest(toolID, "Tool desc", nil, nil, nil)
 		assert.NoError(t, err)
-		req.ID = requestID
-		_, err = server.RequestTool(req, 2*time.Second)
+		_, err = server.RequestTool(execID, req, 2*time.Second)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "error from worker: Tool failed")
 	})
@@ -322,9 +319,10 @@ func Test_Server(t *testing.T) {
 		defer server.Shutdown()
 
 		// No worker responding, expect timeout
+		execID := uuid.New().String()
 		req, err := NewToolRequest("tool123", "Tool desc", nil, nil, nil)
 		assert.NoError(t, err)
-		_, err = server.RequestTool(req, 1*time.Second)
+		_, err = server.RequestTool(execID, req, 1*time.Second)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to send tool request")
 	})
@@ -342,12 +340,15 @@ func Test_Server(t *testing.T) {
 		logs := make(chan *LogMessage, 10)
 		defer close(logs)
 
+		// Generate a single execID for the test
+		execID := uuid.New().String()
+
 		go func() {
 			nc := connectToServer(t, server)
 			defer nc.Close()
 
 			// Subscribe to all log messages
-			sub, err := server.SubscribeToLogs(func(msg *LogMessage) {
+			sub, err := server.SubscribeToLogs(execID, func(msg *LogMessage) {
 				logs <- msg
 			})
 			if err != nil {
@@ -385,7 +386,7 @@ func Test_Server(t *testing.T) {
 		for _, lm := range logMessages {
 			logMsg, err := NewLogLevel(lm.level, lm.message, lm.context, time.Now())
 			assert.NoError(t, err)
-			err = server.PublishLog(logMsg)
+			err = server.PublishLog(execID, logMsg)
 			assert.NoError(t, err)
 		}
 
@@ -421,12 +422,15 @@ func Test_Server(t *testing.T) {
 		errorLogs := make(chan *LogMessage, 5)
 		defer close(errorLogs)
 
+		// Generate a single execID for the test
+		execID := uuid.New().String()
+
 		go func() {
 			nc := connectToServer(t, server)
 			defer nc.Close()
 
 			// Subscribe only to error logs
-			sub, err := server.SubscribeToLogLevel(ErrorLevel, func(msg *LogMessage) {
+			sub, err := server.SubscribeToLogLevel(execID, ErrorLevel, func(msg *LogMessage) {
 				errorLogs <- msg
 			})
 			if err != nil {
@@ -464,7 +468,7 @@ func Test_Server(t *testing.T) {
 		for _, lm := range logMessages {
 			logMsg, err := NewLogLevel(lm.level, lm.message, nil, time.Now())
 			assert.NoError(t, err)
-			err = server.PublishLog(logMsg)
+			err = server.PublishLog(execID, logMsg)
 			assert.NoError(t, err)
 		}
 

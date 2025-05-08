@@ -12,7 +12,8 @@ import (
 func Test_Protocol(t *testing.T) {
 	t.Run("Should create new message with valid payload", func(t *testing.T) {
 		payload := map[string]string{"key": "value"}
-		msg, err := NewMessage(TypeAgentRequest, payload)
+		execID := "test-exec-1"
+		msg, err := NewMessage(execID, TypeAgentRequest, payload)
 		assert.NoError(t, err)
 		assert.Equal(t, TypeAgentRequest, msg.Type)
 		var result map[string]string
@@ -23,14 +24,16 @@ func Test_Protocol(t *testing.T) {
 
 	t.Run("Should return error when creating message with invalid payload", func(t *testing.T) {
 		invalidPayload := make(chan int) // Unmarshalable type
-		_, err := NewMessage(TypeAgentRequest, invalidPayload)
+		execID := "test-exec-2"
+		_, err := NewMessage(execID, TypeAgentRequest, invalidPayload)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to marshal payload")
 	})
 
 	t.Run("Should unmarshal payload correctly", func(t *testing.T) {
 		payload := map[string]string{"key": "value"}
-		msg, _ := NewMessage(TypeAgentRequest, payload)
+		execID := "test-exec-3"
+		msg, _ := NewMessage(execID, TypeAgentRequest, payload)
 		var result map[string]string
 		err := msg.UnmarshalPayload(&result)
 		assert.NoError(t, err)
@@ -88,12 +91,10 @@ func Test_Protocol(t *testing.T) {
 
 	t.Run("Should create new error message with all fields", func(t *testing.T) {
 		message := "Something went wrong"
-		requestID := "req123"
 		stack := "stack trace"
 		data := map[string]string{"error": "details"}
-		errMsg, err := NewErrorMessage(message, requestID, stack, data)
+		errMsg, err := NewErrorMessage(message, stack, data)
 		assert.NoError(t, err)
-		assert.Equal(t, requestID, errMsg.RequestID)
 		assert.Equal(t, message, errMsg.Message)
 		assert.Equal(t, stack, errMsg.Stack)
 		var parsedData map[string]string
@@ -103,7 +104,8 @@ func Test_Protocol(t *testing.T) {
 
 	t.Run("Should return error when creating error message with invalid data", func(t *testing.T) {
 		invalidData := make(chan int)
-		_, err := NewErrorMessage("error", "req123", "", invalidData)
+		execID := "test-exec-4"
+		_, err := NewErrorMessage("error", execID, invalidData)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to marshal error data")
 	})
@@ -164,14 +166,16 @@ func Test_Protocol(t *testing.T) {
 
 func Test_LogSubjects(t *testing.T) {
 	t.Run("Should generate correct log subject", func(t *testing.T) {
-		subject := GenLogSubject(InfoLevel)
-		expected := fmt.Sprintf("%s.%s.%s", SubjectPrefix, SubjectLog, InfoLevel)
+		execID := "test-exec-5"
+		subject := GenLogSubject(execID, InfoLevel)
+		expected := fmt.Sprintf("%s.%s.%s.%s", SubjectPrefix, execID, SubjectLog, InfoLevel)
 		assert.Equal(t, expected, subject)
 	})
 
 	t.Run("Should generate correct log wildcard subject", func(t *testing.T) {
-		subject := GenLogWildcard()
-		expected := fmt.Sprintf("%s.%s.>", SubjectPrefix, SubjectLog)
+		execID := "test-exec-6"
+		subject := GenLogWildcard(execID)
+		expected := fmt.Sprintf("%s.%s.%s.*", SubjectPrefix, execID, SubjectLog)
 		assert.Equal(t, expected, subject)
 	})
 }
@@ -183,7 +187,8 @@ func Test_LogServer(t *testing.T) {
 
 	t.Run("Should publish and receive log messages", func(t *testing.T) {
 		received := make(chan *LogMessage, 1)
-		sub, err := server.SubscribeToLogs(func(msg *LogMessage) {
+		execID := "test-exec-7"
+		sub, err := server.SubscribeToLogs(execID, func(msg *LogMessage) {
 			received <- msg
 		})
 		assert.NoError(t, err)
@@ -192,7 +197,7 @@ func Test_LogServer(t *testing.T) {
 		logMsg, err := NewLogLevel(InfoLevel, "Test log", map[string]any{"test": true}, time.Now())
 		assert.NoError(t, err)
 
-		err = server.PublishLog(logMsg)
+		err = server.PublishLog(execID, logMsg)
 		assert.NoError(t, err)
 
 		select {
@@ -207,7 +212,8 @@ func Test_LogServer(t *testing.T) {
 
 	t.Run("Should subscribe to specific log level", func(t *testing.T) {
 		received := make(chan *LogMessage, 1)
-		sub, err := server.SubscribeToLogLevel(ErrorLevel, func(msg *LogMessage) {
+		execID := "test-exec-8"
+		sub, err := server.SubscribeToLogLevel(execID, ErrorLevel, func(msg *LogMessage) {
 			received <- msg
 		})
 		assert.NoError(t, err)
@@ -216,13 +222,13 @@ func Test_LogServer(t *testing.T) {
 		// Publish error log
 		errorLog, err := NewLogLevel(ErrorLevel, "Error log", nil, time.Now())
 		assert.NoError(t, err)
-		err = server.PublishLog(errorLog)
+		err = server.PublishLog(execID, errorLog)
 		assert.NoError(t, err)
 
 		// Publish info log (should not be received)
 		infoLog, err := NewLogLevel(InfoLevel, "Info log", nil, time.Now())
 		assert.NoError(t, err)
-		err = server.PublishLog(infoLog)
+		err = server.PublishLog(execID, infoLog)
 		assert.NoError(t, err)
 
 		select {
