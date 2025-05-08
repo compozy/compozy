@@ -22,200 +22,222 @@ func setupEnvFile(t *testing.T, content string) string {
 	return envPath
 }
 
-func TestFromFile(t *testing.T) {
-	tests := []struct {
-		name     string
-		content  string
-		expected EnvMap
-		wantErr  bool
-	}{
-		{
-			name:    "successful load",
-			content: "KEY1=value1\nKEY2=value2",
-			expected: EnvMap{
-				"KEY1": "value1",
-				"KEY2": "value2",
-			},
-			wantErr: false,
-		},
-		{
-			name:     "empty file",
-			content:  "",
-			expected: EnvMap{},
-			wantErr:  false,
-		},
-		{
-			name:    "with comments",
-			content: "# Comment\nKEY1=value1\n# Another comment\nKEY2=value2",
-			expected: EnvMap{
-				"KEY1": "value1",
-				"KEY2": "value2",
-			},
-			wantErr: false,
-		},
-		{
-			name:    "with empty lines",
-			content: "\nKEY1=value1\n\nKEY2=value2\n",
-			expected: EnvMap{
-				"KEY1": "value1",
-				"KEY2": "value2",
-			},
-			wantErr: false,
-		},
-	}
+func Test_FromFile(t *testing.T) {
+	t.Run("Should load environment variables from file successfully", func(t *testing.T) {
+		content := "KEY1=value1\nKEY2=value2"
+		expected := EnvMap{
+			"KEY1": "value1",
+			"KEY2": "value2",
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			envPath := setupEnvFile(t, tt.content)
+		envPath := setupEnvFile(t, content)
+		env := make(EnvMap)
+		err := env.FromFile(envPath)
 
-			env := make(EnvMap)
-			err := env.FromFile(envPath)
+		if err != nil {
+			t.Errorf("FromFile() error = %v, want nil", err)
+			return
+		}
 
-			if (err != nil) != tt.wantErr {
-				t.Errorf("FromFile() error = %v, wantErr %v", err, tt.wantErr)
-				return
+		for k, v := range expected {
+			if got := env[k]; got != v {
+				t.Errorf("FromFile() env[%s] = %v, want %v", k, got, v)
 			}
+		}
+	})
 
-			if !tt.wantErr {
-				for k, v := range tt.expected {
-					if got := env[k]; got != v {
-						t.Errorf("FromFile() env[%s] = %v, want %v", k, got, v)
-					}
-				}
+	t.Run("Should handle empty file correctly", func(t *testing.T) {
+		content := ""
+		expected := EnvMap{}
+
+		envPath := setupEnvFile(t, content)
+		env := make(EnvMap)
+		err := env.FromFile(envPath)
+
+		if err != nil {
+			t.Errorf("FromFile() error = %v, want nil", err)
+			return
+		}
+
+		if len(env) != len(expected) {
+			t.Errorf("FromFile() env length = %v, want %v", len(env), len(expected))
+		}
+	})
+
+	t.Run("Should handle comments in file correctly", func(t *testing.T) {
+		content := "# Comment\nKEY1=value1\n# Another comment\nKEY2=value2"
+		expected := EnvMap{
+			"KEY1": "value1",
+			"KEY2": "value2",
+		}
+
+		envPath := setupEnvFile(t, content)
+		env := make(EnvMap)
+		err := env.FromFile(envPath)
+
+		if err != nil {
+			t.Errorf("FromFile() error = %v, want nil", err)
+			return
+		}
+
+		for k, v := range expected {
+			if got := env[k]; got != v {
+				t.Errorf("FromFile() env[%s] = %v, want %v", k, got, v)
 			}
-		})
-	}
+		}
+	})
+
+	t.Run("Should handle empty lines in file correctly", func(t *testing.T) {
+		content := "\nKEY1=value1\n\nKEY2=value2\n"
+		expected := EnvMap{
+			"KEY1": "value1",
+			"KEY2": "value2",
+		}
+
+		envPath := setupEnvFile(t, content)
+		env := make(EnvMap)
+		err := env.FromFile(envPath)
+
+		if err != nil {
+			t.Errorf("FromFile() error = %v, want nil", err)
+			return
+		}
+
+		for k, v := range expected {
+			if got := env[k]; got != v {
+				t.Errorf("FromFile() env[%s] = %v, want %v", k, got, v)
+			}
+		}
+	})
 }
 
-func TestFromFileNotFound(t *testing.T) {
-	env := make(EnvMap)
-	err := env.FromFile("nonexistent.env")
+func Test_FromFileNotFound(t *testing.T) {
+	t.Run("Should handle nonexistent file gracefully", func(t *testing.T) {
+		env := make(EnvMap)
+		err := env.FromFile("nonexistent.env")
 
-	if err != nil {
-		t.Errorf("FromFile() error = %v, want nil for nonexistent file", err)
-	}
+		if err != nil {
+			t.Errorf("FromFile() error = %v, want nil for nonexistent file", err)
+		}
 
-	if len(env) != 0 {
-		t.Errorf("FromFile() env = %v, want empty map for nonexistent file", env)
-	}
+		if len(env) != 0 {
+			t.Errorf("FromFile() env = %v, want empty map for nonexistent file", env)
+		}
+	})
 }
 
-func TestLoadFromFile(t *testing.T) {
-	tests := []struct {
-		name     string
-		initial  EnvMap
-		content  string
-		expected EnvMap
-		wantErr  bool
-	}{
-		{
-			name: "merge with existing values",
-			initial: EnvMap{
-				"EXISTING": "original",
-			},
-			content: "KEY1=value1\nKEY2=value2",
-			expected: EnvMap{
-				"EXISTING": "original",
-				"KEY1":     "value1",
-				"KEY2":     "value2",
-			},
-			wantErr: false,
-		},
-		{
-			name: "override existing values",
-			initial: EnvMap{
-				"KEY1": "old",
-			},
-			content: "KEY1=new\nKEY2=value2",
-			expected: EnvMap{
-				"KEY1": "new",
-				"KEY2": "value2",
-			},
-			wantErr: false,
-		},
-	}
+func Test_LoadFromFile(t *testing.T) {
+	t.Run("Should merge with existing values", func(t *testing.T) {
+		initial := EnvMap{
+			"EXISTING": "original",
+		}
+		content := "KEY1=value1\nKEY2=value2"
+		expected := EnvMap{
+			"EXISTING": "original",
+			"KEY1":     "value1",
+			"KEY2":     "value2",
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			envPath := setupEnvFile(t, tt.content)
+		envPath := setupEnvFile(t, content)
+		env := initial
+		err := env.LoadFromFile(envPath)
 
-			env := tt.initial
-			err := env.LoadFromFile(envPath)
+		if err != nil {
+			t.Errorf("LoadFromFile() error = %v, want nil", err)
+			return
+		}
 
-			if (err != nil) != tt.wantErr {
-				t.Errorf("LoadFromFile() error = %v, wantErr %v", err, tt.wantErr)
-				return
+		for k, v := range expected {
+			if got := env[k]; got != v {
+				t.Errorf("LoadFromFile() env[%s] = %v, want %v", k, got, v)
 			}
+		}
+	})
 
-			if !tt.wantErr {
-				for k, v := range tt.expected {
-					if got := env[k]; got != v {
-						t.Errorf("LoadFromFile() env[%s] = %v, want %v", k, got, v)
-					}
-				}
+	t.Run("Should override existing values", func(t *testing.T) {
+		initial := EnvMap{
+			"KEY1": "old",
+		}
+		content := "KEY1=new\nKEY2=value2"
+		expected := EnvMap{
+			"KEY1": "new",
+			"KEY2": "value2",
+		}
+
+		envPath := setupEnvFile(t, content)
+		env := initial
+		err := env.LoadFromFile(envPath)
+
+		if err != nil {
+			t.Errorf("LoadFromFile() error = %v, want nil", err)
+			return
+		}
+
+		for k, v := range expected {
+			if got := env[k]; got != v {
+				t.Errorf("LoadFromFile() env[%s] = %v, want %v", k, got, v)
 			}
-		})
-	}
+		}
+	})
 }
 
-func TestLoadFromFileNotFound(t *testing.T) {
-	env := EnvMap{"EXISTING": "original"}
-	err := env.LoadFromFile("nonexistent.env")
+func Test_LoadFromFileNotFound(t *testing.T) {
+	t.Run("Should preserve existing values when file not found", func(t *testing.T) {
+		env := EnvMap{"EXISTING": "original"}
+		err := env.LoadFromFile("nonexistent.env")
 
-	if err != nil {
-		t.Errorf("LoadFromFile() error = %v, want nil for nonexistent file", err)
-	}
+		if err != nil {
+			t.Errorf("LoadFromFile() error = %v, want nil for nonexistent file", err)
+		}
 
-	if env["EXISTING"] != "original" {
-		t.Errorf("LoadFromFile() env = %v, want to preserve existing values", env)
-	}
+		if env["EXISTING"] != "original" {
+			t.Errorf("LoadFromFile() env = %v, want to preserve existing values", env)
+		}
+	})
 }
 
-func TestMerge(t *testing.T) {
-	tests := []struct {
-		name     string
-		initial  EnvMap
-		other    EnvMap
-		expected EnvMap
-	}{
-		{
-			name: "merge with empty",
-			initial: EnvMap{
-				"KEY1": "value1",
-			},
-			other: EnvMap{},
-			expected: EnvMap{
-				"KEY1": "value1",
-			},
-		},
-		{
-			name: "merge with values",
-			initial: EnvMap{
-				"KEY1": "value1",
-				"KEY2": "old",
-			},
-			other: EnvMap{
-				"KEY2": "new",
-				"KEY3": "value3",
-			},
-			expected: EnvMap{
-				"KEY1": "value1",
-				"KEY2": "new",
-				"KEY3": "value3",
-			},
-		},
-	}
+func Test_Merge(t *testing.T) {
+	t.Run("Should merge with empty map", func(t *testing.T) {
+		initial := EnvMap{
+			"KEY1": "value1",
+		}
+		other := EnvMap{}
+		expected := EnvMap{
+			"KEY1": "value1",
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			env := tt.initial
-			env.Merge(tt.other)
+		env := initial
+		env.Merge(other)
 
-			for k, v := range tt.expected {
-				if got := env[k]; got != v {
-					t.Errorf("Merge() env[%s] = %v, want %v", k, got, v)
-				}
+		for k, v := range expected {
+			if got := env[k]; got != v {
+				t.Errorf("Merge() env[%s] = %v, want %v", k, got, v)
 			}
-		})
-	}
+		}
+	})
+
+	t.Run("Should merge and override values", func(t *testing.T) {
+		initial := EnvMap{
+			"KEY1": "value1",
+			"KEY2": "old",
+		}
+		other := EnvMap{
+			"KEY2": "new",
+			"KEY3": "value3",
+		}
+		expected := EnvMap{
+			"KEY1": "value1",
+			"KEY2": "new",
+			"KEY3": "value3",
+		}
+
+		env := initial
+		env.Merge(other)
+
+		for k, v := range expected {
+			if got := env[k]; got != v {
+				t.Errorf("Merge() env[%s] = %v, want %v", k, got, v)
+			}
+		}
+	})
 }

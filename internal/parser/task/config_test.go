@@ -24,433 +24,467 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-func TestLoadTask(t *testing.T) {
-	tests := []struct {
-		name     string
-		fixture  string
-		wantErr  bool
-		validate func(*testing.T, *TaskConfig)
-	}{
-		{
-			name:    "basic task",
-			fixture: "basic_task.yaml",
-			validate: func(t *testing.T, config *TaskConfig) {
-				TestMode = true // Skip file existence check for valid test
-				defer func() { TestMode = false }()
+func Test_LoadTask(t *testing.T) {
+	t.Run("Should load basic task configuration correctly", func(t *testing.T) {
+		// Get the test directory path
+		_, filename, _, ok := runtime.Caller(0)
+		require.True(t, ok)
+		testDir := filepath.Dir(filename)
 
-				require.NotNil(t, config.ID)
-				require.NotNil(t, config.Type)
-				require.NotNil(t, config.Action)
-				require.NotNil(t, config.InputSchema)
-				require.NotNil(t, config.OutputSchema)
-				require.NotNil(t, config.Env)
-				require.NotNil(t, config.With)
-				require.NotNil(t, config.OnSuccess)
-				require.NotNil(t, config.OnError)
+		// Setup test fixture using utils
+		dstPath := utils.SetupFixture(t, testDir, "basic_task.yaml")
 
-				assert.Equal(t, "code-format", config.ID)
-				assert.Equal(t, TaskTypeBasic, config.Type)
-				assert.Equal(t, "format-code", config.Action)
+		// Run the test
+		config, err := Load(dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
 
-				// Validate input schema
-				schema := config.InputSchema.Schema
-				assert.Equal(t, "object", schema.GetType())
-				require.NotNil(t, schema.GetProperties())
-				assert.Contains(t, schema.GetProperties(), "code")
-				assert.Contains(t, schema.GetProperties(), "language")
-				if required, ok := schema["required"].([]string); ok && len(required) > 0 {
-					assert.Contains(t, required, "code")
-				}
+		// Validate the config
+		err = config.Validate()
+		require.NoError(t, err)
 
-				// Validate output schema
-				outSchema := config.OutputSchema.Schema
-				assert.Equal(t, "object", outSchema.GetType())
-				require.NotNil(t, outSchema.GetProperties())
-				assert.Contains(t, outSchema.GetProperties(), "formatted_code")
-				if required, ok := outSchema["required"].([]string); ok && len(required) > 0 {
-					assert.Contains(t, required, "formatted_code")
-				}
+		TestMode = true // Skip file existence check for valid test
+		defer func() { TestMode = false }()
 
-				// Validate env and with
-				assert.Equal(t, "1.0.0", config.Env["FORMATTER_VERSION"])
-				assert.Equal(t, 2, (*config.With)["indent_size"])
-				assert.Equal(t, false, (*config.With)["use_tabs"])
+		require.NotNil(t, config.ID)
+		require.NotNil(t, config.Type)
+		require.NotNil(t, config.Action)
+		require.NotNil(t, config.InputSchema)
+		require.NotNil(t, config.OutputSchema)
+		require.NotNil(t, config.Env)
+		require.NotNil(t, config.With)
+		require.NotNil(t, config.OnSuccess)
+		require.NotNil(t, config.OnError)
 
-				// Validate transitions
-				assert.Equal(t, "next-task", *config.OnSuccess.Next)
-				assert.Equal(t, "retry-task", *config.OnError.Next)
-			},
-		},
-		{
-			name:    "decision task",
-			fixture: "decision_task.yaml",
-			validate: func(t *testing.T, config *TaskConfig) {
-				TestMode = true // Skip file existence check for valid test
-				defer func() { TestMode = false }()
+		assert.Equal(t, "code-format", config.ID)
+		assert.Equal(t, TaskTypeBasic, config.Type)
+		assert.Equal(t, "format-code", config.Action)
 
-				require.NotNil(t, config.ID)
-				require.NotNil(t, config.Type)
-				require.NotEmpty(t, config.Condition)
-				require.NotNil(t, config.Routes)
-				require.NotNil(t, config.InputSchema)
-				require.NotNil(t, config.OutputSchema)
-				require.NotNil(t, config.Env)
-				require.NotNil(t, config.With)
-				require.NotNil(t, config.OnError)
+		// Validate input schema
+		schema := config.InputSchema.Schema
+		assert.Equal(t, "object", schema.GetType())
+		require.NotNil(t, schema.GetProperties())
+		assert.Contains(t, schema.GetProperties(), "code")
+		assert.Contains(t, schema.GetProperties(), "language")
+		if required, ok := schema["required"].([]string); ok && len(required) > 0 {
+			assert.Contains(t, required, "code")
+		}
 
-				assert.Equal(t, "code-review", config.ID)
-				assert.Equal(t, TaskTypeDecision, config.Type)
-				assert.Equal(t, "review_score", config.Condition)
-				assert.Equal(t, 3, len(config.Routes))
+		// Validate output schema
+		outSchema := config.OutputSchema.Schema
+		assert.Equal(t, "object", outSchema.GetType())
+		require.NotNil(t, outSchema.GetProperties())
+		assert.Contains(t, outSchema.GetProperties(), "formatted_code")
+		if required, ok := outSchema["required"].([]string); ok && len(required) > 0 {
+			assert.Contains(t, required, "formatted_code")
+		}
 
-				// Validate routes
-				assert.Equal(t, "deploy", string(config.Routes["approved"]))
-				assert.Equal(t, "update-code", string(config.Routes["needs_changes"]))
-				assert.Equal(t, "notify-team", string(config.Routes["rejected"]))
+		// Validate env and with
+		assert.Equal(t, "1.0.0", config.Env["FORMATTER_VERSION"])
+		assert.Equal(t, 2, (*config.With)["indent_size"])
+		assert.Equal(t, false, (*config.With)["use_tabs"])
 
-				// Validate input schema
-				schema := config.InputSchema.Schema
-				assert.Equal(t, "object", schema.GetType())
-				require.NotNil(t, schema.GetProperties())
-				assert.Contains(t, schema.GetProperties(), "code")
-				assert.Contains(t, schema.GetProperties(), "review_score")
-				if required, ok := schema["required"].([]string); ok && len(required) > 0 {
-					assert.Contains(t, required, "code")
-					assert.Contains(t, required, "review_score")
-				}
+		// Validate transitions
+		assert.Equal(t, "next-task", *config.OnSuccess.Next)
+		assert.Equal(t, "retry-task", *config.OnError.Next)
+	})
 
-				// Validate output schema
-				outSchema := config.OutputSchema.Schema
-				assert.Equal(t, "object", outSchema.GetType())
-				require.NotNil(t, outSchema.GetProperties())
-				assert.Contains(t, outSchema.GetProperties(), "status")
-				assert.Contains(t, outSchema.GetProperties(), "comments")
-				if required, ok := outSchema["required"].([]string); ok && len(required) > 0 {
-					assert.Contains(t, required, "status")
-				}
+	t.Run("Should load decision task configuration correctly", func(t *testing.T) {
+		// Get the test directory path
+		_, filename, _, ok := runtime.Caller(0)
+		require.True(t, ok)
+		testDir := filepath.Dir(filename)
 
-				// Validate env and with
-				assert.Equal(t, "0.8", config.Env["REVIEW_THRESHOLD"])
-				assert.Equal(t, 0.7, (*config.With)["min_score"])
-				assert.Equal(t, 10, (*config.With)["max_comments"])
+		// Setup test fixture using utils
+		dstPath := utils.SetupFixture(t, testDir, "decision_task.yaml")
 
-				// Validate error transition
-				assert.Equal(t, "retry-task", *config.OnError.Next)
-			},
-		},
-		{
-			name:    "invalid task",
-			fixture: "invalid_task.yaml",
-			wantErr: true,
-			validate: func(t *testing.T, config *TaskConfig) {
-				TestMode = false // Enable file existence check for invalid test
-				err := config.Validate()
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), "Basic task configuration is required for basic task type")
-			},
-		},
-	}
+		// Run the test
+		config, err := Load(dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Get the test directory path
-			_, filename, _, ok := runtime.Caller(0)
-			require.True(t, ok)
-			testDir := filepath.Dir(filename)
+		// Validate the config
+		err = config.Validate()
+		require.NoError(t, err)
 
-			// Setup test fixture using utils
-			dstPath := utils.SetupFixture(t, testDir, tt.fixture)
+		TestMode = true // Skip file existence check for valid test
+		defer func() { TestMode = false }()
 
-			// Run the test
-			config, err := Load(dstPath)
-			if err != nil {
-				if tt.wantErr {
-					if tt.validate != nil {
-						tt.validate(t, config)
-					}
-					return
-				}
-				require.NoError(t, err)
-			}
-			require.NotNil(t, config)
+		require.NotNil(t, config.ID)
+		require.NotNil(t, config.Type)
+		require.NotEmpty(t, config.Condition)
+		require.NotNil(t, config.Routes)
+		require.NotNil(t, config.InputSchema)
+		require.NotNil(t, config.OutputSchema)
+		require.NotNil(t, config.Env)
+		require.NotNil(t, config.With)
+		require.NotNil(t, config.OnError)
 
-			// Validate the config
-			err = config.Validate()
-			if err != nil {
-				if tt.wantErr {
-					if tt.validate != nil {
-						tt.validate(t, config)
-					}
-					return
-				}
-				require.NoError(t, err)
-			}
+		assert.Equal(t, "code-review", config.ID)
+		assert.Equal(t, TaskTypeDecision, config.Type)
+		assert.Equal(t, "review_score", config.Condition)
+		assert.Equal(t, 3, len(config.Routes))
 
-			if tt.validate != nil {
-				tt.validate(t, config)
-			}
-		})
-	}
+		// Validate routes
+		assert.Equal(t, "deploy", string(config.Routes["approved"]))
+		assert.Equal(t, "update-code", string(config.Routes["needs_changes"]))
+		assert.Equal(t, "notify-team", string(config.Routes["rejected"]))
+
+		// Validate input schema
+		schema := config.InputSchema.Schema
+		assert.Equal(t, "object", schema.GetType())
+		require.NotNil(t, schema.GetProperties())
+		assert.Contains(t, schema.GetProperties(), "code")
+		assert.Contains(t, schema.GetProperties(), "review_score")
+		if required, ok := schema["required"].([]string); ok && len(required) > 0 {
+			assert.Contains(t, required, "code")
+			assert.Contains(t, required, "review_score")
+		}
+
+		// Validate output schema
+		outSchema := config.OutputSchema.Schema
+		assert.Equal(t, "object", outSchema.GetType())
+		require.NotNil(t, outSchema.GetProperties())
+		assert.Contains(t, outSchema.GetProperties(), "status")
+		assert.Contains(t, outSchema.GetProperties(), "comments")
+		if required, ok := outSchema["required"].([]string); ok && len(required) > 0 {
+			assert.Contains(t, required, "status")
+		}
+
+		// Validate env and with
+		assert.Equal(t, "0.8", config.Env["REVIEW_THRESHOLD"])
+		assert.Equal(t, 0.7, (*config.With)["min_score"])
+		assert.Equal(t, 10, (*config.With)["max_comments"])
+
+		// Validate error transition
+		assert.Equal(t, "retry-task", *config.OnError.Next)
+	})
+
+	t.Run("Should return error for invalid task configuration", func(t *testing.T) {
+		// Get the test directory path
+		_, filename, _, ok := runtime.Caller(0)
+		require.True(t, ok)
+		testDir := filepath.Dir(filename)
+
+		// Setup test fixture using utils
+		dstPath := utils.SetupFixture(t, testDir, "invalid_task.yaml")
+
+		// Run the test
+		config, err := Load(dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
+
+		// Validate the config
+		err = config.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Basic task configuration is required for basic task type")
+	})
 }
 
-func TestTaskConfigValidation(t *testing.T) {
+func Test_TaskConfigValidation(t *testing.T) {
 	taskID := "test-task"
-	tests := []struct {
-		name    string
-		config  *TaskConfig
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name: "Valid Basic Task",
-			config: &TaskConfig{
-				ID:     taskID,
-				Type:   TaskTypeBasic,
-				Action: "test-action",
-				cwd:    common.NewCWD("/test/path"),
+
+	t.Run("Should validate valid basic task", func(t *testing.T) {
+		config := &TaskConfig{
+			ID:     taskID,
+			Type:   TaskTypeBasic,
+			Action: "test-action",
+			cwd:    common.NewCWD("/test/path"),
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should validate valid decision task", func(t *testing.T) {
+		config := &TaskConfig{
+			ID:        taskID,
+			Type:      TaskTypeDecision,
+			Condition: "test-condition",
+			Routes: map[string]string{
+				"route1": "next1",
 			},
-			wantErr: false,
-		},
-		{
-			name: "Valid Decision Task",
-			config: &TaskConfig{
-				ID:        taskID,
-				Type:      TaskTypeDecision,
-				Condition: "test-condition",
-				Routes: map[string]string{
-					"route1": "next1",
+			cwd: common.NewCWD("/test/path"),
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should return error when CWD is missing", func(t *testing.T) {
+		config := &TaskConfig{
+			ID:   "test-task",
+			Type: TaskTypeBasic,
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "current working directory is required for test-task")
+	})
+
+	t.Run("Should return error for invalid package reference", func(t *testing.T) {
+		config := &TaskConfig{
+			ID:  taskID,
+			Use: pkgref.NewPackageRefConfig("invalid"),
+			cwd: common.NewCWD("/test/path"),
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Invalid package reference")
+	})
+
+	t.Run("Should return error for invalid task type", func(t *testing.T) {
+		config := &TaskConfig{
+			ID:   "test-task",
+			Type: "invalid",
+			cwd:  common.NewCWD("/test/path"),
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid task type: invalid")
+	})
+
+	t.Run("Should return error for basic task missing configuration", func(t *testing.T) {
+		config := &TaskConfig{
+			ID:   taskID,
+			Type: TaskTypeBasic,
+			cwd:  common.NewCWD("/test/path"),
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Basic task configuration is required for basic task type")
+	})
+
+	t.Run("Should return error for decision task missing configuration", func(t *testing.T) {
+		config := &TaskConfig{
+			ID:   taskID,
+			Type: TaskTypeDecision,
+			cwd:  common.NewCWD("/test/path"),
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Decision task configuration is required for decision task type")
+	})
+
+	t.Run("Should return error for decision task missing routes", func(t *testing.T) {
+		config := &TaskConfig{
+			ID:   "test-task",
+			Type: TaskTypeDecision,
+			cwd:  common.NewCWD("/test/path"),
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Decision task configuration is required for decision task type")
+	})
+
+	t.Run("Should return error when input schema is used with ID reference", func(t *testing.T) {
+		config := &TaskConfig{
+			ID:  taskID,
+			Use: pkgref.NewPackageRefConfig("task(id=test-task)"),
+			InputSchema: &schema.InputSchema{
+				Schema: schema.Schema{
+					"type": "object",
 				},
-				cwd: common.NewCWD("/test/path"),
 			},
-			wantErr: false,
-		},
-		{
-			name: "Missing CWD",
-			config: &TaskConfig{
-				ID:   "test-task",
-				Type: TaskTypeBasic,
-			},
-			wantErr: true,
-			errMsg:  "current working directory is required for test-task",
-		},
-		{
-			name: "Invalid Package Reference",
-			config: &TaskConfig{
-				ID:  taskID,
-				Use: pkgref.NewPackageRefConfig("invalid"),
-				cwd: common.NewCWD("/test/path"),
-			},
-			wantErr: true,
-			errMsg:  "Invalid package reference",
-		},
-		{
-			name: "Invalid Task Type",
-			config: &TaskConfig{
-				ID:   "test-task",
-				Type: "invalid",
-				cwd:  common.NewCWD("/test/path"),
-			},
-			wantErr: true,
-			errMsg:  "invalid task type: invalid",
-		},
-		{
-			name: "Basic Task Missing Configuration",
-			config: &TaskConfig{
-				ID:   taskID,
-				Type: TaskTypeBasic,
-				cwd:  common.NewCWD("/test/path"),
-			},
-			wantErr: true,
-			errMsg:  "Basic task configuration is required for basic task type",
-		},
-		{
-			name: "Decision Task Missing Configuration",
-			config: &TaskConfig{
-				ID:   taskID,
-				Type: TaskTypeDecision,
-				cwd:  common.NewCWD("/test/path"),
-			},
-			wantErr: true,
-			errMsg:  "Decision task configuration is required for decision task type",
-		},
-		{
-			name: "Decision Task Missing Routes",
-			config: &TaskConfig{
-				ID:   "test-task",
-				Type: TaskTypeDecision,
-				cwd:  common.NewCWD("/test/path"),
-			},
-			wantErr: true,
-			errMsg:  "Decision task configuration is required for decision task type",
-		},
-		{
-			name: "Input Schema Not Allowed with ID Reference",
-			config: &TaskConfig{
-				ID:  taskID,
-				Use: pkgref.NewPackageRefConfig("task(id=test-task)"),
-				InputSchema: &schema.InputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-					},
+			cwd: common.NewCWD("/test/path"),
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Input schema not allowed for reference type id")
+	})
+
+	t.Run("Should return error when output schema is used with file reference", func(t *testing.T) {
+		config := &TaskConfig{
+			ID:  taskID,
+			Use: pkgref.NewPackageRefConfig("task(file=basic_task.yaml)"),
+			OutputSchema: &schema.OutputSchema{
+				Schema: schema.Schema{
+					"type": "object",
 				},
-				cwd: common.NewCWD("/test/path"),
 			},
-			wantErr: true,
-			errMsg:  "Input schema not allowed for reference type id",
-		},
-		{
-			name: "Output Schema Not Allowed with File Reference",
-			config: &TaskConfig{
-				ID:  taskID,
-				Use: pkgref.NewPackageRefConfig("task(file=basic_task.yaml)"),
-				OutputSchema: &schema.OutputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-					},
+			cwd: common.NewCWD("/test/path"),
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Output schema not allowed for reference type file")
+	})
+
+	t.Run("Should return error when schemas are used with dep reference", func(t *testing.T) {
+		config := &TaskConfig{
+			ID:  taskID,
+			Use: pkgref.NewPackageRefConfig("task(dep=compozy/tasks:test-task)"),
+			InputSchema: &schema.InputSchema{
+				Schema: schema.Schema{
+					"type": "object",
 				},
-				cwd: common.NewCWD("/test/path"),
 			},
-			wantErr: true,
-			errMsg:  "Output schema not allowed for reference type file",
-		},
-		{
-			name: "Both Schemas Not Allowed with Dep Reference",
-			config: &TaskConfig{
-				ID:  taskID,
-				Use: pkgref.NewPackageRefConfig("task(dep=compozy/tasks:test-task)"),
-				InputSchema: &schema.InputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-					},
+			OutputSchema: &schema.OutputSchema{
+				Schema: schema.Schema{
+					"type": "object",
 				},
-				OutputSchema: &schema.OutputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-					},
-				},
-				cwd: common.NewCWD("/test/path"),
 			},
-			wantErr: true,
-			errMsg:  "Input schema not allowed for reference type dep",
-		},
-		{
-			name: "Valid With Params",
-			config: &TaskConfig{
-				ID:     taskID,
-				Type:   TaskTypeBasic,
-				Action: "test-action",
-				InputSchema: &schema.InputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-						"properties": map[string]any{
-							"name": map[string]any{
-								"type": "string",
-							},
+			cwd: common.NewCWD("/test/path"),
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Input schema not allowed for reference type dep")
+	})
+
+	t.Run("Should validate task with valid parameters", func(t *testing.T) {
+		config := &TaskConfig{
+			ID:     taskID,
+			Type:   TaskTypeBasic,
+			Action: "test-action",
+			InputSchema: &schema.InputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{
+							"type": "string",
 						},
 					},
 				},
-				With: &common.WithParams{
-					"name": "test",
-				},
-				cwd: common.NewCWD("/test/path"),
 			},
-			wantErr: false,
-		},
-		{
-			name: "Invalid With Params",
-			config: &TaskConfig{
-				ID:   "test-task",
-				Type: TaskTypeBasic,
-				cwd:  common.NewCWD("/test/path"),
-				InputSchema: &schema.InputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-						"properties": map[string]any{
-							"name": map[string]any{
-								"type": "string",
-							},
+			With: &common.WithParams{
+				"name": "test",
+			},
+			cwd: common.NewCWD("/test/path"),
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should return error for task with invalid parameters", func(t *testing.T) {
+		config := &TaskConfig{
+			ID:   "test-task",
+			Type: TaskTypeBasic,
+			cwd:  common.NewCWD("/test/path"),
+			InputSchema: &schema.InputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{
+							"type": "string",
 						},
-						"required": []string{"name"},
 					},
-				},
-				With: &common.WithParams{
-					"age": 42,
+					"required": []string{"name"},
 				},
 			},
-			wantErr: true,
-			errMsg:  "with parameters invalid for test-task",
-		},
-	}
+			With: &common.WithParams{
+				"age": 42,
+			},
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Disable test mode for validation tests
-			TestMode = false
-			defer func() { TestMode = true }()
+		TestMode = false
+		defer func() { TestMode = true }()
 
-			err := tt.config.Validate()
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "with parameters invalid for test-task")
+	})
 }
 
-func TestTaskConfigCWD(t *testing.T) {
-	config := &TaskConfig{}
-	assert.Empty(t, config.GetCWD())
+func Test_TaskConfigCWD(t *testing.T) {
+	t.Run("Should handle CWD operations correctly", func(t *testing.T) {
+		config := &TaskConfig{}
+		assert.Empty(t, config.GetCWD())
 
-	config.SetCWD("/test/path")
-	assert.Equal(t, "/test/path", config.GetCWD())
+		config.SetCWD("/test/path")
+		assert.Equal(t, "/test/path", config.GetCWD())
 
-	config.SetCWD("/new/path")
-	assert.Equal(t, "/new/path", config.GetCWD())
+		config.SetCWD("/new/path")
+		assert.Equal(t, "/new/path", config.GetCWD())
+	})
 }
 
-func TestTaskConfigMerge(t *testing.T) {
-	next1 := "next1"
-	next2 := "next2"
-	base := &TaskConfig{
-		Env: common.EnvMap{
-			"KEY1": "value1",
-		},
-		With: &common.WithParams{
-			"param1": "value1",
-		},
-		OnSuccess: &transition.SuccessTransitionConfig{
-			Next: &next1,
-		},
-		OnError: &transition.ErrorTransitionConfig{
-			Next: &next1,
-		},
-	}
+func Test_TaskConfigMerge(t *testing.T) {
+	t.Run("Should merge configurations correctly", func(t *testing.T) {
+		next1 := "next1"
+		next2 := "next2"
+		base := &TaskConfig{
+			Env: common.EnvMap{
+				"KEY1": "value1",
+			},
+			With: &common.WithParams{
+				"param1": "value1",
+			},
+			OnSuccess: &transition.SuccessTransitionConfig{
+				Next: &next1,
+			},
+			OnError: &transition.ErrorTransitionConfig{
+				Next: &next1,
+			},
+		}
 
-	other := &TaskConfig{
-		Env: common.EnvMap{
-			"KEY2": "value2",
-		},
-		With: &common.WithParams{
-			"param2": "value2",
-		},
-		OnSuccess: &transition.SuccessTransitionConfig{
-			Next: &next2,
-		},
-		OnError: &transition.ErrorTransitionConfig{
-			Next: &next2,
-		},
-	}
+		other := &TaskConfig{
+			Env: common.EnvMap{
+				"KEY2": "value2",
+			},
+			With: &common.WithParams{
+				"param2": "value2",
+			},
+			OnSuccess: &transition.SuccessTransitionConfig{
+				Next: &next2,
+			},
+			OnError: &transition.ErrorTransitionConfig{
+				Next: &next2,
+			},
+		}
 
-	err := base.Merge(other)
-	require.NoError(t, err)
+		err := base.Merge(other)
+		require.NoError(t, err)
 
-	// Check merged values
-	assert.Equal(t, "value1", base.Env["KEY1"])
-	assert.Equal(t, "value2", base.Env["KEY2"])
-	assert.Equal(t, "value1", (*base.With)["param1"])
-	assert.Equal(t, "value2", (*base.With)["param2"])
-	assert.Equal(t, "next2", *base.OnSuccess.Next)
-	assert.Equal(t, "next2", *base.OnError.Next)
+		// Check merged values
+		assert.Equal(t, "value1", base.Env["KEY1"])
+		assert.Equal(t, "value2", base.Env["KEY2"])
+		assert.Equal(t, "value1", (*base.With)["param1"])
+		assert.Equal(t, "value2", (*base.With)["param2"])
+		assert.Equal(t, "next2", *base.OnSuccess.Next)
+		assert.Equal(t, "next2", *base.OnError.Next)
+	})
 }

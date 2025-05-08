@@ -15,380 +15,334 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLoadAgent(t *testing.T) {
-	tests := []struct {
-		name     string
-		fixture  string
-		wantErr  bool
-		validate func(*testing.T, *AgentConfig)
-	}{
-		{
-			name:    "basic agent",
-			fixture: "basic_agent.yaml",
-			validate: func(t *testing.T, config *AgentConfig) {
-				require.NotNil(t, config.ID)
-				require.NotNil(t, config.Config)
-				require.NotNil(t, config.Config.Temperature)
-				require.NotNil(t, config.Config.MaxTokens)
+func Test_LoadAgent(t *testing.T) {
+	t.Run("Should load basic agent configuration correctly", func(t *testing.T) {
+		// Get the test directory path
+		_, filename, _, ok := runtime.Caller(0)
+		require.True(t, ok)
+		testDir := filepath.Dir(filename)
 
-				assert.Equal(t, "code-assistant", config.ID)
-				assert.Equal(t, provider.ProviderAnthropic, config.Config.Provider)
-				assert.Equal(t, provider.ModelClaude3Opus, config.Config.Model)
-				assert.InDelta(t, float32(0.7), config.Config.Temperature, 0.0001)
-				assert.Equal(t, int32(4000), config.Config.MaxTokens)
+		// Setup test fixture using utils
+		dstPath := utils.SetupFixture(t, testDir, "basic_agent.yaml")
 
-				require.Len(t, config.Actions, 1)
-				action := config.Actions[0]
-				assert.Equal(t, "review-code", action.ID)
+		// Run the test
+		config, err := Load(dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
 
-				require.NotNil(t, action.InputSchema)
-				schema := action.InputSchema.Schema
-				assert.Equal(t, "object", schema.GetType())
-				require.NotNil(t, schema.GetProperties())
-				assert.Contains(t, schema.GetProperties(), "code")
-				assert.Contains(t, schema.GetProperties(), "language")
-				if required, ok := schema["required"].([]string); ok && len(required) > 0 {
-					assert.Contains(t, required, "code")
-				}
+		require.NotNil(t, config.ID)
+		require.NotNil(t, config.Config)
+		require.NotNil(t, config.Config.Temperature)
+		require.NotNil(t, config.Config.MaxTokens)
 
-				require.NotNil(t, action.OutputSchema)
-				outSchema := action.OutputSchema.Schema
-				assert.Equal(t, "object", outSchema.GetType())
-				require.NotNil(t, outSchema.GetProperties())
-				assert.Contains(t, outSchema.GetProperties(), "feedback")
+		assert.Equal(t, "code-assistant", config.ID)
+		assert.Equal(t, provider.ProviderAnthropic, config.Config.Provider)
+		assert.Equal(t, provider.ModelClaude3Opus, config.Config.Model)
+		assert.InDelta(t, float32(0.7), config.Config.Temperature, 0.0001)
+		assert.Equal(t, int32(4000), config.Config.MaxTokens)
 
-				feedback := outSchema.GetProperties()["feedback"]
-				assert.NotNil(t, feedback)
-				assert.Equal(t, "array", feedback.GetType())
+		require.Len(t, config.Actions, 1)
+		action := config.Actions[0]
+		assert.Equal(t, "review-code", action.ID)
 
-				// Get items by accessing the items map directly
-				if itemsMap, ok := (*feedback)["items"].(map[string]any); ok {
-					// Check type directly
-					if typ, ok := itemsMap["type"].(string); ok {
-						assert.Equal(t, "object", typ)
-					}
+		require.NotNil(t, action.InputSchema)
+		schema := action.InputSchema.Schema
+		assert.Equal(t, "object", schema.GetType())
+		require.NotNil(t, schema.GetProperties())
+		assert.Contains(t, schema.GetProperties(), "code")
+		assert.Contains(t, schema.GetProperties(), "language")
+		if required, ok := schema["required"].([]string); ok && len(required) > 0 {
+			assert.Contains(t, required, "code")
+		}
 
-					// Check properties directly
-					if props, ok := itemsMap["properties"].(map[string]any); ok {
-						assert.Contains(t, props, "category")
-						assert.Contains(t, props, "description")
-						assert.Contains(t, props, "suggestion")
-					}
-				} else {
-					t.Error("Items is not a map or not found")
-				}
-			},
-		},
-		// Add more test cases here as needed
-	}
+		require.NotNil(t, action.OutputSchema)
+		outSchema := action.OutputSchema.Schema
+		assert.Equal(t, "object", outSchema.GetType())
+		require.NotNil(t, outSchema.GetProperties())
+		assert.Contains(t, outSchema.GetProperties(), "feedback")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Get the test directory path
-			_, filename, _, ok := runtime.Caller(0)
-			require.True(t, ok)
-			testDir := filepath.Dir(filename)
+		feedback := outSchema.GetProperties()["feedback"]
+		assert.NotNil(t, feedback)
+		assert.Equal(t, "array", feedback.GetType())
 
-			// Setup test fixture using utils
-			dstPath := utils.SetupFixture(t, testDir, tt.fixture)
-
-			// Run the test
-			config, err := Load(dstPath)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
+		// Get items by accessing the items map directly
+		if itemsMap, ok := (*feedback)["items"].(map[string]any); ok {
+			// Check type directly
+			if typ, ok := itemsMap["type"].(string); ok {
+				assert.Equal(t, "object", typ)
 			}
-			require.NoError(t, err)
-			require.NotNil(t, config)
-			if tt.validate != nil {
-				tt.validate(t, config)
+
+			// Check properties directly
+			if props, ok := itemsMap["properties"].(map[string]any); ok {
+				assert.Contains(t, props, "category")
+				assert.Contains(t, props, "description")
+				assert.Contains(t, props, "suggestion")
 			}
-		})
-	}
+		} else {
+			t.Error("Items is not a map or not found")
+		}
+	})
 }
 
-func TestAgentActionConfigValidation(t *testing.T) {
-	tests := []struct {
-		name    string
-		config  *AgentActionConfig
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name: "Valid Action Config",
-			config: &AgentActionConfig{
-				ID:     "test-action",
-				Prompt: "test prompt",
-				cwd:    common.NewCWD("/test/path"),
-			},
-			wantErr: false,
-		},
-		{
-			name: "Missing CWD",
-			config: &AgentActionConfig{
-				ID:     "test-action",
-				Prompt: "test prompt",
-			},
-			wantErr: true,
-			errMsg:  "current working directory is required for test-action",
-		},
-		{
-			name: "Valid With Params",
-			config: &AgentActionConfig{
-				ID:     "test-action",
-				Prompt: "test prompt",
-				cwd:    common.NewCWD("/test/path"),
-				InputSchema: &schema.InputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-						"properties": map[string]any{
-							"name": map[string]any{
-								"type": "string",
-							},
+func Test_AgentActionConfigValidation(t *testing.T) {
+	t.Run("Should validate action config with all required fields", func(t *testing.T) {
+		config := &AgentActionConfig{
+			ID:     "test-action",
+			Prompt: "test prompt",
+			cwd:    common.NewCWD("/test/path"),
+		}
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should return error when CWD is missing", func(t *testing.T) {
+		config := &AgentActionConfig{
+			ID:     "test-action",
+			Prompt: "test prompt",
+		}
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "current working directory is required for test-action")
+	})
+
+	t.Run("Should validate action config with valid parameters", func(t *testing.T) {
+		config := &AgentActionConfig{
+			ID:     "test-action",
+			Prompt: "test prompt",
+			cwd:    common.NewCWD("/test/path"),
+			InputSchema: &schema.InputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{
+							"type": "string",
 						},
 					},
 				},
-				With: &common.WithParams{
-					"name": "test",
-				},
 			},
-			wantErr: false,
-		},
-		{
-			name: "Invalid With Params",
-			config: &AgentActionConfig{
-				ID:     "test-action",
-				Prompt: "test prompt",
-				cwd:    common.NewCWD("/test/path"),
-				InputSchema: &schema.InputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-						"properties": map[string]any{
-							"name": map[string]any{
-								"type": "string",
-							},
+			With: &common.WithParams{
+				"name": "test",
+			},
+		}
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should return error when parameters are invalid", func(t *testing.T) {
+		config := &AgentActionConfig{
+			ID:     "test-action",
+			Prompt: "test prompt",
+			cwd:    common.NewCWD("/test/path"),
+			InputSchema: &schema.InputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{
+							"type": "string",
 						},
-						"required": []string{"name"},
 					},
-				},
-				With: &common.WithParams{
-					"age": 42,
+					"required": []string{"name"},
 				},
 			},
-			wantErr: true,
-			errMsg:  "with parameters invalid for test-action",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.Validate()
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
+			With: &common.WithParams{
+				"age": 42,
+			},
+		}
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "with parameters invalid for test-action")
+	})
 }
 
-func TestAgentConfigCWD(t *testing.T) {
-	config := &AgentConfig{}
+func Test_AgentConfigCWD(t *testing.T) {
+	t.Run("Should set and get CWD correctly", func(t *testing.T) {
+		config := &AgentConfig{}
+		config.SetCWD("/test/path")
+		assert.Equal(t, "/test/path", config.GetCWD())
+	})
 
-	// Test setting CWD
-	config.SetCWD("/test/path")
-	assert.Equal(t, "/test/path", config.GetCWD())
-
-	// Test setting CWD for actions
-	action := &AgentActionConfig{
-		ID:     "test-action",
-		Prompt: "test prompt",
-	}
-	config.Actions = []*AgentActionConfig{action}
-	config.SetCWD("/new/path")
-	assert.Equal(t, "/new/path", action.GetCWD())
+	t.Run("Should set CWD for all actions", func(t *testing.T) {
+		config := &AgentConfig{}
+		action := &AgentActionConfig{
+			ID:     "test-action",
+			Prompt: "test prompt",
+		}
+		config.Actions = []*AgentActionConfig{action}
+		config.SetCWD("/new/path")
+		assert.Equal(t, "/new/path", action.GetCWD())
+	})
 }
 
-func TestAgentConfigMerge(t *testing.T) {
-	baseConfig := &AgentConfig{
-		Env: common.EnvMap{
-			"KEY1": "value1",
-		},
-		With: &common.WithParams{},
-	}
+func Test_AgentConfigMerge(t *testing.T) {
+	t.Run("Should merge configurations correctly", func(t *testing.T) {
+		baseConfig := &AgentConfig{
+			Env: common.EnvMap{
+				"KEY1": "value1",
+			},
+			With: &common.WithParams{},
+		}
 
-	otherConfig := &AgentConfig{
-		Env: common.EnvMap{
-			"KEY2": "value2",
-		},
-		With: &common.WithParams{},
-	}
+		otherConfig := &AgentConfig{
+			Env: common.EnvMap{
+				"KEY2": "value2",
+			},
+			With: &common.WithParams{},
+		}
 
-	err := baseConfig.Merge(otherConfig)
-	require.NoError(t, err)
+		err := baseConfig.Merge(otherConfig)
+		require.NoError(t, err)
 
-	// Check that base config has both env variables
-	assert.Equal(t, "value1", baseConfig.Env["KEY1"])
-	assert.Equal(t, "value2", baseConfig.Env["KEY2"])
+		// Check that base config has both env variables
+		assert.Equal(t, "value1", baseConfig.Env["KEY1"])
+		assert.Equal(t, "value2", baseConfig.Env["KEY2"])
+	})
 }
 
-func TestAgentConfigValidation(t *testing.T) {
+func Test_AgentConfigValidation(t *testing.T) {
 	agentID := "test-agent"
-	tests := []struct {
-		name    string
-		config  *AgentConfig
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name: "Valid Config",
-			config: &AgentConfig{
-				ID:           agentID,
-				Config:       provider.ProviderConfig{},
-				Instructions: "test instructions",
-				cwd:          common.NewCWD("/test/path"),
-			},
-			wantErr: false,
-		},
-		{
-			name: "Missing CWD",
-			config: &AgentConfig{
-				ID:           agentID,
-				Config:       provider.ProviderConfig{},
-				Instructions: "test instructions",
-			},
-			wantErr: true,
-			errMsg:  "current working directory is required for test-agent",
-		},
-		{
-			name: "Invalid Package Reference",
-			config: &AgentConfig{
-				ID:      agentID,
-				Use:     pkgref.NewPackageRefConfig("invalid"),
-				Config:  provider.ProviderConfig{},
-				Tools:   []tool.ToolConfig{},
-				Actions: []*AgentActionConfig{},
-				cwd:     common.NewCWD("/test/path"),
-			},
-			wantErr: true,
-			errMsg:  "Invalid package reference",
-		},
-		{
-			name: "Input Schema Not Allowed with ID Reference",
-			config: &AgentConfig{
-				ID:           agentID,
-				Use:          pkgref.NewPackageRefConfig("agent(id=test-agent)"),
-				Config:       provider.ProviderConfig{},
-				Instructions: "test instructions",
-				InputSchema: &schema.InputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-					},
-				},
-				cwd: common.NewCWD("/test/path"),
-			},
-			wantErr: true,
-			errMsg:  "Input schema not allowed for reference type id",
-		},
-		{
-			name: "Output Schema Not Allowed with File Reference",
-			config: &AgentConfig{
-				ID:           agentID,
-				Use:          pkgref.NewPackageRefConfig("agent(file=basic_agent.yaml)"),
-				Config:       provider.ProviderConfig{},
-				Instructions: "test instructions",
-				OutputSchema: &schema.OutputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-					},
-				},
-				cwd: common.NewCWD("/test/data"),
-			},
-			wantErr: true,
-			errMsg:  "Output schema not allowed for reference type file",
-		},
-		{
-			name: "Both Schemas Not Allowed with Dep Reference",
-			config: &AgentConfig{
-				ID:           agentID,
-				Use:          pkgref.NewPackageRefConfig("agent(dep=compozy/agents:test-agent)"),
-				Config:       provider.ProviderConfig{},
-				Instructions: "test instructions",
-				InputSchema: &schema.InputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-					},
-				},
-				OutputSchema: &schema.OutputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-					},
-				},
-				cwd: common.NewCWD("/test/path"),
-			},
-			wantErr: true,
-			errMsg:  "Input schema not allowed for reference type dep",
-		},
-		{
-			name: "Valid With Params",
-			config: &AgentConfig{
-				ID:           agentID,
-				Config:       provider.ProviderConfig{},
-				Instructions: "test instructions",
-				InputSchema: &schema.InputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-						"properties": map[string]any{
-							"name": map[string]any{
-								"type": "string",
-							},
-						},
-					},
-				},
-				With: &common.WithParams{
-					"name": "test",
-				},
-				cwd: common.NewCWD("/test/path"),
-			},
-			wantErr: false,
-		},
-		{
-			name: "Invalid With Params",
-			config: &AgentConfig{
-				ID:           agentID,
-				Config:       provider.ProviderConfig{},
-				Instructions: "test instructions",
-				InputSchema: &schema.InputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-						"properties": map[string]any{
-							"name": map[string]any{
-								"type": "string",
-							},
-						},
-						"required": []string{"name"},
-					},
-				},
-				With: &common.WithParams{
-					"age": 42,
-				},
-				cwd: common.NewCWD("/test/path"),
-			},
-			wantErr: true,
-			errMsg:  "with parameters invalid for test-agent",
-		},
-	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.Validate()
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
+	t.Run("Should validate config with all required fields", func(t *testing.T) {
+		config := &AgentConfig{
+			ID:           agentID,
+			Config:       provider.ProviderConfig{},
+			Instructions: "test instructions",
+			cwd:          common.NewCWD("/test/path"),
+		}
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should return error when CWD is missing", func(t *testing.T) {
+		config := &AgentConfig{
+			ID:           agentID,
+			Config:       provider.ProviderConfig{},
+			Instructions: "test instructions",
+		}
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "current working directory is required for test-agent")
+	})
+
+	t.Run("Should return error for invalid package reference", func(t *testing.T) {
+		config := &AgentConfig{
+			ID:      agentID,
+			Use:     pkgref.NewPackageRefConfig("invalid"),
+			Config:  provider.ProviderConfig{},
+			Tools:   []tool.ToolConfig{},
+			Actions: []*AgentActionConfig{},
+			cwd:     common.NewCWD("/test/path"),
+		}
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Invalid package reference")
+	})
+
+	t.Run("Should return error when input schema is used with ID reference", func(t *testing.T) {
+		config := &AgentConfig{
+			ID:           agentID,
+			Use:          pkgref.NewPackageRefConfig("agent(id=test-agent)"),
+			Config:       provider.ProviderConfig{},
+			Instructions: "test instructions",
+			InputSchema: &schema.InputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+				},
+			},
+			cwd: common.NewCWD("/test/path"),
+		}
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Input schema not allowed for reference type id")
+	})
+
+	t.Run("Should return error when output schema is used with file reference", func(t *testing.T) {
+		config := &AgentConfig{
+			ID:           agentID,
+			Use:          pkgref.NewPackageRefConfig("agent(file=basic_agent.yaml)"),
+			Config:       provider.ProviderConfig{},
+			Instructions: "test instructions",
+			OutputSchema: &schema.OutputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+				},
+			},
+			cwd: common.NewCWD("/test/data"),
+		}
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Output schema not allowed for reference type file")
+	})
+
+	t.Run("Should return error when schemas are used with dep reference", func(t *testing.T) {
+		config := &AgentConfig{
+			ID:           agentID,
+			Use:          pkgref.NewPackageRefConfig("agent(dep=compozy/agents:test-agent)"),
+			Config:       provider.ProviderConfig{},
+			Instructions: "test instructions",
+			InputSchema: &schema.InputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+				},
+			},
+			OutputSchema: &schema.OutputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+				},
+			},
+			cwd: common.NewCWD("/test/path"),
+		}
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Input schema not allowed for reference type dep")
+	})
+
+	t.Run("Should validate config with valid parameters", func(t *testing.T) {
+		config := &AgentConfig{
+			ID:           agentID,
+			Config:       provider.ProviderConfig{},
+			Instructions: "test instructions",
+			InputSchema: &schema.InputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{
+							"type": "string",
+						},
+					},
+				},
+			},
+			With: &common.WithParams{
+				"name": "test",
+			},
+			cwd: common.NewCWD("/test/path"),
+		}
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should return error when parameters are invalid", func(t *testing.T) {
+		config := &AgentConfig{
+			ID:           agentID,
+			Config:       provider.ProviderConfig{},
+			Instructions: "test instructions",
+			InputSchema: &schema.InputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{
+							"type": "string",
+						},
+					},
+					"required": []string{"name"},
+				},
+			},
+			With: &common.WithParams{
+				"age": 42,
+			},
+			cwd: common.NewCWD("/test/path"),
+		}
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "with parameters invalid for test-agent")
+	})
 }

@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSubjects(t *testing.T) {
-	t.Run("GenAgentRequestSubject", func(t *testing.T) {
+func Test_Subjects(t *testing.T) {
+	t.Run("Should generate correct agent request subject", func(t *testing.T) {
 		agentID := "agent123"
 		requestID := "req123"
 		expected := "compozy.agent.agent123.request.req123"
@@ -15,7 +15,7 @@ func TestSubjects(t *testing.T) {
 		assert.Equal(t, expected, result)
 	})
 
-	t.Run("GenAgentResponseSubject", func(t *testing.T) {
+	t.Run("Should generate correct agent response subject", func(t *testing.T) {
 		agentID := "agent123"
 		requestID := "req123"
 		expected := "compozy.agent.agent123.response.req123"
@@ -23,7 +23,7 @@ func TestSubjects(t *testing.T) {
 		assert.Equal(t, expected, result)
 	})
 
-	t.Run("GenToolRequestSubject", func(t *testing.T) {
+	t.Run("Should generate correct tool request subject", func(t *testing.T) {
 		toolID := "tool123"
 		requestID := "req123"
 		expected := "compozy.tool.tool123.request.req123"
@@ -31,7 +31,7 @@ func TestSubjects(t *testing.T) {
 		assert.Equal(t, expected, result)
 	})
 
-	t.Run("GenToolResponseSubject", func(t *testing.T) {
+	t.Run("Should generate correct tool response subject", func(t *testing.T) {
 		toolID := "tool123"
 		requestID := "req123"
 		expected := "compozy.tool.tool123.response.req123"
@@ -39,21 +39,21 @@ func TestSubjects(t *testing.T) {
 		assert.Equal(t, expected, result)
 	})
 
-	t.Run("GenErrorSubject", func(t *testing.T) {
+	t.Run("Should generate correct error subject", func(t *testing.T) {
 		requestID := "req123"
 		expected := "compozy.error.req123"
 		result := GenErrorSubject(requestID)
 		assert.Equal(t, expected, result)
 	})
 
-	t.Run("GenAgentRequestWildcard", func(t *testing.T) {
+	t.Run("Should generate correct agent request wildcard", func(t *testing.T) {
 		agentID := "agent123"
 		expected := "compozy.agent.agent123.request.>"
 		result := GenAgentRequestWildcard(agentID)
 		assert.Equal(t, expected, result)
 	})
 
-	t.Run("GenToolRequestWildcard", func(t *testing.T) {
+	t.Run("Should generate correct tool request wildcard", func(t *testing.T) {
 		toolID := "tool123"
 		expected := "compozy.tool.tool123.request.>"
 		result := GenToolRequestWildcard(toolID)

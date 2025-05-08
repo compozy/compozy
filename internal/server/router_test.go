@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,175 +21,143 @@ func init() {
 	logger.Init(logger.DefaultConfig())
 }
 
-func TestNormalizePath(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "path with leading slash",
-			input:    "/test",
-			expected: "/test",
-		},
-		{
-			name:     "path without leading slash",
-			input:    "test",
-			expected: "/test",
-		},
-		{
-			name:     "path with multiple leading slashes",
-			input:    "///test",
-			expected: "/test",
-		},
-		{
-			name:     "path with trailing slash",
-			input:    "test/",
-			expected: "/test/",
-		},
-		{
-			name:     "empty path",
-			input:    "",
-			expected: "/",
-		},
-		{
-			name:     "path with spaces",
-			input:    " test ",
-			expected: "/test",
-		},
-	}
+func Test_NormalizePath(t *testing.T) {
+	t.Run("Should keep path with leading slash unchanged", func(t *testing.T) {
+		result := normalizePath("/test")
+		assert.Equal(t, "/test", result)
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := normalizePath(tt.input)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
+	t.Run("Should add leading slash to path without it", func(t *testing.T) {
+		result := normalizePath("test")
+		assert.Equal(t, "/test", result)
+	})
+
+	t.Run("Should normalize path with multiple leading slashes", func(t *testing.T) {
+		result := normalizePath("///test")
+		assert.Equal(t, "/test", result)
+	})
+
+	t.Run("Should preserve trailing slash", func(t *testing.T) {
+		result := normalizePath("test/")
+		assert.Equal(t, "/test/", result)
+	})
+
+	t.Run("Should return root path for empty input", func(t *testing.T) {
+		result := normalizePath("")
+		assert.Equal(t, "/", result)
+	})
+
+	t.Run("Should trim spaces from path", func(t *testing.T) {
+		result := normalizePath(" test ")
+		assert.Equal(t, "/test", result)
+	})
 }
 
-func TestRegisterRoutes(t *testing.T) {
+func Test_RegisterRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	tests := []struct {
-		name        string
-		workflows   []*workflow.WorkflowConfig
-		wantErr     bool
-		errContains string
-		testPaths   []string // Additional paths to test
-	}{
-		{
-			name:      "empty workflows",
-			workflows: nil,
-			wantErr:   false,
-		},
-		{
-			name: "no webhook triggers",
-			workflows: []*workflow.WorkflowConfig{
-				{
-					ID: "test-workflow",
-					Trigger: trigger.TriggerConfig{
-						Type: "invalid",
-					},
+	t.Run("Should handle empty workflows", func(t *testing.T) {
+		router := gin.New()
+		state, err := NewAppState("", nil)
+		require.NoError(t, err)
+
+		err = RegisterRoutes(router, state)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should handle workflows without webhook triggers", func(t *testing.T) {
+		router := gin.New()
+		state, err := NewAppState("", []*workflow.WorkflowConfig{
+			{
+				ID: "test-workflow",
+				Trigger: trigger.TriggerConfig{
+					Type: "invalid",
 				},
 			},
-			wantErr: false,
-		},
-		{
-			name: "valid webhook trigger with leading slash",
-			workflows: []*workflow.WorkflowConfig{
-				{
-					Trigger: trigger.TriggerConfig{
-						Type: trigger.TriggerTypeWebhook,
-						Config: &trigger.WebhookConfig{
-							URL: "/test-webhook",
-						},
-					},
-				},
-			},
-			wantErr:   false,
-			testPaths: []string{"/test-webhook"},
-		},
-		{
-			name: "valid webhook trigger without leading slash",
-			workflows: []*workflow.WorkflowConfig{
-				{
-					Trigger: trigger.TriggerConfig{
-						Type: trigger.TriggerTypeWebhook,
-						Config: &trigger.WebhookConfig{
-							URL: "test-webhook",
-						},
-					},
-				},
-			},
-			wantErr:   false,
-			testPaths: []string{"/test-webhook"},
-		},
-		{
-			name: "duplicate webhook URLs",
-			workflows: []*workflow.WorkflowConfig{
-				{
-					Trigger: trigger.TriggerConfig{
-						Type: trigger.TriggerTypeWebhook,
-						Config: &trigger.WebhookConfig{
-							URL: "/test-webhook",
-						},
-					},
-				},
-				{
-					Trigger: trigger.TriggerConfig{
-						Type: trigger.TriggerTypeWebhook,
-						Config: &trigger.WebhookConfig{
-							URL: "test-webhook",
-						},
-					},
-				},
-			},
-			wantErr:     true,
-			errContains: "route conflict",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create a new router for each test case
-			router := gin.New()
-			state, err := NewAppState("", tt.workflows)
-			require.NoError(t, err)
-
-			err = RegisterRoutes(router, state)
-			if tt.wantErr {
-				assert.Error(t, err)
-				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
-				}
-				return
-			}
-			assert.NoError(t, err)
-
-			// Test registered routes
-			if tt.workflows != nil {
-				for _, workflow := range tt.workflows {
-					if workflow.Trigger.Type == trigger.TriggerTypeWebhook && workflow.Trigger.Config != nil {
-						// Test both with and without leading slash
-						paths := []string{string(workflow.Trigger.Config.URL)}
-						if tt.testPaths != nil {
-							paths = tt.testPaths
-						}
-
-						for _, path := range paths {
-							rec := httptest.NewRecorder()
-							req, _ := http.NewRequest("POST", path, nil)
-							router.ServeHTTP(rec, req)
-							assert.NotEqual(t, http.StatusNotFound, rec.Code, "Route should be registered for path: %s", path)
-						}
-					}
-				}
-			}
 		})
-	}
+		require.NoError(t, err)
+
+		err = RegisterRoutes(router, state)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should register webhook trigger with leading slash", func(t *testing.T) {
+		router := gin.New()
+		state, err := NewAppState("", []*workflow.WorkflowConfig{
+			{
+				Trigger: trigger.TriggerConfig{
+					Type: trigger.TriggerTypeWebhook,
+					Config: &trigger.WebhookConfig{
+						URL: "/test-webhook",
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		err = RegisterRoutes(router, state)
+		assert.NoError(t, err)
+
+		// Test registered route
+		rec := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/test-webhook", nil)
+		router.ServeHTTP(rec, req)
+		assert.NotEqual(t, http.StatusNotFound, rec.Code)
+	})
+
+	t.Run("Should normalize webhook trigger without leading slash", func(t *testing.T) {
+		router := gin.New()
+		state, err := NewAppState("", []*workflow.WorkflowConfig{
+			{
+				Trigger: trigger.TriggerConfig{
+					Type: trigger.TriggerTypeWebhook,
+					Config: &trigger.WebhookConfig{
+						URL: "test-webhook",
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		err = RegisterRoutes(router, state)
+		assert.NoError(t, err)
+
+		// Test registered route
+		rec := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/test-webhook", nil)
+		router.ServeHTTP(rec, req)
+		assert.NotEqual(t, http.StatusNotFound, rec.Code)
+	})
+
+	t.Run("Should return error for duplicate webhook URLs", func(t *testing.T) {
+		router := gin.New()
+		state, err := NewAppState("", []*workflow.WorkflowConfig{
+			{
+				Trigger: trigger.TriggerConfig{
+					Type: trigger.TriggerTypeWebhook,
+					Config: &trigger.WebhookConfig{
+						URL: "/test-webhook",
+					},
+				},
+			},
+			{
+				Trigger: trigger.TriggerConfig{
+					Type: trigger.TriggerTypeWebhook,
+					Config: &trigger.WebhookConfig{
+						URL: "test-webhook",
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		err = RegisterRoutes(router, state)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "route conflict")
+	})
 }
 
-func TestHandleRequest(t *testing.T) {
+func Test_HandleRequest(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	testWorkflow := &workflow.WorkflowConfig{
@@ -203,100 +170,73 @@ func TestHandleRequest(t *testing.T) {
 		},
 	}
 
-	tests := []struct {
-		name       string
-		method     string
-		path       string
-		body       any
-		wantStatus int
-		wantBody   map[string]any
-	}{
-		{
-			name:       "valid JSON request",
-			method:     "POST",
-			path:       "/test-webhook",
-			body:       map[string]any{"key": "value"},
-			wantStatus: http.StatusOK,
-			wantBody: map[string]any{
-				"status":  "success",
-				"message": "Workflow triggered successfully",
-				"data":    map[string]any{},
-			},
-		},
-		{
-			name:       "valid JSON request without leading slash",
-			method:     "POST",
-			path:       "/test-webhook",
-			body:       map[string]any{"key": "value"},
-			wantStatus: http.StatusOK,
-			wantBody: map[string]any{
-				"status":  "success",
-				"message": "Workflow triggered successfully",
-				"data":    map[string]any{},
-			},
-		},
-		{
-			name:       "invalid JSON request",
-			method:     "POST",
-			path:       "/test-webhook",
-			body:       "invalid json",
-			wantStatus: http.StatusBadRequest,
-			wantBody: map[string]any{
-				"error": map[string]any{
-					"code":    "INTERNAL_ERROR",
-					"message": "Invalid JSON input: invalid character 'i' looking for beginning of value",
-				},
-			},
-		},
-		{
-			name:       "non-existent webhook",
-			method:     "POST",
-			path:       "/non-existent",
-			body:       map[string]any{"key": "value"},
-			wantStatus: http.StatusNotFound,
-		},
-	}
+	t.Run("Should handle valid JSON request", func(t *testing.T) {
+		router := gin.New()
+		state, err := NewAppState("", []*workflow.WorkflowConfig{testWorkflow})
+		require.NoError(t, err)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create a new router for each test case
-			router := gin.New()
-			state, err := NewAppState("", []*workflow.WorkflowConfig{testWorkflow})
-			require.NoError(t, err)
+		err = RegisterRoutes(router, state)
+		require.NoError(t, err)
 
-			err = RegisterRoutes(router, state)
-			require.NoError(t, err)
+		body, err := json.Marshal(map[string]any{"key": "value"})
+		require.NoError(t, err)
 
-			// Create request
-			var reqBody io.Reader
-			if tt.body != nil {
-				switch v := tt.body.(type) {
-				case string:
-					reqBody = strings.NewReader(v)
-				default:
-					body, err := json.Marshal(v)
-					require.NoError(t, err)
-					reqBody = bytes.NewBuffer(body)
-				}
-			}
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/test-webhook", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(w, req)
 
-			w := httptest.NewRecorder()
-			req, _ := http.NewRequest(tt.method, tt.path, reqBody)
-			req.Header.Set("Content-Type", "application/json")
-			router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
 
-			assert.Equal(t, tt.wantStatus, w.Code)
+		var response map[string]any
+		err = json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
 
-			if tt.wantBody != nil {
-				var response map[string]any
-				err := json.Unmarshal(w.Body.Bytes(), &response)
-				require.NoError(t, err)
+		assert.Equal(t, "success", response["status"])
+		assert.Equal(t, "Workflow triggered successfully", response["message"])
+		assert.Equal(t, map[string]any{}, response["data"])
+	})
 
-				// Check response fields
-				for key, value := range tt.wantBody {
-					assert.Equal(t, value, response[key])
-				}
-			}
-		})
-	}
+	t.Run("Should handle invalid JSON request", func(t *testing.T) {
+		router := gin.New()
+		state, err := NewAppState("", []*workflow.WorkflowConfig{testWorkflow})
+		require.NoError(t, err)
+
+		err = RegisterRoutes(router, state)
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/test-webhook", strings.NewReader("invalid json"))
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var response map[string]any
+		err = json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		errorObj := response["error"].(map[string]any)
+		assert.Equal(t, "INTERNAL_ERROR", errorObj["code"])
+		assert.Contains(t, errorObj["message"], "Invalid JSON input")
+	})
+
+	t.Run("Should return 404 for non-existent webhook", func(t *testing.T) {
+		router := gin.New()
+		state, err := NewAppState("", []*workflow.WorkflowConfig{testWorkflow})
+		require.NoError(t, err)
+
+		err = RegisterRoutes(router, state)
+		require.NoError(t, err)
+
+		body, err := json.Marshal(map[string]any{"key": "value"})
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/non-existent", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestServer(t *testing.T) {
+func Test_Server(t *testing.T) {
 	// Helper function to start a NATS server for tests
 	startNATSServer := func(t *testing.T) *NatsServer {
 		opts := DefaultServerOptions()
@@ -33,7 +33,7 @@ func TestServer(t *testing.T) {
 		return nc
 	}
 
-	t.Run("NewNatsServer", func(t *testing.T) {
+	t.Run("Should create new NATS server successfully", func(t *testing.T) {
 		server := startNATSServer(t)
 		defer server.Shutdown()
 		assert.NotNil(t, server.NatsServer)
@@ -41,14 +41,14 @@ func TestServer(t *testing.T) {
 		assert.True(t, server.NatsServer.ReadyForConnections(5*time.Second))
 	})
 
-	t.Run("Shutdown", func(t *testing.T) {
+	t.Run("Should shutdown server gracefully", func(t *testing.T) {
 		server := startNATSServer(t)
 		err := server.Shutdown()
 		assert.NoError(t, err)
 		assert.False(t, server.IsRunning())
 	})
 
-	t.Run("RequestAgent_Success", func(t *testing.T) {
+	t.Run("Should handle successful agent request", func(t *testing.T) {
 		server := startNATSServer(t)
 		defer server.Shutdown()
 
@@ -122,7 +122,7 @@ func TestServer(t *testing.T) {
 		assert.Equal(t, "success", output["result"])
 	})
 
-	t.Run("RequestAgent_ErrorResponse", func(t *testing.T) {
+	t.Run("Should handle agent request error response", func(t *testing.T) {
 		server := startNATSServer(t)
 		defer server.Shutdown()
 
@@ -176,7 +176,7 @@ func TestServer(t *testing.T) {
 		assert.Contains(t, err.Error(), "error from worker: Worker failed")
 	})
 
-	t.Run("RequestAgent_Timeout", func(t *testing.T) {
+	t.Run("Should handle agent request timeout", func(t *testing.T) {
 		server := startNATSServer(t)
 		defer server.Shutdown()
 
@@ -187,7 +187,7 @@ func TestServer(t *testing.T) {
 		assert.Contains(t, err.Error(), "failed to send agent request")
 	})
 
-	t.Run("RequestTool_Success", func(t *testing.T) {
+	t.Run("Should handle successful tool request", func(t *testing.T) {
 		server := startNATSServer(t)
 		defer server.Shutdown()
 
@@ -262,7 +262,7 @@ func TestServer(t *testing.T) {
 		assert.Equal(t, "tool success", output["result"])
 	})
 
-	t.Run("RequestTool_ErrorResponse", func(t *testing.T) {
+	t.Run("Should handle tool request error response", func(t *testing.T) {
 		server := startNATSServer(t)
 		defer server.Shutdown()
 
@@ -317,7 +317,7 @@ func TestServer(t *testing.T) {
 		assert.Contains(t, err.Error(), "error from worker: Tool failed")
 	})
 
-	t.Run("RequestTool_Timeout", func(t *testing.T) {
+	t.Run("Should handle tool request timeout", func(t *testing.T) {
 		server := startNATSServer(t)
 		defer server.Shutdown()
 

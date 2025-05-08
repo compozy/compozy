@@ -7,341 +7,394 @@ import (
 	"testing"
 )
 
-func TestParse(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   string
-		want    *PackageRef
-		wantErr bool
-	}{
-		{
-			name:  "valid agent id reference",
-			input: "agent(id=my-agent)",
-			want: &PackageRef{
-				Component: ComponentAgent,
-				Type: &RefType{
-					Type:  "id",
-					Value: "my-agent",
-				},
+func Test_Parse(t *testing.T) {
+	t.Run("Should parse valid agent id reference", func(t *testing.T) {
+		input := "agent(id=my-agent)"
+		want := &PackageRef{
+			Component: ComponentAgent,
+			Type: &RefType{
+				Type:  "id",
+				Value: "my-agent",
 			},
-			wantErr: false,
-		},
-		{
-			name:  "valid workflow dep reference",
-			input: "workflow(dep=compozy/workflows:flow@v1.0.0)",
-			want: &PackageRef{
-				Component: ComponentWorkflow,
-				Type: &RefType{
-					Type:  "dep",
-					Value: "compozy/workflows:flow@v1.0.0",
-				},
+		}
+
+		got, err := Parse(input)
+		if err != nil {
+			t.Errorf("Parse() error = %v, want nil", err)
+			return
+		}
+
+		if got.Component != want.Component {
+			t.Errorf("Parse() component = %v, want %v", got.Component, want.Component)
+		}
+		if got.Type.Type != want.Type.Type {
+			t.Errorf("Parse() type = %v, want %v", got.Type.Type, want.Type.Type)
+		}
+		if got.Type.Value != want.Type.Value {
+			t.Errorf("Parse() value = %v, want %v", got.Type.Value, want.Type.Value)
+		}
+	})
+
+	t.Run("Should parse valid workflow dep reference", func(t *testing.T) {
+		input := "workflow(dep=compozy/workflows:flow@v1.0.0)"
+		want := &PackageRef{
+			Component: ComponentWorkflow,
+			Type: &RefType{
+				Type:  "dep",
+				Value: "compozy/workflows:flow@v1.0.0",
 			},
-			wantErr: false,
-		},
-		{
-			name:    "invalid format - missing type=value",
-			input:   "agent()",
-			wantErr: true,
-		},
-		{
-			name:    "invalid format - empty value",
-			input:   "agent(id=)",
-			wantErr: true,
-		},
-		{
-			name:    "invalid component",
-			input:   "invalid(id=test)",
-			wantErr: true,
-		},
-		{
-			name:    "invalid type",
-			input:   "agent(bad=test)",
-			wantErr: true,
-		},
-	}
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := Parse(tt.input)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Parse() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if err != nil && tt.wantErr {
-				// Check for error message instead of type
-				if err.Error() == "" {
-					t.Errorf("Parse() error message is empty")
-				}
-			}
-			if !tt.wantErr {
-				if got.Component != tt.want.Component {
-					t.Errorf("Parse() component = %v, want %v", got.Component, tt.want.Component)
-				}
-				if got.Type.Type != tt.want.Type.Type {
-					t.Errorf("Parse() type = %v, want %v", got.Type.Type, tt.want.Type.Type)
-				}
-				if got.Type.Value != tt.want.Type.Value {
-					t.Errorf("Parse() value = %v, want %v", got.Type.Value, tt.want.Type.Value)
-				}
-			}
-		})
-	}
+		got, err := Parse(input)
+		if err != nil {
+			t.Errorf("Parse() error = %v, want nil", err)
+			return
+		}
+
+		if got.Component != want.Component {
+			t.Errorf("Parse() component = %v, want %v", got.Component, want.Component)
+		}
+		if got.Type.Type != want.Type.Type {
+			t.Errorf("Parse() type = %v, want %v", got.Type.Type, want.Type.Type)
+		}
+		if got.Type.Value != want.Type.Value {
+			t.Errorf("Parse() value = %v, want %v", got.Type.Value, want.Type.Value)
+		}
+	})
+
+	t.Run("Should return error for invalid format - missing type=value", func(t *testing.T) {
+		input := "agent()"
+		_, err := Parse(input)
+		if err == nil {
+			t.Error("Parse() error = nil, want error")
+		}
+		if err.Error() == "" {
+			t.Error("Parse() error message is empty")
+		}
+	})
+
+	t.Run("Should return error for invalid format - empty value", func(t *testing.T) {
+		input := "agent(id=)"
+		_, err := Parse(input)
+		if err == nil {
+			t.Error("Parse() error = nil, want error")
+		}
+		if err.Error() == "" {
+			t.Error("Parse() error message is empty")
+		}
+	})
+
+	t.Run("Should return error for invalid component", func(t *testing.T) {
+		input := "invalid(id=test)"
+		_, err := Parse(input)
+		if err == nil {
+			t.Error("Parse() error = nil, want error")
+		}
+		if err.Error() == "" {
+			t.Error("Parse() error message is empty")
+		}
+	})
+
+	t.Run("Should return error for invalid type", func(t *testing.T) {
+		input := "agent(bad=test)"
+		_, err := Parse(input)
+		if err == nil {
+			t.Error("Parse() error = nil, want error")
+		}
+		if err.Error() == "" {
+			t.Error("Parse() error message is empty")
+		}
+	})
 }
 
-func TestValue(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{
-			name:  "agent id value",
-			input: "agent(id=my-agent)",
-			want:  "my-agent",
-		},
-		{
-			name:  "tool file value",
-			input: "tool(file=./tool.yaml)",
-			want:  "./tool.yaml",
-		},
-		{
-			name:  "workflow dep value",
-			input: "workflow(dep=compozy/workflows:flow@v1.0.0)",
-			want:  "compozy/workflows:flow@v1.0.0",
-		},
-	}
+func Test_Value(t *testing.T) {
+	t.Run("Should return correct value for agent id", func(t *testing.T) {
+		input := "agent(id=my-agent)"
+		want := "my-agent"
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			pkgRef, err := Parse(tt.input)
-			if err != nil {
-				t.Fatalf("Parse() error = %v", err)
-			}
-			if got := pkgRef.Value(); got != tt.want {
-				t.Errorf("Value() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+		pkgRef, err := Parse(input)
+		if err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
+		if got := pkgRef.Value(); got != want {
+			t.Errorf("Value() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("Should return correct value for tool file", func(t *testing.T) {
+		input := "tool(file=./tool.yaml)"
+		want := "./tool.yaml"
+
+		pkgRef, err := Parse(input)
+		if err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
+		if got := pkgRef.Value(); got != want {
+			t.Errorf("Value() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("Should return correct value for workflow dep", func(t *testing.T) {
+		input := "workflow(dep=compozy/workflows:flow@v1.0.0)"
+		want := "compozy/workflows:flow@v1.0.0"
+
+		pkgRef, err := Parse(input)
+		if err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
+		if got := pkgRef.Value(); got != want {
+			t.Errorf("Value() = %v, want %v", got, want)
+		}
+	})
 }
 
-func TestSerializeDeserialize(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-	}{
-		{
-			name:  "agent id reference",
-			input: "agent(id=my-agent)",
-		},
-		{
-			name:  "workflow dep reference",
-			input: "workflow(dep=compozy/workflows:flow@v1.0.0)",
-		},
-	}
+func Test_SerializeDeserialize(t *testing.T) {
+	t.Run("Should correctly serialize and deserialize agent id reference", func(t *testing.T) {
+		input := "agent(id=my-agent)"
+		pkgRef, err := Parse(input)
+		if err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Parse the input
-			pkgRef, err := Parse(tt.input)
-			if err != nil {
-				t.Fatalf("Parse() error = %v", err)
-			}
+		jsonData, err := json.Marshal(pkgRef)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
 
-			// Serialize to JSON
-			jsonData, err := json.Marshal(pkgRef)
-			if err != nil {
-				t.Fatalf("json.Marshal() error = %v", err)
-			}
+		var got PackageRef
+		if err := json.Unmarshal(jsonData, &got); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
 
-			// Deserialize from JSON
-			var got PackageRef
-			if err := json.Unmarshal(jsonData, &got); err != nil {
-				t.Fatalf("json.Unmarshal() error = %v", err)
-			}
+		if pkgRef.Component != got.Component {
+			t.Errorf("Component = %v, want %v", got.Component, pkgRef.Component)
+		}
+		if pkgRef.Type.Type != got.Type.Type {
+			t.Errorf("Type.Type = %v, want %v", got.Type.Type, pkgRef.Type.Type)
+		}
+		if pkgRef.Type.Value != got.Type.Value {
+			t.Errorf("Type.Value = %v, want %v", got.Type.Value, pkgRef.Type.Value)
+		}
+	})
 
-			// Compare the original and deserialized values
-			if pkgRef.Component != got.Component {
-				t.Errorf("Component = %v, want %v", got.Component, pkgRef.Component)
-			}
-			if pkgRef.Type.Type != got.Type.Type {
-				t.Errorf("Type.Type = %v, want %v", got.Type.Type, pkgRef.Type.Type)
-			}
-			if pkgRef.Type.Value != got.Type.Value {
-				t.Errorf("Type.Value = %v, want %v", got.Type.Value, pkgRef.Type.Value)
-			}
-		})
-	}
+	t.Run("Should correctly serialize and deserialize workflow dep reference", func(t *testing.T) {
+		input := "workflow(dep=compozy/workflows:flow@v1.0.0)"
+		pkgRef, err := Parse(input)
+		if err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
+
+		jsonData, err := json.Marshal(pkgRef)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+
+		var got PackageRef
+		if err := json.Unmarshal(jsonData, &got); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+
+		if pkgRef.Component != got.Component {
+			t.Errorf("Component = %v, want %v", got.Component, pkgRef.Component)
+		}
+		if pkgRef.Type.Type != got.Type.Type {
+			t.Errorf("Type.Type = %v, want %v", got.Type.Type, pkgRef.Type.Type)
+		}
+		if pkgRef.Type.Value != got.Type.Value {
+			t.Errorf("Type.Value = %v, want %v", got.Type.Value, pkgRef.Type.Value)
+		}
+	})
 }
 
-func TestPackageRefConfig(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{
-			name:  "agent id config",
-			input: "agent(id=my-agent)",
-			want:  "my-agent",
-		},
-		{
-			name:  "workflow dep config",
-			input: "workflow(dep=compozy/workflows:flow@v1.0.0)",
-			want:  "compozy/workflows:flow@v1.0.0",
-		},
-	}
+func Test_PackageRefConfig(t *testing.T) {
+	t.Run("Should create valid agent id config", func(t *testing.T) {
+		input := "agent(id=my-agent)"
+		want := "my-agent"
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create config
-			config := NewPackageRefConfig(tt.input)
+		config := NewPackageRefConfig(input)
+		pkgRef, err := config.IntoRef()
+		if err != nil {
+			t.Fatalf("IntoRef() error = %v", err)
+		}
 
-			// Convert to ref
-			pkgRef, err := config.IntoRef()
-			if err != nil {
-				t.Fatalf("IntoRef() error = %v", err)
-			}
+		if got := pkgRef.Value(); got != want {
+			t.Errorf("Value() = %v, want %v", got, want)
+		}
+	})
 
-			// Check value
-			if got := pkgRef.Value(); got != tt.want {
-				t.Errorf("Value() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+	t.Run("Should create valid workflow dep config", func(t *testing.T) {
+		input := "workflow(dep=compozy/workflows:flow@v1.0.0)"
+		want := "compozy/workflows:flow@v1.0.0"
+
+		config := NewPackageRefConfig(input)
+		pkgRef, err := config.IntoRef()
+		if err != nil {
+			t.Fatalf("IntoRef() error = %v", err)
+		}
+
+		if got := pkgRef.Value(); got != want {
+			t.Errorf("Value() = %v, want %v", got, want)
+		}
+	})
 }
 
-func TestComponentMethods(t *testing.T) {
-	tests := []struct {
-		name       string
-		component  Component
-		isAgent    bool
-		isMcp      bool
-		isTool     bool
-		isTask     bool
-		isWorkflow bool
-	}{
-		{
-			name:       "agent component",
-			component:  ComponentAgent,
-			isAgent:    true,
-			isMcp:      false,
-			isTool:     false,
-			isTask:     false,
-			isWorkflow: false,
-		},
-		{
-			name:       "mcp component",
-			component:  ComponentMcp,
-			isAgent:    false,
-			isMcp:      true,
-			isTool:     false,
-			isTask:     false,
-			isWorkflow: false,
-		},
-		{
-			name:       "tool component",
-			component:  ComponentTool,
-			isAgent:    false,
-			isMcp:      false,
-			isTool:     true,
-			isTask:     false,
-			isWorkflow: false,
-		},
-		{
-			name:       "task component",
-			component:  ComponentTask,
-			isAgent:    false,
-			isMcp:      false,
-			isTool:     false,
-			isTask:     true,
-			isWorkflow: false,
-		},
-		{
-			name:       "workflow component",
-			component:  ComponentWorkflow,
-			isAgent:    false,
-			isMcp:      false,
-			isTool:     false,
-			isTask:     false,
-			isWorkflow: true,
-		},
-	}
+func Test_ComponentMethods(t *testing.T) {
+	t.Run("Should correctly identify agent component", func(t *testing.T) {
+		component := ComponentAgent
+		if !component.IsAgent() {
+			t.Error("IsAgent() = false, want true")
+		}
+		if component.IsMcp() {
+			t.Error("IsMcp() = true, want false")
+		}
+		if component.IsTool() {
+			t.Error("IsTool() = true, want false")
+		}
+		if component.IsTask() {
+			t.Error("IsTask() = true, want false")
+		}
+		if component.IsWorkflow() {
+			t.Error("IsWorkflow() = true, want false")
+		}
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.component.IsAgent(); got != tt.isAgent {
-				t.Errorf("IsAgent() = %v, want %v", got, tt.isAgent)
-			}
-			if got := tt.component.IsMcp(); got != tt.isMcp {
-				t.Errorf("IsMcp() = %v, want %v", got, tt.isMcp)
-			}
-			if got := tt.component.IsTool(); got != tt.isTool {
-				t.Errorf("IsTool() = %v, want %v", got, tt.isTool)
-			}
-			if got := tt.component.IsTask(); got != tt.isTask {
-				t.Errorf("IsTask() = %v, want %v", got, tt.isTask)
-			}
-			if got := tt.component.IsWorkflow(); got != tt.isWorkflow {
-				t.Errorf("IsWorkflow() = %v, want %v", got, tt.isWorkflow)
-			}
-		})
-	}
+	t.Run("Should correctly identify mcp component", func(t *testing.T) {
+		component := ComponentMcp
+		if component.IsAgent() {
+			t.Error("IsAgent() = true, want false")
+		}
+		if !component.IsMcp() {
+			t.Error("IsMcp() = false, want true")
+		}
+		if component.IsTool() {
+			t.Error("IsTool() = true, want false")
+		}
+		if component.IsTask() {
+			t.Error("IsTask() = true, want false")
+		}
+		if component.IsWorkflow() {
+			t.Error("IsWorkflow() = true, want false")
+		}
+	})
+
+	t.Run("Should correctly identify tool component", func(t *testing.T) {
+		component := ComponentTool
+		if component.IsAgent() {
+			t.Error("IsAgent() = true, want false")
+		}
+		if component.IsMcp() {
+			t.Error("IsMcp() = true, want false")
+		}
+		if !component.IsTool() {
+			t.Error("IsTool() = false, want true")
+		}
+		if component.IsTask() {
+			t.Error("IsTask() = true, want false")
+		}
+		if component.IsWorkflow() {
+			t.Error("IsWorkflow() = true, want false")
+		}
+	})
+
+	t.Run("Should correctly identify task component", func(t *testing.T) {
+		component := ComponentTask
+		if component.IsAgent() {
+			t.Error("IsAgent() = true, want false")
+		}
+		if component.IsMcp() {
+			t.Error("IsMcp() = true, want false")
+		}
+		if component.IsTool() {
+			t.Error("IsTool() = true, want false")
+		}
+		if !component.IsTask() {
+			t.Error("IsTask() = false, want true")
+		}
+		if component.IsWorkflow() {
+			t.Error("IsWorkflow() = true, want false")
+		}
+	})
+
+	t.Run("Should correctly identify workflow component", func(t *testing.T) {
+		component := ComponentWorkflow
+		if component.IsAgent() {
+			t.Error("IsAgent() = true, want false")
+		}
+		if component.IsMcp() {
+			t.Error("IsMcp() = true, want false")
+		}
+		if component.IsTool() {
+			t.Error("IsTool() = true, want false")
+		}
+		if component.IsTask() {
+			t.Error("IsTask() = true, want false")
+		}
+		if !component.IsWorkflow() {
+			t.Error("IsWorkflow() = false, want true")
+		}
+	})
 }
 
-func TestParseEdgeCases(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   string
-		wantErr bool
-	}{
-		{
-			name:    "whitespace-only value",
-			input:   "agent(id= )",
-			wantErr: true,
-		},
-		{
-			name:    "complex version string",
-			input:   "workflow(dep=owner/repo:pkg@ver-with-dashes)",
-			wantErr: false,
-		},
-		{
-			name:    "empty repo",
-			input:   "workflow(dep=owner/)",
-			wantErr: true,
-		},
-		{
-			name:    "empty owner",
-			input:   "workflow(dep=/repo)",
-			wantErr: true,
-		},
-		{
-			name:    "missing package name",
-			input:   "workflow(dep=owner/repo@v1.0.0)",
-			wantErr: false,
-		},
-		{
-			name:    "missing version",
-			input:   "workflow(dep=owner/repo:pkg)",
-			wantErr: false,
-		},
-	}
+func Test_ParseEdgeCases(t *testing.T) {
+	t.Run("Should return error for whitespace-only value", func(t *testing.T) {
+		input := "agent(id= )"
+		_, err := Parse(input)
+		if err == nil {
+			t.Error("Parse() error = nil, want error")
+		}
+		if err.Error() == "" {
+			t.Error("Parse() error message is empty")
+		}
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := Parse(tt.input)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Parse() error = %v, wantErr %v", err, tt.wantErr)
-			}
-			if err != nil && tt.wantErr {
-				if err.Error() == "" {
-					t.Errorf("Parse() error message is empty")
-				}
-			}
-		})
-	}
+	t.Run("Should parse complex version string", func(t *testing.T) {
+		input := "workflow(dep=owner/repo:pkg@ver-with-dashes)"
+		_, err := Parse(input)
+		if err != nil {
+			t.Errorf("Parse() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("Should return error for empty repo", func(t *testing.T) {
+		input := "workflow(dep=owner/)"
+		_, err := Parse(input)
+		if err == nil {
+			t.Error("Parse() error = nil, want error")
+		}
+		if err.Error() == "" {
+			t.Error("Parse() error message is empty")
+		}
+	})
+
+	t.Run("Should return error for empty owner", func(t *testing.T) {
+		input := "workflow(dep=/repo)"
+		_, err := Parse(input)
+		if err == nil {
+			t.Error("Parse() error = nil, want error")
+		}
+		if err.Error() == "" {
+			t.Error("Parse() error message is empty")
+		}
+	})
+
+	t.Run("Should parse missing package name", func(t *testing.T) {
+		input := "workflow(dep=owner/repo@v1.0.0)"
+		_, err := Parse(input)
+		if err != nil {
+			t.Errorf("Parse() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("Should parse missing version", func(t *testing.T) {
+		input := "workflow(dep=owner/repo:pkg)"
+		_, err := Parse(input)
+		if err != nil {
+			t.Errorf("Parse() error = %v, want nil", err)
+		}
+	})
 }
 
-func TestValidateFile(t *testing.T) {
+func Test_ValidateFile(t *testing.T) {
 	// Create a temporary directory for test files
 	tmpDir, err := os.MkdirTemp("", "package-ref-test")
 	if err != nil {
@@ -365,119 +418,130 @@ func TestValidateFile(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	tests := []struct {
-		name     string
-		filePath string
-		refPath  string
-		wantErr  bool
-	}{
-		{
-			name:     "valid yaml file",
-			filePath: validYaml,
-			refPath:  "valid.yaml",
-			wantErr:  false,
-		},
-		{
-			name:     "invalid extension",
-			filePath: invalidExt,
-			refPath:  "invalid.txt",
-			wantErr:  true,
-		},
-		{
-			name:     "non-existent file",
-			filePath: validYaml,
-			refPath:  "nonexistent.yaml",
-			wantErr:  true,
-		},
-	}
+	t.Run("Should validate yaml file", func(t *testing.T) {
+		ref := &RefType{
+			Type:  "file",
+			Value: "valid.yaml",
+		}
+		err := ref.Validate(validYaml)
+		if err != nil {
+			t.Errorf("Validate() error = %v, want nil", err)
+		}
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ref := &RefType{
-				Type:  "file",
-				Value: tt.refPath,
-			}
-			err := ref.Validate(tt.filePath)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
-			}
-			if err != nil && tt.wantErr {
-				if err.Error() == "" {
-					t.Errorf("Validate() error message is empty")
-				}
-			}
-		})
-	}
+	t.Run("Should return error for invalid extension", func(t *testing.T) {
+		ref := &RefType{
+			Type:  "file",
+			Value: "invalid.txt",
+		}
+		err := ref.Validate(invalidExt)
+		if err == nil {
+			t.Error("Validate() error = nil, want error")
+		}
+		if err.Error() == "" {
+			t.Error("Validate() error message is empty")
+		}
+	})
+
+	t.Run("Should return error for non-existent file", func(t *testing.T) {
+		ref := &RefType{
+			Type:  "file",
+			Value: "nonexistent.yaml",
+		}
+		err := ref.Validate(validYaml)
+		if err == nil {
+			t.Error("Validate() error = nil, want error")
+		}
+		if err.Error() == "" {
+			t.Error("Validate() error message is empty")
+		}
+	})
 }
 
-func TestDeserializeInvalid(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-	}{
-		{
-			name:  "invalid component",
-			input: `{"component":"invalid","type":"id=test"}`,
-		},
-		{
-			name:  "invalid type format",
-			input: `{"component":"agent","type":"invalid"}`,
-		},
-		{
-			name:  "missing type field",
-			input: `{"component":"agent"}`,
-		},
-		{
-			name:  "missing component field",
-			input: `{"type":"id=test"}`,
-		},
-	}
+func Test_DeserializeInvalid(t *testing.T) {
+	t.Run("Should return error for invalid component", func(t *testing.T) {
+		input := `{"component":"invalid","type":"id=test"}`
+		var got PackageRef
+		err := json.Unmarshal([]byte(input), &got)
+		if err == nil {
+			t.Error("Expected error for invalid JSON, got nil")
+		}
+		if err.Error() == "" {
+			t.Error("Unmarshal() error message is empty")
+		}
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var got PackageRef
-			err := json.Unmarshal([]byte(tt.input), &got)
-			if err == nil {
-				t.Error("Expected error for invalid JSON, got nil")
-			} else {
-				if err.Error() == "" {
-					t.Errorf("Unmarshal() error message is empty")
-				}
-			}
-		})
-	}
+	t.Run("Should return error for invalid type format", func(t *testing.T) {
+		input := `{"component":"agent","type":"invalid"}`
+		var got PackageRef
+		err := json.Unmarshal([]byte(input), &got)
+		if err == nil {
+			t.Error("Expected error for invalid JSON, got nil")
+		}
+		if err.Error() == "" {
+			t.Error("Unmarshal() error message is empty")
+		}
+	})
+
+	t.Run("Should return error for missing type field", func(t *testing.T) {
+		input := `{"component":"agent"}`
+		var got PackageRef
+		err := json.Unmarshal([]byte(input), &got)
+		if err == nil {
+			t.Error("Expected error for invalid JSON, got nil")
+		}
+		if err.Error() == "" {
+			t.Error("Unmarshal() error message is empty")
+		}
+	})
+
+	t.Run("Should return error for missing component field", func(t *testing.T) {
+		input := `{"type":"id=test"}`
+		var got PackageRef
+		err := json.Unmarshal([]byte(input), &got)
+		if err == nil {
+			t.Error("Expected error for invalid JSON, got nil")
+		}
+		if err.Error() == "" {
+			t.Error("Unmarshal() error message is empty")
+		}
+	})
 }
 
-func TestPackageRefConfigInvalid(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-	}{
-		{
-			name:  "invalid format",
-			input: "invalid(format)",
-		},
-		{
-			name:  "empty string",
-			input: "",
-		},
-		{
-			name:  "missing type=value",
-			input: "agent()",
-		},
-	}
+func Test_PackageRefConfigInvalid(t *testing.T) {
+	t.Run("Should return error for invalid format", func(t *testing.T) {
+		input := "invalid(format)"
+		config := NewPackageRefConfig(input)
+		_, err := config.IntoRef()
+		if err == nil {
+			t.Error("Expected error for invalid config, got nil")
+		}
+		if err.Error() == "" {
+			t.Error("IntoRef() error message is empty")
+		}
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config := NewPackageRefConfig(tt.input)
-			_, err := config.IntoRef()
-			if err == nil {
-				t.Error("Expected error for invalid config, got nil")
-			} else {
-				if err.Error() == "" {
-					t.Errorf("IntoRef() error message is empty")
-				}
-			}
-		})
-	}
+	t.Run("Should return error for empty string", func(t *testing.T) {
+		input := ""
+		config := NewPackageRefConfig(input)
+		_, err := config.IntoRef()
+		if err == nil {
+			t.Error("Expected error for invalid config, got nil")
+		}
+		if err.Error() == "" {
+			t.Error("IntoRef() error message is empty")
+		}
+	})
+
+	t.Run("Should return error for missing type=value", func(t *testing.T) {
+		input := "agent()"
+		config := NewPackageRefConfig(input)
+		_, err := config.IntoRef()
+		if err == nil {
+			t.Error("Expected error for invalid config, got nil")
+		}
+		if err.Error() == "" {
+			t.Error("IntoRef() error message is empty")
+		}
+	})
 }

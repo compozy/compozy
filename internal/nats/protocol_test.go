@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestProtocol(t *testing.T) {
-	t.Run("NewMessage", func(t *testing.T) {
+func Test_Protocol(t *testing.T) {
+	t.Run("Should create new message with valid payload", func(t *testing.T) {
 		payload := map[string]string{"key": "value"}
 		msg, err := NewMessage(TypeAgentRequest, payload)
 		assert.NoError(t, err)
@@ -19,14 +19,14 @@ func TestProtocol(t *testing.T) {
 		assert.Equal(t, payload, result)
 	})
 
-	t.Run("NewMessage_InvalidPayload", func(t *testing.T) {
+	t.Run("Should return error when creating message with invalid payload", func(t *testing.T) {
 		invalidPayload := make(chan int) // Unmarshalable type
 		_, err := NewMessage(TypeAgentRequest, invalidPayload)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to marshal payload")
 	})
 
-	t.Run("UnmarshalPayload", func(t *testing.T) {
+	t.Run("Should unmarshal payload correctly", func(t *testing.T) {
 		payload := map[string]string{"key": "value"}
 		msg, _ := NewMessage(TypeAgentRequest, payload)
 		var result map[string]string
@@ -35,14 +35,14 @@ func TestProtocol(t *testing.T) {
 		assert.Equal(t, payload, result)
 	})
 
-	t.Run("UnmarshalPayload_InvalidJSON", func(t *testing.T) {
+	t.Run("Should return error when unmarshaling invalid JSON", func(t *testing.T) {
 		msg := &Message{Type: TypeAgentRequest, Payload: []byte("invalid json")}
 		var result map[string]string
 		err := msg.UnmarshalPayload(&result)
 		assert.Error(t, err)
 	})
 
-	t.Run("NewAgentRequest", func(t *testing.T) {
+	t.Run("Should create new agent request with all fields", func(t *testing.T) {
 		agentID := "agent123"
 		instructions := "Process data"
 		action := AgentActionRequest{ActionID: "action1", Prompt: "Do it"}
@@ -57,7 +57,7 @@ func TestProtocol(t *testing.T) {
 		assert.Equal(t, tools, req.Tools)
 	})
 
-	t.Run("NewToolRequest", func(t *testing.T) {
+	t.Run("Should create new tool request with all fields", func(t *testing.T) {
 		toolID := "tool123"
 		description := "Tool description"
 		inputSchema := map[string]string{"type": "string"}
@@ -77,14 +77,14 @@ func TestProtocol(t *testing.T) {
 		assert.Equal(t, input, parsedInput)
 	})
 
-	t.Run("NewToolRequest_InvalidSchema", func(t *testing.T) {
+	t.Run("Should return error when creating tool request with invalid schema", func(t *testing.T) {
 		invalidSchema := make(chan int)
 		_, err := NewToolRequest("tool123", "desc", invalidSchema, nil, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to marshal input schema")
 	})
 
-	t.Run("NewErrorMessage", func(t *testing.T) {
+	t.Run("Should create new error message with all fields", func(t *testing.T) {
 		message := "Something went wrong"
 		requestID := "req123"
 		stack := "stack trace"
@@ -99,7 +99,7 @@ func TestProtocol(t *testing.T) {
 		assert.Equal(t, data, parsedData)
 	})
 
-	t.Run("NewErrorMessage_InvalidData", func(t *testing.T) {
+	t.Run("Should return error when creating error message with invalid data", func(t *testing.T) {
 		invalidData := make(chan int)
 		_, err := NewErrorMessage("error", "req123", "", invalidData)
 		assert.Error(t, err)

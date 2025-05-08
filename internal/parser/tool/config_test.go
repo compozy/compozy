@@ -20,400 +20,397 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-func TestLoadTool(t *testing.T) {
-	tests := []struct {
-		name     string
-		fixture  string
-		wantErr  bool
-		validate func(*testing.T, *ToolConfig)
-	}{
-		{
-			name:    "basic tool",
-			fixture: "basic_tool.yaml",
-			validate: func(t *testing.T, config *ToolConfig) {
-				TestMode = true // Skip file existence check for valid test
-				defer func() { TestMode = false }()
+func Test_LoadTool(t *testing.T) {
+	t.Run("Should load basic tool configuration correctly", func(t *testing.T) {
+		// Get the test directory path
+		_, filename, _, ok := runtime.Caller(0)
+		require.True(t, ok)
+		testDir := filepath.Dir(filename)
 
-				require.NotNil(t, config.ID)
-				require.NotNil(t, config.Description)
-				require.NotNil(t, config.Execute)
-				require.NotNil(t, config.InputSchema)
-				require.NotNil(t, config.OutputSchema)
-				require.NotNil(t, config.Env)
-				require.NotNil(t, config.With)
+		// Setup test fixture using utils
+		dstPath := utils.SetupFixture(t, testDir, "basic_tool.yaml")
 
-				assert.Equal(t, "code-formatter", config.ID)
-				assert.Equal(t, "A tool for formatting code", config.Description)
-				assert.Equal(t, "./format.ts", config.Execute)
-				assert.True(t, IsTypeScript(config.Execute))
+		// Run the test
+		config, err := Load(dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
 
-				// Validate input schema
-				schema := config.InputSchema.Schema
-				assert.Equal(t, "object", schema.GetType())
-				require.NotNil(t, schema.GetProperties())
-				assert.Contains(t, schema.GetProperties(), "code")
-				assert.Contains(t, schema.GetProperties(), "language")
-				if required, ok := schema["required"].([]string); ok && len(required) > 0 {
-					assert.Contains(t, required, "code")
-				}
+		// Validate the config
+		err = config.Validate()
+		require.NoError(t, err)
 
-				// Validate output schema
-				outSchema := config.OutputSchema.Schema
-				assert.Equal(t, "object", outSchema.GetType())
-				require.NotNil(t, outSchema.GetProperties())
-				assert.Contains(t, outSchema.GetProperties(), "formatted_code")
-				if required, ok := outSchema["required"].([]string); ok && len(required) > 0 {
-					assert.Contains(t, required, "formatted_code")
-				}
+		TestMode = true // Skip file existence check for valid test
+		defer func() { TestMode = false }()
 
-				// Validate env and with
-				assert.Equal(t, "1.0.0", config.Env["FORMATTER_VERSION"])
-				assert.Equal(t, 2, (*config.With)["indent_size"])
-				assert.Equal(t, false, (*config.With)["use_tabs"])
-			},
-		},
-		{
-			name:    "package tool",
-			fixture: "package_tool.yaml",
-			validate: func(t *testing.T, config *ToolConfig) {
-				TestMode = true // Skip file existence check for valid test
-				defer func() { TestMode = false }()
+		require.NotNil(t, config.ID)
+		require.NotNil(t, config.Description)
+		require.NotNil(t, config.Execute)
+		require.NotNil(t, config.InputSchema)
+		require.NotNil(t, config.OutputSchema)
+		require.NotNil(t, config.Env)
+		require.NotNil(t, config.With)
 
-				require.NotNil(t, config.ID)
-				require.NotNil(t, config.Description)
-				require.NotNil(t, config.InputSchema)
-				require.NotNil(t, config.OutputSchema)
-				require.NotNil(t, config.Env)
-				require.NotNil(t, config.With)
+		assert.Equal(t, "code-formatter", config.ID)
+		assert.Equal(t, "A tool for formatting code", config.Description)
+		assert.Equal(t, "./format.ts", config.Execute)
+		assert.True(t, IsTypeScript(config.Execute))
 
-				assert.Equal(t, "code-linter", config.ID)
-				assert.Equal(t, "A tool for linting code", config.Description)
+		// Validate input schema
+		schema := config.InputSchema.Schema
+		assert.Equal(t, "object", schema.GetType())
+		require.NotNil(t, schema.GetProperties())
+		assert.Contains(t, schema.GetProperties(), "code")
+		assert.Contains(t, schema.GetProperties(), "language")
+		if required, ok := schema["required"].([]string); ok && len(required) > 0 {
+			assert.Contains(t, required, "code")
+		}
 
-				// Validate input schema
-				schema := config.InputSchema.Schema
-				assert.Equal(t, "object", schema.GetType())
-				require.NotNil(t, schema.GetProperties())
-				assert.Contains(t, schema.GetProperties(), "code")
-				assert.Contains(t, schema.GetProperties(), "language")
-				if required, ok := schema["required"].([]string); ok && len(required) > 0 {
-					assert.Contains(t, required, "code")
-				}
+		// Validate output schema
+		outSchema := config.OutputSchema.Schema
+		assert.Equal(t, "object", outSchema.GetType())
+		require.NotNil(t, outSchema.GetProperties())
+		assert.Contains(t, outSchema.GetProperties(), "formatted_code")
+		if required, ok := outSchema["required"].([]string); ok && len(required) > 0 {
+			assert.Contains(t, required, "formatted_code")
+		}
 
-				// Validate output schema
-				outSchema := config.OutputSchema.Schema
-				assert.Equal(t, "object", outSchema.GetType())
-				require.NotNil(t, outSchema.GetProperties())
-				assert.Contains(t, outSchema.GetProperties(), "issues")
-				issues := outSchema.GetProperties()["issues"]
-				assert.Equal(t, "array", issues.GetType())
+		// Validate env and with
+		assert.Equal(t, "1.0.0", config.Env["FORMATTER_VERSION"])
+		assert.Equal(t, 2, (*config.With)["indent_size"])
+		assert.Equal(t, false, (*config.With)["use_tabs"])
+	})
 
-				// Get the items from the schema
-				if items, ok := (*issues)["items"].(map[string]any); ok {
-					// Check properties directly from the items map
-					if itemType, ok := items["type"].(string); ok {
-						assert.Equal(t, "object", itemType)
-					}
+	t.Run("Should load package tool configuration correctly", func(t *testing.T) {
+		// Get the test directory path
+		_, filename, _, ok := runtime.Caller(0)
+		require.True(t, ok)
+		testDir := filepath.Dir(filename)
 
-					if itemProps, ok := items["properties"].(map[string]any); ok {
-						assert.Contains(t, itemProps, "line")
-						assert.Contains(t, itemProps, "message")
-						assert.Contains(t, itemProps, "severity")
-					} else {
-						t.Error("Item properties not found or not a map")
-					}
-				} else {
-					t.Error("Items not found or not a map")
-				}
+		// Setup test fixture using utils
+		dstPath := utils.SetupFixture(t, testDir, "package_tool.yaml")
 
-				if required, ok := outSchema["required"].([]string); ok && len(required) > 0 {
-					assert.Contains(t, required, "issues")
-				}
+		// Run the test
+		config, err := Load(dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
 
-				// Validate env and with
-				assert.Equal(t, "8.0.0", config.Env["ESLINT_VERSION"])
-				assert.Equal(t, 10, (*config.With)["max_warnings"])
-				assert.Equal(t, true, (*config.With)["fix"])
-			},
-		},
-		{
-			name:    "invalid tool",
-			fixture: "invalid_tool.yaml",
-			wantErr: true,
-			validate: func(t *testing.T, config *ToolConfig) {
-				TestMode = false // Enable file existence check for invalid test
-				err := config.Validate()
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), "invalid tool execute path")
-			},
-		},
-	}
+		// Validate the config
+		err = config.Validate()
+		require.NoError(t, err)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Get the test directory path
-			_, filename, _, ok := runtime.Caller(0)
-			require.True(t, ok)
-			testDir := filepath.Dir(filename)
+		TestMode = true // Skip file existence check for valid test
+		defer func() { TestMode = false }()
 
-			// Setup test fixture using utils
-			dstPath := utils.SetupFixture(t, testDir, tt.fixture)
+		require.NotNil(t, config.ID)
+		require.NotNil(t, config.Description)
+		require.NotNil(t, config.InputSchema)
+		require.NotNil(t, config.OutputSchema)
+		require.NotNil(t, config.Env)
+		require.NotNil(t, config.With)
 
-			// Run the test
-			config, err := Load(dstPath)
-			if err != nil {
-				if tt.wantErr {
-					if tt.validate != nil {
-						tt.validate(t, config)
-					}
-					return
-				}
-				require.NoError(t, err)
-			}
-			require.NotNil(t, config)
+		assert.Equal(t, "code-linter", config.ID)
+		assert.Equal(t, "A tool for linting code", config.Description)
 
-			// Validate the config
-			err = config.Validate()
-			if err != nil {
-				if tt.wantErr {
-					if tt.validate != nil {
-						tt.validate(t, config)
-					}
-					return
-				}
-				require.NoError(t, err)
+		// Validate input schema
+		schema := config.InputSchema.Schema
+		assert.Equal(t, "object", schema.GetType())
+		require.NotNil(t, schema.GetProperties())
+		assert.Contains(t, schema.GetProperties(), "code")
+		assert.Contains(t, schema.GetProperties(), "language")
+		if required, ok := schema["required"].([]string); ok && len(required) > 0 {
+			assert.Contains(t, required, "code")
+		}
+
+		// Validate output schema
+		outSchema := config.OutputSchema.Schema
+		assert.Equal(t, "object", outSchema.GetType())
+		require.NotNil(t, outSchema.GetProperties())
+		assert.Contains(t, outSchema.GetProperties(), "issues")
+		issues := outSchema.GetProperties()["issues"]
+		assert.Equal(t, "array", issues.GetType())
+
+		// Get the items from the schema
+		if items, ok := (*issues)["items"].(map[string]any); ok {
+			// Check properties directly from the items map
+			if itemType, ok := items["type"].(string); ok {
+				assert.Equal(t, "object", itemType)
 			}
 
-			if tt.validate != nil {
-				tt.validate(t, config)
-			}
-		})
-	}
-}
-
-func TestToolConfigValidation(t *testing.T) {
-	toolID := "test-tool"
-	tests := []struct {
-		name    string
-		config  *ToolConfig
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name: "Valid Config",
-			config: &ToolConfig{
-				ID:  toolID,
-				cwd: common.NewCWD("/test/path"),
-			},
-			wantErr: false,
-		},
-		{
-			name: "Missing CWD",
-			config: &ToolConfig{
-				ID: toolID,
-			},
-			wantErr: true,
-			errMsg:  "current working directory is required for test-tool",
-		},
-		{
-			name: "Invalid Package Reference",
-			config: &ToolConfig{
-				ID:  toolID,
-				Use: pkgref.NewPackageRefConfig("invalid"),
-				cwd: common.NewCWD("/test/path"),
-			},
-			wantErr: true,
-			errMsg:  "Invalid package reference",
-		},
-		{
-			name: "Invalid Execute Path",
-			config: &ToolConfig{
-				ID:      toolID,
-				Execute: "./nonexistent.ts",
-				cwd:     common.NewCWD("/test/path"),
-			},
-			wantErr: true,
-			errMsg:  "invalid tool execute path: /test/path/nonexistent.ts",
-		},
-		{
-			name: "Input Schema Not Allowed with ID Reference",
-			config: &ToolConfig{
-				ID:  toolID,
-				Use: pkgref.NewPackageRefConfig("tool(id=test-tool)"),
-				InputSchema: &schema.InputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-					},
-				},
-				cwd: common.NewCWD("/test/path"),
-			},
-			wantErr: true,
-			errMsg:  "Input schema not allowed for reference type id",
-		},
-		{
-			name: "Output Schema Not Allowed with File Reference",
-			config: &ToolConfig{
-				ID:  toolID,
-				Use: pkgref.NewPackageRefConfig("tool(file=basic_tool.yaml)"),
-				OutputSchema: &schema.OutputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-					},
-				},
-				cwd: common.NewCWD("/test/path"),
-			},
-			wantErr: true,
-			errMsg:  "Output schema not allowed for reference type file",
-		},
-		{
-			name: "Both Schemas Not Allowed with Dep Reference",
-			config: &ToolConfig{
-				ID:  toolID,
-				Use: pkgref.NewPackageRefConfig("tool(dep=compozy/tools:test-tool)"),
-				InputSchema: &schema.InputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-					},
-				},
-				OutputSchema: &schema.OutputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-					},
-				},
-				cwd: common.NewCWD("/test/path"),
-			},
-			wantErr: true,
-			errMsg:  "Input schema not allowed for reference type dep",
-		},
-		{
-			name: "Valid With Params",
-			config: &ToolConfig{
-				ID: toolID,
-				InputSchema: &schema.InputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-						"properties": map[string]any{
-							"name": map[string]any{
-								"type": "string",
-							},
-						},
-					},
-				},
-				With: &common.WithParams{
-					"name": "test",
-				},
-				cwd: common.NewCWD("/test/path"),
-			},
-			wantErr: false,
-		},
-		{
-			name: "Invalid With Params",
-			config: &ToolConfig{
-				ID:      toolID,
-				Execute: "./test.ts",
-				cwd:     common.NewCWD("/test/path"),
-				InputSchema: &schema.InputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-						"properties": map[string]any{
-							"name": map[string]any{
-								"type": "string",
-							},
-						},
-						"required": []string{"name"},
-					},
-				},
-				With: &common.WithParams{
-					"age": 42,
-				},
-			},
-			wantErr: true,
-			errMsg:  "with parameters invalid for test-tool",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Disable test mode for validation tests
-			TestMode = false
-			defer func() { TestMode = true }()
-
-			err := tt.config.Validate()
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
+			if itemProps, ok := items["properties"].(map[string]any); ok {
+				assert.Contains(t, itemProps, "line")
+				assert.Contains(t, itemProps, "message")
+				assert.Contains(t, itemProps, "severity")
 			} else {
-				assert.NoError(t, err)
+				t.Error("Item properties not found or not a map")
 			}
-		})
-	}
+		} else {
+			t.Error("Items not found or not a map")
+		}
+
+		if required, ok := outSchema["required"].([]string); ok && len(required) > 0 {
+			assert.Contains(t, required, "issues")
+		}
+
+		// Validate env and with
+		assert.Equal(t, "8.0.0", config.Env["ESLINT_VERSION"])
+		assert.Equal(t, 10, (*config.With)["max_warnings"])
+		assert.Equal(t, true, (*config.With)["fix"])
+	})
+
+	t.Run("Should return error for invalid tool configuration", func(t *testing.T) {
+		// Get the test directory path
+		_, filename, _, ok := runtime.Caller(0)
+		require.True(t, ok)
+		testDir := filepath.Dir(filename)
+
+		// Setup test fixture using utils
+		dstPath := utils.SetupFixture(t, testDir, "invalid_tool.yaml")
+
+		// Run the test
+		config, err := Load(dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
+
+		// Validate the config
+		err = config.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid tool execute path")
+	})
 }
 
-func TestToolConfigCWD(t *testing.T) {
-	config := &ToolConfig{}
+func Test_ToolConfigValidation(t *testing.T) {
+	toolID := "test-tool"
 
-	// Test setting CWD
-	config.SetCWD("/test/path")
-	assert.Equal(t, "/test/path", config.GetCWD())
+	t.Run("Should validate valid tool configuration", func(t *testing.T) {
+		config := &ToolConfig{
+			ID:  toolID,
+			cwd: common.NewCWD("/test/path"),
+		}
 
-	// Test updating CWD
-	config.SetCWD("/new/path")
-	assert.Equal(t, "/new/path", config.GetCWD())
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should return error when CWD is missing", func(t *testing.T) {
+		config := &ToolConfig{
+			ID: toolID,
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "current working directory is required for test-tool")
+	})
+
+	t.Run("Should return error for invalid package reference", func(t *testing.T) {
+		config := &ToolConfig{
+			ID:  toolID,
+			Use: pkgref.NewPackageRefConfig("invalid"),
+			cwd: common.NewCWD("/test/path"),
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Invalid package reference")
+	})
+
+	t.Run("Should return error for invalid execute path", func(t *testing.T) {
+		config := &ToolConfig{
+			ID:      toolID,
+			Execute: "./nonexistent.ts",
+			cwd:     common.NewCWD("/test/path"),
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid tool execute path: /test/path/nonexistent.ts")
+	})
+
+	t.Run("Should return error when input schema is used with ID reference", func(t *testing.T) {
+		config := &ToolConfig{
+			ID:  toolID,
+			Use: pkgref.NewPackageRefConfig("tool(id=test-tool)"),
+			InputSchema: &schema.InputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+				},
+			},
+			cwd: common.NewCWD("/test/path"),
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Input schema not allowed for reference type id")
+	})
+
+	t.Run("Should return error when output schema is used with file reference", func(t *testing.T) {
+		config := &ToolConfig{
+			ID:  toolID,
+			Use: pkgref.NewPackageRefConfig("tool(file=basic_tool.yaml)"),
+			OutputSchema: &schema.OutputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+				},
+			},
+			cwd: common.NewCWD("/test/path"),
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Output schema not allowed for reference type file")
+	})
+
+	t.Run("Should return error when schemas are used with dep reference", func(t *testing.T) {
+		config := &ToolConfig{
+			ID:  toolID,
+			Use: pkgref.NewPackageRefConfig("tool(dep=compozy/tools:test-tool)"),
+			InputSchema: &schema.InputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+				},
+			},
+			OutputSchema: &schema.OutputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+				},
+			},
+			cwd: common.NewCWD("/test/path"),
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Input schema not allowed for reference type dep")
+	})
+
+	t.Run("Should validate tool with valid parameters", func(t *testing.T) {
+		config := &ToolConfig{
+			ID: toolID,
+			InputSchema: &schema.InputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{
+							"type": "string",
+						},
+					},
+				},
+			},
+			With: &common.WithParams{
+				"name": "test",
+			},
+			cwd: common.NewCWD("/test/path"),
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should return error for tool with invalid parameters", func(t *testing.T) {
+		config := &ToolConfig{
+			ID:      toolID,
+			Execute: "./test.ts",
+			cwd:     common.NewCWD("/test/path"),
+			InputSchema: &schema.InputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{
+							"type": "string",
+						},
+					},
+					"required": []string{"name"},
+				},
+			},
+			With: &common.WithParams{
+				"age": 42,
+			},
+		}
+
+		TestMode = false
+		defer func() { TestMode = true }()
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "with parameters invalid for test-tool")
+	})
 }
 
-func TestToolConfigMerge(t *testing.T) {
-	baseConfig := &ToolConfig{
-		Env: common.EnvMap{
-			"KEY1": "value1",
-		},
-		With: &common.WithParams{},
-	}
+func Test_ToolConfigCWD(t *testing.T) {
+	t.Run("Should handle CWD operations correctly", func(t *testing.T) {
+		config := &ToolConfig{}
 
-	otherConfig := &ToolConfig{
-		Env: common.EnvMap{
-			"KEY2": "value2",
-		},
-		With: &common.WithParams{},
-	}
+		// Test setting CWD
+		config.SetCWD("/test/path")
+		assert.Equal(t, "/test/path", config.GetCWD())
 
-	err := baseConfig.Merge(otherConfig)
-	require.NoError(t, err)
-
-	// Check that base config has both env variables
-	assert.Equal(t, "value1", baseConfig.Env["KEY1"])
-	assert.Equal(t, "value2", baseConfig.Env["KEY2"])
+		// Test updating CWD
+		config.SetCWD("/new/path")
+		assert.Equal(t, "/new/path", config.GetCWD())
+	})
 }
 
-func TestToolExecuteIsTypeScript(t *testing.T) {
-	tests := []struct {
-		name     string
-		execute  string
-		expected bool
-	}{
-		{
-			name:     "TypeScript file",
-			execute:  "./script.ts",
-			expected: true,
-		},
-		{
-			name:     "JavaScript file",
-			execute:  "./script.js",
-			expected: false,
-		},
-		{
-			name:     "Python file",
-			execute:  "./script.py",
-			expected: false,
-		},
-		{
-			name:     "No extension",
-			execute:  "./script",
-			expected: false,
-		},
-	}
+func Test_ToolConfigMerge(t *testing.T) {
+	t.Run("Should merge configurations correctly", func(t *testing.T) {
+		baseConfig := &ToolConfig{
+			Env: common.EnvMap{
+				"KEY1": "value1",
+			},
+			With: &common.WithParams{},
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, IsTypeScript(tt.execute))
-		})
-	}
+		otherConfig := &ToolConfig{
+			Env: common.EnvMap{
+				"KEY2": "value2",
+			},
+			With: &common.WithParams{},
+		}
+
+		err := baseConfig.Merge(otherConfig)
+		require.NoError(t, err)
+
+		// Check that base config has both env variables
+		assert.Equal(t, "value1", baseConfig.Env["KEY1"])
+		assert.Equal(t, "value2", baseConfig.Env["KEY2"])
+	})
+}
+
+func Test_ToolExecuteIsTypeScript(t *testing.T) {
+	t.Run("Should identify TypeScript file correctly", func(t *testing.T) {
+		assert.True(t, IsTypeScript("./script.ts"))
+	})
+
+	t.Run("Should identify JavaScript file correctly", func(t *testing.T) {
+		assert.False(t, IsTypeScript("./script.js"))
+	})
+
+	t.Run("Should identify Python file correctly", func(t *testing.T) {
+		assert.False(t, IsTypeScript("./script.py"))
+	})
+
+	t.Run("Should identify file without extension correctly", func(t *testing.T) {
+		assert.False(t, IsTypeScript("./script"))
+	})
 }

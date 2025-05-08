@@ -1,15 +1,22 @@
-.PHONY: all test lint clean build dev dev-weather deps schemagen help
+.PHONY: all test lint fmt clean build dev dev-weather deps schemagen help
 
 # Default target
-all: test lint
+all: test lint fmt
 
 # Run tests using gotestsum
 test:
-	gotestsum -- ./...
+	gotestsum -f testdox -- ./...
 
 # Run linter using golangci-lint
 lint:
 	golangci-lint run
+	@echo "Linting completed successfully"
+
+# Format code using gofmt
+fmt:
+	@echo "Formatting code..."
+	@find . -name "*.go" -not -path "./vendor/*" -exec gofmt -s -w {} \;
+	@echo "Formatting completed successfully"
 
 # Clean build artifacts
 clean:
@@ -44,6 +51,7 @@ help:
 	@echo "Available commands:"
 	@echo "  make test    - Run tests using gotestsum"
 	@echo "  make lint    - Run linter using golangci-lint"
+	@echo "  make fmt     - Format code using gofmt"
 	@echo "  make clean   - Clean build artifacts"
 	@echo "  make build   - Build the application"
 	@echo "  make dev     - Run the development server"
