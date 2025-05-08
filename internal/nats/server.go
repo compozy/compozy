@@ -190,3 +190,77 @@ func (s *NatsServer) RequestTool(req *ToolRequest, timeout time.Duration) (*Tool
 		return nil, fmt.Errorf("unexpected response type: %s", respMessage.Type)
 	}
 }
+
+// PublishLog publishes a log message to the appropriate subject
+func (s *NatsServer) PublishLog(logMsg *LogMessage) error {
+	msg, err := NewMessage(TypeLog, logMsg)
+	if err != nil {
+		return fmt.Errorf("failed to create log message: %w", err)
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal log message: %w", err)
+	}
+
+	subject := GenLogSubject(logMsg.Level)
+	return s.Conn.Publish(subject, data)
+}
+
+// SubscribeToLogs subscribes to log messages and calls the handler for each message
+func (s *NatsServer) SubscribeToLogs(handler func(*LogMessage)) (*nats.Subscription, error) {
+	subject := GenLogWildcard()
+
+	sub, err := s.Conn.Subscribe(subject, func(msg *nats.Msg) {
+		var message Message
+		if err := json.Unmarshal(msg.Data, &message); err != nil {
+			return // Silently ignore invalid messages
+		}
+
+		if message.Type != TypeLog {
+			return // Ignore non-log messages
+		}
+
+		var logMsg LogMessage
+		if err := message.UnmarshalPayload(&logMsg); err != nil {
+			return // Silently ignore invalid log messages
+		}
+
+		handler(&logMsg)
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to subscribe to logs: %w", err)
+	}
+
+	return sub, nil
+}
+
+// SubscribeToLogLevel subscribes to log messages of a specific level
+func (s *NatsServer) SubscribeToLogLevel(level LogLevel, handler func(*LogMessage)) (*nats.Subscription, error) {
+	subject := GenLogSubject(level)
+
+	sub, err := s.Conn.Subscribe(subject, func(msg *nats.Msg) {
+		var message Message
+		if err := json.Unmarshal(msg.Data, &message); err != nil {
+			return // Silently ignore invalid messages
+		}
+
+		if message.Type != TypeLog {
+			return // Ignore non-log messages
+		}
+
+		var logMsg LogMessage
+		if err := message.UnmarshalPayload(&logMsg); err != nil {
+			return // Silently ignore invalid log messages
+		}
+
+		handler(&logMsg)
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to subscribe to log level %s: %w", level, err)
+	}
+
+	return sub, nil
+}

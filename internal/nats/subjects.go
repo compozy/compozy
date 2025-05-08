@@ -10,6 +10,7 @@ const (
 	SubjectError    = "error"
 	SubjectRequest  = "request"
 	SubjectResponse = "response"
+	SubjectLog      = "log"
 )
 
 // GenAgentRequestSubject creates a subject for an AgentRequest
@@ -45,4 +46,14 @@ func GenAgentRequestWildcard(agentID string) string {
 // GenToolRequestWildcard creates a wildcard subject for subscribing to all ToolRequests for a tool
 func GenToolRequestWildcard(toolID string) string {
 	return fmt.Sprintf("%s.%s.%s.%s.>", SubjectPrefix, SubjectTool, toolID, SubjectRequest)
+}
+
+// GenLogSubject creates a subject for log messages
+func GenLogSubject(level LogLevel) string {
+	return fmt.Sprintf("%s.%s.%s", SubjectPrefix, SubjectLog, level)
+}
+
+// GenLogWildcard creates a wildcard subject for subscribing to all log messages
+func GenLogWildcard() string {
+	return fmt.Sprintf("%s.%s.>", SubjectPrefix, SubjectLog)
 }

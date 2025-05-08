@@ -59,4 +59,17 @@ func Test_Subjects(t *testing.T) {
 		result := GenToolRequestWildcard(toolID)
 		assert.Equal(t, expected, result)
 	})
+
+	t.Run("Should generate correct log subject", func(t *testing.T) {
+		level := InfoLevel
+		expected := "compozy.log.info"
+		result := GenLogSubject(level)
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("Should generate correct log wildcard subject", func(t *testing.T) {
+		expected := "compozy.log.>"
+		result := GenLogWildcard()
+		assert.Equal(t, expected, result)
+	})
 }

@@ -2,7 +2,9 @@ package nats
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -24,6 +26,7 @@ const (
 	TypeToolRequest   MessageType = "ToolRequest"
 	TypeToolResponse  MessageType = "ToolResponse"
 	TypeError         MessageType = "Error"
+	TypeLog           MessageType = "Log"
 )
 
 // Message is the base structure for all protocol messages
@@ -167,4 +170,50 @@ func NewErrorMessage(message string, requestID string, stack string, data any) (
 		Stack:     stack,
 		Data:      dataJSON,
 	}, nil
+}
+
+type LogLevel string
+
+const (
+	DebugLevel LogLevel = "debug"
+	InfoLevel  LogLevel = "info"
+	WarnLevel  LogLevel = "warn"
+	ErrorLevel LogLevel = "error"
+)
+
+type LogMessage struct {
+	Level     LogLevel       `json:"log_level"`
+	Message   string         `json:"message"`
+	Context   map[string]any `json:"context,omitempty"`
+	Timestamp time.Time      `json:"timestamp"`
+}
+
+func NewLogLevel(level LogLevel, msg string, ctx map[string]any, timestamp time.Time) (*LogMessage, error) {
+	if level == "" {
+		return nil, errors.New("log level cannot be empty")
+	}
+
+	if msg == "" {
+		return nil, errors.New("log message cannot be empty")
+	}
+
+	if timestamp.IsZero() {
+		return nil, errors.New("timestamp cannot be zero")
+	}
+
+	return &LogMessage{
+		Level:     level,
+		Message:   msg,
+		Context:   ctx,
+		Timestamp: timestamp,
+	}, nil
+}
+
+func (l *LogMessage) MarshalJSON() ([]byte, error) {
+	type Alias LogMessage
+	return json.Marshal(&struct {
+		*Alias
+	}{
+		Alias: (*Alias)(l),
+	})
 }

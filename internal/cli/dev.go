@@ -5,11 +5,94 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/compozy/compozy/internal/logger"
+	"github.com/compozy/compozy/internal/nats"
 	"github.com/compozy/compozy/internal/parser/project"
 	"github.com/compozy/compozy/internal/server"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
 )
+
+// setupLogger initializes the logger with the given configuration
+func setupLogger(logLevel string, logJSON, logSource bool) {
+	// Parse log level
+	var level log.Level
+	switch logLevel {
+	case "debug":
+		level = log.DebugLevel
+	case "info":
+		level = log.InfoLevel
+	case "warn":
+		level = log.WarnLevel
+	case "error":
+		level = log.ErrorLevel
+	default:
+		level = log.InfoLevel
+	}
+
+	// Initialize logger with development-friendly settings
+	logger.Init(&logger.Config{
+		Level:      level,
+		JSON:       logJSON,
+		AddSource:  logSource,
+		TimeFormat: "15:04:05", // Use time format with seconds
+	})
+}
+
+// handleNatsLogMessage converts and logs a NATS log message using our logger
+func handleNatsLogMessage(msg *nats.LogMessage) {
+	// Convert NATS log level to our logger level
+	var logLevel log.Level
+	switch msg.Level {
+	case nats.DebugLevel:
+		logLevel = log.DebugLevel
+	case nats.InfoLevel:
+		logLevel = log.InfoLevel
+	case nats.WarnLevel:
+		logLevel = log.WarnLevel
+	case nats.ErrorLevel:
+		logLevel = log.ErrorLevel
+	default:
+		logLevel = log.InfoLevel
+	}
+
+	// Add context fields if present
+	fields := make([]any, 0)
+	if msg.Context != nil {
+		for k, v := range msg.Context {
+			fields = append(fields, k, v)
+		}
+	}
+
+	// Log the message with appropriate level
+	switch logLevel {
+	case log.DebugLevel:
+		logger.Debug(msg.Message, fields...)
+	case log.InfoLevel:
+		logger.Info(msg.Message, fields...)
+	case log.WarnLevel:
+		logger.Warn(msg.Message, fields...)
+	case log.ErrorLevel:
+		logger.Error(msg.Message, fields...)
+	}
+}
+
+// setupNatsServer starts the NATS server and sets up log message subscription
+func setupNatsServer() (*nats.NatsServer, error) {
+	// Start NATS server
+	natsServer, err := nats.NewNatsServer(nats.DefaultServerOptions())
+	if err != nil {
+		return nil, err
+	}
+
+	// Subscribe to log messages
+	_, err = natsServer.SubscribeToLogs(handleNatsLogMessage)
+	if err != nil {
+		natsServer.Shutdown() // Clean up on error
+		return nil, err
+	}
+
+	return natsServer, nil
+}
 
 // DevCmd returns the dev command
 func DevCmd() *cobra.Command {
@@ -29,28 +112,16 @@ func DevCmd() *cobra.Command {
 			// Set Gin to release mode to reduce debug output
 			gin.SetMode(gin.ReleaseMode)
 
-			// Parse log level
-			var level log.Level
-			switch logLevel {
-			case "debug":
-				level = log.DebugLevel
-			case "info":
-				level = log.InfoLevel
-			case "warn":
-				level = log.WarnLevel
-			case "error":
-				level = log.ErrorLevel
-			default:
-				level = log.InfoLevel
-			}
+			// Setup logger
+			setupLogger(logLevel, logJSON, logSource)
 
-			// Initialize logger with development-friendly settings
-			logger.Init(&logger.Config{
-				Level:      level,
-				JSON:       logJSON,
-				AddSource:  logSource,
-				TimeFormat: "15:04:05", // Use time format with seconds
-			})
+			// Setup NATS server
+			natsServer, err := setupNatsServer()
+			if err != nil {
+				logger.Error("Failed to setup NATS server", "error", err)
+				return err
+			}
+			defer natsServer.Shutdown()
 
 			// Resolve paths
 			if cwd == "" {

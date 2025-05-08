@@ -328,4 +328,158 @@ func Test_Server(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to send tool request")
 	})
+
+	t.Run("Should handle log message publishing and subscribing", func(t *testing.T) {
+		server := startNATSServer(t)
+		defer server.Shutdown()
+
+		// Create channels for synchronization
+		ready := make(chan struct{})
+		done := make(chan struct{})
+		defer close(done)
+
+		// Create a channel to receive log messages
+		logs := make(chan *LogMessage, 10)
+		defer close(logs)
+
+		go func() {
+			nc := connectToServer(t, server)
+			defer nc.Close()
+
+			// Subscribe to all log messages
+			sub, err := server.SubscribeToLogs(func(msg *LogMessage) {
+				logs <- msg
+			})
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			defer sub.Unsubscribe()
+
+			nc.Flush()   // Ensure subscription is registered
+			close(ready) // Signal that we're ready
+
+			// Keep the goroutine alive until test completes
+			<-done
+		}()
+
+		// Wait for subscription to be ready
+		select {
+		case <-ready:
+			// Subscription is ready, proceed with test
+		case <-time.After(2 * time.Second):
+			t.Fatal("Timeout waiting for subscription to be ready")
+		}
+
+		// Publish different log messages
+		logMessages := []struct {
+			level   LogLevel
+			message string
+			context map[string]any
+		}{
+			{InfoLevel, "Info message", map[string]any{"info": true}},
+			{ErrorLevel, "Error message", map[string]any{"error": true}},
+			{DebugLevel, "Debug message", map[string]any{"debug": true}},
+		}
+
+		for _, lm := range logMessages {
+			logMsg, err := NewLogLevel(lm.level, lm.message, lm.context, time.Now())
+			assert.NoError(t, err)
+			err = server.PublishLog(logMsg)
+			assert.NoError(t, err)
+		}
+
+		// Verify all messages were received
+		for i := 0; i < len(logMessages); i++ {
+			select {
+			case msg := <-logs:
+				found := false
+				for _, lm := range logMessages {
+					if msg.Level == lm.level && msg.Message == lm.message {
+						assert.Equal(t, lm.context, msg.Context)
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "Received unexpected log message: %+v", msg)
+			case <-time.After(2 * time.Second):
+				t.Fatalf("Timeout waiting for log message %d", i+1)
+			}
+		}
+	})
+
+	t.Run("Should handle level-specific log subscriptions", func(t *testing.T) {
+		server := startNATSServer(t)
+		defer server.Shutdown()
+
+		// Create channels for synchronization
+		ready := make(chan struct{})
+		done := make(chan struct{})
+		defer close(done)
+
+		// Create a channel to receive error logs
+		errorLogs := make(chan *LogMessage, 5)
+		defer close(errorLogs)
+
+		go func() {
+			nc := connectToServer(t, server)
+			defer nc.Close()
+
+			// Subscribe only to error logs
+			sub, err := server.SubscribeToLogLevel(ErrorLevel, func(msg *LogMessage) {
+				errorLogs <- msg
+			})
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			defer sub.Unsubscribe()
+
+			nc.Flush()   // Ensure subscription is registered
+			close(ready) // Signal that we're ready
+
+			// Keep the goroutine alive until test completes
+			<-done
+		}()
+
+		// Wait for subscription to be ready
+		select {
+		case <-ready:
+			// Subscription is ready, proceed with test
+		case <-time.After(2 * time.Second):
+			t.Fatal("Timeout waiting for subscription to be ready")
+		}
+
+		// Publish different log messages
+		logMessages := []struct {
+			level   LogLevel
+			message string
+		}{
+			{InfoLevel, "Info message"},
+			{ErrorLevel, "Error message"},
+			{DebugLevel, "Debug message"},
+			{ErrorLevel, "Another error"},
+		}
+
+		for _, lm := range logMessages {
+			logMsg, err := NewLogLevel(lm.level, lm.message, nil, time.Now())
+			assert.NoError(t, err)
+			err = server.PublishLog(logMsg)
+			assert.NoError(t, err)
+		}
+
+		// Verify only error messages were received
+		receivedCount := 0
+		for i := 0; i < 2; i++ { // We expect 2 error messages
+			select {
+			case msg := <-errorLogs:
+				assert.Equal(t, ErrorLevel, msg.Level)
+				receivedCount++
+			case <-time.After(2 * time.Second):
+				t.Fatalf("Timeout waiting for error log message %d", i+1)
+			}
+		}
+
+		assert.Equal(t, 2, receivedCount, "Expected to receive exactly 2 error messages")
+	})
 }
