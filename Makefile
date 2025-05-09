@@ -35,12 +35,13 @@ dev:
 
 # Run the development server with weather-agent example
 dev-weather:
-	go run . dev --cwd examples/weather-agent --debug
+	wgo run . dev --cwd examples/weather-agent --debug
 
 # Install development dependencies
 deps:
 	go install gotest.tools/gotestsum@latest
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install github.com/bokwoon95/wgo@latest
 
 # Generate JSON schemas
 schemagen:

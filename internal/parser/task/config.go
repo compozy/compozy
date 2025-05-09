@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/parser/pkgref"
 	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/compozy/compozy/internal/parser/transition"
+	"github.com/compozy/compozy/internal/parser/validator"
 )
 
 type TaskType string
@@ -75,14 +76,17 @@ func Load(path string) (*TaskConfig, error) {
 
 // Validate validates the task configuration
 func (t *TaskConfig) Validate() error {
-	validator := common.NewCompositeValidator(
-		schema.NewCWDValidator(t.cwd, t.ID),
+	v := common.NewCompositeValidator(
+		validator.NewCWDValidator(t.cwd, t.ID),
 		schema.NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
-		schema.NewWithParamsValidator(t.With, t.InputSchema, t.ID),
 		NewPackageRefValidator(t.Use, t.cwd),
 		NewTaskTypeValidator(t.Type, t.Action, t.Condition, t.Routes),
 	)
-	return validator.Validate()
+	return v.Validate()
+}
+
+func (t *TaskConfig) ValidateParams(input map[string]any) error {
+	return validator.NewParamsValidator(input, t.InputSchema.Schema, t.ID).Validate()
 }
 
 // Merge merges another task configuration into this one

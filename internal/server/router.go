@@ -8,9 +8,11 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/logger"
+	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/trigger"
 	"github.com/compozy/compozy/internal/parser/workflow"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // Route defines a server route
@@ -21,18 +23,12 @@ type Route struct {
 
 // normalizePath ensures the path starts with a single slash and preserves trailing slashes
 func normalizePath(p string) string {
-	// Trim spaces
 	p = strings.TrimSpace(p)
-
-	// Handle empty path
 	if p == "" {
 		return "/"
 	}
 
-	// Check if path has trailing slash
 	hasTrailingSlash := strings.HasSuffix(p, "/")
-
-	// Use path.Clean to normalize slashes and remove multiple slashes
 	cleanPath := path.Clean(p)
 
 	// Ensure path starts with a single slash
@@ -74,24 +70,23 @@ func RouteFromWorkflow(workflow *workflow.WorkflowConfig) (*Route, error) {
 // handleRequest handles an incoming webhook request
 func handleRequest(c *gin.Context, workflow *workflow.WorkflowConfig) {
 	start := time.Now()
-	requestID := c.GetHeader("X-Request-ID")
-	if requestID == "" {
-		requestID = fmt.Sprintf("%d", time.Now().UnixNano())
+	execID := uuid.New().String()
+	_, err := GetAppState(c.Request.Context())
+	if err != nil {
+		logger.Error("Failed to get app state",
+			"exec_id", execID,
+			"error", err,
+		)
+		reqErr := NewRequestError(http.StatusInternalServerError, "Failed to get app state", err)
+		c.JSON(reqErr.StatusCode, reqErr.ToErrorResponse())
+		return
 	}
 
-	logger.Info("Handling webhook request",
-		"request_id", requestID,
-		"workflow_id", workflow.ID,
-		"path", c.Request.URL.Path,
-		"method", c.Request.Method,
-		"client_ip", c.ClientIP(),
-	)
-
 	// Parse the input JSON
-	var inputData map[string]any
+	var inputData common.TriggerInput
 	if err := c.ShouldBindJSON(&inputData); err != nil {
 		logger.Error("Failed to parse JSON input",
-			"request_id", requestID,
+			"exec_id", execID,
 			"workflow_id", workflow.ID,
 			"error", err,
 		)
@@ -103,7 +98,7 @@ func handleRequest(c *gin.Context, workflow *workflow.WorkflowConfig) {
 	// Return success response
 	duration := time.Since(start)
 	logger.Debug("Webhook request completed successfully",
-		"request_id", requestID,
+		"exec_id", execID,
 		"workflow_id", workflow.ID,
 		"duration_ms", duration.Milliseconds(),
 	)

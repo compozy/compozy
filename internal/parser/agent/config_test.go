@@ -105,29 +105,6 @@ func Test_AgentActionConfigValidation(t *testing.T) {
 		assert.Contains(t, err.Error(), "current working directory is required for test-action")
 	})
 
-	t.Run("Should validate action config with valid parameters", func(t *testing.T) {
-		config := &AgentActionConfig{
-			ID:     "test-action",
-			Prompt: "test prompt",
-			cwd:    common.NewCWD("/test/path"),
-			InputSchema: &schema.InputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"name": map[string]any{
-							"type": "string",
-						},
-					},
-				},
-			},
-			With: &common.WithParams{
-				"name": "test",
-			},
-		}
-		err := config.Validate()
-		assert.NoError(t, err)
-	})
-
 	t.Run("Should return error when parameters are invalid", func(t *testing.T) {
 		config := &AgentActionConfig{
 			ID:     "test-action",
@@ -148,7 +125,7 @@ func Test_AgentActionConfigValidation(t *testing.T) {
 				"age": 42,
 			},
 		}
-		err := config.Validate()
+		err := config.ValidateParams(*config.With)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "with parameters invalid for test-action")
 	})
@@ -234,7 +211,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 		}
 		err := config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Invalid package reference")
+		assert.Contains(t, err.Error(), "invalid package reference")
 	})
 
 	t.Run("Should return error when input schema is used with ID reference", func(t *testing.T) {
@@ -252,7 +229,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 		}
 		err := config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Input schema not allowed for reference type id")
+		assert.Contains(t, err.Error(), "input schema not allowed for reference type id")
 	})
 
 	t.Run("Should return error when output schema is used with file reference", func(t *testing.T) {
@@ -270,7 +247,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 		}
 		err := config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Output schema not allowed for reference type file")
+		assert.Contains(t, err.Error(), "output schema not allowed for reference type file")
 	})
 
 	t.Run("Should return error when schemas are used with dep reference", func(t *testing.T) {
@@ -293,31 +270,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 		}
 		err := config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Input schema not allowed for reference type dep")
-	})
-
-	t.Run("Should validate config with valid parameters", func(t *testing.T) {
-		config := &AgentConfig{
-			ID:           agentID,
-			Config:       provider.ProviderConfig{},
-			Instructions: "test instructions",
-			InputSchema: &schema.InputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"name": map[string]any{
-							"type": "string",
-						},
-					},
-				},
-			},
-			With: &common.WithParams{
-				"name": "test",
-			},
-			cwd: common.NewCWD("/test/path"),
-		}
-		err := config.Validate()
-		assert.NoError(t, err)
+		assert.Contains(t, err.Error(), "input schema not allowed for reference type dep")
 	})
 
 	t.Run("Should return error when parameters are invalid", func(t *testing.T) {
@@ -341,7 +294,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 			},
 			cwd: common.NewCWD("/test/path"),
 		}
-		err := config.Validate()
+		err := config.ValidateParams(*config.With)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "with parameters invalid for test-agent")
 	})

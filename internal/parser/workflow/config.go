@@ -9,10 +9,10 @@ import (
 	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/author"
 	"github.com/compozy/compozy/internal/parser/common"
-	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/compozy/compozy/internal/parser/task"
 	"github.com/compozy/compozy/internal/parser/tool"
 	"github.com/compozy/compozy/internal/parser/trigger"
+	"github.com/compozy/compozy/internal/parser/validator"
 )
 
 // TestMode is used to skip file existence checks during testing
@@ -37,8 +37,10 @@ type WorkflowConfig struct {
 func (w *WorkflowConfig) SetCWD(path string) {
 	if w.cwd == nil {
 		w.cwd = common.NewCWD(path)
+		setComponentsCWD(w, path)
 	} else {
 		w.cwd.Set(path)
+		setComponentsCWD(w, path)
 	}
 }
 
@@ -50,7 +52,6 @@ func (w *WorkflowConfig) GetCWD() string {
 	return w.cwd.Get()
 }
 
-// Load loads a workflow configuration from a file
 func Load(path string) (*WorkflowConfig, error) {
 	config, err := common.LoadConfig[*WorkflowConfig](path)
 	if err != nil {
@@ -60,31 +61,19 @@ func Load(path string) (*WorkflowConfig, error) {
 		return nil, NewDecodeError(err)
 	}
 
-	// Set CWD for all components
-	for i := range config.Tasks {
-		config.Tasks[i].SetCWD(config.GetCWD())
-	}
-	for i := range config.Tools {
-		config.Tools[i].SetCWD(config.GetCWD())
-	}
-	for i := range config.Agents {
-		config.Agents[i].SetCWD(config.GetCWD())
-	}
-
+	setComponentsCWD(config, config.GetCWD())
 	return config, nil
 }
 
-// Validate validates the workflow configuration
 func (w *WorkflowConfig) Validate() error {
-	// Validate CWD
-	validator := common.NewCompositeValidator(
-		schema.NewCWDValidator(w.cwd, string(w.ID)),
+	v := common.NewCompositeValidator(
+		validator.NewCWDValidator(w.cwd, string(w.ID)),
+		NewTriggerValidator(*w),
 	)
-	if err := validator.Validate(); err != nil {
+	if err := v.Validate(); err != nil {
 		return err
 	}
 
-	// Validate tasks
 	var taskComponents []common.Config
 	for i := range w.Tasks {
 		w.Tasks[i].SetCWD(w.cwd.Get())
@@ -114,11 +103,14 @@ func (w *WorkflowConfig) Validate() error {
 		return err
 	}
 
-	// Validate trigger
-	return NewTriggerValidator(w.Trigger).Validate()
+	return nil
 }
 
-// Merge merges another workflow configuration into this one
+func (w *WorkflowConfig) ValidateParams(input map[string]any) error {
+	inputSchema := w.Trigger.InputSchema
+	return validator.NewParamsValidator(input, inputSchema.Schema, w.ID).Validate()
+}
+
 func (w *WorkflowConfig) Merge(other any) error {
 	otherConfig, ok := other.(*WorkflowConfig)
 	if !ok {
@@ -131,4 +123,16 @@ func (w *WorkflowConfig) Merge(other any) error {
 func (w *WorkflowConfig) LoadID() (string, error) {
 	// Workflow configs don't support package references, so just return the ID
 	return string(w.ID), nil
+}
+
+func setComponentsCWD(config *WorkflowConfig, cwd string) {
+	for i := range config.Tasks {
+		config.Tasks[i].SetCWD(cwd)
+	}
+	for i := range config.Tools {
+		config.Tools[i].SetCWD(cwd)
+	}
+	for i := range config.Agents {
+		config.Agents[i].SetCWD(cwd)
+	}
 }

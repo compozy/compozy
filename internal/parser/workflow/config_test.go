@@ -5,12 +5,9 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
 	"github.com/compozy/compozy/internal/parser/provider"
-	"github.com/compozy/compozy/internal/parser/schema"
-	"github.com/compozy/compozy/internal/parser/task"
 	"github.com/compozy/compozy/internal/parser/tool"
 	"github.com/compozy/compozy/internal/parser/trigger"
 	"github.com/compozy/compozy/internal/utils"
@@ -166,103 +163,6 @@ func Test_WorkflowConfigValidation(t *testing.T) {
 		assert.Contains(t, err.Error(), "current working directory is required for test-workflow")
 	})
 
-	t.Run("Should return error for task with invalid parameters", func(t *testing.T) {
-		config := &WorkflowConfig{
-			ID:  "test-workflow",
-			cwd: common.NewCWD("/test/path"),
-			Tasks: []task.TaskConfig{
-				{
-					ID:   "test-task",
-					Type: task.TaskTypeBasic,
-					InputSchema: &schema.InputSchema{
-						Schema: schema.Schema{
-							"type": "object",
-							"properties": map[string]any{
-								"name": map[string]any{
-									"type": "string",
-								},
-							},
-							"required": []string{"name"},
-						},
-					},
-					With: &common.WithParams{
-						"age": 42,
-					},
-				},
-			},
-		}
-
-		err := config.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "with parameters invalid for test-task")
-	})
-
-	t.Run("Should return error for tool with invalid parameters", func(t *testing.T) {
-		config := &WorkflowConfig{
-			ID:  "test-workflow",
-			cwd: common.NewCWD("/test/path"),
-			Tools: []tool.ToolConfig{
-				{
-					ID:      "test-tool",
-					Execute: "./test.ts",
-					InputSchema: &schema.InputSchema{
-						Schema: schema.Schema{
-							"type": "object",
-							"properties": map[string]any{
-								"name": map[string]any{
-									"type": "string",
-								},
-							},
-							"required": []string{"name"},
-						},
-					},
-					With: &common.WithParams{
-						"age": 42,
-					},
-				},
-			},
-		}
-
-		err := config.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "with parameters invalid for test-tool")
-	})
-
-	t.Run("Should return error for agent with invalid parameters", func(t *testing.T) {
-		config := &WorkflowConfig{
-			ID:  "test-workflow",
-			cwd: common.NewCWD("/test/path"),
-			Agents: []agent.AgentConfig{
-				{
-					ID: "test-agent",
-					Actions: []*agent.AgentActionConfig{
-						{
-							ID:     "test-action",
-							Prompt: "test prompt",
-							InputSchema: &schema.InputSchema{
-								Schema: schema.Schema{
-									"type": "object",
-									"properties": map[string]any{
-										"name": map[string]any{
-											"type": "string",
-										},
-									},
-									"required": []string{"name"},
-								},
-							},
-							With: &common.WithParams{
-								"age": 42,
-							},
-						},
-					},
-				},
-			},
-		}
-
-		err := config.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "with parameters invalid for test-action")
-	})
 }
 
 func Test_WorkflowConfigCWD(t *testing.T) {

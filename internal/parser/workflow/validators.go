@@ -5,8 +5,11 @@ import (
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/task"
 	"github.com/compozy/compozy/internal/parser/tool"
-	"github.com/compozy/compozy/internal/parser/trigger"
 )
+
+// -----------------------------------------------------------------------------
+// ComponentsValidator
+// -----------------------------------------------------------------------------
 
 // ComponentsValidator validates a list of components
 type ComponentsValidator struct {
@@ -37,18 +40,24 @@ func (v *ComponentsValidator) Validate() error {
 	return nil
 }
 
+// -----------------------------------------------------------------------------
+// TriggerValidator
+// -----------------------------------------------------------------------------
+
 // TriggerValidator validates the trigger configuration
 type TriggerValidator struct {
-	trigger trigger.TriggerConfig
+	config WorkflowConfig
 }
 
-func NewTriggerValidator(trigger trigger.TriggerConfig) *TriggerValidator {
-	return &TriggerValidator{trigger: trigger}
+func NewTriggerValidator(config WorkflowConfig) *TriggerValidator {
+	return &TriggerValidator{config: config}
 }
 
 func (v *TriggerValidator) Validate() error {
-	if err := v.trigger.Validate(); err != nil {
+	trigger := v.config.Trigger
+	if err := trigger.Validate(); err != nil {
 		return NewTriggerValidationError(err)
 	}
+
 	return nil
 }

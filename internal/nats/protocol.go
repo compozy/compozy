@@ -31,22 +31,22 @@ const (
 
 // Message is the base structure for all protocol messages
 type Message struct {
-	RequestID string          `json:"request_id"`
-	Type      MessageType     `json:"type"`
-	Payload   json.RawMessage `json:"payload"`
+	ExecId  string          `json:"exec_id"`
+	Type    MessageType     `json:"type"`
+	Payload json.RawMessage `json:"payload"`
 }
 
 // NewMessage creates a new message with the given type and payload
-func NewMessage(requestID string, messageType MessageType, payload any) (*Message, error) {
+func NewMessage(execID string, messageType MessageType, payload any) (*Message, error) {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
 	return &Message{
-		RequestID: requestID,
-		Type:      messageType,
-		Payload:   payloadBytes,
+		ExecId:  execID,
+		Type:    messageType,
+		Payload: payloadBytes,
 	}, nil
 }
 

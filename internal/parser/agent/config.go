@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/parser/provider"
 	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/compozy/compozy/internal/parser/tool"
+	"github.com/compozy/compozy/internal/parser/validator"
 )
 
 // AgentActionConfig represents an agent action configuration
@@ -42,12 +43,15 @@ func (a *AgentActionConfig) GetCWD() string {
 
 // Validate validates the action configuration
 func (a *AgentActionConfig) Validate() error {
-	validator := common.NewCompositeValidator(
-		schema.NewCWDValidator(a.cwd, string(a.ID)),
-		schema.NewWithParamsValidator(a.With, a.InputSchema, string(a.ID)),
+	v := common.NewCompositeValidator(
+		validator.NewCWDValidator(a.cwd, string(a.ID)),
 		common.NewStructValidator(a),
 	)
-	return validator.Validate()
+	return v.Validate()
+}
+
+func (t *AgentActionConfig) ValidateParams(input map[string]any) error {
+	return validator.NewParamsValidator(input, t.InputSchema.Schema, t.ID).Validate()
 }
 
 // AgentConfig represents an agent configuration
@@ -99,15 +103,18 @@ func Load(path string) (*AgentConfig, error) {
 
 // Validate validates the agent configuration
 func (a *AgentConfig) Validate() error {
-	validator := common.NewCompositeValidator(
-		schema.NewCWDValidator(a.cwd, string(a.ID)),
+	v := common.NewCompositeValidator(
+		validator.NewCWDValidator(a.cwd, string(a.ID)),
 		schema.NewSchemaValidator(a.Use, a.InputSchema, a.OutputSchema),
-		schema.NewWithParamsValidator(a.With, a.InputSchema, string(a.ID)),
 		NewPackageRefValidator(a.Use, a.cwd),
 		NewActionsValidator(a.Actions),
 		common.NewStructValidator(a),
 	)
-	return validator.Validate()
+	return v.Validate()
+}
+
+func (a *AgentConfig) ValidateParams(input map[string]any) error {
+	return validator.NewParamsValidator(input, a.InputSchema.Schema, a.ID).Validate()
 }
 
 // Merge merges another agent configuration into this one

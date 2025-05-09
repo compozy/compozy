@@ -2,74 +2,39 @@ package common
 
 import (
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 
+	"dario.cat/mergo"
 	"github.com/joho/godotenv"
 )
 
-// EnvError represents errors that can occur when handling environment variables
-type EnvError struct {
-	Op  string
-	Err error
-}
-
-func (e *EnvError) Error() string {
-	if e.Err == nil {
-		return e.Op
-	}
-	return fmt.Sprintf("%s: %v", e.Op, e.Err)
-}
-
-func (e *EnvError) Unwrap() error {
-	return e.Err
-}
-
-// NewEnvError creates a new environment error
-func NewEnvError(op string, err error) error {
-	return &EnvError{Op: op, Err: err}
-}
-
-// EnvMap represents environment variables for a component
 type EnvMap map[string]string
 
-// FromFile loads environment variables from a file into an EnvMap
-func (e EnvMap) FromFile(path string) error {
-	envMap, err := godotenv.Read(path)
+func NewEnvFromFile(cwd string) (EnvMap, error) {
+	envPath := filepath.Join(cwd, ".env")
+	envMap, err := godotenv.Read(envPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil // Return empty map if file doesn't exist
+			return make(EnvMap), nil
 		}
-		return NewEnvError("read env file", err)
+		return nil, fmt.Errorf("failed to read .env file: %w", err)
 	}
-
-	maps.Copy(e, envMap)
-	return nil
+	return EnvMap(envMap), nil
 }
 
-// LoadFromFile loads environment variables from a file and merges them with existing values
-func (e EnvMap) LoadFromFile(path string) error {
-	// Convert relative path to absolute if needed
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return NewEnvError("resolve env file path", err)
+func (e *EnvMap) Merge(other EnvMap) (EnvMap, error) {
+	env := make(EnvMap)
+	if e == nil && other == nil {
+		return env, nil
 	}
-
-	// Create a new map to store the loaded values
-	newEnv := make(EnvMap)
-	if err := newEnv.FromFile(absPath); err != nil {
-		return err
+	if e != nil {
+		if err := mergo.Merge(&env, *e, mergo.WithOverride); err != nil {
+			return nil, err
+		}
 	}
-
-	// Merge the new values with existing ones
-	e.Merge(newEnv)
-	return nil
-}
-
-// Merge merges another environment map into this one
-func (e EnvMap) Merge(other EnvMap) {
-	for k, v := range other {
-		e[k] = v
+	if err := mergo.Merge(&env, other, mergo.WithOverride); err != nil {
+		return nil, err
 	}
+	return env, nil
 }

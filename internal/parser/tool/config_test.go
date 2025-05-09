@@ -219,7 +219,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 
 		err := config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Invalid package reference")
+		assert.Contains(t, err.Error(), "invalid package reference")
 	})
 
 	t.Run("Should return error for invalid execute path", func(t *testing.T) {
@@ -254,7 +254,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 
 		err := config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Input schema not allowed for reference type id")
+		assert.Contains(t, err.Error(), "input schema not allowed for reference type id")
 	})
 
 	t.Run("Should return error when output schema is used with file reference", func(t *testing.T) {
@@ -274,7 +274,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 
 		err := config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Output schema not allowed for reference type file")
+		assert.Contains(t, err.Error(), "output schema not allowed for reference type file")
 	})
 
 	t.Run("Should return error when schemas are used with dep reference", func(t *testing.T) {
@@ -299,33 +299,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 
 		err := config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Input schema not allowed for reference type dep")
-	})
-
-	t.Run("Should validate tool with valid parameters", func(t *testing.T) {
-		config := &ToolConfig{
-			ID: toolID,
-			InputSchema: &schema.InputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"name": map[string]any{
-							"type": "string",
-						},
-					},
-				},
-			},
-			With: &common.WithParams{
-				"name": "test",
-			},
-			cwd: common.NewCWD("/test/path"),
-		}
-
-		TestMode = false
-		defer func() { TestMode = true }()
-
-		err := config.Validate()
-		assert.NoError(t, err)
+		assert.Contains(t, err.Error(), "input schema not allowed for reference type dep")
 	})
 
 	t.Run("Should return error for tool with invalid parameters", func(t *testing.T) {
@@ -352,7 +326,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 		TestMode = false
 		defer func() { TestMode = true }()
 
-		err := config.Validate()
+		err := config.ValidateParams(*config.With)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "with parameters invalid for test-tool")
 	})

@@ -175,6 +175,7 @@ func Test_HandleRequest(t *testing.T) {
 		state, err := NewAppState("", []*workflow.WorkflowConfig{testWorkflow}, nil)
 		require.NoError(t, err)
 
+		router.Use(AppStateMiddleware(state))
 		err = RegisterRoutes(router, state)
 		require.NoError(t, err)
 
@@ -202,6 +203,7 @@ func Test_HandleRequest(t *testing.T) {
 		state, err := NewAppState("", []*workflow.WorkflowConfig{testWorkflow}, nil)
 		require.NoError(t, err)
 
+		router.Use(AppStateMiddleware(state))
 		err = RegisterRoutes(router, state)
 		require.NoError(t, err)
 
@@ -226,6 +228,7 @@ func Test_HandleRequest(t *testing.T) {
 		state, err := NewAppState("", []*workflow.WorkflowConfig{testWorkflow}, nil)
 		require.NoError(t, err)
 
+		router.Use(AppStateMiddleware(state))
 		err = RegisterRoutes(router, state)
 		require.NoError(t, err)
 

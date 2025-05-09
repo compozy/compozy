@@ -47,7 +47,6 @@ func Load(path string) (*TriggerConfig, error) {
 func (t *TriggerConfig) Validate() error {
 	validator := common.NewCompositeValidator(
 		NewTriggerTypeValidator(t.Type, t.Config),
-		schema.NewSchemaValidator(nil, t.InputSchema, nil),
 	)
 	return validator.Validate()
 }

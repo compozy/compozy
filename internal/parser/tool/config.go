@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
 	"github.com/compozy/compozy/internal/parser/schema"
+	"github.com/compozy/compozy/internal/parser/validator"
 )
 
 // TestMode indicates whether we are running in test mode
@@ -61,14 +62,17 @@ func Load(path string) (*ToolConfig, error) {
 
 // Validate validates the tool configuration
 func (t *ToolConfig) Validate() error {
-	validator := common.NewCompositeValidator(
-		schema.NewCWDValidator(t.cwd, t.ID),
+	v := common.NewCompositeValidator(
+		validator.NewCWDValidator(t.cwd, t.ID),
 		schema.NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
-		schema.NewWithParamsValidator(t.With, t.InputSchema, t.ID),
 		NewPackageRefValidator(t.Use, t.cwd),
 		NewExecuteValidator(t.Execute, t.cwd).WithID(t.ID),
 	)
-	return validator.Validate()
+	return v.Validate()
+}
+
+func (t *ToolConfig) ValidateParams(input map[string]any) error {
+	return validator.NewParamsValidator(input, t.InputSchema.Schema, t.ID).Validate()
 }
 
 // Merge merges another tool configuration into this one

@@ -1,6 +1,9 @@
-package schema
+package validator
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/compozy/compozy/internal/parser/common"
 )
 
@@ -15,7 +18,7 @@ func NewCWDValidator(cwd *common.CWD, id string) *CWDValidator {
 
 func (v *CWDValidator) Validate() error {
 	if v.cwd == nil || v.cwd.Get() == "" {
-		return NewMissingCWDError(v.id)
+		return fmt.Errorf("%w for %s", errors.New("current working directory is required"), v.id)
 	}
 	return nil
 }
