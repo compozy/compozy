@@ -83,7 +83,7 @@ func handleRequest(c *gin.Context, workflow *workflow.WorkflowConfig) {
 	}
 
 	// Parse the input JSON
-	var inputData common.TriggerInput
+	var inputData common.Input
 	if err := c.ShouldBindJSON(&inputData); err != nil {
 		logger.Error("Failed to parse JSON input",
 			"exec_id", execID,

@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/parser/author"
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/project"
+	"github.com/compozy/compozy/internal/parser/validator"
 )
 
 type ComponentType string
@@ -77,7 +78,7 @@ func Load(path string) (*RegistryConfig, error) {
 
 // Validate validates the registry configuration
 func (r *RegistryConfig) Validate() error {
-	validator := common.NewCompositeValidator(
+	validator := validator.NewCompositeValidator(
 		NewCWDValidator(r.cwd),
 		NewComponentTypeValidator(r.Type),
 		NewMainPathValidator(r.cwd, r.Main),

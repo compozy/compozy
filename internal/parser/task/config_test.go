@@ -387,7 +387,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 					"required": []string{"name"},
 				},
 			},
-			With: &common.WithParams{
+			With: &common.Input{
 				"age": 42,
 			},
 		}
@@ -422,7 +422,7 @@ func Test_TaskConfigMerge(t *testing.T) {
 			Env: common.EnvMap{
 				"KEY1": "value1",
 			},
-			With: &common.WithParams{
+			With: &common.Input{
 				"param1": "value1",
 			},
 			OnSuccess: &transition.SuccessTransitionConfig{
@@ -437,7 +437,7 @@ func Test_TaskConfigMerge(t *testing.T) {
 			Env: common.EnvMap{
 				"KEY2": "value2",
 			},
-			With: &common.WithParams{
+			With: &common.Input{
 				"param2": "value2",
 			},
 			OnSuccess: &transition.SuccessTransitionConfig{

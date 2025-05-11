@@ -25,10 +25,14 @@ type ToolConfig struct {
 	Use          *pkgref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
 	InputSchema  *schema.InputSchema      `json:"input,omitempty" yaml:"input,omitempty"`
 	OutputSchema *schema.OutputSchema     `json:"output,omitempty" yaml:"output,omitempty"`
-	With         *common.WithParams       `json:"with,omitempty" yaml:"with,omitempty"`
+	With         *common.Input            `json:"with,omitempty" yaml:"with,omitempty"`
 	Env          common.EnvMap            `json:"env,omitempty" yaml:"env,omitempty"`
 
 	cwd *common.CWD // internal field for current working directory
+}
+
+func (t *ToolConfig) Component() common.ComponentType {
+	return common.ComponentTool
 }
 
 // SetCWD sets the current working directory for the tool
@@ -62,7 +66,7 @@ func Load(path string) (*ToolConfig, error) {
 
 // Validate validates the tool configuration
 func (t *ToolConfig) Validate() error {
-	v := common.NewCompositeValidator(
+	v := validator.NewCompositeValidator(
 		validator.NewCWDValidator(t.cwd, t.ID),
 		schema.NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
 		NewPackageRefValidator(t.Use, t.cwd),

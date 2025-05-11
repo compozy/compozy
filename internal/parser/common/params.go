@@ -1,20 +1,37 @@
 package common
 
-import "maps"
+import (
+	"fmt"
 
-// WithParams represents parameters for a component
-type WithParams map[string]any
+	"maps"
 
-type Input map[string]any
-type Output map[string]any
-type TriggerInput map[string]any
+	"dario.cat/mergo"
+)
 
-func (t *TriggerInput) ToInput() Input {
-	input := make(Input)
-	maps.Copy(input, *t)
-	return input
+type (
+	Input  map[string]any
+	Output map[string]any
+)
+
+func merge(dst, src map[string]any, kind string) (map[string]any, error) {
+	result := make(map[string]any)
+	maps.Copy(result, dst)
+	if err := mergo.Merge(&result, src, mergo.WithOverride, mergo.WithAppendSlice); err != nil {
+		return nil, fmt.Errorf("failed to merge %s: %w", kind, err)
+	}
+	return result, nil
 }
 
-type ErrorResponse struct {
-	Msg string `json:"name"`
+func (i *Input) Merge(other Input) (Input, error) {
+	if i == nil {
+		return other, nil
+	}
+	return merge(*i, other, "input")
+}
+
+func (o *Output) Merge(other Output) (Output, error) {
+	if o == nil {
+		return other, nil
+	}
+	return merge(*o, other, "output")
 }

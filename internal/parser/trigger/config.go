@@ -4,6 +4,7 @@ import (
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/compozy/compozy/internal/parser/transition"
+	"github.com/compozy/compozy/internal/parser/validator"
 	"gopkg.in/yaml.v3"
 )
 
@@ -45,7 +46,7 @@ func Load(path string) (*TriggerConfig, error) {
 
 // Validate validates the trigger configuration
 func (t *TriggerConfig) Validate() error {
-	validator := common.NewCompositeValidator(
+	validator := validator.NewCompositeValidator(
 		NewTriggerTypeValidator(t.Type, t.Config),
 	)
 	return validator.Validate()

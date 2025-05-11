@@ -121,7 +121,7 @@ func Test_AgentActionConfigValidation(t *testing.T) {
 					"required": []string{"name"},
 				},
 			},
-			With: &common.WithParams{
+			With: &common.Input{
 				"age": 42,
 			},
 		}
@@ -156,14 +156,14 @@ func Test_AgentConfigMerge(t *testing.T) {
 			Env: common.EnvMap{
 				"KEY1": "value1",
 			},
-			With: &common.WithParams{},
+			With: &common.Input{},
 		}
 
 		otherConfig := &AgentConfig{
 			Env: common.EnvMap{
 				"KEY2": "value2",
 			},
-			With: &common.WithParams{},
+			With: &common.Input{},
 		}
 
 		err := baseConfig.Merge(otherConfig)
@@ -289,7 +289,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 					"required": []string{"name"},
 				},
 			},
-			With: &common.WithParams{
+			With: &common.Input{
 				"age": 42,
 			},
 			cwd: common.NewCWD("/test/path"),

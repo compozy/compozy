@@ -24,17 +24,12 @@ func NewEnvFromFile(cwd string) (EnvMap, error) {
 }
 
 func (e *EnvMap) Merge(other EnvMap) (EnvMap, error) {
-	env := make(EnvMap)
-	if e == nil && other == nil {
-		return env, nil
-	}
+	result := make(EnvMap)
 	if e != nil {
-		if err := mergo.Merge(&env, *e, mergo.WithOverride); err != nil {
-			return nil, err
-		}
+		result = *e
 	}
-	if err := mergo.Merge(&env, other, mergo.WithOverride); err != nil {
-		return nil, err
+	if err := mergo.Merge(&result, other, mergo.WithOverride, mergo.WithAppendSlice); err != nil {
+		return nil, fmt.Errorf("failed to merge env: %w", err)
 	}
-	return env, nil
+	return result, nil
 }

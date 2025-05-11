@@ -20,7 +20,7 @@ type AgentActionConfig struct {
 	Prompt       string               `json:"prompt" yaml:"prompt"`
 	InputSchema  *schema.InputSchema  `json:"input,omitempty" yaml:"input,omitempty"`
 	OutputSchema *schema.OutputSchema `json:"output,omitempty" yaml:"output,omitempty"`
-	With         *common.WithParams   `json:"with,omitempty" yaml:"with,omitempty"`
+	With         *common.Input        `json:"with,omitempty" yaml:"with,omitempty"`
 	cwd          *common.CWD          // internal field for current working directory
 }
 
@@ -43,9 +43,9 @@ func (a *AgentActionConfig) GetCWD() string {
 
 // Validate validates the action configuration
 func (a *AgentActionConfig) Validate() error {
-	v := common.NewCompositeValidator(
+	v := validator.NewCompositeValidator(
 		validator.NewCWDValidator(a.cwd, string(a.ID)),
-		common.NewStructValidator(a),
+		validator.NewStructValidator(a),
 	)
 	return v.Validate()
 }
@@ -64,9 +64,13 @@ type AgentConfig struct {
 	Actions      []*AgentActionConfig     `json:"actions,omitempty" yaml:"actions,omitempty"`
 	InputSchema  *schema.InputSchema      `json:"input,omitempty" yaml:"input,omitempty"`
 	OutputSchema *schema.OutputSchema     `json:"output,omitempty" yaml:"output,omitempty"`
-	With         *common.WithParams       `json:"with,omitempty" yaml:"with,omitempty"`
+	With         *common.Input            `json:"with,omitempty" yaml:"with,omitempty"`
 	Env          common.EnvMap            `json:"env,omitempty" yaml:"env,omitempty"`
 	cwd          *common.CWD              // internal field for current working directory
+}
+
+func (a *AgentConfig) Component() common.ComponentType {
+	return common.ComponentAgent
 }
 
 // SetCWD sets the current working directory for the agent
@@ -103,12 +107,12 @@ func Load(path string) (*AgentConfig, error) {
 
 // Validate validates the agent configuration
 func (a *AgentConfig) Validate() error {
-	v := common.NewCompositeValidator(
+	v := validator.NewCompositeValidator(
 		validator.NewCWDValidator(a.cwd, string(a.ID)),
 		schema.NewSchemaValidator(a.Use, a.InputSchema, a.OutputSchema),
 		NewPackageRefValidator(a.Use, a.cwd),
 		NewActionsValidator(a.Actions),
-		common.NewStructValidator(a),
+		validator.NewStructValidator(a),
 	)
 	return v.Validate()
 }

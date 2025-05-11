@@ -107,11 +107,6 @@ func LoadID(
 		return id, nil
 	}
 
-	// If no package reference, return error
-	if use == nil {
-		return "", NewMissingIdFieldError()
-	}
-
 	// Convert package reference to ref
 	ref, err := use.IntoRef()
 	if err != nil {

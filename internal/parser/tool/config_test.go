@@ -318,7 +318,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 					"required": []string{"name"},
 				},
 			},
-			With: &common.WithParams{
+			With: &common.Input{
 				"age": 42,
 			},
 		}
@@ -352,14 +352,14 @@ func Test_ToolConfigMerge(t *testing.T) {
 			Env: common.EnvMap{
 				"KEY1": "value1",
 			},
-			With: &common.WithParams{},
+			With: &common.Input{},
 		}
 
 		otherConfig := &ToolConfig{
 			Env: common.EnvMap{
 				"KEY2": "value2",
 			},
-			With: &common.WithParams{},
+			With: &common.Input{},
 		}
 
 		err := baseConfig.Merge(otherConfig)

@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/parser/author"
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
+	"github.com/compozy/compozy/internal/parser/validator"
 	"github.com/compozy/compozy/internal/parser/workflow"
 )
 
@@ -103,7 +104,7 @@ func Load(path string) (*ProjectConfig, error) {
 
 // Validate validates the project configuration
 func (p *ProjectConfig) Validate() error {
-	validator := common.NewCompositeValidator(
+	validator := validator.NewCompositeValidator(
 		NewCWDValidator(p.cwd),
 		NewWorkflowsValidator(p.Workflows),
 		NewEnvironmentsValidator(p.Environments),

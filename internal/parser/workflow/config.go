@@ -33,6 +33,10 @@ type WorkflowConfig struct {
 	cwd *common.CWD // internal field for current working directory
 }
 
+func (w *WorkflowConfig) Component() common.ComponentType {
+	return common.ComponentWorkflow
+}
+
 // SetCWD sets the current working directory for the workflow
 func (w *WorkflowConfig) SetCWD(path string) {
 	if w.cwd == nil {
@@ -66,7 +70,7 @@ func Load(path string) (*WorkflowConfig, error) {
 }
 
 func (w *WorkflowConfig) Validate() error {
-	v := common.NewCompositeValidator(
+	v := validator.NewCompositeValidator(
 		validator.NewCWDValidator(w.cwd, string(w.ID)),
 		NewTriggerValidator(*w),
 	)
