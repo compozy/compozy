@@ -2,62 +2,49 @@ package server
 
 import (
 	"context"
-	"os"
-	"path/filepath"
+	"fmt"
 
 	"github.com/compozy/compozy/internal/nats"
+	"github.com/compozy/compozy/internal/parser/project"
 	"github.com/compozy/compozy/internal/parser/workflow"
 )
 
-// Context keys
 type contextKey string
 
 const (
 	AppStateKey contextKey = "app_state"
 )
 
-// AppState contains the state shared across the server
 type AppState struct {
-	CWD        string
-	Workflows  []*workflow.WorkflowConfig
-	NatsServer *nats.NatsServer
+	CWD           string
+	ProjectConfig *project.ProjectConfig
+	Workflows     []*workflow.WorkflowConfig
+	NatsServer    *nats.NatsServer
 }
 
-// NewAppState creates a new AppState
-func NewAppState(cwd string, workflows []*workflow.WorkflowConfig, natsServer *nats.NatsServer) (*AppState, error) {
+func NewAppState(projectConfig *project.ProjectConfig, workflows []*workflow.WorkflowConfig, natsServer *nats.NatsServer) (*AppState, error) {
+	// ProjectConfig must be provided and have a valid CWD
+	if projectConfig == nil {
+		return nil, fmt.Errorf("project config is required")
+	}
+
+	cwd := projectConfig.GetCWD()
 	if cwd == "" {
-		var err error
-		cwd, err = os.Getwd()
-		if err != nil {
-			return nil, NewServerError(ErrInternalCode, "Failed to get current working directory")
-		}
-	}
-
-	if !filepath.IsAbs(cwd) {
-		absPath, err := filepath.Abs(cwd)
-		if err != nil {
-			return nil, NewServerError(ErrInternalCode, "Failed to resolve absolute path")
-		}
-		cwd = absPath
-	}
-
-	if workflows == nil {
-		workflows = []*workflow.WorkflowConfig{}
+		return nil, fmt.Errorf("project config must have a valid CWD")
 	}
 
 	return &AppState{
-		CWD:        cwd,
-		Workflows:  workflows,
-		NatsServer: natsServer,
+		CWD:           cwd,
+		ProjectConfig: projectConfig,
+		Workflows:     workflows,
+		NatsServer:    natsServer,
 	}, nil
 }
 
-// WithAppState adds the app state to the context
 func WithAppState(ctx context.Context, state *AppState) context.Context {
 	return context.WithValue(ctx, AppStateKey, state)
 }
 
-// GetAppState retrieves the app state from the context
 func GetAppState(ctx context.Context) (*AppState, error) {
 	state, ok := ctx.Value(AppStateKey).(*AppState)
 	if !ok {

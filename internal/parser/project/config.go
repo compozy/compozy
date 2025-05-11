@@ -1,6 +1,7 @@
 package project
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -63,12 +64,13 @@ type ProjectConfig struct {
 }
 
 // SetCWD sets the current working directory for the project
-func (p *ProjectConfig) SetCWD(path string) {
-	if p.cwd == nil {
-		p.cwd = common.NewCWD(path)
-	} else {
-		p.cwd.Set(path)
+func (p *ProjectConfig) SetCWD(path string) error {
+	normalizedPath, err := common.CWDFromPath(path)
+	if err != nil {
+		return fmt.Errorf("failed to normalize path: %w", err)
 	}
+	p.cwd = normalizedPath
+	return nil
 }
 
 // GetCWD returns the current working directory
@@ -83,7 +85,7 @@ func (p *ProjectConfig) GetCWD() string {
 func Load(path string) (*ProjectConfig, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, NewFileOpenError(err)
+		return nil, fmt.Errorf("failed to open project config file: %w", err)
 	}
 
 	var config ProjectConfig
@@ -92,23 +94,22 @@ func Load(path string) (*ProjectConfig, error) {
 	closeErr := file.Close()
 
 	if decodeErr != nil {
-		return nil, NewDecodeError(decodeErr)
+		return nil, fmt.Errorf("failed to decode project config file: %w", decodeErr)
 	}
 	if closeErr != nil {
-		return nil, NewFileCloseError(closeErr)
+		return nil, fmt.Errorf("failed to close project config file: %w", closeErr)
 	}
 
-	config.SetCWD(filepath.Dir(path))
+	if err := config.SetCWD(filepath.Dir(path)); err != nil {
+		return nil, fmt.Errorf("failed to set project CWD: %w", err)
+	}
 	return &config, nil
 }
 
 // Validate validates the project configuration
 func (p *ProjectConfig) Validate() error {
 	validator := validator.NewCompositeValidator(
-		NewCWDValidator(p.cwd),
-		NewWorkflowsValidator(p.Workflows),
-		NewEnvironmentsValidator(p.Environments),
-		NewDependenciesValidator(p.Dependencies),
+		validator.NewCWDValidator(p.cwd, p.Name),
 	)
 	return validator.Validate()
 }
@@ -120,7 +121,7 @@ func (p *ProjectConfig) WorkflowsFromSources() ([]*workflow.WorkflowConfig, erro
 		workflowPath := p.cwd.Join(wf.Source)
 		wfConfig, err := workflow.Load(workflowPath)
 		if err != nil {
-			return nil, NewWorkflowLoadError(err)
+			return nil, fmt.Errorf("failed to load workflow from source: %w", err)
 		}
 		workflows = append(workflows, wfConfig)
 	}

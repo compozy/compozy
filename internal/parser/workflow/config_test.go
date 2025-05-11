@@ -138,6 +138,8 @@ func Test_WorkflowConfigValidation(t *testing.T) {
 	workflowID := "test-workflow"
 
 	t.Run("Should validate valid workflow configuration", func(t *testing.T) {
+		cwd, err := common.CWDFromPath("/test/path")
+		require.NoError(t, err)
 		config := &WorkflowConfig{
 			ID: workflowID,
 			Trigger: trigger.TriggerConfig{
@@ -146,10 +148,10 @@ func Test_WorkflowConfigValidation(t *testing.T) {
 					URL: "/test",
 				},
 			},
-			cwd: common.NewCWD("/test/path"),
+			cwd: cwd,
 		}
 
-		err := config.Validate()
+		err = config.Validate()
 		require.NoError(t, err)
 	})
 

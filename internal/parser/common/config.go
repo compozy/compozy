@@ -2,7 +2,7 @@ package common
 
 type Config interface {
 	Component() ComponentType
-	SetCWD(path string)
+	SetCWD(path string) error
 	GetCWD() string
 	Validate() error
 	ValidateParams(input map[string]any) error

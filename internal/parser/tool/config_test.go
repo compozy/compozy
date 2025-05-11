@@ -180,11 +180,14 @@ func Test_LoadTool(t *testing.T) {
 
 func Test_ToolConfigValidation(t *testing.T) {
 	toolID := "test-tool"
+	toolPath := "/test/path"
+	toolCWD, err := common.CWDFromPath(toolPath)
+	require.NoError(t, err)
 
 	t.Run("Should validate valid tool configuration", func(t *testing.T) {
 		config := &ToolConfig{
 			ID:  toolID,
-			cwd: common.NewCWD("/test/path"),
+			cwd: toolCWD,
 		}
 
 		TestMode = false
@@ -211,7 +214,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 		config := &ToolConfig{
 			ID:  toolID,
 			Use: pkgref.NewPackageRefConfig("invalid"),
-			cwd: common.NewCWD("/test/path"),
+			cwd: toolCWD,
 		}
 
 		TestMode = false
@@ -226,7 +229,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 		config := &ToolConfig{
 			ID:      toolID,
 			Execute: "./nonexistent.ts",
-			cwd:     common.NewCWD("/test/path"),
+			cwd:     toolCWD,
 		}
 
 		TestMode = false
@@ -246,7 +249,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 					"type": "object",
 				},
 			},
-			cwd: common.NewCWD("/test/path"),
+			cwd: toolCWD,
 		}
 
 		TestMode = false
@@ -266,7 +269,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 					"type": "object",
 				},
 			},
-			cwd: common.NewCWD("/test/path"),
+			cwd: toolCWD,
 		}
 
 		TestMode = false
@@ -291,7 +294,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 					"type": "object",
 				},
 			},
-			cwd: common.NewCWD("/test/path"),
+			cwd: toolCWD,
 		}
 
 		TestMode = false
@@ -306,7 +309,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 		config := &ToolConfig{
 			ID:      toolID,
 			Execute: "./test.ts",
-			cwd:     common.NewCWD("/test/path"),
+			cwd:     toolCWD,
 			InputSchema: &schema.InputSchema{
 				Schema: schema.Schema{
 					"type": "object",

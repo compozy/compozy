@@ -10,13 +10,13 @@ import (
 
 // MockState is a concrete implementation of the State interface for testing
 type MockState struct {
-	id     string
+	id     *StateID
 	env    *common.EnvMap
 	input  *common.Input
 	output *common.Output
 }
 
-func (m *MockState) ID() string                         { return m.id }
+func (m *MockState) ID() StateID                        { return *m.id }
 func (m *MockState) Env() *common.EnvMap                { return m.env }
 func (m *MockState) Input() *common.Input               { return m.input }
 func (m *MockState) Output() *common.Output             { return m.output }
@@ -38,13 +38,29 @@ func (m *MockState) WithInput(input common.Input) error {
 	return nil
 }
 
+func createIDS() (*StateID, *StateID) {
+	parentID := &StateID{
+		Component:   common.ComponentWorkflow,
+		ComponentID: "parent-id",
+		ExecID:      "parent-exec-id",
+	}
+	stateID := &StateID{
+		Component:   common.ComponentWorkflow,
+		ComponentID: "state-id",
+		ExecID:      "state-exec-id",
+	}
+	return parentID, stateID
+}
+
 func TestState(t *testing.T) {
 	t.Run("FromParentState should merge parent state into state", func(t *testing.T) {
+		parentID, stateID := createIDS()
+
 		// Setup parent and state
 		parentEnv := common.EnvMap{"parent-key": "parent-value", "shared": "parent-shared"}
 		parentInput := common.Input{"parent-input": "parent-value", "shared-input": "parent-shared"}
 		parent := &MockState{
-			id:    "parent-id",
+			id:    parentID,
 			env:   &parentEnv,
 			input: &parentInput,
 		}
@@ -52,7 +68,7 @@ func TestState(t *testing.T) {
 		stateEnv := common.EnvMap{"state-key": "state-value", "shared": "state-shared"}
 		stateInput := common.Input{"state-input": "state-value", "shared-input": "state-shared"}
 		state := &MockState{
-			id:    "state-id",
+			id:    stateID,
 			env:   &stateEnv,
 			input: &stateInput,
 		}
@@ -62,7 +78,7 @@ func TestState(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify results
-		assert.Equal(t, "state-id", state.ID(), "ID should be preserved from state")
+		assert.Equal(t, *stateID, state.ID(), "ID should be preserved from state")
 		// Env: Expect parent env to override state env
 		assert.Equal(t, "parent-value", (*state.Env())["parent-key"], "Parent env key should be merged")
 		assert.Equal(t, "parent-shared", (*state.Env())["shared"], "Shared env key should be overridden by parent")
@@ -106,35 +122,43 @@ func TestState(t *testing.T) {
 	})
 
 	t.Run("StateMap should handle add, get, and remove", func(t *testing.T) {
+		_, stateID := createIDS()
 		sm := make(StateMap)
 
 		// Create a state
 		stateEnv := common.EnvMap{"key": "value"}
 		state := &MockState{
-			id:  "state1",
+			id:  stateID,
 			env: &stateEnv,
 		}
 
 		// Test Add
 		sm.Add(state)
-		retrieved, exists := sm.Get("state1")
+		retrieved, exists := sm.Get(*stateID)
 		require.True(t, exists, "State should exist in map")
 		assert.Equal(t, state, retrieved, "Retrieved state should match added state")
 
+		invalidID := StateID{
+			Component:   common.ComponentWorkflow,
+			ComponentID: "non-existent",
+			ExecID:      "non-existent",
+		}
+
 		// Test Get for non-existent state
-		_, exists = sm.Get("non-existent")
+		_, exists = sm.Get(invalidID)
 		assert.False(t, exists, "Non-existent state should not be found")
 
 		// Test Remove
-		sm.Remove("state1")
-		_, exists = sm.Get("state1")
+		sm.Remove(*stateID)
+		_, exists = sm.Get(*stateID)
 		assert.False(t, exists, "State should be removed from map")
 	})
 
 	t.Run("FromParentState should handle nil parent", func(t *testing.T) {
+		_, stateID := createIDS()
 		stateEnv := common.EnvMap{"key": "value"}
 		state := &MockState{
-			id:  "state-id",
+			id:  stateID,
 			env: &stateEnv,
 		}
 
@@ -168,6 +192,7 @@ func TestState(t *testing.T) {
 	})
 
 	t.Run("FromParentState should handle nil on current but not on parent", func(t *testing.T) {
+		_, stateID := createIDS()
 		parentEnv := common.EnvMap{"key": "value"}
 		parentInput := common.Input{"input-key": "input-value"}
 		parent := &MockState{
@@ -176,7 +201,7 @@ func TestState(t *testing.T) {
 		}
 
 		state := &MockState{
-			id:    "state-id",
+			id:    stateID,
 			env:   nil,
 			input: nil,
 		}
@@ -188,13 +213,14 @@ func TestState(t *testing.T) {
 	})
 
 	t.Run("FromParentState should handle nil input on current but not on parent", func(t *testing.T) {
+		_, stateID := createIDS()
 		parentInput := common.Input{"key": "value"}
 		parent := &MockState{
 			input: &parentInput,
 		}
 
 		state := &MockState{
-			id:    "state-id",
+			id:    stateID,
 			input: nil,
 		}
 

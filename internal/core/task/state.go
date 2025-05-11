@@ -7,25 +7,20 @@ import (
 )
 
 type TaskState struct {
-	id     string
+	id     *core.StateID
 	env    *common.EnvMap
 	input  *common.Input
 	output *common.Output
 	Config *config.TaskConfig
 }
 
-func InitTaskState(execID string, cfg *config.TaskConfig, parent core.State) (*TaskState, error) {
-	id, err := core.StateID(cfg, execID)
-	if err != nil {
-		return nil, core.NewTaskError(cfg.ID, "no_id", "no id found on config", err)
-	}
-
+func InitTaskState(stID *core.StateID, cfg *config.TaskConfig, parent core.State) (*TaskState, error) {
 	if err := cfg.ValidateParams(*cfg.With); err != nil {
-		return nil, core.NewTaskError(cfg.ID, "invalid_params", "invalid input params", err)
+		return nil, core.NewError(stID, "invalid_params", "invalid input params", err)
 	}
 
 	state := &TaskState{
-		id:     id,
+		id:     stID,
 		input:  cfg.With,
 		env:    &cfg.Env,
 		output: nil,
@@ -40,8 +35,8 @@ func InitTaskState(execID string, cfg *config.TaskConfig, parent core.State) (*T
 	return state, nil
 }
 
-func (ts *TaskState) ID() string {
-	return ts.id
+func (ts *TaskState) ID() core.StateID {
+	return *ts.id
 }
 
 func (ts *TaskState) Env() *common.EnvMap {
@@ -63,7 +58,7 @@ func (ts *TaskState) FromParentState(parent core.State) error {
 func (ts *TaskState) WithEnv(env common.EnvMap) error {
 	newEnv, err := core.WithEnv(ts, env)
 	if err != nil {
-		return core.NewTaskError(ts.id, "merge_env_fail", "failed to merge env", err)
+		return core.NewError(ts.id, "merge_env_fail", "failed to merge env", err)
 	}
 	ts.env = newEnv
 	return nil
@@ -72,7 +67,7 @@ func (ts *TaskState) WithEnv(env common.EnvMap) error {
 func (ts *TaskState) WithInput(input common.Input) error {
 	newInput, err := core.WithInput(ts, input)
 	if err != nil {
-		return core.NewTaskError(ts.id, "merge_input_fail", "failed to merge input", err)
+		return core.NewError(ts.id, "merge_input_fail", "failed to merge input", err)
 	}
 	ts.input = newInput
 	return nil

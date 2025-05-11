@@ -1,6 +1,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,7 +11,6 @@ import (
 	"github.com/compozy/compozy/internal/parser/pkgref"
 )
 
-// LoadConfig is a generic function that loads any config type that implements the Config interface
 func LoadConfig[T Config](path string) (T, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -36,71 +36,10 @@ func LoadConfig[T Config](path string) (T, error) {
 	return config, nil
 }
 
-// Error codes
-const (
-	ErrCodeMissingIdField = "MISSING_ID_FIELD"
-	ErrCodeUnimplemented  = "UNIMPLEMENTED"
-	ErrCodeInvalidRef     = "INVALID_REF"
-	ErrCodeMissingPath    = "MISSING_PATH"
-)
-
-// Error messages
-const (
-	ErrMsgMissingIdField = "Missing ID field"
-	ErrMsgUnimplemented  = "Feature not implemented: %s"
-	ErrMsgInvalidRef     = "Invalid reference type"
-	ErrMsgMissingPath    = "Missing path: %s"
-)
-
-// ConfigError represents errors that can occur during configuration operations
-type ConfigError struct {
-	Message string
-	Code    string
-}
-
-func (e *ConfigError) Error() string {
-	return e.Message
-}
-
-// NewError creates a new ConfigError with the given code and message
-func NewError(code, message string) *ConfigError {
-	return &ConfigError{
-		Code:    code,
-		Message: message,
-	}
-}
-
-// NewErrorf creates a new ConfigError with the given code and formatted message
-func NewErrorf(code, format string, args ...any) *ConfigError {
-	return &ConfigError{
-		Code:    code,
-		Message: fmt.Sprintf(format, args...),
-	}
-}
-
-// Common error constructors
-func NewMissingIdFieldError() *ConfigError {
-	return NewError(ErrCodeMissingIdField, ErrMsgMissingIdField)
-}
-
-func NewUnimplementedError(feature string) *ConfigError {
-	return NewErrorf(ErrCodeUnimplemented, ErrMsgUnimplemented, feature)
-}
-
-func NewInvalidRefError() *ConfigError {
-	return NewError(ErrCodeInvalidRef, ErrMsgInvalidRef)
-}
-
-func NewMissingPathError(path string) *ConfigError {
-	return NewErrorf(ErrCodeMissingPath, ErrMsgMissingPath, path)
-}
-
-// LoadID loads the ID from either the direct ID field or resolves it from a package reference
 func LoadID(
 	config Config,
 	id string,
 	use *pkgref.PackageRefConfig,
-	loadFn func(string) (Config, error),
 ) (string, error) {
 	// If ID is directly set, return it
 	if id != "" {
@@ -118,21 +57,39 @@ func LoadID(
 	case "id":
 		return ref.Type.Value, nil
 	case "file":
-		// Load config from file and get its ID
+		// For file references, directly extract the ID from the YAML
 		path := config.GetCWD()
 		if path == "" {
-			return "", NewMissingPathError("")
+			return "", fmt.Errorf("missing path: %s", "")
 		}
 		path = filepath.Join(path, ref.Type.Value)
-		loadedConfig, err := loadFn(path)
+
+		// Read the file and extract the ID directly
+		file, err := os.Open(path)
 		if err != nil {
 			return "", err
 		}
-		return loadedConfig.LoadID()
+		defer file.Close()
+
+		// Decode only the ID field from the YAML file
+		var yamlConfig struct {
+			ID string `yaml:"id"`
+		}
+
+		decoder := yaml.NewDecoder(file)
+		if err := decoder.Decode(&yamlConfig); err != nil {
+			return "", err
+		}
+
+		if yamlConfig.ID == "" {
+			return "", errors.New("missing ID field")
+		}
+
+		return yamlConfig.ID, nil
 	case "dep":
 		// TODO: implement dependency resolution
-		return "", NewUnimplementedError("dependency resolution not implemented")
+		return "", errors.New("dependency resolution not implemented for LoadID()")
 	default:
-		return "", NewInvalidRefError()
+		return "", errors.New("invalid reference type")
 	}
 }

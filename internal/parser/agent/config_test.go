@@ -85,11 +85,14 @@ func Test_LoadAgent(t *testing.T) {
 }
 
 func Test_AgentActionConfigValidation(t *testing.T) {
+	actionCWD, err := common.CWDFromPath("/test/path")
+	require.NoError(t, err)
+
 	t.Run("Should validate action config with all required fields", func(t *testing.T) {
 		config := &AgentActionConfig{
 			ID:     "test-action",
 			Prompt: "test prompt",
-			cwd:    common.NewCWD("/test/path"),
+			cwd:    actionCWD,
 		}
 		err := config.Validate()
 		assert.NoError(t, err)
@@ -109,7 +112,7 @@ func Test_AgentActionConfigValidation(t *testing.T) {
 		config := &AgentActionConfig{
 			ID:     "test-action",
 			Prompt: "test prompt",
-			cwd:    common.NewCWD("/test/path"),
+			cwd:    actionCWD,
 			InputSchema: &schema.InputSchema{
 				Schema: schema.Schema{
 					"type": "object",
@@ -177,13 +180,15 @@ func Test_AgentConfigMerge(t *testing.T) {
 
 func Test_AgentConfigValidation(t *testing.T) {
 	agentID := "test-agent"
+	agentCWD, err := common.CWDFromPath("/test/path")
+	require.NoError(t, err)
 
 	t.Run("Should validate config with all required fields", func(t *testing.T) {
 		config := &AgentConfig{
 			ID:           agentID,
 			Config:       provider.ProviderConfig{},
 			Instructions: "test instructions",
-			cwd:          common.NewCWD("/test/path"),
+			cwd:          agentCWD,
 		}
 		err := config.Validate()
 		assert.NoError(t, err)
@@ -207,7 +212,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 			Config:  provider.ProviderConfig{},
 			Tools:   []tool.ToolConfig{},
 			Actions: []*AgentActionConfig{},
-			cwd:     common.NewCWD("/test/path"),
+			cwd:     agentCWD,
 		}
 		err := config.Validate()
 		assert.Error(t, err)
@@ -225,7 +230,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 					"type": "object",
 				},
 			},
-			cwd: common.NewCWD("/test/path"),
+			cwd: agentCWD,
 		}
 		err := config.Validate()
 		assert.Error(t, err)
@@ -243,7 +248,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 					"type": "object",
 				},
 			},
-			cwd: common.NewCWD("/test/data"),
+			cwd: agentCWD,
 		}
 		err := config.Validate()
 		assert.Error(t, err)
@@ -266,7 +271,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 					"type": "object",
 				},
 			},
-			cwd: common.NewCWD("/test/path"),
+			cwd: agentCWD,
 		}
 		err := config.Validate()
 		assert.Error(t, err)
@@ -292,7 +297,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 			With: &common.Input{
 				"age": 42,
 			},
-			cwd: common.NewCWD("/test/path"),
+			cwd: agentCWD,
 		}
 		err := config.ValidateParams(*config.With)
 		assert.Error(t, err)

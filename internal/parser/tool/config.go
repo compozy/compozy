@@ -2,6 +2,7 @@ package tool
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,12 +37,13 @@ func (t *ToolConfig) Component() common.ComponentType {
 }
 
 // SetCWD sets the current working directory for the tool
-func (t *ToolConfig) SetCWD(path string) {
-	if t.cwd == nil {
-		t.cwd = common.NewCWD(path)
-	} else {
-		t.cwd.Set(path)
+func (t *ToolConfig) SetCWD(path string) error {
+	normalizedPath, err := common.CWDFromPath(path)
+	if err != nil {
+		return fmt.Errorf("failed to normalize path: %w", err)
 	}
+	t.cwd = normalizedPath
+	return nil
 }
 
 // GetCWD returns the current working directory
@@ -90,9 +92,7 @@ func (t *ToolConfig) Merge(other any) error {
 
 // LoadID loads the ID from either the direct ID field or resolves it from a package reference
 func (t *ToolConfig) LoadID() (string, error) {
-	return common.LoadID(t, t.ID, t.Use, func(path string) (common.Config, error) {
-		return Load(path)
-	})
+	return common.LoadID(t, t.ID, t.Use)
 }
 
 func IsTypeScript(path string) bool {

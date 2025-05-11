@@ -3,6 +3,7 @@ package core
 import (
 	"testing"
 
+	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -10,7 +11,8 @@ import (
 func TestStore(t *testing.T) {
 	t.Run("SetMain should set the main state", func(t *testing.T) {
 		gc := &Store{}
-		mainState := &MockState{id: "main-id"}
+		_, stateID := createIDS()
+		mainState := &MockState{id: stateID}
 
 		var state State = mainState
 		gc.SetWorkflow(state)
@@ -20,21 +22,23 @@ func TestStore(t *testing.T) {
 
 	t.Run("UpsertTask should add new task state", func(t *testing.T) {
 		gc := &Store{}
-		taskState := &MockState{id: "task-id"}
+		_, stateID := createIDS()
+		taskState := &MockState{id: stateID}
 
 		var state State = taskState
 		err := gc.UpsertTask(&state)
 		require.NoError(t, err)
 
-		retrieved, exists := gc.GetTask("task-id")
+		retrieved, exists := gc.GetTask(*stateID)
 		assert.True(t, exists, "Task should exist in map")
 		assert.Equal(t, taskState, retrieved, "Retrieved task should match added task")
 	})
 
 	t.Run("UpsertTask should update existing task state", func(t *testing.T) {
 		gc := &Store{}
-		taskState1 := &MockState{id: "task-id"}
-		taskState2 := &MockState{id: "task-id"}
+		_, stateID := createIDS()
+		taskState1 := &MockState{id: stateID}
+		taskState2 := &MockState{id: stateID}
 
 		var state1 State = taskState1
 		var state2 State = taskState2
@@ -44,7 +48,7 @@ func TestStore(t *testing.T) {
 		err = gc.UpsertTask(&state2)
 		require.NoError(t, err)
 
-		retrieved, exists := gc.GetTask("task-id")
+		retrieved, exists := gc.GetTask(*stateID)
 		assert.True(t, exists, "Task should exist in map")
 		assert.Equal(t, taskState2, retrieved, "Retrieved task should match updated task")
 	})
@@ -58,21 +62,23 @@ func TestStore(t *testing.T) {
 
 	t.Run("UpsertTool should add new tool state", func(t *testing.T) {
 		gc := &Store{}
-		toolState := &MockState{id: "tool-id"}
+		_, stateID := createIDS()
+		toolState := &MockState{id: stateID}
 
 		var state State = toolState
 		err := gc.UpsertTool(&state)
 		require.NoError(t, err)
 
-		retrieved, exists := gc.GetTool("tool-id")
+		retrieved, exists := gc.GetTool(*stateID)
 		assert.True(t, exists, "Tool should exist in map")
 		assert.Equal(t, toolState, retrieved, "Retrieved tool should match added tool")
 	})
 
 	t.Run("UpsertTool should update existing tool state", func(t *testing.T) {
 		gc := &Store{}
-		toolState1 := &MockState{id: "tool-id"}
-		toolState2 := &MockState{id: "tool-id"}
+		_, stateID := createIDS()
+		toolState1 := &MockState{id: stateID}
+		toolState2 := &MockState{id: stateID}
 
 		var state1 State = toolState1
 		var state2 State = toolState2
@@ -82,7 +88,7 @@ func TestStore(t *testing.T) {
 		err = gc.UpsertTool(&state2)
 		require.NoError(t, err)
 
-		retrieved, exists := gc.GetTool("tool-id")
+		retrieved, exists := gc.GetTool(*stateID)
 		assert.True(t, exists, "Tool should exist in map")
 		assert.Equal(t, toolState2, retrieved, "Retrieved tool should match updated tool")
 	})
@@ -96,21 +102,23 @@ func TestStore(t *testing.T) {
 
 	t.Run("UpsertAgent should add new agent state", func(t *testing.T) {
 		gc := &Store{}
-		agentState := &MockState{id: "agent-id"}
+		_, stateID := createIDS()
+		agentState := &MockState{id: stateID}
 
 		var state State = agentState
 		err := gc.UpsertAgent(&state)
 		require.NoError(t, err)
 
-		retrieved, exists := gc.GetAgent("agent-id")
+		retrieved, exists := gc.GetAgent(*stateID)
 		assert.True(t, exists, "Agent should exist in map")
 		assert.Equal(t, agentState, retrieved, "Retrieved agent should match added agent")
 	})
 
 	t.Run("UpsertAgent should update existing agent state", func(t *testing.T) {
 		gc := &Store{}
-		agentState1 := &MockState{id: "agent-id"}
-		agentState2 := &MockState{id: "agent-id"}
+		_, stateID := createIDS()
+		agentState1 := &MockState{id: stateID}
+		agentState2 := &MockState{id: stateID}
 
 		var state1 State = agentState1
 		var state2 State = agentState2
@@ -120,7 +128,7 @@ func TestStore(t *testing.T) {
 		err = gc.UpsertAgent(&state2)
 		require.NoError(t, err)
 
-		retrieved, exists := gc.GetAgent("agent-id")
+		retrieved, exists := gc.GetAgent(*stateID)
 		assert.True(t, exists, "Agent should exist in map")
 		assert.Equal(t, agentState2, retrieved, "Retrieved agent should match updated agent")
 	})
@@ -132,24 +140,30 @@ func TestStore(t *testing.T) {
 		assert.Error(t, err, "Should error on nil state")
 	})
 
+	invalidID := StateID{
+		Component:   common.ComponentWorkflow,
+		ComponentID: "non-existent",
+		ExecID:      "non-existent",
+	}
+
 	t.Run("GetTask should return false for non-existent task", func(t *testing.T) {
 		gc := &Store{}
 
-		_, exists := gc.GetTask("non-existent")
+		_, exists := gc.GetTask(invalidID)
 		assert.False(t, exists, "Non-existent task should not be found")
 	})
 
 	t.Run("GetTool should return false for non-existent tool", func(t *testing.T) {
 		gc := &Store{}
 
-		_, exists := gc.GetTool("non-existent")
+		_, exists := gc.GetTool(invalidID)
 		assert.False(t, exists, "Non-existent tool should not be found")
 	})
 
 	t.Run("GetAgent should return false for non-existent agent", func(t *testing.T) {
 		gc := &Store{}
 
-		_, exists := gc.GetAgent("non-existent")
+		_, exists := gc.GetAgent(invalidID)
 		assert.False(t, exists, "Non-existent agent should not be found")
 	})
 }

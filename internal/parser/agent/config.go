@@ -2,6 +2,7 @@ package agent
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"dario.cat/mergo"
@@ -25,12 +26,13 @@ type AgentActionConfig struct {
 }
 
 // SetCWD sets the current working directory for the action
-func (a *AgentActionConfig) SetCWD(path string) {
-	if a.cwd == nil {
-		a.cwd = common.NewCWD(path)
-	} else {
-		a.cwd.Set(path)
+func (a *AgentActionConfig) SetCWD(path string) error {
+	normalizedPath, err := common.CWDFromPath(path)
+	if err != nil {
+		return fmt.Errorf("failed to normalize path: %w", err)
 	}
+	a.cwd = normalizedPath
+	return nil
 }
 
 // GetCWD returns the current working directory
@@ -74,15 +76,16 @@ func (a *AgentConfig) Component() common.ComponentType {
 }
 
 // SetCWD sets the current working directory for the agent
-func (a *AgentConfig) SetCWD(path string) {
-	if a.cwd == nil {
-		a.cwd = common.NewCWD(path)
-	} else {
-		a.cwd.Set(path)
+func (a *AgentConfig) SetCWD(path string) error {
+	normalizedPath, err := common.CWDFromPath(path)
+	if err != nil {
+		return fmt.Errorf("failed to normalize path: %w", err)
 	}
+	a.cwd = normalizedPath
 	for i := range a.Actions {
 		a.Actions[i].SetCWD(path)
 	}
+	return nil
 }
 
 // GetCWD returns the current working directory
@@ -130,9 +133,7 @@ func (a *AgentConfig) Merge(other any) error {
 	return mergo.Merge(a, otherConfig, mergo.WithOverride)
 }
 
-// LoadID loads the ID from the configuration
+// LoadID loads the ID from either the direct ID field or resolves it from a package reference
 func (a *AgentConfig) LoadID() (string, error) {
-	return common.LoadID(a, a.ID, a.Use, func(path string) (common.Config, error) {
-		return Load(path)
-	})
+	return common.LoadID(a, a.ID, a.Use)
 }

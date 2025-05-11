@@ -2,6 +2,7 @@ package task
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"dario.cat/mergo"
@@ -20,13 +21,11 @@ const (
 	TaskTypeDecision TaskType = "decision"
 )
 
-// TaskConfig represents a task configuration
 type TaskConfig struct {
 	ID   string                   `json:"id,omitempty" yaml:"id,omitempty"`
 	Use  *pkgref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
 	Type TaskType                 `json:"type,omitempty" yaml:"type,omitempty"`
 
-	// Common properties
 	OnSuccess    *transition.SuccessTransitionConfig `json:"on_success,omitempty" yaml:"on_success,omitempty"`
 	OnError      *transition.ErrorTransitionConfig   `json:"on_error,omitempty" yaml:"on_error,omitempty"`
 	Final        string                              `json:"final,omitempty" yaml:"final,omitempty"`
@@ -35,30 +34,27 @@ type TaskConfig struct {
 	With         *common.Input                       `json:"with,omitempty" yaml:"with,omitempty"`
 	Env          common.EnvMap                       `json:"env,omitempty" yaml:"env,omitempty"`
 
-	// Basic task properties
 	Action string `json:"action,omitempty" yaml:"action,omitempty"`
 
-	// Decision task properties
 	Condition string            `json:"condition,omitempty" yaml:"condition,omitempty"`
 	Routes    map[string]string `json:"routes,omitempty" yaml:"routes,omitempty"`
 
-	cwd *common.CWD // internal field for current working directory
+	cwd *common.CWD
 }
 
 func (t *TaskConfig) Component() common.ComponentType {
 	return common.ComponentTask
 }
 
-// SetCWD sets the current working directory for the task
-func (t *TaskConfig) SetCWD(path string) {
-	if t.cwd == nil {
-		t.cwd = common.NewCWD(path)
-	} else {
-		t.cwd.Set(path)
+func (t *TaskConfig) SetCWD(path string) error {
+	normalizedPath, err := common.CWDFromPath(path)
+	if err != nil {
+		return fmt.Errorf("failed to normalize path: %w", err)
 	}
+	t.cwd = normalizedPath
+	return nil
 }
 
-// GetCWD returns the current working directory
 func (t *TaskConfig) GetCWD() string {
 	if t.cwd == nil {
 		return ""
@@ -66,7 +62,6 @@ func (t *TaskConfig) GetCWD() string {
 	return t.cwd.Get()
 }
 
-// Load loads a task configuration from a file
 func Load(path string) (*TaskConfig, error) {
 	config, err := common.LoadConfig[*TaskConfig](path)
 	if err != nil {
@@ -78,7 +73,6 @@ func Load(path string) (*TaskConfig, error) {
 	return config, nil
 }
 
-// Validate validates the task configuration
 func (t *TaskConfig) Validate() error {
 	v := validator.NewCompositeValidator(
 		validator.NewCWDValidator(t.cwd, t.ID),
@@ -93,7 +87,6 @@ func (t *TaskConfig) ValidateParams(input map[string]any) error {
 	return validator.NewParamsValidator(input, t.InputSchema.Schema, t.ID).Validate()
 }
 
-// Merge merges another task configuration into this one
 func (t *TaskConfig) Merge(other any) error {
 	otherConfig, ok := other.(*TaskConfig)
 	if !ok {
@@ -102,9 +95,6 @@ func (t *TaskConfig) Merge(other any) error {
 	return mergo.Merge(t, otherConfig, mergo.WithOverride)
 }
 
-// LoadID loads the ID from either the direct ID field or resolves it from a package reference
 func (t *TaskConfig) LoadID() (string, error) {
-	return common.LoadID(t, t.ID, t.Use, func(path string) (common.Config, error) {
-		return Load(path)
-	})
+	return common.LoadID(t, t.ID, t.Use)
 }

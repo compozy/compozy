@@ -72,21 +72,21 @@ func (c *Store) UpsertAgent(state *State) error {
 	return nil
 }
 
-func (c *Store) GetTask(id string) (State, bool) {
+func (c *Store) GetTask(id StateID) (State, bool) {
 	if c.Tasks == nil {
 		return nil, false
 	}
 	return c.Tasks.Get(id)
 }
 
-func (c *Store) GetTool(id string) (State, bool) {
+func (c *Store) GetTool(id StateID) (State, bool) {
 	if c.Tools == nil {
 		return nil, false
 	}
 	return c.Tools.Get(id)
 }
 
-func (c *Store) GetAgent(id string) (State, bool) {
+func (c *Store) GetAgent(id StateID) (State, bool) {
 	if c.Agents == nil {
 		return nil, false
 	}

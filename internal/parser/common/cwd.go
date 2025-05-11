@@ -6,44 +6,47 @@ import (
 	"path/filepath"
 )
 
-var ErrCWDNotSet = errors.New("current working directory not set")
-
-// CWD represents a common working directory structure
 type CWD struct {
-	path string
+	Path string
 }
 
-// NewCWD creates a new CWD instance
-func NewCWD(path string) *CWD {
-	return &CWD{
-		path: path,
+func CWDFromPath(path string) (*CWD, error) {
+	if path == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+		return &CWD{Path: cwd}, nil
 	}
+	if !filepath.IsAbs(path) {
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			return nil, err
+		}
+		return &CWD{Path: absPath}, nil
+	}
+	return &CWD{Path: path}, nil
 }
 
-// Set sets the current working directory
 func (c *CWD) Set(path string) {
-	c.path = path
+	c.Path = path
 }
 
-// Get returns the current working directory
 func (c *CWD) Get() string {
-	return c.path
+	return c.Path
 }
 
-// Join joins the current working directory with the given path
 func (c *CWD) Join(path string) string {
-	return filepath.Join(c.path, path)
+	return filepath.Join(c.Path, path)
 }
 
-// Validate checks if the working directory is set
 func (c *CWD) Validate() error {
-	if c.path == "" {
-		return ErrCWDNotSet
+	if c.Path == "" {
+		return errors.New("current working directory not set")
 	}
 	return nil
 }
 
-// ReadFile reads the contents of a file
 func ReadFile(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }

@@ -101,7 +101,7 @@ func DevCmd() *cobra.Command {
 			}
 
 			// Create app state
-			appState, err := server.NewAppState(cwd, workflows, natsServer)
+			appState, err := server.NewAppState(projectConfig, workflows, natsServer)
 			if err != nil {
 				logger.Error("Failed to create app state", "error", err)
 				return err

@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -37,12 +38,13 @@ type RegistryConfig struct {
 }
 
 // SetCWD sets the current working directory for the registry
-func (r *RegistryConfig) SetCWD(path string) {
-	if r.cwd == nil {
-		r.cwd = common.NewCWD(path)
-	} else {
-		r.cwd.Set(path)
+func (r *RegistryConfig) SetCWD(path string) error {
+	normalizedPath, err := common.CWDFromPath(path)
+	if err != nil {
+		return fmt.Errorf("failed to normalize path: %w", err)
 	}
+	r.cwd = normalizedPath
+	return nil
 }
 
 // GetCWD returns the current working directory

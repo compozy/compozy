@@ -13,7 +13,7 @@ import (
 // -----------------------------------------------------------------------------
 
 type State interface {
-	ID() string
+	ID() StateID
 	Env() *common.EnvMap
 	Input() *common.Input
 	Output() *common.Output
@@ -72,21 +72,13 @@ func WithInput(state State, input common.Input) (*common.Input, error) {
 	return &dst, nil
 }
 
-func StateID(cfg common.Config, execID string) (string, error) {
-	id, err := cfg.LoadID()
-	if err != nil {
-		return "", fmt.Errorf("failed to load config id: %w", err)
-	}
-	return fmt.Sprintf("%s:%s:%s", cfg.Component(), id, execID), nil
-}
-
 // -----------------------------------------------------------------------------
 // StateMap
 // -----------------------------------------------------------------------------
 
-type StateMap map[string]State
+type StateMap map[StateID]State
 
-func (sm StateMap) Get(id string) (State, bool) {
+func (sm StateMap) Get(id StateID) (State, bool) {
 	state, exists := sm[id]
 	return state, exists
 }
@@ -95,6 +87,37 @@ func (sm StateMap) Add(state State) {
 	sm[state.ID()] = state
 }
 
-func (sm StateMap) Remove(id string) {
+func (sm StateMap) Remove(id StateID) {
 	delete(sm, id)
+}
+
+// -----------------------------------------------------------------------------
+// StateID
+// -----------------------------------------------------------------------------
+
+type StateID struct {
+	Component   common.ComponentType `json:"component"`
+	ComponentID string               `json:"component_id"`
+	ExecID      string               `json:"exec_id"`
+}
+
+func NewStateID(cfg common.Config, execID string) (*StateID, error) {
+	id, err := cfg.LoadID()
+	if err != nil {
+		stID := &StateID{
+			Component:   cfg.Component(),
+			ComponentID: "",
+			ExecID:      execID,
+		}
+		return stID, NewError(stID, "no_id", "no id found on config", err)
+	}
+	return &StateID{
+		Component:   cfg.Component(),
+		ComponentID: id,
+		ExecID:      execID,
+	}, nil
+}
+
+func (s *StateID) ToString() string {
+	return fmt.Sprintf("%s:%s:%s", s.Component, s.ComponentID, s.ExecID)
 }

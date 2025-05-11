@@ -183,13 +183,15 @@ func Test_LoadTask(t *testing.T) {
 
 func Test_TaskConfigValidation(t *testing.T) {
 	taskID := "test-task"
+	taskCWD, err := common.CWDFromPath("/test/path")
+	require.NoError(t, err)
 
 	t.Run("Should validate valid basic task", func(t *testing.T) {
 		config := &TaskConfig{
 			ID:     taskID,
 			Type:   TaskTypeBasic,
 			Action: "test-action",
-			cwd:    common.NewCWD("/test/path"),
+			cwd:    taskCWD,
 		}
 
 		TestMode = false
@@ -207,7 +209,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			Routes: map[string]string{
 				"route1": "next1",
 			},
-			cwd: common.NewCWD("/test/path"),
+			cwd: taskCWD,
 		}
 
 		TestMode = false
@@ -235,7 +237,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 		config := &TaskConfig{
 			ID:  taskID,
 			Use: pkgref.NewPackageRefConfig("invalid"),
-			cwd: common.NewCWD("/test/path"),
+			cwd: taskCWD,
 		}
 
 		TestMode = false
@@ -250,7 +252,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 		config := &TaskConfig{
 			ID:   "test-task",
 			Type: "invalid",
-			cwd:  common.NewCWD("/test/path"),
+			cwd:  taskCWD,
 		}
 
 		TestMode = false
@@ -265,7 +267,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 		config := &TaskConfig{
 			ID:   taskID,
 			Type: TaskTypeBasic,
-			cwd:  common.NewCWD("/test/path"),
+			cwd:  taskCWD,
 		}
 
 		TestMode = false
@@ -280,7 +282,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 		config := &TaskConfig{
 			ID:   taskID,
 			Type: TaskTypeDecision,
-			cwd:  common.NewCWD("/test/path"),
+			cwd:  taskCWD,
 		}
 
 		TestMode = false
@@ -295,7 +297,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 		config := &TaskConfig{
 			ID:   "test-task",
 			Type: TaskTypeDecision,
-			cwd:  common.NewCWD("/test/path"),
+			cwd:  taskCWD,
 		}
 
 		TestMode = false
@@ -315,7 +317,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 					"type": "object",
 				},
 			},
-			cwd: common.NewCWD("/test/path"),
+			cwd: taskCWD,
 		}
 
 		TestMode = false
@@ -335,7 +337,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 					"type": "object",
 				},
 			},
-			cwd: common.NewCWD("/test/path"),
+			cwd: taskCWD,
 		}
 
 		TestMode = false
@@ -360,7 +362,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 					"type": "object",
 				},
 			},
-			cwd: common.NewCWD("/test/path"),
+			cwd: taskCWD,
 		}
 
 		TestMode = false
@@ -375,7 +377,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 		config := &TaskConfig{
 			ID:   "test-task",
 			Type: TaskTypeBasic,
-			cwd:  common.NewCWD("/test/path"),
+			cwd:  taskCWD,
 			InputSchema: &schema.InputSchema{
 				Schema: schema.Schema{
 					"type": "object",

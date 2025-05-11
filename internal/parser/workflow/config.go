@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"dario.cat/mergo"
@@ -38,14 +39,14 @@ func (w *WorkflowConfig) Component() common.ComponentType {
 }
 
 // SetCWD sets the current working directory for the workflow
-func (w *WorkflowConfig) SetCWD(path string) {
-	if w.cwd == nil {
-		w.cwd = common.NewCWD(path)
-		setComponentsCWD(w, path)
-	} else {
-		w.cwd.Set(path)
-		setComponentsCWD(w, path)
+func (w *WorkflowConfig) SetCWD(path string) error {
+	normalizedPath, err := common.CWDFromPath(path)
+	if err != nil {
+		return fmt.Errorf("failed to normalize path: %w", err)
 	}
+	w.cwd = normalizedPath
+	setComponentsCWD(w, path)
+	return nil
 }
 
 // GetCWD returns the current working directory

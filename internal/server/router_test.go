@@ -58,7 +58,8 @@ func Test_RegisterRoutes(t *testing.T) {
 
 	t.Run("Should handle empty workflows", func(t *testing.T) {
 		router := gin.New()
-		state, err := NewAppState("", nil, nil)
+		config := createTestProjectConfig(t, "")
+		state, err := NewAppState(config, nil, nil)
 		require.NoError(t, err)
 
 		err = RegisterRoutes(router, state)
@@ -67,7 +68,8 @@ func Test_RegisterRoutes(t *testing.T) {
 
 	t.Run("Should handle workflows without webhook triggers", func(t *testing.T) {
 		router := gin.New()
-		state, err := NewAppState("", []*workflow.WorkflowConfig{
+		config := createTestProjectConfig(t, "")
+		state, err := NewAppState(config, []*workflow.WorkflowConfig{
 			{
 				ID: "test-workflow",
 				Trigger: trigger.TriggerConfig{
@@ -83,7 +85,8 @@ func Test_RegisterRoutes(t *testing.T) {
 
 	t.Run("Should register webhook trigger with leading slash", func(t *testing.T) {
 		router := gin.New()
-		state, err := NewAppState("", []*workflow.WorkflowConfig{
+		config := createTestProjectConfig(t, "")
+		state, err := NewAppState(config, []*workflow.WorkflowConfig{
 			{
 				Trigger: trigger.TriggerConfig{
 					Type: trigger.TriggerTypeWebhook,
@@ -107,7 +110,8 @@ func Test_RegisterRoutes(t *testing.T) {
 
 	t.Run("Should normalize webhook trigger without leading slash", func(t *testing.T) {
 		router := gin.New()
-		state, err := NewAppState("", []*workflow.WorkflowConfig{
+		config := createTestProjectConfig(t, "")
+		state, err := NewAppState(config, []*workflow.WorkflowConfig{
 			{
 				Trigger: trigger.TriggerConfig{
 					Type: trigger.TriggerTypeWebhook,
@@ -131,7 +135,8 @@ func Test_RegisterRoutes(t *testing.T) {
 
 	t.Run("Should return error for duplicate webhook URLs", func(t *testing.T) {
 		router := gin.New()
-		state, err := NewAppState("", []*workflow.WorkflowConfig{
+		config := createTestProjectConfig(t, "")
+		state, err := NewAppState(config, []*workflow.WorkflowConfig{
 			{
 				Trigger: trigger.TriggerConfig{
 					Type: trigger.TriggerTypeWebhook,
@@ -172,7 +177,8 @@ func Test_HandleRequest(t *testing.T) {
 
 	t.Run("Should handle valid JSON request", func(t *testing.T) {
 		router := gin.New()
-		state, err := NewAppState("", []*workflow.WorkflowConfig{testWorkflow}, nil)
+		config := createTestProjectConfig(t, "")
+		state, err := NewAppState(config, []*workflow.WorkflowConfig{testWorkflow}, nil)
 		require.NoError(t, err)
 
 		router.Use(AppStateMiddleware(state))
@@ -200,7 +206,8 @@ func Test_HandleRequest(t *testing.T) {
 
 	t.Run("Should handle invalid JSON request", func(t *testing.T) {
 		router := gin.New()
-		state, err := NewAppState("", []*workflow.WorkflowConfig{testWorkflow}, nil)
+		config := createTestProjectConfig(t, "")
+		state, err := NewAppState(config, []*workflow.WorkflowConfig{testWorkflow}, nil)
 		require.NoError(t, err)
 
 		router.Use(AppStateMiddleware(state))
@@ -225,7 +232,8 @@ func Test_HandleRequest(t *testing.T) {
 
 	t.Run("Should return 404 for non-existent webhook", func(t *testing.T) {
 		router := gin.New()
-		state, err := NewAppState("", []*workflow.WorkflowConfig{testWorkflow}, nil)
+		config := createTestProjectConfig(t, "")
+		state, err := NewAppState(config, []*workflow.WorkflowConfig{testWorkflow}, nil)
 		require.NoError(t, err)
 
 		router.Use(AppStateMiddleware(state))
