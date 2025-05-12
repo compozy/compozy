@@ -1,0 +1,12 @@
+id: get_quote
+description: Get a random Game of Thrones quote
+execute: ./get_quote.ts
+
+output:
+  type: object
+  properties:
+    quote:
+      type: string
+      description: Random quote from Game of Thrones
+  required:
+    - quote

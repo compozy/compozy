@@ -1,6 +1,8 @@
 package workflow
 
 import (
+	"fmt"
+
 	"github.com/compozy/compozy/internal/parser/agent"
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/task"
@@ -29,11 +31,11 @@ func (v *ComponentsValidator) Validate() error {
 		if err := c.Validate(); err != nil {
 			switch c.(type) {
 			case *agent.AgentConfig:
-				return NewAgentValidationError(err)
+				return fmt.Errorf("agent validation error: %w", err)
 			case *tool.ToolConfig:
-				return NewToolValidationError(err)
+				return fmt.Errorf("tool validation error: %w", err)
 			case *task.TaskConfig:
-				return NewTaskValidationError(err)
+				return fmt.Errorf("task validation error: %w", err)
 			}
 		}
 	}
@@ -56,7 +58,7 @@ func NewTriggerValidator(config WorkflowConfig) *TriggerValidator {
 func (v *TriggerValidator) Validate() error {
 	trigger := v.config.Trigger
 	if err := trigger.Validate(); err != nil {
-		return NewTriggerValidationError(err)
+		return fmt.Errorf("trigger validation error: %w", err)
 	}
 
 	return nil

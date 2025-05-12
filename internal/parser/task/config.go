@@ -62,13 +62,13 @@ func (t *TaskConfig) GetCWD() string {
 	return t.cwd.Get()
 }
 
-func Load(path string) (*TaskConfig, error) {
-	config, err := common.LoadConfig[*TaskConfig](path)
+func Load(cwd *common.CWD, path string) (*TaskConfig, error) {
+	config, err := common.LoadConfig[*TaskConfig](cwd, path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, NewFileOpenError(err)
+			return nil, fmt.Errorf("failed to open task config file: %w", err)
 		}
-		return nil, NewDecodeError(err)
+		return nil, fmt.Errorf("failed to decode task config: %w", err)
 	}
 	return config, nil
 }
@@ -90,7 +90,7 @@ func (t *TaskConfig) ValidateParams(input map[string]any) error {
 func (t *TaskConfig) Merge(other any) error {
 	otherConfig, ok := other.(*TaskConfig)
 	if !ok {
-		return NewMergeError(errors.New("invalid type for merge"))
+		return fmt.Errorf("failed to merge task configs: %w", errors.New("invalid type for merge"))
 	}
 	return mergo.Merge(t, otherConfig, mergo.WithOverride)
 }

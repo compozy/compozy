@@ -1,0 +1,3 @@
+id: get_quote
+type: basic
+use: tool(file=../tools/get_quote.yaml)

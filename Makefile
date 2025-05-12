@@ -1,4 +1,4 @@
-.PHONY: all test lint fmt clean build dev dev-weather deps schemagen help
+.PHONY: all test lint fmt clean build dev dev-weather deps schemagen help integration-test
 
 # Default target
 all: test lint fmt
@@ -47,10 +47,15 @@ deps:
 schemagen:
 	go run cmd/schemagen/generate.go -out=./schemas
 
+# Run integration tests
+integration-test:
+	gotestsum -f testdox -- ./test/integration/...
+
 # Help command
 help:
 	@echo "Available commands:"
 	@echo "  make test    - Run tests using gotestsum"
+	@echo "  make integration-test - Run integration tests"
 	@echo "  make lint    - Run linter using golangci-lint"
 	@echo "  make fmt     - Format code using gofmt"
 	@echo "  make clean   - Clean build artifacts"

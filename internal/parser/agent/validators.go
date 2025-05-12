@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"fmt"
+
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
 )
@@ -21,13 +23,13 @@ func (v *PackageRefValidator) Validate() error {
 	}
 	ref, err := pkgref.Parse(string(*v.pkgRef))
 	if err != nil {
-		return NewInvalidPackageRefError(err)
+		return fmt.Errorf("invalid package reference: %w", err)
 	}
 	if !ref.Component.IsAgent() {
-		return NewInvalidComponentTypeError()
+		return fmt.Errorf("package reference must be an agent")
 	}
 	if err := ref.Type.Validate(v.cwd.Get()); err != nil {
-		return NewInvalidPackageRefError(err)
+		return fmt.Errorf("invalid package reference: %w", err)
 	}
 	return nil
 }

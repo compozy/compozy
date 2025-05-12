@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -97,13 +96,13 @@ func (a *AgentConfig) GetCWD() string {
 }
 
 // Load loads an agent configuration from a file
-func Load(path string) (*AgentConfig, error) {
-	config, err := common.LoadConfig[*AgentConfig](path)
+func Load(cwd *common.CWD, path string) (*AgentConfig, error) {
+	config, err := common.LoadConfig[*AgentConfig](cwd, path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, NewFileOpenError(err)
+			return nil, fmt.Errorf("failed to open agent config file: %w", err)
 		}
-		return nil, NewDecodeError(err)
+		return nil, fmt.Errorf("failed to decode agent config: %w", err)
 	}
 	return config, nil
 }
@@ -128,7 +127,7 @@ func (a *AgentConfig) ValidateParams(input map[string]any) error {
 func (a *AgentConfig) Merge(other any) error {
 	otherConfig, ok := other.(*AgentConfig)
 	if !ok {
-		return NewMergeError(errors.New("invalid type for merge"))
+		return fmt.Errorf("failed to merge agent configs: %s", "invalid type for merge")
 	}
 	return mergo.Merge(a, otherConfig, mergo.WithOverride)
 }

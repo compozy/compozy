@@ -55,13 +55,13 @@ func (t *ToolConfig) GetCWD() string {
 }
 
 // Load loads a tool configuration from a file
-func Load(path string) (*ToolConfig, error) {
-	config, err := common.LoadConfig[*ToolConfig](path)
+func Load(cwd *common.CWD, path string) (*ToolConfig, error) {
+	config, err := common.LoadConfig[*ToolConfig](cwd, path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, NewFileOpenError(err)
+			return nil, fmt.Errorf("failed to open tool config file: %w", err)
 		}
-		return nil, NewDecodeError(err)
+		return nil, fmt.Errorf("failed to decode tool config: %w", err)
 	}
 	return config, nil
 }
@@ -85,7 +85,7 @@ func (t *ToolConfig) ValidateParams(input map[string]any) error {
 func (t *ToolConfig) Merge(other any) error {
 	otherConfig, ok := other.(*ToolConfig)
 	if !ok {
-		return NewMergeError(errors.New("invalid type for merge"))
+		return fmt.Errorf("failed to merge tool configs: %w", errors.New("invalid type for merge"))
 	}
 	return mergo.Merge(t, otherConfig, mergo.WithOverride)
 }

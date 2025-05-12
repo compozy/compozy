@@ -59,7 +59,7 @@ func (r *RegistryConfig) GetCWD() string {
 func Load(path string) (*RegistryConfig, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, NewFileOpenError(err)
+		return nil, fmt.Errorf("failed to open registry config file: %w", err)
 	}
 
 	var config RegistryConfig
@@ -68,10 +68,10 @@ func Load(path string) (*RegistryConfig, error) {
 	closeErr := file.Close()
 
 	if decodeErr != nil {
-		return nil, NewDecodeError(decodeErr)
+		return nil, fmt.Errorf("failed to decode registry config: %w", decodeErr)
 	}
 	if closeErr != nil {
-		return nil, NewFileCloseError(closeErr)
+		return nil, fmt.Errorf("failed to close registry config file: %w", closeErr)
 	}
 
 	config.SetCWD(filepath.Dir(path))
@@ -81,7 +81,7 @@ func Load(path string) (*RegistryConfig, error) {
 // Validate validates the registry configuration
 func (r *RegistryConfig) Validate() error {
 	validator := validator.NewCompositeValidator(
-		NewCWDValidator(r.cwd),
+		validator.NewCWDValidator(r.cwd, r.Name),
 		NewComponentTypeValidator(r.Type),
 		NewMainPathValidator(r.cwd, r.Main),
 	)

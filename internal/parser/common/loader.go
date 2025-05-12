@@ -11,28 +11,55 @@ import (
 	"github.com/compozy/compozy/internal/parser/pkgref"
 )
 
-func LoadConfig[T Config](path string) (T, error) {
-	file, err := os.Open(path)
+func resolvePath(cwd *CWD, path string) (string, error) {
+	if path == "" {
+		return "", fmt.Errorf("path cannot be empty")
+	}
+
+	if !filepath.IsAbs(path) {
+		if cwd != nil {
+			if err := cwd.Validate(); err != nil {
+				return "", fmt.Errorf("invalid current working directory: %w", err)
+			}
+			return filepath.Abs(cwd.Join(path))
+		}
+		// Fallback to os.Getwd() for relative paths when cwd is nil
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve absolute path: %w", err)
+		}
+		return absPath, nil
+	}
+
+	absPath, err := filepath.Abs(path)
 	if err != nil {
-		var zero T
+		return "", fmt.Errorf("failed to resolve absolute path: %w", err)
+	}
+	return absPath, nil
+}
+
+func LoadConfig[T Config](cwd *CWD, path string) (T, error) {
+	var zero T
+
+	resolvedPath, err := resolvePath(cwd, path)
+	if err != nil {
 		return zero, err
 	}
 
+	// Open the file
+	file, err := os.Open(resolvedPath)
+	if err != nil {
+		return zero, fmt.Errorf("failed to open config file: %w", err)
+	}
+	defer file.Close() // Ensure file is closed after use
+
 	var config T
 	decoder := yaml.NewDecoder(file)
-	decodeErr := decoder.Decode(&config)
-	closeErr := file.Close()
-
-	if decodeErr != nil {
-		var zero T
-		return zero, decodeErr
-	}
-	if closeErr != nil {
-		var zero T
-		return zero, closeErr
+	if err := decoder.Decode(&config); err != nil {
+		return zero, fmt.Errorf("failed to decode YAML config: %w", err)
 	}
 
-	config.SetCWD(filepath.Dir(path))
+	config.SetCWD(filepath.Dir(resolvedPath))
 	return config, nil
 }
 
@@ -62,10 +89,21 @@ func LoadID(
 		if path == "" {
 			return "", fmt.Errorf("missing path: %s", "")
 		}
-		path = filepath.Join(path, ref.Type.Value)
+
+		// Join the file reference path with the component's CWD
+		filePath := filepath.Join(path, ref.Type.Value)
+
+		// Resolve to absolute path
+		absPath, err := filepath.Abs(filePath)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve absolute path: %w", err)
+		}
+
+		// Clean the path to resolve any .. or . segments
+		cleanPath := filepath.Clean(absPath)
 
 		// Read the file and extract the ID directly
-		file, err := os.Open(path)
+		file, err := os.Open(cleanPath)
 		if err != nil {
 			return "", err
 		}

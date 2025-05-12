@@ -118,11 +118,22 @@ func (p *ProjectConfig) Validate() error {
 func (p *ProjectConfig) WorkflowsFromSources() ([]*workflow.WorkflowConfig, error) {
 	var workflows []*workflow.WorkflowConfig
 	for _, wf := range p.Workflows {
+		// Get the full path to the workflow file
 		workflowPath := p.cwd.Join(wf.Source)
-		wfConfig, err := workflow.Load(workflowPath)
+
+		// Create a CWD specific to the workflow file's directory
+		workflowDir := filepath.Dir(workflowPath)
+		workflowCWD, err := common.CWDFromPath(workflowDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create CWD for workflow directory: %w", err)
+		}
+
+		// Load the workflow with its own CWD
+		wfConfig, err := workflow.Load(workflowCWD, workflowPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load workflow from source: %w", err)
 		}
+
 		workflows = append(workflows, wfConfig)
 	}
 	return workflows, nil

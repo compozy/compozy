@@ -1,6 +1,8 @@
 package task
 
 import (
+	"fmt"
+
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
 )
@@ -21,13 +23,13 @@ func (v *PackageRefValidator) Validate() error {
 	}
 	ref, err := pkgref.Parse(string(*v.pkgRef))
 	if err != nil {
-		return NewInvalidPackageRefError(err)
+		return fmt.Errorf("invalid package reference: %w", err)
 	}
 	if !ref.Component.IsTask() && !ref.Component.IsAgent() && !ref.Component.IsTool() {
-		return NewInvalidTypeError()
+		return fmt.Errorf("package reference must be a task, agent, or tool")
 	}
 	if err := ref.Type.Validate(v.cwd.Get()); err != nil {
-		return NewInvalidPackageRefError(err)
+		return fmt.Errorf("invalid package reference: %w", err)
 	}
 	return nil
 }
@@ -56,17 +58,17 @@ func (v *TaskTypeValidator) Validate() error {
 	switch v.taskType {
 	case TaskTypeBasic:
 		if v.action == "" {
-			return NewInvalidTaskTypeError("Basic task configuration is required for basic task type")
+			return fmt.Errorf("invalid task type: Basic task configuration is required for basic task type")
 		}
 	case TaskTypeDecision:
 		if v.condition == "" && len(v.routes) == 0 {
-			return NewInvalidTaskTypeError("Decision task configuration is required for decision task type")
+			return fmt.Errorf("invalid task type: Decision task configuration is required for decision task type")
 		}
 		if len(v.routes) == 0 {
-			return NewInvalidDecisionTaskError()
+			return fmt.Errorf("decision task must have at least one route")
 		}
 	default:
-		return NewInvalidTaskTypeError(string(v.taskType))
+		return fmt.Errorf("invalid task type: %s", string(v.taskType))
 	}
 	return nil
 }

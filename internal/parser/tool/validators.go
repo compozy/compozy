@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -24,13 +25,13 @@ func (v *PackageRefValidator) Validate() error {
 	}
 	ref, err := v.pkgRef.IntoRef()
 	if err != nil {
-		return NewInvalidPackageRefError(err)
+		return fmt.Errorf("invalid package reference: %w", err)
 	}
 	if !ref.Component.IsTool() {
-		return NewInvalidTypeError()
+		return fmt.Errorf("package reference must be a tool")
 	}
 	if err := ref.Type.Validate(v.cwd.Get()); err != nil {
-		return NewInvalidPackageRefError(err)
+		return fmt.Errorf("invalid package reference: %w", err)
 	}
 	return nil
 }
@@ -58,13 +59,13 @@ func (v *ExecuteValidator) Validate() error {
 	executePath := v.cwd.Join(v.execute)
 	executePath, err := filepath.Abs(executePath)
 	if err != nil {
-		return NewInvalidExecutePathError(err)
+		return fmt.Errorf("invalid execute path: %w", err)
 	}
 	if !TestMode && IsTypeScript(v.execute) && !fileExists(executePath) {
 		if v.id == "" {
-			return NewMissingToolIDError()
+			return fmt.Errorf("tool ID is required for TypeScript execution")
 		}
-		return NewInvalidToolExecuteError(executePath)
+		return fmt.Errorf("invalid tool execute path: %s", executePath)
 	}
 	return nil
 }

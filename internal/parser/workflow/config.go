@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"dario.cat/mergo"
 
@@ -16,10 +17,8 @@ import (
 	"github.com/compozy/compozy/internal/parser/validator"
 )
 
-// TestMode is used to skip file existence checks during testing
 var TestMode bool
 
-// WorkflowConfig represents a workflow configuration
 type WorkflowConfig struct {
 	ID          string                `json:"id" yaml:"id"`
 	Tasks       []task.TaskConfig     `json:"tasks" yaml:"tasks"`
@@ -31,14 +30,13 @@ type WorkflowConfig struct {
 	Agents      []agent.AgentConfig   `json:"agents,omitempty" yaml:"agents,omitempty"`
 	Env         common.EnvMap         `json:"env,omitempty" yaml:"env,omitempty"`
 
-	cwd *common.CWD // internal field for current working directory
+	cwd *common.CWD
 }
 
 func (w *WorkflowConfig) Component() common.ComponentType {
 	return common.ComponentWorkflow
 }
 
-// SetCWD sets the current working directory for the workflow
 func (w *WorkflowConfig) SetCWD(path string) error {
 	normalizedPath, err := common.CWDFromPath(path)
 	if err != nil {
@@ -49,7 +47,6 @@ func (w *WorkflowConfig) SetCWD(path string) error {
 	return nil
 }
 
-// GetCWD returns the current working directory
 func (w *WorkflowConfig) GetCWD() string {
 	if w.cwd == nil {
 		return ""
@@ -57,13 +54,13 @@ func (w *WorkflowConfig) GetCWD() string {
 	return w.cwd.Get()
 }
 
-func Load(path string) (*WorkflowConfig, error) {
-	config, err := common.LoadConfig[*WorkflowConfig](path)
+func Load(cwd *common.CWD, path string) (*WorkflowConfig, error) {
+	config, err := common.LoadConfig[*WorkflowConfig](cwd, path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, NewFileOpenError(err)
+			return nil, fmt.Errorf("failed to open workflow config file: %w", err)
 		}
-		return nil, NewDecodeError(err)
+		return nil, fmt.Errorf("failed to decode workflow config: %w", err)
 	}
 
 	setComponentsCWD(config, config.GetCWD())
@@ -88,7 +85,6 @@ func (w *WorkflowConfig) Validate() error {
 		return err
 	}
 
-	// Validate tools
 	var toolComponents []common.Config
 	for i := range w.Tools {
 		w.Tools[i].SetCWD(w.cwd.Get())
@@ -98,7 +94,6 @@ func (w *WorkflowConfig) Validate() error {
 		return err
 	}
 
-	// Validate agents
 	var agentComponents []common.Config
 	for i := range w.Agents {
 		w.Agents[i].SetCWD(w.cwd.Get())
@@ -119,25 +114,63 @@ func (w *WorkflowConfig) ValidateParams(input map[string]any) error {
 func (w *WorkflowConfig) Merge(other any) error {
 	otherConfig, ok := other.(*WorkflowConfig)
 	if !ok {
-		return NewMergeError(errors.New("invalid type for merge"))
+		return fmt.Errorf("failed to merge workflow configs: %w", errors.New("invalid type for merge"))
 	}
 	return mergo.Merge(w, otherConfig, mergo.WithOverride)
 }
 
-// LoadID loads the ID from either the direct ID field or resolves it from a package reference
 func (w *WorkflowConfig) LoadID() (string, error) {
-	// Workflow configs don't support package references, so just return the ID
 	return string(w.ID), nil
 }
 
 func setComponentsCWD(config *WorkflowConfig, cwd string) {
+	workflowCWD := cwd
+
 	for i := range config.Tasks {
-		config.Tasks[i].SetCWD(cwd)
+		// If the task has a Use reference, check its type
+		if config.Tasks[i].Use != nil {
+			ref, err := config.Tasks[i].Use.IntoRef()
+			if err == nil && ref.Type.Type == "file" {
+				// Get the directory containing the referenced file
+				taskPath := filepath.Join(workflowCWD, ref.Type.Value)
+				taskDir := filepath.Dir(taskPath)
+				config.Tasks[i].SetCWD(taskDir)
+				continue
+			}
+		}
+		// Otherwise, inherit the workflow's CWD
+		config.Tasks[i].SetCWD(workflowCWD)
 	}
+
 	for i := range config.Tools {
-		config.Tools[i].SetCWD(cwd)
+		// If the tool has a Use reference, check its type
+		if config.Tools[i].Use != nil {
+			ref, err := config.Tools[i].Use.IntoRef()
+			if err == nil && ref.Type.Type == "file" {
+				// Get the directory containing the referenced file
+				toolPath := filepath.Join(workflowCWD, ref.Type.Value)
+				toolDir := filepath.Dir(toolPath)
+				config.Tools[i].SetCWD(toolDir)
+				continue
+			}
+		}
+		// Otherwise, inherit the workflow's CWD
+		config.Tools[i].SetCWD(workflowCWD)
 	}
+
 	for i := range config.Agents {
-		config.Agents[i].SetCWD(cwd)
+		// If the agent has a Use reference, check its type
+		if config.Agents[i].Use != nil {
+			ref, err := config.Agents[i].Use.IntoRef()
+			if err == nil && ref.Type.Type == "file" {
+				// Get the directory containing the referenced file
+				agentPath := filepath.Join(workflowCWD, ref.Type.Value)
+				agentDir := filepath.Dir(agentPath)
+				config.Agents[i].SetCWD(agentDir)
+				continue
+			}
+		}
+		// Otherwise, inherit the workflow's CWD
+		config.Agents[i].SetCWD(workflowCWD)
 	}
 }

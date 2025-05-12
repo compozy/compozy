@@ -26,12 +26,14 @@ func Test_LoadTool(t *testing.T) {
 		_, filename, _, ok := runtime.Caller(0)
 		require.True(t, ok)
 		testDir := filepath.Dir(filename)
+		cwd, err := common.CWDFromPath(testDir)
+		require.NoError(t, err)
 
 		// Setup test fixture using utils
 		dstPath := utils.SetupFixture(t, testDir, "basic_tool.yaml")
 
 		// Run the test
-		config, err := Load(dstPath)
+		config, err := Load(cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -85,12 +87,14 @@ func Test_LoadTool(t *testing.T) {
 		_, filename, _, ok := runtime.Caller(0)
 		require.True(t, ok)
 		testDir := filepath.Dir(filename)
+		cwd, err := common.CWDFromPath(testDir)
+		require.NoError(t, err)
 
 		// Setup test fixture using utils
 		dstPath := utils.SetupFixture(t, testDir, "package_tool.yaml")
 
 		// Run the test
-		config, err := Load(dstPath)
+		config, err := Load(cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -162,12 +166,14 @@ func Test_LoadTool(t *testing.T) {
 		_, filename, _, ok := runtime.Caller(0)
 		require.True(t, ok)
 		testDir := filepath.Dir(filename)
+		cwd, err := common.CWDFromPath(testDir)
+		require.NoError(t, err)
 
 		// Setup test fixture using utils
 		dstPath := utils.SetupFixture(t, testDir, "invalid_tool.yaml")
 
 		// Run the test
-		config, err := Load(dstPath)
+		config, err := Load(cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 

@@ -77,10 +77,7 @@ func parseDependencyParts(value string) (owner, repo, packageName, version strin
 	// Split owner and repo
 	ownerRepo := strings.Split(ownerRepoPart, "/")
 	if len(ownerRepo) != 2 || ownerRepo[0] == "" || ownerRepo[1] == "" {
-		return "", "", "", "", NewInvalidDependencyError(
-			value,
-			fmt.Errorf("dependency reference must include owner and repository (format: owner/repo)"),
-		)
+		return "", "", "", "", fmt.Errorf("invalid dependency %q: %s", value, "dependency reference must include owner and repository (format: owner/repo)")
 	}
 
 	return ownerRepo[0], ownerRepo[1], packageName, version, nil
@@ -101,23 +98,14 @@ func buildDependencyValue(owner, repo, packageName, version string) string {
 // validateFilePath checks if a file path is valid and exists
 func validateFilePath(path string) error {
 	if !filepath.IsAbs(path) {
-		return NewInvalidFileError(
-			path,
-			fmt.Errorf("file path must be absolute"),
-		)
+		return fmt.Errorf("invalid file %q: %s", path, "file path must be absolute")
 	}
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return NewInvalidFileError(
-			path,
-			fmt.Errorf("file not found"),
-		)
+		return fmt.Errorf("invalid file %q: %s", path, "file not found")
 	}
 	ext := strings.ToLower(filepath.Ext(path))
 	if ext != ".yaml" && ext != ".yml" {
-		return NewInvalidFileError(
-			path,
-			fmt.Errorf("invalid file extension: expected yaml or yml, got %s", ext),
-		)
+		return fmt.Errorf("invalid file %q: %s", path, "invalid file extension: expected yaml or yml, got "+ext)
 	}
 	return nil
 }
@@ -127,7 +115,7 @@ func ParseRefType(typeStr, value string) (*RefType, error) {
 	switch typeStr {
 	case "id":
 		if strings.TrimSpace(value) == "" {
-			return nil, NewEmptyValueError()
+			return nil, fmt.Errorf("reference value cannot be empty")
 		}
 		return &RefType{
 			Type:  typeStr,
@@ -149,7 +137,7 @@ func ParseRefType(typeStr, value string) (*RefType, error) {
 			Value: value,
 		}, nil
 	default:
-		return nil, NewInvalidTypeError(typeStr, fmt.Errorf("unknown type"))
+		return nil, fmt.Errorf("invalid type %q: %s", typeStr, "unknown type")
 	}
 }
 
@@ -163,7 +151,7 @@ func (r *RefType) Validate(filePath string) error {
 	switch r.Type {
 	case "id":
 		if strings.TrimSpace(r.Value) == "" {
-			return NewEmptyValueError()
+			return fmt.Errorf("reference value cannot be empty")
 		}
 	case "file":
 		path := filepath.Join(filepath.Dir(filePath), r.Value)
@@ -171,10 +159,7 @@ func (r *RefType) Validate(filePath string) error {
 	case "dep":
 		parts := strings.Split(r.Value, "/")
 		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-			return NewInvalidDependencyError(
-				r.Value,
-				fmt.Errorf("dependency reference must include non-empty owner and repository"),
-			)
+			return fmt.Errorf("invalid dependency %q: %s", r.Value, "dependency reference must include non-empty owner and repository")
 		}
 	}
 	return nil
@@ -193,7 +178,7 @@ func validateComponent(component string) (Component, error) {
 		string(ComponentTask), string(ComponentWorkflow):
 		return Component(component), nil
 	default:
-		return "", NewInvalidComponentError(component, fmt.Errorf("unknown component"))
+		return "", fmt.Errorf("invalid component %q: %s", component, "unknown component")
 	}
 }
 
@@ -227,7 +212,7 @@ func (p *PackageRef) UnmarshalJSON(data []byte) error {
 
 	parts := strings.SplitN(aux.Type, "=", 2)
 	if len(parts) != 2 {
-		return NewInvalidTypeError(aux.Type, fmt.Errorf("invalid format"))
+		return fmt.Errorf("invalid type %q: %s", aux.Type, "invalid format")
 	}
 
 	refType, err := ParseRefType(parts[0], parts[1])
@@ -266,7 +251,7 @@ func Parse(ref string) (*PackageRef, error) {
 		}
 	}
 
-	return nil, NewInvalidTypeError(ref, fmt.Errorf("invalid format"))
+	return nil, fmt.Errorf("invalid type %q: %s", ref, "invalid format")
 }
 
 // Value returns the value of the package reference

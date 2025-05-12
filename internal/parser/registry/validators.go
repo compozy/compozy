@@ -1,26 +1,11 @@
 package registry
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/compozy/compozy/internal/parser/common"
 )
-
-// CWDValidator validates the current working directory
-type CWDValidator struct {
-	cwd *common.CWD
-}
-
-func NewCWDValidator(cwd *common.CWD) *CWDValidator {
-	return &CWDValidator{cwd: cwd}
-}
-
-func (v *CWDValidator) Validate() error {
-	if v.cwd == nil || v.cwd.Get() == "" {
-		return NewMissingPathError()
-	}
-	return nil
-}
 
 // ComponentTypeValidator validates the component type
 type ComponentTypeValidator struct {
@@ -36,7 +21,7 @@ func (v *ComponentTypeValidator) Validate() error {
 	case ComponentTypeAgent, ComponentTypeTool, ComponentTypeTask:
 		return nil
 	default:
-		return NewInvalidTypeError(string(v.componentType))
+		return fmt.Errorf("invalid component type: %s", string(v.componentType))
 	}
 }
 
@@ -56,7 +41,7 @@ func NewMainPathValidator(cwd *common.CWD, mainPath string) *MainPathValidator {
 func (v *MainPathValidator) Validate() error {
 	mainPath := v.cwd.Join(string(v.mainPath))
 	if _, err := os.Stat(mainPath); os.IsNotExist(err) {
-		return NewMainPathNotFoundError(string(v.mainPath))
+		return fmt.Errorf("main path does not exist: %s", string(v.mainPath))
 	}
 	return nil
 }
