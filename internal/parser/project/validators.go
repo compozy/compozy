@@ -5,7 +5,6 @@ import (
 	"fmt"
 )
 
-// WorkflowsValidator validates the workflows configuration
 type WorkflowsValidator struct {
 	workflows []*WorkflowSourceConfig
 }

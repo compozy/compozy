@@ -11,7 +11,6 @@ import (
 	"github.com/compozy/compozy/internal/parser/author"
 	"github.com/compozy/compozy/internal/parser/pkgref"
 	"github.com/compozy/compozy/internal/parser/project"
-	"github.com/compozy/compozy/internal/parser/registry"
 	"github.com/compozy/compozy/internal/parser/task"
 	"github.com/compozy/compozy/internal/parser/tool"
 	"github.com/compozy/compozy/internal/parser/trigger"
@@ -67,7 +66,6 @@ func GenerateParserSchemas(outDir string) error {
 		{"author", &author.Author{}},
 		{"package-reference", pkgref.NewPackageRefConfig("")},
 		{"project", &project.ProjectConfig{}},
-		{"registry", &registry.RegistryConfig{}},
 		{"task", &task.TaskConfig{}},
 		{"tool", &tool.ToolConfig{}},
 		{"trigger", &trigger.TriggerConfig{}},

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/internal/nats"
+	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/project"
 	"github.com/compozy/compozy/internal/parser/workflow"
 )
@@ -16,7 +17,7 @@ const (
 )
 
 type AppState struct {
-	CWD           string
+	CWD           *common.CWD
 	ProjectConfig *project.ProjectConfig
 	Workflows     []*workflow.WorkflowConfig
 	NatsServer    *nats.NatsServer
@@ -29,7 +30,7 @@ func NewAppState(projectConfig *project.ProjectConfig, workflows []*workflow.Wor
 	}
 
 	cwd := projectConfig.GetCWD()
-	if cwd == "" {
+	if cwd == nil {
 		return nil, fmt.Errorf("project config must have a valid CWD")
 	}
 

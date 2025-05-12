@@ -1,6 +1,6 @@
 id: invalid-task
-type: basic
-# Missing basic configuration
+use: task(file=/basic_task.yaml)
+# Inputs schemas are not allowed for references
 input:
   type: object
   properties:

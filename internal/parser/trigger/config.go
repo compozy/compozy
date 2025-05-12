@@ -1,11 +1,9 @@
 package trigger
 
 import (
-	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/compozy/compozy/internal/parser/transition"
 	"github.com/compozy/compozy/internal/parser/validator"
-	"gopkg.in/yaml.v3"
 )
 
 // TriggerType represents the type of trigger
@@ -27,21 +25,6 @@ type TriggerConfig struct {
 	Config      *WebhookConfig                    `json:"config,omitempty" yaml:"config,omitempty"`
 	OnError     *transition.ErrorTransitionConfig `json:"on_error,omitempty" yaml:"on_error,omitempty"`
 	InputSchema *schema.InputSchema               `json:"input,omitempty" yaml:"input,omitempty"`
-}
-
-// Load loads a trigger configuration from a YAML file
-func Load(path string) (*TriggerConfig, error) {
-	data, err := common.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	var config TriggerConfig
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, err
-	}
-
-	return &config, nil
 }
 
 // Validate validates the trigger configuration

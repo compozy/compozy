@@ -18,7 +18,7 @@ func Test_Parse(t *testing.T) {
 			},
 		}
 
-		got, err := Parse(input)
+		got, err := Parse(NewPackageRefConfig(input))
 		if err != nil {
 			t.Errorf("Parse() error = %v, want nil", err)
 			return
@@ -45,7 +45,7 @@ func Test_Parse(t *testing.T) {
 			},
 		}
 
-		got, err := Parse(input)
+		got, err := Parse(NewPackageRefConfig(input))
 		if err != nil {
 			t.Errorf("Parse() error = %v, want nil", err)
 			return
@@ -64,7 +64,7 @@ func Test_Parse(t *testing.T) {
 
 	t.Run("Should return error for invalid format - missing type=value", func(t *testing.T) {
 		input := "agent()"
-		_, err := Parse(input)
+		_, err := Parse(NewPackageRefConfig(input))
 		if err == nil {
 			t.Error("Parse() error = nil, want error")
 		}
@@ -75,7 +75,7 @@ func Test_Parse(t *testing.T) {
 
 	t.Run("Should return error for invalid format - empty value", func(t *testing.T) {
 		input := "agent(id=)"
-		_, err := Parse(input)
+		_, err := Parse(NewPackageRefConfig(input))
 		if err == nil {
 			t.Error("Parse() error = nil, want error")
 		}
@@ -86,7 +86,7 @@ func Test_Parse(t *testing.T) {
 
 	t.Run("Should return error for invalid component", func(t *testing.T) {
 		input := "invalid(id=test)"
-		_, err := Parse(input)
+		_, err := Parse(NewPackageRefConfig(input))
 		if err == nil {
 			t.Error("Parse() error = nil, want error")
 		}
@@ -97,7 +97,7 @@ func Test_Parse(t *testing.T) {
 
 	t.Run("Should return error for invalid type", func(t *testing.T) {
 		input := "agent(bad=test)"
-		_, err := Parse(input)
+		_, err := Parse(NewPackageRefConfig(input))
 		if err == nil {
 			t.Error("Parse() error = nil, want error")
 		}
@@ -112,7 +112,7 @@ func Test_Value(t *testing.T) {
 		input := "agent(id=my-agent)"
 		want := "my-agent"
 
-		pkgRef, err := Parse(input)
+		pkgRef, err := Parse(NewPackageRefConfig(input))
 		if err != nil {
 			t.Fatalf("Parse() error = %v", err)
 		}
@@ -125,7 +125,7 @@ func Test_Value(t *testing.T) {
 		input := "tool(file=./tool.yaml)"
 		want := "./tool.yaml"
 
-		pkgRef, err := Parse(input)
+		pkgRef, err := Parse(NewPackageRefConfig(input))
 		if err != nil {
 			t.Fatalf("Parse() error = %v", err)
 		}
@@ -138,7 +138,7 @@ func Test_Value(t *testing.T) {
 		input := "workflow(dep=compozy/workflows:flow@v1.0.0)"
 		want := "compozy/workflows:flow@v1.0.0"
 
-		pkgRef, err := Parse(input)
+		pkgRef, err := Parse(NewPackageRefConfig(input))
 		if err != nil {
 			t.Fatalf("Parse() error = %v", err)
 		}
@@ -151,7 +151,7 @@ func Test_Value(t *testing.T) {
 func Test_SerializeDeserialize(t *testing.T) {
 	t.Run("Should correctly serialize and deserialize agent id reference", func(t *testing.T) {
 		input := "agent(id=my-agent)"
-		pkgRef, err := Parse(input)
+		pkgRef, err := Parse(NewPackageRefConfig(input))
 		if err != nil {
 			t.Fatalf("Parse() error = %v", err)
 		}
@@ -179,7 +179,7 @@ func Test_SerializeDeserialize(t *testing.T) {
 
 	t.Run("Should correctly serialize and deserialize workflow dep reference", func(t *testing.T) {
 		input := "workflow(dep=compozy/workflows:flow@v1.0.0)"
-		pkgRef, err := Parse(input)
+		pkgRef, err := Parse(NewPackageRefConfig(input))
 		if err != nil {
 			t.Fatalf("Parse() error = %v", err)
 		}
@@ -338,7 +338,7 @@ func Test_ComponentMethods(t *testing.T) {
 func Test_ParseEdgeCases(t *testing.T) {
 	t.Run("Should return error for whitespace-only value", func(t *testing.T) {
 		input := "agent(id= )"
-		_, err := Parse(input)
+		_, err := Parse(NewPackageRefConfig(input))
 		if err == nil {
 			t.Error("Parse() error = nil, want error")
 		}
@@ -349,7 +349,7 @@ func Test_ParseEdgeCases(t *testing.T) {
 
 	t.Run("Should parse complex version string", func(t *testing.T) {
 		input := "workflow(dep=owner/repo:pkg@ver-with-dashes)"
-		_, err := Parse(input)
+		_, err := Parse(NewPackageRefConfig(input))
 		if err != nil {
 			t.Errorf("Parse() error = %v, want nil", err)
 		}
@@ -357,7 +357,7 @@ func Test_ParseEdgeCases(t *testing.T) {
 
 	t.Run("Should return error for empty repo", func(t *testing.T) {
 		input := "workflow(dep=owner/)"
-		_, err := Parse(input)
+		_, err := Parse(NewPackageRefConfig(input))
 		if err == nil {
 			t.Error("Parse() error = nil, want error")
 		}
@@ -368,7 +368,7 @@ func Test_ParseEdgeCases(t *testing.T) {
 
 	t.Run("Should return error for empty owner", func(t *testing.T) {
 		input := "workflow(dep=/repo)"
-		_, err := Parse(input)
+		_, err := Parse(NewPackageRefConfig(input))
 		if err == nil {
 			t.Error("Parse() error = nil, want error")
 		}
@@ -379,7 +379,7 @@ func Test_ParseEdgeCases(t *testing.T) {
 
 	t.Run("Should parse missing package name", func(t *testing.T) {
 		input := "workflow(dep=owner/repo@v1.0.0)"
-		_, err := Parse(input)
+		_, err := Parse(NewPackageRefConfig(input))
 		if err != nil {
 			t.Errorf("Parse() error = %v, want nil", err)
 		}
@@ -387,7 +387,7 @@ func Test_ParseEdgeCases(t *testing.T) {
 
 	t.Run("Should parse missing version", func(t *testing.T) {
 		input := "workflow(dep=owner/repo:pkg)"
-		_, err := Parse(input)
+		_, err := Parse(NewPackageRefConfig(input))
 		if err != nil {
 			t.Errorf("Parse() error = %v, want nil", err)
 		}

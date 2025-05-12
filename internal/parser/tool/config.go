@@ -3,7 +3,6 @@ package tool
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -14,9 +13,6 @@ import (
 	"github.com/compozy/compozy/internal/parser/schema"
 	"github.com/compozy/compozy/internal/parser/validator"
 )
-
-// TestMode indicates whether we are running in test mode
-var TestMode bool
 
 // ToolConfig represents a tool configuration
 type ToolConfig struct {
@@ -38,30 +34,24 @@ func (t *ToolConfig) Component() common.ComponentType {
 
 // SetCWD sets the current working directory for the tool
 func (t *ToolConfig) SetCWD(path string) error {
-	normalizedPath, err := common.CWDFromPath(path)
+	cwd, err := common.CWDFromPath(path)
 	if err != nil {
-		return fmt.Errorf("failed to normalize path: %w", err)
+		return err
 	}
-	t.cwd = normalizedPath
+	t.cwd = cwd
 	return nil
 }
 
 // GetCWD returns the current working directory
-func (t *ToolConfig) GetCWD() string {
-	if t.cwd == nil {
-		return ""
-	}
-	return t.cwd.Get()
+func (t *ToolConfig) GetCWD() *common.CWD {
+	return t.cwd
 }
 
 // Load loads a tool configuration from a file
 func Load(cwd *common.CWD, path string) (*ToolConfig, error) {
 	config, err := common.LoadConfig[*ToolConfig](cwd, path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("failed to open tool config file: %w", err)
-		}
-		return nil, fmt.Errorf("failed to decode tool config: %w", err)
+		return nil, err
 	}
 	return config, nil
 }
@@ -71,10 +61,14 @@ func (t *ToolConfig) Validate() error {
 	v := validator.NewCompositeValidator(
 		validator.NewCWDValidator(t.cwd, t.ID),
 		schema.NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
-		NewPackageRefValidator(t.Use, t.cwd),
+		pkgref.NewPackageRefValidator(t.Use, t.cwd.PathStr(), isValidComponent),
 		NewExecuteValidator(t.Execute, t.cwd).WithID(t.ID),
 	)
 	return v.Validate()
+}
+
+func isValidComponent(c pkgref.Component) bool {
+	return c.IsTool()
 }
 
 func (t *ToolConfig) ValidateParams(input map[string]any) error {

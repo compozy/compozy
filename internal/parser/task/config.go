@@ -3,7 +3,6 @@ package task
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	"dario.cat/mergo"
 
@@ -47,28 +46,25 @@ func (t *TaskConfig) Component() common.ComponentType {
 }
 
 func (t *TaskConfig) SetCWD(path string) error {
-	normalizedPath, err := common.CWDFromPath(path)
+	cwd, err := common.CWDFromPath(path)
 	if err != nil {
-		return fmt.Errorf("failed to normalize path: %w", err)
+		return err
 	}
-	t.cwd = normalizedPath
+	t.cwd = cwd
 	return nil
 }
 
-func (t *TaskConfig) GetCWD() string {
-	if t.cwd == nil {
-		return ""
-	}
-	return t.cwd.Get()
+func (t *TaskConfig) GetCWD() *common.CWD {
+	return t.cwd
 }
 
 func Load(cwd *common.CWD, path string) (*TaskConfig, error) {
 	config, err := common.LoadConfig[*TaskConfig](cwd, path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("failed to open task config file: %w", err)
-		}
-		return nil, fmt.Errorf("failed to decode task config: %w", err)
+		return nil, err
+	}
+	if string(config.Type) == "" {
+		config.Type = TaskTypeBasic
 	}
 	return config, nil
 }
@@ -76,11 +72,16 @@ func Load(cwd *common.CWD, path string) (*TaskConfig, error) {
 func (t *TaskConfig) Validate() error {
 	v := validator.NewCompositeValidator(
 		validator.NewCWDValidator(t.cwd, t.ID),
+		validator.NewStructValidator(t),
 		schema.NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
-		NewPackageRefValidator(t.Use, t.cwd),
-		NewTaskTypeValidator(t.Type, t.Action, t.Condition, t.Routes),
+		pkgref.NewPackageRefValidator(t.Use, t.cwd.PathStr(), isValidComponent),
+		NewTaskTypeValidator(t.Use, t.Type, t.Action, t.Condition, t.Routes),
 	)
 	return v.Validate()
+}
+
+func isValidComponent(c pkgref.Component) bool {
+	return c.IsTask() || c.IsAgent() || c.IsTool()
 }
 
 func (t *TaskConfig) ValidateParams(input map[string]any) error {

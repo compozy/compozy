@@ -1,11 +1,10 @@
 package cli
 
 import (
-	"path/filepath"
-
 	"github.com/charmbracelet/log"
 	"github.com/compozy/compozy/internal/logger"
 	"github.com/compozy/compozy/internal/nats"
+	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/project"
 	"github.com/compozy/compozy/internal/server"
 	"github.com/gin-gonic/gin"
@@ -67,21 +66,16 @@ func DevCmd() *cobra.Command {
 			defer natsServer.Shutdown()
 
 			// Resolve paths
-			if cwd == "" {
-				var err error
-				cwd, err = filepath.Abs(".")
-				if err != nil {
-					logger.Error("Failed to resolve current directory", "error", err)
-					return err
-				}
+			pCWD, err := common.CWDFromPath(cwd)
+			if err != nil {
+				return err
 			}
-			configPath := filepath.Join(cwd, config)
 
 			logger.Info("Starting compozy server")
-			logger.Debug("Loading config file", "path", configPath)
+			logger.Debug("Loading config file", "path", config)
 
 			// Load project configuration
-			projectConfig, err := project.Load(configPath)
+			projectConfig, err := project.Load(pCWD, config)
 			if err != nil {
 				logger.Error("Failed to load project config", "error", err)
 				return err
@@ -126,7 +120,7 @@ func DevCmd() *cobra.Command {
 	cmd.Flags().String("host", "0.0.0.0", "Host to bind the server to")
 	cmd.Flags().Bool("cors", false, "Enable CORS")
 	cmd.Flags().String("cwd", "", "Working directory for the project")
-	cmd.Flags().String("config", "compozy.yaml", "Path to the project configuration file")
+	cmd.Flags().String("config", "./compozy.yaml", "Path to the project configuration file")
 
 	// Logging configuration flags
 	cmd.Flags().String("log-level", "info", "Log level (debug, info, warn, error)")

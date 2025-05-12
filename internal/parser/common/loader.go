@@ -6,9 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/compozy/compozy/internal/parser/pkgref"
+	"gopkg.in/yaml.v3"
 )
 
 func resolvePath(cwd *CWD, path string) (string, error) {
@@ -21,7 +20,7 @@ func resolvePath(cwd *CWD, path string) (string, error) {
 			if err := cwd.Validate(); err != nil {
 				return "", fmt.Errorf("invalid current working directory: %w", err)
 			}
-			return filepath.Abs(cwd.Join(path))
+			return cwd.JoinAndCheck(path)
 		}
 		// Fallback to os.Getwd() for relative paths when cwd is nil
 		absPath, err := filepath.Abs(path)
@@ -46,12 +45,11 @@ func LoadConfig[T Config](cwd *CWD, path string) (T, error) {
 		return zero, err
 	}
 
-	// Open the file
 	file, err := os.Open(resolvedPath)
 	if err != nil {
 		return zero, fmt.Errorf("failed to open config file: %w", err)
 	}
-	defer file.Close() // Ensure file is closed after use
+	defer file.Close()
 
 	var config T
 	decoder := yaml.NewDecoder(file)
@@ -79,37 +77,22 @@ func LoadID(
 		return "", err
 	}
 
-	// Handle different reference types
 	switch ref.Type.Type {
 	case "id":
 		return ref.Type.Value, nil
 	case "file":
-		// For file references, directly extract the ID from the YAML
-		path := config.GetCWD()
-		if path == "" {
-			return "", fmt.Errorf("missing path: %s", "")
-		}
-
-		// Join the file reference path with the component's CWD
-		filePath := filepath.Join(path, ref.Type.Value)
-
-		// Resolve to absolute path
-		absPath, err := filepath.Abs(filePath)
+		cwd := config.GetCWD()
+		filePath, err := cwd.JoinAndCheck(ref.Type.Value)
 		if err != nil {
-			return "", fmt.Errorf("failed to resolve absolute path: %w", err)
+			return "", err
 		}
 
-		// Clean the path to resolve any .. or . segments
-		cleanPath := filepath.Clean(absPath)
-
-		// Read the file and extract the ID directly
-		file, err := os.Open(cleanPath)
+		file, err := os.Open(filePath)
 		if err != nil {
 			return "", err
 		}
 		defer file.Close()
 
-		// Decode only the ID field from the YAML file
 		var yamlConfig struct {
 			ID string `yaml:"id"`
 		}

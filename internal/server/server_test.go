@@ -18,7 +18,7 @@ func createTestProjectConfig(t *testing.T, cwd string) *project.ProjectConfig {
 	config := &project.ProjectConfig{}
 	toolCWD, err := common.CWDFromPath(cwd)
 	require.NoError(t, err)
-	err = config.SetCWD(toolCWD.Path)
+	err = config.SetCWD(toolCWD.PathStr())
 	require.NoError(t, err)
 	return config
 }
@@ -30,7 +30,7 @@ func Test_NewAppState(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, state)
 		assert.NotEmpty(t, state.CWD)
-		assert.True(t, filepath.IsAbs(state.CWD))
+		assert.True(t, filepath.IsAbs(state.CWD.PathStr()))
 	})
 
 	t.Run("Should convert relative path to absolute", func(t *testing.T) {
@@ -39,7 +39,7 @@ func Test_NewAppState(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, state)
 		assert.NotEmpty(t, state.CWD)
-		assert.True(t, filepath.IsAbs(state.CWD))
+		assert.True(t, filepath.IsAbs(state.CWD.PathStr()))
 	})
 
 	t.Run("Should work with absolute path", func(t *testing.T) {
@@ -48,7 +48,7 @@ func Test_NewAppState(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, state)
 		assert.NotEmpty(t, state.CWD)
-		assert.True(t, filepath.IsAbs(state.CWD))
+		assert.True(t, filepath.IsAbs(state.CWD.PathStr()))
 	})
 }
 

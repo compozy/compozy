@@ -17,7 +17,7 @@ func NewCWDValidator(cwd *common.CWD, id string) *CWDValidator {
 }
 
 func (v *CWDValidator) Validate() error {
-	if v.cwd == nil || v.cwd.Get() == "" {
+	if v.cwd == nil || v.cwd.PathStr() == "" {
 		return fmt.Errorf("%w for %s", errors.New("current working directory is required"), v.id)
 	}
 	return nil

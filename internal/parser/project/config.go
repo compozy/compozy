@@ -1,12 +1,10 @@
 package project
 
 import (
+	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 
-	"gopkg.in/yaml.v3"
-
+	"dario.cat/mergo"
 	"github.com/compozy/compozy/internal/parser/author"
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
@@ -63,47 +61,23 @@ type ProjectConfig struct {
 	cwd *common.CWD // internal field for current working directory
 }
 
+func (p *ProjectConfig) Component() common.ComponentType {
+	return common.ComponentProject
+}
+
 // SetCWD sets the current working directory for the project
 func (p *ProjectConfig) SetCWD(path string) error {
-	normalizedPath, err := common.CWDFromPath(path)
+	cwd, err := common.CWDFromPath(path)
 	if err != nil {
-		return fmt.Errorf("failed to normalize path: %w", err)
+		return err
 	}
-	p.cwd = normalizedPath
+	p.cwd = cwd
 	return nil
 }
 
 // GetCWD returns the current working directory
-func (p *ProjectConfig) GetCWD() string {
-	if p.cwd == nil {
-		return ""
-	}
-	return p.cwd.Get()
-}
-
-// Load loads a project configuration from a file
-func Load(path string) (*ProjectConfig, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open project config file: %w", err)
-	}
-
-	var config ProjectConfig
-	decoder := yaml.NewDecoder(file)
-	decodeErr := decoder.Decode(&config)
-	closeErr := file.Close()
-
-	if decodeErr != nil {
-		return nil, fmt.Errorf("failed to decode project config file: %w", decodeErr)
-	}
-	if closeErr != nil {
-		return nil, fmt.Errorf("failed to close project config file: %w", closeErr)
-	}
-
-	if err := config.SetCWD(filepath.Dir(path)); err != nil {
-		return nil, fmt.Errorf("failed to set project CWD: %w", err)
-	}
-	return &config, nil
+func (p *ProjectConfig) GetCWD() *common.CWD {
+	return p.cwd
 }
 
 // Validate validates the project configuration
@@ -114,27 +88,46 @@ func (p *ProjectConfig) Validate() error {
 	return validator.Validate()
 }
 
-// WorkflowsFromSources loads all workflow configurations from their sources
-func (p *ProjectConfig) WorkflowsFromSources() ([]*workflow.WorkflowConfig, error) {
-	var workflows []*workflow.WorkflowConfig
-	for _, wf := range p.Workflows {
-		// Get the full path to the workflow file
-		workflowPath := p.cwd.Join(wf.Source)
+func (p *ProjectConfig) ValidateParams(params map[string]any) error {
+	return nil
+}
 
-		// Create a CWD specific to the workflow file's directory
-		workflowDir := filepath.Dir(workflowPath)
-		workflowCWD, err := common.CWDFromPath(workflowDir)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create CWD for workflow directory: %w", err)
-		}
-
-		// Load the workflow with its own CWD
-		wfConfig, err := workflow.Load(workflowCWD, workflowPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load workflow from source: %w", err)
-		}
-
-		workflows = append(workflows, wfConfig)
+func (p *ProjectConfig) Merge(other any) error {
+	otherConfig, ok := other.(*ProjectConfig)
+	if !ok {
+		return fmt.Errorf("failed to merge project configs: %w", errors.New("invalid type for merge"))
 	}
-	return workflows, nil
+	return mergo.Merge(p, otherConfig, mergo.WithOverride)
+}
+
+func (p *ProjectConfig) LoadID() (string, error) {
+	return p.Name, nil
+}
+
+func Load(cwd *common.CWD, path string) (*ProjectConfig, error) {
+	config, err := common.LoadConfig[*ProjectConfig](cwd, path)
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
+func (p *ProjectConfig) WorkflowsFromSources() ([]*workflow.WorkflowConfig, error) {
+	var ws []*workflow.WorkflowConfig
+
+	for _, wf := range p.Workflows {
+		config, err := workflow.Load(p.cwd, wf.Source)
+		if err != nil {
+			return nil, err
+		}
+
+		err = config.Validate()
+		if err != nil {
+			return nil, err
+		}
+
+		ws = append(ws, config)
+	}
+
+	return ws, nil
 }

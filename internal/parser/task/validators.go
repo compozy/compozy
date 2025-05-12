@@ -3,47 +3,21 @@ package task
 import (
 	"fmt"
 
-	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
 )
 
-// PackageRefValidator validates the package reference
-type PackageRefValidator struct {
-	pkgRef *pkgref.PackageRefConfig
-	cwd    *common.CWD
-}
-
-func NewPackageRefValidator(pkgRef *pkgref.PackageRefConfig, cwd *common.CWD) *PackageRefValidator {
-	return &PackageRefValidator{pkgRef: pkgRef, cwd: cwd}
-}
-
-func (v *PackageRefValidator) Validate() error {
-	if v.pkgRef == nil {
-		return nil
-	}
-	ref, err := pkgref.Parse(string(*v.pkgRef))
-	if err != nil {
-		return fmt.Errorf("invalid package reference: %w", err)
-	}
-	if !ref.Component.IsTask() && !ref.Component.IsAgent() && !ref.Component.IsTool() {
-		return fmt.Errorf("package reference must be a task, agent, or tool")
-	}
-	if err := ref.Type.Validate(v.cwd.Get()); err != nil {
-		return fmt.Errorf("invalid package reference: %w", err)
-	}
-	return nil
-}
-
 // TaskTypeValidator validates the task type and its configuration
 type TaskTypeValidator struct {
+	pkgRef    *pkgref.PackageRefConfig
 	taskType  TaskType
 	action    string
 	condition string
 	routes    map[string]string
 }
 
-func NewTaskTypeValidator(taskType TaskType, action string, condition string, routes map[string]string) *TaskTypeValidator {
+func NewTaskTypeValidator(pkgRef *pkgref.PackageRefConfig, taskType TaskType, action string, condition string, routes map[string]string) *TaskTypeValidator {
 	return &TaskTypeValidator{
+		pkgRef:    pkgRef,
 		taskType:  taskType,
 		action:    action,
 		condition: condition,
@@ -55,20 +29,47 @@ func (v *TaskTypeValidator) Validate() error {
 	if v.taskType == "" {
 		return nil
 	}
-	switch v.taskType {
-	case TaskTypeBasic:
-		if v.action == "" {
-			return fmt.Errorf("invalid task type: Basic task configuration is required for basic task type")
+	var ref *pkgref.PackageRef
+	var err error
+	if v.pkgRef != nil {
+		ref, err = v.pkgRef.IntoRef()
+		if err != nil {
+			return err
 		}
-	case TaskTypeDecision:
+	}
+
+	if v.taskType != TaskTypeBasic && v.taskType != TaskTypeDecision {
+		return fmt.Errorf("invalid task type: %s", v.taskType)
+	}
+
+	if v.taskType == TaskTypeBasic && ref != nil {
+		isTask := ref.Component.IsTask()
+		isAgent := ref.Component.IsAgent()
+		isTool := ref.Component.IsTool()
+		if (isTask || isTool) && v.action != "" {
+			return fmt.Errorf("action is not allowed when referencing a task or tool")
+		}
+		if isAgent && v.action == "" {
+			return fmt.Errorf("action is required when referencing an agent")
+		}
+		if ref.Component.IsTool() && v.action != "" {
+			return fmt.Errorf("action is not allowed when referencing a tool")
+		}
+	}
+
+	if v.taskType == TaskTypeDecision {
 		if v.condition == "" && len(v.routes) == 0 {
-			return fmt.Errorf("invalid task type: Decision task configuration is required for decision task type")
+			return fmt.Errorf("condition or routes are required for decision task type")
 		}
 		if len(v.routes) == 0 {
 			return fmt.Errorf("decision task must have at least one route")
 		}
-	default:
-		return fmt.Errorf("invalid task type: %s", string(v.taskType))
+		for _, route := range v.routes {
+			if route == "" {
+				return fmt.Errorf("route cannot be empty")
+			}
+		}
 	}
+
 	return nil
 }

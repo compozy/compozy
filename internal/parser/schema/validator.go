@@ -26,7 +26,7 @@ func NewSchemaValidator(pkgRef *pkgref.PackageRefConfig, inputSchema *InputSchem
 func (v *SchemaValidator) Validate() error {
 	// First validate package reference if it exists
 	if v.pkgRef != nil {
-		ref, err := pkgref.Parse(string(*v.pkgRef))
+		ref, err := v.pkgRef.IntoRef()
 		if err != nil {
 			return fmt.Errorf("invalid package reference: %w", err)
 		}

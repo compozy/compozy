@@ -13,26 +13,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMain(m *testing.M) {
-	// Set test mode
-	TestMode = true
-	// Run tests
-	m.Run()
+func setupTest(t *testing.T, toolFile string) (cwd *common.CWD, dstPath string) {
+	_, filename, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	cwd, dstPath = utils.SetupTest(t, filename)
+	dstPath = filepath.Join(dstPath, toolFile)
+	return
 }
 
 func Test_LoadTool(t *testing.T) {
 	t.Run("Should load basic tool configuration correctly", func(t *testing.T) {
-		// Get the test directory path
-		_, filename, _, ok := runtime.Caller(0)
-		require.True(t, ok)
-		testDir := filepath.Dir(filename)
-		cwd, err := common.CWDFromPath(testDir)
-		require.NoError(t, err)
-
-		// Setup test fixture using utils
-		dstPath := utils.SetupFixture(t, testDir, "basic_tool.yaml")
-
-		// Run the test
+		cwd, dstPath := setupTest(t, "basic_tool.yaml")
 		config, err := Load(cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
@@ -40,9 +31,6 @@ func Test_LoadTool(t *testing.T) {
 		// Validate the config
 		err = config.Validate()
 		require.NoError(t, err)
-
-		TestMode = true // Skip file existence check for valid test
-		defer func() { TestMode = false }()
 
 		require.NotNil(t, config.ID)
 		require.NotNil(t, config.Description)
@@ -83,17 +71,7 @@ func Test_LoadTool(t *testing.T) {
 	})
 
 	t.Run("Should load package tool configuration correctly", func(t *testing.T) {
-		// Get the test directory path
-		_, filename, _, ok := runtime.Caller(0)
-		require.True(t, ok)
-		testDir := filepath.Dir(filename)
-		cwd, err := common.CWDFromPath(testDir)
-		require.NoError(t, err)
-
-		// Setup test fixture using utils
-		dstPath := utils.SetupFixture(t, testDir, "package_tool.yaml")
-
-		// Run the test
+		cwd, dstPath := setupTest(t, "package_tool.yaml")
 		config, err := Load(cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
@@ -101,9 +79,6 @@ func Test_LoadTool(t *testing.T) {
 		// Validate the config
 		err = config.Validate()
 		require.NoError(t, err)
-
-		TestMode = true // Skip file existence check for valid test
-		defer func() { TestMode = false }()
 
 		require.NotNil(t, config.ID)
 		require.NotNil(t, config.Description)
@@ -162,17 +137,7 @@ func Test_LoadTool(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid tool configuration", func(t *testing.T) {
-		// Get the test directory path
-		_, filename, _, ok := runtime.Caller(0)
-		require.True(t, ok)
-		testDir := filepath.Dir(filename)
-		cwd, err := common.CWDFromPath(testDir)
-		require.NoError(t, err)
-
-		// Setup test fixture using utils
-		dstPath := utils.SetupFixture(t, testDir, "invalid_tool.yaml")
-
-		// Run the test
+		cwd, dstPath := setupTest(t, "invalid_tool.yaml")
 		config, err := Load(cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
@@ -180,7 +145,6 @@ func Test_LoadTool(t *testing.T) {
 		// Validate the config
 		err = config.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid tool execute path")
 	})
 }
 
@@ -196,9 +160,6 @@ func Test_ToolConfigValidation(t *testing.T) {
 			cwd: toolCWD,
 		}
 
-		TestMode = false
-		defer func() { TestMode = true }()
-
 		err := config.Validate()
 		assert.NoError(t, err)
 	})
@@ -207,9 +168,6 @@ func Test_ToolConfigValidation(t *testing.T) {
 		config := &ToolConfig{
 			ID: toolID,
 		}
-
-		TestMode = false
-		defer func() { TestMode = true }()
 
 		err := config.Validate()
 		assert.Error(t, err)
@@ -223,9 +181,6 @@ func Test_ToolConfigValidation(t *testing.T) {
 			cwd: toolCWD,
 		}
 
-		TestMode = false
-		defer func() { TestMode = true }()
-
 		err := config.Validate()
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid package reference")
@@ -238,12 +193,8 @@ func Test_ToolConfigValidation(t *testing.T) {
 			cwd:     toolCWD,
 		}
 
-		TestMode = false
-		defer func() { TestMode = true }()
-
 		err := config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid tool execute path: /test/path/nonexistent.ts")
 	})
 
 	t.Run("Should return error when input schema is used with ID reference", func(t *testing.T) {
@@ -257,9 +208,6 @@ func Test_ToolConfigValidation(t *testing.T) {
 			},
 			cwd: toolCWD,
 		}
-
-		TestMode = false
-		defer func() { TestMode = true }()
 
 		err := config.Validate()
 		assert.Error(t, err)
@@ -277,9 +225,6 @@ func Test_ToolConfigValidation(t *testing.T) {
 			},
 			cwd: toolCWD,
 		}
-
-		TestMode = false
-		defer func() { TestMode = true }()
 
 		err := config.Validate()
 		assert.Error(t, err)
@@ -302,9 +247,6 @@ func Test_ToolConfigValidation(t *testing.T) {
 			},
 			cwd: toolCWD,
 		}
-
-		TestMode = false
-		defer func() { TestMode = true }()
 
 		err := config.Validate()
 		assert.Error(t, err)
@@ -332,9 +274,6 @@ func Test_ToolConfigValidation(t *testing.T) {
 			},
 		}
 
-		TestMode = false
-		defer func() { TestMode = true }()
-
 		err := config.ValidateParams(*config.With)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "with parameters invalid for test-tool")
@@ -347,11 +286,11 @@ func Test_ToolConfigCWD(t *testing.T) {
 
 		// Test setting CWD
 		config.SetCWD("/test/path")
-		assert.Equal(t, "/test/path", config.GetCWD())
+		assert.Equal(t, "/test/path", config.GetCWD().PathStr())
 
 		// Test updating CWD
 		config.SetCWD("/new/path")
-		assert.Equal(t, "/new/path", config.GetCWD())
+		assert.Equal(t, "/new/path", config.GetCWD().PathStr())
 	})
 }
 

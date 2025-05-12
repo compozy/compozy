@@ -2,7 +2,6 @@ package agent
 
 import (
 	"fmt"
-	"os"
 
 	"dario.cat/mergo"
 
@@ -26,20 +25,17 @@ type AgentActionConfig struct {
 
 // SetCWD sets the current working directory for the action
 func (a *AgentActionConfig) SetCWD(path string) error {
-	normalizedPath, err := common.CWDFromPath(path)
+	cwd, err := common.CWDFromPath(path)
 	if err != nil {
-		return fmt.Errorf("failed to normalize path: %w", err)
+		return err
 	}
-	a.cwd = normalizedPath
+	a.cwd = cwd
 	return nil
 }
 
 // GetCWD returns the current working directory
-func (a *AgentActionConfig) GetCWD() string {
-	if a.cwd == nil {
-		return ""
-	}
-	return a.cwd.Get()
+func (a *AgentActionConfig) GetCWD() *common.CWD {
+	return a.cwd
 }
 
 // Validate validates the action configuration
@@ -76,11 +72,11 @@ func (a *AgentConfig) Component() common.ComponentType {
 
 // SetCWD sets the current working directory for the agent
 func (a *AgentConfig) SetCWD(path string) error {
-	normalizedPath, err := common.CWDFromPath(path)
+	cwd, err := common.CWDFromPath(path)
 	if err != nil {
-		return fmt.Errorf("failed to normalize path: %w", err)
+		return err
 	}
-	a.cwd = normalizedPath
+	a.cwd = cwd
 	for i := range a.Actions {
 		a.Actions[i].SetCWD(path)
 	}
@@ -88,21 +84,15 @@ func (a *AgentConfig) SetCWD(path string) error {
 }
 
 // GetCWD returns the current working directory
-func (a *AgentConfig) GetCWD() string {
-	if a.cwd == nil {
-		return ""
-	}
-	return a.cwd.Get()
+func (a *AgentConfig) GetCWD() *common.CWD {
+	return a.cwd
 }
 
 // Load loads an agent configuration from a file
 func Load(cwd *common.CWD, path string) (*AgentConfig, error) {
 	config, err := common.LoadConfig[*AgentConfig](cwd, path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("failed to open agent config file: %w", err)
-		}
-		return nil, fmt.Errorf("failed to decode agent config: %w", err)
+		return nil, err
 	}
 	return config, nil
 }
@@ -112,11 +102,15 @@ func (a *AgentConfig) Validate() error {
 	v := validator.NewCompositeValidator(
 		validator.NewCWDValidator(a.cwd, string(a.ID)),
 		schema.NewSchemaValidator(a.Use, a.InputSchema, a.OutputSchema),
-		NewPackageRefValidator(a.Use, a.cwd),
+		pkgref.NewPackageRefValidator(a.Use, a.cwd.PathStr(), isValidComponent),
 		NewActionsValidator(a.Actions),
 		validator.NewStructValidator(a),
 	)
 	return v.Validate()
+}
+
+func isValidComponent(c pkgref.Component) bool {
+	return c.IsAgent()
 }
 
 func (a *AgentConfig) ValidateParams(input map[string]any) error {

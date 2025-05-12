@@ -225,7 +225,11 @@ func (p *PackageRef) UnmarshalJSON(data []byte) error {
 }
 
 // Parse parses a package reference string into a PackageRef
-func Parse(ref string) (*PackageRef, error) {
+func Parse(ref *PackageRefConfig) (*PackageRef, error) {
+	if ref == nil {
+		return nil, fmt.Errorf("package reference cannot be empty")
+	}
+	refStr := string(*ref)
 	components := []Component{
 		ComponentAgent,
 		ComponentMcp,
@@ -237,7 +241,7 @@ func Parse(ref string) (*PackageRef, error) {
 	for _, component := range components {
 		pattern := component.Pattern()
 		re := regexp.MustCompile(pattern)
-		if matches := re.FindStringSubmatch(ref); matches != nil {
+		if matches := re.FindStringSubmatch(refStr); matches != nil {
 			typeStr := matches[1]
 			value := matches[2]
 			refType, err := ParseRefType(typeStr, value)
@@ -251,7 +255,7 @@ func Parse(ref string) (*PackageRef, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("invalid type %q: %s", ref, "invalid format")
+	return nil, fmt.Errorf("invalid type %q: %s", refStr, "invalid format")
 }
 
 // Value returns the value of the package reference
@@ -270,5 +274,5 @@ func NewPackageRefConfig(value string) *PackageRefConfig {
 
 // IntoRef converts the configuration into a package reference
 func (c *PackageRefConfig) IntoRef() (*PackageRef, error) {
-	return Parse(string(*c))
+	return Parse(c)
 }

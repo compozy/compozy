@@ -15,19 +15,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func setupTest(t *testing.T, agentFile string) (cwd *common.CWD, dstPath string) {
+	_, filename, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	cwd, dstPath = utils.SetupTest(t, filename)
+	dstPath = filepath.Join(dstPath, agentFile)
+	return
+}
+
 func Test_LoadAgent(t *testing.T) {
 	t.Run("Should load basic agent configuration correctly", func(t *testing.T) {
-		// Get the test directory path
-		_, filename, _, ok := runtime.Caller(0)
-		require.True(t, ok)
-		testDir := filepath.Dir(filename)
-		cwd, err := common.CWDFromPath(testDir)
-		require.NoError(t, err)
-
-		// Setup test fixture using utils
-		dstPath := utils.SetupFixture(t, testDir, "basic_agent.yaml")
-
-		// Run the test
+		cwd, dstPath := setupTest(t, "basic_agent.yaml")
 		config, err := Load(cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
@@ -67,14 +65,11 @@ func Test_LoadAgent(t *testing.T) {
 		assert.NotNil(t, feedback)
 		assert.Equal(t, "array", feedback.GetType())
 
-		// Get items by accessing the items map directly
 		if itemsMap, ok := (*feedback)["items"].(map[string]any); ok {
-			// Check type directly
 			if typ, ok := itemsMap["type"].(string); ok {
 				assert.Equal(t, "object", typ)
 			}
 
-			// Check properties directly
 			if props, ok := itemsMap["properties"].(map[string]any); ok {
 				assert.Contains(t, props, "category")
 				assert.Contains(t, props, "description")
@@ -140,7 +135,7 @@ func Test_AgentConfigCWD(t *testing.T) {
 	t.Run("Should set and get CWD correctly", func(t *testing.T) {
 		config := &AgentConfig{}
 		config.SetCWD("/test/path")
-		assert.Equal(t, "/test/path", config.GetCWD())
+		assert.Equal(t, "/test/path", config.GetCWD().PathStr())
 	})
 
 	t.Run("Should set CWD for all actions", func(t *testing.T) {
@@ -151,7 +146,7 @@ func Test_AgentConfigCWD(t *testing.T) {
 		}
 		config.Actions = []*AgentActionConfig{action}
 		config.SetCWD("/new/path")
-		assert.Equal(t, "/new/path", action.GetCWD())
+		assert.Equal(t, "/new/path", action.GetCWD().PathStr())
 	})
 }
 

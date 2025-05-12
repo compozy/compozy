@@ -20,7 +20,10 @@ func TestFileReferences(t *testing.T) {
 	require.NoError(t, err, "Failed to get absolute path to example")
 
 	// Load the project configuration
-	projectConfig, err := project.Load(examplePath)
+	projectCWD, err := common.CWDFromPath(".")
+	require.NoError(t, err, "Failed to get project CWD")
+
+	projectConfig, err := project.Load(projectCWD, examplePath)
 	require.NoError(t, err, "Failed to load project config")
 
 	// Test paths we'll use across multiple tests
@@ -34,7 +37,7 @@ func TestFileReferences(t *testing.T) {
 	require.NoError(t, err, "Failed to get tools path")
 
 	t.Run("Should set project CWD correctly", func(t *testing.T) {
-		assert.Equal(t, expectedProjectCWD, projectConfig.GetCWD(), "Project CWD not set correctly")
+		assert.Equal(t, expectedProjectCWD, projectConfig.GetCWD().PathStr(), "Project CWD not set correctly")
 	})
 
 	t.Run("Should load workflows from sources", func(t *testing.T) {
@@ -44,7 +47,7 @@ func TestFileReferences(t *testing.T) {
 		require.Len(t, workflows, 1, "Expected one workflow")
 
 		t.Run("Should set workflow CWD correctly", func(t *testing.T) {
-			assert.Equal(t, expectedProjectCWD, workflow.GetCWD(), "Workflow CWD not set correctly")
+			assert.Equal(t, expectedProjectCWD, workflow.GetCWD().PathStr(), "Workflow CWD not set correctly")
 		})
 
 		t.Run("Should load tasks correctly", func(t *testing.T) {
@@ -59,7 +62,7 @@ func TestFileReferences(t *testing.T) {
 				expectedTaskCWD, err := filepath.EvalSymlinks(tasksPath)
 				require.NoError(t, err, "Failed to resolve expected task CWD")
 
-				actualTaskCWD, err := filepath.EvalSymlinks(taskCWD)
+				actualTaskCWD, err := filepath.EvalSymlinks(taskCWD.PathStr())
 				require.NoError(t, err, "Failed to resolve task CWD")
 				assert.Equal(t, expectedTaskCWD, actualTaskCWD, "Task CWD not set correctly")
 			})
@@ -102,7 +105,7 @@ func TestFileReferences(t *testing.T) {
 			expectedToolCWD, err := filepath.EvalSymlinks(toolsPath)
 			require.NoError(t, err, "Failed to resolve expected tool CWD")
 
-			actualToolCWD, err := filepath.EvalSymlinks(toolCWD)
+			actualToolCWD, err := filepath.EvalSymlinks(toolCWD.PathStr())
 			require.NoError(t, err, "Failed to resolve actual tool CWD")
 			assert.Equal(t, expectedToolCWD, actualToolCWD, "Tool CWD not set correctly")
 		})

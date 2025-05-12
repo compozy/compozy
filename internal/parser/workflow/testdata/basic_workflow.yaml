@@ -32,7 +32,6 @@ tasks:
   - id: save-formatted-code
     type: basic
     use: tool(id=code-formatter)
-    action: save
     final: true
     with:
       code: "{{ tasks.format-code.output.formatted_code }}"

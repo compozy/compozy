@@ -24,7 +24,7 @@ type Server struct {
 func NewServer(config *ServerConfig, state *AppState) *Server {
 	if config == nil {
 		config = &ServerConfig{
-			CWD:         state.CWD,
+			CWD:         state.CWD.PathStr(),
 			Host:        "0.0.0.0",
 			Port:        3000,
 			CORSEnabled: true,

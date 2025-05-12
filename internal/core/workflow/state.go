@@ -30,8 +30,8 @@ func InitWorkflowState(stID *core.StateID, input common.Input, cfg *config.Workf
 	}, nil
 }
 
-func loadEnv(stID *core.StateID, currEnv common.EnvMap, cwd string) (common.EnvMap, error) {
-	env, err := common.NewEnvFromFile(cwd)
+func loadEnv(stID *core.StateID, currEnv common.EnvMap, cwd *common.CWD) (common.EnvMap, error) {
+	env, err := common.NewEnvFromFile(cwd.PathStr())
 	if err != nil {
 		return nil, core.NewError(stID, "env_read_fail", "failed to read env file", err)
 	}

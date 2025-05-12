@@ -8,57 +8,35 @@ import (
 	"github.com/compozy/compozy/internal/parser/common"
 	"github.com/compozy/compozy/internal/parser/pkgref"
 	"github.com/compozy/compozy/internal/parser/provider"
-	"github.com/compozy/compozy/internal/parser/tool"
 	"github.com/compozy/compozy/internal/parser/trigger"
 	"github.com/compozy/compozy/internal/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestMain(m *testing.M) {
-	// Set test mode for all packages
-	TestMode = true
-	tool.TestMode = true
-	// Run tests
-	m.Run()
+func setupTest(t *testing.T, workflowFile string) (cwd *common.CWD, dstPath string) {
+	_, filename, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	cwd, dstPath = utils.SetupTest(t, filename)
+	dstPath = filepath.Join(dstPath, workflowFile)
+	return
 }
 
 func Test_LoadWorkflow(t *testing.T) {
-	// Set test mode at the beginning
-	TestMode = true
-	tool.TestMode = true
-	defer func() {
-		TestMode = false
-		tool.TestMode = false
-	}()
-
 	t.Run("Should load basic workflow configuration correctly", func(t *testing.T) {
-		// Get the test directory path
-		_, filename, _, ok := runtime.Caller(0)
-		require.True(t, ok)
-		testDir := filepath.Dir(filename)
-		cwd, err := common.CWDFromPath(testDir)
-		require.NoError(t, err)
-
-		// Setup test fixture using utils
-		dstPath := utils.SetupFixture(t, testDir, "basic_workflow.yaml")
-
-		// Run the test
+		cwd, dstPath := setupTest(t, "basic_workflow.yaml")
 		config, err := Load(cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
 		// Set CWD for all tasks
 		for i := range config.Tasks {
-			config.Tasks[i].SetCWD(config.GetCWD())
+			config.Tasks[i].SetCWD(config.GetCWD().PathStr())
 		}
 
 		// Validate the config
 		err = config.Validate()
 		require.NoError(t, err)
-
-		TestMode = true // Skip file existence check for valid test
-		defer func() { TestMode = false }()
 
 		require.NotNil(t, config.ID)
 		require.NotNil(t, config.Version)
@@ -111,30 +89,20 @@ func Test_LoadWorkflow(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid workflow configuration", func(t *testing.T) {
-		// Get the test directory path
-		_, filename, _, ok := runtime.Caller(0)
-		require.True(t, ok)
-		testDir := filepath.Dir(filename)
-		cwd, err := common.CWDFromPath(testDir)
-		require.NoError(t, err)
-
-		// Setup test fixture using utils
-		dstPath := utils.SetupFixture(t, testDir, "invalid_workflow.yaml")
-
-		// Run the test
+		cwd, dstPath := setupTest(t, "invalid_workflow.yaml")
 		config, err := Load(cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
 		// Set CWD for all tasks
 		for i := range config.Tasks {
-			config.Tasks[i].SetCWD(config.GetCWD())
+			config.Tasks[i].SetCWD(config.GetCWD().PathStr())
 		}
 
 		// Validate the config
 		err = config.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "Basic task configuration is required for basic task type")
+		assert.Contains(t, err.Error(), "condition or routes are required for decision task type")
 	})
 }
 
@@ -177,11 +145,11 @@ func Test_WorkflowConfigCWD(t *testing.T) {
 
 		// Test setting CWD
 		config.SetCWD("/test/path")
-		assert.Equal(t, "/test/path", config.GetCWD())
+		assert.Equal(t, "/test/path", config.GetCWD().PathStr())
 
 		// Test updating CWD
 		config.SetCWD("/new/path")
-		assert.Equal(t, "/new/path", config.GetCWD())
+		assert.Equal(t, "/new/path", config.GetCWD().PathStr())
 	})
 }
 

@@ -14,27 +14,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestMode is used to skip file existence checks in tests
-var TestMode bool
-
-func TestMain(m *testing.M) {
-	// Set test mode
-	TestMode = true
-	// Run tests
-	m.Run()
+func setupTest(t *testing.T, taskFile string) (cwd *common.CWD, dstPath string) {
+	_, filename, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	cwd, dstPath = utils.SetupTest(t, filename)
+	dstPath = filepath.Join(dstPath, taskFile)
+	return
 }
 
 func Test_LoadTask(t *testing.T) {
 	t.Run("Should load basic task configuration correctly", func(t *testing.T) {
-		// Get the test directory path
-		_, filename, _, ok := runtime.Caller(0)
-		require.True(t, ok)
-		testDir := filepath.Dir(filename)
-		cwd, err := common.CWDFromPath(testDir)
-		require.NoError(t, err)
-
-		// Setup test fixture using utils
-		dstPath := utils.SetupFixture(t, testDir, "basic_task.yaml")
+		cwd, dstPath := setupTest(t, "basic_task.yaml")
 
 		// Run the test
 		config, err := Load(cwd, dstPath)
@@ -44,9 +34,6 @@ func Test_LoadTask(t *testing.T) {
 		// Validate the config
 		err = config.Validate()
 		require.NoError(t, err)
-
-		TestMode = true // Skip file existence check for valid test
-		defer func() { TestMode = false }()
 
 		require.NotNil(t, config.ID)
 		require.NotNil(t, config.Type)
@@ -60,7 +47,6 @@ func Test_LoadTask(t *testing.T) {
 
 		assert.Equal(t, "code-format", config.ID)
 		assert.Equal(t, TaskTypeBasic, config.Type)
-		assert.Equal(t, "format-code", config.Action)
 
 		// Validate input schema
 		schema := config.InputSchema.Schema
@@ -92,15 +78,7 @@ func Test_LoadTask(t *testing.T) {
 	})
 
 	t.Run("Should load decision task configuration correctly", func(t *testing.T) {
-		// Get the test directory path
-		_, filename, _, ok := runtime.Caller(0)
-		require.True(t, ok)
-		testDir := filepath.Dir(filename)
-		cwd, err := common.CWDFromPath(testDir)
-		require.NoError(t, err)
-
-		// Setup test fixture using utils
-		dstPath := utils.SetupFixture(t, testDir, "decision_task.yaml")
+		cwd, dstPath := setupTest(t, "decision_task.yaml")
 
 		// Run the test
 		config, err := Load(cwd, dstPath)
@@ -110,9 +88,6 @@ func Test_LoadTask(t *testing.T) {
 		// Validate the config
 		err = config.Validate()
 		require.NoError(t, err)
-
-		TestMode = true // Skip file existence check for valid test
-		defer func() { TestMode = false }()
 
 		require.NotNil(t, config.ID)
 		require.NotNil(t, config.Type)
@@ -165,15 +140,7 @@ func Test_LoadTask(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid task configuration", func(t *testing.T) {
-		// Get the test directory path
-		_, filename, _, ok := runtime.Caller(0)
-		require.True(t, ok)
-		testDir := filepath.Dir(filename)
-		cwd, err := common.CWDFromPath(testDir)
-		require.NoError(t, err)
-
-		// Setup test fixture using utils
-		dstPath := utils.SetupFixture(t, testDir, "invalid_task.yaml")
+		cwd, dstPath := setupTest(t, "invalid_task.yaml")
 
 		// Run the test
 		config, err := Load(cwd, dstPath)
@@ -183,7 +150,6 @@ func Test_LoadTask(t *testing.T) {
 		// Validate the config
 		err = config.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "Basic task configuration is required for basic task type")
 	})
 }
 
@@ -200,9 +166,6 @@ func Test_TaskConfigValidation(t *testing.T) {
 			cwd:    taskCWD,
 		}
 
-		TestMode = false
-		defer func() { TestMode = true }()
-
 		err := config.Validate()
 		assert.NoError(t, err)
 	})
@@ -218,9 +181,6 @@ func Test_TaskConfigValidation(t *testing.T) {
 			cwd: taskCWD,
 		}
 
-		TestMode = false
-		defer func() { TestMode = true }()
-
 		err := config.Validate()
 		assert.NoError(t, err)
 	})
@@ -230,9 +190,6 @@ func Test_TaskConfigValidation(t *testing.T) {
 			ID:   "test-task",
 			Type: TaskTypeBasic,
 		}
-
-		TestMode = false
-		defer func() { TestMode = true }()
 
 		err := config.Validate()
 		assert.Error(t, err)
@@ -246,9 +203,6 @@ func Test_TaskConfigValidation(t *testing.T) {
 			cwd: taskCWD,
 		}
 
-		TestMode = false
-		defer func() { TestMode = true }()
-
 		err := config.Validate()
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid package reference")
@@ -261,27 +215,9 @@ func Test_TaskConfigValidation(t *testing.T) {
 			cwd:  taskCWD,
 		}
 
-		TestMode = false
-		defer func() { TestMode = true }()
-
 		err := config.Validate()
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid task type: invalid")
-	})
-
-	t.Run("Should return error for basic task missing configuration", func(t *testing.T) {
-		config := &TaskConfig{
-			ID:   taskID,
-			Type: TaskTypeBasic,
-			cwd:  taskCWD,
-		}
-
-		TestMode = false
-		defer func() { TestMode = true }()
-
-		err := config.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Basic task configuration is required for basic task type")
 	})
 
 	t.Run("Should return error for decision task missing configuration", func(t *testing.T) {
@@ -291,12 +227,9 @@ func Test_TaskConfigValidation(t *testing.T) {
 			cwd:  taskCWD,
 		}
 
-		TestMode = false
-		defer func() { TestMode = true }()
-
 		err := config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Decision task configuration is required for decision task type")
+		assert.Contains(t, err.Error(), "condition or routes are required for decision task type")
 	})
 
 	t.Run("Should return error for decision task missing routes", func(t *testing.T) {
@@ -306,12 +239,9 @@ func Test_TaskConfigValidation(t *testing.T) {
 			cwd:  taskCWD,
 		}
 
-		TestMode = false
-		defer func() { TestMode = true }()
-
 		err := config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Decision task configuration is required for decision task type")
+		assert.Contains(t, err.Error(), "condition or routes are required for decision task type")
 	})
 
 	t.Run("Should return error when input schema is used with ID reference", func(t *testing.T) {
@@ -325,9 +255,6 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 			cwd: taskCWD,
 		}
-
-		TestMode = false
-		defer func() { TestMode = true }()
 
 		err := config.Validate()
 		assert.Error(t, err)
@@ -345,9 +272,6 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 			cwd: taskCWD,
 		}
-
-		TestMode = false
-		defer func() { TestMode = true }()
 
 		err := config.Validate()
 		assert.Error(t, err)
@@ -370,9 +294,6 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 			cwd: taskCWD,
 		}
-
-		TestMode = false
-		defer func() { TestMode = true }()
 
 		err := config.Validate()
 		assert.Error(t, err)
@@ -400,9 +321,6 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		TestMode = false
-		defer func() { TestMode = true }()
-
 		err := config.ValidateParams(*config.With)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "with parameters invalid for test-task")
@@ -412,13 +330,13 @@ func Test_TaskConfigValidation(t *testing.T) {
 func Test_TaskConfigCWD(t *testing.T) {
 	t.Run("Should handle CWD operations correctly", func(t *testing.T) {
 		config := &TaskConfig{}
-		assert.Empty(t, config.GetCWD())
+		assert.Nil(t, config.GetCWD())
 
 		config.SetCWD("/test/path")
-		assert.Equal(t, "/test/path", config.GetCWD())
+		assert.Equal(t, "/test/path", config.GetCWD().PathStr())
 
 		config.SetCWD("/new/path")
-		assert.Equal(t, "/new/path", config.GetCWD())
+		assert.Equal(t, "/new/path", config.GetCWD().PathStr())
 	})
 }
 

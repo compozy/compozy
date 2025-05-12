@@ -3,7 +3,7 @@ package common
 type Config interface {
 	Component() ComponentType
 	SetCWD(path string) error
-	GetCWD() string
+	GetCWD() *CWD
 	Validate() error
 	ValidateParams(input map[string]any) error
 	Merge(other any) error
@@ -13,6 +13,7 @@ type Config interface {
 type ComponentType string
 
 const (
+	ComponentProject  ComponentType = "project"
 	ComponentWorkflow ComponentType = "workflow"
 	ComponentTask     ComponentType = "task"
 	ComponentAgent    ComponentType = "agent"
