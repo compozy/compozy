@@ -13,17 +13,16 @@ import (
 	"github.com/compozy/compozy/internal/parser/validator"
 )
 
-// AgentActionConfig represents an agent action configuration
 type AgentActionConfig struct {
 	ID           string               `json:"id" yaml:"id"`
-	Prompt       string               `json:"prompt" yaml:"prompt"`
+	Prompt       string               `json:"prompt" yaml:"prompt" validate:"required"`
 	InputSchema  *schema.InputSchema  `json:"input,omitempty" yaml:"input,omitempty"`
 	OutputSchema *schema.OutputSchema `json:"output,omitempty" yaml:"output,omitempty"`
 	With         *common.Input        `json:"with,omitempty" yaml:"with,omitempty"`
-	cwd          *common.CWD          // internal field for current working directory
+
+	cwd *common.CWD
 }
 
-// SetCWD sets the current working directory for the action
 func (a *AgentActionConfig) SetCWD(path string) error {
 	cwd, err := common.CWDFromPath(path)
 	if err != nil {
@@ -33,12 +32,10 @@ func (a *AgentActionConfig) SetCWD(path string) error {
 	return nil
 }
 
-// GetCWD returns the current working directory
 func (a *AgentActionConfig) GetCWD() *common.CWD {
 	return a.cwd
 }
 
-// Validate validates the action configuration
 func (a *AgentActionConfig) Validate() error {
 	v := validator.NewCompositeValidator(
 		validator.NewCWDValidator(a.cwd, string(a.ID)),
@@ -51,7 +48,6 @@ func (t *AgentActionConfig) ValidateParams(input map[string]any) error {
 	return validator.NewParamsValidator(input, t.InputSchema.Schema, t.ID).Validate()
 }
 
-// AgentConfig represents an agent configuration
 type AgentConfig struct {
 	ID           string                   `json:"id" yaml:"id" validate:"required"`
 	Use          *pkgref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
@@ -63,14 +59,14 @@ type AgentConfig struct {
 	OutputSchema *schema.OutputSchema     `json:"output,omitempty" yaml:"output,omitempty"`
 	With         *common.Input            `json:"with,omitempty" yaml:"with,omitempty"`
 	Env          common.EnvMap            `json:"env,omitempty" yaml:"env,omitempty"`
-	cwd          *common.CWD              // internal field for current working directory
+
+	cwd *common.CWD
 }
 
 func (a *AgentConfig) Component() common.ComponentType {
 	return common.ComponentAgent
 }
 
-// SetCWD sets the current working directory for the agent
 func (a *AgentConfig) SetCWD(path string) error {
 	cwd, err := common.CWDFromPath(path)
 	if err != nil {
@@ -83,12 +79,10 @@ func (a *AgentConfig) SetCWD(path string) error {
 	return nil
 }
 
-// GetCWD returns the current working directory
 func (a *AgentConfig) GetCWD() *common.CWD {
 	return a.cwd
 }
 
-// Load loads an agent configuration from a file
 func Load(cwd *common.CWD, path string) (*AgentConfig, error) {
 	config, err := common.LoadConfig[*AgentConfig](cwd, path)
 	if err != nil {
@@ -97,7 +91,6 @@ func Load(cwd *common.CWD, path string) (*AgentConfig, error) {
 	return config, nil
 }
 
-// Validate validates the agent configuration
 func (a *AgentConfig) Validate() error {
 	v := validator.NewCompositeValidator(
 		validator.NewCWDValidator(a.cwd, string(a.ID)),
@@ -113,7 +106,6 @@ func (a *AgentConfig) ValidateParams(input map[string]any) error {
 	return validator.NewParamsValidator(input, a.InputSchema.Schema, a.ID).Validate()
 }
 
-// Merge merges another agent configuration into this one
 func (a *AgentConfig) Merge(other any) error {
 	otherConfig, ok := other.(*AgentConfig)
 	if !ok {
@@ -122,7 +114,6 @@ func (a *AgentConfig) Merge(other any) error {
 	return mergo.Merge(a, otherConfig, mergo.WithOverride)
 }
 
-// LoadID loads the ID from either the direct ID field or resolves it from a package reference
 func (a *AgentConfig) LoadID() (string, error) {
 	return common.LoadID(a, a.ID, a.Use)
 }

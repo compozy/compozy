@@ -27,7 +27,6 @@ const (
 	LogLevelError   LogLevel = "error"
 )
 
-// IsValidLogLevel checks if the given log level is valid
 func IsValidLogLevel(level LogLevel) bool {
 	switch level {
 	case LogLevelDebug, LogLevelInfo, LogLevelWarning, LogLevelError:
@@ -37,18 +36,15 @@ func IsValidLogLevel(level LogLevel) bool {
 	}
 }
 
-// EnvironmentConfig represents environment configuration
 type EnvironmentConfig struct {
 	LogLevel LogLevel `json:"log_level" yaml:"log_level"`
 	EnvFile  string   `json:"env_file" yaml:"env_file"`
 }
 
-// WorkflowSourceConfig represents a workflow source configuration
 type WorkflowSourceConfig struct {
 	Source string `json:"source" yaml:"source"`
 }
 
-// ProjectConfig represents a project configuration
 type ProjectConfig struct {
 	Name         string                        `json:"name" yaml:"name"`
 	Version      string                        `json:"version" yaml:"version"`
@@ -58,14 +54,13 @@ type ProjectConfig struct {
 	Environments map[string]*EnvironmentConfig `json:"environments,omitempty" yaml:"environments,omitempty"`
 	Workflows    []*WorkflowSourceConfig       `json:"workflows" yaml:"workflows"`
 
-	cwd *common.CWD // internal field for current working directory
+	cwd *common.CWD
 }
 
 func (p *ProjectConfig) Component() common.ComponentType {
 	return common.ComponentProject
 }
 
-// SetCWD sets the current working directory for the project
 func (p *ProjectConfig) SetCWD(path string) error {
 	cwd, err := common.CWDFromPath(path)
 	if err != nil {
@@ -75,12 +70,10 @@ func (p *ProjectConfig) SetCWD(path string) error {
 	return nil
 }
 
-// GetCWD returns the current working directory
 func (p *ProjectConfig) GetCWD() *common.CWD {
 	return p.cwd
 }
 
-// Validate validates the project configuration
 func (p *ProjectConfig) Validate() error {
 	validator := validator.NewCompositeValidator(
 		validator.NewCWDValidator(p.cwd, p.Name),
@@ -114,7 +107,6 @@ func Load(cwd *common.CWD, path string) (*ProjectConfig, error) {
 
 func (p *ProjectConfig) WorkflowsFromSources() ([]*workflow.WorkflowConfig, error) {
 	var ws []*workflow.WorkflowConfig
-
 	for _, wf := range p.Workflows {
 		config, err := workflow.Load(p.cwd, wf.Source)
 		if err != nil {
@@ -122,6 +114,5 @@ func (p *ProjectConfig) WorkflowsFromSources() ([]*workflow.WorkflowConfig, erro
 		}
 		ws = append(ws, config)
 	}
-
 	return ws, nil
 }
