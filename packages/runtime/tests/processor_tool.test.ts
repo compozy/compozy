@@ -1,25 +1,37 @@
 import { afterEach, beforeEach, describe, it } from "jsr:@std/testing/bdd";
 import { stub } from "jsr:@std/testing/mock";
 import { assertEquals, assertExists } from "jsr:@std/assert";
-import { restoreConsole, setupCapture } from "./utils.ts";
-import { IpcClient } from "../src/ipc_client.ts";
+import { getRdnNamespace, restoreConsole, setupCapture, setupNats } from "./utils.ts";
+import type { NatsClient } from "../src/nats_client.ts";
 import { Logger } from "../src/logger.ts";
 import { ToolProcessor } from "../src/processor_tool.ts";
 import type { ToolRequest } from "../src/types.ts";
 
 describe("ToolProcessor", () => {
-  beforeEach(() => {
+  let client: NatsClient;
+  let logger: Logger;
+  const testExecId = "test-exec-id";
+  const testNamespace = getRdnNamespace();
+
+  beforeEach(async () => {
     setupCapture();
+    client = await setupNats({
+      namespace: testNamespace,
+      execId: testExecId,
+    });
+    logger = new Logger({ verbose: false });
+    logger.setClient(client);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    if (client && client.isConnected()) {
+      await client.disconnect();
+    }
     restoreConsole();
   });
 
   it("should process a tool request successfully", async () => {
-    const ipcClient = new IpcClient();
-    const logger = new Logger({ verbose: false });
-    const processor = new ToolProcessor(logger, ipcClient, false);
+    const processor = new ToolProcessor(logger, client, false);
     const request: ToolRequest = {
       id: "test-tool-request",
       tool_id: "echo_tool",
@@ -36,7 +48,7 @@ describe("ToolProcessor", () => {
       input: { message: "hello world" },
     };
 
-    const sendMessageStub = stub(ipcClient, "sendMessage", () => {});
+    const sendMessageStub = stub(client, "sendMessage", () => Promise.resolve());
     const response = await processor.processRequest("tool", request);
     assertExists(response);
     assertEquals(response.id, "test-tool-request");
@@ -47,9 +59,7 @@ describe("ToolProcessor", () => {
   });
 
   it("should handle tool execution errors", async () => {
-    const ipcClient = new IpcClient();
-    const logger = new Logger({ verbose: false });
-    const processor = new ToolProcessor(logger, ipcClient, false);
+    const processor = new ToolProcessor(logger, client, false);
     const request: ToolRequest = {
       id: "test-tool-request",
       tool_id: "invalid_tool",
@@ -57,7 +67,7 @@ describe("ToolProcessor", () => {
       input: { message: "hello world" },
     };
 
-    const sendMessageStub = stub(ipcClient, "sendMessage", () => {});
+    const sendMessageStub = stub(client, "sendMessage", () => Promise.resolve());
     const response = await processor.processRequest("tool", request);
     assertExists(response);
     assertEquals(response.id, "test-tool-request");
@@ -69,9 +79,7 @@ describe("ToolProcessor", () => {
   });
 
   it("should process request with no input", async () => {
-    const ipcClient = new IpcClient();
-    const logger = new Logger({ verbose: false });
-    const processor = new ToolProcessor(logger, ipcClient, false);
+    const processor = new ToolProcessor(logger, client, false);
     const request: ToolRequest = {
       id: "test-tool-request",
       tool_id: "echo_tool",
@@ -87,7 +95,7 @@ describe("ToolProcessor", () => {
       input: null,
     };
 
-    const sendMessageStub = stub(ipcClient, "sendMessage", () => {});
+    const sendMessageStub = stub(client, "sendMessage", () => Promise.resolve());
     const response = await processor.processRequest("tool", request);
     assertExists(response);
     assertEquals(response.id, "test-tool-request");

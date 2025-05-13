@@ -69,21 +69,30 @@ deps:
 schemagen:
 	$(GOCMD) run cmd/schemagen/generate.go -out=./schemas
 
-# Help command
-help:
-	@echo "-------------------------------------------------------------------------"
-	@echo "Available commands:"
-	@echo "  make all         - Run tests, lint, and format code (default)"
-	@echo "  make test        - Run tests using gotestsum"
-	@echo "  make integration-test - Run integration tests"
-	@echo "  make lint        - Run linter using golangci-lint"
-	@echo "  make fmt         - Format code using gofmt"
-	@echo "  make clean       - Clean build artifacts"
-	@echo "  make build       - Build the application"
-	@echo "  make dev         - Run the development server"
-	@echo "  make dev-weather - Run the dev server with weather-agent example"
-	@echo "  make deps        - Install development dependencies"
-	@echo "  make tidy        - Tidy go.mod and go.sum files"
-	@echo "  make schemagen   - Generate JSON schemas"
-	@echo "  make help        - Show this help message"
-	@echo "-------------------------------------------------------------------------"
+# Docker compose
+start-nats:
+	docker compose -f docker-compose.yml up -d
+
+# Docker compose down
+stop-nats:
+	docker compose -f docker-compose.yml down
+
+clean-nats:
+	docker compose -f docker-compose.yml down --volumes --rmi all
+
+restart-nats:
+	make stop-nats
+	make start-nats
+
+# Run tests
+test:
+	make start-nats
+	make test-runtime
+	make stop-nats
+
+test-runtime:
+	@echo "Running runtime tests..."
+	@sleep 1
+	@make start-nats
+	@deno test --allow-sys --allow-env --allow-net --allow-read packages/runtime/tests/
+	@make stop-nats

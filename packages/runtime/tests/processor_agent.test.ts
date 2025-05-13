@@ -1,26 +1,43 @@
-// tests/agent.test.ts
 import { afterEach, beforeEach, describe, it } from "jsr:@std/testing/bdd";
-import { stub } from "jsr:@std/testing/mock";
 import { assertEquals, assertExists } from "jsr:@std/assert";
-import { IpcClient } from "../src/ipc_client.ts";
+import type { NatsClient } from "../src/nats_client.ts";
 import { Logger } from "../src/logger.ts";
 import { AgentProcessor } from "../src/processor_agent.ts";
 import type { AgentRequest } from "../src/types.ts";
-import { restoreConsole, setupCapture } from "./utils.ts";
+import { getRdnNamespace, restoreConsole, setupCapture, setupNats } from "./utils.ts";
 
 describe("AgentProcessor", () => {
-  beforeEach(() => {
+  let client: NatsClient;
+  let logger: Logger;
+  const testExecId = "test-exec-id";
+  const testNamespace = getRdnNamespace();
+
+  beforeEach(async () => {
     setupCapture();
+    client = await setupNats({
+      namespace: testNamespace,
+      execId: testExecId,
+    });
+    logger = new Logger({ verbose: false });
+    logger.setClient(client);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    if (client && client.isConnected()) {
+      await client.disconnect();
+    }
     restoreConsole();
   });
 
   it("should create tools and process request", async () => {
-    const ipcClient = new IpcClient();
-    const logger = new Logger({ verbose: false });
-    const processor = new AgentProcessor(logger, ipcClient, false);
+    const apiKey = Deno.env.get("OPENAI_API_KEY");
+    if (!apiKey) {
+      console.log(
+        "Skipping request processing test: No OpenAI API key available",
+      );
+      return;
+    }
+    const processor = new AgentProcessor(logger, client, false);
     const request: AgentRequest["payload"] = {
       id: "test-request",
       agent_id: "test-agent",
@@ -36,7 +53,7 @@ describe("AgentProcessor", () => {
       config: {
         provider: "groq",
         model: "llama-3.1-8b-instant",
-        api_key: "test-key",
+        api_key: apiKey,
       },
       tools: [
         {
@@ -56,20 +73,9 @@ describe("AgentProcessor", () => {
       ],
     };
 
-    const sendMessageStub = stub(ipcClient, "sendMessage", () => {});
-    // deno-lint-ignore require-await
-    const processRequestStub = stub(processor, "processRequest", async () => ({
-      id: "test-request",
-      agent_id: "test-agent",
-      output: { echo: "hello world" },
-      status: "Success" as const,
-    }));
     const response = await processor.processRequest("agent", request);
     assertExists(response.output);
     assertEquals((response.output as any).echo, "hello world");
-
-    sendMessageStub.restore();
-    processRequestStub.restore();
   });
 
   it("should process request with agent and tools", async () => {
@@ -81,9 +87,7 @@ describe("AgentProcessor", () => {
       return;
     }
 
-    const ipcClient = new IpcClient();
-    const logger = new Logger({ verbose: false });
-    const processor = new AgentProcessor(logger, ipcClient, false);
+    const processor = new AgentProcessor(logger, client, false);
     const request: AgentRequest["payload"] = {
       id: "test-request",
       agent_id: "test-agent",

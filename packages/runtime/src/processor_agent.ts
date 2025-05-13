@@ -7,13 +7,13 @@ import {
 import { JSONSchemaToZod } from "npm:@dmitryrechkin/json-schema-to-zod";
 import { Processor } from "./processor.ts";
 import type { AgentRequest, AgentResponse, RequestType } from "./types.ts";
-import type { IpcClient } from "./ipc_client.ts";
+import type { NatsClient } from "./nats_client.ts";
 import type { Logger } from "./logger.ts";
 import { loadToolsDinamically } from "./utils.ts";
 
 export class AgentProcessor extends Processor {
-  constructor(logger: Logger, ipcClient: IpcClient, verbose: boolean = false) {
-    super(logger, ipcClient, verbose);
+  constructor(logger: Logger, natsClient: NatsClient, verbose: boolean = false) {
+    super(logger, natsClient, verbose);
   }
 
   private createProvider(request: AgentRequest["payload"]) {
@@ -165,10 +165,12 @@ export class AgentProcessor extends Processor {
           output: response as T,
           status: "Success",
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const stack = error instanceof Error ? error.stack : undefined;
         this.logger.error("Processing error", {
-          error: error.message,
-          stack: error.stack,
+          error: errorMessage,
+          stack,
           requestId: request.id,
         });
         throw error;

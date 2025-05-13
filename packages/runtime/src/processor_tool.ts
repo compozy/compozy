@@ -1,12 +1,12 @@
-import type { IpcClient } from "./ipc_client.ts";
+import type { NatsClient } from "./nats_client.ts";
 import type { Logger } from "./logger.ts";
 import { Processor } from "./processor.ts";
 import type { RequestType, ToolRequest, ToolResponse } from "./types.ts";
 import { loadToolDinamically } from "./utils.ts";
 
 export class ToolProcessor extends Processor {
-  constructor(logger: Logger, ipcClient: IpcClient, verbose: boolean = false) {
-    super(logger, ipcClient, verbose);
+  constructor(logger: Logger, natsClient: NatsClient, verbose: boolean = false) {
+    super(logger, natsClient, verbose);
   }
 
   public async processRequest<T>(
@@ -32,16 +32,17 @@ export class ToolProcessor extends Processor {
           output: output as T,
           status: "Success",
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         this.logger.error("Tool processing error", {
-          error: error.message,
-          stack: error.stack,
+          error: errorMessage,
+          stack: error instanceof Error ? error.stack : undefined,
           requestId: request.id,
         });
         return {
           id: request.id,
           tool_id: request.tool_id,
-          output: error.message,
+          output: errorMessage as unknown as T,
           status: "Error",
         };
       }

@@ -1,13 +1,20 @@
-import { ipcEmitter } from "./ipc_client.ts";
-import { type LogContext, LogLevel, type LogMessage } from "./types.ts";
+import { NatsClient } from "./nats_client.ts";
+import { type LogContext, LogLevel } from "./types.ts";
 
 export class Logger {
   private correlationId?: string;
+  private natsClient: NatsClient;
 
-  constructor(readonly config: { verbose?: boolean } = { verbose: false }) {}
+  constructor(readonly config: { verbose?: boolean } = { verbose: false }) {
+    this.natsClient = new NatsClient({ verbose: config.verbose });
+  }
 
   public setCorrelationId(id: string) {
     this.correlationId = id;
+  }
+
+  public setClient(client: NatsClient) {
+    this.natsClient = client;
   }
 
   public debug(message: string, context?: LogContext) {
@@ -26,14 +33,14 @@ export class Logger {
     this.sendLog(LogLevel.Error, message, context);
   }
 
-  sendLog(level: LogLevel, message: string, context?: LogContext) {
+  async sendLog(level: LogLevel, message: string, context?: LogContext) {
     if (level === LogLevel.Debug && !this.config.verbose) return;
-    const payload: LogMessage = {
-      level,
-      message,
-      context: { ...context, correlationId: this.correlationId },
-      timestamp: new Date().toISOString(),
+
+    const enhancedContext = {
+      ...context,
+      correlationId: this.correlationId
     };
-    ipcEmitter.emit("send_log_message", payload);
+
+    await this.natsClient.sendLogMessage(level, message, enhancedContext);
   }
 }

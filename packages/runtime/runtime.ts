@@ -1,18 +1,21 @@
 import {
   AgentProcessor,
   type AgentRequest,
-  IpcClient,
   Logger,
   type Processor,
   ToolProcessor,
   type ToolRequest,
+  NatsClient,
 } from "./src/index.ts";
 
 async function main() {
-  const ipcClient = new IpcClient();
-  const logger = new Logger({ verbose: ipcClient.verbose });
-  const agentProcessor = new AgentProcessor(logger, ipcClient);
-  const toolProcessor = new ToolProcessor(logger, ipcClient);
+  const natsClient = new NatsClient();
+  await natsClient.connect();
+
+  const logger = new Logger({ verbose: natsClient.verbose });
+  const agentProcessor = new AgentProcessor(logger, natsClient);
+  const toolProcessor = new ToolProcessor(logger, natsClient);
+
   const { id: agentId, requestId: agentRequestId } = agentProcessor
     .parseCommandLineArgs("agent");
   const { id: toolId, requestId: toolRequestId } = toolProcessor
@@ -38,7 +41,7 @@ async function main() {
         "agent",
         request.payload,
       );
-      ipcClient.sendMessage("AgentResponse", response);
+      await natsClient.sendMessage("AgentResponse", response, agentId);
       logger.debug("Successfully processed agent request");
     }
     if (toolId) {
@@ -50,11 +53,11 @@ async function main() {
         "tool",
         request.payload,
       );
-      ipcClient.sendMessage("ToolResponse", response);
+      await natsClient.sendMessage("ToolResponse", response, toolId);
       logger.debug("Successfully processed tool request");
     }
-  } catch (error: any) {
-    ipcClient.sendErrorMessage(
+  } catch (error: unknown) {
+    await natsClient.sendErrorMessage(
       agentRequestId || toolRequestId || null,
       error,
       {},
@@ -62,13 +65,16 @@ async function main() {
     Deno.exit(1);
   } finally {
     processor.cleanup();
+    await natsClient.disconnect();
   }
 }
 
 if (import.meta.main) {
-  main().catch((error) => {
-    const ipcClient = new IpcClient();
-    ipcClient.sendErrorMessage(null, error, {});
+  main().catch(async (error) => {
+    const natsClient = new NatsClient();
+    await natsClient.connect();
+    await natsClient.sendErrorMessage(null, error, {});
+    await natsClient.disconnect();
     Deno.exit(1);
   });
 }
