@@ -9,7 +9,8 @@ import (
 )
 
 func LoadTasksRef(wc *Config) error {
-	for i, tc := range wc.Tasks {
+	for i := 0; i < len(wc.Tasks); i++ {
+		tc := &wc.Tasks[i]
 		cfg, err := tc.LoadFileRef(wc.GetCWD())
 		if err != nil {
 			return fmt.Errorf("failed to load task reference for task %s: %w", tc.ID, err)
@@ -59,7 +60,8 @@ func loadAgentsRefOnTask(wc *Config, tc *task.Config) error {
 		return fmt.Errorf("invalid agent configuration: %w", err)
 	}
 
-	for _, ac := range wc.Agents {
+	for i := 0; i < len(wc.Agents); i++ {
+		ac := &wc.Agents[i]
 		if ac.ID == cfg.ID {
 			return nil
 		}

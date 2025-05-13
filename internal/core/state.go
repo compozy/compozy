@@ -36,7 +36,9 @@ func FromParentState(state State, parent State) error {
 		if err != nil {
 			return fmt.Errorf("failed to merge env: %w", err)
 		}
-		state.WithEnv(*env)
+		if err := state.WithEnv(*env); err != nil {
+			return fmt.Errorf("failed to set env: %w", err)
+		}
 	}
 
 	if parent.Input() != nil {
@@ -44,7 +46,9 @@ func FromParentState(state State, parent State) error {
 		if err != nil {
 			return fmt.Errorf("failed to merge input: %w", err)
 		}
-		state.WithInput(*input)
+		if err := state.WithInput(*input); err != nil {
+			return fmt.Errorf("failed to set input: %w", err)
+		}
 	}
 
 	return nil
@@ -109,7 +113,8 @@ func NewStateID(cfg common.Config, execID string) (*StateID, error) {
 			ComponentID: "",
 			ExecID:      execID,
 		}
-		return stID, NewError(stID, "no_id", "no id found on config", err)
+		errResponse := NewError(stID, "no_id", "no id found on config", err)
+		return stID, &errResponse
 	}
 	return &StateID{
 		Component:   cfg.Component(),

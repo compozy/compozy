@@ -24,13 +24,14 @@ integration-test:
 
 # Run linter using golangci-lint
 lint:
-	golangci-lint run
+	golangci-lint run --fix
 	@echo "Linting completed successfully"
 
 # Format code using gofmt
 fmt:
 	@echo "Formatting code..."
 	@find . -name "*.go" -not -path "./vendor/*" -exec $(GOFMT) {} \;
+	@find . -name "*.go" -not -path "./vendor/*" -exec golines -m 120 -w {} \;
 	@echo "Formatting completed successfully"
 
 # Clean build artifacts
@@ -62,6 +63,7 @@ deps:
 	$(GOCMD) install gotest.tools/gotestsum@latest
 	$(GOCMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	$(GOCMD) install github.com/bokwoon95/wgo@latest
+	$(GOCMD) install github.com/segmentio/golines@latest
 
 # Generate JSON schemas
 schemagen:

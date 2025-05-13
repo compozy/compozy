@@ -21,16 +21,16 @@ const (
 )
 
 type Config struct {
-	ID           string                              `json:"id,omitempty" yaml:"id,omitempty"`
-	Use          *pkgref.PackageRefConfig            `json:"use,omitempty" yaml:"use,omitempty"`
-	Type         Type                                `json:"type,omitempty" yaml:"type,omitempty"`
+	ID           string                              `json:"id,omitempty"         yaml:"id,omitempty"`
+	Use          *pkgref.PackageRefConfig            `json:"use,omitempty"        yaml:"use,omitempty"`
+	Type         Type                                `json:"type,omitempty"       yaml:"type,omitempty"`
 	OnSuccess    *transition.SuccessTransitionConfig `json:"on_success,omitempty" yaml:"on_success,omitempty"`
-	OnError      *transition.ErrorTransitionConfig   `json:"on_error,omitempty" yaml:"on_error,omitempty"`
-	Final        string                              `json:"final,omitempty" yaml:"final,omitempty"`
-	InputSchema  *schema.InputSchema                 `json:"input,omitempty" yaml:"input,omitempty"`
-	OutputSchema *schema.OutputSchema                `json:"output,omitempty" yaml:"output,omitempty"`
-	With         *common.Input                       `json:"with,omitempty" yaml:"with,omitempty"`
-	Env          common.EnvMap                       `json:"env,omitempty" yaml:"env,omitempty"`
+	OnError      *transition.ErrorTransitionConfig   `json:"on_error,omitempty"   yaml:"on_error,omitempty"`
+	Final        string                              `json:"final,omitempty"      yaml:"final,omitempty"`
+	InputSchema  *schema.InputSchema                 `json:"input,omitempty"      yaml:"input,omitempty"`
+	OutputSchema *schema.OutputSchema                `json:"output,omitempty"     yaml:"output,omitempty"`
+	With         *common.Input                       `json:"with,omitempty"       yaml:"with,omitempty"`
+	Env          common.EnvMap                       `json:"env,omitempty"        yaml:"env,omitempty"`
 	cwd          *common.CWD
 
 	// Basic task properties
@@ -38,7 +38,7 @@ type Config struct {
 
 	// Decision task properties
 	Condition string            `json:"condition,omitempty" yaml:"condition,omitempty"`
-	Routes    map[string]string `json:"routes,omitempty" yaml:"routes,omitempty"`
+	Routes    map[string]string `json:"routes,omitempty"    yaml:"routes,omitempty"`
 }
 
 func (t *Config) Component() common.ComponentType {

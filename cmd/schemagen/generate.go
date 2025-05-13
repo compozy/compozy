@@ -46,8 +46,7 @@ func GenerateParserSchemas(outDir string) error {
 				}
 				return schema
 			}
-			switch t {
-			case reflect.TypeOf(pkgref.PackageRefConfig("")):
+			if t == reflect.TypeOf(pkgref.PackageRefConfig("")) {
 				return &jsonschema.Schema{
 					Type:    "string",
 					Pattern: `^(agent|tool|task)\((id|file|dep)=[^)]+\)$`,
@@ -94,7 +93,7 @@ func GenerateParserSchemas(outDir string) error {
 
 		// Write to file
 		filePath := filepath.Join(outDir, fmt.Sprintf("%s.json", s.name))
-		if err := os.WriteFile(filePath, schemaJSON, 0644); err != nil {
+		if err := os.WriteFile(filePath, schemaJSON, 0600); err != nil {
 			return fmt.Errorf("failed to write schema to %s: %w", filePath, err)
 		}
 

@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"path/filepath"
+	"fmt"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -13,16 +13,20 @@ func DeployCmd() *cobra.Command {
 		Use:   "deploy",
 		Short: "Deploy the Compozy project",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			env, _ := cmd.Flags().GetString("env")
-			yes, _ := cmd.Flags().GetBool("yes")
-			cwd, _ := cmd.Flags().GetString("cwd")
-			config, _ := cmd.Flags().GetString("config")
-
-			// Resolve paths
-			if cwd == "" {
-				cwd, _ = filepath.Abs(".")
+			env, err := cmd.Flags().GetString("env")
+			if err != nil {
+				return fmt.Errorf("failed to get env flag: %w", err)
 			}
-			configPath := filepath.Join(cwd, config)
+
+			yes, err := cmd.Flags().GetBool("yes")
+			if err != nil {
+				return fmt.Errorf("failed to get yes flag: %w", err)
+			}
+
+			cwd, _, configPath, err := GetCommonFlags(cmd)
+			if err != nil {
+				return err
+			}
 
 			logrus.Info("Deploying project...")
 			logrus.Infof("Working directory: %s", cwd)
@@ -37,5 +41,6 @@ func DeployCmd() *cobra.Command {
 
 	cmd.Flags().String("env", "", "Environment to deploy to")
 	cmd.Flags().Bool("yes", false, "Skip confirmation prompt")
+	AddCommonFlags(cmd)
 	return cmd
 }

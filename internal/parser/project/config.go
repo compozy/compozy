@@ -38,7 +38,7 @@ func IsValidLogLevel(level LogLevel) bool {
 
 type EnvironmentConfig struct {
 	LogLevel LogLevel `json:"log_level" yaml:"log_level"`
-	EnvFile  string   `json:"env_file" yaml:"env_file"`
+	EnvFile  string   `json:"env_file"  yaml:"env_file"`
 }
 
 type WorkflowSourceConfig struct {
@@ -46,13 +46,13 @@ type WorkflowSourceConfig struct {
 }
 
 type Config struct {
-	Name         string                        `json:"name" yaml:"name"`
-	Version      string                        `json:"version" yaml:"version"`
-	Description  string                        `json:"description,omitempty" yaml:"description,omitempty"`
-	Author       author.Author                 `json:"author,omitempty" yaml:"author,omitempty"`
+	Name         string                        `json:"name"                   yaml:"name"`
+	Version      string                        `json:"version"                yaml:"version"`
+	Description  string                        `json:"description,omitempty"  yaml:"description,omitempty"`
+	Author       author.Author                 `json:"author,omitempty"       yaml:"author,omitempty"`
 	Dependencies *Dependencies                 `json:"dependencies,omitempty" yaml:"dependencies,omitempty"`
 	Environments map[string]*EnvironmentConfig `json:"environments,omitempty" yaml:"environments,omitempty"`
-	Workflows    []*WorkflowSourceConfig       `json:"workflows" yaml:"workflows"`
+	Workflows    []*WorkflowSourceConfig       `json:"workflows"              yaml:"workflows"`
 
 	cwd *common.CWD
 }

@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/charmbracelet/log"
 	"github.com/compozy/compozy/internal/logger"
 	"github.com/compozy/compozy/internal/nats"
@@ -36,54 +38,133 @@ func setupLogger(logLevel string, logJSON, logSource bool) {
 	})
 }
 
+// getServerConfig extracts server configuration from command flags
+func getServerConfig(cmd *cobra.Command) (*server.Config, error) {
+	port, err := cmd.Flags().GetInt("port")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get port flag: %w", err)
+	}
+
+	host, err := cmd.Flags().GetString("host")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get host flag: %w", err)
+	}
+
+	cors, err := cmd.Flags().GetBool("cors")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cors flag: %w", err)
+	}
+
+	cwd, _, _, err := GetCommonFlags(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	serverConfig := &server.Config{
+		CWD:         cwd,
+		Host:        host,
+		Port:        port,
+		CORSEnabled: cors,
+	}
+	return serverConfig, nil
+}
+
+// getLoggerConfig extracts logger configuration from command flags
+func getLoggerConfig(cmd *cobra.Command) (string, bool, bool, error) {
+	logLevel, err := cmd.Flags().GetString("log-level")
+	if err != nil {
+		return "", false, false, fmt.Errorf("failed to get log-level flag: %w", err)
+	}
+
+	logJSON, err := cmd.Flags().GetBool("log-json")
+	if err != nil {
+		return "", false, false, fmt.Errorf("failed to get log-json flag: %w", err)
+	}
+
+	logSource, err := cmd.Flags().GetBool("log-source")
+	if err != nil {
+		return "", false, false, fmt.Errorf("failed to get log-source flag: %w", err)
+	}
+
+	return logLevel, logJSON, logSource, nil
+}
+
+// setupNatsServer initializes and returns a NATS server
+func setupNatsServer() (*nats.Server, error) {
+	natsServer, err := nats.NewNatsServer(nats.DefaultServerOptions())
+	if err != nil {
+		logger.Error("Failed to setup NATS server", "error", err)
+		return nil, err
+	}
+	return natsServer, nil
+}
+
+// loadProjectConfig loads and validates project configuration
+func loadProjectConfig(cwd, configPath string) (*project.Config, error) {
+	pCWD, err := common.CWDFromPath(cwd)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("Starting compozy server")
+	logger.Debug("Loading config file", "path", configPath)
+
+	projectConfig, err := project.Load(pCWD, configPath)
+	if err != nil {
+		logger.Error("Failed to load project config", "error", err)
+		return nil, err
+	}
+
+	if err := projectConfig.Validate(); err != nil {
+		logger.Error("Invalid project config", "error", err)
+		return nil, err
+	}
+
+	return projectConfig, nil
+}
+
 // DevCmd returns the dev command
 func DevCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dev",
 		Short: "Run the Compozy development server",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			port, _ := cmd.Flags().GetInt("port")
-			host, _ := cmd.Flags().GetString("host")
-			cors, _ := cmd.Flags().GetBool("cors")
-			cwd, _ := cmd.Flags().GetString("cwd")
-			config, _ := cmd.Flags().GetString("config")
-			logLevel, _ := cmd.Flags().GetString("log-level")
-			logJSON, _ := cmd.Flags().GetBool("log-json")
-			logSource, _ := cmd.Flags().GetBool("log-source")
-
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			// Set Gin to release mode to reduce debug output
 			gin.SetMode(gin.ReleaseMode)
 
+			// Get server configuration
+			serverConfig, err := getServerConfig(cmd)
+			if err != nil {
+				return err
+			}
+
+			// Get common flags
+			cwd, _, configPath, err := GetCommonFlags(cmd)
+			if err != nil {
+				return err
+			}
+
 			// Setup logger
+			logLevel, logJSON, logSource, err := getLoggerConfig(cmd)
+			if err != nil {
+				return err
+			}
 			setupLogger(logLevel, logJSON, logSource)
 
 			// Setup NATS server
-			natsServer, err := nats.NewNatsServer(nats.DefaultServerOptions())
-			if err != nil {
-				logger.Error("Failed to setup NATS server", "error", err)
-				return err
-			}
-			defer natsServer.Shutdown()
-
-			// Resolve paths
-			pCWD, err := common.CWDFromPath(cwd)
+			natsServer, err := setupNatsServer()
 			if err != nil {
 				return err
 			}
-
-			logger.Info("Starting compozy server")
-			logger.Debug("Loading config file", "path", config)
+			defer func() {
+				if err := natsServer.Shutdown(); err != nil {
+					logger.Error("Error shutting down NATS server", "error", err)
+				}
+			}()
 
 			// Load project configuration
-			projectConfig, err := project.Load(pCWD, config)
+			projectConfig, err := loadProjectConfig(cwd, configPath)
 			if err != nil {
-				logger.Error("Failed to load project config", "error", err)
-				return err
-			}
-
-			// Validate project configuration
-			if err := projectConfig.Validate(); err != nil {
-				logger.Error("Invalid project config", "error", err)
 				return err
 			}
 
@@ -101,14 +182,6 @@ func DevCmd() *cobra.Command {
 				return err
 			}
 
-			// Create server configuration
-			serverConfig := &server.Config{
-				CWD:         cwd,
-				Host:        host,
-				Port:        port,
-				CORSEnabled: cors,
-			}
-
 			// Create and run server
 			srv := server.NewServer(serverConfig, appState)
 			return srv.Run()
@@ -119,8 +192,7 @@ func DevCmd() *cobra.Command {
 	cmd.Flags().Int("port", 3001, "Port to run the development server on")
 	cmd.Flags().String("host", "0.0.0.0", "Host to bind the server to")
 	cmd.Flags().Bool("cors", false, "Enable CORS")
-	cmd.Flags().String("cwd", "", "Working directory for the project")
-	cmd.Flags().String("config", "./compozy.yaml", "Path to the project configuration file")
+	AddCommonFlags(cmd)
 
 	// Logging configuration flags
 	cmd.Flags().String("log-level", "info", "Log level (debug, info, warn, error)")
@@ -129,8 +201,13 @@ func DevCmd() *cobra.Command {
 	cmd.Flags().Bool("debug", false, "Enable debug mode (sets log level to debug)")
 
 	// Set debug flag to override log level
-	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-		if debug, _ := cmd.Flags().GetBool("debug"); debug {
+	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
+		debug, err := cmd.Flags().GetBool("debug")
+		if err != nil {
+			return fmt.Errorf("failed to get debug flag: %w", err)
+		}
+
+		if debug {
 			return cmd.Flags().Set("log-level", "debug")
 		}
 		return nil

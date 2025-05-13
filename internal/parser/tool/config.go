@@ -16,14 +16,14 @@ import (
 
 // Config represents a tool configuration
 type Config struct {
-	ID           string                   `json:"id,omitempty" yaml:"id,omitempty"`
+	ID           string                   `json:"id,omitempty"          yaml:"id,omitempty"`
 	Description  string                   `json:"description,omitempty" yaml:"description,omitempty"`
-	Execute      string                   `json:"execute,omitempty" yaml:"execute,omitempty"`
-	Use          *pkgref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
-	InputSchema  *schema.InputSchema      `json:"input,omitempty" yaml:"input,omitempty"`
-	OutputSchema *schema.OutputSchema     `json:"output,omitempty" yaml:"output,omitempty"`
-	With         *common.Input            `json:"with,omitempty" yaml:"with,omitempty"`
-	Env          common.EnvMap            `json:"env,omitempty" yaml:"env,omitempty"`
+	Execute      string                   `json:"execute,omitempty"     yaml:"execute,omitempty"`
+	Use          *pkgref.PackageRefConfig `json:"use,omitempty"         yaml:"use,omitempty"`
+	InputSchema  *schema.InputSchema      `json:"input,omitempty"       yaml:"input,omitempty"`
+	OutputSchema *schema.OutputSchema     `json:"output,omitempty"      yaml:"output,omitempty"`
+	With         *common.Input            `json:"with,omitempty"        yaml:"with,omitempty"`
+	Env          common.EnvMap            `json:"env,omitempty"         yaml:"env,omitempty"`
 
 	cwd *common.CWD // internal field for current working directory
 }
