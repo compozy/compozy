@@ -57,7 +57,9 @@ func LoadConfig[T Config](cwd *CWD, path string) (T, error) {
 		return zero, fmt.Errorf("failed to decode YAML config: %w", err)
 	}
 
-	config.SetCWD(filepath.Dir(resolvedPath))
+	if err := config.SetCWD(filepath.Dir(resolvedPath)); err != nil {
+		return zero, err
+	}
 	return config, nil
 }
 

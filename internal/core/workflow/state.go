@@ -33,12 +33,14 @@ func InitWorkflowState(stID *core.StateID, input common.Input, cfg *config.Confi
 func loadEnv(stID *core.StateID, currEnv common.EnvMap, cwd *common.CWD) (common.EnvMap, error) {
 	env, err := common.NewEnvFromFile(cwd.PathStr())
 	if err != nil {
-		return nil, core.NewError(stID, "env_read_fail", "failed to read env file", err)
+		errResponse := core.NewError(stID, "env_read_fail", "failed to read env file", err)
+		return nil, &errResponse
 	}
 
 	env, err = currEnv.Merge(env)
 	if err != nil {
-		return nil, core.NewError(stID, "env_merge_fail", "failed to merge environment variables", err)
+		errResponse := core.NewError(stID, "env_merge_fail", "failed to merge environment variables", err)
+		return nil, &errResponse
 	}
 
 	return env, nil
@@ -67,7 +69,8 @@ func (ws *State) FromParentState(parent core.State) error {
 func (ws *State) WithEnv(env common.EnvMap) error {
 	newEnv, err := core.WithEnv(ws, env)
 	if err != nil {
-		return core.NewError(ws.id, "merge_env_fail", "failed to merge env", err)
+		errResponse := core.NewError(ws.id, "merge_env_fail", "failed to merge env", err)
+		return &errResponse
 	}
 	ws.env = *newEnv
 	return nil
@@ -76,7 +79,8 @@ func (ws *State) WithEnv(env common.EnvMap) error {
 func (ws *State) WithInput(input common.Input) error {
 	newInput, err := core.WithInput(ws, input)
 	if err != nil {
-		return core.NewError(ws.id, "merge_input_fail", "failed to merge input", err)
+		errResponse := core.NewError(ws.id, "merge_input_fail", "failed to merge input", err)
+		return &errResponse
 	}
 	ws.input = *newInput
 	return nil

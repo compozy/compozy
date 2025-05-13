@@ -38,7 +38,7 @@ func normalizePath(p string) string {
 
 	// Restore trailing slash if it was present in the original path
 	if hasTrailingSlash {
-		cleanPath = cleanPath + "/"
+		cleanPath += "/"
 	}
 
 	return cleanPath

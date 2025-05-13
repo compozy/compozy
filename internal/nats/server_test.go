@@ -391,7 +391,7 @@ func Test_Server(t *testing.T) {
 		}
 
 		// Verify all messages were received
-		for i := 0; i < len(logMessages); i++ {
+		for i := range logMessages {
 			select {
 			case msg := <-logs:
 				found := false

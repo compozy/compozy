@@ -112,7 +112,12 @@ func TestFileReferences(t *testing.T) {
 
 				require.NotNil(t, getQuoteTool, "get_quote tool not found in workflow config")
 				assert.Equal(t, "get_quote", getQuoteTool.ID, "Tool ID not set correctly")
-				assert.Equal(t, "Get a random Game of Thrones quote", getQuoteTool.Description, "Tool description not set correctly")
+				assert.Equal(
+					t,
+					"Get a random Game of Thrones quote",
+					getQuoteTool.Description,
+					"Tool description not set correctly",
+				)
 				assert.Equal(t, "./get_quote.ts", getQuoteTool.Execute, "Tool execute command not set correctly")
 
 				// Verify tool CWD
@@ -172,10 +177,20 @@ func TestFileReferences(t *testing.T) {
 				require.NotNil(t, translatorAgent, "translator agent not found in workflow config")
 				assert.Equal(t, "translator", translatorAgent.ID, "Agent ID not set correctly")
 				assert.Equal(t, "groq", string(translatorAgent.Config.Provider), "Agent provider not set correctly")
-				assert.Equal(t, "llama-3.3-70b-versatile", string(translatorAgent.Config.Model), "Agent model not set correctly")
+				assert.Equal(
+					t,
+					"llama-3.3-70b-versatile",
+					string(translatorAgent.Config.Model),
+					"Agent model not set correctly",
+				)
 
 				// Verify agent has the correct action
-				require.GreaterOrEqual(t, len(translatorAgent.Actions), 1, "Expected at least 1 action in translator agent")
+				require.GreaterOrEqual(
+					t,
+					len(translatorAgent.Actions),
+					1,
+					"Expected at least 1 action in translator agent",
+				)
 				assert.Equal(t, "translate", translatorAgent.Actions[0].ID, "Agent action ID not set correctly")
 
 				// Verify agent CWD

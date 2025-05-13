@@ -111,7 +111,7 @@ func Test_HealthEndpoint(t *testing.T) {
 		require.NoError(t, err)
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/health", http.NoBody)
+		req, _ := http.NewRequestWithContext(context.Background(), "GET", "/health", http.NoBody)
 		server.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -131,7 +131,7 @@ func Test_WebhookEndpoint(t *testing.T) {
 		require.NoError(t, err)
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/non-existent", http.NoBody)
+		req, _ := http.NewRequestWithContext(context.Background(), "POST", "/non-existent", http.NoBody)
 		req.Header.Set("Content-Type", "application/json")
 		server.router.ServeHTTP(w, req)
 

@@ -14,11 +14,11 @@ import (
 )
 
 type ActionConfig struct {
-	ID           string               `json:"id" yaml:"id"`
-	Prompt       string               `json:"prompt" yaml:"prompt" validate:"required"`
-	InputSchema  *schema.InputSchema  `json:"input,omitempty" yaml:"input,omitempty"`
+	ID           string               `json:"id"               yaml:"id"`
+	Prompt       string               `json:"prompt"           yaml:"prompt"           validate:"required"`
+	InputSchema  *schema.InputSchema  `json:"input,omitempty"  yaml:"input,omitempty"`
 	OutputSchema *schema.OutputSchema `json:"output,omitempty" yaml:"output,omitempty"`
-	With         *common.Input        `json:"with,omitempty" yaml:"with,omitempty"`
+	With         *common.Input        `json:"with,omitempty"   yaml:"with,omitempty"`
 
 	cwd *common.CWD
 }
@@ -49,16 +49,16 @@ func (a *ActionConfig) ValidateParams(input map[string]any) error {
 }
 
 type Config struct {
-	ID           string                   `json:"id" yaml:"id" validate:"required"`
-	Use          *pkgref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
-	Config       provider.Config          `json:"config" yaml:"config" validate:"required"`
-	Instructions string                   `json:"instructions" yaml:"instructions" validate:"required"`
-	Tools        []tool.Config            `json:"tools,omitempty" yaml:"tools,omitempty"`
+	ID           string                   `json:"id"                yaml:"id"                validate:"required"`
+	Use          *pkgref.PackageRefConfig `json:"use,omitempty"     yaml:"use,omitempty"`
+	Config       provider.Config          `json:"config"            yaml:"config"            validate:"required"`
+	Instructions string                   `json:"instructions"      yaml:"instructions"      validate:"required"`
+	Tools        []tool.Config            `json:"tools,omitempty"   yaml:"tools,omitempty"`
 	Actions      []*ActionConfig          `json:"actions,omitempty" yaml:"actions,omitempty"`
-	InputSchema  *schema.InputSchema      `json:"input,omitempty" yaml:"input,omitempty"`
-	OutputSchema *schema.OutputSchema     `json:"output,omitempty" yaml:"output,omitempty"`
-	With         *common.Input            `json:"with,omitempty" yaml:"with,omitempty"`
-	Env          common.EnvMap            `json:"env,omitempty" yaml:"env,omitempty"`
+	InputSchema  *schema.InputSchema      `json:"input,omitempty"   yaml:"input,omitempty"`
+	OutputSchema *schema.OutputSchema     `json:"output,omitempty"  yaml:"output,omitempty"`
+	With         *common.Input            `json:"with,omitempty"    yaml:"with,omitempty"`
+	Env          common.EnvMap            `json:"env,omitempty"     yaml:"env,omitempty"`
 
 	cwd *common.CWD
 }
@@ -74,7 +74,9 @@ func (a *Config) SetCWD(path string) error {
 	}
 	a.cwd = cwd
 	for i := range a.Actions {
-		a.Actions[i].SetCWD(path)
+		if err := a.Actions[i].SetCWD(path); err != nil {
+			return err
+		}
 	}
 	return nil
 }

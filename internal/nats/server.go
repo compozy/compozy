@@ -76,7 +76,11 @@ func runEmbeddedServer(options ServerOptions) (*nats.Conn, *server.Server, error
 	}
 
 	// Get the actual port the server is listening on
-	port := ns.Addr().(*net.TCPAddr).Port
+	addr, ok := ns.Addr().(*net.TCPAddr)
+	if !ok {
+		return nil, nil, fmt.Errorf("failed to get server address: unexpected address type")
+	}
+	port := addr.Port
 	clientOpts := []nats.Option{}
 	nc, err := nats.Connect(fmt.Sprintf("nats://127.0.0.1:%d", port), clientOpts...)
 	if err != nil {
@@ -109,86 +113,73 @@ func (s *Server) IsRunning() bool {
 	return s.NatsServer != nil && s.NatsServer.Running()
 }
 
-// RequestAgent sends an AgentRequest and waits for an AgentResponse or ErrorMessage
-func (s *Server) RequestAgent(execID string, req *AgentRequest, timeout time.Duration) (*AgentResponse, error) {
-	msg, err := NewMessage(execID, TypeAgentRequest, req)
+// request sends a request message and waits for a response of the specified type
+func (s *Server) request(
+	execID string,
+	subject string,
+	msgType MessageType,
+	payload interface{},
+	timeout time.Duration,
+	expectedResponseType MessageType,
+	response interface{},
+) error {
+	msg, err := NewMessage(execID, msgType, payload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create agent request message: %w", err)
+		return fmt.Errorf("failed to create request message: %w", err)
 	}
 
 	data, err := json.Marshal(msg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal agent request message: %w", err)
+		return fmt.Errorf("failed to marshal request message: %w", err)
 	}
 
-	subject := GenAgentRequestSubject(execID, req.AgentID)
 	respMsg, err := s.Conn.Request(subject, data, timeout)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send agent request: %w", err)
+		return fmt.Errorf("failed to send request: %w", err)
 	}
 
 	var respMessage Message
 	if err := json.Unmarshal(respMsg.Data, &respMessage); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+		return fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
 	switch respMessage.Type {
-	case TypeAgentResponse:
-		var resp AgentResponse
-		if err := respMessage.UnmarshalPayload(&resp); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal agent response: %w", err)
+	case expectedResponseType:
+		if err := respMessage.UnmarshalPayload(response); err != nil {
+			return fmt.Errorf("failed to unmarshal response payload: %w", err)
 		}
-		return &resp, nil
+		return nil
 	case TypeError:
 		var errMsg ErrorMessage
 		if err := respMessage.UnmarshalPayload(&errMsg); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal error message: %w", err)
+			return fmt.Errorf("failed to unmarshal error message: %w", err)
 		}
-		return nil, fmt.Errorf("error from worker: %s", errMsg.Message)
+		return fmt.Errorf("error from worker: %s", errMsg.Message)
 	default:
-		return nil, fmt.Errorf("unexpected response type: %s", respMessage.Type)
+		return fmt.Errorf("unexpected response type: %s", respMessage.Type)
 	}
+}
+
+// RequestAgent sends an AgentRequest and waits for an AgentResponse or ErrorMessage
+func (s *Server) RequestAgent(execID string, req *AgentRequest, timeout time.Duration) (*AgentResponse, error) {
+	subject := GenAgentRequestSubject(execID, req.AgentID)
+	var resp AgentResponse
+	err := s.request(execID, subject, TypeAgentRequest, req, timeout, TypeAgentResponse, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send agent request: %w", err)
+	}
+	return &resp, nil
 }
 
 // RequestTool sends a ToolRequest and waits for a ToolResponse or ErrorMessage
 func (s *Server) RequestTool(execID string, req *ToolRequest, timeout time.Duration) (*ToolResponse, error) {
-	msg, err := NewMessage(execID, TypeToolRequest, req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create tool request message: %w", err)
-	}
-
-	data, err := json.Marshal(msg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal tool request message: %w", err)
-	}
-
 	subject := GenToolRequestSubject(execID, req.ToolID)
-	respMsg, err := s.Conn.Request(subject, data, timeout)
+	var resp ToolResponse
+	err := s.request(execID, subject, TypeToolRequest, req, timeout, TypeToolResponse, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send tool request: %w", err)
 	}
-
-	var respMessage Message
-	if err := json.Unmarshal(respMsg.Data, &respMessage); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	switch respMessage.Type {
-	case TypeToolResponse:
-		var resp ToolResponse
-		if err := respMessage.UnmarshalPayload(&resp); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal tool response: %w", err)
-		}
-		return &resp, nil
-	case TypeError:
-		var errMsg ErrorMessage
-		if err := respMessage.UnmarshalPayload(&errMsg); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal error message: %w", err)
-		}
-		return nil, fmt.Errorf("error from worker: %s", errMsg.Message)
-	default:
-		return nil, fmt.Errorf("unexpected response type: %s", respMessage.Type)
-	}
+	return &resp, nil
 }
 
 // PublishLog publishes a log message to the appropriate subject
@@ -237,7 +228,11 @@ func (s *Server) SubscribeToLogs(execID string, handler func(*LogMessage)) (*nat
 }
 
 // SubscribeToLogLevel subscribes to log messages of a specific level
-func (s *Server) SubscribeToLogLevel(execID string, level LogLevel, handler func(*LogMessage)) (*nats.Subscription, error) {
+func (s *Server) SubscribeToLogLevel(
+	execID string,
+	level LogLevel,
+	handler func(*LogMessage),
+) (*nats.Subscription, error) {
 	subject := GenLogLevelWildcard(execID, level)
 
 	sub, err := s.Conn.Subscribe(subject, func(msg *nats.Msg) {

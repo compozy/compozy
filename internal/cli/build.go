@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"path/filepath"
+	"fmt"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -13,16 +13,20 @@ func BuildCmd() *cobra.Command {
 		Use:   "build",
 		Short: "Build the Compozy project",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			production, _ := cmd.Flags().GetBool("production")
-			outDir, _ := cmd.Flags().GetString("out-dir")
-			cwd, _ := cmd.Flags().GetString("cwd")
-			config, _ := cmd.Flags().GetString("config")
-
-			// Resolve paths
-			if cwd == "" {
-				cwd, _ = filepath.Abs(".")
+			production, err := cmd.Flags().GetBool("production")
+			if err != nil {
+				return fmt.Errorf("failed to get production flag: %w", err)
 			}
-			configPath := filepath.Join(cwd, config)
+
+			outDir, err := cmd.Flags().GetString("out-dir")
+			if err != nil {
+				return fmt.Errorf("failed to get out-dir flag: %w", err)
+			}
+
+			cwd, _, configPath, err := GetCommonFlags(cmd)
+			if err != nil {
+				return err
+			}
 
 			logrus.Info("Building project...")
 			logrus.Infof("Working directory: %s", cwd)
@@ -37,5 +41,6 @@ func BuildCmd() *cobra.Command {
 
 	cmd.Flags().Bool("production", false, "Build in production mode")
 	cmd.Flags().String("out-dir", "dist", "Output directory")
+	AddCommonFlags(cmd)
 	return cmd
 }

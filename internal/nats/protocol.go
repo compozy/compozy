@@ -66,7 +66,12 @@ type AgentRequest struct {
 }
 
 // NewAgentRequest creates a new agent request
-func NewAgentRequest(agentID, instructions string, action AgentActionRequest, config map[string]any, tools []ToolRequest) *AgentRequest {
+func NewAgentRequest(
+	agentID, instructions string,
+	action AgentActionRequest,
+	config map[string]any,
+	tools []ToolRequest,
+) *AgentRequest {
 	return &AgentRequest{
 		ID:           uuid.New().String(),
 		AgentID:      agentID,

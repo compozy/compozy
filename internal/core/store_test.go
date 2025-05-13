@@ -11,7 +11,7 @@ import (
 func TestStore(t *testing.T) {
 	t.Run("SetMain should set the main state", func(t *testing.T) {
 		gc := &Store{}
-		_, stateID := createIDS()
+		_, stateID := createIDs()
 		mainState := &MockState{id: stateID}
 
 		var state State = mainState
@@ -22,7 +22,7 @@ func TestStore(t *testing.T) {
 
 	t.Run("UpsertTask should add new task state", func(t *testing.T) {
 		gc := &Store{}
-		_, stateID := createIDS()
+		_, stateID := createIDs()
 		taskState := &MockState{id: stateID}
 
 		var state State = taskState
@@ -36,7 +36,7 @@ func TestStore(t *testing.T) {
 
 	t.Run("UpsertTask should update existing task state", func(t *testing.T) {
 		gc := &Store{}
-		_, stateID := createIDS()
+		_, stateID := createIDs()
 		taskState1 := &MockState{id: stateID}
 		taskState2 := &MockState{id: stateID}
 
@@ -62,7 +62,7 @@ func TestStore(t *testing.T) {
 
 	t.Run("UpsertTool should add new tool state", func(t *testing.T) {
 		gc := &Store{}
-		_, stateID := createIDS()
+		_, stateID := createIDs()
 		toolState := &MockState{id: stateID}
 
 		var state State = toolState
@@ -76,7 +76,7 @@ func TestStore(t *testing.T) {
 
 	t.Run("UpsertTool should update existing tool state", func(t *testing.T) {
 		gc := &Store{}
-		_, stateID := createIDS()
+		_, stateID := createIDs()
 		toolState1 := &MockState{id: stateID}
 		toolState2 := &MockState{id: stateID}
 
@@ -102,7 +102,7 @@ func TestStore(t *testing.T) {
 
 	t.Run("UpsertAgent should add new agent state", func(t *testing.T) {
 		gc := &Store{}
-		_, stateID := createIDS()
+		_, stateID := createIDs()
 		agentState := &MockState{id: stateID}
 
 		var state State = agentState
@@ -116,7 +116,7 @@ func TestStore(t *testing.T) {
 
 	t.Run("UpsertAgent should update existing agent state", func(t *testing.T) {
 		gc := &Store{}
-		_, stateID := createIDS()
+		_, stateID := createIDs()
 		agentState1 := &MockState{id: stateID}
 		agentState2 := &MockState{id: stateID}
 

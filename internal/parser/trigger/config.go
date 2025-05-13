@@ -21,10 +21,10 @@ type WebhookConfig struct {
 
 // Config represents a trigger configuration
 type Config struct {
-	Type        Type                              `json:"type" yaml:"type"`
-	Config      *WebhookConfig                    `json:"config,omitempty" yaml:"config,omitempty"`
+	Type        Type                              `json:"type"               yaml:"type"`
+	Config      *WebhookConfig                    `json:"config,omitempty"   yaml:"config,omitempty"`
 	OnError     *transition.ErrorTransitionConfig `json:"on_error,omitempty" yaml:"on_error,omitempty"`
-	InputSchema *schema.InputSchema               `json:"input,omitempty" yaml:"input,omitempty"`
+	InputSchema *schema.InputSchema               `json:"input,omitempty"    yaml:"input,omitempty"`
 }
 
 // Validate validates the trigger configuration

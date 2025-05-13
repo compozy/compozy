@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"path/filepath"
+	"fmt"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -13,15 +13,15 @@ func InitCmd() *cobra.Command {
 		Use:   "init",
 		Short: "Initialize a new Compozy project",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			name, _ := cmd.Flags().GetString("name")
-			cwd, _ := cmd.Flags().GetString("cwd")
-			config, _ := cmd.Flags().GetString("config")
-
-			// Resolve paths
-			if cwd == "" {
-				cwd, _ = filepath.Abs(".")
+			name, err := cmd.Flags().GetString("name")
+			if err != nil {
+				return fmt.Errorf("failed to get name flag: %w", err)
 			}
-			configPath := filepath.Join(cwd, config)
+
+			cwd, _, configPath, err := GetCommonFlags(cmd)
+			if err != nil {
+				return err
+			}
 
 			logrus.Info("Initializing project...")
 			logrus.Infof("Working directory: %s", cwd)
@@ -34,5 +34,6 @@ func InitCmd() *cobra.Command {
 	}
 
 	cmd.Flags().String("name", "", "Project name")
+	AddCommonFlags(cmd)
 	return cmd
 }

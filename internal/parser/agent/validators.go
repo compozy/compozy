@@ -78,7 +78,11 @@ type SchemaValidator struct {
 	outputSchema *schema.OutputSchema
 }
 
-func NewSchemaValidator(pkgRef *pkgref.PackageRefConfig, inputSchema *schema.InputSchema, outputSchema *schema.OutputSchema) *SchemaValidator {
+func NewSchemaValidator(
+	pkgRef *pkgref.PackageRefConfig,
+	inputSchema *schema.InputSchema,
+	outputSchema *schema.OutputSchema,
+) *SchemaValidator {
 	return &SchemaValidator{
 		pkgRef:       pkgRef,
 		inputSchema:  inputSchema,

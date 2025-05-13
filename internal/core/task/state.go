@@ -16,7 +16,8 @@ type State struct {
 
 func InitTaskState(stID *core.StateID, cfg *config.Config, parent core.State) (*State, error) {
 	if err := cfg.ValidateParams(*cfg.With); err != nil {
-		return nil, core.NewError(stID, "invalid_params", "invalid input params", err)
+		errResponse := core.NewError(stID, "invalid_params", "invalid input params", err)
+		return nil, &errResponse
 	}
 
 	state := &State{
@@ -28,7 +29,9 @@ func InitTaskState(stID *core.StateID, cfg *config.Config, parent core.State) (*
 	}
 
 	if parent.Env() != nil {
-		state.WithEnv(*parent.Env())
+		if err := state.WithEnv(*parent.Env()); err != nil {
+			return nil, err
+		}
 	}
 
 	// TODO: as_json() and parse_all() before save
@@ -58,7 +61,8 @@ func (ts *State) FromParentState(parent core.State) error {
 func (ts *State) WithEnv(env common.EnvMap) error {
 	newEnv, err := core.WithEnv(ts, env)
 	if err != nil {
-		return core.NewError(ts.id, "merge_env_fail", "failed to merge env", err)
+		errResponse := core.NewError(ts.id, "merge_env_fail", "failed to merge env", err)
+		return &errResponse
 	}
 	ts.env = newEnv
 	return nil
@@ -67,7 +71,8 @@ func (ts *State) WithEnv(env common.EnvMap) error {
 func (ts *State) WithInput(input common.Input) error {
 	newInput, err := core.WithInput(ts, input)
 	if err != nil {
-		return core.NewError(ts.id, "merge_input_fail", "failed to merge input", err)
+		errResponse := core.NewError(ts.id, "merge_input_fail", "failed to merge input", err)
+		return &errResponse
 	}
 	ts.input = newInput
 	return nil

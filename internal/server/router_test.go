@@ -2,9 +2,11 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -103,7 +105,7 @@ func Test_RegisterRoutes(t *testing.T) {
 
 		// Test registered route
 		rec := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/test-webhook", http.NoBody)
+		req, _ := http.NewRequestWithContext(context.Background(), "POST", "/test-webhook", http.NoBody)
 		router.ServeHTTP(rec, req)
 		assert.NotEqual(t, http.StatusNotFound, rec.Code)
 	})
@@ -128,7 +130,7 @@ func Test_RegisterRoutes(t *testing.T) {
 
 		// Test registered route
 		rec := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/test-webhook", http.NoBody)
+		req, _ := http.NewRequestWithContext(context.Background(), "POST", "/test-webhook", http.NoBody)
 		router.ServeHTTP(rec, req)
 		assert.NotEqual(t, http.StatusNotFound, rec.Code)
 	})
@@ -189,7 +191,7 @@ func Test_HandleRequest(t *testing.T) {
 		require.NoError(t, err)
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/test-webhook", bytes.NewBuffer(body))
+		req, _ := http.NewRequestWithContext(context.Background(), "POST", "/test-webhook", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		router.ServeHTTP(w, req)
 
@@ -215,7 +217,12 @@ func Test_HandleRequest(t *testing.T) {
 		require.NoError(t, err)
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/test-webhook", strings.NewReader("invalid json"))
+		req, _ := http.NewRequestWithContext(
+			context.Background(),
+			"POST",
+			"/test-webhook",
+			strings.NewReader("invalid json"),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		router.ServeHTTP(w, req)
 
@@ -244,10 +251,16 @@ func Test_HandleRequest(t *testing.T) {
 		require.NoError(t, err)
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/non-existent", bytes.NewBuffer(body))
+		req, _ := http.NewRequestWithContext(context.Background(), "POST", "/non-existent", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
+}
+
+// TestMain is the entry point for testing
+func TestMain(m *testing.M) {
+	gin.SetMode(gin.TestMode)
+	os.Exit(m.Run())
 }

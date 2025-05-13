@@ -56,6 +56,11 @@ type RefType struct {
 	Value string
 }
 
+const (
+	refTypeFile = "file"
+	refTypeDep  = "dep"
+)
+
 // parseDependencyParts splits a dependency string into its components
 func parseDependencyParts(value string) (owner, repo, packageName, version string, err error) {
 	// Split version if present
@@ -77,7 +82,11 @@ func parseDependencyParts(value string) (owner, repo, packageName, version strin
 	// Split owner and repo
 	ownerRepo := strings.Split(ownerRepoPart, "/")
 	if len(ownerRepo) != 2 || ownerRepo[0] == "" || ownerRepo[1] == "" {
-		return "", "", "", "", fmt.Errorf("invalid dependency %q: %s", value, "dependency reference must include owner and repository (format: owner/repo)")
+		return "", "", "", "", fmt.Errorf(
+			"invalid dependency %q: %s",
+			value,
+			"dependency reference must include owner and repository (format: owner/repo)",
+		)
 	}
 
 	return ownerRepo[0], ownerRepo[1], packageName, version, nil
@@ -106,12 +115,12 @@ func ParseRefType(typeStr, value string) (*RefType, error) {
 			Type:  typeStr,
 			Value: value,
 		}, nil
-	case "file":
+	case refTypeFile:
 		return &RefType{
 			Type:  typeStr,
 			Value: value,
 		}, nil
-	case "dep":
+	case refTypeDep:
 		owner, repo, packageName, version, err := parseDependencyParts(value)
 		if err != nil {
 			return nil, err
@@ -154,7 +163,11 @@ func (r *RefType) Validate(cwd string) error {
 	case "dep":
 		parts := strings.Split(r.Value, "/")
 		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-			return fmt.Errorf("invalid dependency %q: %s", r.Value, "dependency reference must include non-empty owner and repository")
+			return fmt.Errorf(
+				"invalid dependency %q: %s",
+				r.Value,
+				"dependency reference must include non-empty owner and repository",
+			)
 		}
 	}
 	return nil
@@ -175,7 +188,7 @@ func (r *RefType) IsID() bool {
 // PackageRef represents a reference to a package component
 type PackageRef struct {
 	Component Component `json:"component" yaml:"component"`
-	Type      *RefType  `json:"type" yaml:"type"`
+	Type      *RefType  `json:"type"      yaml:"type"`
 }
 
 // validateComponent checks if a component string is valid

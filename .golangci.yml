@@ -8,7 +8,6 @@ linters:
   default: none
   enable:
     - bodyclose
-    - depguard
     - dogsled
     - dupl
     - errcheck
@@ -32,6 +31,11 @@ linters:
     - unused
     - whitespace
   settings:
+    depguard:
+      rules:
+        main:
+          allow:
+            - $all
     errcheck:
       check-type-assertions: true
       check-blank: true
@@ -74,6 +78,10 @@ linters:
       - linters:
           - gocritic
         text: unnecessaryDefer
+      - linters:
+          - gochecknoinits
+          - goconst
+        path: _test\.go
     paths:
       - third_party$
       - builtin$

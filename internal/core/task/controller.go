@@ -13,7 +13,12 @@ type Controller struct {
 	Ctx    context.Context
 }
 
-func InitTaskController(ctx context.Context, execID string, cfg *config.Config, wsState core.State) (*Controller, error) {
+func InitTaskController(
+	ctx context.Context,
+	execID string,
+	cfg *config.Config,
+	wsState core.State,
+) (*Controller, error) {
 	stID, err := core.NewStateID(cfg, execID)
 	if err != nil {
 		return nil, err
@@ -21,7 +26,8 @@ func InitTaskController(ctx context.Context, execID string, cfg *config.Config, 
 
 	state, err := InitTaskState(stID, cfg, wsState)
 	if err != nil {
-		return nil, core.NewError(stID, "exec_state_fail", "failed to create exec state", err)
+		errResponse := core.NewError(stID, "exec_state_fail", "failed to create exec state", err)
+		return nil, &errResponse
 	}
 	return &Controller{ExecID: execID, state: state, Ctx: ctx}, nil
 }
@@ -29,7 +35,8 @@ func InitTaskController(ctx context.Context, execID string, cfg *config.Config, 
 func (c *Controller) Run() error {
 	select {
 	case <-c.Ctx.Done():
-		return core.NewError(c.state.id, "canceled", "workflow cancelledl", c.Ctx.Err())
+		errResponse := core.NewError(c.state.id, "canceled", "workflow cancelledl", c.Ctx.Err())
+		return &errResponse
 	default:
 		return nil
 	}

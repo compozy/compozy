@@ -29,7 +29,12 @@ func (v *ParamsValidator) Validate() error {
 
 	// If there is a schema, but no parameters are provided, this is an error.
 	if v.params == nil {
-		return fmt.Errorf("%w for %s: %s", errors.New("validation error"), v.id, "parameters are nil but a schema is defined")
+		return fmt.Errorf(
+			"%w for %s: %s",
+			errors.New("validation error"),
+			v.id,
+			"parameters are nil but a schema is defined",
+		)
 	}
 
 	// Both schema and parameters are present, proceed with validation.

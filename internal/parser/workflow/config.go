@@ -16,15 +16,15 @@ import (
 )
 
 type Config struct {
-	ID          string         `json:"id" yaml:"id"`
-	Tasks       []task.Config  `json:"tasks" yaml:"tasks"`
-	Trigger     trigger.Config `json:"trigger" yaml:"trigger"`
-	Version     string         `json:"version,omitempty" yaml:"version,omitempty"`
+	ID          string         `json:"id"                    yaml:"id"`
+	Tasks       []task.Config  `json:"tasks"                 yaml:"tasks"`
+	Trigger     trigger.Config `json:"trigger"               yaml:"trigger"`
+	Version     string         `json:"version,omitempty"     yaml:"version,omitempty"`
 	Description string         `json:"description,omitempty" yaml:"description,omitempty"`
-	Author      *author.Author `json:"author,omitempty" yaml:"author,omitempty"`
-	Tools       []tool.Config  `json:"tools,omitempty" yaml:"tools,omitempty"`
-	Agents      []agent.Config `json:"agents,omitempty" yaml:"agents,omitempty"`
-	Env         common.EnvMap  `json:"env,omitempty" yaml:"env,omitempty"`
+	Author      *author.Author `json:"author,omitempty"      yaml:"author,omitempty"`
+	Tools       []tool.Config  `json:"tools,omitempty"       yaml:"tools,omitempty"`
+	Agents      []agent.Config `json:"agents,omitempty"      yaml:"agents,omitempty"`
+	Env         common.EnvMap  `json:"env,omitempty"         yaml:"env,omitempty"`
 
 	cwd *common.CWD
 }
@@ -66,7 +66,7 @@ func Load(cwd *common.CWD, path string) (*Config, error) {
 
 func (w *Config) Validate() error {
 	v := validator.NewCompositeValidator(
-		validator.NewCWDValidator(w.cwd, string(w.ID)),
+		validator.NewCWDValidator(w.cwd, w.ID),
 	)
 	if err := v.Validate(); err != nil {
 		return err
@@ -77,14 +77,16 @@ func (w *Config) Validate() error {
 		return fmt.Errorf("trigger validation error: %w", err)
 	}
 
-	for _, tc := range w.Tasks {
+	for i := 0; i < len(w.Tasks); i++ {
+		tc := &w.Tasks[i]
 		err := tc.Validate()
 		if err != nil {
 			return fmt.Errorf("task validation error: %s", err)
 		}
 	}
 
-	for _, ac := range w.Agents {
+	for i := 0; i < len(w.Agents); i++ {
+		ac := &w.Agents[i]
 		err := ac.Validate()
 		if err != nil {
 			return fmt.Errorf("agent validation error: %s", err)
@@ -115,7 +117,7 @@ func (w *Config) Merge(other any) error {
 }
 
 func (w *Config) LoadID() (string, error) {
-	return string(w.ID), nil
+	return w.ID, nil
 }
 
 func setComponentsCWD(wc *Config, cwd *common.CWD) error {
@@ -143,11 +145,15 @@ func setTasksCWD(wc *Config, cwd *common.CWD) error {
 				if err != nil {
 					return err
 				}
-				wc.Tasks[i].SetCWD(taskPath)
+				if err := wc.Tasks[i].SetCWD(taskPath); err != nil {
+					return err
+				}
 				continue
 			}
 		}
-		wc.Tasks[i].SetCWD(cwd.PathStr())
+		if err := wc.Tasks[i].SetCWD(cwd.PathStr()); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -164,11 +170,15 @@ func setToolsCWD(wc *Config, cwd *common.CWD) error {
 				if err != nil {
 					return err
 				}
-				wc.Tools[i].SetCWD(toolPath)
+				if err := wc.Tools[i].SetCWD(toolPath); err != nil {
+					return err
+				}
 				continue
 			}
 		}
-		wc.Tools[i].SetCWD(cwd.PathStr())
+		if err := wc.Tools[i].SetCWD(cwd.PathStr()); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -185,11 +195,15 @@ func setAgentsCWD(wc *Config, cwd *common.CWD) error {
 				if err != nil {
 					return err
 				}
-				wc.Agents[i].SetCWD(agentPath)
+				if err := wc.Agents[i].SetCWD(agentPath); err != nil {
+					return err
+				}
 				continue
 			}
 		}
-		wc.Agents[i].SetCWD(cwd.PathStr())
+		if err := wc.Agents[i].SetCWD(cwd.PathStr()); err != nil {
+			return err
+		}
 	}
 	return nil
 }
