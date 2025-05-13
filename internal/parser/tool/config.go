@@ -14,8 +14,8 @@ import (
 	"github.com/compozy/compozy/internal/parser/validator"
 )
 
-// ToolConfig represents a tool configuration
-type ToolConfig struct {
+// Config represents a tool configuration
+type Config struct {
 	ID           string                   `json:"id,omitempty" yaml:"id,omitempty"`
 	Description  string                   `json:"description,omitempty" yaml:"description,omitempty"`
 	Execute      string                   `json:"execute,omitempty" yaml:"execute,omitempty"`
@@ -28,12 +28,12 @@ type ToolConfig struct {
 	cwd *common.CWD // internal field for current working directory
 }
 
-func (t *ToolConfig) Component() common.ComponentType {
+func (t *Config) Component() common.ComponentType {
 	return common.ComponentTool
 }
 
 // SetCWD sets the current working directory for the tool
-func (t *ToolConfig) SetCWD(path string) error {
+func (t *Config) SetCWD(path string) error {
 	cwd, err := common.CWDFromPath(path)
 	if err != nil {
 		return err
@@ -43,13 +43,13 @@ func (t *ToolConfig) SetCWD(path string) error {
 }
 
 // GetCWD returns the current working directory
-func (t *ToolConfig) GetCWD() *common.CWD {
+func (t *Config) GetCWD() *common.CWD {
 	return t.cwd
 }
 
 // Load loads a tool configuration from a file
-func Load(cwd *common.CWD, path string) (*ToolConfig, error) {
-	config, err := common.LoadConfig[*ToolConfig](cwd, path)
+func Load(cwd *common.CWD, path string) (*Config, error) {
+	config, err := common.LoadConfig[*Config](cwd, path)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func Load(cwd *common.CWD, path string) (*ToolConfig, error) {
 }
 
 // Validate validates the tool configuration
-func (t *ToolConfig) Validate() error {
+func (t *Config) Validate() error {
 	v := validator.NewCompositeValidator(
 		validator.NewCWDValidator(t.cwd, t.ID),
 		NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
@@ -67,13 +67,13 @@ func (t *ToolConfig) Validate() error {
 	return v.Validate()
 }
 
-func (t *ToolConfig) ValidateParams(input map[string]any) error {
+func (t *Config) ValidateParams(input map[string]any) error {
 	return validator.NewParamsValidator(input, t.InputSchema.Schema, t.ID).Validate()
 }
 
 // Merge merges another tool configuration into this one
-func (t *ToolConfig) Merge(other any) error {
-	otherConfig, ok := other.(*ToolConfig)
+func (t *Config) Merge(other any) error {
+	otherConfig, ok := other.(*Config)
 	if !ok {
 		return fmt.Errorf("failed to merge tool configs: %w", errors.New("invalid type for merge"))
 	}
@@ -81,7 +81,7 @@ func (t *ToolConfig) Merge(other any) error {
 }
 
 // LoadID loads the ID from either the direct ID field or resolves it from a package reference
-func (t *ToolConfig) LoadID() (string, error) {
+func (t *Config) LoadID() (string, error) {
 	return common.LoadID(t, t.ID, t.Use)
 }
 
@@ -90,7 +90,7 @@ func IsTypeScript(path string) bool {
 	return strings.EqualFold(ext, ".ts")
 }
 
-func (t *ToolConfig) LoadFileRef(cwd *common.CWD) (*ToolConfig, error) {
+func (t *Config) LoadFileRef(cwd *common.CWD) (*Config, error) {
 	if t.Use == nil {
 		return nil, nil
 	}

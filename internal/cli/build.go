@@ -12,7 +12,7 @@ func BuildCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "build",
 		Short: "Build the Compozy project",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			production, _ := cmd.Flags().GetBool("production")
 			outDir, _ := cmd.Flags().GetString("out-dir")
 			cwd, _ := cmd.Flags().GetString("cwd")

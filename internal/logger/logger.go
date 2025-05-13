@@ -55,7 +55,7 @@ func Init(cfg *Config) {
 }
 
 // FromContext returns a logger with values from the context
-func FromContext(ctx context.Context) *charmlog.Logger {
+func FromContext(_ context.Context) *charmlog.Logger {
 	return defaultLogger
 }
 

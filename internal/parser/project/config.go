@@ -45,7 +45,7 @@ type WorkflowSourceConfig struct {
 	Source string `json:"source" yaml:"source"`
 }
 
-type ProjectConfig struct {
+type Config struct {
 	Name         string                        `json:"name" yaml:"name"`
 	Version      string                        `json:"version" yaml:"version"`
 	Description  string                        `json:"description,omitempty" yaml:"description,omitempty"`
@@ -57,11 +57,11 @@ type ProjectConfig struct {
 	cwd *common.CWD
 }
 
-func (p *ProjectConfig) Component() common.ComponentType {
+func (p *Config) Component() common.ComponentType {
 	return common.ComponentProject
 }
 
-func (p *ProjectConfig) SetCWD(path string) error {
+func (p *Config) SetCWD(path string) error {
 	cwd, err := common.CWDFromPath(path)
 	if err != nil {
 		return err
@@ -70,43 +70,43 @@ func (p *ProjectConfig) SetCWD(path string) error {
 	return nil
 }
 
-func (p *ProjectConfig) GetCWD() *common.CWD {
+func (p *Config) GetCWD() *common.CWD {
 	return p.cwd
 }
 
-func (p *ProjectConfig) Validate() error {
+func (p *Config) Validate() error {
 	validator := validator.NewCompositeValidator(
 		validator.NewCWDValidator(p.cwd, p.Name),
 	)
 	return validator.Validate()
 }
 
-func (p *ProjectConfig) ValidateParams(params map[string]any) error {
+func (p *Config) ValidateParams(_ map[string]any) error {
 	return nil
 }
 
-func (p *ProjectConfig) Merge(other any) error {
-	otherConfig, ok := other.(*ProjectConfig)
+func (p *Config) Merge(other any) error {
+	otherConfig, ok := other.(*Config)
 	if !ok {
 		return fmt.Errorf("failed to merge project configs: %w", errors.New("invalid type for merge"))
 	}
 	return mergo.Merge(p, otherConfig, mergo.WithOverride)
 }
 
-func (p *ProjectConfig) LoadID() (string, error) {
+func (p *Config) LoadID() (string, error) {
 	return p.Name, nil
 }
 
-func Load(cwd *common.CWD, path string) (*ProjectConfig, error) {
-	config, err := common.LoadConfig[*ProjectConfig](cwd, path)
+func Load(cwd *common.CWD, path string) (*Config, error) {
+	config, err := common.LoadConfig[*Config](cwd, path)
 	if err != nil {
 		return nil, err
 	}
 	return config, nil
 }
 
-func (p *ProjectConfig) WorkflowsFromSources() ([]*workflow.WorkflowConfig, error) {
-	var ws []*workflow.WorkflowConfig
+func (p *Config) WorkflowsFromSources() ([]*workflow.Config, error) {
+	var ws []*workflow.Config
 	for _, wf := range p.Workflows {
 		config, err := workflow.Load(p.cwd, wf.Source)
 		if err != nil {

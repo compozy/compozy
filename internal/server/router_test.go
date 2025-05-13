@@ -69,10 +69,10 @@ func Test_RegisterRoutes(t *testing.T) {
 	t.Run("Should handle workflows without webhook triggers", func(t *testing.T) {
 		router := gin.New()
 		config := createTestProjectConfig(t, "")
-		state, err := NewAppState(config, []*workflow.WorkflowConfig{
+		state, err := NewAppState(config, []*workflow.Config{
 			{
 				ID: "test-workflow",
-				Trigger: trigger.TriggerConfig{
+				Trigger: trigger.Config{
 					Type: "invalid",
 				},
 			},
@@ -86,9 +86,9 @@ func Test_RegisterRoutes(t *testing.T) {
 	t.Run("Should register webhook trigger with leading slash", func(t *testing.T) {
 		router := gin.New()
 		config := createTestProjectConfig(t, "")
-		state, err := NewAppState(config, []*workflow.WorkflowConfig{
+		state, err := NewAppState(config, []*workflow.Config{
 			{
-				Trigger: trigger.TriggerConfig{
+				Trigger: trigger.Config{
 					Type: trigger.TriggerTypeWebhook,
 					Config: &trigger.WebhookConfig{
 						URL: "/test-webhook",
@@ -103,7 +103,7 @@ func Test_RegisterRoutes(t *testing.T) {
 
 		// Test registered route
 		rec := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/test-webhook", nil)
+		req, _ := http.NewRequest("POST", "/test-webhook", http.NoBody)
 		router.ServeHTTP(rec, req)
 		assert.NotEqual(t, http.StatusNotFound, rec.Code)
 	})
@@ -111,9 +111,9 @@ func Test_RegisterRoutes(t *testing.T) {
 	t.Run("Should normalize webhook trigger without leading slash", func(t *testing.T) {
 		router := gin.New()
 		config := createTestProjectConfig(t, "")
-		state, err := NewAppState(config, []*workflow.WorkflowConfig{
+		state, err := NewAppState(config, []*workflow.Config{
 			{
-				Trigger: trigger.TriggerConfig{
+				Trigger: trigger.Config{
 					Type: trigger.TriggerTypeWebhook,
 					Config: &trigger.WebhookConfig{
 						URL: "test-webhook",
@@ -128,7 +128,7 @@ func Test_RegisterRoutes(t *testing.T) {
 
 		// Test registered route
 		rec := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/test-webhook", nil)
+		req, _ := http.NewRequest("POST", "/test-webhook", http.NoBody)
 		router.ServeHTTP(rec, req)
 		assert.NotEqual(t, http.StatusNotFound, rec.Code)
 	})
@@ -136,9 +136,9 @@ func Test_RegisterRoutes(t *testing.T) {
 	t.Run("Should return error for duplicate webhook URLs", func(t *testing.T) {
 		router := gin.New()
 		config := createTestProjectConfig(t, "")
-		state, err := NewAppState(config, []*workflow.WorkflowConfig{
+		state, err := NewAppState(config, []*workflow.Config{
 			{
-				Trigger: trigger.TriggerConfig{
+				Trigger: trigger.Config{
 					Type: trigger.TriggerTypeWebhook,
 					Config: &trigger.WebhookConfig{
 						URL: "/test-webhook",
@@ -146,7 +146,7 @@ func Test_RegisterRoutes(t *testing.T) {
 				},
 			},
 			{
-				Trigger: trigger.TriggerConfig{
+				Trigger: trigger.Config{
 					Type: trigger.TriggerTypeWebhook,
 					Config: &trigger.WebhookConfig{
 						URL: "test-webhook",
@@ -165,9 +165,9 @@ func Test_RegisterRoutes(t *testing.T) {
 func Test_HandleRequest(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	testWorkflow := &workflow.WorkflowConfig{
+	testWorkflow := &workflow.Config{
 		ID: "test-workflow",
-		Trigger: trigger.TriggerConfig{
+		Trigger: trigger.Config{
 			Type: trigger.TriggerTypeWebhook,
 			Config: &trigger.WebhookConfig{
 				URL: "/test-webhook",
@@ -178,7 +178,7 @@ func Test_HandleRequest(t *testing.T) {
 	t.Run("Should handle valid JSON request", func(t *testing.T) {
 		router := gin.New()
 		config := createTestProjectConfig(t, "")
-		state, err := NewAppState(config, []*workflow.WorkflowConfig{testWorkflow}, nil)
+		state, err := NewAppState(config, []*workflow.Config{testWorkflow}, nil)
 		require.NoError(t, err)
 
 		router.Use(AppStateMiddleware(state))
@@ -207,7 +207,7 @@ func Test_HandleRequest(t *testing.T) {
 	t.Run("Should handle invalid JSON request", func(t *testing.T) {
 		router := gin.New()
 		config := createTestProjectConfig(t, "")
-		state, err := NewAppState(config, []*workflow.WorkflowConfig{testWorkflow}, nil)
+		state, err := NewAppState(config, []*workflow.Config{testWorkflow}, nil)
 		require.NoError(t, err)
 
 		router.Use(AppStateMiddleware(state))
@@ -233,7 +233,7 @@ func Test_HandleRequest(t *testing.T) {
 	t.Run("Should return 404 for non-existent webhook", func(t *testing.T) {
 		router := gin.New()
 		config := createTestProjectConfig(t, "")
-		state, err := NewAppState(config, []*workflow.WorkflowConfig{testWorkflow}, nil)
+		state, err := NewAppState(config, []*workflow.Config{testWorkflow}, nil)
 		require.NoError(t, err)
 
 		router.Use(AppStateMiddleware(state))

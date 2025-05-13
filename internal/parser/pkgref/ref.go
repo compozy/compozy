@@ -168,7 +168,7 @@ func (r *RefType) IsDep() bool {
 	return r.Type == "dep"
 }
 
-func (r *RefType) IsId() bool {
+func (r *RefType) IsID() bool {
 	return r.Type == "id"
 }
 

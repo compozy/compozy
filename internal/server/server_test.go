@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createTestProjectConfig(t *testing.T, cwd string) *project.ProjectConfig {
-	config := &project.ProjectConfig{}
+func createTestProjectConfig(t *testing.T, cwd string) *project.Config {
+	config := &project.Config{}
 	toolCWD, err := common.CWDFromPath(cwd)
 	require.NoError(t, err)
 	err = config.SetCWD(toolCWD.PathStr())
@@ -86,7 +86,7 @@ func Test_ServerCreation(t *testing.T) {
 	})
 
 	t.Run("Should create server with custom config", func(t *testing.T) {
-		config := &ServerConfig{
+		config := &Config{
 			Host:        "localhost",
 			Port:        8080,
 			CORSEnabled: true,
@@ -111,7 +111,7 @@ func Test_HealthEndpoint(t *testing.T) {
 		require.NoError(t, err)
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/health", nil)
+		req, _ := http.NewRequest("GET", "/health", http.NoBody)
 		server.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -131,7 +131,7 @@ func Test_WebhookEndpoint(t *testing.T) {
 		require.NoError(t, err)
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/non-existent", nil)
+		req, _ := http.NewRequest("POST", "/non-existent", http.NoBody)
 		req.Header.Set("Content-Type", "application/json")
 		server.router.ServeHTTP(w, req)
 

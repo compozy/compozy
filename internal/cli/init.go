@@ -12,7 +12,7 @@ func InitCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize a new Compozy project",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			name, _ := cmd.Flags().GetString("name")
 			cwd, _ := cmd.Flags().GetString("cwd")
 			config, _ := cmd.Flags().GetString("config")

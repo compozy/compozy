@@ -8,7 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/parser/tool"
 )
 
-func LoadTasksRef(wc *WorkflowConfig) error {
+func LoadTasksRef(wc *Config) error {
 	for i, tc := range wc.Tasks {
 		cfg, err := tc.LoadFileRef(wc.GetCWD())
 		if err != nil {
@@ -24,7 +24,7 @@ func LoadTasksRef(wc *WorkflowConfig) error {
 	return nil
 }
 
-func loadReferencedComponents(wc *WorkflowConfig, tc *task.TaskConfig) error {
+func loadReferencedComponents(wc *Config, tc *task.Config) error {
 	if err := loadAgentsRefOnTask(wc, tc); err != nil {
 		return fmt.Errorf("failed to load agent reference for task %s: %w", tc.ID, err)
 	}
@@ -36,7 +36,7 @@ func loadReferencedComponents(wc *WorkflowConfig, tc *task.TaskConfig) error {
 	return nil
 }
 
-func loadAgentsRefOnTask(wc *WorkflowConfig, tc *task.TaskConfig) error {
+func loadAgentsRefOnTask(wc *Config, tc *task.Config) error {
 	if tc.Use == nil {
 		return nil
 	}
@@ -69,7 +69,7 @@ func loadAgentsRefOnTask(wc *WorkflowConfig, tc *task.TaskConfig) error {
 	return nil
 }
 
-func loadToolsRefOnTask(wc *WorkflowConfig, tc *task.TaskConfig) error {
+func loadToolsRefOnTask(wc *Config, tc *task.Config) error {
 	if tc.Use == nil {
 		return nil
 	}

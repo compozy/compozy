@@ -155,7 +155,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Should validate valid tool configuration", func(t *testing.T) {
-		config := &ToolConfig{
+		config := &Config{
 			ID:  toolID,
 			cwd: toolCWD,
 		}
@@ -165,7 +165,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error when CWD is missing", func(t *testing.T) {
-		config := &ToolConfig{
+		config := &Config{
 			ID: toolID,
 		}
 
@@ -175,7 +175,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid package reference", func(t *testing.T) {
-		config := &ToolConfig{
+		config := &Config{
 			ID:  toolID,
 			Use: pkgref.NewPackageRefConfig("invalid"),
 			cwd: toolCWD,
@@ -187,7 +187,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid execute path", func(t *testing.T) {
-		config := &ToolConfig{
+		config := &Config{
 			ID:      toolID,
 			Execute: "./nonexistent.ts",
 			cwd:     toolCWD,
@@ -198,7 +198,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error when input schema is used with ID reference", func(t *testing.T) {
-		config := &ToolConfig{
+		config := &Config{
 			ID:  toolID,
 			Use: pkgref.NewPackageRefConfig("tool(id=test-tool)"),
 			InputSchema: &schema.InputSchema{
@@ -215,7 +215,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error when output schema is used with file reference", func(t *testing.T) {
-		config := &ToolConfig{
+		config := &Config{
 			ID:  toolID,
 			Use: pkgref.NewPackageRefConfig("tool(file=basic_tool.yaml)"),
 			OutputSchema: &schema.OutputSchema{
@@ -232,7 +232,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error when schemas are used with dep reference", func(t *testing.T) {
-		config := &ToolConfig{
+		config := &Config{
 			ID:  toolID,
 			Use: pkgref.NewPackageRefConfig("tool(dep=compozy/tools:test-tool)"),
 			InputSchema: &schema.InputSchema{
@@ -254,7 +254,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error for tool with invalid parameters", func(t *testing.T) {
-		config := &ToolConfig{
+		config := &Config{
 			ID:      toolID,
 			Execute: "./test.ts",
 			cwd:     toolCWD,
@@ -282,7 +282,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 
 func Test_ToolConfigCWD(t *testing.T) {
 	t.Run("Should handle CWD operations correctly", func(t *testing.T) {
-		config := &ToolConfig{}
+		config := &Config{}
 
 		// Test setting CWD
 		config.SetCWD("/test/path")
@@ -296,14 +296,14 @@ func Test_ToolConfigCWD(t *testing.T) {
 
 func Test_ToolConfigMerge(t *testing.T) {
 	t.Run("Should merge configurations correctly", func(t *testing.T) {
-		baseConfig := &ToolConfig{
+		baseConfig := &Config{
 			Env: common.EnvMap{
 				"KEY1": "value1",
 			},
 			With: &common.Input{},
 		}
 
-		otherConfig := &ToolConfig{
+		otherConfig := &Config{
 			Env: common.EnvMap{
 				"KEY2": "value2",
 			},

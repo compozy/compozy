@@ -18,12 +18,12 @@ const (
 
 type AppState struct {
 	CWD           *common.CWD
-	ProjectConfig *project.ProjectConfig
-	Workflows     []*workflow.WorkflowConfig
-	NatsServer    *nats.NatsServer
+	ProjectConfig *project.Config
+	Workflows     []*workflow.Config
+	NatsServer    *nats.Server
 }
 
-func NewAppState(projectConfig *project.ProjectConfig, workflows []*workflow.WorkflowConfig, natsServer *nats.NatsServer) (*AppState, error) {
+func NewAppState(projectConfig *project.Config, workflows []*workflow.Config, natsServer *nats.Server) (*AppState, error) {
 	// ProjectConfig must be provided and have a valid CWD
 	if projectConfig == nil {
 		return nil, fmt.Errorf("project config is required")

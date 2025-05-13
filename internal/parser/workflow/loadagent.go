@@ -1,6 +1,6 @@
 package workflow
 
-func LoadAgentsRef(wc *WorkflowConfig) error {
+func LoadAgentsRef(wc *Config) error {
 	for i := range wc.Agents {
 		cfg, err := wc.Agents[i].LoadFileRef(wc.GetCWD())
 		if err != nil {

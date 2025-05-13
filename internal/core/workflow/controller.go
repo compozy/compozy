@@ -8,14 +8,14 @@ import (
 	config "github.com/compozy/compozy/internal/parser/workflow"
 )
 
-type WorkflowController struct {
+type Controller struct {
 	ExecID string
-	state  *WorkflowState
+	state  *State
 	store  *core.Store
 	Ctx    context.Context
 }
 
-func InitWorkflowController(ctx context.Context, execID string, cfg *config.WorkflowConfig, input common.Input) (*WorkflowController, error) {
+func InitWorkflowController(_ context.Context, execID string, cfg *config.Config, input common.Input) (*Controller, error) {
 	// Init Store and create StateID
 	store := core.NewStore(execID)
 	stID, err := core.NewStateID(cfg, execID)
@@ -35,13 +35,13 @@ func InitWorkflowController(ctx context.Context, execID string, cfg *config.Work
 	}
 	store.SetWorkflow(state)
 
-	return &WorkflowController{ExecID: execID, state: state, store: store}, nil
+	return &Controller{ExecID: execID, state: state, store: store}, nil
 }
 
-func (c *WorkflowController) Run() error {
+func (c *Controller) Run() error {
 	select {
 	case <-c.Ctx.Done():
-		return core.NewError(c.state.id, "cancelled", "workflow cancelledl", c.Ctx.Err())
+		return core.NewError(c.state.id, "canceled", "workflow cancelledl", c.Ctx.Err())
 	default:
 		return nil
 	}

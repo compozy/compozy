@@ -13,7 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/parser/validator"
 )
 
-type AgentActionConfig struct {
+type ActionConfig struct {
 	ID           string               `json:"id" yaml:"id"`
 	Prompt       string               `json:"prompt" yaml:"prompt" validate:"required"`
 	InputSchema  *schema.InputSchema  `json:"input,omitempty" yaml:"input,omitempty"`
@@ -23,7 +23,7 @@ type AgentActionConfig struct {
 	cwd *common.CWD
 }
 
-func (a *AgentActionConfig) SetCWD(path string) error {
+func (a *ActionConfig) SetCWD(path string) error {
 	cwd, err := common.CWDFromPath(path)
 	if err != nil {
 		return err
@@ -32,29 +32,29 @@ func (a *AgentActionConfig) SetCWD(path string) error {
 	return nil
 }
 
-func (a *AgentActionConfig) GetCWD() *common.CWD {
+func (a *ActionConfig) GetCWD() *common.CWD {
 	return a.cwd
 }
 
-func (a *AgentActionConfig) Validate() error {
+func (a *ActionConfig) Validate() error {
 	v := validator.NewCompositeValidator(
-		validator.NewCWDValidator(a.cwd, string(a.ID)),
+		validator.NewCWDValidator(a.cwd, a.ID),
 		validator.NewStructValidator(a),
 	)
 	return v.Validate()
 }
 
-func (t *AgentActionConfig) ValidateParams(input map[string]any) error {
-	return validator.NewParamsValidator(input, t.InputSchema.Schema, t.ID).Validate()
+func (a *ActionConfig) ValidateParams(input map[string]any) error {
+	return validator.NewParamsValidator(input, a.InputSchema.Schema, a.ID).Validate()
 }
 
-type AgentConfig struct {
+type Config struct {
 	ID           string                   `json:"id" yaml:"id" validate:"required"`
 	Use          *pkgref.PackageRefConfig `json:"use,omitempty" yaml:"use,omitempty"`
-	Config       provider.ProviderConfig  `json:"config" yaml:"config" validate:"required"`
+	Config       provider.Config          `json:"config" yaml:"config" validate:"required"`
 	Instructions string                   `json:"instructions" yaml:"instructions" validate:"required"`
-	Tools        []tool.ToolConfig        `json:"tools,omitempty" yaml:"tools,omitempty"`
-	Actions      []*AgentActionConfig     `json:"actions,omitempty" yaml:"actions,omitempty"`
+	Tools        []tool.Config            `json:"tools,omitempty" yaml:"tools,omitempty"`
+	Actions      []*ActionConfig          `json:"actions,omitempty" yaml:"actions,omitempty"`
 	InputSchema  *schema.InputSchema      `json:"input,omitempty" yaml:"input,omitempty"`
 	OutputSchema *schema.OutputSchema     `json:"output,omitempty" yaml:"output,omitempty"`
 	With         *common.Input            `json:"with,omitempty" yaml:"with,omitempty"`
@@ -63,11 +63,11 @@ type AgentConfig struct {
 	cwd *common.CWD
 }
 
-func (a *AgentConfig) Component() common.ComponentType {
+func (a *Config) Component() common.ComponentType {
 	return common.ComponentAgent
 }
 
-func (a *AgentConfig) SetCWD(path string) error {
+func (a *Config) SetCWD(path string) error {
 	cwd, err := common.CWDFromPath(path)
 	if err != nil {
 		return err
@@ -79,21 +79,21 @@ func (a *AgentConfig) SetCWD(path string) error {
 	return nil
 }
 
-func (a *AgentConfig) GetCWD() *common.CWD {
+func (a *Config) GetCWD() *common.CWD {
 	return a.cwd
 }
 
-func Load(cwd *common.CWD, path string) (*AgentConfig, error) {
-	config, err := common.LoadConfig[*AgentConfig](cwd, path)
+func Load(cwd *common.CWD, path string) (*Config, error) {
+	config, err := common.LoadConfig[*Config](cwd, path)
 	if err != nil {
 		return nil, err
 	}
 	return config, nil
 }
 
-func (a *AgentConfig) Validate() error {
+func (a *Config) Validate() error {
 	v := validator.NewCompositeValidator(
-		validator.NewCWDValidator(a.cwd, string(a.ID)),
+		validator.NewCWDValidator(a.cwd, a.ID),
 		NewSchemaValidator(a.Use, a.InputSchema, a.OutputSchema),
 		NewPackageRefValidator(a.Use, a.cwd.PathStr()),
 		NewActionsValidator(a.Actions),
@@ -102,23 +102,23 @@ func (a *AgentConfig) Validate() error {
 	return v.Validate()
 }
 
-func (a *AgentConfig) ValidateParams(input map[string]any) error {
+func (a *Config) ValidateParams(input map[string]any) error {
 	return validator.NewParamsValidator(input, a.InputSchema.Schema, a.ID).Validate()
 }
 
-func (a *AgentConfig) Merge(other any) error {
-	otherConfig, ok := other.(*AgentConfig)
+func (a *Config) Merge(other any) error {
+	otherConfig, ok := other.(*Config)
 	if !ok {
 		return fmt.Errorf("failed to merge agent configs: %s", "invalid type for merge")
 	}
 	return mergo.Merge(a, otherConfig, mergo.WithOverride)
 }
 
-func (a *AgentConfig) LoadID() (string, error) {
+func (a *Config) LoadID() (string, error) {
 	return common.LoadID(a, a.ID, a.Use)
 }
 
-func (a *AgentConfig) LoadFileRef(cwd *common.CWD) (*AgentConfig, error) {
+func (a *Config) LoadFileRef(cwd *common.CWD) (*Config, error) {
 	if a.Use == nil {
 		return a, nil
 	}

@@ -15,25 +15,25 @@ import (
 	"github.com/compozy/compozy/internal/parser/validator"
 )
 
-type WorkflowConfig struct {
-	ID          string                `json:"id" yaml:"id"`
-	Tasks       []task.TaskConfig     `json:"tasks" yaml:"tasks"`
-	Trigger     trigger.TriggerConfig `json:"trigger" yaml:"trigger"`
-	Version     string                `json:"version,omitempty" yaml:"version,omitempty"`
-	Description string                `json:"description,omitempty" yaml:"description,omitempty"`
-	Author      *author.Author        `json:"author,omitempty" yaml:"author,omitempty"`
-	Tools       []tool.ToolConfig     `json:"tools,omitempty" yaml:"tools,omitempty"`
-	Agents      []agent.AgentConfig   `json:"agents,omitempty" yaml:"agents,omitempty"`
-	Env         common.EnvMap         `json:"env,omitempty" yaml:"env,omitempty"`
+type Config struct {
+	ID          string         `json:"id" yaml:"id"`
+	Tasks       []task.Config  `json:"tasks" yaml:"tasks"`
+	Trigger     trigger.Config `json:"trigger" yaml:"trigger"`
+	Version     string         `json:"version,omitempty" yaml:"version,omitempty"`
+	Description string         `json:"description,omitempty" yaml:"description,omitempty"`
+	Author      *author.Author `json:"author,omitempty" yaml:"author,omitempty"`
+	Tools       []tool.Config  `json:"tools,omitempty" yaml:"tools,omitempty"`
+	Agents      []agent.Config `json:"agents,omitempty" yaml:"agents,omitempty"`
+	Env         common.EnvMap  `json:"env,omitempty" yaml:"env,omitempty"`
 
 	cwd *common.CWD
 }
 
-func (w *WorkflowConfig) Component() common.ComponentType {
+func (w *Config) Component() common.ComponentType {
 	return common.ComponentWorkflow
 }
 
-func (w *WorkflowConfig) SetCWD(path string) error {
+func (w *Config) SetCWD(path string) error {
 	cwd, err := common.CWDFromPath(path)
 	if err != nil {
 		return err
@@ -45,12 +45,12 @@ func (w *WorkflowConfig) SetCWD(path string) error {
 	return nil
 }
 
-func (w *WorkflowConfig) GetCWD() *common.CWD {
+func (w *Config) GetCWD() *common.CWD {
 	return w.cwd
 }
 
-func Load(cwd *common.CWD, path string) (*WorkflowConfig, error) {
-	wc, err := common.LoadConfig[*WorkflowConfig](cwd, path)
+func Load(cwd *common.CWD, path string) (*Config, error) {
+	wc, err := common.LoadConfig[*Config](cwd, path)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func Load(cwd *common.CWD, path string) (*WorkflowConfig, error) {
 	return wc, nil
 }
 
-func (w *WorkflowConfig) Validate() error {
+func (w *Config) Validate() error {
 	v := validator.NewCompositeValidator(
 		validator.NewCWDValidator(w.cwd, string(w.ID)),
 	)
@@ -101,24 +101,24 @@ func (w *WorkflowConfig) Validate() error {
 	return nil
 }
 
-func (w *WorkflowConfig) ValidateParams(input map[string]any) error {
+func (w *Config) ValidateParams(input map[string]any) error {
 	inputSchema := w.Trigger.InputSchema
 	return validator.NewParamsValidator(input, inputSchema.Schema, w.ID).Validate()
 }
 
-func (w *WorkflowConfig) Merge(other any) error {
-	otherConfig, ok := other.(*WorkflowConfig)
+func (w *Config) Merge(other any) error {
+	otherConfig, ok := other.(*Config)
 	if !ok {
 		return fmt.Errorf("failed to merge workflow configs: %w", errors.New("invalid type for merge"))
 	}
 	return mergo.Merge(w, otherConfig, mergo.WithOverride)
 }
 
-func (w *WorkflowConfig) LoadID() (string, error) {
+func (w *Config) LoadID() (string, error) {
 	return string(w.ID), nil
 }
 
-func setComponentsCWD(wc *WorkflowConfig, cwd *common.CWD) error {
+func setComponentsCWD(wc *Config, cwd *common.CWD) error {
 	if err := setTasksCWD(wc, cwd); err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ func setComponentsCWD(wc *WorkflowConfig, cwd *common.CWD) error {
 	return nil
 }
 
-func setTasksCWD(wc *WorkflowConfig, cwd *common.CWD) error {
+func setTasksCWD(wc *Config, cwd *common.CWD) error {
 	for i := range wc.Tasks {
 		if wc.Tasks[i].Use != nil {
 			ref, err := wc.Tasks[i].Use.IntoRef()
@@ -152,7 +152,7 @@ func setTasksCWD(wc *WorkflowConfig, cwd *common.CWD) error {
 	return nil
 }
 
-func setToolsCWD(wc *WorkflowConfig, cwd *common.CWD) error {
+func setToolsCWD(wc *Config, cwd *common.CWD) error {
 	for i := range wc.Tools {
 		if wc.Tools[i].Use != nil {
 			ref, err := wc.Tools[i].Use.IntoRef()
@@ -173,7 +173,7 @@ func setToolsCWD(wc *WorkflowConfig, cwd *common.CWD) error {
 	return nil
 }
 
-func setAgentsCWD(wc *WorkflowConfig, cwd *common.CWD) error {
+func setAgentsCWD(wc *Config, cwd *common.CWD) error {
 	for i := range wc.Agents {
 		if wc.Agents[i].Use != nil {
 			ref, err := wc.Agents[i].Use.IntoRef()
@@ -194,7 +194,7 @@ func setAgentsCWD(wc *WorkflowConfig, cwd *common.CWD) error {
 	return nil
 }
 
-func loadFileRefs(wc *WorkflowConfig) error {
+func loadFileRefs(wc *Config) error {
 	if err := LoadTasksRef(wc); err != nil {
 		return err
 	}

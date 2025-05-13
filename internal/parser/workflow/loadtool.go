@@ -1,6 +1,6 @@
 package workflow
 
-func LoadToolsRef(wc *WorkflowConfig) error {
+func LoadToolsRef(wc *Config) error {
 	for i := range wc.Tools {
 		cfg, err := wc.Tools[i].LoadFileRef(wc.GetCWD())
 		if err != nil {

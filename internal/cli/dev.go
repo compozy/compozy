@@ -102,7 +102,7 @@ func DevCmd() *cobra.Command {
 			}
 
 			// Create server configuration
-			serverConfig := &server.ServerConfig{
+			serverConfig := &server.Config{
 				CWD:         cwd,
 				Host:        host,
 				Port:        port,
