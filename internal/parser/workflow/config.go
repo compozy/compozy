@@ -3,7 +3,6 @@ package workflow
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 
 	"dario.cat/mergo"
 
@@ -51,53 +50,52 @@ func (w *WorkflowConfig) GetCWD() *common.CWD {
 }
 
 func Load(cwd *common.CWD, path string) (*WorkflowConfig, error) {
-	config, err := common.LoadConfig[*WorkflowConfig](cwd, path)
+	wc, err := common.LoadConfig[*WorkflowConfig](cwd, path)
 	if err != nil {
 		return nil, err
 	}
-	if config.Tasks == nil {
-		config.Tasks = []task.TaskConfig{}
+	if err := loadFileRefs(wc); err != nil {
+		return nil, err
 	}
-	if config.Tools == nil {
-		config.Tools = []tool.ToolConfig{}
+	err = wc.Validate()
+	if err != nil {
+		return nil, err
 	}
-	if config.Agents == nil {
-		config.Agents = []agent.AgentConfig{}
-	}
-	return config, nil
+	return wc, nil
 }
 
 func (w *WorkflowConfig) Validate() error {
 	v := validator.NewCompositeValidator(
 		validator.NewCWDValidator(w.cwd, string(w.ID)),
-		NewTriggerValidator(*w),
 	)
 	if err := v.Validate(); err != nil {
 		return err
 	}
 
-	var taskComponents []common.Config
-	for i := range w.Tasks {
-		taskComponents = append(taskComponents, &w.Tasks[i])
-	}
-	if err := NewComponentsValidator(taskComponents, w.cwd).Validate(); err != nil {
-		return err
+	trigger := w.Trigger
+	if err := trigger.Validate(); err != nil {
+		return fmt.Errorf("trigger validation error: %w", err)
 	}
 
-	var toolComponents []common.Config
-	for i := range w.Tools {
-		toolComponents = append(toolComponents, &w.Tools[i])
-	}
-	if err := NewComponentsValidator(toolComponents, w.cwd).Validate(); err != nil {
-		return err
+	for _, tc := range w.Tasks {
+		err := tc.Validate()
+		if err != nil {
+			return fmt.Errorf("task validation error: %s", err)
+		}
 	}
 
-	var agentComponents []common.Config
-	for i := range w.Agents {
-		agentComponents = append(agentComponents, &w.Agents[i])
+	for _, ac := range w.Agents {
+		err := ac.Validate()
+		if err != nil {
+			return fmt.Errorf("agent validation error: %s", err)
+		}
 	}
-	if err := NewComponentsValidator(agentComponents, w.cwd).Validate(); err != nil {
-		return err
+
+	for _, tc := range w.Tools {
+		err := tc.Validate()
+		if err != nil {
+			return fmt.Errorf("tool validation error: %s", err)
+		}
 	}
 
 	return nil
@@ -120,71 +118,91 @@ func (w *WorkflowConfig) LoadID() (string, error) {
 	return string(w.ID), nil
 }
 
-func setComponentsCWD(config *WorkflowConfig, cwd *common.CWD) error {
-	if err := setTasksCWD(config, cwd); err != nil {
+func setComponentsCWD(wc *WorkflowConfig, cwd *common.CWD) error {
+	if err := setTasksCWD(wc, cwd); err != nil {
 		return err
 	}
-	if err := setToolsCWD(config, cwd); err != nil {
+	if err := setToolsCWD(wc, cwd); err != nil {
 		return err
 	}
-	if err := setAgentsCWD(config, cwd); err != nil {
+	if err := setAgentsCWD(wc, cwd); err != nil {
 		return err
 	}
 	return nil
 }
 
-func setTasksCWD(config *WorkflowConfig, cwd *common.CWD) error {
-	for i := range config.Tasks {
-		if config.Tasks[i].Use != nil {
-			ref, err := config.Tasks[i].Use.IntoRef()
-			if err == nil && ref.Type.Type == "file" {
+func setTasksCWD(wc *WorkflowConfig, cwd *common.CWD) error {
+	for i := range wc.Tasks {
+		if wc.Tasks[i].Use != nil {
+			ref, err := wc.Tasks[i].Use.IntoRef()
+			if err != nil {
+				return err
+			}
+			if ref.Type.IsFile() && ref.Component.IsTask() {
 				taskPath, err := cwd.JoinAndCheck(ref.Type.Value)
 				if err != nil {
 					return err
 				}
-				config.Tasks[i].SetCWD(taskPath)
+				wc.Tasks[i].SetCWD(taskPath)
 				continue
 			}
 		}
-		config.Tasks[i].SetCWD(cwd.PathStr())
+		wc.Tasks[i].SetCWD(cwd.PathStr())
 	}
 	return nil
 }
 
-func setToolsCWD(config *WorkflowConfig, cwd *common.CWD) error {
-	for i := range config.Tools {
-		if config.Tools[i].Use != nil {
-			ref, err := config.Tools[i].Use.IntoRef()
-			if err == nil && ref.Type.Type == "file" {
+func setToolsCWD(wc *WorkflowConfig, cwd *common.CWD) error {
+	for i := range wc.Tools {
+		if wc.Tools[i].Use != nil {
+			ref, err := wc.Tools[i].Use.IntoRef()
+			if err != nil {
+				return err
+			}
+			if ref.Type.IsFile() && ref.Component.IsTool() {
 				toolPath, err := cwd.JoinAndCheck(ref.Type.Value)
 				if err != nil {
 					return err
 				}
-				toolDir := filepath.Dir(toolPath)
-				config.Tools[i].SetCWD(toolDir)
+				wc.Tools[i].SetCWD(toolPath)
 				continue
 			}
 		}
-		config.Tools[i].SetCWD(cwd.PathStr())
+		wc.Tools[i].SetCWD(cwd.PathStr())
 	}
 	return nil
 }
 
-func setAgentsCWD(config *WorkflowConfig, cwd *common.CWD) error {
-	for i := range config.Agents {
-		if config.Agents[i].Use != nil {
-			ref, err := config.Agents[i].Use.IntoRef()
-			if err == nil && ref.Type.Type == "file" {
+func setAgentsCWD(wc *WorkflowConfig, cwd *common.CWD) error {
+	for i := range wc.Agents {
+		if wc.Agents[i].Use != nil {
+			ref, err := wc.Agents[i].Use.IntoRef()
+			if err != nil {
+				return err
+			}
+			if ref.Type.IsFile() && ref.Component.IsAgent() {
 				agentPath, err := cwd.JoinAndCheck(ref.Type.Value)
 				if err != nil {
 					return err
 				}
-				agentDir := filepath.Dir(agentPath)
-				config.Agents[i].SetCWD(agentDir)
+				wc.Agents[i].SetCWD(agentPath)
 				continue
 			}
 		}
-		config.Agents[i].SetCWD(cwd.PathStr())
+		wc.Agents[i].SetCWD(cwd.PathStr())
+	}
+	return nil
+}
+
+func loadFileRefs(wc *WorkflowConfig) error {
+	if err := LoadTasksRef(wc); err != nil {
+		return err
+	}
+	if err := LoadAgentsRef(wc); err != nil {
+		return err
+	}
+	if err := LoadToolsRef(wc); err != nil {
+		return err
 	}
 	return nil
 }

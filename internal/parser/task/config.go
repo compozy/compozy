@@ -72,16 +72,11 @@ func Load(cwd *common.CWD, path string) (*TaskConfig, error) {
 func (t *TaskConfig) Validate() error {
 	v := validator.NewCompositeValidator(
 		validator.NewCWDValidator(t.cwd, t.ID),
-		validator.NewStructValidator(t),
-		schema.NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
-		pkgref.NewPackageRefValidator(t.Use, t.cwd.PathStr(), isValidComponent),
+		NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
+		NewPackageRefValidator(t.Use, t.cwd.PathStr()),
 		NewTaskTypeValidator(t.Use, t.Type, t.Action, t.Condition, t.Routes),
 	)
 	return v.Validate()
-}
-
-func isValidComponent(c pkgref.Component) bool {
-	return c.IsTask() || c.IsAgent() || c.IsTool()
 }
 
 func (t *TaskConfig) ValidateParams(input map[string]any) error {
@@ -98,4 +93,29 @@ func (t *TaskConfig) Merge(other any) error {
 
 func (t *TaskConfig) LoadID() (string, error) {
 	return common.LoadID(t, t.ID, t.Use)
+}
+
+func (t *TaskConfig) LoadFileRef(cwd *common.CWD) (*TaskConfig, error) {
+	if t.Use == nil {
+		return nil, nil
+	}
+	ref, err := t.Use.IntoRef()
+	if err != nil {
+		return nil, err
+	}
+	if !ref.Type.IsFile() {
+		return t, nil
+	}
+	if ref.Component.IsTask() {
+		tc, err := Load(cwd, ref.Value())
+		if err != nil {
+			return nil, err
+		}
+		// TODO: adjust this when we have other task types
+		err = t.Merge(tc)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return t, nil
 }

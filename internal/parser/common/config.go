@@ -19,3 +19,7 @@ const (
 	ComponentAgent    ComponentType = "agent"
 	ComponentTool     ComponentType = "tool"
 )
+
+type RefLoader interface {
+	LoadFileRef(cwd *CWD) (Config, error)
+}

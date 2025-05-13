@@ -16,11 +16,6 @@ type WorkflowController struct {
 }
 
 func InitWorkflowController(ctx context.Context, execID string, cfg *config.WorkflowConfig, input common.Input) (*WorkflowController, error) {
-	// Validate WorkflowConfig
-	if err := cfg.Validate(); err != nil {
-		return nil, core.NewError(nil, "invalid_config", "invalid workflow config", err)
-	}
-
 	// Init Store and create StateID
 	store := core.NewStore(execID)
 	stID, err := core.NewStateID(cfg, execID)

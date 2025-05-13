@@ -28,16 +28,6 @@ func Test_LoadWorkflow(t *testing.T) {
 		config, err := Load(cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
-
-		// Set CWD for all tasks
-		for i := range config.Tasks {
-			config.Tasks[i].SetCWD(config.GetCWD().PathStr())
-		}
-
-		// Validate the config
-		err = config.Validate()
-		require.NoError(t, err)
-
 		require.NotNil(t, config.ID)
 		require.NotNil(t, config.Version)
 		require.NotNil(t, config.Description)
@@ -91,17 +81,8 @@ func Test_LoadWorkflow(t *testing.T) {
 	t.Run("Should return error for invalid workflow configuration", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "invalid_workflow.yaml")
 		config, err := Load(cwd, dstPath)
-		require.NoError(t, err)
-		require.NotNil(t, config)
-
-		// Set CWD for all tasks
-		for i := range config.Tasks {
-			config.Tasks[i].SetCWD(config.GetCWD().PathStr())
-		}
-
-		// Validate the config
-		err = config.Validate()
 		require.Error(t, err)
+		require.Nil(t, config)
 		assert.Contains(t, err.Error(), "condition or routes are required for decision task type")
 	})
 }

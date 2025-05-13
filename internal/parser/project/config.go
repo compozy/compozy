@@ -120,12 +120,6 @@ func (p *ProjectConfig) WorkflowsFromSources() ([]*workflow.WorkflowConfig, erro
 		if err != nil {
 			return nil, err
 		}
-
-		err = config.Validate()
-		if err != nil {
-			return nil, err
-		}
-
 		ws = append(ws, config)
 	}
 

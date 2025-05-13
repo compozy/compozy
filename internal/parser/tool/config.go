@@ -60,15 +60,11 @@ func Load(cwd *common.CWD, path string) (*ToolConfig, error) {
 func (t *ToolConfig) Validate() error {
 	v := validator.NewCompositeValidator(
 		validator.NewCWDValidator(t.cwd, t.ID),
-		schema.NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
-		pkgref.NewPackageRefValidator(t.Use, t.cwd.PathStr(), isValidComponent),
+		NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
+		NewPackageRefValidator(t.Use, t.cwd.PathStr()),
 		NewExecuteValidator(t.Execute, t.cwd).WithID(t.ID),
 	)
 	return v.Validate()
-}
-
-func isValidComponent(c pkgref.Component) bool {
-	return c.IsTool()
 }
 
 func (t *ToolConfig) ValidateParams(input map[string]any) error {
@@ -92,4 +88,28 @@ func (t *ToolConfig) LoadID() (string, error) {
 func IsTypeScript(path string) bool {
 	ext := filepath.Ext(path)
 	return strings.EqualFold(ext, ".ts")
+}
+
+func (t *ToolConfig) LoadFileRef(cwd *common.CWD) (*ToolConfig, error) {
+	if t.Use == nil {
+		return nil, nil
+	}
+	ref, err := t.Use.IntoRef()
+	if err != nil {
+		return nil, err
+	}
+	if !ref.Type.IsFile() {
+		return t, nil
+	}
+	if ref.Component.IsTool() {
+		cfg, err := Load(cwd, ref.Value())
+		if err != nil {
+			return nil, err
+		}
+		err = t.Merge(cfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return t, nil
 }

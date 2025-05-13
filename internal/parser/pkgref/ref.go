@@ -95,21 +95,6 @@ func buildDependencyValue(owner, repo, packageName, version string) string {
 	return value
 }
 
-// validateFilePath checks if a file path is valid and exists
-func validateFilePath(path string) error {
-	if !filepath.IsAbs(path) {
-		return fmt.Errorf("invalid file %q: %s", path, "file path must be absolute")
-	}
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return fmt.Errorf("invalid file %q: %s", path, "file not found")
-	}
-	ext := strings.ToLower(filepath.Ext(path))
-	if ext != ".yaml" && ext != ".yml" {
-		return fmt.Errorf("invalid file %q: %s", path, "invalid file extension: expected yaml or yml, got "+ext)
-	}
-	return nil
-}
-
 // ParseRefType parses a reference type string
 func ParseRefType(typeStr, value string) (*RefType, error) {
 	switch typeStr {
@@ -147,15 +132,25 @@ func (r *RefType) String() string {
 }
 
 // Validate validates the reference type against a file path
-func (r *RefType) Validate(filePath string) error {
+func (r *RefType) Validate(cwd string) error {
 	switch r.Type {
 	case "id":
 		if strings.TrimSpace(r.Value) == "" {
 			return fmt.Errorf("reference value cannot be empty")
 		}
 	case "file":
-		path := filepath.Join(filepath.Dir(filePath), r.Value)
-		return validateFilePath(path)
+		path := filepath.Join(cwd, r.Value)
+		if !filepath.IsAbs(path) {
+			return fmt.Errorf("invalid file %q: %s", path, "file path must be absolute")
+		}
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return fmt.Errorf("invalid file %q: %s", path, "file not found")
+		}
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext != ".yaml" && ext != ".yml" {
+			return fmt.Errorf("invalid file %q: %s", path, "invalid file extension: expected yaml or yml, got "+ext)
+		}
+		return nil
 	case "dep":
 		parts := strings.Split(r.Value, "/")
 		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
@@ -163,6 +158,18 @@ func (r *RefType) Validate(filePath string) error {
 		}
 	}
 	return nil
+}
+
+func (r *RefType) IsFile() bool {
+	return r.Type == "file"
+}
+
+func (r *RefType) IsDep() bool {
+	return r.Type == "dep"
+}
+
+func (r *RefType) IsId() bool {
+	return r.Type == "id"
 }
 
 // PackageRef represents a reference to a package component
@@ -229,6 +236,7 @@ func Parse(ref *PackageRefConfig) (*PackageRef, error) {
 	if ref == nil {
 		return nil, fmt.Errorf("package reference cannot be empty")
 	}
+
 	refStr := string(*ref)
 	components := []Component{
 		ComponentAgent,

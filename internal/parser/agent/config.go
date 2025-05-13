@@ -101,16 +101,12 @@ func Load(cwd *common.CWD, path string) (*AgentConfig, error) {
 func (a *AgentConfig) Validate() error {
 	v := validator.NewCompositeValidator(
 		validator.NewCWDValidator(a.cwd, string(a.ID)),
-		schema.NewSchemaValidator(a.Use, a.InputSchema, a.OutputSchema),
-		pkgref.NewPackageRefValidator(a.Use, a.cwd.PathStr(), isValidComponent),
+		NewSchemaValidator(a.Use, a.InputSchema, a.OutputSchema),
+		NewPackageRefValidator(a.Use, a.cwd.PathStr()),
 		NewActionsValidator(a.Actions),
 		validator.NewStructValidator(a),
 	)
 	return v.Validate()
-}
-
-func isValidComponent(c pkgref.Component) bool {
-	return c.IsAgent()
 }
 
 func (a *AgentConfig) ValidateParams(input map[string]any) error {
@@ -129,4 +125,37 @@ func (a *AgentConfig) Merge(other any) error {
 // LoadID loads the ID from either the direct ID field or resolves it from a package reference
 func (a *AgentConfig) LoadID() (string, error) {
 	return common.LoadID(a, a.ID, a.Use)
+}
+
+func (a *AgentConfig) LoadFileRef(cwd *common.CWD) (*AgentConfig, error) {
+	if a.Use == nil {
+		return a, nil
+	}
+	ref, err := a.Use.IntoRef()
+	if err != nil {
+		return nil, err
+	}
+	if !ref.Type.IsFile() {
+		return a, nil
+	}
+	if ref.Component.IsAgent() {
+		cfg, err := Load(cwd, ref.Value())
+		if err != nil {
+			return nil, err
+		}
+		for i := range cfg.Tools {
+			tc, err := cfg.Tools[i].LoadFileRef(a.cwd)
+			if err != nil {
+				return nil, err
+			}
+			if tc != nil {
+				cfg.Tools[i] = *tc
+			}
+		}
+		err = a.Merge(cfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return a, nil
 }
