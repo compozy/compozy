@@ -12,7 +12,7 @@ func DeployCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "deploy",
 		Short: "Deploy the Compozy project",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			env, _ := cmd.Flags().GetString("env")
 			yes, _ := cmd.Flags().GetBool("yes")
 			cwd, _ := cmd.Flags().GetString("cwd")

@@ -6,22 +6,22 @@ import (
 	config "github.com/compozy/compozy/internal/parser/workflow"
 )
 
-type WorkflowState struct {
+type State struct {
 	id     *core.StateID
 	input  common.Input
 	output *common.Output
 	env    common.EnvMap
-	Config *config.WorkflowConfig
+	Config *config.Config
 }
 
-func InitWorkflowState(stID *core.StateID, input common.Input, cfg *config.WorkflowConfig) (*WorkflowState, error) {
+func InitWorkflowState(stID *core.StateID, input common.Input, cfg *config.Config) (*State, error) {
 	env, err := loadEnv(stID, cfg.Env, cfg.GetCWD())
 	if err != nil {
 		return nil, err
 	}
 
 	// TODO: as_json() and parse_all() before save
-	return &WorkflowState{
+	return &State{
 		id:     stID,
 		input:  input,
 		output: nil,
@@ -44,27 +44,27 @@ func loadEnv(stID *core.StateID, currEnv common.EnvMap, cwd *common.CWD) (common
 	return env, nil
 }
 
-func (ws *WorkflowState) ID() core.StateID {
+func (ws *State) ID() core.StateID {
 	return *ws.id
 }
 
-func (ws *WorkflowState) Env() *common.EnvMap {
+func (ws *State) Env() *common.EnvMap {
 	return &ws.env
 }
 
-func (ws *WorkflowState) Input() *common.Input {
+func (ws *State) Input() *common.Input {
 	return &ws.input
 }
 
-func (ws *WorkflowState) Output() *common.Output {
+func (ws *State) Output() *common.Output {
 	return ws.output
 }
 
-func (ws *WorkflowState) FromParentState(parent core.State) error {
+func (ws *State) FromParentState(parent core.State) error {
 	return core.FromParentState(ws, parent)
 }
 
-func (ws *WorkflowState) WithEnv(env common.EnvMap) error {
+func (ws *State) WithEnv(env common.EnvMap) error {
 	newEnv, err := core.WithEnv(ws, env)
 	if err != nil {
 		return core.NewError(ws.id, "merge_env_fail", "failed to merge env", err)
@@ -73,7 +73,7 @@ func (ws *WorkflowState) WithEnv(env common.EnvMap) error {
 	return nil
 }
 
-func (ws *WorkflowState) WithInput(input common.Input) error {
+func (ws *State) WithInput(input common.Input) error {
 	newInput, err := core.WithInput(ws, input)
 	if err != nil {
 		return core.NewError(ws.id, "merge_input_fail", "failed to merge input", err)

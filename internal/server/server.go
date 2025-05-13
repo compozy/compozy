@@ -15,15 +15,15 @@ import (
 
 // Server represents the HTTP server
 type Server struct {
-	Config *ServerConfig
+	Config *Config
 	State  *AppState
 	router *gin.Engine
 }
 
 // NewServer creates a new server instance
-func NewServer(config *ServerConfig, state *AppState) *Server {
+func NewServer(config *Config, state *AppState) *Server {
 	if config == nil {
-		config = &ServerConfig{
+		config = &Config{
 			CWD:         state.CWD.PathStr(),
 			Host:        "0.0.0.0",
 			Port:        3000,

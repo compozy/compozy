@@ -101,7 +101,7 @@ func TestFileReferences(t *testing.T) {
 
 			t.Run("get_quote tool from first task", func(t *testing.T) {
 				// Find the get_quote tool
-				var getQuoteTool *tool.ToolConfig
+				var getQuoteTool *tool.Config
 				for i := range workflow.Tools {
 					tool := &workflow.Tools[i]
 					if tool.ID == "get_quote" {
@@ -123,7 +123,7 @@ func TestFileReferences(t *testing.T) {
 
 			t.Run("save_data tool from third task", func(t *testing.T) {
 				// Find the save_data tool
-				var saveDataTool *tool.ToolConfig
+				var saveDataTool *tool.Config
 				for i := range workflow.Tools {
 					tool := &workflow.Tools[i]
 					if tool.ID == "save_data" {
@@ -160,7 +160,7 @@ func TestFileReferences(t *testing.T) {
 
 			t.Run("translator agent from second task", func(t *testing.T) {
 				// Find the translator agent
-				var translatorAgent *agent.AgentConfig
+				var translatorAgent *agent.Config
 				for i := range workflow.Agents {
 					agent := &workflow.Agents[i]
 					if agent.ID == "translator" {
@@ -232,5 +232,4 @@ func TestFileReferences(t *testing.T) {
 			assert.True(t, agentFound, "Referenced agent was not loaded")
 		})
 	})
-
 }

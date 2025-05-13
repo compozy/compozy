@@ -5,3 +5,48 @@ results.json
 .compozy
 node_modules
 bin
+
+# .gitignore
+# Specifies intentionally untracked files that Git should ignore.
+# Get latest from https://github.com/github/gitignore/blob/main/Go.gitignore
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when run with the -o flag
+*.out
+
+# Dependency directories (remove the comment below if you do not commit vendor)
+# vendor/
+
+# Go workspace file
+# go.work
+# go.work.sum
+
+# Environment configuration.
+.env
+.envrc
+
+# IDE-specific files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Build output
+/build/
+
+# Local artifacts
+compozy
+

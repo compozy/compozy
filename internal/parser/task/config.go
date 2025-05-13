@@ -13,17 +13,17 @@ import (
 	"github.com/compozy/compozy/internal/parser/validator"
 )
 
-type TaskType string
+type Type string
 
 const (
-	TaskTypeBasic    TaskType = "basic"
-	TaskTypeDecision TaskType = "decision"
+	TaskTypeBasic    Type = "basic"
+	TaskTypeDecision Type = "decision"
 )
 
-type TaskConfig struct {
+type Config struct {
 	ID           string                              `json:"id,omitempty" yaml:"id,omitempty"`
 	Use          *pkgref.PackageRefConfig            `json:"use,omitempty" yaml:"use,omitempty"`
-	Type         TaskType                            `json:"type,omitempty" yaml:"type,omitempty"`
+	Type         Type                                `json:"type,omitempty" yaml:"type,omitempty"`
 	OnSuccess    *transition.SuccessTransitionConfig `json:"on_success,omitempty" yaml:"on_success,omitempty"`
 	OnError      *transition.ErrorTransitionConfig   `json:"on_error,omitempty" yaml:"on_error,omitempty"`
 	Final        string                              `json:"final,omitempty" yaml:"final,omitempty"`
@@ -41,11 +41,11 @@ type TaskConfig struct {
 	Routes    map[string]string `json:"routes,omitempty" yaml:"routes,omitempty"`
 }
 
-func (t *TaskConfig) Component() common.ComponentType {
+func (t *Config) Component() common.ComponentType {
 	return common.ComponentTask
 }
 
-func (t *TaskConfig) SetCWD(path string) error {
+func (t *Config) SetCWD(path string) error {
 	cwd, err := common.CWDFromPath(path)
 	if err != nil {
 		return err
@@ -54,12 +54,12 @@ func (t *TaskConfig) SetCWD(path string) error {
 	return nil
 }
 
-func (t *TaskConfig) GetCWD() *common.CWD {
+func (t *Config) GetCWD() *common.CWD {
 	return t.cwd
 }
 
-func Load(cwd *common.CWD, path string) (*TaskConfig, error) {
-	config, err := common.LoadConfig[*TaskConfig](cwd, path)
+func Load(cwd *common.CWD, path string) (*Config, error) {
+	config, err := common.LoadConfig[*Config](cwd, path)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func Load(cwd *common.CWD, path string) (*TaskConfig, error) {
 	return config, nil
 }
 
-func (t *TaskConfig) Validate() error {
+func (t *Config) Validate() error {
 	v := validator.NewCompositeValidator(
 		validator.NewCWDValidator(t.cwd, t.ID),
 		NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
@@ -79,23 +79,23 @@ func (t *TaskConfig) Validate() error {
 	return v.Validate()
 }
 
-func (t *TaskConfig) ValidateParams(input map[string]any) error {
+func (t *Config) ValidateParams(input map[string]any) error {
 	return validator.NewParamsValidator(input, t.InputSchema.Schema, t.ID).Validate()
 }
 
-func (t *TaskConfig) Merge(other any) error {
-	otherConfig, ok := other.(*TaskConfig)
+func (t *Config) Merge(other any) error {
+	otherConfig, ok := other.(*Config)
 	if !ok {
 		return fmt.Errorf("failed to merge task configs: %w", errors.New("invalid type for merge"))
 	}
 	return mergo.Merge(t, otherConfig, mergo.WithOverride)
 }
 
-func (t *TaskConfig) LoadID() (string, error) {
+func (t *Config) LoadID() (string, error) {
 	return common.LoadID(t, t.ID, t.Use)
 }
 
-func (t *TaskConfig) LoadFileRef(cwd *common.CWD) (*TaskConfig, error) {
+func (t *Config) LoadFileRef(cwd *common.CWD) (*Config, error) {
 	if t.Use == nil {
 		return nil, nil
 	}

@@ -8,7 +8,7 @@ import (
 
 func Test_TriggerConfigValidation(t *testing.T) {
 	t.Run("Should validate valid webhook trigger", func(t *testing.T) {
-		config := TriggerConfig{
+		config := Config{
 			Type: TriggerTypeWebhook,
 			Config: &WebhookConfig{
 				URL: "/api/webhook",
@@ -20,7 +20,7 @@ func Test_TriggerConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error when webhook config is missing", func(t *testing.T) {
-		config := TriggerConfig{
+		config := Config{
 			Type: TriggerTypeWebhook,
 		}
 

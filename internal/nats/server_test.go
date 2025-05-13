@@ -14,7 +14,7 @@ import (
 
 func Test_Server(t *testing.T) {
 	// Helper function to start a NATS server for tests
-	startNATSServer := func(t *testing.T) *NatsServer {
+	startNATSServer := func(t *testing.T) *Server {
 		opts := DefaultServerOptions()
 		server, err := NewNatsServer(opts)
 		if err != nil {
@@ -24,7 +24,7 @@ func Test_Server(t *testing.T) {
 	}
 
 	// Helper function to connect to a NATS server
-	connectToServer := func(t *testing.T, server *NatsServer) *nats.Conn {
+	connectToServer := func(t *testing.T, server *Server) *nats.Conn {
 		port := server.NatsServer.Addr().(*net.TCPAddr).Port
 		nc, err := nats.Connect(fmt.Sprintf("nats://127.0.0.1:%d", port))
 		if err != nil {

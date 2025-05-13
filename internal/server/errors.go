@@ -30,35 +30,35 @@ const (
 	ErrNotFoundCode     = "NOT_FOUND"
 )
 
-// ServerError represents errors that can occur during server operations
-type ServerError struct {
+// Error represents errors that can occur during server operations
+type Error struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	Err     error  `json:"-"`
 }
 
-func (e *ServerError) Error() string {
+func (e *Error) Error() string {
 	if e.Err != nil {
 		return fmt.Sprintf("%s: %s (%v)", e.Code, e.Message, e.Err)
 	}
 	return fmt.Sprintf("%s: %s", e.Code, e.Message)
 }
 
-func (e *ServerError) Unwrap() error {
+func (e *Error) Unwrap() error {
 	return e.Err
 }
 
 // NewServerError creates a new ServerError
-func NewServerError(code string, message string) *ServerError {
-	return &ServerError{
+func NewServerError(code string, message string) *Error {
+	return &Error{
 		Code:    code,
 		Message: message,
 	}
 }
 
 // WrapServerError wraps an existing error with a server error
-func WrapServerError(code string, message string, err error) *ServerError {
-	return &ServerError{
+func WrapServerError(code string, message string, err error) *Error {
+	return &Error{
 		Code:    code,
 		Message: message,
 		Err:     err,
@@ -86,7 +86,7 @@ func (e *RequestError) Unwrap() error {
 
 // ErrorResponse represents the structure of error responses
 type ErrorResponse struct {
-	Error ServerError `json:"error"`
+	Error Error `json:"error"`
 }
 
 // NewRequestError creates a new RequestError
@@ -116,7 +116,7 @@ func IsRequestError(err error) bool {
 // ToErrorResponse converts a RequestError to an ErrorResponse
 func (e *RequestError) ToErrorResponse() ErrorResponse {
 	resp := ErrorResponse{
-		Error: ServerError{
+		Error: Error{
 			Code:    ErrInternalCode,
 			Message: e.Reason,
 		},
@@ -138,10 +138,10 @@ func ErrorHandler() gin.HandlerFunc {
 		// Check if there are any errors
 		if len(c.Errors) > 0 {
 			err := c.Errors.Last().Err
-			var serverErr *ServerError
+			var serverErr *Error
 
 			// Try to convert to ServerError
-			if se, ok := err.(*ServerError); ok {
+			if se, ok := err.(*Error); ok {
 				serverErr = se
 			} else {
 				// If not a ServerError, wrap it
@@ -183,8 +183,8 @@ func getStatusCode(code string) int {
 }
 
 // MarshalJSON implements the json.Marshaler interface
-func (e *ServerError) MarshalJSON() ([]byte, error) {
-	type Alias ServerError
+func (e *Error) MarshalJSON() ([]byte, error) {
+	type Alias Error
 	return json.Marshal(&struct {
 		*Alias
 		Error string `json:"error,omitempty"`

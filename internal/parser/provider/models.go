@@ -1,17 +1,17 @@
 package provider
 
-// ProviderName represents the name of a provider
-type ProviderName string
+// Name represents the name of a provider
+type Name string
 
 const (
-	ProviderOpenAI     ProviderName = "openai"
-	ProviderGroq       ProviderName = "groq"
-	ProviderAnthropic  ProviderName = "anthropic"
-	ProviderMistral    ProviderName = "mistral"
-	ProviderCohere     ProviderName = "cohere"
-	ProviderPerplexity ProviderName = "perplexity"
-	ProviderXAI        ProviderName = "xai"
-	ProviderGoogle     ProviderName = "google"
+	ProviderOpenAI     Name = "openai"
+	ProviderGroq       Name = "groq"
+	ProviderAnthropic  Name = "anthropic"
+	ProviderMistral    Name = "mistral"
+	ProviderCohere     Name = "cohere"
+	ProviderPerplexity Name = "perplexity"
+	ProviderXAI        Name = "xai"
+	ProviderGoogle     Name = "google"
 )
 
 // ModelName represents the name of a model
@@ -133,7 +133,7 @@ func (p *GoogleProvider) GetAPIURL() string {
 }
 
 // GetProvider returns a Provider instance based on the ProviderName
-func GetProvider(name ProviderName) Provider {
+func GetProvider(name Name) Provider {
 	switch name {
 	case ProviderOpenAI:
 		return &OpenAIProvider{}

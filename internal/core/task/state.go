@@ -6,20 +6,20 @@ import (
 	config "github.com/compozy/compozy/internal/parser/task"
 )
 
-type TaskState struct {
+type State struct {
 	id     *core.StateID
 	env    *common.EnvMap
 	input  *common.Input
 	output *common.Output
-	Config *config.TaskConfig
+	Config *config.Config
 }
 
-func InitTaskState(stID *core.StateID, cfg *config.TaskConfig, parent core.State) (*TaskState, error) {
+func InitTaskState(stID *core.StateID, cfg *config.Config, parent core.State) (*State, error) {
 	if err := cfg.ValidateParams(*cfg.With); err != nil {
 		return nil, core.NewError(stID, "invalid_params", "invalid input params", err)
 	}
 
-	state := &TaskState{
+	state := &State{
 		id:     stID,
 		input:  cfg.With,
 		env:    &cfg.Env,
@@ -35,27 +35,27 @@ func InitTaskState(stID *core.StateID, cfg *config.TaskConfig, parent core.State
 	return state, nil
 }
 
-func (ts *TaskState) ID() core.StateID {
+func (ts *State) ID() core.StateID {
 	return *ts.id
 }
 
-func (ts *TaskState) Env() *common.EnvMap {
+func (ts *State) Env() *common.EnvMap {
 	return ts.env
 }
 
-func (ts *TaskState) Input() *common.Input {
+func (ts *State) Input() *common.Input {
 	return ts.input
 }
 
-func (ts *TaskState) Output() *common.Output {
+func (ts *State) Output() *common.Output {
 	return ts.output
 }
 
-func (ts *TaskState) FromParentState(parent core.State) error {
+func (ts *State) FromParentState(parent core.State) error {
 	return core.FromParentState(ts, parent)
 }
 
-func (ts *TaskState) WithEnv(env common.EnvMap) error {
+func (ts *State) WithEnv(env common.EnvMap) error {
 	newEnv, err := core.WithEnv(ts, env)
 	if err != nil {
 		return core.NewError(ts.id, "merge_env_fail", "failed to merge env", err)
@@ -64,7 +64,7 @@ func (ts *TaskState) WithEnv(env common.EnvMap) error {
 	return nil
 }
 
-func (ts *TaskState) WithInput(input common.Input) error {
+func (ts *State) WithInput(input common.Input) error {
 	newInput, err := core.WithInput(ts, input)
 	if err != nil {
 		return core.NewError(ts.id, "merge_input_fail", "failed to merge input", err)

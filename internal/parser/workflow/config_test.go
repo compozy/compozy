@@ -63,13 +63,13 @@ func Test_LoadWorkflow(t *testing.T) {
 		agent := config.Agents[0]
 		assert.Equal(t, "code-assistant", agent.ID)
 		require.NotNil(t, agent.Config)
-		assert.Equal(t, provider.ProviderName("anthropic"), agent.Config.Provider)
+		assert.Equal(t, provider.Name("anthropic"), agent.Config.Provider)
 		assert.Equal(t, provider.ModelName("claude-3-opus"), agent.Config.Model)
 		assert.InDelta(t, float32(0.7), agent.Config.Temperature, 0.0001)
 		assert.Equal(t, int32(4000), agent.Config.MaxTokens)
 
 		// Validate trigger
-		assert.Equal(t, trigger.TriggerType("webhook"), config.Trigger.Type)
+		assert.Equal(t, trigger.Type("webhook"), config.Trigger.Type)
 		require.NotNil(t, config.Trigger.Config)
 		assert.Equal(t, "/test-webhook", config.Trigger.Config.URL)
 
@@ -93,9 +93,9 @@ func Test_WorkflowConfigValidation(t *testing.T) {
 	t.Run("Should validate valid workflow configuration", func(t *testing.T) {
 		cwd, err := common.CWDFromPath("/test/path")
 		require.NoError(t, err)
-		config := &WorkflowConfig{
+		config := &Config{
 			ID: workflowID,
-			Trigger: trigger.TriggerConfig{
+			Trigger: trigger.Config{
 				Type: trigger.TriggerTypeWebhook,
 				Config: &trigger.WebhookConfig{
 					URL: "/test",
@@ -109,7 +109,7 @@ func Test_WorkflowConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error when CWD is missing", func(t *testing.T) {
-		config := &WorkflowConfig{
+		config := &Config{
 			ID: "test-workflow",
 		}
 
@@ -117,12 +117,11 @@ func Test_WorkflowConfigValidation(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "current working directory is required for test-workflow")
 	})
-
 }
 
 func Test_WorkflowConfigCWD(t *testing.T) {
 	t.Run("Should handle CWD operations correctly", func(t *testing.T) {
-		config := &WorkflowConfig{}
+		config := &Config{}
 
 		// Test setting CWD
 		config.SetCWD("/test/path")
@@ -136,13 +135,13 @@ func Test_WorkflowConfigCWD(t *testing.T) {
 
 func Test_WorkflowConfigMerge(t *testing.T) {
 	t.Run("Should merge configurations correctly", func(t *testing.T) {
-		baseConfig := &WorkflowConfig{
+		baseConfig := &Config{
 			Env: common.EnvMap{
 				"KEY1": "value1",
 			},
 		}
 
-		otherConfig := &WorkflowConfig{
+		otherConfig := &Config{
 			Env: common.EnvMap{
 				"KEY2": "value2",
 			},

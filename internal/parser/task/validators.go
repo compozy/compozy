@@ -12,16 +12,16 @@ import (
 // TaskTypeValidator
 // -----------------------------------------------------------------------------
 
-type TaskTypeValidator struct {
+type TypeValidator struct {
 	pkgRef    *pkgref.PackageRefConfig
-	taskType  TaskType
+	taskType  Type
 	action    string
 	condition string
 	routes    map[string]string
 }
 
-func NewTaskTypeValidator(pkgRef *pkgref.PackageRefConfig, taskType TaskType, action string, condition string, routes map[string]string) *TaskTypeValidator {
-	return &TaskTypeValidator{
+func NewTaskTypeValidator(pkgRef *pkgref.PackageRefConfig, taskType Type, action string, condition string, routes map[string]string) *TypeValidator {
+	return &TypeValidator{
 		pkgRef:    pkgRef,
 		taskType:  taskType,
 		action:    action,
@@ -30,7 +30,7 @@ func NewTaskTypeValidator(pkgRef *pkgref.PackageRefConfig, taskType TaskType, ac
 	}
 }
 
-func (v *TaskTypeValidator) Validate() error {
+func (v *TypeValidator) Validate() error {
 	if v.taskType == "" {
 		return nil
 	}

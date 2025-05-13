@@ -31,7 +31,7 @@ const (
 
 // Message is the base structure for all protocol messages
 type Message struct {
-	ExecId  string          `json:"exec_id"`
+	ExecID  string          `json:"exec_id"`
 	Type    MessageType     `json:"type"`
 	Payload json.RawMessage `json:"payload"`
 }
@@ -44,7 +44,7 @@ func NewMessage(execID string, messageType MessageType, payload any) (*Message, 
 	}
 
 	return &Message{
-		ExecId:  execID,
+		ExecID:  execID,
 		Type:    messageType,
 		Payload: payloadBytes,
 	}, nil

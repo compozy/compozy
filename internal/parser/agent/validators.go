@@ -13,10 +13,10 @@ import (
 // -----------------------------------------------------------------------------
 
 type ActionsValidator struct {
-	actions []*AgentActionConfig
+	actions []*ActionConfig
 }
 
-func NewActionsValidator(actions []*AgentActionConfig) *ActionsValidator {
+func NewActionsValidator(actions []*ActionConfig) *ActionsValidator {
 	return &ActionsValidator{actions: actions}
 }
 

@@ -18,7 +18,7 @@ import (
 // Route defines a server route
 type Route struct {
 	Path     string
-	Workflow *workflow.WorkflowConfig
+	Workflow *workflow.Config
 }
 
 // normalizePath ensures the path starts with a single slash and preserves trailing slashes
@@ -45,7 +45,7 @@ func normalizePath(p string) string {
 }
 
 // RouteFromWorkflow creates a Route from a WorkflowConfig
-func RouteFromWorkflow(workflow *workflow.WorkflowConfig) (*Route, error) {
+func RouteFromWorkflow(workflow *workflow.Config) (*Route, error) {
 	t := workflow.Trigger
 	if t.Type != trigger.TriggerTypeWebhook {
 		return nil, ErrRouteNotDefined
@@ -56,7 +56,7 @@ func RouteFromWorkflow(workflow *workflow.WorkflowConfig) (*Route, error) {
 		return nil, ErrRouteNotDefined
 	}
 
-	url := string(t.Config.URL)
+	url := t.Config.URL
 	if url == "" {
 		return nil, ErrRouteNotDefined
 	}
@@ -68,7 +68,7 @@ func RouteFromWorkflow(workflow *workflow.WorkflowConfig) (*Route, error) {
 }
 
 // handleRequest handles an incoming webhook request
-func handleRequest(c *gin.Context, workflow *workflow.WorkflowConfig) {
+func handleRequest(c *gin.Context, workflow *workflow.Config) {
 	start := time.Now()
 	execID := uuid.New().String()
 	_, err := GetAppState(c.Request.Context())

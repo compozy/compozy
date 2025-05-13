@@ -62,15 +62,15 @@ func GenerateParserSchemas(outDir string) error {
 		name string
 		data any
 	}{
-		{"agent", &agent.AgentConfig{}},
+		{"agent", &agent.Config{}},
 		{"author", &author.Author{}},
 		{"package-reference", pkgref.NewPackageRefConfig("")},
-		{"project", &project.ProjectConfig{}},
-		{"task", &task.TaskConfig{}},
-		{"tool", &tool.ToolConfig{}},
-		{"trigger", &trigger.TriggerConfig{}},
-		{"workflow", &workflow.WorkflowConfig{}},
-		{"workflow_spec", &workflow.WorkflowConfig{}},
+		{"project", &project.Config{}},
+		{"task", &task.Config{}},
+		{"tool", &tool.Config{}},
+		{"trigger", &trigger.Config{}},
+		{"workflow", &workflow.Config{}},
+		{"workflow_spec", &workflow.Config{}},
 	}
 
 	// Generate and write each schema

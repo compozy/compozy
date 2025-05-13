@@ -105,9 +105,9 @@ func Test_LoadTask(t *testing.T) {
 		assert.Equal(t, 3, len(config.Routes))
 
 		// Validate routes
-		assert.Equal(t, "deploy", string(config.Routes["approved"]))
-		assert.Equal(t, "update-code", string(config.Routes["needs_changes"]))
-		assert.Equal(t, "notify-team", string(config.Routes["rejected"]))
+		assert.Equal(t, "deploy", config.Routes["approved"])
+		assert.Equal(t, "update-code", config.Routes["needs_changes"])
+		assert.Equal(t, "notify-team", config.Routes["rejected"])
 
 		// Validate input schema
 		schema := config.InputSchema.Schema
@@ -159,7 +159,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Should validate valid basic task", func(t *testing.T) {
-		config := &TaskConfig{
+		config := &Config{
 			ID:     taskID,
 			Type:   TaskTypeBasic,
 			Action: "test-action",
@@ -171,7 +171,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should validate valid decision task", func(t *testing.T) {
-		config := &TaskConfig{
+		config := &Config{
 			ID:        taskID,
 			Type:      TaskTypeDecision,
 			Condition: "test-condition",
@@ -186,7 +186,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error when CWD is missing", func(t *testing.T) {
-		config := &TaskConfig{
+		config := &Config{
 			ID:   "test-task",
 			Type: TaskTypeBasic,
 		}
@@ -197,7 +197,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid package reference", func(t *testing.T) {
-		config := &TaskConfig{
+		config := &Config{
 			ID:  taskID,
 			Use: pkgref.NewPackageRefConfig("invalid"),
 			cwd: taskCWD,
@@ -209,7 +209,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid task type", func(t *testing.T) {
-		config := &TaskConfig{
+		config := &Config{
 			ID:   "test-task",
 			Type: "invalid",
 			cwd:  taskCWD,
@@ -221,7 +221,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error for decision task missing configuration", func(t *testing.T) {
-		config := &TaskConfig{
+		config := &Config{
 			ID:   taskID,
 			Type: TaskTypeDecision,
 			cwd:  taskCWD,
@@ -233,7 +233,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error for decision task missing routes", func(t *testing.T) {
-		config := &TaskConfig{
+		config := &Config{
 			ID:   "test-task",
 			Type: TaskTypeDecision,
 			cwd:  taskCWD,
@@ -245,7 +245,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error when input schema is used with ID reference", func(t *testing.T) {
-		config := &TaskConfig{
+		config := &Config{
 			ID:  taskID,
 			Use: pkgref.NewPackageRefConfig("task(id=test-task)"),
 			InputSchema: &schema.InputSchema{
@@ -262,7 +262,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error when output schema is used with file reference", func(t *testing.T) {
-		config := &TaskConfig{
+		config := &Config{
 			ID:  taskID,
 			Use: pkgref.NewPackageRefConfig("task(file=basic_task.yaml)"),
 			OutputSchema: &schema.OutputSchema{
@@ -279,7 +279,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error when schemas are used with dep reference", func(t *testing.T) {
-		config := &TaskConfig{
+		config := &Config{
 			ID:  taskID,
 			Use: pkgref.NewPackageRefConfig("task(dep=compozy/tasks:test-task)"),
 			InputSchema: &schema.InputSchema{
@@ -301,7 +301,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error for task with invalid parameters", func(t *testing.T) {
-		config := &TaskConfig{
+		config := &Config{
 			ID:   "test-task",
 			Type: TaskTypeBasic,
 			cwd:  taskCWD,
@@ -329,7 +329,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 
 func Test_TaskConfigCWD(t *testing.T) {
 	t.Run("Should handle CWD operations correctly", func(t *testing.T) {
-		config := &TaskConfig{}
+		config := &Config{}
 		assert.Nil(t, config.GetCWD())
 
 		config.SetCWD("/test/path")
@@ -344,7 +344,7 @@ func Test_TaskConfigMerge(t *testing.T) {
 	t.Run("Should merge configurations correctly", func(t *testing.T) {
 		next1 := "next1"
 		next2 := "next2"
-		base := &TaskConfig{
+		base := &Config{
 			Env: common.EnvMap{
 				"KEY1": "value1",
 			},
@@ -359,7 +359,7 @@ func Test_TaskConfigMerge(t *testing.T) {
 			},
 		}
 
-		other := &TaskConfig{
+		other := &Config{
 			Env: common.EnvMap{
 				"KEY2": "value2",
 			},
