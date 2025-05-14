@@ -1,0 +1,125 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# Compozy Go Development Standards
+
+You are an expert in Go, microservices architecture, and clean backend development practices. Your role is to ensure code is idiomatic, modular, testable, and aligned with Compozy's established patterns and best practices.
+
+## Project Structure and Organization
+
+- Follow the established project layout:
+  - `cmd/`: Application entrypoints
+  - `internal/`: Core application logic not exposed externally
+  - `internal/core/`: Domain models and core business logic
+  - `internal/parser/`: Parsing functionality
+  - `internal/server/`: API and server implementations
+  - `examples/`: Example implementations and use cases
+  - `test/`: Test utilities and fixtures
+
+- Group code by feature/domain when appropriate (agent, task, tool, workflow)
+- Keep package names simple and descriptive
+- Follow the established pattern of separating interfaces from implementations
+
+## Code Style and Standards
+
+- Adhere to Go's official style guide and the project's `.golangci.yml` configuration
+- Function length should not exceed 80 lines or 50 statements (as per funlen linter)
+- Line length should not exceed 120 characters (as per lll linter)
+- Cyclomatic complexity should be kept below 15 (as per gocyclo linter)
+- Use section comments with dashes for visual separation:
+  ```go
+  // -----------------------------------------------------------------------------
+  // Section Name
+  // -----------------------------------------------------------------------------
+  ```
+
+## Error Handling
+
+- Always check and handle errors explicitly
+- Use wrapped errors for context: `fmt.Errorf("failed to upsert task: %w", err)`
+- Avoid naked returns in longer functions (as enforced by nakedret linter)
+- Return early on errors to avoid deep nesting
+
+## Dependencies and Interfaces
+
+- Prefer explicit dependency injection through constructor functions
+- Use interfaces to define behavior and enable testing
+- Follow the established pattern:
+  ```go
+  // Define interface
+  type Service interface {
+    DoSomething(ctx context.Context, param string) error
+  }
+
+  // Implement interface
+  type ServiceImpl struct {
+    dependency Dependency
+  }
+
+  // Constructor function
+  func NewService(dependency Dependency) Service {
+    return &serviceImpl{
+      dependency: dependency,
+    }
+  }
+  ```
+
+## Testing
+
+- Write table-driven tests
+- Use testify for assertions and mocks
+- Test both success and error paths
+- Ensure test coverage for all exported functions
+- Follow the established pattern of `*_test.go` files alongside implementation files
+
+## Context and Concurrency
+
+- Use `context.Context` for request-scoped values, deadlines, and cancellations
+- Pass context as the first parameter to functions that make external calls
+- Use the noctx linter to enforce context propagation
+- Ensure goroutines are properly managed and cleaned up
+
+## Security
+
+- Use the gosec linter to identify security issues
+- Validate all inputs, especially those from external sources
+- Follow secure coding practices for authentication and authorization
+
+## Performance
+
+- Minimize allocations in hot paths
+- Consider resource usage and efficiency
+
+## Specific Linter Rules to Follow
+
+- **bodyclose**: Always close HTTP response bodies
+- **errcheck**: Check error returns from all function calls
+- **goconst**: Extract repeated string literals into constants
+- **gocritic**: Follow idiomatic Go practices
+- **staticcheck**: Address all static analysis warnings
+- **unused**: Remove unused code
+- **whitespace**: Maintain consistent whitespace
+
+## Code Review Checklist
+
+1. Does the code follow the established project structure and patterns?
+2. Are errors handled appropriately and with context?
+3. Is the code well-tested with both unit and integration tests?
+4. Are interfaces used appropriately to define behavior?
+5. Is the code documented clearly?
+6. Does the code pass all linter checks?
+7. Is the code secure and performant?
+8. Are dependencies injected properly?
+9. Is context propagated correctly?
+10. Is the code simple, readable, and maintainable?
+
+## Observability
+
+- Use structured logging with appropriate log levels
+- Include request IDs and context in logs
+- Consider adding tracing for complex operations
+- Use metrics to monitor application health and performance
+
+Remember that code should be written for humans first, computers second. Prioritize readability, simplicity, and maintainability over cleverness or premature optimization.

@@ -1,0 +1,21 @@
+{
+  "nodeModulesDir": "auto",
+  "workspace": [
+    "pkg/**"
+  ],
+  "tasks": {
+    "prettier:fix": "prettier --write \"**/*.@(json|md|sh)\"",
+    "prettier:validate": "prettier --check \"**/*.@(json|md|sh)\"",
+    "test:all": "deno test"
+  },
+  "compilerOptions": {
+    "strict": true
+  },
+  "lint": {
+    "rules": {
+      "exclude": [
+        "no-explicit-any"
+      ]
+    }
+  }
+}
