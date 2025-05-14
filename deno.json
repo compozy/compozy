@@ -1,7 +1,7 @@
 {
   "nodeModulesDir": "auto",
   "workspace": [
-    "packages/**"
+    "pkg/**"
   ],
   "tasks": {
     "prettier:fix": "prettier --write \"**/*.@(json|md|sh)\"",

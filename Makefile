@@ -94,5 +94,5 @@ test-runtime:
 	@echo "Running runtime tests..."
 	@sleep 1
 	@make start-nats
-	@deno test --allow-sys --allow-env --allow-net --allow-read packages/runtime/tests/
+	@deno test --allow-sys --allow-env --allow-net --allow-read pkg/runtime/tests/
 	@make stop-nats

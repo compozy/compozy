@@ -3172,11 +3172,8 @@
     "https://raw.githubusercontent.com/nats-io/nkeys.js/v1.0.4/src/util.ts": "96c4c8f707ef6aaa00c23527d0a7b935efe1df3dd94e6d40707e37c5e0f14e27"
   },
   "workspace": {
-    "dependencies": [
-      "npm:dotenv@^16.5.0"
-    ],
     "members": {
-      "packages/runtime": {
+      "pkg/runtime": {
         "dependencies": [
           "npm:@ai-sdk/openai@^1.2.1",
           "npm:@dmitryrechkin/json-schema-to-zod@^1.0.1",
