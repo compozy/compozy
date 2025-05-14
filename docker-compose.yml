@@ -1,0 +1,25 @@
+services:
+  nats:
+    image: nats:2.10-alpine
+    container_name: compozy-nats-test
+    ports:
+      - "4222:4222"  # Client connections
+      - "8222:8222"  # HTTP monitoring
+      - "6222:6222"  # Clustering
+    command: >
+      -js
+      -m 8222
+      --name compozy-nats-test
+      --jetstream
+      --store_dir=/data
+    volumes:
+      - nats_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  nats_data:
+    driver: local
