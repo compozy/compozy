@@ -8,7 +8,7 @@
 
 ### NATS Subject
 
-`compozy.<correlation_id>.workflow.commands.<workflow_id>.trigger`
+`compozy.<correlation_id>.workflow.cmds.<workflow_id>.trigger`
 
 ### JSON Payload Example:
 

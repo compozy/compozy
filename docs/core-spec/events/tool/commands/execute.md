@@ -8,7 +8,7 @@
 
 ### NATS Subject
 
-`compozy.<correlation_id>.tool.commands.<tool_exec_id>.execute`
+`compozy.<correlation_id>.tool.cmds.<tool_exec_id>.execute`
 
 ### JSON Payload Example:
 

@@ -10,9 +10,11 @@ import (
 	"github.com/compozy/compozy/engine/schema"
 )
 
-type LogLevel string
-type Dependencies []*common.PackageRef
-type Environment string
+type (
+	LogLevel     string
+	Dependencies []*common.PackageRef
+	Environment  string
+)
 
 const (
 	EnvironmentDevelopment Environment = "development"

@@ -16,7 +16,7 @@ func Test_Parse(t *testing.T) {
 		want := &PackageRef{
 			Component: ComponentAgent,
 			Type: &RefType{
-				Type:  "id",
+				Type:  RefTypeNameID,
 				Value: "my-agent",
 			},
 		}
@@ -33,7 +33,7 @@ func Test_Parse(t *testing.T) {
 		want := &PackageRef{
 			Component: ComponentWorkflow,
 			Type: &RefType{
-				Type:  "dep",
+				Type:  RefTypeNameDep,
 				Value: "compozy/workflows:flow@v1.0.0",
 			},
 		}
@@ -165,16 +165,6 @@ func Test_ComponentMethods(t *testing.T) {
 	t.Run("Should correctly identify agent component", func(t *testing.T) {
 		component := ComponentAgent
 		assert.True(t, component.IsAgent())
-		assert.False(t, component.IsMcp())
-		assert.False(t, component.IsTool())
-		assert.False(t, component.IsTask())
-		assert.False(t, component.IsWorkflow())
-	})
-
-	t.Run("Should correctly identify mcp component", func(t *testing.T) {
-		component := ComponentMcp
-		assert.False(t, component.IsAgent())
-		assert.True(t, component.IsMcp())
 		assert.False(t, component.IsTool())
 		assert.False(t, component.IsTask())
 		assert.False(t, component.IsWorkflow())
@@ -183,7 +173,6 @@ func Test_ComponentMethods(t *testing.T) {
 	t.Run("Should correctly identify tool component", func(t *testing.T) {
 		component := ComponentTool
 		assert.False(t, component.IsAgent())
-		assert.False(t, component.IsMcp())
 		assert.True(t, component.IsTool())
 		assert.False(t, component.IsTask())
 		assert.False(t, component.IsWorkflow())
@@ -192,7 +181,6 @@ func Test_ComponentMethods(t *testing.T) {
 	t.Run("Should correctly identify task component", func(t *testing.T) {
 		component := ComponentTask
 		assert.False(t, component.IsAgent())
-		assert.False(t, component.IsMcp())
 		assert.False(t, component.IsTool())
 		assert.True(t, component.IsTask())
 		assert.False(t, component.IsWorkflow())
@@ -201,7 +189,6 @@ func Test_ComponentMethods(t *testing.T) {
 	t.Run("Should correctly identify workflow component", func(t *testing.T) {
 		component := ComponentWorkflow
 		assert.False(t, component.IsAgent())
-		assert.False(t, component.IsMcp())
 		assert.False(t, component.IsTool())
 		assert.False(t, component.IsTask())
 		assert.True(t, component.IsWorkflow())
@@ -260,17 +247,17 @@ func Test_ValidateFile(t *testing.T) {
 
 	// Create a valid YAML file
 	validYaml := filepath.Join(tmpDir, "valid.yaml")
-	err = os.WriteFile(validYaml, []byte("test: data"), 0644)
+	err = os.WriteFile(validYaml, []byte("test: data"), 0o644)
 	require.NoError(t, err)
 
 	// Create an invalid extension file
 	invalidExt := filepath.Join(tmpDir, "invalid.txt")
-	err = os.WriteFile(invalidExt, []byte("test data"), 0644)
+	err = os.WriteFile(invalidExt, []byte("test data"), 0o644)
 	require.NoError(t, err)
 
 	t.Run("Should validate yaml file", func(t *testing.T) {
 		ref := &RefType{
-			Type:  "file",
+			Type:  RefTypeNameFile,
 			Value: "valid.yaml",
 		}
 		err := ref.Validate(validYaml)
@@ -279,7 +266,7 @@ func Test_ValidateFile(t *testing.T) {
 
 	t.Run("Should return error for invalid extension", func(t *testing.T) {
 		ref := &RefType{
-			Type:  "file",
+			Type:  RefTypeNameFile,
 			Value: "invalid.txt",
 		}
 		err := ref.Validate(invalidExt)
@@ -289,7 +276,7 @@ func Test_ValidateFile(t *testing.T) {
 
 	t.Run("Should return error for non-existent file", func(t *testing.T) {
 		ref := &RefType{
-			Type:  "file",
+			Type:  RefTypeNameFile,
 			Value: "nonexistent.yaml",
 		}
 		nonExistentPath := filepath.Join(tmpDir, "nonexistent.yaml")

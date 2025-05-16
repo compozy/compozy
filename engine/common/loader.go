@@ -79,9 +79,9 @@ func LoadID(
 	}
 
 	switch ref.Type.Type {
-	case "id":
+	case RefTypeNameID:
 		return ref.Type.Value, nil
-	case "file":
+	case RefTypeNameFile:
 		cwd := config.GetCWD()
 		filePath, err := cwd.JoinAndCheck(ref.Type.Value)
 		if err != nil {
@@ -108,7 +108,7 @@ func LoadID(
 		}
 
 		return yamlConfig.ID, nil
-	case "dep":
+	case RefTypeNameDep:
 		// TODO: implement dependency resolution
 		return "", errors.New("dependency resolution not implemented for LoadID()")
 	default:

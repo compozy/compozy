@@ -159,7 +159,7 @@ type ErrorMessage struct {
 }
 
 // NewErrorMessage creates a new error message
-func NewErrorMessage(message string, stack string, data any) (*ErrorMessage, error) {
+func NewErrorMessage(message, stack string, data any) (*ErrorMessage, error) {
 	var dataJSON json.RawMessage
 	var err error
 

@@ -19,7 +19,7 @@ Where:
 #### 2. Command Subjects
 Used for messages that instruct components to perform actions.
 
-Pattern: `compozy.<correlation_id>.<entity>.commands.<identifier>.<action>`
+Pattern: `compozy.<correlation_id>.<entity>.cmds.<identifier>.<action>`
 
 Where:
 -   `<entity>`: Target entity type ("workflow", "task", "agent", "tool")
@@ -42,16 +42,16 @@ Where:
 ## Workflow Events
 
 ### Commands
--   [WorkflowExecute](workflow/commands/execute.md#command-executeworkflow) 
-    - Subject: `compozy.<correlation_id>.workflow.commands.<workflow_id>.execute`
--   [WorkflowExecuteAsync](workflow/commands/trigger_async.md#command-workflowexecuteasync) 
-    - Subject: `compozy.<correlation_id>.workflow.commands.<workflow_id>.execute_async`
--   [WorkflowPause](workflow/commands/pause.md#command-pauseworkflow) 
-    - Subject: `compozy.<correlation_id>.workflow.commands.<workflow_exec_id>.pause`
--   [WorkflowResume](workflow/commands/resume.md#command-resumeworkflow) 
-    - Subject: `compozy.<correlation_id>.workflow.commands.<workflow_exec_id>.resume`
--   [WorkflowCancel](workflow/commands/cancel.md#command-cancelworkflow) 
-    - Subject: `compozy.<correlation_id>.workflow.commands.<workflow_exec_id>.cancel`
+-   [WorkflowExecute](workflow/cmds/execute.md#command-executeworkflow) 
+    - Subject: `compozy.<correlation_id>.workflow.cmds.<workflow_id>.execute`
+-   [WorkflowExecuteAsync](workflow/cmds/trigger_async.md#command-workflowexecuteasync) 
+    - Subject: `compozy.<correlation_id>.workflow.cmds.<workflow_id>.execute_async`
+-   [WorkflowPause](workflow/cmds/pause.md#command-pauseworkflow) 
+    - Subject: `compozy.<correlation_id>.workflow.cmds.<workflow_exec_id>.pause`
+-   [WorkflowResume](workflow/cmds/resume.md#command-resumeworkflow) 
+    - Subject: `compozy.<correlation_id>.workflow.cmds.<workflow_exec_id>.resume`
+-   [WorkflowCancel](workflow/cmds/cancel.md#command-cancelworkflow) 
+    - Subject: `compozy.<correlation_id>.workflow.cmds.<workflow_exec_id>.cancel`
 
 ### State Events
 -   [WorkflowExecutionStarted](workflow/state/execution_started.md#state-event-workflowexecutionstarted)
@@ -74,14 +74,14 @@ Where:
 ## Task Events
 
 ### Commands
--   [TaskTrigger](task/commands/trigger.md#command-triggerspecifictask) 
-    - Subject: `compozy.<correlation_id>.task.commands.<task_id>.trigger`
--   [TaskTriggerAsync](task/commands/trigger_async.md#command-triggerasyncspecifictask)
-    - Subject: `compozy.<correlation_id>.task.commands.<task_id>.trigger_async`
--   [TaskExecute](task/commands/execute.md#command-executetask) 
-    - Subject: `compozy.<correlation_id>.task.commands.<task_exec_id>.execute`
--   [TaskResume](task/commands/resume.md#command-resumewaitingtask) 
-    - Subject: `compozy.<correlation_id>.task.commands.<task_exec_id>.resume`
+-   [TaskTrigger](task/cmds/trigger.md#command-triggerspecifictask) 
+    - Subject: `compozy.<correlation_id>.task.cmds.<task_id>.trigger`
+-   [TaskTriggerAsync](task/cmds/trigger_async.md#command-triggerasyncspecifictask)
+    - Subject: `compozy.<correlation_id>.task.cmds.<task_id>.trigger_async`
+-   [TaskExecute](task/cmds/execute.md#command-executetask) 
+    - Subject: `compozy.<correlation_id>.task.cmds.<task_exec_id>.execute`
+-   [TaskResume](task/cmds/resume.md#command-resumewaitingtask) 
+    - Subject: `compozy.<correlation_id>.task.cmds.<task_exec_id>.resume`
 
 ### State Events
 -   [TaskDispatched](task/state/dispatched.md#state-event-taskdispatched)
@@ -106,8 +106,8 @@ Where:
 ## Agent Events
 
 ### Commands
--   [AgentExecute](agent/commands/execute.md#command-executeagent) 
-    - Subject: `compozy.<correlation_id>.agent.commands.<agent_id>.execute`
+-   [AgentExecute](agent/cmds/execute.md#command-executeagent) 
+    - Subject: `compozy.<correlation_id>.agent.cmds.<agent_id>.execute`
 
 ### State Events
 -   [AgentExecutionStarted](agent/state/execution_started.md#state-event-agentexecutionstarted)
@@ -122,8 +122,8 @@ Where:
 ## Tool Events
 
 ### Commands
--   [ToolExecute](tool/commands/execute.md#command-executetool) 
-    - Subject: `compozy.<correlation_id>.tool.commands.<tool_id>.execute`
+-   [ToolExecute](tool/cmds/execute.md#command-executetool) 
+    - Subject: `compozy.<correlation_id>.tool.cmds.<tool_id>.execute`
 
 ### State Events
 -   [ToolExecutionStarted](tool/state/execution_started.md#state-event-toolexecutionstarted)

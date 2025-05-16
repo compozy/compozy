@@ -49,7 +49,7 @@ func (e *Error) Unwrap() error {
 }
 
 // NewServerError creates a new ServerError
-func NewServerError(code string, message string) *Error {
+func NewServerError(code, message string) *Error {
 	return &Error{
 		Code:    code,
 		Message: message,
@@ -57,7 +57,7 @@ func NewServerError(code string, message string) *Error {
 }
 
 // WrapServerError wraps an existing error with a server error
-func WrapServerError(code string, message string, err error) *Error {
+func WrapServerError(code, message string, err error) *Error {
 	return &Error{
 		Code:    code,
 		Message: message,

@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package tool;
+
+option go_package = "github.com/compozy/compozy/pkg/pb/tool";
+
+import "common/metadata.proto";
+import "common/entities.proto";
+import "google/protobuf/struct.proto";
+
+// -----------------------------------------------------------------------------
+// Tool Execute Command
+// -----------------------------------------------------------------------------
+
+message ToolExecuteCommand {
+  common.Metadata metadata = 1;
+  common.WorkflowInfo workflow = 2;
+  common.TaskInfo task = 3;
+  common.ToolInfo tool = 4;
+
+  message Payload {
+    google.protobuf.Struct context = 1;
+  }
+  Payload payload = 5;
+}

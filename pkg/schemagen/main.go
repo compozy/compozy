@@ -22,7 +22,7 @@ func GenerateParserSchemas(outDir string) error {
 	fmt.Println("Generating JSON schemas...")
 
 	// Ensure the output directory exists
-	if err := os.MkdirAll(outDir, 0755); err != nil {
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -92,7 +92,7 @@ func GenerateParserSchemas(outDir string) error {
 
 		// Write to file
 		filePath := filepath.Join(outDir, fmt.Sprintf("%s.json", s.name))
-		if err := os.WriteFile(filePath, schemaJSON, 0600); err != nil {
+		if err := os.WriteFile(filePath, schemaJSON, 0o600); err != nil {
 			return fmt.Errorf("failed to write schema to %s: %w", filePath, err)
 		}
 

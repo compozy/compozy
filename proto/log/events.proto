@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package log;
+
+option go_package = "github.com/compozy/compozy/pkg/pb/log";
+
+import "common/metadata.proto";
+import "common/entities.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+enum LogLevel {
+  LOG_LEVEL_UNSPECIFIED = 0;
+  LOG_LEVEL_DEBUG = 1;
+  LOG_LEVEL_INFO = 2;
+  LOG_LEVEL_WARN = 3;
+  LOG_LEVEL_ERROR = 4;
+}
+
+message LogEmittedEvent {
+  common.Metadata metadata = 1;
+  optional common.WorkflowInfo workflow = 2;
+  optional common.TaskInfo task = 3;
+  optional common.AgentInfo agent = 4;
+  optional common.ToolInfo tool = 5;
+
+  message Payload {
+    LogLevel log_level = 1;
+    string message = 2;
+    google.protobuf.Timestamp timestamp = 3;
+    google.protobuf.Struct context = 4;
+  }
+  Payload payload = 6;
+}

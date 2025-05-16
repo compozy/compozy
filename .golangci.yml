@@ -1,9 +1,11 @@
 version: "2"
+
 run:
   build-tags:
     - ""
   issues-exit-code: 1
   tests: true
+
 linters:
   default: none
   enable:
@@ -86,6 +88,9 @@ linters:
       - third_party$
       - builtin$
       - examples$
+      - pkg/pb$
+      - pkg/schemagen/main.go$
+
 formatters:
   enable:
     - gofmt

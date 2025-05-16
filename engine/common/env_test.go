@@ -14,7 +14,7 @@ func setupEnvFile(t *testing.T, content string) string {
 	envPath := filepath.Join(tmpDir, ".env")
 
 	// Write content to file
-	if err := os.WriteFile(envPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(envPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("Failed to create test env file: %v", err)
 	}
 
@@ -31,7 +31,6 @@ func Test_NewEnvFromFile(t *testing.T) {
 
 		cwd := setupEnvFile(t, content)
 		env, err := NewEnvFromFile(cwd)
-
 		if err != nil {
 			t.Errorf("NewEnvFromFile() error = %v, want nil", err)
 			return
@@ -50,7 +49,6 @@ func Test_NewEnvFromFile(t *testing.T) {
 
 		cwd := setupEnvFile(t, content)
 		env, err := NewEnvFromFile(cwd)
-
 		if err != nil {
 			t.Errorf("NewEnvFromFile() error = %v, want nil", err)
 			return
@@ -70,7 +68,6 @@ func Test_NewEnvFromFile(t *testing.T) {
 
 		cwd := setupEnvFile(t, content)
 		env, err := NewEnvFromFile(cwd)
-
 		if err != nil {
 			t.Errorf("NewEnvFromFile() error = %v, want nil", err)
 			return
@@ -92,7 +89,6 @@ func Test_NewEnvFromFile(t *testing.T) {
 
 		cwd := setupEnvFile(t, content)
 		env, err := NewEnvFromFile(cwd)
-
 		if err != nil {
 			t.Errorf("NewEnvFromFile() error = %v, want nil", err)
 			return
@@ -109,7 +105,6 @@ func Test_NewEnvFromFile(t *testing.T) {
 		// Create a temporary directory without an .env file
 		tmpDir := t.TempDir()
 		env, err := NewEnvFromFile(tmpDir)
-
 		if err != nil {
 			t.Errorf("NewEnvFromFile() error = %v, want nil for nonexistent file", err)
 		}

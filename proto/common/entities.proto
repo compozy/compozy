@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package common;
+
+option go_package = "github.com/compozy/compozy/pkg/pb/common";
+
+message WorkflowInfo {
+  string id = 1;
+  string exec_id = 2;
+}
+
+message TaskInfo {
+  string id = 1;
+  string exec_id = 2;
+}
+
+message AgentInfo {
+  string id = 1;
+  string exec_id = 2;
+}
+
+message ToolInfo {
+  string id = 1;
+  string exec_id = 2;
+}

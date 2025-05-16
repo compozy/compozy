@@ -8,9 +8,7 @@ import (
 	charmlog "github.com/charmbracelet/log"
 )
 
-var (
-	defaultLogger *charmlog.Logger
-)
+var defaultLogger *charmlog.Logger
 
 // Config holds the logger configuration
 type Config struct {

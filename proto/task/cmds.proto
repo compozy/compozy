@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package task;
+
+option go_package = "github.com/compozy/compozy/pkg/pb/task";
+
+import "common/metadata.proto";
+import "common/entities.proto";
+import "google/protobuf/struct.proto";
+
+// -----------------------------------------------------------------------------
+// Task Trigger Command
+// -----------------------------------------------------------------------------
+
+message TaskTriggerCommand {
+  common.Metadata metadata = 1;
+  common.WorkflowInfo workflow = 2;
+  common.TaskInfo task = 3;
+
+  message Payload {
+    google.protobuf.Struct context = 1;
+  }
+  Payload payload = 4;
+}
+
+// -----------------------------------------------------------------------------
+// Task Trigger Async Command
+// -----------------------------------------------------------------------------
+
+message TaskTriggerAsyncCommand {
+  common.Metadata metadata = 1;
+  common.WorkflowInfo workflow = 2;
+  common.TaskInfo task = 3;
+
+  message Payload {
+    google.protobuf.Struct context = 1;
+  }
+  Payload payload = 4;
+}
+
+// -----------------------------------------------------------------------------
+// Task Execute Command
+// -----------------------------------------------------------------------------
+
+message TaskExecuteCommand {
+  common.Metadata metadata = 1;
+  common.WorkflowInfo workflow = 2;
+  common.TaskInfo task = 3;
+
+  message Payload {
+    google.protobuf.Struct context = 1;
+  }
+  Payload payload = 4;
+}
+
+// -----------------------------------------------------------------------------
+// Task Resume Command
+// -----------------------------------------------------------------------------
+
+message TaskResumeCommand {
+  common.Metadata metadata = 1;
+  common.WorkflowInfo workflow = 2;
+  common.TaskInfo task = 3;
+
+  message Payload {
+    google.protobuf.Struct context = 1;
+  }
+  Payload payload = 4;
+}

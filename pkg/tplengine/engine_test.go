@@ -151,7 +151,7 @@ name: {{ .user.name }}
 age: {{ .user.age }}
 `
 	yamlPath := filepath.Join(tempDir, "test.yaml")
-	err = os.WriteFile(yamlPath, []byte(yamlContent), 0644)
+	err = os.WriteFile(yamlPath, []byte(yamlContent), 0o644)
 	require.NoError(t, err)
 
 	// Process YAML file

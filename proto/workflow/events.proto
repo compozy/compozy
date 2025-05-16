@@ -1,0 +1,126 @@
+syntax = "proto3";
+
+package workflow;
+
+option go_package = "github.com/compozy/compozy/pkg/pb/workflow";
+
+import "common/metadata.proto";
+import "common/entities.proto";
+import "common/payload.proto";
+import "google/protobuf/struct.proto";
+
+enum WorkflowStatus {
+  WORKFLOW_STATUS_UNSPECIFIED = 0;
+  WORKFLOW_STATUS_PENDING = 1;
+  WORKFLOW_STATUS_RUNNING = 2;
+  WORKFLOW_STATUS_WAITING = 3;
+  WORKFLOW_STATUS_SUCCESS = 4;
+  WORKFLOW_STATUS_FAILED = 5;
+  WORKFLOW_STATUS_TIMED_OUT = 6;
+  WORKFLOW_STATUS_CANCELLED = 7;
+}
+
+// -----------------------------------------------------------------------------
+// Workflow Execution Started Event
+// -----------------------------------------------------------------------------
+
+message WorkflowExecutionStartedEvent {
+  common.Metadata metadata = 1;
+  common.WorkflowInfo workflow = 2;
+
+  message Payload {
+    WorkflowStatus status = 1;
+    google.protobuf.Struct context = 2;
+  }
+  Payload payload = 3;
+}
+
+// -----------------------------------------------------------------------------
+// Workflow Execution Paused Event
+// -----------------------------------------------------------------------------
+
+message WorkflowExecutionPausedEvent {
+  common.Metadata metadata = 1;
+  common.WorkflowInfo workflow = 2;
+
+  message Payload {
+    WorkflowStatus status = 1;
+    google.protobuf.Struct context = 2;
+  }
+  Payload payload = 3;
+}
+
+message WorkflowExecutionResumedEvent {
+  common.Metadata metadata = 1;
+  common.WorkflowInfo workflow = 2;
+
+  message Payload {
+    WorkflowStatus status = 1;
+    google.protobuf.Struct context = 2;
+    int64 duration_ms = 3;
+  }
+  Payload payload = 4;
+}
+
+message WorkflowExecutionSuccessEvent {
+  common.Metadata metadata = 1;
+  common.WorkflowInfo workflow = 2;
+
+  message Payload {
+    WorkflowStatus status = 1;
+    common.Result result = 2;
+    google.protobuf.Struct context = 3;
+    int64 duration_ms = 4;
+  }
+  Payload payload = 4;
+}
+
+// -----------------------------------------------------------------------------
+// Workflow Execution Failed Event
+// -----------------------------------------------------------------------------
+
+message WorkflowExecutionFailedEvent {
+  common.Metadata metadata = 1;
+  common.WorkflowInfo workflow = 2;
+
+  message Payload {
+    WorkflowStatus status = 1;
+    common.Result result = 2;
+    google.protobuf.Struct context = 3;
+    int64 duration_ms = 4;
+  }
+  Payload payload = 4;
+}
+
+// -----------------------------------------------------------------------------
+// Workflow Execution Cancelled Event
+// -----------------------------------------------------------------------------
+
+message WorkflowExecutionCancelledEvent {
+  common.Metadata metadata = 1;
+  common.WorkflowInfo workflow = 2;
+
+  message Payload {
+    WorkflowStatus status = 1;
+    google.protobuf.Struct context = 2;
+    int64 duration_ms = 3;
+  }
+  Payload payload = 3;
+}
+
+// -----------------------------------------------------------------------------
+// Workflow Execution Timed Out Event
+// -----------------------------------------------------------------------------
+
+message WorkflowExecutionTimedOutEvent {
+  common.Metadata metadata = 1;
+  common.WorkflowInfo workflow = 2;
+
+  message Payload {
+    WorkflowStatus status = 1;
+    common.Result result = 2;
+    google.protobuf.Struct context = 3;
+    int64 duration_ms = 4;
+  }
+  Payload payload = 5;
+}

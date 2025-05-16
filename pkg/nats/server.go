@@ -219,7 +219,6 @@ func (s *Server) SubscribeToLogs(execID string, handler func(*LogMessage)) (*nat
 
 		handler(&logMsg)
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to subscribe to logs: %w", err)
 	}
@@ -252,7 +251,6 @@ func (s *Server) SubscribeToLogLevel(
 
 		handler(&logMsg)
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to subscribe to log level %s: %w", level, err)
 	}

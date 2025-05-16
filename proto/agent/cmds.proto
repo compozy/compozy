@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package agent;
+
+option go_package = "github.com/compozy/compozy/pkg/pb/agent";
+
+import "common/metadata.proto";
+import "common/entities.proto";
+import "google/protobuf/struct.proto";
+
+// -----------------------------------------------------------------------------
+// Agent Execute Command
+// -----------------------------------------------------------------------------
+
+message AgentExecuteCommand {
+  common.Metadata metadata = 1;
+  common.WorkflowInfo workflow = 2;
+  common.TaskInfo task = 3;
+  common.AgentInfo agent = 4;
+
+  message Payload {
+    google.protobuf.Struct context = 1;
+  }
+  Payload payload = 5;
+}

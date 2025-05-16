@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package common;
+
+import "google/protobuf/struct.proto";
+
+option go_package = "github.com/compozy/compozy/pkg/pb/common";
+
+message ErrorResult {
+  string message = 1;
+  optional string code = 2;
+  optional google.protobuf.Struct details = 3;
+}
+
+message Result {
+  optional google.protobuf.Struct output = 1;
+  optional ErrorResult error = 2;
+}

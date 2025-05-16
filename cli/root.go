@@ -11,9 +11,6 @@ func RootCmd() *cobra.Command {
 	}
 
 	root.AddCommand(
-		InitCmd(),
-		BuildCmd(),
-		DeployCmd(),
 		DevCmd(),
 	)
 

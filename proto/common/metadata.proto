@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package common;
+
+option go_package = "github.com/compozy/compozy/pkg/pb/common";
+
+import "google/protobuf/timestamp.proto";
+
+message Metadata {
+  string correlation_id = 1;
+  optional string event_id = 2;
+  optional string request_id = 3;
+  optional string result_id = 4;
+  string source_component = 5;
+  optional string created_by = 6;
+  google.protobuf.Timestamp event_timestamp = 7;
+}

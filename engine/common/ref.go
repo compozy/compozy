@@ -14,35 +14,34 @@ type Component string
 
 const (
 	ComponentAgent    Component = "agent"
-	ComponentMcp      Component = "mcp"
 	ComponentTool     Component = "tool"
 	ComponentTask     Component = "task"
 	ComponentWorkflow Component = "workflow"
 )
 
-// IsAgent checks if the component is an agent
-func (c Component) IsAgent() bool {
-	return c == ComponentAgent
+// IsType checks if the component matches the specified type
+func (c Component) IsType(componentType Component) bool {
+	return c == componentType
 }
 
-// IsMcp checks if the component is an mcp
-func (c Component) IsMcp() bool {
-	return c == ComponentMcp
+// IsAgent checks if the component is an agent
+func (c Component) IsAgent() bool {
+	return c.IsType(ComponentAgent)
 }
 
 // IsTool checks if the component is a tool
 func (c Component) IsTool() bool {
-	return c == ComponentTool
+	return c.IsType(ComponentTool)
 }
 
 // IsTask checks if the component is a task
 func (c Component) IsTask() bool {
-	return c == ComponentTask
+	return c.IsType(ComponentTask)
 }
 
 // IsWorkflow checks if the component is a workflow
 func (c Component) IsWorkflow() bool {
-	return c == ComponentWorkflow
+	return c.IsType(ComponentWorkflow)
 }
 
 // Pattern returns the regex pattern for the component
@@ -50,23 +49,26 @@ func (c Component) Pattern() string {
 	return fmt.Sprintf("^%s\\((id|file|dep)=([^)]+)\\)$", c)
 }
 
-// RefType represents the type of reference
-type RefType struct {
-	Type  string
-	Value string
-}
+// RefTypeName represents the type of reference
+type RefTypeName string
 
 const (
-	refTypeFile = "file"
-	refTypeDep  = "dep"
+	RefTypeNameID   RefTypeName = "id"
+	RefTypeNameFile RefTypeName = "file"
+	RefTypeNameDep  RefTypeName = "dep"
 )
+
+// RefType represents the type of reference
+type RefType struct {
+	Type  RefTypeName
+	Value string
+}
 
 // parseDependencyParts splits a dependency string into its components
 func parseDependencyParts(value string) (owner, repo, packageName, version string, err error) {
 	// Split version if present
 	parts := strings.Split(value, "@")
 	basePart := parts[0]
-	version = ""
 	if len(parts) > 1 {
 		version = parts[1]
 	}
@@ -74,7 +76,6 @@ func parseDependencyParts(value string) (owner, repo, packageName, version strin
 	// Split package name if present
 	repoParts := strings.Split(basePart, ":")
 	ownerRepoPart := repoParts[0]
-	packageName = ""
 	if len(repoParts) > 1 {
 		packageName = repoParts[1]
 	}
@@ -105,9 +106,9 @@ func buildDependencyValue(owner, repo, packageName, version string) string {
 }
 
 // ParseRefType parses a reference type string
-func ParseRefType(typeStr, value string) (*RefType, error) {
+func ParseRefType(typeStr RefTypeName, value string) (*RefType, error) {
 	switch typeStr {
-	case "id":
+	case RefTypeNameID:
 		if strings.TrimSpace(value) == "" {
 			return nil, fmt.Errorf("reference value cannot be empty")
 		}
@@ -115,12 +116,12 @@ func ParseRefType(typeStr, value string) (*RefType, error) {
 			Type:  typeStr,
 			Value: value,
 		}, nil
-	case refTypeFile:
+	case RefTypeNameFile:
 		return &RefType{
 			Type:  typeStr,
 			Value: value,
 		}, nil
-	case refTypeDep:
+	case RefTypeNameDep:
 		owner, repo, packageName, version, err := parseDependencyParts(value)
 		if err != nil {
 			return nil, err
@@ -143,11 +144,11 @@ func (r *RefType) String() string {
 // Validate validates the reference type against a file path
 func (r *RefType) Validate(cwd string) error {
 	switch r.Type {
-	case "id":
+	case RefTypeNameID:
 		if strings.TrimSpace(r.Value) == "" {
 			return fmt.Errorf("reference value cannot be empty")
 		}
-	case "file":
+	case RefTypeNameFile:
 		path := filepath.Join(cwd, r.Value)
 		if !filepath.IsAbs(path) {
 			return fmt.Errorf("invalid file %q: %s", path, "file path must be absolute")
@@ -160,7 +161,7 @@ func (r *RefType) Validate(cwd string) error {
 			return fmt.Errorf("invalid file %q: %s", path, "invalid file extension: expected yaml or yml, got "+ext)
 		}
 		return nil
-	case "dep":
+	case RefTypeNameDep:
 		parts := strings.Split(r.Value, "/")
 		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 			return fmt.Errorf(
@@ -173,16 +174,24 @@ func (r *RefType) Validate(cwd string) error {
 	return nil
 }
 
+// IsType checks if the reference type matches the specified type
+func (r *RefType) IsType(refType RefTypeName) bool {
+	return r.Type == refType
+}
+
+// IsFile checks if the reference type is a file
 func (r *RefType) IsFile() bool {
-	return r.Type == "file"
+	return r.IsType(RefTypeNameFile)
 }
 
+// IsDep checks if the reference type is a dependency
 func (r *RefType) IsDep() bool {
-	return r.Type == "dep"
+	return r.IsType(RefTypeNameDep)
 }
 
+// IsID checks if the reference type is an ID
 func (r *RefType) IsID() bool {
-	return r.Type == "id"
+	return r.IsType(RefTypeNameID)
 }
 
 // PackageRef represents a reference to a package component
@@ -193,13 +202,17 @@ type PackageRef struct {
 
 // validateComponent checks if a component string is valid
 func validateComponent(component string) (Component, error) {
-	switch component {
-	case string(ComponentAgent), string(ComponentMcp), string(ComponentTool),
-		string(ComponentTask), string(ComponentWorkflow):
-		return Component(component), nil
-	default:
-		return "", fmt.Errorf("invalid component %q: %s", component, "unknown component")
+	validComponents := map[string]Component{
+		string(ComponentAgent):    ComponentAgent,
+		string(ComponentTool):     ComponentTool,
+		string(ComponentTask):     ComponentTask,
+		string(ComponentWorkflow): ComponentWorkflow,
 	}
+
+	if comp, ok := validComponents[component]; ok {
+		return comp, nil
+	}
+	return "", fmt.Errorf("invalid component %q: %s", component, "unknown component")
 }
 
 // MarshalJSON implements custom JSON marshaling for PackageRef
@@ -235,7 +248,7 @@ func (p *PackageRef) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("invalid type %q: %s", aux.Type, "invalid format")
 	}
 
-	refType, err := ParseRefType(parts[0], parts[1])
+	refType, err := ParseRefType(RefTypeName(parts[0]), parts[1])
 	if err != nil {
 		return err
 	}
@@ -253,7 +266,6 @@ func Parse(ref *PackageRefConfig) (*PackageRef, error) {
 	refStr := string(*ref)
 	components := []Component{
 		ComponentAgent,
-		ComponentMcp,
 		ComponentTool,
 		ComponentTask,
 		ComponentWorkflow,
@@ -265,7 +277,7 @@ func Parse(ref *PackageRefConfig) (*PackageRef, error) {
 		if matches := re.FindStringSubmatch(refStr); matches != nil {
 			typeStr := matches[1]
 			value := matches[2]
-			refType, err := ParseRefType(typeStr, value)
+			refType, err := ParseRefType(RefTypeName(typeStr), value)
 			if err != nil {
 				return nil, err
 			}

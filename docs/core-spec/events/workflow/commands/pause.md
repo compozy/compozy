@@ -8,7 +8,7 @@
 
 ### NATS Subject
 
-`compozy.<correlation_id>.workflow.commands.pause.<workflow_exec_id>`
+`compozy.<correlation_id>.workflow.cmds.pause.<workflow_exec_id>`
 
 ### JSON Payload Example:
 
