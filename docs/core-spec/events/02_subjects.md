@@ -42,10 +42,12 @@ Where:
 ## Workflow Events
 
 ### Commands
+-   [WorkflowTrigger](workflow/cmds/trigger.md#command-triggerworkflow) 
+    - Subject: `compozy.<correlation_id>.workflow.cmds.<workflow_id>.trigger`
+-   [WorkflowTriggerAsync](workflow/cmds/trigger_async.md#command-triggerasyncworkflow) 
+    - Subject: `compozy.<correlation_id>.workflow.cmds.<workflow_id>.trigger_async`
 -   [WorkflowExecute](workflow/cmds/execute.md#command-executeworkflow) 
-    - Subject: `compozy.<correlation_id>.workflow.cmds.<workflow_id>.execute`
--   [WorkflowExecuteAsync](workflow/cmds/trigger_async.md#command-workflowexecuteasync) 
-    - Subject: `compozy.<correlation_id>.workflow.cmds.<workflow_id>.execute_async`
+    - Subject: `compozy.<correlation_id>.workflow.cmds.<workflow_exec_id>.execute`
 -   [WorkflowPause](workflow/cmds/pause.md#command-pauseworkflow) 
     - Subject: `compozy.<correlation_id>.workflow.cmds.<workflow_exec_id>.pause`
 -   [WorkflowResume](workflow/cmds/resume.md#command-resumeworkflow) 
