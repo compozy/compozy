@@ -91,7 +91,7 @@ func TestFileReferences(t *testing.T) {
 				require.NoError(t, err, "Failed to parse task use reference")
 				assert.True(t, saveUseRef.Component.IsTool(), "Expected tool reference")
 				assert.True(t, saveUseRef.Type.IsFile(), "Expected file reference")
-				assert.True(t, saveTask.Final == "true", "Expected task to be final")
+				assert.True(t, saveTask.Final, "Expected task to be final")
 			})
 		})
 
