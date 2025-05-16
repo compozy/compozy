@@ -28,7 +28,6 @@ func NewAppState(
 	workflows []*workflow.Config,
 	natsServer *nats.Server,
 ) (*AppState, error) {
-	// ProjectConfig must be provided and have a valid CWD
 	if projectConfig == nil {
 		return nil, fmt.Errorf("project config is required")
 	}

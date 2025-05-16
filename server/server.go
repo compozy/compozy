@@ -50,14 +50,6 @@ func (s *Server) buildRouter() error {
 	// Add app state to context
 	router.Use(AppStateMiddleware(s.State))
 
-	// Add health check endpoint
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status": "healthy",
-			"time":   time.Now().Format(time.RFC3339),
-		})
-	})
-
 	if err := RegisterRoutes(router, s.State); err != nil {
 		return err
 	}

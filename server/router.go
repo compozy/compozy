@@ -1,169 +1,128 @@
 package server
 
 import (
-	"fmt"
-	"net/http"
-	"path"
-	"strings"
-	"time"
-
-	"github.com/compozy/compozy/engine/common"
-	"github.com/compozy/compozy/engine/domain/trigger"
-	"github.com/compozy/compozy/engine/domain/workflow"
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/server/handlers"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
-// Route defines a server route
-type Route struct {
-	Path     string
-	Workflow *workflow.Config
+func registerSystemRoutes(router *gin.Engine, apiBase *gin.RouterGroup) {
+	apiBase.GET("", handlers.HandleGetAPIInfo)
+	apiBase.GET("/health", handlers.HandleGetHealth)
+	apiBase.GET("/metrics", handlers.HandleGetMetrics)
+	apiBase.GET("/version", handlers.HandleGetVersion)
+
+	// Standalone routes (not under /api)
+	router.GET("/openapi.json", handlers.HandleGetOpenAPISchema)
+	router.GET("/swagger.ui", handlers.HandleGetSwaggerUI)
 }
 
-// normalizePath ensures the path starts with a single slash and preserves trailing slashes
-func normalizePath(p string) string {
-	p = strings.TrimSpace(p)
-	if p == "" {
-		return "/"
+func registerWorkflowRoutes(apiBase *gin.RouterGroup) {
+	workflowsGroup := apiBase.Group("/workflows")
+	{
+		workflowsGroup.GET("", handlers.HandleListWorkflows)
+		workflowsGroup.GET("/:workflow_id/definition", handlers.HandleGetWorkflowDefinition)
+		// List executions for a specific workflow
+		workflowsGroup.GET("/:workflow_id/executions", handlers.HandleListWorkflowExecutions)
+		workflowsGroup.POST("/:workflow_id/execute", handlers.HandleExecuteWorkflow)
+		workflowsGroup.POST("/:workflow_id/execute-async", handlers.HandleExecuteWorkflowAsync)
+
+		// Global Workflow Execution Routes (under /api/workflows/executions)
+		workflowExecutionsGroup := workflowsGroup.Group("/executions")
+		{
+			// List all executions across all workflows
+			workflowExecutionsGroup.GET("", handlers.HandleListAllWorkflowExecutions)
+			workflowExecutionsGroup.GET("/:workflow_exec_id", handlers.HandleGetWorkflowExecution)
+			workflowExecutionsGroup.GET("/:workflow_exec_id/status", handlers.HandleGetWorkflowExecutionStatus)
+			workflowExecutionsGroup.POST("/:workflow_exec_id/resume", handlers.HandleResumeWorkflowExecution)
+			workflowExecutionsGroup.POST("/:workflow_exec_id/cancel", handlers.HandleCancelWorkflowExecution)
+		}
 	}
-
-	hasTrailingSlash := strings.HasSuffix(p, "/")
-	cleanPath := path.Clean(p)
-
-	// Ensure path starts with a single slash
-	if !strings.HasPrefix(cleanPath, "/") {
-		cleanPath = "/" + cleanPath
-	}
-
-	// Restore trailing slash if it was present in the original path
-	if hasTrailingSlash {
-		cleanPath += "/"
-	}
-
-	return cleanPath
 }
 
-// RouteFromWorkflow creates a Route from a WorkflowConfig
-func RouteFromWorkflow(workflow *workflow.Config) (*Route, error) {
-	t := workflow.Trigger
-	if t.Type != trigger.TriggerTypeWebhook {
-		return nil, ErrRouteNotDefined
-	}
+func registerTaskRoutes(apiBase *gin.RouterGroup) {
+	tasksGroup := apiBase.Group("/tasks")
+	{
+		tasksGroup.GET("", handlers.HandleListTasks)
+		tasksGroup.GET("/:task_id/definition", handlers.HandleGetTaskDefinition)
+		// List executions for a specific task
+		tasksGroup.GET("/:task_id/executions", handlers.HandleListTaskExecutions)
+		tasksGroup.POST("/:task_id/trigger", handlers.HandleTriggerTask)
+		tasksGroup.POST("/:task_id/trigger-async", handlers.HandleTriggerTaskAsync)
 
-	// Get URL from webhook config
-	if t.Config == nil {
-		return nil, ErrRouteNotDefined
+		// Global Task Execution Routes (under /api/tasks/executions)
+		taskExecutionsGroup := tasksGroup.Group("/executions")
+		{
+			// List all executions across all tasks
+			taskExecutionsGroup.GET("", handlers.HandleListAllTaskExecutions)
+			taskExecutionsGroup.GET("/:task_exec_id", handlers.HandleGetTaskExecution)
+			taskExecutionsGroup.GET("/:task_exec_id/status", handlers.HandleGetTaskExecutionStatus)
+			taskExecutionsGroup.POST("/:task_exec_id/resume", handlers.HandleResumeTaskExecution)
+		}
 	}
-
-	url := t.Config.URL
-	if url == "" {
-		return nil, ErrRouteNotDefined
-	}
-
-	return &Route{
-		Path:     normalizePath(url),
-		Workflow: workflow,
-	}, nil
 }
 
-// handleRequest handles an incoming webhook request
-func handleRequest(c *gin.Context, workflow *workflow.Config) {
-	start := time.Now()
-	execID := uuid.New().String()
-	_, err := GetAppState(c.Request.Context())
-	if err != nil {
-		logger.Error("Failed to get app state",
-			"exec_id", execID,
-			"error", err,
-		)
-		reqErr := NewRequestError(http.StatusInternalServerError, "Failed to get app state", err)
-		c.JSON(reqErr.StatusCode, reqErr.ToErrorResponse())
-		return
+func registerAgentRoutes(apiBase *gin.RouterGroup) {
+	agentsGroup := apiBase.Group("/agents")
+	{
+		agentsGroup.GET("", handlers.HandleListAgents)
+		agentsGroup.GET("/:agent_id/definition", handlers.HandleGetAgentDefinition)
+		// List executions for a specific agent
+		agentsGroup.GET("/:agent_id/executions", handlers.HandleListAgentExecutions)
+
+		// Global Agent Execution Routes (under /api/agents/executions)
+		agentExecutionsGroup := agentsGroup.Group("/executions")
+		{
+			// List all executions across all agents
+			agentExecutionsGroup.GET("", handlers.HandleListAllAgentExecutions)
+			agentExecutionsGroup.GET("/:agent_exec_id", handlers.HandleGetAgentExecution)
+			agentExecutionsGroup.GET("/:agent_exec_id/status", handlers.HandleGetAgentExecutionStatus)
+		}
 	}
-
-	// Parse the input JSON
-	var inputData common.Input
-	if err := c.ShouldBindJSON(&inputData); err != nil {
-		logger.Error("Failed to parse JSON input",
-			"exec_id", execID,
-			"workflow_id", workflow.ID,
-			"error", err,
-		)
-		reqErr := NewRequestError(http.StatusBadRequest, "Invalid JSON input: "+err.Error(), err)
-		c.JSON(reqErr.StatusCode, reqErr.ToErrorResponse())
-		return
-	}
-
-	// Return success response
-	duration := time.Since(start)
-	logger.Debug("Webhook request completed successfully",
-		"exec_id", execID,
-		"workflow_id", workflow.ID,
-		"duration_ms", duration.Milliseconds(),
-	)
-
-	c.JSON(http.StatusOK, gin.H{
-		"duration": duration.Milliseconds(),
-		"status":   "success",
-		"message":  "Workflow triggered successfully",
-		"data":     map[string]any{},
-	})
 }
 
-// RegisterRoutes registers all workflow routes with the given router
+func registerToolRoutes(apiBase *gin.RouterGroup) {
+	toolsGroup := apiBase.Group("/tools")
+	{
+		toolsGroup.GET("", handlers.HandleListTools)
+		toolsGroup.GET("/:tool_id/definition", handlers.HandleGetToolDefinition)
+		// List executions for a specific tool
+		toolsGroup.GET("/:tool_id/executions", handlers.HandleListToolExecutions)
+
+		// Global Tool Execution Routes (under /api/tools/executions)
+		toolExecutionsGroup := toolsGroup.Group("/executions")
+		{
+			// List all executions across all tools
+			toolExecutionsGroup.GET("", handlers.HandleListAllToolExecutions)
+			toolExecutionsGroup.GET("/:tool_exec_id", handlers.HandleGetToolExecution)
+			toolExecutionsGroup.GET("/:tool_exec_id/status", handlers.HandleGetToolExecutionStatus)
+		}
+	}
+}
+
+func registerLogRoutes(apiBase *gin.RouterGroup) {
+	logsGroup := apiBase.Group("/logs")
+	{
+		logsGroup.GET("", handlers.HandleListLogs)
+		logsGroup.GET("/:log_id", handlers.HandleGetLogByID)
+		logsGroup.GET("/workflows/:workflow_exec_id", handlers.HandleGetLogsForWorkflowExecution)
+	}
+}
+
+// RegisterRoutes registers all API routes with the given router
 func RegisterRoutes(router *gin.Engine, state *AppState) error {
-	registeredRoutes := make(map[string]bool)
-	routeCount := 0
+	// Base /api group
+	apiBase := router.Group("/api")
 
-	for _, workflow := range state.Workflows {
-		route, err := RouteFromWorkflow(workflow)
-		if err != nil {
-			if err == ErrRouteNotDefined {
-				logger.Debug("Skipping workflow without webhook trigger",
-					"workflow_id", workflow.ID,
-					"trigger_type", workflow.Trigger.Type,
-				)
-			} else {
-				logger.Error("Failed to create route from workflow",
-					"workflow_id", workflow.ID,
-					"error", err,
-				)
-			}
-			continue // Skip workflows without webhook triggers
-		}
-
-		// Normalize the path
-		path := route.Path
-		if !strings.HasPrefix(path, "/") {
-			path = "/" + path
-		}
-
-		if _, exists := registeredRoutes[path]; exists {
-			logger.Error("Detected route conflict",
-				"path", path,
-				"workflow_id", workflow.ID,
-			)
-			return fmt.Errorf("%w: %s", ErrRouteConflict, path)
-		}
-
-		registeredRoutes[path] = true
-		routeCount++
-
-		logger.Debug("Registering webhook route",
-			"path", path,
-			"workflow_id", workflow.ID,
-			"method", "POST",
-		)
-
-		router.POST(path, func(c *gin.Context) {
-			handleRequest(c, route.Workflow)
-		})
-	}
+	registerSystemRoutes(router, apiBase)
+	registerWorkflowRoutes(apiBase)
+	registerTaskRoutes(apiBase)
+	registerAgentRoutes(apiBase)
+	registerToolRoutes(apiBase)
+	registerLogRoutes(apiBase)
 
 	logger.Info("Completed route registration",
-		"total_routes", routeCount,
-		"total_workflows", len(state.Workflows),
+		"total_workflows_in_state_for_context", len(state.Workflows),
 	)
 
 	return nil
