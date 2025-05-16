@@ -1,0 +1,251 @@
+# Component Naming Standardization
+
+This document outlines the standardized architectural component names within the Compozy Workflow Engine project. These names align with widely recognized terminology in distributed systems and workflow management, enhancing clarity and maintainability.
+
+## Component Names
+
+1. **API Service**
+   - **Package:** `api`
+   - **Struct:** `Service`
+   - **Responsibilities:**
+     - Exposes external APIs (REST) for managing and interacting with the workflow engine.
+     - Handles endpoints for creating, updating, and deleting workflow definitions.
+     - Facilitates triggering new workflow and task instances (e.g., `WorkflowTrigger`, `TaskTrigger`) and querying their status and history.
+     - Supports manual interventions like resuming (`WorkflowResume`, `TaskResume`), pausing (`WorkflowPause`), or canceling (`WorkflowCancel`) workflows.
+   - **Consumed Events:**
+     - None (API Service primarily initiates commands via external requests).
+   - **Produced Events:**
+     - **Commands:**
+       - `WorkflowTrigger` 
+       - `WorkflowTriggerAsync` 
+       - `WorkflowPause` 
+       - `WorkflowResume` 
+       - `WorkflowCancel` 
+       - `TaskTrigger` 
+       - `TaskTriggerAsync` 
+       - `TaskResume` 
+     - **Log Events:**
+       - `LogEmitted` 
+
+2. **System Orchestrator**
+   - **Package:** `system`
+   - **Struct:** `Orchestrator`
+   - **Responsibilities:**
+     - Acts as the central brain of the engine, initiating workflow executions based on triggers (e.g., `WorkflowTrigger`, `WorkflowTriggerAsync`).
+     - Interprets workflow definitions to manage sequence, conditional logic, and parallelism.
+     - Maintains the high-level state of running workflow instances.
+     - Coordinates with other components to process control commands (e.g., `WorkflowPause`, `WorkflowCancel`, `WorkflowResume`).
+     - Monitors task dispatching via `TaskDispatched` events for visibility and coordination.
+   - **Consumed Events:**
+     - **Commands:**
+       - `WorkflowTrigger` 
+       - `WorkflowTriggerAsync` 
+       - `WorkflowPause` 
+       - `WorkflowResume` 
+       - `WorkflowCancel` 
+       - `TaskTrigger` 
+       - `TaskTriggerAsync` 
+     - **State Events:**
+       - `AgentExecutionFailed` 
+       - `TaskDispatched` 
+     - **Log Events:**
+       - `LogEmitted` 
+   - **Produced Events:**
+     - **Commands:**
+       - `WorkflowExecute` 
+     - **Log Events:**
+       - `LogEmitted` 
+
+3. **State Manager**
+   - **Package:** `state`
+   - **Struct:** `Manager`
+   - **Responsibilities:**
+     - Manages persistence and retrieval of all workflow-related state data.
+     - Implements event sourcing by recording state changes as immutable events in NATS JetStream (e.g., `WorkflowExecutionStarted`, `TaskExecutionFailed`).
+     - Takes periodic snapshots of workflow instances for efficient state reconstruction.
+     - Provides APIs for recording events and querying current or historical states.
+   - **Consumed Events:**
+     - **State Events:**
+       - `WorkflowExecutionStarted` 
+       - `WorkflowExecutionPaused` 
+       - `WorkflowExecutionResumed` 
+       - `WorkflowExecutionSuccess` 
+       - `WorkflowExecutionFailed` 
+       - `WorkflowExecutionCancelled` 
+       - `WorkflowExecutionTimedOut` 
+       - `TaskExecutionStarted` 
+       - `TaskExecutionSuccess` 
+       - `TaskExecutionFailed` 
+       - `TaskWaitingStarted` 
+       - `TaskWaitingEnded` 
+       - `TaskWaitingTimedOut` 
+       - `TaskRetryScheduled` 
+       - `TaskDispatched` 
+       - `AgentExecutionStarted` 
+       - `AgentExecutionSuccess` 
+       - `AgentExecutionFailed` 
+       - `ToolExecutionStarted` 
+       - `ToolExecutionSuccess` 
+       - `ToolExecutionFailed` 
+   - **Produced Events:**
+     - **Log Events:**
+       - `LogEmitted` 
+
+4. **Workflow Executor**
+   - **Package:** `workflow`
+   - **Struct:** `Executor`
+   - **Responsibilities:**
+     - Validates the workflow definition and its input parameters.
+     - Executes the workflow logic, including task execution and state management.
+     - Manages the workflow lifecycle, producing state events (e.g., `WorkflowExecutionStarted`, `WorkflowExecutionPaused`, `WorkflowExecutionSuccess`, `WorkflowExecutionFailed`, `WorkflowExecutionTimedOut`, `WorkflowExecutionResumed`).
+     - Dispatches tasks by producing `TaskExecute` commands and notifying the orchestrator via `TaskDispatched` events.
+     - Handles workflow cancellation, producing `WorkflowExecutionCancelled` when instructed.
+   - **Consumed Events:**
+     - **Commands:**
+       - `WorkflowExecute` 
+   - **Produced Events:**
+     - **Commands:**
+       - `TaskExecute` 
+     - **State Events:**
+       - `WorkflowExecutionStarted` 
+       - `WorkflowExecutionPaused` 
+       - `WorkflowExecutionResumed` 
+       - `WorkflowExecutionSuccess` 
+       - `WorkflowExecutionFailed` 
+       - `WorkflowExecutionCancelled` 
+       - `WorkflowExecutionTimedOut` 
+       - `TaskDispatched` 
+     - **Log Events:**
+       - `LogEmitted` 
+
+5. **Task Executor**
+   - **Package:** `task`
+   - **Struct:** `Executor`
+   - **Responsibilities:**
+     - Validates the task definition and its input parameters.
+     - Operates as a pool of workers subscribing to NATS task queues (e.g., `TaskExecute`, `TaskResume`).
+     - Executes task logic, including Go-native code or invoking tools/agents via NATS to `system.Runtime`.
+     - Manages task lifecycle, producing state events (e.g., `TaskExecutionStarted`, `TaskExecutionSuccess`, `TaskExecutionFailed`, `TaskWaitingStarted`, `TaskWaitingEnded`, `TaskWaitingTimedOut`).
+     - Schedules retries for failed tasks, producing `TaskRetryScheduled` based on retry policies.
+     - Reports task outcomes (success, failure, output) back to the workflow executor.
+   - **Consumed Events:**
+     - **Commands:**
+       - `TaskExecute` 
+       - `TaskResume` 
+   - **Produced Events:**
+     - **Commands:**
+       - `AgentExecute` 
+       - `ToolExecute` 
+     - **State Events:**
+       - `TaskExecutionStarted` 
+       - `TaskExecutionSuccess` 
+       - `TaskExecutionFailed` 
+       - `TaskWaitingStarted` 
+       - `TaskWaitingEnded` 
+       - `TaskWaitingTimedOut` 
+       - `TaskRetryScheduled` 
+     - **Log Events:**
+       - `LogEmitted` 
+
+6. **System Runtime**
+   - **Package:** `runtime`
+   - **Struct:** `Runtime`
+   - **Responsibilities:**
+     - Provides the execution environment for agents and tools, primarily utilizing Deno.
+     - Manages the lifecycle of agent and tool executions, including initialization, execution, and cleanup.
+     - Handles context and state management for agents and tools during their execution.
+     - Executes tool (`ToolExecute`) and agent (`AgentExecute`) implementations when requested by `task.Executor`.
+     - Validates inputs and formats outputs for agents and tools according to their schemas.
+     - Produces state events (e.g., `AgentExecutionStarted`, `AgentExecutionSuccess`, `AgentExecutionFailed`, `ToolExecutionStarted`, `ToolExecutionSuccess`, `ToolExecutionFailed`).
+     - Communicates execution results (success, failure, output) back to the requester (e.g., `task.Executor`).
+   - **Consumed Events:**
+     - **Commands:**
+       - `AgentExecute` 
+       - `ToolExecute` 
+   - **Produced Events:**
+     - **State Events:**
+       - `AgentExecutionStarted` 
+       - `AgentExecutionSuccess` 
+       - `AgentExecutionFailed` 
+       - `ToolExecutionStarted` 
+       - `ToolExecutionSuccess` 
+       - `ToolExecutionFailed` 
+     - **Log Events:**
+       - `LogEmitted` 
+
+7. **System Monitoring**
+   - **Package:** `monitoring`
+   - **Struct:** `Monitoring`
+   - **Responsibilities:**
+     - Collects and processes metrics, logs, and alerts for observability.
+     - Consumes state events (e.g., `WorkflowExecutionSuccess`, `TaskExecutionFailed`, `AgentExecutionStarted`) to track system performance and health.
+     - Consumes log events (`LogEmitted`) for debugging and monitoring.
+     - Provides APIs for querying metrics and logs, supporting real-time and historical analysis.
+     - Triggers alerts for critical events (e.g., `WorkflowExecutionTimedOut`, `TaskWaitingTimedOut`).
+   - **Consumed Events:**
+     - **State Events:**
+       - `WorkflowExecutionStarted` 
+       - `WorkflowExecutionPaused` 
+       - `WorkflowExecutionResumed` 
+       - `WorkflowExecutionSuccess` 
+       - `WorkflowExecutionFailed` 
+       - `WorkflowExecutionCancelled` 
+       - `WorkflowExecutionTimedOut` 
+       - `TaskExecutionStarted` 
+       - `TaskExecutionSuccess` 
+       - `TaskExecutionFailed` 
+       - `TaskWaitingStarted` 
+       - `TaskWaitingEnded` 
+       - `TaskWaitingTimedOut` 
+       - `TaskRetryScheduled` 
+       - `TaskDispatched` 
+       - `AgentExecutionStarted` 
+       - `AgentExecutionSuccess` 
+       - `AgentExecutionFailed` 
+       - `ToolExecutionStarted` 
+       - `ToolExecutionSuccess` 
+       - `ToolExecutionFailed` 
+     - **Log Events:**
+       - `LogEmitted` 
+   - **Produced Events:**
+     - **Log Events:**
+       - `LogEmitted` 
+
+8. **NATS Client**
+   - **Package:** `nats`
+   - **Struct:** `Client`
+   - **Responsibilities:**
+     - Facilitates all asynchronous and synchronous communication between workflow engine components.
+     - Supports task queues, event streams, and inter-process communication with `system.Runtime`.
+     - Enables streaming for real-time updates and chat-style interactions.
+     - Ensures durability with JetStream for critical message streams.
+   - **Consumed Events:**
+     - None (NATS Client handles message transport, not event processing).
+   - **Produced Events:**
+     - **Log Events:**
+       - `LogEmitted` 
+
+9. **NATS Server**
+   - **Package:** `nats`
+   - **Struct:** `Server`
+   - **Responsibilities:**
+     - Provides the NATS server for the workflow engine.
+     - Manages the NATS server configuration and lifecycle.
+     - Handles the NATS server's startup and shutdown.
+   - **Consumed Events:**
+     - None (NATS Server provides infrastructure, not event processing).
+   - **Produced Events:**
+     - **Log Events:**
+       - `LogEmitted` 
+
+## Impact
+
+These standardized names and event mappings are reflected in:
+
+- Directory structures within `src/internal/`.
+- Go package declarations and struct definitions.
+- Import paths and instantiation points throughout the codebase.
+- References in documentation files (READMEs, architecture diagrams, task definitions, assertion scenarios, etc.).
+- Event `Produced By`, `Consumed By`, and `source_component` fields in NATS event documentation.
+
+This standardization improves the project's alignment with industry best practices and makes the codebase more intuitive for developers familiar with distributed systems and workflow engine concepts.
