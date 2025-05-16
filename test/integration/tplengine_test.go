@@ -1,4 +1,4 @@
-package integration
+package test
 
 import (
 	"os"
@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/compozy/compozy/internal/tplengine"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // normalizeWhitespace removes excess whitespace from a string to make tests more robust

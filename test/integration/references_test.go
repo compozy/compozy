@@ -1,4 +1,4 @@
-package integration
+package test
 
 import (
 	"path/filepath"
@@ -7,10 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/compozy/compozy/internal/parser/agent"
-	"github.com/compozy/compozy/internal/parser/common"
-	"github.com/compozy/compozy/internal/parser/project"
-	"github.com/compozy/compozy/internal/parser/tool"
+	"github.com/compozy/compozy/engine/common"
+	"github.com/compozy/compozy/engine/domain/agent"
+	"github.com/compozy/compozy/engine/domain/project"
+	"github.com/compozy/compozy/engine/domain/tool"
 )
 
 // TestFileReferences tests the CWD handling with file references

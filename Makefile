@@ -67,7 +67,7 @@ deps:
 
 # Generate JSON schemas
 schemagen:
-	$(GOCMD) run cmd/schemagen/generate.go -out=./schemas
+	$(GOCMD) run pkg/schemagen/generate.go -out=./schemas
 
 # Docker compose
 start-nats:
@@ -87,6 +87,7 @@ restart-nats:
 # Run tests
 test:
 	make start-nats
+	gotestsum --format testdox ./...
 	make test-runtime
 	make stop-nats
 
