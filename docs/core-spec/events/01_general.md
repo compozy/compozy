@@ -99,10 +99,10 @@ While not strictly enforced in JSON, these represent common status values:
 
 ```
 // Workflow Status Values
-"PENDING", "RUNNING", "WAITING", "SUCCESS", "FAILED", "TIMED_OUT", "CANCELLED"
+"PENDING", "RUNNING", "WAITING", "SUCCESS", "FAILED", "TIMED_OUT", "CANCELED"
 
 // Task Status Values
-"PENDING", "SCHEDULED", "RUNNING", "WAITING", "SUCCESS", "FAILED", "TIMED_OUT", "CANCELLED", "RETRY_SCHEDULED"
+"PENDING", "SCHEDULED", "RUNNING", "WAITING", "SUCCESS", "FAILED", "TIMED_OUT", "CANCELED", "RETRY_SCHEDULED"
 
 // Tool Execution Status Values
 "RUNNING", "SUCCESS", "FAILED"
