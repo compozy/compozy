@@ -8,7 +8,7 @@ import (
 // State represents the state of a workflow execution
 type State struct {
 	state.BaseState
-	Tasks state.StateMap `json:"tasks,omitempty"`
+	Tasks state.Map `json:"tasks,omitempty"`
 }
 
 // UpdateFromEvent updates the workflow state based on an event
@@ -52,6 +52,6 @@ func NewWorkflowState(wID, cID string) *State {
 			Output: make(map[string]any),
 			Env:    make(map[string]string),
 		},
-		Tasks: make(state.StateMap),
+		Tasks: make(state.Map),
 	}
 }

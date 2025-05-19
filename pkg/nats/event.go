@@ -42,7 +42,7 @@ const (
 	TaskStatusFailed         = "TASK_STATUS_FAILED"
 	TaskStatusWaiting        = "TASK_STATUS_WAITING"
 	TaskStatusRetryScheduled = "TASK_STATUS_RETRY_SCHEDULED"
-	TaskStatusCancelled      = "TASK_STATUS_CANCELLED"
+	TaskStatusCancelled      = "TASK_STATUS_CANCELED"
 	TaskStatusTimedOut       = "TASK_STATUS_TIMED_OUT"
 
 	ToolStatusUnspecified = "TOOL_STATUS_UNSPECIFIED"
@@ -112,7 +112,7 @@ func ToStatus(eventStatus EventStatus) EvStatusType {
 	case TaskStatusRetryScheduled:
 		return StatusRetryScheduled
 
-	// Handle cancelled statuses
+	// Handle canceled statuses
 	case TaskStatusCancelled, WorkflowStatusCanceled:
 		return StatusCancelled
 

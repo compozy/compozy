@@ -2,6 +2,7 @@ package state
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/pkg/nats"
@@ -51,11 +52,14 @@ type State interface {
 // -----------------------------------------------------------------------------
 
 type BaseState struct {
-	ID     ID                `json:"id"`
-	Status nats.EvStatusType `json:"status"`
-	Input  common.Input      `json:"input,omitempty"`
-	Output common.Output     `json:"output,omitempty"`
-	Env    common.EnvMap     `json:"environment,omitempty"`
+	ID        ID                     `json:"id"`
+	Status    nats.EvStatusType      `json:"status"`
+	Input     common.Input           `json:"input,omitempty"`
+	Output    common.Output          `json:"output,omitempty"`
+	Env       common.EnvMap          `json:"environment,omitempty"`
+	Errors    []string               `json:"errors,omitempty"`
+	Context   map[string]interface{} `json:"context,omitempty"`
+	UpdatedAt time.Time              `json:"updated_at"`
 }
 
 func (s *BaseState) GetID() ID {
@@ -104,9 +108,53 @@ func (s *BaseState) WithInput(input common.Input) error {
 	return nil
 }
 
-// We need this to avoid errors when implementing the State interface here
-// but each component will implement this differently
+// UpdateFromEvent updates the state based on an event
 func (s *BaseState) UpdateFromEvent(event nats.Event) error {
+	// Update the status if available
+	status, err := nats.StatusFromEvent(event)
+	if err == nil && status != "" {
+		s.Status = status
+	}
+
+	// Update inputs or outputs based on event payload
+	if result, err := nats.ResultFromEvent(event); err == nil && result != nil {
+		// If there's output in the result, update the state's output
+		if result.GetOutput() != nil {
+			// Convert structpb.Struct to common.Output (map[string]interface{})
+			outputMap := make(common.Output)
+			for k, v := range result.GetOutput().AsMap() {
+				outputMap[k] = v
+			}
+
+			// Merge with existing output
+			for k, v := range outputMap {
+				s.Output[k] = v
+			}
+		}
+
+		// If there's an error in the result, store it in the state
+		if result.GetError() != nil {
+			if s.Errors == nil {
+				s.Errors = make([]string, 0)
+			}
+			s.Errors = append(s.Errors, result.GetError().GetMessage())
+		}
+	}
+
+	// Update the context if available in the payload
+	if payload := event.GetPayload(); payload != nil {
+		if ctx := payload.GetContext(); ctx != nil {
+			// Convert context to map[string]interface{} and merge with existing context
+			contextMap := ctx.AsMap()
+			for k, v := range contextMap {
+				s.Context[k] = v
+			}
+		}
+	}
+
+	// Update the last updated timestamp
+	s.UpdatedAt = time.Now().UTC()
+
 	return nil
 }
 
@@ -114,17 +162,21 @@ func (s *BaseState) UpdateFromEvent(event nats.Event) error {
 // State Map
 // -----------------------------------------------------------------------------
 
-type StateMap map[ID]State
+// Map is a map of ID to State for efficient state lookups
+type Map map[ID]State
 
-func (sm StateMap) Get(id ID) (State, bool) {
+// Get retrieves a state by its ID
+func (sm Map) Get(id ID) (State, bool) {
 	state, exists := sm[id]
 	return state, exists
 }
 
-func (sm StateMap) Add(state State) {
+// Add adds a state to the map
+func (sm Map) Add(state State) {
 	sm[state.GetID()] = state
 }
 
-func (sm StateMap) Remove(id ID) {
+// Remove removes a state from the map
+func (sm Map) Remove(id ID) {
 	delete(sm, id)
 }
