@@ -1,9 +1,9 @@
 ## State Event: `TaskExecutionStarted`
 
-**Description:** A task.Executor has picked up and started executing a task.
-**Produced By:** `task.Executor`
+**Description:** A task execution has been initialized and marked as started by the system orchestrator.
+**Produced By:** `system.Orchestrator`
 **Consumed By:** `state.Manager`, `system.Monitoring`
-**Lifecycle Stage:** Task begins active processing by a worker.
+**Lifecycle Stage:** Task state is initialized before actual processing begins.
 **NATS Communication Pattern:** Asynchronous
 
 ### NATS Subject
@@ -18,7 +18,7 @@
     "correlation_id": "<uuid>",
     "event_id": "<uuid>",
     "event_timestamp": "2025-05-13T20:00:15Z",
-    "source_component": "task.Executor"
+    "source_component": "system.Orchestrator"
   },
   "workflow": {
     "exec_id": "<uuid>"

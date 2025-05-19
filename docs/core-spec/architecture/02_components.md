@@ -33,9 +33,10 @@ This document outlines the standardized architectural component names within the
    - **Responsibilities:**
      - Acts as the central brain of the engine, initiating workflow executions based on triggers (e.g., `WorkflowTrigger`, `WorkflowTriggerAsync`).
      - Interprets workflow definitions to manage sequence, conditional logic, and parallelism.
-     - Maintains the high-level state of running workflow instances.
+     - Initializes and maintains the complete state of all workflow and task instances.
+     - Assigns unique execution IDs to all workflows and tasks.
      - Coordinates with other components to process control commands (e.g., `WorkflowPause`, `WorkflowCancel`, `WorkflowResume`).
-     - Monitors task dispatching via `TaskDispatched` events for visibility and coordination.
+     - Handles task dispatching by producing `TaskDispatched` events for visibility and coordination.
    - **Consumed Events:**
      - **Commands:**
        - `WorkflowTrigger` 
@@ -47,12 +48,16 @@ This document outlines the standardized architectural component names within the
        - `TaskTriggerAsync` 
      - **State Events:**
        - `AgentExecutionFailed` 
-       - `TaskDispatched` 
      - **Log Events:**
        - `LogEmitted` 
    - **Produced Events:**
      - **Commands:**
        - `WorkflowExecute` 
+       - `TaskExecute`
+     - **State Events:**
+       - `WorkflowExecutionStarted`
+       - `TaskExecutionStarted`
+       - `TaskDispatched`
      - **Log Events:**
        - `LogEmitted` 
 
@@ -96,25 +101,21 @@ This document outlines the standardized architectural component names within the
    - **Struct:** `Executor`
    - **Responsibilities:**
      - Validates the workflow definition and its input parameters.
-     - Executes the workflow logic, including task execution and state management.
-     - Manages the workflow lifecycle, producing state events (e.g., `WorkflowExecutionStarted`, `WorkflowExecutionPaused`, `WorkflowExecutionSuccess`, `WorkflowExecutionFailed`, `WorkflowExecutionTimedOut`, `WorkflowExecutionResumed`).
-     - Dispatches tasks by producing `TaskExecute` commands and notifying the orchestrator via `TaskDispatched` events.
+     - Executes the workflow logic.
+     - Updates the workflow state, producing state update events (e.g., `WorkflowExecutionPaused`, `WorkflowExecutionSuccess`, `WorkflowExecutionFailed`, `WorkflowExecutionTimedOut`, `WorkflowExecutionResumed`).
      - Handles workflow cancellation, producing `WorkflowExecutionCancelled` when instructed.
+     - Requests task execution from the orchestrator.
    - **Consumed Events:**
      - **Commands:**
        - `WorkflowExecute` 
    - **Produced Events:**
-     - **Commands:**
-       - `TaskExecute` 
      - **State Events:**
-       - `WorkflowExecutionStarted` 
        - `WorkflowExecutionPaused` 
        - `WorkflowExecutionResumed` 
        - `WorkflowExecutionSuccess` 
        - `WorkflowExecutionFailed` 
        - `WorkflowExecutionCancelled` 
        - `WorkflowExecutionTimedOut` 
-       - `TaskDispatched` 
      - **Log Events:**
        - `LogEmitted` 
 
@@ -125,7 +126,7 @@ This document outlines the standardized architectural component names within the
      - Validates the task definition and its input parameters.
      - Operates as a pool of workers subscribing to NATS task queues (e.g., `TaskExecute`, `TaskResume`).
      - Executes task logic, including Go-native code or invoking tools/agents via NATS to `system.Runtime`.
-     - Manages task lifecycle, producing state events (e.g., `TaskExecutionStarted`, `TaskExecutionSuccess`, `TaskExecutionFailed`, `TaskWaitingStarted`, `TaskWaitingEnded`, `TaskWaitingTimedOut`).
+     - Updates task state, producing state update events (e.g., `TaskExecutionSuccess`, `TaskExecutionFailed`, `TaskWaitingStarted`, `TaskWaitingEnded`, `TaskWaitingTimedOut`).
      - Schedules retries for failed tasks, producing `TaskRetryScheduled` based on retry policies.
      - Reports task outcomes (success, failure, output) back to the workflow executor.
    - **Consumed Events:**
@@ -137,7 +138,6 @@ This document outlines the standardized architectural component names within the
        - `AgentExecute` 
        - `ToolExecute` 
      - **State Events:**
-       - `TaskExecutionStarted` 
        - `TaskExecutionSuccess` 
        - `TaskExecutionFailed` 
        - `TaskWaitingStarted` 

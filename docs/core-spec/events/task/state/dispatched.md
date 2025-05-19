@@ -1,8 +1,8 @@
 ## State Event: `TaskDispatched`
 
-**Description:** A task has been dispatched by the workflow executor to the task executor for execution within a workflow.
-**Produced By:** `workflow.Executor`
-**Consumed By:** `system.Orchestrator`, `state.Manager`, `system.Monitoring`
+**Description:** A task has been dispatched by the system orchestrator to the task executor for execution within a workflow.
+**Produced By:** `system.Orchestrator`
+**Consumed By:** `state.Manager`, `system.Monitoring`
 **Lifecycle Stage:** Task is queued for execution by the task executor.
 **NATS Communication Pattern:** Asynchronous
 
@@ -18,7 +18,7 @@
     "correlation_id": "<uuid>",
     "event_id": "<uuid>",
     "event_timestamp": "2025-05-15T17:50:00Z",
-    "source_component": "workflow.Executor",
+    "source_component": "system.Orchestrator",
     "created_by": "system"
   },
   "workflow": {

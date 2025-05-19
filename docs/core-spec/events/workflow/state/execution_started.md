@@ -1,7 +1,7 @@
 ## State Event: `WorkflowExecutionStarted`
 
 **Description:** A new workflow execution has commenced.
-**Produced By:** `workflow.Executor`
+**Produced By:** `system.Orchestrator`
 **Consumed By:** `state.Manager`, `system.Monitoring`
 **Lifecycle Stage:** Start of active execution for a workflow instance.
 **NATS Communication Pattern:** Asynchronous
@@ -18,7 +18,7 @@
     "correlation_id": "<uuid>",
     "event_id": "<uuid>",
     "event_timestamp": "2025-05-13T20:00:05Z",
-    "source_component": "workflow.Executor"
+    "source_component": "system.Orchestrator"
   },
   "workflow": {
     "id": "user_onboarding_v1",

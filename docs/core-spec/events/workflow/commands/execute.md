@@ -1,9 +1,9 @@
 ## Command: `WorkflowExecute`
 
-**Description:** An internal command for the `workflow.Executor`'s execution engine to begin processing a previously triggered and acknowledged workflow instance. This typically follows initial validation, persistence of the workflow instance, and, for synchronous triggers, sending an acknowledgment.
+**Description:** An internal command for the `workflow.Executor`'s execution engine to begin processing a previously triggered, acknowledged, and initialized workflow instance. This follows the creation of the workflow state by the orchestrator, initial validation, persistence of the workflow instance, and, for synchronous triggers, sending an acknowledgment.
 **Produced By:** `system.Orchestrator` 
 **Consumed By:** `workflow.Executor` 
-**Lifecycle Stage:** Orchestrator is ready to start the actual workflow logic (e.g., evaluating the first step or task).
+**Lifecycle Stage:** Orchestrator has initialized the workflow state and is ready for the executor to start the actual workflow logic (e.g., evaluating the first step or task).
 **NATS Communication Pattern:** Asynchronous (internal command)
 
 ### NATS Subject
