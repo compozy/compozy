@@ -2,7 +2,6 @@ package state
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/pkg/nats"
@@ -38,10 +37,11 @@ type State interface {
 	GetID() ID
 	GetStatus() nats.EvStatusType
 	GetEnv() *common.EnvMap
+	GetTrigger() *common.Input
 	GetInput() *common.Input
 	GetOutput() *common.Output
 	SetStatus(status nats.EvStatusType)
-	UpdateFromEvent(event nats.Event) error
+	UpdateStatus(event any) error
 	FromParentState(parent State) error
 	WithEnv(env common.EnvMap) error
 	WithInput(input common.Input) error
@@ -52,14 +52,13 @@ type State interface {
 // -----------------------------------------------------------------------------
 
 type BaseState struct {
-	ID        ID                     `json:"id"`
-	Status    nats.EvStatusType      `json:"status"`
-	Input     common.Input           `json:"input,omitempty"`
-	Output    common.Output          `json:"output,omitempty"`
-	Env       common.EnvMap          `json:"environment,omitempty"`
-	Errors    []string               `json:"errors,omitempty"`
-	Context   map[string]interface{} `json:"context,omitempty"`
-	UpdatedAt time.Time              `json:"updated_at"`
+	ID      ID                `json:"id"`
+	Status  nats.EvStatusType `json:"status"`
+	Trigger common.Input      `json:"trigger,omitempty"`
+	Input   common.Input      `json:"input,omitempty"`
+	Output  common.Output     `json:"output,omitempty"`
+	Env     common.EnvMap     `json:"environment,omitempty"`
+	Errors  []string          `json:"errors,omitempty"`
 }
 
 func (s *BaseState) GetID() ID {
@@ -72,6 +71,10 @@ func (s *BaseState) GetStatus() nats.EvStatusType {
 
 func (s *BaseState) GetEnv() *common.EnvMap {
 	return &s.Env
+}
+
+func (s *BaseState) GetTrigger() *common.Input {
+	return &s.Trigger
 }
 
 func (s *BaseState) GetInput() *common.Input {
@@ -87,11 +90,11 @@ func (s *BaseState) SetStatus(status nats.EvStatusType) {
 }
 
 func (s *BaseState) FromParentState(parent State) error {
-	return FromParentState(s, parent)
+	return DefFromParentState(s, parent)
 }
 
 func (s *BaseState) WithEnv(env common.EnvMap) error {
-	newEnv, err := WithEnv(s, env)
+	newEnv, err := DefWithEnv(s, env)
 	if err != nil {
 		return err
 	}
@@ -100,7 +103,7 @@ func (s *BaseState) WithEnv(env common.EnvMap) error {
 }
 
 func (s *BaseState) WithInput(input common.Input) error {
-	newInput, err := WithInput(s, input)
+	newInput, err := DefWithInput(s, input)
 	if err != nil {
 		return err
 	}
@@ -108,54 +111,66 @@ func (s *BaseState) WithInput(input common.Input) error {
 	return nil
 }
 
-// UpdateFromEvent updates the state based on an event
-func (s *BaseState) UpdateFromEvent(event nats.Event) error {
-	// Update the status if available
-	status, err := nats.StatusFromEvent(event)
-	if err == nil && status != "" {
+func (s *BaseState) UpdateStatus(_ any) error {
+	return nil
+}
+
+// -----------------------------------------------------------------------------
+// State Factory
+// -----------------------------------------------------------------------------
+
+type Option func(*BaseState)
+
+func NewEmptyState(opts ...Option) State {
+	state := &BaseState{
+		ID:      ID{},
+		Status:  nats.StatusPending,
+		Trigger: common.Input{},
+		Input:   common.Input{},
+		Output:  common.Output{},
+		Env:     common.EnvMap{},
+		Errors:  []string{},
+	}
+	for _, opt := range opts {
+		opt(state)
+	}
+	return state
+}
+
+func WithID(id ID) Option {
+	return func(s *BaseState) {
+		s.ID = id
+	}
+}
+
+func WithTrigger(trigger common.Input) Option {
+	return func(s *BaseState) {
+		s.Trigger = trigger
+	}
+}
+
+func WithStatus(status nats.EvStatusType) Option {
+	return func(s *BaseState) {
 		s.Status = status
 	}
+}
 
-	// Update inputs or outputs based on event payload
-	if result, err := nats.ResultFromEvent(event); err == nil && result != nil {
-		// If there's output in the result, update the state's output
-		if result.GetOutput() != nil {
-			// Convert structpb.Struct to common.Output (map[string]interface{})
-			outputMap := make(common.Output)
-			for k, v := range result.GetOutput().AsMap() {
-				outputMap[k] = v
-			}
-
-			// Merge with existing output
-			for k, v := range outputMap {
-				s.Output[k] = v
-			}
-		}
-
-		// If there's an error in the result, store it in the state
-		if result.GetError() != nil {
-			if s.Errors == nil {
-				s.Errors = make([]string, 0)
-			}
-			s.Errors = append(s.Errors, result.GetError().GetMessage())
-		}
+func WithInput(input common.Input) Option {
+	return func(s *BaseState) {
+		s.Input = input
 	}
+}
 
-	// Update the context if available in the payload
-	if payload := event.GetPayload(); payload != nil {
-		if ctx := payload.GetContext(); ctx != nil {
-			// Convert context to map[string]interface{} and merge with existing context
-			contextMap := ctx.AsMap()
-			for k, v := range contextMap {
-				s.Context[k] = v
-			}
-		}
+func WithOutput(output common.Output) Option {
+	return func(s *BaseState) {
+		s.Output = output
 	}
+}
 
-	// Update the last updated timestamp
-	s.UpdatedAt = time.Now().UTC()
-
-	return nil
+func WithEnv(env common.EnvMap) Option {
+	return func(s *BaseState) {
+		s.Env = env
+	}
 }
 
 // -----------------------------------------------------------------------------

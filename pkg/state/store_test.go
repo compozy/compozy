@@ -78,7 +78,7 @@ func TestStore(t *testing.T) {
 			Input:   make(common.Input),
 			Output:  make(common.Output),
 			Env:     make(common.EnvMap),
-			Context: make(map[string]interface{}),
+			Trigger: make(common.Input),
 		}
 
 		// Test UpsertState
@@ -113,7 +113,7 @@ func TestStore(t *testing.T) {
 			Input:   make(common.Input),
 			Output:  make(common.Output),
 			Env:     make(common.EnvMap),
-			Context: make(map[string]interface{}),
+			Trigger: make(common.Input),
 		}
 
 		// Test UpsertState
@@ -152,7 +152,7 @@ func TestStore(t *testing.T) {
 			Input:   make(common.Input),
 			Output:  make(common.Output),
 			Env:     make(common.EnvMap),
-			Context: make(map[string]interface{}),
+			Trigger: make(common.Input),
 		}
 
 		// Add the state
@@ -193,7 +193,7 @@ func TestStore(t *testing.T) {
 			Input:   make(common.Input),
 			Output:  make(common.Output),
 			Env:     make(common.EnvMap),
-			Context: make(map[string]interface{}),
+			Trigger: make(common.Input),
 		}
 		err = store.UpsertState(workflowState)
 		require.NoError(t, err)
@@ -206,7 +206,7 @@ func TestStore(t *testing.T) {
 			Input:   make(common.Input),
 			Output:  make(common.Output),
 			Env:     make(common.EnvMap),
-			Context: make(map[string]interface{}),
+			Trigger: make(common.Input),
 		}
 		err = store.UpsertState(taskState1)
 		require.NoError(t, err)
@@ -218,7 +218,7 @@ func TestStore(t *testing.T) {
 			Input:   make(common.Input),
 			Output:  make(common.Output),
 			Env:     make(common.EnvMap),
-			Context: make(map[string]interface{}),
+			Trigger: make(common.Input),
 		}
 		err = store.UpsertState(taskState2)
 		require.NoError(t, err)
@@ -231,7 +231,7 @@ func TestStore(t *testing.T) {
 			Input:   make(common.Input),
 			Output:  make(common.Output),
 			Env:     make(common.EnvMap),
-			Context: make(map[string]interface{}),
+			Trigger: make(common.Input),
 		}
 		err = store.UpsertState(agentState)
 		require.NoError(t, err)
@@ -244,7 +244,7 @@ func TestStore(t *testing.T) {
 			Input:   make(common.Input),
 			Output:  make(common.Output),
 			Env:     make(common.EnvMap),
-			Context: make(map[string]interface{}),
+			Trigger: make(common.Input),
 		}
 		err = store.UpsertState(toolState)
 		require.NoError(t, err)

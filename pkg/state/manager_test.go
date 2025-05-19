@@ -123,7 +123,7 @@ func TestManager(t *testing.T) {
 			Input:   make(common.Input),
 			Output:  make(common.Output),
 			Env:     make(common.EnvMap),
-			Context: make(map[string]interface{}),
+			Trigger: make(common.Input),
 		}
 		err = manager.store.UpsertState(workflowState)
 		require.NoError(t, err)
@@ -137,7 +137,7 @@ func TestManager(t *testing.T) {
 			Input:   make(common.Input),
 			Output:  make(common.Output),
 			Env:     make(common.EnvMap),
-			Context: make(map[string]interface{}),
+			Trigger: make(common.Input),
 		}
 		err = manager.store.UpsertState(taskState)
 		require.NoError(t, err)
@@ -151,7 +151,7 @@ func TestManager(t *testing.T) {
 			Input:   make(common.Input),
 			Output:  make(common.Output),
 			Env:     make(common.EnvMap),
-			Context: make(map[string]interface{}),
+			Trigger: make(common.Input),
 		}
 		err = manager.store.UpsertState(agentState)
 		require.NoError(t, err)
@@ -165,7 +165,7 @@ func TestManager(t *testing.T) {
 			Input:   make(common.Input),
 			Output:  make(common.Output),
 			Env:     make(common.EnvMap),
-			Context: make(map[string]interface{}),
+			Trigger: make(common.Input),
 		}
 		err = manager.store.UpsertState(toolState)
 		require.NoError(t, err)

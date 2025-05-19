@@ -45,6 +45,13 @@ func (t *Config) GetCWD() *common.CWD {
 	return t.cwd
 }
 
+func (t *Config) GetEnv() common.EnvMap {
+	if t.Env == nil {
+		return make(common.EnvMap)
+	}
+	return t.Env
+}
+
 // Load loads a tool configuration from a file
 func Load(cwd *common.CWD, path string) (*Config, error) {
 	config, err := common.LoadConfig[*Config](cwd, path)

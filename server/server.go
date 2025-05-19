@@ -15,12 +15,11 @@ import (
 
 // Server represents the HTTP server
 type Server struct {
-	Config           *Config
-	State            *AppState
-	router           *gin.Engine
-	componentManager *ComponentManager
-	ctx              context.Context
-	cancel           context.CancelFunc
+	Config *Config
+	State  *AppState
+	router *gin.Engine
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewServer creates a new server instance
@@ -68,18 +67,6 @@ func (s *Server) buildRouter() error {
 
 // Run starts the HTTP server and all components
 func (s *Server) Run() error {
-	// Initialize component manager
-	componentManager, err := NewComponentManager(s.State)
-	if err != nil {
-		return fmt.Errorf("failed to initialize component manager: %w", err)
-	}
-	s.componentManager = componentManager
-
-	// Start all components
-	if err := s.componentManager.Start(s.ctx); err != nil {
-		return fmt.Errorf("failed to start components: %w", err)
-	}
-
 	// Build router
 	if err := s.buildRouter(); err != nil {
 		return err
@@ -116,11 +103,6 @@ func (s *Server) Run() error {
 
 	// Cancel the context to signal all components to shut down
 	s.cancel()
-
-	// Stop all components
-	if err := s.componentManager.Stop(); err != nil {
-		logger.Error("Error stopping components", "error", err)
-	}
 
 	// Shut down the HTTP server
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)

@@ -12,13 +12,13 @@ import (
 // State Helper Functions
 // -----------------------------------------------------------------------------
 
-func FromParentState(state State, parent State) error {
+func DefFromParentState(state State, parent State) error {
 	if parent == nil {
 		return nil
 	}
 
 	if parent.GetEnv() != nil {
-		env, err := WithEnv(state, *parent.GetEnv())
+		env, err := DefWithEnv(state, *parent.GetEnv())
 		if err != nil {
 			return fmt.Errorf("failed to merge env: %w", err)
 		}
@@ -28,7 +28,7 @@ func FromParentState(state State, parent State) error {
 	}
 
 	if parent.GetInput() != nil {
-		input, err := WithInput(state, *parent.GetInput())
+		input, err := DefWithInput(state, *parent.GetInput())
 		if err != nil {
 			return fmt.Errorf("failed to merge input: %w", err)
 		}
@@ -40,7 +40,7 @@ func FromParentState(state State, parent State) error {
 	return nil
 }
 
-func WithEnv(state State, env common.EnvMap) (*common.EnvMap, error) {
+func DefWithEnv(state State, env common.EnvMap) (*common.EnvMap, error) {
 	dst := make(common.EnvMap)
 	if state.GetEnv() != nil {
 		maps.Copy(dst, *state.GetEnv())
@@ -51,7 +51,7 @@ func WithEnv(state State, env common.EnvMap) (*common.EnvMap, error) {
 	return &dst, nil
 }
 
-func WithInput(state State, input common.Input) (*common.Input, error) {
+func DefWithInput(state State, input common.Input) (*common.Input, error) {
 	dst := make(common.Input)
 	if state.GetInput() != nil {
 		maps.Copy(dst, *state.GetInput())

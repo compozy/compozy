@@ -1,48 +1,49 @@
 package tool
 
 import (
-	"github.com/compozy/compozy/pkg/nats"
+	"fmt"
+
+	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/pkg/state"
 )
 
-// State represents the state of a tool execution
 type State struct {
 	state.BaseState
 	TaskExecID     string `json:"task_exec_id"`
 	WorkflowExecID string `json:"workflow_exec_id"`
 }
 
-// UpdateFromEvent updates the tool state based on an event
-func (ts *State) UpdateFromEvent(event nats.Event) error {
-	st, err := nats.StatusFromEvent(event)
+func NewToolState(execID, tExecID, wExecID string, triggerInput map[string]any, taskEnv common.EnvMap, cfg *Config) (*State, error) {
+	env := cfg.GetEnv()
+	id, err := cfg.LoadID()
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to load tool ID: %w", err)
+	}
+	initializer := &state.ToolStateInitializer{
+		CommonInitializer: state.NewCommonInitializer(),
+		ToolID:            id,
+		ExecID:            execID,
+		TaskExecID:        tExecID,
+		WorkflowExecID:    wExecID,
+		TriggerInput:      triggerInput,
+		TaskEnv:           taskEnv,
+		ToolEnv:           env,
+	}
+	bs, err := initializer.Initialize()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize tool state: %w", err)
 	}
 
-	ts.SetStatus(st)
-
-	switch st {
-	case nats.StatusRunning:
-		// TODO: Update the input and output of the tool
-	case nats.StatusSuccess:
-		// TODO: Update the input and output of the tool
-	case nats.StatusFailed:
-		// TODO: Update the input and output of the tool
+	bsObj, ok := bs.(*state.BaseState)
+	if !ok {
+		return nil, fmt.Errorf("failed to convert to BaseState type, got %T", bs)
 	}
 
-	return nil
-}
-
-func NewToolState(toolID, execID, taskExecID, workflowExecID string) *State {
-	return &State{
-		BaseState: state.BaseState{
-			Status: nats.StatusPending,
-			ID:     state.NewID(nats.ComponentTool, toolID, execID),
-			Input:  make(map[string]any),
-			Output: make(map[string]any),
-			Env:    make(map[string]string),
-		},
-		TaskExecID:     taskExecID,
-		WorkflowExecID: workflowExecID,
+	state := &State{
+		BaseState:      *bsObj,
+		TaskExecID:     tExecID,
+		WorkflowExecID: wExecID,
 	}
+
+	return state, nil
 }

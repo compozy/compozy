@@ -48,6 +48,13 @@ func (w *Config) GetCWD() *common.CWD {
 	return w.cwd
 }
 
+func (w *Config) GetEnv() common.EnvMap {
+	if w.Env == nil {
+		return make(common.EnvMap)
+	}
+	return w.Env
+}
+
 func Load(cwd *common.CWD, path string) (*Config, error) {
 	wc, err := common.LoadConfig[*Config](cwd, path)
 	if err != nil {

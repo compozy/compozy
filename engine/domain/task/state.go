@@ -1,7 +1,9 @@
 package task
 
 import (
-	"github.com/compozy/compozy/pkg/nats"
+	"fmt"
+
+	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/pkg/state"
 )
 
@@ -10,47 +12,35 @@ type State struct {
 	WorkflowExecID string `json:"workflow_exec_id"`
 }
 
-func (ts *State) UpdateFromEvent(event nats.Event) error {
-	st, err := nats.StatusFromEvent(event)
+func NewTaskState(execID, wExecID string, triggerInput map[string]any, workflowEnv common.EnvMap, cfg *Config) (*State, error) {
+	env := cfg.GetEnv()
+	id, err := cfg.LoadID()
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to load task ID: %w", err)
+	}
+	initializer := &state.TaskStateInitializer{
+		CommonInitializer: state.NewCommonInitializer(),
+		TaskID:            id,
+		ExecID:            execID,
+		WorkflowExecID:    wExecID,
+		TriggerInput:      triggerInput,
+		WorkflowEnv:       workflowEnv,
+		TaskEnv:           env,
+	}
+	bs, err := initializer.Initialize()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize task state: %w", err)
 	}
 
-	ts.SetStatus(st)
-
-	switch st {
-	case nats.StatusRunning:
-		// TODO: Update the input and output of the task
-	case nats.StatusSuccess:
-		// TODO: Update the input and output of the task
-	case nats.StatusFailed:
-		// TODO: Update the input and output of the task
-	case nats.StatusWaiting:
-		// TODO: Update the input and output of the task
-	case nats.StatusRetryScheduled:
-		// TODO: Update the input and output of the task
-	case nats.StatusCancelled:
-		// TODO: Update the input and output of the task
-	case nats.StatusTimedOut:
-		// TODO: Update the input and output of the task
-	case nats.StatusScheduled:
-		// TODO: Update the input and output of the task
-	case nats.StatusPending:
-		// TODO: Update the input and output of the task
+	bsObj, ok := bs.(*state.BaseState)
+	if !ok {
+		return nil, fmt.Errorf("failed to convert to BaseState type, got %T", bs)
 	}
 
-	return nil
-}
-
-func NewTaskState(taskID, execID, workflowExecID string) *State {
-	return &State{
-		BaseState: state.BaseState{
-			Status: nats.StatusPending,
-			ID:     state.NewID(nats.ComponentTask, taskID, execID),
-			Input:  make(map[string]any),
-			Output: make(map[string]any),
-			Env:    make(map[string]string),
-		},
-		WorkflowExecID: workflowExecID,
+	state := &State{
+		BaseState:      *bsObj,
+		WorkflowExecID: wExecID,
 	}
+
+	return state, nil
 }

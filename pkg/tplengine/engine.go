@@ -9,6 +9,8 @@ import (
 	"strings"
 	"text/template"
 
+	"maps"
+
 	"github.com/Masterminds/sprig/v3"
 	"gopkg.in/yaml.v3"
 )
@@ -97,13 +99,8 @@ func (e *TemplateEngine) RenderString(templateStr string, context map[string]any
 
 // renderTemplate renders a parsed template with the given context
 func (e *TemplateEngine) renderTemplate(tmpl *template.Template, context map[string]any) (string, error) {
-	// Process context to add default fields
 	processedContext := preprocessContext(context)
-
-	// Add global values to context
-	for k, v := range e.globalValues {
-		processedContext[k] = v
-	}
+	maps.Copy(processedContext, e.globalValues)
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, processedContext); err != nil {
@@ -182,9 +179,7 @@ func preprocessContext(ctx map[string]any) map[string]any {
 	}
 
 	result := make(map[string]any)
-	for k, v := range ctx {
-		result[k] = v
-	}
+	maps.Copy(result, ctx)
 
 	// Add default fields if they don't exist
 	if _, ok := result["env"]; !ok {
