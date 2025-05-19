@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package agent;
 
-option go_package = "github.com/compozy/compozy/pkg/pb/agent";
-
-import "common/metadata.proto";
 import "common/entities.proto";
+import "common/metadata.proto";
 import "google/protobuf/struct.proto";
+
+option go_package = "github.com/compozy/compozy/pkg/pb/agent";
 
 // -----------------------------------------------------------------------------
 // Agent Execute Command

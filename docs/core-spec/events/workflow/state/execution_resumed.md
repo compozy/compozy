@@ -29,7 +29,6 @@
     "result": null,
     "duration_ms": null, 
     "context": {
-      "state_id": "<uuid>",
       "reason": "Workflow resumed after external system maintenance completed.",
       "resumed_by": "ops_user_01",
       "resume_data": {

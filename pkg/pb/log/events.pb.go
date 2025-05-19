@@ -235,7 +235,7 @@ var File_log_events_proto protoreflect.FileDescriptor
 
 const file_log_events_proto_rawDesc = "" +
 	"\n" +
-	"\x10log/events.proto\x12\x03log\x1a\x15common/metadata.proto\x1a\x15common/entities.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9a\x04\n" +
+	"\x10log/events.proto\x12\x03log\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9a\x04\n" +
 	"\x0fLogEmittedEvent\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x125\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoH\x00R\bworkflow\x88\x01\x01\x12)\n" +

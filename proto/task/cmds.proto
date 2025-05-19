@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package task;
 
-option go_package = "github.com/compozy/compozy/pkg/pb/task";
-
-import "common/metadata.proto";
 import "common/entities.proto";
+import "common/metadata.proto";
 import "google/protobuf/struct.proto";
+
+option go_package = "github.com/compozy/compozy/pkg/pb/task";
 
 // -----------------------------------------------------------------------------
 // Task Trigger Command

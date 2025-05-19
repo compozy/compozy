@@ -29,7 +29,6 @@
     "result": null,
     "duration_ms": null,
     "context": {
-      "state_id": "<uuid>",
       "reason": "Workflow paused due to external system maintenance.",
       "paused_by": "ops_user_01"
     }

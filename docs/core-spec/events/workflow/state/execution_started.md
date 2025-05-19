@@ -29,12 +29,11 @@
     "result": null,
     "duration_ms": null,
     "context": {
-      "state_id": "<uuid>",
       "trigger_input": {
         "user_email": "new.user@example.com",
         "user_name": "Jane Doe"
       },
-      "resolved_env": {
+      "env": {
         "WORKFLOW_WIDE_SETTING": "initial_value_for_instance"
       }
     }

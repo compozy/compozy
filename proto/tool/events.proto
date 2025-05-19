@@ -2,12 +2,12 @@ syntax = "proto3";
 
 package tool;
 
-option go_package = "github.com/compozy/compozy/pkg/pb/tool";
-
-import "common/metadata.proto";
 import "common/entities.proto";
+import "common/metadata.proto";
 import "common/payload.proto";
 import "google/protobuf/struct.proto";
+
+option go_package = "github.com/compozy/compozy/pkg/pb/tool";
 
 enum ToolStatus {
   TOOL_STATUS_UNSPECIFIED = 0;

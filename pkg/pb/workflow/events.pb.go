@@ -33,7 +33,7 @@ const (
 	WorkflowStatus_WORKFLOW_STATUS_SUCCESS     WorkflowStatus = 4
 	WorkflowStatus_WORKFLOW_STATUS_FAILED      WorkflowStatus = 5
 	WorkflowStatus_WORKFLOW_STATUS_TIMED_OUT   WorkflowStatus = 6
-	WorkflowStatus_WORKFLOW_STATUS_CANCELLED   WorkflowStatus = 7
+	WorkflowStatus_WORKFLOW_STATUS_CANCELED    WorkflowStatus = 7
 )
 
 // Enum value maps for WorkflowStatus.
@@ -46,7 +46,7 @@ var (
 		4: "WORKFLOW_STATUS_SUCCESS",
 		5: "WORKFLOW_STATUS_FAILED",
 		6: "WORKFLOW_STATUS_TIMED_OUT",
-		7: "WORKFLOW_STATUS_CANCELLED",
+		7: "WORKFLOW_STATUS_CANCELED",
 	}
 	WorkflowStatus_value = map[string]int32{
 		"WORKFLOW_STATUS_UNSPECIFIED": 0,
@@ -56,7 +56,7 @@ var (
 		"WORKFLOW_STATUS_SUCCESS":     4,
 		"WORKFLOW_STATUS_FAILED":      5,
 		"WORKFLOW_STATUS_TIMED_OUT":   6,
-		"WORKFLOW_STATUS_CANCELLED":   7,
+		"WORKFLOW_STATUS_CANCELED":    7,
 	}
 )
 
@@ -939,7 +939,7 @@ var File_workflow_events_proto protoreflect.FileDescriptor
 
 const file_workflow_events_proto_rawDesc = "" +
 	"\n" +
-	"\x15workflow/events.proto\x12\bworkflow\x1a\x15common/metadata.proto\x1a\x15common/entities.proto\x1a\x14common/payload.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xba\x02\n" +
+	"\x15workflow/events.proto\x12\bworkflow\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x14common/payload.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xba\x02\n" +
 	"\x1dWorkflowExecutionStartedEvent\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12I\n" +
@@ -1001,7 +1001,7 @@ const file_workflow_events_proto_rawDesc = "" +
 	"\x06result\x18\x02 \x01(\v2\x0e.common.ResultR\x06result\x121\n" +
 	"\acontext\x18\x03 \x01(\v2\x17.google.protobuf.StructR\acontext\x12\x1f\n" +
 	"\vduration_ms\x18\x04 \x01(\x03R\n" +
-	"durationMs*\xff\x01\n" +
+	"durationMs*\xfe\x01\n" +
 	"\x0eWorkflowStatus\x12\x1f\n" +
 	"\x1bWORKFLOW_STATUS_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17WORKFLOW_STATUS_PENDING\x10\x01\x12\x1b\n" +
@@ -1009,8 +1009,8 @@ const file_workflow_events_proto_rawDesc = "" +
 	"\x17WORKFLOW_STATUS_WAITING\x10\x03\x12\x1b\n" +
 	"\x17WORKFLOW_STATUS_SUCCESS\x10\x04\x12\x1a\n" +
 	"\x16WORKFLOW_STATUS_FAILED\x10\x05\x12\x1d\n" +
-	"\x19WORKFLOW_STATUS_TIMED_OUT\x10\x06\x12\x1d\n" +
-	"\x19WORKFLOW_STATUS_CANCELLED\x10\aB,Z*github.com/compozy/compozy/pkg/pb/workflowb\x06proto3"
+	"\x19WORKFLOW_STATUS_TIMED_OUT\x10\x06\x12\x1c\n" +
+	"\x18WORKFLOW_STATUS_CANCELED\x10\aB,Z*github.com/compozy/compozy/pkg/pb/workflowb\x06proto3"
 
 var (
 	file_workflow_events_proto_rawDescOnce sync.Once

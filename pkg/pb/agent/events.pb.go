@@ -495,7 +495,7 @@ var File_agent_events_proto protoreflect.FileDescriptor
 
 const file_agent_events_proto_rawDesc = "" +
 	"\n" +
-	"\x12agent/events.proto\x12\x05agent\x1a\x15common/metadata.proto\x1a\x15common/entities.proto\x1a\x14common/payload.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xfa\x02\n" +
+	"\x12agent/events.proto\x12\x05agent\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x14common/payload.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xfa\x02\n" +
 	"\x1aAgentExecutionStartedEvent\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +

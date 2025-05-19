@@ -15,9 +15,12 @@ import (
 
 // Server represents the HTTP server
 type Server struct {
-	Config *Config
-	State  *AppState
-	router *gin.Engine
+	Config           *Config
+	State            *AppState
+	router           *gin.Engine
+	componentManager *ComponentManager
+	ctx              context.Context
+	cancel           context.CancelFunc
 }
 
 // NewServer creates a new server instance
@@ -31,9 +34,14 @@ func NewServer(config *Config, state *AppState) *Server {
 		}
 	}
 
+	// Create root context with cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &Server{
 		Config: config,
 		State:  state,
+		ctx:    ctx,
+		cancel: cancel,
 	}
 }
 
@@ -58,8 +66,21 @@ func (s *Server) buildRouter() error {
 	return nil
 }
 
-// Run starts the HTTP server
+// Run starts the HTTP server and all components
 func (s *Server) Run() error {
+	// Initialize component manager
+	componentManager, err := NewComponentManager(s.State)
+	if err != nil {
+		return fmt.Errorf("failed to initialize component manager: %w", err)
+	}
+	s.componentManager = componentManager
+
+	// Start all components
+	if err := s.componentManager.Start(s.ctx); err != nil {
+		return fmt.Errorf("failed to start components: %w", err)
+	}
+
+	// Build router
 	if err := s.buildRouter(); err != nil {
 		return err
 	}
@@ -93,10 +114,19 @@ func (s *Server) Run() error {
 	<-quit
 	logger.Debug("Received shutdown signal, initiating graceful shutdown")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	// Cancel the context to signal all components to shut down
+	s.cancel()
 
-	if err := srv.Shutdown(ctx); err != nil {
+	// Stop all components
+	if err := s.componentManager.Stop(); err != nil {
+		logger.Error("Error stopping components", "error", err)
+	}
+
+	// Shut down the HTTP server
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("server shutdown failed: %w", err)
 	}
 

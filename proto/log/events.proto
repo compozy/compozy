@@ -2,12 +2,12 @@ syntax = "proto3";
 
 package log;
 
-option go_package = "github.com/compozy/compozy/pkg/pb/log";
-
-import "common/metadata.proto";
 import "common/entities.proto";
+import "common/metadata.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/compozy/compozy/pkg/pb/log";
 
 enum LogLevel {
   LOG_LEVEL_UNSPECIFIED = 0;

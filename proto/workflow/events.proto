@@ -2,12 +2,12 @@ syntax = "proto3";
 
 package workflow;
 
-option go_package = "github.com/compozy/compozy/pkg/pb/workflow";
-
-import "common/metadata.proto";
 import "common/entities.proto";
+import "common/metadata.proto";
 import "common/payload.proto";
 import "google/protobuf/struct.proto";
+
+option go_package = "github.com/compozy/compozy/pkg/pb/workflow";
 
 enum WorkflowStatus {
   WORKFLOW_STATUS_UNSPECIFIED = 0;
@@ -17,7 +17,7 @@ enum WorkflowStatus {
   WORKFLOW_STATUS_SUCCESS = 4;
   WORKFLOW_STATUS_FAILED = 5;
   WORKFLOW_STATUS_TIMED_OUT = 6;
-  WORKFLOW_STATUS_CANCELLED = 7;
+  WORKFLOW_STATUS_CANCELED = 7;
 }
 
 // -----------------------------------------------------------------------------

@@ -219,3 +219,13 @@ func loadFileRefs(wc *Config) error {
 	}
 	return nil
 }
+
+// GetID returns the workflow ID
+func (w *Config) GetID() string {
+	return w.ID
+}
+
+// GetTasks returns the workflow tasks
+func (w *Config) GetTasks() []task.Config {
+	return w.Tasks
+}

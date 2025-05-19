@@ -1,10 +1,9 @@
 syntax = "proto3";
 
 package common;
+import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/compozy/compozy/pkg/pb/common";
-
-import "google/protobuf/timestamp.proto";
 
 message Metadata {
   string correlation_id = 1;

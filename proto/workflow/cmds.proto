@@ -2,97 +2,95 @@ syntax = "proto3";
 
 package workflow;
 
+import "common/entities.proto";
+import "common/metadata.proto";
+import "google/protobuf/struct.proto";
+
 option go_package = "github.com/compozy/compozy/pkg/pb/workflow";
 
-import "common/metadata.proto";
-import "common/entities.proto";
-import "google/protobuf/struct.proto";
+// -----------------------------------------------------------------------------
+// Workflow Trigger Command
+// -----------------------------------------------------------------------------
 
 message WorkflowTriggerCommand {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 
   message Payload {
-    message Context {
-      google.protobuf.Struct trigger_input = 1;
-      map<string, string> env = 2;
-    }
-    Context context = 1;
+    google.protobuf.Struct context = 1;
   }
   Payload payload = 3;
 }
 
+// -----------------------------------------------------------------------------
+// Workflow Execute Command
+// -----------------------------------------------------------------------------
+
+message WorkflowExecuteContext {
+  google.protobuf.Struct context = 1;
+}
 message WorkflowTriggerAsyncCommand {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 
   message Payload {
-    message Context {
-      google.protobuf.Struct trigger_input = 1;
-      map<string, string> env = 2;
-    }
-    Context context = 1;
+    google.protobuf.Struct context = 1;
   }
   Payload payload = 3;
 }
+
+// -----------------------------------------------------------------------------
+// Workflow Execute Command
+// -----------------------------------------------------------------------------
 
 message WorkflowExecuteCommand {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 
   message Payload {
-    message Context {
-      google.protobuf.Struct initial_input = 1;
-      map<string, string> resolved_env = 2;
-      optional string trigger_type = 3;
-    }
-    Context context = 1;
+    google.protobuf.Struct context = 1;
   }
   Payload payload = 3;
 }
+
+// -----------------------------------------------------------------------------
+// Workflow Pause Command
+// -----------------------------------------------------------------------------
 
 message WorkflowPauseCommand {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 
   message Payload {
-    message Context {
-      string reason = 1;
-      optional string paused_by = 2;
-      optional int64 estimated_duration_ms = 3;
-    }
-    Context context = 1;
+    google.protobuf.Struct context = 1;
   }
   Payload payload = 3;
 }
+
+// -----------------------------------------------------------------------------
+// Workflow Resume Command
+// -----------------------------------------------------------------------------
 
 message WorkflowResumeCommand {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 
   message Payload {
-    optional google.protobuf.Struct resume_data = 1;
-    message Context {
-      optional string resumed_by = 1;
-      optional string resumed_at = 2; // ISO8601 timestamp
-      optional string reason = 3;
-    }
-    Context context = 2;
+    google.protobuf.Struct context = 1;
   }
   Payload payload = 3;
 }
+
+// -----------------------------------------------------------------------------
+// Workflow Cancel Command
+// -----------------------------------------------------------------------------
 
 message WorkflowCancelCommand {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 
   message Payload {
-    message Context {
-      string reason = 1;
-      optional string cancelled_by = 2;
-      optional string cancelled_at = 3; // ISO8601 timestamp
-    }
-    Context context = 1;
+    google.protobuf.Struct context = 1;
   }
   Payload payload = 3;
 }
