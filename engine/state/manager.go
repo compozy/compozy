@@ -135,18 +135,18 @@ func (m *Manager) subscribeToStateEvents(_ context.Context, stream string) error
 
 // handleStatus processes a state event and updates the state store
 func (m *Manager) handleStatus(msg *nats.Msg) error {
-	componentType, componentID, correlationID, eventType, err := natspkg.ParseStateEventSubject(msg.Subject)
+	compType, compID, corrID, evType, err := natspkg.ParseEvtSubject(msg.Subject)
 	if err != nil {
 		return fmt.Errorf("failed to parse event subject %s: %w", msg.Subject, err)
 	}
 
-	stateID := NewID(componentType, componentID, correlationID)
-	state, err := m.store.GetState(stateID)
+	stID := NewID(compType, compID, corrID)
+	state, err := m.store.GetState(stID)
 	if err != nil {
 		state = NewEmptyState()
 	}
 
-	if err := state.UpdateStatus(natspkg.NewEventData(msg.Subject, msg.Data, eventType)); err != nil {
+	if err := state.UpdateStatus(natspkg.NewEventData(msg.Subject, msg.Data, evType)); err != nil {
 		return fmt.Errorf("failed to update state from event: %w", err)
 	}
 	if err := m.store.UpsertState(state); err != nil {
@@ -159,38 +159,38 @@ func (m *Manager) handleStatus(msg *nats.Msg) error {
 // State Retrieval
 // -----------------------------------------------------------------------------
 
-func (m *Manager) GetWorkflowState(workflowID, correlationID string) (State, error) {
-	id := NewID(natspkg.ComponentWorkflow, workflowID, correlationID)
+func (m *Manager) GetWorkflowState(wfID, corrID string) (State, error) {
+	id := NewID(natspkg.ComponentWorkflow, wfID, corrID)
 	return m.store.GetState(id)
 }
 
-func (m *Manager) GetTaskState(taskID, correlationID string) (State, error) {
-	id := NewID(natspkg.ComponentTask, taskID, correlationID)
+func (m *Manager) GetTaskState(tID, corrID string) (State, error) {
+	id := NewID(natspkg.ComponentTask, tID, corrID)
 	return m.store.GetState(id)
 }
 
-func (m *Manager) GetAgentState(agentID, correlationID string) (State, error) {
-	id := NewID(natspkg.ComponentAgent, agentID, correlationID)
+func (m *Manager) GetAgentState(agID, corrID string) (State, error) {
+	id := NewID(natspkg.ComponentAgent, agID, corrID)
 	return m.store.GetState(id)
 }
 
-func (m *Manager) GetToolState(toolID, correlationID string) (State, error) {
-	id := NewID(natspkg.ComponentTool, toolID, correlationID)
+func (m *Manager) GetToolState(toolID, corrID string) (State, error) {
+	id := NewID(natspkg.ComponentTool, toolID, corrID)
 	return m.store.GetState(id)
 }
 
-func (m *Manager) GetTaskStatesForWorkflow(workflowID, correlationID string) ([]State, error) {
-	id := NewID(natspkg.ComponentWorkflow, workflowID, correlationID)
+func (m *Manager) GetTaskStatesForWorkflow(wfID, corrID string) ([]State, error) {
+	id := NewID(natspkg.ComponentWorkflow, wfID, corrID)
 	return m.store.GetTaskStatesForWorkflow(id)
 }
 
-func (m *Manager) GetAgentStatesForTask(taskID, correlationID string) ([]State, error) {
-	id := NewID(natspkg.ComponentTask, taskID, correlationID)
+func (m *Manager) GetAgentStatesForTask(tID, corrID string) ([]State, error) {
+	id := NewID(natspkg.ComponentTask, tID, corrID)
 	return m.store.GetAgentStatesForTask(id)
 }
 
-func (m *Manager) GetToolStatesForTask(taskID, correlationID string) ([]State, error) {
-	id := NewID(natspkg.ComponentTask, taskID, correlationID)
+func (m *Manager) GetToolStatesForTask(tID, corrID string) ([]State, error) {
+	id := NewID(natspkg.ComponentTask, tID, corrID)
 	return m.store.GetToolStatesForTask(id)
 }
 
@@ -214,8 +214,8 @@ func (m *Manager) GetAllToolStates() ([]State, error) {
 // State Management
 // -----------------------------------------------------------------------------
 
-func (m *Manager) DeleteWorkflowState(workflowID, correlationID string) error {
-	workflowStateID := NewID(natspkg.ComponentWorkflow, workflowID, correlationID)
+func (m *Manager) DeleteWorkflowState(wfID, corrID string) error {
+	workflowStateID := NewID(natspkg.ComponentWorkflow, wfID, corrID)
 	if err := m.store.DeleteState(workflowStateID); err != nil {
 		return fmt.Errorf("failed to delete workflow state: %w", err)
 	}
@@ -226,19 +226,19 @@ func (m *Manager) DeleteWorkflowState(workflowID, correlationID string) error {
 	}
 
 	for _, taskState := range taskStates {
-		taskID := taskState.GetID()
-		agentStates, err := m.store.GetAgentStatesForTask(taskID)
+		tID := taskState.GetID()
+		agentStates, err := m.store.GetAgentStatesForTask(tID)
 		if err != nil {
 			return fmt.Errorf("failed to get agent states for task: %w", err)
 		}
 
-		for _, agentState := range agentStates {
-			if err := m.store.DeleteState(agentState.GetID()); err != nil {
+		for _, agState := range agentStates {
+			if err := m.store.DeleteState(agState.GetID()); err != nil {
 				return fmt.Errorf("failed to delete agent state: %w", err)
 			}
 		}
 
-		toolStates, err := m.store.GetToolStatesForTask(taskID)
+		toolStates, err := m.store.GetToolStatesForTask(tID)
 		if err != nil {
 			return fmt.Errorf("failed to get tool states for task: %w", err)
 		}
@@ -249,7 +249,7 @@ func (m *Manager) DeleteWorkflowState(workflowID, correlationID string) error {
 			}
 		}
 
-		if err := m.store.DeleteState(taskID); err != nil {
+		if err := m.store.DeleteState(tID); err != nil {
 			return fmt.Errorf("failed to delete task state: %w", err)
 		}
 	}

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/common"
-	"github.com/compozy/compozy/pkg/state"
+	"github.com/compozy/compozy/engine/state"
 )
 
 type State struct {
@@ -16,8 +16,8 @@ type State struct {
 func NewAgentState(
 	execID string,
 	tExecID string,
-	wExecID string,
-	triggerInput map[string]any,
+	wfExecID string,
+	tgInput map[string]any,
 	taskEnv common.EnvMap,
 	cfg *Config,
 ) (*State, error) {
@@ -31,8 +31,8 @@ func NewAgentState(
 		AgentID:           id,
 		ExecID:            execID,
 		TaskExecID:        tExecID,
-		WorkflowExecID:    wExecID,
-		TriggerInput:      triggerInput,
+		WorkflowExecID:    wfExecID,
+		TriggerInput:      tgInput,
 		TaskEnv:           taskEnv,
 		AgentEnv:          env,
 	}
@@ -46,11 +46,11 @@ func NewAgentState(
 		return nil, fmt.Errorf("failed to convert to BaseState type, got %T", bs)
 	}
 
-	agentState := &State{
+	agState := &State{
 		BaseState:      *bsObj,
 		TaskExecID:     tExecID,
-		WorkflowExecID: wExecID,
+		WorkflowExecID: wfExecID,
 	}
 
-	return agentState, nil
+	return agState, nil
 }

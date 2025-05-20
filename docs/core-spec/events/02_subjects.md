@@ -44,8 +44,6 @@ Where:
 ### Commands
 -   [WorkflowTrigger](workflow/cmds/trigger.md#command-triggerworkflow) 
     - Subject: `compozy.<correlation_id>.workflow.cmds.<workflow_id>.trigger`
--   [WorkflowTriggerAsync](workflow/cmds/trigger_async.md#command-triggerasyncworkflow) 
-    - Subject: `compozy.<correlation_id>.workflow.cmds.<workflow_id>.trigger_async`
 -   [WorkflowExecute](workflow/cmds/execute.md#command-executeworkflow) 
     - Subject: `compozy.<correlation_id>.workflow.cmds.<workflow_exec_id>.execute`
 -   [WorkflowPause](workflow/cmds/pause.md#command-pauseworkflow) 
@@ -78,8 +76,6 @@ Where:
 ### Commands
 -   [TaskTrigger](task/cmds/trigger.md#command-triggerspecifictask) 
     - Subject: `compozy.<correlation_id>.task.cmds.<task_id>.trigger`
--   [TaskTriggerAsync](task/cmds/trigger_async.md#command-triggerasyncspecifictask)
-    - Subject: `compozy.<correlation_id>.task.cmds.<task_id>.trigger_async`
 -   [TaskExecute](task/cmds/execute.md#command-executetask) 
     - Subject: `compozy.<correlation_id>.task.cmds.<task_exec_id>.execute`
 -   [TaskResume](task/cmds/resume.md#command-resumewaitingtask) 

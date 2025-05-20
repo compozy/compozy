@@ -26,23 +26,6 @@ message WorkflowTriggerCommand {
 // Workflow Execute Command
 // -----------------------------------------------------------------------------
 
-message WorkflowExecuteContext {
-  google.protobuf.Struct context = 1;
-}
-message WorkflowTriggerAsyncCommand {
-  common.Metadata metadata = 1;
-  common.WorkflowInfo workflow = 2;
-
-  message Payload {
-    google.protobuf.Struct context = 1;
-  }
-  Payload payload = 3;
-}
-
-// -----------------------------------------------------------------------------
-// Workflow Execute Command
-// -----------------------------------------------------------------------------
-
 message WorkflowExecuteCommand {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;

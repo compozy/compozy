@@ -20,14 +20,14 @@ type Request struct {
 
 // NewAgentRequest creates a new agent request
 func NewAgentRequest(
-	agentID, instructions string,
+	agID, instructions string,
 	action ActionRequest,
 	config map[string]any,
 	tools []tool.Request,
 ) *Request {
 	return &Request{
 		ID:           uuid.New().String(),
-		AgentID:      agentID,
+		AgentID:      agID,
 		Instructions: instructions,
 		Action:       action,
 		Config:       config,

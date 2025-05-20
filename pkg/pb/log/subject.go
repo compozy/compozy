@@ -24,8 +24,8 @@ func logLevelToStr(logLevel LogLevel) string {
 // ToSubject generates the NATS subject for a LogEmittedEvent.
 // Pattern: compozy.logs.<correlation_id>.<component>.<log_level>
 func (x *LogEmittedEvent) ToSubject() string {
-	correlationID := pb.GetCorrelationID(x)
+	corrID := pb.GetCorrID(x)
 	component := pb.GetSourceComponent(x)
 	logLevelStr := logLevelToStr(x.GetPayload().GetLogLevel())
-	return fmt.Sprintf("compozy.logs.%s.%s.%s", correlationID, component, logLevelStr)
+	return fmt.Sprintf("compozy.logs.%s.%s.%s", corrID, component, logLevelStr)
 }

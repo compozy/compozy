@@ -258,23 +258,23 @@ func (s *Store) getStatesWithFilter(
 }
 
 // GetTaskStatesForWorkflow retrieves all task states associated with a workflow
-func (s *Store) GetTaskStatesForWorkflow(workflowID ID) ([]State, error) {
+func (s *Store) GetTaskStatesForWorkflow(wfID ID) ([]State, error) {
 	return s.getStatesWithFilter(nats.ComponentTask, func(state *BaseState) bool {
-		return state.ID.CorrelationID == workflowID.CorrelationID
+		return state.ID.CorrID == wfID.CorrID
 	})
 }
 
 // GetAgentStatesForTask retrieves all agent states associated with a task
-func (s *Store) GetAgentStatesForTask(taskID ID) ([]State, error) {
+func (s *Store) GetAgentStatesForTask(tID ID) ([]State, error) {
 	return s.getStatesWithFilter(nats.ComponentAgent, func(state *BaseState) bool {
-		return state.ID.CorrelationID == taskID.CorrelationID
+		return state.ID.CorrID == tID.CorrID
 	})
 }
 
 // GetToolStatesForTask retrieves all tool states associated with a task
-func (s *Store) GetToolStatesForTask(taskID ID) ([]State, error) {
+func (s *Store) GetToolStatesForTask(tID ID) ([]State, error) {
 	return s.getStatesWithFilter(nats.ComponentTool, func(state *BaseState) bool {
-		return state.ID.CorrelationID == taskID.CorrelationID
+		return state.ID.CorrID == tID.CorrID
 	})
 }
 

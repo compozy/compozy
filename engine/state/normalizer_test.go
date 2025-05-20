@@ -11,7 +11,7 @@ import (
 
 func TestStateNormalizer(t *testing.T) {
 	// Test data
-	triggerInput := map[string]any{
+	tgInput := map[string]any{
 		"name":    "John",
 		"email":   "john@example.com",
 		"age":     30,
@@ -30,22 +30,22 @@ func TestStateNormalizer(t *testing.T) {
 		require.NotNil(t, normalizer)
 
 		// Create a test state
-		baseState := &BaseState{
+		bsState := &BaseState{
 			Input:   make(common.Input),
 			Output:  make(common.Output),
 			Env:     envMap,
-			Trigger: triggerInput,
+			Trigger: tgInput,
 		}
 
 		// Normalize the state
-		normalized := normalizer.NormalizeState(baseState)
+		normalized := normalizer.NormalizeState(bsState)
 
 		// Verify normalized structure
 		triggerMap := normalized["trigger"].(map[string]any)
 		assert.NotNil(t, triggerMap["input"])
-		assert.Same(t, baseState.GetInput(), normalized["input"])
-		assert.Same(t, baseState.GetOutput(), normalized["output"])
-		assert.Same(t, baseState.GetEnv(), normalized["env"])
+		assert.Same(t, bsState.GetInput(), normalized["input"])
+		assert.Same(t, bsState.GetOutput(), normalized["output"])
+		assert.Same(t, bsState.GetEnv(), normalized["env"])
 	})
 
 	t.Run("ParseTemplateValue", func(t *testing.T) {
@@ -55,7 +55,7 @@ func TestStateNormalizer(t *testing.T) {
 		// Create template context
 		templateContext := map[string]any{
 			"trigger": map[string]any{
-				"input": triggerInput,
+				"input": tgInput,
 			},
 			"env": &envMap,
 		}
@@ -142,7 +142,7 @@ func TestStateNormalizer(t *testing.T) {
 		require.NotNil(t, normalizer)
 
 		// Create a test state with templates
-		baseState := &BaseState{
+		bsState := &BaseState{
 			Input: common.Input{
 				"greeting": "Hello {{ .trigger.input.name }}!",
 				"nested": map[string]any{
@@ -162,17 +162,17 @@ func TestStateNormalizer(t *testing.T) {
 				"USER_NAME":  "{{ .trigger.input.name }}",
 				"USER_EMAIL": "{{ .trigger.input.email }}",
 			},
-			Trigger: triggerInput,
+			Trigger: tgInput,
 		}
 
 		// Parse templates
-		err := normalizer.ParseTemplates(baseState)
+		err := normalizer.ParseTemplates(bsState)
 		require.NoError(t, err)
 
 		// Verify input templates are parsed
-		assert.Equal(t, "Hello John!", baseState.Input["greeting"])
+		assert.Equal(t, "Hello John!", bsState.Input["greeting"])
 
-		nested, ok := baseState.Input["nested"].(map[string]any)
+		nested, ok := bsState.Input["nested"].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "john@example.com", nested["email"])
 
@@ -180,7 +180,7 @@ func TestStateNormalizer(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, "v1.0.0", meta["version"])
 
-		items, ok := baseState.Input["items"].([]any)
+		items, ok := bsState.Input["items"].([]any)
 		require.True(t, ok)
 		assert.Equal(t, "Item: John", items[0])
 
@@ -189,15 +189,15 @@ func TestStateNormalizer(t *testing.T) {
 		assert.Equal(t, "Age: 30", itemMap["age"])
 
 		// Verify env templates are parsed
-		assert.Equal(t, "1.0.0", baseState.Env["VERSION"])
-		assert.Equal(t, "John", baseState.Env["USER_NAME"])
-		assert.Equal(t, "john@example.com", baseState.Env["USER_EMAIL"])
+		assert.Equal(t, "1.0.0", bsState.Env["VERSION"])
+		assert.Equal(t, "John", bsState.Env["USER_NAME"])
+		assert.Equal(t, "john@example.com", bsState.Env["USER_EMAIL"])
 
 		// Verify trigger templates are parsed
-		assert.Equal(t, *baseState.GetTrigger(), baseState.Trigger)
-		assert.Equal(t, "Welcome, John!", baseState.Trigger["message"])
+		assert.Equal(t, *bsState.GetTrigger(), bsState.Trigger)
+		assert.Equal(t, "Welcome, John!", bsState.Trigger["message"])
 
-		data, ok := baseState.Trigger["data"].(map[string]any)
+		data, ok := bsState.Trigger["data"].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "john@example.com", data["email"])
 	})
@@ -258,8 +258,8 @@ func TestStateNormalizer_ErrorHandling(t *testing.T) {
 		state := NewEmptyState()
 
 		// Add an invalid template to the trigger input
-		baseState := state.(*BaseState)
-		baseState.Trigger["message"] = "{{ .invalid.syntax !"
+		bsState := state.(*BaseState)
+		bsState.Trigger["message"] = "{{ .invalid.syntax !"
 
 		err := normalizer.ParseTemplates(state)
 		assert.Error(t, err)

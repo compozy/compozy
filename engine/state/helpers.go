@@ -12,7 +12,7 @@ import (
 // State Helper Functions
 // -----------------------------------------------------------------------------
 
-func DefFromParentState(state State, parent State) error {
+func DefFromParent(state State, parent State) error {
 	if parent == nil {
 		return nil
 	}

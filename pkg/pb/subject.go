@@ -26,52 +26,52 @@ type WithTool interface {
 	GetTool() *common.ToolInfo
 }
 
-func GetCorrelationID(payload WithMetadata) string {
-	correlationID := "unknown_correlation_id"
+func GetCorrID(payload WithMetadata) string {
+	corrID := "unknown_correlation_id"
 	if meta := payload.GetMetadata(); meta != nil && meta.GetCorrelationId() != "" {
-		correlationID = meta.GetCorrelationId()
+		corrID = meta.GetCorrelationId()
 	}
-	return correlationID
+	return corrID
 }
 
 func GetWorkflowID(payload WithWorkflow) string {
-	workflowID := "unknown_workflow_id"
+	wfID := "unknown_workflow_id"
 	if workflow := payload.GetWorkflow(); workflow != nil && workflow.GetId() != "" {
-		workflowID = workflow.GetId()
+		wfID = workflow.GetId()
 	}
-	return workflowID
+	return wfID
 }
 
 func GetWorkflowExecID(payload WithWorkflow) string {
-	workflowExecID := "unknown_workflow_exec_id"
+	wfExecID := "unknown_workflow_exec_id"
 	if workflow := payload.GetWorkflow(); workflow != nil && workflow.GetExecId() != "" {
-		workflowExecID = workflow.GetExecId()
+		wfExecID = workflow.GetExecId()
 	}
-	return workflowExecID
+	return wfExecID
 }
 
 func GetTaskID(payload WithTask) string {
-	taskID := "unknown_task_id"
+	tID := "unknown_task_id"
 	if task := payload.GetTask(); task != nil && task.GetId() != "" {
-		taskID = task.GetId()
+		tID = task.GetId()
 	}
-	return taskID
+	return tID
 }
 
 func GetTaskExecID(payload WithTask) string {
-	taskExecID := "unknown_task_exec_id"
+	tExecID := "unknown_task_exec_id"
 	if task := payload.GetTask(); task != nil && task.GetExecId() != "" {
-		taskExecID = task.GetExecId()
+		tExecID = task.GetExecId()
 	}
-	return taskExecID
+	return tExecID
 }
 
 func GetAgentID(payload WithAgent) string {
-	agentID := "unknown_agent_id"
+	agID := "unknown_agent_id"
 	if agent := payload.GetAgent(); agent != nil && agent.GetId() != "" {
-		agentID = agent.GetId()
+		agID = agent.GetId()
 	}
-	return agentID
+	return agID
 }
 
 func GetAgentExecID(payload WithAgent) string {

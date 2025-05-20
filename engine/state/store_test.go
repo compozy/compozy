@@ -183,23 +183,23 @@ func TestStore(t *testing.T) {
 		defer store.Close()
 
 		// Common correlation ID
-		correlationID := "correlation-1"
+		corrID := "correlation-1"
 
 		// Create workflow state
-		workflowID := NewID(nats.ComponentWorkflow, "workflow-1", correlationID)
-		workflowState := &BaseState{
-			ID:      workflowID,
+		wfID := NewID(nats.ComponentWorkflow, "workflow-1", corrID)
+		wfState := &BaseState{
+			ID:      wfID,
 			Status:  nats.StatusRunning,
 			Input:   make(common.Input),
 			Output:  make(common.Output),
 			Env:     make(common.EnvMap),
 			Trigger: make(common.Input),
 		}
-		err = store.UpsertState(workflowState)
+		err = store.UpsertState(wfState)
 		require.NoError(t, err)
 
 		// Create task states
-		taskID1 := NewID(nats.ComponentTask, "task-1", correlationID)
+		taskID1 := NewID(nats.ComponentTask, "task-1", corrID)
 		taskState1 := &BaseState{
 			ID:      taskID1,
 			Status:  nats.StatusSuccess,
@@ -211,7 +211,7 @@ func TestStore(t *testing.T) {
 		err = store.UpsertState(taskState1)
 		require.NoError(t, err)
 
-		taskID2 := NewID(nats.ComponentTask, "task-2", correlationID)
+		taskID2 := NewID(nats.ComponentTask, "task-2", corrID)
 		taskState2 := &BaseState{
 			ID:      taskID2,
 			Status:  nats.StatusRunning,
@@ -224,20 +224,20 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create agent state
-		agentID := NewID(nats.ComponentAgent, "agent-1", correlationID)
-		agentState := &BaseState{
-			ID:      agentID,
+		agID := NewID(nats.ComponentAgent, "agent-1", corrID)
+		agState := &BaseState{
+			ID:      agID,
 			Status:  nats.StatusRunning,
 			Input:   make(common.Input),
 			Output:  make(common.Output),
 			Env:     make(common.EnvMap),
 			Trigger: make(common.Input),
 		}
-		err = store.UpsertState(agentState)
+		err = store.UpsertState(agState)
 		require.NoError(t, err)
 
 		// Create tool state
-		toolID := NewID(nats.ComponentTool, "tool-1", correlationID)
+		toolID := NewID(nats.ComponentTool, "tool-1", corrID)
 		toolState := &BaseState{
 			ID:      toolID,
 			Status:  nats.StatusSuccess,
@@ -250,7 +250,7 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test GetTaskStatesForWorkflow
-		taskStates, err := store.GetTaskStatesForWorkflow(workflowID)
+		taskStates, err := store.GetTaskStatesForWorkflow(wfID)
 		require.NoError(t, err)
 		assert.Len(t, taskStates, 2)
 

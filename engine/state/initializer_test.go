@@ -10,17 +10,17 @@ import (
 )
 
 func newWorkflowState(
-	workflowID string,
+	wfID string,
 	execID string,
-	triggerInput common.Input,
+	tgInput common.Input,
 	projectEnv common.EnvMap,
 	workflowEnv common.EnvMap,
 ) (State, error) {
 	initializer := &WorkflowStateInitializer{
 		CommonInitializer: NewCommonInitializer(),
-		WorkflowID:        workflowID,
+		WorkflowID:        wfID,
 		ExecID:            execID,
-		TriggerInput:      triggerInput,
+		TriggerInput:      tgInput,
 		ProjectEnv:        projectEnv,
 		WorkflowEnv:       workflowEnv,
 	}
@@ -28,19 +28,19 @@ func newWorkflowState(
 }
 
 func newTaskState(
-	taskID string,
+	tID string,
 	execID string,
-	workflowExecID string,
-	triggerInput common.Input,
+	wfExecID string,
+	tgInput common.Input,
 	workflowEnv common.EnvMap,
 	taskEnv common.EnvMap,
 ) (State, error) {
 	initializer := &TaskStateInitializer{
 		CommonInitializer: NewCommonInitializer(),
-		TaskID:            taskID,
+		TaskID:            tID,
 		ExecID:            execID,
-		WorkflowExecID:    workflowExecID,
-		TriggerInput:      triggerInput,
+		WorkflowExecID:    wfExecID,
+		TriggerInput:      tgInput,
 		WorkflowEnv:       workflowEnv,
 		TaskEnv:           taskEnv,
 	}
@@ -48,21 +48,21 @@ func newTaskState(
 }
 
 func newAgentState(
-	agentID string,
+	agID string,
 	execID string,
-	taskExecID string,
-	workflowExecID string,
-	triggerInput common.Input,
+	tExecID string,
+	wfExecID string,
+	tgInput common.Input,
 	taskEnv common.EnvMap,
 	agentEnv common.EnvMap,
 ) (State, error) {
 	initializer := &AgentStateInitializer{
 		CommonInitializer: NewCommonInitializer(),
-		AgentID:           agentID,
+		AgentID:           agID,
 		ExecID:            execID,
-		TaskExecID:        taskExecID,
-		WorkflowExecID:    workflowExecID,
-		TriggerInput:      triggerInput,
+		TaskExecID:        tExecID,
+		WorkflowExecID:    wfExecID,
+		TriggerInput:      tgInput,
 		TaskEnv:           taskEnv,
 		AgentEnv:          agentEnv,
 	}
@@ -72,9 +72,9 @@ func newAgentState(
 func newToolState(
 	toolID string,
 	execID string,
-	taskExecID string,
-	workflowExecID string,
-	triggerInput common.Input,
+	tExecID string,
+	wfExecID string,
+	tgInput common.Input,
 	taskEnv common.EnvMap,
 	toolEnv common.EnvMap,
 ) (State, error) {
@@ -82,9 +82,9 @@ func newToolState(
 		CommonInitializer: NewCommonInitializer(),
 		ToolID:            toolID,
 		ExecID:            execID,
-		TaskExecID:        taskExecID,
-		WorkflowExecID:    workflowExecID,
-		TriggerInput:      triggerInput,
+		TaskExecID:        tExecID,
+		WorkflowExecID:    wfExecID,
+		TriggerInput:      tgInput,
 		TaskEnv:           taskEnv,
 		ToolEnv:           toolEnv,
 	}
@@ -93,7 +93,7 @@ func newToolState(
 
 func TestStateInitialization(t *testing.T) {
 	// Test data
-	triggerInput := common.Input{
+	tgInput := common.Input{
 		"name":  "John",
 		"email": "john@example.com",
 	}
@@ -120,29 +120,29 @@ func TestStateInitialization(t *testing.T) {
 
 	t.Run("WorkflowStateInitialization", func(t *testing.T) {
 		// Initialize workflow state
-		workflowState, err := newWorkflowState(
+		wfState, err := newWorkflowState(
 			"test-workflow",
 			"exec123",
-			triggerInput,
+			tgInput,
 			projectEnv,
 			workflowEnv,
 		)
 		require.NoError(t, err)
-		require.NotNil(t, workflowState)
+		require.NotNil(t, wfState)
 
 		// Verify ID and status
-		assert.Equal(t, "workflow:test-workflow:exec123", workflowState.GetID().String())
-		assert.Equal(t, nats.StatusPending, workflowState.GetStatus())
+		assert.Equal(t, "workflow:test-workflow:exec123", wfState.GetID().String())
+		assert.Equal(t, nats.StatusPending, wfState.GetStatus())
 
 		// Verify environment variables are merged correctly (workflow overrides project)
-		env := workflowState.GetEnv()
+		env := wfState.GetEnv()
 		assert.Equal(t, "1.0.0", (*env)["PROJECT_VERSION"])
 		assert.Equal(t, "2.0.0", (*env)["WORKFLOW_VERSION"])
 		assert.Equal(t, "workflow_value", (*env)["SHARED_ENV"]) // Workflow env overrides project
 
 		// Verify trigger input is stored in context
-		baseState := workflowState.(*BaseState)
-		assert.Equal(t, triggerInput, baseState.Trigger)
+		bsState := wfState.(*BaseState)
+		assert.Equal(t, tgInput, bsState.Trigger)
 	})
 
 	t.Run("TaskStateInitialization", func(t *testing.T) {
@@ -151,7 +151,7 @@ func TestStateInitialization(t *testing.T) {
 			"test-task",
 			"task-exec123",
 			"workflow-exec123",
-			triggerInput,
+			tgInput,
 			workflowEnv,
 			taskEnv,
 		)
@@ -169,8 +169,8 @@ func TestStateInitialization(t *testing.T) {
 		assert.Equal(t, "task_value", (*env)["SHARED_ENV"]) // Task env overrides workflow
 
 		// Verify trigger input is stored in context
-		baseState := taskState.(*BaseState)
-		assert.Equal(t, triggerInput, baseState.Trigger)
+		bsState := taskState.(*BaseState)
+		assert.Equal(t, tgInput, bsState.Trigger)
 	})
 
 	t.Run("TemplateParsing", func(t *testing.T) {
@@ -210,7 +210,7 @@ func TestStateInitialization(t *testing.T) {
 			TaskID:            "test-task",
 			ExecID:            "task-exec123",
 			WorkflowExecID:    "workflow-exec123",
-			TriggerInput:      triggerInput,
+			TriggerInput:      tgInput,
 			WorkflowEnv:       projectEnv, // Use project env for workflow env
 			TaskEnv:           taskEnvWithTemplates,
 		}
@@ -220,9 +220,9 @@ func TestStateInitialization(t *testing.T) {
 		require.NoError(t, err)
 
 		// Manually set input with templates
-		baseState := state.(*BaseState)
+		bsState := state.(*BaseState)
 		for k, v := range inputWithTemplates {
-			baseState.Input[k] = v
+			bsState.Input[k] = v
 		}
 
 		// Parse templates
@@ -266,31 +266,31 @@ func TestStateInitialization(t *testing.T) {
 
 	t.Run("AgentStateInitialization", func(t *testing.T) {
 		// Initialize agent state
-		agentState, err := newAgentState(
+		agState, err := newAgentState(
 			"test-agent",
 			"agent-exec123",
 			"task-exec123",
 			"workflow-exec123",
-			triggerInput,
+			tgInput,
 			taskEnv,
 			agentEnv,
 		)
 		require.NoError(t, err)
-		require.NotNil(t, agentState)
+		require.NotNil(t, agState)
 
 		// Verify ID and status
-		assert.Equal(t, "agent:test-agent:agent-exec123", agentState.GetID().String())
-		assert.Equal(t, nats.StatusPending, agentState.GetStatus())
+		assert.Equal(t, "agent:test-agent:agent-exec123", agState.GetID().String())
+		assert.Equal(t, nats.StatusPending, agState.GetStatus())
 
 		// Verify environment variables are merged correctly (agent overrides task)
-		env := agentState.GetEnv()
+		env := agState.GetEnv()
 		assert.Equal(t, "3.0.0", (*env)["TASK_VERSION"])
 		assert.Equal(t, "4.0.0", (*env)["AGENT_VERSION"])
 		assert.Equal(t, "agent_value", (*env)["SHARED_ENV"]) // Agent env overrides task
 
 		// Verify trigger input is stored in context
-		baseState := agentState.(*BaseState)
-		assert.Equal(t, triggerInput, baseState.Trigger)
+		bsState := agState.(*BaseState)
+		assert.Equal(t, tgInput, bsState.Trigger)
 	})
 
 	t.Run("ToolStateInitialization", func(t *testing.T) {
@@ -300,7 +300,7 @@ func TestStateInitialization(t *testing.T) {
 			"tool-exec123",
 			"task-exec123",
 			"workflow-exec123",
-			triggerInput,
+			tgInput,
 			taskEnv,
 			toolEnv,
 		)
@@ -318,7 +318,7 @@ func TestStateInitialization(t *testing.T) {
 		assert.Equal(t, "tool_value", (*env)["SHARED_ENV"]) // Tool env overrides task
 
 		// Verify trigger input is stored in context
-		baseState := toolState.(*BaseState)
-		assert.Equal(t, triggerInput, baseState.Trigger)
+		bsState := toolState.(*BaseState)
+		assert.Equal(t, tgInput, bsState.Trigger)
 	})
 }

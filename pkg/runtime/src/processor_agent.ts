@@ -124,7 +124,7 @@ export class AgentProcessor extends Processor {
   ): Promise<AgentResponse<T>> {
     return await this.withTiming("ProcessRequest", async () => {
       try {
-        this.logger.setCorrelationId(request.id);
+        this.logger.setCorrelationID(request.id);
         this.logger.debug("Processing agent request", {
           type,
           agentId: request.agent_id,

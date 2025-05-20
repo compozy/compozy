@@ -12,21 +12,21 @@ import (
 // -----------------------------------------------------------------------------
 
 type ID struct {
-	Component     nats.ComponentType `json:"component"`
-	ComponentID   string             `json:"component_id"`
-	CorrelationID string             `json:"correlation_id"`
+	Component   nats.ComponentType `json:"component"`
+	ComponentID string             `json:"component_id"`
+	CorrID      string             `json:"correlation_id"`
 }
 
-func NewID(component nats.ComponentType, componentID, correlationID string) ID {
+func NewID(component nats.ComponentType, componentID, corrID string) ID {
 	return ID{
-		Component:     component,
-		ComponentID:   componentID,
-		CorrelationID: correlationID,
+		Component:   component,
+		ComponentID: componentID,
+		CorrID:      corrID,
 	}
 }
 
 func (id ID) String() string {
-	return fmt.Sprintf("%s:%s:%s", id.Component, id.ComponentID, id.CorrelationID)
+	return fmt.Sprintf("%s:%s:%s", id.Component, id.ComponentID, id.CorrID)
 }
 
 // -----------------------------------------------------------------------------
@@ -90,7 +90,7 @@ func (s *BaseState) SetStatus(status nats.EvStatusType) {
 }
 
 func (s *BaseState) FromParentState(parent State) error {
-	return DefFromParentState(s, parent)
+	return DefFromParent(s, parent)
 }
 
 func (s *BaseState) WithEnv(env common.EnvMap) error {

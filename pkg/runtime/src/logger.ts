@@ -2,15 +2,15 @@ import { NatsClient } from "./nats_client.ts";
 import { type LogContext, LogLevel } from "./types.ts";
 
 export class Logger {
-  private correlationId?: string;
+  private correlationID?: string;
   private natsClient: NatsClient;
 
   constructor(readonly config: { verbose?: boolean } = { verbose: false }) {
     this.natsClient = new NatsClient({ verbose: config.verbose });
   }
 
-  public setCorrelationId(id: string) {
-    this.correlationId = id;
+  public setCorrelationID(id: string) {
+    this.correlationID = id;
   }
 
   public setClient(client: NatsClient) {
@@ -38,7 +38,7 @@ export class Logger {
 
     const enhancedContext = {
       ...context,
-      correlationId: this.correlationId
+      correlationID: this.correlationID
     };
 
     await this.natsClient.sendLogMessage(level, message, enhancedContext);

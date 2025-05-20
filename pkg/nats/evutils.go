@@ -7,7 +7,7 @@ import (
 	"github.com/compozy/compozy/pkg/pb/common"
 )
 
-func GetCorrelationIDFromEvent(event Event) (string, error) {
+func GetCorrIDFromEvent(event Event) (string, error) {
 	if event == nil {
 		return "", fmt.Errorf("event is nil")
 	}
@@ -17,12 +17,12 @@ func GetCorrelationIDFromEvent(event Event) (string, error) {
 		return "", fmt.Errorf("event metadata is nil")
 	}
 
-	correlationID := metadata.GetCorrelationId()
-	if correlationID == "" {
+	corrID := metadata.GetCorrelationId()
+	if corrID == "" {
 		return "", fmt.Errorf("correlation ID is empty")
 	}
 
-	return correlationID, nil
+	return corrID, nil
 }
 
 func GetComponentIDFromEvent(event Event, componentType ComponentType) (string, error) {

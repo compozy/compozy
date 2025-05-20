@@ -5,17 +5,13 @@ import (
 	"strings"
 )
 
-// Subject constants for building and parsing NATS subjects
 const (
-	// SubjectPrefix is the common prefix for all NATS subjects in the system
-	SubjectPrefix = "compozy"
-
-	// Command and event segment identifiers
+	SubjectPrefix   = "compozy"
 	CommandsSegment = "cmds"
 	EventsSegment   = "events"
 )
 
-// ParseStateEventSubject parses a NATS state event subject into its component parts.
+// ParseEvtSubject parses a NATS state event subject into its component parts.
 //
 // Subject pattern: compozy.<correlation_id>.<component_type>.events.<component_id>.<event_type>
 //
@@ -23,11 +19,11 @@ const (
 // This would return:
 //   - ComponentType: "workflow"
 //   - componentID: "def456"
-//   - correlationID: "abc123"
+//   - corrID: "abc123"
 //   - eventType: "started"
 //
 // Returns an error if the subject doesn't follow the expected format.
-func ParseStateEventSubject(subject string) (ComponentType, string, string, string, error) {
+func ParseEvtSubject(subject string) (ComponentType, string, string, string, error) {
 	parts := strings.Split(subject, ".")
 	if len(parts) < 6 {
 		return "", "", "", "", fmt.Errorf("invalid state event subject format: %s, expected at least 6 parts", subject)
@@ -39,7 +35,7 @@ func ParseStateEventSubject(subject string) (ComponentType, string, string, stri
 	}
 
 	// Extract components
-	correlationID := parts[1]
+	corrID := parts[1]
 	componentType := ComponentType(parts[2])
 
 	// Validate events segment
@@ -61,21 +57,21 @@ func ParseStateEventSubject(subject string) (ComponentType, string, string, stri
 		)
 	}
 
-	return componentType, componentID, correlationID, eventType, nil
+	return componentType, componentID, corrID, eventType, nil
 }
 
-// BuildStateEventSubject builds a NATS subject for state events.
+// BuildEvtSubject builds a NATS subject for state events.
 //
 // Pattern: compozy.<correlation_id>.<component_type>.events.<component_id>.<event_type>
 //
 // Example usage:
 //
-//	subject := BuildStateEventSubject(ComponentWorkflow, "workflow-123", "corr-456", "started")
+//	subject := BuildEvtSubject(ComponentWorkflow, "workflow-123", "corr-456", "started")
 //	// Results in: "compozy.corr-456.workflow.events.workflow-123.started"
-func BuildStateEventSubject(componentType ComponentType, componentID, correlationID, eventType string) string {
+func BuildEvtSubject(componentType ComponentType, componentID, corrID, eventType string) string {
 	return fmt.Sprintf("%s.%s.%s.%s.%s.%s",
 		SubjectPrefix,
-		correlationID,
+		corrID,
 		componentType,
 		EventsSegment,
 		componentID,

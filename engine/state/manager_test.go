@@ -112,27 +112,28 @@ func TestManager(t *testing.T) {
 		defer manager.Close()
 
 		// Common test data
-		workflowID := "workflow-1"
-		correlationID := "correlation-1"
+		var wfID string
+		wfID = "workflow-1"
+		corrID := "correlation-1"
 
 		// Add a workflow state directly to the store
-		wID := NewID(natspkg.ComponentWorkflow, workflowID, correlationID)
-		workflowState := &BaseState{
-			ID:      wID,
+		wfStateID := NewID(natspkg.ComponentWorkflow, wfID, corrID)
+		wfState := &BaseState{
+			ID:      wfStateID,
 			Status:  natspkg.StatusRunning,
 			Input:   make(common.Input),
 			Output:  make(common.Output),
 			Env:     make(common.EnvMap),
 			Trigger: make(common.Input),
 		}
-		err = manager.store.UpsertState(workflowState)
+		err = manager.store.UpsertState(wfState)
 		require.NoError(t, err)
 
 		// Add a task state
-		taskID := "task-1"
-		tID := NewID(natspkg.ComponentTask, taskID, correlationID)
+		tID := "task-1"
+		tStateID := NewID(natspkg.ComponentTask, tID, corrID)
 		taskState := &BaseState{
-			ID:      tID,
+			ID:      tStateID,
 			Status:  natspkg.StatusPending,
 			Input:   make(common.Input),
 			Output:  make(common.Output),
@@ -143,24 +144,24 @@ func TestManager(t *testing.T) {
 		require.NoError(t, err)
 
 		// Add an agent state
-		agentID := "agent-1"
-		aID := NewID(natspkg.ComponentAgent, agentID, correlationID)
-		agentState := &BaseState{
-			ID:      aID,
+		agID := "agent-1"
+		aStateID := NewID(natspkg.ComponentAgent, agID, corrID)
+		agState := &BaseState{
+			ID:      aStateID,
 			Status:  natspkg.StatusRunning,
 			Input:   make(common.Input),
 			Output:  make(common.Output),
 			Env:     make(common.EnvMap),
 			Trigger: make(common.Input),
 		}
-		err = manager.store.UpsertState(agentState)
+		err = manager.store.UpsertState(agState)
 		require.NoError(t, err)
 
 		// Add a tool state
 		toolID := "tool-1"
-		toolID1 := NewID(natspkg.ComponentTool, toolID, correlationID)
+		toolStateID := NewID(natspkg.ComponentTool, toolID, corrID)
 		toolState := &BaseState{
-			ID:      toolID1,
+			ID:      toolStateID,
 			Status:  natspkg.StatusSuccess,
 			Input:   make(common.Input),
 			Output:  make(common.Output),
@@ -171,41 +172,41 @@ func TestManager(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test GetWorkflowState
-		state, err := manager.GetWorkflowState(workflowID, correlationID)
+		state, err := manager.GetWorkflowState(wfID, corrID)
 		require.NoError(t, err)
-		assert.Equal(t, wID, state.GetID())
+		assert.Equal(t, wfStateID, state.GetID())
 		assert.Equal(t, natspkg.StatusRunning, state.GetStatus())
 
 		// Test GetTaskState
-		state, err = manager.GetTaskState(taskID, correlationID)
+		state, err = manager.GetTaskState(tID, corrID)
 		require.NoError(t, err)
-		assert.Equal(t, tID, state.GetID())
+		assert.Equal(t, tStateID, state.GetID())
 		assert.Equal(t, natspkg.StatusPending, state.GetStatus())
 
 		// Test GetAgentState
-		state, err = manager.GetAgentState(agentID, correlationID)
+		state, err = manager.GetAgentState(agID, corrID)
 		require.NoError(t, err)
-		assert.Equal(t, aID, state.GetID())
+		assert.Equal(t, aStateID, state.GetID())
 		assert.Equal(t, natspkg.StatusRunning, state.GetStatus())
 
 		// Test GetToolState
-		state, err = manager.GetToolState(toolID, correlationID)
+		state, err = manager.GetToolState(toolID, corrID)
 		require.NoError(t, err)
-		assert.Equal(t, toolID1, state.GetID())
+		assert.Equal(t, toolStateID, state.GetID())
 		assert.Equal(t, natspkg.StatusSuccess, state.GetStatus())
 
 		// Test GetTaskStatesForWorkflow
-		taskStates, err := manager.GetTaskStatesForWorkflow(workflowID, correlationID)
+		taskStates, err := manager.GetTaskStatesForWorkflow(wfID, corrID)
 		require.NoError(t, err)
 		assert.Len(t, taskStates, 1)
 
 		// Test GetAgentStatesForTask
-		agentStates, err := manager.GetAgentStatesForTask(taskID, correlationID)
+		agentStates, err := manager.GetAgentStatesForTask(tID, corrID)
 		require.NoError(t, err)
 		assert.Len(t, agentStates, 1)
 
 		// Test GetToolStatesForTask
-		toolStates, err := manager.GetToolStatesForTask(taskID, correlationID)
+		toolStates, err := manager.GetToolStatesForTask(tID, corrID)
 		require.NoError(t, err)
 		assert.Len(t, toolStates, 1)
 
@@ -230,17 +231,17 @@ func TestManager(t *testing.T) {
 		assert.Len(t, allToolStates, 1)
 
 		// Test DeleteWorkflowState
-		err = manager.DeleteWorkflowState(workflowID, correlationID)
+		err = manager.DeleteWorkflowState(wfID, corrID)
 		require.NoError(t, err)
 
 		// Verify all related states are deleted
-		_, err = manager.GetWorkflowState(workflowID, correlationID)
+		_, err = manager.GetWorkflowState(wfID, corrID)
 		require.Error(t, err)
-		_, err = manager.GetTaskState(taskID, correlationID)
+		_, err = manager.GetTaskState(tID, corrID)
 		require.Error(t, err)
-		_, err = manager.GetAgentState(agentID, correlationID)
+		_, err = manager.GetAgentState(agID, corrID)
 		require.Error(t, err)
-		_, err = manager.GetToolState(toolID, correlationID)
+		_, err = manager.GetToolState(toolID, corrID)
 		require.Error(t, err)
 	})
 }

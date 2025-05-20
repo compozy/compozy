@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/common"
-	"github.com/compozy/compozy/pkg/state"
+	"github.com/compozy/compozy/engine/state"
 )
 
 type State struct {
@@ -12,7 +12,7 @@ type State struct {
 	WorkflowExecID string `json:"workflow_exec_id"`
 }
 
-func NewTaskState(execID, wExecID string, triggerInput map[string]any, workflowEnv common.EnvMap, cfg *Config) (*State, error) {
+func NewTaskState(execID, wfExecID string, tgInput map[string]any, workflowEnv common.EnvMap, cfg *Config) (*State, error) {
 	env := cfg.GetEnv()
 	id, err := cfg.LoadID()
 	if err != nil {
@@ -22,8 +22,8 @@ func NewTaskState(execID, wExecID string, triggerInput map[string]any, workflowE
 		CommonInitializer: state.NewCommonInitializer(),
 		TaskID:            id,
 		ExecID:            execID,
-		WorkflowExecID:    wExecID,
-		TriggerInput:      triggerInput,
+		WorkflowExecID:    wfExecID,
+		TriggerInput:      tgInput,
 		WorkflowEnv:       workflowEnv,
 		TaskEnv:           env,
 	}
@@ -39,7 +39,7 @@ func NewTaskState(execID, wExecID string, triggerInput map[string]any, workflowE
 
 	state := &State{
 		BaseState:      *bsObj,
-		WorkflowExecID: wExecID,
+		WorkflowExecID: wfExecID,
 	}
 
 	return state, nil

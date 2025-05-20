@@ -17,12 +17,12 @@ This document outlines the standardized architectural component names within the
    - **Produced Events:**
      - **Commands:**
        - `WorkflowTrigger` 
-       - `WorkflowTriggerAsync` 
+       - `WorkflowTrigger` 
        - `WorkflowPause` 
        - `WorkflowResume` 
        - `WorkflowCancel` 
        - `TaskTrigger` 
-       - `TaskTriggerAsync` 
+       - `TaskTrigger` 
        - `TaskResume` 
      - **Log Events:**
        - `LogEmitted` 
@@ -31,7 +31,7 @@ This document outlines the standardized architectural component names within the
    - **Package:** `system`
    - **Struct:** `Orchestrator`
    - **Responsibilities:**
-     - Acts as the central brain of the engine, initiating workflow executions based on triggers (e.g., `WorkflowTrigger`, `WorkflowTriggerAsync`).
+     - Acts as the central brain of the engine, initiating workflow executions based on triggers (e.g., `WorkflowTrigger`, `WorkflowTrigger`).
      - Interprets workflow definitions to manage sequence, conditional logic, and parallelism.
      - Initializes and maintains the complete state of all workflow and task instances.
      - Assigns unique execution IDs to all workflows and tasks.
@@ -40,12 +40,12 @@ This document outlines the standardized architectural component names within the
    - **Consumed Events:**
      - **Commands:**
        - `WorkflowTrigger` 
-       - `WorkflowTriggerAsync` 
+       - `WorkflowTrigger` 
        - `WorkflowPause` 
        - `WorkflowResume` 
        - `WorkflowCancel` 
        - `TaskTrigger` 
-       - `TaskTriggerAsync` 
+       - `TaskTrigger` 
      - **State Events:**
        - `AgentExecutionFailed` 
      - **Log Events:**
