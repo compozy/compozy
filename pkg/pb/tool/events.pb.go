@@ -495,7 +495,7 @@ var File_tool_events_proto protoreflect.FileDescriptor
 
 const file_tool_events_proto_rawDesc = "" +
 	"\n" +
-	"\x11tool/events.proto\x12\x04tool\x1a\x15common/metadata.proto\x1a\x15common/entities.proto\x1a\x14common/payload.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xf2\x02\n" +
+	"\x11tool/events.proto\x12\x04tool\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x14common/payload.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xf2\x02\n" +
 	"\x19ToolExecutionStartedEvent\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +

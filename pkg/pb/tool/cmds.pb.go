@@ -147,7 +147,7 @@ var File_tool_cmds_proto protoreflect.FileDescriptor
 
 const file_tool_cmds_proto_rawDesc = "" +
 	"\n" +
-	"\x0ftool/cmds.proto\x12\x04tool\x1a\x15common/metadata.proto\x1a\x15common/entities.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xba\x02\n" +
+	"\x0ftool/cmds.proto\x12\x04tool\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xba\x02\n" +
 	"\x12ToolExecuteCommand\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +

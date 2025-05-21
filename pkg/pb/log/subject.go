@@ -6,8 +6,8 @@ import (
 	"github.com/compozy/compozy/pkg/pb"
 )
 
-func logLevelToStr(logLevel LogLevel) string {
-	switch logLevel {
+func logLevelToStr(lvl LogLevel) string {
+	switch lvl {
 	case LogLevel_LOG_LEVEL_DEBUG:
 		return "debug"
 	case LogLevel_LOG_LEVEL_INFO:
@@ -22,10 +22,11 @@ func logLevelToStr(logLevel LogLevel) string {
 }
 
 // ToSubject generates the NATS subject for a LogEmittedEvent.
-// Pattern: compozy.logs.<correlation_id>.<component>.<log_level>
+// Pattern: compozy.<correlation_id>.<component>.logs.<component_id>.<log_level>
 func (x *LogEmittedEvent) ToSubject() string {
-	correlationID := pb.GetCorrelationId(x)
-	component := pb.GetSourceComponent(x)
-	logLevelStr := logLevelToStr(x.GetPayload().GetLogLevel())
-	return fmt.Sprintf("compozy.logs.%s.%s.%s", correlationID, component, logLevelStr)
+	corrID := pb.GetCorrelationID(x)
+	comp := x.GetPayload().GetComponent()
+	compID := x.GetPayload().GetComponentId()
+	lvl := logLevelToStr(x.GetPayload().GetLogLevel())
+	return fmt.Sprintf("compozy.%s.%s.logs.%s.%s", corrID, comp, compID, lvl)
 }

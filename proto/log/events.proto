@@ -2,12 +2,12 @@ syntax = "proto3";
 
 package log;
 
-option go_package = "github.com/compozy/compozy/pkg/pb/log";
-
-import "common/metadata.proto";
 import "common/entities.proto";
+import "common/metadata.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/compozy/compozy/pkg/pb/log";
 
 enum LogLevel {
   LOG_LEVEL_UNSPECIFIED = 0;
@@ -25,10 +25,12 @@ message LogEmittedEvent {
   optional common.ToolInfo tool = 5;
 
   message Payload {
-    LogLevel log_level = 1;
-    string message = 2;
-    google.protobuf.Timestamp timestamp = 3;
-    google.protobuf.Struct context = 4;
+    string component = 1;
+    string component_id = 2;
+    LogLevel log_level = 3;
+    string message = 4;
+    google.protobuf.Timestamp timestamp = 5;
+    google.protobuf.Struct context = 6;
   }
   Payload payload = 6;
 }

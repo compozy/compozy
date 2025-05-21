@@ -15,7 +15,7 @@ export class ToolProcessor extends Processor {
   ): Promise<ToolResponse<T>> {
     return await this.withTiming("ProcessToolRequest", async () => {
       try {
-        this.logger.setCorrelationId(request.id);
+        this.logger.setCorrelationID(request.id);
         this.logger.debug("Processing tool request", {
           type,
           toolId: request.tool_id,

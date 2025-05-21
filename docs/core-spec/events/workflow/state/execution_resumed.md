@@ -8,7 +8,7 @@
 
 ### NATS Subject
 
-`compozy.<correlation_id>.workflow.events.<workflow_exec_id>.resumed`
+`compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.resumed`
 
 ### JSON Payload Example:
 
@@ -29,7 +29,6 @@
     "result": null,
     "duration_ms": null, 
     "context": {
-      "state_id": "<uuid>",
       "reason": "Workflow resumed after external system maintenance completed.",
       "resumed_by": "ops_user_01",
       "resume_data": {

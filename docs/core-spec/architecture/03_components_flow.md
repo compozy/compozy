@@ -19,16 +19,18 @@ sequenceDiagram
 
     Note over API,MONITOR: Workflow Trigger and Execution
     API->>ORCH: WorkflowTrigger (sync)
+    ORCH->>STATE: WorkflowExecutionStarted
+    ORCH->>MONITOR: WorkflowExecutionStarted
     ORCH->>API: Acknowledge (workflow_exec_id)
     ORCH->>WFEXEC: WorkflowExecute (async)
-    WFEXEC->>STATE: WorkflowExecutionStarted
-    WFEXEC->>MONITOR: WorkflowExecutionStarted
-    WFEXEC->>TASKEXEC: TaskExecute (sync)
-    WFEXEC->>ORCH: TaskDispatched (async)
-    WFEXEC->>STATE: TaskDispatched
-    WFEXEC->>MONITOR: TaskDispatched
-    TASKEXEC->>STATE: TaskExecutionStarted
-    TASKEXEC->>MONITOR: TaskExecutionStarted
+    
+    Note over ORCH,TASKEXEC: Task Dispatch and Execution
+    WFEXEC->>ORCH: Request Task Execution
+    ORCH->>STATE: TaskDispatched
+    ORCH->>MONITOR: TaskDispatched
+    ORCH->>STATE: TaskExecutionStarted
+    ORCH->>MONITOR: TaskExecutionStarted
+    ORCH->>TASKEXEC: TaskExecute (sync)
 
     Note over TASKEXEC,RUNTIME: Task Invokes Agent/Tool
     TASKEXEC->>RUNTIME: AgentExecute (sync)

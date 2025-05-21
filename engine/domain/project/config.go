@@ -55,6 +55,7 @@ type Config struct {
 	Workflows    []*WorkflowSourceConfig       `json:"workflows"              yaml:"workflows"`
 
 	cwd *common.CWD
+	env *common.EnvMap
 }
 
 func (p *Config) Component() common.ConfigType {
@@ -102,6 +103,12 @@ func Load(cwd *common.CWD, path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	env, err := config.loadEnv()
+	if err != nil {
+		return nil, err
+	}
+	config.SetEnv(env)
 	return config, nil
 }
 
@@ -115,4 +122,20 @@ func (p *Config) WorkflowsFromSources() ([]*workflow.Config, error) {
 		ws = append(ws, config)
 	}
 	return ws, nil
+}
+
+func (p *Config) loadEnv() (common.EnvMap, error) {
+	env, err := common.NewEnvFromFile(p.cwd.PathStr())
+	if err != nil {
+		return nil, fmt.Errorf("failed to load environment variables: %w", err)
+	}
+	return env, nil
+}
+
+func (p *Config) SetEnv(env common.EnvMap) {
+	p.env = &env
+}
+
+func (p *Config) GetEnv() common.EnvMap {
+	return *p.env
 }

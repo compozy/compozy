@@ -8,7 +8,7 @@
 
 ### NATS Subject Pattern
 
-`compozy.logs.<correlation_id>.<component>.<log_level>`
+`compozy.<correlation_id>.<component>.logs.<component_id>.<log_level>`
 
 ### JSON Payload Structure
 
@@ -38,6 +38,8 @@
     "exec_id": "<tool_execution_id>"
   },
   "payload": {
+    "component": "workflow",
+    "component_id": "workflow-123",
     "log_level": "info",
     "message": "Task 'send_invoice' started successfully.",
     "timestamp": "2025-05-15T10:30:00Z",

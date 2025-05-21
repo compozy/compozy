@@ -1,10 +1,10 @@
 ## Command: `WorkflowTrigger`
 
-**Description:** A command for the `system.Orchestrator` to trigger a new workflow execution. This is a synchronous command; the requester expects a direct acknowledgment reply containing initial execution details (e.g., `workflow_exec_id`).
+**Description:** A request to start a new workflow execution asynchronously has been received. The API will respond immediately without waiting for initial processing by the orchestrator.
 **Produced By:** `api.Service`
 **Consumed By:** `system.Orchestrator`
-**Lifecycle Stage:** Initiation of a new workflow instance, with the orchestrator sending an immediate acknowledgment back to the requester.
-**NATS Communication Pattern:** Synchronous (Request-Reply)
+**Lifecycle Stage:** Initiation of a new workflow instance, with immediate API acknowledgment. The orchestrator processes the trigger asynchronously.
+**NATS Communication Pattern:** Asynchronous
 
 ### NATS Subject
 
@@ -16,7 +16,7 @@
 {
   "metadata": {
     "correlation_id": "<uuid>",
-    "request_id": "<uuid_request_specific>",
+    "request_id": "<uuid>",
     "event_timestamp": "2025-05-13T20:00:00Z",
     "created_by": "admin_user_01",
     "source_component": "api.Service"
@@ -41,7 +41,5 @@
 ### Payload Properties
 
 The `payload` object contains the following fields:
--   **`context`** (`object`, Required)
-    -   Description: Additional contextual information for the workflow execution command.
 -   **`context`** (`object`, Optional)
-    -   Description: Additional contextual information for the workflow execution command. 
+    -   Description: Additional contextual information for the workflow trigger command. 

@@ -10,6 +10,15 @@ import (
 
 var defaultLogger *charmlog.Logger
 
+type LogLevel = charmlog.Level
+
+const (
+	DebugLevel LogLevel = charmlog.DebugLevel
+	InfoLevel  LogLevel = charmlog.InfoLevel
+	WarnLevel  LogLevel = charmlog.WarnLevel
+	ErrorLevel LogLevel = charmlog.ErrorLevel
+)
+
 // Config holds the logger configuration
 type Config struct {
 	Level      charmlog.Level

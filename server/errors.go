@@ -99,10 +99,10 @@ func NewRequestError(statusCode int, reason string, err error) *RequestError {
 }
 
 // WorkflowExecutionError creates a new workflow execution error
-func WorkflowExecutionError(workflowID, reason string) *RequestError {
+func WorkflowExecutionError(wfID, reason string) *RequestError {
 	return &RequestError{
 		StatusCode: http.StatusInternalServerError,
-		WorkflowID: workflowID,
+		WorkflowID: wfID,
 		Reason:     reason,
 	}
 }

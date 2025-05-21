@@ -165,10 +165,12 @@ func (x *LogEmittedEvent) GetPayload() *LogEmittedEvent_Payload {
 
 type LogEmittedEvent_Payload struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	LogLevel      LogLevel               `protobuf:"varint,1,opt,name=log_level,json=logLevel,proto3,enum=log.LogLevel" json:"log_level,omitempty"`
-	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Context       *structpb.Struct       `protobuf:"bytes,4,opt,name=context,proto3" json:"context,omitempty"`
+	Component     string                 `protobuf:"bytes,1,opt,name=component,proto3" json:"component,omitempty"`
+	ComponentId   string                 `protobuf:"bytes,2,opt,name=component_id,json=componentId,proto3" json:"component_id,omitempty"`
+	LogLevel      LogLevel               `protobuf:"varint,3,opt,name=log_level,json=logLevel,proto3,enum=log.LogLevel" json:"log_level,omitempty"`
+	Message       string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
+	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Context       *structpb.Struct       `protobuf:"bytes,6,opt,name=context,proto3" json:"context,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -203,6 +205,20 @@ func (*LogEmittedEvent_Payload) Descriptor() ([]byte, []int) {
 	return file_log_events_proto_rawDescGZIP(), []int{0, 0}
 }
 
+func (x *LogEmittedEvent_Payload) GetComponent() string {
+	if x != nil {
+		return x.Component
+	}
+	return ""
+}
+
+func (x *LogEmittedEvent_Payload) GetComponentId() string {
+	if x != nil {
+		return x.ComponentId
+	}
+	return ""
+}
+
 func (x *LogEmittedEvent_Payload) GetLogLevel() LogLevel {
 	if x != nil {
 		return x.LogLevel
@@ -235,19 +251,21 @@ var File_log_events_proto protoreflect.FileDescriptor
 
 const file_log_events_proto_rawDesc = "" +
 	"\n" +
-	"\x10log/events.proto\x12\x03log\x1a\x15common/metadata.proto\x1a\x15common/entities.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9a\x04\n" +
+	"\x10log/events.proto\x12\x03log\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xdb\x04\n" +
 	"\x0fLogEmittedEvent\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x125\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoH\x00R\bworkflow\x88\x01\x01\x12)\n" +
 	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoH\x01R\x04task\x88\x01\x01\x12,\n" +
 	"\x05agent\x18\x04 \x01(\v2\x11.common.AgentInfoH\x02R\x05agent\x88\x01\x01\x12)\n" +
 	"\x04tool\x18\x05 \x01(\v2\x10.common.ToolInfoH\x03R\x04tool\x88\x01\x01\x126\n" +
-	"\apayload\x18\x06 \x01(\v2\x1c.log.LogEmittedEvent.PayloadR\apayload\x1a\xbc\x01\n" +
-	"\aPayload\x12*\n" +
-	"\tlog_level\x18\x01 \x01(\x0e2\r.log.LogLevelR\blogLevel\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\x128\n" +
-	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x121\n" +
-	"\acontext\x18\x04 \x01(\v2\x17.google.protobuf.StructR\acontextB\v\n" +
+	"\apayload\x18\x06 \x01(\v2\x1c.log.LogEmittedEvent.PayloadR\apayload\x1a\xfd\x01\n" +
+	"\aPayload\x12\x1c\n" +
+	"\tcomponent\x18\x01 \x01(\tR\tcomponent\x12!\n" +
+	"\fcomponent_id\x18\x02 \x01(\tR\vcomponentId\x12*\n" +
+	"\tlog_level\x18\x03 \x01(\x0e2\r.log.LogLevelR\blogLevel\x12\x18\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage\x128\n" +
+	"\ttimestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x121\n" +
+	"\acontext\x18\x06 \x01(\v2\x17.google.protobuf.StructR\acontextB\v\n" +
 	"\t_workflowB\a\n" +
 	"\x05_taskB\b\n" +
 	"\x06_agentB\a\n" +

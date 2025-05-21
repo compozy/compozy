@@ -48,6 +48,13 @@ func (w *Config) GetCWD() *common.CWD {
 	return w.cwd
 }
 
+func (w *Config) GetEnv() common.EnvMap {
+	if w.Env == nil {
+		return make(common.EnvMap)
+	}
+	return w.Env
+}
+
 func Load(cwd *common.CWD, path string) (*Config, error) {
 	wc, err := common.LoadConfig[*Config](cwd, path)
 	if err != nil {
@@ -218,4 +225,14 @@ func loadFileRefs(wc *Config) error {
 		return err
 	}
 	return nil
+}
+
+// GetID returns the workflow ID
+func (w *Config) GetID() string {
+	return w.ID
+}
+
+// GetTasks returns the workflow tasks
+func (w *Config) GetTasks() []task.Config {
+	return w.Tasks
 }

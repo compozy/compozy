@@ -1,10 +1,10 @@
 ## Command: `TaskTrigger`
 
-**Description:** Command for the `system.Orchestrator` to initiate a specific task execution directly, independently of a full workflow sequence. This is a synchronous command; the requester expects a direct acknowledgment reply containing initial execution details (e.g., `task_exec_id`).
+**Description:** Command for the `system.Orchestrator` to initiate a specific task execution directly, independently of a full workflow sequence. The API will respond immediately without waiting for the orchestrator to fully process the task trigger or for the task to complete execution.
 **Produced By:** `api.Service`
 **Consumed By:** `system.Orchestrator`
 **Lifecycle Stage:** Direct task execution from outside the system orchestrator.
-**NATS Communication Pattern:** Synchronous (Request-Reply)
+**NATS Communication Pattern:** Asynchronous
 
 ### NATS Subject
 
@@ -16,7 +16,7 @@
 {
   "metadata": {
     "correlation_id": "<uuid>",
-    "request_id": "<uuid_request_specific>",
+    "request_id": "<uuid>",
     "source_component": "api.Service",
     "event_timestamp": "2025-01-01T12:00:00Z"
   },
