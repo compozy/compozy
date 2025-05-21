@@ -114,7 +114,7 @@ func (m *Manager) subscribeToStateEvents(ctx context.Context, comp nats.Componen
 	}
 
 	subOpts := nats.DefaultSubscribeOpts(cs)
-	err = nats.SubscribeConsumer(ctx, m.handleStatus, subOpts)
+	err = nats.SubscribeConsumer(ctx, m.handleUpdateStatus, subOpts)
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to state events: %w", err)
 	}
@@ -122,7 +122,7 @@ func (m *Manager) subscribeToStateEvents(ctx context.Context, comp nats.Componen
 	return nil
 }
 
-func (m *Manager) handleStatus(subject string, data []byte, _ jetstream.Msg) error {
+func (m *Manager) handleUpdateStatus(subject string, data []byte, _ jetstream.Msg) error {
 	subj, err := nats.ParseEvtSubject(subject)
 	if err != nil {
 		return fmt.Errorf("failed to parse event subject %s: %w", subject, err)
@@ -134,9 +134,12 @@ func (m *Manager) handleStatus(subject string, data []byte, _ jetstream.Msg) err
 		state = NewEmptyState()
 	}
 
-	// TODO: implement UpdateStatus on each component state
-	evType := subj.EventType.String()
-	if err := state.UpdateStatus(nats.NewEventData(subject, data, evType)); err != nil {
+	event, err := nats.ParseEvent(subj.CompType, subj.EventType, data)
+	if err != nil {
+		return fmt.Errorf("failed to parse event data: %w", err)
+	}
+
+	if err := state.UpdateFromEvent(event); err != nil {
 		return fmt.Errorf("failed to update state from event: %w", err)
 	}
 	if err := m.store.UpsertState(state); err != nil {

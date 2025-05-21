@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/domain/project"
+	"github.com/compozy/compozy/pkg/app"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
 	"github.com/compozy/compozy/pkg/utils"
@@ -131,7 +132,7 @@ func DevCmd() *cobra.Command {
 			}
 
 			// Create app state
-			appState, err := server.NewAppState(projectConfig, workflows, natsServer)
+			appState, err := app.NewState(projectConfig, workflows, natsServer)
 			if err != nil {
 				logger.Error("Failed to create app state", "error", err)
 				return err

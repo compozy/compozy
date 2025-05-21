@@ -6,6 +6,7 @@ import (
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/pkg/nats"
+	pb "github.com/compozy/compozy/pkg/pb/tool"
 )
 
 // -----------------------------------------------------------------------------
@@ -103,4 +104,40 @@ func NewToolState(exec *Execution) (*State, error) {
 		return nil, fmt.Errorf("failed to initialize tool state: %w", err)
 	}
 	return st, nil
+}
+
+func (s *State) UpdateFromEvent(event any) error {
+	switch evt := event.(type) {
+	case *pb.ToolExecutionStartedEvent:
+		return s.handleStartedEvent(evt)
+	case *pb.ToolExecutionSuccessEvent:
+		return s.handleSuccessEvent(evt)
+	case *pb.ToolExecutionFailedEvent:
+		return s.handleFailedEvent(evt)
+	default:
+		return fmt.Errorf("unsupported event type for tool state update: %T", evt)
+	}
+}
+
+func (s *State) handleStartedEvent(_ *pb.ToolExecutionStartedEvent) error {
+	s.Status = nats.StatusRunning
+	return nil
+}
+
+func (s *State) handleSuccessEvent(evt *pb.ToolExecutionSuccessEvent) error {
+	s.Status = nats.StatusSuccess
+	if evt.GetPayload() == nil || evt.GetPayload().GetResult() == nil {
+		return nil
+	}
+	state.SetResultData(&s.BaseState, evt.GetPayload().GetResult())
+	return nil
+}
+
+func (s *State) handleFailedEvent(evt *pb.ToolExecutionFailedEvent) error {
+	s.Status = nats.StatusFailed
+	if evt.GetPayload() == nil || evt.GetPayload().GetResult() == nil {
+		return nil
+	}
+	state.SetResultData(&s.BaseState, evt.GetPayload().GetResult())
+	return nil
 }

@@ -1,4 +1,4 @@
-package server
+package app
 
 import (
 	"context"
@@ -7,27 +7,30 @@ import (
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/domain/project"
 	"github.com/compozy/compozy/engine/domain/workflow"
+	"github.com/compozy/compozy/engine/orchestrator"
 	"github.com/compozy/compozy/pkg/nats"
+	"github.com/gin-gonic/gin"
 )
 
 type contextKey string
 
 const (
-	AppStateKey contextKey = "app_state"
+	StateKey contextKey = "app_state"
 )
 
-type AppState struct {
+type State struct {
 	CWD           *common.CWD
 	ProjectConfig *project.Config
 	Workflows     []*workflow.Config
 	NatsServer    *nats.Server
+	Orchestrator  *orchestrator.Orchestrator
 }
 
-func NewAppState(
+func NewState(
 	projectConfig *project.Config,
 	workflows []*workflow.Config,
 	natsServer *nats.Server,
-) (*AppState, error) {
+) (*State, error) {
 	if projectConfig == nil {
 		return nil, fmt.Errorf("project config is required")
 	}
@@ -37,7 +40,7 @@ func NewAppState(
 		return nil, fmt.Errorf("project config must have a valid CWD")
 	}
 
-	return &AppState{
+	return &State{
 		CWD:           cwd,
 		ProjectConfig: projectConfig,
 		Workflows:     workflows,
@@ -45,14 +48,22 @@ func NewAppState(
 	}, nil
 }
 
-func WithAppState(ctx context.Context, state *AppState) context.Context {
-	return context.WithValue(ctx, AppStateKey, state)
+func WithState(ctx context.Context, state *State) context.Context {
+	return context.WithValue(ctx, StateKey, state)
 }
 
-func GetAppState(ctx context.Context) (*AppState, error) {
-	state, ok := ctx.Value(AppStateKey).(*AppState)
+func GetState(ctx context.Context) (*State, error) {
+	state, ok := ctx.Value(StateKey).(*State)
 	if !ok {
-		return nil, NewServerError(ErrInternalCode, "App state not found in context")
+		return nil, fmt.Errorf("app state not found in context")
 	}
 	return state, nil
+}
+
+func StateMiddleware(state *State) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx := WithState(c.Request.Context(), state)
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+	}
 }

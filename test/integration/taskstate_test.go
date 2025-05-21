@@ -5,11 +5,12 @@ import (
 
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/domain/task"
-	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/pkg/nats"
-
+	pbcommon "github.com/compozy/compozy/pkg/pb/common"
+	pbtask "github.com/compozy/compozy/pkg/pb/task"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestTaskStateInitialization(t *testing.T) {
@@ -20,14 +21,16 @@ func TestTaskStateInitialization(t *testing.T) {
 	workflowExecID := common.NewExecID()
 
 	workflowEnv := common.EnvMap{
-		"WORKFLOW_KEY": "workflow_value",
+		"WORKFLOW_KEY": "workflow_val",
 		"OVERRIDE_KEY": "workflow_override",
+		"SHARED_ENV":   "from_workflow_env",
 	}
 	taskEnv := common.EnvMap{
-		"TASK_SPECIFIC_KEY": "task_value",
-		"OVERRIDE_KEY":      "task_override",
-		"FROM_TRIGGER":      "{{ .trigger.input.data.value }}",
-		"FROM_INPUT":        "{{ .input.task_param }}",
+		"TASK_KEY":     "task_val",
+		"OVERRIDE_KEY": "task_override",
+		"FROM_TRIGGER": "{{ .trigger.input.data.value }}",
+		"FROM_INPUT":   "{{ .input.task_param }}",
+		"FROM_ENV":     "{{ .env.SHARED_ENV }}",
 	}
 	triggerData := common.Input{
 		"data": map[string]any{
@@ -35,7 +38,8 @@ func TestTaskStateInitialization(t *testing.T) {
 		},
 	}
 	taskData := common.Input{
-		"task_param": "task_input_value",
+		"task_param":     "task_input_value",
+		"TEMPLATE_PARAM": "{{ .trigger.input.data.value }}",
 	}
 
 	exec := task.NewExecution(
@@ -62,121 +66,384 @@ func TestTaskStateInitialization(t *testing.T) {
 		assert.Equal(t, nats.StatusPending, taskState.GetStatus())
 	})
 
-	t.Run("Should merge environments and resolve templates", func(t *testing.T) {
+	t.Run("Should merge environments with task env taking precedence and resolve templates", func(t *testing.T) {
 		expectedEnv := common.EnvMap{
-			"WORKFLOW_KEY":      "workflow_value",
-			"OVERRIDE_KEY":      "task_override",
-			"TASK_SPECIFIC_KEY": "task_value",
-			"FROM_TRIGGER":      "trigger_data_value",
-			"FROM_INPUT":        "task_input_value",
+			"WORKFLOW_KEY": "workflow_val",
+			"TASK_KEY":     "task_val",
+			"OVERRIDE_KEY": "task_override",
+			"SHARED_ENV":   "from_workflow_env",
+			"FROM_TRIGGER": "trigger_data_value",
+			"FROM_INPUT":   "task_input_value",
+			"FROM_ENV":     "from_workflow_env",
 		}
 		require.NotNil(t, taskState.GetEnv(), "Env should not be nil")
 		assert.Equal(t, expectedEnv, *taskState.GetEnv())
 	})
 
-	t.Run("Should correctly initialize Trigger, Input, and Output", func(t *testing.T) {
+	t.Run("Should correctly initialize Input with templates resolved", func(t *testing.T) {
+		expectedInput := common.Input{
+			"task_param":     "task_input_value",
+			"TEMPLATE_PARAM": "trigger_data_value",
+		}
+		require.NotNil(t, taskState.GetInput(), "Input should not be nil")
+		assert.Equal(t, expectedInput, *taskState.GetInput())
+	})
+
+	t.Run("Should correctly initialize Trigger and Output", func(t *testing.T) {
 		require.NotNil(t, taskState.GetTrigger(), "Trigger should not be nil")
 		assert.Equal(t, triggerData, *taskState.GetTrigger())
-
-		require.NotNil(t, taskState.GetInput(), "Input should not be nil")
-		assert.Equal(t, taskData, *taskState.GetInput())
 
 		require.NotNil(t, taskState.GetOutput(), "Output should be initialized")
 		assert.Empty(t, *taskState.GetOutput(), "Output should be empty initially")
 	})
 }
 
-func TestTaskStatePersistence(t *testing.T) {
+func TestTaskStateUpdateFromEvent(t *testing.T) {
+	// Setup
 	tb := SetupIntegrationTestBed(t, DefaultTestTimeout, []nats.ComponentType{nats.ComponentTask})
 	defer tb.Cleanup()
 	stateManager := tb.StateManager
 
-	t.Run("Should persist state and allow accurate retrieval", func(t *testing.T) {
-		corrID := common.NewCorrID()
-		workflowExecID := common.NewExecID()
+	// Create a task execution for testing
+	corrID := common.NewCorrID()
+	workflowExecID := common.NewExecID()
 
-		workflowEnv := common.EnvMap{"key1": "val1"}
-		taskEnv := common.EnvMap{"key2": "val2"}
-		triggerData := common.Input{"trigger_key": "trigger_val"}
-		taskData := common.Input{"input_key": "input_val"}
+	workflowEnv := common.EnvMap{"WORKFLOW_ENV": "workflow_value"}
+	taskEnv := common.EnvMap{"TASK_ENV": "task_value"}
 
-		exec := task.NewExecution(
-			corrID, workflowExecID, workflowEnv, taskEnv, &triggerData, &taskData,
-		)
-		require.NotNil(t, exec)
-		taskExecID := exec.TaskExecID
+	triggerInput := &common.Input{"trigger_key": "trigger_value"}
+	taskInput := &common.Input{"task_key": "task_value"}
 
-		originalTaskState, err := task.NewTaskState(exec)
-		require.NoError(t, err)
-		require.NotNil(t, originalTaskState)
+	exec := task.NewExecution(
+		corrID,
+		workflowExecID,
+		workflowEnv,
+		taskEnv,
+		triggerInput,
+		taskInput,
+	)
 
-		err = stateManager.SaveState(originalTaskState)
-		require.NoError(t, err)
+	taskState, err := task.NewTaskState(exec)
+	require.NoError(t, err)
+	require.NotNil(t, taskState)
 
-		retrievedStateInterface, err := stateManager.GetTaskState(corrID, taskExecID)
-		require.NoError(t, err)
-		require.NotNil(t, retrievedStateInterface)
+	// Save initial state
+	err = stateManager.SaveState(taskState)
+	require.NoError(t, err)
+	assert.Equal(t, nats.StatusPending, taskState.Status)
 
-		retrievedBaseState, ok := retrievedStateInterface.(*state.BaseState)
-		require.True(t, ok, "Retrieved state should be of type *state.BaseState")
-
-		assert.Equal(t, originalTaskState.GetID(), retrievedBaseState.GetID())
-		assert.Equal(t, nats.ComponentTask, retrievedBaseState.GetID().Component)
-		assert.Equal(t, originalTaskState.GetStatus(), retrievedBaseState.GetStatus())
-		assert.Equal(t, *originalTaskState.GetEnv(), *retrievedBaseState.GetEnv())
-		assert.Equal(t, *originalTaskState.GetTrigger(), *retrievedBaseState.GetTrigger())
-		assert.Equal(t, *originalTaskState.GetInput(), *retrievedBaseState.GetInput())
-		assert.Equal(t, *originalTaskState.GetOutput(), *retrievedBaseState.GetOutput())
-	})
-}
-
-func TestTaskStateUpdates(t *testing.T) {
-	tb := SetupIntegrationTestBed(t, DefaultTestTimeout, []nats.ComponentType{nats.ComponentTask})
-	defer tb.Cleanup()
-	stateManager := tb.StateManager
-
-	t.Run("Should reflect updates to status and output after saving", func(t *testing.T) {
-		corrID := common.NewCorrID()
-		workflowExecID := common.NewExecID()
-
-		workflowEnv := common.EnvMap{"key1": "val1"}
-		taskEnv := common.EnvMap{"key2": "val2"}
-		triggerData := common.Input{"trigger_key": "trigger_val"}
-		taskData := common.Input{"input_key": "input_val"}
-
-		exec := task.NewExecution(
-			corrID, workflowExecID, workflowEnv, taskEnv, &triggerData, &taskData,
-		)
-		require.NotNil(t, exec)
-		taskExecID := exec.TaskExecID
-
-		taskStateInstance, err := task.NewTaskState(exec)
-		require.NoError(t, err)
-		require.NotNil(t, taskStateInstance)
-
-		err = stateManager.SaveState(taskStateInstance)
-		require.NoError(t, err)
-
-		taskStateInstance.SetStatus(nats.StatusSuccess)
-		newOutputData := common.Output{
-			"result": "task_done",
-			"value":  123.45,
+	// Test cases for different event types
+	t.Run("Should update status to Pending when receiving TaskDispatchedEvent", func(t *testing.T) {
+		event := &pbtask.TaskDispatchedEvent{
+			Metadata: &pbcommon.Metadata{
+				CorrelationId: string(corrID),
+			},
+			Task: &pbcommon.TaskInfo{
+				Id:     "task-id",
+				ExecId: string(exec.TaskExecID),
+			},
+			Workflow: &pbcommon.WorkflowInfo{
+				Id:     "workflow-id",
+				ExecId: string(workflowExecID),
+			},
 		}
-		taskStateInstance.Output = &newOutputData
 
-		err = stateManager.SaveState(taskStateInstance)
+		err := taskState.UpdateFromEvent(event)
+		require.NoError(t, err)
+		assert.Equal(t, nats.StatusPending, taskState.Status)
+	})
+
+	t.Run("Should update status to Running when receiving TaskExecutionStartedEvent", func(t *testing.T) {
+		event := &pbtask.TaskExecutionStartedEvent{
+			Metadata: &pbcommon.Metadata{
+				CorrelationId: string(corrID),
+			},
+			Task: &pbcommon.TaskInfo{
+				Id:     "task-id",
+				ExecId: string(exec.TaskExecID),
+			},
+			Workflow: &pbcommon.WorkflowInfo{
+				Id:     "workflow-id",
+				ExecId: string(workflowExecID),
+			},
+		}
+
+		err := taskState.UpdateFromEvent(event)
+		require.NoError(t, err)
+		assert.Equal(t, nats.StatusRunning, taskState.Status)
+
+		// Save and verify
+		err = stateManager.SaveState(taskState)
 		require.NoError(t, err)
 
-		retrievedStateInterface, err := stateManager.GetTaskState(corrID, taskExecID)
+		retrievedState, err := stateManager.GetTaskState(corrID, exec.TaskExecID)
 		require.NoError(t, err)
-		require.NotNil(t, retrievedStateInterface)
+		assert.Equal(t, nats.StatusRunning, retrievedState.GetStatus())
+	})
 
-		retrievedBaseState, ok := retrievedStateInterface.(*state.BaseState)
-		require.True(t, ok, "Retrieved state should be of type *state.BaseState")
+	t.Run("Should update status to Waiting when receiving TaskExecutionWaitingStartedEvent", func(t *testing.T) {
+		event := &pbtask.TaskExecutionWaitingStartedEvent{
+			Metadata: &pbcommon.Metadata{
+				CorrelationId: string(corrID),
+			},
+			Task: &pbcommon.TaskInfo{
+				Id:     "task-id",
+				ExecId: string(exec.TaskExecID),
+			},
+			Workflow: &pbcommon.WorkflowInfo{
+				Id:     "workflow-id",
+				ExecId: string(workflowExecID),
+			},
+		}
 
-		assert.Equal(t, nats.StatusSuccess, retrievedBaseState.GetStatus())
-		require.NotNil(t, retrievedBaseState.GetOutput())
-		assert.Equal(t, newOutputData, *retrievedBaseState.GetOutput())
-		assert.Equal(t, *taskStateInstance.GetEnv(), *retrievedBaseState.GetEnv())
+		err := taskState.UpdateFromEvent(event)
+		require.NoError(t, err)
+		assert.Equal(t, nats.StatusWaiting, taskState.Status)
+	})
+
+	t.Run("Should update status to Running when receiving TaskExecutionWaitingEndedEvent", func(t *testing.T) {
+		event := &pbtask.TaskExecutionWaitingEndedEvent{
+			Metadata: &pbcommon.Metadata{
+				CorrelationId: string(corrID),
+			},
+			Task: &pbcommon.TaskInfo{
+				Id:     "task-id",
+				ExecId: string(exec.TaskExecID),
+			},
+			Workflow: &pbcommon.WorkflowInfo{
+				Id:     "workflow-id",
+				ExecId: string(workflowExecID),
+			},
+		}
+
+		err := taskState.UpdateFromEvent(event)
+		require.NoError(t, err)
+		assert.Equal(t, nats.StatusRunning, taskState.Status)
+	})
+
+	t.Run("Should update both status and output when receiving TaskExecutionSuccessEvent with Result", func(t *testing.T) {
+		// Create a structpb.Struct with test data
+		resultData, err := structpb.NewStruct(map[string]interface{}{
+			"message": "Task completed successfully",
+			"count":   42,
+			"tokens":  2500,
+			"details": map[string]interface{}{
+				"type":    "completion",
+				"latency": 500,
+			},
+		})
+		require.NoError(t, err)
+
+		// Create success event with result
+		event := &pbtask.TaskExecutionSuccessEvent{
+			Metadata: &pbcommon.Metadata{
+				CorrelationId: string(corrID),
+			},
+			Task: &pbcommon.TaskInfo{
+				Id:     "task-id",
+				ExecId: string(exec.TaskExecID),
+			},
+			Workflow: &pbcommon.WorkflowInfo{
+				Id:     "workflow-id",
+				ExecId: string(workflowExecID),
+			},
+			Payload: &pbtask.TaskExecutionSuccessEvent_Payload{
+				Result: &pbcommon.Result{
+					Output: resultData,
+				},
+			},
+		}
+
+		// Apply the event
+		err = taskState.UpdateFromEvent(event)
+		require.NoError(t, err)
+
+		// Verify status update
+		assert.Equal(t, nats.StatusSuccess, taskState.Status)
+
+		// Verify output update
+		require.NotNil(t, taskState.Output)
+		assert.Equal(t, "Task completed successfully", (*taskState.Output)["message"])
+		assert.Equal(t, float64(42), (*taskState.Output)["count"])
+		assert.Equal(t, float64(2500), (*taskState.Output)["tokens"])
+
+		// Verify nested map is correctly converted
+		details, ok := (*taskState.Output)["details"].(map[string]interface{})
+		require.True(t, ok, "details should be a map")
+		assert.Equal(t, "completion", details["type"])
+		assert.Equal(t, float64(500), details["latency"])
+
+		// Save and verify
+		err = stateManager.SaveState(taskState)
+		require.NoError(t, err)
+
+		retrievedState, err := stateManager.GetTaskState(corrID, exec.TaskExecID)
+		require.NoError(t, err)
+		assert.Equal(t, nats.StatusSuccess, retrievedState.GetStatus())
+
+		// Verify output was saved correctly
+		output := retrievedState.GetOutput()
+		require.NotNil(t, output)
+		assert.Equal(t, "Task completed successfully", (*output)["message"])
+	})
+
+	t.Run("Should update both status and error output when receiving TaskExecutionFailedEvent with Error", func(t *testing.T) {
+		// Create a new task state for this test
+		newCorrID := common.NewCorrID()
+		newExec := task.NewExecution(
+			newCorrID,
+			workflowExecID,
+			workflowEnv,
+			taskEnv,
+			triggerInput,
+			taskInput,
+		)
+		newTaskState, err := task.NewTaskState(newExec)
+		require.NoError(t, err)
+		err = stateManager.SaveState(newTaskState)
+		require.NoError(t, err)
+
+		// Create error details struct
+		errorDetails, err := structpb.NewStruct(map[string]interface{}{
+			"operation": "database_query",
+			"context":   "connection failed",
+			"retry":     false,
+		})
+		require.NoError(t, err)
+
+		// Create error code value
+		errorCode := "ERR_TASK_FAILED"
+
+		// Create failed event with error result
+		event := &pbtask.TaskExecutionFailedEvent{
+			Metadata: &pbcommon.Metadata{
+				CorrelationId: string(newCorrID),
+			},
+			Task: &pbcommon.TaskInfo{
+				Id:     "task-id",
+				ExecId: string(newExec.TaskExecID),
+			},
+			Workflow: &pbcommon.WorkflowInfo{
+				Id:     "workflow-id",
+				ExecId: string(workflowExecID),
+			},
+			Payload: &pbtask.TaskExecutionFailedEvent_Payload{
+				Result: &pbcommon.Result{
+					Error: &pbcommon.ErrorResult{
+						Message: "Task execution failed",
+						Code:    &errorCode,
+						Details: errorDetails,
+					},
+				},
+			},
+		}
+
+		// Apply the event
+		err = newTaskState.UpdateFromEvent(event)
+		require.NoError(t, err)
+
+		// Verify status update
+		assert.Equal(t, nats.StatusFailed, newTaskState.Status)
+
+		// Verify error details
+		require.NotNil(t, newTaskState.Error)
+		assert.Equal(t, "Task execution failed", newTaskState.Error.Message)
+		assert.Equal(t, errorCode, newTaskState.Error.Code)
+
+		// Verify error details are correctly stored
+		require.NotNil(t, newTaskState.Error.Details)
+		assert.Equal(t, "database_query", newTaskState.Error.Details["operation"])
+		assert.Equal(t, "connection failed", newTaskState.Error.Details["context"])
+		assert.Equal(t, false, newTaskState.Error.Details["retry"])
+
+		// Verify output is nil when there's an error
+		assert.Nil(t, newTaskState.Output)
+
+		// Save and verify
+		err = stateManager.SaveState(newTaskState)
+		require.NoError(t, err)
+
+		retrievedState, err := stateManager.GetTaskState(newCorrID, newExec.TaskExecID)
+		require.NoError(t, err)
+		assert.Equal(t, nats.StatusFailed, retrievedState.GetStatus())
+
+		// Verify error was saved correctly
+		errRes := retrievedState.GetError()
+		require.NotNil(t, errRes)
+		assert.Equal(t, "Task execution failed", errRes.Message)
+		assert.Equal(t, errorCode, errRes.Code)
+	})
+
+	t.Run("Should update both status and output when receiving TaskExecutionWaitingTimedOutEvent with Result", func(t *testing.T) {
+		// Create a new task state for this test
+		newCorrID := common.NewCorrID()
+		newExec := task.NewExecution(
+			newCorrID,
+			workflowExecID,
+			workflowEnv,
+			taskEnv,
+			triggerInput,
+			taskInput,
+		)
+		newTaskState, err := task.NewTaskState(newExec)
+		require.NoError(t, err)
+		err = stateManager.SaveState(newTaskState)
+		require.NoError(t, err)
+
+		// Create a structpb.Struct with timeout details
+		resultData, err := structpb.NewStruct(map[string]interface{}{
+			"reason":     "waiting condition not satisfied",
+			"timeout_ms": 30000,
+			"details":    "max retry attempts exceeded",
+		})
+		require.NoError(t, err)
+
+		// Create timeout event with result
+		event := &pbtask.TaskExecutionWaitingTimedOutEvent{
+			Metadata: &pbcommon.Metadata{
+				CorrelationId: string(newCorrID),
+			},
+			Task: &pbcommon.TaskInfo{
+				Id:     "task-id",
+				ExecId: string(newExec.TaskExecID),
+			},
+			Workflow: &pbcommon.WorkflowInfo{
+				Id:     "workflow-id",
+				ExecId: string(workflowExecID),
+			},
+			Payload: &pbtask.TaskExecutionWaitingTimedOutEvent_Payload{
+				Result: &pbcommon.Result{
+					Output: resultData,
+				},
+			},
+		}
+
+		// Apply the event
+		err = newTaskState.UpdateFromEvent(event)
+		require.NoError(t, err)
+
+		// Verify status update
+		assert.Equal(t, nats.StatusTimedOut, newTaskState.Status)
+
+		// Verify output update
+		require.NotNil(t, newTaskState.Output)
+		assert.Equal(t, "waiting condition not satisfied", (*newTaskState.Output)["reason"])
+		assert.Equal(t, float64(30000), (*newTaskState.Output)["timeout_ms"])
+		assert.Equal(t, "max retry attempts exceeded", (*newTaskState.Output)["details"])
+
+		// Save and verify
+		err = stateManager.SaveState(newTaskState)
+		require.NoError(t, err)
+
+		retrievedState, err := stateManager.GetTaskState(newCorrID, newExec.TaskExecID)
+		require.NoError(t, err)
+		assert.Equal(t, nats.StatusTimedOut, retrievedState.GetStatus())
+	})
+
+	t.Run("Should return error when receiving unsupported event type", func(t *testing.T) {
+		unsupportedEvent := struct{}{}
+		err := taskState.UpdateFromEvent(unsupportedEvent)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported event type")
 	})
 }

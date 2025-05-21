@@ -42,11 +42,23 @@ type State interface {
 	GetTrigger() *common.Input
 	GetInput() *common.Input
 	GetOutput() *common.Output
+	GetError() *Error
 	SetStatus(status nats.EvStatusType)
-	UpdateStatus(event any) error
+	SetError(err *Error)
+	UpdateFromEvent(event any) error
 	FromParentState(parent State) error
 	WithEnv(env common.EnvMap) error
 	WithInput(input common.Input) error
+}
+
+// -----------------------------------------------------------------------------
+// Error Structure
+// -----------------------------------------------------------------------------
+
+type Error struct {
+	Message string         `json:"message,omitempty"`
+	Code    string         `json:"code,omitempty"`
+	Details map[string]any `json:"details,omitempty"`
 }
 
 // -----------------------------------------------------------------------------
@@ -60,7 +72,7 @@ type BaseState struct {
 	Input   *common.Input     `json:"input,omitempty"`
 	Output  *common.Output    `json:"output,omitempty"`
 	Env     *common.EnvMap    `json:"environment,omitempty"`
-	Errors  []string          `json:"errors,omitempty"`
+	Error   *Error            `json:"error,omitempty"`
 }
 
 func (s *BaseState) GetID() ID {
@@ -95,8 +107,16 @@ func (s *BaseState) GetOutput() *common.Output {
 	return s.Output
 }
 
+func (s *BaseState) GetError() *Error {
+	return s.Error
+}
+
 func (s *BaseState) SetStatus(status nats.EvStatusType) {
 	s.Status = status
+}
+
+func (s *BaseState) SetError(err *Error) {
+	s.Error = err
 }
 
 func (s *BaseState) FromParentState(parent State) error {
@@ -121,7 +141,7 @@ func (s *BaseState) WithInput(input common.Input) error {
 	return nil
 }
 
-func (s *BaseState) UpdateStatus(_ any) error {
+func (s *BaseState) UpdateFromEvent(_ any) error {
 	return nil
 }
 
@@ -139,7 +159,7 @@ func NewEmptyState(opts ...Option) State {
 		Input:   &common.Input{},
 		Output:  &common.Output{},
 		Env:     &common.EnvMap{},
-		Errors:  []string{},
+		Error:   nil,
 	}
 	for _, opt := range opts {
 		opt(state)

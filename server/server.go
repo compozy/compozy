@@ -9,21 +9,21 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/compozy/compozy/engine/orchestrator"
+	"github.com/compozy/compozy/pkg/app"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
-// Server represents the HTTP server
 type Server struct {
 	Config *Config
-	State  *AppState
+	State  *app.State
 	router *gin.Engine
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-// NewServer creates a new server instance
-func NewServer(config *Config, state *AppState) *Server {
+func NewServer(config *Config, state *app.State) *Server {
 	if config == nil {
 		config = &Config{
 			CWD:         state.CWD.PathStr(),
@@ -33,9 +33,7 @@ func NewServer(config *Config, state *AppState) *Server {
 		}
 	}
 
-	// Create root context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
-
 	return &Server{
 		Config: config,
 		State:  state,
@@ -44,7 +42,6 @@ func NewServer(config *Config, state *AppState) *Server {
 	}
 }
 
-// buildRouter builds the Gin router with all registered routes
 func (s *Server) buildRouter() error {
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -54,9 +51,7 @@ func (s *Server) buildRouter() error {
 		router.Use(CORSMiddleware())
 	}
 
-	// Add app state to context
-	router.Use(AppStateMiddleware(s.State))
-
+	router.Use(app.StateMiddleware(s.State))
 	if err := RegisterRoutes(router, s.State); err != nil {
 		return err
 	}
@@ -65,9 +60,25 @@ func (s *Server) buildRouter() error {
 	return nil
 }
 
-// Run starts the HTTP server and all components
 func (s *Server) Run() error {
-	// Build router
+	orch, err := orchestrator.NewOrchestartor(
+		s.State.NatsServer,
+		s.State.ProjectConfig,
+		s.State.Workflows,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create orchestrator: %w", err)
+	}
+	if err := orch.Start(s.ctx); err != nil {
+		return fmt.Errorf("failed to start orchestrator: %w", err)
+	}
+	s.State.Orchestrator = orch
+	defer func() {
+		if err := orch.Stop(context.Background()); err != nil {
+			logger.Error("Error shutting down orchestrator", "error", err)
+		}
+	}()
+
 	if err := s.buildRouter(); err != nil {
 		return err
 	}
@@ -85,7 +96,6 @@ func (s *Server) Run() error {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Start server in a goroutine
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("Server failed to start",
@@ -95,16 +105,13 @@ func (s *Server) Run() error {
 		}
 	}()
 
-	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	logger.Debug("Received shutdown signal, initiating graceful shutdown")
 
-	// Cancel the context to signal all components to shut down
 	s.cancel()
 
-	// Shut down the HTTP server
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 

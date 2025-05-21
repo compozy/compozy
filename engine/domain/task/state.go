@@ -6,6 +6,7 @@ import (
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/pkg/nats"
+	pb "github.com/compozy/compozy/pkg/pb/task"
 )
 
 // -----------------------------------------------------------------------------
@@ -93,4 +94,74 @@ func NewTaskState(exec *Execution) (*State, error) {
 		return nil, fmt.Errorf("failed to initialize task state: %w", err)
 	}
 	return st, nil
+}
+
+// UpdateFromEvent updates the task state based on the event type
+// It updates both the status and output data from the event
+func (s *State) UpdateFromEvent(event any) error {
+	switch evt := event.(type) {
+	case *pb.TaskDispatchedEvent:
+		return s.handleDispatchedEvent(evt)
+	case *pb.TaskExecutionStartedEvent:
+		return s.handleStartedEvent(evt)
+	case *pb.TaskExecutionWaitingStartedEvent:
+		return s.handleWaitingStartedEvent(evt)
+	case *pb.TaskExecutionWaitingEndedEvent:
+		return s.handleWaitingEndedEvent(evt)
+	case *pb.TaskExecutionWaitingTimedOutEvent:
+		return s.handleWaitingTimedOutEvent(evt)
+	case *pb.TaskExecutionSuccessEvent:
+		return s.handleSuccessEvent(evt)
+	case *pb.TaskExecutionFailedEvent:
+		return s.handleFailedEvent(evt)
+	default:
+		return fmt.Errorf("unsupported event type for task state update: %T", evt)
+	}
+}
+
+func (s *State) handleDispatchedEvent(_ *pb.TaskDispatchedEvent) error {
+	s.Status = nats.StatusPending
+	return nil
+}
+
+func (s *State) handleStartedEvent(_ *pb.TaskExecutionStartedEvent) error {
+	s.Status = nats.StatusRunning
+	return nil
+}
+
+func (s *State) handleWaitingStartedEvent(_ *pb.TaskExecutionWaitingStartedEvent) error {
+	s.Status = nats.StatusWaiting
+	return nil
+}
+
+func (s *State) handleWaitingEndedEvent(_ *pb.TaskExecutionWaitingEndedEvent) error {
+	s.Status = nats.StatusRunning
+	return nil
+}
+
+func (s *State) handleWaitingTimedOutEvent(evt *pb.TaskExecutionWaitingTimedOutEvent) error {
+	s.Status = nats.StatusTimedOut
+	if evt.GetPayload() == nil || evt.GetPayload().GetResult() == nil {
+		return nil
+	}
+	state.SetResultData(&s.BaseState, evt.GetPayload().GetResult())
+	return nil
+}
+
+func (s *State) handleSuccessEvent(evt *pb.TaskExecutionSuccessEvent) error {
+	s.Status = nats.StatusSuccess
+	if evt.GetPayload() == nil || evt.GetPayload().GetResult() == nil {
+		return nil
+	}
+	state.SetResultData(&s.BaseState, evt.GetPayload().GetResult())
+	return nil
+}
+
+func (s *State) handleFailedEvent(evt *pb.TaskExecutionFailedEvent) error {
+	s.Status = nats.StatusFailed
+	if evt.GetPayload() == nil || evt.GetPayload().GetResult() == nil {
+		return nil
+	}
+	state.SetResultData(&s.BaseState, evt.GetPayload().GetResult())
+	return nil
 }

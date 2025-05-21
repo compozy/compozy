@@ -73,12 +73,3 @@ func CORSMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
-
-// AppStateMiddleware adds the app state to the request context
-func AppStateMiddleware(state *AppState) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ctx := WithAppState(c.Request.Context(), state)
-		c.Request = c.Request.WithContext(ctx)
-		c.Next()
-	}
-}

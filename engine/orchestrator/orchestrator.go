@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
-	"github.com/compozy/compozy/server"
 )
 
 type SystemComponent string
@@ -27,8 +26,8 @@ type Orchestrator struct {
 	Workflows     []*workflow.Config
 }
 
-func NewOrchestartor(appState server.AppState) (*Orchestrator, error) {
-	natsClient, err := nats.NewClient(appState.NatsServer.Conn)
+func NewOrchestartor(natsServer *nats.Server, pjConfig *project.Config, wfConfigs []*workflow.Config) (*Orchestrator, error) {
+	natsClient, err := nats.NewClient(natsServer.Conn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize NATS client: %w", err)
 	}
@@ -43,8 +42,8 @@ func NewOrchestartor(appState server.AppState) (*Orchestrator, error) {
 	return &Orchestrator{
 		natsClient:    natsClient,
 		stManager:     stManager,
-		ProjectConfig: appState.ProjectConfig,
-		Workflows:     appState.Workflows,
+		ProjectConfig: pjConfig,
+		Workflows:     wfConfigs,
 	}, nil
 }
 

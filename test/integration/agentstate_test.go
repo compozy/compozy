@@ -7,9 +7,11 @@ import (
 	"github.com/compozy/compozy/engine/domain/agent"
 	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/pkg/nats"
-
+	pbagent "github.com/compozy/compozy/pkg/pb/agent"
+	pbcommon "github.com/compozy/compozy/pkg/pb/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestAgentStateInitialization(t *testing.T) {
@@ -226,5 +228,247 @@ func TestAgentStateUpdates(t *testing.T) {
 		require.NotNil(t, retrievedBaseState.GetOutput())
 		assert.Equal(t, newOutputData, *retrievedBaseState.GetOutput())
 		assert.Equal(t, *agentStateInstance.GetEnv(), *retrievedBaseState.GetEnv())
+	})
+}
+
+func TestAgentStateUpdateFromEvent(t *testing.T) {
+	// Setup
+	tb := SetupIntegrationTestBed(t, DefaultTestTimeout, []nats.ComponentType{nats.ComponentAgent})
+	defer tb.Cleanup()
+	stateManager := tb.StateManager
+
+	// Create an agent execution for testing
+	corrID := common.NewCorrID()
+	workflowExecID := common.NewExecID()
+	taskExecID := common.NewExecID()
+
+	taskEnv := common.EnvMap{"TASK_ENV": "task_value"}
+	agentEnv := common.EnvMap{"AGENT_ENV": "agent_value"}
+
+	triggerInput := &common.Input{"trigger_key": "trigger_value"}
+	taskInput := &common.Input{"task_key": "task_value"}
+	agentInput := &common.Input{"agent_key": "agent_value"}
+
+	exec := agent.NewExecution(
+		corrID,
+		taskExecID,
+		workflowExecID,
+		taskEnv,
+		agentEnv,
+		triggerInput,
+		taskInput,
+		agentInput,
+	)
+
+	agentState, err := agent.NewAgentState(exec)
+	require.NoError(t, err)
+	require.NotNil(t, agentState)
+
+	// Save initial state
+	err = stateManager.SaveState(agentState)
+	require.NoError(t, err)
+	assert.Equal(t, nats.StatusPending, agentState.Status)
+
+	// Test cases for each event type
+	t.Run("Should update status to Running when receiving AgentExecutionStartedEvent", func(t *testing.T) {
+		event := &pbagent.AgentExecutionStartedEvent{
+			Metadata: &pbcommon.Metadata{
+				CorrelationId: string(corrID),
+			},
+			Agent: &pbcommon.AgentInfo{
+				Id:     "agent-id",
+				ExecId: string(exec.AgentExecID),
+			},
+			Task: &pbcommon.TaskInfo{
+				Id:     "task-id",
+				ExecId: string(taskExecID),
+			},
+			Workflow: &pbcommon.WorkflowInfo{
+				Id:     "workflow-id",
+				ExecId: string(workflowExecID),
+			},
+		}
+
+		err := agentState.UpdateFromEvent(event)
+		require.NoError(t, err)
+		assert.Equal(t, nats.StatusRunning, agentState.Status)
+
+		// Save and verify
+		err = stateManager.SaveState(agentState)
+		require.NoError(t, err)
+
+		retrievedState, err := stateManager.GetAgentState(corrID, exec.AgentExecID)
+		require.NoError(t, err)
+		assert.Equal(t, nats.StatusRunning, retrievedState.GetStatus())
+	})
+
+	t.Run("Should update both status and output when receiving AgentExecutionSuccessEvent with Result", func(t *testing.T) {
+		// Create a structpb.Struct with test data
+		resultData, err := structpb.NewStruct(map[string]interface{}{
+			"message": "Agent completed successfully",
+			"count":   42,
+			"tokens":  2500,
+			"details": map[string]any{
+				"model":   "gpt-4",
+				"latency": 1200,
+			},
+		})
+		require.NoError(t, err)
+
+		// Create success event with result
+		event := &pbagent.AgentExecutionSuccessEvent{
+			Metadata: &pbcommon.Metadata{
+				CorrelationId: string(corrID),
+			},
+			Agent: &pbcommon.AgentInfo{
+				Id:     "agent-id",
+				ExecId: string(exec.AgentExecID),
+			},
+			Task: &pbcommon.TaskInfo{
+				Id:     "task-id",
+				ExecId: string(taskExecID),
+			},
+			Workflow: &pbcommon.WorkflowInfo{
+				Id:     "workflow-id",
+				ExecId: string(workflowExecID),
+			},
+			Payload: &pbagent.AgentExecutionSuccessEvent_Payload{
+				Result: &pbcommon.Result{
+					Output: resultData,
+				},
+			},
+		}
+
+		// Apply the event
+		err = agentState.UpdateFromEvent(event)
+		require.NoError(t, err)
+
+		// Verify status update
+		assert.Equal(t, nats.StatusSuccess, agentState.Status)
+
+		// Verify output update
+		require.NotNil(t, agentState.Output)
+		assert.Equal(t, "Agent completed successfully", (*agentState.Output)["message"])
+		assert.Equal(t, float64(42), (*agentState.Output)["count"])
+		assert.Equal(t, float64(2500), (*agentState.Output)["tokens"])
+
+		// Verify nested map is correctly converted
+		details, ok := (*agentState.Output)["details"].(map[string]interface{})
+		require.True(t, ok, "details should be a map")
+		assert.Equal(t, "gpt-4", details["model"])
+		assert.Equal(t, float64(1200), details["latency"])
+
+		// Save and verify
+		err = stateManager.SaveState(agentState)
+		require.NoError(t, err)
+
+		retrievedState, err := stateManager.GetAgentState(corrID, exec.AgentExecID)
+		require.NoError(t, err)
+		assert.Equal(t, nats.StatusSuccess, retrievedState.GetStatus())
+
+		// Verify output was saved correctly
+		output := retrievedState.GetOutput()
+		require.NotNil(t, output)
+		assert.Equal(t, "Agent completed successfully", (*output)["message"])
+	})
+
+	t.Run("Should update both status and error output when receiving AgentExecutionFailedEvent with Error", func(t *testing.T) {
+		// Create a new agent state for this test
+		newCorrID := common.NewCorrID()
+		newExec := agent.NewExecution(
+			newCorrID,
+			taskExecID,
+			workflowExecID,
+			taskEnv,
+			agentEnv,
+			triggerInput,
+			taskInput,
+			agentInput,
+		)
+		newAgentState, err := agent.NewAgentState(newExec)
+		require.NoError(t, err)
+		err = stateManager.SaveState(newAgentState)
+		require.NoError(t, err)
+
+		// Create error details struct
+		errorDetails, err := structpb.NewStruct(map[string]interface{}{
+			"model":   "gpt-4",
+			"context": "LLM API call failed",
+			"retry":   2,
+		})
+		require.NoError(t, err)
+
+		// Create error code value
+		errorCode := "ERR_AGENT_FAILED"
+
+		// Create failed event with error result
+		event := &pbagent.AgentExecutionFailedEvent{
+			Metadata: &pbcommon.Metadata{
+				CorrelationId: string(newCorrID),
+			},
+			Agent: &pbcommon.AgentInfo{
+				Id:     "agent-id",
+				ExecId: string(newExec.AgentExecID),
+			},
+			Task: &pbcommon.TaskInfo{
+				Id:     "task-id",
+				ExecId: string(taskExecID),
+			},
+			Workflow: &pbcommon.WorkflowInfo{
+				Id:     "workflow-id",
+				ExecId: string(workflowExecID),
+			},
+			Payload: &pbagent.AgentExecutionFailedEvent_Payload{
+				Result: &pbcommon.Result{
+					Error: &pbcommon.ErrorResult{
+						Message: "Agent execution failed",
+						Code:    &errorCode,
+						Details: errorDetails,
+					},
+				},
+			},
+		}
+
+		// Apply the event
+		err = newAgentState.UpdateFromEvent(event)
+		require.NoError(t, err)
+
+		// Verify status update
+		assert.Equal(t, nats.StatusFailed, newAgentState.Status)
+
+		// Verify error details
+		require.NotNil(t, newAgentState.Error)
+		assert.Equal(t, "Agent execution failed", newAgentState.Error.Message)
+		assert.Equal(t, errorCode, newAgentState.Error.Code)
+
+		// Verify error details are correctly stored
+		require.NotNil(t, newAgentState.Error.Details)
+		assert.Equal(t, "gpt-4", newAgentState.Error.Details["model"])
+		assert.Equal(t, "LLM API call failed", newAgentState.Error.Details["context"])
+		assert.Equal(t, float64(2), newAgentState.Error.Details["retry"])
+
+		// Verify output is nil when there's an error
+		assert.Nil(t, newAgentState.Output)
+
+		// Save and verify
+		err = stateManager.SaveState(newAgentState)
+		require.NoError(t, err)
+
+		retrievedState, err := stateManager.GetAgentState(newCorrID, newExec.AgentExecID)
+		require.NoError(t, err)
+		assert.Equal(t, nats.StatusFailed, retrievedState.GetStatus())
+
+		// Verify error was saved correctly
+		errRes := retrievedState.GetError()
+		require.NotNil(t, errRes)
+		assert.Equal(t, "Agent execution failed", errRes.Message)
+		assert.Equal(t, errorCode, errRes.Code)
+	})
+
+	t.Run("Should return error when receiving unsupported event type", func(t *testing.T) {
+		unsupportedEvent := struct{}{}
+		err := agentState.UpdateFromEvent(unsupportedEvent)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported event type")
 	})
 }

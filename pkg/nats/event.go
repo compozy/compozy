@@ -1,7 +1,14 @@
 package nats
 
 import (
+	"fmt"
+
+	pbagent "github.com/compozy/compozy/pkg/pb/agent"
 	"github.com/compozy/compozy/pkg/pb/common"
+	pbtask "github.com/compozy/compozy/pkg/pb/task"
+	pbtool "github.com/compozy/compozy/pkg/pb/tool"
+	pbworkflow "github.com/compozy/compozy/pkg/pb/workflow"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -45,5 +52,172 @@ func ToStatus(eventStatus EventStatus) EvStatusType {
 		return StatusTimedOut
 	default:
 		return StatusPending // Default fallback
+	}
+}
+
+// -----------------------------------------------------------------------------
+// Parser
+// -----------------------------------------------------------------------------
+
+func ParseEvent(compType ComponentType, evtType EvtType, data []byte) (any, error) {
+	switch compType {
+	case ComponentWorkflow:
+		return parseWorkflowEvent(evtType, data)
+	case ComponentTask:
+		return parseTaskEvent(evtType, data)
+	case ComponentAgent:
+		return parseAgentEvent(evtType, data)
+	case ComponentTool:
+		return parseToolEvent(evtType, data)
+	default:
+		return nil, fmt.Errorf("unsupported component type: %s", compType)
+	}
+}
+
+func parseWorkflowEvent(evtType EvtType, data []byte) (any, error) {
+	switch evtType {
+	case EvtTypeStarted:
+		event := &pbworkflow.WorkflowExecutionStartedEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal workflow started event: %w", err)
+		}
+		return event, nil
+	case EvtTypePaused:
+		event := &pbworkflow.WorkflowExecutionPausedEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal workflow paused event: %w", err)
+		}
+		return event, nil
+	case EvtTypeResumed:
+		event := &pbworkflow.WorkflowExecutionResumedEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal workflow resumed event: %w", err)
+		}
+		return event, nil
+	case EvtTypeSuccess:
+		event := &pbworkflow.WorkflowExecutionSuccessEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal workflow success event: %w", err)
+		}
+		return event, nil
+	case EvtTypeFailed:
+		event := &pbworkflow.WorkflowExecutionFailedEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal workflow failed event: %w", err)
+		}
+		return event, nil
+	case EvtTypeCanceled:
+		event := &pbworkflow.WorkflowExecutionCancelledEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal workflow canceled event: %w", err)
+		}
+		return event, nil
+	case EvtTypeTimedOut:
+		event := &pbworkflow.WorkflowExecutionTimedOutEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal workflow timed out event: %w", err)
+		}
+		return event, nil
+	default:
+		return nil, fmt.Errorf("unsupported workflow event type: %s", evtType)
+	}
+}
+
+func parseAgentEvent(evtType EvtType, data []byte) (any, error) {
+	switch evtType {
+	case EvtTypeStarted:
+		event := &pbagent.AgentExecutionStartedEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal agent started event: %w", err)
+		}
+		return event, nil
+	case EvtTypeSuccess:
+		event := &pbagent.AgentExecutionSuccessEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal agent success event: %w", err)
+		}
+		return event, nil
+	case EvtTypeFailed:
+		event := &pbagent.AgentExecutionFailedEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal agent failed event: %w", err)
+		}
+		return event, nil
+	default:
+		return nil, fmt.Errorf("unsupported agent event type: %s", evtType)
+	}
+}
+
+func parseTaskEvent(evtType EvtType, data []byte) (any, error) {
+	switch evtType {
+	case EvtTypeDispatched:
+		event := &pbtask.TaskDispatchedEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal task dispatched event: %w", err)
+		}
+		return event, nil
+	case EvtTypeStarted:
+		event := &pbtask.TaskExecutionStartedEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal task started event: %w", err)
+		}
+		return event, nil
+	case EvtTypeWaitingStarted:
+		event := &pbtask.TaskExecutionWaitingStartedEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal task waiting started event: %w", err)
+		}
+		return event, nil
+	case EvtTypeWaitingEnded:
+		event := &pbtask.TaskExecutionWaitingEndedEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal task waiting ended event: %w", err)
+		}
+		return event, nil
+	case EvtTypeWaitingTimedOut:
+		event := &pbtask.TaskExecutionWaitingTimedOutEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal task waiting timed out event: %w", err)
+		}
+		return event, nil
+	case EvtTypeSuccess:
+		event := &pbtask.TaskExecutionSuccessEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal task success event: %w", err)
+		}
+		return event, nil
+	case EvtTypeFailed:
+		event := &pbtask.TaskExecutionFailedEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal task failed event: %w", err)
+		}
+		return event, nil
+	default:
+		return nil, fmt.Errorf("unsupported task event type: %s", evtType)
+	}
+}
+
+func parseToolEvent(evtType EvtType, data []byte) (any, error) {
+	switch evtType {
+	case EvtTypeStarted:
+		event := &pbtool.ToolExecutionStartedEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal tool started event: %w", err)
+		}
+		return event, nil
+	case EvtTypeSuccess:
+		event := &pbtool.ToolExecutionSuccessEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal tool success event: %w", err)
+		}
+		return event, nil
+	case EvtTypeFailed:
+		event := &pbtool.ToolExecutionFailedEvent{}
+		if err := proto.Unmarshal(data, event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal tool failed event: %w", err)
+		}
+		return event, nil
+	default:
+		return nil, fmt.Errorf("unsupported tool event type: %s", evtType)
 	}
 }

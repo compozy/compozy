@@ -85,6 +85,9 @@ linters:
           - gochecknoinits
           - goconst
         path: _test\.go
+      - linters:
+          - dupl
+        path: pkg/nats/event.go
     paths:
       - third_party$
       - builtin$
