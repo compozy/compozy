@@ -50,7 +50,7 @@ func TestToolStateInitialization(t *testing.T) {
 		"TOOL_TEMPLATE_PARAM": "{{ .trigger.input.data.value }}",
 	}
 
-	exec := tool.NewStateParams(
+	exec := tool.NewExecution(
 		corrID,
 		taskExecID,
 		workflowExecID,
@@ -137,7 +137,7 @@ func TestToolStatePersistence(t *testing.T) {
 			"tool_persist": "data",
 		}
 
-		exec := tool.NewStateParams(
+		exec := tool.NewExecution(
 			corrID, taskExecID, workflowExecID, taskEnv, toolEnv,
 			&triggerData, &taskData, &toolData,
 		)
@@ -194,7 +194,7 @@ func TestToolStateUpdates(t *testing.T) {
 			"tool_update": "data",
 		}
 
-		exec := tool.NewStateParams(
+		exec := tool.NewExecution(
 			corrID, taskExecID, workflowExecID, taskEnv, toolEnv,
 			&triggerData, &taskData, &toolData,
 		)
@@ -247,7 +247,7 @@ func TestToolStateUpdateFromEvent(t *testing.T) {
 	taskInput := &common.Input{"task_key": "task_value"}
 	toolInput := &common.Input{"tool_key": "tool_value"}
 
-	exec := tool.NewStateParams(
+	exec := tool.NewExecution(
 		corrID,
 		taskExecID,
 		workflowExecID,
@@ -379,7 +379,7 @@ func TestToolStateUpdateFromEvent(t *testing.T) {
 	t.Run("Should update both status and error output when receiving ToolExecutionFailedEvent with Error", func(t *testing.T) {
 		// Create a new tool state for this test
 		newCorrID := common.NewCorrID()
-		newExec := tool.NewStateParams(
+		newExec := tool.NewExecution(
 			newCorrID,
 			taskExecID,
 			workflowExecID,

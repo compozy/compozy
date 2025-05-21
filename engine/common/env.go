@@ -47,3 +47,7 @@ func (e *EnvMap) Set(key, value string) {
 	}
 	(*e)[key] = value
 }
+
+func (e *EnvMap) ToProtoBufMap() (map[string]any, error) {
+	return DefaultToProtoMap(*e)
+}

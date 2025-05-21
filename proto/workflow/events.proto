@@ -93,10 +93,10 @@ message WorkflowExecutionFailedEvent {
 }
 
 // -----------------------------------------------------------------------------
-// Workflow Execution Cancelled Event
+// Workflow Execution Canceled Event
 // -----------------------------------------------------------------------------
 
-message WorkflowExecutionCancelledEvent {
+message WorkflowExecutionCanceledEvent {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 

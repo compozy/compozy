@@ -46,6 +46,10 @@ func (i *Input) Set(key string, value any) {
 	(*i)[key] = value
 }
 
+func (i *Input) ToProtoBufMap() (map[string]any, error) {
+	return DefaultToProtoMap(*i)
+}
+
 // -----------------------------------------------------------------------------
 // Output
 // -----------------------------------------------------------------------------
@@ -69,4 +73,8 @@ func (o *Output) Set(key string, value any) {
 		return
 	}
 	(*o)[key] = value
+}
+
+func (o *Output) ToProtoBufMap() (map[string]any, error) {
+	return DefaultToProtoMap(*o)
 }

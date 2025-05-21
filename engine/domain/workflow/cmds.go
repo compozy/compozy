@@ -13,24 +13,30 @@ import (
 	timepb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func TriggerWorkflow(wfID common.CompID, natsClient *nats.Client, ex *StateParams) error {
+type TriggerWorkflowResponse struct {
+	CorrID     common.CorrID `json:"correlation_id"`
+	WorkflowID common.CompID `json:"workflow_id"`
+	ExecID     common.ExecID `json:"execution_id"`
+}
+
+func TriggerWorkflow(wfID common.CompID, natsClient *nats.Client, ex *Execution) (*TriggerWorkflowResponse, error) {
 	corrID := ex.CorrID
-	execID := ex.ExecID
+	execID := ex.WorkflowExecID
 	logger.With(
 		"workflow_id", wfID,
 		"execution_id", execID,
 		"correlation_id", corrID,
 	).Info("Sending WorkflowTriggerCommand")
 
-	// Create context from input
-	payloadCtx, err := structpb.NewStruct(map[string]any{
-		"execution": ex,
-	})
+	exMap, err := ex.ToProtoBufMap()
 	if err != nil {
-		return fmt.Errorf("failed to create payload context: %w", err)
+		return nil, fmt.Errorf("failed to convert execution to protobuf map: %w", err)
+	}
+	ctx, err := structpb.NewStruct(exMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create payload context: %w", err)
 	}
 
-	// Create the payload
 	payload := pbwf.WorkflowTriggerCommand{
 		Metadata: &pbcommon.Metadata{
 			CorrelationId:   corrID.String(),
@@ -42,33 +48,27 @@ func TriggerWorkflow(wfID common.CompID, natsClient *nats.Client, ex *StateParam
 			ExecId: execID.String(),
 		},
 		Payload: &pbwf.WorkflowTriggerCommand_Payload{
-			Context: payloadCtx,
+			Context: ctx,
 		},
 	}
+	data, err := proto.Marshal(&payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal workflow trigger command: %w", err)
+	}
 
-	// Publish the command to NATS JetStream for durable consumption
 	nc := natsClient.Conn()
 	js, err := nc.JetStream()
 	if err != nil {
-		return fmt.Errorf("failed to get JetStream context: %w", err)
+		return nil, fmt.Errorf("failed to get JetStream context: %w", err)
 	}
-
-	data, err := proto.Marshal(&payload)
+	_, err = js.Publish(payload.ToSubject(), data)
 	if err != nil {
-		return fmt.Errorf("failed to marshal workflow trigger command: %w", err)
+		return nil, fmt.Errorf("failed to publish workflow trigger command to JetStream: %w", err)
 	}
 
-	// Publish the message and wait for an acknowledgement from the JetStream server.
-	// This ensures the message is persisted in the stream.
-	pubAck, err := js.Publish(payload.ToSubject(), data)
-	if err != nil {
-		return fmt.Errorf("failed to publish workflow trigger command to JetStream: %w", err)
-	}
-
-	logger.With(
-		"stream", pubAck.Stream,
-		"sequence", pubAck.Sequence,
-	).Info("WorkflowTriggerCommand durably published to JetStream")
-
-	return nil
+	return &TriggerWorkflowResponse{
+		CorrID:     corrID,
+		WorkflowID: wfID,
+		ExecID:     execID,
+	}, nil
 }

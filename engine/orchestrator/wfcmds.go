@@ -14,22 +14,10 @@ func (o *Orchestrator) TriggerWorkflow(
 	wfID common.CompID,
 	pj *project.Config,
 	tgInput *common.Input,
-) error {
-	exec := workflow.NewStateParams(tgInput, pj.GetEnv())
-
-	// Save the state before triggering the workflow
-	st, err := workflow.NewState(exec)
+) (*workflow.TriggerWorkflowResponse, error) {
+	ex, _, err := o.stManager.CreateWorkflowState(tgInput, pj)
 	if err != nil {
-		return fmt.Errorf("failed to create state: %w", err)
+		return nil, fmt.Errorf("failed to create workflow state: %w", err)
 	}
-	if err := o.stManager.SaveState(st); err != nil {
-		return fmt.Errorf("failed to save state: %w", err)
-	}
-
-	// Trigger the workflow
-	if err := workflow.TriggerWorkflow(wfID, o.natsClient, exec); err != nil {
-		return fmt.Errorf("failed to trigger workflow: %w", err)
-	}
-
-	return nil
+	return workflow.TriggerWorkflow(wfID, o.natsClient, ex)
 }

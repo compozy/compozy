@@ -8,22 +8,32 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-func (o *Orchestrator) subWorkflowCmds(ctx context.Context) error {
-	cs, err := o.natsClient.GetConsumerCmd(ctx, nats.ComponentWorkflow, nats.CmdTypeAll)
-	if err != nil {
-		return fmt.Errorf("failed to get consumer: %w", err)
+func (o *Orchestrator) subscribeWorkflowCmds(ctx context.Context) error {
+	if err := o.subscribeWorkflowTriggerCmd(ctx); err != nil {
+		return fmt.Errorf("failed to subscribe to workflow trigger commands: %w", err)
 	}
-
-	subOpts := nats.DefaultSubscribeOpts(cs)
-	err = nats.SubscribeConsumer(ctx, o.handleWorkflowCmd, subOpts)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to state events: %w", err)
-	}
-
 	return nil
 }
 
-func (o *Orchestrator) handleWorkflowCmd(subject string, data []byte, _ jetstream.Msg) error {
+// -----------------------------------------------------------------------------
+// Trigger Command
+// -----------------------------------------------------------------------------
+
+func (o *Orchestrator) subscribeWorkflowTriggerCmd(ctx context.Context) error {
+	subCtx := context.Background()
+	cs, err := o.natsClient.GetConsumerCmd(ctx, nats.ComponentWorkflow, nats.CmdTypeTrigger)
+	if err != nil {
+		return fmt.Errorf("failed to get consumer: %w", err)
+	}
+	subOpts := nats.DefaultSubscribeOpts(cs)
+	err = nats.SubscribeConsumer(subCtx, o.handleWorkflowTriggerCmd, subOpts)
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to state events: %w", err)
+	}
+	return nil
+}
+
+func (o *Orchestrator) handleWorkflowTriggerCmd(subject string, _ []byte, _ jetstream.Msg) error {
 	subj, err := nats.ParseCmdSubject(subject)
 	if err != nil {
 		return fmt.Errorf("failed to parse command subject: %w", err)
@@ -31,7 +41,5 @@ func (o *Orchestrator) handleWorkflowCmd(subject string, data []byte, _ jetstrea
 	if subj.CompType != nats.ComponentWorkflow {
 		return fmt.Errorf("invalid component type: %s", subj.CompType)
 	}
-
-	fmt.Println("Received workflow command:", string(data))
 	return nil
 }

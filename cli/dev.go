@@ -31,7 +31,7 @@ func getServerConfig(cmd *cobra.Command) (*server.Config, error) {
 		return nil, fmt.Errorf("failed to get cors flag: %w", err)
 	}
 
-	cwd, _, _, err := utils.GetCommonFlags(cmd)
+	cwd, _, err := utils.GetConfigCWD(cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,9 @@ func getServerConfig(cmd *cobra.Command) (*server.Config, error) {
 
 // setupNatsServer initializes and returns a NATS server
 func setupNatsServer() (*nats.Server, error) {
-	natsServer, err := nats.NewNatsServer(nats.DefaultServerOptions())
+	opts := nats.DefaultServerOptions()
+	opts.EnableJetStream = true
+	natsServer, err := nats.NewNatsServer(opts)
 	if err != nil {
 		logger.Error("Failed to setup NATS server", "error", err)
 		return nil, err
@@ -56,16 +58,21 @@ func setupNatsServer() (*nats.Server, error) {
 }
 
 // loadProjectConfig loads and validates project configuration
-func loadProjectConfig(cwd, configPath string) (*project.Config, error) {
+func loadProjectConfig(cmd *cobra.Command) (*project.Config, error) {
+	cwd, config, err := utils.GetConfigCWD(cmd)
+	if err != nil {
+		return nil, err
+	}
+
 	pCWD, err := common.CWDFromPath(cwd)
 	if err != nil {
 		return nil, err
 	}
 
 	logger.Info("Starting compozy server")
-	logger.Debug("Loading config file", "path", configPath)
+	logger.Debug("Loading config file", "config_file", config)
 
-	projectConfig, err := project.Load(pCWD, configPath)
+	projectConfig, err := project.Load(pCWD, config)
 	if err != nil {
 		logger.Error("Failed to load project config", "error", err)
 		return nil, err
@@ -84,71 +91,15 @@ func DevCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dev",
 		Short: "Run the Compozy development server",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			// Set Gin to release mode to reduce debug output
-			gin.SetMode(gin.ReleaseMode)
-
-			// Get server configuration
-			serverConfig, err := getServerConfig(cmd)
-			if err != nil {
-				return err
-			}
-
-			// Get common flags
-			cwd, _, configPath, err := utils.GetCommonFlags(cmd)
-			if err != nil {
-				return err
-			}
-
-			// Setup logger
-			logLevel, logJSON, logSource, err := logger.GetLoggerConfig(cmd)
-			if err != nil {
-				return err
-			}
-			logger.SetupLogger(logLevel, logJSON, logSource)
-
-			// Setup NATS server
-			natsServer, err := setupNatsServer()
-			if err != nil {
-				return err
-			}
-			defer func() {
-				if err := natsServer.Shutdown(); err != nil {
-					logger.Error("Error shutting down NATS server", "error", err)
-				}
-			}()
-
-			// Load project configuration
-			projectConfig, err := loadProjectConfig(cwd, configPath)
-			if err != nil {
-				return err
-			}
-
-			// Load workflows from sources
-			workflows, err := projectConfig.WorkflowsFromSources()
-			if err != nil {
-				logger.Error("Failed to load workflows", "error", err)
-				return err
-			}
-
-			// Create app state
-			appState, err := app.NewState(projectConfig, workflows, natsServer)
-			if err != nil {
-				logger.Error("Failed to create app state", "error", err)
-				return err
-			}
-
-			// Create and run server
-			srv := server.NewServer(serverConfig, appState)
-			return srv.Run()
-		},
+		RunE:  handleDevCmd,
 	}
 
 	// Server configuration flags
 	cmd.Flags().Int("port", 3001, "Port to run the development server on")
 	cmd.Flags().String("host", "0.0.0.0", "Host to bind the server to")
 	cmd.Flags().Bool("cors", false, "Enable CORS")
-	utils.AddCommonFlags(cmd)
+	cmd.Flags().String("cwd", "", "Working directory for the project")
+	cmd.Flags().String("config", "compozy.yaml", "Path to the project configuration file")
 
 	// Logging configuration flags
 	cmd.Flags().String("log-level", "info", "Log level (debug, info, warn, error)")
@@ -170,4 +121,57 @@ func DevCmd() *cobra.Command {
 	}
 
 	return cmd
+}
+
+func handleDevCmd(cmd *cobra.Command, _ []string) error {
+	// Set Gin to release mode to reduce debug output
+	gin.SetMode(gin.ReleaseMode)
+
+	// Get server configuration
+	serverConfig, err := getServerConfig(cmd)
+	if err != nil {
+		return err
+	}
+
+	// Setup logger
+	logLevel, logJSON, logSource, err := logger.GetLoggerConfig(cmd)
+	if err != nil {
+		return err
+	}
+	logger.SetupLogger(logLevel, logJSON, logSource)
+
+	// Load project configuration
+	projectConfig, err := loadProjectConfig(cmd)
+	if err != nil {
+		return err
+	}
+
+	// Setup NATS server
+	natsServer, err := setupNatsServer()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := natsServer.Shutdown(); err != nil {
+			logger.Error("Error shutting down NATS server", "error", err)
+		}
+	}()
+
+	// Load workflows from sources
+	workflows, err := projectConfig.WorkflowsFromSources()
+	if err != nil {
+		logger.Error("Failed to load workflows", "error", err)
+		return err
+	}
+
+	// Create app state
+	appState, err := app.NewState(projectConfig, workflows, natsServer)
+	if err != nil {
+		logger.Error("Failed to create app state", "error", err)
+		return err
+	}
+
+	// Create and run server
+	srv := server.NewServer(serverConfig, appState)
+	return srv.Run()
 }

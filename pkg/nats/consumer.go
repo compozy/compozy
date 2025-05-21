@@ -32,10 +32,16 @@ func createConsumer(
 }
 
 func csNameCmd(comp ComponentType, cmd CmdType) string {
+	if cmd == CmdTypeAll {
+		return strings.ToUpper(fmt.Sprintf("%s_cmds", comp))
+	}
 	return strings.ToUpper(fmt.Sprintf("%s_cmds_%s", comp, cmd.String()))
 }
 
 func csNameEvt(comp ComponentType, evt EvtType) string {
+	if evt == EvtTypeAll {
+		return strings.ToUpper(fmt.Sprintf("%s_evts", comp))
+	}
 	return strings.ToUpper(fmt.Sprintf("%s_evts_%s", comp, evt.String()))
 }
 

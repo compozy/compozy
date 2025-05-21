@@ -23,12 +23,12 @@ func TestWorkflowStateInitialization(t *testing.T) {
 	projectEnv := common.EnvMap{
 		"PROJECT_ENV": "project_value",
 	}
-	exec := workflow.NewStateParams(triggerInput, projectEnv)
+	exec := workflow.NewExecution(triggerInput, projectEnv)
 	require.NotNil(t, exec)
 
 	t.Run("Should correctly initialize IDs, status, and basic fields", func(t *testing.T) {
 		assert.NotEmpty(t, exec.CorrID)
-		assert.NotEmpty(t, exec.ExecID)
+		assert.NotEmpty(t, exec.WorkflowExecID)
 		assert.Equal(t, triggerInput, exec.TriggerInput)
 		assert.Equal(t, projectEnv, exec.ProjectEnv)
 
@@ -41,7 +41,7 @@ func TestWorkflowStateInitialization(t *testing.T) {
 		require.NotNil(t, wfState)
 
 		assert.Equal(t, nats.StatusPending, wfState.Status)
-		assert.Equal(t, exec.ExecID, wfState.WorkflowExecID)
+		assert.Equal(t, exec.WorkflowExecID, wfState.WorkflowExecID)
 		assert.NotNil(t, wfState.Env)
 		assert.Equal(t, "project_value", (*wfState.Env)["PROJECT_ENV"])
 		assert.Equal(t, "workflow_value", (*wfState.Env)["WORKFLOW_ENV"])
@@ -67,7 +67,7 @@ func TestWorkflowStateInitialization(t *testing.T) {
 			"ACTION":       "{{ .trigger.input.data.action }}",
 			"PROJECT_ENV":  "workflow_override", // Workflow env should override project env
 		}
-		exec := workflow.NewStateParams(triggerInput, projectEnv)
+		exec := workflow.NewExecution(triggerInput, projectEnv)
 		exec.WorkflowEnv = workflowEnv
 
 		wfState, err := workflow.NewState(exec)
@@ -97,7 +97,7 @@ func TestWorkflowStatePersistence(t *testing.T) {
 	projectEnv := common.EnvMap{
 		"ENV_VAR1": "value1",
 	}
-	exec := workflow.NewStateParams(triggerInput, projectEnv)
+	exec := workflow.NewExecution(triggerInput, projectEnv)
 	require.NotNil(t, exec)
 
 	wfState, err := workflow.NewState(exec)
@@ -107,7 +107,7 @@ func TestWorkflowStatePersistence(t *testing.T) {
 	err = stateManager.SaveState(wfState)
 	require.NoError(t, err)
 
-	retrievedStateInterface, err := stateManager.GetWorkflowState(exec.CorrID, exec.ExecID)
+	retrievedStateInterface, err := stateManager.GetWorkflowState(exec.CorrID, exec.WorkflowExecID)
 	require.NoError(t, err)
 	require.NotNil(t, retrievedStateInterface)
 
@@ -117,7 +117,7 @@ func TestWorkflowStatePersistence(t *testing.T) {
 	assert.Equal(t, wfState.GetID(), retrievedBaseState.GetID())
 	assert.Equal(t, nats.ComponentWorkflow, retrievedBaseState.GetID().Component)
 	assert.Equal(t, nats.StatusPending, retrievedBaseState.GetStatus())
-	assert.Equal(t, exec.ExecID, retrievedBaseState.GetID().ExecID)
+	assert.Equal(t, exec.WorkflowExecID, retrievedBaseState.GetID().ExecID)
 	assert.Equal(t, *wfState.GetEnv(), *retrievedBaseState.GetEnv())
 	assert.Equal(t, *wfState.GetTrigger(), *retrievedBaseState.GetTrigger())
 	assert.Equal(t, *wfState.GetOutput(), *retrievedBaseState.GetOutput())
@@ -128,7 +128,7 @@ func TestWorkflowStateUpdates(t *testing.T) {
 	defer tb.Cleanup()
 	stateManager := tb.StateManager
 
-	exec := workflow.NewStateParams(&common.Input{}, common.EnvMap{})
+	exec := workflow.NewExecution(&common.Input{}, common.EnvMap{})
 	require.NotNil(t, exec)
 
 	wfState, err := workflow.NewState(exec)
@@ -148,7 +148,7 @@ func TestWorkflowStateUpdates(t *testing.T) {
 	err = stateManager.SaveState(wfState)
 	require.NoError(t, err)
 
-	retrievedStateInterface, err := stateManager.GetWorkflowState(exec.CorrID, exec.ExecID)
+	retrievedStateInterface, err := stateManager.GetWorkflowState(exec.CorrID, exec.WorkflowExecID)
 	require.NoError(t, err)
 	require.NotNil(t, retrievedStateInterface)
 
@@ -167,7 +167,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 	defer tb.Cleanup()
 	stateManager := tb.StateManager
 
-	exec := workflow.NewStateParams(&common.Input{}, common.EnvMap{})
+	exec := workflow.NewExecution(&common.Input{}, common.EnvMap{})
 	require.NotNil(t, exec)
 
 	wfState, err := workflow.NewState(exec)
@@ -187,7 +187,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 			},
 			Workflow: &pbcommon.WorkflowInfo{
 				Id:     "workflow-id",
-				ExecId: string(exec.ExecID),
+				ExecId: string(exec.WorkflowExecID),
 			},
 			Payload: &pbworkflow.WorkflowExecutionStartedEvent_Payload{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_RUNNING,
@@ -202,7 +202,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		err = stateManager.SaveState(wfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(exec.CorrID, exec.ExecID)
+		retrievedState, err := stateManager.GetWorkflowState(exec.CorrID, exec.WorkflowExecID)
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusRunning, retrievedState.GetStatus())
 	})
@@ -214,7 +214,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 			},
 			Workflow: &pbcommon.WorkflowInfo{
 				Id:     "workflow-id",
-				ExecId: string(exec.ExecID),
+				ExecId: string(exec.WorkflowExecID),
 			},
 			Payload: &pbworkflow.WorkflowExecutionPausedEvent_Payload{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_PAUSED,
@@ -229,7 +229,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		err = stateManager.SaveState(wfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(exec.CorrID, exec.ExecID)
+		retrievedState, err := stateManager.GetWorkflowState(exec.CorrID, exec.WorkflowExecID)
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusPaused, retrievedState.GetStatus())
 	})
@@ -241,7 +241,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 			},
 			Workflow: &pbcommon.WorkflowInfo{
 				Id:     "workflow-id",
-				ExecId: string(exec.ExecID),
+				ExecId: string(exec.WorkflowExecID),
 			},
 			Payload: &pbworkflow.WorkflowExecutionResumedEvent_Payload{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_RUNNING,
@@ -256,7 +256,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		err = stateManager.SaveState(wfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(exec.CorrID, exec.ExecID)
+		retrievedState, err := stateManager.GetWorkflowState(exec.CorrID, exec.WorkflowExecID)
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusRunning, retrievedState.GetStatus())
 	})
@@ -268,7 +268,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 			},
 			Workflow: &pbcommon.WorkflowInfo{
 				Id:     "workflow-id",
-				ExecId: string(exec.ExecID),
+				ExecId: string(exec.WorkflowExecID),
 			},
 			Payload: &pbworkflow.WorkflowExecutionSuccessEvent_Payload{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_SUCCESS,
@@ -283,14 +283,14 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		err = stateManager.SaveState(wfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(exec.CorrID, exec.ExecID)
+		retrievedState, err := stateManager.GetWorkflowState(exec.CorrID, exec.WorkflowExecID)
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusSuccess, retrievedState.GetStatus())
 	})
 
 	t.Run("Should update both status and output when receiving WorkflowExecutionSuccessEvent with Result", func(t *testing.T) {
 		// Create a new workflow state for this test
-		newExec := workflow.NewStateParams(&common.Input{}, common.EnvMap{})
+		newExec := workflow.NewExecution(&common.Input{}, common.EnvMap{})
 		newWfState, err := workflow.NewState(newExec)
 		require.NoError(t, err)
 		err = stateManager.SaveState(newWfState)
@@ -314,7 +314,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 			},
 			Workflow: &pbcommon.WorkflowInfo{
 				Id:     "workflow-id",
-				ExecId: string(newExec.ExecID),
+				ExecId: string(newExec.WorkflowExecID),
 			},
 			Payload: &pbworkflow.WorkflowExecutionSuccessEvent_Payload{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_SUCCESS,
@@ -349,7 +349,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		err = stateManager.SaveState(newWfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(newExec.CorrID, newExec.ExecID)
+		retrievedState, err := stateManager.GetWorkflowState(newExec.CorrID, newExec.WorkflowExecID)
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusSuccess, retrievedState.GetStatus())
 
@@ -361,7 +361,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 
 	t.Run("Should update status to Failed when receiving WorkflowExecutionFailedEvent", func(t *testing.T) {
 		// Create a new workflow state for testing failure
-		newExec := workflow.NewStateParams(&common.Input{}, common.EnvMap{})
+		newExec := workflow.NewExecution(&common.Input{}, common.EnvMap{})
 		newWfState, err := workflow.NewState(newExec)
 		require.NoError(t, err)
 		err = stateManager.SaveState(newWfState)
@@ -373,7 +373,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 			},
 			Workflow: &pbcommon.WorkflowInfo{
 				Id:     "workflow-id",
-				ExecId: string(newExec.ExecID),
+				ExecId: string(newExec.WorkflowExecID),
 			},
 			Payload: &pbworkflow.WorkflowExecutionFailedEvent_Payload{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_FAILED,
@@ -388,14 +388,14 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		err = stateManager.SaveState(newWfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(newExec.CorrID, newExec.ExecID)
+		retrievedState, err := stateManager.GetWorkflowState(newExec.CorrID, newExec.WorkflowExecID)
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusFailed, retrievedState.GetStatus())
 	})
 
 	t.Run("Should update both status and error output when receiving WorkflowExecutionFailedEvent with Error", func(t *testing.T) {
 		// Create a new workflow state for this test
-		newExec := workflow.NewStateParams(&common.Input{}, common.EnvMap{})
+		newExec := workflow.NewExecution(&common.Input{}, common.EnvMap{})
 		newWfState, err := workflow.NewState(newExec)
 		require.NoError(t, err)
 		err = stateManager.SaveState(newWfState)
@@ -419,7 +419,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 			},
 			Workflow: &pbcommon.WorkflowInfo{
 				Id:     "workflow-id",
-				ExecId: string(newExec.ExecID),
+				ExecId: string(newExec.WorkflowExecID),
 			},
 			Payload: &pbworkflow.WorkflowExecutionFailedEvent_Payload{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_FAILED,
@@ -458,7 +458,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		err = stateManager.SaveState(newWfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(newExec.CorrID, newExec.ExecID)
+		retrievedState, err := stateManager.GetWorkflowState(newExec.CorrID, newExec.WorkflowExecID)
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusFailed, retrievedState.GetStatus())
 
@@ -471,23 +471,23 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		assert.Equal(t, float64(42), errRes.Details["line"])
 	})
 
-	t.Run("Should update status to Canceled when receiving WorkflowExecutionCancelledEvent", func(t *testing.T) {
+	t.Run("Should update status to Canceled when receiving WorkflowExecutionCanceledEvent", func(t *testing.T) {
 		// Create a new workflow state for testing cancellation
-		newExec := workflow.NewStateParams(&common.Input{}, common.EnvMap{})
+		newExec := workflow.NewExecution(&common.Input{}, common.EnvMap{})
 		newWfState, err := workflow.NewState(newExec)
 		require.NoError(t, err)
 		err = stateManager.SaveState(newWfState)
 		require.NoError(t, err)
 
-		event := &pbworkflow.WorkflowExecutionCancelledEvent{
+		event := &pbworkflow.WorkflowExecutionCanceledEvent{
 			Metadata: &pbcommon.Metadata{
 				CorrelationId: string(newExec.CorrID),
 			},
 			Workflow: &pbcommon.WorkflowInfo{
 				Id:     "workflow-id",
-				ExecId: string(newExec.ExecID),
+				ExecId: string(newExec.WorkflowExecID),
 			},
-			Payload: &pbworkflow.WorkflowExecutionCancelledEvent_Payload{
+			Payload: &pbworkflow.WorkflowExecutionCanceledEvent_Payload{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_CANCELED,
 			},
 		}
@@ -500,14 +500,14 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		err = stateManager.SaveState(newWfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(newExec.CorrID, newExec.ExecID)
+		retrievedState, err := stateManager.GetWorkflowState(newExec.CorrID, newExec.WorkflowExecID)
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusCanceled, retrievedState.GetStatus())
 	})
 
 	t.Run("Should update status to TimedOut when receiving WorkflowExecutionTimedOutEvent", func(t *testing.T) {
 		// Create a new workflow state for testing timeout
-		newExec := workflow.NewStateParams(&common.Input{}, common.EnvMap{})
+		newExec := workflow.NewExecution(&common.Input{}, common.EnvMap{})
 		newWfState, err := workflow.NewState(newExec)
 		require.NoError(t, err)
 		err = stateManager.SaveState(newWfState)
@@ -527,7 +527,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 			},
 			Workflow: &pbcommon.WorkflowInfo{
 				Id:     "workflow-id",
-				ExecId: string(newExec.ExecID),
+				ExecId: string(newExec.WorkflowExecID),
 			},
 			Payload: &pbworkflow.WorkflowExecutionTimedOutEvent_Payload{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_TIMED_OUT,
@@ -554,7 +554,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		err = stateManager.SaveState(newWfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(newExec.CorrID, newExec.ExecID)
+		retrievedState, err := stateManager.GetWorkflowState(newExec.CorrID, newExec.WorkflowExecID)
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusTimedOut, retrievedState.GetStatus())
 

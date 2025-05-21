@@ -1,4 +1,4 @@
-package state
+package stmanager
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/common"
+	"github.com/compozy/compozy/engine/state"
+	"github.com/compozy/compozy/engine/store"
 	"github.com/compozy/compozy/pkg/nats"
 	"github.com/compozy/compozy/pkg/utils"
 	"github.com/stretchr/testify/assert"
@@ -29,9 +31,11 @@ func TestManager(t *testing.T) {
 		tempDir, err := os.MkdirTemp(baseTestDir, "manager-test-*")
 		require.NoError(t, err)
 
-		// Test manager creation with functional options
+		store, err := store.NewStore(tempDir)
+		require.NoError(t, err)
+
 		manager, err := NewManager(
-			WithDataDir(tempDir),
+			WithStore(store),
 			WithNatsClient(natsClient),
 			WithComponents(defaultConsumers()),
 		)
@@ -46,24 +50,23 @@ func TestManager(t *testing.T) {
 	t.Run("NewManager with nil client", func(t *testing.T) {
 		// Test with nil NATS client
 		dataDir := filepath.Join(baseTestDir, "nil-client-test")
-
-		// Expect error when NATS client is nil
-		_, err := NewManager(
-			WithDataDir(dataDir),
+		store, err := store.NewStore(dataDir)
+		require.NoError(t, err)
+		_, err = NewManager(
+			WithStore(store),
 		)
 		require.Error(t, err)
 	})
 
 	t.Run("Default configuration", func(t *testing.T) {
-		// Create a temporary directory for testing
 		tempDir, err := os.MkdirTemp(baseTestDir, "manager-test-defaults-*")
 		require.NoError(t, err)
 
-		// Create a manager with minimal options but explicit data dir
+		store, err := store.NewStore(tempDir)
+		require.NoError(t, err)
 
-		// Expect defaults to be used for other fields
 		manager, err := NewManager(
-			WithDataDir(tempDir), // Override default to use temp dir
+			WithStore(store),
 			WithNatsClient(natsClient),
 		)
 		require.NoError(t, err)
@@ -71,7 +74,7 @@ func TestManager(t *testing.T) {
 
 		// Verify that streams use default but dataDir is our temp dir
 		defaultStreamsLength := len(defaultConsumers())
-		assert.Equal(t, tempDir, manager.dataDir) // Should use our temp dir, not default
+		assert.Equal(t, tempDir, store.DataDir())
 		assert.Equal(t, defaultStreamsLength, len(manager.components))
 
 		// Clean up
@@ -80,13 +83,14 @@ func TestManager(t *testing.T) {
 	})
 
 	t.Run("State retrieval methods", func(t *testing.T) {
-		// Create a temporary directory for testing
 		tempDir, err := os.MkdirTemp(baseTestDir, "manager-test-retrieval-*")
 		require.NoError(t, err)
 
-		// Create manager with functional options
+		store, err := store.NewStore(tempDir)
+		require.NoError(t, err)
+
 		manager, err := NewManager(
-			WithDataDir(tempDir),
+			WithStore(store),
 			WithNatsClient(natsClient),
 		)
 		require.NoError(t, err)
@@ -94,8 +98,8 @@ func TestManager(t *testing.T) {
 
 		corrID := common.NewCorrID()
 		wfID := common.NewExecID()
-		wfStateID := NewID(nats.ComponentWorkflow, corrID, wfID)
-		wfState := &BaseState{
+		wfStateID := state.NewID(nats.ComponentWorkflow, corrID, wfID)
+		wfState := &state.BaseState{
 			StateID: wfStateID,
 			Status:  nats.StatusRunning,
 			Input:   &common.Input{},
@@ -108,8 +112,8 @@ func TestManager(t *testing.T) {
 
 		// Add a task state
 		tID := common.NewExecID()
-		tStateID := NewID(nats.ComponentTask, corrID, tID)
-		taskState := &BaseState{
+		tStateID := state.NewID(nats.ComponentTask, corrID, tID)
+		taskState := &state.BaseState{
 			StateID: tStateID,
 			Status:  nats.StatusPending,
 			Input:   &common.Input{},
@@ -122,8 +126,8 @@ func TestManager(t *testing.T) {
 
 		// Add an agent state
 		agID := common.NewExecID()
-		aStateID := NewID(nats.ComponentAgent, corrID, agID)
-		agState := &BaseState{
+		aStateID := state.NewID(nats.ComponentAgent, corrID, agID)
+		agState := &state.BaseState{
 			StateID: aStateID,
 			Status:  nats.StatusRunning,
 			Input:   &common.Input{},
@@ -136,8 +140,8 @@ func TestManager(t *testing.T) {
 
 		// Add a tool state
 		toolID := common.NewExecID()
-		toolStateID := NewID(nats.ComponentTool, corrID, toolID)
-		toolState := &BaseState{
+		toolStateID := state.NewID(nats.ComponentTool, corrID, toolID)
+		toolState := &state.BaseState{
 			StateID: toolStateID,
 			Status:  nats.StatusSuccess,
 			Input:   &common.Input{},

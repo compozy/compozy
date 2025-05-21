@@ -1,9 +1,9 @@
-## State Event: `WorkflowExecutionCancelled`
+## State Event: `WorkflowExecutionCanceled`
 
 **Description:** A workflow execution has been canceled.
 **Produced By:** `workflow.Executor`
 **Consumed By:** `state.Manager`, `system.Monitoring`
-**Lifecycle Stage:** Cancelled termination of a workflow instance.
+**Lifecycle Stage:** Canceled termination of a workflow instance.
 **NATS Communication Pattern:** Asynchronous
 
 ### NATS Subject
@@ -40,7 +40,7 @@ The `payload` object contains the following fields:
 -   **`status`** (`string`, Required)
     -   Description: The final status of the workflow execution.
 -   **`result`** (`object`, Optional)
-    -   Description: Holds the result of an operation, if applicable. Not typically used for `Cancelled` events unless there's a specific cancellation output/error.
+    -   Description: Holds the result of an operation, if applicable. Not typically used for `Canceled` events unless there's a specific cancellation output/error.
 -   **`duration_ms`** (`integer`, Optional)
     -   Description: The total duration of the workflow execution before it was canceled, in milliseconds.
 -   **`context`** (`object`, Optional)

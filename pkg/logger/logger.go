@@ -19,7 +19,6 @@ const (
 	ErrorLevel LogLevel = charmlog.ErrorLevel
 )
 
-// Config holds the logger configuration
 type Config struct {
 	Level      charmlog.Level
 	Output     io.Writer
@@ -28,7 +27,6 @@ type Config struct {
 	TimeFormat string
 }
 
-// DefaultConfig returns the default logger configuration
 func DefaultConfig() *Config {
 	return &Config{
 		Level:      charmlog.InfoLevel,
@@ -39,7 +37,6 @@ func DefaultConfig() *Config {
 	}
 }
 
-// Init initializes the logger with the given configuration
 func Init(cfg *Config) {
 	if cfg == nil {
 		cfg = DefaultConfig()
@@ -55,13 +52,11 @@ func Init(cfg *Config) {
 	} else {
 		logger.SetFormatter(charmlog.TextFormatter)
 
-		// Apply custom styles
 		logger.SetStyles(getDefaultStyles())
 	}
 	defaultLogger = logger
 }
 
-// FromContext returns a logger with values from the context
 func FromContext(_ context.Context) *charmlog.Logger {
 	return defaultLogger
 }

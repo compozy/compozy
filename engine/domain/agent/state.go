@@ -10,48 +10,12 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Execution
-// -----------------------------------------------------------------------------
-
-type StateParams struct {
-	CorrID         common.CorrID
-	WorkflowExecID common.ExecID
-	TaskExecID     common.ExecID
-	AgentExecID    common.ExecID
-	TaskEnv        common.EnvMap
-	AgentEnv       common.EnvMap
-	TriggerInput   *common.Input
-	TaskInput      *common.Input
-	AgentInput     *common.Input
-}
-
-func NewStateParams(
-	corrID common.CorrID,
-	taskExecID, workflowExecID common.ExecID,
-	taskEnv, agentEnv common.EnvMap,
-	tgInput, taskInput, agentInput *common.Input,
-) *StateParams {
-	execID := common.NewExecID()
-	return &StateParams{
-		CorrID:         corrID,
-		WorkflowExecID: workflowExecID,
-		TaskExecID:     taskExecID,
-		AgentExecID:    execID,
-		TaskEnv:        taskEnv,
-		AgentEnv:       agentEnv,
-		TriggerInput:   tgInput,
-		TaskInput:      taskInput,
-		AgentInput:     agentInput,
-	}
-}
-
-// -----------------------------------------------------------------------------
 // Initializer
 // -----------------------------------------------------------------------------
 
 type StateInitializer struct {
 	*state.CommonInitializer
-	*StateParams
+	*Execution
 }
 
 func (ai *StateInitializer) Initialize() (*State, error) {
@@ -94,10 +58,10 @@ type State struct {
 	AgentExecID    common.ExecID `json:"agent_exec_id"`
 }
 
-func NewAgentState(exec *StateParams) (*State, error) {
+func NewAgentState(exec *Execution) (*State, error) {
 	initializer := &StateInitializer{
 		CommonInitializer: state.NewCommonInitializer(),
-		StateParams:       exec,
+		Execution:         exec,
 	}
 	st, err := initializer.Initialize()
 	if err != nil {

@@ -1,10 +1,11 @@
-package state
+package store
 
 import (
 	"os"
 	"testing"
 
 	"github.com/compozy/compozy/engine/common"
+	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/pkg/nats"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,7 @@ func TestStore(t *testing.T) {
 		require.NotNil(t, store)
 
 		// Verify store has default prefixes
-		assert.Equal(t, DefaultStorePrefixes, store.prefixes)
+		assert.Equal(t, DefaultPrefixes, store.prefixes)
 
 		// Clean up
 		err = store.Close()
@@ -40,7 +41,7 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 
 		// Custom prefixes for testing
-		customPrefixes := StorePrefixes{
+		customPrefixes := Prefixes{
 			Workflow: "w:",
 			Task:     "t:",
 			Agent:    "a:",
@@ -71,8 +72,8 @@ func TestStore(t *testing.T) {
 		defer store.Close()
 
 		// Create a test state
-		id := NewID(nats.ComponentWorkflow, "correlation-1", "exec-1")
-		testState := &BaseState{
+		id := state.NewID(nats.ComponentWorkflow, "correlation-1", "exec-1")
+		testState := &state.BaseState{
 			StateID: id,
 			Status:  nats.StatusPending,
 			Input:   &common.Input{},
@@ -106,8 +107,8 @@ func TestStore(t *testing.T) {
 		defer store.Close()
 
 		// Create a test state
-		id := NewID(nats.ComponentWorkflow, "correlation-1", "exec-1")
-		testState := NewEmptyState(WithID(id))
+		id := state.NewID(nats.ComponentWorkflow, "correlation-1", "exec-1")
+		testState := state.NewEmptyState(state.WithID(id))
 		// Test UpsertState
 		err = store.UpsertState(testState)
 		require.NoError(t, err)
@@ -137,8 +138,8 @@ func TestStore(t *testing.T) {
 		defer store.Close()
 
 		// Create a test state
-		id := NewID(nats.ComponentWorkflow, "correlation-1", "exec-1")
-		testState := NewEmptyState(WithID(id))
+		id := state.NewID(nats.ComponentWorkflow, "correlation-1", "exec-1")
+		testState := state.NewEmptyState(state.WithID(id))
 
 		// Add the state
 		err = store.UpsertState(testState)
@@ -171,8 +172,8 @@ func TestStore(t *testing.T) {
 		corrID := common.NewCorrID()
 
 		// Create workflow state
-		wfID := NewID(nats.ComponentWorkflow, corrID, "workflow-1")
-		wfState := &BaseState{
+		wfID := state.NewID(nats.ComponentWorkflow, corrID, "workflow-1")
+		wfState := &state.BaseState{
 			StateID: wfID,
 			Status:  nats.StatusRunning,
 			Input:   &common.Input{},
@@ -184,36 +185,36 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create task states
-		taskID1 := NewID(nats.ComponentTask, corrID, "task-1")
-		taskState1 := NewEmptyState(
-			WithID(taskID1),
-			WithStatus(nats.StatusSuccess),
+		taskID1 := state.NewID(nats.ComponentTask, corrID, "task-1")
+		taskState1 := state.NewEmptyState(
+			state.WithID(taskID1),
+			state.WithStatus(nats.StatusSuccess),
 		)
 		err = store.UpsertState(taskState1)
 		require.NoError(t, err)
 
-		taskID2 := NewID(nats.ComponentTask, corrID, "task-2")
-		taskState2 := NewEmptyState(
-			WithID(taskID2),
-			WithStatus(nats.StatusRunning),
+		taskID2 := state.NewID(nats.ComponentTask, corrID, "task-2")
+		taskState2 := state.NewEmptyState(
+			state.WithID(taskID2),
+			state.WithStatus(nats.StatusRunning),
 		)
 		err = store.UpsertState(taskState2)
 		require.NoError(t, err)
 
 		// Create agent state
-		agID := NewID(nats.ComponentAgent, corrID, "agent-1")
-		agState := NewEmptyState(
-			WithID(agID),
-			WithStatus(nats.StatusRunning),
+		agID := state.NewID(nats.ComponentAgent, corrID, "agent-1")
+		agState := state.NewEmptyState(
+			state.WithID(agID),
+			state.WithStatus(nats.StatusRunning),
 		)
 		err = store.UpsertState(agState)
 		require.NoError(t, err)
 
 		// Create tool state
-		toolID := NewID(nats.ComponentTool, corrID, "tool-1")
-		toolState := NewEmptyState(
-			WithID(toolID),
-			WithStatus(nats.StatusSuccess),
+		toolID := state.NewID(nats.ComponentTool, corrID, "tool-1")
+		toolState := state.NewEmptyState(
+			state.WithID(toolID),
+			state.WithStatus(nats.StatusSuccess),
 		)
 		err = store.UpsertState(toolState)
 		require.NoError(t, err)

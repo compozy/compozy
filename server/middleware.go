@@ -41,7 +41,7 @@ func LoggerMiddleware() gin.HandlerFunc {
 		param.Path = path
 
 		// Create structured log entry
-		logger.Info("request completed",
+		logger.Info("Request completed",
 			"timestamp", param.TimeStamp.Format(time.RFC3339),
 			"latency", param.Latency,
 			"client_ip", param.ClientIP,

@@ -94,9 +94,9 @@ func (x *WorkflowExecutionFailedEvent) ToSubject() string {
 	return fmt.Sprintf("compozy.%s.workflow.evts.%s.failed", corrID, wfExecID)
 }
 
-// ToSubject generates the NATS subject for a WorkflowExecutionCancelledEvent.
+// ToSubject generates the NATS subject for a WorkflowExecutionCanceledEvent.
 // Pattern: compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.canceled
-func (x *WorkflowExecutionCancelledEvent) ToSubject() string {
+func (x *WorkflowExecutionCanceledEvent) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
 	wfExecID := pb.GetWorkflowExecID(x)
 	return fmt.Sprintf("compozy.%s.workflow.evts.%s.canceled", corrID, wfExecID)

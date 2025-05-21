@@ -20,7 +20,7 @@ type ServerOptions struct {
 
 func DefaultServerOptions() ServerOptions {
 	return ServerOptions{
-		EnableLogging:   true,
+		EnableLogging:   false,
 		ServerName:      "compozy_embedded_server",
 		EnableJetStream: false,
 		JetStreamDomain: "compozy",
@@ -91,6 +91,9 @@ func runEmbeddedServer(options ServerOptions) (*nats.Conn, *server.Server, error
 
 func (s *Server) Shutdown() error {
 	if s.Conn != nil {
+		if err := s.Conn.Drain(); err != nil {
+			return fmt.Errorf("error draining NATS connection: %w", err)
+		}
 		s.Conn.Close()
 	}
 

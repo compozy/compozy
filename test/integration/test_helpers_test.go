@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/engine/state"
+	"github.com/compozy/compozy/engine/stmanager"
+	"github.com/compozy/compozy/engine/store"
 	"github.com/compozy/compozy/pkg/nats"
 	"github.com/compozy/compozy/pkg/utils"
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,7 @@ type IntegrationTestBed struct {
 	cancelCtx    context.CancelFunc
 	NatsServer   *nats.Server
 	NatsClient   *nats.Client
-	StateManager *state.Manager
+	StateManager *stmanager.Manager
 	StateDir     string
 }
 
@@ -51,15 +52,18 @@ func SetupIntegrationTestBed(t *testing.T, testTimeout time.Duration, components
 	err := os.MkdirAll(stateDir, 0o750)
 	require.NoError(t, err)
 
-	managerOpts := []state.ManagerOption{
-		state.WithDataDir(stateDir),
-		state.WithNatsClient(natsClient),
+	store, err := store.NewStore(stateDir)
+	require.NoError(t, err)
+
+	managerOpts := []stmanager.ManagerOption{
+		stmanager.WithStore(store),
+		stmanager.WithNatsClient(natsClient),
 	}
 	if len(componentsToWatch) > 0 {
-		managerOpts = append(managerOpts, state.WithComponents(componentsToWatch))
+		managerOpts = append(managerOpts, stmanager.WithComponents(componentsToWatch))
 	}
 
-	stateManager, err := state.NewManager(managerOpts...)
+	stateManager, err := stmanager.NewManager(managerOpts...)
 	require.NoError(t, err)
 	require.NotNil(t, stateManager, "State manager should not be nil")
 
@@ -95,22 +99,25 @@ func (tb *IntegrationTestBed) Cleanup() {
 	}
 }
 
-func SetupStateManagerForSubtest(t *testing.T, parentBaseDir string, natsClient *nats.Client, componentsToWatch []nats.ComponentType) *state.Manager {
+func SetupStateManagerForSubtest(t *testing.T, parentBaseDir string, natsClient *nats.Client, componentsToWatch []nats.ComponentType) *stmanager.Manager {
 	t.Helper()
 
 	subtestStateDir := filepath.Join(parentBaseDir, t.Name())
 	err := os.MkdirAll(subtestStateDir, 0o750)
 	require.NoError(t, err)
 
-	managerOpts := []state.ManagerOption{
-		state.WithDataDir(subtestStateDir),
-		state.WithNatsClient(natsClient),
+	store, err := store.NewStore(subtestStateDir)
+	require.NoError(t, err)
+
+	managerOpts := []stmanager.ManagerOption{
+		stmanager.WithStore(store),
+		stmanager.WithNatsClient(natsClient),
 	}
 	if len(componentsToWatch) > 0 {
-		managerOpts = append(managerOpts, state.WithComponents(componentsToWatch))
+		managerOpts = append(managerOpts, stmanager.WithComponents(componentsToWatch))
 	}
 
-	stateManager, err := state.NewManager(managerOpts...)
+	stateManager, err := stmanager.NewManager(managerOpts...)
 	require.NoError(t, err)
 	require.NotNil(t, stateManager)
 

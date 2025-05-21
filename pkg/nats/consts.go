@@ -43,7 +43,7 @@ const (
 	TaskStatusSuccess     = "TASK_STATUS_SUCCESS"
 	TaskStatusFailed      = "TASK_STATUS_FAILED"
 	TaskStatusWaiting     = "TASK_STATUS_WAITING"
-	TaskStatusCancelled   = "TASK_STATUS_CANCELED"
+	TaskStatusCanceled    = "TASK_STATUS_CANCELED"
 	TaskStatusTimedOut    = "TASK_STATUS_TIMED_OUT"
 
 	ToolStatusUnspecified = "TOOL_STATUS_UNSPECIFIED"

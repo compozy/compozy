@@ -1,4 +1,4 @@
-package server
+package router
 
 import (
 	"encoding/json"
@@ -35,6 +35,7 @@ type Error struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	Err     error  `json:"-"`
+	Details string `json:"details"`
 }
 
 func (e *Error) Error() string {
@@ -99,11 +100,12 @@ func NewRequestError(statusCode int, reason string, err error) *RequestError {
 }
 
 // WorkflowExecutionError creates a new workflow execution error
-func WorkflowExecutionError(wfID, reason string) *RequestError {
+func WorkflowExecutionError(wfID, reason string, err error) *RequestError {
 	return &RequestError{
 		StatusCode: http.StatusInternalServerError,
 		WorkflowID: wfID,
 		Reason:     reason,
+		Err:        err,
 	}
 }
 
@@ -125,6 +127,7 @@ func (e *RequestError) ToErrorResponse() ErrorResponse {
 	if e.WorkflowID != "" {
 		resp.Error.Code = ErrInternalCode
 		resp.Error.Message = e.Reason
+		resp.Error.Details = e.Err.Error()
 	}
 
 	return resp
@@ -149,7 +152,7 @@ func ErrorHandler() gin.HandlerFunc {
 			}
 
 			// Log the error
-			logger.Error("request failed",
+			logger.Error("Request failed",
 				"error_code", serverErr.Code,
 				"error_message", serverErr.Message,
 				"error", serverErr.Err,

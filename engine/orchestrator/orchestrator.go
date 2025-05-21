@@ -3,10 +3,12 @@ package orchestrator
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/compozy/compozy/engine/domain/project"
 	"github.com/compozy/compozy/engine/domain/workflow"
-	"github.com/compozy/compozy/engine/state"
+	"github.com/compozy/compozy/engine/stmanager"
+	"github.com/compozy/compozy/engine/store"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
 )
@@ -21,19 +23,34 @@ const (
 
 type Orchestrator struct {
 	natsClient    *nats.Client
-	stManager     *state.Manager
+	stManager     *stmanager.Manager
 	ProjectConfig *project.Config
 	Workflows     []*workflow.Config
 }
 
-func NewOrchestartor(natsServer *nats.Server, pjConfig *project.Config, wfConfigs []*workflow.Config) (*Orchestrator, error) {
+func NewOrchestartor(
+	ctx context.Context,
+	natsServer *nats.Server,
+	pjConfig *project.Config,
+	wfConfigs []*workflow.Config,
+) (*Orchestrator, error) {
 	natsClient, err := nats.NewClient(natsServer.Conn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize NATS client: %w", err)
 	}
+	if err := natsClient.Setup(ctx); err != nil {
+		return nil, fmt.Errorf("failed to setup NATS client: %w", err)
+	}
 
-	stManager, err := state.NewManager(
-		state.WithNatsClient(natsClient),
+	dataDir := filepath.Join(pjConfig.GetCWD().PathStr(), "/.compozy/data")
+	store, err := store.NewStore(dataDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create state store: %w", err)
+	}
+
+	stManager, err := stmanager.NewManager(
+		stmanager.WithNatsClient(natsClient),
+		stmanager.WithStore(store),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize state manager: %w", err)
@@ -52,7 +69,7 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to start state manager: %w", err)
 	}
 
-	if err := o.subWorkflowCmds(ctx); err != nil {
+	if err := o.subscribeWorkflowCmds(ctx); err != nil {
 		return fmt.Errorf("failed to subscribe to workflow commands: %w", err)
 	}
 

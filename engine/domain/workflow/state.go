@@ -10,36 +10,12 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Execution
-// -----------------------------------------------------------------------------
-
-type StateParams struct {
-	CorrID       common.CorrID
-	ExecID       common.ExecID
-	TriggerInput *common.Input
-	ProjectEnv   common.EnvMap
-	WorkflowEnv  common.EnvMap
-}
-
-func NewStateParams(tgInput *common.Input, pjEnv common.EnvMap) *StateParams {
-	corrID := common.NewCorrID()
-	execID := common.NewExecID()
-	return &StateParams{
-		CorrID:       corrID,
-		ExecID:       execID,
-		TriggerInput: tgInput,
-		ProjectEnv:   pjEnv,
-		WorkflowEnv:  make(common.EnvMap),
-	}
-}
-
-// -----------------------------------------------------------------------------
 // Initializer
 // -----------------------------------------------------------------------------
 
 type StateInitializer struct {
 	*state.CommonInitializer
-	*StateParams
+	*Execution
 }
 
 func (wi *StateInitializer) Initialize() (*State, error) {
@@ -48,7 +24,7 @@ func (wi *StateInitializer) Initialize() (*State, error) {
 		return nil, fmt.Errorf("failed to merge env: %w", err)
 	}
 	bsState := &state.BaseState{
-		StateID: state.NewID(nats.ComponentWorkflow, wi.CorrID, wi.ExecID),
+		StateID: state.NewID(nats.ComponentWorkflow, wi.CorrID, wi.WorkflowExecID),
 		Status:  nats.StatusPending,
 		Input:   &common.Input{},
 		Output:  &common.Output{},
@@ -58,7 +34,7 @@ func (wi *StateInitializer) Initialize() (*State, error) {
 	}
 	st := &State{
 		BaseState:      *bsState,
-		WorkflowExecID: wi.ExecID,
+		WorkflowExecID: wi.WorkflowExecID,
 	}
 	if err := wi.Normalizer.ParseTemplates(st); err != nil {
 		return nil, err
@@ -75,10 +51,10 @@ type State struct {
 	WorkflowExecID common.ExecID `json:"workflow_exec_id,omitempty"`
 }
 
-func NewState(exec *StateParams) (*State, error) {
+func NewState(exec *Execution) (*State, error) {
 	initializer := &StateInitializer{
 		CommonInitializer: state.NewCommonInitializer(),
-		StateParams:       exec,
+		Execution:         exec,
 	}
 	st, err := initializer.Initialize()
 	if err != nil {
@@ -99,8 +75,8 @@ func (s *State) UpdateFromEvent(event any) error {
 		return s.handleSuccessEvent(evt)
 	case *pb.WorkflowExecutionFailedEvent:
 		return s.handleFailedEvent(evt)
-	case *pb.WorkflowExecutionCancelledEvent:
-		return s.handleCancelledEvent(evt)
+	case *pb.WorkflowExecutionCanceledEvent:
+		return s.handleCanceledEvent(evt)
 	case *pb.WorkflowExecutionTimedOutEvent:
 		return s.handleTimedOutEvent(evt)
 	default:
@@ -141,7 +117,7 @@ func (s *State) handleFailedEvent(evt *pb.WorkflowExecutionFailedEvent) error {
 	return nil
 }
 
-func (s *State) handleCancelledEvent(_ *pb.WorkflowExecutionCancelledEvent) error {
+func (s *State) handleCanceledEvent(_ *pb.WorkflowExecutionCanceledEvent) error {
 	s.Status = nats.StatusCanceled
 	return nil
 }

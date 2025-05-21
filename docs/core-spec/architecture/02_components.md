@@ -11,7 +11,7 @@ This document outlines the standardized architectural component names within the
      - Exposes external APIs (REST) for managing and interacting with the workflow engine.
      - Handles endpoints for creating, updating, and deleting workflow definitions.
      - Facilitates triggering new workflow and task instances (e.g., `WorkflowTrigger`, `TaskTrigger`) and querying their status and history.
-     - Supports manual interventions like resuming (`WorkflowResume`, `TaskResume`), pausing (`WorkflowPause`), or canceling (`WorkflowCancel`) workflows.
+     - Supports manual interventions like resuming (`WorkflowResume`, `TaskResume`), pausing (`WorkflowPause`), or canceling (`WorkflowCancel`) workflows and tasks.
    - **Consumed Events:**
      - None (API Service primarily initiates commands via external requests).
    - **Produced Events:**
@@ -24,6 +24,7 @@ This document outlines the standardized architectural component names within the
        - `TaskTrigger` 
        - `TaskTrigger` 
        - `TaskResume` 
+       - `TaskCancel` 
      - **Log Events:**
        - `LogEmitted` 
 
@@ -35,7 +36,7 @@ This document outlines the standardized architectural component names within the
      - Interprets workflow definitions to manage sequence, conditional logic, and parallelism.
      - Initializes and maintains the complete state of all workflow and task instances.
      - Assigns unique execution IDs to all workflows and tasks.
-     - Coordinates with other components to process control commands (e.g., `WorkflowPause`, `WorkflowCancel`, `WorkflowResume`).
+     - Coordinates with other components to process control commands (e.g., `WorkflowPause`, `WorkflowCancel`, `WorkflowResume`), initiating the appropriate cascading commands when needed.
      - Handles task dispatching by producing `TaskDispatched` events for visibility and coordination.
    - **Consumed Events:**
      - **Commands:**
@@ -54,6 +55,9 @@ This document outlines the standardized architectural component names within the
      - **Commands:**
        - `WorkflowExecute` 
        - `TaskExecute`
+       - `WorkflowCancel`
+       - `WorkflowPause`
+       - `WorkflowResume`
      - **State Events:**
        - `WorkflowExecutionStarted`
        - `TaskExecutionStarted`
@@ -76,11 +80,12 @@ This document outlines the standardized architectural component names within the
        - `WorkflowExecutionResumed` 
        - `WorkflowExecutionSuccess` 
        - `WorkflowExecutionFailed` 
-       - `WorkflowExecutionCancelled` 
+       - `WorkflowExecutionCanceled` 
        - `WorkflowExecutionTimedOut` 
        - `TaskExecutionStarted` 
        - `TaskExecutionSuccess` 
-       - `TaskExecutionFailed` 
+       - `TaskExecutionFailed`
+       - `TaskExecutionCanceled`
        - `TaskWaitingStarted` 
        - `TaskWaitingEnded` 
        - `TaskWaitingTimedOut` 
@@ -88,10 +93,12 @@ This document outlines the standardized architectural component names within the
        - `TaskDispatched` 
        - `AgentExecutionStarted` 
        - `AgentExecutionSuccess` 
-       - `AgentExecutionFailed` 
+       - `AgentExecutionFailed`
+       - `AgentExecutionCanceled`
        - `ToolExecutionStarted` 
        - `ToolExecutionSuccess` 
-       - `ToolExecutionFailed` 
+       - `ToolExecutionFailed`
+       - `ToolExecutionCanceled`
    - **Produced Events:**
      - **Log Events:**
        - `LogEmitted` 
@@ -103,18 +110,23 @@ This document outlines the standardized architectural component names within the
      - Validates the workflow definition and its input parameters.
      - Executes the workflow logic.
      - Updates the workflow state, producing state update events (e.g., `WorkflowExecutionPaused`, `WorkflowExecutionSuccess`, `WorkflowExecutionFailed`, `WorkflowExecutionTimedOut`, `WorkflowExecutionResumed`).
-     - Handles workflow cancellation, producing `WorkflowExecutionCancelled` when instructed.
+     - Handles workflow cancellation, producing `WorkflowExecutionCanceled` event and propagating cancellation to all running child tasks by issuing `TaskCancel` commands.
      - Requests task execution from the orchestrator.
    - **Consumed Events:**
      - **Commands:**
        - `WorkflowExecute` 
+       - `WorkflowCancel`
+       - `WorkflowPause`
+       - `WorkflowResume`
    - **Produced Events:**
+     - **Commands:**
+       - `TaskCancel`
      - **State Events:**
        - `WorkflowExecutionPaused` 
        - `WorkflowExecutionResumed` 
        - `WorkflowExecutionSuccess` 
        - `WorkflowExecutionFailed` 
-       - `WorkflowExecutionCancelled` 
+       - `WorkflowExecutionCanceled` 
        - `WorkflowExecutionTimedOut` 
      - **Log Events:**
        - `LogEmitted` 
@@ -126,6 +138,7 @@ This document outlines the standardized architectural component names within the
      - Validates the task definition and its input parameters.
      - Operates as a pool of workers subscribing to NATS task queues (e.g., `TaskExecute`, `TaskResume`).
      - Executes task logic, including Go-native code or invoking tools/agents via NATS to `system.Runtime`.
+     - Handles task cancellation by stopping local execution and propagating cancellation to any running agents or tools.
      - Updates task state, producing state update events (e.g., `TaskExecutionSuccess`, `TaskExecutionFailed`, `TaskWaitingStarted`, `TaskWaitingEnded`, `TaskWaitingTimedOut`).
      - Schedules retries for failed tasks, producing `TaskRetryScheduled` based on retry policies.
      - Reports task outcomes (success, failure, output) back to the workflow executor.
@@ -133,13 +146,17 @@ This document outlines the standardized architectural component names within the
      - **Commands:**
        - `TaskExecute` 
        - `TaskResume` 
+       - `TaskCancel`
    - **Produced Events:**
      - **Commands:**
        - `AgentExecute` 
-       - `ToolExecute` 
+       - `ToolExecute`
+       - `AgentCancel`
+       - `ToolCancel`
      - **State Events:**
        - `TaskExecutionSuccess` 
        - `TaskExecutionFailed` 
+       - `TaskExecutionCanceled`
        - `TaskWaitingStarted` 
        - `TaskWaitingEnded` 
        - `TaskWaitingTimedOut` 
@@ -152,7 +169,7 @@ This document outlines the standardized architectural component names within the
    - **Struct:** `Runtime`
    - **Responsibilities:**
      - Provides the execution environment for agents and tools, primarily utilizing Deno.
-     - Manages the lifecycle of agent and tool executions, including initialization, execution, and cleanup.
+     - Manages the lifecycle of agent and tool executions, including initialization, execution, cancellation, and cleanup.
      - Handles context and state management for agents and tools during their execution.
      - Executes tool (`ToolExecute`) and agent (`AgentExecute`) implementations when requested by `task.Executor`.
      - Validates inputs and formats outputs for agents and tools according to their schemas.
@@ -161,15 +178,19 @@ This document outlines the standardized architectural component names within the
    - **Consumed Events:**
      - **Commands:**
        - `AgentExecute` 
-       - `ToolExecute` 
+       - `ToolExecute`
+       - `AgentCancel`
+       - `ToolCancel`
    - **Produced Events:**
      - **State Events:**
        - `AgentExecutionStarted` 
        - `AgentExecutionSuccess` 
-       - `AgentExecutionFailed` 
+       - `AgentExecutionFailed`
+       - `AgentExecutionCanceled`
        - `ToolExecutionStarted` 
        - `ToolExecutionSuccess` 
-       - `ToolExecutionFailed` 
+       - `ToolExecutionFailed`
+       - `ToolExecutionCanceled`
      - **Log Events:**
        - `LogEmitted` 
 
@@ -178,10 +199,11 @@ This document outlines the standardized architectural component names within the
    - **Struct:** `Monitoring`
    - **Responsibilities:**
      - Collects and processes metrics, logs, and alerts for observability.
-     - Consumes state events (e.g., `WorkflowExecutionSuccess`, `TaskExecutionFailed`, `AgentExecutionStarted`) to track system performance and health.
+     - Consumes state events (e.g., `WorkflowExecutionSuccess`, `TaskExecutionFailed`, `AgentExecutionStarted`, `TaskExecutionCanceled`) to track system performance and health.
      - Consumes log events (`LogEmitted`) for debugging and monitoring.
      - Provides APIs for querying metrics and logs, supporting real-time and historical analysis.
-     - Triggers alerts for critical events (e.g., `WorkflowExecutionTimedOut`, `TaskWaitingTimedOut`).
+     - Triggers alerts for critical events (e.g., `WorkflowExecutionTimedOut`, `TaskWaitingTimedOut`, `TaskExecutionCanceled`).
+     - Tracks and reports on workflow cancellation patterns to identify potential system issues or user experience improvements.
    - **Consumed Events:**
      - **State Events:**
        - `WorkflowExecutionStarted` 
@@ -189,11 +211,12 @@ This document outlines the standardized architectural component names within the
        - `WorkflowExecutionResumed` 
        - `WorkflowExecutionSuccess` 
        - `WorkflowExecutionFailed` 
-       - `WorkflowExecutionCancelled` 
+       - `WorkflowExecutionCanceled` 
        - `WorkflowExecutionTimedOut` 
        - `TaskExecutionStarted` 
        - `TaskExecutionSuccess` 
        - `TaskExecutionFailed` 
+       - `TaskExecutionCanceled` 
        - `TaskWaitingStarted` 
        - `TaskWaitingEnded` 
        - `TaskWaitingTimedOut` 
@@ -202,9 +225,11 @@ This document outlines the standardized architectural component names within the
        - `AgentExecutionStarted` 
        - `AgentExecutionSuccess` 
        - `AgentExecutionFailed` 
+       - `AgentExecutionCanceled` 
        - `ToolExecutionStarted` 
        - `ToolExecutionSuccess` 
        - `ToolExecutionFailed` 
+       - `ToolExecutionCanceled` 
      - **Log Events:**
        - `LogEmitted` 
    - **Produced Events:**
@@ -248,4 +273,28 @@ These standardized names and event mappings are reflected in:
 - References in documentation files (READMEs, architecture diagrams, task definitions, assertion scenarios, etc.).
 - Event `Produced By`, `Consumed By`, and `source_component` fields in NATS event documentation.
 
-This standardization improves the project's alignment with industry best practices and makes the codebase more intuitive for developers familiar with distributed systems and workflow engine concepts.
+standardization improves the project's alignment with industry best practices and makes the codebase more intuitive for developers familiar with distributed systems and workflow engine concepts.
+
+## Hierarchical Control Operations
+
+The Compozy Workflow Engine implements control operations (pause, resume, cancel) in a hierarchical manner, ensuring proper propagation throughout the execution tree:
+
+1. **Workflow Cancellation Flow:**
+   - API Service receives cancellation request and issues `WorkflowCancel` command
+   - System Orchestrator routes this to Workflow Executor
+   - Workflow Executor marks the workflow as canceled and issues `TaskCancel` commands for all active tasks
+   - Task Executor cancels local execution and issues `AgentCancel`/`ToolCancel` commands as needed
+   - System Runtime terminates any running agent/tool processes
+   - State Manager records all cancellation events (`WorkflowExecutionCanceled`, `TaskExecutionCanceled`, etc.)
+
+2. **Task Cancellation Flow:**
+   - API Service receives task cancellation request and issues `TaskCancel` command
+   - Task Executor cancels the specific task and issues `AgentCancel`/`ToolCancel` if needed
+   - State Manager records task cancellation event (`TaskExecutionCanceled`)
+
+3. **Pause/Resume Flow:**
+   - Similar hierarchical pattern applies to pause/resume operations
+   - Pausing a workflow pauses all active tasks
+   - Resuming a workflow resumes all paused tasks that were active at pause time
+
+This hierarchical approach ensures consistent system state during control operations and prevents orphaned executions.

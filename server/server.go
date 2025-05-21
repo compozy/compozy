@@ -61,7 +61,9 @@ func (s *Server) buildRouter() error {
 }
 
 func (s *Server) Run() error {
+	ctx := context.Background()
 	orch, err := orchestrator.NewOrchestartor(
+		ctx,
 		s.State.NatsServer,
 		s.State.ProjectConfig,
 		s.State.Workflows,
@@ -74,7 +76,7 @@ func (s *Server) Run() error {
 	}
 	s.State.Orchestrator = orch
 	defer func() {
-		if err := orch.Stop(context.Background()); err != nil {
+		if err := orch.Stop(ctx); err != nil {
 			logger.Error("Error shutting down orchestrator", "error", err)
 		}
 	}()

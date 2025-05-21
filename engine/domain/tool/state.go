@@ -10,48 +10,12 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Execution
-// -----------------------------------------------------------------------------
-
-type StateParams struct {
-	CorrID         common.CorrID
-	WorkflowExecID common.ExecID
-	TaskExecID     common.ExecID
-	ExecID         common.ExecID
-	TaskEnv        common.EnvMap
-	ToolEnv        common.EnvMap
-	TriggerInput   *common.Input
-	TaskInput      *common.Input
-	ToolInput      *common.Input
-}
-
-func NewStateParams(
-	corrID common.CorrID,
-	taskExecID, workflowExecID common.ExecID,
-	taskEnv, toolEnv common.EnvMap,
-	tgInput, taskInput, toolInput *common.Input,
-) *StateParams {
-	execID := common.NewExecID()
-	return &StateParams{
-		CorrID:         corrID,
-		WorkflowExecID: workflowExecID,
-		TaskExecID:     taskExecID,
-		ExecID:         execID,
-		TaskEnv:        taskEnv,
-		ToolEnv:        toolEnv,
-		TriggerInput:   tgInput,
-		TaskInput:      taskInput,
-		ToolInput:      toolInput,
-	}
-}
-
-// -----------------------------------------------------------------------------
 // Initializer
 // -----------------------------------------------------------------------------
 
 type StateInitializer struct {
 	*state.CommonInitializer
-	*StateParams
+	*Execution
 }
 
 func (ti *StateInitializer) Initialize() (*State, error) {
@@ -94,10 +58,10 @@ type State struct {
 	ToolExecID     common.ExecID `json:"tool_exec_id"`
 }
 
-func NewToolState(exec *StateParams) (*State, error) {
+func NewToolState(exec *Execution) (*State, error) {
 	initializer := &StateInitializer{
 		CommonInitializer: state.NewCommonInitializer(),
-		StateParams:       exec,
+		Execution:         exec,
 	}
 	st, err := initializer.Initialize()
 	if err != nil {

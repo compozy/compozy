@@ -46,7 +46,7 @@ func ToStatus(eventStatus EventStatus) EvStatusType {
 		return StatusWaiting
 	case WorkflowStatusPaused:
 		return StatusPaused
-	case TaskStatusCancelled, WorkflowStatusCanceled:
+	case TaskStatusCanceled, WorkflowStatusCanceled:
 		return StatusCanceled
 	case TaskStatusTimedOut, WorkflowStatusTimedOut:
 		return StatusTimedOut
@@ -107,7 +107,7 @@ func parseWorkflowEvent(evtType EvtType, data []byte) (any, error) {
 		}
 		return event, nil
 	case EvtTypeCanceled:
-		event := &pbworkflow.WorkflowExecutionCancelledEvent{}
+		event := &pbworkflow.WorkflowExecutionCanceledEvent{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal workflow canceled event: %w", err)
 		}

@@ -64,7 +64,7 @@ Where:
     - Subject: `compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.success`
 -   [WorkflowExecutionFailed](workflow/state/execution_failed.md#state-event-workflowexecutionfailed)
     - Subject: `compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.failed`
--   [WorkflowExecutionCancelled](workflow/state/execution_canceled.md#state-event-workflowexecutioncanceled)
+-   [WorkflowExecutionCanceled](workflow/state/execution_canceled.md#state-event-workflowexecutioncanceled)
     - Subject: `compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.canceled`
 -   [WorkflowExecutionTimedOut](workflow/state/execution_timed_out.md#state-event-workflowexecutiontimedout) 
     - Subject: `compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.timed_out`

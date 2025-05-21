@@ -70,11 +70,11 @@ sequenceDiagram
     else Workflow Timeout
         WFEXEC->>STATE: WorkflowExecutionTimedOut
         WFEXEC->>MONITOR: WorkflowExecutionTimedOut
-    else Workflow Cancelled
+    else Workflow Canceled
         API->>ORCH: WorkflowCancel (async)
         ORCH->>WFEXEC: (internal signal)
-        WFEXEC->>STATE: WorkflowExecutionCancelled
-        WFEXEC->>MONITOR: WorkflowExecutionCancelled
+        WFEXEC->>STATE: WorkflowExecutionCanceled
+        WFEXEC->>MONITOR: WorkflowExecutionCanceled
     end
 
     Note over API,MONITOR: Logging

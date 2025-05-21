@@ -387,29 +387,29 @@ func (x *WorkflowExecutionFailedEvent) GetPayload() *WorkflowExecutionFailedEven
 	return nil
 }
 
-type WorkflowExecutionCancelledEvent struct {
-	state         protoimpl.MessageState                   `protogen:"open.v1"`
-	Metadata      *common.Metadata                         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo                     `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Payload       *WorkflowExecutionCancelledEvent_Payload `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
+type WorkflowExecutionCanceledEvent struct {
+	state         protoimpl.MessageState                  `protogen:"open.v1"`
+	Metadata      *common.Metadata                        `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo                    `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Payload       *WorkflowExecutionCanceledEvent_Payload `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecutionCancelledEvent) Reset() {
-	*x = WorkflowExecutionCancelledEvent{}
+func (x *WorkflowExecutionCanceledEvent) Reset() {
+	*x = WorkflowExecutionCanceledEvent{}
 	mi := &file_workflow_events_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecutionCancelledEvent) String() string {
+func (x *WorkflowExecutionCanceledEvent) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecutionCancelledEvent) ProtoMessage() {}
+func (*WorkflowExecutionCanceledEvent) ProtoMessage() {}
 
-func (x *WorkflowExecutionCancelledEvent) ProtoReflect() protoreflect.Message {
+func (x *WorkflowExecutionCanceledEvent) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_events_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -421,26 +421,26 @@ func (x *WorkflowExecutionCancelledEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecutionCancelledEvent.ProtoReflect.Descriptor instead.
-func (*WorkflowExecutionCancelledEvent) Descriptor() ([]byte, []int) {
+// Deprecated: Use WorkflowExecutionCanceledEvent.ProtoReflect.Descriptor instead.
+func (*WorkflowExecutionCanceledEvent) Descriptor() ([]byte, []int) {
 	return file_workflow_events_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *WorkflowExecutionCancelledEvent) GetMetadata() *common.Metadata {
+func (x *WorkflowExecutionCanceledEvent) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionCancelledEvent) GetWorkflow() *common.WorkflowInfo {
+func (x *WorkflowExecutionCanceledEvent) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionCancelledEvent) GetPayload() *WorkflowExecutionCancelledEvent_Payload {
+func (x *WorkflowExecutionCanceledEvent) GetPayload() *WorkflowExecutionCanceledEvent_Payload {
 	if x != nil {
 		return x.Payload
 	}
@@ -807,7 +807,7 @@ func (x *WorkflowExecutionFailedEvent_Payload) GetDurationMs() int64 {
 	return 0
 }
 
-type WorkflowExecutionCancelledEvent_Payload struct {
+type WorkflowExecutionCanceledEvent_Payload struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        WorkflowStatus         `protobuf:"varint,1,opt,name=status,proto3,enum=workflow.WorkflowStatus" json:"status,omitempty"`
 	Context       *structpb.Struct       `protobuf:"bytes,2,opt,name=context,proto3" json:"context,omitempty"`
@@ -816,20 +816,20 @@ type WorkflowExecutionCancelledEvent_Payload struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecutionCancelledEvent_Payload) Reset() {
-	*x = WorkflowExecutionCancelledEvent_Payload{}
+func (x *WorkflowExecutionCanceledEvent_Payload) Reset() {
+	*x = WorkflowExecutionCanceledEvent_Payload{}
 	mi := &file_workflow_events_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecutionCancelledEvent_Payload) String() string {
+func (x *WorkflowExecutionCanceledEvent_Payload) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecutionCancelledEvent_Payload) ProtoMessage() {}
+func (*WorkflowExecutionCanceledEvent_Payload) ProtoMessage() {}
 
-func (x *WorkflowExecutionCancelledEvent_Payload) ProtoReflect() protoreflect.Message {
+func (x *WorkflowExecutionCanceledEvent_Payload) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_events_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -841,26 +841,26 @@ func (x *WorkflowExecutionCancelledEvent_Payload) ProtoReflect() protoreflect.Me
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecutionCancelledEvent_Payload.ProtoReflect.Descriptor instead.
-func (*WorkflowExecutionCancelledEvent_Payload) Descriptor() ([]byte, []int) {
+// Deprecated: Use WorkflowExecutionCanceledEvent_Payload.ProtoReflect.Descriptor instead.
+func (*WorkflowExecutionCanceledEvent_Payload) Descriptor() ([]byte, []int) {
 	return file_workflow_events_proto_rawDescGZIP(), []int{5, 0}
 }
 
-func (x *WorkflowExecutionCancelledEvent_Payload) GetStatus() WorkflowStatus {
+func (x *WorkflowExecutionCanceledEvent_Payload) GetStatus() WorkflowStatus {
 	if x != nil {
 		return x.Status
 	}
 	return WorkflowStatus_WORKFLOW_STATUS_UNSPECIFIED
 }
 
-func (x *WorkflowExecutionCancelledEvent_Payload) GetContext() *structpb.Struct {
+func (x *WorkflowExecutionCanceledEvent_Payload) GetContext() *structpb.Struct {
 	if x != nil {
 		return x.Context
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionCancelledEvent_Payload) GetDurationMs() int64 {
+func (x *WorkflowExecutionCanceledEvent_Payload) GetDurationMs() int64 {
 	if x != nil {
 		return x.DurationMs
 	}
@@ -982,11 +982,11 @@ const file_workflow_events_proto_rawDesc = "" +
 	"\x06result\x18\x02 \x01(\v2\x0e.common.ResultR\x06result\x121\n" +
 	"\acontext\x18\x03 \x01(\v2\x17.google.protobuf.StructR\acontext\x12\x1f\n" +
 	"\vduration_ms\x18\x04 \x01(\x03R\n" +
-	"durationMs\"\xe0\x02\n" +
-	"\x1fWorkflowExecutionCancelledEvent\x12,\n" +
+	"durationMs\"\xde\x02\n" +
+	"\x1eWorkflowExecutionCanceledEvent\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
-	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12K\n" +
-	"\apayload\x18\x03 \x01(\v21.workflow.WorkflowExecutionCancelledEvent.PayloadR\apayload\x1a\x8f\x01\n" +
+	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12J\n" +
+	"\apayload\x18\x03 \x01(\v20.workflow.WorkflowExecutionCanceledEvent.PayloadR\apayload\x1a\x8f\x01\n" +
 	"\aPayload\x120\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\x121\n" +
 	"\acontext\x18\x02 \x01(\v2\x17.google.protobuf.StructR\acontext\x12\x1f\n" +
@@ -1027,25 +1027,25 @@ func file_workflow_events_proto_rawDescGZIP() []byte {
 var file_workflow_events_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_workflow_events_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_workflow_events_proto_goTypes = []any{
-	(WorkflowStatus)(0),                             // 0: workflow.WorkflowStatus
-	(*WorkflowExecutionStartedEvent)(nil),           // 1: workflow.WorkflowExecutionStartedEvent
-	(*WorkflowExecutionPausedEvent)(nil),            // 2: workflow.WorkflowExecutionPausedEvent
-	(*WorkflowExecutionResumedEvent)(nil),           // 3: workflow.WorkflowExecutionResumedEvent
-	(*WorkflowExecutionSuccessEvent)(nil),           // 4: workflow.WorkflowExecutionSuccessEvent
-	(*WorkflowExecutionFailedEvent)(nil),            // 5: workflow.WorkflowExecutionFailedEvent
-	(*WorkflowExecutionCancelledEvent)(nil),         // 6: workflow.WorkflowExecutionCancelledEvent
-	(*WorkflowExecutionTimedOutEvent)(nil),          // 7: workflow.WorkflowExecutionTimedOutEvent
-	(*WorkflowExecutionStartedEvent_Payload)(nil),   // 8: workflow.WorkflowExecutionStartedEvent.Payload
-	(*WorkflowExecutionPausedEvent_Payload)(nil),    // 9: workflow.WorkflowExecutionPausedEvent.Payload
-	(*WorkflowExecutionResumedEvent_Payload)(nil),   // 10: workflow.WorkflowExecutionResumedEvent.Payload
-	(*WorkflowExecutionSuccessEvent_Payload)(nil),   // 11: workflow.WorkflowExecutionSuccessEvent.Payload
-	(*WorkflowExecutionFailedEvent_Payload)(nil),    // 12: workflow.WorkflowExecutionFailedEvent.Payload
-	(*WorkflowExecutionCancelledEvent_Payload)(nil), // 13: workflow.WorkflowExecutionCancelledEvent.Payload
-	(*WorkflowExecutionTimedOutEvent_Payload)(nil),  // 14: workflow.WorkflowExecutionTimedOutEvent.Payload
-	(*common.Metadata)(nil),                         // 15: common.Metadata
-	(*common.WorkflowInfo)(nil),                     // 16: common.WorkflowInfo
-	(*structpb.Struct)(nil),                         // 17: google.protobuf.Struct
-	(*common.Result)(nil),                           // 18: common.Result
+	(WorkflowStatus)(0),                            // 0: workflow.WorkflowStatus
+	(*WorkflowExecutionStartedEvent)(nil),          // 1: workflow.WorkflowExecutionStartedEvent
+	(*WorkflowExecutionPausedEvent)(nil),           // 2: workflow.WorkflowExecutionPausedEvent
+	(*WorkflowExecutionResumedEvent)(nil),          // 3: workflow.WorkflowExecutionResumedEvent
+	(*WorkflowExecutionSuccessEvent)(nil),          // 4: workflow.WorkflowExecutionSuccessEvent
+	(*WorkflowExecutionFailedEvent)(nil),           // 5: workflow.WorkflowExecutionFailedEvent
+	(*WorkflowExecutionCanceledEvent)(nil),         // 6: workflow.WorkflowExecutionCanceledEvent
+	(*WorkflowExecutionTimedOutEvent)(nil),         // 7: workflow.WorkflowExecutionTimedOutEvent
+	(*WorkflowExecutionStartedEvent_Payload)(nil),  // 8: workflow.WorkflowExecutionStartedEvent.Payload
+	(*WorkflowExecutionPausedEvent_Payload)(nil),   // 9: workflow.WorkflowExecutionPausedEvent.Payload
+	(*WorkflowExecutionResumedEvent_Payload)(nil),  // 10: workflow.WorkflowExecutionResumedEvent.Payload
+	(*WorkflowExecutionSuccessEvent_Payload)(nil),  // 11: workflow.WorkflowExecutionSuccessEvent.Payload
+	(*WorkflowExecutionFailedEvent_Payload)(nil),   // 12: workflow.WorkflowExecutionFailedEvent.Payload
+	(*WorkflowExecutionCanceledEvent_Payload)(nil), // 13: workflow.WorkflowExecutionCanceledEvent.Payload
+	(*WorkflowExecutionTimedOutEvent_Payload)(nil), // 14: workflow.WorkflowExecutionTimedOutEvent.Payload
+	(*common.Metadata)(nil),                        // 15: common.Metadata
+	(*common.WorkflowInfo)(nil),                    // 16: common.WorkflowInfo
+	(*structpb.Struct)(nil),                        // 17: google.protobuf.Struct
+	(*common.Result)(nil),                          // 18: common.Result
 }
 var file_workflow_events_proto_depIdxs = []int32{
 	15, // 0: workflow.WorkflowExecutionStartedEvent.metadata:type_name -> common.Metadata
@@ -1063,9 +1063,9 @@ var file_workflow_events_proto_depIdxs = []int32{
 	15, // 12: workflow.WorkflowExecutionFailedEvent.metadata:type_name -> common.Metadata
 	16, // 13: workflow.WorkflowExecutionFailedEvent.workflow:type_name -> common.WorkflowInfo
 	12, // 14: workflow.WorkflowExecutionFailedEvent.payload:type_name -> workflow.WorkflowExecutionFailedEvent.Payload
-	15, // 15: workflow.WorkflowExecutionCancelledEvent.metadata:type_name -> common.Metadata
-	16, // 16: workflow.WorkflowExecutionCancelledEvent.workflow:type_name -> common.WorkflowInfo
-	13, // 17: workflow.WorkflowExecutionCancelledEvent.payload:type_name -> workflow.WorkflowExecutionCancelledEvent.Payload
+	15, // 15: workflow.WorkflowExecutionCanceledEvent.metadata:type_name -> common.Metadata
+	16, // 16: workflow.WorkflowExecutionCanceledEvent.workflow:type_name -> common.WorkflowInfo
+	13, // 17: workflow.WorkflowExecutionCanceledEvent.payload:type_name -> workflow.WorkflowExecutionCanceledEvent.Payload
 	15, // 18: workflow.WorkflowExecutionTimedOutEvent.metadata:type_name -> common.Metadata
 	16, // 19: workflow.WorkflowExecutionTimedOutEvent.workflow:type_name -> common.WorkflowInfo
 	14, // 20: workflow.WorkflowExecutionTimedOutEvent.payload:type_name -> workflow.WorkflowExecutionTimedOutEvent.Payload
@@ -1081,8 +1081,8 @@ var file_workflow_events_proto_depIdxs = []int32{
 	0,  // 30: workflow.WorkflowExecutionFailedEvent.Payload.status:type_name -> workflow.WorkflowStatus
 	18, // 31: workflow.WorkflowExecutionFailedEvent.Payload.result:type_name -> common.Result
 	17, // 32: workflow.WorkflowExecutionFailedEvent.Payload.context:type_name -> google.protobuf.Struct
-	0,  // 33: workflow.WorkflowExecutionCancelledEvent.Payload.status:type_name -> workflow.WorkflowStatus
-	17, // 34: workflow.WorkflowExecutionCancelledEvent.Payload.context:type_name -> google.protobuf.Struct
+	0,  // 33: workflow.WorkflowExecutionCanceledEvent.Payload.status:type_name -> workflow.WorkflowStatus
+	17, // 34: workflow.WorkflowExecutionCanceledEvent.Payload.context:type_name -> google.protobuf.Struct
 	0,  // 35: workflow.WorkflowExecutionTimedOutEvent.Payload.status:type_name -> workflow.WorkflowStatus
 	18, // 36: workflow.WorkflowExecutionTimedOutEvent.Payload.result:type_name -> common.Result
 	17, // 37: workflow.WorkflowExecutionTimedOutEvent.Payload.context:type_name -> google.protobuf.Struct

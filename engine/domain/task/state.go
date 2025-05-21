@@ -10,44 +10,12 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Execution
-// -----------------------------------------------------------------------------
-
-type StateParams struct {
-	CorrID         common.CorrID
-	WorkflowExecID common.ExecID
-	TaskExecID     common.ExecID
-	WorkflowEnv    common.EnvMap
-	TaskEnv        common.EnvMap
-	TriggerInput   *common.Input
-	TaskInput      *common.Input
-}
-
-func NewStateParams(
-	corrID common.CorrID,
-	workflowExecID common.ExecID,
-	workflowEnv, taskEnv common.EnvMap,
-	tgInput, taskInput *common.Input,
-) *StateParams {
-	execID := common.NewExecID()
-	return &StateParams{
-		CorrID:         corrID,
-		WorkflowExecID: workflowExecID,
-		TaskExecID:     execID,
-		WorkflowEnv:    workflowEnv,
-		TaskEnv:        taskEnv,
-		TriggerInput:   tgInput,
-		TaskInput:      taskInput,
-	}
-}
-
-// -----------------------------------------------------------------------------
 // Initializer
 // -----------------------------------------------------------------------------
 
 type StateInitializer struct {
 	*state.CommonInitializer
-	*StateParams
+	*Execution
 }
 
 func (ti *StateInitializer) Initialize() (*State, error) {
@@ -84,10 +52,10 @@ type State struct {
 	TaskExecID     common.ExecID `json:"task_exec_id"`
 }
 
-func NewTaskState(exec *StateParams) (*State, error) {
+func NewTaskState(exec *Execution) (*State, error) {
 	initializer := &StateInitializer{
 		CommonInitializer: state.NewCommonInitializer(),
-		StateParams:       exec,
+		Execution:         exec,
 	}
 	st, err := initializer.Initialize()
 	if err != nil {

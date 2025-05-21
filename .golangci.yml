@@ -82,6 +82,9 @@ linters:
           - gocritic
         text: unnecessaryDefer
       - linters:
+          - gocritic
+        path: engine/orchestrator/orchestrator.go
+      - linters:
           - gochecknoinits
           - goconst
         path: _test\.go
