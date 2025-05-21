@@ -13,7 +13,7 @@ import (
 	timepb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func TriggerWorkflow(wfID common.CompID, natsClient *nats.Client, ex *Execution) error {
+func TriggerWorkflow(wfID common.CompID, natsClient *nats.Client, ex *StateParams) error {
 	corrID := ex.CorrID
 	execID := ex.ExecID
 	logger.With(

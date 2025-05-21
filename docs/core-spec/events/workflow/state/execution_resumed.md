@@ -16,7 +16,6 @@
 {
   "metadata": {
     "correlation_id": "<uuid>",
-    "event_id": "<uuid>",
     "event_timestamp": "2025-05-14T09:00:00Z",
     "source_component": "workflow.Executor"
   },

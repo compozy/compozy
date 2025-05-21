@@ -103,7 +103,6 @@ type EvtType string
 
 const (
 	EvtTypeDispatched      EvtType = "dispatched"
-	EvtTypeScheduled       EvtType = "scheduled"
 	EvtTypeStarted         EvtType = "started"
 	EvtTypePaused          EvtType = "paused"
 	EvtTypeResumed         EvtType = "resumed"

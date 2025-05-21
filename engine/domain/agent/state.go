@@ -13,7 +13,7 @@ import (
 // Execution
 // -----------------------------------------------------------------------------
 
-type Execution struct {
+type StateParams struct {
 	CorrID         common.CorrID
 	WorkflowExecID common.ExecID
 	TaskExecID     common.ExecID
@@ -25,14 +25,14 @@ type Execution struct {
 	AgentInput     *common.Input
 }
 
-func NewExecution(
+func NewStateParams(
 	corrID common.CorrID,
 	taskExecID, workflowExecID common.ExecID,
 	taskEnv, agentEnv common.EnvMap,
 	tgInput, taskInput, agentInput *common.Input,
-) *Execution {
+) *StateParams {
 	execID := common.NewExecID()
-	return &Execution{
+	return &StateParams{
 		CorrID:         corrID,
 		WorkflowExecID: workflowExecID,
 		TaskExecID:     taskExecID,
@@ -51,7 +51,7 @@ func NewExecution(
 
 type StateInitializer struct {
 	*state.CommonInitializer
-	*Execution
+	*StateParams
 }
 
 func (ai *StateInitializer) Initialize() (*State, error) {
@@ -94,10 +94,10 @@ type State struct {
 	AgentExecID    common.ExecID `json:"agent_exec_id"`
 }
 
-func NewAgentState(exec *Execution) (*State, error) {
+func NewAgentState(exec *StateParams) (*State, error) {
 	initializer := &StateInitializer{
 		CommonInitializer: state.NewCommonInitializer(),
-		Execution:         exec,
+		StateParams:       exec,
 	}
 	st, err := initializer.Initialize()
 	if err != nil {

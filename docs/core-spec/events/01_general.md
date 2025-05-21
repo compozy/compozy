@@ -55,7 +55,6 @@ All events generally follow a consistent structure with these main sections:
 #### Metadata Section
 
 The `metadata` section typically contains:
--   `event_id` or `request_id` or `result_id`: (string, UUID) Unique identifier for the message.
 -   `correlation_id`: (string, UUID) Identifier to correlate messages across different services or components. This ID is also part of the NATS subject.
 -   `event_timestamp`: (string, ISO8601) Time the message was generated.
 -   `source_component`: (string) Name of the component that generated the message.

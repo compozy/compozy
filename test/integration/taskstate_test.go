@@ -42,7 +42,7 @@ func TestTaskStateInitialization(t *testing.T) {
 		"TEMPLATE_PARAM": "{{ .trigger.input.data.value }}",
 	}
 
-	exec := task.NewExecution(
+	exec := task.NewStateParams(
 		corrID,
 		workflowExecID,
 		workflowEnv,
@@ -114,7 +114,7 @@ func TestTaskStateUpdateFromEvent(t *testing.T) {
 	triggerInput := &common.Input{"trigger_key": "trigger_value"}
 	taskInput := &common.Input{"task_key": "task_value"}
 
-	exec := task.NewExecution(
+	exec := task.NewStateParams(
 		corrID,
 		workflowExecID,
 		workflowEnv,
@@ -290,7 +290,7 @@ func TestTaskStateUpdateFromEvent(t *testing.T) {
 	t.Run("Should update both status and error output when receiving TaskExecutionFailedEvent with Error", func(t *testing.T) {
 		// Create a new task state for this test
 		newCorrID := common.NewCorrID()
-		newExec := task.NewExecution(
+		newExec := task.NewStateParams(
 			newCorrID,
 			workflowExecID,
 			workflowEnv,
@@ -377,7 +377,7 @@ func TestTaskStateUpdateFromEvent(t *testing.T) {
 	t.Run("Should update both status and output when receiving TaskExecutionWaitingTimedOutEvent with Result", func(t *testing.T) {
 		// Create a new task state for this test
 		newCorrID := common.NewCorrID()
-		newExec := task.NewExecution(
+		newExec := task.NewStateParams(
 			newCorrID,
 			workflowExecID,
 			workflowEnv,

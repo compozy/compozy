@@ -16,7 +16,6 @@
 {
   "metadata": {
     "correlation_id": "<uuid>",
-    "request_id": "<uuid>",
     "source_component": "api.Service",
     "event_timestamp": "2025-01-01T12:00:00Z"
   },

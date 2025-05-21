@@ -49,7 +49,7 @@ func TestAgentStateInitialization(t *testing.T) {
 		"AGENT_TEMPLATE_PARAM": "{{ .trigger.input.data.value }}",
 	}
 
-	exec := agent.NewExecution(
+	exec := agent.NewStateParams(
 		corrID,
 		taskExecID,
 		workflowExecID,
@@ -136,7 +136,7 @@ func TestAgentStatePersistence(t *testing.T) {
 			"agent": "data",
 		}
 
-		exec := agent.NewExecution(
+		exec := agent.NewStateParams(
 			corrID, taskExecID, workflowExecID, taskEnv, agentEnv,
 			&triggerData, &taskData, &agentData,
 		)
@@ -193,7 +193,7 @@ func TestAgentStateUpdates(t *testing.T) {
 			"agent_update": "data",
 		}
 
-		exec := agent.NewExecution(
+		exec := agent.NewStateParams(
 			corrID, taskExecID, workflowExecID, taskEnv, agentEnv,
 			&triggerData, &taskData, &agentData,
 		)
@@ -249,7 +249,7 @@ func TestAgentStateUpdateFromEvent(t *testing.T) {
 	taskInput := &common.Input{"task_key": "task_value"}
 	agentInput := &common.Input{"agent_key": "agent_value"}
 
-	exec := agent.NewExecution(
+	exec := agent.NewStateParams(
 		corrID,
 		taskExecID,
 		workflowExecID,
@@ -375,7 +375,7 @@ func TestAgentStateUpdateFromEvent(t *testing.T) {
 	t.Run("Should update both status and error output when receiving AgentExecutionFailedEvent with Error", func(t *testing.T) {
 		// Create a new agent state for this test
 		newCorrID := common.NewCorrID()
-		newExec := agent.NewExecution(
+		newExec := agent.NewStateParams(
 			newCorrID,
 			taskExecID,
 			workflowExecID,

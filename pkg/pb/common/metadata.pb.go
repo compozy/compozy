@@ -22,22 +22,73 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type State struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Represent the string version of State.ID (<component>:<corr_id>:<exec_id>)
+	Id            string  `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ParentId      *string `protobuf:"bytes,2,opt,name=parent_id,json=parentId,proto3,oneof" json:"parent_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *State) Reset() {
+	*x = State{}
+	mi := &file_common_metadata_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *State) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*State) ProtoMessage() {}
+
+func (x *State) ProtoReflect() protoreflect.Message {
+	mi := &file_common_metadata_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use State.ProtoReflect.Descriptor instead.
+func (*State) Descriptor() ([]byte, []int) {
+	return file_common_metadata_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *State) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *State) GetParentId() string {
+	if x != nil && x.ParentId != nil {
+		return *x.ParentId
+	}
+	return ""
+}
+
 type Metadata struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	CorrelationId   string                 `protobuf:"bytes,1,opt,name=correlation_id,json=correlationId,proto3" json:"correlation_id,omitempty"`
-	EventId         *string                `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3,oneof" json:"event_id,omitempty"`
-	RequestId       *string                `protobuf:"bytes,3,opt,name=request_id,json=requestId,proto3,oneof" json:"request_id,omitempty"`
-	ResultId        *string                `protobuf:"bytes,4,opt,name=result_id,json=resultId,proto3,oneof" json:"result_id,omitempty"`
-	SourceComponent string                 `protobuf:"bytes,5,opt,name=source_component,json=sourceComponent,proto3" json:"source_component,omitempty"`
-	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	EndedAt         *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=ended_at,json=endedAt,proto3,oneof" json:"ended_at,omitempty"`
+	SourceComponent string                 `protobuf:"bytes,2,opt,name=source_component,json=sourceComponent,proto3" json:"source_component,omitempty"`
+	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	EndedAt         *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=ended_at,json=endedAt,proto3,oneof" json:"ended_at,omitempty"`
+	State           *State                 `protobuf:"bytes,5,opt,name=state,proto3" json:"state,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Metadata) Reset() {
 	*x = Metadata{}
-	mi := &file_common_metadata_proto_msgTypes[0]
+	mi := &file_common_metadata_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -49,7 +100,7 @@ func (x *Metadata) String() string {
 func (*Metadata) ProtoMessage() {}
 
 func (x *Metadata) ProtoReflect() protoreflect.Message {
-	mi := &file_common_metadata_proto_msgTypes[0]
+	mi := &file_common_metadata_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62,33 +113,12 @@ func (x *Metadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Metadata.ProtoReflect.Descriptor instead.
 func (*Metadata) Descriptor() ([]byte, []int) {
-	return file_common_metadata_proto_rawDescGZIP(), []int{0}
+	return file_common_metadata_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Metadata) GetCorrelationId() string {
 	if x != nil {
 		return x.CorrelationId
-	}
-	return ""
-}
-
-func (x *Metadata) GetEventId() string {
-	if x != nil && x.EventId != nil {
-		return *x.EventId
-	}
-	return ""
-}
-
-func (x *Metadata) GetRequestId() string {
-	if x != nil && x.RequestId != nil {
-		return *x.RequestId
-	}
-	return ""
-}
-
-func (x *Metadata) GetResultId() string {
-	if x != nil && x.ResultId != nil {
-		return *x.ResultId
 	}
 	return ""
 }
@@ -114,25 +144,30 @@ func (x *Metadata) GetEndedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Metadata) GetState() *State {
+	if x != nil {
+		return x.State
+	}
+	return nil
+}
+
 var File_common_metadata_proto protoreflect.FileDescriptor
 
 const file_common_metadata_proto_rawDesc = "" +
 	"\n" +
-	"\x15common/metadata.proto\x12\x06common\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf0\x02\n" +
+	"\x15common/metadata.proto\x12\x06common\x1a\x1fgoogle/protobuf/timestamp.proto\"G\n" +
+	"\x05State\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12 \n" +
+	"\tparent_id\x18\x02 \x01(\tH\x00R\bparentId\x88\x01\x01B\f\n" +
+	"\n" +
+	"_parent_id\"\x85\x02\n" +
 	"\bMetadata\x12%\n" +
-	"\x0ecorrelation_id\x18\x01 \x01(\tR\rcorrelationId\x12\x1e\n" +
-	"\bevent_id\x18\x02 \x01(\tH\x00R\aeventId\x88\x01\x01\x12\"\n" +
+	"\x0ecorrelation_id\x18\x01 \x01(\tR\rcorrelationId\x12)\n" +
+	"\x10source_component\x18\x02 \x01(\tR\x0fsourceComponent\x129\n" +
 	"\n" +
-	"request_id\x18\x03 \x01(\tH\x01R\trequestId\x88\x01\x01\x12 \n" +
-	"\tresult_id\x18\x04 \x01(\tH\x02R\bresultId\x88\x01\x01\x12)\n" +
-	"\x10source_component\x18\x05 \x01(\tR\x0fsourceComponent\x129\n" +
-	"\n" +
-	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12:\n" +
-	"\bended_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampH\x03R\aendedAt\x88\x01\x01B\v\n" +
-	"\t_event_idB\r\n" +
-	"\v_request_idB\f\n" +
-	"\n" +
-	"_result_idB\v\n" +
+	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12:\n" +
+	"\bended_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampH\x00R\aendedAt\x88\x01\x01\x12#\n" +
+	"\x05state\x18\x05 \x01(\v2\r.common.StateR\x05stateB\v\n" +
 	"\t_ended_atB*Z(github.com/compozy/compozy/pkg/pb/commonb\x06proto3"
 
 var (
@@ -147,19 +182,21 @@ func file_common_metadata_proto_rawDescGZIP() []byte {
 	return file_common_metadata_proto_rawDescData
 }
 
-var file_common_metadata_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_common_metadata_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_common_metadata_proto_goTypes = []any{
-	(*Metadata)(nil),              // 0: common.Metadata
-	(*timestamppb.Timestamp)(nil), // 1: google.protobuf.Timestamp
+	(*State)(nil),                 // 0: common.State
+	(*Metadata)(nil),              // 1: common.Metadata
+	(*timestamppb.Timestamp)(nil), // 2: google.protobuf.Timestamp
 }
 var file_common_metadata_proto_depIdxs = []int32{
-	1, // 0: common.Metadata.created_at:type_name -> google.protobuf.Timestamp
-	1, // 1: common.Metadata.ended_at:type_name -> google.protobuf.Timestamp
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	2, // 0: common.Metadata.created_at:type_name -> google.protobuf.Timestamp
+	2, // 1: common.Metadata.ended_at:type_name -> google.protobuf.Timestamp
+	0, // 2: common.Metadata.state:type_name -> common.State
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_common_metadata_proto_init() }
@@ -168,13 +205,14 @@ func file_common_metadata_proto_init() {
 		return
 	}
 	file_common_metadata_proto_msgTypes[0].OneofWrappers = []any{}
+	file_common_metadata_proto_msgTypes[1].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_common_metadata_proto_rawDesc), len(file_common_metadata_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

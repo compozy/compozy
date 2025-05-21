@@ -16,7 +16,6 @@
 {
   "metadata": {
     "correlation_id": "<uuid>",
-    "event_id": "<uuid>",
     "event_timestamp": "2025-05-13T20:05:00Z",
     "source_component": "workflow.Executor"
   },
@@ -49,4 +48,3 @@ The `payload` object contains the following fields:
     -   Description: The total duration of the workflow execution in milliseconds.
 -   **`context`** (`object`, Optional)
     -   Description: Event-specific contextual data.
-

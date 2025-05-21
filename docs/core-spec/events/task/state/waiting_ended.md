@@ -16,7 +16,6 @@
 {
   "metadata": {
     "correlation_id": "<uuid>",
-    "event_id": "<uuid>",
     "event_timestamp": "2025-05-14T15:30:05Z",
     "source_component": "task.Executor"
   },

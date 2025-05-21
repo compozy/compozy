@@ -13,7 +13,7 @@ import (
 // Execution
 // -----------------------------------------------------------------------------
 
-type Execution struct {
+type StateParams struct {
 	CorrID         common.CorrID
 	WorkflowExecID common.ExecID
 	TaskExecID     common.ExecID
@@ -23,14 +23,14 @@ type Execution struct {
 	TaskInput      *common.Input
 }
 
-func NewExecution(
+func NewStateParams(
 	corrID common.CorrID,
 	workflowExecID common.ExecID,
 	workflowEnv, taskEnv common.EnvMap,
 	tgInput, taskInput *common.Input,
-) *Execution {
+) *StateParams {
 	execID := common.NewExecID()
-	return &Execution{
+	return &StateParams{
 		CorrID:         corrID,
 		WorkflowExecID: workflowExecID,
 		TaskExecID:     execID,
@@ -47,7 +47,7 @@ func NewExecution(
 
 type StateInitializer struct {
 	*state.CommonInitializer
-	*Execution
+	*StateParams
 }
 
 func (ti *StateInitializer) Initialize() (*State, error) {
@@ -84,10 +84,10 @@ type State struct {
 	TaskExecID     common.ExecID `json:"task_exec_id"`
 }
 
-func NewTaskState(exec *Execution) (*State, error) {
+func NewTaskState(exec *StateParams) (*State, error) {
 	initializer := &StateInitializer{
 		CommonInitializer: state.NewCommonInitializer(),
-		Execution:         exec,
+		StateParams:       exec,
 	}
 	st, err := initializer.Initialize()
 	if err != nil {

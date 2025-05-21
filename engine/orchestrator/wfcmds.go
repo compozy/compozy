@@ -15,7 +15,7 @@ func (o *Orchestrator) TriggerWorkflow(
 	pj *project.Config,
 	tgInput *common.Input,
 ) error {
-	exec := workflow.NewExecution(tgInput, pj.GetEnv())
+	exec := workflow.NewStateParams(tgInput, pj.GetEnv())
 
 	// Save the state before triggering the workflow
 	st, err := workflow.NewState(exec)

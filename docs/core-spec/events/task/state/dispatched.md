@@ -16,7 +16,6 @@
 {
   "metadata": {
     "correlation_id": "<uuid>",
-    "event_id": "<uuid>",
     "event_timestamp": "2025-05-15T17:50:00Z",
     "source_component": "system.Orchestrator",
     "created_by": "system"

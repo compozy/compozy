@@ -16,7 +16,6 @@
 {
   "metadata": {
     "correlation_id": "<uuid>",
-    "event_id": "<uuid_for_log_event>",
     "event_timestamp": "2025-05-15T10:30:00Z",
     "source_component": "system.Runtime",
     "created_by": "system"

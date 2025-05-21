@@ -16,7 +16,6 @@
 {
   "metadata": {
     "correlation_id": "<uuid>",
-    "request_id": "<uuid>",
     "event_timestamp": "2025-05-13T20:00:00Z",
     "created_by": "admin_user_01",
     "source_component": "api.Service"
@@ -42,4 +41,4 @@
 
 The `payload` object contains the following fields:
 -   **`context`** (`object`, Optional)
-    -   Description: Additional contextual information for the workflow trigger command. 
+    -   Description: Additional contextual information for the workflow trigger command.

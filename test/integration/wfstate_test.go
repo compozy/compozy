@@ -23,7 +23,7 @@ func TestWorkflowStateInitialization(t *testing.T) {
 	projectEnv := common.EnvMap{
 		"PROJECT_ENV": "project_value",
 	}
-	exec := workflow.NewExecution(triggerInput, projectEnv)
+	exec := workflow.NewStateParams(triggerInput, projectEnv)
 	require.NotNil(t, exec)
 
 	t.Run("Should correctly initialize IDs, status, and basic fields", func(t *testing.T) {
@@ -67,7 +67,7 @@ func TestWorkflowStateInitialization(t *testing.T) {
 			"ACTION":       "{{ .trigger.input.data.action }}",
 			"PROJECT_ENV":  "workflow_override", // Workflow env should override project env
 		}
-		exec := workflow.NewExecution(triggerInput, projectEnv)
+		exec := workflow.NewStateParams(triggerInput, projectEnv)
 		exec.WorkflowEnv = workflowEnv
 
 		wfState, err := workflow.NewState(exec)
@@ -97,7 +97,7 @@ func TestWorkflowStatePersistence(t *testing.T) {
 	projectEnv := common.EnvMap{
 		"ENV_VAR1": "value1",
 	}
-	exec := workflow.NewExecution(triggerInput, projectEnv)
+	exec := workflow.NewStateParams(triggerInput, projectEnv)
 	require.NotNil(t, exec)
 
 	wfState, err := workflow.NewState(exec)
@@ -128,7 +128,7 @@ func TestWorkflowStateUpdates(t *testing.T) {
 	defer tb.Cleanup()
 	stateManager := tb.StateManager
 
-	exec := workflow.NewExecution(&common.Input{}, common.EnvMap{})
+	exec := workflow.NewStateParams(&common.Input{}, common.EnvMap{})
 	require.NotNil(t, exec)
 
 	wfState, err := workflow.NewState(exec)
@@ -167,7 +167,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 	defer tb.Cleanup()
 	stateManager := tb.StateManager
 
-	exec := workflow.NewExecution(&common.Input{}, common.EnvMap{})
+	exec := workflow.NewStateParams(&common.Input{}, common.EnvMap{})
 	require.NotNil(t, exec)
 
 	wfState, err := workflow.NewState(exec)
@@ -290,7 +290,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 
 	t.Run("Should update both status and output when receiving WorkflowExecutionSuccessEvent with Result", func(t *testing.T) {
 		// Create a new workflow state for this test
-		newExec := workflow.NewExecution(&common.Input{}, common.EnvMap{})
+		newExec := workflow.NewStateParams(&common.Input{}, common.EnvMap{})
 		newWfState, err := workflow.NewState(newExec)
 		require.NoError(t, err)
 		err = stateManager.SaveState(newWfState)
@@ -361,7 +361,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 
 	t.Run("Should update status to Failed when receiving WorkflowExecutionFailedEvent", func(t *testing.T) {
 		// Create a new workflow state for testing failure
-		newExec := workflow.NewExecution(&common.Input{}, common.EnvMap{})
+		newExec := workflow.NewStateParams(&common.Input{}, common.EnvMap{})
 		newWfState, err := workflow.NewState(newExec)
 		require.NoError(t, err)
 		err = stateManager.SaveState(newWfState)
@@ -395,7 +395,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 
 	t.Run("Should update both status and error output when receiving WorkflowExecutionFailedEvent with Error", func(t *testing.T) {
 		// Create a new workflow state for this test
-		newExec := workflow.NewExecution(&common.Input{}, common.EnvMap{})
+		newExec := workflow.NewStateParams(&common.Input{}, common.EnvMap{})
 		newWfState, err := workflow.NewState(newExec)
 		require.NoError(t, err)
 		err = stateManager.SaveState(newWfState)
@@ -473,7 +473,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 
 	t.Run("Should update status to Canceled when receiving WorkflowExecutionCancelledEvent", func(t *testing.T) {
 		// Create a new workflow state for testing cancellation
-		newExec := workflow.NewExecution(&common.Input{}, common.EnvMap{})
+		newExec := workflow.NewStateParams(&common.Input{}, common.EnvMap{})
 		newWfState, err := workflow.NewState(newExec)
 		require.NoError(t, err)
 		err = stateManager.SaveState(newWfState)
@@ -507,7 +507,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 
 	t.Run("Should update status to TimedOut when receiving WorkflowExecutionTimedOutEvent", func(t *testing.T) {
 		// Create a new workflow state for testing timeout
-		newExec := workflow.NewExecution(&common.Input{}, common.EnvMap{})
+		newExec := workflow.NewStateParams(&common.Input{}, common.EnvMap{})
 		newWfState, err := workflow.NewState(newExec)
 		require.NoError(t, err)
 		err = stateManager.SaveState(newWfState)

@@ -4,7 +4,7 @@
 **Produced By:** `system.Orchestrator` 
 **Consumed By:** `workflow.Executor` 
 **Lifecycle Stage:** Orchestrator has initialized the workflow state and is ready for the executor to start the actual workflow logic (e.g., evaluating the first step or task).
-**NATS Communication Pattern:** Asynchronous (internal command)
+**NATS Communication Pattern:** Asynchronous 
 
 ### NATS Subject
 
@@ -16,7 +16,6 @@
 {
   "metadata": {
     "correlation_id": "<uuid_from_trigger>",
-    "request_id": "<uuid_internal_command>",
     "event_timestamp": "2025-05-13T20:00:01Z",
     "source_component": "system.Orchestrator"
   },
@@ -43,4 +42,4 @@
 
 The `payload` object contains the following fields:
 -   **`context`** (`object`, Required)
-    -   Description: Contextual information required for the orchestrator to start executing the workflow instance. This typically includes the initial input, resolved environment variables, and other details from the original trigger. 
+    -   Description: Contextual information required for the orchestrator to start executing the workflow instance. This typically includes the initial input, resolved environment variables, and other details from the original trigger.
