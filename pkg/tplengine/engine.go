@@ -4,12 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
-
-	"maps"
 
 	"github.com/Masterminds/sprig/v3"
 	"gopkg.in/yaml.v3"

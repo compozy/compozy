@@ -2,19 +2,48 @@ package common
 
 import "github.com/google/uuid"
 
-// generateExecID generates a unique execution ID
-func GenerateExecID() string {
-	return uuid.New().String()
+type CorrID string
+
+func (c CorrID) String() string {
+	return string(c)
 }
 
-// generateEventID generates a unique event ID
-func GenerateEventID() *string {
-	id := uuid.New().String()
-	return &id
+func NewCorrID() CorrID {
+	return CorrID(uuid.New().String())
 }
 
-// generateRequestID generates a unique request ID
-func GenerateRequestID() *string {
-	id := uuid.New().String()
-	return &id
+type ExecID string
+
+func (e ExecID) String() string {
+	return string(e)
+}
+
+func NewExecID() ExecID {
+	return ExecID(uuid.New().String())
+}
+
+type EventID string
+
+func (e EventID) String() string {
+	return string(e)
+}
+
+func NewEventID() EventID {
+	return EventID(uuid.New().String())
+}
+
+type RequestID string
+
+func (r RequestID) String() string {
+	return string(r)
+}
+
+func NewRequestID() RequestID {
+	return RequestID(uuid.New().String())
+}
+
+type CompID string
+
+func (c CompID) String() string {
+	return string(c)
 }

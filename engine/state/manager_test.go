@@ -7,7 +7,8 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/common"
-	natspkg "github.com/compozy/compozy/pkg/nats"
+	"github.com/compozy/compozy/pkg/nats"
+	"github.com/compozy/compozy/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,16 +19,9 @@ func TestManager(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(baseTestDir)
 
-	// Start an embedded NATS server
-	opts := natspkg.DefaultServerOptions()
-	opts.EnableJetStream = true
-
-	natsServer, err := natspkg.NewNatsServer(opts)
-	require.NoError(t, err, "Failed to start NATS server")
+	ctx := context.Background()
+	natsServer, natsClient := utils.SetupNatsServer(t, ctx)
 	defer natsServer.Shutdown()
-
-	// Create a client for tests
-	natsClient := natspkg.NewClient(natsServer.Conn)
 	defer natsClient.Close()
 
 	t.Run("NewManager", func(t *testing.T) {
@@ -35,20 +29,12 @@ func TestManager(t *testing.T) {
 		tempDir, err := os.MkdirTemp(baseTestDir, "manager-test-*")
 		require.NoError(t, err)
 
-		// Create a test config
-		config := ManagerConfig{
-			DataDir:    tempDir,
-			NatsClient: natsClient,
-			StreamsToHandle: []string{
-				string(natspkg.ComponentWorkflow),
-				string(natspkg.ComponentTask),
-				string(natspkg.ComponentAgent),
-				string(natspkg.ComponentTool),
-			},
-		}
-
-		// Test manager creation
-		manager, err := NewManager(context.Background(), config)
+		// Test manager creation with functional options
+		manager, err := NewManager(
+			WithDataDir(tempDir),
+			WithNatsClient(natsClient),
+			WithComponents(defaultConsumers()),
+		)
 		require.NoError(t, err)
 		require.NotNil(t, manager)
 
@@ -59,13 +45,12 @@ func TestManager(t *testing.T) {
 
 	t.Run("NewManager with nil client", func(t *testing.T) {
 		// Test with nil NATS client
-		config := ManagerConfig{
-			DataDir:    filepath.Join(baseTestDir, "nil-client-test"),
-			NatsClient: nil,
-		}
+		dataDir := filepath.Join(baseTestDir, "nil-client-test")
 
 		// Expect error when NATS client is nil
-		_, err := NewManager(context.Background(), config)
+		_, err := NewManager(
+			WithDataDir(dataDir),
+		)
 		require.Error(t, err)
 	})
 
@@ -74,21 +59,20 @@ func TestManager(t *testing.T) {
 		tempDir, err := os.MkdirTemp(baseTestDir, "manager-test-defaults-*")
 		require.NoError(t, err)
 
-		// Create a test config with minimal fields but explicit data dir
-		config := ManagerConfig{
-			NatsClient: natsClient,
-			DataDir:    tempDir, // Override default to use temp dir
-		}
+		// Create a manager with minimal options but explicit data dir
 
 		// Expect defaults to be used for other fields
-		manager, err := NewManager(context.Background(), config)
+		manager, err := NewManager(
+			WithDataDir(tempDir), // Override default to use temp dir
+			WithNatsClient(natsClient),
+		)
 		require.NoError(t, err)
 		require.NotNil(t, manager)
 
 		// Verify that streams use default but dataDir is our temp dir
-		defaultConfig := DefaultManagerConfig()
+		defaultStreamsLength := len(defaultConsumers())
 		assert.Equal(t, tempDir, manager.dataDir) // Should use our temp dir, not default
-		assert.Equal(t, len(defaultConfig.StreamsToHandle), len(manager.streams))
+		assert.Equal(t, defaultStreamsLength, len(manager.components))
 
 		// Clean up
 		err = manager.Close()
@@ -100,113 +84,106 @@ func TestManager(t *testing.T) {
 		tempDir, err := os.MkdirTemp(baseTestDir, "manager-test-retrieval-*")
 		require.NoError(t, err)
 
-		// Create a test config
-		config := ManagerConfig{
-			DataDir:    tempDir,
-			NatsClient: natsClient,
-		}
-
-		// Create manager
-		manager, err := NewManager(context.Background(), config)
+		// Create manager with functional options
+		manager, err := NewManager(
+			WithDataDir(tempDir),
+			WithNatsClient(natsClient),
+		)
 		require.NoError(t, err)
 		defer manager.Close()
 
-		// Common test data
-		var wfID string
-		wfID = "workflow-1"
-		corrID := "correlation-1"
-
-		// Add a workflow state directly to the store
-		wfStateID := NewID(natspkg.ComponentWorkflow, wfID, corrID)
+		corrID := common.NewCorrID()
+		wfID := common.NewExecID()
+		wfStateID := NewID(nats.ComponentWorkflow, corrID, wfID)
 		wfState := &BaseState{
-			ID:      wfStateID,
-			Status:  natspkg.StatusRunning,
-			Input:   make(common.Input),
-			Output:  make(common.Output),
-			Env:     make(common.EnvMap),
-			Trigger: make(common.Input),
+			StateID: wfStateID,
+			Status:  nats.StatusRunning,
+			Input:   &common.Input{},
+			Output:  &common.Output{},
+			Env:     &common.EnvMap{},
+			Trigger: &common.Input{},
 		}
 		err = manager.store.UpsertState(wfState)
 		require.NoError(t, err)
 
 		// Add a task state
-		tID := "task-1"
-		tStateID := NewID(natspkg.ComponentTask, tID, corrID)
+		tID := common.NewExecID()
+		tStateID := NewID(nats.ComponentTask, corrID, tID)
 		taskState := &BaseState{
-			ID:      tStateID,
-			Status:  natspkg.StatusPending,
-			Input:   make(common.Input),
-			Output:  make(common.Output),
-			Env:     make(common.EnvMap),
-			Trigger: make(common.Input),
+			StateID: tStateID,
+			Status:  nats.StatusPending,
+			Input:   &common.Input{},
+			Output:  &common.Output{},
+			Env:     &common.EnvMap{},
+			Trigger: &common.Input{},
 		}
 		err = manager.store.UpsertState(taskState)
 		require.NoError(t, err)
 
 		// Add an agent state
-		agID := "agent-1"
-		aStateID := NewID(natspkg.ComponentAgent, agID, corrID)
+		agID := common.NewExecID()
+		aStateID := NewID(nats.ComponentAgent, corrID, agID)
 		agState := &BaseState{
-			ID:      aStateID,
-			Status:  natspkg.StatusRunning,
-			Input:   make(common.Input),
-			Output:  make(common.Output),
-			Env:     make(common.EnvMap),
-			Trigger: make(common.Input),
+			StateID: aStateID,
+			Status:  nats.StatusRunning,
+			Input:   &common.Input{},
+			Output:  &common.Output{},
+			Env:     &common.EnvMap{},
+			Trigger: &common.Input{},
 		}
 		err = manager.store.UpsertState(agState)
 		require.NoError(t, err)
 
 		// Add a tool state
-		toolID := "tool-1"
-		toolStateID := NewID(natspkg.ComponentTool, toolID, corrID)
+		toolID := common.NewExecID()
+		toolStateID := NewID(nats.ComponentTool, corrID, toolID)
 		toolState := &BaseState{
-			ID:      toolStateID,
-			Status:  natspkg.StatusSuccess,
-			Input:   make(common.Input),
-			Output:  make(common.Output),
-			Env:     make(common.EnvMap),
-			Trigger: make(common.Input),
+			StateID: toolStateID,
+			Status:  nats.StatusSuccess,
+			Input:   &common.Input{},
+			Output:  &common.Output{},
+			Env:     &common.EnvMap{},
+			Trigger: &common.Input{},
 		}
 		err = manager.store.UpsertState(toolState)
 		require.NoError(t, err)
 
 		// Test GetWorkflowState
-		state, err := manager.GetWorkflowState(wfID, corrID)
+		state, err := manager.GetWorkflowState(corrID, wfID)
 		require.NoError(t, err)
 		assert.Equal(t, wfStateID, state.GetID())
-		assert.Equal(t, natspkg.StatusRunning, state.GetStatus())
+		assert.Equal(t, nats.StatusRunning, state.GetStatus())
 
 		// Test GetTaskState
-		state, err = manager.GetTaskState(tID, corrID)
+		state, err = manager.GetTaskState(corrID, tID)
 		require.NoError(t, err)
 		assert.Equal(t, tStateID, state.GetID())
-		assert.Equal(t, natspkg.StatusPending, state.GetStatus())
+		assert.Equal(t, nats.StatusPending, state.GetStatus())
 
 		// Test GetAgentState
-		state, err = manager.GetAgentState(agID, corrID)
+		state, err = manager.GetAgentState(corrID, agID)
 		require.NoError(t, err)
 		assert.Equal(t, aStateID, state.GetID())
-		assert.Equal(t, natspkg.StatusRunning, state.GetStatus())
+		assert.Equal(t, nats.StatusRunning, state.GetStatus())
 
 		// Test GetToolState
-		state, err = manager.GetToolState(toolID, corrID)
+		state, err = manager.GetToolState(corrID, toolID)
 		require.NoError(t, err)
 		assert.Equal(t, toolStateID, state.GetID())
-		assert.Equal(t, natspkg.StatusSuccess, state.GetStatus())
+		assert.Equal(t, nats.StatusSuccess, state.GetStatus())
 
 		// Test GetTaskStatesForWorkflow
-		taskStates, err := manager.GetTaskStatesForWorkflow(wfID, corrID)
+		taskStates, err := manager.GetTaskStatesForWorkflow(corrID, wfID)
 		require.NoError(t, err)
 		assert.Len(t, taskStates, 1)
 
 		// Test GetAgentStatesForTask
-		agentStates, err := manager.GetAgentStatesForTask(tID, corrID)
+		agentStates, err := manager.GetAgentStatesForTask(corrID, tID)
 		require.NoError(t, err)
 		assert.Len(t, agentStates, 1)
 
 		// Test GetToolStatesForTask
-		toolStates, err := manager.GetToolStatesForTask(tID, corrID)
+		toolStates, err := manager.GetToolStatesForTask(corrID, tID)
 		require.NoError(t, err)
 		assert.Len(t, toolStates, 1)
 
@@ -231,17 +208,17 @@ func TestManager(t *testing.T) {
 		assert.Len(t, allToolStates, 1)
 
 		// Test DeleteWorkflowState
-		err = manager.DeleteWorkflowState(wfID, corrID)
+		err = manager.DeleteWorkflowState(corrID, wfID)
 		require.NoError(t, err)
 
 		// Verify all related states are deleted
-		_, err = manager.GetWorkflowState(wfID, corrID)
+		_, err = manager.GetWorkflowState(corrID, wfID)
 		require.Error(t, err)
-		_, err = manager.GetTaskState(tID, corrID)
+		_, err = manager.GetTaskState(corrID, tID)
 		require.Error(t, err)
-		_, err = manager.GetAgentState(agID, corrID)
+		_, err = manager.GetAgentState(corrID, agID)
 		require.Error(t, err)
-		_, err = manager.GetToolState(toolID, corrID)
+		_, err = manager.GetToolState(corrID, toolID)
 		require.Error(t, err)
 	})
 }

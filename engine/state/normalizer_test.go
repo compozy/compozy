@@ -11,7 +11,7 @@ import (
 
 func TestStateNormalizer(t *testing.T) {
 	// Test data
-	tgInput := map[string]any{
+	tgInput := common.Input{
 		"name":    "John",
 		"email":   "john@example.com",
 		"age":     30,
@@ -30,12 +30,10 @@ func TestStateNormalizer(t *testing.T) {
 		require.NotNil(t, normalizer)
 
 		// Create a test state
-		bsState := &BaseState{
-			Input:   make(common.Input),
-			Output:  make(common.Output),
-			Env:     envMap,
-			Trigger: tgInput,
-		}
+		bsState := NewEmptyState(
+			WithEnv(&envMap),
+			WithTrigger(&tgInput),
+		)
 
 		// Normalize the state
 		normalized := normalizer.NormalizeState(bsState)
@@ -143,7 +141,7 @@ func TestStateNormalizer(t *testing.T) {
 
 		// Create a test state with templates
 		bsState := &BaseState{
-			Input: common.Input{
+			Input: &common.Input{
 				"greeting": "Hello {{ .trigger.input.name }}!",
 				"nested": map[string]any{
 					"email": "{{ .trigger.input.email }}",
@@ -156,13 +154,13 @@ func TestStateNormalizer(t *testing.T) {
 					map[string]any{"age": "Age: {{ .trigger.input.age }}"},
 				},
 			},
-			Output: make(common.Output),
-			Env: common.EnvMap{
+			Output: &common.Output{},
+			Env: &common.EnvMap{
 				"VERSION":    "1.0.0",
 				"USER_NAME":  "{{ .trigger.input.name }}",
 				"USER_EMAIL": "{{ .trigger.input.email }}",
 			},
-			Trigger: tgInput,
+			Trigger: &tgInput,
 		}
 
 		// Parse templates
@@ -170,9 +168,9 @@ func TestStateNormalizer(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify input templates are parsed
-		assert.Equal(t, "Hello John!", bsState.Input["greeting"])
+		assert.Equal(t, "Hello John!", (*bsState.Input)["greeting"])
 
-		nested, ok := bsState.Input["nested"].(map[string]any)
+		nested, ok := (*bsState.Input)["nested"].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "john@example.com", nested["email"])
 
@@ -180,7 +178,7 @@ func TestStateNormalizer(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, "v1.0.0", meta["version"])
 
-		items, ok := bsState.Input["items"].([]any)
+		items, ok := (*bsState.Input)["items"].([]any)
 		require.True(t, ok)
 		assert.Equal(t, "Item: John", items[0])
 
@@ -189,15 +187,15 @@ func TestStateNormalizer(t *testing.T) {
 		assert.Equal(t, "Age: 30", itemMap["age"])
 
 		// Verify env templates are parsed
-		assert.Equal(t, "1.0.0", bsState.Env["VERSION"])
-		assert.Equal(t, "John", bsState.Env["USER_NAME"])
-		assert.Equal(t, "john@example.com", bsState.Env["USER_EMAIL"])
+		assert.Equal(t, "1.0.0", (*bsState.Env)["VERSION"])
+		assert.Equal(t, "John", (*bsState.Env)["USER_NAME"])
+		assert.Equal(t, "john@example.com", (*bsState.Env)["USER_EMAIL"])
 
 		// Verify trigger templates are parsed
-		assert.Equal(t, *bsState.GetTrigger(), bsState.Trigger)
-		assert.Equal(t, "Welcome, John!", bsState.Trigger["message"])
+		assert.Equal(t, bsState.GetTrigger(), bsState.Trigger)
+		assert.Equal(t, "Welcome, John!", (*bsState.Trigger)["message"])
 
-		data, ok := bsState.Trigger["data"].(map[string]any)
+		data, ok := (*bsState.Trigger)["data"].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "john@example.com", data["email"])
 	})
@@ -209,13 +207,7 @@ func TestStateNormalizer_ErrorHandling(t *testing.T) {
 			TemplateEngine: nil,
 		}
 
-		state := &BaseState{
-			Input:   make(common.Input),
-			Output:  make(common.Output),
-			Env:     make(common.EnvMap),
-			Trigger: make(common.Input),
-		}
-
+		state := NewEmptyState()
 		err := normalizer.ParseTemplates(state)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "template engine is not initialized")
@@ -223,14 +215,11 @@ func TestStateNormalizer_ErrorHandling(t *testing.T) {
 
 	t.Run("InvalidTemplateInInput", func(t *testing.T) {
 		normalizer := NewStateNormalizer(tplengine.FormatYAML)
-		state := &BaseState{
-			Input: common.Input{
+		state := NewEmptyState(
+			WithInput(&common.Input{
 				"greeting": "Hello {{ .name !",
-			},
-			Output:  make(common.Output),
-			Env:     make(common.EnvMap),
-			Trigger: make(common.Input),
-		}
+			}),
+		)
 
 		err := normalizer.ParseTemplates(state)
 		assert.Error(t, err)
@@ -239,14 +228,11 @@ func TestStateNormalizer_ErrorHandling(t *testing.T) {
 
 	t.Run("InvalidTemplateInEnv", func(t *testing.T) {
 		normalizer := NewStateNormalizer(tplengine.FormatYAML)
-		state := &BaseState{
-			Input:  make(common.Input),
-			Output: make(common.Output),
-			Env: common.EnvMap{
+		state := NewEmptyState(
+			WithEnv(&common.EnvMap{
 				"USER_NAME": "{{ .name !",
-			},
-			Trigger: make(common.Input),
-		}
+			}),
+		)
 
 		err := normalizer.ParseTemplates(state)
 		assert.Error(t, err)
@@ -259,7 +245,7 @@ func TestStateNormalizer_ErrorHandling(t *testing.T) {
 
 		// Add an invalid template to the trigger input
 		bsState := state.(*BaseState)
-		bsState.Trigger["message"] = "{{ .invalid.syntax !"
+		(*bsState.Trigger)["message"] = "{{ .invalid.syntax !"
 
 		err := normalizer.ParseTemplates(state)
 		assert.Error(t, err)

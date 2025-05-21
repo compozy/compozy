@@ -8,7 +8,7 @@
 
 ### NATS Subject
 
-`compozy.<correlation_id>.workflow.events.<workflow_exec_id>.timed_out`
+`compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.timed_out`
 
 ### JSON Payload Example:
 

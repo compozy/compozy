@@ -5,12 +5,10 @@ import (
 
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/domain/tool"
-	"github.com/google/uuid"
 )
 
-// Request represents a request to execute an agent
 type Request struct {
-	ID           string         `json:"id"`
+	AgentExecID  string         `json:"agent_exec_id"`
 	AgentID      string         `json:"agent_id"`
 	Instructions string         `json:"instructions"`
 	Action       ActionRequest  `json:"action"`
@@ -18,15 +16,15 @@ type Request struct {
 	Tools        []tool.Request `json:"tools"`
 }
 
-// NewAgentRequest creates a new agent request
 func NewAgentRequest(
+	agExecID common.ExecID,
 	agID, instructions string,
 	action ActionRequest,
 	config map[string]any,
 	tools []tool.Request,
 ) *Request {
 	return &Request{
-		ID:           uuid.New().String(),
+		AgentExecID:  agExecID.String(),
 		AgentID:      agID,
 		Instructions: instructions,
 		Action:       action,
@@ -35,17 +33,14 @@ func NewAgentRequest(
 	}
 }
 
-// ActionRequest represents a request to execute an agent action
 type ActionRequest struct {
 	ActionID     string         `json:"action_id"`
 	Prompt       string         `json:"prompt"`
 	OutputSchema map[string]any `json:"output_schema,omitempty"`
 }
 
-// Response represents a response from an agent execution
 type Response struct {
-	ID      string                `json:"id"`
-	AgentID string                `json:"agent_id"`
-	Output  json.RawMessage       `json:"output"`
-	Status  common.ResponseStatus `json:"status"`
+	AgentExecID string                `json:"agent_exec_id"`
+	Output      json.RawMessage       `json:"output"`
+	Status      common.ResponseStatus `json:"status"`
 }

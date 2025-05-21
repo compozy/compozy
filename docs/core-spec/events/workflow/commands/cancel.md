@@ -26,9 +26,9 @@
   },
   "payload": {
     "context": {
-      "reason": "Manually cancelled by administrator",
-      "cancelled_by": "admin@example.com",
-      "cancelled_at": "2025-05-13T20:02:40Z"
+      "reason": "Manually canceled by administrator",
+      "canceled_by": "admin@example.com",
+      "canceled_at": "2025-05-13T20:02:40Z"
     }
   }
 }

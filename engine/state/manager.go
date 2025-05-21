@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/compozy/pkg/logger"
-	natspkg "github.com/compozy/compozy/pkg/nats"
-	"github.com/nats-io/nats.go"
+	"github.com/compozy/compozy/engine/common"
+	"github.com/compozy/compozy/pkg/nats"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 // -----------------------------------------------------------------------------
@@ -16,28 +16,37 @@ import (
 // Manager handles the persistence and retrieval of state changes via events
 type Manager struct {
 	store      *Store
-	natsClient natspkg.Client
+	natsClient *nats.Client
 	dataDir    string
-	streams    []string
+	components []nats.ComponentType
 }
 
-// ManagerConfig holds configuration for the Manager
-type ManagerConfig struct {
-	DataDir         string
-	NatsClient      natspkg.Client
-	StreamsToHandle []string
+type ManagerOption func(*Manager)
+
+func WithDataDir(dataDir string) ManagerOption {
+	return func(m *Manager) {
+		m.dataDir = dataDir
+	}
 }
 
-// DefaultManagerConfig provides default configuration values
-func DefaultManagerConfig() ManagerConfig {
-	return ManagerConfig{
-		DataDir: "data/state",
-		StreamsToHandle: []string{
-			string(natspkg.ComponentWorkflow),
-			string(natspkg.ComponentTask),
-			string(natspkg.ComponentAgent),
-			string(natspkg.ComponentTool),
-		},
+func WithNatsClient(natsClient *nats.Client) ManagerOption {
+	return func(m *Manager) {
+		m.natsClient = natsClient
+	}
+}
+
+func WithComponents(comps []nats.ComponentType) ManagerOption {
+	return func(m *Manager) {
+		m.components = comps
+	}
+}
+
+func defaultConsumers() []nats.ComponentType {
+	return []nats.ComponentType{
+		nats.ComponentWorkflow,
+		nats.ComponentTask,
+		nats.ComponentAgent,
+		nats.ComponentTool,
 	}
 }
 
@@ -45,51 +54,47 @@ func DefaultManagerConfig() ManagerConfig {
 // Manager Creation
 // -----------------------------------------------------------------------------
 
-// NewManager creates a new state manager with the given configuration
-func NewManager(_ context.Context, config ManagerConfig) (*Manager, error) {
-	if config.NatsClient == nil {
+func NewManager(opts ...ManagerOption) (*Manager, error) {
+	manager := &Manager{
+		dataDir:    "data/state",
+		components: defaultConsumers(),
+	}
+
+	for _, opt := range opts {
+		opt(manager)
+	}
+
+	if manager.natsClient == nil {
 		return nil, fmt.Errorf("NATS client is required")
 	}
 
-	if config.DataDir == "" {
-		config.DataDir = DefaultManagerConfig().DataDir
-	}
-
-	if len(config.StreamsToHandle) == 0 {
-		config.StreamsToHandle = DefaultManagerConfig().StreamsToHandle
-	}
-
-	// Set up the store
-	store, err := NewStore(config.DataDir)
+	store, err := NewStore(manager.dataDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create state store: %w", err)
 	}
-
-	manager := &Manager{
-		store:      store,
-		natsClient: config.NatsClient,
-		dataDir:    config.DataDir,
-		streams:    config.StreamsToHandle,
-	}
-
+	manager.store = store
 	return manager, nil
 }
 
-// Start initializes the manager and subscribes to the relevant event streams
 func (m *Manager) Start(ctx context.Context) error {
-	// Subscribe to all state events
-	for _, stream := range m.streams {
-		if err := m.subscribeToStateEvents(ctx, stream); err != nil {
-			return fmt.Errorf("failed to subscribe to %s state events: %w", stream, err)
+	for _, cp := range m.components {
+		if err := m.subscribeToStateEvents(ctx, cp); err != nil {
+			return fmt.Errorf("failed to subscribe to %s state events: %w", cp, err)
 		}
 	}
 
 	return nil
 }
 
-// Close cleans up resources used by the manager
 func (m *Manager) Close() error {
 	if err := m.store.Close(); err != nil {
+		return fmt.Errorf("failed to close state store: %w", err)
+	}
+	return nil
+}
+
+func (m *Manager) CloseWithContext(ctx context.Context) error {
+	if err := m.store.CloseWithContext(ctx); err != nil {
 		return fmt.Errorf("failed to close state store: %w", err)
 	}
 	return nil
@@ -99,54 +104,39 @@ func (m *Manager) Close() error {
 // Event Handling
 // -----------------------------------------------------------------------------
 
-// subscribeToStateEvents subscribes to all state events for a specific stream
-func (m *Manager) subscribeToStateEvents(_ context.Context, stream string) error {
-	// Get JetStream context
-	js, err := m.natsClient.JetStreamContext()
+func (m *Manager) subscribeToStateEvents(ctx context.Context, comp nats.ComponentType) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	cs, err := m.natsClient.GetConsumerEvt(ctx, comp, "*")
 	if err != nil {
-		return fmt.Errorf("failed to get JetStream context: %w", err)
+		return fmt.Errorf("failed to get consumer: %w", err)
 	}
 
-	// Create a durable consumer for this state manager
-	consumerName := fmt.Sprintf("state_manager_%s", stream)
-	subj := fmt.Sprintf("compozy.*.%s.events.>", stream)
-
-	// Subscribe to state events
-	_, err = js.Subscribe(
-		subj,
-		func(msg *nats.Msg) {
-			if err := m.handleStatus(msg); err != nil {
-				logger.Error("Error handling state event", "error", err, "subject", msg.Subject)
-			}
-			if err := msg.Ack(); err != nil {
-				logger.Error("Error acknowledging message", "error", err, "subject", msg.Subject)
-			}
-		},
-		nats.Durable(consumerName),
-		nats.ManualAck(),
-	)
-
+	subOpts := nats.DefaultSubscribeOpts(cs)
+	err = nats.SubscribeConsumer(ctx, m.handleStatus, subOpts)
 	if err != nil {
-		return fmt.Errorf("failed to subscribe to %s events: %w", stream, err)
+		return fmt.Errorf("failed to subscribe to state events: %w", err)
 	}
 
 	return nil
 }
 
-// handleStatus processes a state event and updates the state store
-func (m *Manager) handleStatus(msg *nats.Msg) error {
-	compType, compID, corrID, evType, err := natspkg.ParseEvtSubject(msg.Subject)
+func (m *Manager) handleStatus(subject string, data []byte, msg jetstream.Msg) error {
+	subj, err := nats.ParseEvtSubject(subject)
 	if err != nil {
-		return fmt.Errorf("failed to parse event subject %s: %w", msg.Subject, err)
+		return fmt.Errorf("failed to parse event subject %s: %w", subject, err)
 	}
 
-	stID := NewID(compType, compID, corrID)
+	stID := NewID(subj.CompType, subj.CorrID, subj.ExecID)
 	state, err := m.store.GetState(stID)
 	if err != nil {
 		state = NewEmptyState()
 	}
 
-	if err := state.UpdateStatus(natspkg.NewEventData(msg.Subject, msg.Data, evType)); err != nil {
+	// TODO: implement UpdateStatus on each component state
+	evType := subj.EventType.String()
+	if err := state.UpdateStatus(nats.NewEventData(subject, data, evType)); err != nil {
 		return fmt.Errorf("failed to update state from event: %w", err)
 	}
 	if err := m.store.UpsertState(state); err != nil {
@@ -155,72 +145,79 @@ func (m *Manager) handleStatus(msg *nats.Msg) error {
 	return nil
 }
 
+func (m *Manager) SaveState(state State) error {
+	if err := m.store.UpsertState(state); err != nil {
+		return fmt.Errorf("failed to save state: %w", err)
+	}
+	return nil
+}
+
 // -----------------------------------------------------------------------------
 // State Retrieval
 // -----------------------------------------------------------------------------
 
-func (m *Manager) GetWorkflowState(wfID, corrID string) (State, error) {
-	id := NewID(natspkg.ComponentWorkflow, wfID, corrID)
+func (m *Manager) GetWorkflowState(corrID common.CorrID, execID common.ExecID) (State, error) {
+	id := NewID(nats.ComponentWorkflow, corrID, execID)
 	return m.store.GetState(id)
 }
 
-func (m *Manager) GetTaskState(tID, corrID string) (State, error) {
-	id := NewID(natspkg.ComponentTask, tID, corrID)
+func (m *Manager) GetTaskState(corrID common.CorrID, execID common.ExecID) (State, error) {
+	id := NewID(nats.ComponentTask, corrID, execID)
 	return m.store.GetState(id)
 }
 
-func (m *Manager) GetAgentState(agID, corrID string) (State, error) {
-	id := NewID(natspkg.ComponentAgent, agID, corrID)
+func (m *Manager) GetAgentState(corrID common.CorrID, execID common.ExecID) (State, error) {
+	id := NewID(nats.ComponentAgent, corrID, execID)
 	return m.store.GetState(id)
 }
 
-func (m *Manager) GetToolState(toolID, corrID string) (State, error) {
-	id := NewID(natspkg.ComponentTool, toolID, corrID)
+func (m *Manager) GetToolState(corrID common.CorrID, execID common.ExecID) (State, error) {
+	id := NewID(nats.ComponentTool, corrID, execID)
 	return m.store.GetState(id)
 }
 
-func (m *Manager) GetTaskStatesForWorkflow(wfID, corrID string) ([]State, error) {
-	id := NewID(natspkg.ComponentWorkflow, wfID, corrID)
+func (m *Manager) GetTaskStatesForWorkflow(corrID common.CorrID, execID common.ExecID) ([]State, error) {
+	id := NewID(nats.ComponentWorkflow, corrID, execID)
 	return m.store.GetTaskStatesForWorkflow(id)
 }
 
-func (m *Manager) GetAgentStatesForTask(tID, corrID string) ([]State, error) {
-	id := NewID(natspkg.ComponentTask, tID, corrID)
+func (m *Manager) GetAgentStatesForTask(corrID common.CorrID, execID common.ExecID) ([]State, error) {
+	id := NewID(nats.ComponentTask, corrID, execID)
 	return m.store.GetAgentStatesForTask(id)
 }
 
-func (m *Manager) GetToolStatesForTask(tID, corrID string) ([]State, error) {
-	id := NewID(natspkg.ComponentTask, tID, corrID)
+func (m *Manager) GetToolStatesForTask(corrID common.CorrID, execID common.ExecID) ([]State, error) {
+	id := NewID(nats.ComponentTask, corrID, execID)
 	return m.store.GetToolStatesForTask(id)
 }
 
 func (m *Manager) GetAllWorkflowStates() ([]State, error) {
-	return m.store.GetStatesByComponent(natspkg.ComponentWorkflow)
+	return m.store.GetStatesByComponent(nats.ComponentWorkflow)
 }
 
 func (m *Manager) GetAllTaskStates() ([]State, error) {
-	return m.store.GetStatesByComponent(natspkg.ComponentTask)
+	return m.store.GetStatesByComponent(nats.ComponentTask)
 }
 
 func (m *Manager) GetAllAgentStates() ([]State, error) {
-	return m.store.GetStatesByComponent(natspkg.ComponentAgent)
+	return m.store.GetStatesByComponent(nats.ComponentAgent)
 }
 
 func (m *Manager) GetAllToolStates() ([]State, error) {
-	return m.store.GetStatesByComponent(natspkg.ComponentTool)
+	return m.store.GetStatesByComponent(nats.ComponentTool)
 }
 
 // -----------------------------------------------------------------------------
 // State Management
 // -----------------------------------------------------------------------------
 
-func (m *Manager) DeleteWorkflowState(wfID, corrID string) error {
-	workflowStateID := NewID(natspkg.ComponentWorkflow, wfID, corrID)
-	if err := m.store.DeleteState(workflowStateID); err != nil {
+func (m *Manager) DeleteWorkflowState(corrID common.CorrID, execID common.ExecID) error {
+	stID := NewID(nats.ComponentWorkflow, corrID, execID)
+	if err := m.store.DeleteState(stID); err != nil {
 		return fmt.Errorf("failed to delete workflow state: %w", err)
 	}
 
-	taskStates, err := m.store.GetTaskStatesForWorkflow(workflowStateID)
+	taskStates, err := m.store.GetTaskStatesForWorkflow(stID)
 	if err != nil {
 		return fmt.Errorf("failed to get task states for workflow: %w", err)
 	}

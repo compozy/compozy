@@ -9,7 +9,7 @@ Compozy uses distinct subject naming patterns that correspond to message types (
 #### 1. State Event Subjects
 Used for events that record state changes for event sourcing.
 
-Pattern: `compozy.<correlation_id>.<entity>.events.<identifier>.<event_type>`
+Pattern: `compozy.<correlation_id>.<entity>.evts.<identifier>.<event_type>`
 
 Where:
 -   `<entity>`: "workflow", "task", "agent", "tool"
@@ -55,19 +55,19 @@ Where:
 
 ### State Events
 -   [WorkflowExecutionStarted](workflow/state/execution_started.md#state-event-workflowexecutionstarted)
-    - Subject: `compozy.<correlation_id>.workflow.events.<workflow_exec_id>.started`
+    - Subject: `compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.started`
 -   [WorkflowExecutionPaused](workflow/state/execution_paused.md#state-event-workflowexecutionpaused)
-    - Subject: `compozy.<correlation_id>.workflow.events.<workflow_exec_id>.paused`
+    - Subject: `compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.paused`
 -   [WorkflowExecutionResumed](workflow/state/execution_resumed.md#state-event-workflowexecutionresumed)
-    - Subject: `compozy.<correlation_id>.workflow.events.<workflow_exec_id>.resumed`
+    - Subject: `compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.resumed`
 -   [WorkflowExecutionSuccess](workflow/state/execution_success.md#state-event-workflowexecutioncompleted)
-    - Subject: `compozy.<correlation_id>.workflow.events.<workflow_exec_id>.success`
+    - Subject: `compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.success`
 -   [WorkflowExecutionFailed](workflow/state/execution_failed.md#state-event-workflowexecutionfailed)
-    - Subject: `compozy.<correlation_id>.workflow.events.<workflow_exec_id>.failed`
--   [WorkflowExecutionCancelled](workflow/state/execution_cancelled.md#state-event-workflowexecutioncancelled)
-    - Subject: `compozy.<correlation_id>.workflow.events.<workflow_exec_id>.cancelled`
+    - Subject: `compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.failed`
+-   [WorkflowExecutionCancelled](workflow/state/execution_canceled.md#state-event-workflowexecutioncanceled)
+    - Subject: `compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.canceled`
 -   [WorkflowExecutionTimedOut](workflow/state/execution_timed_out.md#state-event-workflowexecutiontimedout) 
-    - Subject: `compozy.<correlation_id>.workflow.events.<workflow_exec_id>.timed_out`
+    - Subject: `compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.timed_out`
 
 ---
 
@@ -83,21 +83,19 @@ Where:
 
 ### State Events
 -   [TaskDispatched](task/state/dispatched.md#state-event-taskdispatched)
-    - Subject: `compozy.<correlation_id>.task.events.<task_exec_id>.dispatched`
+    - Subject: `compozy.<correlation_id>.task.evts.<task_exec_id>.dispatched`
 -   [TaskExecutionStarted](task/state/execution_started.md#state-event-taskexecutionstarted)
-    - Subject: `compozy.<correlation_id>.task.events.<task_exec_id>.started`
+    - Subject: `compozy.<correlation_id>.task.evts.<task_exec_id>.started`
 -   [TaskWaitingStarted](task/state/waiting_started.md#state-event-waitingstarted)
-    - Subject: `compozy.<correlation_id>.task.events.<task_exec_id>.waiting_started`
+    - Subject: `compozy.<correlation_id>.task.evts.<task_exec_id>.waiting_started`
 -   [TaskWaitingEnd](task/state/waiting_ended.md#state-event-waitingended)
-    - Subject: `compozy.<correlation_id>.task.events.<task_exec_id>.waiting_ended`
+    - Subject: `compozy.<correlation_id>.task.evts.<task_exec_id>.waiting_ended`
 -   [TaskWaitingTimedOut](task/state/waiting_timed_out.md#state-event-waitingtimedout)
-    - Subject: `compozy.<correlation_id>.task.events.<task_exec_id>.waiting_timed_out`
+    - Subject: `compozy.<correlation_id>.task.evts.<task_exec_id>.waiting_timed_out`
 -   [TaskExecutionSuccess](task/state/execution_success.md#state-event-taskexecutioncompleted)
-    - Subject: `compozy.<correlation_id>.task.events.<task_exec_id>.success`
+    - Subject: `compozy.<correlation_id>.task.evts.<task_exec_id>.success`
 -   [TaskExecutionFailed](task/state/execution_failed.md#state-event-taskexecutionfailed)
-    - Subject: `compozy.<correlation_id>.task.events.<task_exec_id>.failed`
--   [TaskRetryScheduled](task/state/retry_scheduled.md#state-event-taskretryscheduled)
-    - Subject: `compozy.<correlation_id>.task.events.<original_task_exec_id>.retry_scheduled`
+    - Subject: `compozy.<correlation_id>.task.evts.<task_exec_id>.failed`
 
 ---
 
@@ -109,11 +107,11 @@ Where:
 
 ### State Events
 -   [AgentExecutionStarted](agent/state/execution_started.md#state-event-agentexecutionstarted)
-    - Subject: `compozy.<correlation_id>.agent.events.<agent_exec_id>.started`
+    - Subject: `compozy.<correlation_id>.agent.evts.<agent_exec_id>.started`
 -   [AgentExecutionSuccess](agent/state/execution_success.md#state-event-agentexecutioncompleted)
-    - Subject: `compozy.<correlation_id>.agent.events.<agent_exec_id>.success`
+    - Subject: `compozy.<correlation_id>.agent.evts.<agent_exec_id>.success`
 -   [AgentExecutionFailed](agent/state/execution_failed.md#state-event-agentexecutionfailed)
-    - Subject: `compozy.<correlation_id>.agent.events.<agent_exec_id>.failed`
+    - Subject: `compozy.<correlation_id>.agent.evts.<agent_exec_id>.failed`
 
 ---
 
@@ -125,15 +123,15 @@ Where:
 
 ### State Events
 -   [ToolExecutionStarted](tool/state/execution_started.md#state-event-toolexecutionstarted)
-    - Subject: `compozy.<correlation_id>.tool.events.<tool_exec_id>.started`
+    - Subject: `compozy.<correlation_id>.tool.evts.<tool_exec_id>.started`
 -   [ToolExecutionSuccess](tool/state/execution_success.md#state-event-toolexecutioncompleted)
-    - Subject: `compozy.<correlation_id>.tool.events.<tool_exec_id>.success`
+    - Subject: `compozy.<correlation_id>.tool.evts.<tool_exec_id>.success`
 -   [ToolExecutionFailed](tool/state/execution_failed.md#state-event-toolexecutionfailed)
-    - Subject: `compozy.<correlation_id>.tool.events.<tool_exec_id>.failed`
+    - Subject: `compozy.<correlation_id>.tool.evts.<tool_exec_id>.failed`
 
 ---
 
 ## Log Events
 
 -   [LogEmitted](log/events/emitted.md#log-event-logemitted)
-    - Subject: `compozy.logs.<correlation_id>.<component>.<log_level>`
+    - Subject: `compozy.<correlation_id>.<component>.logs.<component_id>.<log_level>`

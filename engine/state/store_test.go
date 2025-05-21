@@ -71,14 +71,14 @@ func TestStore(t *testing.T) {
 		defer store.Close()
 
 		// Create a test state
-		id := NewID(nats.ComponentWorkflow, "workflow-1", "correlation-1")
+		id := NewID(nats.ComponentWorkflow, "correlation-1", "exec-1")
 		testState := &BaseState{
-			ID:      id,
+			StateID: id,
 			Status:  nats.StatusPending,
-			Input:   make(common.Input),
-			Output:  make(common.Output),
-			Env:     make(common.EnvMap),
-			Trigger: make(common.Input),
+			Input:   &common.Input{},
+			Output:  &common.Output{},
+			Env:     &common.EnvMap{},
+			Trigger: &common.Input{},
 		}
 
 		// Test UpsertState
@@ -106,22 +106,14 @@ func TestStore(t *testing.T) {
 		defer store.Close()
 
 		// Create a test state
-		id := NewID(nats.ComponentWorkflow, "workflow-1", "correlation-1")
-		testState := &BaseState{
-			ID:      id,
-			Status:  nats.StatusPending,
-			Input:   make(common.Input),
-			Output:  make(common.Output),
-			Env:     make(common.EnvMap),
-			Trigger: make(common.Input),
-		}
-
+		id := NewID(nats.ComponentWorkflow, "correlation-1", "exec-1")
+		testState := NewEmptyState(WithID(id))
 		// Test UpsertState
 		err = store.UpsertState(testState)
 		require.NoError(t, err)
 
 		// Update the state
-		testState.Status = nats.StatusRunning
+		testState.SetStatus(nats.StatusRunning)
 		err = store.UpsertState(testState)
 		require.NoError(t, err)
 
@@ -145,15 +137,8 @@ func TestStore(t *testing.T) {
 		defer store.Close()
 
 		// Create a test state
-		id := NewID(nats.ComponentWorkflow, "workflow-1", "correlation-1")
-		testState := &BaseState{
-			ID:      id,
-			Status:  nats.StatusPending,
-			Input:   make(common.Input),
-			Output:  make(common.Output),
-			Env:     make(common.EnvMap),
-			Trigger: make(common.Input),
-		}
+		id := NewID(nats.ComponentWorkflow, "correlation-1", "exec-1")
+		testState := NewEmptyState(WithID(id))
 
 		// Add the state
 		err = store.UpsertState(testState)
@@ -183,69 +168,53 @@ func TestStore(t *testing.T) {
 		defer store.Close()
 
 		// Common correlation ID
-		corrID := "correlation-1"
+		corrID := common.NewCorrID()
 
 		// Create workflow state
-		wfID := NewID(nats.ComponentWorkflow, "workflow-1", corrID)
+		wfID := NewID(nats.ComponentWorkflow, corrID, "workflow-1")
 		wfState := &BaseState{
-			ID:      wfID,
+			StateID: wfID,
 			Status:  nats.StatusRunning,
-			Input:   make(common.Input),
-			Output:  make(common.Output),
-			Env:     make(common.EnvMap),
-			Trigger: make(common.Input),
+			Input:   &common.Input{},
+			Output:  &common.Output{},
+			Env:     &common.EnvMap{},
+			Trigger: &common.Input{},
 		}
 		err = store.UpsertState(wfState)
 		require.NoError(t, err)
 
 		// Create task states
-		taskID1 := NewID(nats.ComponentTask, "task-1", corrID)
-		taskState1 := &BaseState{
-			ID:      taskID1,
-			Status:  nats.StatusSuccess,
-			Input:   make(common.Input),
-			Output:  make(common.Output),
-			Env:     make(common.EnvMap),
-			Trigger: make(common.Input),
-		}
+		taskID1 := NewID(nats.ComponentTask, corrID, "task-1")
+		taskState1 := NewEmptyState(
+			WithID(taskID1),
+			WithStatus(nats.StatusSuccess),
+		)
 		err = store.UpsertState(taskState1)
 		require.NoError(t, err)
 
-		taskID2 := NewID(nats.ComponentTask, "task-2", corrID)
-		taskState2 := &BaseState{
-			ID:      taskID2,
-			Status:  nats.StatusRunning,
-			Input:   make(common.Input),
-			Output:  make(common.Output),
-			Env:     make(common.EnvMap),
-			Trigger: make(common.Input),
-		}
+		taskID2 := NewID(nats.ComponentTask, corrID, "task-2")
+		taskState2 := NewEmptyState(
+			WithID(taskID2),
+			WithStatus(nats.StatusRunning),
+		)
 		err = store.UpsertState(taskState2)
 		require.NoError(t, err)
 
 		// Create agent state
-		agID := NewID(nats.ComponentAgent, "agent-1", corrID)
-		agState := &BaseState{
-			ID:      agID,
-			Status:  nats.StatusRunning,
-			Input:   make(common.Input),
-			Output:  make(common.Output),
-			Env:     make(common.EnvMap),
-			Trigger: make(common.Input),
-		}
+		agID := NewID(nats.ComponentAgent, corrID, "agent-1")
+		agState := NewEmptyState(
+			WithID(agID),
+			WithStatus(nats.StatusRunning),
+		)
 		err = store.UpsertState(agState)
 		require.NoError(t, err)
 
 		// Create tool state
-		toolID := NewID(nats.ComponentTool, "tool-1", corrID)
-		toolState := &BaseState{
-			ID:      toolID,
-			Status:  nats.StatusSuccess,
-			Input:   make(common.Input),
-			Output:  make(common.Output),
-			Env:     make(common.EnvMap),
-			Trigger: make(common.Input),
-		}
+		toolID := NewID(nats.ComponentTool, corrID, "tool-1")
+		toolState := NewEmptyState(
+			WithID(toolID),
+			WithStatus(nats.StatusSuccess),
+		)
 		err = store.UpsertState(toolState)
 		require.NoError(t, err)
 

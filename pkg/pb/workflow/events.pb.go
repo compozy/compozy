@@ -29,7 +29,7 @@ const (
 	WorkflowStatus_WORKFLOW_STATUS_UNSPECIFIED WorkflowStatus = 0
 	WorkflowStatus_WORKFLOW_STATUS_PENDING     WorkflowStatus = 1
 	WorkflowStatus_WORKFLOW_STATUS_RUNNING     WorkflowStatus = 2
-	WorkflowStatus_WORKFLOW_STATUS_WAITING     WorkflowStatus = 3
+	WorkflowStatus_WORKFLOW_STATUS_PAUSED      WorkflowStatus = 3
 	WorkflowStatus_WORKFLOW_STATUS_SUCCESS     WorkflowStatus = 4
 	WorkflowStatus_WORKFLOW_STATUS_FAILED      WorkflowStatus = 5
 	WorkflowStatus_WORKFLOW_STATUS_TIMED_OUT   WorkflowStatus = 6
@@ -42,7 +42,7 @@ var (
 		0: "WORKFLOW_STATUS_UNSPECIFIED",
 		1: "WORKFLOW_STATUS_PENDING",
 		2: "WORKFLOW_STATUS_RUNNING",
-		3: "WORKFLOW_STATUS_WAITING",
+		3: "WORKFLOW_STATUS_PAUSED",
 		4: "WORKFLOW_STATUS_SUCCESS",
 		5: "WORKFLOW_STATUS_FAILED",
 		6: "WORKFLOW_STATUS_TIMED_OUT",
@@ -52,7 +52,7 @@ var (
 		"WORKFLOW_STATUS_UNSPECIFIED": 0,
 		"WORKFLOW_STATUS_PENDING":     1,
 		"WORKFLOW_STATUS_RUNNING":     2,
-		"WORKFLOW_STATUS_WAITING":     3,
+		"WORKFLOW_STATUS_PAUSED":      3,
 		"WORKFLOW_STATUS_SUCCESS":     4,
 		"WORKFLOW_STATUS_FAILED":      5,
 		"WORKFLOW_STATUS_TIMED_OUT":   6,
@@ -1001,12 +1001,12 @@ const file_workflow_events_proto_rawDesc = "" +
 	"\x06result\x18\x02 \x01(\v2\x0e.common.ResultR\x06result\x121\n" +
 	"\acontext\x18\x03 \x01(\v2\x17.google.protobuf.StructR\acontext\x12\x1f\n" +
 	"\vduration_ms\x18\x04 \x01(\x03R\n" +
-	"durationMs*\xfe\x01\n" +
+	"durationMs*\xfd\x01\n" +
 	"\x0eWorkflowStatus\x12\x1f\n" +
 	"\x1bWORKFLOW_STATUS_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17WORKFLOW_STATUS_PENDING\x10\x01\x12\x1b\n" +
-	"\x17WORKFLOW_STATUS_RUNNING\x10\x02\x12\x1b\n" +
-	"\x17WORKFLOW_STATUS_WAITING\x10\x03\x12\x1b\n" +
+	"\x17WORKFLOW_STATUS_RUNNING\x10\x02\x12\x1a\n" +
+	"\x16WORKFLOW_STATUS_PAUSED\x10\x03\x12\x1b\n" +
 	"\x17WORKFLOW_STATUS_SUCCESS\x10\x04\x12\x1a\n" +
 	"\x16WORKFLOW_STATUS_FAILED\x10\x05\x12\x1d\n" +
 	"\x19WORKFLOW_STATUS_TIMED_OUT\x10\x06\x12\x1c\n" +

@@ -5,12 +5,11 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/common"
-	"github.com/google/uuid"
 )
 
 // Request represents a request to execute a tool
 type Request struct {
-	ID           string          `json:"id"`
+	ToolExecID   string          `json:"tool_exec_id"`
 	ToolID       string          `json:"tool_id"`
 	Description  string          `json:"description"`
 	InputSchema  json.RawMessage `json:"input_schema,omitempty"`
@@ -18,8 +17,11 @@ type Request struct {
 	Input        json.RawMessage `json:"input,omitempty"`
 }
 
-// NewToolRequest creates a new tool request
-func NewToolRequest(toolID, description string, inputSchema, outputSchema, input any) (*Request, error) {
+func NewToolRequest(
+	toolExecID common.ExecID,
+	toolID, description string,
+	inputSchema, outputSchema, input any,
+) (*Request, error) {
 	var inputSchemaJSON, outputSchemaJSON, inputJSON json.RawMessage
 	var err error
 
@@ -45,7 +47,7 @@ func NewToolRequest(toolID, description string, inputSchema, outputSchema, input
 	}
 
 	return &Request{
-		ID:           uuid.New().String(),
+		ToolExecID:   string(toolExecID),
 		ToolID:       toolID,
 		Description:  description,
 		InputSchema:  inputSchemaJSON,

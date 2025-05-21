@@ -104,7 +104,7 @@ func Load(cwd *common.CWD, path string) (*Config, error) {
 		return nil, err
 	}
 
-	env, err := config.LoadEnv()
+	env, err := config.loadEnv()
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func (p *Config) WorkflowsFromSources() ([]*workflow.Config, error) {
 	return ws, nil
 }
 
-func (p *Config) LoadEnv() (common.EnvMap, error) {
+func (p *Config) loadEnv() (common.EnvMap, error) {
 	env, err := common.NewEnvFromFile(p.cwd.PathStr())
 	if err != nil {
 		return nil, fmt.Errorf("failed to load environment variables: %w", err)

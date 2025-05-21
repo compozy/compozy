@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/compozy/compozy/pkg/pb/common"
+	"github.com/compozy/compozy/engine/common"
+	pbcommon "github.com/compozy/compozy/pkg/pb/common"
 )
 
-func GetCorrIDFromEvent(event Event) (string, error) {
-	if event == nil {
+func GetCorrIDFromEvent(evt Event) (common.CorrID, error) {
+	if evt == nil {
 		return "", fmt.Errorf("event is nil")
 	}
 
-	metadata := event.GetMetadata()
+	metadata := evt.GetMetadata()
 	if metadata == nil {
 		return "", fmt.Errorf("event metadata is nil")
 	}
@@ -22,93 +23,93 @@ func GetCorrIDFromEvent(event Event) (string, error) {
 		return "", fmt.Errorf("correlation ID is empty")
 	}
 
-	return corrID, nil
+	return common.CorrID(corrID), nil
 }
 
-func GetComponentIDFromEvent(event Event, componentType ComponentType) (string, error) {
-	if event == nil {
+func GetCompIDFromEvent(evt Event, compType ComponentType) (common.CompID, error) {
+	if evt == nil {
 		return "", fmt.Errorf("event is nil")
 	}
 
-	switch componentType {
+	switch compType {
 	case ComponentWorkflow:
-		workflowInfo := event.GetWorkflow()
+		workflowInfo := evt.GetWorkflow()
 		if workflowInfo == nil {
 			return "", fmt.Errorf("workflow info is nil")
 		}
-		return workflowInfo.GetId(), nil
+		return common.CompID(workflowInfo.GetId()), nil
 
 	case ComponentTask:
-		taskInfo := event.GetTask()
+		taskInfo := evt.GetTask()
 		if taskInfo == nil {
 			return "", fmt.Errorf("task info is nil")
 		}
-		return taskInfo.GetId(), nil
+		return common.CompID(taskInfo.GetId()), nil
 
 	case ComponentAgent:
-		agentInfo := event.GetAgent()
+		agentInfo := evt.GetAgent()
 		if agentInfo == nil {
 			return "", fmt.Errorf("agent info is nil")
 		}
-		return agentInfo.GetId(), nil
+		return common.CompID(agentInfo.GetId()), nil
 
 	case ComponentTool:
-		toolInfo := event.GetTool()
+		toolInfo := evt.GetTool()
 		if toolInfo == nil {
 			return "", fmt.Errorf("tool info is nil")
 		}
-		return toolInfo.GetId(), nil
+		return common.CompID(toolInfo.GetId()), nil
 
 	default:
-		return "", fmt.Errorf("unsupported component type: %s", componentType)
+		return "", fmt.Errorf("unsupported component type: %s", compType)
 	}
 }
 
-func GetComponentExecIDFromEvent(event Event, componentType ComponentType) (string, error) {
-	if event == nil {
+func GetExecIDFromEvent(evt Event, compType ComponentType) (common.ExecID, error) {
+	if evt == nil {
 		return "", fmt.Errorf("event is nil")
 	}
 
-	switch componentType {
+	switch compType {
 	case ComponentWorkflow:
-		workflowInfo := event.GetWorkflow()
+		workflowInfo := evt.GetWorkflow()
 		if workflowInfo == nil {
 			return "", fmt.Errorf("workflow info is nil")
 		}
-		return workflowInfo.GetExecId(), nil
+		return common.ExecID(workflowInfo.GetExecId()), nil
 
 	case ComponentTask:
-		taskInfo := event.GetTask()
+		taskInfo := evt.GetTask()
 		if taskInfo == nil {
 			return "", fmt.Errorf("task info is nil")
 		}
-		return taskInfo.GetExecId(), nil
+		return common.ExecID(taskInfo.GetExecId()), nil
 
 	case ComponentAgent:
-		agentInfo := event.GetAgent()
+		agentInfo := evt.GetAgent()
 		if agentInfo == nil {
 			return "", fmt.Errorf("agent info is nil")
 		}
-		return agentInfo.GetExecId(), nil
+		return common.ExecID(agentInfo.GetExecId()), nil
 
 	case ComponentTool:
-		toolInfo := event.GetTool()
+		toolInfo := evt.GetTool()
 		if toolInfo == nil {
 			return "", fmt.Errorf("tool info is nil")
 		}
-		return toolInfo.GetExecId(), nil
+		return common.ExecID(toolInfo.GetExecId()), nil
 
 	default:
-		return "", fmt.Errorf("unsupported component type: %s", componentType)
+		return "", fmt.Errorf("unsupported component type: %s", compType)
 	}
 }
 
-func ResultFromEvent(event Event) (*common.Result, error) {
-	if event == nil {
+func ResultFromEvent(evt Event) (*pbcommon.Result, error) {
+	if evt == nil {
 		return nil, fmt.Errorf("event is nil")
 	}
 
-	payload := event.GetPayload()
+	payload := evt.GetPayload()
 	if payload == nil {
 		return nil, fmt.Errorf("event payload is nil")
 	}
@@ -125,7 +126,7 @@ func ResultFromEvent(event Event) (*common.Result, error) {
 		return nil, fmt.Errorf("result is nil")
 	}
 
-	castedResult, ok := result.(*common.Result)
+	castedResult, ok := result.(*pbcommon.Result)
 	if !ok {
 		return nil, fmt.Errorf("result is not of type *common.Result")
 	}
@@ -133,12 +134,12 @@ func ResultFromEvent(event Event) (*common.Result, error) {
 	return castedResult, nil
 }
 
-func StatusFromEvent(event Event) (EvStatusType, error) {
-	if event == nil {
+func StatusFromEvent(evt Event) (EvStatusType, error) {
+	if evt == nil {
 		return "", fmt.Errorf("event is nil")
 	}
 
-	payload := event.GetPayload()
+	payload := evt.GetPayload()
 	if payload == nil {
 		return "", fmt.Errorf("event payload is nil")
 	}

@@ -29,8 +29,8 @@ type Metadata struct {
 	RequestId       *string                `protobuf:"bytes,3,opt,name=request_id,json=requestId,proto3,oneof" json:"request_id,omitempty"`
 	ResultId        *string                `protobuf:"bytes,4,opt,name=result_id,json=resultId,proto3,oneof" json:"result_id,omitempty"`
 	SourceComponent string                 `protobuf:"bytes,5,opt,name=source_component,json=sourceComponent,proto3" json:"source_component,omitempty"`
-	CreatedBy       *string                `protobuf:"bytes,6,opt,name=created_by,json=createdBy,proto3,oneof" json:"created_by,omitempty"`
-	EventTimestamp  *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=event_timestamp,json=eventTimestamp,proto3" json:"event_timestamp,omitempty"`
+	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	EndedAt         *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=ended_at,json=endedAt,proto3,oneof" json:"ended_at,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -100,16 +100,16 @@ func (x *Metadata) GetSourceComponent() string {
 	return ""
 }
 
-func (x *Metadata) GetCreatedBy() string {
-	if x != nil && x.CreatedBy != nil {
-		return *x.CreatedBy
+func (x *Metadata) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
 	}
-	return ""
+	return nil
 }
 
-func (x *Metadata) GetEventTimestamp() *timestamppb.Timestamp {
+func (x *Metadata) GetEndedAt() *timestamppb.Timestamp {
 	if x != nil {
-		return x.EventTimestamp
+		return x.EndedAt
 	}
 	return nil
 }
@@ -118,22 +118,22 @@ var File_common_metadata_proto protoreflect.FileDescriptor
 
 const file_common_metadata_proto_rawDesc = "" +
 	"\n" +
-	"\x15common/metadata.proto\x12\x06common\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe4\x02\n" +
+	"\x15common/metadata.proto\x12\x06common\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf0\x02\n" +
 	"\bMetadata\x12%\n" +
 	"\x0ecorrelation_id\x18\x01 \x01(\tR\rcorrelationId\x12\x1e\n" +
 	"\bevent_id\x18\x02 \x01(\tH\x00R\aeventId\x88\x01\x01\x12\"\n" +
 	"\n" +
 	"request_id\x18\x03 \x01(\tH\x01R\trequestId\x88\x01\x01\x12 \n" +
 	"\tresult_id\x18\x04 \x01(\tH\x02R\bresultId\x88\x01\x01\x12)\n" +
-	"\x10source_component\x18\x05 \x01(\tR\x0fsourceComponent\x12\"\n" +
+	"\x10source_component\x18\x05 \x01(\tR\x0fsourceComponent\x129\n" +
 	"\n" +
-	"created_by\x18\x06 \x01(\tH\x03R\tcreatedBy\x88\x01\x01\x12C\n" +
-	"\x0fevent_timestamp\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x0eeventTimestampB\v\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12:\n" +
+	"\bended_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampH\x03R\aendedAt\x88\x01\x01B\v\n" +
 	"\t_event_idB\r\n" +
 	"\v_request_idB\f\n" +
 	"\n" +
-	"_result_idB\r\n" +
-	"\v_created_byB*Z(github.com/compozy/compozy/pkg/pb/commonb\x06proto3"
+	"_result_idB\v\n" +
+	"\t_ended_atB*Z(github.com/compozy/compozy/pkg/pb/commonb\x06proto3"
 
 var (
 	file_common_metadata_proto_rawDescOnce sync.Once
@@ -153,12 +153,13 @@ var file_common_metadata_proto_goTypes = []any{
 	(*timestamppb.Timestamp)(nil), // 1: google.protobuf.Timestamp
 }
 var file_common_metadata_proto_depIdxs = []int32{
-	1, // 0: common.Metadata.event_timestamp:type_name -> google.protobuf.Timestamp
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	1, // 0: common.Metadata.created_at:type_name -> google.protobuf.Timestamp
+	1, // 1: common.Metadata.ended_at:type_name -> google.protobuf.Timestamp
+	2, // [2:2] is the sub-list for method output_type
+	2, // [2:2] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_common_metadata_proto_init() }

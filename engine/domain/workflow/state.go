@@ -5,41 +5,87 @@ import (
 
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/state"
+	"github.com/compozy/compozy/pkg/nats"
 )
+
+// -----------------------------------------------------------------------------
+// Execution
+// -----------------------------------------------------------------------------
+
+type Execution struct {
+	CorrID       common.CorrID
+	ExecID       common.ExecID
+	TriggerInput *common.Input
+	ProjectEnv   common.EnvMap
+	WorkflowEnv  common.EnvMap
+}
+
+func NewExecution(tgInput *common.Input, pjEnv common.EnvMap) *Execution {
+	corrID := common.NewCorrID()
+	execID := common.NewExecID()
+	return &Execution{
+		CorrID:       corrID,
+		ExecID:       execID,
+		TriggerInput: tgInput,
+		ProjectEnv:   pjEnv,
+		WorkflowEnv:  make(common.EnvMap),
+	}
+}
+
+// -----------------------------------------------------------------------------
+// Initializer
+// -----------------------------------------------------------------------------
+
+type WorkflowStateInitializer struct {
+	*state.CommonInitializer
+	*Execution
+}
+
+func (wi *WorkflowStateInitializer) Initialize() (*State, error) {
+	env, err := wi.MergeEnv(wi.ProjectEnv, wi.WorkflowEnv)
+	if err != nil {
+		return nil, fmt.Errorf("failed to merge env: %w", err)
+	}
+	bsState := &state.BaseState{
+		StateID: state.NewID(nats.ComponentWorkflow, wi.CorrID, wi.ExecID),
+		Status:  nats.StatusPending,
+		Input:   &common.Input{},
+		Output:  &common.Output{},
+		Trigger: wi.TriggerInput,
+		Env:     env,
+	}
+	st := &State{
+		BaseState:      *bsState,
+		WorkflowExecID: wi.ExecID,
+	}
+	if err := wi.Normalizer.ParseTemplates(st); err != nil {
+		return nil, err
+	}
+	return st, nil
+}
+
+// -----------------------------------------------------------------------------
+// State
+// -----------------------------------------------------------------------------
 
 type State struct {
 	state.BaseState
-	Tasks state.Map `json:"tasks,omitempty"`
+	WorkflowExecID common.ExecID `json:"workflow_exec_id,omitempty"`
 }
 
-func NewWorkflowState(cID string, tgInput map[string]any, projectEnv common.EnvMap, cfg *Config) (*State, error) {
-	env := cfg.GetEnv()
-	id, err := cfg.LoadID()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load workflow ID: %w", err)
-	}
-	initializer := &state.WorkflowStateInitializer{
+func NewState(exec *Execution) (*State, error) {
+	initializer := &WorkflowStateInitializer{
 		CommonInitializer: state.NewCommonInitializer(),
-		WorkflowID:        id,
-		ExecID:            cID,
-		TriggerInput:      tgInput,
-		ProjectEnv:        projectEnv,
-		WorkflowEnv:       env,
+		Execution:         exec,
 	}
-	bs, err := initializer.Initialize()
+	st, err := initializer.Initialize()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize workflow state: %w", err)
 	}
+	return st, nil
+}
 
-	bsObj, ok := bs.(*state.BaseState)
-	if !ok {
-		return nil, fmt.Errorf("failed to convert to BaseState type, got %T", bs)
-	}
-
-	state := &State{
-		BaseState: *bsObj,
-		Tasks:     make(state.Map),
-	}
-
-	return state, nil
+// GetWorkflowExecID returns the workflow execution ID
+func (s *State) GetWorkflowExecID() common.ExecID {
+	return s.WorkflowExecID
 }

@@ -12,14 +12,12 @@ option go_package = "github.com/compozy/compozy/pkg/pb/task";
 enum TaskStatus {
   TASK_STATUS_UNSPECIFIED = 0;
   TASK_STATUS_PENDING = 1;
-  TASK_STATUS_SCHEDULED = 2;
-  TASK_STATUS_RUNNING = 3;
-  TASK_STATUS_WAITING = 4;
-  TASK_STATUS_SUCCESS = 5;
-  TASK_STATUS_FAILED = 6;
-  TASK_STATUS_TIMED_OUT = 7;
-  TASK_STATUS_CANCELLED = 8;
-  TASK_STATUS_RETRY_SCHEDULED = 9;
+  TASK_STATUS_RUNNING = 2;
+  TASK_STATUS_WAITING = 3;
+  TASK_STATUS_SUCCESS = 4;
+  TASK_STATUS_FAILED = 5;
+  TASK_STATUS_TIMED_OUT = 6;
+  TASK_STATUS_CANCELED = 7;
 }
 
 // -----------------------------------------------------------------------------
@@ -58,7 +56,7 @@ message TaskExecutionStartedEvent {
 // Task Waiting Started Event
 // -----------------------------------------------------------------------------
 
-message TaskWaitingStartedEvent {
+message TaskExecutionWaitingStartedEvent {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;
@@ -74,7 +72,7 @@ message TaskWaitingStartedEvent {
 // Task Waiting Ended Event
 // -----------------------------------------------------------------------------
 
-message TaskWaitingEndedEvent {
+message TaskExecutionWaitingEndedEvent {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;
@@ -91,7 +89,7 @@ message TaskWaitingEndedEvent {
 // Task Waiting Timed Out Event
 // -----------------------------------------------------------------------------
 
-message TaskWaitingTimedOutEvent {
+message TaskExecutionWaitingTimedOutEvent {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;
@@ -137,22 +135,6 @@ message TaskExecutionFailedEvent {
     common.Result result = 2;
     google.protobuf.Struct context = 3;
     int64 duration_ms = 4;
-  }
-  Payload payload = 4;
-}
-
-// -----------------------------------------------------------------------------
-// Task Retry Scheduled Event
-// -----------------------------------------------------------------------------
-
-message TaskRetryScheduledEvent {
-  common.Metadata metadata = 1;
-  common.WorkflowInfo workflow = 2;
-  common.TaskInfo task = 3;
-
-  message Payload {
-    TaskStatus status = 1;
-    google.protobuf.Struct context = 2;
   }
   Payload payload = 4;
 }

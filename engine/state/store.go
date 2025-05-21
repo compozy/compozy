@@ -1,6 +1,7 @@
 package state
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -84,6 +85,14 @@ func NewStore(dataPath string, opts ...StoreOption) (*Store, error) {
 
 // Close closes the underlying database
 func (s *Store) Close() error {
+	if err := s.db.Close(); err != nil {
+		return fmt.Errorf("failed to close BadgerDB: %w", err)
+	}
+	return nil
+}
+
+// CloseWithContext closes the underlying database with context
+func (s *Store) CloseWithContext(ctx context.Context) error {
 	if err := s.db.Close(); err != nil {
 		return fmt.Errorf("failed to close BadgerDB: %w", err)
 	}
@@ -260,21 +269,21 @@ func (s *Store) getStatesWithFilter(
 // GetTaskStatesForWorkflow retrieves all task states associated with a workflow
 func (s *Store) GetTaskStatesForWorkflow(wfID ID) ([]State, error) {
 	return s.getStatesWithFilter(nats.ComponentTask, func(state *BaseState) bool {
-		return state.ID.CorrID == wfID.CorrID
+		return state.StateID.CorrID == wfID.CorrID
 	})
 }
 
 // GetAgentStatesForTask retrieves all agent states associated with a task
 func (s *Store) GetAgentStatesForTask(tID ID) ([]State, error) {
 	return s.getStatesWithFilter(nats.ComponentAgent, func(state *BaseState) bool {
-		return state.ID.CorrID == tID.CorrID
+		return state.StateID.CorrID == tID.CorrID
 	})
 }
 
 // GetToolStatesForTask retrieves all tool states associated with a task
 func (s *Store) GetToolStatesForTask(tID ID) ([]State, error) {
 	return s.getStatesWithFilter(nats.ComponentTool, func(state *BaseState) bool {
-		return state.ID.CorrID == tID.CorrID
+		return state.StateID.CorrID == tID.CorrID
 	})
 }
 

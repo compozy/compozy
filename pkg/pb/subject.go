@@ -26,7 +26,7 @@ type WithTool interface {
 	GetTool() *common.ToolInfo
 }
 
-func GetCorrID(payload WithMetadata) string {
+func GetCorrelationID(payload WithMetadata) string {
 	corrID := "unknown_correlation_id"
 	if meta := payload.GetMetadata(); meta != nil && meta.GetCorrelationId() != "" {
 		corrID = meta.GetCorrelationId()

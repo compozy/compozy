@@ -12,21 +12,21 @@ import (
 // -----------------------------------------------------------------------------
 
 type ID struct {
-	Component   nats.ComponentType `json:"component"`
-	ComponentID string             `json:"component_id"`
-	CorrID      string             `json:"correlation_id"`
+	Component nats.ComponentType `json:"component"`
+	CorrID    common.CorrID      `json:"correlation_id"`
+	ExecID    common.ExecID      `json:"execution_id"`
 }
 
-func NewID(component nats.ComponentType, componentID, corrID string) ID {
+func NewID(comp nats.ComponentType, corrID common.CorrID, execID common.ExecID) ID {
 	return ID{
-		Component:   component,
-		ComponentID: componentID,
-		CorrID:      corrID,
+		Component: comp,
+		CorrID:    corrID,
+		ExecID:    execID,
 	}
 }
 
 func (id ID) String() string {
-	return fmt.Sprintf("%s:%s:%s", id.Component, id.ComponentID, id.CorrID)
+	return fmt.Sprintf("%s:%s:%s", id.Component, id.CorrID, id.ExecID)
 }
 
 // -----------------------------------------------------------------------------
@@ -35,6 +35,8 @@ func (id ID) String() string {
 
 type State interface {
 	GetID() ID
+	GetCorrelationID() common.CorrID
+	GetExecID() common.ExecID
 	GetStatus() nats.EvStatusType
 	GetEnv() *common.EnvMap
 	GetTrigger() *common.Input
@@ -52,17 +54,25 @@ type State interface {
 // -----------------------------------------------------------------------------
 
 type BaseState struct {
-	ID      ID                `json:"id"`
+	StateID ID                `json:"id"`
 	Status  nats.EvStatusType `json:"status"`
-	Trigger common.Input      `json:"trigger,omitempty"`
-	Input   common.Input      `json:"input,omitempty"`
-	Output  common.Output     `json:"output,omitempty"`
-	Env     common.EnvMap     `json:"environment,omitempty"`
+	Trigger *common.Input     `json:"trigger,omitempty"`
+	Input   *common.Input     `json:"input,omitempty"`
+	Output  *common.Output    `json:"output,omitempty"`
+	Env     *common.EnvMap    `json:"environment,omitempty"`
 	Errors  []string          `json:"errors,omitempty"`
 }
 
 func (s *BaseState) GetID() ID {
-	return s.ID
+	return s.StateID
+}
+
+func (s *BaseState) GetCorrelationID() common.CorrID {
+	return s.StateID.CorrID
+}
+
+func (s *BaseState) GetExecID() common.ExecID {
+	return s.StateID.ExecID
 }
 
 func (s *BaseState) GetStatus() nats.EvStatusType {
@@ -70,19 +80,19 @@ func (s *BaseState) GetStatus() nats.EvStatusType {
 }
 
 func (s *BaseState) GetEnv() *common.EnvMap {
-	return &s.Env
+	return s.Env
 }
 
 func (s *BaseState) GetTrigger() *common.Input {
-	return &s.Trigger
+	return s.Trigger
 }
 
 func (s *BaseState) GetInput() *common.Input {
-	return &s.Input
+	return s.Input
 }
 
 func (s *BaseState) GetOutput() *common.Output {
-	return &s.Output
+	return s.Output
 }
 
 func (s *BaseState) SetStatus(status nats.EvStatusType) {
@@ -98,7 +108,7 @@ func (s *BaseState) WithEnv(env common.EnvMap) error {
 	if err != nil {
 		return err
 	}
-	s.Env = *newEnv
+	s.Env = newEnv
 	return nil
 }
 
@@ -107,7 +117,7 @@ func (s *BaseState) WithInput(input common.Input) error {
 	if err != nil {
 		return err
 	}
-	s.Input = *newInput
+	s.Input = newInput
 	return nil
 }
 
@@ -123,12 +133,12 @@ type Option func(*BaseState)
 
 func NewEmptyState(opts ...Option) State {
 	state := &BaseState{
-		ID:      ID{},
+		StateID: ID{},
 		Status:  nats.StatusPending,
-		Trigger: common.Input{},
-		Input:   common.Input{},
-		Output:  common.Output{},
-		Env:     common.EnvMap{},
+		Trigger: &common.Input{},
+		Input:   &common.Input{},
+		Output:  &common.Output{},
+		Env:     &common.EnvMap{},
 		Errors:  []string{},
 	}
 	for _, opt := range opts {
@@ -139,11 +149,11 @@ func NewEmptyState(opts ...Option) State {
 
 func WithID(id ID) Option {
 	return func(s *BaseState) {
-		s.ID = id
+		s.StateID = id
 	}
 }
 
-func WithTrigger(trigger common.Input) Option {
+func WithTrigger(trigger *common.Input) Option {
 	return func(s *BaseState) {
 		s.Trigger = trigger
 	}
@@ -155,19 +165,19 @@ func WithStatus(status nats.EvStatusType) Option {
 	}
 }
 
-func WithInput(input common.Input) Option {
+func WithInput(input *common.Input) Option {
 	return func(s *BaseState) {
 		s.Input = input
 	}
 }
 
-func WithOutput(output common.Output) Option {
+func WithOutput(output *common.Output) Option {
 	return func(s *BaseState) {
 		s.Output = output
 	}
 }
 
-func WithEnv(env common.EnvMap) Option {
+func WithEnv(env *common.EnvMap) Option {
 	return func(s *BaseState) {
 		s.Env = env
 	}
@@ -177,21 +187,17 @@ func WithEnv(env common.EnvMap) Option {
 // State Map
 // -----------------------------------------------------------------------------
 
-// Map is a map of ID to State for efficient state lookups
 type Map map[ID]State
 
-// Get retrieves a state by its ID
 func (sm Map) Get(id ID) (State, bool) {
 	state, exists := sm[id]
 	return state, exists
 }
 
-// Add adds a state to the map
 func (sm Map) Add(state State) {
 	sm[state.GetID()] = state
 }
 
-// Remove removes a state from the map
 func (sm Map) Remove(id ID) {
 	delete(sm, id)
 }

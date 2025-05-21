@@ -8,23 +8,14 @@ import (
 // EventData provides a concrete implementation of the Event interface
 // for handling event data received from NATS messages.
 type EventData struct {
-	// Subject is the NATS subject that the event was published on
-	Subject string
-
-	// Data is the raw message payload
-	Data []byte
-
-	// Type is the event type extracted from the subject
-	Type string
-
-	// Component-related fields
+	Subject  string
+	Data     []byte
+	Type     string
 	Metadata *common.Metadata
 	Workflow *common.WorkflowInfo
 	Task     *common.TaskInfo
 	Agent    *common.AgentInfo
 	Tool     *common.ToolInfo
-
-	// EventCtx contains the context data associated with the event
 	EventCtx *structpb.Struct
 }
 
@@ -73,10 +64,10 @@ func (p *EventPayloadData) GetContext() *structpb.Struct {
 
 // NewEventData creates a new EventData instance with the basic required fields.
 // Additional fields can be set directly on the returned instance if needed.
-func NewEventData(subject string, data []byte, eventType string) *EventData {
+func NewEventData(subject string, data []byte, evType string) *EventData {
 	return &EventData{
 		Subject: subject,
 		Data:    data,
-		Type:    eventType,
+		Type:    evType,
 	}
 }
