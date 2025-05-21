@@ -20,7 +20,7 @@ func TestManager(t *testing.T) {
 	defer os.RemoveAll(baseTestDir)
 
 	ctx := context.Background()
-	natsServer, natsClient := utils.SetupNatsServer(t, ctx)
+	natsServer, natsClient := utils.SetupNatsServer(ctx, t)
 	defer natsServer.Shutdown()
 	defer natsClient.Close()
 

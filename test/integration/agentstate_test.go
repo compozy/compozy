@@ -210,7 +210,7 @@ func TestAgentStateUpdates(t *testing.T) {
 			"result": "agent_done",
 			"detail": "all good",
 		}
-		agentStateInstance.BaseState.Output = &newOutputData
+		agentStateInstance.Output = &newOutputData
 
 		err = stateManager.SaveState(agentStateInstance)
 		require.NoError(t, err)

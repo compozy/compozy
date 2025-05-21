@@ -26,7 +26,7 @@ func TestStateNormalizer(t *testing.T) {
 	}
 
 	t.Run("NormalizeState", func(t *testing.T) {
-		normalizer := NewStateNormalizer(tplengine.FormatYAML)
+		normalizer := NewNormalizer(tplengine.FormatYAML)
 		require.NotNil(t, normalizer)
 
 		// Create a test state
@@ -47,7 +47,7 @@ func TestStateNormalizer(t *testing.T) {
 	})
 
 	t.Run("ParseTemplateValue", func(t *testing.T) {
-		normalizer := NewStateNormalizer(tplengine.FormatYAML)
+		normalizer := NewNormalizer(tplengine.FormatYAML)
 		require.NotNil(t, normalizer)
 
 		// Create template context
@@ -136,7 +136,7 @@ func TestStateNormalizer(t *testing.T) {
 	})
 
 	t.Run("ParseTemplates", func(t *testing.T) {
-		normalizer := NewStateNormalizer(tplengine.FormatYAML)
+		normalizer := NewNormalizer(tplengine.FormatYAML)
 		require.NotNil(t, normalizer)
 
 		// Create a test state with templates
@@ -203,7 +203,7 @@ func TestStateNormalizer(t *testing.T) {
 
 func TestStateNormalizer_ErrorHandling(t *testing.T) {
 	t.Run("UninitializedTemplateEngine", func(t *testing.T) {
-		normalizer := &StateNormalizer{
+		normalizer := &Normalizer{
 			TemplateEngine: nil,
 		}
 
@@ -214,7 +214,7 @@ func TestStateNormalizer_ErrorHandling(t *testing.T) {
 	})
 
 	t.Run("InvalidTemplateInInput", func(t *testing.T) {
-		normalizer := NewStateNormalizer(tplengine.FormatYAML)
+		normalizer := NewNormalizer(tplengine.FormatYAML)
 		state := NewEmptyState(
 			WithInput(&common.Input{
 				"greeting": "Hello {{ .name !",
@@ -227,7 +227,7 @@ func TestStateNormalizer_ErrorHandling(t *testing.T) {
 	})
 
 	t.Run("InvalidTemplateInEnv", func(t *testing.T) {
-		normalizer := NewStateNormalizer(tplengine.FormatYAML)
+		normalizer := NewNormalizer(tplengine.FormatYAML)
 		state := NewEmptyState(
 			WithEnv(&common.EnvMap{
 				"USER_NAME": "{{ .name !",
@@ -240,7 +240,7 @@ func TestStateNormalizer_ErrorHandling(t *testing.T) {
 	})
 
 	t.Run("InvalidTemplateInContext", func(t *testing.T) {
-		normalizer := NewStateNormalizer(tplengine.FormatYAML)
+		normalizer := NewNormalizer(tplengine.FormatYAML)
 		state := NewEmptyState()
 
 		// Add an invalid template to the trigger input

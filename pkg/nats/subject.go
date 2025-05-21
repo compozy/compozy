@@ -52,15 +52,18 @@ var logLevelMap = map[string]logger.LogLevel{
 func parseSubject(subject string, expectedSegment SubjectSegment) (SubjectData, string, error) {
 	parts := strings.Split(subject, ".")
 	if len(parts) < MinSubjectParts {
-		return SubjectData{}, "", fmt.Errorf("invalid subject format: %s, expected at least %d parts", subject, MinSubjectParts)
+		return SubjectData{}, "", fmt.Errorf("invalid subject format: %s, expected at least %d parts",
+			subject, MinSubjectParts)
 	}
 
 	if parts[0] != SubjectPrefix {
-		return SubjectData{}, "", fmt.Errorf("invalid subject prefix: %s, expected %q", parts[0], SubjectPrefix)
+		return SubjectData{}, "", fmt.Errorf("invalid subject prefix: %s, expected %q",
+			parts[0], SubjectPrefix)
 	}
 
 	if parts[3] != string(expectedSegment) {
-		return SubjectData{}, "", fmt.Errorf("invalid segment type: %s, expected %q", parts[3], expectedSegment)
+		return SubjectData{}, "", fmt.Errorf("invalid segment type: %s, expected %q",
+			parts[3], expectedSegment)
 	}
 
 	compType := ComponentType(parts[2])
@@ -122,7 +125,13 @@ func BuildLogSubject(comp ComponentType, corrID common.CorrID, execID common.Exe
 	return buildSubject(comp, corrID, execID, SegmentLog, log.String())
 }
 
-func buildSubject(comp ComponentType, corrID common.CorrID, execID common.ExecID, segment SubjectSegment, val string) string {
+func buildSubject(
+	comp ComponentType,
+	corrID common.CorrID,
+	execID common.ExecID,
+	segment SubjectSegment,
+	val string,
+) string {
 	return strings.Join([]string{
 		SubjectPrefix,
 		corrID.String(),

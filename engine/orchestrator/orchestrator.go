@@ -15,9 +15,9 @@ import (
 type SystemComponent string
 
 const (
-	CompOrchestrator     SystemComponent = "engine.Orchestrator"
-	CompWorkflowExecutor SystemComponent = "workflow.Executor"
-	CompTaskExecutor     SystemComponent = "task.Executor"
+	ComponentOrchestrator     SystemComponent = "engine.Orchestrator"
+	ComponentWorkflowExecutor SystemComponent = "workflow.Executor"
+	ComponentTaskExecutor     SystemComponent = "task.Executor"
 )
 
 type Orchestrator struct {

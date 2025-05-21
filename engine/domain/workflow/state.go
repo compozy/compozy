@@ -36,12 +36,12 @@ func NewExecution(tgInput *common.Input, pjEnv common.EnvMap) *Execution {
 // Initializer
 // -----------------------------------------------------------------------------
 
-type WorkflowStateInitializer struct {
+type StateInitializer struct {
 	*state.CommonInitializer
 	*Execution
 }
 
-func (wi *WorkflowStateInitializer) Initialize() (*State, error) {
+func (wi *StateInitializer) Initialize() (*State, error) {
 	env, err := wi.MergeEnv(wi.ProjectEnv, wi.WorkflowEnv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to merge env: %w", err)
@@ -74,7 +74,7 @@ type State struct {
 }
 
 func NewState(exec *Execution) (*State, error) {
-	initializer := &WorkflowStateInitializer{
+	initializer := &StateInitializer{
 		CommonInitializer: state.NewCommonInitializer(),
 		Execution:         exec,
 	}

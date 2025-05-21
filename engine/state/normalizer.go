@@ -7,34 +7,20 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Normalizer Interface
+// Normalizer
 // -----------------------------------------------------------------------------
 
-// Normalizer defines the interface for normalizing state data for template processing
-type Normalizer interface {
-	NormalizeState(state State) map[string]any
-	ParseTemplateValue(value any, data map[string]any) (any, error)
-	ParseTemplates(state State) error
-}
-
-// -----------------------------------------------------------------------------
-// StateNormalizer Implementation
-// -----------------------------------------------------------------------------
-
-// StateNormalizer implements the Normalizer interface
-type StateNormalizer struct {
+type Normalizer struct {
 	TemplateEngine *tplengine.TemplateEngine
 }
 
-// NewStateNormalizer creates a new StateNormalizer with the specified template format
-func NewStateNormalizer(format tplengine.EngineFormat) *StateNormalizer {
-	return &StateNormalizer{
+func NewNormalizer(format tplengine.EngineFormat) *Normalizer {
+	return &Normalizer{
 		TemplateEngine: tplengine.NewEngine(format),
 	}
 }
 
-// NormalizeState converts a State object into a map structure suitable for template processing
-func (n *StateNormalizer) NormalizeState(state State) map[string]any {
+func (n *Normalizer) NormalizeState(state State) map[string]any {
 	return map[string]any{
 		"trigger": map[string]any{
 			"input": state.GetTrigger(),
@@ -45,8 +31,7 @@ func (n *StateNormalizer) NormalizeState(state State) map[string]any {
 	}
 }
 
-// ParseTemplateValue recursively processes template strings in any type of value
-func (n *StateNormalizer) ParseTemplateValue(value any, data map[string]any) (any, error) {
+func (n *Normalizer) ParseTemplateValue(value any, data map[string]any) (any, error) {
 	if value == nil {
 		return nil, nil
 	}
@@ -90,14 +75,12 @@ func (n *StateNormalizer) ParseTemplateValue(value any, data map[string]any) (an
 	}
 }
 
-// ParseTemplates parses all templates in the state's input, env, and context
-func (n *StateNormalizer) ParseTemplates(state State) error {
+func (n *Normalizer) ParseTemplates(state State) error {
 	if n.TemplateEngine == nil {
 		return fmt.Errorf("template engine is not initialized")
 	}
 	normalized := n.NormalizeState(state)
 
-	// Process Trigger map recursively
 	for k, v := range *state.GetTrigger() {
 		parsedValue, err := n.ParseTemplateValue(v, normalized)
 		if err != nil {
@@ -106,7 +89,6 @@ func (n *StateNormalizer) ParseTemplates(state State) error {
 		(*state.GetTrigger())[k] = parsedValue
 	}
 
-	// Process Input map recursively
 	for k, v := range *state.GetInput() {
 		parsedValue, err := n.ParseTemplateValue(v, normalized)
 		if err != nil {
@@ -115,7 +97,6 @@ func (n *StateNormalizer) ParseTemplates(state State) error {
 		(*state.GetInput())[k] = parsedValue
 	}
 
-	// Process Env map (env values are always strings)
 	for k, v := range *state.GetEnv() {
 		if tplengine.HasTemplate(v) {
 			parsed, err := n.TemplateEngine.RenderString(v, normalized)

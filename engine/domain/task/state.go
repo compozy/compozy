@@ -44,12 +44,12 @@ func NewExecution(
 // Initializer
 // -----------------------------------------------------------------------------
 
-type TaskStateInitializer struct {
+type StateInitializer struct {
 	*state.CommonInitializer
 	*Execution
 }
 
-func (ti *TaskStateInitializer) Initialize() (*State, error) {
+func (ti *StateInitializer) Initialize() (*State, error) {
 	env, err := ti.MergeEnv(ti.WorkflowEnv, ti.TaskEnv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to merge env: %w", err)
@@ -84,7 +84,7 @@ type State struct {
 }
 
 func NewTaskState(exec *Execution) (*State, error) {
-	initializer := &TaskStateInitializer{
+	initializer := &StateInitializer{
 		CommonInitializer: state.NewCommonInitializer(),
 		Execution:         exec,
 	}

@@ -105,7 +105,13 @@ func NewLogStream(ctx context.Context, js jetstream.JetStream) (jetstream.Stream
 		3*24*time.Hour)
 }
 
-func createStream(ctx context.Context, js jetstream.JetStream, name StreamName, subjects []string, maxAge time.Duration) (jetstream.Stream, error) {
+func createStream(
+	ctx context.Context,
+	js jetstream.JetStream,
+	name StreamName,
+	subjects []string,
+	maxAge time.Duration,
+) (jetstream.Stream, error) {
 	stream, err := js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
 		Name:     string(name),
 		Subjects: subjects,

@@ -48,12 +48,12 @@ func NewExecution(
 // Initializer
 // -----------------------------------------------------------------------------
 
-type AgentStateInitializer struct {
+type StateInitializer struct {
 	*state.CommonInitializer
 	*Execution
 }
 
-func (ai *AgentStateInitializer) Initialize() (*State, error) {
+func (ai *StateInitializer) Initialize() (*State, error) {
 	env, err := ai.MergeEnv(ai.TaskEnv, ai.AgentEnv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to merge env: %w", err)
@@ -94,7 +94,7 @@ type State struct {
 }
 
 func NewAgentState(exec *Execution) (*State, error) {
-	initializer := &AgentStateInitializer{
+	initializer := &StateInitializer{
 		CommonInitializer: state.NewCommonInitializer(),
 		Execution:         exec,
 	}

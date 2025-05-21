@@ -93,10 +93,25 @@ func (s *Store) Close() error {
 
 // CloseWithContext closes the underlying database with context
 func (s *Store) CloseWithContext(ctx context.Context) error {
-	if err := s.db.Close(); err != nil {
-		return fmt.Errorf("failed to close BadgerDB: %w", err)
+	// Create a channel to receive the close result
+	done := make(chan error, 1)
+
+	// Perform the close operation in a goroutine
+	go func() {
+		if err := s.db.Close(); err != nil {
+			done <- fmt.Errorf("failed to close BadgerDB: %w", err)
+			return
+		}
+		done <- nil
+	}()
+
+	// Wait for either context cancellation or close completion
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("context canceled while closing BadgerDB: %w", ctx.Err())
 	}
-	return nil
 }
 
 // -----------------------------------------------------------------------------

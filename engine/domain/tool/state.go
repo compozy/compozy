@@ -48,12 +48,12 @@ func NewExecution(
 // Initializer
 // -----------------------------------------------------------------------------
 
-type ToolStateInitializer struct {
+type StateInitializer struct {
 	*state.CommonInitializer
 	*Execution
 }
 
-func (ti *ToolStateInitializer) Initialize() (*State, error) {
+func (ti *StateInitializer) Initialize() (*State, error) {
 	env, err := ti.MergeEnv(ti.TaskEnv, ti.ToolEnv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to merge env: %w", err)
@@ -94,7 +94,7 @@ type State struct {
 }
 
 func NewToolState(exec *Execution) (*State, error) {
-	initializer := &ToolStateInitializer{
+	initializer := &StateInitializer{
 		CommonInitializer: state.NewCommonInitializer(),
 		Execution:         exec,
 	}

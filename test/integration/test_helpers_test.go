@@ -44,7 +44,7 @@ func SetupIntegrationTestBed(t *testing.T, testTimeout time.Duration, components
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
-	natsTestSrv, natsClient := utils.SetupNatsServer(t, ctx)
+	natsTestSrv, natsClient := utils.SetupNatsServer(ctx, t)
 	require.NotNil(t, natsTestSrv, "NATS test server should not be nil")
 	require.NotNil(t, natsClient, "NATS client should not be nil")
 	stateDir := filepath.Join(GlobalBaseTestDir, t.Name())

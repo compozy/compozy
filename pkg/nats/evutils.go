@@ -26,82 +26,82 @@ func GetCorrIDFromEvent(evt Event) (common.CorrID, error) {
 	return common.CorrID(corrID), nil
 }
 
-func GetCompIDFromEvent(evt Event, compType ComponentType) (common.CompID, error) {
+// getComponentInfoFromEvent retrieves the component info and ID/ExecID from the event based on component type
+// idType can be "id" or "exec_id" to determine which ID to retrieve
+func getComponentInfoFromEvent(evt Event, compType ComponentType, idType string) (string, error) {
 	if evt == nil {
 		return "", fmt.Errorf("event is nil")
 	}
 
+	var info any
+	var componentName string
+
 	switch compType {
 	case ComponentWorkflow:
-		workflowInfo := evt.GetWorkflow()
-		if workflowInfo == nil {
-			return "", fmt.Errorf("workflow info is nil")
-		}
-		return common.CompID(workflowInfo.GetId()), nil
-
+		info = evt.GetWorkflow()
+		componentName = "workflow"
 	case ComponentTask:
-		taskInfo := evt.GetTask()
-		if taskInfo == nil {
-			return "", fmt.Errorf("task info is nil")
-		}
-		return common.CompID(taskInfo.GetId()), nil
-
+		info = evt.GetTask()
+		componentName = "task"
 	case ComponentAgent:
-		agentInfo := evt.GetAgent()
-		if agentInfo == nil {
-			return "", fmt.Errorf("agent info is nil")
-		}
-		return common.CompID(agentInfo.GetId()), nil
-
+		info = evt.GetAgent()
+		componentName = "agent"
 	case ComponentTool:
-		toolInfo := evt.GetTool()
-		if toolInfo == nil {
-			return "", fmt.Errorf("tool info is nil")
-		}
-		return common.CompID(toolInfo.GetId()), nil
-
+		info = evt.GetTool()
+		componentName = "tool"
 	default:
 		return "", fmt.Errorf("unsupported component type: %s", compType)
 	}
+
+	if info == nil {
+		return "", fmt.Errorf("%s info is nil", componentName)
+	}
+
+	infoValue := reflect.ValueOf(info)
+	var methodName string
+
+	switch idType {
+	case "id":
+		methodName = "GetId"
+	case "exec_id":
+		methodName = "GetExecId"
+	default:
+		return "", fmt.Errorf("unsupported ID type: %s", idType)
+	}
+
+	method := infoValue.MethodByName(methodName)
+	if !method.IsValid() {
+		return "", fmt.Errorf("%s method not found for %s", methodName, compType)
+	}
+
+	result := method.Call(nil)
+	if len(result) == 0 {
+		return "", fmt.Errorf("%s method returned no value", methodName)
+	}
+
+	idValue := result[0].Interface()
+	idStr, ok := idValue.(string)
+	if !ok {
+		return "", fmt.Errorf("failed to convert %s to string", methodName)
+	}
+
+	return idStr, nil
+}
+
+func GetCompIDFromEvent(evt Event, compType ComponentType) (common.CompID, error) {
+	id, err := getComponentInfoFromEvent(evt, compType, "id")
+	if err != nil {
+		return "", err
+	}
+	return common.CompID(id), nil
 }
 
 func GetExecIDFromEvent(evt Event, compType ComponentType) (common.ExecID, error) {
-	if evt == nil {
-		return "", fmt.Errorf("event is nil")
+	id, err := getComponentInfoFromEvent(evt, compType, "exec_id")
+	if err != nil {
+		return "", err
 	}
-
-	switch compType {
-	case ComponentWorkflow:
-		workflowInfo := evt.GetWorkflow()
-		if workflowInfo == nil {
-			return "", fmt.Errorf("workflow info is nil")
-		}
-		return common.ExecID(workflowInfo.GetExecId()), nil
-
-	case ComponentTask:
-		taskInfo := evt.GetTask()
-		if taskInfo == nil {
-			return "", fmt.Errorf("task info is nil")
-		}
-		return common.ExecID(taskInfo.GetExecId()), nil
-
-	case ComponentAgent:
-		agentInfo := evt.GetAgent()
-		if agentInfo == nil {
-			return "", fmt.Errorf("agent info is nil")
-		}
-		return common.ExecID(agentInfo.GetExecId()), nil
-
-	case ComponentTool:
-		toolInfo := evt.GetTool()
-		if toolInfo == nil {
-			return "", fmt.Errorf("tool info is nil")
-		}
-		return common.ExecID(toolInfo.GetExecId()), nil
-
-	default:
-		return "", fmt.Errorf("unsupported component type: %s", compType)
-	}
+	return common.ExecID(id), nil
 }
 
 func ResultFromEvent(evt Event) (*pbcommon.Result, error) {

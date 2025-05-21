@@ -26,7 +26,7 @@ type CommonInitializer struct {
 
 func NewCommonInitializer() *CommonInitializer {
 	return &CommonInitializer{
-		Normalizer: NewStateNormalizer(tplengine.FormatYAML),
+		Normalizer: *NewNormalizer(tplengine.FormatYAML),
 	}
 }
 

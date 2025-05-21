@@ -207,7 +207,7 @@ func TestToolStateUpdates(t *testing.T) {
 
 		toolStateInstance.SetStatus(nats.StatusSuccess)
 		newOutputData := common.Output{"result": "tool_finished", "value": 99.9}
-		toolStateInstance.BaseState.Output = &newOutputData
+		toolStateInstance.Output = &newOutputData
 
 		err = stateManager.SaveState(toolStateInstance)
 		require.NoError(t, err)

@@ -122,7 +122,7 @@ func (m *Manager) subscribeToStateEvents(ctx context.Context, comp nats.Componen
 	return nil
 }
 
-func (m *Manager) handleStatus(subject string, data []byte, msg jetstream.Msg) error {
+func (m *Manager) handleStatus(subject string, data []byte, _ jetstream.Msg) error {
 	subj, err := nats.ParseEvtSubject(subject)
 	if err != nil {
 		return fmt.Errorf("failed to parse event subject %s: %w", subject, err)

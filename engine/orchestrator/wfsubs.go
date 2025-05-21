@@ -23,7 +23,7 @@ func (o *Orchestrator) subWorkflowCmds(ctx context.Context) error {
 	return nil
 }
 
-func (o *Orchestrator) handleWorkflowCmd(subject string, data []byte, msg jetstream.Msg) error {
+func (o *Orchestrator) handleWorkflowCmd(subject string, data []byte, _ jetstream.Msg) error {
 	subj, err := nats.ParseCmdSubject(subject)
 	if err != nil {
 		return fmt.Errorf("failed to parse command subject: %w", err)

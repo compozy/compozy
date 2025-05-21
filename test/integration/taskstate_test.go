@@ -162,7 +162,7 @@ func TestTaskStateUpdates(t *testing.T) {
 			"result": "task_done",
 			"value":  123.45,
 		}
-		taskStateInstance.BaseState.Output = &newOutputData
+		taskStateInstance.Output = &newOutputData
 
 		err = stateManager.SaveState(taskStateInstance)
 		require.NoError(t, err)

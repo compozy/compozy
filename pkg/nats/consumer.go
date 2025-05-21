@@ -43,7 +43,11 @@ func csNameLog(comp ComponentType, lvl logger.LogLevel) string {
 	return strings.ToUpper(fmt.Sprintf("%s_logs_%s", comp, lvl.String()))
 }
 
-func (c *Client) GetConsumerCmd(ctx context.Context, comp ComponentType, cmd CmdType) (jetstream.Consumer, error) {
+func (c *Client) GetConsumerCmd(
+	ctx context.Context,
+	comp ComponentType,
+	cmd CmdType,
+) (jetstream.Consumer, error) {
 	var stName StreamName
 	switch comp {
 	case ComponentWorkflow:
@@ -74,7 +78,11 @@ func (c *Client) GetConsumerCmd(ctx context.Context, comp ComponentType, cmd Cmd
 	return cs, nil
 }
 
-func (c *Client) GetConsumerEvt(ctx context.Context, comp ComponentType, evt EvtType) (jetstream.Consumer, error) {
+func (c *Client) GetConsumerEvt(
+	ctx context.Context,
+	comp ComponentType,
+	evt EvtType,
+) (jetstream.Consumer, error) {
 	if comp == ComponentLog {
 		return nil, fmt.Errorf("use GetConsumerLog for log events")
 	}
@@ -93,7 +101,11 @@ func (c *Client) GetConsumerEvt(ctx context.Context, comp ComponentType, evt Evt
 	return cs, nil
 }
 
-func (c *Client) GetConsumerLog(ctx context.Context, comp ComponentType, lvl logger.LogLevel) (jetstream.Consumer, error) {
+func (c *Client) GetConsumerLog(
+	ctx context.Context,
+	comp ComponentType,
+	lvl logger.LogLevel,
+) (jetstream.Consumer, error) {
 	stream, err := c.GetStream(ctx, StreamLogs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get log stream: %w", err)
