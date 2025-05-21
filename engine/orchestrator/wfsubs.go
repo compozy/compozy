@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -26,10 +27,15 @@ func (o *Orchestrator) subscribeWorkflowTriggerCmd(ctx context.Context) error {
 		return fmt.Errorf("failed to get consumer: %w", err)
 	}
 	subOpts := nats.DefaultSubscribeOpts(cs)
-	err = nats.SubscribeConsumer(subCtx, o.handleWorkflowTriggerCmd, subOpts)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to state events: %w", err)
-	}
+	errCh := nats.SubscribeConsumer(subCtx, o.handleWorkflowTriggerCmd, subOpts)
+	go func() {
+		for err := range errCh {
+			if err != nil {
+				logger.Error("Error in workflow trigger subscription", "error", err)
+			}
+		}
+	}()
+
 	return nil
 }
 

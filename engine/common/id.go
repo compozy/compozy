@@ -1,49 +1,21 @@
 package common
 
-import "github.com/google/uuid"
+import (
+	"fmt"
 
-type CorrID string
+	"github.com/segmentio/ksuid"
+)
 
-func (c CorrID) String() string {
+type ID string
+
+func (c ID) String() string {
 	return string(c)
 }
 
-func NewCorrID() CorrID {
-	return CorrID(uuid.New().String())
-}
-
-type ExecID string
-
-func (e ExecID) String() string {
-	return string(e)
-}
-
-func NewExecID() ExecID {
-	return ExecID(uuid.New().String())
-}
-
-type EventID string
-
-func (e EventID) String() string {
-	return string(e)
-}
-
-func NewEventID() EventID {
-	return EventID(uuid.New().String())
-}
-
-type RequestID string
-
-func (r RequestID) String() string {
-	return string(r)
-}
-
-func NewRequestID() RequestID {
-	return RequestID(uuid.New().String())
-}
-
-type CompID string
-
-func (c CompID) String() string {
-	return string(c)
+func NewID() (ID, error) {
+	id, err := ksuid.NewRandom()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate new ID: %w", err)
+	}
+	return ID(id.String()), nil
 }

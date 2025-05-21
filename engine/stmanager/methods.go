@@ -12,37 +12,37 @@ import (
 // State Retrieval
 // -----------------------------------------------------------------------------
 
-func (m *Manager) GetWorkflowState(corrID common.CorrID, execID common.ExecID) (state.State, error) {
+func (m *Manager) GetWorkflowState(corrID common.ID, execID common.ID) (state.State, error) {
 	id := state.NewID(nats.ComponentWorkflow, corrID, execID)
 	return m.store.GetState(id)
 }
 
-func (m *Manager) GetTaskState(corrID common.CorrID, execID common.ExecID) (state.State, error) {
+func (m *Manager) GetTaskState(corrID common.ID, execID common.ID) (state.State, error) {
 	id := state.NewID(nats.ComponentTask, corrID, execID)
 	return m.store.GetState(id)
 }
 
-func (m *Manager) GetAgentState(corrID common.CorrID, execID common.ExecID) (state.State, error) {
+func (m *Manager) GetAgentState(corrID common.ID, execID common.ID) (state.State, error) {
 	id := state.NewID(nats.ComponentAgent, corrID, execID)
 	return m.store.GetState(id)
 }
 
-func (m *Manager) GetToolState(corrID common.CorrID, execID common.ExecID) (state.State, error) {
+func (m *Manager) GetToolState(corrID common.ID, execID common.ID) (state.State, error) {
 	id := state.NewID(nats.ComponentTool, corrID, execID)
 	return m.store.GetState(id)
 }
 
-func (m *Manager) GetTaskStatesForWorkflow(corrID common.CorrID, execID common.ExecID) ([]state.State, error) {
+func (m *Manager) GetTaskStatesForWorkflow(corrID common.ID, execID common.ID) ([]state.State, error) {
 	id := state.NewID(nats.ComponentWorkflow, corrID, execID)
 	return m.store.GetTaskStatesForWorkflow(id)
 }
 
-func (m *Manager) GetAgentStatesForTask(corrID common.CorrID, execID common.ExecID) ([]state.State, error) {
+func (m *Manager) GetAgentStatesForTask(corrID common.ID, execID common.ID) ([]state.State, error) {
 	id := state.NewID(nats.ComponentTask, corrID, execID)
 	return m.store.GetAgentStatesForTask(id)
 }
 
-func (m *Manager) GetToolStatesForTask(corrID common.CorrID, execID common.ExecID) ([]state.State, error) {
+func (m *Manager) GetToolStatesForTask(corrID common.ID, execID common.ID) ([]state.State, error) {
 	id := state.NewID(nats.ComponentTask, corrID, execID)
 	return m.store.GetToolStatesForTask(id)
 }
@@ -67,7 +67,7 @@ func (m *Manager) GetAllToolStates() ([]state.State, error) {
 // Delete
 // -----------------------------------------------------------------------------
 
-func (m *Manager) DeleteWorkflowState(corrID common.CorrID, execID common.ExecID) error {
+func (m *Manager) DeleteWorkflowState(corrID common.ID, execID common.ID) error {
 	stID := state.NewID(nats.ComponentWorkflow, corrID, execID)
 	if err := m.store.DeleteState(stID); err != nil {
 		return fmt.Errorf("failed to delete workflow state: %w", err)

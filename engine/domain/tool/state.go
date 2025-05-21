@@ -53,9 +53,9 @@ func (ti *StateInitializer) Initialize() (*State, error) {
 
 type State struct {
 	state.BaseState
-	WorkflowExecID common.ExecID `json:"workflow_exec_id"`
-	TaskExecID     common.ExecID `json:"task_exec_id"`
-	ToolExecID     common.ExecID `json:"tool_exec_id"`
+	WorkflowExecID common.ID `json:"workflow_exec_id"`
+	TaskExecID     common.ID `json:"task_exec_id"`
+	ToolExecID     common.ID `json:"tool_exec_id"`
 }
 
 func NewToolState(exec *Execution) (*State, error) {

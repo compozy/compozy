@@ -9,10 +9,10 @@ import (
 // -----------------------------------------------------------------------------
 
 type Execution struct {
-	CorrID         common.CorrID
-	WorkflowExecID common.ExecID
-	TaskExecID     common.ExecID
-	AgentExecID    common.ExecID
+	CorrID         common.ID
+	WorkflowExecID common.ID
+	TaskExecID     common.ID
+	AgentExecID    common.ID
 	TaskEnv        common.EnvMap
 	AgentEnv       common.EnvMap
 	TriggerInput   *common.Input
@@ -21,12 +21,15 @@ type Execution struct {
 }
 
 func NewExecution(
-	corrID common.CorrID,
-	taskExecID, workflowExecID common.ExecID,
+	corrID common.ID,
+	taskExecID, workflowExecID common.ID,
 	taskEnv, agentEnv common.EnvMap,
 	tgInput, taskInput, agentInput *common.Input,
-) *Execution {
-	execID := common.NewExecID()
+) (*Execution, error) {
+	execID, err := common.NewID()
+	if err != nil {
+		return nil, err
+	}
 	return &Execution{
 		CorrID:         corrID,
 		WorkflowExecID: workflowExecID,
@@ -37,7 +40,7 @@ func NewExecution(
 		TriggerInput:   tgInput,
 		TaskInput:      taskInput,
 		AgentInput:     agentInput,
-	}
+	}, nil
 }
 
 func (e *Execution) ToProtoBufMap() (map[string]any, error) {

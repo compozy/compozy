@@ -11,7 +11,7 @@ import (
 
 func (o *Orchestrator) TriggerWorkflow(
 	_ context.Context,
-	wfID common.CompID,
+	wfID common.ID,
 	pj *project.Config,
 	tgInput *common.Input,
 ) (*workflow.TriggerWorkflowResponse, error) {

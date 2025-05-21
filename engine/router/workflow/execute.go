@@ -63,7 +63,7 @@ func HandleExecute(c *gin.Context) {
 	// Trigger the workflow using the orchestrator
 	res, err := appState.Orchestrator.TriggerWorkflow(
 		c.Request.Context(),
-		common.CompID(workflowID),
+		common.ID(workflowID),
 		appState.ProjectConfig,
 		&input,
 	)

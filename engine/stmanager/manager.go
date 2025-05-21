@@ -112,10 +112,16 @@ func (m *Manager) subscribeToStateEvents(ctx context.Context, comp nats.Componen
 	}
 
 	subOpts := nats.DefaultSubscribeOpts(cs)
-	err = nats.SubscribeConsumer(subCtx, m.handleUpdateStatus, subOpts)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to state events: %w", err)
-	}
+	errCh := nats.SubscribeConsumer(subCtx, m.handleUpdateStatus, subOpts)
+
+	// Monitor for errors in a separate goroutine
+	go func() {
+		for err := range errCh {
+			if err != nil {
+				fmt.Printf("Error in %s state event subscription: %v\n", comp, err)
+			}
+		}
+	}()
 
 	return nil
 }
@@ -154,7 +160,10 @@ func (m *Manager) CreateWorkflowState(
 	tgInput *common.Input,
 	pj *project.Config,
 ) (*workflow.Execution, *workflow.State, error) {
-	exec := workflow.NewExecution(tgInput, pj.GetEnv())
+	exec, err := workflow.NewExecution(tgInput, pj.GetEnv())
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create execution: %w", err)
+	}
 	st, err := workflow.NewState(exec)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create state: %w", err)

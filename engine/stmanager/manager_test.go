@@ -96,8 +96,10 @@ func TestManager(t *testing.T) {
 		require.NoError(t, err)
 		defer manager.Close()
 
-		corrID := common.NewCorrID()
-		wfID := common.NewExecID()
+		corrID, err := common.NewID()
+		require.NoError(t, err)
+		wfID, err := common.NewID()
+		require.NoError(t, err)
 		wfStateID := state.NewID(nats.ComponentWorkflow, corrID, wfID)
 		wfState := &state.BaseState{
 			StateID: wfStateID,
@@ -111,7 +113,8 @@ func TestManager(t *testing.T) {
 		require.NoError(t, err)
 
 		// Add a task state
-		tID := common.NewExecID()
+		tID, err := common.NewID()
+		require.NoError(t, err)
 		tStateID := state.NewID(nats.ComponentTask, corrID, tID)
 		taskState := &state.BaseState{
 			StateID: tStateID,
@@ -125,7 +128,8 @@ func TestManager(t *testing.T) {
 		require.NoError(t, err)
 
 		// Add an agent state
-		agID := common.NewExecID()
+		agID, err := common.NewID()
+		require.NoError(t, err)
 		aStateID := state.NewID(nats.ComponentAgent, corrID, agID)
 		agState := &state.BaseState{
 			StateID: aStateID,
@@ -139,7 +143,8 @@ func TestManager(t *testing.T) {
 		require.NoError(t, err)
 
 		// Add a tool state
-		toolID := common.NewExecID()
+		toolID, err := common.NewID()
+		require.NoError(t, err)
 		toolStateID := state.NewID(nats.ComponentTool, corrID, toolID)
 		toolState := &state.BaseState{
 			StateID: toolStateID,

@@ -14,12 +14,12 @@ import (
 )
 
 type TriggerWorkflowResponse struct {
-	CorrID     common.CorrID `json:"correlation_id"`
-	WorkflowID common.CompID `json:"workflow_id"`
-	ExecID     common.ExecID `json:"execution_id"`
+	CorrID     common.ID `json:"correlation_id"`
+	WorkflowID common.ID `json:"workflow_id"`
+	ExecID     common.ID `json:"execution_id"`
 }
 
-func TriggerWorkflow(wfID common.CompID, natsClient *nats.Client, ex *Execution) (*TriggerWorkflowResponse, error) {
+func TriggerWorkflow(wfID common.ID, natsClient *nats.Client, ex *Execution) (*TriggerWorkflowResponse, error) {
 	corrID := ex.CorrID
 	execID := ex.WorkflowExecID
 	logger.With(

@@ -169,7 +169,8 @@ func TestStore(t *testing.T) {
 		defer store.Close()
 
 		// Common correlation ID
-		corrID := common.NewCorrID()
+		corrID, err := common.NewID()
+		require.NoError(t, err)
 
 		// Create workflow state
 		wfID := state.NewID(nats.ComponentWorkflow, corrID, "workflow-1")

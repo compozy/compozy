@@ -17,7 +17,7 @@ type Request struct {
 }
 
 func NewAgentRequest(
-	agExecID common.ExecID,
+	agExecID common.ID,
 	agID, instructions string,
 	action ActionRequest,
 	config map[string]any,

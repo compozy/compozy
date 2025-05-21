@@ -13,11 +13,11 @@ import (
 
 type ID struct {
 	Component nats.ComponentType `json:"component"`
-	CorrID    common.CorrID      `json:"correlation_id"`
-	ExecID    common.ExecID      `json:"execution_id"`
+	CorrID    common.ID          `json:"correlation_id"`
+	ExecID    common.ID          `json:"execution_id"`
 }
 
-func NewID(comp nats.ComponentType, corrID common.CorrID, execID common.ExecID) ID {
+func NewID(comp nats.ComponentType, corrID common.ID, execID common.ID) ID {
 	return ID{
 		Component: comp,
 		CorrID:    corrID,
@@ -35,8 +35,8 @@ func (id ID) String() string {
 
 type State interface {
 	GetID() ID
-	GetCorrelationID() common.CorrID
-	GetExecID() common.ExecID
+	GetCorrelationID() common.ID
+	GetExecID() common.ID
 	GetStatus() nats.EvStatusType
 	GetEnv() *common.EnvMap
 	GetTrigger() *common.Input
@@ -79,11 +79,11 @@ func (s *BaseState) GetID() ID {
 	return s.StateID
 }
 
-func (s *BaseState) GetCorrelationID() common.CorrID {
+func (s *BaseState) GetCorrelationID() common.ID {
 	return s.StateID.CorrID
 }
 
-func (s *BaseState) GetExecID() common.ExecID {
+func (s *BaseState) GetExecID() common.ID {
 	return s.StateID.ExecID
 }
 

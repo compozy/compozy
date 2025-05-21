@@ -18,7 +18,7 @@ type Request struct {
 }
 
 func NewToolRequest(
-	toolExecID common.ExecID,
+	toolExecID common.ID,
 	toolID, description string,
 	inputSchema, outputSchema, input any,
 ) (*Request, error) {

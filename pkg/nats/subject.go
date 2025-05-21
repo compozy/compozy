@@ -23,8 +23,8 @@ const (
 
 type SubjectData struct {
 	CompType ComponentType
-	ExecID   common.ExecID
-	CorrID   common.CorrID
+	ExecID   common.ID
+	CorrID   common.ID
 }
 
 type EventSubject struct {
@@ -69,8 +69,8 @@ func parseSubject(subject string, expectedSegment SubjectSegment) (SubjectData, 
 	compType := ComponentType(parts[2])
 	return SubjectData{
 		CompType: compType,
-		CorrID:   common.CorrID(parts[1]),
-		ExecID:   common.ExecID(parts[4]),
+		CorrID:   common.ID(parts[1]),
+		ExecID:   common.ID(parts[4]),
 	}, parts[5], nil
 }
 
@@ -113,22 +113,22 @@ func ParseLogSubject(subject string) (*LogSubject, error) {
 	}, nil
 }
 
-func BuildEvtSubject(comp ComponentType, corrID common.CorrID, execID common.ExecID, evt EvtType) string {
+func BuildEvtSubject(comp ComponentType, corrID common.ID, execID common.ID, evt EvtType) string {
 	return buildSubject(comp, corrID, execID, SegmentEvent, evt.String())
 }
 
-func BuildCmdSubject(comp ComponentType, corrID common.CorrID, execID common.ExecID, cmd CmdType) string {
+func BuildCmdSubject(comp ComponentType, corrID common.ID, execID common.ID, cmd CmdType) string {
 	return buildSubject(comp, corrID, execID, SegmentCmd, cmd.String())
 }
 
-func BuildLogSubject(comp ComponentType, corrID common.CorrID, execID common.ExecID, log logger.LogLevel) string {
+func BuildLogSubject(comp ComponentType, corrID common.ID, execID common.ID, log logger.LogLevel) string {
 	return buildSubject(comp, corrID, execID, SegmentLog, log.String())
 }
 
 func buildSubject(
 	comp ComponentType,
-	corrID common.CorrID,
-	execID common.ExecID,
+	corrID common.ID,
+	execID common.ID,
 	segment SubjectSegment,
 	val string,
 ) string {

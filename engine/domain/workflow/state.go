@@ -48,7 +48,7 @@ func (wi *StateInitializer) Initialize() (*State, error) {
 
 type State struct {
 	state.BaseState
-	WorkflowExecID common.ExecID `json:"workflow_exec_id,omitempty"`
+	WorkflowExecID common.ID `json:"workflow_exec_id,omitempty"`
 }
 
 func NewState(exec *Execution) (*State, error) {

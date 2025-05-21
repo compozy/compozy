@@ -91,9 +91,6 @@ func runEmbeddedServer(options ServerOptions) (*nats.Conn, *server.Server, error
 
 func (s *Server) Shutdown() error {
 	if s.Conn != nil {
-		if err := s.Conn.Drain(); err != nil {
-			return fmt.Errorf("error draining NATS connection: %w", err)
-		}
 		s.Conn.Close()
 	}
 
