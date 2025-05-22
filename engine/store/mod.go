@@ -15,33 +15,12 @@ import (
 	"github.com/dgraph-io/badger/v3"
 )
 
-type Prefixes struct {
-	Workflow string
-	Task     string
-	Agent    string
-	Tool     string
-}
-
-var DefaultPrefixes = Prefixes{
-	Workflow: "workflow:",
-	Task:     "task:",
-	Agent:    "agent:",
-	Tool:     "tool:",
-}
-
 type Store struct {
-	db       *badger.DB
-	prefixes Prefixes
-	dataDir  string
+	db      *badger.DB
+	dataDir string
 }
 
 type Option func(*Store)
-
-func WithPrefixes(prefixes Prefixes) Option {
-	return func(s *Store) {
-		s.prefixes = prefixes
-	}
-}
 
 func NewStore(dataPath string, opts ...Option) (*Store, error) {
 	dataPath = filepath.Clean(dataPath)
@@ -52,9 +31,8 @@ func NewStore(dataPath string, opts ...Option) (*Store, error) {
 		return nil, fmt.Errorf("failed to open BadgerDB at %s: %w", dataPath, err)
 	}
 	store := &Store{
-		db:       db,
-		prefixes: DefaultPrefixes,
-		dataDir:  dataPath,
+		db:      db,
+		dataDir: dataPath,
 	}
 	for _, opt := range opts {
 		opt(store)
@@ -93,41 +71,10 @@ func (s *Store) DataDir() string {
 }
 
 func (s *Store) stateKey(id state.ID) []byte {
-	var prefix string
-
-	switch id.Component {
-	case nats.ComponentWorkflow:
-		prefix = s.prefixes.Workflow
-	case nats.ComponentTask:
-		prefix = s.prefixes.Task
-	case nats.ComponentAgent:
-		prefix = s.prefixes.Agent
-	case nats.ComponentTool:
-		prefix = s.prefixes.Tool
-	default:
-		prefix = "unknown:"
-	}
-
-	return fmt.Appendf(nil, "%s_%s", prefix, id.String())
+	return fmt.Appendf(nil, "%s", id.String())
 }
 
-func (s *Store) getPrefixForComponent(componentType nats.ComponentType) (string, error) {
-	switch componentType {
-	case nats.ComponentWorkflow:
-		return s.prefixes.Workflow, nil
-	case nats.ComponentTask:
-		return s.prefixes.Task, nil
-	case nats.ComponentAgent:
-		return s.prefixes.Agent, nil
-	case nats.ComponentTool:
-		return s.prefixes.Tool, nil
-	default:
-		return "", fmt.Errorf("unknown component type: %v", componentType)
-	}
-}
-
-// Helper to create the appropriate concrete state type based on component
-func (s *Store) getStateType(id state.ID) (interface{}, error) {
+func (s *Store) getStateType(id state.ID) (any, error) {
 	switch id.Component {
 	case nats.ComponentWorkflow:
 		return &workflow.State{}, nil
@@ -146,39 +93,31 @@ func (s *Store) UpsertState(state state.State) error {
 	if state == nil {
 		return fmt.Errorf("cannot upsert nil state")
 	}
-
 	data, err := json.Marshal(state)
 	if err != nil {
 		return fmt.Errorf("failed to marshal state: %w", err)
 	}
-
 	key := s.stateKey(state.GetID())
-
 	err = s.db.Update(func(txn *badger.Txn) error {
 		return txn.Set(key, data)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to upsert state %s: %w", state.GetID().String(), err)
 	}
-
 	return nil
 }
 
 func (s *Store) GetState(id state.ID) (state.State, error) {
 	key := s.stateKey(id)
-
-	// Create concrete state type based on component
 	concreteState, err := s.getStateType(id)
 	if err != nil {
 		return nil, err
 	}
-
 	err = s.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(key)
 		if err != nil {
 			return err
 		}
-
 		return item.Value(func(val []byte) error {
 			return json.Unmarshal(val, concreteState)
 		})
@@ -189,8 +128,6 @@ func (s *Store) GetState(id state.ID) (state.State, error) {
 		}
 		return nil, fmt.Errorf("failed to get state for ID %s: %w", id.String(), err)
 	}
-
-	// Type assertion to state.State interface
 	switch st := concreteState.(type) {
 	case *workflow.State:
 		return st, nil
@@ -207,28 +144,21 @@ func (s *Store) GetState(id state.ID) (state.State, error) {
 
 func (s *Store) DeleteState(id state.ID) error {
 	key := s.stateKey(id)
-
 	err := s.db.Update(func(txn *badger.Txn) error {
 		return txn.Delete(key)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to delete state for ID %s: %w", id.String(), err)
 	}
-
 	return nil
 }
 
-func (s *Store) getStatesWithFilter(
-	componentType nats.ComponentType,
-	filter func(state state.State) bool,
-) ([]state.State, error) {
-	prefix, err := s.getPrefixForComponent(componentType)
-	if err != nil {
-		return nil, err
-	}
-	prefixBytes := []byte(prefix)
+type StateFilter func(state state.State) bool
+
+func (s *Store) getStatesWithFilter(cType nats.ComponentType, ft StateFilter) ([]state.State, error) {
+	prefixBytes := []byte(cType)
 	var states []state.State
-	err = s.db.View(func(txn *badger.Txn) error {
+	err := s.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchSize = 10
 		it := txn.NewIterator(opts)
@@ -236,26 +166,17 @@ func (s *Store) getStatesWithFilter(
 		for it.Seek(prefixBytes); it.ValidForPrefix(prefixBytes); it.Next() {
 			item := it.Item()
 			err := item.Value(func(val []byte) error {
-				// Get the state ID from the key
-				key := item.Key()
-				idStr := string(key[len(prefix)+1:]) // +1 for the underscore
-				id, err := state.IDFromString(idStr)
+				id, err := state.IDFromString(string(item.Key()))
 				if err != nil {
 					return fmt.Errorf("failed to parse state ID from key: %w", err)
 				}
-
-				// Create the appropriate state type
 				concreteState, err := s.getStateType(id)
 				if err != nil {
 					return err
 				}
-
-				// Unmarshal into the concrete type
 				if err := json.Unmarshal(val, concreteState); err != nil {
 					return fmt.Errorf("failed to unmarshal state: %w", err)
 				}
-
-				// Convert to State interface
 				var stateInterface state.State
 				switch st := concreteState.(type) {
 				case *workflow.State:
@@ -269,9 +190,7 @@ func (s *Store) getStatesWithFilter(
 				default:
 					return fmt.Errorf("unknown state type for ID %s", id.String())
 				}
-
-				// Apply filter if provided
-				if filter == nil || filter(stateInterface) {
+				if ft == nil || ft(stateInterface) {
 					states = append(states, stateInterface)
 				}
 				return nil
@@ -303,16 +222,6 @@ func (s *Store) GetAgentStatesForTask(tID state.ID) ([]state.State, error) {
 func (s *Store) GetToolStatesForTask(tID state.ID) ([]state.State, error) {
 	return s.getStatesWithFilter(nats.ComponentTool, func(state state.State) bool {
 		return state.GetCorrelationID() == tID.CorrID
-	})
-}
-
-func (s *Store) GetStatesByPrefix(prefix string) ([]state.State, error) {
-	if prefix == "" {
-		return nil, fmt.Errorf("prefix cannot be empty")
-	}
-
-	return s.getStatesWithFilter(nats.ComponentType(""), func(_ state.State) bool {
-		return true
 	})
 }
 

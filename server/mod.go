@@ -9,77 +9,85 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/compozy/compozy/engine/orchestrator"
-	"github.com/compozy/compozy/pkg/app"
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/server/appstate"
+	"github.com/compozy/compozy/server/router"
 	"github.com/gin-gonic/gin"
 )
 
 type Server struct {
 	Config *Config
-	State  *app.State
 	router *gin.Engine
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-func NewServer(config *Config, state *app.State) *Server {
-	if config == nil {
-		config = &Config{
-			CWD:         state.CWD.PathStr(),
-			Host:        "0.0.0.0",
-			Port:        3000,
-			CORSEnabled: true,
-		}
-	}
-
+func NewServer(config Config) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		Config: config,
-		State:  state,
+		Config: &config,
 		ctx:    ctx,
 		cancel: cancel,
 	}
 }
 
-func (s *Server) buildRouter() error {
-	router := gin.New()
-	router.Use(gin.Recovery())
-	router.Use(LoggerMiddleware())
+func (s *Server) buildRouter(st *appstate.State) error {
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.Use(LoggerMiddleware())
 	if s.Config.CORSEnabled {
-		router.Use(CORSMiddleware())
+		r.Use(CORSMiddleware())
 	}
-	router.Use(app.StateMiddleware(s.State))
-	if err := RegisterRoutes(router, s.State); err != nil {
+	r.Use(appstate.StateMiddleware(st))
+	r.Use(router.ErrorHandler())
+	if err := RegisterRoutes(r, st); err != nil {
 		return err
 	}
-	s.router = router
+	s.router = r
 	return nil
 }
 
 func (s *Server) Run() error {
-	ctx := context.Background()
-	orch, err := orchestrator.NewOrchestrator(
-		ctx,
-		s.State.NatsServer,
-		s.State.ProjectConfig,
-		s.State.Workflows,
-	)
+	// Load project and workspace files
+	pjc, wfs, err := loadProject(s.Config.CWD, s.Config.ConfigFile)
 	if err != nil {
-		return fmt.Errorf("failed to create orchestrator: %w", err)
+		return fmt.Errorf("failed to load project: %w", err)
+	}
+
+	// Setup NATS server
+	ns, err := setupNatsServer()
+	if err != nil {
+		return fmt.Errorf("failed to setup NATS server: %w", err)
+	}
+	defer func() {
+		if err := ns.Shutdown(); err != nil {
+			logger.Error("Error shutting down NATS server", "error", err)
+		}
+	}()
+
+	// Get and start services
+	orch, store, err := getServices(s.ctx, ns, pjc, wfs)
+	if err != nil {
+		return fmt.Errorf("failed to load services: %w", err)
 	}
 	if err := orch.Start(s.ctx); err != nil {
 		return fmt.Errorf("failed to start orchestrator: %w", err)
 	}
-	s.State.Orchestrator = orch
 	defer func() {
-		if err := orch.Stop(ctx); err != nil {
+		if err := orch.Stop(s.ctx); err != nil {
 			logger.Error("Error shutting down orchestrator", "error", err)
 		}
 	}()
 
-	if err := s.buildRouter(); err != nil {
-		return err
+	// Create server state
+	st, err := appstate.NewState(ns, orch, store, pjc, wfs)
+	if err != nil {
+		return fmt.Errorf("failed to create app state: %w", err)
+	}
+
+	// Build server routes
+	if err := s.buildRouter(st); err != nil {
+		return fmt.Errorf("failed to build router: %w", err)
 	}
 
 	addr := s.Config.FullAddress()

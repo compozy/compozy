@@ -1,0 +1,85 @@
+package router
+
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/compozy/compozy/engine/common"
+	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/server/appstate"
+	"github.com/gin-gonic/gin"
+)
+
+func GetServerAddress(c *gin.Context) string {
+	return c.Request.Host
+}
+
+func GetURLParam(c *gin.Context, key string) string {
+	param := c.Param(key)
+	if param == "" {
+		reqErr := NewRequestError(
+			http.StatusBadRequest,
+			fmt.Sprintf("%s is required", key),
+			nil,
+		)
+		RespondWithError(c, reqErr.StatusCode, reqErr)
+		return ""
+	}
+	return param
+}
+
+func GetWorkflowID(c *gin.Context) string {
+	wfID := c.Param("workflow_id")
+	if wfID == "" {
+		reqErr := NewRequestError(
+			http.StatusBadRequest,
+			"workflow_id is required",
+			nil,
+		)
+		RespondWithError(c, reqErr.StatusCode, reqErr)
+		return ""
+	}
+	return wfID
+}
+
+func GetAppState(c *gin.Context) *appstate.State {
+	appState, err := appstate.GetState(c.Request.Context())
+	if err != nil {
+		reqErr := NewRequestError(
+			http.StatusInternalServerError,
+			"failed to get application state",
+			err,
+		)
+		logger.Error("Failed to get app state", "error", err)
+		RespondWithError(c, reqErr.StatusCode, reqErr)
+		return nil
+	}
+
+	// Ensure orchestrator is available
+	if appState.Orchestrator == nil {
+		reqErr := NewRequestError(
+			http.StatusInternalServerError,
+			"orchestrator not initialized",
+			ErrInternal,
+		)
+		RespondWithError(c, reqErr.StatusCode, reqErr)
+		return nil
+	}
+
+	return appState
+}
+
+func GetRequestBody(c *gin.Context) *common.Input {
+	var input common.Input
+	if err := c.ShouldBindJSON(&input); err != nil {
+		reqErr := NewRequestError(
+			http.StatusBadRequest,
+			"invalid input",
+			err,
+		)
+		RespondWithError(c, reqErr.StatusCode, reqErr)
+		return nil
+	}
+
+	return &input
+}

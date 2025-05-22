@@ -1,15 +1,16 @@
 package server
 
 import (
-	wfroute "github.com/compozy/compozy/engine/router/workflow"
-	"github.com/compozy/compozy/pkg/app"
+	wfrouter "github.com/compozy/compozy/engine/domain/workflow/router"
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/server/appstate"
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(router *gin.Engine, state *app.State) error {
+func RegisterRoutes(router *gin.Engine, state *appstate.State) error {
 	apiBase := router.Group("/api")
-	wfroute.Register(apiBase)
+	wfrouter.Register(apiBase)
+
 	logger.Info("Completed route registration",
 		"total_workflows", len(state.Workflows),
 	)

@@ -1,4 +1,4 @@
-package app
+package appstate
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/domain/project"
 	"github.com/compozy/compozy/engine/domain/workflow"
 	"github.com/compozy/compozy/engine/orchestrator"
+	"github.com/compozy/compozy/engine/store"
 	"github.com/compozy/compozy/pkg/nats"
 	"github.com/gin-gonic/gin"
 )
@@ -24,27 +25,32 @@ type State struct {
 	Workflows     []*workflow.Config
 	NatsServer    *nats.Server
 	Orchestrator  *orchestrator.Orchestrator
+	Store         *store.Store
 }
 
 func NewState(
-	projectConfig *project.Config,
-	workflows []*workflow.Config,
-	natsServer *nats.Server,
+	ns *nats.Server,
+	orch *orchestrator.Orchestrator,
+	store *store.Store,
+	pjc *project.Config,
+	wfs []*workflow.Config,
 ) (*State, error) {
-	if projectConfig == nil {
+	if pjc == nil {
 		return nil, fmt.Errorf("project config is required")
 	}
 
-	cwd := projectConfig.GetCWD()
+	cwd := pjc.GetCWD()
 	if cwd == nil {
 		return nil, fmt.Errorf("project config must have a valid CWD")
 	}
 
 	return &State{
 		CWD:           cwd,
-		ProjectConfig: projectConfig,
-		Workflows:     workflows,
-		NatsServer:    natsServer,
+		ProjectConfig: pjc,
+		Workflows:     wfs,
+		NatsServer:    ns,
+		Orchestrator:  orch,
+		Store:         store,
 	}, nil
 }
 

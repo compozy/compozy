@@ -10,12 +10,51 @@ import (
 )
 
 // -----------------------------------------------------------------------------
+// Execution
+// -----------------------------------------------------------------------------
+
+type Context struct {
+	CorrID         common.ID     `json:"correlation_id"`
+	WorkflowExecID common.ID     `json:"workflow_execution_id"`
+	TaskExecID     common.ID     `json:"task_execution_id"`
+	ToolExecID     common.ID     `json:"tool_execution_id"`
+	TaskEnv        common.EnvMap `json:"task_env"`
+	ToolEnv        common.EnvMap `json:"tool_env"`
+	TriggerInput   *common.Input `json:"trigger_input"`
+	TaskInput      *common.Input `json:"task_input"`
+	ToolInput      *common.Input `json:"tool_input"`
+}
+
+func NewContext(
+	corrID common.ID,
+	taskExecID, workflowExecID common.ID,
+	taskEnv, toolEnv common.EnvMap,
+	tgInput, taskInput, toolInput *common.Input,
+) (*Context, error) {
+	execID, err := common.NewID()
+	if err != nil {
+		return nil, err
+	}
+	return &Context{
+		CorrID:         corrID,
+		WorkflowExecID: workflowExecID,
+		TaskExecID:     taskExecID,
+		ToolExecID:     execID,
+		TaskEnv:        taskEnv,
+		ToolEnv:        toolEnv,
+		TriggerInput:   tgInput,
+		TaskInput:      taskInput,
+		ToolInput:      toolInput,
+	}, nil
+}
+
+// -----------------------------------------------------------------------------
 // Initializer
 // -----------------------------------------------------------------------------
 
 type StateInitializer struct {
 	*state.CommonInitializer
-	*Execution
+	*Context
 }
 
 func (ti *StateInitializer) Initialize() (*State, error) {
@@ -37,7 +76,7 @@ func (ti *StateInitializer) Initialize() (*State, error) {
 	}
 	st := &State{
 		BaseState: *bs,
-		Execution: ti.Execution,
+		Context:   ti.Context,
 	}
 	if err := ti.Normalizer.ParseTemplates(st); err != nil {
 		return nil, err
@@ -51,13 +90,13 @@ func (ti *StateInitializer) Initialize() (*State, error) {
 
 type State struct {
 	state.BaseState
-	Execution *Execution `json:"execution,omitempty"`
+	Context *Context `json:"context,omitempty"`
 }
 
-func NewToolState(exec *Execution) (*State, error) {
+func NewToolState(stCtx *Context) (*State, error) {
 	initializer := &StateInitializer{
 		CommonInitializer: state.NewCommonInitializer(),
-		Execution:         exec,
+		Context:           stCtx,
 	}
 	st, err := initializer.Initialize()
 	if err != nil {

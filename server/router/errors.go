@@ -1,13 +1,9 @@
 package router
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-
-	"github.com/compozy/compozy/pkg/logger"
-	"github.com/gin-gonic/gin"
 )
 
 // Common sentinel errors
@@ -85,11 +81,6 @@ func (e *RequestError) Unwrap() error {
 	return e.Err
 }
 
-// ErrorResponse represents the structure of error responses
-type ErrorResponse struct {
-	Error Error `json:"error"`
-}
-
 // NewRequestError creates a new RequestError
 func NewRequestError(statusCode int, reason string, err error) *RequestError {
 	return &RequestError{
@@ -115,57 +106,35 @@ func IsRequestError(err error) bool {
 	return errors.As(err, &reqErr)
 }
 
-// ToErrorResponse converts a RequestError to an ErrorResponse
-func (e *RequestError) ToErrorResponse() ErrorResponse {
-	resp := ErrorResponse{
-		Error: Error{
-			Code:    ErrInternalCode,
-			Message: e.Reason,
-		},
-	}
-
-	if e.WorkflowID != "" {
-		resp.Error.Code = ErrInternalCode
-		resp.Error.Message = e.Reason
-		resp.Error.Details = e.Err.Error()
-	}
-
-	return resp
+type ErrorInfo struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Details string `json:"details,omitempty"`
 }
 
-// ErrorHandler is a middleware that handles errors
-func ErrorHandler() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Next()
+// GetErrorInfo extracts error information for the standardized response
+func (e *RequestError) GetErrorInfo() *ErrorInfo {
+	var details string
+	if e.Err != nil {
+		details = e.Err.Error()
+	}
 
-		// Check if there are any errors
-		if len(c.Errors) > 0 {
-			err := c.Errors.Last().Err
-			var serverErr *Error
+	code := ErrInternalCode
+	switch e.StatusCode {
+	case http.StatusBadRequest:
+		code = ErrBadRequestCode
+	case http.StatusNotFound:
+		code = ErrNotFoundCode
+	case http.StatusUnauthorized:
+		code = ErrUnauthorizedCode
+	case http.StatusForbidden:
+		code = ErrForbiddenCode
+	}
 
-			// Try to convert to ServerError
-			if se, ok := err.(*Error); ok {
-				serverErr = se
-			} else {
-				// If not a ServerError, wrap it
-				serverErr = WrapServerError(ErrInternalCode, "An unexpected error occurred", err)
-			}
-
-			// Log the error
-			logger.Error("Request failed",
-				"error_code", serverErr.Code,
-				"error_message", serverErr.Message,
-				"error", serverErr.Err,
-				"path", c.Request.URL.Path,
-				"method", c.Request.Method,
-				"status_code", getStatusCode(serverErr.Code),
-			)
-
-			// Set the status code
-			c.JSON(getStatusCode(serverErr.Code), ErrorResponse{
-				Error: *serverErr,
-			})
-		}
+	return &ErrorInfo{
+		Code:    code,
+		Message: e.Reason,
+		Details: details,
 	}
 }
 
@@ -183,16 +152,4 @@ func getStatusCode(code string) int {
 	default:
 		return http.StatusInternalServerError
 	}
-}
-
-// MarshalJSON implements the json.Marshaler interface
-func (e *Error) MarshalJSON() ([]byte, error) {
-	type Alias Error
-	return json.Marshal(&struct {
-		*Alias
-		Error string `json:"error,omitempty"`
-	}{
-		Alias: (*Alias)(e),
-		Error: e.Err.Error(),
-	})
 }

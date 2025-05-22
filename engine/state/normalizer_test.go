@@ -31,8 +31,8 @@ func TestStateNormalizer(t *testing.T) {
 
 		// Create a test state
 		bsState := NewEmptyState(
-			WithEnv(&envMap),
-			WithTrigger(&tgInput),
+			OptsWithEnv(&envMap),
+			OptsWithTrigger(&tgInput),
 		)
 
 		// Normalize the state
@@ -216,7 +216,7 @@ func TestStateNormalizer_ErrorHandling(t *testing.T) {
 	t.Run("InvalidTemplateInInput", func(t *testing.T) {
 		normalizer := NewNormalizer(tplengine.FormatYAML)
 		state := NewEmptyState(
-			WithInput(&common.Input{
+			OptsWithInput(&common.Input{
 				"greeting": "Hello {{ .name !",
 			}),
 		)
@@ -229,7 +229,7 @@ func TestStateNormalizer_ErrorHandling(t *testing.T) {
 	t.Run("InvalidTemplateInEnv", func(t *testing.T) {
 		normalizer := NewNormalizer(tplengine.FormatYAML)
 		state := NewEmptyState(
-			WithEnv(&common.EnvMap{
+			OptsWithEnv(&common.EnvMap{
 				"USER_NAME": "{{ .name !",
 			}),
 		)

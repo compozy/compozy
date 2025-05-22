@@ -1,4 +1,4 @@
-package workflow
+package wfevts
 
 import (
 	"fmt"
@@ -12,14 +12,10 @@ import (
 	timepb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// -----------------------------------------------------------------------------
-// Execution Started
-// -----------------------------------------------------------------------------
-
-func SendExecutionStarted(natsClient *nats.Client, cmd *pbwf.WorkflowTriggerCommand) error {
-	wfID := common.ID(cmd.GetWorkflow().Id)
-	corrID := common.ID(cmd.GetMetadata().CorrelationId)
-	execID := common.ID(cmd.GetWorkflow().ExecId)
+func SendExecutionStarted(nc *nats.Client, wf *pbcommon.WorkflowInfo, md *pbcommon.Metadata) error {
+	wfID := common.ID(wf.Id)
+	corrID := common.ID(md.CorrelationId)
+	execID := common.ID(wf.ExecId)
 	logger.With(
 		"workflow_id", wfID,
 		"execution_id", execID,
@@ -31,9 +27,9 @@ func SendExecutionStarted(natsClient *nats.Client, cmd *pbwf.WorkflowTriggerComm
 			CorrelationId: corrID.String(),
 			Source:        "engine.Orchestrator",
 			Time:          timepb.Now(),
-			State:         cmd.GetMetadata().State,
+			State:         md.State,
 		},
-		Workflow: cmd.GetWorkflow(),
+		Workflow: wf,
 		Details: &pbwf.WorkflowExecutionStartedEvent_Details{
 			Status: pbwf.WorkflowStatus_WORKFLOW_STATUS_RUNNING,
 		},
@@ -43,8 +39,8 @@ func SendExecutionStarted(natsClient *nats.Client, cmd *pbwf.WorkflowTriggerComm
 		return fmt.Errorf("failed to marshal WorkflowExecutionStartedEvent: %w", err)
 	}
 
-	nc := natsClient.Conn()
-	js, err := nc.JetStream()
+	conn := nc.Conn()
+	js, err := conn.JetStream()
 	if err != nil {
 		return fmt.Errorf("failed to get JetStream context: %w", err)
 	}

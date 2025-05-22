@@ -19,3 +19,11 @@ func NewID() (ID, error) {
 	}
 	return ID(id.String()), nil
 }
+
+func MustNewID() ID {
+	id, err := NewID()
+	if err != nil {
+		panic(err)
+	}
+	return id
+}

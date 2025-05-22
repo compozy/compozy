@@ -27,17 +27,23 @@ func NewID(comp nats.ComponentType, corrID common.ID, execID common.ID) ID {
 }
 
 func (id ID) String() string {
-	return fmt.Sprintf("%s:%s:%s", id.Component, id.CorrID, id.ExecID)
+	// Format is "{component}_{correlationID}{executionID}"
+	return fmt.Sprintf("%s_%s%s", id.Component, id.CorrID, id.ExecID)
 }
 
 func IDFromString(s string) (ID, error) {
-	parts := strings.Split(s, ":")
-	if len(parts) != 3 {
+	parts := strings.Split(s, "_")
+	if len(parts) != 2 {
 		return ID{}, fmt.Errorf("invalid state ID: %s", s)
 	}
 	compID := nats.ComponentType(parts[0])
-	corrID := common.ID(parts[1])
-	execID := common.ID(parts[2])
+	idPart := parts[1]
+	const ksuidLength = 27
+	if len(idPart) < 2*ksuidLength {
+		return ID{}, fmt.Errorf("invalid ID part in state ID (expected at least %d chars): %s", 2*ksuidLength, s)
+	}
+	corrID := common.ID(idPart[:ksuidLength])
+	execID := common.ID(idPart[ksuidLength:])
 	return ID{Component: compID, CorrID: corrID, ExecID: execID}, nil
 }
 
@@ -179,37 +185,37 @@ func NewEmptyState(opts ...Option) State {
 	return state
 }
 
-func WithID(id ID) Option {
+func OptsWithID(id ID) Option {
 	return func(s *BaseState) {
 		s.StateID = id
 	}
 }
 
-func WithTrigger(trigger *common.Input) Option {
+func OptsWithTrigger(trigger *common.Input) Option {
 	return func(s *BaseState) {
 		s.Trigger = trigger
 	}
 }
 
-func WithStatus(status nats.EvStatusType) Option {
+func OptsWithStatus(status nats.EvStatusType) Option {
 	return func(s *BaseState) {
 		s.Status = status
 	}
 }
 
-func WithInput(input *common.Input) Option {
+func OptsWithInput(input *common.Input) Option {
 	return func(s *BaseState) {
 		s.Input = input
 	}
 }
 
-func WithOutput(output *common.Output) Option {
+func OptsWithOutput(output *common.Output) Option {
 	return func(s *BaseState) {
 		s.Output = output
 	}
 }
 
-func WithEnv(env *common.EnvMap) Option {
+func OptsWithEnv(env *common.EnvMap) Option {
 	return func(s *BaseState) {
 		s.Env = env
 	}

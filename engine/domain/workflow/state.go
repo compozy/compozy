@@ -10,12 +10,42 @@ import (
 )
 
 // -----------------------------------------------------------------------------
+// Execution
+// -----------------------------------------------------------------------------
+
+type Context struct {
+	CorrID         common.ID     `json:"correlation_id"`
+	WorkflowExecID common.ID     `json:"workflow_execution_id"`
+	TriggerInput   *common.Input `json:"trigger_input"`
+	ProjectEnv     common.EnvMap `json:"project_env"`
+	WorkflowEnv    common.EnvMap `json:"workflow_env"`
+}
+
+func NewContext(tgInput *common.Input, pjEnv common.EnvMap) (*Context, error) {
+	corrID, err := common.NewID()
+	if err != nil {
+		return nil, err
+	}
+	execID, err := common.NewID()
+	if err != nil {
+		return nil, err
+	}
+	return &Context{
+		CorrID:         corrID,
+		WorkflowExecID: execID,
+		TriggerInput:   tgInput,
+		ProjectEnv:     pjEnv,
+		WorkflowEnv:    make(common.EnvMap),
+	}, nil
+}
+
+// -----------------------------------------------------------------------------
 // Initializer
 // -----------------------------------------------------------------------------
 
 type StateInitializer struct {
 	*state.CommonInitializer
-	*Execution
+	*Context
 }
 
 func (wi *StateInitializer) Initialize() (*State, error) {
@@ -34,7 +64,7 @@ func (wi *StateInitializer) Initialize() (*State, error) {
 	}
 	st := &State{
 		BaseState: *bsState,
-		Execution: wi.Execution,
+		Context:   wi.Context,
 	}
 	if err := wi.Normalizer.ParseTemplates(st); err != nil {
 		return nil, err
@@ -48,13 +78,13 @@ func (wi *StateInitializer) Initialize() (*State, error) {
 
 type State struct {
 	state.BaseState
-	Execution *Execution `json:"execution,omitempty"`
+	Context *Context `json:"context,omitempty"`
 }
 
-func NewState(exec *Execution) (*State, error) {
+func NewState(ctx *Context) (*State, error) {
 	initializer := &StateInitializer{
 		CommonInitializer: state.NewCommonInitializer(),
-		Execution:         exec,
+		Context:           ctx,
 	}
 	st, err := initializer.Initialize()
 	if err != nil {
@@ -63,8 +93,8 @@ func NewState(exec *Execution) (*State, error) {
 	return st, nil
 }
 
-func (s *State) Exec() *Execution {
-	return s.Execution
+func (s *State) GetContext() *Context {
+	return s.Context
 }
 
 func (s *State) UpdateFromEvent(event any) error {

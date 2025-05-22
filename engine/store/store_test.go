@@ -27,35 +27,6 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, store)
 
-		// Verify store has default prefixes
-		assert.Equal(t, DefaultPrefixes, store.prefixes)
-
-		// Clean up
-		err = store.Close()
-		require.NoError(t, err)
-	})
-
-	t.Run("NewStore with options", func(t *testing.T) {
-		// Create a temporary directory for testing
-		tempDir, err := os.MkdirTemp(baseTestDir, "store-test-options-*")
-		require.NoError(t, err)
-
-		// Custom prefixes for testing
-		customPrefixes := Prefixes{
-			Workflow: "w:",
-			Task:     "t:",
-			Agent:    "a:",
-			Tool:     "tl:",
-		}
-
-		// Test store creation with options
-		store, err := NewStore(tempDir, WithPrefixes(customPrefixes))
-		require.NoError(t, err)
-		require.NotNil(t, store)
-
-		// Verify store has custom prefixes
-		assert.Equal(t, customPrefixes, store.prefixes)
-
 		// Clean up
 		err = store.Close()
 		require.NoError(t, err)
@@ -72,7 +43,7 @@ func TestStore(t *testing.T) {
 		defer store.Close()
 
 		// Create a test state
-		id := state.NewID(nats.ComponentWorkflow, "correlation-1", "exec-1")
+		id := state.NewID(nats.ComponentWorkflow, common.MustNewID(), common.MustNewID())
 		testState := &state.BaseState{
 			StateID: id,
 			Status:  nats.StatusPending,
@@ -107,8 +78,8 @@ func TestStore(t *testing.T) {
 		defer store.Close()
 
 		// Create a test state
-		id := state.NewID(nats.ComponentWorkflow, "correlation-1", "exec-1")
-		testState := state.NewEmptyState(state.WithID(id))
+		id := state.NewID(nats.ComponentWorkflow, common.MustNewID(), common.MustNewID())
+		testState := state.NewEmptyState(state.OptsWithID(id))
 		// Test UpsertState
 		err = store.UpsertState(testState)
 		require.NoError(t, err)
@@ -138,8 +109,8 @@ func TestStore(t *testing.T) {
 		defer store.Close()
 
 		// Create a test state
-		id := state.NewID(nats.ComponentWorkflow, "correlation-1", "exec-1")
-		testState := state.NewEmptyState(state.WithID(id))
+		id := state.NewID(nats.ComponentWorkflow, common.MustNewID(), common.MustNewID())
+		testState := state.NewEmptyState(state.OptsWithID(id))
 
 		// Add the state
 		err = store.UpsertState(testState)
@@ -173,7 +144,7 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create workflow state
-		wfID := state.NewID(nats.ComponentWorkflow, corrID, "workflow-1")
+		wfID := state.NewID(nats.ComponentWorkflow, corrID, common.MustNewID())
 		wfState := &state.BaseState{
 			StateID: wfID,
 			Status:  nats.StatusRunning,
@@ -186,36 +157,36 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create task states
-		taskID1 := state.NewID(nats.ComponentTask, corrID, "task-1")
+		taskID1 := state.NewID(nats.ComponentTask, corrID, common.MustNewID())
 		taskState1 := state.NewEmptyState(
-			state.WithID(taskID1),
-			state.WithStatus(nats.StatusSuccess),
+			state.OptsWithID(taskID1),
+			state.OptsWithStatus(nats.StatusSuccess),
 		)
 		err = store.UpsertState(taskState1)
 		require.NoError(t, err)
 
-		taskID2 := state.NewID(nats.ComponentTask, corrID, "task-2")
+		taskID2 := state.NewID(nats.ComponentTask, corrID, common.MustNewID())
 		taskState2 := state.NewEmptyState(
-			state.WithID(taskID2),
-			state.WithStatus(nats.StatusRunning),
+			state.OptsWithID(taskID2),
+			state.OptsWithStatus(nats.StatusRunning),
 		)
 		err = store.UpsertState(taskState2)
 		require.NoError(t, err)
 
 		// Create agent state
-		agID := state.NewID(nats.ComponentAgent, corrID, "agent-1")
+		agID := state.NewID(nats.ComponentAgent, corrID, common.MustNewID())
 		agState := state.NewEmptyState(
-			state.WithID(agID),
-			state.WithStatus(nats.StatusRunning),
+			state.OptsWithID(agID),
+			state.OptsWithStatus(nats.StatusRunning),
 		)
 		err = store.UpsertState(agState)
 		require.NoError(t, err)
 
 		// Create tool state
-		toolID := state.NewID(nats.ComponentTool, corrID, "tool-1")
+		toolID := state.NewID(nats.ComponentTool, corrID, common.MustNewID())
 		toolState := state.NewEmptyState(
-			state.WithID(toolID),
-			state.WithStatus(nats.StatusSuccess),
+			state.OptsWithID(toolID),
+			state.OptsWithStatus(nats.StatusSuccess),
 		)
 		err = store.UpsertState(toolState)
 		require.NoError(t, err)

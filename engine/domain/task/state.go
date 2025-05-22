@@ -10,12 +10,47 @@ import (
 )
 
 // -----------------------------------------------------------------------------
+// Execution
+// -----------------------------------------------------------------------------
+
+type Context struct {
+	CorrID         common.ID     `json:"correlation_id"`
+	WorkflowExecID common.ID     `json:"workflow_execution_id"`
+	TaskExecID     common.ID     `json:"task_execution_id"`
+	WorkflowEnv    common.EnvMap `json:"workflow_env"`
+	TaskEnv        common.EnvMap `json:"task_env"`
+	TriggerInput   *common.Input `json:"trigger_input"`
+	TaskInput      *common.Input `json:"task_input"`
+}
+
+func NewContext(
+	corrID common.ID,
+	workflowExecID common.ID,
+	workflowEnv, taskEnv common.EnvMap,
+	tgInput, taskInput *common.Input,
+) (*Context, error) {
+	execID, err := common.NewID()
+	if err != nil {
+		return nil, err
+	}
+	return &Context{
+		CorrID:         corrID,
+		WorkflowExecID: workflowExecID,
+		TaskExecID:     execID,
+		WorkflowEnv:    workflowEnv,
+		TaskEnv:        taskEnv,
+		TriggerInput:   tgInput,
+		TaskInput:      taskInput,
+	}, nil
+}
+
+// -----------------------------------------------------------------------------
 // Initializer
 // -----------------------------------------------------------------------------
 
 type StateInitializer struct {
 	*state.CommonInitializer
-	*Execution
+	*Context
 }
 
 func (ti *StateInitializer) Initialize() (*State, error) {
@@ -33,7 +68,7 @@ func (ti *StateInitializer) Initialize() (*State, error) {
 	}
 	st := &State{
 		BaseState: *bsState,
-		Execution: ti.Execution,
+		Context:   ti.Context,
 	}
 	if err := ti.Normalizer.ParseTemplates(st); err != nil {
 		return nil, err
@@ -47,13 +82,13 @@ func (ti *StateInitializer) Initialize() (*State, error) {
 
 type State struct {
 	state.BaseState
-	Execution *Execution `json:"execution,omitempty"`
+	Context *Context `json:"context,omitempty"`
 }
 
-func NewTaskState(exec *Execution) (*State, error) {
+func NewTaskState(stCtx *Context) (*State, error) {
 	initializer := &StateInitializer{
 		CommonInitializer: state.NewCommonInitializer(),
-		Execution:         exec,
+		Context:           stCtx,
 	}
 	st, err := initializer.Initialize()
 	if err != nil {
