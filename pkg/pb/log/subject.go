@@ -25,8 +25,8 @@ func logLevelToStr(lvl LogLevel) string {
 // Pattern: compozy.<correlation_id>.<component>.logs.<component_id>.<log_level>
 func (x *LogEmittedEvent) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
-	comp := x.GetPayload().GetComponent()
-	compID := x.GetPayload().GetComponentId()
-	lvl := logLevelToStr(x.GetPayload().GetLogLevel())
+	comp := x.GetDetails().GetComponent()
+	compID := x.GetDetails().GetComponentId()
+	lvl := logLevelToStr(x.GetDetails().GetLogLevel())
 	return fmt.Sprintf("compozy.%s.%s.logs.%s.%s", corrID, comp, compID, lvl)
 }

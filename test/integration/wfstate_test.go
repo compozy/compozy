@@ -42,7 +42,7 @@ func TestWorkflowStateInitialization(t *testing.T) {
 		require.NotNil(t, wfState)
 
 		assert.Equal(t, nats.StatusPending, wfState.Status)
-		assert.Equal(t, exec.WorkflowExecID, wfState.WorkflowExecID)
+		assert.Equal(t, exec.WorkflowExecID, wfState.Exec().WorkflowExecID)
 		assert.NotNil(t, wfState.Env)
 		assert.Equal(t, "project_value", (*wfState.Env)["PROJECT_ENV"])
 		assert.Equal(t, "workflow_value", (*wfState.Env)["WORKFLOW_ENV"])
@@ -195,7 +195,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 				Id:     "workflow-id",
 				ExecId: string(exec.WorkflowExecID),
 			},
-			Payload: &pbworkflow.WorkflowExecutionStartedEvent_Payload{
+			Details: &pbworkflow.WorkflowExecutionStartedEvent_Details{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_RUNNING,
 			},
 		}
@@ -222,7 +222,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 				Id:     "workflow-id",
 				ExecId: string(exec.WorkflowExecID),
 			},
-			Payload: &pbworkflow.WorkflowExecutionPausedEvent_Payload{
+			Details: &pbworkflow.WorkflowExecutionPausedEvent_Details{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_PAUSED,
 			},
 		}
@@ -249,7 +249,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 				Id:     "workflow-id",
 				ExecId: string(exec.WorkflowExecID),
 			},
-			Payload: &pbworkflow.WorkflowExecutionResumedEvent_Payload{
+			Details: &pbworkflow.WorkflowExecutionResumedEvent_Details{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_RUNNING,
 			},
 		}
@@ -276,7 +276,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 				Id:     "workflow-id",
 				ExecId: string(exec.WorkflowExecID),
 			},
-			Payload: &pbworkflow.WorkflowExecutionSuccessEvent_Payload{
+			Details: &pbworkflow.WorkflowExecutionSuccessEvent_Details{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_SUCCESS,
 			},
 		}
@@ -323,11 +323,9 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 				Id:     "workflow-id",
 				ExecId: string(newExec.WorkflowExecID),
 			},
-			Payload: &pbworkflow.WorkflowExecutionSuccessEvent_Payload{
+			Details: &pbworkflow.WorkflowExecutionSuccessEvent_Details{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_SUCCESS,
-				Result: &pbcommon.Result{
-					Output: resultData,
-				},
+				Result: resultData,
 			},
 		}
 
@@ -383,7 +381,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 				Id:     "workflow-id",
 				ExecId: string(newExec.WorkflowExecID),
 			},
-			Payload: &pbworkflow.WorkflowExecutionFailedEvent_Payload{
+			Details: &pbworkflow.WorkflowExecutionFailedEvent_Details{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_FAILED,
 			},
 		}
@@ -430,14 +428,12 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 				Id:     "workflow-id",
 				ExecId: string(newExec.WorkflowExecID),
 			},
-			Payload: &pbworkflow.WorkflowExecutionFailedEvent_Payload{
+			Details: &pbworkflow.WorkflowExecutionFailedEvent_Details{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_FAILED,
-				Result: &pbcommon.Result{
-					Error: &pbcommon.ErrorResult{
-						Message: "Workflow execution failed",
-						Code:    &errorCode,
-						Details: errorDetails,
-					},
+				Error: &pbcommon.ErrorResult{
+					Message: "Workflow execution failed",
+					Code:    &errorCode,
+					Details: errorDetails,
 				},
 			},
 		}
@@ -497,7 +493,7 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 				Id:     "workflow-id",
 				ExecId: string(newExec.WorkflowExecID),
 			},
-			Payload: &pbworkflow.WorkflowExecutionCanceledEvent_Payload{
+			Details: &pbworkflow.WorkflowExecutionCanceledEvent_Details{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_CANCELED,
 			},
 		}
@@ -540,14 +536,12 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 				Id:     "workflow-id",
 				ExecId: string(newExec.WorkflowExecID),
 			},
-			Payload: &pbworkflow.WorkflowExecutionTimedOutEvent_Payload{
+			Details: &pbworkflow.WorkflowExecutionTimedOutEvent_Details{
 				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_TIMED_OUT,
-				Result: &pbcommon.Result{
-					Error: &pbcommon.ErrorResult{
-						Message: "Workflow execution timed out",
-						Code:    &errorCode,
-						Details: errorDetails,
-					},
+				Error: &pbcommon.ErrorResult{
+					Message: "Workflow execution timed out",
+					Code:    &errorCode,
+					Details: errorDetails,
 				},
 			},
 		}

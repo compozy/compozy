@@ -76,14 +76,13 @@ func (x *State) GetParentId() string {
 }
 
 type Metadata struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	CorrelationId   string                 `protobuf:"bytes,1,opt,name=correlation_id,json=correlationId,proto3" json:"correlation_id,omitempty"`
-	SourceComponent string                 `protobuf:"bytes,2,opt,name=source_component,json=sourceComponent,proto3" json:"source_component,omitempty"`
-	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	EndedAt         *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=ended_at,json=endedAt,proto3,oneof" json:"ended_at,omitempty"`
-	State           *State                 `protobuf:"bytes,5,opt,name=state,proto3" json:"state,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CorrelationId string                 `protobuf:"bytes,1,opt,name=correlation_id,json=correlationId,proto3" json:"correlation_id,omitempty"`
+	Source        string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	Time          *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=time,proto3" json:"time,omitempty"`
+	State         *State                 `protobuf:"bytes,4,opt,name=state,proto3" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Metadata) Reset() {
@@ -123,23 +122,16 @@ func (x *Metadata) GetCorrelationId() string {
 	return ""
 }
 
-func (x *Metadata) GetSourceComponent() string {
+func (x *Metadata) GetSource() string {
 	if x != nil {
-		return x.SourceComponent
+		return x.Source
 	}
 	return ""
 }
 
-func (x *Metadata) GetCreatedAt() *timestamppb.Timestamp {
+func (x *Metadata) GetTime() *timestamppb.Timestamp {
 	if x != nil {
-		return x.CreatedAt
-	}
-	return nil
-}
-
-func (x *Metadata) GetEndedAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.EndedAt
+		return x.Time
 	}
 	return nil
 }
@@ -160,15 +152,12 @@ const file_common_metadata_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12 \n" +
 	"\tparent_id\x18\x02 \x01(\tH\x00R\bparentId\x88\x01\x01B\f\n" +
 	"\n" +
-	"_parent_id\"\x85\x02\n" +
+	"_parent_id\"\x9e\x01\n" +
 	"\bMetadata\x12%\n" +
-	"\x0ecorrelation_id\x18\x01 \x01(\tR\rcorrelationId\x12)\n" +
-	"\x10source_component\x18\x02 \x01(\tR\x0fsourceComponent\x129\n" +
-	"\n" +
-	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12:\n" +
-	"\bended_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampH\x00R\aendedAt\x88\x01\x01\x12#\n" +
-	"\x05state\x18\x05 \x01(\v2\r.common.StateR\x05stateB\v\n" +
-	"\t_ended_atB*Z(github.com/compozy/compozy/pkg/pb/commonb\x06proto3"
+	"\x0ecorrelation_id\x18\x01 \x01(\tR\rcorrelationId\x12\x16\n" +
+	"\x06source\x18\x02 \x01(\tR\x06source\x12.\n" +
+	"\x04time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12#\n" +
+	"\x05state\x18\x04 \x01(\v2\r.common.StateR\x05stateB*Z(github.com/compozy/compozy/pkg/pb/commonb\x06proto3"
 
 var (
 	file_common_metadata_proto_rawDescOnce sync.Once
@@ -189,14 +178,13 @@ var file_common_metadata_proto_goTypes = []any{
 	(*timestamppb.Timestamp)(nil), // 2: google.protobuf.Timestamp
 }
 var file_common_metadata_proto_depIdxs = []int32{
-	2, // 0: common.Metadata.created_at:type_name -> google.protobuf.Timestamp
-	2, // 1: common.Metadata.ended_at:type_name -> google.protobuf.Timestamp
-	0, // 2: common.Metadata.state:type_name -> common.State
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	2, // 0: common.Metadata.time:type_name -> google.protobuf.Timestamp
+	0, // 1: common.Metadata.state:type_name -> common.State
+	2, // [2:2] is the sub-list for method output_type
+	2, // [2:2] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_common_metadata_proto_init() }
@@ -205,7 +193,6 @@ func file_common_metadata_proto_init() {
 		return
 	}
 	file_common_metadata_proto_msgTypes[0].OneofWrappers = []any{}
-	file_common_metadata_proto_msgTypes[1].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

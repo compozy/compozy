@@ -2,6 +2,7 @@ package state
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/pkg/nats"
@@ -27,6 +28,17 @@ func NewID(comp nats.ComponentType, corrID common.ID, execID common.ID) ID {
 
 func (id ID) String() string {
 	return fmt.Sprintf("%s:%s:%s", id.Component, id.CorrID, id.ExecID)
+}
+
+func IDFromString(s string) (ID, error) {
+	parts := strings.Split(s, ":")
+	if len(parts) != 3 {
+		return ID{}, fmt.Errorf("invalid state ID: %s", s)
+	}
+	compID := nats.ComponentType(parts[0])
+	corrID := common.ID(parts[1])
+	execID := common.ID(parts[2])
+	return ID{Component: compID, CorrID: corrID, ExecID: execID}, nil
 }
 
 // -----------------------------------------------------------------------------

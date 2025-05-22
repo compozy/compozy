@@ -11,8 +11,3 @@ message ErrorResult {
   optional string code = 2;
   optional google.protobuf.Struct details = 3;
 }
-
-message Result {
-  optional google.protobuf.Struct output = 1;
-  optional ErrorResult error = 2;
-}

@@ -81,7 +81,7 @@ type AgentExecutionStartedEvent struct {
 	Workflow      *common.WorkflowInfo                `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
 	Task          *common.TaskInfo                    `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
 	Agent         *common.AgentInfo                   `protobuf:"bytes,4,opt,name=agent,proto3" json:"agent,omitempty"`
-	Payload       *AgentExecutionStartedEvent_Payload `protobuf:"bytes,5,opt,name=payload,proto3" json:"payload,omitempty"`
+	Details       *AgentExecutionStartedEvent_Details `protobuf:"bytes,5,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -144,9 +144,9 @@ func (x *AgentExecutionStartedEvent) GetAgent() *common.AgentInfo {
 	return nil
 }
 
-func (x *AgentExecutionStartedEvent) GetPayload() *AgentExecutionStartedEvent_Payload {
+func (x *AgentExecutionStartedEvent) GetDetails() *AgentExecutionStartedEvent_Details {
 	if x != nil {
-		return x.Payload
+		return x.Details
 	}
 	return nil
 }
@@ -157,7 +157,7 @@ type AgentExecutionSuccessEvent struct {
 	Workflow      *common.WorkflowInfo                `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
 	Task          *common.TaskInfo                    `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
 	Agent         *common.AgentInfo                   `protobuf:"bytes,4,opt,name=agent,proto3" json:"agent,omitempty"`
-	Payload       *AgentExecutionSuccessEvent_Payload `protobuf:"bytes,5,opt,name=payload,proto3" json:"payload,omitempty"`
+	Details       *AgentExecutionSuccessEvent_Details `protobuf:"bytes,5,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -220,9 +220,9 @@ func (x *AgentExecutionSuccessEvent) GetAgent() *common.AgentInfo {
 	return nil
 }
 
-func (x *AgentExecutionSuccessEvent) GetPayload() *AgentExecutionSuccessEvent_Payload {
+func (x *AgentExecutionSuccessEvent) GetDetails() *AgentExecutionSuccessEvent_Details {
 	if x != nil {
-		return x.Payload
+		return x.Details
 	}
 	return nil
 }
@@ -233,7 +233,7 @@ type AgentExecutionFailedEvent struct {
 	Workflow      *common.WorkflowInfo               `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
 	Task          *common.TaskInfo                   `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
 	Agent         *common.AgentInfo                  `protobuf:"bytes,4,opt,name=agent,proto3" json:"agent,omitempty"`
-	Payload       *AgentExecutionFailedEvent_Payload `protobuf:"bytes,5,opt,name=payload,proto3" json:"payload,omitempty"`
+	Details       *AgentExecutionFailedEvent_Details `protobuf:"bytes,5,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -296,35 +296,34 @@ func (x *AgentExecutionFailedEvent) GetAgent() *common.AgentInfo {
 	return nil
 }
 
-func (x *AgentExecutionFailedEvent) GetPayload() *AgentExecutionFailedEvent_Payload {
+func (x *AgentExecutionFailedEvent) GetDetails() *AgentExecutionFailedEvent_Details {
 	if x != nil {
-		return x.Payload
+		return x.Details
 	}
 	return nil
 }
 
-type AgentExecutionStartedEvent_Payload struct {
+type AgentExecutionStartedEvent_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        AgentStatus            `protobuf:"varint,1,opt,name=status,proto3,enum=agent.AgentStatus" json:"status,omitempty"`
-	Context       *structpb.Struct       `protobuf:"bytes,2,opt,name=context,proto3" json:"context,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AgentExecutionStartedEvent_Payload) Reset() {
-	*x = AgentExecutionStartedEvent_Payload{}
+func (x *AgentExecutionStartedEvent_Details) Reset() {
+	*x = AgentExecutionStartedEvent_Details{}
 	mi := &file_agent_events_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AgentExecutionStartedEvent_Payload) String() string {
+func (x *AgentExecutionStartedEvent_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AgentExecutionStartedEvent_Payload) ProtoMessage() {}
+func (*AgentExecutionStartedEvent_Details) ProtoMessage() {}
 
-func (x *AgentExecutionStartedEvent_Payload) ProtoReflect() protoreflect.Message {
+func (x *AgentExecutionStartedEvent_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_agent_events_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -336,49 +335,41 @@ func (x *AgentExecutionStartedEvent_Payload) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AgentExecutionStartedEvent_Payload.ProtoReflect.Descriptor instead.
-func (*AgentExecutionStartedEvent_Payload) Descriptor() ([]byte, []int) {
+// Deprecated: Use AgentExecutionStartedEvent_Details.ProtoReflect.Descriptor instead.
+func (*AgentExecutionStartedEvent_Details) Descriptor() ([]byte, []int) {
 	return file_agent_events_proto_rawDescGZIP(), []int{0, 0}
 }
 
-func (x *AgentExecutionStartedEvent_Payload) GetStatus() AgentStatus {
+func (x *AgentExecutionStartedEvent_Details) GetStatus() AgentStatus {
 	if x != nil {
 		return x.Status
 	}
 	return AgentStatus_AGENT_STATUS_UNSPECIFIED
 }
 
-func (x *AgentExecutionStartedEvent_Payload) GetContext() *structpb.Struct {
-	if x != nil {
-		return x.Context
-	}
-	return nil
-}
-
-type AgentExecutionSuccessEvent_Payload struct {
+type AgentExecutionSuccessEvent_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        AgentStatus            `protobuf:"varint,1,opt,name=status,proto3,enum=agent.AgentStatus" json:"status,omitempty"`
-	Result        *common.Result         `protobuf:"bytes,2,opt,name=result,proto3" json:"result,omitempty"`
-	Context       *structpb.Struct       `protobuf:"bytes,3,opt,name=context,proto3" json:"context,omitempty"`
-	DurationMs    int64                  `protobuf:"varint,4,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	Result        *structpb.Struct       `protobuf:"bytes,2,opt,name=result,proto3" json:"result,omitempty"`
+	DurationMs    int64                  `protobuf:"varint,3,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AgentExecutionSuccessEvent_Payload) Reset() {
-	*x = AgentExecutionSuccessEvent_Payload{}
+func (x *AgentExecutionSuccessEvent_Details) Reset() {
+	*x = AgentExecutionSuccessEvent_Details{}
 	mi := &file_agent_events_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AgentExecutionSuccessEvent_Payload) String() string {
+func (x *AgentExecutionSuccessEvent_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AgentExecutionSuccessEvent_Payload) ProtoMessage() {}
+func (*AgentExecutionSuccessEvent_Details) ProtoMessage() {}
 
-func (x *AgentExecutionSuccessEvent_Payload) ProtoReflect() protoreflect.Message {
+func (x *AgentExecutionSuccessEvent_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_agent_events_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -390,63 +381,55 @@ func (x *AgentExecutionSuccessEvent_Payload) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AgentExecutionSuccessEvent_Payload.ProtoReflect.Descriptor instead.
-func (*AgentExecutionSuccessEvent_Payload) Descriptor() ([]byte, []int) {
+// Deprecated: Use AgentExecutionSuccessEvent_Details.ProtoReflect.Descriptor instead.
+func (*AgentExecutionSuccessEvent_Details) Descriptor() ([]byte, []int) {
 	return file_agent_events_proto_rawDescGZIP(), []int{1, 0}
 }
 
-func (x *AgentExecutionSuccessEvent_Payload) GetStatus() AgentStatus {
+func (x *AgentExecutionSuccessEvent_Details) GetStatus() AgentStatus {
 	if x != nil {
 		return x.Status
 	}
 	return AgentStatus_AGENT_STATUS_UNSPECIFIED
 }
 
-func (x *AgentExecutionSuccessEvent_Payload) GetResult() *common.Result {
+func (x *AgentExecutionSuccessEvent_Details) GetResult() *structpb.Struct {
 	if x != nil {
 		return x.Result
 	}
 	return nil
 }
 
-func (x *AgentExecutionSuccessEvent_Payload) GetContext() *structpb.Struct {
-	if x != nil {
-		return x.Context
-	}
-	return nil
-}
-
-func (x *AgentExecutionSuccessEvent_Payload) GetDurationMs() int64 {
+func (x *AgentExecutionSuccessEvent_Details) GetDurationMs() int64 {
 	if x != nil {
 		return x.DurationMs
 	}
 	return 0
 }
 
-type AgentExecutionFailedEvent_Payload struct {
+type AgentExecutionFailedEvent_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        AgentStatus            `protobuf:"varint,1,opt,name=status,proto3,enum=agent.AgentStatus" json:"status,omitempty"`
-	Result        *common.Result         `protobuf:"bytes,2,opt,name=result,proto3" json:"result,omitempty"`
-	Context       *structpb.Struct       `protobuf:"bytes,3,opt,name=context,proto3" json:"context,omitempty"`
-	DurationMs    int64                  `protobuf:"varint,4,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	Error         *common.ErrorResult    `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	DurationMs    int64                  `protobuf:"varint,3,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AgentExecutionFailedEvent_Payload) Reset() {
-	*x = AgentExecutionFailedEvent_Payload{}
+func (x *AgentExecutionFailedEvent_Details) Reset() {
+	*x = AgentExecutionFailedEvent_Details{}
 	mi := &file_agent_events_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AgentExecutionFailedEvent_Payload) String() string {
+func (x *AgentExecutionFailedEvent_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AgentExecutionFailedEvent_Payload) ProtoMessage() {}
+func (*AgentExecutionFailedEvent_Details) ProtoMessage() {}
 
-func (x *AgentExecutionFailedEvent_Payload) ProtoReflect() protoreflect.Message {
+func (x *AgentExecutionFailedEvent_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_agent_events_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -458,33 +441,26 @@ func (x *AgentExecutionFailedEvent_Payload) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AgentExecutionFailedEvent_Payload.ProtoReflect.Descriptor instead.
-func (*AgentExecutionFailedEvent_Payload) Descriptor() ([]byte, []int) {
+// Deprecated: Use AgentExecutionFailedEvent_Details.ProtoReflect.Descriptor instead.
+func (*AgentExecutionFailedEvent_Details) Descriptor() ([]byte, []int) {
 	return file_agent_events_proto_rawDescGZIP(), []int{2, 0}
 }
 
-func (x *AgentExecutionFailedEvent_Payload) GetStatus() AgentStatus {
+func (x *AgentExecutionFailedEvent_Details) GetStatus() AgentStatus {
 	if x != nil {
 		return x.Status
 	}
 	return AgentStatus_AGENT_STATUS_UNSPECIFIED
 }
 
-func (x *AgentExecutionFailedEvent_Payload) GetResult() *common.Result {
+func (x *AgentExecutionFailedEvent_Details) GetError() *common.ErrorResult {
 	if x != nil {
-		return x.Result
+		return x.Error
 	}
 	return nil
 }
 
-func (x *AgentExecutionFailedEvent_Payload) GetContext() *structpb.Struct {
-	if x != nil {
-		return x.Context
-	}
-	return nil
-}
-
-func (x *AgentExecutionFailedEvent_Payload) GetDurationMs() int64 {
+func (x *AgentExecutionFailedEvent_Details) GetDurationMs() int64 {
 	if x != nil {
 		return x.DurationMs
 	}
@@ -495,39 +471,36 @@ var File_agent_events_proto protoreflect.FileDescriptor
 
 const file_agent_events_proto_rawDesc = "" +
 	"\n" +
-	"\x12agent/events.proto\x12\x05agent\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x14common/payload.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xfa\x02\n" +
+	"\x12agent/events.proto\x12\x05agent\x1a\x14common/details.proto\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xc7\x02\n" +
 	"\x1aAgentExecutionStartedEvent\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
 	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12'\n" +
 	"\x05agent\x18\x04 \x01(\v2\x11.common.AgentInfoR\x05agent\x12C\n" +
-	"\apayload\x18\x05 \x01(\v2).agent.AgentExecutionStartedEvent.PayloadR\apayload\x1ah\n" +
-	"\aPayload\x12*\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x12.agent.AgentStatusR\x06status\x121\n" +
-	"\acontext\x18\x02 \x01(\v2\x17.google.protobuf.StructR\acontext\"\xc4\x03\n" +
+	"\adetails\x18\x05 \x01(\v2).agent.AgentExecutionStartedEvent.DetailsR\adetails\x1a5\n" +
+	"\aDetails\x12*\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x12.agent.AgentStatusR\x06status\"\x9a\x03\n" +
 	"\x1aAgentExecutionSuccessEvent\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
 	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12'\n" +
 	"\x05agent\x18\x04 \x01(\v2\x11.common.AgentInfoR\x05agent\x12C\n" +
-	"\apayload\x18\x05 \x01(\v2).agent.AgentExecutionSuccessEvent.PayloadR\apayload\x1a\xb1\x01\n" +
-	"\aPayload\x12*\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x12.agent.AgentStatusR\x06status\x12&\n" +
-	"\x06result\x18\x02 \x01(\v2\x0e.common.ResultR\x06result\x121\n" +
-	"\acontext\x18\x03 \x01(\v2\x17.google.protobuf.StructR\acontext\x12\x1f\n" +
-	"\vduration_ms\x18\x04 \x01(\x03R\n" +
-	"durationMs\"\xc2\x03\n" +
+	"\adetails\x18\x05 \x01(\v2).agent.AgentExecutionSuccessEvent.DetailsR\adetails\x1a\x87\x01\n" +
+	"\aDetails\x12*\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x12.agent.AgentStatusR\x06status\x12/\n" +
+	"\x06result\x18\x02 \x01(\v2\x17.google.protobuf.StructR\x06result\x12\x1f\n" +
+	"\vduration_ms\x18\x03 \x01(\x03R\n" +
+	"durationMs\"\x92\x03\n" +
 	"\x19AgentExecutionFailedEvent\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
 	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12'\n" +
 	"\x05agent\x18\x04 \x01(\v2\x11.common.AgentInfoR\x05agent\x12B\n" +
-	"\apayload\x18\x05 \x01(\v2(.agent.AgentExecutionFailedEvent.PayloadR\apayload\x1a\xb1\x01\n" +
-	"\aPayload\x12*\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x12.agent.AgentStatusR\x06status\x12&\n" +
-	"\x06result\x18\x02 \x01(\v2\x0e.common.ResultR\x06result\x121\n" +
-	"\acontext\x18\x03 \x01(\v2\x17.google.protobuf.StructR\acontext\x12\x1f\n" +
-	"\vduration_ms\x18\x04 \x01(\x03R\n" +
+	"\adetails\x18\x05 \x01(\v2(.agent.AgentExecutionFailedEvent.DetailsR\adetails\x1a\x81\x01\n" +
+	"\aDetails\x12*\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x12.agent.AgentStatusR\x06status\x12)\n" +
+	"\x05error\x18\x02 \x01(\v2\x13.common.ErrorResultR\x05error\x12\x1f\n" +
+	"\vduration_ms\x18\x03 \x01(\x03R\n" +
 	"durationMs*x\n" +
 	"\vAgentStatus\x12\x1c\n" +
 	"\x18AGENT_STATUS_UNSPECIFIED\x10\x00\x12\x18\n" +
@@ -554,45 +527,42 @@ var file_agent_events_proto_goTypes = []any{
 	(*AgentExecutionStartedEvent)(nil),         // 1: agent.AgentExecutionStartedEvent
 	(*AgentExecutionSuccessEvent)(nil),         // 2: agent.AgentExecutionSuccessEvent
 	(*AgentExecutionFailedEvent)(nil),          // 3: agent.AgentExecutionFailedEvent
-	(*AgentExecutionStartedEvent_Payload)(nil), // 4: agent.AgentExecutionStartedEvent.Payload
-	(*AgentExecutionSuccessEvent_Payload)(nil), // 5: agent.AgentExecutionSuccessEvent.Payload
-	(*AgentExecutionFailedEvent_Payload)(nil),  // 6: agent.AgentExecutionFailedEvent.Payload
+	(*AgentExecutionStartedEvent_Details)(nil), // 4: agent.AgentExecutionStartedEvent.Details
+	(*AgentExecutionSuccessEvent_Details)(nil), // 5: agent.AgentExecutionSuccessEvent.Details
+	(*AgentExecutionFailedEvent_Details)(nil),  // 6: agent.AgentExecutionFailedEvent.Details
 	(*common.Metadata)(nil),                    // 7: common.Metadata
 	(*common.WorkflowInfo)(nil),                // 8: common.WorkflowInfo
 	(*common.TaskInfo)(nil),                    // 9: common.TaskInfo
 	(*common.AgentInfo)(nil),                   // 10: common.AgentInfo
 	(*structpb.Struct)(nil),                    // 11: google.protobuf.Struct
-	(*common.Result)(nil),                      // 12: common.Result
+	(*common.ErrorResult)(nil),                 // 12: common.ErrorResult
 }
 var file_agent_events_proto_depIdxs = []int32{
 	7,  // 0: agent.AgentExecutionStartedEvent.metadata:type_name -> common.Metadata
 	8,  // 1: agent.AgentExecutionStartedEvent.workflow:type_name -> common.WorkflowInfo
 	9,  // 2: agent.AgentExecutionStartedEvent.task:type_name -> common.TaskInfo
 	10, // 3: agent.AgentExecutionStartedEvent.agent:type_name -> common.AgentInfo
-	4,  // 4: agent.AgentExecutionStartedEvent.payload:type_name -> agent.AgentExecutionStartedEvent.Payload
+	4,  // 4: agent.AgentExecutionStartedEvent.details:type_name -> agent.AgentExecutionStartedEvent.Details
 	7,  // 5: agent.AgentExecutionSuccessEvent.metadata:type_name -> common.Metadata
 	8,  // 6: agent.AgentExecutionSuccessEvent.workflow:type_name -> common.WorkflowInfo
 	9,  // 7: agent.AgentExecutionSuccessEvent.task:type_name -> common.TaskInfo
 	10, // 8: agent.AgentExecutionSuccessEvent.agent:type_name -> common.AgentInfo
-	5,  // 9: agent.AgentExecutionSuccessEvent.payload:type_name -> agent.AgentExecutionSuccessEvent.Payload
+	5,  // 9: agent.AgentExecutionSuccessEvent.details:type_name -> agent.AgentExecutionSuccessEvent.Details
 	7,  // 10: agent.AgentExecutionFailedEvent.metadata:type_name -> common.Metadata
 	8,  // 11: agent.AgentExecutionFailedEvent.workflow:type_name -> common.WorkflowInfo
 	9,  // 12: agent.AgentExecutionFailedEvent.task:type_name -> common.TaskInfo
 	10, // 13: agent.AgentExecutionFailedEvent.agent:type_name -> common.AgentInfo
-	6,  // 14: agent.AgentExecutionFailedEvent.payload:type_name -> agent.AgentExecutionFailedEvent.Payload
-	0,  // 15: agent.AgentExecutionStartedEvent.Payload.status:type_name -> agent.AgentStatus
-	11, // 16: agent.AgentExecutionStartedEvent.Payload.context:type_name -> google.protobuf.Struct
-	0,  // 17: agent.AgentExecutionSuccessEvent.Payload.status:type_name -> agent.AgentStatus
-	12, // 18: agent.AgentExecutionSuccessEvent.Payload.result:type_name -> common.Result
-	11, // 19: agent.AgentExecutionSuccessEvent.Payload.context:type_name -> google.protobuf.Struct
-	0,  // 20: agent.AgentExecutionFailedEvent.Payload.status:type_name -> agent.AgentStatus
-	12, // 21: agent.AgentExecutionFailedEvent.Payload.result:type_name -> common.Result
-	11, // 22: agent.AgentExecutionFailedEvent.Payload.context:type_name -> google.protobuf.Struct
-	23, // [23:23] is the sub-list for method output_type
-	23, // [23:23] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	6,  // 14: agent.AgentExecutionFailedEvent.details:type_name -> agent.AgentExecutionFailedEvent.Details
+	0,  // 15: agent.AgentExecutionStartedEvent.Details.status:type_name -> agent.AgentStatus
+	0,  // 16: agent.AgentExecutionSuccessEvent.Details.status:type_name -> agent.AgentStatus
+	11, // 17: agent.AgentExecutionSuccessEvent.Details.result:type_name -> google.protobuf.Struct
+	0,  // 18: agent.AgentExecutionFailedEvent.Details.status:type_name -> agent.AgentStatus
+	12, // 19: agent.AgentExecutionFailedEvent.Details.error:type_name -> common.ErrorResult
+	20, // [20:20] is the sub-list for method output_type
+	20, // [20:20] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_agent_events_proto_init() }

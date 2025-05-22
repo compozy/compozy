@@ -5,29 +5,31 @@ import (
 
 	"github.com/compozy/compozy/engine/common"
 	pbcommon "github.com/compozy/compozy/pkg/pb/common"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
-func SetResultData(state *BaseState, res *pbcommon.Result) {
-	if res == nil {
+func SetResultError(state *BaseState, err *pbcommon.ErrorResult) {
+	if err == nil {
 		return
 	}
-	if res.GetError() != nil {
-		state.Output = nil
-		errorRes := res.GetError()
-		state.Error = &Error{
-			Message: errorRes.GetMessage(),
-		}
-		if errorRes.GetCode() != "" {
-			state.Error.Code = errorRes.GetCode()
-		}
-		if errorRes.GetDetails() != nil {
-			state.Error.Details = errorRes.GetDetails().AsMap()
-		}
-	} else if res.GetOutput() != nil {
-		state.Error = nil
-
-		output := &common.Output{}
-		maps.Copy((*output), res.GetOutput().AsMap())
-		state.Output = output
+	state.Output = nil
+	state.Error = &Error{
+		Message: err.GetMessage(),
 	}
+	if err.GetCode() != "" {
+		state.Error.Code = err.GetCode()
+	}
+	if err.GetDetails() != nil {
+		state.Error.Details = err.GetDetails().AsMap()
+	}
+}
+
+func SetResultData(state *BaseState, output *structpb.Struct) {
+	if output == nil {
+		return
+	}
+	state.Error = nil
+	res := &common.Output{}
+	maps.Copy((*res), output.AsMap())
+	state.Output = res
 }

@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package tool;
 
+import "common/details.proto";
 import "common/entities.proto";
 import "common/metadata.proto";
-import "common/payload.proto";
 import "google/protobuf/struct.proto";
 
 option go_package = "github.com/compozy/compozy/pkg/pb/tool";
@@ -26,11 +26,10 @@ message ToolExecutionStartedEvent {
   common.TaskInfo task = 3;
   common.ToolInfo tool = 4;
 
-  message Payload {
+  message Details {
     ToolStatus status = 1;
-    google.protobuf.Struct context = 2;
   }
-  Payload payload = 5;
+  Details details = 5;
 }
 
 // -----------------------------------------------------------------------------
@@ -43,13 +42,12 @@ message ToolExecutionSuccessEvent {
   common.TaskInfo task = 3;
   common.ToolInfo tool = 4;
 
-  message Payload {
+  message Details {
     ToolStatus status = 1;
-    common.Result result = 2;
-    google.protobuf.Struct context = 3;
-    int64 duration_ms = 4;
+    google.protobuf.Struct result = 2;
+    int64 duration_ms = 3;
   }
-  Payload payload = 5;
+  Details details = 5;
 }
 
 // -----------------------------------------------------------------------------
@@ -62,11 +60,10 @@ message ToolExecutionFailedEvent {
   common.TaskInfo task = 3;
   common.ToolInfo tool = 4;
 
-  message Payload {
+  message Details {
     ToolStatus status = 1;
-    common.Result result = 2;
-    google.protobuf.Struct context = 3;
-    int64 duration_ms = 4;
+    common.ErrorResult error = 2;
+    int64 duration_ms = 3;
   }
-  Payload payload = 5;
+  Details details = 5;
 }

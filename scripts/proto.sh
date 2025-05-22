@@ -3,7 +3,7 @@ set -euo pipefail # Exit on error, undefined variable, or pipe failure
 
 # Script arguments with defaults
 PROTO_SRC_DIR="${1:-"./proto"}"
-GO_OUT_DIR="${2:-"./pkg/pb"}"
+PROTO_OUT_DIR="${2:-"./pkg/pb"}"
 GO_MODULE_NAME="${3:-"github.com/compozy/compozy"}"
 
 # Validate inputs
@@ -12,15 +12,15 @@ if [[ ! -d "$PROTO_SRC_DIR" ]]; then
     exit 1
 fi
 if [[ -z "$GO_MODULE_NAME" ]]; then
-    echo "Error: Go module name cannot be empty" >&2
+    echo "Error: Go module path cannot be empty" >&2
     exit 1
 fi
 
 # Print configuration
 echo "=== Protobuf Generation Script ==="
 echo "Proto Source Directory: $PROTO_SRC_DIR"
-echo "Go Output Directory:    $GO_OUT_DIR"
-echo "Go Module Name:         $GO_MODULE_NAME"
+echo "Go Output Directory:    $PROTO_OUT_DIR"
+echo "Go Module Path:         $GO_MODULE_NAME"
 echo "Working Directory:      $(pwd)"
 echo "================================="
 
@@ -31,12 +31,12 @@ if ! command -v protoc &>/dev/null; then
 fi
 
 # Create output directory
-mkdir -p "$GO_OUT_DIR" || {
-    echo "Error: Failed to create output directory '$GO_OUT_DIR'" >&2
+mkdir -p "$PROTO_OUT_DIR" || {
+    echo "Error: Failed to create output directory '$PROTO_OUT_DIR'" >&2
     exit 1
 }
 
-echo "Generating protobufs from $PROTO_SRC_DIR to $GO_OUT_DIR..."
+echo "Generating protobufs from $PROTO_SRC_DIR to $PROTO_OUT_DIR..."
 
 # Find all proto files
 PROTO_FILES=$(find "$PROTO_SRC_DIR" -name "*.proto")

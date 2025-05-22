@@ -5,6 +5,7 @@ import (
 	"maps"
 
 	"dario.cat/mergo"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type (
@@ -50,6 +51,14 @@ func (i *Input) ToProtoBufMap() (map[string]any, error) {
 	return DefaultToProtoMap(*i)
 }
 
+func (i *Input) ToStruct() (*structpb.Struct, error) {
+	m, err := i.ToProtoBufMap()
+	if err != nil {
+		return nil, err
+	}
+	return structpb.NewStruct(m)
+}
+
 // -----------------------------------------------------------------------------
 // Output
 // -----------------------------------------------------------------------------
@@ -77,4 +86,12 @@ func (o *Output) Set(key string, value any) {
 
 func (o *Output) ToProtoBufMap() (map[string]any, error) {
 	return DefaultToProtoMap(*o)
+}
+
+func (o *Output) ToStruct() (*structpb.Struct, error) {
+	m, err := o.ToProtoBufMap()
+	if err != nil {
+		return nil, err
+	}
+	return structpb.NewStruct(m)
 }

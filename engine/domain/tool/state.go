@@ -90,18 +90,12 @@ func (s *State) handleStartedEvent(_ *pb.ToolExecutionStartedEvent) error {
 
 func (s *State) handleSuccessEvent(evt *pb.ToolExecutionSuccessEvent) error {
 	s.Status = nats.StatusSuccess
-	if evt.GetPayload() == nil || evt.GetPayload().GetResult() == nil {
-		return nil
-	}
-	state.SetResultData(&s.BaseState, evt.GetPayload().GetResult())
+	state.SetResultData(&s.BaseState, evt.GetDetails().GetResult())
 	return nil
 }
 
 func (s *State) handleFailedEvent(evt *pb.ToolExecutionFailedEvent) error {
 	s.Status = nats.StatusFailed
-	if evt.GetPayload() == nil || evt.GetPayload().GetResult() == nil {
-		return nil
-	}
-	state.SetResultData(&s.BaseState, evt.GetPayload().GetResult())
+	state.SetResultError(&s.BaseState, evt.GetDetails().GetError())
 	return nil
 }

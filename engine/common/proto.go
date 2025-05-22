@@ -8,6 +8,7 @@ import (
 
 type ProtoObj interface {
 	ToProtoBufMap() (map[string]any, error)
+	ToStruct() structpb.Struct
 }
 
 func AssignProto(m map[string]any, key string, val ProtoObj) error {

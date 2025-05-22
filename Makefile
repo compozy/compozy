@@ -15,8 +15,8 @@ SRC_DIRS=./...
 # Protobuf Generation
 # -----------------------------------------------------------------------------
 PROTO_DIR=./proto
-PROTO_OUT_DIR=./pkg/proto/go
-GO_MODULE_PATH := $(shell go list -m)
+PROTO_OUT_DIR=./pkg/pb
+GO_MODULE_NAME := $(shell go list -m)
 EVENT_PROTO_FILES=$(shell find $(PROTO_DIR) -path '*/events/*.proto')
 COMMAND_PROTO_FILES=$(shell find $(PROTO_DIR) -path '*/cmds/*.proto')
 COMMON_PROTO_FILES=$(shell find $(PROTO_DIR)/common -name '*.proto')
@@ -31,7 +31,6 @@ all: proto test lint fmt
 
 clean:
 	rm -rf $(BINARY_DIR)/
-	rm -rf $(PROTO_OUT_DIR)/
 	$(GOCMD) clean
 
 build: proto
@@ -80,7 +79,7 @@ proto-deps:
 proto:
 	@echo "Generating Go code from protobuf definitions via script..."
 	@chmod +x scripts/proto.sh
-	@bash scripts/proto.sh "$(PROTO_DIR)" "$(PROTO_OUT_DIR)" "$(GO_MODULE_PATH)"
+	@bash scripts/proto.sh "$(PROTO_DIR)" "$(PROTO_OUT_DIR)" "$(GO_MODULE_NAME)"
 
 # -----------------------------------------------------------------------------
 # Schema Generation

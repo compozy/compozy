@@ -6,15 +6,14 @@ import "google/protobuf/timestamp.proto";
 option go_package = "github.com/compozy/compozy/pkg/pb/common";
 
 message State {
-    // Represent the string version of State.ID (<component>:<corr_id>:<exec_id>)
-    string id = 1;
-    optional string parent_id = 2;
+  // Represent the string version of State.ID (<component>:<corr_id>:<exec_id>)
+  string id = 1;
+  optional string parent_id = 2;
 }
 
 message Metadata {
   string correlation_id = 1;
-  string source_component = 2;
-  google.protobuf.Timestamp created_at = 3;
-  optional google.protobuf.Timestamp ended_at = 4;
-  State state = 5;
+  string source = 2;
+  google.protobuf.Timestamp time = 3;
+  State state = 4;
 }

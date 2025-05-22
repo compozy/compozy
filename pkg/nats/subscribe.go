@@ -27,9 +27,6 @@ func DefaultSubscribeOpts(consumer jetstream.Consumer) SubscribeOpts {
 	}
 }
 
-// SubscribeConsumer starts a goroutine to consume messages from a NATS consumer
-// and returns a channel that will receive errors if they occur.
-// The goroutine will continue running until the context is canceled.
 func SubscribeConsumer(ctx context.Context, handler MessageHandler, opts SubscribeOpts) chan error {
 	errCh := make(chan error, 1)
 	go func() {
@@ -74,7 +71,7 @@ func SubscribeConsumer(ctx context.Context, handler MessageHandler, opts Subscri
 					if err := msg.Ack(); err != nil {
 						logger.Error("Failed to ack message", "subject", subject, "error", err)
 					} else {
-						logger.Info("Processed message", "subject", subject)
+						logger.Debug("Processed NATS message", "subject", subject)
 					}
 				}
 

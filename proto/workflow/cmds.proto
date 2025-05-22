@@ -16,10 +16,10 @@ message WorkflowTriggerCommand {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 
-  message Payload {
-    google.protobuf.Struct context = 1;
+  message Details {
+    google.protobuf.Struct trigger_input = 1;
   }
-  Payload payload = 3;
+  Details details = 3;
 }
 
 // -----------------------------------------------------------------------------
@@ -30,10 +30,12 @@ message WorkflowExecuteCommand {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 
-  message Payload {
-    google.protobuf.Struct context = 1;
+  message Details {
+    google.protobuf.Struct trigger_input = 1;
+    optional string task_id = 2;
+    optional bool final_task = 3;
   }
-  Payload payload = 3;
+  Details details = 3;
 }
 
 // -----------------------------------------------------------------------------
@@ -43,11 +45,6 @@ message WorkflowExecuteCommand {
 message WorkflowPauseCommand {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
-
-  message Payload {
-    google.protobuf.Struct context = 1;
-  }
-  Payload payload = 3;
 }
 
 // -----------------------------------------------------------------------------
@@ -57,11 +54,6 @@ message WorkflowPauseCommand {
 message WorkflowResumeCommand {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
-
-  message Payload {
-    google.protobuf.Struct context = 1;
-  }
-  Payload payload = 3;
 }
 
 // -----------------------------------------------------------------------------
@@ -71,9 +63,4 @@ message WorkflowResumeCommand {
 message WorkflowCancelCommand {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
-
-  message Payload {
-    google.protobuf.Struct context = 1;
-  }
-  Payload payload = 3;
 }

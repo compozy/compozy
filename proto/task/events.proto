@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package task;
 
+import "common/details.proto";
 import "common/entities.proto";
 import "common/metadata.proto";
-import "common/payload.proto";
 import "google/protobuf/struct.proto";
 
 option go_package = "github.com/compozy/compozy/pkg/pb/task";
@@ -29,11 +29,10 @@ message TaskDispatchedEvent {
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;
 
-  message Payload {
+  message Details {
     TaskStatus status = 1;
-    google.protobuf.Struct context = 2;
   }
-  Payload payload = 4;
+  Details details = 4;
 }
 
 // -----------------------------------------------------------------------------
@@ -45,11 +44,10 @@ message TaskExecutionStartedEvent {
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;
 
-  message Payload {
+  message Details {
     TaskStatus status = 1;
-    google.protobuf.Struct context = 2;
   }
-  Payload payload = 4;
+  Details details = 4;
 }
 
 // -----------------------------------------------------------------------------
@@ -61,11 +59,10 @@ message TaskExecutionWaitingStartedEvent {
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;
 
-  message Payload {
+  message Details {
     TaskStatus status = 1;
-    google.protobuf.Struct context = 2;
   }
-  Payload payload = 4;
+  Details details = 4;
 }
 
 // -----------------------------------------------------------------------------
@@ -77,12 +74,11 @@ message TaskExecutionWaitingEndedEvent {
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;
 
-  message Payload {
+  message Details {
     TaskStatus status = 1;
-    google.protobuf.Struct context = 2;
-    int64 duration_ms = 3;
+    int64 duration_ms = 2;
   }
-  Payload payload = 4;
+  Details details = 4;
 }
 
 // -----------------------------------------------------------------------------
@@ -94,13 +90,12 @@ message TaskExecutionWaitingTimedOutEvent {
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;
 
-  message Payload {
+  message Details {
     TaskStatus status = 1;
-    common.Result result = 2;
-    google.protobuf.Struct context = 3;
-    int64 duration_ms = 4;
+    common.ErrorResult error = 2;
+    int64 duration_ms = 3;
   }
-  Payload payload = 5;
+  Details details = 4;
 }
 
 // -----------------------------------------------------------------------------
@@ -112,13 +107,12 @@ message TaskExecutionSuccessEvent {
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;
 
-  message Payload {
+  message Details {
     TaskStatus status = 1;
-    common.Result result = 2;
-    google.protobuf.Struct context = 3;
-    int64 duration_ms = 4;
+    google.protobuf.Struct result = 2;
+    int64 duration_ms = 3;
   }
-  Payload payload = 4;
+  Details details = 4;
 }
 
 // -----------------------------------------------------------------------------
@@ -130,11 +124,10 @@ message TaskExecutionFailedEvent {
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;
 
-  message Payload {
+  message Details {
     TaskStatus status = 1;
-    common.Result result = 2;
-    google.protobuf.Struct context = 3;
-    int64 duration_ms = 4;
+    common.ErrorResult error = 2;
+    int64 duration_ms = 3;
   }
-  Payload payload = 4;
+  Details details = 4;
 }

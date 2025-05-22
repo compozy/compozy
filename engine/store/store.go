@@ -41,25 +41,20 @@ func WithPrefixes(prefixes Prefixes) Option {
 
 func NewStore(dataPath string, opts ...Option) (*Store, error) {
 	dataPath = filepath.Clean(dataPath)
-
 	badgerOpts := badger.DefaultOptions(dataPath)
 	badgerOpts.Logger = nil // Disable default BadgerDB logger
-
 	db, err := badger.Open(badgerOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open BadgerDB at %s: %w", dataPath, err)
 	}
-
 	store := &Store{
 		db:       db,
 		prefixes: DefaultPrefixes,
 		dataDir:  dataPath,
 	}
-
 	for _, opt := range opts {
 		opt(store)
 	}
-
 	return store, nil
 }
 
@@ -109,7 +104,7 @@ func (s *Store) stateKey(id state.ID) []byte {
 		prefix = "unknown:"
 	}
 
-	return fmt.Appendf(nil, "%s%s", prefix, id.String())
+	return fmt.Appendf(nil, "%s_%s", prefix, id.String())
 }
 
 func (s *Store) getPrefixForComponent(componentType nats.ComponentType) (string, error) {
@@ -194,43 +189,34 @@ func (s *Store) getStatesWithFilter(
 	if err != nil {
 		return nil, err
 	}
-
 	prefixBytes := []byte(prefix)
 	var states []state.State
-
 	err = s.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchSize = 10
-
 		it := txn.NewIterator(opts)
 		defer it.Close()
-
 		for it.Seek(prefixBytes); it.ValidForPrefix(prefixBytes); it.Next() {
 			item := it.Item()
-
 			err := item.Value(func(val []byte) error {
 				var state state.BaseState
 				if err := json.Unmarshal(val, &state); err != nil {
 					return fmt.Errorf("failed to unmarshal state: %w", err)
 				}
-
 				if filter == nil || filter(&state) {
 					states = append(states, &state)
 				}
-
 				return nil
 			})
 			if err != nil {
 				return err
 			}
 		}
-
 		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to query states: %w", err)
 	}
-
 	return states, nil
 }
 

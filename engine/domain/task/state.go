@@ -64,8 +64,6 @@ func NewTaskState(exec *Execution) (*State, error) {
 	return st, nil
 }
 
-// UpdateFromEvent updates the task state based on the event type
-// It updates both the status and output data from the event
 func (s *State) UpdateFromEvent(event any) error {
 	switch evt := event.(type) {
 	case *pb.TaskDispatchedEvent:
@@ -109,27 +107,18 @@ func (s *State) handleWaitingEndedEvent(_ *pb.TaskExecutionWaitingEndedEvent) er
 
 func (s *State) handleWaitingTimedOutEvent(evt *pb.TaskExecutionWaitingTimedOutEvent) error {
 	s.Status = nats.StatusTimedOut
-	if evt.GetPayload() == nil || evt.GetPayload().GetResult() == nil {
-		return nil
-	}
-	state.SetResultData(&s.BaseState, evt.GetPayload().GetResult())
+	state.SetResultError(&s.BaseState, evt.GetDetails().GetError())
 	return nil
 }
 
 func (s *State) handleSuccessEvent(evt *pb.TaskExecutionSuccessEvent) error {
 	s.Status = nats.StatusSuccess
-	if evt.GetPayload() == nil || evt.GetPayload().GetResult() == nil {
-		return nil
-	}
-	state.SetResultData(&s.BaseState, evt.GetPayload().GetResult())
+	state.SetResultData(&s.BaseState, evt.GetDetails().GetResult())
 	return nil
 }
 
 func (s *State) handleFailedEvent(evt *pb.TaskExecutionFailedEvent) error {
 	s.Status = nats.StatusFailed
-	if evt.GetPayload() == nil || evt.GetPayload().GetResult() == nil {
-		return nil
-	}
-	state.SetResultData(&s.BaseState, evt.GetPayload().GetResult())
+	state.SetResultError(&s.BaseState, evt.GetDetails().GetError())
 	return nil
 }

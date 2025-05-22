@@ -330,10 +330,8 @@ func TestToolStateUpdateFromEvent(t *testing.T) {
 				Id:     "workflow-id",
 				ExecId: workflowExecID.String(),
 			},
-			Payload: &pbtool.ToolExecutionSuccessEvent_Payload{
-				Result: &pbcommon.Result{
-					Output: resultData,
-				},
+			Details: &pbtool.ToolExecutionSuccessEvent_Details{
+				Result: resultData,
 			},
 		}
 
@@ -426,13 +424,11 @@ func TestToolStateUpdateFromEvent(t *testing.T) {
 				Id:     "workflow-id",
 				ExecId: workflowExecID.String(),
 			},
-			Payload: &pbtool.ToolExecutionFailedEvent_Payload{
-				Result: &pbcommon.Result{
-					Error: &pbcommon.ErrorResult{
-						Message: "Tool execution failed",
-						Code:    &errorCode,
-						Details: errorDetails,
-					},
+			Details: &pbtool.ToolExecutionFailedEvent_Details{
+				Error: &pbcommon.ErrorResult{
+					Message: "Tool execution failed",
+					Code:    &errorCode,
+					Details: errorDetails,
 				},
 			},
 		}

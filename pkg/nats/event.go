@@ -18,7 +18,7 @@ type Event interface {
 	GetTask() *common.TaskInfo
 	GetAgent() *common.AgentInfo
 	GetTool() *common.ToolInfo
-	GetPayload() EventPayload
+	GetDetails() EventPayload
 }
 
 type EventPayload interface {

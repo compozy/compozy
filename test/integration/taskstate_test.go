@@ -250,10 +250,8 @@ func TestTaskStateUpdateFromEvent(t *testing.T) {
 				Id:     "workflow-id",
 				ExecId: workflowExecID.String(),
 			},
-			Payload: &pbtask.TaskExecutionSuccessEvent_Payload{
-				Result: &pbcommon.Result{
-					Output: resultData,
-				},
+			Details: &pbtask.TaskExecutionSuccessEvent_Details{
+				Result: resultData,
 			},
 		}
 
@@ -334,13 +332,11 @@ func TestTaskStateUpdateFromEvent(t *testing.T) {
 				Id:     "workflow-id",
 				ExecId: workflowExecID.String(),
 			},
-			Payload: &pbtask.TaskExecutionFailedEvent_Payload{
-				Result: &pbcommon.Result{
-					Error: &pbcommon.ErrorResult{
-						Message: "Task execution failed",
-						Code:    &errorCode,
-						Details: errorDetails,
-					},
+			Details: &pbtask.TaskExecutionFailedEvent_Details{
+				Error: &pbcommon.ErrorResult{
+					Message: "Task execution failed",
+					Code:    &errorCode,
+					Details: errorDetails,
 				},
 			},
 		}
@@ -410,6 +406,7 @@ func TestTaskStateUpdateFromEvent(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create timeout event with result
+		errorCode := "ERR_TASK_WAITING_TIMED_OUT"
 		event := &pbtask.TaskExecutionWaitingTimedOutEvent{
 			Metadata: &pbcommon.Metadata{
 				CorrelationId: corrID.String(),
@@ -422,9 +419,11 @@ func TestTaskStateUpdateFromEvent(t *testing.T) {
 				Id:     "workflow-id",
 				ExecId: workflowExecID.String(),
 			},
-			Payload: &pbtask.TaskExecutionWaitingTimedOutEvent_Payload{
-				Result: &pbcommon.Result{
-					Output: resultData,
+			Details: &pbtask.TaskExecutionWaitingTimedOutEvent_Details{
+				Error: &pbcommon.ErrorResult{
+					Message: "waiting condition not satisfied",
+					Code:    &errorCode,
+					Details: resultData,
 				},
 			},
 		}
@@ -437,10 +436,11 @@ func TestTaskStateUpdateFromEvent(t *testing.T) {
 		assert.Equal(t, nats.StatusTimedOut, newTaskState.Status)
 
 		// Verify output update
-		require.NotNil(t, newTaskState.Output)
-		assert.Equal(t, "waiting condition not satisfied", (*newTaskState.Output)["reason"])
-		assert.Equal(t, float64(30000), (*newTaskState.Output)["timeout_ms"])
-		assert.Equal(t, "max retry attempts exceeded", (*newTaskState.Output)["details"])
+		require.NotNil(t, newTaskState.Error)
+		assert.Equal(t, "waiting condition not satisfied", newTaskState.Error.Message)
+		assert.Equal(t, errorCode, newTaskState.Error.Code)
+		assert.Equal(t, float64(30000), newTaskState.Error.Details["timeout_ms"])
+		assert.Equal(t, "max retry attempts exceeded", newTaskState.Error.Details["details"])
 
 		// Save and verify
 		err = stateManager.SaveState(newTaskState)

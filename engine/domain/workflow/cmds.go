@@ -9,9 +9,12 @@ import (
 	pbcommon "github.com/compozy/compozy/pkg/pb/common"
 	pbwf "github.com/compozy/compozy/pkg/pb/workflow"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/structpb"
 	timepb "google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// -----------------------------------------------------------------------------
+// Trigger Workflow
+// -----------------------------------------------------------------------------
 
 type TriggerWorkflowResponse struct {
 	CorrID     common.ID `json:"correlation_id"`
@@ -19,41 +22,41 @@ type TriggerWorkflowResponse struct {
 	ExecID     common.ID `json:"execution_id"`
 }
 
-func TriggerWorkflow(wfID common.ID, natsClient *nats.Client, ex *Execution) (*TriggerWorkflowResponse, error) {
+func SendTrigger(wfID common.ID, natsClient *nats.Client, st *State) (*TriggerWorkflowResponse, error) {
+	ex := st.Exec()
 	corrID := ex.CorrID
 	execID := ex.WorkflowExecID
 	logger.With(
 		"workflow_id", wfID,
 		"execution_id", execID,
 		"correlation_id", corrID,
-	).Info("Sending WorkflowTriggerCommand")
+	).Debug("Sending WorkflowTriggerCommand")
 
-	exMap, err := ex.ToProtoBufMap()
+	tgInput, err := st.GetTrigger().ToStruct()
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert execution to protobuf map: %w", err)
-	}
-	ctx, err := structpb.NewStruct(exMap)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create payload context: %w", err)
+		return nil, fmt.Errorf("failed to convert trigger to struct: %w", err)
 	}
 
 	payload := pbwf.WorkflowTriggerCommand{
 		Metadata: &pbcommon.Metadata{
-			CorrelationId:   corrID.String(),
-			SourceComponent: "engine.Orchestrator",
-			CreatedAt:       timepb.Now(),
+			CorrelationId: corrID.String(),
+			Source:        "engine.Orchestrator",
+			Time:          timepb.Now(),
+			State: &pbcommon.State{
+				Id: st.GetID().String(),
+			},
 		},
 		Workflow: &pbcommon.WorkflowInfo{
 			Id:     wfID.String(),
 			ExecId: execID.String(),
 		},
-		Payload: &pbwf.WorkflowTriggerCommand_Payload{
-			Context: ctx,
+		Details: &pbwf.WorkflowTriggerCommand_Details{
+			TriggerInput: tgInput,
 		},
 	}
 	data, err := proto.Marshal(&payload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal workflow trigger command: %w", err)
+		return nil, fmt.Errorf("failed to marshal WorkflowTriggerCommand: %w", err)
 	}
 
 	nc := natsClient.Conn()
@@ -63,7 +66,7 @@ func TriggerWorkflow(wfID common.ID, natsClient *nats.Client, ex *Execution) (*T
 	}
 	_, err = js.Publish(payload.ToSubject(), data)
 	if err != nil {
-		return nil, fmt.Errorf("failed to publish workflow trigger command to JetStream: %w", err)
+		return nil, fmt.Errorf("failed to publish WorkflowTriggerCommand to JetStream: %w", err)
 	}
 
 	return &TriggerWorkflowResponse{
@@ -71,4 +74,48 @@ func TriggerWorkflow(wfID common.ID, natsClient *nats.Client, ex *Execution) (*T
 		WorkflowID: wfID,
 		ExecID:     execID,
 	}, nil
+}
+
+// -----------------------------------------------------------------------------
+// Execute Workflow
+// -----------------------------------------------------------------------------
+
+func SendExecute(natsClient *nats.Client, cmd *pbwf.WorkflowTriggerCommand) error {
+	wfID := common.ID(cmd.GetWorkflow().Id)
+	corrID := common.ID(cmd.GetMetadata().CorrelationId)
+	execID := common.ID(cmd.GetWorkflow().ExecId)
+	logger.With(
+		"workflow_id", wfID,
+		"execution_id", execID,
+		"correlation_id", corrID,
+	).Debug("Sending WorkflowExecuteCommand")
+
+	payload := pbwf.WorkflowExecuteCommand{
+		Metadata: &pbcommon.Metadata{
+			CorrelationId: corrID.String(),
+			Source:        "engine.Orchestrator",
+			Time:          timepb.Now(),
+			State:         cmd.GetMetadata().State,
+		},
+		Workflow: cmd.GetWorkflow(),
+		Details: &pbwf.WorkflowExecuteCommand_Details{
+			TriggerInput: cmd.GetDetails().GetTriggerInput(),
+		},
+	}
+	data, err := proto.Marshal(&payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal WorkflowExecuteCommand: %w", err)
+	}
+
+	nc := natsClient.Conn()
+	js, err := nc.JetStream()
+	if err != nil {
+		return fmt.Errorf("failed to get JetStream context: %w", err)
+	}
+	_, err = js.Publish(payload.ToSubject(), data)
+	if err != nil {
+		return fmt.Errorf("failed to publish WorkflowExecuteCommand to JetStream: %w", err)
+	}
+
+	return nil
 }

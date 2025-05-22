@@ -33,8 +33,8 @@ func (wi *StateInitializer) Initialize() (*State, error) {
 		Error:   nil,
 	}
 	st := &State{
-		BaseState:      *bsState,
-		WorkflowExecID: wi.WorkflowExecID,
+		BaseState: *bsState,
+		execution: wi.Execution,
 	}
 	if err := wi.Normalizer.ParseTemplates(st); err != nil {
 		return nil, err
@@ -48,7 +48,7 @@ func (wi *StateInitializer) Initialize() (*State, error) {
 
 type State struct {
 	state.BaseState
-	WorkflowExecID common.ID `json:"workflow_exec_id,omitempty"`
+	execution *Execution `json:"-"`
 }
 
 func NewState(exec *Execution) (*State, error) {
@@ -61,6 +61,10 @@ func NewState(exec *Execution) (*State, error) {
 		return nil, fmt.Errorf("failed to initialize workflow state: %w", err)
 	}
 	return st, nil
+}
+
+func (s *State) Exec() *Execution {
+	return s.execution
 }
 
 func (s *State) UpdateFromEvent(event any) error {
@@ -101,19 +105,13 @@ func (s *State) handleResumedEvent(_ *pb.WorkflowExecutionResumedEvent) error {
 
 func (s *State) handleSuccessEvent(evt *pb.WorkflowExecutionSuccessEvent) error {
 	s.Status = nats.StatusSuccess
-	if evt.GetPayload() == nil || evt.GetPayload().GetResult() == nil {
-		return nil
-	}
-	state.SetResultData(&s.BaseState, evt.GetPayload().GetResult())
+	state.SetResultData(&s.BaseState, evt.GetDetails().GetResult())
 	return nil
 }
 
 func (s *State) handleFailedEvent(evt *pb.WorkflowExecutionFailedEvent) error {
 	s.Status = nats.StatusFailed
-	if evt.GetPayload() == nil || evt.GetPayload().GetResult() == nil {
-		return nil
-	}
-	state.SetResultData(&s.BaseState, evt.GetPayload().GetResult())
+	state.SetResultError(&s.BaseState, evt.GetDetails().GetError())
 	return nil
 }
 
@@ -124,9 +122,6 @@ func (s *State) handleCanceledEvent(_ *pb.WorkflowExecutionCanceledEvent) error 
 
 func (s *State) handleTimedOutEvent(evt *pb.WorkflowExecutionTimedOutEvent) error {
 	s.Status = nats.StatusTimedOut
-	if evt.GetPayload() == nil || evt.GetPayload().GetResult() == nil {
-		return nil
-	}
-	state.SetResultData(&s.BaseState, evt.GetPayload().GetResult())
+	state.SetResultError(&s.BaseState, evt.GetDetails().GetError())
 	return nil
 }

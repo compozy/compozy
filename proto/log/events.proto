@@ -4,7 +4,6 @@ package log;
 
 import "common/entities.proto";
 import "common/metadata.proto";
-import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/compozy/compozy/pkg/pb/log";
@@ -24,13 +23,12 @@ message LogEmittedEvent {
   optional common.AgentInfo agent = 4;
   optional common.ToolInfo tool = 5;
 
-  message Payload {
-    string component = 1;
-    string component_id = 2;
-    LogLevel log_level = 3;
+  message Details {
+    LogLevel log_level = 1;
+    string component = 2;
+    string component_id = 3;
     string message = 4;
-    google.protobuf.Timestamp timestamp = 5;
-    google.protobuf.Struct context = 6;
+    google.protobuf.Timestamp time = 5;
   }
-  Payload payload = 6;
+  Details details = 6;
 }

@@ -4,7 +4,7 @@ package agent;
 
 import "common/entities.proto";
 import "common/metadata.proto";
-import "google/protobuf/struct.proto";
+import "common/request.proto";
 
 option go_package = "github.com/compozy/compozy/pkg/pb/agent";
 
@@ -18,8 +18,8 @@ message AgentExecuteCommand {
   common.TaskInfo task = 3;
   common.AgentInfo agent = 4;
 
-  message Payload {
-    google.protobuf.Struct context = 1;
+  message Details {
+    common.AgentRequest agent_request = 1;
   }
-  Payload payload = 5;
+  Details details = 5;
 }

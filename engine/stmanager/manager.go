@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/compozy/engine/common"
-	"github.com/compozy/compozy/engine/domain/project"
-	"github.com/compozy/compozy/engine/domain/workflow"
 	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/engine/store"
 	"github.com/compozy/compozy/pkg/nats"
@@ -150,26 +147,4 @@ func (m *Manager) handleUpdateStatus(subject string, data []byte, _ jetstream.Ms
 		return fmt.Errorf("failed to save updated state: %w", err)
 	}
 	return nil
-}
-
-// -----------------------------------------------------------------------------
-// Create
-// -----------------------------------------------------------------------------
-
-func (m *Manager) CreateWorkflowState(
-	tgInput *common.Input,
-	pj *project.Config,
-) (*workflow.Execution, *workflow.State, error) {
-	exec, err := workflow.NewExecution(tgInput, pj.GetEnv())
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create execution: %w", err)
-	}
-	st, err := workflow.NewState(exec)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create state: %w", err)
-	}
-	if err := m.SaveState(st); err != nil {
-		return nil, nil, fmt.Errorf("failed to save state: %w", err)
-	}
-	return exec, st, nil
 }

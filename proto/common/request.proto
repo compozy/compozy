@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package common;
+
+import "google/protobuf/struct.proto";
+
+option go_package = "github.com/compozy/compozy/pkg/pb/common";
+
+message ActionRequest {
+  string action_id = 1;
+  string prompt = 2;
+  google.protobuf.Struct output_schema = 3;
+}
+
+message AgentRequest {
+  string agent_id = 1;
+  string agent_exec_id = 2;
+  string instructions = 3;
+  ActionRequest action_request = 4;
+  google.protobuf.Struct config = 5;
+  repeated ToolRequest tools = 6;
+}
+
+message ToolRequest {
+  string tool_id = 1;
+  string tool_exec_id = 2;
+  string description = 3;
+  google.protobuf.Struct input_schema = 4;
+  google.protobuf.Struct output_schema = 5;
+  google.protobuf.Struct input = 6;
+}

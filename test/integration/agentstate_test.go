@@ -349,10 +349,8 @@ func TestAgentStateUpdateFromEvent(t *testing.T) {
 				Id:     "workflow-id",
 				ExecId: workflowExecID.String(),
 			},
-			Payload: &pbagent.AgentExecutionSuccessEvent_Payload{
-				Result: &pbcommon.Result{
-					Output: resultData,
-				},
+			Details: &pbagent.AgentExecutionSuccessEvent_Details{
+				Result: resultData,
 			},
 		}
 
@@ -437,13 +435,11 @@ func TestAgentStateUpdateFromEvent(t *testing.T) {
 				Id:     "workflow-id",
 				ExecId: workflowExecID.String(),
 			},
-			Payload: &pbagent.AgentExecutionFailedEvent_Payload{
-				Result: &pbcommon.Result{
-					Error: &pbcommon.ErrorResult{
-						Message: "Agent execution failed",
-						Code:    &errorCode,
-						Details: errorDetails,
-					},
+			Details: &pbagent.AgentExecutionFailedEvent_Details{
+				Error: &pbcommon.ErrorResult{
+					Message: "Agent execution failed",
+					Code:    &errorCode,
+					Details: errorDetails,
 				},
 			},
 		}

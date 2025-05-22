@@ -10,7 +10,6 @@ import (
 	common "github.com/compozy/compozy/pkg/pb/common"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	structpb "google.golang.org/protobuf/types/known/structpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -29,7 +28,7 @@ type ToolExecuteCommand struct {
 	Workflow      *common.WorkflowInfo        `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
 	Task          *common.TaskInfo            `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
 	Tool          *common.ToolInfo            `protobuf:"bytes,4,opt,name=tool,proto3" json:"tool,omitempty"`
-	Payload       *ToolExecuteCommand_Payload `protobuf:"bytes,5,opt,name=payload,proto3" json:"payload,omitempty"`
+	Details       *ToolExecuteCommand_Details `protobuf:"bytes,5,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -92,34 +91,34 @@ func (x *ToolExecuteCommand) GetTool() *common.ToolInfo {
 	return nil
 }
 
-func (x *ToolExecuteCommand) GetPayload() *ToolExecuteCommand_Payload {
+func (x *ToolExecuteCommand) GetDetails() *ToolExecuteCommand_Details {
 	if x != nil {
-		return x.Payload
+		return x.Details
 	}
 	return nil
 }
 
-type ToolExecuteCommand_Payload struct {
+type ToolExecuteCommand_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Context       *structpb.Struct       `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	ToolRequest   *common.ToolRequest    `protobuf:"bytes,1,opt,name=tool_request,json=toolRequest,proto3" json:"tool_request,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ToolExecuteCommand_Payload) Reset() {
-	*x = ToolExecuteCommand_Payload{}
+func (x *ToolExecuteCommand_Details) Reset() {
+	*x = ToolExecuteCommand_Details{}
 	mi := &file_tool_cmds_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ToolExecuteCommand_Payload) String() string {
+func (x *ToolExecuteCommand_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ToolExecuteCommand_Payload) ProtoMessage() {}
+func (*ToolExecuteCommand_Details) ProtoMessage() {}
 
-func (x *ToolExecuteCommand_Payload) ProtoReflect() protoreflect.Message {
+func (x *ToolExecuteCommand_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_tool_cmds_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -131,14 +130,14 @@ func (x *ToolExecuteCommand_Payload) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ToolExecuteCommand_Payload.ProtoReflect.Descriptor instead.
-func (*ToolExecuteCommand_Payload) Descriptor() ([]byte, []int) {
+// Deprecated: Use ToolExecuteCommand_Details.ProtoReflect.Descriptor instead.
+func (*ToolExecuteCommand_Details) Descriptor() ([]byte, []int) {
 	return file_tool_cmds_proto_rawDescGZIP(), []int{0, 0}
 }
 
-func (x *ToolExecuteCommand_Payload) GetContext() *structpb.Struct {
+func (x *ToolExecuteCommand_Details) GetToolRequest() *common.ToolRequest {
 	if x != nil {
-		return x.Context
+		return x.ToolRequest
 	}
 	return nil
 }
@@ -147,15 +146,15 @@ var File_tool_cmds_proto protoreflect.FileDescriptor
 
 const file_tool_cmds_proto_rawDesc = "" +
 	"\n" +
-	"\x0ftool/cmds.proto\x12\x04tool\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xba\x02\n" +
+	"\x0ftool/cmds.proto\x12\x04tool\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x14common/request.proto\"\xbf\x02\n" +
 	"\x12ToolExecuteCommand\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
 	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12$\n" +
 	"\x04tool\x18\x04 \x01(\v2\x10.common.ToolInfoR\x04tool\x12:\n" +
-	"\apayload\x18\x05 \x01(\v2 .tool.ToolExecuteCommand.PayloadR\apayload\x1a<\n" +
-	"\aPayload\x121\n" +
-	"\acontext\x18\x01 \x01(\v2\x17.google.protobuf.StructR\acontextB(Z&github.com/compozy/compozy/pkg/pb/toolb\x06proto3"
+	"\adetails\x18\x05 \x01(\v2 .tool.ToolExecuteCommand.DetailsR\adetails\x1aA\n" +
+	"\aDetails\x126\n" +
+	"\ftool_request\x18\x01 \x01(\v2\x13.common.ToolRequestR\vtoolRequestB(Z&github.com/compozy/compozy/pkg/pb/toolb\x06proto3"
 
 var (
 	file_tool_cmds_proto_rawDescOnce sync.Once
@@ -172,20 +171,20 @@ func file_tool_cmds_proto_rawDescGZIP() []byte {
 var file_tool_cmds_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_tool_cmds_proto_goTypes = []any{
 	(*ToolExecuteCommand)(nil),         // 0: tool.ToolExecuteCommand
-	(*ToolExecuteCommand_Payload)(nil), // 1: tool.ToolExecuteCommand.Payload
+	(*ToolExecuteCommand_Details)(nil), // 1: tool.ToolExecuteCommand.Details
 	(*common.Metadata)(nil),            // 2: common.Metadata
 	(*common.WorkflowInfo)(nil),        // 3: common.WorkflowInfo
 	(*common.TaskInfo)(nil),            // 4: common.TaskInfo
 	(*common.ToolInfo)(nil),            // 5: common.ToolInfo
-	(*structpb.Struct)(nil),            // 6: google.protobuf.Struct
+	(*common.ToolRequest)(nil),         // 6: common.ToolRequest
 }
 var file_tool_cmds_proto_depIdxs = []int32{
 	2, // 0: tool.ToolExecuteCommand.metadata:type_name -> common.Metadata
 	3, // 1: tool.ToolExecuteCommand.workflow:type_name -> common.WorkflowInfo
 	4, // 2: tool.ToolExecuteCommand.task:type_name -> common.TaskInfo
 	5, // 3: tool.ToolExecuteCommand.tool:type_name -> common.ToolInfo
-	1, // 4: tool.ToolExecuteCommand.payload:type_name -> tool.ToolExecuteCommand.Payload
-	6, // 5: tool.ToolExecuteCommand.Payload.context:type_name -> google.protobuf.Struct
+	1, // 4: tool.ToolExecuteCommand.details:type_name -> tool.ToolExecuteCommand.Details
+	6, // 5: tool.ToolExecuteCommand.Details.tool_request:type_name -> common.ToolRequest
 	6, // [6:6] is the sub-list for method output_type
 	6, // [6:6] is the sub-list for method input_type
 	6, // [6:6] is the sub-list for extension type_name

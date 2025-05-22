@@ -69,7 +69,7 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to start state manager: %w", err)
 	}
 
-	if err := o.subscribeWorkflowCmds(ctx); err != nil {
+	if err := o.subscribeWorkflow(ctx); err != nil {
 		return fmt.Errorf("failed to subscribe to workflow commands: %w", err)
 	}
 

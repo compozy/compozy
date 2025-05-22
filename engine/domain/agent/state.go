@@ -70,7 +70,6 @@ func NewAgentState(exec *Execution) (*State, error) {
 	return st, nil
 }
 
-// UpdateFromEvent updates the agent state based on the event type
 func (s *State) UpdateFromEvent(event any) error {
 	switch evt := event.(type) {
 	case *pb.AgentExecutionStartedEvent:
@@ -91,18 +90,12 @@ func (s *State) handleStartedEvent(_ *pb.AgentExecutionStartedEvent) error {
 
 func (s *State) handleSuccessEvent(evt *pb.AgentExecutionSuccessEvent) error {
 	s.Status = nats.StatusSuccess
-	if evt.GetPayload() == nil || evt.GetPayload().GetResult() == nil {
-		return nil
-	}
-	state.SetResultData(&s.BaseState, evt.GetPayload().GetResult())
+	state.SetResultData(&s.BaseState, evt.GetDetails().GetResult())
 	return nil
 }
 
 func (s *State) handleFailedEvent(evt *pb.AgentExecutionFailedEvent) error {
 	s.Status = nats.StatusFailed
-	if evt.GetPayload() == nil || evt.GetPayload().GetResult() == nil {
-		return nil
-	}
-	state.SetResultData(&s.BaseState, evt.GetPayload().GetResult())
+	state.SetResultError(&s.BaseState, evt.GetDetails().GetError())
 	return nil
 }

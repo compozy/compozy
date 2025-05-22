@@ -100,8 +100,8 @@ func GetToolExecID(payload WithTool) string {
 
 func GetSourceComponent(payload WithMetadata) string {
 	sourceComponent := "unknown_source_component"
-	if meta := payload.GetMetadata(); meta != nil && meta.GetSourceComponent() != "" {
-		sourceComponent = meta.GetSourceComponent()
+	if meta := payload.GetMetadata(); meta != nil && meta.GetSource() != "" {
+		sourceComponent = meta.GetSource()
 	}
 	return sourceComponent
 }

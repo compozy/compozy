@@ -10,7 +10,6 @@ import (
 	common "github.com/compozy/compozy/pkg/pb/common"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	structpb "google.golang.org/protobuf/types/known/structpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -29,7 +28,7 @@ type AgentExecuteCommand struct {
 	Workflow      *common.WorkflowInfo         `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
 	Task          *common.TaskInfo             `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
 	Agent         *common.AgentInfo            `protobuf:"bytes,4,opt,name=agent,proto3" json:"agent,omitempty"`
-	Payload       *AgentExecuteCommand_Payload `protobuf:"bytes,5,opt,name=payload,proto3" json:"payload,omitempty"`
+	Details       *AgentExecuteCommand_Details `protobuf:"bytes,5,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -92,34 +91,34 @@ func (x *AgentExecuteCommand) GetAgent() *common.AgentInfo {
 	return nil
 }
 
-func (x *AgentExecuteCommand) GetPayload() *AgentExecuteCommand_Payload {
+func (x *AgentExecuteCommand) GetDetails() *AgentExecuteCommand_Details {
 	if x != nil {
-		return x.Payload
+		return x.Details
 	}
 	return nil
 }
 
-type AgentExecuteCommand_Payload struct {
+type AgentExecuteCommand_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Context       *structpb.Struct       `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	AgentRequest  *common.AgentRequest   `protobuf:"bytes,1,opt,name=agent_request,json=agentRequest,proto3" json:"agent_request,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AgentExecuteCommand_Payload) Reset() {
-	*x = AgentExecuteCommand_Payload{}
+func (x *AgentExecuteCommand_Details) Reset() {
+	*x = AgentExecuteCommand_Details{}
 	mi := &file_agent_cmds_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AgentExecuteCommand_Payload) String() string {
+func (x *AgentExecuteCommand_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AgentExecuteCommand_Payload) ProtoMessage() {}
+func (*AgentExecuteCommand_Details) ProtoMessage() {}
 
-func (x *AgentExecuteCommand_Payload) ProtoReflect() protoreflect.Message {
+func (x *AgentExecuteCommand_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_agent_cmds_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -131,14 +130,14 @@ func (x *AgentExecuteCommand_Payload) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AgentExecuteCommand_Payload.ProtoReflect.Descriptor instead.
-func (*AgentExecuteCommand_Payload) Descriptor() ([]byte, []int) {
+// Deprecated: Use AgentExecuteCommand_Details.ProtoReflect.Descriptor instead.
+func (*AgentExecuteCommand_Details) Descriptor() ([]byte, []int) {
 	return file_agent_cmds_proto_rawDescGZIP(), []int{0, 0}
 }
 
-func (x *AgentExecuteCommand_Payload) GetContext() *structpb.Struct {
+func (x *AgentExecuteCommand_Details) GetAgentRequest() *common.AgentRequest {
 	if x != nil {
-		return x.Context
+		return x.AgentRequest
 	}
 	return nil
 }
@@ -147,15 +146,15 @@ var File_agent_cmds_proto protoreflect.FileDescriptor
 
 const file_agent_cmds_proto_rawDesc = "" +
 	"\n" +
-	"\x10agent/cmds.proto\x12\x05agent\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xc0\x02\n" +
+	"\x10agent/cmds.proto\x12\x05agent\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x14common/request.proto\"\xc8\x02\n" +
 	"\x13AgentExecuteCommand\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
 	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12'\n" +
 	"\x05agent\x18\x04 \x01(\v2\x11.common.AgentInfoR\x05agent\x12<\n" +
-	"\apayload\x18\x05 \x01(\v2\".agent.AgentExecuteCommand.PayloadR\apayload\x1a<\n" +
-	"\aPayload\x121\n" +
-	"\acontext\x18\x01 \x01(\v2\x17.google.protobuf.StructR\acontextB)Z'github.com/compozy/compozy/pkg/pb/agentb\x06proto3"
+	"\adetails\x18\x05 \x01(\v2\".agent.AgentExecuteCommand.DetailsR\adetails\x1aD\n" +
+	"\aDetails\x129\n" +
+	"\ragent_request\x18\x01 \x01(\v2\x14.common.AgentRequestR\fagentRequestB)Z'github.com/compozy/compozy/pkg/pb/agentb\x06proto3"
 
 var (
 	file_agent_cmds_proto_rawDescOnce sync.Once
@@ -172,20 +171,20 @@ func file_agent_cmds_proto_rawDescGZIP() []byte {
 var file_agent_cmds_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_agent_cmds_proto_goTypes = []any{
 	(*AgentExecuteCommand)(nil),         // 0: agent.AgentExecuteCommand
-	(*AgentExecuteCommand_Payload)(nil), // 1: agent.AgentExecuteCommand.Payload
+	(*AgentExecuteCommand_Details)(nil), // 1: agent.AgentExecuteCommand.Details
 	(*common.Metadata)(nil),             // 2: common.Metadata
 	(*common.WorkflowInfo)(nil),         // 3: common.WorkflowInfo
 	(*common.TaskInfo)(nil),             // 4: common.TaskInfo
 	(*common.AgentInfo)(nil),            // 5: common.AgentInfo
-	(*structpb.Struct)(nil),             // 6: google.protobuf.Struct
+	(*common.AgentRequest)(nil),         // 6: common.AgentRequest
 }
 var file_agent_cmds_proto_depIdxs = []int32{
 	2, // 0: agent.AgentExecuteCommand.metadata:type_name -> common.Metadata
 	3, // 1: agent.AgentExecuteCommand.workflow:type_name -> common.WorkflowInfo
 	4, // 2: agent.AgentExecuteCommand.task:type_name -> common.TaskInfo
 	5, // 3: agent.AgentExecuteCommand.agent:type_name -> common.AgentInfo
-	1, // 4: agent.AgentExecuteCommand.payload:type_name -> agent.AgentExecuteCommand.Payload
-	6, // 5: agent.AgentExecuteCommand.Payload.context:type_name -> google.protobuf.Struct
+	1, // 4: agent.AgentExecuteCommand.details:type_name -> agent.AgentExecuteCommand.Details
+	6, // 5: agent.AgentExecuteCommand.Details.agent_request:type_name -> common.AgentRequest
 	6, // [6:6] is the sub-list for method output_type
 	6, // [6:6] is the sub-list for method input_type
 	6, // [6:6] is the sub-list for extension type_name

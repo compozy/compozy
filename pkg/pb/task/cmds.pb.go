@@ -10,7 +10,6 @@ import (
 	common "github.com/compozy/compozy/pkg/pb/common"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	structpb "google.golang.org/protobuf/types/known/structpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -24,11 +23,10 @@ const (
 )
 
 type TaskTriggerCommand struct {
-	state         protoimpl.MessageState      `protogen:"open.v1"`
-	Metadata      *common.Metadata            `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo        `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Task          *common.TaskInfo            `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
-	Payload       *TaskTriggerCommand_Payload `protobuf:"bytes,4,opt,name=payload,proto3" json:"payload,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Metadata      *common.Metadata       `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo   `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Task          *common.TaskInfo       `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -84,19 +82,11 @@ func (x *TaskTriggerCommand) GetTask() *common.TaskInfo {
 	return nil
 }
 
-func (x *TaskTriggerCommand) GetPayload() *TaskTriggerCommand_Payload {
-	if x != nil {
-		return x.Payload
-	}
-	return nil
-}
-
 type TaskExecuteCommand struct {
-	state         protoimpl.MessageState      `protogen:"open.v1"`
-	Metadata      *common.Metadata            `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo        `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Task          *common.TaskInfo            `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
-	Payload       *TaskExecuteCommand_Payload `protobuf:"bytes,4,opt,name=payload,proto3" json:"payload,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Metadata      *common.Metadata       `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo   `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Task          *common.TaskInfo       `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -152,19 +142,11 @@ func (x *TaskExecuteCommand) GetTask() *common.TaskInfo {
 	return nil
 }
 
-func (x *TaskExecuteCommand) GetPayload() *TaskExecuteCommand_Payload {
-	if x != nil {
-		return x.Payload
-	}
-	return nil
-}
-
 type TaskResumeCommand struct {
-	state         protoimpl.MessageState     `protogen:"open.v1"`
-	Metadata      *common.Metadata           `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo       `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Task          *common.TaskInfo           `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
-	Payload       *TaskResumeCommand_Payload `protobuf:"bytes,4,opt,name=payload,proto3" json:"payload,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Metadata      *common.Metadata       `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo   `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Task          *common.TaskInfo       `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -220,171 +202,23 @@ func (x *TaskResumeCommand) GetTask() *common.TaskInfo {
 	return nil
 }
 
-func (x *TaskResumeCommand) GetPayload() *TaskResumeCommand_Payload {
-	if x != nil {
-		return x.Payload
-	}
-	return nil
-}
-
-type TaskTriggerCommand_Payload struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Context       *structpb.Struct       `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *TaskTriggerCommand_Payload) Reset() {
-	*x = TaskTriggerCommand_Payload{}
-	mi := &file_task_cmds_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *TaskTriggerCommand_Payload) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TaskTriggerCommand_Payload) ProtoMessage() {}
-
-func (x *TaskTriggerCommand_Payload) ProtoReflect() protoreflect.Message {
-	mi := &file_task_cmds_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TaskTriggerCommand_Payload.ProtoReflect.Descriptor instead.
-func (*TaskTriggerCommand_Payload) Descriptor() ([]byte, []int) {
-	return file_task_cmds_proto_rawDescGZIP(), []int{0, 0}
-}
-
-func (x *TaskTriggerCommand_Payload) GetContext() *structpb.Struct {
-	if x != nil {
-		return x.Context
-	}
-	return nil
-}
-
-type TaskExecuteCommand_Payload struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Context       *structpb.Struct       `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *TaskExecuteCommand_Payload) Reset() {
-	*x = TaskExecuteCommand_Payload{}
-	mi := &file_task_cmds_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *TaskExecuteCommand_Payload) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TaskExecuteCommand_Payload) ProtoMessage() {}
-
-func (x *TaskExecuteCommand_Payload) ProtoReflect() protoreflect.Message {
-	mi := &file_task_cmds_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TaskExecuteCommand_Payload.ProtoReflect.Descriptor instead.
-func (*TaskExecuteCommand_Payload) Descriptor() ([]byte, []int) {
-	return file_task_cmds_proto_rawDescGZIP(), []int{1, 0}
-}
-
-func (x *TaskExecuteCommand_Payload) GetContext() *structpb.Struct {
-	if x != nil {
-		return x.Context
-	}
-	return nil
-}
-
-type TaskResumeCommand_Payload struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Context       *structpb.Struct       `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *TaskResumeCommand_Payload) Reset() {
-	*x = TaskResumeCommand_Payload{}
-	mi := &file_task_cmds_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *TaskResumeCommand_Payload) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TaskResumeCommand_Payload) ProtoMessage() {}
-
-func (x *TaskResumeCommand_Payload) ProtoReflect() protoreflect.Message {
-	mi := &file_task_cmds_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TaskResumeCommand_Payload.ProtoReflect.Descriptor instead.
-func (*TaskResumeCommand_Payload) Descriptor() ([]byte, []int) {
-	return file_task_cmds_proto_rawDescGZIP(), []int{2, 0}
-}
-
-func (x *TaskResumeCommand_Payload) GetContext() *structpb.Struct {
-	if x != nil {
-		return x.Context
-	}
-	return nil
-}
-
 var File_task_cmds_proto protoreflect.FileDescriptor
 
 const file_task_cmds_proto_rawDesc = "" +
 	"\n" +
-	"\x0ftask/cmds.proto\x12\x04task\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\"\x94\x02\n" +
+	"\x0ftask/cmds.proto\x12\x04task\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\"\x9a\x01\n" +
 	"\x12TaskTriggerCommand\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
-	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12:\n" +
-	"\apayload\x18\x04 \x01(\v2 .task.TaskTriggerCommand.PayloadR\apayload\x1a<\n" +
-	"\aPayload\x121\n" +
-	"\acontext\x18\x01 \x01(\v2\x17.google.protobuf.StructR\acontext\"\x94\x02\n" +
+	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\"\x9a\x01\n" +
 	"\x12TaskExecuteCommand\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
-	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12:\n" +
-	"\apayload\x18\x04 \x01(\v2 .task.TaskExecuteCommand.PayloadR\apayload\x1a<\n" +
-	"\aPayload\x121\n" +
-	"\acontext\x18\x01 \x01(\v2\x17.google.protobuf.StructR\acontext\"\x92\x02\n" +
+	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\"\x99\x01\n" +
 	"\x11TaskResumeCommand\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
-	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x129\n" +
-	"\apayload\x18\x04 \x01(\v2\x1f.task.TaskResumeCommand.PayloadR\apayload\x1a<\n" +
-	"\aPayload\x121\n" +
-	"\acontext\x18\x01 \x01(\v2\x17.google.protobuf.StructR\acontextB(Z&github.com/compozy/compozy/pkg/pb/taskb\x06proto3"
+	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04taskB(Z&github.com/compozy/compozy/pkg/pb/taskb\x06proto3"
 
 var (
 	file_task_cmds_proto_rawDescOnce sync.Once
@@ -398,40 +232,30 @@ func file_task_cmds_proto_rawDescGZIP() []byte {
 	return file_task_cmds_proto_rawDescData
 }
 
-var file_task_cmds_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_task_cmds_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_task_cmds_proto_goTypes = []any{
-	(*TaskTriggerCommand)(nil),         // 0: task.TaskTriggerCommand
-	(*TaskExecuteCommand)(nil),         // 1: task.TaskExecuteCommand
-	(*TaskResumeCommand)(nil),          // 2: task.TaskResumeCommand
-	(*TaskTriggerCommand_Payload)(nil), // 3: task.TaskTriggerCommand.Payload
-	(*TaskExecuteCommand_Payload)(nil), // 4: task.TaskExecuteCommand.Payload
-	(*TaskResumeCommand_Payload)(nil),  // 5: task.TaskResumeCommand.Payload
-	(*common.Metadata)(nil),            // 6: common.Metadata
-	(*common.WorkflowInfo)(nil),        // 7: common.WorkflowInfo
-	(*common.TaskInfo)(nil),            // 8: common.TaskInfo
-	(*structpb.Struct)(nil),            // 9: google.protobuf.Struct
+	(*TaskTriggerCommand)(nil),  // 0: task.TaskTriggerCommand
+	(*TaskExecuteCommand)(nil),  // 1: task.TaskExecuteCommand
+	(*TaskResumeCommand)(nil),   // 2: task.TaskResumeCommand
+	(*common.Metadata)(nil),     // 3: common.Metadata
+	(*common.WorkflowInfo)(nil), // 4: common.WorkflowInfo
+	(*common.TaskInfo)(nil),     // 5: common.TaskInfo
 }
 var file_task_cmds_proto_depIdxs = []int32{
-	6,  // 0: task.TaskTriggerCommand.metadata:type_name -> common.Metadata
-	7,  // 1: task.TaskTriggerCommand.workflow:type_name -> common.WorkflowInfo
-	8,  // 2: task.TaskTriggerCommand.task:type_name -> common.TaskInfo
-	3,  // 3: task.TaskTriggerCommand.payload:type_name -> task.TaskTriggerCommand.Payload
-	6,  // 4: task.TaskExecuteCommand.metadata:type_name -> common.Metadata
-	7,  // 5: task.TaskExecuteCommand.workflow:type_name -> common.WorkflowInfo
-	8,  // 6: task.TaskExecuteCommand.task:type_name -> common.TaskInfo
-	4,  // 7: task.TaskExecuteCommand.payload:type_name -> task.TaskExecuteCommand.Payload
-	6,  // 8: task.TaskResumeCommand.metadata:type_name -> common.Metadata
-	7,  // 9: task.TaskResumeCommand.workflow:type_name -> common.WorkflowInfo
-	8,  // 10: task.TaskResumeCommand.task:type_name -> common.TaskInfo
-	5,  // 11: task.TaskResumeCommand.payload:type_name -> task.TaskResumeCommand.Payload
-	9,  // 12: task.TaskTriggerCommand.Payload.context:type_name -> google.protobuf.Struct
-	9,  // 13: task.TaskExecuteCommand.Payload.context:type_name -> google.protobuf.Struct
-	9,  // 14: task.TaskResumeCommand.Payload.context:type_name -> google.protobuf.Struct
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	3, // 0: task.TaskTriggerCommand.metadata:type_name -> common.Metadata
+	4, // 1: task.TaskTriggerCommand.workflow:type_name -> common.WorkflowInfo
+	5, // 2: task.TaskTriggerCommand.task:type_name -> common.TaskInfo
+	3, // 3: task.TaskExecuteCommand.metadata:type_name -> common.Metadata
+	4, // 4: task.TaskExecuteCommand.workflow:type_name -> common.WorkflowInfo
+	5, // 5: task.TaskExecuteCommand.task:type_name -> common.TaskInfo
+	3, // 6: task.TaskResumeCommand.metadata:type_name -> common.Metadata
+	4, // 7: task.TaskResumeCommand.workflow:type_name -> common.WorkflowInfo
+	5, // 8: task.TaskResumeCommand.task:type_name -> common.TaskInfo
+	9, // [9:9] is the sub-list for method output_type
+	9, // [9:9] is the sub-list for method input_type
+	9, // [9:9] is the sub-list for extension type_name
+	9, // [9:9] is the sub-list for extension extendee
+	0, // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_task_cmds_proto_init() }
@@ -445,7 +269,7 @@ func file_task_cmds_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_task_cmds_proto_rawDesc), len(file_task_cmds_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
