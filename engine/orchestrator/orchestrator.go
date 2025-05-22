@@ -7,28 +7,22 @@ import (
 
 	"github.com/compozy/compozy/engine/domain/project"
 	"github.com/compozy/compozy/engine/domain/workflow"
+	"github.com/compozy/compozy/engine/executor"
 	"github.com/compozy/compozy/engine/stmanager"
 	"github.com/compozy/compozy/engine/store"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
 )
 
-type SystemComponent string
-
-const (
-	ComponentOrchestrator     SystemComponent = "engine.Orchestrator"
-	ComponentWorkflowExecutor SystemComponent = "workflow.Executor"
-	ComponentTaskExecutor     SystemComponent = "task.Executor"
-)
-
 type Orchestrator struct {
-	natsClient    *nats.Client
-	stManager     *stmanager.Manager
-	ProjectConfig *project.Config
-	Workflows     []*workflow.Config
+	natsClient       *nats.Client
+	stManager        *stmanager.Manager
+	ProjectConfig    *project.Config
+	Workflows        []*workflow.Config
+	WorkflowExecutor *executor.WorkflowExecutor
 }
 
-func NewOrchestartor(
+func NewOrchestrator(
 	ctx context.Context,
 	natsServer *nats.Server,
 	pjConfig *project.Config,
@@ -56,23 +50,29 @@ func NewOrchestartor(
 		return nil, fmt.Errorf("failed to initialize state manager: %w", err)
 	}
 
-	return &Orchestrator{
-		natsClient:    natsClient,
-		stManager:     stManager,
-		ProjectConfig: pjConfig,
-		Workflows:     wfConfigs,
-	}, nil
+	workflowExecutor := executor.NewWorkflowExecutor(natsClient, stManager)
+
+	orch := &Orchestrator{
+		natsClient:       natsClient,
+		stManager:        stManager,
+		ProjectConfig:    pjConfig,
+		Workflows:        wfConfigs,
+		WorkflowExecutor: workflowExecutor,
+	}
+
+	return orch, nil
 }
 
 func (o *Orchestrator) Start(ctx context.Context) error {
-	if err := o.stManager.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start state manager: %w", err)
-	}
-
 	if err := o.subscribeWorkflow(ctx); err != nil {
 		return fmt.Errorf("failed to subscribe to workflow commands: %w", err)
 	}
-
+	if err := o.stManager.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start state manager: %w", err)
+	}
+	if err := o.WorkflowExecutor.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start workflow executor: %w", err)
+	}
 	return nil
 }
 
@@ -81,11 +81,9 @@ func (o *Orchestrator) Stop(ctx context.Context) error {
 	if err := o.natsClient.CloseWithContext(ctx); err != nil {
 		return fmt.Errorf("failed to close NATS client: %w", err)
 	}
-
 	if err := o.stManager.CloseWithContext(ctx); err != nil {
 		return fmt.Errorf("failed to stop state manager: %w", err)
 	}
-
 	logger.Debug("Orchestrator stopped successfully")
 	return nil
 }

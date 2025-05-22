@@ -28,7 +28,7 @@ func (ti *StateInitializer) Initialize() (*State, error) {
 		return nil, fmt.Errorf("failed to merge input: %w", err)
 	}
 	bs := &state.BaseState{
-		StateID: state.NewID(nats.ComponentTool, ti.CorrID, ti.ExecID),
+		StateID: state.NewID(nats.ComponentTool, ti.CorrID, ti.ToolExecID),
 		Status:  nats.StatusPending,
 		Input:   &input,
 		Output:  &common.Output{},
@@ -36,10 +36,8 @@ func (ti *StateInitializer) Initialize() (*State, error) {
 		Trigger: ti.TriggerInput,
 	}
 	st := &State{
-		BaseState:      *bs,
-		WorkflowExecID: ti.WorkflowExecID,
-		TaskExecID:     ti.TaskExecID,
-		ToolExecID:     ti.ExecID,
+		BaseState: *bs,
+		Execution: ti.Execution,
 	}
 	if err := ti.Normalizer.ParseTemplates(st); err != nil {
 		return nil, err
@@ -53,9 +51,7 @@ func (ti *StateInitializer) Initialize() (*State, error) {
 
 type State struct {
 	state.BaseState
-	WorkflowExecID common.ID `json:"workflow_exec_id"`
-	TaskExecID     common.ID `json:"task_exec_id"`
-	ToolExecID     common.ID `json:"tool_exec_id"`
+	Execution *Execution `json:"execution,omitempty"`
 }
 
 func NewToolState(exec *Execution) (*State, error) {

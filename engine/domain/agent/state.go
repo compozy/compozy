@@ -36,10 +36,8 @@ func (ai *StateInitializer) Initialize() (*State, error) {
 		Env:     env,
 	}
 	st := &State{
-		BaseState:      *bsState,
-		WorkflowExecID: ai.WorkflowExecID,
-		TaskExecID:     ai.TaskExecID,
-		AgentExecID:    ai.AgentExecID,
+		BaseState: *bsState,
+		Execution: ai.Execution,
 	}
 	if err := ai.Normalizer.ParseTemplates(st); err != nil {
 		return nil, err
@@ -53,9 +51,7 @@ func (ai *StateInitializer) Initialize() (*State, error) {
 
 type State struct {
 	state.BaseState
-	WorkflowExecID common.ID `json:"workflow_exec_id"`
-	TaskExecID     common.ID `json:"task_exec_id"`
-	AgentExecID    common.ID `json:"agent_exec_id"`
+	Execution *Execution `json:"execution,omitempty"`
 }
 
 func NewAgentState(exec *Execution) (*State, error) {

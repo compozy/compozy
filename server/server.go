@@ -46,23 +46,20 @@ func (s *Server) buildRouter() error {
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(LoggerMiddleware())
-
 	if s.Config.CORSEnabled {
 		router.Use(CORSMiddleware())
 	}
-
 	router.Use(app.StateMiddleware(s.State))
 	if err := RegisterRoutes(router, s.State); err != nil {
 		return err
 	}
-
 	s.router = router
 	return nil
 }
 
 func (s *Server) Run() error {
 	ctx := context.Background()
-	orch, err := orchestrator.NewOrchestartor(
+	orch, err := orchestrator.NewOrchestrator(
 		ctx,
 		s.State.NatsServer,
 		s.State.ProjectConfig,

@@ -61,8 +61,8 @@ func TestTaskStateInitialization(t *testing.T) {
 
 	t.Run("Should correctly initialize IDs and default status", func(t *testing.T) {
 		assert.Equal(t, corrID.String(), taskState.GetID().CorrID.String())
-		assert.Equal(t, workflowExecID.String(), taskState.WorkflowExecID.String())
-		assert.Equal(t, taskExecID.String(), taskState.TaskExecID.String())
+		assert.Equal(t, workflowExecID.String(), taskState.Execution.WorkflowExecID.String())
+		assert.Equal(t, taskExecID.String(), taskState.Execution.TaskExecID.String())
 		assert.Equal(t, taskExecID.String(), taskState.GetID().ExecID.String())
 		assert.Equal(t, nats.StatusPending, taskState.GetStatus())
 	})

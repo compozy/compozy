@@ -5,7 +5,6 @@ import (
 
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/domain/workflow"
-	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/pkg/nats"
 	pbcommon "github.com/compozy/compozy/pkg/pb/common"
 	pbworkflow "github.com/compozy/compozy/pkg/pb/workflow"
@@ -115,8 +114,8 @@ func TestWorkflowStatePersistence(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, retrievedStateInterface)
 
-	retrievedBaseState, ok := retrievedStateInterface.(*state.BaseState)
-	require.True(t, ok, "Retrieved state should be *state.BaseState")
+	retrievedBaseState, ok := retrievedStateInterface.(*workflow.State)
+	require.True(t, ok, "Retrieved state should be *workflow.State")
 
 	assert.Equal(t, wfState.GetID(), retrievedBaseState.GetID())
 	assert.Equal(t, nats.ComponentWorkflow, retrievedBaseState.GetID().Component)
@@ -157,8 +156,8 @@ func TestWorkflowStateUpdates(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, retrievedStateInterface)
 
-	retrievedBaseState, ok := retrievedStateInterface.(*state.BaseState)
-	require.True(t, ok, "Retrieved state should be *state.BaseState")
+	retrievedBaseState, ok := retrievedStateInterface.(*workflow.State)
+	require.True(t, ok, "Retrieved state should be *workflow.State")
 
 	assert.Equal(t, nats.StatusRunning, retrievedBaseState.GetStatus())
 	require.NotNil(t, retrievedBaseState.GetOutput())

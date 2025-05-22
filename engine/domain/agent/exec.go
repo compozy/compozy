@@ -9,15 +9,15 @@ import (
 // -----------------------------------------------------------------------------
 
 type Execution struct {
-	CorrID         common.ID
-	WorkflowExecID common.ID
-	TaskExecID     common.ID
-	AgentExecID    common.ID
-	TaskEnv        common.EnvMap
-	AgentEnv       common.EnvMap
-	TriggerInput   *common.Input
-	TaskInput      *common.Input
-	AgentInput     *common.Input
+	CorrID         common.ID     `json:"correlation_id"`
+	WorkflowExecID common.ID     `json:"workflow_execution_id"`
+	TaskExecID     common.ID     `json:"task_execution_id"`
+	AgentExecID    common.ID     `json:"agent_execution_id"`
+	TaskEnv        common.EnvMap `json:"task_env"`
+	AgentEnv       common.EnvMap `json:"agent_env"`
+	TriggerInput   *common.Input `json:"trigger_input"`
+	TaskInput      *common.Input `json:"task_input"`
+	AgentInput     *common.Input `json:"agent_input"`
 }
 
 func NewExecution(

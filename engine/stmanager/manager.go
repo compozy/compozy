@@ -4,15 +4,16 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/compozy/compozy/engine/domain/agent"
+	"github.com/compozy/compozy/engine/domain/task"
+	"github.com/compozy/compozy/engine/domain/tool"
+	"github.com/compozy/compozy/engine/domain/workflow"
 	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/engine/store"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
 	"github.com/nats-io/nats.go/jetstream"
 )
-
-// -----------------------------------------------------------------------------
-// Manager Types
-// -----------------------------------------------------------------------------
 
 type Manager struct {
 	store      *store.Store
@@ -49,10 +50,6 @@ func defaultConsumers() []nats.ComponentType {
 	}
 }
 
-// -----------------------------------------------------------------------------
-// Manager Creation
-// -----------------------------------------------------------------------------
-
 func NewManager(opts ...ManagerOption) (*Manager, error) {
 	manager := &Manager{
 		components: defaultConsumers(),
@@ -72,7 +69,6 @@ func (m *Manager) Start(ctx context.Context) error {
 			return fmt.Errorf("failed to subscribe to %s state events: %w", cp, err)
 		}
 	}
-
 	return nil
 }
 
@@ -97,29 +93,21 @@ func (m *Manager) SaveState(state state.State) error {
 	return nil
 }
 
-// -----------------------------------------------------------------------------
-// Event Handling
-// -----------------------------------------------------------------------------
-
 func (m *Manager) subscribeToStateEvents(ctx context.Context, comp nats.ComponentType) error {
 	subCtx := context.Background()
 	cs, err := m.natsClient.GetConsumerEvt(ctx, comp, nats.EvtTypeAll)
 	if err != nil {
 		return fmt.Errorf("failed to get consumer: %w", err)
 	}
-
 	subOpts := nats.DefaultSubscribeOpts(cs)
 	errCh := nats.SubscribeConsumer(subCtx, m.handleUpdateStatus, subOpts)
-
-	// Monitor for errors in a separate goroutine
 	go func() {
 		for err := range errCh {
 			if err != nil {
-				fmt.Printf("Error in %s state event subscription: %v\n", comp, err)
+				logger.Error("Error subscribing to state events", "error", err)
 			}
 		}
 	}()
-
 	return nil
 }
 
@@ -128,23 +116,93 @@ func (m *Manager) handleUpdateStatus(subject string, data []byte, _ jetstream.Ms
 	if err != nil {
 		return fmt.Errorf("failed to parse event subject %s: %w", subject, err)
 	}
-
-	stID := state.NewID(subj.CompType, subj.CorrID, subj.ExecID)
-	st, err := m.store.GetState(stID)
-	if err != nil {
-		st = state.NewEmptyState()
-	}
-
 	event, err := nats.ParseEvent(subj.CompType, subj.EventType, data)
 	if err != nil {
 		return fmt.Errorf("failed to parse event data: %w", err)
 	}
-
-	if err := st.UpdateFromEvent(event); err != nil {
-		return fmt.Errorf("failed to update state from event: %w", err)
+	switch subj.CompType {
+	case nats.ComponentWorkflow:
+		return m.handleWorkflowStateUpdate(subj, event)
+	case nats.ComponentTask:
+		return m.handleTaskStateUpdate(subj, event)
+	case nats.ComponentAgent:
+		return m.handleAgentStateUpdate(subj, event)
+	case nats.ComponentTool:
+		return m.handleToolStateUpdate(subj, event)
+	default:
+		err := fmt.Errorf("unsupported component type for state update: %s", subj.CompType)
+		return err
 	}
-	if err := m.store.UpsertState(st); err != nil {
-		return fmt.Errorf("failed to save updated state: %w", err)
+}
+
+func (m *Manager) handleWorkflowStateUpdate(subj *nats.EventSubject, event any) error {
+	st, err := m.GetWorkflowState(subj.CorrID, subj.ExecID)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow state: %w", err)
+	}
+	wfSt, ok := st.(*workflow.State)
+	if !ok {
+		return fmt.Errorf("failed to cast state to workflow state")
+	}
+	if err := wfSt.UpdateFromEvent(event); err != nil {
+		return fmt.Errorf("failed to update workflow state from event: %w", err)
+	}
+	if err := m.store.UpsertState(wfSt); err != nil {
+		return fmt.Errorf("failed to save updated workflow state: %w", err)
+	}
+	return nil
+}
+
+func (m *Manager) handleTaskStateUpdate(subj *nats.EventSubject, event any) error {
+	st, err := m.GetTaskState(subj.CorrID, subj.ExecID)
+	if err != nil {
+		return fmt.Errorf("failed to get task state: %w", err)
+	}
+	tSt, ok := st.(*task.State)
+	if !ok {
+		return fmt.Errorf("failed to cast state to task state")
+	}
+	if err := tSt.UpdateFromEvent(event); err != nil {
+		return fmt.Errorf("failed to update task state from event: %w", err)
+	}
+	if err := m.store.UpsertState(tSt); err != nil {
+		return fmt.Errorf("failed to save updated task state: %w", err)
+	}
+	return nil
+}
+
+func (m *Manager) handleAgentStateUpdate(subj *nats.EventSubject, event any) error {
+	st, err := m.GetAgentState(subj.CorrID, subj.ExecID)
+	if err != nil {
+		return fmt.Errorf("failed to get agent state: %w", err)
+	}
+	aSt, ok := st.(*agent.State)
+	if !ok {
+		return fmt.Errorf("failed to cast state to agent state")
+	}
+	if err := aSt.UpdateFromEvent(event); err != nil {
+		return fmt.Errorf("failed to update agent state from event: %w", err)
+	}
+	if err := m.store.UpsertState(aSt); err != nil {
+		return fmt.Errorf("failed to save updated agent state: %w", err)
+	}
+	return nil
+}
+
+func (m *Manager) handleToolStateUpdate(subj *nats.EventSubject, event any) error {
+	st, err := m.GetToolState(subj.CorrID, subj.ExecID)
+	if err != nil {
+		return fmt.Errorf("failed to get tool state: %w", err)
+	}
+	tSt, ok := st.(*tool.State)
+	if !ok {
+		return fmt.Errorf("failed to cast state to tool state")
+	}
+	if err := tSt.UpdateFromEvent(event); err != nil {
+		return fmt.Errorf("failed to update tool state from event: %w", err)
+	}
+	if err := m.store.UpsertState(tSt); err != nil {
+		return fmt.Errorf("failed to save updated tool state: %w", err)
 	}
 	return nil
 }

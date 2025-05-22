@@ -34,7 +34,7 @@ func (wi *StateInitializer) Initialize() (*State, error) {
 	}
 	st := &State{
 		BaseState: *bsState,
-		execution: wi.Execution,
+		Execution: wi.Execution,
 	}
 	if err := wi.Normalizer.ParseTemplates(st); err != nil {
 		return nil, err
@@ -48,7 +48,7 @@ func (wi *StateInitializer) Initialize() (*State, error) {
 
 type State struct {
 	state.BaseState
-	execution *Execution `json:"-"`
+	Execution *Execution `json:"execution,omitempty"`
 }
 
 func NewState(exec *Execution) (*State, error) {
@@ -64,7 +64,7 @@ func NewState(exec *Execution) (*State, error) {
 }
 
 func (s *State) Exec() *Execution {
-	return s.execution
+	return s.Execution
 }
 
 func (s *State) UpdateFromEvent(event any) error {

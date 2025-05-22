@@ -32,9 +32,8 @@ func (ti *StateInitializer) Initialize() (*State, error) {
 		Env:     env,
 	}
 	st := &State{
-		BaseState:      *bsState,
-		WorkflowExecID: ti.WorkflowExecID,
-		TaskExecID:     ti.TaskExecID,
+		BaseState: *bsState,
+		Execution: ti.Execution,
 	}
 	if err := ti.Normalizer.ParseTemplates(st); err != nil {
 		return nil, err
@@ -48,8 +47,7 @@ func (ti *StateInitializer) Initialize() (*State, error) {
 
 type State struct {
 	state.BaseState
-	WorkflowExecID common.ID `json:"workflow_exec_id"`
-	TaskExecID     common.ID `json:"task_exec_id"`
+	Execution *Execution `json:"execution,omitempty"`
 }
 
 func NewTaskState(exec *Execution) (*State, error) {

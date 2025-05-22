@@ -5,7 +5,6 @@ import (
 
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/domain/agent"
-	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/pkg/nats"
 	pbagent "github.com/compozy/compozy/pkg/pb/agent"
 	pbcommon "github.com/compozy/compozy/pkg/pb/common"
@@ -85,9 +84,9 @@ func TestAgentStateInitialization(t *testing.T) {
 
 	t.Run("Should correctly initialize IDs and default status", func(t *testing.T) {
 		assert.Equal(t, *corrID, agentState.GetID().CorrID)
-		assert.Equal(t, *workflowExecID, agentState.WorkflowExecID)
-		assert.Equal(t, *taskExecID, agentState.TaskExecID)
-		assert.Equal(t, agentExecID, agentState.AgentExecID)
+		assert.Equal(t, *workflowExecID, agentState.Execution.WorkflowExecID)
+		assert.Equal(t, *taskExecID, agentState.Execution.TaskExecID)
+		assert.Equal(t, agentExecID, agentState.Execution.AgentExecID)
 		assert.Equal(t, agentExecID, agentState.GetID().ExecID)
 		assert.Equal(t, nats.StatusPending, agentState.GetStatus())
 	})
@@ -170,7 +169,7 @@ func TestAgentStatePersistence(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, retrievedStateInterface)
 
-		retrievedBaseState, ok := retrievedStateInterface.(*state.BaseState)
+		retrievedBaseState, ok := retrievedStateInterface.(*agent.State)
 		require.True(t, ok, "Retrieved state should be of type *state.BaseState")
 
 		assert.Equal(t, originalAgentState.GetID(), retrievedBaseState.GetID())
@@ -237,7 +236,7 @@ func TestAgentStateUpdates(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, retrievedStateInterface)
 
-		retrievedBaseState, ok := retrievedStateInterface.(*state.BaseState)
+		retrievedBaseState, ok := retrievedStateInterface.(*agent.State)
 		require.True(t, ok, "Retrieved state should be of type *state.BaseState")
 
 		assert.Equal(t, nats.StatusSuccess, retrievedBaseState.GetStatus())
