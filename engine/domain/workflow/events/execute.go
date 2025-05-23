@@ -6,30 +6,32 @@ import (
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
-	pbcommon "github.com/compozy/compozy/pkg/pb/common"
-	pbwf "github.com/compozy/compozy/pkg/pb/workflow"
+	"github.com/compozy/compozy/pkg/pb"
 	timepb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func SendExecute(nc *nats.Client, triggerCmd *pbwf.CmdWorkflowTrigger) error {
-	workflowID := common.ID(triggerCmd.GetWorkflow().Id)
-	corrID := common.ID(triggerCmd.GetMetadata().CorrelationId)
-	wExecID := common.ID(triggerCmd.GetWorkflow().ExecId)
+func SendExecute(nc *nats.Client, triggerCmd *pb.CmdWorkflowTrigger) error {
+	metadata := triggerCmd.GetMetadata()
+	workflowID := common.ID(metadata.WorkflowId)
+	corrID := common.ID(metadata.CorrelationId)
+	wExecID := common.ID(metadata.WorkflowExecId)
 	logger.With(
 		"workflow_id", workflowID,
 		"correlation_id", corrID,
 		"workflow_execution_id", wExecID,
 	).Debug("Sending CmdWorkflowExecute")
 
-	cmd := pbwf.CmdWorkflowExecute{
-		Metadata: &pbcommon.Metadata{
-			CorrelationId: corrID.String(),
-			Source:        "engine.Orchestrator",
-			Time:          timepb.Now(),
-			State:         triggerCmd.GetMetadata().State,
+	cmd := pb.CmdWorkflowExecute{
+		Metadata: &pb.WorkflowMetadata{
+			Source:          "engine.Orchestrator",
+			CorrelationId:   corrID.String(),
+			WorkflowId:      metadata.WorkflowId,
+			WorkflowExecId:  metadata.WorkflowExecId,
+			WorkflowStateId: metadata.WorkflowStateId,
+			Time:            timepb.Now(),
+			Subject:         "",
 		},
-		Workflow: triggerCmd.GetWorkflow(),
-		Details: &pbwf.CmdWorkflowExecute_Details{
+		Details: &pb.CmdWorkflowExecute_Details{
 			TriggerInput: triggerCmd.GetDetails().GetTriggerInput(),
 		},
 	}

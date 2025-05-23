@@ -4,116 +4,59 @@ import (
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/pkg/nats"
-	pbcommon "github.com/compozy/compozy/pkg/pb/common"
+	"github.com/compozy/compozy/pkg/pb"
 	timepb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type Metadata struct {
-	Time            *timepb.Timestamp
-	Source          string
-	CorrID          common.ID
-	WorkflowID      string
-	WorkflowExecID  common.ID
-	WorkflowStateID state.ID
-	TaskID          string
-	TaskExecID      common.ID
-	TaskStateID     state.ID
-	ToolID          string
-	ToolExecID      common.ID
-	ToolStateID     state.ID
-}
+// -----------------------------------------------------------------------------
+// Helper functions
+// -----------------------------------------------------------------------------
 
-type Payload interface {
-	GetMetadata() *pbcommon.Metadata
-	GetWorkflow() *pbcommon.WorkflowInfo
-	GetTask() *pbcommon.TaskInfo
-	GetTool() *pbcommon.ToolInfo
-}
-
-func InfoFromEvent(cmd Payload) (*Metadata, error) {
-	workflowInfo := cmd.GetWorkflow()
-	taskInfo := cmd.GetTask()
-	toolInfo := cmd.GetTool()
-	metadata := cmd.GetMetadata()
-	corrID := common.ID(metadata.CorrelationId)
-	workflowID := workflowInfo.Id
-	wExecID := common.ID(workflowInfo.ExecId)
-	taskID := taskInfo.Id
-	taskExecID := common.ID(taskInfo.ExecId)
-	toolID := toolInfo.Id
-	toolExecID := common.ID(toolInfo.ExecId)
-	wStateID := state.NewID(nats.ComponentWorkflow, corrID, wExecID)
-	taskStateID := state.NewID(nats.ComponentTask, corrID, taskExecID)
-	toolStateID := state.NewID(nats.ComponentTool, corrID, toolExecID)
-	return &Metadata{
-		Time:            metadata.Time,
-		Source:          metadata.Source,
-		CorrID:          corrID,
-		WorkflowID:      workflowID,
-		WorkflowExecID:  wExecID,
-		WorkflowStateID: wStateID,
-		TaskID:          taskID,
-		TaskExecID:      taskExecID,
-		TaskStateID:     taskStateID,
-		ToolID:          toolID,
-		ToolExecID:      toolExecID,
-		ToolStateID:     toolStateID,
-	}, nil
-}
-
-func RandomInfo(workflowID string, taskID string, toolID string) *Metadata {
+func RandomMetadata(workflowID string, taskID string, toolID string) *pb.ToolMetadata {
 	corrID := common.MustNewID()
 	wExecID := common.MustNewID()
 	tExecID := common.MustNewID()
 	toolExecID := common.MustNewID()
-	return &Metadata{
+	wStateID := state.NewID(nats.ComponentWorkflow, corrID, wExecID)
+	taskStateID := state.NewID(nats.ComponentTask, corrID, tExecID)
+	toolStateID := state.NewID(nats.ComponentTool, corrID, toolExecID)
+	return &pb.ToolMetadata{
 		Time:            timepb.Now(),
 		Source:          "",
-		CorrID:          corrID,
-		WorkflowID:      workflowID,
-		WorkflowExecID:  wExecID,
-		WorkflowStateID: state.NewID(nats.ComponentWorkflow, corrID, wExecID),
-		TaskID:          taskID,
-		TaskExecID:      tExecID,
-		TaskStateID:     state.NewID(nats.ComponentTask, corrID, tExecID),
-		ToolID:          toolID,
-		ToolExecID:      toolExecID,
-		ToolStateID:     state.NewID(nats.ComponentTool, corrID, toolExecID),
+		CorrelationId:   corrID.String(),
+		WorkflowId:      workflowID,
+		WorkflowExecId:  wExecID.String(),
+		WorkflowStateId: wStateID.String(),
+		TaskId:          taskID,
+		TaskExecId:      tExecID.String(),
+		TaskStateId:     taskStateID.String(),
+		ToolId:          toolID,
+		ToolExecId:      toolExecID.String(),
+		ToolStateId:     toolStateID.String(),
+		Subject:         "",
 	}
 }
 
-func (i *Metadata) Metadata() *pbcommon.Metadata {
-	tStateID := i.TaskStateID.String()
-	return &pbcommon.Metadata{
-		CorrelationId: i.CorrID.String(),
-		Source:        i.Source,
-		Time:          i.Time,
-		State: &pbcommon.State{
-			Id:       i.ToolStateID.String(),
-			ParentId: &tStateID,
-		},
-	}
+// -----------------------------------------------------------------------------
+// Context helper functions
+// -----------------------------------------------------------------------------
+
+func GetToolStateID(metadata *pb.ToolMetadata) state.ID {
+	corrID := common.ID(metadata.CorrelationId)
+	toolExecID := common.ID(metadata.ToolExecId)
+	return state.NewID(nats.ComponentTool, corrID, toolExecID)
 }
 
-func (i *Metadata) Workflow() *pbcommon.WorkflowInfo {
-	return &pbcommon.WorkflowInfo{
-		Id:     i.WorkflowID,
-		ExecId: i.WorkflowExecID.String(),
-	}
+func GetTaskStateID(metadata *pb.ToolMetadata) state.ID {
+	corrID := common.ID(metadata.CorrelationId)
+	taskExecID := common.ID(metadata.TaskExecId)
+	return state.NewID(nats.ComponentTask, corrID, taskExecID)
 }
 
-func (i *Metadata) Task() *pbcommon.TaskInfo {
-	return &pbcommon.TaskInfo{
-		Id:     i.TaskID,
-		ExecId: i.TaskExecID.String(),
-	}
-}
-
-func (i *Metadata) Tool() *pbcommon.ToolInfo {
-	return &pbcommon.ToolInfo{
-		Id:     i.ToolID,
-		ExecId: i.ToolExecID.String(),
-	}
+func GetWorkflowStateID(metadata *pb.ToolMetadata) state.ID {
+	corrID := common.ID(metadata.CorrelationId)
+	workflowExecID := common.ID(metadata.WorkflowExecId)
+	return state.NewID(nats.ComponentWorkflow, corrID, workflowExecID)
 }
 
 // -----------------------------------------------------------------------------
@@ -121,25 +64,101 @@ func (i *Metadata) Tool() *pbcommon.ToolInfo {
 // -----------------------------------------------------------------------------
 
 type Context struct {
-	*Metadata
-	TaskEnv      common.EnvMap `json:"task_env"`
-	ToolEnv      common.EnvMap `json:"tool_env"`
-	TriggerInput *common.Input `json:"trigger_input"`
-	TaskInput    *common.Input `json:"task_input"`
-	ToolInput    *common.Input `json:"tool_input"`
+	Metadata     *pb.ToolMetadata `json:"metadata"`
+	TaskEnv      common.EnvMap    `json:"task_env"`
+	ToolEnv      common.EnvMap    `json:"tool_env"`
+	TriggerInput *common.Input    `json:"trigger_input"`
+	TaskInput    *common.Input    `json:"task_input"`
+	ToolInput    *common.Input    `json:"tool_input"`
 }
 
 func NewContext(
-	info *Metadata,
+	metadata *pb.ToolMetadata,
 	taskEnv, toolEnv common.EnvMap,
 	triggerInput, taskInput, toolInput *common.Input,
 ) (*Context, error) {
 	return &Context{
-		Metadata:     info,
+		Metadata:     metadata,
 		TaskEnv:      taskEnv,
 		ToolEnv:      toolEnv,
 		TriggerInput: triggerInput,
 		TaskInput:    taskInput,
 		ToolInput:    toolInput,
 	}, nil
+}
+
+// -----------------------------------------------------------------------------
+// Basic getters
+// -----------------------------------------------------------------------------
+
+func (c *Context) GetMetadata() *pb.ToolMetadata {
+	return c.Metadata
+}
+
+func (c *Context) GetSource() string {
+	return c.Metadata.Source
+}
+
+func (c *Context) GetCorrID() common.ID {
+	return common.ID(c.Metadata.CorrelationId)
+}
+
+func (c *Context) GetWorkflowID() string {
+	return c.Metadata.WorkflowId
+}
+
+func (c *Context) GetWorkflowExecID() common.ID {
+	return common.ID(c.Metadata.WorkflowExecId)
+}
+
+func (c *Context) GetWorkflowStateID() state.ID {
+	return GetWorkflowStateID(c.Metadata)
+}
+
+func (c *Context) GetTaskID() string {
+	return c.Metadata.TaskId
+}
+
+func (c *Context) GetTaskExecID() common.ID {
+	return common.ID(c.Metadata.TaskExecId)
+}
+
+func (c *Context) GetTaskStateID() state.ID {
+	return GetTaskStateID(c.Metadata)
+}
+
+func (c *Context) GetToolID() string {
+	return c.Metadata.ToolId
+}
+
+func (c *Context) GetToolExecID() common.ID {
+	return common.ID(c.Metadata.ToolExecId)
+}
+
+func (c *Context) GetToolStateID() state.ID {
+	return GetToolStateID(c.Metadata)
+}
+
+func (c *Context) GetSubject() string {
+	return c.Metadata.Subject
+}
+
+func (c *Context) GetTaskEnv() common.EnvMap {
+	return c.TaskEnv
+}
+
+func (c *Context) GetToolEnv() common.EnvMap {
+	return c.ToolEnv
+}
+
+func (c *Context) GetTriggerInput() *common.Input {
+	return c.TriggerInput
+}
+
+func (c *Context) GetTaskInput() *common.Input {
+	return c.TaskInput
+}
+
+func (c *Context) GetToolInput() *common.Input {
+	return c.ToolInput
 }

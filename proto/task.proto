@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package task;
+
+import "common.proto";
+import "google/protobuf/struct.proto";
+
+option go_package = "github.com/compozy/compozy/pkg/pb";
+
+enum TaskStatus {
+  TASK_STATUS_UNSPECIFIED = 0;
+  TASK_STATUS_PENDING = 1;
+  TASK_STATUS_RUNNING = 2;
+  TASK_STATUS_WAITING = 3;
+  TASK_STATUS_SUCCESS = 4;
+  TASK_STATUS_FAILED = 5;
+  TASK_STATUS_TIMED_OUT = 6;
+  TASK_STATUS_CANCELED = 7;
+}
+
+// -----------------------------------------------------------------------------
+// Commands
+// -----------------------------------------------------------------------------
+
+message CmdTaskDispatch {
+  common.TaskMetadata metadata = 1;
+}
+
+message CmdTaskExecute {
+  common.TaskMetadata metadata = 1;
+}
+
+message CmdTaskResume {
+  common.TaskMetadata metadata = 1;
+}
+
+// -----------------------------------------------------------------------------
+// Events
+// -----------------------------------------------------------------------------
+
+message EventTaskDispatched {
+  common.TaskMetadata metadata = 1;
+
+  message Details {
+    TaskStatus status = 1;
+  }
+  Details details = 2;
+}
+
+message EventTaskStarted {
+  common.TaskMetadata metadata = 1;
+
+  message Details {
+    TaskStatus status = 1;
+  }
+  Details details = 2;
+}
+
+message EventTaskWaiting {
+  common.TaskMetadata metadata = 1;
+
+  message Details {
+    TaskStatus status = 1;
+  }
+  Details details = 2;
+}
+
+message EventTaskWaitingEnded {
+  common.TaskMetadata metadata = 1;
+
+  message Details {
+    TaskStatus status = 1;
+    int64 duration_ms = 2;
+  }
+  Details details = 2;
+}
+
+message EventTaskWaitingTimedOut {
+  common.TaskMetadata metadata = 1;
+
+  message Details {
+    TaskStatus status = 1;
+    common.ErrorResult error = 2;
+    int64 duration_ms = 3;
+  }
+  Details details = 2;
+}
+
+message EventTaskSuccess {
+  common.TaskMetadata metadata = 1;
+
+  message Details {
+    TaskStatus status = 1;
+    google.protobuf.Struct result = 2;
+    int64 duration_ms = 3;
+  }
+  Details details = 2;
+}
+
+message EventTaskFailed {
+  common.TaskMetadata metadata = 1;
+
+  message Details {
+    TaskStatus status = 1;
+    common.ErrorResult error = 2;
+    int64 duration_ms = 3;
+  }
+  Details details = 2;
+}

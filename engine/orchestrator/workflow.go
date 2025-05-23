@@ -7,7 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/common"
 	wfevts "github.com/compozy/compozy/engine/domain/workflow/events"
 	"github.com/compozy/compozy/pkg/nats"
-	pbwf "github.com/compozy/compozy/pkg/pb/workflow"
+	"github.com/compozy/compozy/pkg/pb"
 	"github.com/nats-io/nats.go/jetstream"
 	"google.golang.org/protobuf/proto"
 )
@@ -20,7 +20,7 @@ func (o *Orchestrator) SendWorkflowTrigger(ti *common.Input, workflowID string) 
 	return wfevts.SendTrigger(o.nc, ti, workflowID)
 }
 
-func (o *Orchestrator) SendWorkflowExecute(cmd *pbwf.CmdWorkflowTrigger) error {
+func (o *Orchestrator) SendWorkflowExecute(cmd *pb.CmdWorkflowTrigger) error {
 	return wfevts.SendExecute(o.nc, cmd)
 }
 
@@ -50,7 +50,7 @@ func (o *Orchestrator) subscribeWorkflowTrigger(ctx context.Context) error {
 // -----------------------------------------------------------------------------
 
 func (o *Orchestrator) handleWorkflowTrigger(_ string, data []byte, _ jetstream.Msg) error {
-	var cmd pbwf.CmdWorkflowTrigger
+	var cmd pb.CmdWorkflowTrigger
 	if err := proto.Unmarshal(data, &cmd); err != nil {
 		return fmt.Errorf("failed to unmarshal CmdWorkflowTrigger: %w", err)
 	}

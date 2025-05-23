@@ -3,48 +3,27 @@ package events
 import (
 	"fmt"
 
-	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
-	pbcommon "github.com/compozy/compozy/pkg/pb/common"
-	pbtask "github.com/compozy/compozy/pkg/pb/task"
+	"github.com/compozy/compozy/pkg/pb"
 	"google.golang.org/protobuf/types/known/structpb"
-	timepb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func SendFailed(
-	nc *nats.Client,
-	workflowInfo *pbcommon.WorkflowInfo,
-	taskInfo *pbcommon.TaskInfo,
-	metadata *pbcommon.Metadata,
-	err error,
-) error {
-	workflowID := common.ID(workflowInfo.Id)
-	corrID := common.ID(metadata.CorrelationId)
-	wExecID := common.ID(workflowInfo.ExecId)
-	taskID := common.ID(taskInfo.Id)
-	tExecID := common.ID(taskInfo.ExecId)
+func SendFailed(nc *nats.Client, metadata *pb.TaskMetadata, err error) error {
 	logger.With(
-		"correlation_id", corrID,
-		"workflow_id", workflowID,
-		"workflow_execution_id", wExecID,
-		"task_id", taskID,
-		"task_execution_id", tExecID,
+		"correlation_id", metadata.CorrelationId,
+		"workflow_id", metadata.WorkflowId,
+		"workflow_execution_id", metadata.WorkflowExecId,
+		"task_id", metadata.TaskId,
+		"task_execution_id", metadata.TaskExecId,
 	).Debug("Sending EventTaskFailed")
 
 	code := "TASK_EXECUTION_FAILED"
-	cmd := pbtask.EventTaskFailed{
-		Metadata: &pbcommon.Metadata{
-			CorrelationId: corrID.String(),
-			Source:        "engine.Orchestrator",
-			Time:          timepb.Now(),
-			State:         metadata.State,
-		},
-		Workflow: workflowInfo,
-		Task:     taskInfo,
-		Details: &pbtask.EventTaskFailed_Details{
-			Status: pbtask.TaskStatus_TASK_STATUS_FAILED,
-			Error: &pbcommon.ErrorResult{
+	cmd := pb.EventTaskFailed{
+		Metadata: metadata.Clone("task.Executor"),
+		Details: &pb.EventTaskFailed_Details{
+			Status: pb.TaskStatus_TASK_STATUS_FAILED,
+			Error: &pb.ErrorResult{
 				Code:    &code,
 				Message: err.Error(),
 				Details: &structpb.Struct{},

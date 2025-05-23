@@ -6,31 +6,32 @@ import (
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
-	pbcommon "github.com/compozy/compozy/pkg/pb/common"
-	pbwf "github.com/compozy/compozy/pkg/pb/workflow"
+	"github.com/compozy/compozy/pkg/pb"
 	timepb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func SendStarted(nc *nats.Client, info *pbcommon.WorkflowInfo, metadata *pbcommon.Metadata) error {
-	workflowID := common.ID(info.Id)
+func SendStarted(nc *nats.Client, metadata *pb.WorkflowMetadata) error {
+	workflowID := common.ID(metadata.WorkflowId)
 	corrID := common.ID(metadata.CorrelationId)
-	wExecID := common.ID(info.ExecId)
+	wExecID := common.ID(metadata.WorkflowExecId)
 	logger.With(
 		"workflow_id", workflowID,
 		"correlation_id", corrID,
 		"workflow_execution_id", wExecID,
 	).Debug("Sending EventWorkflowStarted")
 
-	cmd := pbwf.EventWorkflowStarted{
-		Metadata: &pbcommon.Metadata{
-			CorrelationId: corrID.String(),
-			Source:        "engine.Orchestrator",
-			Time:          timepb.Now(),
-			State:         metadata.State,
+	cmd := pb.EventWorkflowStarted{
+		Metadata: &pb.WorkflowMetadata{
+			Source:          "engine.Orchestrator",
+			CorrelationId:   metadata.CorrelationId,
+			WorkflowId:      metadata.WorkflowId,
+			WorkflowExecId:  metadata.WorkflowExecId,
+			WorkflowStateId: metadata.WorkflowStateId,
+			Time:            timepb.Now(),
+			Subject:         "",
 		},
-		Workflow: info,
-		Details: &pbwf.EventWorkflowStarted_Details{
-			Status: pbwf.WorkflowStatus_WORKFLOW_STATUS_RUNNING,
+		Details: &pb.EventWorkflowStarted_Details{
+			Status: pb.WorkflowStatus_WORKFLOW_STATUS_RUNNING,
 		},
 	}
 	if err := nc.PublishCmd(&cmd); err != nil {

@@ -4,11 +4,11 @@ import (
 	"maps"
 
 	"github.com/compozy/compozy/engine/common"
-	pbcommon "github.com/compozy/compozy/pkg/pb/common"
+	"github.com/compozy/compozy/pkg/pb"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-func SetStateError(state *BaseState, err *pbcommon.ErrorResult) {
+func SetStateError(state *BaseState, err *pb.ErrorResult) {
 	if err == nil {
 		return
 	}

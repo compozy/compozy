@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package tool;
+
+import "common.proto";
+import "google/protobuf/struct.proto";
+
+option go_package = "github.com/compozy/compozy/pkg/pb";
+
+enum ToolStatus {
+  TOOL_STATUS_UNSPECIFIED = 0;
+  TOOL_STATUS_RUNNING = 1;
+  TOOL_STATUS_SUCCESS = 2;
+  TOOL_STATUS_FAILED = 3;
+}
+
+// -----------------------------------------------------------------------------
+// Commands
+// -----------------------------------------------------------------------------
+
+message CmdToolExecute {
+  common.ToolMetadata metadata = 1;
+
+  message Details {
+    common.ToolRequest tool_request = 1;
+  }
+  Details details = 2;
+}
+
+// -----------------------------------------------------------------------------
+// Events
+// -----------------------------------------------------------------------------
+
+message EventToolStarted {
+  common.ToolMetadata metadata = 1;
+
+  message Details {
+    ToolStatus status = 1;
+  }
+  Details details = 2;
+}
+
+message EventToolSuccess {
+  common.ToolMetadata metadata = 1;
+
+  message Details {
+    ToolStatus status = 1;
+    google.protobuf.Struct result = 2;
+    int64 duration_ms = 3;
+  }
+  Details details = 2;
+}
+
+message EventToolFailed {
+  common.ToolMetadata metadata = 1;
+
+  message Details {
+    ToolStatus status = 1;
+    common.ErrorResult error = 2;
+    int64 duration_ms = 3;
+  }
+  Details details = 2;
+}

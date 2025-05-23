@@ -2,12 +2,11 @@
 // versions:
 // 	protoc-gen-go v1.36.6
 // 	protoc        v5.29.3
-// source: log/events.proto
+// source: log.proto
 
-package log
+package pb
 
 import (
-	common "github.com/compozy/compozy/pkg/pb/common"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -62,11 +61,11 @@ func (x LogLevel) String() string {
 }
 
 func (LogLevel) Descriptor() protoreflect.EnumDescriptor {
-	return file_log_events_proto_enumTypes[0].Descriptor()
+	return file_log_proto_enumTypes[0].Descriptor()
 }
 
 func (LogLevel) Type() protoreflect.EnumType {
-	return &file_log_events_proto_enumTypes[0]
+	return &file_log_proto_enumTypes[0]
 }
 
 func (x LogLevel) Number() protoreflect.EnumNumber {
@@ -75,24 +74,20 @@ func (x LogLevel) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use LogLevel.Descriptor instead.
 func (LogLevel) EnumDescriptor() ([]byte, []int) {
-	return file_log_events_proto_rawDescGZIP(), []int{0}
+	return file_log_proto_rawDescGZIP(), []int{0}
 }
 
 type EventLogEmitted struct {
 	state         protoimpl.MessageState   `protogen:"open.v1"`
-	Metadata      *common.Metadata         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo     `protobuf:"bytes,2,opt,name=workflow,proto3,oneof" json:"workflow,omitempty"`
-	Task          *common.TaskInfo         `protobuf:"bytes,3,opt,name=task,proto3,oneof" json:"task,omitempty"`
-	Agent         *common.AgentInfo        `protobuf:"bytes,4,opt,name=agent,proto3,oneof" json:"agent,omitempty"`
-	Tool          *common.ToolInfo         `protobuf:"bytes,5,opt,name=tool,proto3,oneof" json:"tool,omitempty"`
-	Details       *EventLogEmitted_Details `protobuf:"bytes,6,opt,name=details,proto3" json:"details,omitempty"`
+	Metadata      *LogMetadata             `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Details       *EventLogEmitted_Details `protobuf:"bytes,2,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *EventLogEmitted) Reset() {
 	*x = EventLogEmitted{}
-	mi := &file_log_events_proto_msgTypes[0]
+	mi := &file_log_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -104,7 +99,7 @@ func (x *EventLogEmitted) String() string {
 func (*EventLogEmitted) ProtoMessage() {}
 
 func (x *EventLogEmitted) ProtoReflect() protoreflect.Message {
-	mi := &file_log_events_proto_msgTypes[0]
+	mi := &file_log_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -117,40 +112,12 @@ func (x *EventLogEmitted) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventLogEmitted.ProtoReflect.Descriptor instead.
 func (*EventLogEmitted) Descriptor() ([]byte, []int) {
-	return file_log_events_proto_rawDescGZIP(), []int{0}
+	return file_log_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *EventLogEmitted) GetMetadata() *common.Metadata {
+func (x *EventLogEmitted) GetMetadata() *LogMetadata {
 	if x != nil {
 		return x.Metadata
-	}
-	return nil
-}
-
-func (x *EventLogEmitted) GetWorkflow() *common.WorkflowInfo {
-	if x != nil {
-		return x.Workflow
-	}
-	return nil
-}
-
-func (x *EventLogEmitted) GetTask() *common.TaskInfo {
-	if x != nil {
-		return x.Task
-	}
-	return nil
-}
-
-func (x *EventLogEmitted) GetAgent() *common.AgentInfo {
-	if x != nil {
-		return x.Agent
-	}
-	return nil
-}
-
-func (x *EventLogEmitted) GetTool() *common.ToolInfo {
-	if x != nil {
-		return x.Tool
 	}
 	return nil
 }
@@ -175,7 +142,7 @@ type EventLogEmitted_Details struct {
 
 func (x *EventLogEmitted_Details) Reset() {
 	*x = EventLogEmitted_Details{}
-	mi := &file_log_events_proto_msgTypes[1]
+	mi := &file_log_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -187,7 +154,7 @@ func (x *EventLogEmitted_Details) String() string {
 func (*EventLogEmitted_Details) ProtoMessage() {}
 
 func (x *EventLogEmitted_Details) ProtoReflect() protoreflect.Message {
-	mi := &file_log_events_proto_msgTypes[1]
+	mi := &file_log_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -200,7 +167,7 @@ func (x *EventLogEmitted_Details) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventLogEmitted_Details.ProtoReflect.Descriptor instead.
 func (*EventLogEmitted_Details) Descriptor() ([]byte, []int) {
-	return file_log_events_proto_rawDescGZIP(), []int{0, 0}
+	return file_log_proto_rawDescGZIP(), []int{0, 0}
 }
 
 func (x *EventLogEmitted_Details) GetLogLevel() LogLevel {
@@ -238,98 +205,82 @@ func (x *EventLogEmitted_Details) GetTime() *timestamppb.Timestamp {
 	return nil
 }
 
-var File_log_events_proto protoreflect.FileDescriptor
+var File_log_proto protoreflect.FileDescriptor
 
-const file_log_events_proto_rawDesc = "" +
+const file_log_proto_rawDesc = "" +
 	"\n" +
-	"\x10log/events.proto\x12\x03log\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9e\x04\n" +
-	"\x0fEventLogEmitted\x12,\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x125\n" +
-	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoH\x00R\bworkflow\x88\x01\x01\x12)\n" +
-	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoH\x01R\x04task\x88\x01\x01\x12,\n" +
-	"\x05agent\x18\x04 \x01(\v2\x11.common.AgentInfoH\x02R\x05agent\x88\x01\x01\x12)\n" +
-	"\x04tool\x18\x05 \x01(\v2\x10.common.ToolInfoH\x03R\x04tool\x88\x01\x01\x126\n" +
-	"\adetails\x18\x06 \x01(\v2\x1c.log.EventLogEmitted.DetailsR\adetails\x1a\xc0\x01\n" +
+	"\tlog.proto\x12\x03log\x1a\fcommon.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xbd\x02\n" +
+	"\x0fEventLogEmitted\x12/\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x13.common.LogMetadataR\bmetadata\x126\n" +
+	"\adetails\x18\x02 \x01(\v2\x1c.log.EventLogEmitted.DetailsR\adetails\x1a\xc0\x01\n" +
 	"\aDetails\x12*\n" +
 	"\tlog_level\x18\x01 \x01(\x0e2\r.log.LogLevelR\blogLevel\x12\x1c\n" +
 	"\tcomponent\x18\x02 \x01(\tR\tcomponent\x12!\n" +
 	"\fcomponent_id\x18\x03 \x01(\tR\vcomponentId\x12\x18\n" +
 	"\amessage\x18\x04 \x01(\tR\amessage\x12.\n" +
-	"\x04time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x04timeB\v\n" +
-	"\t_workflowB\a\n" +
-	"\x05_taskB\b\n" +
-	"\x06_agentB\a\n" +
-	"\x05_tool*w\n" +
+	"\x04time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x04time*w\n" +
 	"\bLogLevel\x12\x19\n" +
 	"\x15LOG_LEVEL_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fLOG_LEVEL_DEBUG\x10\x01\x12\x12\n" +
 	"\x0eLOG_LEVEL_INFO\x10\x02\x12\x12\n" +
 	"\x0eLOG_LEVEL_WARN\x10\x03\x12\x13\n" +
-	"\x0fLOG_LEVEL_ERROR\x10\x04B'Z%github.com/compozy/compozy/pkg/pb/logb\x06proto3"
+	"\x0fLOG_LEVEL_ERROR\x10\x04B#Z!github.com/compozy/compozy/pkg/pbb\x06proto3"
 
 var (
-	file_log_events_proto_rawDescOnce sync.Once
-	file_log_events_proto_rawDescData []byte
+	file_log_proto_rawDescOnce sync.Once
+	file_log_proto_rawDescData []byte
 )
 
-func file_log_events_proto_rawDescGZIP() []byte {
-	file_log_events_proto_rawDescOnce.Do(func() {
-		file_log_events_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_log_events_proto_rawDesc), len(file_log_events_proto_rawDesc)))
+func file_log_proto_rawDescGZIP() []byte {
+	file_log_proto_rawDescOnce.Do(func() {
+		file_log_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_log_proto_rawDesc), len(file_log_proto_rawDesc)))
 	})
-	return file_log_events_proto_rawDescData
+	return file_log_proto_rawDescData
 }
 
-var file_log_events_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_log_events_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_log_events_proto_goTypes = []any{
+var file_log_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_log_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_log_proto_goTypes = []any{
 	(LogLevel)(0),                   // 0: log.LogLevel
 	(*EventLogEmitted)(nil),         // 1: log.EventLogEmitted
 	(*EventLogEmitted_Details)(nil), // 2: log.EventLogEmitted.Details
-	(*common.Metadata)(nil),         // 3: common.Metadata
-	(*common.WorkflowInfo)(nil),     // 4: common.WorkflowInfo
-	(*common.TaskInfo)(nil),         // 5: common.TaskInfo
-	(*common.AgentInfo)(nil),        // 6: common.AgentInfo
-	(*common.ToolInfo)(nil),         // 7: common.ToolInfo
-	(*timestamppb.Timestamp)(nil),   // 8: google.protobuf.Timestamp
+	(*LogMetadata)(nil),             // 3: common.LogMetadata
+	(*timestamppb.Timestamp)(nil),   // 4: google.protobuf.Timestamp
 }
-var file_log_events_proto_depIdxs = []int32{
-	3, // 0: log.EventLogEmitted.metadata:type_name -> common.Metadata
-	4, // 1: log.EventLogEmitted.workflow:type_name -> common.WorkflowInfo
-	5, // 2: log.EventLogEmitted.task:type_name -> common.TaskInfo
-	6, // 3: log.EventLogEmitted.agent:type_name -> common.AgentInfo
-	7, // 4: log.EventLogEmitted.tool:type_name -> common.ToolInfo
-	2, // 5: log.EventLogEmitted.details:type_name -> log.EventLogEmitted.Details
-	0, // 6: log.EventLogEmitted.Details.log_level:type_name -> log.LogLevel
-	8, // 7: log.EventLogEmitted.Details.time:type_name -> google.protobuf.Timestamp
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+var file_log_proto_depIdxs = []int32{
+	3, // 0: log.EventLogEmitted.metadata:type_name -> common.LogMetadata
+	2, // 1: log.EventLogEmitted.details:type_name -> log.EventLogEmitted.Details
+	0, // 2: log.EventLogEmitted.Details.log_level:type_name -> log.LogLevel
+	4, // 3: log.EventLogEmitted.Details.time:type_name -> google.protobuf.Timestamp
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
-func init() { file_log_events_proto_init() }
-func file_log_events_proto_init() {
-	if File_log_events_proto != nil {
+func init() { file_log_proto_init() }
+func file_log_proto_init() {
+	if File_log_proto != nil {
 		return
 	}
-	file_log_events_proto_msgTypes[0].OneofWrappers = []any{}
+	file_common_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_log_events_proto_rawDesc), len(file_log_events_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_log_proto_rawDesc), len(file_log_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_log_events_proto_goTypes,
-		DependencyIndexes: file_log_events_proto_depIdxs,
-		EnumInfos:         file_log_events_proto_enumTypes,
-		MessageInfos:      file_log_events_proto_msgTypes,
+		GoTypes:           file_log_proto_goTypes,
+		DependencyIndexes: file_log_proto_depIdxs,
+		EnumInfos:         file_log_proto_enumTypes,
+		MessageInfos:      file_log_proto_msgTypes,
 	}.Build()
-	File_log_events_proto = out.File
-	file_log_events_proto_goTypes = nil
-	file_log_events_proto_depIdxs = nil
+	File_log_proto = out.File
+	file_log_proto_goTypes = nil
+	file_log_proto_depIdxs = nil
 }

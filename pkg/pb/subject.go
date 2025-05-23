@@ -1,7 +1,6 @@
 package pb
 
 import (
-	"github.com/compozy/compozy/pkg/pb/common"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -10,102 +9,172 @@ type Subjecter interface {
 	ToSubject() string
 }
 
-type WithMetadata interface {
-	GetMetadata() *common.Metadata
+// -----------------------------------------------------------------------------
+// Metadata Interfaces
+// -----------------------------------------------------------------------------
+
+type WithWorkflowMetadata interface {
+	GetMetadata() *WorkflowMetadata
 }
 
-type WithWorkflow interface {
-	GetWorkflow() *common.WorkflowInfo
+type WithTaskMetadata interface {
+	GetMetadata() *TaskMetadata
 }
 
-type WithTask interface {
-	GetTask() *common.TaskInfo
+type WithAgentMetadata interface {
+	GetMetadata() *AgentMetadata
 }
 
-type WithAgent interface {
-	GetAgent() *common.AgentInfo
+type WithToolMetadata interface {
+	GetMetadata() *ToolMetadata
 }
 
-type WithTool interface {
-	GetTool() *common.ToolInfo
+type WithLogMetadata interface {
+	GetMetadata() *LogMetadata
 }
 
-func GetCorrelationID(payload WithMetadata) string {
+// -----------------------------------------------------------------------------
+// Correlation ID Helpers
+// -----------------------------------------------------------------------------
+
+func GetCorrelationID(payload any) string {
 	corrID := "unknown_correlation_id"
-	if meta := payload.GetMetadata(); meta != nil && meta.GetCorrelationId() != "" {
-		corrID = meta.GetCorrelationId()
+
+	switch p := payload.(type) {
+	case WithWorkflowMetadata:
+		if meta := p.GetMetadata(); meta != nil && meta.GetCorrelationId() != "" {
+			corrID = meta.GetCorrelationId()
+		}
+	case WithTaskMetadata:
+		if meta := p.GetMetadata(); meta != nil && meta.GetCorrelationId() != "" {
+			corrID = meta.GetCorrelationId()
+		}
+	case WithAgentMetadata:
+		if meta := p.GetMetadata(); meta != nil && meta.GetCorrelationId() != "" {
+			corrID = meta.GetCorrelationId()
+		}
+	case WithToolMetadata:
+		if meta := p.GetMetadata(); meta != nil && meta.GetCorrelationId() != "" {
+			corrID = meta.GetCorrelationId()
+		}
+	case WithLogMetadata:
+		if meta := p.GetMetadata(); meta != nil && meta.GetCorrelationId() != "" {
+			corrID = meta.GetCorrelationId()
+		}
 	}
+
 	return corrID
 }
 
-func GetWorkflowID(payload WithWorkflow) string {
+// -----------------------------------------------------------------------------
+// Workflow Helpers
+// -----------------------------------------------------------------------------
+
+func GetWorkflowID(payload WithWorkflowMetadata) string {
 	workflowID := "unknown_workflow_id"
-	if workflow := payload.GetWorkflow(); workflow != nil && workflow.GetId() != "" {
-		workflowID = workflow.GetId()
+	if meta := payload.GetMetadata(); meta != nil && meta.GetWorkflowId() != "" {
+		workflowID = meta.GetWorkflowId()
 	}
 	return workflowID
 }
 
-func GetWorkflowExecID(payload WithWorkflow) string {
+func GetWorkflowExecID(payload WithWorkflowMetadata) string {
 	wExecID := "unknown_workflow_exec_id"
-	if workflow := payload.GetWorkflow(); workflow != nil && workflow.GetExecId() != "" {
-		wExecID = workflow.GetExecId()
+	if meta := payload.GetMetadata(); meta != nil && meta.GetWorkflowExecId() != "" {
+		wExecID = meta.GetWorkflowExecId()
 	}
 	return wExecID
 }
 
-func GetTaskID(payload WithTask) string {
+// -----------------------------------------------------------------------------
+// Task Helpers
+// -----------------------------------------------------------------------------
+
+func GetTaskID(payload WithTaskMetadata) string {
 	taskID := "unknown_task_id"
-	if task := payload.GetTask(); task != nil && task.GetId() != "" {
-		taskID = task.GetId()
+	if meta := payload.GetMetadata(); meta != nil && meta.GetTaskId() != "" {
+		taskID = meta.GetTaskId()
 	}
 	return taskID
 }
 
-func GetTaskExecID(payload WithTask) string {
+func GetTaskExecID(payload WithTaskMetadata) string {
 	tExecID := "unknown_task_exec_id"
-	if task := payload.GetTask(); task != nil && task.GetExecId() != "" {
-		tExecID = task.GetExecId()
+	if meta := payload.GetMetadata(); meta != nil && meta.GetTaskExecId() != "" {
+		tExecID = meta.GetTaskExecId()
 	}
 	return tExecID
 }
 
-func GetAgentID(payload WithAgent) string {
+// -----------------------------------------------------------------------------
+// Agent Helpers
+// -----------------------------------------------------------------------------
+
+func GetAgentID(payload WithAgentMetadata) string {
 	agentID := "unknown_agent_id"
-	if agent := payload.GetAgent(); agent != nil && agent.GetId() != "" {
-		agentID = agent.GetId()
+	if meta := payload.GetMetadata(); meta != nil && meta.GetAgentId() != "" {
+		agentID = meta.GetAgentId()
 	}
 	return agentID
 }
 
-func GetAgentExecID(payload WithAgent) string {
+func GetAgentExecID(payload WithAgentMetadata) string {
 	agentExecID := "unknown_agent_exec_id"
-	if agent := payload.GetAgent(); agent != nil && agent.GetExecId() != "" {
-		agentExecID = agent.GetExecId()
+	if meta := payload.GetMetadata(); meta != nil && meta.GetAgentExecId() != "" {
+		agentExecID = meta.GetAgentExecId()
 	}
 	return agentExecID
 }
 
-func GetToolID(payload WithTool) string {
+// -----------------------------------------------------------------------------
+// Tool Helpers
+// -----------------------------------------------------------------------------
+
+func GetToolID(payload WithToolMetadata) string {
 	toolID := "unknown_tool_id"
-	if tool := payload.GetTool(); tool != nil && tool.GetId() != "" {
-		toolID = tool.GetId()
+	if meta := payload.GetMetadata(); meta != nil && meta.GetToolId() != "" {
+		toolID = meta.GetToolId()
 	}
 	return toolID
 }
 
-func GetToolExecID(payload WithTool) string {
+func GetToolExecID(payload WithToolMetadata) string {
 	toolExecID := "unknown_tool_exec_id"
-	if tool := payload.GetTool(); tool != nil && tool.GetExecId() != "" {
-		toolExecID = tool.GetExecId()
+	if meta := payload.GetMetadata(); meta != nil && meta.GetToolExecId() != "" {
+		toolExecID = meta.GetToolExecId()
 	}
 	return toolExecID
 }
 
-func GetSourceComponent(payload WithMetadata) string {
+// -----------------------------------------------------------------------------
+// Source Helpers
+// -----------------------------------------------------------------------------
+
+func GetSourceComponent(payload any) string {
 	sourceComponent := "unknown_source_component"
-	if meta := payload.GetMetadata(); meta != nil && meta.GetSource() != "" {
-		sourceComponent = meta.GetSource()
+
+	switch p := payload.(type) {
+	case WithWorkflowMetadata:
+		if meta := p.GetMetadata(); meta != nil && meta.GetSource() != "" {
+			sourceComponent = meta.GetSource()
+		}
+	case WithTaskMetadata:
+		if meta := p.GetMetadata(); meta != nil && meta.GetSource() != "" {
+			sourceComponent = meta.GetSource()
+		}
+	case WithAgentMetadata:
+		if meta := p.GetMetadata(); meta != nil && meta.GetSource() != "" {
+			sourceComponent = meta.GetSource()
+		}
+	case WithToolMetadata:
+		if meta := p.GetMetadata(); meta != nil && meta.GetSource() != "" {
+			sourceComponent = meta.GetSource()
+		}
+	case WithLogMetadata:
+		if meta := p.GetMetadata(); meta != nil && meta.GetSource() != "" {
+			sourceComponent = meta.GetSource()
+		}
 	}
+
 	return sourceComponent
 }

@@ -1,107 +1,47 @@
 package task
 
 import (
-	"fmt"
-
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/pkg/nats"
-	pbcommon "github.com/compozy/compozy/pkg/pb/common"
+	"github.com/compozy/compozy/pkg/pb"
 	timepb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type Metadata struct {
-	Time            *timepb.Timestamp
-	Source          string
-	CorrID          common.ID
-	WorkflowID      string
-	WorkflowExecID  common.ID
-	WorkflowStateID state.ID
-	TaskID          string
-	TaskExecID      common.ID
-	TaskStateID     state.ID
-}
+// -----------------------------------------------------------------------------
+// Helper functions
+// -----------------------------------------------------------------------------
 
-type Payload interface {
-	GetMetadata() *pbcommon.Metadata
-	GetWorkflow() *pbcommon.WorkflowInfo
-	GetTask() *pbcommon.TaskInfo
-}
-
-func InfoFromEvent(cmd Payload) (*Metadata, error) {
-	workflowInfo := cmd.GetWorkflow()
-	taskInfo := cmd.GetTask()
-	metadata := cmd.GetMetadata()
-	corrID := common.ID(metadata.CorrelationId)
-	workflowID := workflowInfo.Id
-	wExecID := common.ID(workflowInfo.ExecId)
-	taskID := taskInfo.Id
-	taskExecID := common.ID(taskInfo.ExecId)
-
-	wStateID, err := state.IDFromString(*metadata.State.ParentId)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse workflow state ID: %w", err)
-	}
-
-	tStateID, err := state.IDFromString(metadata.State.Id)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse task state ID: %w", err)
-	}
-
-	return &Metadata{
-		Time:            metadata.Time,
-		Source:          metadata.Source,
-		CorrID:          corrID,
-		WorkflowID:      workflowID,
-		WorkflowExecID:  wExecID,
-		WorkflowStateID: wStateID,
-		TaskID:          taskID,
-		TaskExecID:      taskExecID,
-		TaskStateID:     tStateID,
-	}, nil
-}
-
-func RandomInfo(workflowID string, taskID string) *Metadata {
+func RandomMetadata(workflowID string, taskID string) *pb.TaskMetadata {
 	corrID := common.MustNewID()
-	execID := common.MustNewID()
-	return &Metadata{
+	wExecID := common.MustNewID()
+	tExecID := common.MustNewID()
+	wStateID := state.NewID(nats.ComponentWorkflow, corrID, wExecID)
+	taskStateID := state.NewID(nats.ComponentTask, corrID, tExecID)
+	return &pb.TaskMetadata{
 		Time:            timepb.Now(),
 		Source:          "",
-		CorrID:          corrID,
-		WorkflowID:      workflowID,
-		WorkflowExecID:  execID,
-		WorkflowStateID: state.NewID(nats.ComponentWorkflow, corrID, execID),
-		TaskID:          taskID,
-		TaskExecID:      execID,
-		TaskStateID:     state.NewID(nats.ComponentTask, corrID, execID),
+		CorrelationId:   corrID.String(),
+		WorkflowId:      workflowID,
+		WorkflowExecId:  wExecID.String(),
+		WorkflowStateId: wStateID.String(),
+		TaskId:          taskID,
+		TaskExecId:      tExecID.String(),
+		TaskStateId:     taskStateID.String(),
+		Subject:         "",
 	}
 }
 
-func (i *Metadata) Metadata() *pbcommon.Metadata {
-	wStateID := i.WorkflowStateID.String()
-	return &pbcommon.Metadata{
-		CorrelationId: i.CorrID.String(),
-		Source:        i.Source,
-		Time:          i.Time,
-		State: &pbcommon.State{
-			Id:       i.TaskStateID.String(),
-			ParentId: &wStateID,
-		},
-	}
+func GetTaskStateID(metadata *pb.TaskMetadata) state.ID {
+	corrID := common.ID(metadata.CorrelationId)
+	taskExecID := common.ID(metadata.TaskExecId)
+	return state.NewID(nats.ComponentTask, corrID, taskExecID)
 }
 
-func (i *Metadata) Workflow() *pbcommon.WorkflowInfo {
-	return &pbcommon.WorkflowInfo{
-		Id:     i.WorkflowID,
-		ExecId: i.WorkflowExecID.String(),
-	}
-}
-
-func (i *Metadata) Task() *pbcommon.TaskInfo {
-	return &pbcommon.TaskInfo{
-		Id:     i.TaskID,
-		ExecId: i.TaskExecID.String(),
-	}
+func GetWorkflowStateID(metadata *pb.TaskMetadata) state.ID {
+	corrID := common.ID(metadata.CorrelationId)
+	workflowExecID := common.ID(metadata.WorkflowExecId)
+	return state.NewID(nats.ComponentWorkflow, corrID, workflowExecID)
 }
 
 // -----------------------------------------------------------------------------
@@ -109,23 +49,83 @@ func (i *Metadata) Task() *pbcommon.TaskInfo {
 // -----------------------------------------------------------------------------
 
 type Context struct {
-	*Metadata
-	WorkflowEnv  common.EnvMap `json:"workflow_env"`
-	TaskEnv      common.EnvMap `json:"task_env"`
-	TriggerInput *common.Input `json:"trigger_input"`
-	TaskInput    *common.Input `json:"task_input"`
+	Metadata     *pb.TaskMetadata `json:"metadata"`
+	WorkflowEnv  common.EnvMap    `json:"workflow_env"`
+	TaskEnv      common.EnvMap    `json:"task_env"`
+	TriggerInput *common.Input    `json:"trigger_input"`
+	TaskInput    *common.Input    `json:"task_input"`
 }
 
 func NewContext(
-	info *Metadata,
+	metadata *pb.TaskMetadata,
 	workflowEnv, taskEnv common.EnvMap,
 	triggerInput, taskInput *common.Input,
 ) (*Context, error) {
 	return &Context{
-		Metadata:     info,
+		Metadata:     metadata,
 		WorkflowEnv:  workflowEnv,
 		TaskEnv:      taskEnv,
 		TriggerInput: triggerInput,
 		TaskInput:    taskInput,
 	}, nil
+}
+
+// -----------------------------------------------------------------------------
+// Basic getters
+// -----------------------------------------------------------------------------
+
+func (c *Context) GetMetadata() *pb.TaskMetadata {
+	return c.Metadata
+}
+
+func (c *Context) GetSource() string {
+	return c.Metadata.Source
+}
+
+func (c *Context) GetCorrID() common.ID {
+	return common.ID(c.Metadata.CorrelationId)
+}
+
+func (c *Context) GetWorkflowID() string {
+	return c.Metadata.WorkflowId
+}
+
+func (c *Context) GetWorkflowExecID() common.ID {
+	return common.ID(c.Metadata.WorkflowExecId)
+}
+
+func (c *Context) GetWorkflowStateID() state.ID {
+	return GetWorkflowStateID(c.Metadata)
+}
+
+func (c *Context) GetTaskID() string {
+	return c.Metadata.TaskId
+}
+
+func (c *Context) GetTaskExecID() common.ID {
+	return common.ID(c.Metadata.TaskExecId)
+}
+
+func (c *Context) GetTaskStateID() state.ID {
+	return GetTaskStateID(c.Metadata)
+}
+
+func (c *Context) GetSubject() string {
+	return c.Metadata.Subject
+}
+
+func (c *Context) GetWorkflowEnv() common.EnvMap {
+	return c.WorkflowEnv
+}
+
+func (c *Context) GetTaskEnv() common.EnvMap {
+	return c.TaskEnv
+}
+
+func (c *Context) GetTriggerInput() *common.Input {
+	return c.TriggerInput
+}
+
+func (c *Context) GetTaskInput() *common.Input {
+	return c.TaskInput
 }

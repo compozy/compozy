@@ -6,7 +6,7 @@ import (
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/pkg/nats"
-	pb "github.com/compozy/compozy/pkg/pb/tool"
+	"github.com/compozy/compozy/pkg/pb"
 )
 
 // -----------------------------------------------------------------------------
@@ -28,12 +28,13 @@ func (ti *StateInitializer) Initialize() (*State, error) {
 		return nil, fmt.Errorf("failed to merge input: %w", err)
 	}
 	bs := &state.BaseState{
-		StateID: state.NewID(nats.ComponentTool, ti.CorrID, ti.ToolExecID),
+		StateID: GetToolStateID(ti.Context.Metadata),
 		Status:  nats.StatusPending,
+		Trigger: ti.TriggerInput,
 		Input:   &input,
 		Output:  &common.Output{},
 		Env:     &env,
-		Trigger: ti.TriggerInput,
+		Error:   nil,
 	}
 	state := &State{
 		BaseState: *bs,

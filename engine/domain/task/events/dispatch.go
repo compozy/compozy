@@ -8,8 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
-	pbcommon "github.com/compozy/compozy/pkg/pb/common"
-	pbtask "github.com/compozy/compozy/pkg/pb/task"
+	"github.com/compozy/compozy/pkg/pb"
 	timepb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -25,7 +24,6 @@ func SendTaskDispatch(
 		return fmt.Errorf("failed to generate task execution ID: %w", err)
 	}
 	wStateID := wState.GetID()
-	wStateIDStr := wStateID.String()
 	tStateID := state.NewID(nats.ComponentTask, corrID, tExecID)
 
 	logger.With(
@@ -36,23 +34,18 @@ func SendTaskDispatch(
 		"task_execution_id", tExecID,
 	).Debug("Sending TaskDispatchCommand")
 
-	cmd := pbtask.CmdTaskDispatch{
-		Metadata: &pbcommon.Metadata{
-			CorrelationId: corrID.String(),
-			Source:        "workflow.Executor",
-			Time:          timepb.Now(),
-			State: &pbcommon.State{
-				Id:       tStateID.String(),
-				ParentId: &wStateIDStr,
-			},
-		},
-		Workflow: &pbcommon.WorkflowInfo{
-			Id:     wConfig.ID,
-			ExecId: wStateID.ExecID.String(),
-		},
-		Task: &pbcommon.TaskInfo{
-			Id:     taskID,
-			ExecId: tExecID.String(),
+	cmd := pb.CmdTaskDispatch{
+		Metadata: &pb.TaskMetadata{
+			Source:          "workflow.Executor",
+			CorrelationId:   corrID.String(),
+			WorkflowId:      wConfig.ID,
+			WorkflowExecId:  wStateID.ExecID.String(),
+			WorkflowStateId: wStateID.String(),
+			TaskId:          taskID,
+			TaskExecId:      tExecID.String(),
+			TaskStateId:     tStateID.String(),
+			Time:            timepb.Now(),
+			Subject:         "",
 		},
 	}
 	if err := nc.PublishCmd(&cmd); err != nil {

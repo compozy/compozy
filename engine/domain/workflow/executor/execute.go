@@ -8,7 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/domain/workflow"
 	wfevts "github.com/compozy/compozy/engine/domain/workflow/events"
 	"github.com/compozy/compozy/pkg/nats"
-	pbwf "github.com/compozy/compozy/pkg/pb/workflow"
+	"github.com/compozy/compozy/pkg/pb"
 	"github.com/nats-io/nats.go/jetstream"
 	"google.golang.org/protobuf/proto"
 )
@@ -25,7 +25,7 @@ func (e *Executor) subscribeExecute(ctx context.Context) error {
 
 func (e *Executor) handleExecute(_ string, data []byte, _ jetstream.Msg) error {
 	// Unmarshal command from event
-	var cmd pbwf.CmdWorkflowExecute
+	var cmd pb.CmdWorkflowExecute
 	if err := proto.Unmarshal(data, &cmd); err != nil {
 		return fmt.Errorf("failed to unmarshal CmdWorkflowExecute: %w", err)
 	}
@@ -37,9 +37,8 @@ func (e *Executor) handleExecute(_ string, data []byte, _ jetstream.Msg) error {
 	}
 
 	// Send WorkflowExecutionStart
-	info := cmd.GetWorkflow()
 	metadata := cmd.GetMetadata()
-	if err := wfevts.SendStarted(e.nc, info, metadata); err != nil {
+	if err := wfevts.SendStarted(e.nc, metadata); err != nil {
 		return fmt.Errorf("failed to send WorkflowExecutionStarted: %w", err)
 	}
 
@@ -53,25 +52,21 @@ func (e *Executor) handleExecute(_ string, data []byte, _ jetstream.Msg) error {
 	return nil
 }
 
-func (e *Executor) createAndValidateState(cmd *pbwf.CmdWorkflowExecute) (*workflow.State, *workflow.Config, error) {
-	workflowID := cmd.GetWorkflow().Id
+func (e *Executor) createAndValidateState(cmd *pb.CmdWorkflowExecute) (*workflow.State, *workflow.Config, error) {
+	workflowID := cmd.GetMetadata().WorkflowId
 	triggerInputMap := cmd.GetDetails().GetTriggerInput().AsMap()
 	if triggerInputMap == nil {
 		return nil, nil, fmt.Errorf("trigger input is nil")
 	}
 	triggerInput := common.Input(triggerInputMap)
-	metadata, err := workflow.InfoFromEvent(cmd)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get workflow info: %w", err)
-	}
-
+	metadata := cmd.GetMetadata()
 	wConfig, err := workflow.FindConfig(e.workflows, workflowID)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Create workflow state
-	state, err := e.stManager.CreateWorkflowState(metadata, &triggerInput, e.pConfig, wConfig)
+	state, err := e.stManager.CreateWorkflowState(metadata, e.pConfig, wConfig, &triggerInput)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create workflow state: %w", err)
 	}

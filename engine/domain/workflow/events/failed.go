@@ -6,16 +6,15 @@ import (
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
-	pbcommon "github.com/compozy/compozy/pkg/pb/common"
-	pbwf "github.com/compozy/compozy/pkg/pb/workflow"
+	"github.com/compozy/compozy/pkg/pb"
 	"google.golang.org/protobuf/types/known/structpb"
 	timepb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func SendFailed(nc *nats.Client, info *pbcommon.WorkflowInfo, metadata *pbcommon.Metadata, err error) error {
-	workflowID := common.ID(info.Id)
+func SendFailed(nc *nats.Client, metadata *pb.WorkflowMetadata, err error) error {
+	workflowID := common.ID(metadata.WorkflowId)
 	corrID := common.ID(metadata.CorrelationId)
-	wExecID := common.ID(info.ExecId)
+	wExecID := common.ID(metadata.WorkflowExecId)
 	logger.With(
 		"workflow_id", workflowID,
 		"correlation_id", corrID,
@@ -23,17 +22,19 @@ func SendFailed(nc *nats.Client, info *pbcommon.WorkflowInfo, metadata *pbcommon
 	).Debug("Sending EventWorkflowFailed")
 
 	code := "WORKFLOW_EXECUTION_FAILED"
-	cmd := pbwf.EventWorkflowFailed{
-		Metadata: &pbcommon.Metadata{
-			CorrelationId: corrID.String(),
-			Source:        "engine.Orchestrator",
-			Time:          timepb.Now(),
-			State:         metadata.State,
+	cmd := pb.EventWorkflowFailed{
+		Metadata: &pb.WorkflowMetadata{
+			Source:          "engine.Orchestrator",
+			CorrelationId:   metadata.CorrelationId,
+			WorkflowId:      metadata.WorkflowId,
+			WorkflowExecId:  metadata.WorkflowExecId,
+			WorkflowStateId: metadata.WorkflowStateId,
+			Time:            timepb.Now(),
+			Subject:         "",
 		},
-		Workflow: info,
-		Details: &pbwf.EventWorkflowFailed_Details{
-			Status: pbwf.WorkflowStatus_WORKFLOW_STATUS_FAILED,
-			Error: &pbcommon.ErrorResult{
+		Details: &pb.EventWorkflowFailed_Details{
+			Status: pb.WorkflowStatus_WORKFLOW_STATUS_FAILED,
+			Error: &pb.ErrorResult{
 				Code:    &code,
 				Message: err.Error(),
 				Details: &structpb.Struct{},

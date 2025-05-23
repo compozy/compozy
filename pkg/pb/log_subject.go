@@ -1,9 +1,7 @@
-package log
+package pb
 
 import (
 	"fmt"
-
-	"github.com/compozy/compozy/pkg/pb"
 )
 
 func logLevelToStr(lvl LogLevel) string {
@@ -24,7 +22,7 @@ func logLevelToStr(lvl LogLevel) string {
 // ToSubject generates the NATS subject for a EventLogEmitted.
 // Pattern: compozy.<correlation_id>.<component>.logs.<component_id>.<log_level>
 func (x *EventLogEmitted) ToSubject() string {
-	corrID := pb.GetCorrelationID(x)
+	corrID := GetCorrelationID(x)
 	comp := x.GetDetails().GetComponent()
 	compID := x.GetDetails().GetComponentId()
 	lvl := logLevelToStr(x.GetDetails().GetLogLevel())

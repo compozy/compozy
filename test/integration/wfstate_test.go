@@ -6,26 +6,12 @@ import (
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/domain/workflow"
 	"github.com/compozy/compozy/pkg/nats"
-	pbcommon "github.com/compozy/compozy/pkg/pb/common"
-	pbworkflow "github.com/compozy/compozy/pkg/pb/workflow"
+	"github.com/compozy/compozy/pkg/pb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
-func newWorkflowContext(ti *common.Input, pjenv, wfenv common.EnvMap) (*workflow.Context, error) {
-	// Create workflow info using RandomInfo
-	wfInfo := workflow.RandomInfo("workflow-1")
-	return workflow.NewContext(
-		wfInfo,
-		ti,
-		pjenv,
-		wfenv,
-	)
-}
-
 func TestWorkflowStateInitialization(t *testing.T) {
-	// Setup common to initialization tests
 	triggerInput := &common.Input{
 		"key1": "value1",
 		"key2": 42,
@@ -36,13 +22,20 @@ func TestWorkflowStateInitialization(t *testing.T) {
 	wfenv := common.EnvMap{
 		"WORKFLOW_ENV": "workflow_value",
 	}
-	stCtx, err := newWorkflowContext(triggerInput, projectEnv, wfenv)
+
+	wfInfo := workflow.RandomMetadata("workflow-1")
+	stCtx, err := workflow.NewContext(
+		wfInfo,
+		triggerInput,
+		projectEnv,
+		wfenv,
+	)
 	require.NoError(t, err)
 	require.NotNil(t, stCtx)
 
 	t.Run("Should correctly initialize IDs, status, and basic fields", func(t *testing.T) {
-		assert.NotEmpty(t, stCtx.CorrID)
-		assert.NotEmpty(t, stCtx.WorkflowExecID)
+		assert.NotEmpty(t, stCtx.GetCorrID())
+		assert.NotEmpty(t, stCtx.GetWorkflowExecID())
 		assert.Equal(t, triggerInput, stCtx.TriggerInput)
 		assert.Equal(t, projectEnv, stCtx.ProjectEnv)
 
@@ -55,7 +48,7 @@ func TestWorkflowStateInitialization(t *testing.T) {
 		require.NotNil(t, wfState)
 
 		assert.Equal(t, nats.StatusPending, wfState.Status)
-		assert.Equal(t, stCtx.WorkflowExecID, wfState.GetContext().WorkflowExecID)
+		assert.Equal(t, stCtx.GetWorkflowExecID(), wfState.GetContext().GetWorkflowExecID())
 		assert.NotNil(t, wfState.Env)
 		assert.Equal(t, "project_value", (*wfState.Env)["PROJECT_ENV"])
 		assert.Equal(t, "workflow_value", (*wfState.Env)["WORKFLOW_ENV"])
@@ -81,7 +74,14 @@ func TestWorkflowStateInitialization(t *testing.T) {
 			"ACTION":       "{{ .trigger.input.data.action }}",
 			"PROJECT_ENV":  "workflow_override", // Workflow env should override project env
 		}
-		stCtx, err := newWorkflowContext(triggerInput, projectEnv, workflowEnv)
+
+		wfInfo := workflow.RandomMetadata("workflow-1")
+		stCtx, err := workflow.NewContext(
+			wfInfo,
+			triggerInput,
+			projectEnv,
+			workflowEnv,
+		)
 		require.NoError(t, err)
 		require.NotNil(t, stCtx)
 		stCtx.WorkflowEnv = workflowEnv
@@ -104,27 +104,15 @@ func TestWorkflowStatePersistence(t *testing.T) {
 	defer tb.Cleanup()
 	stateManager := tb.StateManager
 
-	triggerInput := &common.Input{
-		"request_id": "test-123",
-		"payload": map[string]any{
-			"message": "Hello, world!",
-		},
-	}
-	projectEnv := common.EnvMap{
-		"ENV_VAR1": "value1",
-	}
-	stCtx, err := newWorkflowContext(triggerInput, projectEnv, common.EnvMap{})
+	stCtx, wfState, err := CreateWorkflowContextAndState()
 	require.NoError(t, err)
 	require.NotNil(t, stCtx)
-
-	wfState, err := workflow.NewState(stCtx)
-	require.NoError(t, err)
 	require.NotNil(t, wfState)
 
 	err = stateManager.SaveState(wfState)
 	require.NoError(t, err)
 
-	retrievedStateInterface, err := stateManager.GetWorkflowState(stCtx.CorrID, stCtx.WorkflowExecID)
+	retrievedStateInterface, err := stateManager.GetWorkflowState(stCtx.GetCorrID(), stCtx.GetWorkflowExecID())
 	require.NoError(t, err)
 	require.NotNil(t, retrievedStateInterface)
 
@@ -134,7 +122,7 @@ func TestWorkflowStatePersistence(t *testing.T) {
 	assert.Equal(t, wfState.GetID(), retrievedBaseState.GetID())
 	assert.Equal(t, nats.ComponentWorkflow, retrievedBaseState.GetID().Component)
 	assert.Equal(t, nats.StatusPending, retrievedBaseState.GetStatus())
-	assert.Equal(t, stCtx.WorkflowExecID, retrievedBaseState.GetID().ExecID)
+	assert.Equal(t, stCtx.GetWorkflowExecID(), retrievedBaseState.GetID().ExecID)
 	assert.Equal(t, *wfState.GetEnv(), *retrievedBaseState.GetEnv())
 	assert.Equal(t, *wfState.GetTrigger(), *retrievedBaseState.GetTrigger())
 	assert.Equal(t, *wfState.GetOutput(), *retrievedBaseState.GetOutput())
@@ -145,18 +133,14 @@ func TestWorkflowStateUpdates(t *testing.T) {
 	defer tb.Cleanup()
 	stateManager := tb.StateManager
 
-	stCtx, err := newWorkflowContext(&common.Input{}, common.EnvMap{}, common.EnvMap{})
+	stCtx, wfState, err := CreateWorkflowContextAndState()
 	require.NoError(t, err)
 	require.NotNil(t, stCtx)
-
-	wfState, err := workflow.NewState(stCtx)
-	require.NoError(t, err)
 	require.NotNil(t, wfState)
 
 	err = stateManager.SaveState(wfState)
 	require.NoError(t, err)
 
-	// Update status and output
 	wfState.SetStatus(nats.StatusRunning)
 	updatedOutput := &common.Output{
 		"result": "processing",
@@ -166,7 +150,7 @@ func TestWorkflowStateUpdates(t *testing.T) {
 	err = stateManager.SaveState(wfState)
 	require.NoError(t, err)
 
-	retrievedStateInterface, err := stateManager.GetWorkflowState(stCtx.CorrID, stCtx.WorkflowExecID)
+	retrievedStateInterface, err := stateManager.GetWorkflowState(stCtx.GetCorrID(), stCtx.GetWorkflowExecID())
 	require.NoError(t, err)
 	require.NotNil(t, retrievedStateInterface)
 
@@ -180,36 +164,29 @@ func TestWorkflowStateUpdates(t *testing.T) {
 }
 
 func TestWorkflowStateUpdateFromEvent(t *testing.T) {
-	// Setup
 	tb := SetupIntegrationTestBed(t, DefaultTestTimeout, []nats.ComponentType{nats.ComponentWorkflow})
 	defer tb.Cleanup()
 	stateManager := tb.StateManager
 
-	stCtx, err := newWorkflowContext(&common.Input{}, common.EnvMap{}, common.EnvMap{})
+	stCtx, wfState, err := CreateWorkflowContextAndState()
 	require.NoError(t, err)
 	require.NotNil(t, stCtx)
-
-	wfState, err := workflow.NewState(stCtx)
-	require.NoError(t, err)
 	require.NotNil(t, wfState)
 
-	// Save initial state
 	err = stateManager.SaveState(wfState)
 	require.NoError(t, err)
 	assert.Equal(t, nats.StatusPending, wfState.Status)
 
-	// Test cases for each event type
 	t.Run("Should update status to Running when receiving EventWorkflowStarted", func(t *testing.T) {
-		event := &pbworkflow.EventWorkflowStarted{
-			Metadata: &pbcommon.Metadata{
-				CorrelationId: string(stCtx.CorrID),
-			},
-			Workflow: &pbcommon.WorkflowInfo{
-				Id:     "workflow-id",
-				ExecId: string(stCtx.WorkflowExecID),
-			},
-			Details: &pbworkflow.EventWorkflowStarted_Details{
-				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_RUNNING,
+		metadata := CreateWorkflowEventMetadata(
+			stCtx.GetCorrID().String(),
+			stCtx.GetWorkflowExecID().String(),
+			stCtx.GetWorkflowStateID().String(),
+		)
+		event := &pb.EventWorkflowStarted{
+			Metadata: metadata,
+			Details: &pb.EventWorkflowStarted_Details{
+				Status: pb.WorkflowStatus_WORKFLOW_STATUS_RUNNING,
 			},
 		}
 
@@ -217,26 +194,24 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusRunning, wfState.Status)
 
-		// Save and verify
 		err = stateManager.SaveState(wfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(stCtx.CorrID, stCtx.WorkflowExecID)
+		retrievedState, err := stateManager.GetWorkflowState(stCtx.GetCorrID(), stCtx.GetWorkflowExecID())
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusRunning, retrievedState.GetStatus())
 	})
 
 	t.Run("Should update status to Paused when receiving WorkflowExecutionPausedEvent", func(t *testing.T) {
-		event := &pbworkflow.EventWorkflowPaused{
-			Metadata: &pbcommon.Metadata{
-				CorrelationId: string(stCtx.CorrID),
-			},
-			Workflow: &pbcommon.WorkflowInfo{
-				Id:     "workflow-id",
-				ExecId: string(stCtx.WorkflowExecID),
-			},
-			Details: &pbworkflow.EventWorkflowPaused_Details{
-				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_PAUSED,
+		metadata := CreateWorkflowEventMetadata(
+			stCtx.GetCorrID().String(),
+			stCtx.GetWorkflowExecID().String(),
+			stCtx.GetWorkflowStateID().String(),
+		)
+		event := &pb.EventWorkflowPaused{
+			Metadata: metadata,
+			Details: &pb.EventWorkflowPaused_Details{
+				Status: pb.WorkflowStatus_WORKFLOW_STATUS_PAUSED,
 			},
 		}
 
@@ -244,26 +219,24 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusPaused, wfState.Status)
 
-		// Save and verify
 		err = stateManager.SaveState(wfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(stCtx.CorrID, stCtx.WorkflowExecID)
+		retrievedState, err := stateManager.GetWorkflowState(stCtx.GetCorrID(), stCtx.GetWorkflowExecID())
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusPaused, retrievedState.GetStatus())
 	})
 
 	t.Run("Should update status back to Running when receiving WorkflowExecutionResumedEvent", func(t *testing.T) {
-		event := &pbworkflow.EventWorkflowResumed{
-			Metadata: &pbcommon.Metadata{
-				CorrelationId: string(stCtx.CorrID),
-			},
-			Workflow: &pbcommon.WorkflowInfo{
-				Id:     "workflow-id",
-				ExecId: string(stCtx.WorkflowExecID),
-			},
-			Details: &pbworkflow.EventWorkflowResumed_Details{
-				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_RUNNING,
+		metadata := CreateWorkflowEventMetadata(
+			stCtx.GetCorrID().String(),
+			stCtx.GetWorkflowExecID().String(),
+			stCtx.GetWorkflowStateID().String(),
+		)
+		event := &pb.EventWorkflowResumed{
+			Metadata: metadata,
+			Details: &pb.EventWorkflowResumed_Details{
+				Status: pb.WorkflowStatus_WORKFLOW_STATUS_RUNNING,
 			},
 		}
 
@@ -271,26 +244,24 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusRunning, wfState.Status)
 
-		// Save and verify
 		err = stateManager.SaveState(wfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(stCtx.CorrID, stCtx.WorkflowExecID)
+		retrievedState, err := stateManager.GetWorkflowState(stCtx.GetCorrID(), stCtx.GetWorkflowExecID())
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusRunning, retrievedState.GetStatus())
 	})
 
 	t.Run("Should update status to Success when receiving WorkflowExecutionSuccessEvent", func(t *testing.T) {
-		event := &pbworkflow.EventWorkflowSuccess{
-			Metadata: &pbcommon.Metadata{
-				CorrelationId: string(stCtx.CorrID),
-			},
-			Workflow: &pbcommon.WorkflowInfo{
-				Id:     "workflow-id",
-				ExecId: string(stCtx.WorkflowExecID),
-			},
-			Details: &pbworkflow.EventWorkflowSuccess_Details{
-				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_SUCCESS,
+		metadata := CreateWorkflowEventMetadata(
+			stCtx.GetCorrID().String(),
+			stCtx.GetWorkflowExecID().String(),
+			stCtx.GetWorkflowStateID().String(),
+		)
+		event := &pb.EventWorkflowSuccess{
+			Metadata: metadata,
+			Details: &pb.EventWorkflowSuccess_Details{
+				Status: pb.WorkflowStatus_WORKFLOW_STATUS_SUCCESS,
 			},
 		}
 
@@ -298,28 +269,23 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusSuccess, wfState.Status)
 
-		// Save and verify
 		err = stateManager.SaveState(wfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(stCtx.CorrID, stCtx.WorkflowExecID)
+		retrievedState, err := stateManager.GetWorkflowState(stCtx.GetCorrID(), stCtx.GetWorkflowExecID())
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusSuccess, retrievedState.GetStatus())
 	})
 
 	t.Run("Should update both status and output when receiving WorkflowExecutionSuccessEvent with Result", func(t *testing.T) {
-		// Create a new workflow state for this test
-		newExec, err := newWorkflowContext(&common.Input{}, common.EnvMap{}, common.EnvMap{})
+		newExec, newWfState, err := CreateWorkflowContextAndState()
 		require.NoError(t, err)
-		newWfState, err := workflow.NewState(newExec)
-		require.NoError(t, err)
+		require.NotNil(t, newExec)
+		require.NotNil(t, newWfState)
 		err = stateManager.SaveState(newWfState)
 		require.NoError(t, err)
 
-		// Create a structpb.Struct with test data
-		resultData, err := structpb.NewStruct(map[string]interface{}{
-			"message": "Workflow completed successfully",
-			"count":   42,
+		resultData, err := CreateSuccessResult("Workflow completed successfully", 42, map[string]any{
 			"details": map[string]interface{}{
 				"duration": 1500,
 				"steps":    3,
@@ -327,75 +293,64 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Create success event with result
-		event := &pbworkflow.EventWorkflowSuccess{
-			Metadata: &pbcommon.Metadata{
-				CorrelationId: string(newExec.CorrID),
-			},
-			Workflow: &pbcommon.WorkflowInfo{
-				Id:     "workflow-id",
-				ExecId: string(newExec.WorkflowExecID),
-			},
-			Details: &pbworkflow.EventWorkflowSuccess_Details{
-				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_SUCCESS,
+		metadata := CreateWorkflowEventMetadata(
+			newExec.GetCorrID().String(),
+			newExec.GetWorkflowExecID().String(),
+			newExec.GetWorkflowStateID().String(),
+		)
+		event := &pb.EventWorkflowSuccess{
+			Metadata: metadata,
+			Details: &pb.EventWorkflowSuccess_Details{
+				Status: pb.WorkflowStatus_WORKFLOW_STATUS_SUCCESS,
 				Result: resultData,
 			},
 		}
 
-		// Apply the event
 		err = newWfState.UpdateFromEvent(event)
 		require.NoError(t, err)
 
-		// Verify status update
 		assert.Equal(t, nats.StatusSuccess, newWfState.Status)
 
-		// Verify error is nil
 		assert.Nil(t, newWfState.Error, "Error should be nil on success")
 
-		// Verify output update
 		require.NotNil(t, newWfState.Output)
 		assert.Equal(t, "Workflow completed successfully", (*newWfState.Output)["message"])
 		assert.Equal(t, float64(42), (*newWfState.Output)["count"])
 
-		// Verify nested map is correctly converted
 		details, ok := (*newWfState.Output)["details"].(map[string]interface{})
 		require.True(t, ok, "details should be a map")
 		assert.Equal(t, float64(1500), details["duration"])
 		assert.Equal(t, float64(3), details["steps"])
 
-		// Save and verify
 		err = stateManager.SaveState(newWfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(newExec.CorrID, newExec.WorkflowExecID)
+		retrievedState, err := stateManager.GetWorkflowState(newExec.GetCorrID(), newExec.GetWorkflowExecID())
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusSuccess, retrievedState.GetStatus())
 
-		// Verify output was saved correctly
 		output := retrievedState.GetOutput()
 		require.NotNil(t, output)
 		assert.Equal(t, "Workflow completed successfully", (*output)["message"])
 	})
 
 	t.Run("Should update status to Failed when receiving EventWorkflowFailed", func(t *testing.T) {
-		// Create a new workflow state for testing failure
-		newExec, err := newWorkflowContext(&common.Input{}, common.EnvMap{}, common.EnvMap{})
+		newExec, newWfState, err := CreateWorkflowContextAndState()
 		require.NoError(t, err)
-		newWfState, err := workflow.NewState(newExec)
-		require.NoError(t, err)
+		require.NotNil(t, newExec)
+		require.NotNil(t, newWfState)
 		err = stateManager.SaveState(newWfState)
 		require.NoError(t, err)
 
-		event := &pbworkflow.EventWorkflowFailed{
-			Metadata: &pbcommon.Metadata{
-				CorrelationId: string(newExec.CorrID),
-			},
-			Workflow: &pbcommon.WorkflowInfo{
-				Id:     "workflow-id",
-				ExecId: string(newExec.WorkflowExecID),
-			},
-			Details: &pbworkflow.EventWorkflowFailed_Details{
-				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_FAILED,
+		metadata := CreateWorkflowEventMetadata(
+			newExec.GetCorrID().String(),
+			newExec.GetWorkflowExecID().String(),
+			newExec.GetWorkflowStateID().String(),
+		)
+		event := &pb.EventWorkflowFailed{
+			Metadata: metadata,
+			Details: &pb.EventWorkflowFailed_Details{
+				Status: pb.WorkflowStatus_WORKFLOW_STATUS_FAILED,
 			},
 		}
 
@@ -403,111 +358,90 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusFailed, newWfState.Status)
 
-		// Save and verify
 		err = stateManager.SaveState(newWfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(newExec.CorrID, newExec.WorkflowExecID)
+		retrievedState, err := stateManager.GetWorkflowState(newExec.GetCorrID(), newExec.GetWorkflowExecID())
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusFailed, retrievedState.GetStatus())
 	})
 
 	t.Run("Should update both status and error output when receiving EventWorkflowFailed with Error", func(t *testing.T) {
-		// Create a new workflow state for this test
-		newExec, err := newWorkflowContext(&common.Input{}, common.EnvMap{}, common.EnvMap{})
+		newExec, newWfState, err := CreateWorkflowContextAndState()
 		require.NoError(t, err)
-		newWfState, err := workflow.NewState(newExec)
-		require.NoError(t, err)
+		require.NotNil(t, newExec)
+		require.NotNil(t, newWfState)
 		err = stateManager.SaveState(newWfState)
 		require.NoError(t, err)
 
-		// Create error details struct
-		errorDetails, err := structpb.NewStruct(map[string]interface{}{
+		errorResult, err := CreateErrorResult("Workflow execution failed", "ERR_WORKFLOW_FAILED", map[string]any{
 			"line":     42,
 			"file":     "workflow.go",
 			"function": "ProcessData",
 		})
 		require.NoError(t, err)
 
-		// Create error code value
-		errorCode := "ERR_WORKFLOW_FAILED"
-
-		// Create failed event with error result
-		event := &pbworkflow.EventWorkflowFailed{
-			Metadata: &pbcommon.Metadata{
-				CorrelationId: string(newExec.CorrID),
-			},
-			Workflow: &pbcommon.WorkflowInfo{
-				Id:     "workflow-id",
-				ExecId: string(newExec.WorkflowExecID),
-			},
-			Details: &pbworkflow.EventWorkflowFailed_Details{
-				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_FAILED,
-				Error: &pbcommon.ErrorResult{
-					Message: "Workflow execution failed",
-					Code:    &errorCode,
-					Details: errorDetails,
-				},
+		metadata := CreateWorkflowEventMetadata(
+			newExec.GetCorrID().String(),
+			newExec.GetWorkflowExecID().String(),
+			newExec.GetWorkflowStateID().String(),
+		)
+		event := &pb.EventWorkflowFailed{
+			Metadata: metadata,
+			Details: &pb.EventWorkflowFailed_Details{
+				Status: pb.WorkflowStatus_WORKFLOW_STATUS_FAILED,
+				Error:  errorResult,
 			},
 		}
 
-		// Apply the event
 		err = newWfState.UpdateFromEvent(event)
 		require.NoError(t, err)
 
-		// Verify status update
 		assert.Equal(t, nats.StatusFailed, newWfState.Status)
 
-		// Verify error details
 		require.NotNil(t, newWfState.Error)
 		assert.Equal(t, "Workflow execution failed", newWfState.Error.Message)
-		assert.Equal(t, errorCode, newWfState.Error.Code)
+		assert.Equal(t, "ERR_WORKFLOW_FAILED", newWfState.Error.Code)
 
-		// Verify error details are correctly stored
 		require.NotNil(t, newWfState.Error.Details)
 		assert.Equal(t, float64(42), newWfState.Error.Details["line"])
 		assert.Equal(t, "workflow.go", newWfState.Error.Details["file"])
 		assert.Equal(t, "ProcessData", newWfState.Error.Details["function"])
 
-		// Verify output is nil when there's an error
 		assert.Nil(t, newWfState.Output)
 
-		// Save and verify
 		err = stateManager.SaveState(newWfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(newExec.CorrID, newExec.WorkflowExecID)
+		retrievedState, err := stateManager.GetWorkflowState(newExec.GetCorrID(), newExec.GetWorkflowExecID())
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusFailed, retrievedState.GetStatus())
 
-		// Verify error was saved correctly
 		errRes := retrievedState.GetError()
 		require.NotNil(t, errRes)
 		assert.Equal(t, "Workflow execution failed", errRes.Message)
-		assert.Equal(t, errorCode, errRes.Code)
+		assert.Equal(t, "ERR_WORKFLOW_FAILED", errRes.Code)
 		require.NotNil(t, errRes.Details)
 		assert.Equal(t, float64(42), errRes.Details["line"])
 	})
 
 	t.Run("Should update status to Canceled when receiving WorkflowExecutionCanceledEvent", func(t *testing.T) {
-		// Create a new workflow state for testing cancellation
-		newExec, err := newWorkflowContext(&common.Input{}, common.EnvMap{}, common.EnvMap{})
+		newExec, newWfState, err := CreateWorkflowContextAndState()
 		require.NoError(t, err)
-		newWfState, err := workflow.NewState(newExec)
-		require.NoError(t, err)
+		require.NotNil(t, newExec)
+		require.NotNil(t, newWfState)
 		err = stateManager.SaveState(newWfState)
 		require.NoError(t, err)
 
-		event := &pbworkflow.EventWorkflowCanceled{
-			Metadata: &pbcommon.Metadata{
-				CorrelationId: string(newExec.CorrID),
-			},
-			Workflow: &pbcommon.WorkflowInfo{
-				Id:     "workflow-id",
-				ExecId: string(newExec.WorkflowExecID),
-			},
-			Details: &pbworkflow.EventWorkflowCanceled_Details{
-				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_CANCELED,
+		metadata := CreateWorkflowEventMetadata(
+			newExec.GetCorrID().String(),
+			newExec.GetWorkflowExecID().String(),
+			newExec.GetWorkflowStateID().String(),
+		)
+		event := &pb.EventWorkflowCanceled{
+			Metadata: metadata,
+			Details: &pb.EventWorkflowCanceled_Details{
+				Status: pb.WorkflowStatus_WORKFLOW_STATUS_CANCELED,
 			},
 		}
 
@@ -515,47 +449,38 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusCanceled, newWfState.Status)
 
-		// Save and verify
 		err = stateManager.SaveState(newWfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(newExec.CorrID, newExec.WorkflowExecID)
+		retrievedState, err := stateManager.GetWorkflowState(newExec.GetCorrID(), newExec.GetWorkflowExecID())
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusCanceled, retrievedState.GetStatus())
 	})
 
 	t.Run("Should update status to TimedOut when receiving WorkflowExecutionTimedOutEvent", func(t *testing.T) {
-		// Create a new workflow state for testing timeout
-		newExec, err := newWorkflowContext(&common.Input{}, common.EnvMap{}, common.EnvMap{})
+		newExec, newWfState, err := CreateWorkflowContextAndState()
 		require.NoError(t, err)
-		newWfState, err := workflow.NewState(newExec)
-		require.NoError(t, err)
+		require.NotNil(t, newExec)
+		require.NotNil(t, newWfState)
 		err = stateManager.SaveState(newWfState)
 		require.NoError(t, err)
 
-		// Create error for timeout
-		errorCode := "ERR_WORKFLOW_TIMEOUT"
-		errorDetails, err := structpb.NewStruct(map[string]interface{}{
+		errorResult, err := CreateErrorResult("Workflow execution timed out", "ERR_WORKFLOW_TIMEOUT", map[string]any{
 			"timeout": 30,
 			"unit":    "seconds",
 		})
 		require.NoError(t, err)
 
-		event := &pbworkflow.EventWorkflowTimedOut{
-			Metadata: &pbcommon.Metadata{
-				CorrelationId: string(newExec.CorrID),
-			},
-			Workflow: &pbcommon.WorkflowInfo{
-				Id:     "workflow-id",
-				ExecId: string(newExec.WorkflowExecID),
-			},
-			Details: &pbworkflow.EventWorkflowTimedOut_Details{
-				Status: pbworkflow.WorkflowStatus_WORKFLOW_STATUS_TIMED_OUT,
-				Error: &pbcommon.ErrorResult{
-					Message: "Workflow execution timed out",
-					Code:    &errorCode,
-					Details: errorDetails,
-				},
+		metadata := CreateWorkflowEventMetadata(
+			newExec.GetCorrID().String(),
+			newExec.GetWorkflowExecID().String(),
+			newExec.GetWorkflowStateID().String(),
+		)
+		event := &pb.EventWorkflowTimedOut{
+			Metadata: metadata,
+			Details: &pb.EventWorkflowTimedOut_Details{
+				Status: pb.WorkflowStatus_WORKFLOW_STATUS_TIMED_OUT,
+				Error:  errorResult,
 			},
 		}
 
@@ -563,20 +488,17 @@ func TestWorkflowStateUpdateFromEvent(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusTimedOut, newWfState.Status)
 
-		// Verify error details
 		require.NotNil(t, newWfState.Error)
 		assert.Equal(t, "Workflow execution timed out", newWfState.Error.Message)
-		assert.Equal(t, errorCode, newWfState.Error.Code)
+		assert.Equal(t, "ERR_WORKFLOW_TIMEOUT", newWfState.Error.Code)
 
-		// Save and verify
 		err = stateManager.SaveState(newWfState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetWorkflowState(newExec.CorrID, newExec.WorkflowExecID)
+		retrievedState, err := stateManager.GetWorkflowState(newExec.GetCorrID(), newExec.GetWorkflowExecID())
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusTimedOut, retrievedState.GetStatus())
 
-		// Verify error was saved correctly
 		errRes := retrievedState.GetError()
 		require.NotNil(t, errRes)
 		assert.Equal(t, "Workflow execution timed out", errRes.Message)

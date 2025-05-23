@@ -1,47 +1,45 @@
-package tool
+package pb
 
 import (
 	"fmt"
-
-	"github.com/compozy/compozy/pkg/pb"
 )
 
 // -----------------------------------------------------------------------------
-// Command Subjects
+// Commands
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a CmdToolExecute.
-// Pattern: compozy.<correlation_id>.tool.cmds.<tool_exec_id>.execute
+// Pattern: compozy.<correlation_id>.tool.cmds.<tool_id>.execute
 func (x *CmdToolExecute) ToSubject() string {
-	corrID := pb.GetCorrelationID(x)
-	toolID := pb.GetToolID(x)
+	corrID := GetCorrelationID(x)
+	toolID := GetToolID(x)
 	return fmt.Sprintf("compozy.%s.tool.cmds.%s.execute", corrID, toolID)
 }
 
 // -----------------------------------------------------------------------------
-// State Event Subjects
+// State Events
 // -----------------------------------------------------------------------------
 
-// ToSubject generates the NATS subject for a EventToolStarted.
+// ToSubject generates the NATS subject for an EventToolStarted.
 // Pattern: compozy.<correlation_id>.tool.evts.<tool_exec_id>.started
 func (x *EventToolStarted) ToSubject() string {
-	corrID := pb.GetCorrelationID(x)
-	toolExecID := pb.GetToolExecID(x)
+	corrID := GetCorrelationID(x)
+	toolExecID := GetToolExecID(x)
 	return fmt.Sprintf("compozy.%s.tool.evts.%s.started", corrID, toolExecID)
 }
 
-// ToSubject generates the NATS subject for a EventToolSuccess.
+// ToSubject generates the NATS subject for an EventToolSuccess.
 // Pattern: compozy.<correlation_id>.tool.evts.<tool_exec_id>.success
 func (x *EventToolSuccess) ToSubject() string {
-	corrID := pb.GetCorrelationID(x)
-	toolExecID := pb.GetToolExecID(x)
+	corrID := GetCorrelationID(x)
+	toolExecID := GetToolExecID(x)
 	return fmt.Sprintf("compozy.%s.tool.evts.%s.success", corrID, toolExecID)
 }
 
-// ToSubject generates the NATS subject for a EventToolFailed.
+// ToSubject generates the NATS subject for an EventToolFailed.
 // Pattern: compozy.<correlation_id>.tool.evts.<tool_exec_id>.failed
 func (x *EventToolFailed) ToSubject() string {
-	corrID := pb.GetCorrelationID(x)
-	toolExecID := pb.GetToolExecID(x)
+	corrID := GetCorrelationID(x)
+	toolExecID := GetToolExecID(x)
 	return fmt.Sprintf("compozy.%s.tool.evts.%s.failed", corrID, toolExecID)
 }

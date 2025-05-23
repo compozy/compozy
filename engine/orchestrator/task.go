@@ -7,7 +7,7 @@ import (
 	tkevts "github.com/compozy/compozy/engine/domain/task/events"
 	taskuc "github.com/compozy/compozy/engine/domain/task/uc"
 	"github.com/compozy/compozy/pkg/nats"
-	pbtask "github.com/compozy/compozy/pkg/pb/task"
+	"github.com/compozy/compozy/pkg/pb"
 	"github.com/nats-io/nats.go/jetstream"
 	"google.golang.org/protobuf/proto"
 )
@@ -16,7 +16,7 @@ import (
 // Events
 // -----------------------------------------------------------------------------
 
-func (o *Orchestrator) SendTaskExecute(cmd *pbtask.CmdTaskDispatch) error {
+func (o *Orchestrator) SendTaskExecute(cmd *pb.CmdTaskDispatch) error {
 	return tkevts.SendExecute(o.nc, cmd)
 }
 
@@ -46,7 +46,7 @@ func (o *Orchestrator) subscribeTaskDispatch(ctx context.Context) error {
 // -----------------------------------------------------------------------------
 
 func (o *Orchestrator) handleTaskDispatch(_ string, data []byte, _ jetstream.Msg) error {
-	var cmd pbtask.CmdTaskDispatch
+	var cmd pb.CmdTaskDispatch
 	if err := proto.Unmarshal(data, &cmd); err != nil {
 		return fmt.Errorf("failed to unmarshal CmdTaskDispatch: %w", err)
 	}

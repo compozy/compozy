@@ -6,7 +6,7 @@ import (
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/pkg/nats"
-	pb "github.com/compozy/compozy/pkg/pb/task"
+	"github.com/compozy/compozy/pkg/pb"
 )
 
 // -----------------------------------------------------------------------------
@@ -24,12 +24,13 @@ func (ti *StateInitializer) Initialize() (*State, error) {
 		return nil, fmt.Errorf("failed to merge env: %w", err)
 	}
 	bsState := &state.BaseState{
-		StateID: state.NewID(nats.ComponentTask, ti.CorrID, ti.TaskExecID),
+		StateID: GetTaskStateID(ti.Context.Metadata),
 		Status:  nats.StatusPending,
+		Trigger: ti.TriggerInput,
 		Input:   ti.TaskInput,
 		Output:  &common.Output{},
-		Trigger: ti.TriggerInput,
 		Env:     &env,
+		Error:   nil,
 	}
 	state := &State{
 		BaseState: *bsState,

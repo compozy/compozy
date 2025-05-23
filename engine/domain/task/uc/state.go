@@ -6,34 +6,29 @@ import (
 	"github.com/compozy/compozy/engine/domain/task"
 	"github.com/compozy/compozy/engine/domain/workflow"
 	"github.com/compozy/compozy/engine/stmanager"
-	pbtask "github.com/compozy/compozy/pkg/pb/task"
+	"github.com/compozy/compozy/pkg/pb"
 )
 
 func CreateInitState(
 	stManager *stmanager.Manager,
-	cmd *pbtask.CmdTaskDispatch,
+	cmd *pb.CmdTaskDispatch,
 	workflows []*workflow.Config,
 ) (*task.State, *task.Config, error) {
-	// Parse task info from command
-	info, err := task.InfoFromEvent(cmd)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse task payload info: %w", err)
-	}
-
 	// Find workflow state and config
-	wConfig, err := workflow.FindConfig(workflows, info.WorkflowID)
+	metadata := cmd.GetMetadata()
+	wConfig, err := workflow.FindConfig(workflows, metadata.WorkflowId)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to find workflow config: %w", err)
 	}
 
 	// Find task config and create state
-	tConfig, err := task.FindConfig(wConfig.Tasks, info.TaskID)
+	tConfig, err := task.FindConfig(wConfig.Tasks, metadata.TaskId)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to find task config: %w", err)
 	}
 
 	// Create task state
-	tState, err := stManager.CreateTaskState(info, tConfig)
+	tState, err := stManager.CreateTaskState(metadata, tConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create task state: %w", err)
 	}

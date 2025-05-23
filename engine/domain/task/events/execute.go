@@ -3,36 +3,23 @@ package events
 import (
 	"fmt"
 
-	"github.com/compozy/compozy/engine/domain/task"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
-	pbcommon "github.com/compozy/compozy/pkg/pb/common"
-	pbtask "github.com/compozy/compozy/pkg/pb/task"
-	timepb "google.golang.org/protobuf/types/known/timestamppb"
+	"github.com/compozy/compozy/pkg/pb"
 )
 
-func SendExecute(nc *nats.Client, dispatchCmd *pbtask.CmdTaskDispatch) error {
-	info, err := task.InfoFromEvent(dispatchCmd)
-	if err != nil {
-		return fmt.Errorf("failed to parse task payload info: %w", err)
-	}
+func SendExecute(nc *nats.Client, dispatchCmd *pb.CmdTaskDispatch) error {
+	metadata := dispatchCmd.GetMetadata()
 	logger.With(
-		"correlation_id", info.CorrID,
-		"workflow_id", info.WorkflowID,
-		"workflow_execution_id", info.WorkflowExecID,
-		"task_id", info.TaskID,
-		"task_execution_id", info.TaskExecID,
+		"correlation_id", metadata.CorrelationId,
+		"workflow_id", metadata.WorkflowId,
+		"workflow_execution_id", metadata.WorkflowExecId,
+		"task_id", metadata.TaskId,
+		"task_execution_id", metadata.TaskExecId,
 	).Debug("Sending TaskDispatchCommand")
 
-	cmd := pbtask.CmdTaskDispatch{
-		Metadata: &pbcommon.Metadata{
-			CorrelationId: info.Metadata().CorrelationId,
-			Source:        "engine.Orchestrator",
-			Time:          timepb.Now(),
-			State:         info.Metadata().State,
-		},
-		Workflow: info.Workflow(),
-		Task:     info.Task(),
+	cmd := pb.CmdTaskDispatch{
+		Metadata: metadata.Clone("engine.Orchestrator"),
 	}
 	if err := nc.PublishCmd(&cmd); err != nil {
 		return fmt.Errorf("failed to publish CmdTaskDispatch: %w", err)

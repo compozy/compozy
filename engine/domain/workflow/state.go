@@ -6,7 +6,7 @@ import (
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/pkg/nats"
-	pb "github.com/compozy/compozy/pkg/pb/workflow"
+	"github.com/compozy/compozy/pkg/pb"
 )
 
 // -----------------------------------------------------------------------------
@@ -24,11 +24,11 @@ func (wi *StateInitializer) Initialize() (*State, error) {
 		return nil, fmt.Errorf("failed to merge env: %w", err)
 	}
 	bsState := &state.BaseState{
-		StateID: state.NewID(nats.ComponentWorkflow, wi.CorrID, wi.WorkflowExecID),
+		StateID: GetWorkflowStateID(wi.Context.Metadata),
 		Status:  nats.StatusPending,
+		Trigger: wi.TriggerInput,
 		Input:   wi.TriggerInput,
 		Output:  &common.Output{},
-		Trigger: wi.TriggerInput,
 		Env:     &env,
 		Error:   nil,
 	}

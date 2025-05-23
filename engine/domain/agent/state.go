@@ -6,7 +6,7 @@ import (
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/pkg/nats"
-	pb "github.com/compozy/compozy/pkg/pb/agent"
+	"github.com/compozy/compozy/pkg/pb"
 )
 
 // -----------------------------------------------------------------------------
@@ -28,12 +28,13 @@ func (ai *StateInitializer) Initialize() (*State, error) {
 		return nil, fmt.Errorf("failed to merge input: %w", err)
 	}
 	bsState := &state.BaseState{
-		StateID: state.NewID(nats.ComponentAgent, ai.CorrID, ai.AgentExecID),
+		StateID: GetAgentStateID(ai.Context.Metadata),
 		Status:  nats.StatusPending,
+		Trigger: ai.TriggerInput,
 		Input:   &input,
 		Output:  &common.Output{},
-		Trigger: ai.TriggerInput,
 		Env:     &env,
+		Error:   nil,
 	}
 	state := &State{
 		BaseState: *bsState,

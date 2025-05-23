@@ -1,0 +1,129 @@
+syntax = "proto3";
+
+package workflow;
+
+import "common.proto";
+import "google/protobuf/struct.proto";
+
+option go_package = "github.com/compozy/compozy/pkg/pb";
+
+enum WorkflowStatus {
+  WORKFLOW_STATUS_UNSPECIFIED = 0;
+  WORKFLOW_STATUS_PENDING = 1;
+  WORKFLOW_STATUS_RUNNING = 2;
+  WORKFLOW_STATUS_PAUSED = 3;
+  WORKFLOW_STATUS_SUCCESS = 4;
+  WORKFLOW_STATUS_FAILED = 5;
+  WORKFLOW_STATUS_TIMED_OUT = 6;
+  WORKFLOW_STATUS_CANCELED = 7;
+}
+
+// -----------------------------------------------------------------------------
+// Commands
+// -----------------------------------------------------------------------------
+
+message CmdWorkflowTrigger {
+  common.WorkflowMetadata metadata = 1;
+
+  message Details {
+    google.protobuf.Struct trigger_input = 1;
+  }
+  Details details = 2;
+}
+
+message CmdWorkflowExecute {
+  common.WorkflowMetadata metadata = 1;
+
+  message Details {
+    google.protobuf.Struct trigger_input = 1;
+    optional string task_id = 2;
+    optional bool final_task = 3;
+  }
+  Details details = 2;
+}
+
+message CmdWorkflowPause {
+  common.WorkflowMetadata metadata = 1;
+}
+
+message CmdWorkflowResume {
+  common.WorkflowMetadata metadata = 1;
+}
+
+message CmdWorkflowCancel {
+  common.WorkflowMetadata metadata = 1;
+}
+
+// -----------------------------------------------------------------------------
+// Events
+// -----------------------------------------------------------------------------
+
+message EventWorkflowStarted {
+  common.WorkflowMetadata metadata = 1;
+
+  message Details {
+    WorkflowStatus status = 1;
+  }
+  Details details = 2;
+}
+
+message EventWorkflowPaused {
+  common.WorkflowMetadata metadata = 1;
+
+  message Details {
+    WorkflowStatus status = 1;
+  }
+  Details details = 2;
+}
+
+message EventWorkflowResumed {
+  common.WorkflowMetadata metadata = 1;
+
+  message Details {
+    WorkflowStatus status = 1;
+  }
+  Details details = 2;
+}
+
+message EventWorkflowSuccess {
+  common.WorkflowMetadata metadata = 1;
+
+  message Details {
+    WorkflowStatus status = 1;
+    google.protobuf.Struct result = 2;
+    int64 duration_ms = 3;
+  }
+  Details details = 2;
+}
+
+message EventWorkflowFailed {
+  common.WorkflowMetadata metadata = 1;
+
+  message Details {
+    WorkflowStatus status = 1;
+    common.ErrorResult error = 2;
+    int64 duration_ms = 3;
+  }
+  Details details = 2;
+}
+
+message EventWorkflowCanceled {
+  common.WorkflowMetadata metadata = 1;
+
+  message Details {
+    WorkflowStatus status = 1;
+    int64 duration_ms = 3;
+  }
+  Details details = 2;
+}
+
+message EventWorkflowTimedOut {
+  common.WorkflowMetadata metadata = 1;
+
+  message Details {
+    WorkflowStatus status = 1;
+    common.ErrorResult error = 2;
+    int64 duration_ms = 3;
+  }
+  Details details = 2;
+}

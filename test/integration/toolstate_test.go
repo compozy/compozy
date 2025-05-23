@@ -6,74 +6,32 @@ import (
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/domain/tool"
 	"github.com/compozy/compozy/pkg/nats"
-	pbcommon "github.com/compozy/compozy/pkg/pb/common"
-	pbtool "github.com/compozy/compozy/pkg/pb/tool"
+	"github.com/compozy/compozy/pkg/pb"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	structpb "google.golang.org/protobuf/types/known/structpb"
+	timepb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestToolStateInitialization(t *testing.T) {
 	tb := SetupIntegrationTestBed(t, DefaultTestTimeout, []nats.ComponentType{nats.ComponentTool})
 	defer tb.Cleanup()
 
-	// Create tool info using RandomInfo
-	toolInfo := tool.RandomInfo("workflow-1", "task-1", "tool-1")
-
-	taskEnv := common.EnvMap{
-		"TASK_KEY":     "task_val",
-		"OVERRIDE_KEY": "task_override",
-		"SHARED_ENV":   "from_task_env",
-	}
-	toolEnv := common.EnvMap{
-		"TOOL_KEY":     "tool_val",
-		"OVERRIDE_KEY": "tool_override",
-		"FROM_TRIGGER": "{{ .trigger.input.data.value }}",
-		"FROM_INPUT":   "{{ .input.tool_param }}",
-		"FROM_ENV":     "{{ .env.SHARED_ENV }}",
-	}
-	triggerData := common.Input{
-		"data": map[string]any{
-			"value": "trigger_data_value",
-		},
-	}
-	taskData := common.Input{
-		"task_param":   "task_input_value",
-		"COMMON_PARAM": "task_common_val",
-	}
-	toolData := common.Input{
-		"tool_param":          "tool_input_value",
-		"COMMON_PARAM":        "tool_common_val",
-		"TOOL_TEMPLATE_PARAM": "{{ .trigger.input.data.value }}",
-	}
-
-	stCtx, err := tool.NewContext(
-		toolInfo,
-		taskEnv,
-		toolEnv,
-		&triggerData,
-		&taskData,
-		&toolData,
-	)
+	stCtx, toolState, err := CreateToolContextAndState()
 	require.NoError(t, err)
 	require.NotNil(t, stCtx, "Tool execution should not be nil")
-
-	// Use the IDs from the created tool info
-	corrID := toolInfo.CorrID
-	workflowExecID := toolInfo.WorkflowExecID
-	taskExecID := toolInfo.TaskExecID
-	toolExecID := toolInfo.ToolExecID
-
-	toolState, err := tool.NewState(stCtx)
-	require.NoError(t, err)
 	require.NotNil(t, toolState)
+
+	corrID := stCtx.GetCorrID()
+	workflowExecID := stCtx.GetWorkflowExecID()
+	taskExecID := stCtx.GetTaskExecID()
+	toolExecID := stCtx.GetToolExecID()
 
 	t.Run("Should correctly initialize IDs and default status", func(t *testing.T) {
 		assert.Equal(t, corrID.String(), toolState.GetID().CorrID.String())
-		assert.Equal(t, workflowExecID.String(), toolState.Context.WorkflowExecID.String())
-		assert.Equal(t, taskExecID.String(), toolState.Context.TaskExecID.String())
-		assert.Equal(t, toolExecID.String(), toolState.Context.ToolExecID.String())
+		assert.Equal(t, workflowExecID.String(), stCtx.GetWorkflowExecID().String())
+		assert.Equal(t, taskExecID.String(), stCtx.GetTaskExecID().String())
+		assert.Equal(t, toolExecID.String(), stCtx.GetToolExecID().String())
 		assert.Equal(t, toolExecID.String(), toolState.GetID().ExecID.String())
 		assert.Equal(t, nats.StatusPending, toolState.GetStatus())
 	})
@@ -97,6 +55,7 @@ func TestToolStateInitialization(t *testing.T) {
 			"task_param":          "task_input_value",
 			"tool_param":          "tool_input_value",
 			"COMMON_PARAM":        "task_common_val",
+			"TEMPLATE_PARAM":      "trigger_data_value",
 			"TOOL_TEMPLATE_PARAM": "trigger_data_value",
 		}
 		require.NotNil(t, toolState.GetInput(), "Input should not be nil")
@@ -105,7 +64,12 @@ func TestToolStateInitialization(t *testing.T) {
 
 	t.Run("Should correctly initialize Trigger and Output", func(t *testing.T) {
 		require.NotNil(t, toolState.GetTrigger(), "Trigger should not be nil")
-		assert.Equal(t, triggerData, *toolState.GetTrigger())
+		expectedTrigger := common.Input{
+			"data": map[string]any{
+				"value": "trigger_data_value",
+			},
+		}
+		assert.Equal(t, expectedTrigger, *toolState.GetTrigger())
 
 		require.NotNil(t, toolState.GetOutput(), "Output should be initialized")
 		assert.Empty(t, *toolState.GetOutput(), "Output should be empty initially")
@@ -117,42 +81,17 @@ func TestToolStatePersistence(t *testing.T) {
 	defer tb.Cleanup()
 	stateManager := tb.StateManager
 
-	// Create tool info using RandomInfo
-	toolInfo := tool.RandomInfo("workflow-1", "task-1", "tool-1")
-
 	t.Run("Should persist state and allow accurate retrieval", func(t *testing.T) {
-		taskEnv := common.EnvMap{
-			"k1_task": "v1",
-		}
-		toolEnv := common.EnvMap{
-			"k1_tool": "v2",
-		}
-		triggerData := common.Input{
-			"trigger_persist": "data",
-		}
-		taskData := common.Input{
-			"task_persist": "data",
-		}
-		toolData := common.Input{
-			"tool_persist": "data",
-		}
-
-		stCtx, err := tool.NewContext(
-			toolInfo, taskEnv, toolEnv,
-			&triggerData, &taskData, &toolData,
-		)
+		stCtx, originalToolState, err := CreateToolContextAndState()
 		require.NoError(t, err)
 		require.NotNil(t, stCtx)
-		toolExecID := toolInfo.ToolExecID
-
-		originalToolState, err := tool.NewState(stCtx)
-		require.NoError(t, err)
 		require.NotNil(t, originalToolState)
+		toolExecID := stCtx.GetToolExecID()
 
 		err = stateManager.SaveState(originalToolState)
 		require.NoError(t, err)
 
-		retrievedStateInterface, err := stateManager.GetToolState(toolInfo.CorrID, toolExecID)
+		retrievedStateInterface, err := stateManager.GetToolState(stCtx.GetCorrID(), toolExecID)
 		require.NoError(t, err)
 		require.NotNil(t, retrievedStateInterface)
 
@@ -174,37 +113,12 @@ func TestToolStateUpdates(t *testing.T) {
 	defer tb.Cleanup()
 	stateManager := tb.StateManager
 
-	// Create tool info using RandomInfo
-	toolInfo := tool.RandomInfo("workflow-1", "task-1", "tool-1")
-
 	t.Run("Should reflect updates to status and output after saving", func(t *testing.T) {
-		taskEnv := common.EnvMap{
-			"k1_task_upd": "v1",
-		}
-		toolEnv := common.EnvMap{
-			"k1_tool_upd": "v2",
-		}
-		triggerData := common.Input{
-			"trigger_update": "data",
-		}
-		taskData := common.Input{
-			"task_update": "data",
-		}
-		toolData := common.Input{
-			"tool_update": "data",
-		}
-
-		stCtx, err := tool.NewContext(
-			toolInfo, taskEnv, toolEnv,
-			&triggerData, &taskData, &toolData,
-		)
+		stCtx, toolStateInstance, err := CreateToolContextAndState()
 		require.NoError(t, err)
 		require.NotNil(t, stCtx)
-		toolExecID := toolInfo.ToolExecID
-
-		toolStateInstance, err := tool.NewState(stCtx)
-		require.NoError(t, err)
 		require.NotNil(t, toolStateInstance)
+		toolExecID := stCtx.GetToolExecID()
 
 		err = stateManager.SaveState(toolStateInstance)
 		require.NoError(t, err)
@@ -216,7 +130,7 @@ func TestToolStateUpdates(t *testing.T) {
 		err = stateManager.SaveState(toolStateInstance)
 		require.NoError(t, err)
 
-		retrievedStateInterface, err := stateManager.GetToolState(toolInfo.CorrID, toolExecID)
+		retrievedStateInterface, err := stateManager.GetToolState(stCtx.GetCorrID(), toolExecID)
 		require.NoError(t, err)
 		require.NotNil(t, retrievedStateInterface)
 
@@ -231,63 +145,39 @@ func TestToolStateUpdates(t *testing.T) {
 }
 
 func TestToolStateUpdateFromEvent(t *testing.T) {
-	// Setup
 	tb := SetupIntegrationTestBed(t, DefaultTestTimeout, []nats.ComponentType{nats.ComponentTool})
 	defer tb.Cleanup()
 	stateManager := tb.StateManager
 
-	// Create tool info using RandomInfo
-	toolInfo := tool.RandomInfo("workflow-1", "task-1", "tool-1")
-
-	taskEnv := common.EnvMap{"TASK_ENV": "task_value"}
-	toolEnv := common.EnvMap{"TOOL_ENV": "tool_value"}
-
-	triggerInput := &common.Input{"trigger_key": "trigger_value"}
-	taskInput := &common.Input{"task_key": "task_value"}
-	toolInput := &common.Input{"tool_key": "tool_value"}
-
-	stCtx, err := tool.NewContext(
-		toolInfo,
-		taskEnv,
-		toolEnv,
-		triggerInput,
-		taskInput,
-		toolInput,
-	)
+	stCtx, toolState, err := CreateToolContextAndState()
 	require.NoError(t, err)
 	require.NotNil(t, stCtx)
-
-	toolState, err := tool.NewState(stCtx)
-	require.NoError(t, err)
 	require.NotNil(t, toolState)
 
-	// Save initial state
 	err = stateManager.SaveState(toolState)
 	require.NoError(t, err)
 	assert.Equal(t, nats.StatusPending, toolState.Status)
 
-	// Use the IDs from the created tool info
-	corrID := toolInfo.CorrID
-	workflowExecID := toolInfo.WorkflowExecID
-	taskExecID := toolInfo.TaskExecID
+	corrID := stCtx.GetCorrID()
+	workflowExecID := stCtx.GetWorkflowExecID()
+	taskExecID := stCtx.GetTaskExecID()
 
-	// Test cases for each event type
 	t.Run("Should update status to Running when receiving ToolExecutionStartedEvent", func(t *testing.T) {
-		event := &pbtool.EventToolStarted{
-			Metadata: &pbcommon.Metadata{
-				CorrelationId: corrID.String(),
-			},
-			Tool: &pbcommon.ToolInfo{
-				Id:     "tool-id",
-				ExecId: toolInfo.ToolExecID.String(),
-			},
-			Task: &pbcommon.TaskInfo{
-				Id:     "task-id",
-				ExecId: taskExecID.String(),
-			},
-			Workflow: &pbcommon.WorkflowInfo{
-				Id:     "workflow-id",
-				ExecId: workflowExecID.String(),
+		event := &pb.EventToolStarted{
+			Metadata: &pb.ToolMetadata{
+				Source:          "test",
+				CorrelationId:   corrID.String(),
+				WorkflowId:      "workflow-id",
+				WorkflowExecId:  workflowExecID.String(),
+				WorkflowStateId: stCtx.GetWorkflowStateID().String(),
+				TaskId:          "task-id",
+				TaskExecId:      taskExecID.String(),
+				TaskStateId:     stCtx.GetTaskStateID().String(),
+				ToolId:          "tool-id",
+				ToolExecId:      stCtx.GetToolExecID().String(),
+				ToolStateId:     stCtx.GetToolStateID().String(),
+				Time:            timepb.Now(),
+				Subject:         "",
 			},
 		}
 
@@ -295,21 +185,17 @@ func TestToolStateUpdateFromEvent(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusRunning, toolState.Status)
 
-		// Save and verify
 		err = stateManager.SaveState(toolState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetToolState(corrID, toolInfo.ToolExecID)
+		retrievedState, err := stateManager.GetToolState(corrID, stCtx.GetToolExecID())
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusRunning, retrievedState.GetStatus())
 	})
 
 	t.Run("Should update both status and output when receiving ToolExecutionSuccessEvent with Result", func(t *testing.T) {
-		// Create a structpb.Struct with test data
-		resultData, err := structpb.NewStruct(map[string]interface{}{
-			"message": "Tool executed successfully",
-			"count":   42,
-			"files":   []interface{}{"file1.txt", "file2.txt"},
+		resultData, err := CreateSuccessResult("Tool executed successfully", 42, map[string]any{
+			"files": []interface{}{"file1.txt", "file2.txt"},
 			"details": map[string]interface{}{
 				"duration": 1200,
 				"command":  "ls -la",
@@ -317,159 +203,123 @@ func TestToolStateUpdateFromEvent(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Create success event with result
-		event := &pbtool.EventToolSuccess{
-			Metadata: &pbcommon.Metadata{
-				CorrelationId: corrID.String(),
+		event := &pb.EventToolSuccess{
+			Metadata: &pb.ToolMetadata{
+				Source:          "test",
+				CorrelationId:   corrID.String(),
+				WorkflowId:      "workflow-id",
+				WorkflowExecId:  workflowExecID.String(),
+				WorkflowStateId: stCtx.GetWorkflowStateID().String(),
+				TaskId:          "task-id",
+				TaskExecId:      taskExecID.String(),
+				TaskStateId:     stCtx.GetTaskStateID().String(),
+				ToolId:          "tool-id",
+				ToolExecId:      stCtx.GetToolExecID().String(),
+				ToolStateId:     stCtx.GetToolStateID().String(),
+				Time:            timepb.Now(),
+				Subject:         "",
 			},
-			Tool: &pbcommon.ToolInfo{
-				Id:     "tool-id",
-				ExecId: toolInfo.ToolExecID.String(),
-			},
-			Task: &pbcommon.TaskInfo{
-				Id:     "task-id",
-				ExecId: taskExecID.String(),
-			},
-			Workflow: &pbcommon.WorkflowInfo{
-				Id:     "workflow-id",
-				ExecId: workflowExecID.String(),
-			},
-			Details: &pbtool.EventToolSuccess_Details{
+			Details: &pb.EventToolSuccess_Details{
 				Result: resultData,
 			},
 		}
 
-		// Apply the event
 		err = toolState.UpdateFromEvent(event)
 		require.NoError(t, err)
 
-		// Verify status update
 		assert.Equal(t, nats.StatusSuccess, toolState.Status)
 
-		// Verify output update
 		require.NotNil(t, toolState.Output)
 		assert.Equal(t, "Tool executed successfully", (*toolState.Output)["message"])
 		assert.Equal(t, float64(42), (*toolState.Output)["count"])
 
-		// Verify array is correctly converted
 		files, ok := (*toolState.Output)["files"].([]interface{})
 		require.True(t, ok, "files should be an array")
 		require.Len(t, files, 2)
 		assert.Equal(t, "file1.txt", files[0])
 		assert.Equal(t, "file2.txt", files[1])
 
-		// Verify nested map is correctly converted
 		details, ok := (*toolState.Output)["details"].(map[string]interface{})
 		require.True(t, ok, "details should be a map")
 		assert.Equal(t, float64(1200), details["duration"])
 		assert.Equal(t, "ls -la", details["command"])
 
-		// Save and verify
 		err = stateManager.SaveState(toolState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetToolState(corrID, toolInfo.ToolExecID)
+		retrievedState, err := stateManager.GetToolState(corrID, stCtx.GetToolExecID())
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusSuccess, retrievedState.GetStatus())
 
-		// Verify output was saved correctly
 		output := retrievedState.GetOutput()
 		require.NotNil(t, output)
 		assert.Equal(t, "Tool executed successfully", (*output)["message"])
 	})
 
 	t.Run("Should update both status and error output when receiving ToolExecutionFailedEvent with Error", func(t *testing.T) {
-		// Create a new tool state for this test using RandomInfo
-		newToolInfo := tool.RandomInfo("workflow-1", "task-1", "tool-1")
-		newExec, err := tool.NewContext(
-			newToolInfo,
-			taskEnv,
-			toolEnv,
-			triggerInput,
-			taskInput,
-			toolInput,
-		)
+		newExec, newToolState, err := CreateToolContextAndState()
 		require.NoError(t, err)
 		require.NotNil(t, newExec)
-
-		newToolState, err := tool.NewState(newExec)
-		require.NoError(t, err)
 		require.NotNil(t, newToolState)
 
 		err = stateManager.SaveState(newToolState)
 		require.NoError(t, err)
 
-		// Create error details struct
-		errorDetails, err := structpb.NewStruct(map[string]interface{}{
+		errorResult, err := CreateErrorResult("Tool execution failed", "ERR_TOOL_FAILED", map[string]any{
 			"command":   "git clone",
 			"exit_code": 128,
 			"stderr":    "fatal: repository not found",
 		})
 		require.NoError(t, err)
 
-		// Create error code value
-		errorCode := "ERR_TOOL_FAILED"
-
-		// Create failed event with error result
-		event := &pbtool.EventToolFailed{
-			Metadata: &pbcommon.Metadata{
-				CorrelationId: newToolInfo.CorrID.String(),
+		event := &pb.EventToolFailed{
+			Metadata: &pb.ToolMetadata{
+				Source:          "test",
+				CorrelationId:   newExec.GetCorrID().String(),
+				WorkflowId:      "workflow-id",
+				WorkflowExecId:  newExec.GetWorkflowExecID().String(),
+				WorkflowStateId: newExec.GetWorkflowStateID().String(),
+				TaskId:          "task-id",
+				TaskExecId:      newExec.GetTaskExecID().String(),
+				TaskStateId:     newExec.GetTaskStateID().String(),
+				ToolId:          "tool-id",
+				ToolExecId:      newExec.GetToolExecID().String(),
+				ToolStateId:     newExec.GetToolStateID().String(),
+				Time:            timepb.Now(),
+				Subject:         "",
 			},
-			Tool: &pbcommon.ToolInfo{
-				Id:     "tool-id",
-				ExecId: newToolInfo.ToolExecID.String(),
-			},
-			Task: &pbcommon.TaskInfo{
-				Id:     "task-id",
-				ExecId: newToolInfo.TaskExecID.String(),
-			},
-			Workflow: &pbcommon.WorkflowInfo{
-				Id:     "workflow-id",
-				ExecId: newToolInfo.WorkflowExecID.String(),
-			},
-			Details: &pbtool.EventToolFailed_Details{
-				Error: &pbcommon.ErrorResult{
-					Message: "Tool execution failed",
-					Code:    &errorCode,
-					Details: errorDetails,
-				},
+			Details: &pb.EventToolFailed_Details{
+				Error: errorResult,
 			},
 		}
 
-		// Apply the event
 		err = newToolState.UpdateFromEvent(event)
 		require.NoError(t, err)
 
-		// Verify status update
 		assert.Equal(t, nats.StatusFailed, newToolState.Status)
 
-		// Verify error details
 		require.NotNil(t, newToolState.Error)
 		assert.Equal(t, "Tool execution failed", newToolState.Error.Message)
-		assert.Equal(t, errorCode, newToolState.Error.Code)
+		assert.Equal(t, "ERR_TOOL_FAILED", newToolState.Error.Code)
 
-		// Verify error details are correctly stored
 		require.NotNil(t, newToolState.Error.Details)
 		assert.Equal(t, "git clone", newToolState.Error.Details["command"])
 		assert.Equal(t, float64(128), newToolState.Error.Details["exit_code"])
 		assert.Equal(t, "fatal: repository not found", newToolState.Error.Details["stderr"])
 
-		// Verify output is nil when there's an error
 		assert.Nil(t, newToolState.Output)
 
-		// Save and verify
 		err = stateManager.SaveState(newToolState)
 		require.NoError(t, err)
 
-		retrievedState, err := stateManager.GetToolState(newToolInfo.CorrID, newToolInfo.ToolExecID)
+		retrievedState, err := stateManager.GetToolState(newExec.GetCorrID(), newExec.GetToolExecID())
 		require.NoError(t, err)
 		assert.Equal(t, nats.StatusFailed, retrievedState.GetStatus())
 
-		// Verify error was saved correctly
 		errRes := retrievedState.GetError()
 		require.NotNil(t, errRes)
 		assert.Equal(t, "Tool execution failed", errRes.Message)
-		assert.Equal(t, errorCode, errRes.Code)
+		assert.Equal(t, "ERR_TOOL_FAILED", errRes.Code)
 	})
 
 	t.Run("Should return error when receiving unsupported event type", func(t *testing.T) {

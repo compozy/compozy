@@ -7,8 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
-	pbcommon "github.com/compozy/compozy/pkg/pb/common"
-	pbwf "github.com/compozy/compozy/pkg/pb/workflow"
+	"github.com/compozy/compozy/pkg/pb"
 	timepb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -39,20 +38,17 @@ func SendTrigger(nc *nats.Client, input *common.Input, workflowID string) (*Trig
 		return nil, fmt.Errorf("failed to convert trigger to struct: %w", err)
 	}
 
-	cmd := pbwf.CmdWorkflowTrigger{
-		Metadata: &pbcommon.Metadata{
-			CorrelationId: corrID.String(),
-			Source:        "engine.Orchestrator",
-			Time:          timepb.Now(),
-			State: &pbcommon.State{
-				Id: stateID.String(),
-			},
+	cmd := pb.CmdWorkflowTrigger{
+		Metadata: &pb.WorkflowMetadata{
+			Source:          "engine.Orchestrator",
+			CorrelationId:   corrID.String(),
+			WorkflowId:      workflowID,
+			WorkflowExecId:  wExecID.String(),
+			WorkflowStateId: stateID.String(),
+			Time:            timepb.Now(),
+			Subject:         "",
 		},
-		Workflow: &pbcommon.WorkflowInfo{
-			Id:     workflowID,
-			ExecId: wExecID.String(),
-		},
-		Details: &pbwf.CmdWorkflowTrigger_Details{
+		Details: &pb.CmdWorkflowTrigger_Details{
 			TriggerInput: triggerInput,
 		},
 	}
