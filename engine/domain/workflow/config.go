@@ -236,3 +236,12 @@ func (w *Config) GetID() string {
 func (w *Config) GetTasks() []task.Config {
 	return w.Tasks
 }
+
+func FindConfig(workflows []*Config, workflowID string) (*Config, error) {
+	for _, wf := range workflows {
+		if wf.ID == workflowID {
+			return wf, nil
+		}
+	}
+	return nil, fmt.Errorf("workflow not found")
+}

@@ -19,7 +19,7 @@ interface NatsClientOptions {
 
 export class NatsClient {
   private connection: NatsConnection | null = null;
-  private readonly verbose: boolean;
+  readonly verbose: boolean;
   private readonly execId: string;
   private readonly serverUrl: string;
   private readonly namespace: string;

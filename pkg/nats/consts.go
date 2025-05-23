@@ -83,12 +83,13 @@ const (
 type CmdType string
 
 const (
-	CmdTypeTrigger CmdType = "trigger"
-	CmdTypeExecute CmdType = "execute"
-	CmdTypeCancel  CmdType = "cancel"
-	CmdTypePause   CmdType = "pause"
-	CmdTypeResume  CmdType = "resume"
-	CmdTypeAll     CmdType = "*"
+	CmdTypeTrigger  CmdType = "trigger"
+	CmdTypeDispatch CmdType = "dispatch"
+	CmdTypeExecute  CmdType = "execute"
+	CmdTypeCancel   CmdType = "cancel"
+	CmdTypePause    CmdType = "pause"
+	CmdTypeResume   CmdType = "resume"
+	CmdTypeAll      CmdType = "*"
 )
 
 func (c CmdType) String() string {

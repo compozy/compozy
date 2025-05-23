@@ -9,10 +9,10 @@ import "google/protobuf/struct.proto";
 option go_package = "github.com/compozy/compozy/pkg/pb/workflow";
 
 // -----------------------------------------------------------------------------
-// Workflow Trigger Command
+// Command: Workflow Trigger
 // -----------------------------------------------------------------------------
 
-message WorkflowTriggerCommand {
+message CmdWorkflowTrigger {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 
@@ -23,10 +23,10 @@ message WorkflowTriggerCommand {
 }
 
 // -----------------------------------------------------------------------------
-// Workflow Execute Command
+// Command: Workflow Execute
 // -----------------------------------------------------------------------------
 
-message WorkflowExecuteCommand {
+message CmdWorkflowExecute {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 
@@ -39,28 +39,28 @@ message WorkflowExecuteCommand {
 }
 
 // -----------------------------------------------------------------------------
-// Workflow Pause Command
+// Command: Workflow Pause
 // -----------------------------------------------------------------------------
 
-message WorkflowPauseCommand {
+message CmdWorkflowPause {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 }
 
 // -----------------------------------------------------------------------------
-// Workflow Resume Command
+// Command: Workflow Resume
 // -----------------------------------------------------------------------------
 
-message WorkflowResumeCommand {
+message CmdWorkflowResume {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 }
 
 // -----------------------------------------------------------------------------
-// Workflow Cancel Command
+// Command: Workflow Cancel
 // -----------------------------------------------------------------------------
 
-message WorkflowCancelCommand {
+message CmdWorkflowCancel {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 }

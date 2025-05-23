@@ -1,4 +1,4 @@
-package wfevts
+package events
 
 import (
 	"fmt"
@@ -8,45 +8,33 @@ import (
 	"github.com/compozy/compozy/pkg/nats"
 	pbcommon "github.com/compozy/compozy/pkg/pb/common"
 	pbwf "github.com/compozy/compozy/pkg/pb/workflow"
-	"google.golang.org/protobuf/proto"
 	timepb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func SendExecute(natsClient *nats.Client, cmd *pbwf.WorkflowTriggerCommand) error {
-	wfID := common.ID(cmd.GetWorkflow().Id)
-	corrID := common.ID(cmd.GetMetadata().CorrelationId)
-	execID := common.ID(cmd.GetWorkflow().ExecId)
+func SendExecute(nc *nats.Client, triggerCmd *pbwf.CmdWorkflowTrigger) error {
+	workflowID := common.ID(triggerCmd.GetWorkflow().Id)
+	corrID := common.ID(triggerCmd.GetMetadata().CorrelationId)
+	wExecID := common.ID(triggerCmd.GetWorkflow().ExecId)
 	logger.With(
-		"workflow_id", wfID,
-		"execution_id", execID,
+		"workflow_id", workflowID,
 		"correlation_id", corrID,
-	).Debug("Sending WorkflowExecuteCommand")
+		"workflow_execution_id", wExecID,
+	).Debug("Sending CmdWorkflowExecute")
 
-	payload := pbwf.WorkflowExecuteCommand{
+	cmd := pbwf.CmdWorkflowExecute{
 		Metadata: &pbcommon.Metadata{
 			CorrelationId: corrID.String(),
 			Source:        "engine.Orchestrator",
 			Time:          timepb.Now(),
-			State:         cmd.GetMetadata().State,
+			State:         triggerCmd.GetMetadata().State,
 		},
-		Workflow: cmd.GetWorkflow(),
-		Details: &pbwf.WorkflowExecuteCommand_Details{
-			TriggerInput: cmd.GetDetails().GetTriggerInput(),
+		Workflow: triggerCmd.GetWorkflow(),
+		Details: &pbwf.CmdWorkflowExecute_Details{
+			TriggerInput: triggerCmd.GetDetails().GetTriggerInput(),
 		},
 	}
-	data, err := proto.Marshal(&payload)
-	if err != nil {
-		return fmt.Errorf("failed to marshal WorkflowExecuteCommand: %w", err)
-	}
-
-	nc := natsClient.Conn()
-	js, err := nc.JetStream()
-	if err != nil {
-		return fmt.Errorf("failed to get JetStream context: %w", err)
-	}
-	_, err = js.Publish(payload.ToSubject(), data)
-	if err != nil {
-		return fmt.Errorf("failed to publish WorkflowExecuteCommand to JetStream: %w", err)
+	if err := nc.PublishCmd(&cmd); err != nil {
+		return fmt.Errorf("failed to publish CmdWorkflowExecute: %w", err)
 	}
 
 	return nil

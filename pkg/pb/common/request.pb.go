@@ -22,165 +22,71 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type ActionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ActionId      string                 `protobuf:"bytes,1,opt,name=action_id,json=actionId,proto3" json:"action_id,omitempty"`
-	Prompt        string                 `protobuf:"bytes,2,opt,name=prompt,proto3" json:"prompt,omitempty"`
-	OutputSchema  *structpb.Struct       `protobuf:"bytes,3,opt,name=output_schema,json=outputSchema,proto3" json:"output_schema,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
+type ResponseStatus int32
 
-func (x *ActionRequest) Reset() {
-	*x = ActionRequest{}
-	mi := &file_common_request_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
+const (
+	ResponseStatus_RESPONSE_STATUS_UNSPECIFIED ResponseStatus = 0
+	ResponseStatus_RESPONSE_STATUS_SUCCESS     ResponseStatus = 1
+	ResponseStatus_RESPONSE_STATUS_FAILED      ResponseStatus = 2
+)
 
-func (x *ActionRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ActionRequest) ProtoMessage() {}
-
-func (x *ActionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_common_request_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
+// Enum value maps for ResponseStatus.
+var (
+	ResponseStatus_name = map[int32]string{
+		0: "RESPONSE_STATUS_UNSPECIFIED",
+		1: "RESPONSE_STATUS_SUCCESS",
+		2: "RESPONSE_STATUS_FAILED",
 	}
-	return mi.MessageOf(x)
+	ResponseStatus_value = map[string]int32{
+		"RESPONSE_STATUS_UNSPECIFIED": 0,
+		"RESPONSE_STATUS_SUCCESS":     1,
+		"RESPONSE_STATUS_FAILED":      2,
+	}
+)
+
+func (x ResponseStatus) Enum() *ResponseStatus {
+	p := new(ResponseStatus)
+	*p = x
+	return p
 }
 
-// Deprecated: Use ActionRequest.ProtoReflect.Descriptor instead.
-func (*ActionRequest) Descriptor() ([]byte, []int) {
+func (x ResponseStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ResponseStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_common_request_proto_enumTypes[0].Descriptor()
+}
+
+func (ResponseStatus) Type() protoreflect.EnumType {
+	return &file_common_request_proto_enumTypes[0]
+}
+
+func (x ResponseStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ResponseStatus.Descriptor instead.
+func (ResponseStatus) EnumDescriptor() ([]byte, []int) {
 	return file_common_request_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *ActionRequest) GetActionId() string {
-	if x != nil {
-		return x.ActionId
-	}
-	return ""
-}
-
-func (x *ActionRequest) GetPrompt() string {
-	if x != nil {
-		return x.Prompt
-	}
-	return ""
-}
-
-func (x *ActionRequest) GetOutputSchema() *structpb.Struct {
-	if x != nil {
-		return x.OutputSchema
-	}
-	return nil
-}
-
-type AgentRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
-	AgentExecId   string                 `protobuf:"bytes,2,opt,name=agent_exec_id,json=agentExecId,proto3" json:"agent_exec_id,omitempty"`
-	Instructions  string                 `protobuf:"bytes,3,opt,name=instructions,proto3" json:"instructions,omitempty"`
-	ActionRequest *ActionRequest         `protobuf:"bytes,4,opt,name=action_request,json=actionRequest,proto3" json:"action_request,omitempty"`
-	Config        *structpb.Struct       `protobuf:"bytes,5,opt,name=config,proto3" json:"config,omitempty"`
-	Tools         []*ToolRequest         `protobuf:"bytes,6,rep,name=tools,proto3" json:"tools,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AgentRequest) Reset() {
-	*x = AgentRequest{}
-	mi := &file_common_request_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AgentRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AgentRequest) ProtoMessage() {}
-
-func (x *AgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_common_request_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AgentRequest.ProtoReflect.Descriptor instead.
-func (*AgentRequest) Descriptor() ([]byte, []int) {
-	return file_common_request_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *AgentRequest) GetAgentId() string {
-	if x != nil {
-		return x.AgentId
-	}
-	return ""
-}
-
-func (x *AgentRequest) GetAgentExecId() string {
-	if x != nil {
-		return x.AgentExecId
-	}
-	return ""
-}
-
-func (x *AgentRequest) GetInstructions() string {
-	if x != nil {
-		return x.Instructions
-	}
-	return ""
-}
-
-func (x *AgentRequest) GetActionRequest() *ActionRequest {
-	if x != nil {
-		return x.ActionRequest
-	}
-	return nil
-}
-
-func (x *AgentRequest) GetConfig() *structpb.Struct {
-	if x != nil {
-		return x.Config
-	}
-	return nil
-}
-
-func (x *AgentRequest) GetTools() []*ToolRequest {
-	if x != nil {
-		return x.Tools
-	}
-	return nil
 }
 
 type ToolRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ToolId        string                 `protobuf:"bytes,1,opt,name=tool_id,json=toolId,proto3" json:"tool_id,omitempty"`
-	ToolExecId    string                 `protobuf:"bytes,2,opt,name=tool_exec_id,json=toolExecId,proto3" json:"tool_exec_id,omitempty"`
-	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	InputSchema   *structpb.Struct       `protobuf:"bytes,4,opt,name=input_schema,json=inputSchema,proto3" json:"input_schema,omitempty"`
-	OutputSchema  *structpb.Struct       `protobuf:"bytes,5,opt,name=output_schema,json=outputSchema,proto3" json:"output_schema,omitempty"`
-	Input         *structpb.Struct       `protobuf:"bytes,6,opt,name=input,proto3" json:"input,omitempty"`
+	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	ToolId        string                 `protobuf:"bytes,2,opt,name=tool_id,json=toolId,proto3" json:"tool_id,omitempty"`
+	ToolExecId    string                 `protobuf:"bytes,3,opt,name=tool_exec_id,json=toolExecId,proto3" json:"tool_exec_id,omitempty"`
+	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	InputSchema   *structpb.Struct       `protobuf:"bytes,5,opt,name=input_schema,json=inputSchema,proto3" json:"input_schema,omitempty"`
+	OutputSchema  *structpb.Struct       `protobuf:"bytes,6,opt,name=output_schema,json=outputSchema,proto3" json:"output_schema,omitempty"`
+	Input         *structpb.Struct       `protobuf:"bytes,7,opt,name=input,proto3" json:"input,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ToolRequest) Reset() {
 	*x = ToolRequest{}
-	mi := &file_common_request_proto_msgTypes[2]
+	mi := &file_common_request_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -192,7 +98,7 @@ func (x *ToolRequest) String() string {
 func (*ToolRequest) ProtoMessage() {}
 
 func (x *ToolRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_common_request_proto_msgTypes[2]
+	mi := &file_common_request_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -205,7 +111,14 @@ func (x *ToolRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolRequest.ProtoReflect.Descriptor instead.
 func (*ToolRequest) Descriptor() ([]byte, []int) {
-	return file_common_request_proto_rawDescGZIP(), []int{2}
+	return file_common_request_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ToolRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
 }
 
 func (x *ToolRequest) GetToolId() string {
@@ -250,30 +163,357 @@ func (x *ToolRequest) GetInput() *structpb.Struct {
 	return nil
 }
 
+type ToolResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	ToolId        string                 `protobuf:"bytes,2,opt,name=tool_id,json=toolId,proto3" json:"tool_id,omitempty"`
+	ToolExecId    string                 `protobuf:"bytes,3,opt,name=tool_exec_id,json=toolExecId,proto3" json:"tool_exec_id,omitempty"`
+	Output        *structpb.Struct       `protobuf:"bytes,4,opt,name=output,proto3" json:"output,omitempty"`
+	Status        ResponseStatus         `protobuf:"varint,5,opt,name=status,proto3,enum=common.ResponseStatus" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ToolResponse) Reset() {
+	*x = ToolResponse{}
+	mi := &file_common_request_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ToolResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ToolResponse) ProtoMessage() {}
+
+func (x *ToolResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_common_request_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ToolResponse.ProtoReflect.Descriptor instead.
+func (*ToolResponse) Descriptor() ([]byte, []int) {
+	return file_common_request_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ToolResponse) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *ToolResponse) GetToolId() string {
+	if x != nil {
+		return x.ToolId
+	}
+	return ""
+}
+
+func (x *ToolResponse) GetToolExecId() string {
+	if x != nil {
+		return x.ToolExecId
+	}
+	return ""
+}
+
+func (x *ToolResponse) GetOutput() *structpb.Struct {
+	if x != nil {
+		return x.Output
+	}
+	return nil
+}
+
+func (x *ToolResponse) GetStatus() ResponseStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ResponseStatus_RESPONSE_STATUS_UNSPECIFIED
+}
+
+type ActionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ActionId      string                 `protobuf:"bytes,1,opt,name=action_id,json=actionId,proto3" json:"action_id,omitempty"`
+	Prompt        string                 `protobuf:"bytes,2,opt,name=prompt,proto3" json:"prompt,omitempty"`
+	OutputSchema  *structpb.Struct       `protobuf:"bytes,3,opt,name=output_schema,json=outputSchema,proto3" json:"output_schema,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActionRequest) Reset() {
+	*x = ActionRequest{}
+	mi := &file_common_request_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActionRequest) ProtoMessage() {}
+
+func (x *ActionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_common_request_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActionRequest.ProtoReflect.Descriptor instead.
+func (*ActionRequest) Descriptor() ([]byte, []int) {
+	return file_common_request_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ActionRequest) GetActionId() string {
+	if x != nil {
+		return x.ActionId
+	}
+	return ""
+}
+
+func (x *ActionRequest) GetPrompt() string {
+	if x != nil {
+		return x.Prompt
+	}
+	return ""
+}
+
+func (x *ActionRequest) GetOutputSchema() *structpb.Struct {
+	if x != nil {
+		return x.OutputSchema
+	}
+	return nil
+}
+
+type AgentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	AgentId       string                 `protobuf:"bytes,2,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	AgentExecId   string                 `protobuf:"bytes,3,opt,name=agent_exec_id,json=agentExecId,proto3" json:"agent_exec_id,omitempty"`
+	Instructions  string                 `protobuf:"bytes,4,opt,name=instructions,proto3" json:"instructions,omitempty"`
+	ActionRequest *ActionRequest         `protobuf:"bytes,5,opt,name=action_request,json=actionRequest,proto3" json:"action_request,omitempty"`
+	Config        *structpb.Struct       `protobuf:"bytes,6,opt,name=config,proto3" json:"config,omitempty"`
+	Tools         []*ToolRequest         `protobuf:"bytes,7,rep,name=tools,proto3" json:"tools,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AgentRequest) Reset() {
+	*x = AgentRequest{}
+	mi := &file_common_request_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentRequest) ProtoMessage() {}
+
+func (x *AgentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_common_request_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentRequest.ProtoReflect.Descriptor instead.
+func (*AgentRequest) Descriptor() ([]byte, []int) {
+	return file_common_request_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *AgentRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *AgentRequest) GetAgentId() string {
+	if x != nil {
+		return x.AgentId
+	}
+	return ""
+}
+
+func (x *AgentRequest) GetAgentExecId() string {
+	if x != nil {
+		return x.AgentExecId
+	}
+	return ""
+}
+
+func (x *AgentRequest) GetInstructions() string {
+	if x != nil {
+		return x.Instructions
+	}
+	return ""
+}
+
+func (x *AgentRequest) GetActionRequest() *ActionRequest {
+	if x != nil {
+		return x.ActionRequest
+	}
+	return nil
+}
+
+func (x *AgentRequest) GetConfig() *structpb.Struct {
+	if x != nil {
+		return x.Config
+	}
+	return nil
+}
+
+func (x *AgentRequest) GetTools() []*ToolRequest {
+	if x != nil {
+		return x.Tools
+	}
+	return nil
+}
+
+type AgentResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	AgentId       string                 `protobuf:"bytes,2,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	AgentExecId   string                 `protobuf:"bytes,3,opt,name=agent_exec_id,json=agentExecId,proto3" json:"agent_exec_id,omitempty"`
+	Output        *structpb.Struct       `protobuf:"bytes,4,opt,name=output,proto3" json:"output,omitempty"`
+	Status        ResponseStatus         `protobuf:"varint,5,opt,name=status,proto3,enum=common.ResponseStatus" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AgentResponse) Reset() {
+	*x = AgentResponse{}
+	mi := &file_common_request_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentResponse) ProtoMessage() {}
+
+func (x *AgentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_common_request_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentResponse.ProtoReflect.Descriptor instead.
+func (*AgentResponse) Descriptor() ([]byte, []int) {
+	return file_common_request_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *AgentResponse) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *AgentResponse) GetAgentId() string {
+	if x != nil {
+		return x.AgentId
+	}
+	return ""
+}
+
+func (x *AgentResponse) GetAgentExecId() string {
+	if x != nil {
+		return x.AgentExecId
+	}
+	return ""
+}
+
+func (x *AgentResponse) GetOutput() *structpb.Struct {
+	if x != nil {
+		return x.Output
+	}
+	return nil
+}
+
+func (x *AgentResponse) GetStatus() ResponseStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ResponseStatus_RESPONSE_STATUS_UNSPECIFIED
+}
+
 var File_common_request_proto protoreflect.FileDescriptor
 
 const file_common_request_proto_rawDesc = "" +
 	"\n" +
-	"\x14common/request.proto\x12\x06common\x1a\x1cgoogle/protobuf/struct.proto\"\x82\x01\n" +
+	"\x14common/request.proto\x12\x06common\x1a\x1cgoogle/protobuf/struct.proto\"\xb2\x02\n" +
+	"\vToolRequest\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x17\n" +
+	"\atool_id\x18\x02 \x01(\tR\x06toolId\x12 \n" +
+	"\ftool_exec_id\x18\x03 \x01(\tR\n" +
+	"toolExecId\x12 \n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\x12:\n" +
+	"\finput_schema\x18\x05 \x01(\v2\x17.google.protobuf.StructR\vinputSchema\x12<\n" +
+	"\routput_schema\x18\x06 \x01(\v2\x17.google.protobuf.StructR\foutputSchema\x12-\n" +
+	"\x05input\x18\a \x01(\v2\x17.google.protobuf.StructR\x05input\"\xc9\x01\n" +
+	"\fToolResponse\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x17\n" +
+	"\atool_id\x18\x02 \x01(\tR\x06toolId\x12 \n" +
+	"\ftool_exec_id\x18\x03 \x01(\tR\n" +
+	"toolExecId\x12/\n" +
+	"\x06output\x18\x04 \x01(\v2\x17.google.protobuf.StructR\x06output\x12.\n" +
+	"\x06status\x18\x05 \x01(\x0e2\x16.common.ResponseStatusR\x06status\"\x82\x01\n" +
 	"\rActionRequest\x12\x1b\n" +
 	"\taction_id\x18\x01 \x01(\tR\bactionId\x12\x16\n" +
 	"\x06prompt\x18\x02 \x01(\tR\x06prompt\x12<\n" +
-	"\routput_schema\x18\x03 \x01(\v2\x17.google.protobuf.StructR\foutputSchema\"\x8b\x02\n" +
-	"\fAgentRequest\x12\x19\n" +
-	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\"\n" +
-	"\ragent_exec_id\x18\x02 \x01(\tR\vagentExecId\x12\"\n" +
-	"\finstructions\x18\x03 \x01(\tR\finstructions\x12<\n" +
-	"\x0eaction_request\x18\x04 \x01(\v2\x15.common.ActionRequestR\ractionRequest\x12/\n" +
-	"\x06config\x18\x05 \x01(\v2\x17.google.protobuf.StructR\x06config\x12)\n" +
-	"\x05tools\x18\x06 \x03(\v2\x13.common.ToolRequestR\x05tools\"\x93\x02\n" +
-	"\vToolRequest\x12\x17\n" +
-	"\atool_id\x18\x01 \x01(\tR\x06toolId\x12 \n" +
-	"\ftool_exec_id\x18\x02 \x01(\tR\n" +
-	"toolExecId\x12 \n" +
-	"\vdescription\x18\x03 \x01(\tR\vdescription\x12:\n" +
-	"\finput_schema\x18\x04 \x01(\v2\x17.google.protobuf.StructR\vinputSchema\x12<\n" +
-	"\routput_schema\x18\x05 \x01(\v2\x17.google.protobuf.StructR\foutputSchema\x12-\n" +
-	"\x05input\x18\x06 \x01(\v2\x17.google.protobuf.StructR\x05inputB*Z(github.com/compozy/compozy/pkg/pb/commonb\x06proto3"
+	"\routput_schema\x18\x03 \x01(\v2\x17.google.protobuf.StructR\foutputSchema\"\xaa\x02\n" +
+	"\fAgentRequest\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x19\n" +
+	"\bagent_id\x18\x02 \x01(\tR\aagentId\x12\"\n" +
+	"\ragent_exec_id\x18\x03 \x01(\tR\vagentExecId\x12\"\n" +
+	"\finstructions\x18\x04 \x01(\tR\finstructions\x12<\n" +
+	"\x0eaction_request\x18\x05 \x01(\v2\x15.common.ActionRequestR\ractionRequest\x12/\n" +
+	"\x06config\x18\x06 \x01(\v2\x17.google.protobuf.StructR\x06config\x12)\n" +
+	"\x05tools\x18\a \x03(\v2\x13.common.ToolRequestR\x05tools\"\xce\x01\n" +
+	"\rAgentResponse\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x19\n" +
+	"\bagent_id\x18\x02 \x01(\tR\aagentId\x12\"\n" +
+	"\ragent_exec_id\x18\x03 \x01(\tR\vagentExecId\x12/\n" +
+	"\x06output\x18\x04 \x01(\v2\x17.google.protobuf.StructR\x06output\x12.\n" +
+	"\x06status\x18\x05 \x01(\x0e2\x16.common.ResponseStatusR\x06status*j\n" +
+	"\x0eResponseStatus\x12\x1f\n" +
+	"\x1bRESPONSE_STATUS_UNSPECIFIED\x10\x00\x12\x1b\n" +
+	"\x17RESPONSE_STATUS_SUCCESS\x10\x01\x12\x1a\n" +
+	"\x16RESPONSE_STATUS_FAILED\x10\x02B*Z(github.com/compozy/compozy/pkg/pb/commonb\x06proto3"
 
 var (
 	file_common_request_proto_rawDescOnce sync.Once
@@ -287,26 +527,34 @@ func file_common_request_proto_rawDescGZIP() []byte {
 	return file_common_request_proto_rawDescData
 }
 
-var file_common_request_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_common_request_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_common_request_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_common_request_proto_goTypes = []any{
-	(*ActionRequest)(nil),   // 0: common.ActionRequest
-	(*AgentRequest)(nil),    // 1: common.AgentRequest
-	(*ToolRequest)(nil),     // 2: common.ToolRequest
-	(*structpb.Struct)(nil), // 3: google.protobuf.Struct
+	(ResponseStatus)(0),     // 0: common.ResponseStatus
+	(*ToolRequest)(nil),     // 1: common.ToolRequest
+	(*ToolResponse)(nil),    // 2: common.ToolResponse
+	(*ActionRequest)(nil),   // 3: common.ActionRequest
+	(*AgentRequest)(nil),    // 4: common.AgentRequest
+	(*AgentResponse)(nil),   // 5: common.AgentResponse
+	(*structpb.Struct)(nil), // 6: google.protobuf.Struct
 }
 var file_common_request_proto_depIdxs = []int32{
-	3, // 0: common.ActionRequest.output_schema:type_name -> google.protobuf.Struct
-	0, // 1: common.AgentRequest.action_request:type_name -> common.ActionRequest
-	3, // 2: common.AgentRequest.config:type_name -> google.protobuf.Struct
-	2, // 3: common.AgentRequest.tools:type_name -> common.ToolRequest
-	3, // 4: common.ToolRequest.input_schema:type_name -> google.protobuf.Struct
-	3, // 5: common.ToolRequest.output_schema:type_name -> google.protobuf.Struct
-	3, // 6: common.ToolRequest.input:type_name -> google.protobuf.Struct
-	7, // [7:7] is the sub-list for method output_type
-	7, // [7:7] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	6,  // 0: common.ToolRequest.input_schema:type_name -> google.protobuf.Struct
+	6,  // 1: common.ToolRequest.output_schema:type_name -> google.protobuf.Struct
+	6,  // 2: common.ToolRequest.input:type_name -> google.protobuf.Struct
+	6,  // 3: common.ToolResponse.output:type_name -> google.protobuf.Struct
+	0,  // 4: common.ToolResponse.status:type_name -> common.ResponseStatus
+	6,  // 5: common.ActionRequest.output_schema:type_name -> google.protobuf.Struct
+	3,  // 6: common.AgentRequest.action_request:type_name -> common.ActionRequest
+	6,  // 7: common.AgentRequest.config:type_name -> google.protobuf.Struct
+	1,  // 8: common.AgentRequest.tools:type_name -> common.ToolRequest
+	6,  // 9: common.AgentResponse.output:type_name -> google.protobuf.Struct
+	0,  // 10: common.AgentResponse.status:type_name -> common.ResponseStatus
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_common_request_proto_init() }
@@ -319,13 +567,14 @@ func file_common_request_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_common_request_proto_rawDesc), len(file_common_request_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   3,
+			NumEnums:      1,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_common_request_proto_goTypes,
 		DependencyIndexes: file_common_request_proto_depIdxs,
+		EnumInfos:         file_common_request_proto_enumTypes,
 		MessageInfos:      file_common_request_proto_msgTypes,
 	}.Build()
 	File_common_request_proto = out.File

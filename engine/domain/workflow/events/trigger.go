@@ -1,14 +1,14 @@
-package wfevts
+package events
 
 import (
 	"fmt"
 
-	"github.com/compozy/compozy/engine/domain/workflow"
+	"github.com/compozy/compozy/engine/common"
+	"github.com/compozy/compozy/engine/state"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
 	pbcommon "github.com/compozy/compozy/pkg/pb/common"
 	pbwf "github.com/compozy/compozy/pkg/pb/workflow"
-	"google.golang.org/protobuf/proto"
 	timepb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -17,55 +17,51 @@ type TriggerResponse struct {
 	WorkflowID string `json:"workflow_id"`
 }
 
-func SendTrigger(wfID string, nc *nats.Client, st *workflow.State) (*TriggerResponse, error) {
-	stCtx := st.GetContext()
-	corrID := stCtx.CorrID
-	execID := stCtx.WorkflowExecID
-	logger.With(
-		"workflow_id", wfID,
-		"execution_id", execID,
-		"correlation_id", corrID,
-	).Debug("Sending WorkflowTriggerCommand")
+func SendTrigger(nc *nats.Client, input *common.Input, workflowID string) (*TriggerResponse, error) {
+	corrID, err := common.NewID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate correlation ID: %w", err)
+	}
+	wExecID, err := common.NewID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate workflow execution ID: %w", err)
+	}
+	stateID := state.NewID(nats.ComponentWorkflow, corrID, wExecID)
 
-	tgInput, err := st.GetTrigger().ToStruct()
+	logger.With(
+		"correlation_id", corrID,
+		"workflow_id", workflowID,
+		"workflow_execution_id", wExecID,
+	).Debug("Sending CmdWorkflowTrigger")
+
+	triggerInput, err := input.ToStruct()
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert trigger to struct: %w", err)
 	}
 
-	cmd := pbwf.WorkflowTriggerCommand{
+	cmd := pbwf.CmdWorkflowTrigger{
 		Metadata: &pbcommon.Metadata{
 			CorrelationId: corrID.String(),
 			Source:        "engine.Orchestrator",
 			Time:          timepb.Now(),
 			State: &pbcommon.State{
-				Id: st.GetID().String(),
+				Id: stateID.String(),
 			},
 		},
 		Workflow: &pbcommon.WorkflowInfo{
-			Id:     wfID,
-			ExecId: execID.String(),
+			Id:     workflowID,
+			ExecId: wExecID.String(),
 		},
-		Details: &pbwf.WorkflowTriggerCommand_Details{
-			TriggerInput: tgInput,
+		Details: &pbwf.CmdWorkflowTrigger_Details{
+			TriggerInput: triggerInput,
 		},
 	}
-	data, err := proto.Marshal(&cmd)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal WorkflowTriggerCommand: %w", err)
-	}
-
-	conn := nc.Conn()
-	js, err := conn.JetStream()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get JetStream context: %w", err)
-	}
-	_, err = js.Publish(cmd.ToSubject(), data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to publish WorkflowTriggerCommand to JetStream: %w", err)
+	if err := nc.PublishCmd(&cmd); err != nil {
+		return nil, fmt.Errorf("failed to publish CmdWorkflowTrigger: %w", err)
 	}
 
 	return &TriggerResponse{
-		StateID:    st.GetID().String(),
-		WorkflowID: wfID,
+		StateID:    stateID.String(),
+		WorkflowID: workflowID,
 	}, nil
 }

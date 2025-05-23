@@ -8,30 +8,30 @@ import "common/metadata.proto";
 option go_package = "github.com/compozy/compozy/pkg/pb/task";
 
 // -----------------------------------------------------------------------------
-// Task Trigger Command
+// Command: Task Dispatch
 // -----------------------------------------------------------------------------
 
-message TaskTriggerCommand {
+message CmdTaskDispatch {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;
 }
 
 // -----------------------------------------------------------------------------
-// Task Execute Command
+// Command: Task Execute
 // -----------------------------------------------------------------------------
 
-message TaskExecuteCommand {
+message CmdTaskExecute {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;
 }
 
 // -----------------------------------------------------------------------------
-// Task Resume Command
+// Command: Task Resume
 // -----------------------------------------------------------------------------
 
-message TaskResumeCommand {
+message CmdTaskResume {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;

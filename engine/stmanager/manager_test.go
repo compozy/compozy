@@ -98,9 +98,9 @@ func TestManager(t *testing.T) {
 
 		corrID, err := common.NewID()
 		require.NoError(t, err)
-		wfID, err := common.NewID()
+		workflowID, err := common.NewID()
 		require.NoError(t, err)
-		wfStateID := state.NewID(nats.ComponentWorkflow, corrID, wfID)
+		wfStateID := state.NewID(nats.ComponentWorkflow, corrID, workflowID)
 		wfState := &state.BaseState{
 			StateID: wfStateID,
 			Status:  nats.StatusRunning,
@@ -113,9 +113,9 @@ func TestManager(t *testing.T) {
 		require.NoError(t, err)
 
 		// Add a task state
-		tID, err := common.NewID()
+		taskID, err := common.NewID()
 		require.NoError(t, err)
-		tStateID := state.NewID(nats.ComponentTask, corrID, tID)
+		tStateID := state.NewID(nats.ComponentTask, corrID, taskID)
 		taskState := &state.BaseState{
 			StateID: tStateID,
 			Status:  nats.StatusPending,
@@ -128,9 +128,9 @@ func TestManager(t *testing.T) {
 		require.NoError(t, err)
 
 		// Add an agent state
-		agID, err := common.NewID()
+		agentID, err := common.NewID()
 		require.NoError(t, err)
-		aStateID := state.NewID(nats.ComponentAgent, corrID, agID)
+		aStateID := state.NewID(nats.ComponentAgent, corrID, agentID)
 		agState := &state.BaseState{
 			StateID: aStateID,
 			Status:  nats.StatusRunning,
@@ -158,19 +158,19 @@ func TestManager(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test GetWorkflowState
-		state, err := manager.GetWorkflowState(corrID, wfID)
+		state, err := manager.GetWorkflowState(corrID, workflowID)
 		require.NoError(t, err)
 		assert.Equal(t, wfStateID, state.GetID())
 		assert.Equal(t, nats.StatusRunning, state.GetStatus())
 
 		// Test GetTaskState
-		state, err = manager.GetTaskState(corrID, tID)
+		state, err = manager.GetTaskState(corrID, taskID)
 		require.NoError(t, err)
 		assert.Equal(t, tStateID, state.GetID())
 		assert.Equal(t, nats.StatusPending, state.GetStatus())
 
 		// Test GetAgentState
-		state, err = manager.GetAgentState(corrID, agID)
+		state, err = manager.GetAgentState(corrID, agentID)
 		require.NoError(t, err)
 		assert.Equal(t, aStateID, state.GetID())
 		assert.Equal(t, nats.StatusRunning, state.GetStatus())
@@ -182,17 +182,17 @@ func TestManager(t *testing.T) {
 		assert.Equal(t, nats.StatusSuccess, state.GetStatus())
 
 		// Test GetTaskStatesForWorkflow
-		taskStates, err := manager.GetTaskStatesForWorkflow(corrID, wfID)
+		taskStates, err := manager.GetTaskStatesForWorkflow(corrID, workflowID)
 		require.NoError(t, err)
 		assert.Len(t, taskStates, 1)
 
 		// Test GetAgentStatesForTask
-		agentStates, err := manager.GetAgentStatesForTask(corrID, tID)
+		agentStates, err := manager.GetAgentStatesForTask(corrID, taskID)
 		require.NoError(t, err)
 		assert.Len(t, agentStates, 1)
 
 		// Test GetToolStatesForTask
-		toolStates, err := manager.GetToolStatesForTask(corrID, tID)
+		toolStates, err := manager.GetToolStatesForTask(corrID, taskID)
 		require.NoError(t, err)
 		assert.Len(t, toolStates, 1)
 
@@ -217,15 +217,15 @@ func TestManager(t *testing.T) {
 		assert.Len(t, allToolStates, 1)
 
 		// Test DeleteWorkflowState
-		err = manager.DeleteWorkflowState(corrID, wfID)
+		err = manager.DeleteWorkflowState(corrID, workflowID)
 		require.NoError(t, err)
 
 		// Verify all related states are deleted
-		_, err = manager.GetWorkflowState(corrID, wfID)
+		_, err = manager.GetWorkflowState(corrID, workflowID)
 		require.Error(t, err)
-		_, err = manager.GetTaskState(corrID, tID)
+		_, err = manager.GetTaskState(corrID, taskID)
 		require.Error(t, err)
-		_, err = manager.GetAgentState(corrID, agID)
+		_, err = manager.GetAgentState(corrID, agentID)
 		require.Error(t, err)
 		_, err = manager.GetToolState(corrID, toolID)
 		require.Error(t, err)

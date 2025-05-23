@@ -6,6 +6,42 @@ import "google/protobuf/struct.proto";
 
 option go_package = "github.com/compozy/compozy/pkg/pb/common";
 
+// -----------------------------------------------------------------------------
+// Response Status
+// -----------------------------------------------------------------------------
+
+enum ResponseStatus {
+  RESPONSE_STATUS_UNSPECIFIED = 0;
+  RESPONSE_STATUS_SUCCESS = 1;
+  RESPONSE_STATUS_FAILED = 2;
+}
+
+// -----------------------------------------------------------------------------
+// Tool
+// -----------------------------------------------------------------------------
+
+message ToolRequest {
+  string request_id = 1;
+  string tool_id = 2;
+  string tool_exec_id = 3;
+  string description = 4;
+  google.protobuf.Struct input_schema = 5;
+  google.protobuf.Struct output_schema = 6;
+  google.protobuf.Struct input = 7;
+}
+
+message ToolResponse {
+  string request_id = 1;
+  string tool_id = 2;
+  string tool_exec_id = 3;
+  google.protobuf.Struct output = 4;
+  ResponseStatus status = 5;
+}
+
+// -----------------------------------------------------------------------------
+// Agent
+// -----------------------------------------------------------------------------
+
 message ActionRequest {
   string action_id = 1;
   string prompt = 2;
@@ -13,19 +49,19 @@ message ActionRequest {
 }
 
 message AgentRequest {
-  string agent_id = 1;
-  string agent_exec_id = 2;
-  string instructions = 3;
-  ActionRequest action_request = 4;
-  google.protobuf.Struct config = 5;
-  repeated ToolRequest tools = 6;
+  string request_id = 1;
+  string agent_id = 2;
+  string agent_exec_id = 3;
+  string instructions = 4;
+  ActionRequest action_request = 5;
+  google.protobuf.Struct config = 6;
+  repeated ToolRequest tools = 7;
 }
 
-message ToolRequest {
-  string tool_id = 1;
-  string tool_exec_id = 2;
-  string description = 3;
-  google.protobuf.Struct input_schema = 4;
-  google.protobuf.Struct output_schema = 5;
-  google.protobuf.Struct input = 6;
+message AgentResponse {
+  string request_id = 1;
+  string agent_id = 2;
+  string agent_exec_id = 3;
+  google.protobuf.Struct output = 4;
+  ResponseStatus status = 5;
 }

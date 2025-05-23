@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/pkg/pb"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"google.golang.org/protobuf/proto"
 )
 
 // Client implements the Client interface
@@ -87,4 +90,39 @@ func (c *Client) GetStream(ctx context.Context, name StreamName) (jetstream.Stre
 		return NewLogStream(ctx, c.js)
 	}
 	return nil, fmt.Errorf("stream not found: %s", name)
+}
+
+func (c *Client) PublishCmd(cmd pb.Subjecter) error {
+	data, err := proto.Marshal(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to marshal: %w", err)
+	}
+
+	conn := c.Conn()
+	js, err := conn.JetStream()
+	if err != nil {
+		return fmt.Errorf("failed to get JetStream context: %w", err)
+	}
+	_, err = js.Publish(cmd.ToSubject(), data)
+	if err != nil {
+		return fmt.Errorf("failed to publish to JetStream: %w", err)
+	}
+	return nil
+}
+
+func (c *Client) SubscribeCmd(ctx context.Context, comp ComponentType, cmd CmdType, handler MessageHandler) error {
+	cs, err := c.GetConsumerCmd(ctx, comp, cmd)
+	if err != nil {
+		return fmt.Errorf("failed to get consumer: %w", err)
+	}
+	subOpts := DefaultSubscribeOpts(cs)
+	errCh := SubscribeConsumer(ctx, handler, subOpts)
+	go func() {
+		for err := range errCh {
+			if err != nil {
+				logger.Error("Error in CmdWorkflowTrigger subscription", "error", err)
+			}
+		}
+	}()
+	return nil
 }

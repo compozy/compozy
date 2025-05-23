@@ -6,8 +6,6 @@ import (
 
 	"github.com/compozy/compozy/engine/common"
 	wfevts "github.com/compozy/compozy/engine/domain/workflow/events"
-	wfuc "github.com/compozy/compozy/engine/domain/workflow/uc"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
 	pbwf "github.com/compozy/compozy/pkg/pb/workflow"
 	"github.com/nats-io/nats.go/jetstream"
@@ -18,20 +16,11 @@ import (
 // Events
 // -----------------------------------------------------------------------------
 
-func (o *Orchestrator) SendWorkflowTrigger(wfID string, ti *common.Input) (*wfevts.TriggerResponse, error) {
-	// Find and validate workflow config input
-	if err := wfuc.FindAndValidateInput(o.workflows, wfID, *ti); err != nil {
-		return nil, fmt.Errorf("failed to validate workflow: %w", err)
-	}
-	// Create initial workflow state
-	st, err := o.stManager.CreateWorkflowState(ti, o.pjc)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create workflow state: %w", err)
-	}
-	return wfevts.SendTrigger(wfID, o.nc, st)
+func (o *Orchestrator) SendWorkflowTrigger(ti *common.Input, workflowID string) (*wfevts.TriggerResponse, error) {
+	return wfevts.SendTrigger(o.nc, ti, workflowID)
 }
 
-func (o *Orchestrator) SendExecuteWorkflow(cmd *pbwf.WorkflowTriggerCommand) error {
+func (o *Orchestrator) SendWorkflowExecute(cmd *pbwf.CmdWorkflowTrigger) error {
 	return wfevts.SendExecute(o.nc, cmd)
 }
 
@@ -41,26 +30,18 @@ func (o *Orchestrator) SendExecuteWorkflow(cmd *pbwf.WorkflowTriggerCommand) err
 
 func (o *Orchestrator) subscribeWorkflow(ctx context.Context) error {
 	if err := o.subscribeWorkflowTrigger(ctx); err != nil {
-		return fmt.Errorf("failed to subscribe to WorkflowTriggerCmd: %w", err)
+		return fmt.Errorf("failed to subscribe to CmdWorkflowTrigger: %w", err)
 	}
 	return nil
 }
 
 func (o *Orchestrator) subscribeWorkflowTrigger(ctx context.Context) error {
-	subCtx := context.Background()
-	cs, err := o.nc.GetConsumerCmd(ctx, nats.ComponentWorkflow, nats.CmdTypeTrigger)
+	comp := nats.ComponentWorkflow
+	cmd := nats.CmdTypeTrigger
+	err := o.nc.SubscribeCmd(ctx, comp, cmd, o.handleWorkflowTrigger)
 	if err != nil {
-		return fmt.Errorf("failed to get consumer: %w", err)
+		return fmt.Errorf("failed to subscribe: %w", err)
 	}
-	subOpts := nats.DefaultSubscribeOpts(cs)
-	errCh := nats.SubscribeConsumer(subCtx, o.handleWorkflowTrigger, subOpts)
-	go func() {
-		for err := range errCh {
-			if err != nil {
-				logger.Error("Error in workflow trigger subscription", "error", err)
-			}
-		}
-	}()
 	return nil
 }
 
@@ -69,17 +50,12 @@ func (o *Orchestrator) subscribeWorkflowTrigger(ctx context.Context) error {
 // -----------------------------------------------------------------------------
 
 func (o *Orchestrator) handleWorkflowTrigger(_ string, data []byte, _ jetstream.Msg) error {
-	var cmd pbwf.WorkflowTriggerCommand
+	var cmd pbwf.CmdWorkflowTrigger
 	if err := proto.Unmarshal(data, &cmd); err != nil {
-		return fmt.Errorf("failed to unmarshal WorkflowTriggerCommand: %w", err)
+		return fmt.Errorf("failed to unmarshal CmdWorkflowTrigger: %w", err)
 	}
-	wf := cmd.GetWorkflow()
-	md := cmd.GetMetadata()
-	if err := wfevts.SendExecutionStarted(o.nc, wf, md); err != nil {
-		return fmt.Errorf("failed to send WorkflowExecutionStarted: %w", err)
-	}
-	if err := o.SendExecuteWorkflow(&cmd); err != nil {
-		return fmt.Errorf("failed to send ExecuteWorkflow: %w", err)
+	if err := o.SendWorkflowExecute(&cmd); err != nil {
+		return fmt.Errorf("failed to send CmdWorkflowExecute: %w", err)
 	}
 	return nil
 }

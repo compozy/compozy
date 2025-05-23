@@ -9,10 +9,10 @@ import "common/request.proto";
 option go_package = "github.com/compozy/compozy/pkg/pb/tool";
 
 // -----------------------------------------------------------------------------
-// Tool Execute Command
+// Command: Tool Execute
 // -----------------------------------------------------------------------------
 
-message ToolExecuteCommand {
+message CmdToolExecute {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;

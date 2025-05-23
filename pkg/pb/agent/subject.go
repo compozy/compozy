@@ -10,37 +10,37 @@ import (
 // Commands
 // -----------------------------------------------------------------------------
 
-// ToSubject generates the NATS subject for an AgentExecuteCommand.
+// ToSubject generates the NATS subject for an CmdAgentExecute.
 // Pattern: compozy.<correlation_id>.agent.cmds.<agent_id>.execute
-func (x *AgentExecuteCommand) ToSubject() string {
+func (x *CmdAgentExecute) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
-	agID := pb.GetAgentID(x)
-	return fmt.Sprintf("compozy.%s.agent.cmds.%s.execute", corrID, agID)
+	agentID := pb.GetAgentID(x)
+	return fmt.Sprintf("compozy.%s.agent.cmds.%s.execute", corrID, agentID)
 }
 
 // -----------------------------------------------------------------------------
 // State Events
 // -----------------------------------------------------------------------------
 
-// ToSubject generates the NATS subject for an AgentExecutionStartedEvent.
+// ToSubject generates the NATS subject for an EventAgentStarted.
 // Pattern: compozy.<correlation_id>.agent.evts.<agent_exec_id>.started
-func (x *AgentExecutionStartedEvent) ToSubject() string {
+func (x *EventAgentStarted) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
 	agentExecID := pb.GetAgentExecID(x)
 	return fmt.Sprintf("compozy.%s.agent.evts.%s.started", corrID, agentExecID)
 }
 
-// ToSubject generates the NATS subject for an AgentExecutionSuccessEvent.
+// ToSubject generates the NATS subject for an EventAgentSuccess.
 // Pattern: compozy.<correlation_id>.agent.evts.<agent_exec_id>.success
-func (x *AgentExecutionSuccessEvent) ToSubject() string {
+func (x *EventAgentSuccess) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
 	agentExecID := pb.GetAgentExecID(x)
 	return fmt.Sprintf("compozy.%s.agent.evts.%s.success", corrID, agentExecID)
 }
 
-// ToSubject generates the NATS subject for an AgentExecutionFailedEvent.
+// ToSubject generates the NATS subject for an EventAgentFailed.
 // Pattern: compozy.<correlation_id>.agent.evts.<agent_exec_id>.failed
-func (x *AgentExecutionFailedEvent) ToSubject() string {
+func (x *EventAgentFailed) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
 	agentExecID := pb.GetAgentExecID(x)
 	return fmt.Sprintf("compozy.%s.agent.evts.%s.failed", corrID, agentExecID)

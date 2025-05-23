@@ -22,31 +22,31 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type AgentExecuteCommand struct {
-	state         protoimpl.MessageState       `protogen:"open.v1"`
-	Metadata      *common.Metadata             `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo         `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Task          *common.TaskInfo             `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
-	Agent         *common.AgentInfo            `protobuf:"bytes,4,opt,name=agent,proto3" json:"agent,omitempty"`
-	Details       *AgentExecuteCommand_Details `protobuf:"bytes,5,opt,name=details,proto3" json:"details,omitempty"`
+type CmdAgentExecute struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Metadata      *common.Metadata         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo     `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Task          *common.TaskInfo         `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
+	Agent         *common.AgentInfo        `protobuf:"bytes,4,opt,name=agent,proto3" json:"agent,omitempty"`
+	Details       *CmdAgentExecute_Details `protobuf:"bytes,5,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AgentExecuteCommand) Reset() {
-	*x = AgentExecuteCommand{}
+func (x *CmdAgentExecute) Reset() {
+	*x = CmdAgentExecute{}
 	mi := &file_agent_cmds_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AgentExecuteCommand) String() string {
+func (x *CmdAgentExecute) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AgentExecuteCommand) ProtoMessage() {}
+func (*CmdAgentExecute) ProtoMessage() {}
 
-func (x *AgentExecuteCommand) ProtoReflect() protoreflect.Message {
+func (x *CmdAgentExecute) ProtoReflect() protoreflect.Message {
 	mi := &file_agent_cmds_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -58,67 +58,67 @@ func (x *AgentExecuteCommand) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AgentExecuteCommand.ProtoReflect.Descriptor instead.
-func (*AgentExecuteCommand) Descriptor() ([]byte, []int) {
+// Deprecated: Use CmdAgentExecute.ProtoReflect.Descriptor instead.
+func (*CmdAgentExecute) Descriptor() ([]byte, []int) {
 	return file_agent_cmds_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *AgentExecuteCommand) GetMetadata() *common.Metadata {
+func (x *CmdAgentExecute) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *AgentExecuteCommand) GetWorkflow() *common.WorkflowInfo {
+func (x *CmdAgentExecute) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *AgentExecuteCommand) GetTask() *common.TaskInfo {
+func (x *CmdAgentExecute) GetTask() *common.TaskInfo {
 	if x != nil {
 		return x.Task
 	}
 	return nil
 }
 
-func (x *AgentExecuteCommand) GetAgent() *common.AgentInfo {
+func (x *CmdAgentExecute) GetAgent() *common.AgentInfo {
 	if x != nil {
 		return x.Agent
 	}
 	return nil
 }
 
-func (x *AgentExecuteCommand) GetDetails() *AgentExecuteCommand_Details {
+func (x *CmdAgentExecute) GetDetails() *CmdAgentExecute_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type AgentExecuteCommand_Details struct {
+type CmdAgentExecute_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AgentRequest  *common.AgentRequest   `protobuf:"bytes,1,opt,name=agent_request,json=agentRequest,proto3" json:"agent_request,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AgentExecuteCommand_Details) Reset() {
-	*x = AgentExecuteCommand_Details{}
+func (x *CmdAgentExecute_Details) Reset() {
+	*x = CmdAgentExecute_Details{}
 	mi := &file_agent_cmds_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AgentExecuteCommand_Details) String() string {
+func (x *CmdAgentExecute_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AgentExecuteCommand_Details) ProtoMessage() {}
+func (*CmdAgentExecute_Details) ProtoMessage() {}
 
-func (x *AgentExecuteCommand_Details) ProtoReflect() protoreflect.Message {
+func (x *CmdAgentExecute_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_agent_cmds_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -130,12 +130,12 @@ func (x *AgentExecuteCommand_Details) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AgentExecuteCommand_Details.ProtoReflect.Descriptor instead.
-func (*AgentExecuteCommand_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use CmdAgentExecute_Details.ProtoReflect.Descriptor instead.
+func (*CmdAgentExecute_Details) Descriptor() ([]byte, []int) {
 	return file_agent_cmds_proto_rawDescGZIP(), []int{0, 0}
 }
 
-func (x *AgentExecuteCommand_Details) GetAgentRequest() *common.AgentRequest {
+func (x *CmdAgentExecute_Details) GetAgentRequest() *common.AgentRequest {
 	if x != nil {
 		return x.AgentRequest
 	}
@@ -146,13 +146,13 @@ var File_agent_cmds_proto protoreflect.FileDescriptor
 
 const file_agent_cmds_proto_rawDesc = "" +
 	"\n" +
-	"\x10agent/cmds.proto\x12\x05agent\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x14common/request.proto\"\xc8\x02\n" +
-	"\x13AgentExecuteCommand\x12,\n" +
+	"\x10agent/cmds.proto\x12\x05agent\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x14common/request.proto\"\xc0\x02\n" +
+	"\x0fCmdAgentExecute\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
 	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12'\n" +
-	"\x05agent\x18\x04 \x01(\v2\x11.common.AgentInfoR\x05agent\x12<\n" +
-	"\adetails\x18\x05 \x01(\v2\".agent.AgentExecuteCommand.DetailsR\adetails\x1aD\n" +
+	"\x05agent\x18\x04 \x01(\v2\x11.common.AgentInfoR\x05agent\x128\n" +
+	"\adetails\x18\x05 \x01(\v2\x1e.agent.CmdAgentExecute.DetailsR\adetails\x1aD\n" +
 	"\aDetails\x129\n" +
 	"\ragent_request\x18\x01 \x01(\v2\x14.common.AgentRequestR\fagentRequestB)Z'github.com/compozy/compozy/pkg/pb/agentb\x06proto3"
 
@@ -170,21 +170,21 @@ func file_agent_cmds_proto_rawDescGZIP() []byte {
 
 var file_agent_cmds_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_agent_cmds_proto_goTypes = []any{
-	(*AgentExecuteCommand)(nil),         // 0: agent.AgentExecuteCommand
-	(*AgentExecuteCommand_Details)(nil), // 1: agent.AgentExecuteCommand.Details
-	(*common.Metadata)(nil),             // 2: common.Metadata
-	(*common.WorkflowInfo)(nil),         // 3: common.WorkflowInfo
-	(*common.TaskInfo)(nil),             // 4: common.TaskInfo
-	(*common.AgentInfo)(nil),            // 5: common.AgentInfo
-	(*common.AgentRequest)(nil),         // 6: common.AgentRequest
+	(*CmdAgentExecute)(nil),         // 0: agent.CmdAgentExecute
+	(*CmdAgentExecute_Details)(nil), // 1: agent.CmdAgentExecute.Details
+	(*common.Metadata)(nil),         // 2: common.Metadata
+	(*common.WorkflowInfo)(nil),     // 3: common.WorkflowInfo
+	(*common.TaskInfo)(nil),         // 4: common.TaskInfo
+	(*common.AgentInfo)(nil),        // 5: common.AgentInfo
+	(*common.AgentRequest)(nil),     // 6: common.AgentRequest
 }
 var file_agent_cmds_proto_depIdxs = []int32{
-	2, // 0: agent.AgentExecuteCommand.metadata:type_name -> common.Metadata
-	3, // 1: agent.AgentExecuteCommand.workflow:type_name -> common.WorkflowInfo
-	4, // 2: agent.AgentExecuteCommand.task:type_name -> common.TaskInfo
-	5, // 3: agent.AgentExecuteCommand.agent:type_name -> common.AgentInfo
-	1, // 4: agent.AgentExecuteCommand.details:type_name -> agent.AgentExecuteCommand.Details
-	6, // 5: agent.AgentExecuteCommand.Details.agent_request:type_name -> common.AgentRequest
+	2, // 0: agent.CmdAgentExecute.metadata:type_name -> common.Metadata
+	3, // 1: agent.CmdAgentExecute.workflow:type_name -> common.WorkflowInfo
+	4, // 2: agent.CmdAgentExecute.task:type_name -> common.TaskInfo
+	5, // 3: agent.CmdAgentExecute.agent:type_name -> common.AgentInfo
+	1, // 4: agent.CmdAgentExecute.details:type_name -> agent.CmdAgentExecute.Details
+	6, // 5: agent.CmdAgentExecute.Details.agent_request:type_name -> common.AgentRequest
 	6, // [6:6] is the sub-list for method output_type
 	6, // [6:6] is the sub-list for method input_type
 	6, // [6:6] is the sub-list for extension type_name

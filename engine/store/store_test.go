@@ -144,9 +144,9 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create workflow state
-		wfID := state.NewID(nats.ComponentWorkflow, corrID, common.MustNewID())
+		workflowID := state.NewID(nats.ComponentWorkflow, corrID, common.MustNewID())
 		wfState := &state.BaseState{
-			StateID: wfID,
+			StateID: workflowID,
 			Status:  nats.StatusRunning,
 			Input:   &common.Input{},
 			Output:  &common.Output{},
@@ -174,9 +174,9 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create agent state
-		agID := state.NewID(nats.ComponentAgent, corrID, common.MustNewID())
+		agentID := state.NewID(nats.ComponentAgent, corrID, common.MustNewID())
 		agState := state.NewEmptyState(
-			state.OptsWithID(agID),
+			state.OptsWithID(agentID),
 			state.OptsWithStatus(nats.StatusRunning),
 		)
 		err = store.UpsertState(agState)
@@ -192,7 +192,7 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test GetTaskStatesForWorkflow
-		taskStates, err := store.GetTaskStatesForWorkflow(wfID)
+		taskStates, err := store.GetTaskStatesForWorkflow(workflowID)
 		require.NoError(t, err)
 		assert.Len(t, taskStates, 2)
 

@@ -29,8 +29,8 @@ func GetURLParam(c *gin.Context, key string) string {
 }
 
 func GetWorkflowID(c *gin.Context) string {
-	wfID := c.Param("workflow_id")
-	if wfID == "" {
+	workflowID := c.Param("workflow_id")
+	if workflowID == "" {
 		reqErr := NewRequestError(
 			http.StatusBadRequest,
 			"workflow_id is required",
@@ -39,7 +39,7 @@ func GetWorkflowID(c *gin.Context) string {
 		RespondWithError(c, reqErr.StatusCode, reqErr)
 		return ""
 	}
-	return wfID
+	return workflowID
 }
 
 func GetAppState(c *gin.Context) *appstate.State {

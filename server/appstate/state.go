@@ -32,22 +32,22 @@ func NewState(
 	ns *nats.Server,
 	orch *orchestrator.Orchestrator,
 	store *store.Store,
-	pjc *project.Config,
-	wfs []*workflow.Config,
+	pConfig *project.Config,
+	workflows []*workflow.Config,
 ) (*State, error) {
-	if pjc == nil {
+	if pConfig == nil {
 		return nil, fmt.Errorf("project config is required")
 	}
 
-	cwd := pjc.GetCWD()
+	cwd := pConfig.GetCWD()
 	if cwd == nil {
 		return nil, fmt.Errorf("project config must have a valid CWD")
 	}
 
 	return &State{
 		CWD:           cwd,
-		ProjectConfig: pjc,
-		Workflows:     wfs,
+		ProjectConfig: pConfig,
+		Workflows:     workflows,
 		NatsServer:    ns,
 		Orchestrator:  orch,
 		Store:         store,

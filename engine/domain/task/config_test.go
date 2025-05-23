@@ -152,13 +152,13 @@ func Test_LoadTask(t *testing.T) {
 }
 
 func Test_TaskConfigValidation(t *testing.T) {
-	tID := "test-task"
+	taskID := "test-task"
 	taskCWD, err := common.CWDFromPath("/test/path")
 	require.NoError(t, err)
 
 	t.Run("Should validate valid basic task", func(t *testing.T) {
 		config := &Config{
-			ID:     tID,
+			ID:     taskID,
 			Type:   TaskTypeBasic,
 			Action: "test-action",
 			cwd:    taskCWD,
@@ -170,7 +170,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 
 	t.Run("Should validate valid decision task", func(t *testing.T) {
 		config := &Config{
-			ID:        tID,
+			ID:        taskID,
 			Type:      TaskTypeDecision,
 			Condition: "test-condition",
 			Routes: map[string]string{
@@ -196,7 +196,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 
 	t.Run("Should return error for invalid package reference", func(t *testing.T) {
 		config := &Config{
-			ID:  tID,
+			ID:  taskID,
 			Use: common.NewPackageRefConfig("invalid"),
 			cwd: taskCWD,
 		}
@@ -220,7 +220,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 
 	t.Run("Should return error for decision task missing configuration", func(t *testing.T) {
 		config := &Config{
-			ID:   tID,
+			ID:   taskID,
 			Type: TaskTypeDecision,
 			cwd:  taskCWD,
 		}
@@ -244,7 +244,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 
 	t.Run("Should return error when input schema is used with ID reference", func(t *testing.T) {
 		config := &Config{
-			ID:  tID,
+			ID:  taskID,
 			Use: common.NewPackageRefConfig("task(id=test-task)"),
 			InputSchema: &schema.InputSchema{
 				Schema: schema.Schema{
@@ -261,7 +261,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 
 	t.Run("Should return error when output schema is used with file reference", func(t *testing.T) {
 		config := &Config{
-			ID:  tID,
+			ID:  taskID,
 			Use: common.NewPackageRefConfig("task(file=basic_task.yaml)"),
 			OutputSchema: &schema.OutputSchema{
 				Schema: schema.Schema{
@@ -278,7 +278,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 
 	t.Run("Should return error when schemas are used with dep reference", func(t *testing.T) {
 		config := &Config{
-			ID:  tID,
+			ID:  taskID,
 			Use: common.NewPackageRefConfig("task(dep=compozy/tasks:test-task)"),
 			InputSchema: &schema.InputSchema{
 				Schema: schema.Schema{

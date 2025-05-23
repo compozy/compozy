@@ -21,10 +21,10 @@ enum WorkflowStatus {
 }
 
 // -----------------------------------------------------------------------------
-// Workflow Execution Started Event
+// Event: Workflow Started
 // -----------------------------------------------------------------------------
 
-message WorkflowExecutionStartedEvent {
+message EventWorkflowStarted {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 
@@ -35,10 +35,10 @@ message WorkflowExecutionStartedEvent {
 }
 
 // -----------------------------------------------------------------------------
-// Workflow Execution Paused Event
+// Event: Workflow Paused
 // -----------------------------------------------------------------------------
 
-message WorkflowExecutionPausedEvent {
+message EventWorkflowPaused {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 
@@ -49,10 +49,10 @@ message WorkflowExecutionPausedEvent {
 }
 
 // -----------------------------------------------------------------------------
-// Workflow Execution Resumed Event
+// Event: Workflow Resumed
 // -----------------------------------------------------------------------------
 
-message WorkflowExecutionResumedEvent {
+message EventWorkflowResumed {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 
@@ -63,10 +63,10 @@ message WorkflowExecutionResumedEvent {
 }
 
 // -----------------------------------------------------------------------------
-// Workflow Execution Success Event
+// Event: Workflow Success
 // -----------------------------------------------------------------------------
 
-message WorkflowExecutionSuccessEvent {
+message EventWorkflowSuccess {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 
@@ -79,10 +79,10 @@ message WorkflowExecutionSuccessEvent {
 }
 
 // -----------------------------------------------------------------------------
-// Workflow Execution Failed Event
+// Event: Workflow Failed
 // -----------------------------------------------------------------------------
 
-message WorkflowExecutionFailedEvent {
+message EventWorkflowFailed {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 
@@ -95,10 +95,10 @@ message WorkflowExecutionFailedEvent {
 }
 
 // -----------------------------------------------------------------------------
-// Workflow Execution Canceled Event
+// Event: Workflow Canceled
 // -----------------------------------------------------------------------------
 
-message WorkflowExecutionCanceledEvent {
+message EventWorkflowCanceled {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 
@@ -110,10 +110,10 @@ message WorkflowExecutionCanceledEvent {
 }
 
 // -----------------------------------------------------------------------------
-// Workflow Execution Timed Out Event
+// Event: Workflow Timed Out
 // -----------------------------------------------------------------------------
 
-message WorkflowExecutionTimedOutEvent {
+message EventWorkflowTimedOut {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
 

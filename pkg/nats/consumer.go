@@ -70,14 +70,14 @@ func (c *Client) GetConsumerCmd(
 		return nil, fmt.Errorf("unsupported component type for commands: %s", comp)
 	}
 
-	st, err := c.GetStream(ctx, stName)
+	state, err := c.GetStream(ctx, stName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get stream: %w", err)
 	}
 
 	name := csNameCmd(comp, cmd)
 	subjs := BuildCmdSubject(comp, "*", "*", cmd)
-	cs, err := createConsumer(ctx, st, name, subjs)
+	cs, err := createConsumer(ctx, state, name, subjs)
 	if err != nil {
 		return nil, err
 	}
@@ -93,14 +93,14 @@ func (c *Client) GetConsumerEvt(
 		return nil, fmt.Errorf("use GetConsumerLog for log events")
 	}
 
-	st, err := c.GetStream(ctx, StreamEvents)
+	state, err := c.GetStream(ctx, StreamEvents)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get events stream: %w", err)
 	}
 
 	name := csNameEvt(comp, evt)
 	subjs := BuildEvtSubject(comp, "*", "*", evt)
-	cs, err := createConsumer(ctx, st, name, subjs)
+	cs, err := createConsumer(ctx, state, name, subjs)
 	if err != nil {
 		return nil, err
 	}

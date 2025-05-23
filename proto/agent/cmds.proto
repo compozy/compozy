@@ -9,10 +9,10 @@ import "common/request.proto";
 option go_package = "github.com/compozy/compozy/pkg/pb/agent";
 
 // -----------------------------------------------------------------------------
-// Agent Execute Command
+// Command: Agent Execute
 // -----------------------------------------------------------------------------
 
-message AgentExecuteCommand {
+message CmdAgentExecute {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;

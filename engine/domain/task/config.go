@@ -123,3 +123,12 @@ func (t *Config) LoadFileRef(cwd *common.CWD) (*Config, error) {
 	}
 	return t, nil
 }
+
+func FindConfig(tasks []Config, taskID string) (*Config, error) {
+	for _, wf := range tasks {
+		if wf.ID == taskID {
+			return &wf, nil
+		}
+	}
+	return nil, fmt.Errorf("task not found")
+}

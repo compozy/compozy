@@ -10,102 +10,102 @@ import (
 // Command Subjects
 // -----------------------------------------------------------------------------
 
-// ToSubject generates the NATS subject for a WorkflowTriggerCommand.
+// ToSubject generates the NATS subject for a CmdWorkflowTrigger.
 // Pattern: compozy.<correlation_id>.workflow.cmds.<workflow_id>.trigger
-func (x *WorkflowTriggerCommand) ToSubject() string {
+func (x *CmdWorkflowTrigger) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
-	wfID := pb.GetWorkflowID(x)
-	return fmt.Sprintf("compozy.%s.workflow.cmds.%s.trigger", corrID, wfID)
+	workflowID := pb.GetWorkflowID(x)
+	return fmt.Sprintf("compozy.%s.workflow.cmds.%s.trigger", corrID, workflowID)
 }
 
-// ToSubject generates the NATS subject for a WorkflowExecuteCommand.
+// ToSubject generates the NATS subject for a CmdWorkflowExecute.
 // Pattern: compozy.<correlation_id>.workflow.cmds.<workflow_exec_id>.execute
-func (x *WorkflowExecuteCommand) ToSubject() string {
+func (x *CmdWorkflowExecute) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
-	wfExecID := pb.GetWorkflowExecID(x)
-	return fmt.Sprintf("compozy.%s.workflow.cmds.%s.execute", corrID, wfExecID)
+	wExecID := pb.GetWorkflowExecID(x)
+	return fmt.Sprintf("compozy.%s.workflow.cmds.%s.execute", corrID, wExecID)
 }
 
-// ToSubject generates the NATS subject for a WorkflowPauseCommand.
+// ToSubject generates the NATS subject for a CmdWorkflowPause.
 // Pattern: compozy.<correlation_id>.workflow.cmds.<workflow_exec_id>.pause
-func (x *WorkflowPauseCommand) ToSubject() string {
+func (x *CmdWorkflowPause) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
-	wfExecID := pb.GetWorkflowExecID(x)
-	return fmt.Sprintf("compozy.%s.workflow.cmds.%s.pause", corrID, wfExecID)
+	wExecID := pb.GetWorkflowExecID(x)
+	return fmt.Sprintf("compozy.%s.workflow.cmds.%s.pause", corrID, wExecID)
 }
 
-// ToSubject generates the NATS subject for a WorkflowResumeCommand.
+// ToSubject generates the NATS subject for a CmdWorkflowResume.
 // Pattern: compozy.<correlation_id>.workflow.cmds.<workflow_exec_id>.resume
-func (x *WorkflowResumeCommand) ToSubject() string {
+func (x *CmdWorkflowResume) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
-	wfExecID := pb.GetWorkflowExecID(x)
-	return fmt.Sprintf("compozy.%s.workflow.cmds.%s.resume", corrID, wfExecID)
+	wExecID := pb.GetWorkflowExecID(x)
+	return fmt.Sprintf("compozy.%s.workflow.cmds.%s.resume", corrID, wExecID)
 }
 
-// ToSubject generates the NATS subject for a WorkflowCancelCommand.
+// ToSubject generates the NATS subject for a CmdWorkflowCancel.
 // Pattern: compozy.<correlation_id>.workflow.cmds.<workflow_exec_id>.cancel
-func (x *WorkflowCancelCommand) ToSubject() string {
+func (x *CmdWorkflowCancel) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
-	wfExecID := pb.GetWorkflowExecID(x)
-	return fmt.Sprintf("compozy.%s.workflow.cmds.%s.cancel", corrID, wfExecID)
+	wExecID := pb.GetWorkflowExecID(x)
+	return fmt.Sprintf("compozy.%s.workflow.cmds.%s.cancel", corrID, wExecID)
 }
 
 // -----------------------------------------------------------------------------
 // State Event Subjects
 // -----------------------------------------------------------------------------
 
-// ToSubject generates the NATS subject for a WorkflowExecutionStartedEvent.
+// ToSubject generates the NATS subject for a EventWorkflowStarted.
 // Pattern: compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.started
-func (x *WorkflowExecutionStartedEvent) ToSubject() string {
+func (x *EventWorkflowStarted) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
-	wfExecID := pb.GetWorkflowExecID(x)
-	return fmt.Sprintf("compozy.%s.workflow.evts.%s.started", corrID, wfExecID)
+	wExecID := pb.GetWorkflowExecID(x)
+	return fmt.Sprintf("compozy.%s.workflow.evts.%s.started", corrID, wExecID)
 }
 
-// ToSubject generates the NATS subject for a WorkflowExecutionPausedEvent.
+// ToSubject generates the NATS subject for a EventWorkflowPaused.
 // Pattern: compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.paused
-func (x *WorkflowExecutionPausedEvent) ToSubject() string {
+func (x *EventWorkflowPaused) ToSubject() string {
 	corrID := "unknown_correlation_id"
-	wfExecID := pb.GetWorkflowExecID(x)
-	return fmt.Sprintf("compozy.%s.workflow.evts.%s.paused", corrID, wfExecID)
+	wExecID := pb.GetWorkflowExecID(x)
+	return fmt.Sprintf("compozy.%s.workflow.evts.%s.paused", corrID, wExecID)
 }
 
-// ToSubject generates the NATS subject for a WorkflowExecutionResumedEvent.
+// ToSubject generates the NATS subject for a EventWorkflowResumed.
 // Pattern: compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.resumed
-func (x *WorkflowExecutionResumedEvent) ToSubject() string {
+func (x *EventWorkflowResumed) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
-	wfExecID := pb.GetWorkflowExecID(x)
-	return fmt.Sprintf("compozy.%s.workflow.evts.%s.resumed", corrID, wfExecID)
+	wExecID := pb.GetWorkflowExecID(x)
+	return fmt.Sprintf("compozy.%s.workflow.evts.%s.resumed", corrID, wExecID)
 }
 
-// ToSubject generates the NATS subject for a WorkflowExecutionSuccessEvent.
+// ToSubject generates the NATS subject for a EventWorkflowSuccess.
 // Pattern: compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.success
-func (x *WorkflowExecutionSuccessEvent) ToSubject() string {
+func (x *EventWorkflowSuccess) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
-	wfExecID := pb.GetWorkflowExecID(x)
-	return fmt.Sprintf("compozy.%s.workflow.evts.%s.success", corrID, wfExecID)
+	wExecID := pb.GetWorkflowExecID(x)
+	return fmt.Sprintf("compozy.%s.workflow.evts.%s.success", corrID, wExecID)
 }
 
-// ToSubject generates the NATS subject for a WorkflowExecutionFailedEvent.
+// ToSubject generates the NATS subject for a EventWorkflowFailed.
 // Pattern: compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.failed
-func (x *WorkflowExecutionFailedEvent) ToSubject() string {
+func (x *EventWorkflowFailed) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
-	wfExecID := pb.GetWorkflowExecID(x)
-	return fmt.Sprintf("compozy.%s.workflow.evts.%s.failed", corrID, wfExecID)
+	wExecID := pb.GetWorkflowExecID(x)
+	return fmt.Sprintf("compozy.%s.workflow.evts.%s.failed", corrID, wExecID)
 }
 
-// ToSubject generates the NATS subject for a WorkflowExecutionCanceledEvent.
+// ToSubject generates the NATS subject for a EventWorkflowCanceled.
 // Pattern: compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.canceled
-func (x *WorkflowExecutionCanceledEvent) ToSubject() string {
+func (x *EventWorkflowCanceled) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
-	wfExecID := pb.GetWorkflowExecID(x)
-	return fmt.Sprintf("compozy.%s.workflow.evts.%s.canceled", corrID, wfExecID)
+	wExecID := pb.GetWorkflowExecID(x)
+	return fmt.Sprintf("compozy.%s.workflow.evts.%s.canceled", corrID, wExecID)
 }
 
-// ToSubject generates the NATS subject for a WorkflowExecutionTimedOutEvent.
+// ToSubject generates the NATS subject for a EventWorkflowTimedOut.
 // Pattern: compozy.<correlation_id>.workflow.evts.<workflow_exec_id>.timed_out
-func (x *WorkflowExecutionTimedOutEvent) ToSubject() string {
+func (x *EventWorkflowTimedOut) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
-	wfExecID := pb.GetWorkflowExecID(x)
-	return fmt.Sprintf("compozy.%s.workflow.evts.%s.timed_out", corrID, wfExecID)
+	wExecID := pb.GetWorkflowExecID(x)
+	return fmt.Sprintf("compozy.%s.workflow.evts.%s.timed_out", corrID, wExecID)
 }

@@ -10,25 +10,25 @@ import (
 // Command Subjects
 // -----------------------------------------------------------------------------
 
-// ToSubject generates the NATS subject for a TaskTriggerCommand.
-// Pattern: compozy.<correlation_id>.task.cmds.<task_id>.trigger
-func (x *TaskTriggerCommand) ToSubject() string {
+// ToSubject generates the NATS subject for a CmdTaskDispatch.
+// Pattern: compozy.<correlation_id>.task.cmds.<task_id>.dispatch
+func (x *CmdTaskDispatch) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
-	tID := pb.GetTaskID(x)
-	return fmt.Sprintf("compozy.%s.task.cmds.%s.trigger", corrID, tID)
+	taskID := pb.GetTaskID(x)
+	return fmt.Sprintf("compozy.%s.task.cmds.%s.dispatch", corrID, taskID)
 }
 
-// ToSubject generates the NATS subject for a TaskExecuteCommand.
+// ToSubject generates the NATS subject for a CmdTaskExecute.
 // Pattern: compozy.<correlation_id>.task.cmds.<task_exec_id>.execute
-func (x *TaskExecuteCommand) ToSubject() string {
+func (x *CmdTaskExecute) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
 	tExecID := pb.GetTaskExecID(x)
 	return fmt.Sprintf("compozy.%s.task.cmds.%s.execute", corrID, tExecID)
 }
 
-// ToSubject generates the NATS subject for a TaskResumeCommand.
+// ToSubject generates the NATS subject for a CmdTaskResume.
 // Pattern: compozy.<correlation_id>.task.cmds.<task_exec_id>.resume
-func (x *TaskResumeCommand) ToSubject() string {
+func (x *CmdTaskResume) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
 	tExecID := pb.GetTaskExecID(x)
 	return fmt.Sprintf("compozy.%s.task.cmds.%s.resume", corrID, tExecID)
@@ -38,57 +38,57 @@ func (x *TaskResumeCommand) ToSubject() string {
 // State Event Subjects
 // -----------------------------------------------------------------------------
 
-// ToSubject generates the NATS subject for a TaskDispatchedEvent.
+// ToSubject generates the NATS subject for a EventTaskDispatched.
 // Pattern: compozy.<correlation_id>.task.evts.<task_exec_id>.dispatched
-func (x *TaskDispatchedEvent) ToSubject() string {
+func (x *EventTaskDispatched) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
 	tExecID := pb.GetTaskExecID(x)
 	return fmt.Sprintf("compozy.%s.task.evts.%s.dispatched", corrID, tExecID)
 }
 
-// ToSubject generates the NATS subject for a TaskExecutionStartedEvent.
+// ToSubject generates the NATS subject for a EventTaskStarted.
 // Pattern: compozy.<correlation_id>.task.evts.<task_exec_id>.started
-func (x *TaskExecutionStartedEvent) ToSubject() string {
+func (x *EventTaskStarted) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
 	tExecID := pb.GetTaskExecID(x)
 	return fmt.Sprintf("compozy.%s.task.evts.%s.started", corrID, tExecID)
 }
 
-// ToSubject generates the NATS subject for a TaskExecutionWaitingStartedEvent.
+// ToSubject generates the NATS subject for a EventTaskWaiting.
 // Pattern: compozy.<correlation_id>.task.evts.<task_exec_id>.waiting_started
-func (x *TaskExecutionWaitingStartedEvent) ToSubject() string {
+func (x *EventTaskWaiting) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
 	tExecID := pb.GetTaskExecID(x)
 	return fmt.Sprintf("compozy.%s.task.evts.%s.waiting_started", corrID, tExecID)
 }
 
-// ToSubject generates the NATS subject for a TaskExecutionWaitingEndedEvent.
+// ToSubject generates the NATS subject for a EventTaskWaitingEnded.
 // Pattern: compozy.<correlation_id>.task.evts.<task_exec_id>.waiting_ended
-func (x *TaskExecutionWaitingEndedEvent) ToSubject() string {
+func (x *EventTaskWaitingEnded) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
 	tExecID := pb.GetTaskExecID(x)
 	return fmt.Sprintf("compozy.%s.task.evts.%s.waiting_ended", corrID, tExecID)
 }
 
-// ToSubject generates the NATS subject for a TaskExecutionWaitingTimedOutEvent.
+// ToSubject generates the NATS subject for a EventTaskWaitingTimedOut.
 // Pattern: compozy.<correlation_id>.task.evts.<task_exec_id>.waiting_timed_out
-func (x *TaskExecutionWaitingTimedOutEvent) ToSubject() string {
+func (x *EventTaskWaitingTimedOut) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
 	tExecID := pb.GetTaskExecID(x)
 	return fmt.Sprintf("compozy.%s.task.evts.%s.waiting_timed_out", corrID, tExecID)
 }
 
-// ToSubject generates the NATS subject for a TaskExecutionSuccessEvent.
+// ToSubject generates the NATS subject for a EventTaskSuccess.
 // Pattern: compozy.<correlation_id>.task.evts.<task_exec_id>.success
-func (x *TaskExecutionSuccessEvent) ToSubject() string {
+func (x *EventTaskSuccess) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
 	tExecID := pb.GetTaskExecID(x)
 	return fmt.Sprintf("compozy.%s.task.evts.%s.success", corrID, tExecID)
 }
 
-// ToSubject generates the NATS subject for a TaskExecutionFailedEvent.
+// ToSubject generates the NATS subject for a EventTaskFailed.
 // Pattern: compozy.<correlation_id>.task.evts.<task_exec_id>.failed
-func (x *TaskExecutionFailedEvent) ToSubject() string {
+func (x *EventTaskFailed) ToSubject() string {
 	corrID := pb.GetCorrelationID(x)
 	tExecID := pb.GetTaskExecID(x)
 	return fmt.Sprintf("compozy.%s.task.evts.%s.failed", corrID, tExecID)

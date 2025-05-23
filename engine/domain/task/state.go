@@ -10,41 +10,6 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Execution
-// -----------------------------------------------------------------------------
-
-type Context struct {
-	CorrID         common.ID     `json:"correlation_id"`
-	WorkflowExecID common.ID     `json:"workflow_execution_id"`
-	TaskExecID     common.ID     `json:"task_execution_id"`
-	WorkflowEnv    common.EnvMap `json:"workflow_env"`
-	TaskEnv        common.EnvMap `json:"task_env"`
-	TriggerInput   *common.Input `json:"trigger_input"`
-	TaskInput      *common.Input `json:"task_input"`
-}
-
-func NewContext(
-	corrID common.ID,
-	workflowExecID common.ID,
-	workflowEnv, taskEnv common.EnvMap,
-	tgInput, taskInput *common.Input,
-) (*Context, error) {
-	execID, err := common.NewID()
-	if err != nil {
-		return nil, err
-	}
-	return &Context{
-		CorrID:         corrID,
-		WorkflowExecID: workflowExecID,
-		TaskExecID:     execID,
-		WorkflowEnv:    workflowEnv,
-		TaskEnv:        taskEnv,
-		TriggerInput:   tgInput,
-		TaskInput:      taskInput,
-	}, nil
-}
-
-// -----------------------------------------------------------------------------
 // Initializer
 // -----------------------------------------------------------------------------
 
@@ -54,7 +19,7 @@ type StateInitializer struct {
 }
 
 func (ti *StateInitializer) Initialize() (*State, error) {
-	env, err := ti.MergeEnv(ti.WorkflowEnv, ti.TaskEnv)
+	env, err := ti.WorkflowEnv.Merge(ti.TaskEnv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to merge env: %w", err)
 	}
@@ -64,16 +29,16 @@ func (ti *StateInitializer) Initialize() (*State, error) {
 		Input:   ti.TaskInput,
 		Output:  &common.Output{},
 		Trigger: ti.TriggerInput,
-		Env:     env,
+		Env:     &env,
 	}
-	st := &State{
+	state := &State{
 		BaseState: *bsState,
 		Context:   ti.Context,
 	}
-	if err := ti.Normalizer.ParseTemplates(st); err != nil {
+	if err := ti.Normalizer.ParseTemplates(state); err != nil {
 		return nil, err
 	}
-	return st, nil
+	return state, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -85,73 +50,77 @@ type State struct {
 	Context *Context `json:"context,omitempty"`
 }
 
-func NewTaskState(stCtx *Context) (*State, error) {
+func NewState(stCtx *Context) (*State, error) {
 	initializer := &StateInitializer{
 		CommonInitializer: state.NewCommonInitializer(),
 		Context:           stCtx,
 	}
-	st, err := initializer.Initialize()
+	state, err := initializer.Initialize()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize task state: %w", err)
 	}
-	return st, nil
+	return state, nil
+}
+
+func (s *State) GetContext() *Context {
+	return s.Context
 }
 
 func (s *State) UpdateFromEvent(event any) error {
 	switch evt := event.(type) {
-	case *pb.TaskDispatchedEvent:
+	case *pb.EventTaskDispatched:
 		return s.handleDispatchedEvent(evt)
-	case *pb.TaskExecutionStartedEvent:
+	case *pb.EventTaskStarted:
 		return s.handleStartedEvent(evt)
-	case *pb.TaskExecutionWaitingStartedEvent:
+	case *pb.EventTaskWaiting:
 		return s.handleWaitingStartedEvent(evt)
-	case *pb.TaskExecutionWaitingEndedEvent:
+	case *pb.EventTaskWaitingEnded:
 		return s.handleWaitingEndedEvent(evt)
-	case *pb.TaskExecutionWaitingTimedOutEvent:
+	case *pb.EventTaskWaitingTimedOut:
 		return s.handleWaitingTimedOutEvent(evt)
-	case *pb.TaskExecutionSuccessEvent:
+	case *pb.EventTaskSuccess:
 		return s.handleSuccessEvent(evt)
-	case *pb.TaskExecutionFailedEvent:
+	case *pb.EventTaskFailed:
 		return s.handleFailedEvent(evt)
 	default:
 		return fmt.Errorf("unsupported event type for task state update: %T", evt)
 	}
 }
 
-func (s *State) handleDispatchedEvent(_ *pb.TaskDispatchedEvent) error {
+func (s *State) handleDispatchedEvent(_ *pb.EventTaskDispatched) error {
 	s.Status = nats.StatusPending
 	return nil
 }
 
-func (s *State) handleStartedEvent(_ *pb.TaskExecutionStartedEvent) error {
+func (s *State) handleStartedEvent(_ *pb.EventTaskStarted) error {
 	s.Status = nats.StatusRunning
 	return nil
 }
 
-func (s *State) handleWaitingStartedEvent(_ *pb.TaskExecutionWaitingStartedEvent) error {
+func (s *State) handleWaitingStartedEvent(_ *pb.EventTaskWaiting) error {
 	s.Status = nats.StatusWaiting
 	return nil
 }
 
-func (s *State) handleWaitingEndedEvent(_ *pb.TaskExecutionWaitingEndedEvent) error {
+func (s *State) handleWaitingEndedEvent(_ *pb.EventTaskWaitingEnded) error {
 	s.Status = nats.StatusRunning
 	return nil
 }
 
-func (s *State) handleWaitingTimedOutEvent(evt *pb.TaskExecutionWaitingTimedOutEvent) error {
+func (s *State) handleWaitingTimedOutEvent(evt *pb.EventTaskWaitingTimedOut) error {
 	s.Status = nats.StatusTimedOut
-	state.SetResultError(&s.BaseState, evt.GetDetails().GetError())
+	state.SetStateError(&s.BaseState, evt.GetDetails().GetError())
 	return nil
 }
 
-func (s *State) handleSuccessEvent(evt *pb.TaskExecutionSuccessEvent) error {
+func (s *State) handleSuccessEvent(evt *pb.EventTaskSuccess) error {
 	s.Status = nats.StatusSuccess
-	state.SetResultData(&s.BaseState, evt.GetDetails().GetResult())
+	state.SetStateResult(&s.BaseState, evt.GetDetails().GetResult())
 	return nil
 }
 
-func (s *State) handleFailedEvent(evt *pb.TaskExecutionFailedEvent) error {
+func (s *State) handleFailedEvent(evt *pb.EventTaskFailed) error {
 	s.Status = nats.StatusFailed
-	state.SetResultError(&s.BaseState, evt.GetDetails().GetError())
+	state.SetStateError(&s.BaseState, evt.GetDetails().GetError())
 	return nil
 }

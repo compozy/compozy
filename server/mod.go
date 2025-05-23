@@ -31,16 +31,16 @@ func NewServer(config Config) *Server {
 	}
 }
 
-func (s *Server) buildRouter(st *appstate.State) error {
+func (s *Server) buildRouter(state *appstate.State) error {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(LoggerMiddleware())
 	if s.Config.CORSEnabled {
 		r.Use(CORSMiddleware())
 	}
-	r.Use(appstate.StateMiddleware(st))
+	r.Use(appstate.StateMiddleware(state))
 	r.Use(router.ErrorHandler())
-	if err := RegisterRoutes(r, st); err != nil {
+	if err := RegisterRoutes(r, state); err != nil {
 		return err
 	}
 	s.router = r
@@ -49,7 +49,7 @@ func (s *Server) buildRouter(st *appstate.State) error {
 
 func (s *Server) Run() error {
 	// Load project and workspace files
-	pjc, wfs, err := loadProject(s.Config.CWD, s.Config.ConfigFile)
+	pConfig, workflows, err := loadProject(s.Config.CWD, s.Config.ConfigFile)
 	if err != nil {
 		return fmt.Errorf("failed to load project: %w", err)
 	}
@@ -66,7 +66,7 @@ func (s *Server) Run() error {
 	}()
 
 	// Get and start services
-	orch, store, err := getServices(s.ctx, ns, pjc, wfs)
+	orch, store, err := getServices(s.ctx, ns, pConfig, workflows)
 	if err != nil {
 		return fmt.Errorf("failed to load services: %w", err)
 	}
@@ -80,13 +80,13 @@ func (s *Server) Run() error {
 	}()
 
 	// Create server state
-	st, err := appstate.NewState(ns, orch, store, pjc, wfs)
+	state, err := appstate.NewState(ns, orch, store, pConfig, workflows)
 	if err != nil {
 		return fmt.Errorf("failed to create app state: %w", err)
 	}
 
 	// Build server routes
-	if err := s.buildRouter(st); err != nil {
+	if err := s.buildRouter(state); err != nil {
 		return fmt.Errorf("failed to build router: %w", err)
 	}
 

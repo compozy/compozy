@@ -10,36 +10,6 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Execution
-// -----------------------------------------------------------------------------
-
-type Context struct {
-	CorrID         common.ID     `json:"correlation_id"`
-	WorkflowExecID common.ID     `json:"workflow_execution_id"`
-	TriggerInput   *common.Input `json:"trigger_input"`
-	ProjectEnv     common.EnvMap `json:"project_env"`
-	WorkflowEnv    common.EnvMap `json:"workflow_env"`
-}
-
-func NewContext(tgInput *common.Input, pjEnv common.EnvMap) (*Context, error) {
-	corrID, err := common.NewID()
-	if err != nil {
-		return nil, err
-	}
-	execID, err := common.NewID()
-	if err != nil {
-		return nil, err
-	}
-	return &Context{
-		CorrID:         corrID,
-		WorkflowExecID: execID,
-		TriggerInput:   tgInput,
-		ProjectEnv:     pjEnv,
-		WorkflowEnv:    make(common.EnvMap),
-	}, nil
-}
-
-// -----------------------------------------------------------------------------
 // Initializer
 // -----------------------------------------------------------------------------
 
@@ -49,27 +19,27 @@ type StateInitializer struct {
 }
 
 func (wi *StateInitializer) Initialize() (*State, error) {
-	env, err := wi.MergeEnv(wi.ProjectEnv, wi.WorkflowEnv)
+	env, err := wi.ProjectEnv.Merge(wi.WorkflowEnv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to merge env: %w", err)
 	}
 	bsState := &state.BaseState{
 		StateID: state.NewID(nats.ComponentWorkflow, wi.CorrID, wi.WorkflowExecID),
 		Status:  nats.StatusPending,
-		Input:   &common.Input{},
+		Input:   wi.TriggerInput,
 		Output:  &common.Output{},
 		Trigger: wi.TriggerInput,
-		Env:     env,
+		Env:     &env,
 		Error:   nil,
 	}
-	st := &State{
+	state := &State{
 		BaseState: *bsState,
 		Context:   wi.Context,
 	}
-	if err := wi.Normalizer.ParseTemplates(st); err != nil {
+	if err := wi.Normalizer.ParseTemplates(state); err != nil {
 		return nil, err
 	}
-	return st, nil
+	return state, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -86,11 +56,11 @@ func NewState(ctx *Context) (*State, error) {
 		CommonInitializer: state.NewCommonInitializer(),
 		Context:           ctx,
 	}
-	st, err := initializer.Initialize()
+	state, err := initializer.Initialize()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize workflow state: %w", err)
 	}
-	return st, nil
+	return state, nil
 }
 
 func (s *State) GetContext() *Context {
@@ -99,59 +69,59 @@ func (s *State) GetContext() *Context {
 
 func (s *State) UpdateFromEvent(event any) error {
 	switch evt := event.(type) {
-	case *pb.WorkflowExecutionStartedEvent:
+	case *pb.EventWorkflowStarted:
 		return s.handleStartedEvent(evt)
-	case *pb.WorkflowExecutionPausedEvent:
+	case *pb.EventWorkflowPaused:
 		return s.handlePausedEvent(evt)
-	case *pb.WorkflowExecutionResumedEvent:
+	case *pb.EventWorkflowResumed:
 		return s.handleResumedEvent(evt)
-	case *pb.WorkflowExecutionSuccessEvent:
+	case *pb.EventWorkflowSuccess:
 		return s.handleSuccessEvent(evt)
-	case *pb.WorkflowExecutionFailedEvent:
+	case *pb.EventWorkflowFailed:
 		return s.handleFailedEvent(evt)
-	case *pb.WorkflowExecutionCanceledEvent:
+	case *pb.EventWorkflowCanceled:
 		return s.handleCanceledEvent(evt)
-	case *pb.WorkflowExecutionTimedOutEvent:
+	case *pb.EventWorkflowTimedOut:
 		return s.handleTimedOutEvent(evt)
 	default:
 		return fmt.Errorf("unsupported event type for workflow state update: %T", evt)
 	}
 }
 
-func (s *State) handleStartedEvent(_ *pb.WorkflowExecutionStartedEvent) error {
+func (s *State) handleStartedEvent(_ *pb.EventWorkflowStarted) error {
 	s.Status = nats.StatusRunning
 	return nil
 }
 
-func (s *State) handlePausedEvent(_ *pb.WorkflowExecutionPausedEvent) error {
+func (s *State) handlePausedEvent(_ *pb.EventWorkflowPaused) error {
 	s.Status = nats.StatusPaused
 	return nil
 }
 
-func (s *State) handleResumedEvent(_ *pb.WorkflowExecutionResumedEvent) error {
+func (s *State) handleResumedEvent(_ *pb.EventWorkflowResumed) error {
 	s.Status = nats.StatusRunning
 	return nil
 }
 
-func (s *State) handleSuccessEvent(evt *pb.WorkflowExecutionSuccessEvent) error {
+func (s *State) handleSuccessEvent(evt *pb.EventWorkflowSuccess) error {
 	s.Status = nats.StatusSuccess
-	state.SetResultData(&s.BaseState, evt.GetDetails().GetResult())
+	state.SetStateResult(&s.BaseState, evt.GetDetails().GetResult())
 	return nil
 }
 
-func (s *State) handleFailedEvent(evt *pb.WorkflowExecutionFailedEvent) error {
+func (s *State) handleFailedEvent(evt *pb.EventWorkflowFailed) error {
 	s.Status = nats.StatusFailed
-	state.SetResultError(&s.BaseState, evt.GetDetails().GetError())
+	state.SetStateError(&s.BaseState, evt.GetDetails().GetError())
 	return nil
 }
 
-func (s *State) handleCanceledEvent(_ *pb.WorkflowExecutionCanceledEvent) error {
+func (s *State) handleCanceledEvent(_ *pb.EventWorkflowCanceled) error {
 	s.Status = nats.StatusCanceled
 	return nil
 }
 
-func (s *State) handleTimedOutEvent(evt *pb.WorkflowExecutionTimedOutEvent) error {
+func (s *State) handleTimedOutEvent(evt *pb.EventWorkflowTimedOut) error {
 	s.Status = nats.StatusTimedOut
-	state.SetResultError(&s.BaseState, evt.GetDetails().GetError())
+	state.SetStateError(&s.BaseState, evt.GetDetails().GetError())
 	return nil
 }

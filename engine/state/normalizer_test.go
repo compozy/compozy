@@ -11,7 +11,7 @@ import (
 
 func TestStateNormalizer(t *testing.T) {
 	// Test data
-	tgInput := common.Input{
+	triggerInput := common.Input{
 		"name":    "John",
 		"email":   "john@example.com",
 		"age":     30,
@@ -32,7 +32,7 @@ func TestStateNormalizer(t *testing.T) {
 		// Create a test state
 		bsState := NewEmptyState(
 			OptsWithEnv(&envMap),
-			OptsWithTrigger(&tgInput),
+			OptsWithTrigger(&triggerInput),
 		)
 
 		// Normalize the state
@@ -53,7 +53,7 @@ func TestStateNormalizer(t *testing.T) {
 		// Create template context
 		templateContext := map[string]any{
 			"trigger": map[string]any{
-				"input": tgInput,
+				"input": triggerInput,
 			},
 			"env": &envMap,
 		}
@@ -160,7 +160,7 @@ func TestStateNormalizer(t *testing.T) {
 				"USER_NAME":  "{{ .trigger.input.name }}",
 				"USER_EMAIL": "{{ .trigger.input.email }}",
 			},
-			Trigger: &tgInput,
+			Trigger: &triggerInput,
 		}
 
 		// Parse templates

@@ -72,6 +72,10 @@ func (m *Manager) Start(ctx context.Context) error {
 	return nil
 }
 
+func (m *Manager) Store() *store.Store {
+	return m.store
+}
+
 func (m *Manager) Close() error {
 	if err := m.store.Close(); err != nil {
 		return fmt.Errorf("failed to close state store: %w", err)
@@ -136,11 +140,11 @@ func (m *Manager) handleUpdateStatus(subject string, data []byte, _ jetstream.Ms
 }
 
 func (m *Manager) handleWorkflowStateUpdate(subj *nats.EventSubject, event any) error {
-	st, err := m.GetWorkflowState(subj.CorrID, subj.ExecID)
+	state, err := m.GetWorkflowState(subj.CorrID, subj.ExecID)
 	if err != nil {
 		return fmt.Errorf("failed to get workflow state: %w", err)
 	}
-	wfSt, ok := st.(*workflow.State)
+	wfSt, ok := state.(*workflow.State)
 	if !ok {
 		return fmt.Errorf("failed to cast state to workflow state")
 	}
@@ -154,11 +158,11 @@ func (m *Manager) handleWorkflowStateUpdate(subj *nats.EventSubject, event any) 
 }
 
 func (m *Manager) handleTaskStateUpdate(subj *nats.EventSubject, event any) error {
-	st, err := m.GetTaskState(subj.CorrID, subj.ExecID)
+	state, err := m.GetTaskState(subj.CorrID, subj.ExecID)
 	if err != nil {
 		return fmt.Errorf("failed to get task state: %w", err)
 	}
-	tSt, ok := st.(*task.State)
+	tSt, ok := state.(*task.State)
 	if !ok {
 		return fmt.Errorf("failed to cast state to task state")
 	}
@@ -172,11 +176,11 @@ func (m *Manager) handleTaskStateUpdate(subj *nats.EventSubject, event any) erro
 }
 
 func (m *Manager) handleAgentStateUpdate(subj *nats.EventSubject, event any) error {
-	st, err := m.GetAgentState(subj.CorrID, subj.ExecID)
+	state, err := m.GetAgentState(subj.CorrID, subj.ExecID)
 	if err != nil {
 		return fmt.Errorf("failed to get agent state: %w", err)
 	}
-	aSt, ok := st.(*agent.State)
+	aSt, ok := state.(*agent.State)
 	if !ok {
 		return fmt.Errorf("failed to cast state to agent state")
 	}
@@ -190,11 +194,11 @@ func (m *Manager) handleAgentStateUpdate(subj *nats.EventSubject, event any) err
 }
 
 func (m *Manager) handleToolStateUpdate(subj *nats.EventSubject, event any) error {
-	st, err := m.GetToolState(subj.CorrID, subj.ExecID)
+	state, err := m.GetToolState(subj.CorrID, subj.ExecID)
 	if err != nil {
 		return fmt.Errorf("failed to get tool state: %w", err)
 	}
-	tSt, ok := st.(*tool.State)
+	tSt, ok := state.(*tool.State)
 	if !ok {
 		return fmt.Errorf("failed to cast state to tool state")
 	}

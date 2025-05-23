@@ -18,7 +18,7 @@ func handleGetExecutions(c *gin.Context) {
 // Route: GET /api/workflows/executions/:id
 func handleGetExecution(c *gin.Context) {
 	ID := router.GetURLParam(c, "id")
-	stID, err := state.IDFromString(ID)
+	stateID, err := state.IDFromString(ID)
 	if err != nil {
 		reqErr := router.NewRequestError(
 			http.StatusBadRequest,
@@ -30,7 +30,7 @@ func handleGetExecution(c *gin.Context) {
 	}
 
 	appState := router.GetAppState(c)
-	st, err := appState.Store.GetState(stID)
+	state, err := appState.Store.GetState(stateID)
 	if err != nil {
 		reqErr := router.NewRequestError(
 			http.StatusInternalServerError,
@@ -42,6 +42,6 @@ func handleGetExecution(c *gin.Context) {
 	}
 
 	router.RespondOK(c, "workflow execution retrieved", gin.H{
-		"execution": st,
+		"execution": state,
 	})
 }

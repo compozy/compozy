@@ -10,45 +10,6 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Context
-// -----------------------------------------------------------------------------
-
-type Context struct {
-	CorrID         common.ID     `json:"correlation_id"`
-	WorkflowExecID common.ID     `json:"workflow_execution_id"`
-	TaskExecID     common.ID     `json:"task_execution_id"`
-	AgentExecID    common.ID     `json:"agent_execution_id"`
-	TaskEnv        common.EnvMap `json:"task_env"`
-	AgentEnv       common.EnvMap `json:"agent_env"`
-	TriggerInput   *common.Input `json:"trigger_input"`
-	TaskInput      *common.Input `json:"task_input"`
-	AgentInput     *common.Input `json:"agent_input"`
-}
-
-func NewContext(
-	corrID common.ID,
-	taskExecID, workflowExecID common.ID,
-	taskEnv, agentEnv common.EnvMap,
-	tgInput, taskInput, agentInput *common.Input,
-) (*Context, error) {
-	execID, err := common.NewID()
-	if err != nil {
-		return nil, err
-	}
-	return &Context{
-		CorrID:         corrID,
-		WorkflowExecID: workflowExecID,
-		TaskExecID:     taskExecID,
-		AgentExecID:    execID,
-		TaskEnv:        taskEnv,
-		AgentEnv:       agentEnv,
-		TriggerInput:   tgInput,
-		TaskInput:      taskInput,
-		AgentInput:     agentInput,
-	}, nil
-}
-
-// -----------------------------------------------------------------------------
 // Initializer
 // -----------------------------------------------------------------------------
 
@@ -58,7 +19,7 @@ type StateInitializer struct {
 }
 
 func (ai *StateInitializer) Initialize() (*State, error) {
-	env, err := ai.MergeEnv(ai.TaskEnv, ai.AgentEnv)
+	env, err := ai.TaskEnv.Merge(ai.AgentEnv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to merge env: %w", err)
 	}
@@ -72,16 +33,16 @@ func (ai *StateInitializer) Initialize() (*State, error) {
 		Input:   &input,
 		Output:  &common.Output{},
 		Trigger: ai.TriggerInput,
-		Env:     env,
+		Env:     &env,
 	}
-	st := &State{
+	state := &State{
 		BaseState: *bsState,
 		Context:   ai.Context,
 	}
-	if err := ai.Normalizer.ParseTemplates(st); err != nil {
+	if err := ai.Normalizer.ParseTemplates(state); err != nil {
 		return nil, err
 	}
-	return st, nil
+	return state, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -93,44 +54,44 @@ type State struct {
 	Context *Context `json:"context,omitempty"`
 }
 
-func NewAgentState(stCtx *Context) (*State, error) {
+func NewState(stCtx *Context) (*State, error) {
 	initializer := &StateInitializer{
 		CommonInitializer: state.NewCommonInitializer(),
 		Context:           stCtx,
 	}
-	st, err := initializer.Initialize()
+	state, err := initializer.Initialize()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize agent state: %w", err)
 	}
-	return st, nil
+	return state, nil
 }
 
 func (s *State) UpdateFromEvent(event any) error {
 	switch evt := event.(type) {
-	case *pb.AgentExecutionStartedEvent:
+	case *pb.EventAgentStarted:
 		return s.handleStartedEvent(evt)
-	case *pb.AgentExecutionSuccessEvent:
+	case *pb.EventAgentSuccess:
 		return s.handleSuccessEvent(evt)
-	case *pb.AgentExecutionFailedEvent:
+	case *pb.EventAgentFailed:
 		return s.handleFailedEvent(evt)
 	default:
 		return fmt.Errorf("unsupported event type for agent state update: %T", evt)
 	}
 }
 
-func (s *State) handleStartedEvent(_ *pb.AgentExecutionStartedEvent) error {
+func (s *State) handleStartedEvent(_ *pb.EventAgentStarted) error {
 	s.Status = nats.StatusRunning
 	return nil
 }
 
-func (s *State) handleSuccessEvent(evt *pb.AgentExecutionSuccessEvent) error {
+func (s *State) handleSuccessEvent(evt *pb.EventAgentSuccess) error {
 	s.Status = nats.StatusSuccess
-	state.SetResultData(&s.BaseState, evt.GetDetails().GetResult())
+	state.SetStateResult(&s.BaseState, evt.GetDetails().GetResult())
 	return nil
 }
 
-func (s *State) handleFailedEvent(evt *pb.AgentExecutionFailedEvent) error {
+func (s *State) handleFailedEvent(evt *pb.EventAgentFailed) error {
 	s.Status = nats.StatusFailed
-	state.SetResultError(&s.BaseState, evt.GetDetails().GetError())
+	state.SetStateError(&s.BaseState, evt.GetDetails().GetError())
 	return nil
 }

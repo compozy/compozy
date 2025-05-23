@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/domain/project"
+	tkexecutor "github.com/compozy/compozy/engine/domain/task/executor"
 	"github.com/compozy/compozy/engine/domain/workflow"
 	wfexecutor "github.com/compozy/compozy/engine/domain/workflow/executor"
 	"github.com/compozy/compozy/engine/stmanager"
@@ -16,17 +17,18 @@ import (
 type Orchestrator struct {
 	nc        *nats.Client
 	stManager *stmanager.Manager
-	pjc       *project.Config
+	pConfig   *project.Config
 	workflows []*workflow.Config
-	wfexec    *wfexecutor.Executor
+	wExecutor *wfexecutor.Executor
+	tExecutor *tkexecutor.Executor
 }
 
 func NewOrchestrator(
 	ctx context.Context,
 	ns *nats.Server,
 	store *store.Store,
-	pjc *project.Config,
-	wfs []*workflow.Config,
+	pConfig *project.Config,
+	workflows []*workflow.Config,
 ) (*Orchestrator, error) {
 	nc, err := nats.NewClient(ns.Conn)
 	if err != nil {
@@ -44,13 +46,16 @@ func NewOrchestrator(
 		return nil, fmt.Errorf("failed to initialize state manager: %w", err)
 	}
 
-	wfExec := wfexecutor.NewWorkflowExecutor(nc, stManager, wfs)
+	wExecutor := wfexecutor.NewExecutor(nc, stManager, pConfig, workflows)
+	tExecutor := tkexecutor.NewExecutor(nc, stManager, pConfig, workflows)
+
 	orch := &Orchestrator{
 		nc:        nc,
 		stManager: stManager,
-		pjc:       pjc,
-		workflows: wfs,
-		wfexec:    wfExec,
+		pConfig:   pConfig,
+		workflows: workflows,
+		wExecutor: wExecutor,
+		tExecutor: tExecutor,
 	}
 	return orch, nil
 }
@@ -59,11 +64,17 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 	if err := o.subscribeWorkflow(ctx); err != nil {
 		return fmt.Errorf("failed to subscribe to workflow commands: %w", err)
 	}
+	if err := o.subscribeTask(ctx); err != nil {
+		return fmt.Errorf("failed to subscribe to task commands: %w", err)
+	}
 	if err := o.stManager.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start state manager: %w", err)
 	}
-	if err := o.wfexec.Start(ctx); err != nil {
+	if err := o.wExecutor.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start workflow executor: %w", err)
+	}
+	if err := o.tExecutor.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start task executor: %w", err)
 	}
 	return nil
 }

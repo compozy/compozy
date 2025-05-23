@@ -16,7 +16,11 @@ enum LogLevel {
   LOG_LEVEL_ERROR = 4;
 }
 
-message LogEmittedEvent {
+// -----------------------------------------------------------------------------
+// Event: Log Emitted
+// -----------------------------------------------------------------------------
+
+message EventLogEmitted {
   common.Metadata metadata = 1;
   optional common.WorkflowInfo workflow = 2;
   optional common.TaskInfo task = 3;

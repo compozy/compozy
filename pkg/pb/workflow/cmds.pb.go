@@ -23,29 +23,29 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type WorkflowTriggerCommand struct {
-	state         protoimpl.MessageState          `protogen:"open.v1"`
-	Metadata      *common.Metadata                `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo            `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Details       *WorkflowTriggerCommand_Details `protobuf:"bytes,3,opt,name=details,proto3" json:"details,omitempty"`
+type CmdWorkflowTrigger struct {
+	state         protoimpl.MessageState      `protogen:"open.v1"`
+	Metadata      *common.Metadata            `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo        `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Details       *CmdWorkflowTrigger_Details `protobuf:"bytes,3,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowTriggerCommand) Reset() {
-	*x = WorkflowTriggerCommand{}
+func (x *CmdWorkflowTrigger) Reset() {
+	*x = CmdWorkflowTrigger{}
 	mi := &file_workflow_cmds_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowTriggerCommand) String() string {
+func (x *CmdWorkflowTrigger) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowTriggerCommand) ProtoMessage() {}
+func (*CmdWorkflowTrigger) ProtoMessage() {}
 
-func (x *WorkflowTriggerCommand) ProtoReflect() protoreflect.Message {
+func (x *CmdWorkflowTrigger) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_cmds_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -57,55 +57,55 @@ func (x *WorkflowTriggerCommand) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowTriggerCommand.ProtoReflect.Descriptor instead.
-func (*WorkflowTriggerCommand) Descriptor() ([]byte, []int) {
+// Deprecated: Use CmdWorkflowTrigger.ProtoReflect.Descriptor instead.
+func (*CmdWorkflowTrigger) Descriptor() ([]byte, []int) {
 	return file_workflow_cmds_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *WorkflowTriggerCommand) GetMetadata() *common.Metadata {
+func (x *CmdWorkflowTrigger) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *WorkflowTriggerCommand) GetWorkflow() *common.WorkflowInfo {
+func (x *CmdWorkflowTrigger) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *WorkflowTriggerCommand) GetDetails() *WorkflowTriggerCommand_Details {
+func (x *CmdWorkflowTrigger) GetDetails() *CmdWorkflowTrigger_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type WorkflowExecuteCommand struct {
-	state         protoimpl.MessageState          `protogen:"open.v1"`
-	Metadata      *common.Metadata                `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo            `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Details       *WorkflowExecuteCommand_Details `protobuf:"bytes,3,opt,name=details,proto3" json:"details,omitempty"`
+type CmdWorkflowExecute struct {
+	state         protoimpl.MessageState      `protogen:"open.v1"`
+	Metadata      *common.Metadata            `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo        `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Details       *CmdWorkflowExecute_Details `protobuf:"bytes,3,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecuteCommand) Reset() {
-	*x = WorkflowExecuteCommand{}
+func (x *CmdWorkflowExecute) Reset() {
+	*x = CmdWorkflowExecute{}
 	mi := &file_workflow_cmds_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecuteCommand) String() string {
+func (x *CmdWorkflowExecute) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecuteCommand) ProtoMessage() {}
+func (*CmdWorkflowExecute) ProtoMessage() {}
 
-func (x *WorkflowExecuteCommand) ProtoReflect() protoreflect.Message {
+func (x *CmdWorkflowExecute) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_cmds_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -117,33 +117,33 @@ func (x *WorkflowExecuteCommand) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecuteCommand.ProtoReflect.Descriptor instead.
-func (*WorkflowExecuteCommand) Descriptor() ([]byte, []int) {
+// Deprecated: Use CmdWorkflowExecute.ProtoReflect.Descriptor instead.
+func (*CmdWorkflowExecute) Descriptor() ([]byte, []int) {
 	return file_workflow_cmds_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *WorkflowExecuteCommand) GetMetadata() *common.Metadata {
+func (x *CmdWorkflowExecute) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *WorkflowExecuteCommand) GetWorkflow() *common.WorkflowInfo {
+func (x *CmdWorkflowExecute) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *WorkflowExecuteCommand) GetDetails() *WorkflowExecuteCommand_Details {
+func (x *CmdWorkflowExecute) GetDetails() *CmdWorkflowExecute_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type WorkflowPauseCommand struct {
+type CmdWorkflowPause struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Metadata      *common.Metadata       `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Workflow      *common.WorkflowInfo   `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
@@ -151,20 +151,20 @@ type WorkflowPauseCommand struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowPauseCommand) Reset() {
-	*x = WorkflowPauseCommand{}
+func (x *CmdWorkflowPause) Reset() {
+	*x = CmdWorkflowPause{}
 	mi := &file_workflow_cmds_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowPauseCommand) String() string {
+func (x *CmdWorkflowPause) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowPauseCommand) ProtoMessage() {}
+func (*CmdWorkflowPause) ProtoMessage() {}
 
-func (x *WorkflowPauseCommand) ProtoReflect() protoreflect.Message {
+func (x *CmdWorkflowPause) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_cmds_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -176,26 +176,26 @@ func (x *WorkflowPauseCommand) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowPauseCommand.ProtoReflect.Descriptor instead.
-func (*WorkflowPauseCommand) Descriptor() ([]byte, []int) {
+// Deprecated: Use CmdWorkflowPause.ProtoReflect.Descriptor instead.
+func (*CmdWorkflowPause) Descriptor() ([]byte, []int) {
 	return file_workflow_cmds_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *WorkflowPauseCommand) GetMetadata() *common.Metadata {
+func (x *CmdWorkflowPause) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *WorkflowPauseCommand) GetWorkflow() *common.WorkflowInfo {
+func (x *CmdWorkflowPause) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-type WorkflowResumeCommand struct {
+type CmdWorkflowResume struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Metadata      *common.Metadata       `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Workflow      *common.WorkflowInfo   `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
@@ -203,20 +203,20 @@ type WorkflowResumeCommand struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowResumeCommand) Reset() {
-	*x = WorkflowResumeCommand{}
+func (x *CmdWorkflowResume) Reset() {
+	*x = CmdWorkflowResume{}
 	mi := &file_workflow_cmds_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowResumeCommand) String() string {
+func (x *CmdWorkflowResume) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowResumeCommand) ProtoMessage() {}
+func (*CmdWorkflowResume) ProtoMessage() {}
 
-func (x *WorkflowResumeCommand) ProtoReflect() protoreflect.Message {
+func (x *CmdWorkflowResume) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_cmds_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -228,26 +228,26 @@ func (x *WorkflowResumeCommand) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowResumeCommand.ProtoReflect.Descriptor instead.
-func (*WorkflowResumeCommand) Descriptor() ([]byte, []int) {
+// Deprecated: Use CmdWorkflowResume.ProtoReflect.Descriptor instead.
+func (*CmdWorkflowResume) Descriptor() ([]byte, []int) {
 	return file_workflow_cmds_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *WorkflowResumeCommand) GetMetadata() *common.Metadata {
+func (x *CmdWorkflowResume) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *WorkflowResumeCommand) GetWorkflow() *common.WorkflowInfo {
+func (x *CmdWorkflowResume) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-type WorkflowCancelCommand struct {
+type CmdWorkflowCancel struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Metadata      *common.Metadata       `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Workflow      *common.WorkflowInfo   `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
@@ -255,20 +255,20 @@ type WorkflowCancelCommand struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowCancelCommand) Reset() {
-	*x = WorkflowCancelCommand{}
+func (x *CmdWorkflowCancel) Reset() {
+	*x = CmdWorkflowCancel{}
 	mi := &file_workflow_cmds_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowCancelCommand) String() string {
+func (x *CmdWorkflowCancel) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowCancelCommand) ProtoMessage() {}
+func (*CmdWorkflowCancel) ProtoMessage() {}
 
-func (x *WorkflowCancelCommand) ProtoReflect() protoreflect.Message {
+func (x *CmdWorkflowCancel) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_cmds_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -280,46 +280,46 @@ func (x *WorkflowCancelCommand) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowCancelCommand.ProtoReflect.Descriptor instead.
-func (*WorkflowCancelCommand) Descriptor() ([]byte, []int) {
+// Deprecated: Use CmdWorkflowCancel.ProtoReflect.Descriptor instead.
+func (*CmdWorkflowCancel) Descriptor() ([]byte, []int) {
 	return file_workflow_cmds_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *WorkflowCancelCommand) GetMetadata() *common.Metadata {
+func (x *CmdWorkflowCancel) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *WorkflowCancelCommand) GetWorkflow() *common.WorkflowInfo {
+func (x *CmdWorkflowCancel) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-type WorkflowTriggerCommand_Details struct {
+type CmdWorkflowTrigger_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TriggerInput  *structpb.Struct       `protobuf:"bytes,1,opt,name=trigger_input,json=triggerInput,proto3" json:"trigger_input,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowTriggerCommand_Details) Reset() {
-	*x = WorkflowTriggerCommand_Details{}
+func (x *CmdWorkflowTrigger_Details) Reset() {
+	*x = CmdWorkflowTrigger_Details{}
 	mi := &file_workflow_cmds_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowTriggerCommand_Details) String() string {
+func (x *CmdWorkflowTrigger_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowTriggerCommand_Details) ProtoMessage() {}
+func (*CmdWorkflowTrigger_Details) ProtoMessage() {}
 
-func (x *WorkflowTriggerCommand_Details) ProtoReflect() protoreflect.Message {
+func (x *CmdWorkflowTrigger_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_cmds_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -331,19 +331,19 @@ func (x *WorkflowTriggerCommand_Details) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowTriggerCommand_Details.ProtoReflect.Descriptor instead.
-func (*WorkflowTriggerCommand_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use CmdWorkflowTrigger_Details.ProtoReflect.Descriptor instead.
+func (*CmdWorkflowTrigger_Details) Descriptor() ([]byte, []int) {
 	return file_workflow_cmds_proto_rawDescGZIP(), []int{0, 0}
 }
 
-func (x *WorkflowTriggerCommand_Details) GetTriggerInput() *structpb.Struct {
+func (x *CmdWorkflowTrigger_Details) GetTriggerInput() *structpb.Struct {
 	if x != nil {
 		return x.TriggerInput
 	}
 	return nil
 }
 
-type WorkflowExecuteCommand_Details struct {
+type CmdWorkflowExecute_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TriggerInput  *structpb.Struct       `protobuf:"bytes,1,opt,name=trigger_input,json=triggerInput,proto3" json:"trigger_input,omitempty"`
 	TaskId        *string                `protobuf:"bytes,2,opt,name=task_id,json=taskId,proto3,oneof" json:"task_id,omitempty"`
@@ -352,20 +352,20 @@ type WorkflowExecuteCommand_Details struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecuteCommand_Details) Reset() {
-	*x = WorkflowExecuteCommand_Details{}
+func (x *CmdWorkflowExecute_Details) Reset() {
+	*x = CmdWorkflowExecute_Details{}
 	mi := &file_workflow_cmds_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecuteCommand_Details) String() string {
+func (x *CmdWorkflowExecute_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecuteCommand_Details) ProtoMessage() {}
+func (*CmdWorkflowExecute_Details) ProtoMessage() {}
 
-func (x *WorkflowExecuteCommand_Details) ProtoReflect() protoreflect.Message {
+func (x *CmdWorkflowExecute_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_cmds_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -377,26 +377,26 @@ func (x *WorkflowExecuteCommand_Details) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecuteCommand_Details.ProtoReflect.Descriptor instead.
-func (*WorkflowExecuteCommand_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use CmdWorkflowExecute_Details.ProtoReflect.Descriptor instead.
+func (*CmdWorkflowExecute_Details) Descriptor() ([]byte, []int) {
 	return file_workflow_cmds_proto_rawDescGZIP(), []int{1, 0}
 }
 
-func (x *WorkflowExecuteCommand_Details) GetTriggerInput() *structpb.Struct {
+func (x *CmdWorkflowExecute_Details) GetTriggerInput() *structpb.Struct {
 	if x != nil {
 		return x.TriggerInput
 	}
 	return nil
 }
 
-func (x *WorkflowExecuteCommand_Details) GetTaskId() string {
+func (x *CmdWorkflowExecute_Details) GetTaskId() string {
 	if x != nil && x.TaskId != nil {
 		return *x.TaskId
 	}
 	return ""
 }
 
-func (x *WorkflowExecuteCommand_Details) GetFinalTask() bool {
+func (x *CmdWorkflowExecute_Details) GetFinalTask() bool {
 	if x != nil && x.FinalTask != nil {
 		return *x.FinalTask
 	}
@@ -407,17 +407,17 @@ var File_workflow_cmds_proto protoreflect.FileDescriptor
 
 const file_workflow_cmds_proto_rawDesc = "" +
 	"\n" +
-	"\x13workflow/cmds.proto\x12\bworkflow\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\"\x85\x02\n" +
-	"\x16WorkflowTriggerCommand\x12,\n" +
+	"\x13workflow/cmds.proto\x12\bworkflow\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xfd\x01\n" +
+	"\x12CmdWorkflowTrigger\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
-	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12B\n" +
-	"\adetails\x18\x03 \x01(\v2(.workflow.WorkflowTriggerCommand.DetailsR\adetails\x1aG\n" +
+	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12>\n" +
+	"\adetails\x18\x03 \x01(\v2$.workflow.CmdWorkflowTrigger.DetailsR\adetails\x1aG\n" +
 	"\aDetails\x12<\n" +
-	"\rtrigger_input\x18\x01 \x01(\v2\x17.google.protobuf.StructR\ftriggerInput\"\xe3\x02\n" +
-	"\x16WorkflowExecuteCommand\x12,\n" +
+	"\rtrigger_input\x18\x01 \x01(\v2\x17.google.protobuf.StructR\ftriggerInput\"\xdb\x02\n" +
+	"\x12CmdWorkflowExecute\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
-	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12B\n" +
-	"\adetails\x18\x03 \x01(\v2(.workflow.WorkflowExecuteCommand.DetailsR\adetails\x1a\xa4\x01\n" +
+	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12>\n" +
+	"\adetails\x18\x03 \x01(\v2$.workflow.CmdWorkflowExecute.DetailsR\adetails\x1a\xa4\x01\n" +
 	"\aDetails\x12<\n" +
 	"\rtrigger_input\x18\x01 \x01(\v2\x17.google.protobuf.StructR\ftriggerInput\x12\x1c\n" +
 	"\atask_id\x18\x02 \x01(\tH\x00R\x06taskId\x88\x01\x01\x12\"\n" +
@@ -425,14 +425,14 @@ const file_workflow_cmds_proto_rawDesc = "" +
 	"final_task\x18\x03 \x01(\bH\x01R\tfinalTask\x88\x01\x01B\n" +
 	"\n" +
 	"\b_task_idB\r\n" +
-	"\v_final_task\"v\n" +
-	"\x14WorkflowPauseCommand\x12,\n" +
+	"\v_final_task\"r\n" +
+	"\x10CmdWorkflowPause\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
-	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\"w\n" +
-	"\x15WorkflowResumeCommand\x12,\n" +
+	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\"s\n" +
+	"\x11CmdWorkflowResume\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
-	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\"w\n" +
-	"\x15WorkflowCancelCommand\x12,\n" +
+	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\"s\n" +
+	"\x11CmdWorkflowCancel\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflowB,Z*github.com/compozy/compozy/pkg/pb/workflowb\x06proto3"
 
@@ -450,32 +450,32 @@ func file_workflow_cmds_proto_rawDescGZIP() []byte {
 
 var file_workflow_cmds_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_workflow_cmds_proto_goTypes = []any{
-	(*WorkflowTriggerCommand)(nil),         // 0: workflow.WorkflowTriggerCommand
-	(*WorkflowExecuteCommand)(nil),         // 1: workflow.WorkflowExecuteCommand
-	(*WorkflowPauseCommand)(nil),           // 2: workflow.WorkflowPauseCommand
-	(*WorkflowResumeCommand)(nil),          // 3: workflow.WorkflowResumeCommand
-	(*WorkflowCancelCommand)(nil),          // 4: workflow.WorkflowCancelCommand
-	(*WorkflowTriggerCommand_Details)(nil), // 5: workflow.WorkflowTriggerCommand.Details
-	(*WorkflowExecuteCommand_Details)(nil), // 6: workflow.WorkflowExecuteCommand.Details
-	(*common.Metadata)(nil),                // 7: common.Metadata
-	(*common.WorkflowInfo)(nil),            // 8: common.WorkflowInfo
-	(*structpb.Struct)(nil),                // 9: google.protobuf.Struct
+	(*CmdWorkflowTrigger)(nil),         // 0: workflow.CmdWorkflowTrigger
+	(*CmdWorkflowExecute)(nil),         // 1: workflow.CmdWorkflowExecute
+	(*CmdWorkflowPause)(nil),           // 2: workflow.CmdWorkflowPause
+	(*CmdWorkflowResume)(nil),          // 3: workflow.CmdWorkflowResume
+	(*CmdWorkflowCancel)(nil),          // 4: workflow.CmdWorkflowCancel
+	(*CmdWorkflowTrigger_Details)(nil), // 5: workflow.CmdWorkflowTrigger.Details
+	(*CmdWorkflowExecute_Details)(nil), // 6: workflow.CmdWorkflowExecute.Details
+	(*common.Metadata)(nil),            // 7: common.Metadata
+	(*common.WorkflowInfo)(nil),        // 8: common.WorkflowInfo
+	(*structpb.Struct)(nil),            // 9: google.protobuf.Struct
 }
 var file_workflow_cmds_proto_depIdxs = []int32{
-	7,  // 0: workflow.WorkflowTriggerCommand.metadata:type_name -> common.Metadata
-	8,  // 1: workflow.WorkflowTriggerCommand.workflow:type_name -> common.WorkflowInfo
-	5,  // 2: workflow.WorkflowTriggerCommand.details:type_name -> workflow.WorkflowTriggerCommand.Details
-	7,  // 3: workflow.WorkflowExecuteCommand.metadata:type_name -> common.Metadata
-	8,  // 4: workflow.WorkflowExecuteCommand.workflow:type_name -> common.WorkflowInfo
-	6,  // 5: workflow.WorkflowExecuteCommand.details:type_name -> workflow.WorkflowExecuteCommand.Details
-	7,  // 6: workflow.WorkflowPauseCommand.metadata:type_name -> common.Metadata
-	8,  // 7: workflow.WorkflowPauseCommand.workflow:type_name -> common.WorkflowInfo
-	7,  // 8: workflow.WorkflowResumeCommand.metadata:type_name -> common.Metadata
-	8,  // 9: workflow.WorkflowResumeCommand.workflow:type_name -> common.WorkflowInfo
-	7,  // 10: workflow.WorkflowCancelCommand.metadata:type_name -> common.Metadata
-	8,  // 11: workflow.WorkflowCancelCommand.workflow:type_name -> common.WorkflowInfo
-	9,  // 12: workflow.WorkflowTriggerCommand.Details.trigger_input:type_name -> google.protobuf.Struct
-	9,  // 13: workflow.WorkflowExecuteCommand.Details.trigger_input:type_name -> google.protobuf.Struct
+	7,  // 0: workflow.CmdWorkflowTrigger.metadata:type_name -> common.Metadata
+	8,  // 1: workflow.CmdWorkflowTrigger.workflow:type_name -> common.WorkflowInfo
+	5,  // 2: workflow.CmdWorkflowTrigger.details:type_name -> workflow.CmdWorkflowTrigger.Details
+	7,  // 3: workflow.CmdWorkflowExecute.metadata:type_name -> common.Metadata
+	8,  // 4: workflow.CmdWorkflowExecute.workflow:type_name -> common.WorkflowInfo
+	6,  // 5: workflow.CmdWorkflowExecute.details:type_name -> workflow.CmdWorkflowExecute.Details
+	7,  // 6: workflow.CmdWorkflowPause.metadata:type_name -> common.Metadata
+	8,  // 7: workflow.CmdWorkflowPause.workflow:type_name -> common.WorkflowInfo
+	7,  // 8: workflow.CmdWorkflowResume.metadata:type_name -> common.Metadata
+	8,  // 9: workflow.CmdWorkflowResume.workflow:type_name -> common.WorkflowInfo
+	7,  // 10: workflow.CmdWorkflowCancel.metadata:type_name -> common.Metadata
+	8,  // 11: workflow.CmdWorkflowCancel.workflow:type_name -> common.WorkflowInfo
+	9,  // 12: workflow.CmdWorkflowTrigger.Details.trigger_input:type_name -> google.protobuf.Struct
+	9,  // 13: workflow.CmdWorkflowExecute.Details.trigger_input:type_name -> google.protobuf.Struct
 	14, // [14:14] is the sub-list for method output_type
 	14, // [14:14] is the sub-list for method input_type
 	14, // [14:14] is the sub-list for extension type_name

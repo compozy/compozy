@@ -87,29 +87,29 @@ func (WorkflowStatus) EnumDescriptor() ([]byte, []int) {
 	return file_workflow_events_proto_rawDescGZIP(), []int{0}
 }
 
-type WorkflowExecutionStartedEvent struct {
-	state         protoimpl.MessageState                 `protogen:"open.v1"`
-	Metadata      *common.Metadata                       `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo                   `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Details       *WorkflowExecutionStartedEvent_Details `protobuf:"bytes,3,opt,name=details,proto3" json:"details,omitempty"`
+type EventWorkflowStarted struct {
+	state         protoimpl.MessageState        `protogen:"open.v1"`
+	Metadata      *common.Metadata              `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo          `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Details       *EventWorkflowStarted_Details `protobuf:"bytes,3,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecutionStartedEvent) Reset() {
-	*x = WorkflowExecutionStartedEvent{}
+func (x *EventWorkflowStarted) Reset() {
+	*x = EventWorkflowStarted{}
 	mi := &file_workflow_events_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecutionStartedEvent) String() string {
+func (x *EventWorkflowStarted) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecutionStartedEvent) ProtoMessage() {}
+func (*EventWorkflowStarted) ProtoMessage() {}
 
-func (x *WorkflowExecutionStartedEvent) ProtoReflect() protoreflect.Message {
+func (x *EventWorkflowStarted) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_events_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -121,55 +121,55 @@ func (x *WorkflowExecutionStartedEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecutionStartedEvent.ProtoReflect.Descriptor instead.
-func (*WorkflowExecutionStartedEvent) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventWorkflowStarted.ProtoReflect.Descriptor instead.
+func (*EventWorkflowStarted) Descriptor() ([]byte, []int) {
 	return file_workflow_events_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *WorkflowExecutionStartedEvent) GetMetadata() *common.Metadata {
+func (x *EventWorkflowStarted) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionStartedEvent) GetWorkflow() *common.WorkflowInfo {
+func (x *EventWorkflowStarted) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionStartedEvent) GetDetails() *WorkflowExecutionStartedEvent_Details {
+func (x *EventWorkflowStarted) GetDetails() *EventWorkflowStarted_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type WorkflowExecutionPausedEvent struct {
-	state         protoimpl.MessageState                `protogen:"open.v1"`
-	Metadata      *common.Metadata                      `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo                  `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Details       *WorkflowExecutionPausedEvent_Details `protobuf:"bytes,3,opt,name=details,proto3" json:"details,omitempty"`
+type EventWorkflowPaused struct {
+	state         protoimpl.MessageState       `protogen:"open.v1"`
+	Metadata      *common.Metadata             `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo         `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Details       *EventWorkflowPaused_Details `protobuf:"bytes,3,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecutionPausedEvent) Reset() {
-	*x = WorkflowExecutionPausedEvent{}
+func (x *EventWorkflowPaused) Reset() {
+	*x = EventWorkflowPaused{}
 	mi := &file_workflow_events_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecutionPausedEvent) String() string {
+func (x *EventWorkflowPaused) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecutionPausedEvent) ProtoMessage() {}
+func (*EventWorkflowPaused) ProtoMessage() {}
 
-func (x *WorkflowExecutionPausedEvent) ProtoReflect() protoreflect.Message {
+func (x *EventWorkflowPaused) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_events_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -181,55 +181,55 @@ func (x *WorkflowExecutionPausedEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecutionPausedEvent.ProtoReflect.Descriptor instead.
-func (*WorkflowExecutionPausedEvent) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventWorkflowPaused.ProtoReflect.Descriptor instead.
+func (*EventWorkflowPaused) Descriptor() ([]byte, []int) {
 	return file_workflow_events_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *WorkflowExecutionPausedEvent) GetMetadata() *common.Metadata {
+func (x *EventWorkflowPaused) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionPausedEvent) GetWorkflow() *common.WorkflowInfo {
+func (x *EventWorkflowPaused) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionPausedEvent) GetDetails() *WorkflowExecutionPausedEvent_Details {
+func (x *EventWorkflowPaused) GetDetails() *EventWorkflowPaused_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type WorkflowExecutionResumedEvent struct {
-	state         protoimpl.MessageState                 `protogen:"open.v1"`
-	Metadata      *common.Metadata                       `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo                   `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Details       *WorkflowExecutionResumedEvent_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
+type EventWorkflowResumed struct {
+	state         protoimpl.MessageState        `protogen:"open.v1"`
+	Metadata      *common.Metadata              `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo          `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Details       *EventWorkflowResumed_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecutionResumedEvent) Reset() {
-	*x = WorkflowExecutionResumedEvent{}
+func (x *EventWorkflowResumed) Reset() {
+	*x = EventWorkflowResumed{}
 	mi := &file_workflow_events_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecutionResumedEvent) String() string {
+func (x *EventWorkflowResumed) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecutionResumedEvent) ProtoMessage() {}
+func (*EventWorkflowResumed) ProtoMessage() {}
 
-func (x *WorkflowExecutionResumedEvent) ProtoReflect() protoreflect.Message {
+func (x *EventWorkflowResumed) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_events_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -241,55 +241,55 @@ func (x *WorkflowExecutionResumedEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecutionResumedEvent.ProtoReflect.Descriptor instead.
-func (*WorkflowExecutionResumedEvent) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventWorkflowResumed.ProtoReflect.Descriptor instead.
+func (*EventWorkflowResumed) Descriptor() ([]byte, []int) {
 	return file_workflow_events_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *WorkflowExecutionResumedEvent) GetMetadata() *common.Metadata {
+func (x *EventWorkflowResumed) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionResumedEvent) GetWorkflow() *common.WorkflowInfo {
+func (x *EventWorkflowResumed) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionResumedEvent) GetDetails() *WorkflowExecutionResumedEvent_Details {
+func (x *EventWorkflowResumed) GetDetails() *EventWorkflowResumed_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type WorkflowExecutionSuccessEvent struct {
-	state         protoimpl.MessageState                 `protogen:"open.v1"`
-	Metadata      *common.Metadata                       `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo                   `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Details       *WorkflowExecutionSuccessEvent_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
+type EventWorkflowSuccess struct {
+	state         protoimpl.MessageState        `protogen:"open.v1"`
+	Metadata      *common.Metadata              `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo          `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Details       *EventWorkflowSuccess_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecutionSuccessEvent) Reset() {
-	*x = WorkflowExecutionSuccessEvent{}
+func (x *EventWorkflowSuccess) Reset() {
+	*x = EventWorkflowSuccess{}
 	mi := &file_workflow_events_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecutionSuccessEvent) String() string {
+func (x *EventWorkflowSuccess) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecutionSuccessEvent) ProtoMessage() {}
+func (*EventWorkflowSuccess) ProtoMessage() {}
 
-func (x *WorkflowExecutionSuccessEvent) ProtoReflect() protoreflect.Message {
+func (x *EventWorkflowSuccess) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_events_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -301,55 +301,55 @@ func (x *WorkflowExecutionSuccessEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecutionSuccessEvent.ProtoReflect.Descriptor instead.
-func (*WorkflowExecutionSuccessEvent) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventWorkflowSuccess.ProtoReflect.Descriptor instead.
+func (*EventWorkflowSuccess) Descriptor() ([]byte, []int) {
 	return file_workflow_events_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *WorkflowExecutionSuccessEvent) GetMetadata() *common.Metadata {
+func (x *EventWorkflowSuccess) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionSuccessEvent) GetWorkflow() *common.WorkflowInfo {
+func (x *EventWorkflowSuccess) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionSuccessEvent) GetDetails() *WorkflowExecutionSuccessEvent_Details {
+func (x *EventWorkflowSuccess) GetDetails() *EventWorkflowSuccess_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type WorkflowExecutionFailedEvent struct {
-	state         protoimpl.MessageState                `protogen:"open.v1"`
-	Metadata      *common.Metadata                      `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo                  `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Details       *WorkflowExecutionFailedEvent_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
+type EventWorkflowFailed struct {
+	state         protoimpl.MessageState       `protogen:"open.v1"`
+	Metadata      *common.Metadata             `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo         `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Details       *EventWorkflowFailed_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecutionFailedEvent) Reset() {
-	*x = WorkflowExecutionFailedEvent{}
+func (x *EventWorkflowFailed) Reset() {
+	*x = EventWorkflowFailed{}
 	mi := &file_workflow_events_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecutionFailedEvent) String() string {
+func (x *EventWorkflowFailed) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecutionFailedEvent) ProtoMessage() {}
+func (*EventWorkflowFailed) ProtoMessage() {}
 
-func (x *WorkflowExecutionFailedEvent) ProtoReflect() protoreflect.Message {
+func (x *EventWorkflowFailed) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_events_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -361,55 +361,55 @@ func (x *WorkflowExecutionFailedEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecutionFailedEvent.ProtoReflect.Descriptor instead.
-func (*WorkflowExecutionFailedEvent) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventWorkflowFailed.ProtoReflect.Descriptor instead.
+func (*EventWorkflowFailed) Descriptor() ([]byte, []int) {
 	return file_workflow_events_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *WorkflowExecutionFailedEvent) GetMetadata() *common.Metadata {
+func (x *EventWorkflowFailed) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionFailedEvent) GetWorkflow() *common.WorkflowInfo {
+func (x *EventWorkflowFailed) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionFailedEvent) GetDetails() *WorkflowExecutionFailedEvent_Details {
+func (x *EventWorkflowFailed) GetDetails() *EventWorkflowFailed_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type WorkflowExecutionCanceledEvent struct {
-	state         protoimpl.MessageState                  `protogen:"open.v1"`
-	Metadata      *common.Metadata                        `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo                    `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Details       *WorkflowExecutionCanceledEvent_Details `protobuf:"bytes,3,opt,name=details,proto3" json:"details,omitempty"`
+type EventWorkflowCanceled struct {
+	state         protoimpl.MessageState         `protogen:"open.v1"`
+	Metadata      *common.Metadata               `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo           `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Details       *EventWorkflowCanceled_Details `protobuf:"bytes,3,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecutionCanceledEvent) Reset() {
-	*x = WorkflowExecutionCanceledEvent{}
+func (x *EventWorkflowCanceled) Reset() {
+	*x = EventWorkflowCanceled{}
 	mi := &file_workflow_events_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecutionCanceledEvent) String() string {
+func (x *EventWorkflowCanceled) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecutionCanceledEvent) ProtoMessage() {}
+func (*EventWorkflowCanceled) ProtoMessage() {}
 
-func (x *WorkflowExecutionCanceledEvent) ProtoReflect() protoreflect.Message {
+func (x *EventWorkflowCanceled) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_events_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -421,55 +421,55 @@ func (x *WorkflowExecutionCanceledEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecutionCanceledEvent.ProtoReflect.Descriptor instead.
-func (*WorkflowExecutionCanceledEvent) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventWorkflowCanceled.ProtoReflect.Descriptor instead.
+func (*EventWorkflowCanceled) Descriptor() ([]byte, []int) {
 	return file_workflow_events_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *WorkflowExecutionCanceledEvent) GetMetadata() *common.Metadata {
+func (x *EventWorkflowCanceled) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionCanceledEvent) GetWorkflow() *common.WorkflowInfo {
+func (x *EventWorkflowCanceled) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionCanceledEvent) GetDetails() *WorkflowExecutionCanceledEvent_Details {
+func (x *EventWorkflowCanceled) GetDetails() *EventWorkflowCanceled_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type WorkflowExecutionTimedOutEvent struct {
-	state         protoimpl.MessageState                  `protogen:"open.v1"`
-	Metadata      *common.Metadata                        `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo                    `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Details       *WorkflowExecutionTimedOutEvent_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
+type EventWorkflowTimedOut struct {
+	state         protoimpl.MessageState         `protogen:"open.v1"`
+	Metadata      *common.Metadata               `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo           `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Details       *EventWorkflowTimedOut_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecutionTimedOutEvent) Reset() {
-	*x = WorkflowExecutionTimedOutEvent{}
+func (x *EventWorkflowTimedOut) Reset() {
+	*x = EventWorkflowTimedOut{}
 	mi := &file_workflow_events_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecutionTimedOutEvent) String() string {
+func (x *EventWorkflowTimedOut) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecutionTimedOutEvent) ProtoMessage() {}
+func (*EventWorkflowTimedOut) ProtoMessage() {}
 
-func (x *WorkflowExecutionTimedOutEvent) ProtoReflect() protoreflect.Message {
+func (x *EventWorkflowTimedOut) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_events_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -481,53 +481,53 @@ func (x *WorkflowExecutionTimedOutEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecutionTimedOutEvent.ProtoReflect.Descriptor instead.
-func (*WorkflowExecutionTimedOutEvent) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventWorkflowTimedOut.ProtoReflect.Descriptor instead.
+func (*EventWorkflowTimedOut) Descriptor() ([]byte, []int) {
 	return file_workflow_events_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *WorkflowExecutionTimedOutEvent) GetMetadata() *common.Metadata {
+func (x *EventWorkflowTimedOut) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionTimedOutEvent) GetWorkflow() *common.WorkflowInfo {
+func (x *EventWorkflowTimedOut) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionTimedOutEvent) GetDetails() *WorkflowExecutionTimedOutEvent_Details {
+func (x *EventWorkflowTimedOut) GetDetails() *EventWorkflowTimedOut_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type WorkflowExecutionStartedEvent_Details struct {
+type EventWorkflowStarted_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        WorkflowStatus         `protobuf:"varint,1,opt,name=status,proto3,enum=workflow.WorkflowStatus" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecutionStartedEvent_Details) Reset() {
-	*x = WorkflowExecutionStartedEvent_Details{}
+func (x *EventWorkflowStarted_Details) Reset() {
+	*x = EventWorkflowStarted_Details{}
 	mi := &file_workflow_events_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecutionStartedEvent_Details) String() string {
+func (x *EventWorkflowStarted_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecutionStartedEvent_Details) ProtoMessage() {}
+func (*EventWorkflowStarted_Details) ProtoMessage() {}
 
-func (x *WorkflowExecutionStartedEvent_Details) ProtoReflect() protoreflect.Message {
+func (x *EventWorkflowStarted_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_events_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -539,39 +539,39 @@ func (x *WorkflowExecutionStartedEvent_Details) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecutionStartedEvent_Details.ProtoReflect.Descriptor instead.
-func (*WorkflowExecutionStartedEvent_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventWorkflowStarted_Details.ProtoReflect.Descriptor instead.
+func (*EventWorkflowStarted_Details) Descriptor() ([]byte, []int) {
 	return file_workflow_events_proto_rawDescGZIP(), []int{0, 0}
 }
 
-func (x *WorkflowExecutionStartedEvent_Details) GetStatus() WorkflowStatus {
+func (x *EventWorkflowStarted_Details) GetStatus() WorkflowStatus {
 	if x != nil {
 		return x.Status
 	}
 	return WorkflowStatus_WORKFLOW_STATUS_UNSPECIFIED
 }
 
-type WorkflowExecutionPausedEvent_Details struct {
+type EventWorkflowPaused_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        WorkflowStatus         `protobuf:"varint,1,opt,name=status,proto3,enum=workflow.WorkflowStatus" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecutionPausedEvent_Details) Reset() {
-	*x = WorkflowExecutionPausedEvent_Details{}
+func (x *EventWorkflowPaused_Details) Reset() {
+	*x = EventWorkflowPaused_Details{}
 	mi := &file_workflow_events_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecutionPausedEvent_Details) String() string {
+func (x *EventWorkflowPaused_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecutionPausedEvent_Details) ProtoMessage() {}
+func (*EventWorkflowPaused_Details) ProtoMessage() {}
 
-func (x *WorkflowExecutionPausedEvent_Details) ProtoReflect() protoreflect.Message {
+func (x *EventWorkflowPaused_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_events_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -583,39 +583,39 @@ func (x *WorkflowExecutionPausedEvent_Details) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecutionPausedEvent_Details.ProtoReflect.Descriptor instead.
-func (*WorkflowExecutionPausedEvent_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventWorkflowPaused_Details.ProtoReflect.Descriptor instead.
+func (*EventWorkflowPaused_Details) Descriptor() ([]byte, []int) {
 	return file_workflow_events_proto_rawDescGZIP(), []int{1, 0}
 }
 
-func (x *WorkflowExecutionPausedEvent_Details) GetStatus() WorkflowStatus {
+func (x *EventWorkflowPaused_Details) GetStatus() WorkflowStatus {
 	if x != nil {
 		return x.Status
 	}
 	return WorkflowStatus_WORKFLOW_STATUS_UNSPECIFIED
 }
 
-type WorkflowExecutionResumedEvent_Details struct {
+type EventWorkflowResumed_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        WorkflowStatus         `protobuf:"varint,1,opt,name=status,proto3,enum=workflow.WorkflowStatus" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecutionResumedEvent_Details) Reset() {
-	*x = WorkflowExecutionResumedEvent_Details{}
+func (x *EventWorkflowResumed_Details) Reset() {
+	*x = EventWorkflowResumed_Details{}
 	mi := &file_workflow_events_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecutionResumedEvent_Details) String() string {
+func (x *EventWorkflowResumed_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecutionResumedEvent_Details) ProtoMessage() {}
+func (*EventWorkflowResumed_Details) ProtoMessage() {}
 
-func (x *WorkflowExecutionResumedEvent_Details) ProtoReflect() protoreflect.Message {
+func (x *EventWorkflowResumed_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_events_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -627,19 +627,19 @@ func (x *WorkflowExecutionResumedEvent_Details) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecutionResumedEvent_Details.ProtoReflect.Descriptor instead.
-func (*WorkflowExecutionResumedEvent_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventWorkflowResumed_Details.ProtoReflect.Descriptor instead.
+func (*EventWorkflowResumed_Details) Descriptor() ([]byte, []int) {
 	return file_workflow_events_proto_rawDescGZIP(), []int{2, 0}
 }
 
-func (x *WorkflowExecutionResumedEvent_Details) GetStatus() WorkflowStatus {
+func (x *EventWorkflowResumed_Details) GetStatus() WorkflowStatus {
 	if x != nil {
 		return x.Status
 	}
 	return WorkflowStatus_WORKFLOW_STATUS_UNSPECIFIED
 }
 
-type WorkflowExecutionSuccessEvent_Details struct {
+type EventWorkflowSuccess_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        WorkflowStatus         `protobuf:"varint,1,opt,name=status,proto3,enum=workflow.WorkflowStatus" json:"status,omitempty"`
 	Result        *structpb.Struct       `protobuf:"bytes,2,opt,name=result,proto3" json:"result,omitempty"`
@@ -648,20 +648,20 @@ type WorkflowExecutionSuccessEvent_Details struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecutionSuccessEvent_Details) Reset() {
-	*x = WorkflowExecutionSuccessEvent_Details{}
+func (x *EventWorkflowSuccess_Details) Reset() {
+	*x = EventWorkflowSuccess_Details{}
 	mi := &file_workflow_events_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecutionSuccessEvent_Details) String() string {
+func (x *EventWorkflowSuccess_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecutionSuccessEvent_Details) ProtoMessage() {}
+func (*EventWorkflowSuccess_Details) ProtoMessage() {}
 
-func (x *WorkflowExecutionSuccessEvent_Details) ProtoReflect() protoreflect.Message {
+func (x *EventWorkflowSuccess_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_events_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -673,33 +673,33 @@ func (x *WorkflowExecutionSuccessEvent_Details) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecutionSuccessEvent_Details.ProtoReflect.Descriptor instead.
-func (*WorkflowExecutionSuccessEvent_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventWorkflowSuccess_Details.ProtoReflect.Descriptor instead.
+func (*EventWorkflowSuccess_Details) Descriptor() ([]byte, []int) {
 	return file_workflow_events_proto_rawDescGZIP(), []int{3, 0}
 }
 
-func (x *WorkflowExecutionSuccessEvent_Details) GetStatus() WorkflowStatus {
+func (x *EventWorkflowSuccess_Details) GetStatus() WorkflowStatus {
 	if x != nil {
 		return x.Status
 	}
 	return WorkflowStatus_WORKFLOW_STATUS_UNSPECIFIED
 }
 
-func (x *WorkflowExecutionSuccessEvent_Details) GetResult() *structpb.Struct {
+func (x *EventWorkflowSuccess_Details) GetResult() *structpb.Struct {
 	if x != nil {
 		return x.Result
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionSuccessEvent_Details) GetDurationMs() int64 {
+func (x *EventWorkflowSuccess_Details) GetDurationMs() int64 {
 	if x != nil {
 		return x.DurationMs
 	}
 	return 0
 }
 
-type WorkflowExecutionFailedEvent_Details struct {
+type EventWorkflowFailed_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        WorkflowStatus         `protobuf:"varint,1,opt,name=status,proto3,enum=workflow.WorkflowStatus" json:"status,omitempty"`
 	Error         *common.ErrorResult    `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
@@ -708,20 +708,20 @@ type WorkflowExecutionFailedEvent_Details struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecutionFailedEvent_Details) Reset() {
-	*x = WorkflowExecutionFailedEvent_Details{}
+func (x *EventWorkflowFailed_Details) Reset() {
+	*x = EventWorkflowFailed_Details{}
 	mi := &file_workflow_events_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecutionFailedEvent_Details) String() string {
+func (x *EventWorkflowFailed_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecutionFailedEvent_Details) ProtoMessage() {}
+func (*EventWorkflowFailed_Details) ProtoMessage() {}
 
-func (x *WorkflowExecutionFailedEvent_Details) ProtoReflect() protoreflect.Message {
+func (x *EventWorkflowFailed_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_events_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -733,33 +733,33 @@ func (x *WorkflowExecutionFailedEvent_Details) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecutionFailedEvent_Details.ProtoReflect.Descriptor instead.
-func (*WorkflowExecutionFailedEvent_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventWorkflowFailed_Details.ProtoReflect.Descriptor instead.
+func (*EventWorkflowFailed_Details) Descriptor() ([]byte, []int) {
 	return file_workflow_events_proto_rawDescGZIP(), []int{4, 0}
 }
 
-func (x *WorkflowExecutionFailedEvent_Details) GetStatus() WorkflowStatus {
+func (x *EventWorkflowFailed_Details) GetStatus() WorkflowStatus {
 	if x != nil {
 		return x.Status
 	}
 	return WorkflowStatus_WORKFLOW_STATUS_UNSPECIFIED
 }
 
-func (x *WorkflowExecutionFailedEvent_Details) GetError() *common.ErrorResult {
+func (x *EventWorkflowFailed_Details) GetError() *common.ErrorResult {
 	if x != nil {
 		return x.Error
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionFailedEvent_Details) GetDurationMs() int64 {
+func (x *EventWorkflowFailed_Details) GetDurationMs() int64 {
 	if x != nil {
 		return x.DurationMs
 	}
 	return 0
 }
 
-type WorkflowExecutionCanceledEvent_Details struct {
+type EventWorkflowCanceled_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        WorkflowStatus         `protobuf:"varint,1,opt,name=status,proto3,enum=workflow.WorkflowStatus" json:"status,omitempty"`
 	DurationMs    int64                  `protobuf:"varint,3,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
@@ -767,20 +767,20 @@ type WorkflowExecutionCanceledEvent_Details struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecutionCanceledEvent_Details) Reset() {
-	*x = WorkflowExecutionCanceledEvent_Details{}
+func (x *EventWorkflowCanceled_Details) Reset() {
+	*x = EventWorkflowCanceled_Details{}
 	mi := &file_workflow_events_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecutionCanceledEvent_Details) String() string {
+func (x *EventWorkflowCanceled_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecutionCanceledEvent_Details) ProtoMessage() {}
+func (*EventWorkflowCanceled_Details) ProtoMessage() {}
 
-func (x *WorkflowExecutionCanceledEvent_Details) ProtoReflect() protoreflect.Message {
+func (x *EventWorkflowCanceled_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_events_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -792,26 +792,26 @@ func (x *WorkflowExecutionCanceledEvent_Details) ProtoReflect() protoreflect.Mes
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecutionCanceledEvent_Details.ProtoReflect.Descriptor instead.
-func (*WorkflowExecutionCanceledEvent_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventWorkflowCanceled_Details.ProtoReflect.Descriptor instead.
+func (*EventWorkflowCanceled_Details) Descriptor() ([]byte, []int) {
 	return file_workflow_events_proto_rawDescGZIP(), []int{5, 0}
 }
 
-func (x *WorkflowExecutionCanceledEvent_Details) GetStatus() WorkflowStatus {
+func (x *EventWorkflowCanceled_Details) GetStatus() WorkflowStatus {
 	if x != nil {
 		return x.Status
 	}
 	return WorkflowStatus_WORKFLOW_STATUS_UNSPECIFIED
 }
 
-func (x *WorkflowExecutionCanceledEvent_Details) GetDurationMs() int64 {
+func (x *EventWorkflowCanceled_Details) GetDurationMs() int64 {
 	if x != nil {
 		return x.DurationMs
 	}
 	return 0
 }
 
-type WorkflowExecutionTimedOutEvent_Details struct {
+type EventWorkflowTimedOut_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        WorkflowStatus         `protobuf:"varint,1,opt,name=status,proto3,enum=workflow.WorkflowStatus" json:"status,omitempty"`
 	Error         *common.ErrorResult    `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
@@ -820,20 +820,20 @@ type WorkflowExecutionTimedOutEvent_Details struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WorkflowExecutionTimedOutEvent_Details) Reset() {
-	*x = WorkflowExecutionTimedOutEvent_Details{}
+func (x *EventWorkflowTimedOut_Details) Reset() {
+	*x = EventWorkflowTimedOut_Details{}
 	mi := &file_workflow_events_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WorkflowExecutionTimedOutEvent_Details) String() string {
+func (x *EventWorkflowTimedOut_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WorkflowExecutionTimedOutEvent_Details) ProtoMessage() {}
+func (*EventWorkflowTimedOut_Details) ProtoMessage() {}
 
-func (x *WorkflowExecutionTimedOutEvent_Details) ProtoReflect() protoreflect.Message {
+func (x *EventWorkflowTimedOut_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_workflow_events_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -845,26 +845,26 @@ func (x *WorkflowExecutionTimedOutEvent_Details) ProtoReflect() protoreflect.Mes
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkflowExecutionTimedOutEvent_Details.ProtoReflect.Descriptor instead.
-func (*WorkflowExecutionTimedOutEvent_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventWorkflowTimedOut_Details.ProtoReflect.Descriptor instead.
+func (*EventWorkflowTimedOut_Details) Descriptor() ([]byte, []int) {
 	return file_workflow_events_proto_rawDescGZIP(), []int{6, 0}
 }
 
-func (x *WorkflowExecutionTimedOutEvent_Details) GetStatus() WorkflowStatus {
+func (x *EventWorkflowTimedOut_Details) GetStatus() WorkflowStatus {
 	if x != nil {
 		return x.Status
 	}
 	return WorkflowStatus_WORKFLOW_STATUS_UNSPECIFIED
 }
 
-func (x *WorkflowExecutionTimedOutEvent_Details) GetError() *common.ErrorResult {
+func (x *EventWorkflowTimedOut_Details) GetError() *common.ErrorResult {
 	if x != nil {
 		return x.Error
 	}
 	return nil
 }
 
-func (x *WorkflowExecutionTimedOutEvent_Details) GetDurationMs() int64 {
+func (x *EventWorkflowTimedOut_Details) GetDurationMs() int64 {
 	if x != nil {
 		return x.DurationMs
 	}
@@ -875,55 +875,55 @@ var File_workflow_events_proto protoreflect.FileDescriptor
 
 const file_workflow_events_proto_rawDesc = "" +
 	"\n" +
-	"\x15workflow/events.proto\x12\bworkflow\x1a\x14common/details.proto\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\"\x87\x02\n" +
-	"\x1dWorkflowExecutionStartedEvent\x12,\n" +
+	"\x15workflow/events.proto\x12\bworkflow\x1a\x14common/details.proto\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xf5\x01\n" +
+	"\x14EventWorkflowStarted\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
-	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12I\n" +
-	"\adetails\x18\x03 \x01(\v2/.workflow.WorkflowExecutionStartedEvent.DetailsR\adetails\x1a;\n" +
+	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12@\n" +
+	"\adetails\x18\x03 \x01(\v2&.workflow.EventWorkflowStarted.DetailsR\adetails\x1a;\n" +
 	"\aDetails\x120\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\"\x85\x02\n" +
-	"\x1cWorkflowExecutionPausedEvent\x12,\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\"\xf3\x01\n" +
+	"\x13EventWorkflowPaused\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
-	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12H\n" +
-	"\adetails\x18\x03 \x01(\v2..workflow.WorkflowExecutionPausedEvent.DetailsR\adetails\x1a;\n" +
+	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12?\n" +
+	"\adetails\x18\x03 \x01(\v2%.workflow.EventWorkflowPaused.DetailsR\adetails\x1a;\n" +
 	"\aDetails\x120\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\"\x87\x02\n" +
-	"\x1dWorkflowExecutionResumedEvent\x12,\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\"\xf5\x01\n" +
+	"\x14EventWorkflowResumed\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
-	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12I\n" +
-	"\adetails\x18\x04 \x01(\v2/.workflow.WorkflowExecutionResumedEvent.DetailsR\adetails\x1a;\n" +
+	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12@\n" +
+	"\adetails\x18\x04 \x01(\v2&.workflow.EventWorkflowResumed.DetailsR\adetails\x1a;\n" +
 	"\aDetails\x120\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\"\xda\x02\n" +
-	"\x1dWorkflowExecutionSuccessEvent\x12,\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\"\xc8\x02\n" +
+	"\x14EventWorkflowSuccess\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
-	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12I\n" +
-	"\adetails\x18\x04 \x01(\v2/.workflow.WorkflowExecutionSuccessEvent.DetailsR\adetails\x1a\x8d\x01\n" +
+	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12@\n" +
+	"\adetails\x18\x04 \x01(\v2&.workflow.EventWorkflowSuccess.DetailsR\adetails\x1a\x8d\x01\n" +
 	"\aDetails\x120\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\x12/\n" +
 	"\x06result\x18\x02 \x01(\v2\x17.google.protobuf.StructR\x06result\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
-	"durationMs\"\xd2\x02\n" +
-	"\x1cWorkflowExecutionFailedEvent\x12,\n" +
+	"durationMs\"\xc0\x02\n" +
+	"\x13EventWorkflowFailed\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
-	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12H\n" +
-	"\adetails\x18\x04 \x01(\v2..workflow.WorkflowExecutionFailedEvent.DetailsR\adetails\x1a\x87\x01\n" +
+	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12?\n" +
+	"\adetails\x18\x04 \x01(\v2%.workflow.EventWorkflowFailed.DetailsR\adetails\x1a\x87\x01\n" +
 	"\aDetails\x120\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\x12)\n" +
 	"\x05error\x18\x02 \x01(\v2\x13.common.ErrorResultR\x05error\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
-	"durationMs\"\xaa\x02\n" +
-	"\x1eWorkflowExecutionCanceledEvent\x12,\n" +
+	"durationMs\"\x98\x02\n" +
+	"\x15EventWorkflowCanceled\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
-	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12J\n" +
-	"\adetails\x18\x03 \x01(\v20.workflow.WorkflowExecutionCanceledEvent.DetailsR\adetails\x1a\\\n" +
+	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12A\n" +
+	"\adetails\x18\x03 \x01(\v2'.workflow.EventWorkflowCanceled.DetailsR\adetails\x1a\\\n" +
 	"\aDetails\x120\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
-	"durationMs\"\xd6\x02\n" +
-	"\x1eWorkflowExecutionTimedOutEvent\x12,\n" +
+	"durationMs\"\xc4\x02\n" +
+	"\x15EventWorkflowTimedOut\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
-	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12J\n" +
-	"\adetails\x18\x04 \x01(\v20.workflow.WorkflowExecutionTimedOutEvent.DetailsR\adetails\x1a\x87\x01\n" +
+	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12A\n" +
+	"\adetails\x18\x04 \x01(\v2'.workflow.EventWorkflowTimedOut.DetailsR\adetails\x1a\x87\x01\n" +
 	"\aDetails\x120\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\x12)\n" +
 	"\x05error\x18\x02 \x01(\v2\x13.common.ErrorResultR\x05error\x12\x1f\n" +
@@ -954,58 +954,58 @@ func file_workflow_events_proto_rawDescGZIP() []byte {
 var file_workflow_events_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_workflow_events_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_workflow_events_proto_goTypes = []any{
-	(WorkflowStatus)(0),                            // 0: workflow.WorkflowStatus
-	(*WorkflowExecutionStartedEvent)(nil),          // 1: workflow.WorkflowExecutionStartedEvent
-	(*WorkflowExecutionPausedEvent)(nil),           // 2: workflow.WorkflowExecutionPausedEvent
-	(*WorkflowExecutionResumedEvent)(nil),          // 3: workflow.WorkflowExecutionResumedEvent
-	(*WorkflowExecutionSuccessEvent)(nil),          // 4: workflow.WorkflowExecutionSuccessEvent
-	(*WorkflowExecutionFailedEvent)(nil),           // 5: workflow.WorkflowExecutionFailedEvent
-	(*WorkflowExecutionCanceledEvent)(nil),         // 6: workflow.WorkflowExecutionCanceledEvent
-	(*WorkflowExecutionTimedOutEvent)(nil),         // 7: workflow.WorkflowExecutionTimedOutEvent
-	(*WorkflowExecutionStartedEvent_Details)(nil),  // 8: workflow.WorkflowExecutionStartedEvent.Details
-	(*WorkflowExecutionPausedEvent_Details)(nil),   // 9: workflow.WorkflowExecutionPausedEvent.Details
-	(*WorkflowExecutionResumedEvent_Details)(nil),  // 10: workflow.WorkflowExecutionResumedEvent.Details
-	(*WorkflowExecutionSuccessEvent_Details)(nil),  // 11: workflow.WorkflowExecutionSuccessEvent.Details
-	(*WorkflowExecutionFailedEvent_Details)(nil),   // 12: workflow.WorkflowExecutionFailedEvent.Details
-	(*WorkflowExecutionCanceledEvent_Details)(nil), // 13: workflow.WorkflowExecutionCanceledEvent.Details
-	(*WorkflowExecutionTimedOutEvent_Details)(nil), // 14: workflow.WorkflowExecutionTimedOutEvent.Details
-	(*common.Metadata)(nil),                        // 15: common.Metadata
-	(*common.WorkflowInfo)(nil),                    // 16: common.WorkflowInfo
-	(*structpb.Struct)(nil),                        // 17: google.protobuf.Struct
-	(*common.ErrorResult)(nil),                     // 18: common.ErrorResult
+	(WorkflowStatus)(0),                   // 0: workflow.WorkflowStatus
+	(*EventWorkflowStarted)(nil),          // 1: workflow.EventWorkflowStarted
+	(*EventWorkflowPaused)(nil),           // 2: workflow.EventWorkflowPaused
+	(*EventWorkflowResumed)(nil),          // 3: workflow.EventWorkflowResumed
+	(*EventWorkflowSuccess)(nil),          // 4: workflow.EventWorkflowSuccess
+	(*EventWorkflowFailed)(nil),           // 5: workflow.EventWorkflowFailed
+	(*EventWorkflowCanceled)(nil),         // 6: workflow.EventWorkflowCanceled
+	(*EventWorkflowTimedOut)(nil),         // 7: workflow.EventWorkflowTimedOut
+	(*EventWorkflowStarted_Details)(nil),  // 8: workflow.EventWorkflowStarted.Details
+	(*EventWorkflowPaused_Details)(nil),   // 9: workflow.EventWorkflowPaused.Details
+	(*EventWorkflowResumed_Details)(nil),  // 10: workflow.EventWorkflowResumed.Details
+	(*EventWorkflowSuccess_Details)(nil),  // 11: workflow.EventWorkflowSuccess.Details
+	(*EventWorkflowFailed_Details)(nil),   // 12: workflow.EventWorkflowFailed.Details
+	(*EventWorkflowCanceled_Details)(nil), // 13: workflow.EventWorkflowCanceled.Details
+	(*EventWorkflowTimedOut_Details)(nil), // 14: workflow.EventWorkflowTimedOut.Details
+	(*common.Metadata)(nil),               // 15: common.Metadata
+	(*common.WorkflowInfo)(nil),           // 16: common.WorkflowInfo
+	(*structpb.Struct)(nil),               // 17: google.protobuf.Struct
+	(*common.ErrorResult)(nil),            // 18: common.ErrorResult
 }
 var file_workflow_events_proto_depIdxs = []int32{
-	15, // 0: workflow.WorkflowExecutionStartedEvent.metadata:type_name -> common.Metadata
-	16, // 1: workflow.WorkflowExecutionStartedEvent.workflow:type_name -> common.WorkflowInfo
-	8,  // 2: workflow.WorkflowExecutionStartedEvent.details:type_name -> workflow.WorkflowExecutionStartedEvent.Details
-	15, // 3: workflow.WorkflowExecutionPausedEvent.metadata:type_name -> common.Metadata
-	16, // 4: workflow.WorkflowExecutionPausedEvent.workflow:type_name -> common.WorkflowInfo
-	9,  // 5: workflow.WorkflowExecutionPausedEvent.details:type_name -> workflow.WorkflowExecutionPausedEvent.Details
-	15, // 6: workflow.WorkflowExecutionResumedEvent.metadata:type_name -> common.Metadata
-	16, // 7: workflow.WorkflowExecutionResumedEvent.workflow:type_name -> common.WorkflowInfo
-	10, // 8: workflow.WorkflowExecutionResumedEvent.details:type_name -> workflow.WorkflowExecutionResumedEvent.Details
-	15, // 9: workflow.WorkflowExecutionSuccessEvent.metadata:type_name -> common.Metadata
-	16, // 10: workflow.WorkflowExecutionSuccessEvent.workflow:type_name -> common.WorkflowInfo
-	11, // 11: workflow.WorkflowExecutionSuccessEvent.details:type_name -> workflow.WorkflowExecutionSuccessEvent.Details
-	15, // 12: workflow.WorkflowExecutionFailedEvent.metadata:type_name -> common.Metadata
-	16, // 13: workflow.WorkflowExecutionFailedEvent.workflow:type_name -> common.WorkflowInfo
-	12, // 14: workflow.WorkflowExecutionFailedEvent.details:type_name -> workflow.WorkflowExecutionFailedEvent.Details
-	15, // 15: workflow.WorkflowExecutionCanceledEvent.metadata:type_name -> common.Metadata
-	16, // 16: workflow.WorkflowExecutionCanceledEvent.workflow:type_name -> common.WorkflowInfo
-	13, // 17: workflow.WorkflowExecutionCanceledEvent.details:type_name -> workflow.WorkflowExecutionCanceledEvent.Details
-	15, // 18: workflow.WorkflowExecutionTimedOutEvent.metadata:type_name -> common.Metadata
-	16, // 19: workflow.WorkflowExecutionTimedOutEvent.workflow:type_name -> common.WorkflowInfo
-	14, // 20: workflow.WorkflowExecutionTimedOutEvent.details:type_name -> workflow.WorkflowExecutionTimedOutEvent.Details
-	0,  // 21: workflow.WorkflowExecutionStartedEvent.Details.status:type_name -> workflow.WorkflowStatus
-	0,  // 22: workflow.WorkflowExecutionPausedEvent.Details.status:type_name -> workflow.WorkflowStatus
-	0,  // 23: workflow.WorkflowExecutionResumedEvent.Details.status:type_name -> workflow.WorkflowStatus
-	0,  // 24: workflow.WorkflowExecutionSuccessEvent.Details.status:type_name -> workflow.WorkflowStatus
-	17, // 25: workflow.WorkflowExecutionSuccessEvent.Details.result:type_name -> google.protobuf.Struct
-	0,  // 26: workflow.WorkflowExecutionFailedEvent.Details.status:type_name -> workflow.WorkflowStatus
-	18, // 27: workflow.WorkflowExecutionFailedEvent.Details.error:type_name -> common.ErrorResult
-	0,  // 28: workflow.WorkflowExecutionCanceledEvent.Details.status:type_name -> workflow.WorkflowStatus
-	0,  // 29: workflow.WorkflowExecutionTimedOutEvent.Details.status:type_name -> workflow.WorkflowStatus
-	18, // 30: workflow.WorkflowExecutionTimedOutEvent.Details.error:type_name -> common.ErrorResult
+	15, // 0: workflow.EventWorkflowStarted.metadata:type_name -> common.Metadata
+	16, // 1: workflow.EventWorkflowStarted.workflow:type_name -> common.WorkflowInfo
+	8,  // 2: workflow.EventWorkflowStarted.details:type_name -> workflow.EventWorkflowStarted.Details
+	15, // 3: workflow.EventWorkflowPaused.metadata:type_name -> common.Metadata
+	16, // 4: workflow.EventWorkflowPaused.workflow:type_name -> common.WorkflowInfo
+	9,  // 5: workflow.EventWorkflowPaused.details:type_name -> workflow.EventWorkflowPaused.Details
+	15, // 6: workflow.EventWorkflowResumed.metadata:type_name -> common.Metadata
+	16, // 7: workflow.EventWorkflowResumed.workflow:type_name -> common.WorkflowInfo
+	10, // 8: workflow.EventWorkflowResumed.details:type_name -> workflow.EventWorkflowResumed.Details
+	15, // 9: workflow.EventWorkflowSuccess.metadata:type_name -> common.Metadata
+	16, // 10: workflow.EventWorkflowSuccess.workflow:type_name -> common.WorkflowInfo
+	11, // 11: workflow.EventWorkflowSuccess.details:type_name -> workflow.EventWorkflowSuccess.Details
+	15, // 12: workflow.EventWorkflowFailed.metadata:type_name -> common.Metadata
+	16, // 13: workflow.EventWorkflowFailed.workflow:type_name -> common.WorkflowInfo
+	12, // 14: workflow.EventWorkflowFailed.details:type_name -> workflow.EventWorkflowFailed.Details
+	15, // 15: workflow.EventWorkflowCanceled.metadata:type_name -> common.Metadata
+	16, // 16: workflow.EventWorkflowCanceled.workflow:type_name -> common.WorkflowInfo
+	13, // 17: workflow.EventWorkflowCanceled.details:type_name -> workflow.EventWorkflowCanceled.Details
+	15, // 18: workflow.EventWorkflowTimedOut.metadata:type_name -> common.Metadata
+	16, // 19: workflow.EventWorkflowTimedOut.workflow:type_name -> common.WorkflowInfo
+	14, // 20: workflow.EventWorkflowTimedOut.details:type_name -> workflow.EventWorkflowTimedOut.Details
+	0,  // 21: workflow.EventWorkflowStarted.Details.status:type_name -> workflow.WorkflowStatus
+	0,  // 22: workflow.EventWorkflowPaused.Details.status:type_name -> workflow.WorkflowStatus
+	0,  // 23: workflow.EventWorkflowResumed.Details.status:type_name -> workflow.WorkflowStatus
+	0,  // 24: workflow.EventWorkflowSuccess.Details.status:type_name -> workflow.WorkflowStatus
+	17, // 25: workflow.EventWorkflowSuccess.Details.result:type_name -> google.protobuf.Struct
+	0,  // 26: workflow.EventWorkflowFailed.Details.status:type_name -> workflow.WorkflowStatus
+	18, // 27: workflow.EventWorkflowFailed.Details.error:type_name -> common.ErrorResult
+	0,  // 28: workflow.EventWorkflowCanceled.Details.status:type_name -> workflow.WorkflowStatus
+	0,  // 29: workflow.EventWorkflowTimedOut.Details.status:type_name -> workflow.WorkflowStatus
+	18, // 30: workflow.EventWorkflowTimedOut.Details.error:type_name -> common.ErrorResult
 	31, // [31:31] is the sub-list for method output_type
 	31, // [31:31] is the sub-list for method input_type
 	31, // [31:31] is the sub-list for extension type_name

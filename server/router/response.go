@@ -93,18 +93,19 @@ func ErrorHandler() gin.HandlerFunc {
 			err := c.Errors.Last().Err
 			var statusCode int
 			var response Response
-			if reqErr, ok := err.(*RequestError); ok {
-				errorInfo := reqErr.GetErrorInfo()
-				statusCode = reqErr.StatusCode
+			switch e := err.(type) {
+			case *RequestError:
+				errorInfo := e.GetErrorInfo()
+				statusCode = e.StatusCode
 				response = NewErrorResponse(statusCode, errorInfo.Code, errorInfo.Message, errorInfo.Details)
-			} else if serverErr, ok := err.(*Error); ok {
-				statusCode = getStatusCode(serverErr.Code)
+			case *Error:
+				statusCode = getStatusCode(e.Code)
 				var details string
-				if serverErr.Err != nil {
-					details = serverErr.Err.Error()
+				if e.Err != nil {
+					details = e.Err.Error()
 				}
-				response = NewErrorResponse(statusCode, serverErr.Code, serverErr.Message, details)
-			} else {
+				response = NewErrorResponse(statusCode, e.Code, e.Message, details)
+			default:
 				statusCode = http.StatusInternalServerError
 				response = NewErrorResponse(statusCode, ErrInternalCode, "An unexpected error occurred", err.Error())
 			}

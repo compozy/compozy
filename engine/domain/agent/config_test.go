@@ -174,13 +174,13 @@ func Test_AgentConfigMerge(t *testing.T) {
 }
 
 func Test_AgentConfigValidation(t *testing.T) {
-	agID := "test-agent"
+	agentID := "test-agent"
 	agentCWD, err := common.CWDFromPath("/test/path")
 	require.NoError(t, err)
 
 	t.Run("Should validate config with all required fields", func(t *testing.T) {
 		config := &Config{
-			ID:           agID,
+			ID:           agentID,
 			Config:       ProviderConfig{},
 			Instructions: "test instructions",
 			cwd:          agentCWD,
@@ -191,7 +191,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 
 	t.Run("Should return error when CWD is missing", func(t *testing.T) {
 		config := &Config{
-			ID:           agID,
+			ID:           agentID,
 			Config:       ProviderConfig{},
 			Instructions: "test instructions",
 		}
@@ -202,7 +202,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 
 	t.Run("Should return error for invalid package reference", func(t *testing.T) {
 		config := &Config{
-			ID:      agID,
+			ID:      agentID,
 			Use:     common.NewPackageRefConfig("invalid"),
 			Config:  ProviderConfig{},
 			Tools:   []tool.Config{},
@@ -216,7 +216,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 
 	t.Run("Should return error when input schema is used with ID reference", func(t *testing.T) {
 		config := &Config{
-			ID:           agID,
+			ID:           agentID,
 			Use:          common.NewPackageRefConfig("agent(id=test-agent)"),
 			Config:       ProviderConfig{},
 			Instructions: "test instructions",
@@ -234,7 +234,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 
 	t.Run("Should return error when output schema is used with file reference", func(t *testing.T) {
 		config := &Config{
-			ID:           agID,
+			ID:           agentID,
 			Use:          common.NewPackageRefConfig("agent(file=basic_agent.yaml)"),
 			Config:       ProviderConfig{},
 			Instructions: "test instructions",
@@ -252,7 +252,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 
 	t.Run("Should return error when schemas are used with dep reference", func(t *testing.T) {
 		config := &Config{
-			ID:           agID,
+			ID:           agentID,
 			Use:          common.NewPackageRefConfig("agent(dep=compozy/agents:test-agent)"),
 			Config:       ProviderConfig{},
 			Instructions: "test instructions",
@@ -275,7 +275,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 
 	t.Run("Should return error when parameters are invalid", func(t *testing.T) {
 		config := &Config{
-			ID:           agID,
+			ID:           agentID,
 			Config:       ProviderConfig{},
 			Instructions: "test instructions",
 			InputSchema: &schema.InputSchema{

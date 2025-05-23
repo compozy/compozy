@@ -1,8 +1,12 @@
 package pb
 
-import "github.com/compozy/compozy/pkg/pb/common"
+import (
+	"github.com/compozy/compozy/pkg/pb/common"
+	"google.golang.org/protobuf/reflect/protoreflect"
+)
 
 type Subjecter interface {
+	protoreflect.ProtoMessage
 	ToSubject() string
 }
 
@@ -35,27 +39,27 @@ func GetCorrelationID(payload WithMetadata) string {
 }
 
 func GetWorkflowID(payload WithWorkflow) string {
-	wfID := "unknown_workflow_id"
+	workflowID := "unknown_workflow_id"
 	if workflow := payload.GetWorkflow(); workflow != nil && workflow.GetId() != "" {
-		wfID = workflow.GetId()
+		workflowID = workflow.GetId()
 	}
-	return wfID
+	return workflowID
 }
 
 func GetWorkflowExecID(payload WithWorkflow) string {
-	wfExecID := "unknown_workflow_exec_id"
+	wExecID := "unknown_workflow_exec_id"
 	if workflow := payload.GetWorkflow(); workflow != nil && workflow.GetExecId() != "" {
-		wfExecID = workflow.GetExecId()
+		wExecID = workflow.GetExecId()
 	}
-	return wfExecID
+	return wExecID
 }
 
 func GetTaskID(payload WithTask) string {
-	tID := "unknown_task_id"
+	taskID := "unknown_task_id"
 	if task := payload.GetTask(); task != nil && task.GetId() != "" {
-		tID = task.GetId()
+		taskID = task.GetId()
 	}
-	return tID
+	return taskID
 }
 
 func GetTaskExecID(payload WithTask) string {
@@ -67,11 +71,11 @@ func GetTaskExecID(payload WithTask) string {
 }
 
 func GetAgentID(payload WithAgent) string {
-	agID := "unknown_agent_id"
+	agentID := "unknown_agent_id"
 	if agent := payload.GetAgent(); agent != nil && agent.GetId() != "" {
-		agID = agent.GetId()
+		agentID = agent.GetId()
 	}
-	return agID
+	return agentID
 }
 
 func GetAgentExecID(payload WithAgent) string {

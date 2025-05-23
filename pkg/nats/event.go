@@ -77,43 +77,43 @@ func ParseEvent(compType ComponentType, evtType EvtType, data []byte) (any, erro
 func parseWorkflowEvent(evtType EvtType, data []byte) (any, error) {
 	switch evtType {
 	case EvtTypeStarted:
-		event := &pbworkflow.WorkflowExecutionStartedEvent{}
+		event := &pbworkflow.EventWorkflowStarted{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal workflow started event: %w", err)
 		}
 		return event, nil
 	case EvtTypePaused:
-		event := &pbworkflow.WorkflowExecutionPausedEvent{}
+		event := &pbworkflow.EventWorkflowPaused{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal workflow paused event: %w", err)
 		}
 		return event, nil
 	case EvtTypeResumed:
-		event := &pbworkflow.WorkflowExecutionResumedEvent{}
+		event := &pbworkflow.EventWorkflowResumed{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal workflow resumed event: %w", err)
 		}
 		return event, nil
 	case EvtTypeSuccess:
-		event := &pbworkflow.WorkflowExecutionSuccessEvent{}
+		event := &pbworkflow.EventWorkflowSuccess{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal workflow success event: %w", err)
 		}
 		return event, nil
 	case EvtTypeFailed:
-		event := &pbworkflow.WorkflowExecutionFailedEvent{}
+		event := &pbworkflow.EventWorkflowFailed{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal workflow failed event: %w", err)
 		}
 		return event, nil
 	case EvtTypeCanceled:
-		event := &pbworkflow.WorkflowExecutionCanceledEvent{}
+		event := &pbworkflow.EventWorkflowCanceled{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal workflow canceled event: %w", err)
 		}
 		return event, nil
 	case EvtTypeTimedOut:
-		event := &pbworkflow.WorkflowExecutionTimedOutEvent{}
+		event := &pbworkflow.EventWorkflowTimedOut{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal workflow timed out event: %w", err)
 		}
@@ -126,19 +126,19 @@ func parseWorkflowEvent(evtType EvtType, data []byte) (any, error) {
 func parseAgentEvent(evtType EvtType, data []byte) (any, error) {
 	switch evtType {
 	case EvtTypeStarted:
-		event := &pbagent.AgentExecutionStartedEvent{}
+		event := &pbagent.EventAgentStarted{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal agent started event: %w", err)
 		}
 		return event, nil
 	case EvtTypeSuccess:
-		event := &pbagent.AgentExecutionSuccessEvent{}
+		event := &pbagent.EventAgentSuccess{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal agent success event: %w", err)
 		}
 		return event, nil
 	case EvtTypeFailed:
-		event := &pbagent.AgentExecutionFailedEvent{}
+		event := &pbagent.EventAgentFailed{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal agent failed event: %w", err)
 		}
@@ -151,43 +151,43 @@ func parseAgentEvent(evtType EvtType, data []byte) (any, error) {
 func parseTaskEvent(evtType EvtType, data []byte) (any, error) {
 	switch evtType {
 	case EvtTypeDispatched:
-		event := &pbtask.TaskDispatchedEvent{}
+		event := &pbtask.EventTaskDispatched{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal task dispatched event: %w", err)
 		}
 		return event, nil
 	case EvtTypeStarted:
-		event := &pbtask.TaskExecutionStartedEvent{}
+		event := &pbtask.EventTaskStarted{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal task started event: %w", err)
 		}
 		return event, nil
 	case EvtTypeWaitingStarted:
-		event := &pbtask.TaskExecutionWaitingStartedEvent{}
+		event := &pbtask.EventTaskWaiting{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal task waiting started event: %w", err)
 		}
 		return event, nil
 	case EvtTypeWaitingEnded:
-		event := &pbtask.TaskExecutionWaitingEndedEvent{}
+		event := &pbtask.EventTaskWaitingEnded{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal task waiting ended event: %w", err)
 		}
 		return event, nil
 	case EvtTypeWaitingTimedOut:
-		event := &pbtask.TaskExecutionWaitingTimedOutEvent{}
+		event := &pbtask.EventTaskWaitingTimedOut{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal task waiting timed out event: %w", err)
 		}
 		return event, nil
 	case EvtTypeSuccess:
-		event := &pbtask.TaskExecutionSuccessEvent{}
+		event := &pbtask.EventTaskSuccess{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal task success event: %w", err)
 		}
 		return event, nil
 	case EvtTypeFailed:
-		event := &pbtask.TaskExecutionFailedEvent{}
+		event := &pbtask.EventTaskFailed{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal task failed event: %w", err)
 		}
@@ -200,19 +200,19 @@ func parseTaskEvent(evtType EvtType, data []byte) (any, error) {
 func parseToolEvent(evtType EvtType, data []byte) (any, error) {
 	switch evtType {
 	case EvtTypeStarted:
-		event := &pbtool.ToolExecutionStartedEvent{}
+		event := &pbtool.EventToolStarted{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal tool started event: %w", err)
 		}
 		return event, nil
 	case EvtTypeSuccess:
-		event := &pbtool.ToolExecutionSuccessEvent{}
+		event := &pbtool.EventToolSuccess{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal tool success event: %w", err)
 		}
 		return event, nil
 	case EvtTypeFailed:
-		event := &pbtool.ToolExecutionFailedEvent{}
+		event := &pbtool.EventToolFailed{}
 		if err := proto.Unmarshal(data, event); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal tool failed event: %w", err)
 		}

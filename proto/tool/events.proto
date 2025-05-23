@@ -17,10 +17,10 @@ enum ToolStatus {
 }
 
 // -----------------------------------------------------------------------------
-// Tool Execution Started Event
+// Event: Tool Started
 // -----------------------------------------------------------------------------
 
-message ToolExecutionStartedEvent {
+message EventToolStarted {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;
@@ -33,10 +33,10 @@ message ToolExecutionStartedEvent {
 }
 
 // -----------------------------------------------------------------------------
-// Tool Execution Success Event
+// Event: Tool Success
 // -----------------------------------------------------------------------------
 
-message ToolExecutionSuccessEvent {
+message EventToolSuccess {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;
@@ -51,10 +51,10 @@ message ToolExecutionSuccessEvent {
 }
 
 // -----------------------------------------------------------------------------
-// Tool Execution Failed Event
+// Event: Tool Failed
 // -----------------------------------------------------------------------------
 
-message ToolExecutionFailedEvent {
+message EventToolFailed {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;

@@ -70,7 +70,7 @@ func runEmbeddedServer(options ServerOptions) (*nats.Conn, *server.Server, error
 
 	go ns.Start()
 
-	if !ns.ReadyForConnections(5 * time.Second) {
+	if !ns.ReadyForConnections(15 * time.Second) {
 		return nil, nil, fmt.Errorf("server failed to start in time")
 	}
 

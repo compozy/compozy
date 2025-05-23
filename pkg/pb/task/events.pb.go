@@ -87,30 +87,30 @@ func (TaskStatus) EnumDescriptor() ([]byte, []int) {
 	return file_task_events_proto_rawDescGZIP(), []int{0}
 }
 
-type TaskDispatchedEvent struct {
+type EventTaskDispatched struct {
 	state         protoimpl.MessageState       `protogen:"open.v1"`
 	Metadata      *common.Metadata             `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Workflow      *common.WorkflowInfo         `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
 	Task          *common.TaskInfo             `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
-	Details       *TaskDispatchedEvent_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
+	Details       *EventTaskDispatched_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TaskDispatchedEvent) Reset() {
-	*x = TaskDispatchedEvent{}
+func (x *EventTaskDispatched) Reset() {
+	*x = EventTaskDispatched{}
 	mi := &file_task_events_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TaskDispatchedEvent) String() string {
+func (x *EventTaskDispatched) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TaskDispatchedEvent) ProtoMessage() {}
+func (*EventTaskDispatched) ProtoMessage() {}
 
-func (x *TaskDispatchedEvent) ProtoReflect() protoreflect.Message {
+func (x *EventTaskDispatched) ProtoReflect() protoreflect.Message {
 	mi := &file_task_events_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -122,63 +122,63 @@ func (x *TaskDispatchedEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TaskDispatchedEvent.ProtoReflect.Descriptor instead.
-func (*TaskDispatchedEvent) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventTaskDispatched.ProtoReflect.Descriptor instead.
+func (*EventTaskDispatched) Descriptor() ([]byte, []int) {
 	return file_task_events_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *TaskDispatchedEvent) GetMetadata() *common.Metadata {
+func (x *EventTaskDispatched) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *TaskDispatchedEvent) GetWorkflow() *common.WorkflowInfo {
+func (x *EventTaskDispatched) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *TaskDispatchedEvent) GetTask() *common.TaskInfo {
+func (x *EventTaskDispatched) GetTask() *common.TaskInfo {
 	if x != nil {
 		return x.Task
 	}
 	return nil
 }
 
-func (x *TaskDispatchedEvent) GetDetails() *TaskDispatchedEvent_Details {
+func (x *EventTaskDispatched) GetDetails() *EventTaskDispatched_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type TaskExecutionStartedEvent struct {
-	state         protoimpl.MessageState             `protogen:"open.v1"`
-	Metadata      *common.Metadata                   `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo               `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Task          *common.TaskInfo                   `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
-	Details       *TaskExecutionStartedEvent_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
+type EventTaskStarted struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Metadata      *common.Metadata          `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo      `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Task          *common.TaskInfo          `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
+	Details       *EventTaskStarted_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TaskExecutionStartedEvent) Reset() {
-	*x = TaskExecutionStartedEvent{}
+func (x *EventTaskStarted) Reset() {
+	*x = EventTaskStarted{}
 	mi := &file_task_events_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TaskExecutionStartedEvent) String() string {
+func (x *EventTaskStarted) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TaskExecutionStartedEvent) ProtoMessage() {}
+func (*EventTaskStarted) ProtoMessage() {}
 
-func (x *TaskExecutionStartedEvent) ProtoReflect() protoreflect.Message {
+func (x *EventTaskStarted) ProtoReflect() protoreflect.Message {
 	mi := &file_task_events_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -190,63 +190,63 @@ func (x *TaskExecutionStartedEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TaskExecutionStartedEvent.ProtoReflect.Descriptor instead.
-func (*TaskExecutionStartedEvent) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventTaskStarted.ProtoReflect.Descriptor instead.
+func (*EventTaskStarted) Descriptor() ([]byte, []int) {
 	return file_task_events_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *TaskExecutionStartedEvent) GetMetadata() *common.Metadata {
+func (x *EventTaskStarted) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *TaskExecutionStartedEvent) GetWorkflow() *common.WorkflowInfo {
+func (x *EventTaskStarted) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *TaskExecutionStartedEvent) GetTask() *common.TaskInfo {
+func (x *EventTaskStarted) GetTask() *common.TaskInfo {
 	if x != nil {
 		return x.Task
 	}
 	return nil
 }
 
-func (x *TaskExecutionStartedEvent) GetDetails() *TaskExecutionStartedEvent_Details {
+func (x *EventTaskStarted) GetDetails() *EventTaskStarted_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type TaskExecutionWaitingStartedEvent struct {
-	state         protoimpl.MessageState                    `protogen:"open.v1"`
-	Metadata      *common.Metadata                          `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo                      `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Task          *common.TaskInfo                          `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
-	Details       *TaskExecutionWaitingStartedEvent_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
+type EventTaskWaiting struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Metadata      *common.Metadata          `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo      `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Task          *common.TaskInfo          `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
+	Details       *EventTaskWaiting_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TaskExecutionWaitingStartedEvent) Reset() {
-	*x = TaskExecutionWaitingStartedEvent{}
+func (x *EventTaskWaiting) Reset() {
+	*x = EventTaskWaiting{}
 	mi := &file_task_events_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TaskExecutionWaitingStartedEvent) String() string {
+func (x *EventTaskWaiting) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TaskExecutionWaitingStartedEvent) ProtoMessage() {}
+func (*EventTaskWaiting) ProtoMessage() {}
 
-func (x *TaskExecutionWaitingStartedEvent) ProtoReflect() protoreflect.Message {
+func (x *EventTaskWaiting) ProtoReflect() protoreflect.Message {
 	mi := &file_task_events_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -258,63 +258,63 @@ func (x *TaskExecutionWaitingStartedEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TaskExecutionWaitingStartedEvent.ProtoReflect.Descriptor instead.
-func (*TaskExecutionWaitingStartedEvent) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventTaskWaiting.ProtoReflect.Descriptor instead.
+func (*EventTaskWaiting) Descriptor() ([]byte, []int) {
 	return file_task_events_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *TaskExecutionWaitingStartedEvent) GetMetadata() *common.Metadata {
+func (x *EventTaskWaiting) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *TaskExecutionWaitingStartedEvent) GetWorkflow() *common.WorkflowInfo {
+func (x *EventTaskWaiting) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *TaskExecutionWaitingStartedEvent) GetTask() *common.TaskInfo {
+func (x *EventTaskWaiting) GetTask() *common.TaskInfo {
 	if x != nil {
 		return x.Task
 	}
 	return nil
 }
 
-func (x *TaskExecutionWaitingStartedEvent) GetDetails() *TaskExecutionWaitingStartedEvent_Details {
+func (x *EventTaskWaiting) GetDetails() *EventTaskWaiting_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type TaskExecutionWaitingEndedEvent struct {
-	state         protoimpl.MessageState                  `protogen:"open.v1"`
-	Metadata      *common.Metadata                        `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo                    `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Task          *common.TaskInfo                        `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
-	Details       *TaskExecutionWaitingEndedEvent_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
+type EventTaskWaitingEnded struct {
+	state         protoimpl.MessageState         `protogen:"open.v1"`
+	Metadata      *common.Metadata               `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo           `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Task          *common.TaskInfo               `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
+	Details       *EventTaskWaitingEnded_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TaskExecutionWaitingEndedEvent) Reset() {
-	*x = TaskExecutionWaitingEndedEvent{}
+func (x *EventTaskWaitingEnded) Reset() {
+	*x = EventTaskWaitingEnded{}
 	mi := &file_task_events_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TaskExecutionWaitingEndedEvent) String() string {
+func (x *EventTaskWaitingEnded) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TaskExecutionWaitingEndedEvent) ProtoMessage() {}
+func (*EventTaskWaitingEnded) ProtoMessage() {}
 
-func (x *TaskExecutionWaitingEndedEvent) ProtoReflect() protoreflect.Message {
+func (x *EventTaskWaitingEnded) ProtoReflect() protoreflect.Message {
 	mi := &file_task_events_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -326,200 +326,64 @@ func (x *TaskExecutionWaitingEndedEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TaskExecutionWaitingEndedEvent.ProtoReflect.Descriptor instead.
-func (*TaskExecutionWaitingEndedEvent) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventTaskWaitingEnded.ProtoReflect.Descriptor instead.
+func (*EventTaskWaitingEnded) Descriptor() ([]byte, []int) {
 	return file_task_events_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *TaskExecutionWaitingEndedEvent) GetMetadata() *common.Metadata {
+func (x *EventTaskWaitingEnded) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *TaskExecutionWaitingEndedEvent) GetWorkflow() *common.WorkflowInfo {
+func (x *EventTaskWaitingEnded) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *TaskExecutionWaitingEndedEvent) GetTask() *common.TaskInfo {
+func (x *EventTaskWaitingEnded) GetTask() *common.TaskInfo {
 	if x != nil {
 		return x.Task
 	}
 	return nil
 }
 
-func (x *TaskExecutionWaitingEndedEvent) GetDetails() *TaskExecutionWaitingEndedEvent_Details {
+func (x *EventTaskWaitingEnded) GetDetails() *EventTaskWaitingEnded_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type TaskExecutionWaitingTimedOutEvent struct {
-	state         protoimpl.MessageState                     `protogen:"open.v1"`
-	Metadata      *common.Metadata                           `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo                       `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Task          *common.TaskInfo                           `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
-	Details       *TaskExecutionWaitingTimedOutEvent_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *TaskExecutionWaitingTimedOutEvent) Reset() {
-	*x = TaskExecutionWaitingTimedOutEvent{}
-	mi := &file_task_events_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *TaskExecutionWaitingTimedOutEvent) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TaskExecutionWaitingTimedOutEvent) ProtoMessage() {}
-
-func (x *TaskExecutionWaitingTimedOutEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_task_events_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TaskExecutionWaitingTimedOutEvent.ProtoReflect.Descriptor instead.
-func (*TaskExecutionWaitingTimedOutEvent) Descriptor() ([]byte, []int) {
-	return file_task_events_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *TaskExecutionWaitingTimedOutEvent) GetMetadata() *common.Metadata {
-	if x != nil {
-		return x.Metadata
-	}
-	return nil
-}
-
-func (x *TaskExecutionWaitingTimedOutEvent) GetWorkflow() *common.WorkflowInfo {
-	if x != nil {
-		return x.Workflow
-	}
-	return nil
-}
-
-func (x *TaskExecutionWaitingTimedOutEvent) GetTask() *common.TaskInfo {
-	if x != nil {
-		return x.Task
-	}
-	return nil
-}
-
-func (x *TaskExecutionWaitingTimedOutEvent) GetDetails() *TaskExecutionWaitingTimedOutEvent_Details {
-	if x != nil {
-		return x.Details
-	}
-	return nil
-}
-
-type TaskExecutionSuccessEvent struct {
-	state         protoimpl.MessageState             `protogen:"open.v1"`
-	Metadata      *common.Metadata                   `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo               `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Task          *common.TaskInfo                   `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
-	Details       *TaskExecutionSuccessEvent_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *TaskExecutionSuccessEvent) Reset() {
-	*x = TaskExecutionSuccessEvent{}
-	mi := &file_task_events_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *TaskExecutionSuccessEvent) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TaskExecutionSuccessEvent) ProtoMessage() {}
-
-func (x *TaskExecutionSuccessEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_task_events_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TaskExecutionSuccessEvent.ProtoReflect.Descriptor instead.
-func (*TaskExecutionSuccessEvent) Descriptor() ([]byte, []int) {
-	return file_task_events_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *TaskExecutionSuccessEvent) GetMetadata() *common.Metadata {
-	if x != nil {
-		return x.Metadata
-	}
-	return nil
-}
-
-func (x *TaskExecutionSuccessEvent) GetWorkflow() *common.WorkflowInfo {
-	if x != nil {
-		return x.Workflow
-	}
-	return nil
-}
-
-func (x *TaskExecutionSuccessEvent) GetTask() *common.TaskInfo {
-	if x != nil {
-		return x.Task
-	}
-	return nil
-}
-
-func (x *TaskExecutionSuccessEvent) GetDetails() *TaskExecutionSuccessEvent_Details {
-	if x != nil {
-		return x.Details
-	}
-	return nil
-}
-
-type TaskExecutionFailedEvent struct {
+type EventTaskWaitingTimedOut struct {
 	state         protoimpl.MessageState            `protogen:"open.v1"`
 	Metadata      *common.Metadata                  `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Workflow      *common.WorkflowInfo              `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
 	Task          *common.TaskInfo                  `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
-	Details       *TaskExecutionFailedEvent_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
+	Details       *EventTaskWaitingTimedOut_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TaskExecutionFailedEvent) Reset() {
-	*x = TaskExecutionFailedEvent{}
-	mi := &file_task_events_proto_msgTypes[6]
+func (x *EventTaskWaitingTimedOut) Reset() {
+	*x = EventTaskWaitingTimedOut{}
+	mi := &file_task_events_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TaskExecutionFailedEvent) String() string {
+func (x *EventTaskWaitingTimedOut) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TaskExecutionFailedEvent) ProtoMessage() {}
+func (*EventTaskWaitingTimedOut) ProtoMessage() {}
 
-func (x *TaskExecutionFailedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_task_events_proto_msgTypes[6]
+func (x *EventTaskWaitingTimedOut) ProtoReflect() protoreflect.Message {
+	mi := &file_task_events_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -530,60 +394,196 @@ func (x *TaskExecutionFailedEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TaskExecutionFailedEvent.ProtoReflect.Descriptor instead.
-func (*TaskExecutionFailedEvent) Descriptor() ([]byte, []int) {
-	return file_task_events_proto_rawDescGZIP(), []int{6}
+// Deprecated: Use EventTaskWaitingTimedOut.ProtoReflect.Descriptor instead.
+func (*EventTaskWaitingTimedOut) Descriptor() ([]byte, []int) {
+	return file_task_events_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *TaskExecutionFailedEvent) GetMetadata() *common.Metadata {
+func (x *EventTaskWaitingTimedOut) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *TaskExecutionFailedEvent) GetWorkflow() *common.WorkflowInfo {
+func (x *EventTaskWaitingTimedOut) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *TaskExecutionFailedEvent) GetTask() *common.TaskInfo {
+func (x *EventTaskWaitingTimedOut) GetTask() *common.TaskInfo {
 	if x != nil {
 		return x.Task
 	}
 	return nil
 }
 
-func (x *TaskExecutionFailedEvent) GetDetails() *TaskExecutionFailedEvent_Details {
+func (x *EventTaskWaitingTimedOut) GetDetails() *EventTaskWaitingTimedOut_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type TaskDispatchedEvent_Details struct {
+type EventTaskSuccess struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Metadata      *common.Metadata          `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo      `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Task          *common.TaskInfo          `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
+	Details       *EventTaskSuccess_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EventTaskSuccess) Reset() {
+	*x = EventTaskSuccess{}
+	mi := &file_task_events_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EventTaskSuccess) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EventTaskSuccess) ProtoMessage() {}
+
+func (x *EventTaskSuccess) ProtoReflect() protoreflect.Message {
+	mi := &file_task_events_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EventTaskSuccess.ProtoReflect.Descriptor instead.
+func (*EventTaskSuccess) Descriptor() ([]byte, []int) {
+	return file_task_events_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *EventTaskSuccess) GetMetadata() *common.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *EventTaskSuccess) GetWorkflow() *common.WorkflowInfo {
+	if x != nil {
+		return x.Workflow
+	}
+	return nil
+}
+
+func (x *EventTaskSuccess) GetTask() *common.TaskInfo {
+	if x != nil {
+		return x.Task
+	}
+	return nil
+}
+
+func (x *EventTaskSuccess) GetDetails() *EventTaskSuccess_Details {
+	if x != nil {
+		return x.Details
+	}
+	return nil
+}
+
+type EventTaskFailed struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Metadata      *common.Metadata         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo     `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Task          *common.TaskInfo         `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
+	Details       *EventTaskFailed_Details `protobuf:"bytes,4,opt,name=details,proto3" json:"details,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EventTaskFailed) Reset() {
+	*x = EventTaskFailed{}
+	mi := &file_task_events_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EventTaskFailed) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EventTaskFailed) ProtoMessage() {}
+
+func (x *EventTaskFailed) ProtoReflect() protoreflect.Message {
+	mi := &file_task_events_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EventTaskFailed.ProtoReflect.Descriptor instead.
+func (*EventTaskFailed) Descriptor() ([]byte, []int) {
+	return file_task_events_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *EventTaskFailed) GetMetadata() *common.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *EventTaskFailed) GetWorkflow() *common.WorkflowInfo {
+	if x != nil {
+		return x.Workflow
+	}
+	return nil
+}
+
+func (x *EventTaskFailed) GetTask() *common.TaskInfo {
+	if x != nil {
+		return x.Task
+	}
+	return nil
+}
+
+func (x *EventTaskFailed) GetDetails() *EventTaskFailed_Details {
+	if x != nil {
+		return x.Details
+	}
+	return nil
+}
+
+type EventTaskDispatched_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        TaskStatus             `protobuf:"varint,1,opt,name=status,proto3,enum=task.TaskStatus" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TaskDispatchedEvent_Details) Reset() {
-	*x = TaskDispatchedEvent_Details{}
+func (x *EventTaskDispatched_Details) Reset() {
+	*x = EventTaskDispatched_Details{}
 	mi := &file_task_events_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TaskDispatchedEvent_Details) String() string {
+func (x *EventTaskDispatched_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TaskDispatchedEvent_Details) ProtoMessage() {}
+func (*EventTaskDispatched_Details) ProtoMessage() {}
 
-func (x *TaskDispatchedEvent_Details) ProtoReflect() protoreflect.Message {
+func (x *EventTaskDispatched_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_task_events_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -595,39 +595,39 @@ func (x *TaskDispatchedEvent_Details) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TaskDispatchedEvent_Details.ProtoReflect.Descriptor instead.
-func (*TaskDispatchedEvent_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventTaskDispatched_Details.ProtoReflect.Descriptor instead.
+func (*EventTaskDispatched_Details) Descriptor() ([]byte, []int) {
 	return file_task_events_proto_rawDescGZIP(), []int{0, 0}
 }
 
-func (x *TaskDispatchedEvent_Details) GetStatus() TaskStatus {
+func (x *EventTaskDispatched_Details) GetStatus() TaskStatus {
 	if x != nil {
 		return x.Status
 	}
 	return TaskStatus_TASK_STATUS_UNSPECIFIED
 }
 
-type TaskExecutionStartedEvent_Details struct {
+type EventTaskStarted_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        TaskStatus             `protobuf:"varint,1,opt,name=status,proto3,enum=task.TaskStatus" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TaskExecutionStartedEvent_Details) Reset() {
-	*x = TaskExecutionStartedEvent_Details{}
+func (x *EventTaskStarted_Details) Reset() {
+	*x = EventTaskStarted_Details{}
 	mi := &file_task_events_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TaskExecutionStartedEvent_Details) String() string {
+func (x *EventTaskStarted_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TaskExecutionStartedEvent_Details) ProtoMessage() {}
+func (*EventTaskStarted_Details) ProtoMessage() {}
 
-func (x *TaskExecutionStartedEvent_Details) ProtoReflect() protoreflect.Message {
+func (x *EventTaskStarted_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_task_events_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -639,39 +639,39 @@ func (x *TaskExecutionStartedEvent_Details) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TaskExecutionStartedEvent_Details.ProtoReflect.Descriptor instead.
-func (*TaskExecutionStartedEvent_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventTaskStarted_Details.ProtoReflect.Descriptor instead.
+func (*EventTaskStarted_Details) Descriptor() ([]byte, []int) {
 	return file_task_events_proto_rawDescGZIP(), []int{1, 0}
 }
 
-func (x *TaskExecutionStartedEvent_Details) GetStatus() TaskStatus {
+func (x *EventTaskStarted_Details) GetStatus() TaskStatus {
 	if x != nil {
 		return x.Status
 	}
 	return TaskStatus_TASK_STATUS_UNSPECIFIED
 }
 
-type TaskExecutionWaitingStartedEvent_Details struct {
+type EventTaskWaiting_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        TaskStatus             `protobuf:"varint,1,opt,name=status,proto3,enum=task.TaskStatus" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TaskExecutionWaitingStartedEvent_Details) Reset() {
-	*x = TaskExecutionWaitingStartedEvent_Details{}
+func (x *EventTaskWaiting_Details) Reset() {
+	*x = EventTaskWaiting_Details{}
 	mi := &file_task_events_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TaskExecutionWaitingStartedEvent_Details) String() string {
+func (x *EventTaskWaiting_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TaskExecutionWaitingStartedEvent_Details) ProtoMessage() {}
+func (*EventTaskWaiting_Details) ProtoMessage() {}
 
-func (x *TaskExecutionWaitingStartedEvent_Details) ProtoReflect() protoreflect.Message {
+func (x *EventTaskWaiting_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_task_events_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -683,19 +683,19 @@ func (x *TaskExecutionWaitingStartedEvent_Details) ProtoReflect() protoreflect.M
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TaskExecutionWaitingStartedEvent_Details.ProtoReflect.Descriptor instead.
-func (*TaskExecutionWaitingStartedEvent_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventTaskWaiting_Details.ProtoReflect.Descriptor instead.
+func (*EventTaskWaiting_Details) Descriptor() ([]byte, []int) {
 	return file_task_events_proto_rawDescGZIP(), []int{2, 0}
 }
 
-func (x *TaskExecutionWaitingStartedEvent_Details) GetStatus() TaskStatus {
+func (x *EventTaskWaiting_Details) GetStatus() TaskStatus {
 	if x != nil {
 		return x.Status
 	}
 	return TaskStatus_TASK_STATUS_UNSPECIFIED
 }
 
-type TaskExecutionWaitingEndedEvent_Details struct {
+type EventTaskWaitingEnded_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        TaskStatus             `protobuf:"varint,1,opt,name=status,proto3,enum=task.TaskStatus" json:"status,omitempty"`
 	DurationMs    int64                  `protobuf:"varint,2,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
@@ -703,20 +703,20 @@ type TaskExecutionWaitingEndedEvent_Details struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TaskExecutionWaitingEndedEvent_Details) Reset() {
-	*x = TaskExecutionWaitingEndedEvent_Details{}
+func (x *EventTaskWaitingEnded_Details) Reset() {
+	*x = EventTaskWaitingEnded_Details{}
 	mi := &file_task_events_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TaskExecutionWaitingEndedEvent_Details) String() string {
+func (x *EventTaskWaitingEnded_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TaskExecutionWaitingEndedEvent_Details) ProtoMessage() {}
+func (*EventTaskWaitingEnded_Details) ProtoMessage() {}
 
-func (x *TaskExecutionWaitingEndedEvent_Details) ProtoReflect() protoreflect.Message {
+func (x *EventTaskWaitingEnded_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_task_events_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -728,26 +728,26 @@ func (x *TaskExecutionWaitingEndedEvent_Details) ProtoReflect() protoreflect.Mes
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TaskExecutionWaitingEndedEvent_Details.ProtoReflect.Descriptor instead.
-func (*TaskExecutionWaitingEndedEvent_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventTaskWaitingEnded_Details.ProtoReflect.Descriptor instead.
+func (*EventTaskWaitingEnded_Details) Descriptor() ([]byte, []int) {
 	return file_task_events_proto_rawDescGZIP(), []int{3, 0}
 }
 
-func (x *TaskExecutionWaitingEndedEvent_Details) GetStatus() TaskStatus {
+func (x *EventTaskWaitingEnded_Details) GetStatus() TaskStatus {
 	if x != nil {
 		return x.Status
 	}
 	return TaskStatus_TASK_STATUS_UNSPECIFIED
 }
 
-func (x *TaskExecutionWaitingEndedEvent_Details) GetDurationMs() int64 {
+func (x *EventTaskWaitingEnded_Details) GetDurationMs() int64 {
 	if x != nil {
 		return x.DurationMs
 	}
 	return 0
 }
 
-type TaskExecutionWaitingTimedOutEvent_Details struct {
+type EventTaskWaitingTimedOut_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        TaskStatus             `protobuf:"varint,1,opt,name=status,proto3,enum=task.TaskStatus" json:"status,omitempty"`
 	Error         *common.ErrorResult    `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
@@ -756,20 +756,20 @@ type TaskExecutionWaitingTimedOutEvent_Details struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TaskExecutionWaitingTimedOutEvent_Details) Reset() {
-	*x = TaskExecutionWaitingTimedOutEvent_Details{}
+func (x *EventTaskWaitingTimedOut_Details) Reset() {
+	*x = EventTaskWaitingTimedOut_Details{}
 	mi := &file_task_events_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TaskExecutionWaitingTimedOutEvent_Details) String() string {
+func (x *EventTaskWaitingTimedOut_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TaskExecutionWaitingTimedOutEvent_Details) ProtoMessage() {}
+func (*EventTaskWaitingTimedOut_Details) ProtoMessage() {}
 
-func (x *TaskExecutionWaitingTimedOutEvent_Details) ProtoReflect() protoreflect.Message {
+func (x *EventTaskWaitingTimedOut_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_task_events_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -781,33 +781,33 @@ func (x *TaskExecutionWaitingTimedOutEvent_Details) ProtoReflect() protoreflect.
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TaskExecutionWaitingTimedOutEvent_Details.ProtoReflect.Descriptor instead.
-func (*TaskExecutionWaitingTimedOutEvent_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventTaskWaitingTimedOut_Details.ProtoReflect.Descriptor instead.
+func (*EventTaskWaitingTimedOut_Details) Descriptor() ([]byte, []int) {
 	return file_task_events_proto_rawDescGZIP(), []int{4, 0}
 }
 
-func (x *TaskExecutionWaitingTimedOutEvent_Details) GetStatus() TaskStatus {
+func (x *EventTaskWaitingTimedOut_Details) GetStatus() TaskStatus {
 	if x != nil {
 		return x.Status
 	}
 	return TaskStatus_TASK_STATUS_UNSPECIFIED
 }
 
-func (x *TaskExecutionWaitingTimedOutEvent_Details) GetError() *common.ErrorResult {
+func (x *EventTaskWaitingTimedOut_Details) GetError() *common.ErrorResult {
 	if x != nil {
 		return x.Error
 	}
 	return nil
 }
 
-func (x *TaskExecutionWaitingTimedOutEvent_Details) GetDurationMs() int64 {
+func (x *EventTaskWaitingTimedOut_Details) GetDurationMs() int64 {
 	if x != nil {
 		return x.DurationMs
 	}
 	return 0
 }
 
-type TaskExecutionSuccessEvent_Details struct {
+type EventTaskSuccess_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        TaskStatus             `protobuf:"varint,1,opt,name=status,proto3,enum=task.TaskStatus" json:"status,omitempty"`
 	Result        *structpb.Struct       `protobuf:"bytes,2,opt,name=result,proto3" json:"result,omitempty"`
@@ -816,20 +816,20 @@ type TaskExecutionSuccessEvent_Details struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TaskExecutionSuccessEvent_Details) Reset() {
-	*x = TaskExecutionSuccessEvent_Details{}
+func (x *EventTaskSuccess_Details) Reset() {
+	*x = EventTaskSuccess_Details{}
 	mi := &file_task_events_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TaskExecutionSuccessEvent_Details) String() string {
+func (x *EventTaskSuccess_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TaskExecutionSuccessEvent_Details) ProtoMessage() {}
+func (*EventTaskSuccess_Details) ProtoMessage() {}
 
-func (x *TaskExecutionSuccessEvent_Details) ProtoReflect() protoreflect.Message {
+func (x *EventTaskSuccess_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_task_events_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -841,33 +841,33 @@ func (x *TaskExecutionSuccessEvent_Details) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TaskExecutionSuccessEvent_Details.ProtoReflect.Descriptor instead.
-func (*TaskExecutionSuccessEvent_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventTaskSuccess_Details.ProtoReflect.Descriptor instead.
+func (*EventTaskSuccess_Details) Descriptor() ([]byte, []int) {
 	return file_task_events_proto_rawDescGZIP(), []int{5, 0}
 }
 
-func (x *TaskExecutionSuccessEvent_Details) GetStatus() TaskStatus {
+func (x *EventTaskSuccess_Details) GetStatus() TaskStatus {
 	if x != nil {
 		return x.Status
 	}
 	return TaskStatus_TASK_STATUS_UNSPECIFIED
 }
 
-func (x *TaskExecutionSuccessEvent_Details) GetResult() *structpb.Struct {
+func (x *EventTaskSuccess_Details) GetResult() *structpb.Struct {
 	if x != nil {
 		return x.Result
 	}
 	return nil
 }
 
-func (x *TaskExecutionSuccessEvent_Details) GetDurationMs() int64 {
+func (x *EventTaskSuccess_Details) GetDurationMs() int64 {
 	if x != nil {
 		return x.DurationMs
 	}
 	return 0
 }
 
-type TaskExecutionFailedEvent_Details struct {
+type EventTaskFailed_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        TaskStatus             `protobuf:"varint,1,opt,name=status,proto3,enum=task.TaskStatus" json:"status,omitempty"`
 	Error         *common.ErrorResult    `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
@@ -876,20 +876,20 @@ type TaskExecutionFailedEvent_Details struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TaskExecutionFailedEvent_Details) Reset() {
-	*x = TaskExecutionFailedEvent_Details{}
+func (x *EventTaskFailed_Details) Reset() {
+	*x = EventTaskFailed_Details{}
 	mi := &file_task_events_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TaskExecutionFailedEvent_Details) String() string {
+func (x *EventTaskFailed_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TaskExecutionFailedEvent_Details) ProtoMessage() {}
+func (*EventTaskFailed_Details) ProtoMessage() {}
 
-func (x *TaskExecutionFailedEvent_Details) ProtoReflect() protoreflect.Message {
+func (x *EventTaskFailed_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_task_events_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -901,26 +901,26 @@ func (x *TaskExecutionFailedEvent_Details) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TaskExecutionFailedEvent_Details.ProtoReflect.Descriptor instead.
-func (*TaskExecutionFailedEvent_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventTaskFailed_Details.ProtoReflect.Descriptor instead.
+func (*EventTaskFailed_Details) Descriptor() ([]byte, []int) {
 	return file_task_events_proto_rawDescGZIP(), []int{6, 0}
 }
 
-func (x *TaskExecutionFailedEvent_Details) GetStatus() TaskStatus {
+func (x *EventTaskFailed_Details) GetStatus() TaskStatus {
 	if x != nil {
 		return x.Status
 	}
 	return TaskStatus_TASK_STATUS_UNSPECIFIED
 }
 
-func (x *TaskExecutionFailedEvent_Details) GetError() *common.ErrorResult {
+func (x *EventTaskFailed_Details) GetError() *common.ErrorResult {
 	if x != nil {
 		return x.Error
 	}
 	return nil
 }
 
-func (x *TaskExecutionFailedEvent_Details) GetDurationMs() int64 {
+func (x *EventTaskFailed_Details) GetDurationMs() int64 {
 	if x != nil {
 		return x.DurationMs
 	}
@@ -932,61 +932,61 @@ var File_task_events_proto protoreflect.FileDescriptor
 const file_task_events_proto_rawDesc = "" +
 	"\n" +
 	"\x11task/events.proto\x12\x04task\x1a\x14common/details.proto\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\"\x8d\x02\n" +
-	"\x13TaskDispatchedEvent\x12,\n" +
+	"\x13EventTaskDispatched\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
 	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12;\n" +
-	"\adetails\x18\x04 \x01(\v2!.task.TaskDispatchedEvent.DetailsR\adetails\x1a3\n" +
+	"\adetails\x18\x04 \x01(\v2!.task.EventTaskDispatched.DetailsR\adetails\x1a3\n" +
 	"\aDetails\x12(\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\"\x99\x02\n" +
-	"\x19TaskExecutionStartedEvent\x12,\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\"\x87\x02\n" +
+	"\x10EventTaskStarted\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
-	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12A\n" +
-	"\adetails\x18\x04 \x01(\v2'.task.TaskExecutionStartedEvent.DetailsR\adetails\x1a3\n" +
+	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x128\n" +
+	"\adetails\x18\x04 \x01(\v2\x1e.task.EventTaskStarted.DetailsR\adetails\x1a3\n" +
 	"\aDetails\x12(\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\"\xa7\x02\n" +
-	" TaskExecutionWaitingStartedEvent\x12,\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\"\x87\x02\n" +
+	"\x10EventTaskWaiting\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
-	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12H\n" +
-	"\adetails\x18\x04 \x01(\v2..task.TaskExecutionWaitingStartedEvent.DetailsR\adetails\x1a3\n" +
+	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x128\n" +
+	"\adetails\x18\x04 \x01(\v2\x1e.task.EventTaskWaiting.DetailsR\adetails\x1a3\n" +
 	"\aDetails\x12(\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\"\xc4\x02\n" +
-	"\x1eTaskExecutionWaitingEndedEvent\x12,\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\"\xb2\x02\n" +
+	"\x15EventTaskWaitingEnded\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
-	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12F\n" +
-	"\adetails\x18\x04 \x01(\v2,.task.TaskExecutionWaitingEndedEvent.DetailsR\adetails\x1aT\n" +
+	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12=\n" +
+	"\adetails\x18\x04 \x01(\v2#.task.EventTaskWaitingEnded.DetailsR\adetails\x1aT\n" +
 	"\aDetails\x12(\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\x12\x1f\n" +
 	"\vduration_ms\x18\x02 \x01(\x03R\n" +
-	"durationMs\"\xf5\x02\n" +
-	"!TaskExecutionWaitingTimedOutEvent\x12,\n" +
+	"durationMs\"\xe3\x02\n" +
+	"\x18EventTaskWaitingTimedOut\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
-	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12I\n" +
-	"\adetails\x18\x04 \x01(\v2/.task.TaskExecutionWaitingTimedOutEvent.DetailsR\adetails\x1a\x7f\n" +
+	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12@\n" +
+	"\adetails\x18\x04 \x01(\v2&.task.EventTaskWaitingTimedOut.DetailsR\adetails\x1a\x7f\n" +
 	"\aDetails\x12(\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\x12)\n" +
 	"\x05error\x18\x02 \x01(\v2\x13.common.ErrorResultR\x05error\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
-	"durationMs\"\xec\x02\n" +
-	"\x19TaskExecutionSuccessEvent\x12,\n" +
+	"durationMs\"\xda\x02\n" +
+	"\x10EventTaskSuccess\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
-	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12A\n" +
-	"\adetails\x18\x04 \x01(\v2'.task.TaskExecutionSuccessEvent.DetailsR\adetails\x1a\x85\x01\n" +
+	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x128\n" +
+	"\adetails\x18\x04 \x01(\v2\x1e.task.EventTaskSuccess.DetailsR\adetails\x1a\x85\x01\n" +
 	"\aDetails\x12(\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\x12/\n" +
 	"\x06result\x18\x02 \x01(\v2\x17.google.protobuf.StructR\x06result\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
-	"durationMs\"\xe3\x02\n" +
-	"\x18TaskExecutionFailedEvent\x12,\n" +
+	"durationMs\"\xd1\x02\n" +
+	"\x0fEventTaskFailed\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
-	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12@\n" +
-	"\adetails\x18\x04 \x01(\v2&.task.TaskExecutionFailedEvent.DetailsR\adetails\x1a\x7f\n" +
+	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x127\n" +
+	"\adetails\x18\x04 \x01(\v2\x1d.task.EventTaskFailed.DetailsR\adetails\x1a\x7f\n" +
 	"\aDetails\x12(\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\x12)\n" +
 	"\x05error\x18\x02 \x01(\v2\x13.common.ErrorResultR\x05error\x12\x1f\n" +
@@ -1018,66 +1018,66 @@ func file_task_events_proto_rawDescGZIP() []byte {
 var file_task_events_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_task_events_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_task_events_proto_goTypes = []any{
-	(TaskStatus)(0),                                   // 0: task.TaskStatus
-	(*TaskDispatchedEvent)(nil),                       // 1: task.TaskDispatchedEvent
-	(*TaskExecutionStartedEvent)(nil),                 // 2: task.TaskExecutionStartedEvent
-	(*TaskExecutionWaitingStartedEvent)(nil),          // 3: task.TaskExecutionWaitingStartedEvent
-	(*TaskExecutionWaitingEndedEvent)(nil),            // 4: task.TaskExecutionWaitingEndedEvent
-	(*TaskExecutionWaitingTimedOutEvent)(nil),         // 5: task.TaskExecutionWaitingTimedOutEvent
-	(*TaskExecutionSuccessEvent)(nil),                 // 6: task.TaskExecutionSuccessEvent
-	(*TaskExecutionFailedEvent)(nil),                  // 7: task.TaskExecutionFailedEvent
-	(*TaskDispatchedEvent_Details)(nil),               // 8: task.TaskDispatchedEvent.Details
-	(*TaskExecutionStartedEvent_Details)(nil),         // 9: task.TaskExecutionStartedEvent.Details
-	(*TaskExecutionWaitingStartedEvent_Details)(nil),  // 10: task.TaskExecutionWaitingStartedEvent.Details
-	(*TaskExecutionWaitingEndedEvent_Details)(nil),    // 11: task.TaskExecutionWaitingEndedEvent.Details
-	(*TaskExecutionWaitingTimedOutEvent_Details)(nil), // 12: task.TaskExecutionWaitingTimedOutEvent.Details
-	(*TaskExecutionSuccessEvent_Details)(nil),         // 13: task.TaskExecutionSuccessEvent.Details
-	(*TaskExecutionFailedEvent_Details)(nil),          // 14: task.TaskExecutionFailedEvent.Details
-	(*common.Metadata)(nil),                           // 15: common.Metadata
-	(*common.WorkflowInfo)(nil),                       // 16: common.WorkflowInfo
-	(*common.TaskInfo)(nil),                           // 17: common.TaskInfo
-	(*common.ErrorResult)(nil),                        // 18: common.ErrorResult
-	(*structpb.Struct)(nil),                           // 19: google.protobuf.Struct
+	(TaskStatus)(0),                          // 0: task.TaskStatus
+	(*EventTaskDispatched)(nil),              // 1: task.EventTaskDispatched
+	(*EventTaskStarted)(nil),                 // 2: task.EventTaskStarted
+	(*EventTaskWaiting)(nil),                 // 3: task.EventTaskWaiting
+	(*EventTaskWaitingEnded)(nil),            // 4: task.EventTaskWaitingEnded
+	(*EventTaskWaitingTimedOut)(nil),         // 5: task.EventTaskWaitingTimedOut
+	(*EventTaskSuccess)(nil),                 // 6: task.EventTaskSuccess
+	(*EventTaskFailed)(nil),                  // 7: task.EventTaskFailed
+	(*EventTaskDispatched_Details)(nil),      // 8: task.EventTaskDispatched.Details
+	(*EventTaskStarted_Details)(nil),         // 9: task.EventTaskStarted.Details
+	(*EventTaskWaiting_Details)(nil),         // 10: task.EventTaskWaiting.Details
+	(*EventTaskWaitingEnded_Details)(nil),    // 11: task.EventTaskWaitingEnded.Details
+	(*EventTaskWaitingTimedOut_Details)(nil), // 12: task.EventTaskWaitingTimedOut.Details
+	(*EventTaskSuccess_Details)(nil),         // 13: task.EventTaskSuccess.Details
+	(*EventTaskFailed_Details)(nil),          // 14: task.EventTaskFailed.Details
+	(*common.Metadata)(nil),                  // 15: common.Metadata
+	(*common.WorkflowInfo)(nil),              // 16: common.WorkflowInfo
+	(*common.TaskInfo)(nil),                  // 17: common.TaskInfo
+	(*common.ErrorResult)(nil),               // 18: common.ErrorResult
+	(*structpb.Struct)(nil),                  // 19: google.protobuf.Struct
 }
 var file_task_events_proto_depIdxs = []int32{
-	15, // 0: task.TaskDispatchedEvent.metadata:type_name -> common.Metadata
-	16, // 1: task.TaskDispatchedEvent.workflow:type_name -> common.WorkflowInfo
-	17, // 2: task.TaskDispatchedEvent.task:type_name -> common.TaskInfo
-	8,  // 3: task.TaskDispatchedEvent.details:type_name -> task.TaskDispatchedEvent.Details
-	15, // 4: task.TaskExecutionStartedEvent.metadata:type_name -> common.Metadata
-	16, // 5: task.TaskExecutionStartedEvent.workflow:type_name -> common.WorkflowInfo
-	17, // 6: task.TaskExecutionStartedEvent.task:type_name -> common.TaskInfo
-	9,  // 7: task.TaskExecutionStartedEvent.details:type_name -> task.TaskExecutionStartedEvent.Details
-	15, // 8: task.TaskExecutionWaitingStartedEvent.metadata:type_name -> common.Metadata
-	16, // 9: task.TaskExecutionWaitingStartedEvent.workflow:type_name -> common.WorkflowInfo
-	17, // 10: task.TaskExecutionWaitingStartedEvent.task:type_name -> common.TaskInfo
-	10, // 11: task.TaskExecutionWaitingStartedEvent.details:type_name -> task.TaskExecutionWaitingStartedEvent.Details
-	15, // 12: task.TaskExecutionWaitingEndedEvent.metadata:type_name -> common.Metadata
-	16, // 13: task.TaskExecutionWaitingEndedEvent.workflow:type_name -> common.WorkflowInfo
-	17, // 14: task.TaskExecutionWaitingEndedEvent.task:type_name -> common.TaskInfo
-	11, // 15: task.TaskExecutionWaitingEndedEvent.details:type_name -> task.TaskExecutionWaitingEndedEvent.Details
-	15, // 16: task.TaskExecutionWaitingTimedOutEvent.metadata:type_name -> common.Metadata
-	16, // 17: task.TaskExecutionWaitingTimedOutEvent.workflow:type_name -> common.WorkflowInfo
-	17, // 18: task.TaskExecutionWaitingTimedOutEvent.task:type_name -> common.TaskInfo
-	12, // 19: task.TaskExecutionWaitingTimedOutEvent.details:type_name -> task.TaskExecutionWaitingTimedOutEvent.Details
-	15, // 20: task.TaskExecutionSuccessEvent.metadata:type_name -> common.Metadata
-	16, // 21: task.TaskExecutionSuccessEvent.workflow:type_name -> common.WorkflowInfo
-	17, // 22: task.TaskExecutionSuccessEvent.task:type_name -> common.TaskInfo
-	13, // 23: task.TaskExecutionSuccessEvent.details:type_name -> task.TaskExecutionSuccessEvent.Details
-	15, // 24: task.TaskExecutionFailedEvent.metadata:type_name -> common.Metadata
-	16, // 25: task.TaskExecutionFailedEvent.workflow:type_name -> common.WorkflowInfo
-	17, // 26: task.TaskExecutionFailedEvent.task:type_name -> common.TaskInfo
-	14, // 27: task.TaskExecutionFailedEvent.details:type_name -> task.TaskExecutionFailedEvent.Details
-	0,  // 28: task.TaskDispatchedEvent.Details.status:type_name -> task.TaskStatus
-	0,  // 29: task.TaskExecutionStartedEvent.Details.status:type_name -> task.TaskStatus
-	0,  // 30: task.TaskExecutionWaitingStartedEvent.Details.status:type_name -> task.TaskStatus
-	0,  // 31: task.TaskExecutionWaitingEndedEvent.Details.status:type_name -> task.TaskStatus
-	0,  // 32: task.TaskExecutionWaitingTimedOutEvent.Details.status:type_name -> task.TaskStatus
-	18, // 33: task.TaskExecutionWaitingTimedOutEvent.Details.error:type_name -> common.ErrorResult
-	0,  // 34: task.TaskExecutionSuccessEvent.Details.status:type_name -> task.TaskStatus
-	19, // 35: task.TaskExecutionSuccessEvent.Details.result:type_name -> google.protobuf.Struct
-	0,  // 36: task.TaskExecutionFailedEvent.Details.status:type_name -> task.TaskStatus
-	18, // 37: task.TaskExecutionFailedEvent.Details.error:type_name -> common.ErrorResult
+	15, // 0: task.EventTaskDispatched.metadata:type_name -> common.Metadata
+	16, // 1: task.EventTaskDispatched.workflow:type_name -> common.WorkflowInfo
+	17, // 2: task.EventTaskDispatched.task:type_name -> common.TaskInfo
+	8,  // 3: task.EventTaskDispatched.details:type_name -> task.EventTaskDispatched.Details
+	15, // 4: task.EventTaskStarted.metadata:type_name -> common.Metadata
+	16, // 5: task.EventTaskStarted.workflow:type_name -> common.WorkflowInfo
+	17, // 6: task.EventTaskStarted.task:type_name -> common.TaskInfo
+	9,  // 7: task.EventTaskStarted.details:type_name -> task.EventTaskStarted.Details
+	15, // 8: task.EventTaskWaiting.metadata:type_name -> common.Metadata
+	16, // 9: task.EventTaskWaiting.workflow:type_name -> common.WorkflowInfo
+	17, // 10: task.EventTaskWaiting.task:type_name -> common.TaskInfo
+	10, // 11: task.EventTaskWaiting.details:type_name -> task.EventTaskWaiting.Details
+	15, // 12: task.EventTaskWaitingEnded.metadata:type_name -> common.Metadata
+	16, // 13: task.EventTaskWaitingEnded.workflow:type_name -> common.WorkflowInfo
+	17, // 14: task.EventTaskWaitingEnded.task:type_name -> common.TaskInfo
+	11, // 15: task.EventTaskWaitingEnded.details:type_name -> task.EventTaskWaitingEnded.Details
+	15, // 16: task.EventTaskWaitingTimedOut.metadata:type_name -> common.Metadata
+	16, // 17: task.EventTaskWaitingTimedOut.workflow:type_name -> common.WorkflowInfo
+	17, // 18: task.EventTaskWaitingTimedOut.task:type_name -> common.TaskInfo
+	12, // 19: task.EventTaskWaitingTimedOut.details:type_name -> task.EventTaskWaitingTimedOut.Details
+	15, // 20: task.EventTaskSuccess.metadata:type_name -> common.Metadata
+	16, // 21: task.EventTaskSuccess.workflow:type_name -> common.WorkflowInfo
+	17, // 22: task.EventTaskSuccess.task:type_name -> common.TaskInfo
+	13, // 23: task.EventTaskSuccess.details:type_name -> task.EventTaskSuccess.Details
+	15, // 24: task.EventTaskFailed.metadata:type_name -> common.Metadata
+	16, // 25: task.EventTaskFailed.workflow:type_name -> common.WorkflowInfo
+	17, // 26: task.EventTaskFailed.task:type_name -> common.TaskInfo
+	14, // 27: task.EventTaskFailed.details:type_name -> task.EventTaskFailed.Details
+	0,  // 28: task.EventTaskDispatched.Details.status:type_name -> task.TaskStatus
+	0,  // 29: task.EventTaskStarted.Details.status:type_name -> task.TaskStatus
+	0,  // 30: task.EventTaskWaiting.Details.status:type_name -> task.TaskStatus
+	0,  // 31: task.EventTaskWaitingEnded.Details.status:type_name -> task.TaskStatus
+	0,  // 32: task.EventTaskWaitingTimedOut.Details.status:type_name -> task.TaskStatus
+	18, // 33: task.EventTaskWaitingTimedOut.Details.error:type_name -> common.ErrorResult
+	0,  // 34: task.EventTaskSuccess.Details.status:type_name -> task.TaskStatus
+	19, // 35: task.EventTaskSuccess.Details.result:type_name -> google.protobuf.Struct
+	0,  // 36: task.EventTaskFailed.Details.status:type_name -> task.TaskStatus
+	18, // 37: task.EventTaskFailed.Details.error:type_name -> common.ErrorResult
 	38, // [38:38] is the sub-list for method output_type
 	38, // [38:38] is the sub-list for method input_type
 	38, // [38:38] is the sub-list for extension type_name

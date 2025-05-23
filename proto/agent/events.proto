@@ -17,10 +17,10 @@ enum AgentStatus {
 }
 
 // -----------------------------------------------------------------------------
-// Agent Execution Started Event
+// Event: Agent Started
 // -----------------------------------------------------------------------------
 
-message AgentExecutionStartedEvent {
+message EventAgentStarted {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;
@@ -33,10 +33,10 @@ message AgentExecutionStartedEvent {
 }
 
 // -----------------------------------------------------------------------------
-// Agent Execution Success Event
+// Event: Agent Success
 // -----------------------------------------------------------------------------
 
-message AgentExecutionSuccessEvent {
+message EventAgentSuccess {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;
@@ -51,10 +51,10 @@ message AgentExecutionSuccessEvent {
 }
 
 // -----------------------------------------------------------------------------
-// Agent Execution Failed Event
+// Event: Agent Failed
 // -----------------------------------------------------------------------------
 
-message AgentExecutionFailedEvent {
+message EventAgentFailed {
   common.Metadata metadata = 1;
   common.WorkflowInfo workflow = 2;
   common.TaskInfo task = 3;

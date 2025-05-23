@@ -22,7 +22,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type TaskTriggerCommand struct {
+type CmdTaskDispatch struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Metadata      *common.Metadata       `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Workflow      *common.WorkflowInfo   `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
@@ -31,20 +31,20 @@ type TaskTriggerCommand struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TaskTriggerCommand) Reset() {
-	*x = TaskTriggerCommand{}
+func (x *CmdTaskDispatch) Reset() {
+	*x = CmdTaskDispatch{}
 	mi := &file_task_cmds_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TaskTriggerCommand) String() string {
+func (x *CmdTaskDispatch) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TaskTriggerCommand) ProtoMessage() {}
+func (*CmdTaskDispatch) ProtoMessage() {}
 
-func (x *TaskTriggerCommand) ProtoReflect() protoreflect.Message {
+func (x *CmdTaskDispatch) ProtoReflect() protoreflect.Message {
 	mi := &file_task_cmds_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -56,33 +56,33 @@ func (x *TaskTriggerCommand) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TaskTriggerCommand.ProtoReflect.Descriptor instead.
-func (*TaskTriggerCommand) Descriptor() ([]byte, []int) {
+// Deprecated: Use CmdTaskDispatch.ProtoReflect.Descriptor instead.
+func (*CmdTaskDispatch) Descriptor() ([]byte, []int) {
 	return file_task_cmds_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *TaskTriggerCommand) GetMetadata() *common.Metadata {
+func (x *CmdTaskDispatch) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *TaskTriggerCommand) GetWorkflow() *common.WorkflowInfo {
+func (x *CmdTaskDispatch) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *TaskTriggerCommand) GetTask() *common.TaskInfo {
+func (x *CmdTaskDispatch) GetTask() *common.TaskInfo {
 	if x != nil {
 		return x.Task
 	}
 	return nil
 }
 
-type TaskExecuteCommand struct {
+type CmdTaskExecute struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Metadata      *common.Metadata       `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Workflow      *common.WorkflowInfo   `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
@@ -91,20 +91,20 @@ type TaskExecuteCommand struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TaskExecuteCommand) Reset() {
-	*x = TaskExecuteCommand{}
+func (x *CmdTaskExecute) Reset() {
+	*x = CmdTaskExecute{}
 	mi := &file_task_cmds_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TaskExecuteCommand) String() string {
+func (x *CmdTaskExecute) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TaskExecuteCommand) ProtoMessage() {}
+func (*CmdTaskExecute) ProtoMessage() {}
 
-func (x *TaskExecuteCommand) ProtoReflect() protoreflect.Message {
+func (x *CmdTaskExecute) ProtoReflect() protoreflect.Message {
 	mi := &file_task_cmds_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -116,33 +116,33 @@ func (x *TaskExecuteCommand) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TaskExecuteCommand.ProtoReflect.Descriptor instead.
-func (*TaskExecuteCommand) Descriptor() ([]byte, []int) {
+// Deprecated: Use CmdTaskExecute.ProtoReflect.Descriptor instead.
+func (*CmdTaskExecute) Descriptor() ([]byte, []int) {
 	return file_task_cmds_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *TaskExecuteCommand) GetMetadata() *common.Metadata {
+func (x *CmdTaskExecute) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *TaskExecuteCommand) GetWorkflow() *common.WorkflowInfo {
+func (x *CmdTaskExecute) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *TaskExecuteCommand) GetTask() *common.TaskInfo {
+func (x *CmdTaskExecute) GetTask() *common.TaskInfo {
 	if x != nil {
 		return x.Task
 	}
 	return nil
 }
 
-type TaskResumeCommand struct {
+type CmdTaskResume struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Metadata      *common.Metadata       `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Workflow      *common.WorkflowInfo   `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
@@ -151,20 +151,20 @@ type TaskResumeCommand struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TaskResumeCommand) Reset() {
-	*x = TaskResumeCommand{}
+func (x *CmdTaskResume) Reset() {
+	*x = CmdTaskResume{}
 	mi := &file_task_cmds_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TaskResumeCommand) String() string {
+func (x *CmdTaskResume) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TaskResumeCommand) ProtoMessage() {}
+func (*CmdTaskResume) ProtoMessage() {}
 
-func (x *TaskResumeCommand) ProtoReflect() protoreflect.Message {
+func (x *CmdTaskResume) ProtoReflect() protoreflect.Message {
 	mi := &file_task_cmds_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -176,26 +176,26 @@ func (x *TaskResumeCommand) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TaskResumeCommand.ProtoReflect.Descriptor instead.
-func (*TaskResumeCommand) Descriptor() ([]byte, []int) {
+// Deprecated: Use CmdTaskResume.ProtoReflect.Descriptor instead.
+func (*CmdTaskResume) Descriptor() ([]byte, []int) {
 	return file_task_cmds_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *TaskResumeCommand) GetMetadata() *common.Metadata {
+func (x *CmdTaskResume) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *TaskResumeCommand) GetWorkflow() *common.WorkflowInfo {
+func (x *CmdTaskResume) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *TaskResumeCommand) GetTask() *common.TaskInfo {
+func (x *CmdTaskResume) GetTask() *common.TaskInfo {
 	if x != nil {
 		return x.Task
 	}
@@ -206,16 +206,16 @@ var File_task_cmds_proto protoreflect.FileDescriptor
 
 const file_task_cmds_proto_rawDesc = "" +
 	"\n" +
-	"\x0ftask/cmds.proto\x12\x04task\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\"\x9a\x01\n" +
-	"\x12TaskTriggerCommand\x12,\n" +
+	"\x0ftask/cmds.proto\x12\x04task\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\"\x97\x01\n" +
+	"\x0fCmdTaskDispatch\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
-	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\"\x9a\x01\n" +
-	"\x12TaskExecuteCommand\x12,\n" +
+	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\"\x96\x01\n" +
+	"\x0eCmdTaskExecute\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
-	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\"\x99\x01\n" +
-	"\x11TaskResumeCommand\x12,\n" +
+	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\"\x95\x01\n" +
+	"\rCmdTaskResume\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
 	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04taskB(Z&github.com/compozy/compozy/pkg/pb/taskb\x06proto3"
@@ -234,23 +234,23 @@ func file_task_cmds_proto_rawDescGZIP() []byte {
 
 var file_task_cmds_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_task_cmds_proto_goTypes = []any{
-	(*TaskTriggerCommand)(nil),  // 0: task.TaskTriggerCommand
-	(*TaskExecuteCommand)(nil),  // 1: task.TaskExecuteCommand
-	(*TaskResumeCommand)(nil),   // 2: task.TaskResumeCommand
+	(*CmdTaskDispatch)(nil),     // 0: task.CmdTaskDispatch
+	(*CmdTaskExecute)(nil),      // 1: task.CmdTaskExecute
+	(*CmdTaskResume)(nil),       // 2: task.CmdTaskResume
 	(*common.Metadata)(nil),     // 3: common.Metadata
 	(*common.WorkflowInfo)(nil), // 4: common.WorkflowInfo
 	(*common.TaskInfo)(nil),     // 5: common.TaskInfo
 }
 var file_task_cmds_proto_depIdxs = []int32{
-	3, // 0: task.TaskTriggerCommand.metadata:type_name -> common.Metadata
-	4, // 1: task.TaskTriggerCommand.workflow:type_name -> common.WorkflowInfo
-	5, // 2: task.TaskTriggerCommand.task:type_name -> common.TaskInfo
-	3, // 3: task.TaskExecuteCommand.metadata:type_name -> common.Metadata
-	4, // 4: task.TaskExecuteCommand.workflow:type_name -> common.WorkflowInfo
-	5, // 5: task.TaskExecuteCommand.task:type_name -> common.TaskInfo
-	3, // 6: task.TaskResumeCommand.metadata:type_name -> common.Metadata
-	4, // 7: task.TaskResumeCommand.workflow:type_name -> common.WorkflowInfo
-	5, // 8: task.TaskResumeCommand.task:type_name -> common.TaskInfo
+	3, // 0: task.CmdTaskDispatch.metadata:type_name -> common.Metadata
+	4, // 1: task.CmdTaskDispatch.workflow:type_name -> common.WorkflowInfo
+	5, // 2: task.CmdTaskDispatch.task:type_name -> common.TaskInfo
+	3, // 3: task.CmdTaskExecute.metadata:type_name -> common.Metadata
+	4, // 4: task.CmdTaskExecute.workflow:type_name -> common.WorkflowInfo
+	5, // 5: task.CmdTaskExecute.task:type_name -> common.TaskInfo
+	3, // 6: task.CmdTaskResume.metadata:type_name -> common.Metadata
+	4, // 7: task.CmdTaskResume.workflow:type_name -> common.WorkflowInfo
+	5, // 8: task.CmdTaskResume.task:type_name -> common.TaskInfo
 	9, // [9:9] is the sub-list for method output_type
 	9, // [9:9] is the sub-list for method input_type
 	9, // [9:9] is the sub-list for extension type_name

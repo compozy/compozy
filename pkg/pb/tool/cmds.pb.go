@@ -22,31 +22,31 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type ToolExecuteCommand struct {
-	state         protoimpl.MessageState      `protogen:"open.v1"`
-	Metadata      *common.Metadata            `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo        `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Task          *common.TaskInfo            `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
-	Tool          *common.ToolInfo            `protobuf:"bytes,4,opt,name=tool,proto3" json:"tool,omitempty"`
-	Details       *ToolExecuteCommand_Details `protobuf:"bytes,5,opt,name=details,proto3" json:"details,omitempty"`
+type CmdToolExecute struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Metadata      *common.Metadata        `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo    `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Task          *common.TaskInfo        `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
+	Tool          *common.ToolInfo        `protobuf:"bytes,4,opt,name=tool,proto3" json:"tool,omitempty"`
+	Details       *CmdToolExecute_Details `protobuf:"bytes,5,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ToolExecuteCommand) Reset() {
-	*x = ToolExecuteCommand{}
+func (x *CmdToolExecute) Reset() {
+	*x = CmdToolExecute{}
 	mi := &file_tool_cmds_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ToolExecuteCommand) String() string {
+func (x *CmdToolExecute) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ToolExecuteCommand) ProtoMessage() {}
+func (*CmdToolExecute) ProtoMessage() {}
 
-func (x *ToolExecuteCommand) ProtoReflect() protoreflect.Message {
+func (x *CmdToolExecute) ProtoReflect() protoreflect.Message {
 	mi := &file_tool_cmds_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -58,67 +58,67 @@ func (x *ToolExecuteCommand) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ToolExecuteCommand.ProtoReflect.Descriptor instead.
-func (*ToolExecuteCommand) Descriptor() ([]byte, []int) {
+// Deprecated: Use CmdToolExecute.ProtoReflect.Descriptor instead.
+func (*CmdToolExecute) Descriptor() ([]byte, []int) {
 	return file_tool_cmds_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *ToolExecuteCommand) GetMetadata() *common.Metadata {
+func (x *CmdToolExecute) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *ToolExecuteCommand) GetWorkflow() *common.WorkflowInfo {
+func (x *CmdToolExecute) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *ToolExecuteCommand) GetTask() *common.TaskInfo {
+func (x *CmdToolExecute) GetTask() *common.TaskInfo {
 	if x != nil {
 		return x.Task
 	}
 	return nil
 }
 
-func (x *ToolExecuteCommand) GetTool() *common.ToolInfo {
+func (x *CmdToolExecute) GetTool() *common.ToolInfo {
 	if x != nil {
 		return x.Tool
 	}
 	return nil
 }
 
-func (x *ToolExecuteCommand) GetDetails() *ToolExecuteCommand_Details {
+func (x *CmdToolExecute) GetDetails() *CmdToolExecute_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type ToolExecuteCommand_Details struct {
+type CmdToolExecute_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ToolRequest   *common.ToolRequest    `protobuf:"bytes,1,opt,name=tool_request,json=toolRequest,proto3" json:"tool_request,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ToolExecuteCommand_Details) Reset() {
-	*x = ToolExecuteCommand_Details{}
+func (x *CmdToolExecute_Details) Reset() {
+	*x = CmdToolExecute_Details{}
 	mi := &file_tool_cmds_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ToolExecuteCommand_Details) String() string {
+func (x *CmdToolExecute_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ToolExecuteCommand_Details) ProtoMessage() {}
+func (*CmdToolExecute_Details) ProtoMessage() {}
 
-func (x *ToolExecuteCommand_Details) ProtoReflect() protoreflect.Message {
+func (x *CmdToolExecute_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_tool_cmds_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -130,12 +130,12 @@ func (x *ToolExecuteCommand_Details) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ToolExecuteCommand_Details.ProtoReflect.Descriptor instead.
-func (*ToolExecuteCommand_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use CmdToolExecute_Details.ProtoReflect.Descriptor instead.
+func (*CmdToolExecute_Details) Descriptor() ([]byte, []int) {
 	return file_tool_cmds_proto_rawDescGZIP(), []int{0, 0}
 }
 
-func (x *ToolExecuteCommand_Details) GetToolRequest() *common.ToolRequest {
+func (x *CmdToolExecute_Details) GetToolRequest() *common.ToolRequest {
 	if x != nil {
 		return x.ToolRequest
 	}
@@ -146,13 +146,13 @@ var File_tool_cmds_proto protoreflect.FileDescriptor
 
 const file_tool_cmds_proto_rawDesc = "" +
 	"\n" +
-	"\x0ftool/cmds.proto\x12\x04tool\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x14common/request.proto\"\xbf\x02\n" +
-	"\x12ToolExecuteCommand\x12,\n" +
+	"\x0ftool/cmds.proto\x12\x04tool\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x14common/request.proto\"\xb7\x02\n" +
+	"\x0eCmdToolExecute\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
 	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12$\n" +
-	"\x04tool\x18\x04 \x01(\v2\x10.common.ToolInfoR\x04tool\x12:\n" +
-	"\adetails\x18\x05 \x01(\v2 .tool.ToolExecuteCommand.DetailsR\adetails\x1aA\n" +
+	"\x04tool\x18\x04 \x01(\v2\x10.common.ToolInfoR\x04tool\x126\n" +
+	"\adetails\x18\x05 \x01(\v2\x1c.tool.CmdToolExecute.DetailsR\adetails\x1aA\n" +
 	"\aDetails\x126\n" +
 	"\ftool_request\x18\x01 \x01(\v2\x13.common.ToolRequestR\vtoolRequestB(Z&github.com/compozy/compozy/pkg/pb/toolb\x06proto3"
 
@@ -170,21 +170,21 @@ func file_tool_cmds_proto_rawDescGZIP() []byte {
 
 var file_tool_cmds_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_tool_cmds_proto_goTypes = []any{
-	(*ToolExecuteCommand)(nil),         // 0: tool.ToolExecuteCommand
-	(*ToolExecuteCommand_Details)(nil), // 1: tool.ToolExecuteCommand.Details
-	(*common.Metadata)(nil),            // 2: common.Metadata
-	(*common.WorkflowInfo)(nil),        // 3: common.WorkflowInfo
-	(*common.TaskInfo)(nil),            // 4: common.TaskInfo
-	(*common.ToolInfo)(nil),            // 5: common.ToolInfo
-	(*common.ToolRequest)(nil),         // 6: common.ToolRequest
+	(*CmdToolExecute)(nil),         // 0: tool.CmdToolExecute
+	(*CmdToolExecute_Details)(nil), // 1: tool.CmdToolExecute.Details
+	(*common.Metadata)(nil),        // 2: common.Metadata
+	(*common.WorkflowInfo)(nil),    // 3: common.WorkflowInfo
+	(*common.TaskInfo)(nil),        // 4: common.TaskInfo
+	(*common.ToolInfo)(nil),        // 5: common.ToolInfo
+	(*common.ToolRequest)(nil),     // 6: common.ToolRequest
 }
 var file_tool_cmds_proto_depIdxs = []int32{
-	2, // 0: tool.ToolExecuteCommand.metadata:type_name -> common.Metadata
-	3, // 1: tool.ToolExecuteCommand.workflow:type_name -> common.WorkflowInfo
-	4, // 2: tool.ToolExecuteCommand.task:type_name -> common.TaskInfo
-	5, // 3: tool.ToolExecuteCommand.tool:type_name -> common.ToolInfo
-	1, // 4: tool.ToolExecuteCommand.details:type_name -> tool.ToolExecuteCommand.Details
-	6, // 5: tool.ToolExecuteCommand.Details.tool_request:type_name -> common.ToolRequest
+	2, // 0: tool.CmdToolExecute.metadata:type_name -> common.Metadata
+	3, // 1: tool.CmdToolExecute.workflow:type_name -> common.WorkflowInfo
+	4, // 2: tool.CmdToolExecute.task:type_name -> common.TaskInfo
+	5, // 3: tool.CmdToolExecute.tool:type_name -> common.ToolInfo
+	1, // 4: tool.CmdToolExecute.details:type_name -> tool.CmdToolExecute.Details
+	6, // 5: tool.CmdToolExecute.Details.tool_request:type_name -> common.ToolRequest
 	6, // [6:6] is the sub-list for method output_type
 	6, // [6:6] is the sub-list for method input_type
 	6, // [6:6] is the sub-list for extension type_name

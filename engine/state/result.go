@@ -8,7 +8,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-func SetResultError(state *BaseState, err *pbcommon.ErrorResult) {
+func SetStateError(state *BaseState, err *pbcommon.ErrorResult) {
 	if err == nil {
 		return
 	}
@@ -24,7 +24,7 @@ func SetResultError(state *BaseState, err *pbcommon.ErrorResult) {
 	}
 }
 
-func SetResultData(state *BaseState, output *structpb.Struct) {
+func SetStateResult(state *BaseState, output *structpb.Struct) {
 	if output == nil {
 		return
 	}

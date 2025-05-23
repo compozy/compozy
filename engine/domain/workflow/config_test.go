@@ -87,13 +87,13 @@ func Test_LoadWorkflow(t *testing.T) {
 }
 
 func Test_WorkflowConfigValidation(t *testing.T) {
-	wfID := "test-workflow"
+	workflowID := "test-workflow"
 
 	t.Run("Should validate valid workflow configuration", func(t *testing.T) {
 		cwd, err := common.CWDFromPath("/test/path")
 		require.NoError(t, err)
 		config := &Config{
-			ID: wfID,
+			ID: workflowID,
 			Trigger: trigger.Config{
 				Type: trigger.TriggerTypeWebhook,
 				Config: &trigger.WebhookConfig{

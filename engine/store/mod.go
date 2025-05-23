@@ -128,15 +128,15 @@ func (s *Store) GetState(id state.ID) (state.State, error) {
 		}
 		return nil, fmt.Errorf("failed to get state for ID %s: %w", id.String(), err)
 	}
-	switch st := concreteState.(type) {
+	switch state := concreteState.(type) {
 	case *workflow.State:
-		return st, nil
+		return state, nil
 	case *task.State:
-		return st, nil
+		return state, nil
 	case *agent.State:
-		return st, nil
+		return state, nil
 	case *tool.State:
-		return st, nil
+		return state, nil
 	default:
 		return nil, fmt.Errorf("unknown state type for ID %s", id.String())
 	}
@@ -178,15 +178,15 @@ func (s *Store) getStatesWithFilter(cType nats.ComponentType, ft StateFilter) ([
 					return fmt.Errorf("failed to unmarshal state: %w", err)
 				}
 				var stateInterface state.State
-				switch st := concreteState.(type) {
+				switch state := concreteState.(type) {
 				case *workflow.State:
-					stateInterface = st
+					stateInterface = state
 				case *task.State:
-					stateInterface = st
+					stateInterface = state
 				case *agent.State:
-					stateInterface = st
+					stateInterface = state
 				case *tool.State:
-					stateInterface = st
+					stateInterface = state
 				default:
 					return fmt.Errorf("unknown state type for ID %s", id.String())
 				}
@@ -207,21 +207,21 @@ func (s *Store) getStatesWithFilter(cType nats.ComponentType, ft StateFilter) ([
 	return states, nil
 }
 
-func (s *Store) GetTaskStatesForWorkflow(wfID state.ID) ([]state.State, error) {
+func (s *Store) GetTaskStatesForWorkflow(workflowID state.ID) ([]state.State, error) {
 	return s.getStatesWithFilter(nats.ComponentTask, func(state state.State) bool {
-		return state.GetCorrelationID() == wfID.CorrID
+		return state.GetCorrelationID() == workflowID.CorrID
 	})
 }
 
-func (s *Store) GetAgentStatesForTask(tID state.ID) ([]state.State, error) {
+func (s *Store) GetAgentStatesForTask(taskID state.ID) ([]state.State, error) {
 	return s.getStatesWithFilter(nats.ComponentAgent, func(state state.State) bool {
-		return state.GetCorrelationID() == tID.CorrID
+		return state.GetCorrelationID() == taskID.CorrID
 	})
 }
 
-func (s *Store) GetToolStatesForTask(tID state.ID) ([]state.State, error) {
+func (s *Store) GetToolStatesForTask(taskID state.ID) ([]state.State, error) {
 	return s.getStatesWithFilter(nats.ComponentTool, func(state state.State) bool {
-		return state.GetCorrelationID() == tID.CorrID
+		return state.GetCorrelationID() == taskID.CorrID
 	})
 }
 

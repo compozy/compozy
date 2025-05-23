@@ -9,16 +9,16 @@ import (
 
 // Route: POST /api/workflows/:workflow_id/execute
 func handleExecute(c *gin.Context) {
-	wfID := router.GetWorkflowID(c)
-	st := router.GetAppState(c)
-	input := router.GetRequestBody(c)
-	orch := st.Orchestrator
+	workflowID := router.GetWorkflowID(c)
+	state := router.GetAppState(c)
+	ti := router.GetRequestBody(c)
+	orch := state.Orchestrator
 
 	// Send workflow trigger
-	res, err := orch.SendWorkflowTrigger(wfID, input)
+	res, err := orch.SendWorkflowTrigger(ti, workflowID)
 	if err != nil {
-		reason := fmt.Sprintf("failed to execute workflow: %s", wfID)
-		reqErr := router.WorkflowExecutionError(wfID, reason, err)
+		reason := fmt.Sprintf("failed to execute workflow: %s", workflowID)
+		reqErr := router.WorkflowExecutionError(workflowID, reason, err)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}

@@ -75,31 +75,31 @@ func (ToolStatus) EnumDescriptor() ([]byte, []int) {
 	return file_tool_events_proto_rawDescGZIP(), []int{0}
 }
 
-type ToolExecutionStartedEvent struct {
-	state         protoimpl.MessageState             `protogen:"open.v1"`
-	Metadata      *common.Metadata                   `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo               `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Task          *common.TaskInfo                   `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
-	Tool          *common.ToolInfo                   `protobuf:"bytes,4,opt,name=tool,proto3" json:"tool,omitempty"`
-	Details       *ToolExecutionStartedEvent_Details `protobuf:"bytes,5,opt,name=details,proto3" json:"details,omitempty"`
+type EventToolStarted struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Metadata      *common.Metadata          `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo      `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Task          *common.TaskInfo          `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
+	Tool          *common.ToolInfo          `protobuf:"bytes,4,opt,name=tool,proto3" json:"tool,omitempty"`
+	Details       *EventToolStarted_Details `protobuf:"bytes,5,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ToolExecutionStartedEvent) Reset() {
-	*x = ToolExecutionStartedEvent{}
+func (x *EventToolStarted) Reset() {
+	*x = EventToolStarted{}
 	mi := &file_tool_events_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ToolExecutionStartedEvent) String() string {
+func (x *EventToolStarted) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ToolExecutionStartedEvent) ProtoMessage() {}
+func (*EventToolStarted) ProtoMessage() {}
 
-func (x *ToolExecutionStartedEvent) ProtoReflect() protoreflect.Message {
+func (x *EventToolStarted) ProtoReflect() protoreflect.Message {
 	mi := &file_tool_events_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -111,71 +111,71 @@ func (x *ToolExecutionStartedEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ToolExecutionStartedEvent.ProtoReflect.Descriptor instead.
-func (*ToolExecutionStartedEvent) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventToolStarted.ProtoReflect.Descriptor instead.
+func (*EventToolStarted) Descriptor() ([]byte, []int) {
 	return file_tool_events_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *ToolExecutionStartedEvent) GetMetadata() *common.Metadata {
+func (x *EventToolStarted) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *ToolExecutionStartedEvent) GetWorkflow() *common.WorkflowInfo {
+func (x *EventToolStarted) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *ToolExecutionStartedEvent) GetTask() *common.TaskInfo {
+func (x *EventToolStarted) GetTask() *common.TaskInfo {
 	if x != nil {
 		return x.Task
 	}
 	return nil
 }
 
-func (x *ToolExecutionStartedEvent) GetTool() *common.ToolInfo {
+func (x *EventToolStarted) GetTool() *common.ToolInfo {
 	if x != nil {
 		return x.Tool
 	}
 	return nil
 }
 
-func (x *ToolExecutionStartedEvent) GetDetails() *ToolExecutionStartedEvent_Details {
+func (x *EventToolStarted) GetDetails() *EventToolStarted_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type ToolExecutionSuccessEvent struct {
-	state         protoimpl.MessageState             `protogen:"open.v1"`
-	Metadata      *common.Metadata                   `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo               `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Task          *common.TaskInfo                   `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
-	Tool          *common.ToolInfo                   `protobuf:"bytes,4,opt,name=tool,proto3" json:"tool,omitempty"`
-	Details       *ToolExecutionSuccessEvent_Details `protobuf:"bytes,5,opt,name=details,proto3" json:"details,omitempty"`
+type EventToolSuccess struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Metadata      *common.Metadata          `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo      `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Task          *common.TaskInfo          `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
+	Tool          *common.ToolInfo          `protobuf:"bytes,4,opt,name=tool,proto3" json:"tool,omitempty"`
+	Details       *EventToolSuccess_Details `protobuf:"bytes,5,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ToolExecutionSuccessEvent) Reset() {
-	*x = ToolExecutionSuccessEvent{}
+func (x *EventToolSuccess) Reset() {
+	*x = EventToolSuccess{}
 	mi := &file_tool_events_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ToolExecutionSuccessEvent) String() string {
+func (x *EventToolSuccess) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ToolExecutionSuccessEvent) ProtoMessage() {}
+func (*EventToolSuccess) ProtoMessage() {}
 
-func (x *ToolExecutionSuccessEvent) ProtoReflect() protoreflect.Message {
+func (x *EventToolSuccess) ProtoReflect() protoreflect.Message {
 	mi := &file_tool_events_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -187,71 +187,71 @@ func (x *ToolExecutionSuccessEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ToolExecutionSuccessEvent.ProtoReflect.Descriptor instead.
-func (*ToolExecutionSuccessEvent) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventToolSuccess.ProtoReflect.Descriptor instead.
+func (*EventToolSuccess) Descriptor() ([]byte, []int) {
 	return file_tool_events_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *ToolExecutionSuccessEvent) GetMetadata() *common.Metadata {
+func (x *EventToolSuccess) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *ToolExecutionSuccessEvent) GetWorkflow() *common.WorkflowInfo {
+func (x *EventToolSuccess) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *ToolExecutionSuccessEvent) GetTask() *common.TaskInfo {
+func (x *EventToolSuccess) GetTask() *common.TaskInfo {
 	if x != nil {
 		return x.Task
 	}
 	return nil
 }
 
-func (x *ToolExecutionSuccessEvent) GetTool() *common.ToolInfo {
+func (x *EventToolSuccess) GetTool() *common.ToolInfo {
 	if x != nil {
 		return x.Tool
 	}
 	return nil
 }
 
-func (x *ToolExecutionSuccessEvent) GetDetails() *ToolExecutionSuccessEvent_Details {
+func (x *EventToolSuccess) GetDetails() *EventToolSuccess_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type ToolExecutionFailedEvent struct {
-	state         protoimpl.MessageState            `protogen:"open.v1"`
-	Metadata      *common.Metadata                  `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Workflow      *common.WorkflowInfo              `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
-	Task          *common.TaskInfo                  `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
-	Tool          *common.ToolInfo                  `protobuf:"bytes,4,opt,name=tool,proto3" json:"tool,omitempty"`
-	Details       *ToolExecutionFailedEvent_Details `protobuf:"bytes,5,opt,name=details,proto3" json:"details,omitempty"`
+type EventToolFailed struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Metadata      *common.Metadata         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Workflow      *common.WorkflowInfo     `protobuf:"bytes,2,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Task          *common.TaskInfo         `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
+	Tool          *common.ToolInfo         `protobuf:"bytes,4,opt,name=tool,proto3" json:"tool,omitempty"`
+	Details       *EventToolFailed_Details `protobuf:"bytes,5,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ToolExecutionFailedEvent) Reset() {
-	*x = ToolExecutionFailedEvent{}
+func (x *EventToolFailed) Reset() {
+	*x = EventToolFailed{}
 	mi := &file_tool_events_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ToolExecutionFailedEvent) String() string {
+func (x *EventToolFailed) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ToolExecutionFailedEvent) ProtoMessage() {}
+func (*EventToolFailed) ProtoMessage() {}
 
-func (x *ToolExecutionFailedEvent) ProtoReflect() protoreflect.Message {
+func (x *EventToolFailed) ProtoReflect() protoreflect.Message {
 	mi := &file_tool_events_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -263,67 +263,67 @@ func (x *ToolExecutionFailedEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ToolExecutionFailedEvent.ProtoReflect.Descriptor instead.
-func (*ToolExecutionFailedEvent) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventToolFailed.ProtoReflect.Descriptor instead.
+func (*EventToolFailed) Descriptor() ([]byte, []int) {
 	return file_tool_events_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *ToolExecutionFailedEvent) GetMetadata() *common.Metadata {
+func (x *EventToolFailed) GetMetadata() *common.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *ToolExecutionFailedEvent) GetWorkflow() *common.WorkflowInfo {
+func (x *EventToolFailed) GetWorkflow() *common.WorkflowInfo {
 	if x != nil {
 		return x.Workflow
 	}
 	return nil
 }
 
-func (x *ToolExecutionFailedEvent) GetTask() *common.TaskInfo {
+func (x *EventToolFailed) GetTask() *common.TaskInfo {
 	if x != nil {
 		return x.Task
 	}
 	return nil
 }
 
-func (x *ToolExecutionFailedEvent) GetTool() *common.ToolInfo {
+func (x *EventToolFailed) GetTool() *common.ToolInfo {
 	if x != nil {
 		return x.Tool
 	}
 	return nil
 }
 
-func (x *ToolExecutionFailedEvent) GetDetails() *ToolExecutionFailedEvent_Details {
+func (x *EventToolFailed) GetDetails() *EventToolFailed_Details {
 	if x != nil {
 		return x.Details
 	}
 	return nil
 }
 
-type ToolExecutionStartedEvent_Details struct {
+type EventToolStarted_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        ToolStatus             `protobuf:"varint,1,opt,name=status,proto3,enum=tool.ToolStatus" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ToolExecutionStartedEvent_Details) Reset() {
-	*x = ToolExecutionStartedEvent_Details{}
+func (x *EventToolStarted_Details) Reset() {
+	*x = EventToolStarted_Details{}
 	mi := &file_tool_events_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ToolExecutionStartedEvent_Details) String() string {
+func (x *EventToolStarted_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ToolExecutionStartedEvent_Details) ProtoMessage() {}
+func (*EventToolStarted_Details) ProtoMessage() {}
 
-func (x *ToolExecutionStartedEvent_Details) ProtoReflect() protoreflect.Message {
+func (x *EventToolStarted_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_tool_events_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -335,19 +335,19 @@ func (x *ToolExecutionStartedEvent_Details) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ToolExecutionStartedEvent_Details.ProtoReflect.Descriptor instead.
-func (*ToolExecutionStartedEvent_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventToolStarted_Details.ProtoReflect.Descriptor instead.
+func (*EventToolStarted_Details) Descriptor() ([]byte, []int) {
 	return file_tool_events_proto_rawDescGZIP(), []int{0, 0}
 }
 
-func (x *ToolExecutionStartedEvent_Details) GetStatus() ToolStatus {
+func (x *EventToolStarted_Details) GetStatus() ToolStatus {
 	if x != nil {
 		return x.Status
 	}
 	return ToolStatus_TOOL_STATUS_UNSPECIFIED
 }
 
-type ToolExecutionSuccessEvent_Details struct {
+type EventToolSuccess_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        ToolStatus             `protobuf:"varint,1,opt,name=status,proto3,enum=tool.ToolStatus" json:"status,omitempty"`
 	Result        *structpb.Struct       `protobuf:"bytes,2,opt,name=result,proto3" json:"result,omitempty"`
@@ -356,20 +356,20 @@ type ToolExecutionSuccessEvent_Details struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ToolExecutionSuccessEvent_Details) Reset() {
-	*x = ToolExecutionSuccessEvent_Details{}
+func (x *EventToolSuccess_Details) Reset() {
+	*x = EventToolSuccess_Details{}
 	mi := &file_tool_events_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ToolExecutionSuccessEvent_Details) String() string {
+func (x *EventToolSuccess_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ToolExecutionSuccessEvent_Details) ProtoMessage() {}
+func (*EventToolSuccess_Details) ProtoMessage() {}
 
-func (x *ToolExecutionSuccessEvent_Details) ProtoReflect() protoreflect.Message {
+func (x *EventToolSuccess_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_tool_events_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -381,33 +381,33 @@ func (x *ToolExecutionSuccessEvent_Details) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ToolExecutionSuccessEvent_Details.ProtoReflect.Descriptor instead.
-func (*ToolExecutionSuccessEvent_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventToolSuccess_Details.ProtoReflect.Descriptor instead.
+func (*EventToolSuccess_Details) Descriptor() ([]byte, []int) {
 	return file_tool_events_proto_rawDescGZIP(), []int{1, 0}
 }
 
-func (x *ToolExecutionSuccessEvent_Details) GetStatus() ToolStatus {
+func (x *EventToolSuccess_Details) GetStatus() ToolStatus {
 	if x != nil {
 		return x.Status
 	}
 	return ToolStatus_TOOL_STATUS_UNSPECIFIED
 }
 
-func (x *ToolExecutionSuccessEvent_Details) GetResult() *structpb.Struct {
+func (x *EventToolSuccess_Details) GetResult() *structpb.Struct {
 	if x != nil {
 		return x.Result
 	}
 	return nil
 }
 
-func (x *ToolExecutionSuccessEvent_Details) GetDurationMs() int64 {
+func (x *EventToolSuccess_Details) GetDurationMs() int64 {
 	if x != nil {
 		return x.DurationMs
 	}
 	return 0
 }
 
-type ToolExecutionFailedEvent_Details struct {
+type EventToolFailed_Details struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        ToolStatus             `protobuf:"varint,1,opt,name=status,proto3,enum=tool.ToolStatus" json:"status,omitempty"`
 	Error         *common.ErrorResult    `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
@@ -416,20 +416,20 @@ type ToolExecutionFailedEvent_Details struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ToolExecutionFailedEvent_Details) Reset() {
-	*x = ToolExecutionFailedEvent_Details{}
+func (x *EventToolFailed_Details) Reset() {
+	*x = EventToolFailed_Details{}
 	mi := &file_tool_events_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ToolExecutionFailedEvent_Details) String() string {
+func (x *EventToolFailed_Details) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ToolExecutionFailedEvent_Details) ProtoMessage() {}
+func (*EventToolFailed_Details) ProtoMessage() {}
 
-func (x *ToolExecutionFailedEvent_Details) ProtoReflect() protoreflect.Message {
+func (x *EventToolFailed_Details) ProtoReflect() protoreflect.Message {
 	mi := &file_tool_events_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -441,26 +441,26 @@ func (x *ToolExecutionFailedEvent_Details) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ToolExecutionFailedEvent_Details.ProtoReflect.Descriptor instead.
-func (*ToolExecutionFailedEvent_Details) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventToolFailed_Details.ProtoReflect.Descriptor instead.
+func (*EventToolFailed_Details) Descriptor() ([]byte, []int) {
 	return file_tool_events_proto_rawDescGZIP(), []int{2, 0}
 }
 
-func (x *ToolExecutionFailedEvent_Details) GetStatus() ToolStatus {
+func (x *EventToolFailed_Details) GetStatus() ToolStatus {
 	if x != nil {
 		return x.Status
 	}
 	return ToolStatus_TOOL_STATUS_UNSPECIFIED
 }
 
-func (x *ToolExecutionFailedEvent_Details) GetError() *common.ErrorResult {
+func (x *EventToolFailed_Details) GetError() *common.ErrorResult {
 	if x != nil {
 		return x.Error
 	}
 	return nil
 }
 
-func (x *ToolExecutionFailedEvent_Details) GetDurationMs() int64 {
+func (x *EventToolFailed_Details) GetDurationMs() int64 {
 	if x != nil {
 		return x.DurationMs
 	}
@@ -471,32 +471,32 @@ var File_tool_events_proto protoreflect.FileDescriptor
 
 const file_tool_events_proto_rawDesc = "" +
 	"\n" +
-	"\x11tool/events.proto\x12\x04tool\x1a\x14common/details.proto\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xbf\x02\n" +
-	"\x19ToolExecutionStartedEvent\x12,\n" +
+	"\x11tool/events.proto\x12\x04tool\x1a\x14common/details.proto\x1a\x15common/entities.proto\x1a\x15common/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xad\x02\n" +
+	"\x10EventToolStarted\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
 	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12$\n" +
-	"\x04tool\x18\x04 \x01(\v2\x10.common.ToolInfoR\x04tool\x12A\n" +
-	"\adetails\x18\x05 \x01(\v2'.tool.ToolExecutionStartedEvent.DetailsR\adetails\x1a3\n" +
+	"\x04tool\x18\x04 \x01(\v2\x10.common.ToolInfoR\x04tool\x128\n" +
+	"\adetails\x18\x05 \x01(\v2\x1e.tool.EventToolStarted.DetailsR\adetails\x1a3\n" +
 	"\aDetails\x12(\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x10.tool.ToolStatusR\x06status\"\x92\x03\n" +
-	"\x19ToolExecutionSuccessEvent\x12,\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x10.tool.ToolStatusR\x06status\"\x80\x03\n" +
+	"\x10EventToolSuccess\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
 	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12$\n" +
-	"\x04tool\x18\x04 \x01(\v2\x10.common.ToolInfoR\x04tool\x12A\n" +
-	"\adetails\x18\x05 \x01(\v2'.tool.ToolExecutionSuccessEvent.DetailsR\adetails\x1a\x85\x01\n" +
+	"\x04tool\x18\x04 \x01(\v2\x10.common.ToolInfoR\x04tool\x128\n" +
+	"\adetails\x18\x05 \x01(\v2\x1e.tool.EventToolSuccess.DetailsR\adetails\x1a\x85\x01\n" +
 	"\aDetails\x12(\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x10.tool.ToolStatusR\x06status\x12/\n" +
 	"\x06result\x18\x02 \x01(\v2\x17.google.protobuf.StructR\x06result\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
-	"durationMs\"\x89\x03\n" +
-	"\x18ToolExecutionFailedEvent\x12,\n" +
+	"durationMs\"\xf7\x02\n" +
+	"\x0fEventToolFailed\x12,\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x10.common.MetadataR\bmetadata\x120\n" +
 	"\bworkflow\x18\x02 \x01(\v2\x14.common.WorkflowInfoR\bworkflow\x12$\n" +
 	"\x04task\x18\x03 \x01(\v2\x10.common.TaskInfoR\x04task\x12$\n" +
-	"\x04tool\x18\x04 \x01(\v2\x10.common.ToolInfoR\x04tool\x12@\n" +
-	"\adetails\x18\x05 \x01(\v2&.tool.ToolExecutionFailedEvent.DetailsR\adetails\x1a\x7f\n" +
+	"\x04tool\x18\x04 \x01(\v2\x10.common.ToolInfoR\x04tool\x127\n" +
+	"\adetails\x18\x05 \x01(\v2\x1d.tool.EventToolFailed.DetailsR\adetails\x1a\x7f\n" +
 	"\aDetails\x12(\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x10.tool.ToolStatusR\x06status\x12)\n" +
 	"\x05error\x18\x02 \x01(\v2\x13.common.ErrorResultR\x05error\x12\x1f\n" +
@@ -524,41 +524,41 @@ func file_tool_events_proto_rawDescGZIP() []byte {
 var file_tool_events_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_tool_events_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_tool_events_proto_goTypes = []any{
-	(ToolStatus)(0),                           // 0: tool.ToolStatus
-	(*ToolExecutionStartedEvent)(nil),         // 1: tool.ToolExecutionStartedEvent
-	(*ToolExecutionSuccessEvent)(nil),         // 2: tool.ToolExecutionSuccessEvent
-	(*ToolExecutionFailedEvent)(nil),          // 3: tool.ToolExecutionFailedEvent
-	(*ToolExecutionStartedEvent_Details)(nil), // 4: tool.ToolExecutionStartedEvent.Details
-	(*ToolExecutionSuccessEvent_Details)(nil), // 5: tool.ToolExecutionSuccessEvent.Details
-	(*ToolExecutionFailedEvent_Details)(nil),  // 6: tool.ToolExecutionFailedEvent.Details
-	(*common.Metadata)(nil),                   // 7: common.Metadata
-	(*common.WorkflowInfo)(nil),               // 8: common.WorkflowInfo
-	(*common.TaskInfo)(nil),                   // 9: common.TaskInfo
-	(*common.ToolInfo)(nil),                   // 10: common.ToolInfo
-	(*structpb.Struct)(nil),                   // 11: google.protobuf.Struct
-	(*common.ErrorResult)(nil),                // 12: common.ErrorResult
+	(ToolStatus)(0),                  // 0: tool.ToolStatus
+	(*EventToolStarted)(nil),         // 1: tool.EventToolStarted
+	(*EventToolSuccess)(nil),         // 2: tool.EventToolSuccess
+	(*EventToolFailed)(nil),          // 3: tool.EventToolFailed
+	(*EventToolStarted_Details)(nil), // 4: tool.EventToolStarted.Details
+	(*EventToolSuccess_Details)(nil), // 5: tool.EventToolSuccess.Details
+	(*EventToolFailed_Details)(nil),  // 6: tool.EventToolFailed.Details
+	(*common.Metadata)(nil),          // 7: common.Metadata
+	(*common.WorkflowInfo)(nil),      // 8: common.WorkflowInfo
+	(*common.TaskInfo)(nil),          // 9: common.TaskInfo
+	(*common.ToolInfo)(nil),          // 10: common.ToolInfo
+	(*structpb.Struct)(nil),          // 11: google.protobuf.Struct
+	(*common.ErrorResult)(nil),       // 12: common.ErrorResult
 }
 var file_tool_events_proto_depIdxs = []int32{
-	7,  // 0: tool.ToolExecutionStartedEvent.metadata:type_name -> common.Metadata
-	8,  // 1: tool.ToolExecutionStartedEvent.workflow:type_name -> common.WorkflowInfo
-	9,  // 2: tool.ToolExecutionStartedEvent.task:type_name -> common.TaskInfo
-	10, // 3: tool.ToolExecutionStartedEvent.tool:type_name -> common.ToolInfo
-	4,  // 4: tool.ToolExecutionStartedEvent.details:type_name -> tool.ToolExecutionStartedEvent.Details
-	7,  // 5: tool.ToolExecutionSuccessEvent.metadata:type_name -> common.Metadata
-	8,  // 6: tool.ToolExecutionSuccessEvent.workflow:type_name -> common.WorkflowInfo
-	9,  // 7: tool.ToolExecutionSuccessEvent.task:type_name -> common.TaskInfo
-	10, // 8: tool.ToolExecutionSuccessEvent.tool:type_name -> common.ToolInfo
-	5,  // 9: tool.ToolExecutionSuccessEvent.details:type_name -> tool.ToolExecutionSuccessEvent.Details
-	7,  // 10: tool.ToolExecutionFailedEvent.metadata:type_name -> common.Metadata
-	8,  // 11: tool.ToolExecutionFailedEvent.workflow:type_name -> common.WorkflowInfo
-	9,  // 12: tool.ToolExecutionFailedEvent.task:type_name -> common.TaskInfo
-	10, // 13: tool.ToolExecutionFailedEvent.tool:type_name -> common.ToolInfo
-	6,  // 14: tool.ToolExecutionFailedEvent.details:type_name -> tool.ToolExecutionFailedEvent.Details
-	0,  // 15: tool.ToolExecutionStartedEvent.Details.status:type_name -> tool.ToolStatus
-	0,  // 16: tool.ToolExecutionSuccessEvent.Details.status:type_name -> tool.ToolStatus
-	11, // 17: tool.ToolExecutionSuccessEvent.Details.result:type_name -> google.protobuf.Struct
-	0,  // 18: tool.ToolExecutionFailedEvent.Details.status:type_name -> tool.ToolStatus
-	12, // 19: tool.ToolExecutionFailedEvent.Details.error:type_name -> common.ErrorResult
+	7,  // 0: tool.EventToolStarted.metadata:type_name -> common.Metadata
+	8,  // 1: tool.EventToolStarted.workflow:type_name -> common.WorkflowInfo
+	9,  // 2: tool.EventToolStarted.task:type_name -> common.TaskInfo
+	10, // 3: tool.EventToolStarted.tool:type_name -> common.ToolInfo
+	4,  // 4: tool.EventToolStarted.details:type_name -> tool.EventToolStarted.Details
+	7,  // 5: tool.EventToolSuccess.metadata:type_name -> common.Metadata
+	8,  // 6: tool.EventToolSuccess.workflow:type_name -> common.WorkflowInfo
+	9,  // 7: tool.EventToolSuccess.task:type_name -> common.TaskInfo
+	10, // 8: tool.EventToolSuccess.tool:type_name -> common.ToolInfo
+	5,  // 9: tool.EventToolSuccess.details:type_name -> tool.EventToolSuccess.Details
+	7,  // 10: tool.EventToolFailed.metadata:type_name -> common.Metadata
+	8,  // 11: tool.EventToolFailed.workflow:type_name -> common.WorkflowInfo
+	9,  // 12: tool.EventToolFailed.task:type_name -> common.TaskInfo
+	10, // 13: tool.EventToolFailed.tool:type_name -> common.ToolInfo
+	6,  // 14: tool.EventToolFailed.details:type_name -> tool.EventToolFailed.Details
+	0,  // 15: tool.EventToolStarted.Details.status:type_name -> tool.ToolStatus
+	0,  // 16: tool.EventToolSuccess.Details.status:type_name -> tool.ToolStatus
+	11, // 17: tool.EventToolSuccess.Details.result:type_name -> google.protobuf.Struct
+	0,  // 18: tool.EventToolFailed.Details.status:type_name -> tool.ToolStatus
+	12, // 19: tool.EventToolFailed.Details.error:type_name -> common.ErrorResult
 	20, // [20:20] is the sub-list for method output_type
 	20, // [20:20] is the sub-list for method input_type
 	20, // [20:20] is the sub-list for extension type_name

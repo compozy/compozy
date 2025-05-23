@@ -44,31 +44,31 @@ func loadProject(cwd string, file string) (*project.Config, []*workflow.Config, 
 		return nil, nil, err
 	}
 
-	// Load wfs from sources
-	wfs, err := projectConfig.WorkflowsFromSources()
+	// Load workflows from sources
+	workflows, err := projectConfig.WorkflowsFromSources()
 	if err != nil {
 		logger.Error("Failed to load workflows", "error", err)
 		return nil, nil, err
 	}
 
-	return projectConfig, wfs, nil
+	return projectConfig, workflows, nil
 }
 
 func getServices(
 	ctx context.Context,
 	ns *nats.Server,
-	pjc *project.Config,
-	wfs []*workflow.Config,
+	pConfig *project.Config,
+	workflows []*workflow.Config,
 ) (*orchestrator.Orchestrator, *store.Store, error) {
 	// Load store
-	dataDir := filepath.Join(pjc.GetCWD().PathStr(), "/.compozy/data")
+	dataDir := filepath.Join(pConfig.GetCWD().PathStr(), "/.compozy/data")
 	store, err := store.NewStore(dataDir)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create state store: %w", err)
 	}
 
 	// Load orchestrator
-	orch, err := orchestrator.NewOrchestrator(ctx, ns, store, pjc, wfs)
+	orch, err := orchestrator.NewOrchestrator(ctx, ns, store, pConfig, workflows)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create orchestrator: %w", err)
 	}
