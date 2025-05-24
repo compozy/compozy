@@ -181,40 +181,20 @@ func TestManager(t *testing.T) {
 		assert.Equal(t, toolStateID, state.GetID())
 		assert.Equal(t, nats.StatusSuccess, state.GetStatus())
 
-		// Test GetTaskStatesForWorkflow
-		taskStates, err := manager.GetTaskStatesForWorkflow(corrID, workflowID)
+		// Test GetTaskStateForWorkflow
+		taskStates, err := manager.GetTaskStateForWorkflow(corrID)
 		require.NoError(t, err)
 		assert.Len(t, taskStates, 1)
 
-		// Test GetAgentStatesForTask
-		agentStates, err := manager.GetAgentStatesForTask(corrID, taskID)
+		// Test GetAgentStateForWorkflow
+		agentStates, err := manager.GetAgentStateForWorkflow(corrID)
 		require.NoError(t, err)
 		assert.Len(t, agentStates, 1)
 
-		// Test GetToolStatesForTask
-		toolStates, err := manager.GetToolStatesForTask(corrID, taskID)
+		// Test GetToolStateForWorkflow
+		toolStates, err := manager.GetToolStateForWorkflow(corrID)
 		require.NoError(t, err)
 		assert.Len(t, toolStates, 1)
-
-		// Test GetAllWorkflowStates
-		workflowStates, err := manager.GetAllWorkflowStates()
-		require.NoError(t, err)
-		assert.Len(t, workflowStates, 1)
-
-		// Test GetAllTaskStates
-		allTaskStates, err := manager.GetAllTaskStates()
-		require.NoError(t, err)
-		assert.Len(t, allTaskStates, 1)
-
-		// Test GetAllAgentStates
-		allAgentStates, err := manager.GetAllAgentStates()
-		require.NoError(t, err)
-		assert.Len(t, allAgentStates, 1)
-
-		// Test GetAllToolStates
-		allToolStates, err := manager.GetAllToolStates()
-		require.NoError(t, err)
-		assert.Len(t, allToolStates, 1)
 
 		// Test DeleteWorkflowState
 		err = manager.DeleteWorkflowState(corrID, workflowID)

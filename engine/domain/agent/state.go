@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/state"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
 	"github.com/compozy/compozy/pkg/pb"
 )
@@ -28,7 +29,7 @@ func (ai *StateInitializer) Initialize() (*State, error) {
 		return nil, fmt.Errorf("failed to merge input: %w", err)
 	}
 	bsState := &state.BaseState{
-		StateID: GetAgentStateID(ai.Context.Metadata),
+		StateID: GetAgentStateID(ai.Metadata),
 		Status:  nats.StatusPending,
 		Trigger: ai.TriggerInput,
 		Input:   &input,
@@ -67,13 +68,25 @@ func NewState(stCtx *Context) (*State, error) {
 	return state, nil
 }
 
+func (s *State) GetContext() *Context {
+	return s.Context
+}
+
+func (s *State) GetComponentID() string {
+	return s.Context.GetAgentID()
+}
+
 func (s *State) UpdateFromEvent(event any) error {
+	metadata := s.Context.GetMetadata()
 	switch evt := event.(type) {
 	case *pb.EventAgentStarted:
+		logger.Debug("Received: AgentStarted", "metadata", metadata)
 		return s.handleStartedEvent(evt)
 	case *pb.EventAgentSuccess:
+		logger.Debug("Received: AgentSuccess", "metadata", metadata)
 		return s.handleSuccessEvent(evt)
 	case *pb.EventAgentFailed:
+		logger.Debug("Received: AgentFailed", "metadata", metadata)
 		return s.handleFailedEvent(evt)
 	default:
 		return fmt.Errorf("unsupported event type for agent state update: %T", evt)

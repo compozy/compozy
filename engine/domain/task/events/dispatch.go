@@ -12,7 +12,7 @@ import (
 	timepb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func SendTaskDispatch(
+func SendDispatch(
 	nc *nats.Client,
 	wConfig *workflow.Config,
 	wState *workflow.State,
@@ -25,18 +25,9 @@ func SendTaskDispatch(
 	}
 	wStateID := wState.GetID()
 	tStateID := state.NewID(nats.ComponentTask, corrID, tExecID)
-
-	logger.With(
-		"correlation_id", corrID,
-		"workflow_id", wConfig.ID,
-		"workflow_execution_id", wStateID.ExecID,
-		"task_id", taskID,
-		"task_execution_id", tExecID,
-	).Debug("Sending TaskDispatchCommand")
-
-	cmd := pb.CmdTaskDispatch{
+	cmd := &pb.CmdTaskDispatch{
 		Metadata: &pb.TaskMetadata{
-			Source:          "workflow.Executor",
+			Source:          pb.SourceTypeWorkflowExecutor.String(),
 			CorrelationId:   corrID.String(),
 			WorkflowId:      wConfig.ID,
 			WorkflowExecId:  wStateID.ExecID.String(),
@@ -45,12 +36,13 @@ func SendTaskDispatch(
 			TaskExecId:      tExecID.String(),
 			TaskStateId:     tStateID.String(),
 			Time:            timepb.Now(),
-			Subject:         "",
 		},
 	}
-	if err := nc.PublishCmd(&cmd); err != nil {
+	cmd.Metadata.Subject = cmd.ToSubject()
+	if err := nc.PublishCmd(cmd); err != nil {
 		return fmt.Errorf("failed to publish TaskDispatchCommand: %w", err)
 	}
 
+	logger.With("metadata", cmd.Metadata).Debug("Sent: TaskDispatch")
 	return nil
 }

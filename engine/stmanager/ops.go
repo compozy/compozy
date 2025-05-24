@@ -32,35 +32,46 @@ func (m *Manager) GetToolState(corrID common.ID, execID common.ID) (state.State,
 	return m.store.GetState(id)
 }
 
-func (m *Manager) GetTaskStatesForWorkflow(corrID common.ID, execID common.ID) ([]state.State, error) {
-	id := state.NewID(nats.ComponentWorkflow, corrID, execID)
-	return m.store.GetTaskStatesForWorkflow(id)
+func (m *Manager) GetTaskStateForWorkflow(corrID common.ID) ([]state.State, error) {
+	taskStates, err := m.store.GetStatesByComponent(nats.ComponentTask)
+	if err != nil {
+		return nil, err
+	}
+	var filteredStates []state.State
+	for _, state := range taskStates {
+		if state.GetCorrelationID() == corrID {
+			filteredStates = append(filteredStates, state)
+		}
+	}
+	return filteredStates, nil
 }
 
-func (m *Manager) GetAgentStatesForTask(corrID common.ID, execID common.ID) ([]state.State, error) {
-	id := state.NewID(nats.ComponentTask, corrID, execID)
-	return m.store.GetAgentStatesForTask(id)
+func (m *Manager) GetAgentStateForWorkflow(corrID common.ID) ([]state.State, error) {
+	agentStates, err := m.store.GetStatesByComponent(nats.ComponentAgent)
+	if err != nil {
+		return nil, err
+	}
+	var filteredStates []state.State
+	for _, state := range agentStates {
+		if state.GetCorrelationID() == corrID {
+			filteredStates = append(filteredStates, state)
+		}
+	}
+	return filteredStates, nil
 }
 
-func (m *Manager) GetToolStatesForTask(corrID common.ID, execID common.ID) ([]state.State, error) {
-	id := state.NewID(nats.ComponentTask, corrID, execID)
-	return m.store.GetToolStatesForTask(id)
-}
-
-func (m *Manager) GetAllWorkflowStates() ([]state.State, error) {
-	return m.store.GetStatesByComponent(nats.ComponentWorkflow)
-}
-
-func (m *Manager) GetAllTaskStates() ([]state.State, error) {
-	return m.store.GetStatesByComponent(nats.ComponentTask)
-}
-
-func (m *Manager) GetAllAgentStates() ([]state.State, error) {
-	return m.store.GetStatesByComponent(nats.ComponentAgent)
-}
-
-func (m *Manager) GetAllToolStates() ([]state.State, error) {
-	return m.store.GetStatesByComponent(nats.ComponentTool)
+func (m *Manager) GetToolStateForWorkflow(corrID common.ID) ([]state.State, error) {
+	toolStates, err := m.store.GetStatesByComponent(nats.ComponentTool)
+	if err != nil {
+		return nil, err
+	}
+	var filteredStates []state.State
+	for _, state := range toolStates {
+		if state.GetCorrelationID() == corrID {
+			filteredStates = append(filteredStates, state)
+		}
+	}
+	return filteredStates, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -73,37 +84,42 @@ func (m *Manager) DeleteWorkflowState(corrID common.ID, execID common.ID) error 
 		return fmt.Errorf("failed to delete workflow state: %w", err)
 	}
 
-	taskStates, err := m.store.GetTaskStatesForWorkflow(stateID)
+	// Get all task states for this workflow
+	taskStates, err := m.GetTaskStateForWorkflow(corrID)
 	if err != nil {
 		return fmt.Errorf("failed to get task states for workflow: %w", err)
 	}
 
+	// Delete all task states
 	for _, taskState := range taskStates {
-		taskID := taskState.GetID()
-		agentStates, err := m.store.GetAgentStatesForTask(taskID)
-		if err != nil {
-			return fmt.Errorf("failed to get agent states for task: %w", err)
-		}
-
-		for _, agState := range agentStates {
-			if err := m.store.DeleteState(agState.GetID()); err != nil {
-				return fmt.Errorf("failed to delete agent state: %w", err)
-			}
-		}
-
-		toolStates, err := m.store.GetToolStatesForTask(taskID)
-		if err != nil {
-			return fmt.Errorf("failed to get tool states for task: %w", err)
-		}
-
-		for _, toolState := range toolStates {
-			if err := m.store.DeleteState(toolState.GetID()); err != nil {
-				return fmt.Errorf("failed to delete tool state: %w", err)
-			}
-		}
-
-		if err := m.store.DeleteState(taskID); err != nil {
+		if err := m.store.DeleteState(taskState.GetID()); err != nil {
 			return fmt.Errorf("failed to delete task state: %w", err)
+		}
+	}
+
+	// Get all agent states for this workflow
+	agentStates, err := m.GetAgentStateForWorkflow(corrID)
+	if err != nil {
+		return fmt.Errorf("failed to get agent states for workflow: %w", err)
+	}
+
+	// Delete all agent states
+	for _, agentState := range agentStates {
+		if err := m.store.DeleteState(agentState.GetID()); err != nil {
+			return fmt.Errorf("failed to delete agent state: %w", err)
+		}
+	}
+
+	// Get all tool states for this workflow
+	toolStates, err := m.GetToolStateForWorkflow(corrID)
+	if err != nil {
+		return fmt.Errorf("failed to get tool states for workflow: %w", err)
+	}
+
+	// Delete all tool states
+	for _, toolState := range toolStates {
+		if err := m.store.DeleteState(toolState.GetID()); err != nil {
+			return fmt.Errorf("failed to delete tool state: %w", err)
 		}
 	}
 

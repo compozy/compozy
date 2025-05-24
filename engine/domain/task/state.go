@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/state"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
 	"github.com/compozy/compozy/pkg/pb"
 )
@@ -24,7 +25,7 @@ func (ti *StateInitializer) Initialize() (*State, error) {
 		return nil, fmt.Errorf("failed to merge env: %w", err)
 	}
 	bsState := &state.BaseState{
-		StateID: GetTaskStateID(ti.Context.Metadata),
+		StateID: GetTaskStateID(ti.Metadata),
 		Status:  nats.StatusPending,
 		Trigger: ti.TriggerInput,
 		Input:   ti.TaskInput,
@@ -67,21 +68,33 @@ func (s *State) GetContext() *Context {
 	return s.Context
 }
 
+func (s *State) GetComponentID() string {
+	return s.Context.GetTaskID()
+}
+
 func (s *State) UpdateFromEvent(event any) error {
+	metadata := s.Context.GetMetadata()
 	switch evt := event.(type) {
 	case *pb.EventTaskDispatched:
+		logger.Debug("Received: TaskDispatched", "metadata", metadata)
 		return s.handleDispatchedEvent(evt)
 	case *pb.EventTaskStarted:
+		logger.Debug("Received: TaskStarted", "metadata", metadata)
 		return s.handleStartedEvent(evt)
 	case *pb.EventTaskWaiting:
+		logger.Debug("Received: TaskWaiting", "metadata", metadata)
 		return s.handleWaitingStartedEvent(evt)
 	case *pb.EventTaskWaitingEnded:
+		logger.Debug("Received: TaskWaitingEnded", "metadata", metadata)
 		return s.handleWaitingEndedEvent(evt)
 	case *pb.EventTaskWaitingTimedOut:
+		logger.Debug("Received: TaskWaitingTimedOut", "metadata", metadata)
 		return s.handleWaitingTimedOutEvent(evt)
 	case *pb.EventTaskSuccess:
+		logger.Debug("Received: TaskSuccess", "metadata", metadata)
 		return s.handleSuccessEvent(evt)
 	case *pb.EventTaskFailed:
+		logger.Debug("Received: TaskFailed", "metadata", metadata)
 		return s.handleFailedEvent(evt)
 	default:
 		return fmt.Errorf("unsupported event type for task state update: %T", evt)

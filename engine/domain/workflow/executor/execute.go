@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/compozy/engine/common"
-	"github.com/compozy/compozy/engine/domain/workflow"
+	tkevts "github.com/compozy/compozy/engine/domain/task/events"
 	wfevts "github.com/compozy/compozy/engine/domain/workflow/events"
+	wfuc "github.com/compozy/compozy/engine/domain/workflow/uc"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
 	"github.com/compozy/compozy/pkg/pb"
 	"github.com/nats-io/nats.go/jetstream"
@@ -29,51 +30,27 @@ func (e *Executor) handleExecute(_ string, data []byte, _ jetstream.Msg) error {
 	if err := proto.Unmarshal(data, &cmd); err != nil {
 		return fmt.Errorf("failed to unmarshal CmdWorkflowExecute: %w", err)
 	}
-
-	// Create workflow state
-	_, wConfig, err := e.createAndValidateState(&cmd)
-	if err != nil {
-		return err
-	}
+	logger.With("metadata", cmd.Metadata).Info("Received: WorkflowExecute")
 
 	// Send WorkflowExecutionStart
 	metadata := cmd.GetMetadata()
 	if err := wfevts.SendStarted(e.nc, metadata); err != nil {
-		return fmt.Errorf("failed to send WorkflowExecutionStarted: %w", err)
+		return fmt.Errorf("failed to send EventWorkflowStarted: %w", err)
 	}
 
 	// Execute next task
-	taskID := *cmd.GetDetails().TaskId
-	if taskID == "" {
-		taskID = wConfig.Tasks[0].ID
+	state, config, err := wfuc.FindStateAndConfig(e.stManager, e.workflows, metadata)
+	if err != nil {
+		return err
 	}
-
-	// TODO: Send task dispatch
+	var taskID string
+	if cmd.GetDetails().TaskId != nil {
+		taskID = *cmd.GetDetails().TaskId
+	} else {
+		taskID = config.Tasks[0].ID
+	}
+	if err := tkevts.SendDispatch(e.nc, config, state, taskID); err != nil {
+		return nil
+	}
 	return nil
-}
-
-func (e *Executor) createAndValidateState(cmd *pb.CmdWorkflowExecute) (*workflow.State, *workflow.Config, error) {
-	workflowID := cmd.GetMetadata().WorkflowId
-	triggerInputMap := cmd.GetDetails().GetTriggerInput().AsMap()
-	if triggerInputMap == nil {
-		return nil, nil, fmt.Errorf("trigger input is nil")
-	}
-	triggerInput := common.Input(triggerInputMap)
-	metadata := cmd.GetMetadata()
-	wConfig, err := workflow.FindConfig(e.workflows, workflowID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Create workflow state
-	state, err := e.stManager.CreateWorkflowState(metadata, e.pConfig, wConfig, &triggerInput)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create workflow state: %w", err)
-	}
-
-	// Validate workflow config
-	if err := wConfig.ValidateParams(*state.Trigger); err != nil {
-		return nil, nil, fmt.Errorf("failed to validate workflow: %w", err)
-	}
-	return state, wConfig, nil
 }

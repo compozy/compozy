@@ -9,23 +9,22 @@ import (
 )
 
 func SendStarted(nc *nats.Client, metadata *pb.TaskMetadata) error {
-	logger.With(
-		"correlation_id", metadata.CorrelationId,
-		"workflow_id", metadata.WorkflowId,
-		"workflow_execution_id", metadata.WorkflowExecId,
-		"task_id", metadata.TaskId,
-		"task_execution_id", metadata.TaskExecId,
-	).Debug("Sending EventTaskStarted")
-
-	cmd := pb.EventTaskStarted{
-		Metadata: metadata.Clone("task.Executor"),
+	source := pb.SourceTypeTaskExecutor
+	metadata, err := metadata.Clone(source)
+	if err != nil {
+		return fmt.Errorf("failed to clone metadata: %w", err)
+	}
+	cmd := &pb.EventTaskStarted{
+		Metadata: metadata,
 		Details: &pb.EventTaskStarted_Details{
 			Status: pb.TaskStatus_TASK_STATUS_RUNNING,
 		},
 	}
-	if err := nc.PublishCmd(&cmd); err != nil {
+	cmd.Metadata.Subject = cmd.ToSubject()
+	if err := nc.PublishCmd(cmd); err != nil {
 		return fmt.Errorf("failed to publish EventTaskStarted: %w", err)
 	}
 
+	logger.With("metadata", cmd.Metadata).Debug("Sent: TaskStarted")
 	return nil
 }

@@ -5,7 +5,7 @@ type Config interface {
 	SetCWD(path string) error
 	GetCWD() *CWD
 	Validate() error
-	ValidateParams(input map[string]any) error
+	ValidateParams(input *Input) error
 	Merge(other any) error
 	LoadID() (string, error)
 }

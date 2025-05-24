@@ -30,7 +30,8 @@ func handleGetExecution(c *gin.Context) {
 	}
 
 	appState := router.GetAppState(c)
-	state, err := appState.Store.GetState(stateID)
+	stManager := appState.Orchestrator.StateManager
+	workflowJSON, workflowMap, err := stManager.LoadWorkflowStateMapSafe(stateID)
 	if err != nil {
 		reqErr := router.NewRequestError(
 			http.StatusInternalServerError,
@@ -42,6 +43,9 @@ func handleGetExecution(c *gin.Context) {
 	}
 
 	router.RespondOK(c, "workflow execution retrieved", gin.H{
-		"execution": state,
+		"workflow": workflowJSON,
+		"tasks":    workflowMap["tasks"],
+		"agents":   workflowMap["agents"],
+		"tools":    workflowMap["tools"],
 	})
 }

@@ -16,40 +16,14 @@ import (
 // Create
 // -----------------------------------------------------------------------------
 
-func (m *Manager) CreateTaskState(metadata *pb.TaskMetadata, config *task.Config) (*task.State, error) {
-	stateID := task.GetWorkflowStateID(metadata)
-	wState, err := m.LoadWorkflowState(stateID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load workflow state: %w", err)
-	}
-	ctx, err := task.NewContext(
-		metadata,
-		*wState.GetEnv(),
-		config.GetEnv(),
-		wState.GetTrigger(),
-		config.With,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create task context: %w", err)
-	}
-	state, err := task.NewState(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create state: %w", err)
-	}
-	if err := m.store.UpsertState(state); err != nil {
-		return nil, fmt.Errorf("failed to save state: %w", err)
-	}
-	return state, nil
-}
-
 func (m *Manager) CreateAgentState(metadata *pb.AgentMetadata, config *agent.Config) (*agent.State, error) {
 	stateID := agent.GetWorkflowStateID(metadata)
-	wState, err := m.LoadWorkflowState(stateID)
+	wState, err := m.LoadWorkflowState(stateID, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load workflow state: %w", err)
 	}
 	taskStateID := agent.GetTaskStateID(metadata)
-	taskState, err := m.LoadTaskState(taskStateID)
+	taskState, err := m.LoadTaskState(taskStateID, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load task state: %w", err)
 	}
@@ -68,20 +42,52 @@ func (m *Manager) CreateAgentState(metadata *pb.AgentMetadata, config *agent.Con
 	if err != nil {
 		return nil, fmt.Errorf("failed to create agent state: %w", err)
 	}
+	if err := config.ValidateParams(state.Input); err != nil {
+		return nil, fmt.Errorf("failed to validate input: %w", err)
+	}
 	if err := m.store.UpsertState(state); err != nil {
 		return nil, fmt.Errorf("failed to save agent state: %w", err)
 	}
 	return state, nil
 }
 
+func (m *Manager) CreateTaskState(metadata *pb.TaskMetadata, config *task.Config) (*task.State, error) {
+	stateID := task.GetWorkflowStateID(metadata)
+	wState, err := m.LoadWorkflowState(stateID, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load workflow state: %w", err)
+	}
+	ctx, err := task.NewContext(
+		metadata,
+		*wState.GetEnv(),
+		config.GetEnv(),
+		wState.GetTrigger(),
+		config.With,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create task context: %w", err)
+	}
+	state, err := task.NewState(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create state: %w", err)
+	}
+	if err := config.ValidateParams(state.Input); err != nil {
+		return nil, fmt.Errorf("failed to validate input: %w", err)
+	}
+	if err := m.store.UpsertState(state); err != nil {
+		return nil, fmt.Errorf("failed to save state: %w", err)
+	}
+	return state, nil
+}
+
 func (m *Manager) CreateToolState(metadata *pb.ToolMetadata, config *tool.Config) (*tool.State, error) {
 	stateID := tool.GetWorkflowStateID(metadata)
-	wState, err := m.LoadWorkflowState(stateID)
+	wState, err := m.LoadWorkflowState(stateID, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load workflow state: %w", err)
 	}
 	taskStateID := tool.GetTaskStateID(metadata)
-	taskState, err := m.LoadTaskState(taskStateID)
+	taskState, err := m.LoadTaskState(taskStateID, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load task state: %w", err)
 	}
@@ -100,6 +106,9 @@ func (m *Manager) CreateToolState(metadata *pb.ToolMetadata, config *tool.Config
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool state: %w", err)
 	}
+	if err := config.ValidateParams(config.With); err != nil {
+		return nil, fmt.Errorf("failed to validate params: %w", err)
+	}
 	if err := m.store.UpsertState(state); err != nil {
 		return nil, fmt.Errorf("failed to save tool state: %w", err)
 	}
@@ -109,14 +118,14 @@ func (m *Manager) CreateToolState(metadata *pb.ToolMetadata, config *tool.Config
 func (m *Manager) CreateWorkflowState(
 	metadata *pb.WorkflowMetadata,
 	pConfig *project.Config,
-	wConfig *workflow.Config,
+	config *workflow.Config,
 	triggerInput *common.Input,
 ) (*workflow.State, error) {
 	ctx, err := workflow.NewContext(
 		metadata,
 		triggerInput,
 		pConfig.GetEnv(),
-		wConfig.GetEnv(),
+		config.GetEnv(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create execution: %w", err)
@@ -124,6 +133,9 @@ func (m *Manager) CreateWorkflowState(
 	state, err := workflow.NewState(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create state: %w", err)
+	}
+	if err := config.ValidateParams(state.Trigger); err != nil {
+		return nil, fmt.Errorf("failed to validate params: %w", err)
 	}
 	if err := m.store.UpsertState(state); err != nil {
 		return nil, fmt.Errorf("failed to save state: %w", err)

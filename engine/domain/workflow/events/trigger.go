@@ -17,45 +17,33 @@ type TriggerResponse struct {
 }
 
 func SendTrigger(nc *nats.Client, input *common.Input, workflowID string) (*TriggerResponse, error) {
-	corrID, err := common.NewID()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate correlation ID: %w", err)
-	}
-	wExecID, err := common.NewID()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate workflow execution ID: %w", err)
-	}
+	corrID := common.MustNewID()
+	wExecID := common.MustNewID()
 	stateID := state.NewID(nats.ComponentWorkflow, corrID, wExecID)
-
-	logger.With(
-		"correlation_id", corrID,
-		"workflow_id", workflowID,
-		"workflow_execution_id", wExecID,
-	).Debug("Sending CmdWorkflowTrigger")
-
 	triggerInput, err := input.ToStruct()
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert trigger to struct: %w", err)
 	}
 
-	cmd := pb.CmdWorkflowTrigger{
+	cmd := &pb.CmdWorkflowTrigger{
 		Metadata: &pb.WorkflowMetadata{
-			Source:          "engine.Orchestrator",
+			Source:          pb.SourceTypeOrchestrator.String(),
 			CorrelationId:   corrID.String(),
 			WorkflowId:      workflowID,
 			WorkflowExecId:  wExecID.String(),
 			WorkflowStateId: stateID.String(),
 			Time:            timepb.Now(),
-			Subject:         "",
 		},
 		Details: &pb.CmdWorkflowTrigger_Details{
 			TriggerInput: triggerInput,
 		},
 	}
-	if err := nc.PublishCmd(&cmd); err != nil {
+	cmd.Metadata.Subject = cmd.ToSubject()
+	if err := nc.PublishCmd(cmd); err != nil {
 		return nil, fmt.Errorf("failed to publish CmdWorkflowTrigger: %w", err)
 	}
 
+	logger.With("metadata", cmd.Metadata).Debug("Sent: WorkflowTrigger")
 	return &TriggerResponse{
 		StateID:    stateID.String(),
 		WorkflowID: workflowID,

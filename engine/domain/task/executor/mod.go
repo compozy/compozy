@@ -28,7 +28,7 @@ func NewExecutor(
 
 func (e *Executor) Start(ctx context.Context) error {
 	if err := e.subscribeExecute(ctx); err != nil {
-		return fmt.Errorf("failed to subscribe to WorkflowExecuteCmd: %w", err)
+		return fmt.Errorf("failed to subscribe to CmdTaskExecute: %w", err)
 	}
 	return nil
 }

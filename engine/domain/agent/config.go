@@ -108,8 +108,11 @@ func (a *Config) Validate() error {
 	return v.Validate()
 }
 
-func (a *Config) ValidateParams(input map[string]any) error {
-	return schema.NewParamsValidator(input, a.InputSchema.Schema, a.ID).Validate()
+func (a *Config) ValidateParams(input *common.Input) error {
+	if a.InputSchema == nil || input == nil {
+		return nil
+	}
+	return schema.NewParamsValidator(*input, a.InputSchema.Schema, a.ID).Validate()
 }
 
 func (a *Config) Merge(other any) error {

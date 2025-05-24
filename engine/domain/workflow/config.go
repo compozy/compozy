@@ -109,9 +109,12 @@ func (w *Config) Validate() error {
 	return nil
 }
 
-func (w *Config) ValidateParams(input map[string]any) error {
+func (w *Config) ValidateParams(input *common.Input) error {
+	if input == nil {
+		return nil
+	}
 	inputSchema := w.Trigger.InputSchema
-	return schema.NewParamsValidator(input, inputSchema.Schema, w.ID).Validate()
+	return schema.NewParamsValidator(*input, inputSchema.Schema, w.ID).Validate()
 }
 
 func (w *Config) Merge(other any) error {

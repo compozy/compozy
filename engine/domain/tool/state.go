@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/state"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
 	"github.com/compozy/compozy/pkg/pb"
 )
@@ -28,7 +29,7 @@ func (ti *StateInitializer) Initialize() (*State, error) {
 		return nil, fmt.Errorf("failed to merge input: %w", err)
 	}
 	bs := &state.BaseState{
-		StateID: GetToolStateID(ti.Context.Metadata),
+		StateID: GetToolStateID(ti.Metadata),
 		Status:  nats.StatusPending,
 		Trigger: ti.TriggerInput,
 		Input:   &input,
@@ -67,13 +68,25 @@ func NewState(stCtx *Context) (*State, error) {
 	return state, nil
 }
 
+func (s *State) GetContext() *Context {
+	return s.Context
+}
+
+func (s *State) GetComponentID() string {
+	return s.Context.GetToolID()
+}
+
 func (s *State) UpdateFromEvent(event any) error {
+	metadata := s.Context.GetMetadata()
 	switch evt := event.(type) {
 	case *pb.EventToolStarted:
+		logger.Debug("Received: ToolStarted", "metadata", metadata)
 		return s.handleStartedEvent(evt)
 	case *pb.EventToolSuccess:
+		logger.Debug("Received: ToolSuccess", "metadata", metadata)
 		return s.handleSuccessEvent(evt)
 	case *pb.EventToolFailed:
+		logger.Debug("Received: ToolFailed", "metadata", metadata)
 		return s.handleFailedEvent(evt)
 	default:
 		return fmt.Errorf("unsupported event type for tool state update: %T", evt)

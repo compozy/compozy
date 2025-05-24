@@ -82,7 +82,7 @@ func (p *Config) Validate() error {
 	return validator.Validate()
 }
 
-func (p *Config) ValidateParams(_ map[string]any) error {
+func (p *Config) ValidateParams(_ *common.Input) error {
 	return nil
 }
 

@@ -54,6 +54,7 @@ func IDFromString(s string) (ID, error) {
 type State interface {
 	GetID() ID
 	GetCorrelationID() common.ID
+	GetComponentID() string
 	GetExecID() common.ID
 	GetStatus() nats.EvStatusType
 	GetEnv() *common.EnvMap
@@ -89,7 +90,7 @@ type BaseState struct {
 	Trigger *common.Input     `json:"trigger,omitempty"`
 	Input   *common.Input     `json:"input,omitempty"`
 	Output  *common.Output    `json:"output,omitempty"`
-	Env     *common.EnvMap    `json:"environment,omitempty"`
+	Env     *common.EnvMap    `json:"env,omitempty"`
 	Error   *Error            `json:"error,omitempty"`
 }
 
@@ -99,6 +100,10 @@ func (s *BaseState) GetID() ID {
 
 func (s *BaseState) GetCorrelationID() common.ID {
 	return s.StateID.CorrID
+}
+
+func (s *BaseState) GetComponentID() string {
+	return ""
 }
 
 func (s *BaseState) GetExecID() common.ID {
@@ -222,20 +227,39 @@ func OptsWithEnv(env *common.EnvMap) Option {
 }
 
 // -----------------------------------------------------------------------------
-// State Map
+// JSONMap
 // -----------------------------------------------------------------------------
 
-type Map map[ID]State
-
-func (sm Map) Get(id ID) (State, bool) {
-	state, exists := sm[id]
-	return state, exists
+type JSONMap struct {
+	ID      ID                `json:"id"`
+	Status  nats.EvStatusType `json:"status"`
+	Trigger *common.Input     `json:"trigger,omitempty"`
+	Input   *common.Input     `json:"input,omitempty"`
+	Output  *common.Output    `json:"output,omitempty"`
+	Env     *common.EnvMap    `json:"env,omitempty"`
+	Error   *Error            `json:"error,omitempty"`
 }
 
-func (sm Map) Add(state State) {
-	sm[state.GetID()] = state
+func NewJSONMap[T State](s T) *JSONMap {
+	return &JSONMap{
+		ID:      s.GetID(),
+		Status:  s.GetStatus(),
+		Trigger: s.GetTrigger(),
+		Input:   s.GetInput(),
+		Output:  s.GetOutput(),
+		Env:     s.GetEnv(),
+		Error:   s.GetError(),
+	}
 }
 
-func (sm Map) Remove(id ID) {
-	delete(sm, id)
+func (jm *JSONMap) AsMap() map[string]any {
+	return map[string]any{
+		"id":      jm.ID,
+		"status":  jm.Status,
+		"trigger": jm.Trigger,
+		"input":   jm.Input,
+		"output":  jm.Output,
+		"env":     jm.Env,
+		"error":   jm.Error,
+	}
 }

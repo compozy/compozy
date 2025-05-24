@@ -9,21 +9,19 @@ import (
 )
 
 func SendExecute(nc *nats.Client, dispatchCmd *pb.CmdTaskDispatch) error {
-	metadata := dispatchCmd.GetMetadata()
-	logger.With(
-		"correlation_id", metadata.CorrelationId,
-		"workflow_id", metadata.WorkflowId,
-		"workflow_execution_id", metadata.WorkflowExecId,
-		"task_id", metadata.TaskId,
-		"task_execution_id", metadata.TaskExecId,
-	).Debug("Sending TaskDispatchCommand")
-
-	cmd := pb.CmdTaskDispatch{
-		Metadata: metadata.Clone("engine.Orchestrator"),
+	source := pb.SourceTypeOrchestrator
+	metadata, err := dispatchCmd.GetMetadata().Clone(source)
+	if err != nil {
+		return fmt.Errorf("failed to clone metadata: %w", err)
 	}
-	if err := nc.PublishCmd(&cmd); err != nil {
+	cmd := &pb.CmdTaskExecute{
+		Metadata: metadata,
+	}
+	cmd.Metadata.Subject = cmd.ToSubject()
+	if err := nc.PublishCmd(cmd); err != nil {
 		return fmt.Errorf("failed to publish CmdTaskDispatch: %w", err)
 	}
 
+	logger.With("metadata", cmd.Metadata).Debug("Sent: TaskExecute")
 	return nil
 }

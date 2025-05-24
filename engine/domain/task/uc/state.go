@@ -13,29 +13,24 @@ func CreateInitState(
 	stManager *stmanager.Manager,
 	cmd *pb.CmdTaskDispatch,
 	workflows []*workflow.Config,
-) (*task.State, *task.Config, error) {
+) error {
 	// Find workflow state and config
 	metadata := cmd.GetMetadata()
 	wConfig, err := workflow.FindConfig(workflows, metadata.WorkflowId)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to find workflow config: %w", err)
+		return fmt.Errorf("failed to find workflow config: %w", err)
 	}
 
 	// Find task config and create state
 	tConfig, err := task.FindConfig(wConfig.Tasks, metadata.TaskId)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to find task config: %w", err)
+		return fmt.Errorf("failed to find task config: %w", err)
 	}
 
 	// Create task state
-	tState, err := stManager.CreateTaskState(metadata, tConfig)
+	_, err = stManager.CreateTaskState(metadata, tConfig)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create task state: %w", err)
+		return fmt.Errorf("failed to create task state: %w", err)
 	}
-
-	// Validate task input
-	if err := tConfig.ValidateParams(*tState.Input); err != nil {
-		return nil, nil, fmt.Errorf("failed to validate input: %w", err)
-	}
-	return tState, tConfig, nil
+	return nil
 }

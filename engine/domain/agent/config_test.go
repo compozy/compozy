@@ -294,7 +294,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 			},
 			cwd: agentCWD,
 		}
-		err := config.ValidateParams(*config.With)
+		err := config.ValidateParams(config.With)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "with parameters invalid for test-agent")
 	})

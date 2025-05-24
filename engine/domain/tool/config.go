@@ -72,8 +72,11 @@ func (t *Config) Validate() error {
 	return v.Validate()
 }
 
-func (t *Config) ValidateParams(input map[string]any) error {
-	return schema.NewParamsValidator(input, t.InputSchema.Schema, t.ID).Validate()
+func (t *Config) ValidateParams(input *common.Input) error {
+	if t.InputSchema == nil || input == nil {
+		return nil
+	}
+	return schema.NewParamsValidator(*input, t.InputSchema.Schema, t.ID).Validate()
 }
 
 // Merge merges another tool configuration into this one

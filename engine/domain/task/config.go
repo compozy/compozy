@@ -83,8 +83,11 @@ func (t *Config) Validate() error {
 	return v.Validate()
 }
 
-func (t *Config) ValidateParams(input map[string]any) error {
-	return schema.NewParamsValidator(input, t.InputSchema.Schema, t.ID).Validate()
+func (t *Config) ValidateParams(input *common.Input) error {
+	if t.InputSchema == nil || input == nil {
+		return nil
+	}
+	return schema.NewParamsValidator(*input, t.InputSchema.Schema, t.ID).Validate()
 }
 
 func (t *Config) Merge(other any) error {
@@ -125,9 +128,9 @@ func (t *Config) LoadFileRef(cwd *common.CWD) (*Config, error) {
 }
 
 func FindConfig(tasks []Config, taskID string) (*Config, error) {
-	for _, wf := range tasks {
-		if wf.ID == taskID {
-			return &wf, nil
+	for i := range tasks {
+		if tasks[i].ID == taskID {
+			return &tasks[i], nil
 		}
 	}
 	return nil, fmt.Errorf("task not found")

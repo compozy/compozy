@@ -319,7 +319,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.ValidateParams(*config.With)
+		err := config.ValidateParams(config.With)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "with parameters invalid for test-task")
 	})

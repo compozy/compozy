@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	tkevts "github.com/compozy/compozy/engine/domain/task/events"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
 	"github.com/compozy/compozy/pkg/pb"
 	"github.com/nats-io/nats.go/jetstream"
@@ -26,5 +28,13 @@ func (e *Executor) handleExecute(_ string, data []byte, _ jetstream.Msg) error {
 	if err := proto.Unmarshal(data, &cmd); err != nil {
 		return fmt.Errorf("failed to unmarshal CmdTaskExecute: %w", err)
 	}
+	logger.With("metadata", cmd.Metadata).Info("Received: TaskExecute")
+
+	// Send TaskExecutionStart
+	metadata := cmd.GetMetadata()
+	if err := tkevts.SendStarted(e.nc, metadata); err != nil {
+		return fmt.Errorf("failed to send EventTaskStarted: %w", err)
+	}
+
 	return nil
 }

@@ -15,12 +15,12 @@ import (
 )
 
 type Orchestrator struct {
-	nc        *nats.Client
-	stManager *stmanager.Manager
-	pConfig   *project.Config
-	workflows []*workflow.Config
-	wExecutor *wfexecutor.Executor
-	tExecutor *tkexecutor.Executor
+	StateManager *stmanager.Manager
+	nc           *nats.Client
+	pConfig      *project.Config
+	workflows    []*workflow.Config
+	wExecutor    *wfexecutor.Executor
+	tExecutor    *tkexecutor.Executor
 }
 
 func NewOrchestrator(
@@ -50,12 +50,12 @@ func NewOrchestrator(
 	tExecutor := tkexecutor.NewExecutor(nc, stManager, pConfig, workflows)
 
 	orch := &Orchestrator{
-		nc:        nc,
-		stManager: stManager,
-		pConfig:   pConfig,
-		workflows: workflows,
-		wExecutor: wExecutor,
-		tExecutor: tExecutor,
+		nc:           nc,
+		StateManager: stManager,
+		pConfig:      pConfig,
+		workflows:    workflows,
+		wExecutor:    wExecutor,
+		tExecutor:    tExecutor,
 	}
 	return orch, nil
 }
@@ -67,7 +67,7 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 	if err := o.subscribeTask(ctx); err != nil {
 		return fmt.Errorf("failed to subscribe to task commands: %w", err)
 	}
-	if err := o.stManager.Start(ctx); err != nil {
+	if err := o.StateManager.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start state manager: %w", err)
 	}
 	if err := o.wExecutor.Start(ctx); err != nil {
@@ -84,7 +84,7 @@ func (o *Orchestrator) Stop(ctx context.Context) error {
 	if err := o.nc.CloseWithContext(ctx); err != nil {
 		return fmt.Errorf("failed to close NATS client: %w", err)
 	}
-	if err := o.stManager.CloseWithContext(ctx); err != nil {
+	if err := o.StateManager.CloseWithContext(ctx); err != nil {
 		return fmt.Errorf("failed to stop state manager: %w", err)
 	}
 	logger.Debug("Orchestrator stopped successfully")

@@ -6,6 +6,8 @@ import (
 
 	"github.com/compozy/compozy/engine/common"
 	wfevts "github.com/compozy/compozy/engine/domain/workflow/events"
+	wfuc "github.com/compozy/compozy/engine/domain/workflow/uc"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
 	"github.com/compozy/compozy/pkg/pb"
 	"github.com/nats-io/nats.go/jetstream"
@@ -53,6 +55,10 @@ func (o *Orchestrator) handleWorkflowTrigger(_ string, data []byte, _ jetstream.
 	var cmd pb.CmdWorkflowTrigger
 	if err := proto.Unmarshal(data, &cmd); err != nil {
 		return fmt.Errorf("failed to unmarshal CmdWorkflowTrigger: %w", err)
+	}
+	logger.With("metadata", cmd.Metadata).Info("Received: WorkflowTrigger")
+	if err := wfuc.CreateInitState(o.StateManager, o.pConfig, o.workflows, &cmd); err != nil {
+		return fmt.Errorf("failed to create and validate workflow state: %w", err)
 	}
 	if err := o.SendWorkflowExecute(&cmd); err != nil {
 		return fmt.Errorf("failed to send CmdWorkflowExecute: %w", err)

@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/compozy/engine/common"
 	"github.com/compozy/compozy/engine/state"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/nats"
 	"github.com/compozy/compozy/pkg/pb"
 )
@@ -24,7 +25,7 @@ func (wi *StateInitializer) Initialize() (*State, error) {
 		return nil, fmt.Errorf("failed to merge env: %w", err)
 	}
 	bsState := &state.BaseState{
-		StateID: GetWorkflowStateID(wi.Context.Metadata),
+		StateID: GetWorkflowStateID(wi.Metadata),
 		Status:  nats.StatusPending,
 		Trigger: wi.TriggerInput,
 		Input:   wi.TriggerInput,
@@ -67,21 +68,33 @@ func (s *State) GetContext() *Context {
 	return s.Context
 }
 
+func (s *State) GetComponentID() string {
+	return s.Context.GetWorkflowID()
+}
+
 func (s *State) UpdateFromEvent(event any) error {
+	metadata := s.Context.GetMetadata()
 	switch evt := event.(type) {
 	case *pb.EventWorkflowStarted:
+		logger.Debug("Received: WorkflowStarted", "metadata", metadata)
 		return s.handleStartedEvent(evt)
 	case *pb.EventWorkflowPaused:
+		logger.Debug("Received: WorkflowPaused", "metadata", metadata)
 		return s.handlePausedEvent(evt)
 	case *pb.EventWorkflowResumed:
+		logger.Debug("Received: WorkflowResumed", "metadata", metadata)
 		return s.handleResumedEvent(evt)
 	case *pb.EventWorkflowSuccess:
+		logger.Debug("Received: WorkflowSuccess", "metadata", metadata)
 		return s.handleSuccessEvent(evt)
 	case *pb.EventWorkflowFailed:
+		logger.Debug("Received: WorkflowFailed", "metadata", metadata)
 		return s.handleFailedEvent(evt)
 	case *pb.EventWorkflowCanceled:
+		logger.Debug("Received: WorkflowCanceled", "metadata", metadata)
 		return s.handleCanceledEvent(evt)
 	case *pb.EventWorkflowTimedOut:
+		logger.Debug("Received: WorkflowTimedOut", "metadata", metadata)
 		return s.handleTimedOutEvent(evt)
 	default:
 		return fmt.Errorf("unsupported event type for workflow state update: %T", evt)
