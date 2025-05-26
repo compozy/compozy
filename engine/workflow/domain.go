@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/pb"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // -----------------------------------------------------------------------------
@@ -22,7 +23,7 @@ func NewStoreKey(workflowExecID core.ID) StoreKey {
 }
 
 func (s *StoreKey) String() string {
-	return fmt.Sprintf("%s:workflow", s.WorkflowExecID)
+	return fmt.Sprintf("workflow:%s", s.WorkflowExecID)
 }
 
 func (s *StoreKey) Bytes() []byte {
@@ -89,10 +90,15 @@ func NewExecution(data *RequestData) (*Execution, error) {
 		&env,
 		nil,
 	)
-	return &Execution{
+	exec := &Execution{
 		BaseExecution: baseExec,
 		RequestData:   data,
-	}, nil
+	}
+	normalizer := tplengine.NewNormalizer()
+	if err := normalizer.ParseExecution(exec); err != nil {
+		return nil, fmt.Errorf("failed to parse execution: %w", err)
+	}
+	return exec, nil
 }
 
 func (e *Execution) StoreKey() []byte {

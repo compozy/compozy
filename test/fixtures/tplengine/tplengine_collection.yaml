@@ -1,0 +1,41 @@
+collection_examples:
+  - name: "simple_loop"
+    context:
+      items: ["a", "b", "c"]
+    template: "{{ range .items }}{{ . }}{{ end }}"
+    expected: "abc"
+  - name: "loop_with_separator"
+    context:
+      items: ["a", "b", "c"]
+    template: "{{ range $index, $item := .items }}{{ $item }}{{ if ne $index (sub (len $.items) 1) }}, {{ end }}{{ end }}"
+    expected: "a, b, c"
+  - name: "loop_with_index"
+    context:
+      items: ["a", "b", "c"]
+    template: "{{ range $index, $item := .items }}{{ $index }}: {{ $item }}{{ if ne $index (sub (len $.items) 1) }}\n{{ end }}{{ end }}"
+    expected: "0: a\n1: b\n2: c"
+  - name: "empty_loop"
+    context:
+      items: []
+    template: "{{ range .items }}{{ . }}{{ end }}"
+    expected: ""
+  - name: "loop_with_conditional"
+    context:
+      items:
+        - name: "Item 1"
+          in_stock: true
+        - name: "Item 2"
+          in_stock: false
+        - name: "Item 3"
+          in_stock: true
+    template: |
+      Available items:
+      {{ range .items }}
+        {{ if .in_stock }}
+          - {{ .name }}
+        {{ end }}
+      {{ end }}
+    expected: |
+      Available items:
+        - Item 1
+        - Item 3

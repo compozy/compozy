@@ -1,11 +1,8 @@
 package core
 
 import (
-	"fmt"
 	"maps"
 	"time"
-
-	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 type JSONMap struct {
@@ -217,56 +214,4 @@ func SetExecutionResult(execution *BaseExecution, payload EventDetailsSuccess) {
 	res := &Output{}
 	maps.Copy((*res), output.AsMap())
 	execution.Output = res
-}
-
-// -----------------------------------------------------------------------------
-// Normalization
-// -----------------------------------------------------------------------------
-
-type Normalizer struct {
-	TemplateEngine *tplengine.TemplateEngine
-}
-
-func NewNormalizer(format tplengine.EngineFormat) *Normalizer {
-	return &Normalizer{
-		TemplateEngine: tplengine.NewEngine(format),
-	}
-}
-
-func (n *Normalizer) Normalize(parentInput *Input, exec Execution) map[string]any {
-	return map[string]any{
-		"trigger": map[string]any{
-			"input": parentInput,
-		},
-		"input":  exec.GetInput(),
-		"output": exec.GetOutput(),
-		"env":    exec.GetEnv(),
-	}
-}
-
-func (n *Normalizer) ParseExecution(parentInput *Input, exec Execution) error {
-	if n.TemplateEngine == nil {
-		return fmt.Errorf("template engine is not initialized")
-	}
-	if parentInput == nil {
-		parentInput = &Input{}
-	}
-	normalized := n.Normalize(parentInput, exec)
-	for k, v := range *exec.GetInput() {
-		parsedValue, err := n.TemplateEngine.ParseMap(v, normalized)
-		if err != nil {
-			return fmt.Errorf("failed to parse template in input[%s]: %w", k, err)
-		}
-		(*exec.GetInput())[k] = parsedValue
-	}
-	for k, v := range *exec.GetEnv() {
-		if tplengine.HasTemplate(v) {
-			parsed, err := n.TemplateEngine.RenderString(v, normalized)
-			if err != nil {
-				return fmt.Errorf("failed to parse template in env[%s]: %w", k, err)
-			}
-			(*exec.GetEnv())[k] = parsed
-		}
-	}
-	return nil
 }

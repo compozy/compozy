@@ -13,8 +13,8 @@ import (
 func handleExecute(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
 	state := router.GetAppState(c)
-	ti := router.GetRequestBody[core.Input](c)
-	triggerInput, err := ti.ToStruct()
+	input := router.GetRequestBody[core.Input](c)
+	inputMap, err := input.ToStruct()
 	if err != nil {
 		reason := fmt.Sprintf("failed to convert trigger to struct: %s", workflowID)
 		reqErr := router.WorkflowExecutionError(workflowID, reason, err)
@@ -23,7 +23,7 @@ func handleExecute(c *gin.Context) {
 	}
 
 	// Send workflow trigger
-	evt := events.NewCmdTrigger(state.NatsClient, triggerInput, workflowID)
+	evt := events.NewCmdTrigger(state.NatsClient, inputMap, workflowID)
 	if err := evt.Publish(c.Request.Context()); err != nil {
 		reason := fmt.Sprintf("failed to publish workflow trigger: %s", workflowID)
 		reqErr := router.WorkflowExecutionError(workflowID, reason, err)

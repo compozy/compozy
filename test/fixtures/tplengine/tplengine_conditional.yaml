@@ -1,0 +1,17 @@
+conditional_examples:
+  - name: "simple_if"
+    context:
+      show: true
+    template: "{{ if .show }}Visible{{ end }}"
+    expected: "Visible"
+  - name: "if_else"
+    context:
+      show: false
+    template: "{{ if .show }}Visible{{ else }}Hidden{{ end }}"
+    expected: "Hidden"
+  - name: "nested_property"
+    context:
+      user:
+        isAdmin: true
+    template: "{{ if .user.isAdmin }}Admin{{ else }}User{{ end }}"
+    expected: "Admin"

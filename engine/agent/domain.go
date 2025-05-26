@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/pb"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // -----------------------------------------------------------------------------
@@ -109,14 +110,19 @@ func NewExecution(data *RequestData) (*Execution, error) {
 		&env,
 		nil,
 	)
-	return &Execution{
+	exec := &Execution{
 		BaseExecution: baseExec,
 		AgentID:       data.AgentId,
 		AgentExecID:   core.ID(data.AgentExecId),
 		TaskID:        data.TaskId,
 		TaskExecID:    core.ID(data.TaskExecId),
 		RequestData:   data,
-	}, nil
+	}
+	normalizer := tplengine.NewNormalizer()
+	if err := normalizer.ParseExecution(exec); err != nil {
+		return nil, fmt.Errorf("failed to parse execution: %w", err)
+	}
+	return exec, nil
 }
 
 func (e *Execution) StoreKey() []byte {

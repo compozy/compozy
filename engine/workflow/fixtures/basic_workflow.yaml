@@ -1,0 +1,105 @@
+id: test-workflow
+version: "1.0.0"
+description: "Test workflow for code formatting"
+
+trigger:
+  type: webhook
+  config:
+    url: "/test-webhook"
+  input:
+    type: object
+    properties:
+      code:
+        type: string
+        description: The code to format
+      language:
+        type: string
+        description: The programming language of the code
+    required:
+      - code
+
+tasks:
+  - id: format-code
+    type: basic
+    use: agent(id=code-assistant)
+    action: format-code
+    with:
+      code: "{{ trigger.input.code }}"
+      language: "{{ trigger.input.language }}"
+    on_success:
+      next: save-formatted-code
+
+  - id: save-formatted-code
+    type: basic
+    use: tool(id=code-formatter)
+    final: true
+    with:
+      code: "{{ tasks.format-code.output.formatted_code }}"
+      language: "{{ trigger.input.language }}"
+
+tools:
+  - id: code-formatter
+    description: "A tool for formatting code"
+    execute: "./format.ts"
+    input:
+      type: object
+      properties:
+        code:
+          type: string
+          description: The code to format
+        language:
+          type: string
+          description: The programming language of the code
+      required:
+        - code
+    output:
+      type: object
+      properties:
+        formatted_code:
+          type: string
+          description: The formatted code
+      required:
+        - formatted_code
+    env:
+      FORMATTER_VERSION: "1.0.0"
+    with:
+      code: "console.log('hello')"
+      language: "javascript"
+      indent_size: 2
+      use_tabs: false
+
+agents:
+  - id: code-assistant
+    config:
+      provider: anthropic
+      model: claude-3-opus
+      temperature: 0.7
+      max_tokens: 4000
+    instructions: |
+      You are a code formatting assistant that helps format code according to language-specific style guides.
+      When formatting code:
+        - Follow the language's official style guide
+        - Maintain code functionality
+        - Use consistent indentation
+        - Add appropriate spacing
+    tools:
+      - use: tool(id=code-formatter)
+    actions:
+      - id: format-code
+        prompt: |
+          Format the following code according to {{ input.language }} style guide:
+          ```{{ input.language }}
+          {{ input.code }}
+          ```
+        output:
+          type: object
+          properties:
+            formatted_code:
+              type: string
+              description: The formatted code
+          required:
+            - formatted_code
+
+env:
+  WORKFLOW_VERSION: "1.0.0"
+  MAX_RETRIES: "3"
