@@ -34,39 +34,6 @@ type WithLogMetadata interface {
 }
 
 // -----------------------------------------------------------------------------
-// Correlation ID Helpers
-// -----------------------------------------------------------------------------
-
-func GetCorrelationID(payload any) string {
-	corrID := "unknown_correlation_id"
-
-	switch p := payload.(type) {
-	case WithWorkflowMetadata:
-		if meta := p.GetMetadata(); meta != nil && meta.GetCorrelationId() != "" {
-			corrID = meta.GetCorrelationId()
-		}
-	case WithTaskMetadata:
-		if meta := p.GetMetadata(); meta != nil && meta.GetCorrelationId() != "" {
-			corrID = meta.GetCorrelationId()
-		}
-	case WithAgentMetadata:
-		if meta := p.GetMetadata(); meta != nil && meta.GetCorrelationId() != "" {
-			corrID = meta.GetCorrelationId()
-		}
-	case WithToolMetadata:
-		if meta := p.GetMetadata(); meta != nil && meta.GetCorrelationId() != "" {
-			corrID = meta.GetCorrelationId()
-		}
-	case WithLogMetadata:
-		if meta := p.GetMetadata(); meta != nil && meta.GetCorrelationId() != "" {
-			corrID = meta.GetCorrelationId()
-		}
-	}
-
-	return corrID
-}
-
-// -----------------------------------------------------------------------------
 // Workflow Helpers
 // -----------------------------------------------------------------------------
 
@@ -150,31 +117,37 @@ func GetToolExecID(payload WithToolMetadata) string {
 // Source Helpers
 // -----------------------------------------------------------------------------
 
-func GetSourceComponent(payload any) string {
-	sourceComponent := "unknown_source_component"
+// getSourceFromMetadata extracts source from metadata if available
+func getSourceFromMetadata(source string) string {
+	if source != "" {
+		return source
+	}
+	return "unknown_source_component"
+}
 
+func GetSourceComponent(payload any) string {
 	switch p := payload.(type) {
 	case WithWorkflowMetadata:
-		if meta := p.GetMetadata(); meta != nil && meta.GetSource() != "" {
-			sourceComponent = meta.GetSource()
+		if meta := p.GetMetadata(); meta != nil {
+			return getSourceFromMetadata(meta.GetSource())
 		}
 	case WithTaskMetadata:
-		if meta := p.GetMetadata(); meta != nil && meta.GetSource() != "" {
-			sourceComponent = meta.GetSource()
+		if meta := p.GetMetadata(); meta != nil {
+			return getSourceFromMetadata(meta.GetSource())
 		}
 	case WithAgentMetadata:
-		if meta := p.GetMetadata(); meta != nil && meta.GetSource() != "" {
-			sourceComponent = meta.GetSource()
+		if meta := p.GetMetadata(); meta != nil {
+			return getSourceFromMetadata(meta.GetSource())
 		}
 	case WithToolMetadata:
-		if meta := p.GetMetadata(); meta != nil && meta.GetSource() != "" {
-			sourceComponent = meta.GetSource()
+		if meta := p.GetMetadata(); meta != nil {
+			return getSourceFromMetadata(meta.GetSource())
 		}
 	case WithLogMetadata:
-		if meta := p.GetMetadata(); meta != nil && meta.GetSource() != "" {
-			sourceComponent = meta.GetSource()
+		if meta := p.GetMetadata(); meta != nil {
+			return getSourceFromMetadata(meta.GetSource())
 		}
 	}
 
-	return sourceComponent
+	return "unknown_source_component"
 }

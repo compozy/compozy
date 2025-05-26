@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package agent;
 
-import "common.proto";
+import "core.proto";
 import "google/protobuf/struct.proto";
 
 option go_package = "github.com/compozy/compozy/pkg/pb";
@@ -19,10 +19,10 @@ enum AgentStatus {
 // -----------------------------------------------------------------------------
 
 message CmdAgentExecute {
-  common.AgentMetadata metadata = 1;
+  core.AgentMetadata metadata = 1;
 
   message Details {
-    common.AgentRequest agent_request = 1;
+    core.AgentRequest agent_request = 1;
   }
   Details details = 2;
 }
@@ -32,7 +32,7 @@ message CmdAgentExecute {
 // -----------------------------------------------------------------------------
 
 message EventAgentStarted {
-  common.AgentMetadata metadata = 1;
+  core.AgentMetadata metadata = 1;
 
   message Details {
     AgentStatus status = 1;
@@ -41,7 +41,7 @@ message EventAgentStarted {
 }
 
 message EventAgentSuccess {
-  common.AgentMetadata metadata = 1;
+  core.AgentMetadata metadata = 1;
 
   message Details {
     AgentStatus status = 1;
@@ -52,11 +52,11 @@ message EventAgentSuccess {
 }
 
 message EventAgentFailed {
-  common.AgentMetadata metadata = 1;
+  core.AgentMetadata metadata = 1;
 
   message Details {
     AgentStatus status = 1;
-    common.ErrorResult error = 2;
+    core.ErrorResult error = 2;
     int64 duration_ms = 3;
   }
   Details details = 2;

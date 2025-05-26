@@ -7,13 +7,13 @@ import (
 	"path/filepath"
 	"reflect"
 
-	"github.com/compozy/compozy/engine/common"
-	"github.com/compozy/compozy/engine/domain/agent"
-	"github.com/compozy/compozy/engine/domain/project"
-	"github.com/compozy/compozy/engine/domain/task"
-	"github.com/compozy/compozy/engine/domain/tool"
-	"github.com/compozy/compozy/engine/domain/trigger"
-	"github.com/compozy/compozy/engine/domain/workflow"
+	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/engine/trigger"
+	"github.com/compozy/compozy/engine/workflow"
 	"github.com/invopop/jsonschema"
 )
 
@@ -45,7 +45,7 @@ func GenerateParserSchemas(outDir string) error {
 				}
 				return schema
 			}
-			if t == reflect.TypeOf(common.PackageRefConfig("")) {
+			if t == reflect.TypeOf(core.PackageRefConfig("")) {
 				return &jsonschema.Schema{
 					Type:    "string",
 					Pattern: `^(agent|tool|task)\((id|file|dep)=[^)]+\)$`,
@@ -61,8 +61,8 @@ func GenerateParserSchemas(outDir string) error {
 		data any
 	}{
 		{"agent", &agent.Config{}},
-		{"author", &common.Author{}},
-		{"package-reference", common.NewPackageRefConfig("")},
+		{"author", &core.Author{}},
+		{"package-reference", core.NewPackageRefConfig("")},
 		{"project", &project.Config{}},
 		{"task", &task.Config{}},
 		{"tool", &tool.Config{}},

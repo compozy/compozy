@@ -495,31 +495,32 @@ var File_tool_proto protoreflect.FileDescriptor
 const file_tool_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"tool.proto\x12\x04tool\x1a\fcommon.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xbd\x01\n" +
-	"\x0eCmdToolExecute\x120\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x14.common.ToolMetadataR\bmetadata\x126\n" +
-	"\adetails\x18\x02 \x01(\v2\x1c.tool.CmdToolExecute.DetailsR\adetails\x1aA\n" +
-	"\aDetails\x126\n" +
-	"\ftool_request\x18\x01 \x01(\v2\x13.common.ToolRequestR\vtoolRequest\"\xb3\x01\n" +
-	"\x10EventToolStarted\x120\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x14.common.ToolMetadataR\bmetadata\x128\n" +
+	"tool.proto\x12\x04tool\x1a\n" +
+	"core.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xb9\x01\n" +
+	"\x0eCmdToolExecute\x12.\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x12.core.ToolMetadataR\bmetadata\x126\n" +
+	"\adetails\x18\x02 \x01(\v2\x1c.tool.CmdToolExecute.DetailsR\adetails\x1a?\n" +
+	"\aDetails\x124\n" +
+	"\ftool_request\x18\x01 \x01(\v2\x11.core.ToolRequestR\vtoolRequest\"\xb1\x01\n" +
+	"\x10EventToolStarted\x12.\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x12.core.ToolMetadataR\bmetadata\x128\n" +
 	"\adetails\x18\x02 \x01(\v2\x1e.tool.EventToolStarted.DetailsR\adetails\x1a3\n" +
 	"\aDetails\x12(\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x10.tool.ToolStatusR\x06status\"\x86\x02\n" +
-	"\x10EventToolSuccess\x120\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x14.common.ToolMetadataR\bmetadata\x128\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x10.tool.ToolStatusR\x06status\"\x84\x02\n" +
+	"\x10EventToolSuccess\x12.\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x12.core.ToolMetadataR\bmetadata\x128\n" +
 	"\adetails\x18\x02 \x01(\v2\x1e.tool.EventToolSuccess.DetailsR\adetails\x1a\x85\x01\n" +
 	"\aDetails\x12(\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x10.tool.ToolStatusR\x06status\x12/\n" +
 	"\x06result\x18\x02 \x01(\v2\x17.google.protobuf.StructR\x06result\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
-	"durationMs\"\xfd\x01\n" +
-	"\x0fEventToolFailed\x120\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x14.common.ToolMetadataR\bmetadata\x127\n" +
-	"\adetails\x18\x02 \x01(\v2\x1d.tool.EventToolFailed.DetailsR\adetails\x1a\x7f\n" +
+	"durationMs\"\xf9\x01\n" +
+	"\x0fEventToolFailed\x12.\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x12.core.ToolMetadataR\bmetadata\x127\n" +
+	"\adetails\x18\x02 \x01(\v2\x1d.tool.EventToolFailed.DetailsR\adetails\x1a}\n" +
 	"\aDetails\x12(\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x10.tool.ToolStatusR\x06status\x12)\n" +
-	"\x05error\x18\x02 \x01(\v2\x13.common.ErrorResultR\x05error\x12\x1f\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x10.tool.ToolStatusR\x06status\x12'\n" +
+	"\x05error\x18\x02 \x01(\v2\x11.core.ErrorResultR\x05error\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
 	"durationMs*s\n" +
 	"\n" +
@@ -553,26 +554,26 @@ var file_tool_proto_goTypes = []any{
 	(*EventToolStarted_Details)(nil), // 6: tool.EventToolStarted.Details
 	(*EventToolSuccess_Details)(nil), // 7: tool.EventToolSuccess.Details
 	(*EventToolFailed_Details)(nil),  // 8: tool.EventToolFailed.Details
-	(*ToolMetadata)(nil),             // 9: common.ToolMetadata
-	(*ToolRequest)(nil),              // 10: common.ToolRequest
+	(*ToolMetadata)(nil),             // 9: core.ToolMetadata
+	(*ToolRequest)(nil),              // 10: core.ToolRequest
 	(*structpb.Struct)(nil),          // 11: google.protobuf.Struct
-	(*ErrorResult)(nil),              // 12: common.ErrorResult
+	(*ErrorResult)(nil),              // 12: core.ErrorResult
 }
 var file_tool_proto_depIdxs = []int32{
-	9,  // 0: tool.CmdToolExecute.metadata:type_name -> common.ToolMetadata
+	9,  // 0: tool.CmdToolExecute.metadata:type_name -> core.ToolMetadata
 	5,  // 1: tool.CmdToolExecute.details:type_name -> tool.CmdToolExecute.Details
-	9,  // 2: tool.EventToolStarted.metadata:type_name -> common.ToolMetadata
+	9,  // 2: tool.EventToolStarted.metadata:type_name -> core.ToolMetadata
 	6,  // 3: tool.EventToolStarted.details:type_name -> tool.EventToolStarted.Details
-	9,  // 4: tool.EventToolSuccess.metadata:type_name -> common.ToolMetadata
+	9,  // 4: tool.EventToolSuccess.metadata:type_name -> core.ToolMetadata
 	7,  // 5: tool.EventToolSuccess.details:type_name -> tool.EventToolSuccess.Details
-	9,  // 6: tool.EventToolFailed.metadata:type_name -> common.ToolMetadata
+	9,  // 6: tool.EventToolFailed.metadata:type_name -> core.ToolMetadata
 	8,  // 7: tool.EventToolFailed.details:type_name -> tool.EventToolFailed.Details
-	10, // 8: tool.CmdToolExecute.Details.tool_request:type_name -> common.ToolRequest
+	10, // 8: tool.CmdToolExecute.Details.tool_request:type_name -> core.ToolRequest
 	0,  // 9: tool.EventToolStarted.Details.status:type_name -> tool.ToolStatus
 	0,  // 10: tool.EventToolSuccess.Details.status:type_name -> tool.ToolStatus
 	11, // 11: tool.EventToolSuccess.Details.result:type_name -> google.protobuf.Struct
 	0,  // 12: tool.EventToolFailed.Details.status:type_name -> tool.ToolStatus
-	12, // 13: tool.EventToolFailed.Details.error:type_name -> common.ErrorResult
+	12, // 13: tool.EventToolFailed.Details.error:type_name -> core.ErrorResult
 	14, // [14:14] is the sub-list for method output_type
 	14, // [14:14] is the sub-list for method input_type
 	14, // [14:14] is the sub-list for extension type_name
@@ -585,7 +586,7 @@ func file_tool_proto_init() {
 	if File_tool_proto != nil {
 		return
 	}
-	file_common_proto_init()
+	file_core_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

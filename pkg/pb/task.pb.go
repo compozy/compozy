@@ -951,57 +951,58 @@ var File_task_proto protoreflect.FileDescriptor
 const file_task_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"task.proto\x12\x04task\x1a\fcommon.proto\x1a\x1cgoogle/protobuf/struct.proto\"C\n" +
-	"\x0fCmdTaskDispatch\x120\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x14.common.TaskMetadataR\bmetadata\"B\n" +
-	"\x0eCmdTaskExecute\x120\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x14.common.TaskMetadataR\bmetadata\"A\n" +
-	"\rCmdTaskResume\x120\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x14.common.TaskMetadataR\bmetadata\"\xb9\x01\n" +
-	"\x13EventTaskDispatched\x120\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x14.common.TaskMetadataR\bmetadata\x12;\n" +
+	"task.proto\x12\x04task\x1a\n" +
+	"core.proto\x1a\x1cgoogle/protobuf/struct.proto\"A\n" +
+	"\x0fCmdTaskDispatch\x12.\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x12.core.TaskMetadataR\bmetadata\"@\n" +
+	"\x0eCmdTaskExecute\x12.\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x12.core.TaskMetadataR\bmetadata\"?\n" +
+	"\rCmdTaskResume\x12.\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x12.core.TaskMetadataR\bmetadata\"\xb7\x01\n" +
+	"\x13EventTaskDispatched\x12.\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x12.core.TaskMetadataR\bmetadata\x12;\n" +
 	"\adetails\x18\x02 \x01(\v2!.task.EventTaskDispatched.DetailsR\adetails\x1a3\n" +
 	"\aDetails\x12(\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\"\xb3\x01\n" +
-	"\x10EventTaskStarted\x120\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x14.common.TaskMetadataR\bmetadata\x128\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\"\xb1\x01\n" +
+	"\x10EventTaskStarted\x12.\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x12.core.TaskMetadataR\bmetadata\x128\n" +
 	"\adetails\x18\x02 \x01(\v2\x1e.task.EventTaskStarted.DetailsR\adetails\x1a3\n" +
 	"\aDetails\x12(\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\"\xb3\x01\n" +
-	"\x10EventTaskWaiting\x120\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x14.common.TaskMetadataR\bmetadata\x128\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\"\xb1\x01\n" +
+	"\x10EventTaskWaiting\x12.\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x12.core.TaskMetadataR\bmetadata\x128\n" +
 	"\adetails\x18\x02 \x01(\v2\x1e.task.EventTaskWaiting.DetailsR\adetails\x1a3\n" +
 	"\aDetails\x12(\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\"\xde\x01\n" +
-	"\x15EventTaskWaitingEnded\x120\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x14.common.TaskMetadataR\bmetadata\x12=\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\"\xdc\x01\n" +
+	"\x15EventTaskWaitingEnded\x12.\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x12.core.TaskMetadataR\bmetadata\x12=\n" +
 	"\adetails\x18\x02 \x01(\v2#.task.EventTaskWaitingEnded.DetailsR\adetails\x1aT\n" +
 	"\aDetails\x12(\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\x12\x1f\n" +
 	"\vduration_ms\x18\x02 \x01(\x03R\n" +
-	"durationMs\"\x8f\x02\n" +
-	"\x18EventTaskWaitingTimedOut\x120\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x14.common.TaskMetadataR\bmetadata\x12@\n" +
-	"\adetails\x18\x02 \x01(\v2&.task.EventTaskWaitingTimedOut.DetailsR\adetails\x1a\x7f\n" +
+	"durationMs\"\x8b\x02\n" +
+	"\x18EventTaskWaitingTimedOut\x12.\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x12.core.TaskMetadataR\bmetadata\x12@\n" +
+	"\adetails\x18\x02 \x01(\v2&.task.EventTaskWaitingTimedOut.DetailsR\adetails\x1a}\n" +
 	"\aDetails\x12(\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\x12)\n" +
-	"\x05error\x18\x02 \x01(\v2\x13.common.ErrorResultR\x05error\x12\x1f\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\x12'\n" +
+	"\x05error\x18\x02 \x01(\v2\x11.core.ErrorResultR\x05error\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
-	"durationMs\"\x86\x02\n" +
-	"\x10EventTaskSuccess\x120\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x14.common.TaskMetadataR\bmetadata\x128\n" +
+	"durationMs\"\x84\x02\n" +
+	"\x10EventTaskSuccess\x12.\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x12.core.TaskMetadataR\bmetadata\x128\n" +
 	"\adetails\x18\x02 \x01(\v2\x1e.task.EventTaskSuccess.DetailsR\adetails\x1a\x85\x01\n" +
 	"\aDetails\x12(\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\x12/\n" +
 	"\x06result\x18\x02 \x01(\v2\x17.google.protobuf.StructR\x06result\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
-	"durationMs\"\xfd\x01\n" +
-	"\x0fEventTaskFailed\x120\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x14.common.TaskMetadataR\bmetadata\x127\n" +
-	"\adetails\x18\x02 \x01(\v2\x1d.task.EventTaskFailed.DetailsR\adetails\x1a\x7f\n" +
+	"durationMs\"\xf9\x01\n" +
+	"\x0fEventTaskFailed\x12.\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x12.core.TaskMetadataR\bmetadata\x127\n" +
+	"\adetails\x18\x02 \x01(\v2\x1d.task.EventTaskFailed.DetailsR\adetails\x1a}\n" +
 	"\aDetails\x12(\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\x12)\n" +
-	"\x05error\x18\x02 \x01(\v2\x13.common.ErrorResultR\x05error\x12\x1f\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x10.task.TaskStatusR\x06status\x12'\n" +
+	"\x05error\x18\x02 \x01(\v2\x11.core.ErrorResultR\x05error\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
 	"durationMs*\xda\x01\n" +
 	"\n" +
@@ -1048,38 +1049,38 @@ var file_task_proto_goTypes = []any{
 	(*EventTaskWaitingTimedOut_Details)(nil), // 15: task.EventTaskWaitingTimedOut.Details
 	(*EventTaskSuccess_Details)(nil),         // 16: task.EventTaskSuccess.Details
 	(*EventTaskFailed_Details)(nil),          // 17: task.EventTaskFailed.Details
-	(*TaskMetadata)(nil),                     // 18: common.TaskMetadata
-	(*ErrorResult)(nil),                      // 19: common.ErrorResult
+	(*TaskMetadata)(nil),                     // 18: core.TaskMetadata
+	(*ErrorResult)(nil),                      // 19: core.ErrorResult
 	(*structpb.Struct)(nil),                  // 20: google.protobuf.Struct
 }
 var file_task_proto_depIdxs = []int32{
-	18, // 0: task.CmdTaskDispatch.metadata:type_name -> common.TaskMetadata
-	18, // 1: task.CmdTaskExecute.metadata:type_name -> common.TaskMetadata
-	18, // 2: task.CmdTaskResume.metadata:type_name -> common.TaskMetadata
-	18, // 3: task.EventTaskDispatched.metadata:type_name -> common.TaskMetadata
+	18, // 0: task.CmdTaskDispatch.metadata:type_name -> core.TaskMetadata
+	18, // 1: task.CmdTaskExecute.metadata:type_name -> core.TaskMetadata
+	18, // 2: task.CmdTaskResume.metadata:type_name -> core.TaskMetadata
+	18, // 3: task.EventTaskDispatched.metadata:type_name -> core.TaskMetadata
 	11, // 4: task.EventTaskDispatched.details:type_name -> task.EventTaskDispatched.Details
-	18, // 5: task.EventTaskStarted.metadata:type_name -> common.TaskMetadata
+	18, // 5: task.EventTaskStarted.metadata:type_name -> core.TaskMetadata
 	12, // 6: task.EventTaskStarted.details:type_name -> task.EventTaskStarted.Details
-	18, // 7: task.EventTaskWaiting.metadata:type_name -> common.TaskMetadata
+	18, // 7: task.EventTaskWaiting.metadata:type_name -> core.TaskMetadata
 	13, // 8: task.EventTaskWaiting.details:type_name -> task.EventTaskWaiting.Details
-	18, // 9: task.EventTaskWaitingEnded.metadata:type_name -> common.TaskMetadata
+	18, // 9: task.EventTaskWaitingEnded.metadata:type_name -> core.TaskMetadata
 	14, // 10: task.EventTaskWaitingEnded.details:type_name -> task.EventTaskWaitingEnded.Details
-	18, // 11: task.EventTaskWaitingTimedOut.metadata:type_name -> common.TaskMetadata
+	18, // 11: task.EventTaskWaitingTimedOut.metadata:type_name -> core.TaskMetadata
 	15, // 12: task.EventTaskWaitingTimedOut.details:type_name -> task.EventTaskWaitingTimedOut.Details
-	18, // 13: task.EventTaskSuccess.metadata:type_name -> common.TaskMetadata
+	18, // 13: task.EventTaskSuccess.metadata:type_name -> core.TaskMetadata
 	16, // 14: task.EventTaskSuccess.details:type_name -> task.EventTaskSuccess.Details
-	18, // 15: task.EventTaskFailed.metadata:type_name -> common.TaskMetadata
+	18, // 15: task.EventTaskFailed.metadata:type_name -> core.TaskMetadata
 	17, // 16: task.EventTaskFailed.details:type_name -> task.EventTaskFailed.Details
 	0,  // 17: task.EventTaskDispatched.Details.status:type_name -> task.TaskStatus
 	0,  // 18: task.EventTaskStarted.Details.status:type_name -> task.TaskStatus
 	0,  // 19: task.EventTaskWaiting.Details.status:type_name -> task.TaskStatus
 	0,  // 20: task.EventTaskWaitingEnded.Details.status:type_name -> task.TaskStatus
 	0,  // 21: task.EventTaskWaitingTimedOut.Details.status:type_name -> task.TaskStatus
-	19, // 22: task.EventTaskWaitingTimedOut.Details.error:type_name -> common.ErrorResult
+	19, // 22: task.EventTaskWaitingTimedOut.Details.error:type_name -> core.ErrorResult
 	0,  // 23: task.EventTaskSuccess.Details.status:type_name -> task.TaskStatus
 	20, // 24: task.EventTaskSuccess.Details.result:type_name -> google.protobuf.Struct
 	0,  // 25: task.EventTaskFailed.Details.status:type_name -> task.TaskStatus
-	19, // 26: task.EventTaskFailed.Details.error:type_name -> common.ErrorResult
+	19, // 26: task.EventTaskFailed.Details.error:type_name -> core.ErrorResult
 	27, // [27:27] is the sub-list for method output_type
 	27, // [27:27] is the sub-list for method input_type
 	27, // [27:27] is the sub-list for extension type_name
@@ -1092,7 +1093,7 @@ func file_task_proto_init() {
 	if File_task_proto != nil {
 		return
 	}
-	file_common_proto_init()
+	file_core_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

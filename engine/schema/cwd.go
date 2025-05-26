@@ -4,15 +4,15 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/compozy/engine/common"
+	"github.com/compozy/compozy/engine/core"
 )
 
 type CWDValidator struct {
 	id  string
-	cwd *common.CWD
+	cwd *core.CWD
 }
 
-func NewCWDValidator(cwd *common.CWD, id string) *CWDValidator {
+func NewCWDValidator(cwd *core.CWD, id string) *CWDValidator {
 	return &CWDValidator{cwd: cwd, id: id}
 }
 

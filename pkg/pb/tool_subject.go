@@ -1,45 +1,69 @@
 package pb
 
 import (
-	"fmt"
+	"github.com/compozy/compozy/engine/core"
 )
 
 // -----------------------------------------------------------------------------
-// Commands
+// CmdToolExecute
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a CmdToolExecute.
-// Pattern: compozy.<correlation_id>.tool.cmds.<tool_id>.execute
+// Pattern: compozy.<workflow_exec_id>.tool.cmd.<tool_exec_id>.execute
 func (x *CmdToolExecute) ToSubject() string {
-	corrID := GetCorrelationID(x)
-	toolID := GetToolID(x)
-	return fmt.Sprintf("compozy.%s.tool.cmds.%s.execute", corrID, toolID)
+	wExecID := x.Metadata.WorkflowExecId
+	tExecID := GetToolExecID(x)
+	return core.BuildCmdSubject(core.ComponentTool, wExecID, tExecID, core.CmdExecute)
+}
+
+func (x *CmdToolExecute) ToSubjectParams(workflowExecID string, execID string) string {
+	return core.BuildCmdSubject(core.ComponentTool, workflowExecID, execID, core.CmdExecute)
 }
 
 // -----------------------------------------------------------------------------
-// State Events
+// EvtToolStarted
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for an EventToolStarted.
-// Pattern: compozy.<correlation_id>.tool.evts.<tool_exec_id>.started
+// Pattern: compozy.<workflow_exec_id>.tool.evt.<tool_exec_id>.started
 func (x *EventToolStarted) ToSubject() string {
-	corrID := GetCorrelationID(x)
-	toolExecID := GetToolExecID(x)
-	return fmt.Sprintf("compozy.%s.tool.evts.%s.started", corrID, toolExecID)
+	wExecID := x.Metadata.WorkflowExecId
+	tExecID := GetToolExecID(x)
+	return core.BuildEvtSubject(core.ComponentTool, wExecID, tExecID, core.EvtStarted)
 }
+
+func (x *EventToolStarted) ToSubjectParams(workflowExecID string, execID string) string {
+	return core.BuildEvtSubject(core.ComponentTool, workflowExecID, execID, core.EvtStarted)
+}
+
+// -----------------------------------------------------------------------------
+// EvtToolSuccess
+// -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for an EventToolSuccess.
-// Pattern: compozy.<correlation_id>.tool.evts.<tool_exec_id>.success
+// Pattern: compozy.<workflow_exec_id>.tool.evt.<tool_exec_id>.success
 func (x *EventToolSuccess) ToSubject() string {
-	corrID := GetCorrelationID(x)
-	toolExecID := GetToolExecID(x)
-	return fmt.Sprintf("compozy.%s.tool.evts.%s.success", corrID, toolExecID)
+	wExecID := x.Metadata.WorkflowExecId
+	tExecID := GetToolExecID(x)
+	return core.BuildEvtSubject(core.ComponentTool, wExecID, tExecID, core.EvtSuccess)
 }
 
+func (x *EventToolSuccess) ToSubjectParams(workflowExecID string, execID string) string {
+	return core.BuildEvtSubject(core.ComponentTool, workflowExecID, execID, core.EvtSuccess)
+}
+
+// -----------------------------------------------------------------------------
+// EvtToolFailed
+// -----------------------------------------------------------------------------
+
 // ToSubject generates the NATS subject for an EventToolFailed.
-// Pattern: compozy.<correlation_id>.tool.evts.<tool_exec_id>.failed
+// Pattern: compozy.<workflow_exec_id>.tool.evt.<tool_exec_id>.failed
 func (x *EventToolFailed) ToSubject() string {
-	corrID := GetCorrelationID(x)
-	toolExecID := GetToolExecID(x)
-	return fmt.Sprintf("compozy.%s.tool.evts.%s.failed", corrID, toolExecID)
+	wExecID := x.Metadata.WorkflowExecId
+	tExecID := GetToolExecID(x)
+	return core.BuildEvtSubject(core.ComponentTool, wExecID, tExecID, core.EvtFailed)
+}
+
+func (x *EventToolFailed) ToSubjectParams(workflowExecID string, execID string) string {
+	return core.BuildEvtSubject(core.ComponentTool, workflowExecID, execID, core.EvtFailed)
 }

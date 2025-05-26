@@ -1158,14 +1158,15 @@ var File_workflow_proto protoreflect.FileDescriptor
 
 const file_workflow_proto_rawDesc = "" +
 	"\n" +
-	"\x0eworkflow.proto\x12\bworkflow\x1a\fcommon.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xd3\x01\n" +
-	"\x12CmdWorkflowTrigger\x124\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x18.common.WorkflowMetadataR\bmetadata\x12>\n" +
+	"\x0eworkflow.proto\x12\bworkflow\x1a\n" +
+	"core.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xd1\x01\n" +
+	"\x12CmdWorkflowTrigger\x122\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x16.core.WorkflowMetadataR\bmetadata\x12>\n" +
 	"\adetails\x18\x02 \x01(\v2$.workflow.CmdWorkflowTrigger.DetailsR\adetails\x1aG\n" +
 	"\aDetails\x12<\n" +
-	"\rtrigger_input\x18\x01 \x01(\v2\x17.google.protobuf.StructR\ftriggerInput\"\xb1\x02\n" +
-	"\x12CmdWorkflowExecute\x124\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x18.common.WorkflowMetadataR\bmetadata\x12>\n" +
+	"\rtrigger_input\x18\x01 \x01(\v2\x17.google.protobuf.StructR\ftriggerInput\"\xaf\x02\n" +
+	"\x12CmdWorkflowExecute\x122\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x16.core.WorkflowMetadataR\bmetadata\x12>\n" +
 	"\adetails\x18\x02 \x01(\v2$.workflow.CmdWorkflowExecute.DetailsR\adetails\x1a\xa4\x01\n" +
 	"\aDetails\x12<\n" +
 	"\rtrigger_input\x18\x01 \x01(\v2\x17.google.protobuf.StructR\ftriggerInput\x12\x1c\n" +
@@ -1174,57 +1175,57 @@ const file_workflow_proto_rawDesc = "" +
 	"final_task\x18\x03 \x01(\bH\x01R\tfinalTask\x88\x01\x01B\n" +
 	"\n" +
 	"\b_task_idB\r\n" +
-	"\v_final_task\"H\n" +
-	"\x10CmdWorkflowPause\x124\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x18.common.WorkflowMetadataR\bmetadata\"I\n" +
-	"\x11CmdWorkflowResume\x124\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x18.common.WorkflowMetadataR\bmetadata\"I\n" +
-	"\x11CmdWorkflowCancel\x124\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x18.common.WorkflowMetadataR\bmetadata\"\xcb\x01\n" +
-	"\x14EventWorkflowStarted\x124\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x18.common.WorkflowMetadataR\bmetadata\x12@\n" +
+	"\v_final_task\"F\n" +
+	"\x10CmdWorkflowPause\x122\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x16.core.WorkflowMetadataR\bmetadata\"G\n" +
+	"\x11CmdWorkflowResume\x122\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x16.core.WorkflowMetadataR\bmetadata\"G\n" +
+	"\x11CmdWorkflowCancel\x122\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x16.core.WorkflowMetadataR\bmetadata\"\xc9\x01\n" +
+	"\x14EventWorkflowStarted\x122\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x16.core.WorkflowMetadataR\bmetadata\x12@\n" +
 	"\adetails\x18\x02 \x01(\v2&.workflow.EventWorkflowStarted.DetailsR\adetails\x1a;\n" +
 	"\aDetails\x120\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\"\xc9\x01\n" +
-	"\x13EventWorkflowPaused\x124\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x18.common.WorkflowMetadataR\bmetadata\x12?\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\"\xc7\x01\n" +
+	"\x13EventWorkflowPaused\x122\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x16.core.WorkflowMetadataR\bmetadata\x12?\n" +
 	"\adetails\x18\x02 \x01(\v2%.workflow.EventWorkflowPaused.DetailsR\adetails\x1a;\n" +
 	"\aDetails\x120\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\"\xcb\x01\n" +
-	"\x14EventWorkflowResumed\x124\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x18.common.WorkflowMetadataR\bmetadata\x12@\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\"\xc9\x01\n" +
+	"\x14EventWorkflowResumed\x122\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x16.core.WorkflowMetadataR\bmetadata\x12@\n" +
 	"\adetails\x18\x02 \x01(\v2&.workflow.EventWorkflowResumed.DetailsR\adetails\x1a;\n" +
 	"\aDetails\x120\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\"\x9e\x02\n" +
-	"\x14EventWorkflowSuccess\x124\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x18.common.WorkflowMetadataR\bmetadata\x12@\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\"\x9c\x02\n" +
+	"\x14EventWorkflowSuccess\x122\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x16.core.WorkflowMetadataR\bmetadata\x12@\n" +
 	"\adetails\x18\x02 \x01(\v2&.workflow.EventWorkflowSuccess.DetailsR\adetails\x1a\x8d\x01\n" +
 	"\aDetails\x120\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\x12/\n" +
 	"\x06result\x18\x02 \x01(\v2\x17.google.protobuf.StructR\x06result\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
-	"durationMs\"\x96\x02\n" +
-	"\x13EventWorkflowFailed\x124\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x18.common.WorkflowMetadataR\bmetadata\x12?\n" +
-	"\adetails\x18\x02 \x01(\v2%.workflow.EventWorkflowFailed.DetailsR\adetails\x1a\x87\x01\n" +
+	"durationMs\"\x92\x02\n" +
+	"\x13EventWorkflowFailed\x122\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x16.core.WorkflowMetadataR\bmetadata\x12?\n" +
+	"\adetails\x18\x02 \x01(\v2%.workflow.EventWorkflowFailed.DetailsR\adetails\x1a\x85\x01\n" +
 	"\aDetails\x120\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\x12)\n" +
-	"\x05error\x18\x02 \x01(\v2\x13.common.ErrorResultR\x05error\x12\x1f\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\x12'\n" +
+	"\x05error\x18\x02 \x01(\v2\x11.core.ErrorResultR\x05error\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
-	"durationMs\"\xee\x01\n" +
-	"\x15EventWorkflowCanceled\x124\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x18.common.WorkflowMetadataR\bmetadata\x12A\n" +
+	"durationMs\"\xec\x01\n" +
+	"\x15EventWorkflowCanceled\x122\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x16.core.WorkflowMetadataR\bmetadata\x12A\n" +
 	"\adetails\x18\x02 \x01(\v2'.workflow.EventWorkflowCanceled.DetailsR\adetails\x1a\\\n" +
 	"\aDetails\x120\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
-	"durationMs\"\x9a\x02\n" +
-	"\x15EventWorkflowTimedOut\x124\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x18.common.WorkflowMetadataR\bmetadata\x12A\n" +
-	"\adetails\x18\x02 \x01(\v2'.workflow.EventWorkflowTimedOut.DetailsR\adetails\x1a\x87\x01\n" +
+	"durationMs\"\x96\x02\n" +
+	"\x15EventWorkflowTimedOut\x122\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x16.core.WorkflowMetadataR\bmetadata\x12A\n" +
+	"\adetails\x18\x02 \x01(\v2'.workflow.EventWorkflowTimedOut.DetailsR\adetails\x1a\x85\x01\n" +
 	"\aDetails\x120\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\x12)\n" +
-	"\x05error\x18\x02 \x01(\v2\x13.common.ErrorResultR\x05error\x12\x1f\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x18.workflow.WorkflowStatusR\x06status\x12'\n" +
+	"\x05error\x18\x02 \x01(\v2\x11.core.ErrorResultR\x05error\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
 	"durationMs*\xfd\x01\n" +
 	"\x0eWorkflowStatus\x12\x1f\n" +
@@ -1274,31 +1275,31 @@ var file_workflow_proto_goTypes = []any{
 	(*EventWorkflowFailed_Details)(nil),   // 19: workflow.EventWorkflowFailed.Details
 	(*EventWorkflowCanceled_Details)(nil), // 20: workflow.EventWorkflowCanceled.Details
 	(*EventWorkflowTimedOut_Details)(nil), // 21: workflow.EventWorkflowTimedOut.Details
-	(*WorkflowMetadata)(nil),              // 22: common.WorkflowMetadata
+	(*WorkflowMetadata)(nil),              // 22: core.WorkflowMetadata
 	(*structpb.Struct)(nil),               // 23: google.protobuf.Struct
-	(*ErrorResult)(nil),                   // 24: common.ErrorResult
+	(*ErrorResult)(nil),                   // 24: core.ErrorResult
 }
 var file_workflow_proto_depIdxs = []int32{
-	22, // 0: workflow.CmdWorkflowTrigger.metadata:type_name -> common.WorkflowMetadata
+	22, // 0: workflow.CmdWorkflowTrigger.metadata:type_name -> core.WorkflowMetadata
 	13, // 1: workflow.CmdWorkflowTrigger.details:type_name -> workflow.CmdWorkflowTrigger.Details
-	22, // 2: workflow.CmdWorkflowExecute.metadata:type_name -> common.WorkflowMetadata
+	22, // 2: workflow.CmdWorkflowExecute.metadata:type_name -> core.WorkflowMetadata
 	14, // 3: workflow.CmdWorkflowExecute.details:type_name -> workflow.CmdWorkflowExecute.Details
-	22, // 4: workflow.CmdWorkflowPause.metadata:type_name -> common.WorkflowMetadata
-	22, // 5: workflow.CmdWorkflowResume.metadata:type_name -> common.WorkflowMetadata
-	22, // 6: workflow.CmdWorkflowCancel.metadata:type_name -> common.WorkflowMetadata
-	22, // 7: workflow.EventWorkflowStarted.metadata:type_name -> common.WorkflowMetadata
+	22, // 4: workflow.CmdWorkflowPause.metadata:type_name -> core.WorkflowMetadata
+	22, // 5: workflow.CmdWorkflowResume.metadata:type_name -> core.WorkflowMetadata
+	22, // 6: workflow.CmdWorkflowCancel.metadata:type_name -> core.WorkflowMetadata
+	22, // 7: workflow.EventWorkflowStarted.metadata:type_name -> core.WorkflowMetadata
 	15, // 8: workflow.EventWorkflowStarted.details:type_name -> workflow.EventWorkflowStarted.Details
-	22, // 9: workflow.EventWorkflowPaused.metadata:type_name -> common.WorkflowMetadata
+	22, // 9: workflow.EventWorkflowPaused.metadata:type_name -> core.WorkflowMetadata
 	16, // 10: workflow.EventWorkflowPaused.details:type_name -> workflow.EventWorkflowPaused.Details
-	22, // 11: workflow.EventWorkflowResumed.metadata:type_name -> common.WorkflowMetadata
+	22, // 11: workflow.EventWorkflowResumed.metadata:type_name -> core.WorkflowMetadata
 	17, // 12: workflow.EventWorkflowResumed.details:type_name -> workflow.EventWorkflowResumed.Details
-	22, // 13: workflow.EventWorkflowSuccess.metadata:type_name -> common.WorkflowMetadata
+	22, // 13: workflow.EventWorkflowSuccess.metadata:type_name -> core.WorkflowMetadata
 	18, // 14: workflow.EventWorkflowSuccess.details:type_name -> workflow.EventWorkflowSuccess.Details
-	22, // 15: workflow.EventWorkflowFailed.metadata:type_name -> common.WorkflowMetadata
+	22, // 15: workflow.EventWorkflowFailed.metadata:type_name -> core.WorkflowMetadata
 	19, // 16: workflow.EventWorkflowFailed.details:type_name -> workflow.EventWorkflowFailed.Details
-	22, // 17: workflow.EventWorkflowCanceled.metadata:type_name -> common.WorkflowMetadata
+	22, // 17: workflow.EventWorkflowCanceled.metadata:type_name -> core.WorkflowMetadata
 	20, // 18: workflow.EventWorkflowCanceled.details:type_name -> workflow.EventWorkflowCanceled.Details
-	22, // 19: workflow.EventWorkflowTimedOut.metadata:type_name -> common.WorkflowMetadata
+	22, // 19: workflow.EventWorkflowTimedOut.metadata:type_name -> core.WorkflowMetadata
 	21, // 20: workflow.EventWorkflowTimedOut.details:type_name -> workflow.EventWorkflowTimedOut.Details
 	23, // 21: workflow.CmdWorkflowTrigger.Details.trigger_input:type_name -> google.protobuf.Struct
 	23, // 22: workflow.CmdWorkflowExecute.Details.trigger_input:type_name -> google.protobuf.Struct
@@ -1308,10 +1309,10 @@ var file_workflow_proto_depIdxs = []int32{
 	0,  // 26: workflow.EventWorkflowSuccess.Details.status:type_name -> workflow.WorkflowStatus
 	23, // 27: workflow.EventWorkflowSuccess.Details.result:type_name -> google.protobuf.Struct
 	0,  // 28: workflow.EventWorkflowFailed.Details.status:type_name -> workflow.WorkflowStatus
-	24, // 29: workflow.EventWorkflowFailed.Details.error:type_name -> common.ErrorResult
+	24, // 29: workflow.EventWorkflowFailed.Details.error:type_name -> core.ErrorResult
 	0,  // 30: workflow.EventWorkflowCanceled.Details.status:type_name -> workflow.WorkflowStatus
 	0,  // 31: workflow.EventWorkflowTimedOut.Details.status:type_name -> workflow.WorkflowStatus
-	24, // 32: workflow.EventWorkflowTimedOut.Details.error:type_name -> common.ErrorResult
+	24, // 32: workflow.EventWorkflowTimedOut.Details.error:type_name -> core.ErrorResult
 	33, // [33:33] is the sub-list for method output_type
 	33, // [33:33] is the sub-list for method input_type
 	33, // [33:33] is the sub-list for extension type_name
@@ -1324,7 +1325,7 @@ func file_workflow_proto_init() {
 	if File_workflow_proto != nil {
 		return
 	}
-	file_common_proto_init()
+	file_core_proto_init()
 	file_workflow_proto_msgTypes[13].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

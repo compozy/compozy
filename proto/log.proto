@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package log;
 
-import "common.proto";
+import "core.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/compozy/compozy/pkg/pb";
@@ -20,14 +20,17 @@ enum LogLevel {
 // -----------------------------------------------------------------------------
 
 message EventLogEmitted {
-  common.LogMetadata metadata = 1;
+  core.LogMetadata metadata = 1;
 
   message Details {
     LogLevel log_level = 1;
-    string component = 2;
-    string component_id = 3;
-    string message = 4;
-    google.protobuf.Timestamp time = 5;
+    string workflow_exec_id = 2;
+    string workflow_id = 3;
+    string component = 4;
+    string component_id = 5;
+    string component_exec_id = 6;
+    string message = 7;
+    google.protobuf.Timestamp time = 8;
   }
   Details details = 2;
 }

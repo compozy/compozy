@@ -4,15 +4,15 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/compozy/compozy/engine/common"
+	"github.com/compozy/compozy/engine/core"
 	"github.com/google/uuid"
 	"github.com/otiai10/copy"
 	"github.com/stretchr/testify/require"
 )
 
-func SetupTest(t *testing.T, filename string) (*common.CWD, string) {
+func SetupTest(t *testing.T, filename string) (*core.CWD, string) {
 	testDir := filepath.Dir(filename)
-	cwd, err := common.CWDFromPath(testDir)
+	cwd, err := core.CWDFromPath(testDir)
 	require.NoError(t, err)
 	dstPath := SetupFixture(t, testDir)
 	return cwd, dstPath

@@ -166,6 +166,46 @@ func (e *TemplateEngine) ProcessFile(filePath string, context map[string]any) (*
 	return e.ProcessString(string(templateBytes), context)
 }
 
+func (e *TemplateEngine) ParseMap(value any, data map[string]any) (any, error) {
+	if value == nil {
+		return nil, nil
+	}
+	switch v := value.(type) {
+	case string:
+		if HasTemplate(v) {
+			parsed, err := e.RenderString(v, data)
+			if err != nil {
+				return nil, err
+			}
+			return parsed, nil
+		}
+		return v, nil
+	case map[string]any:
+		result := make(map[string]any, len(v))
+		for k, val := range v {
+			parsedVal, err := e.ParseMap(val, data)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse template in map key %s: %w", k, err)
+			}
+			result[k] = parsedVal
+		}
+		return result, nil
+	case []any:
+		result := make([]any, len(v))
+		for i, val := range v {
+			parsedVal, err := e.ParseMap(val, data)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse template in array index %d: %w", i, err)
+			}
+			result[i] = parsedVal
+		}
+		return result, nil
+	default:
+		// For other types (int, bool, etc.), return as is
+		return v, nil
+	}
+}
+
 // AddGlobalValue adds a global value to the template engine
 func (e *TemplateEngine) AddGlobalValue(name string, value any) {
 	e.globalValues[name] = value

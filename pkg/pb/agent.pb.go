@@ -494,31 +494,32 @@ var File_agent_proto protoreflect.FileDescriptor
 
 const file_agent_proto_rawDesc = "" +
 	"\n" +
-	"\vagent.proto\x12\x05agent\x1a\fcommon.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xc4\x01\n" +
-	"\x0fCmdAgentExecute\x121\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x15.common.AgentMetadataR\bmetadata\x128\n" +
-	"\adetails\x18\x02 \x01(\v2\x1e.agent.CmdAgentExecute.DetailsR\adetails\x1aD\n" +
-	"\aDetails\x129\n" +
-	"\ragent_request\x18\x01 \x01(\v2\x14.common.AgentRequestR\fagentRequest\"\xb9\x01\n" +
-	"\x11EventAgentStarted\x121\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x15.common.AgentMetadataR\bmetadata\x12:\n" +
+	"\vagent.proto\x12\x05agent\x1a\n" +
+	"core.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xc0\x01\n" +
+	"\x0fCmdAgentExecute\x12/\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x13.core.AgentMetadataR\bmetadata\x128\n" +
+	"\adetails\x18\x02 \x01(\v2\x1e.agent.CmdAgentExecute.DetailsR\adetails\x1aB\n" +
+	"\aDetails\x127\n" +
+	"\ragent_request\x18\x01 \x01(\v2\x12.core.AgentRequestR\fagentRequest\"\xb7\x01\n" +
+	"\x11EventAgentStarted\x12/\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x13.core.AgentMetadataR\bmetadata\x12:\n" +
 	"\adetails\x18\x02 \x01(\v2 .agent.EventAgentStarted.DetailsR\adetails\x1a5\n" +
 	"\aDetails\x12*\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x12.agent.AgentStatusR\x06status\"\x8c\x02\n" +
-	"\x11EventAgentSuccess\x121\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x15.common.AgentMetadataR\bmetadata\x12:\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x12.agent.AgentStatusR\x06status\"\x8a\x02\n" +
+	"\x11EventAgentSuccess\x12/\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x13.core.AgentMetadataR\bmetadata\x12:\n" +
 	"\adetails\x18\x02 \x01(\v2 .agent.EventAgentSuccess.DetailsR\adetails\x1a\x87\x01\n" +
 	"\aDetails\x12*\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x12.agent.AgentStatusR\x06status\x12/\n" +
 	"\x06result\x18\x02 \x01(\v2\x17.google.protobuf.StructR\x06result\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
-	"durationMs\"\x84\x02\n" +
-	"\x10EventAgentFailed\x121\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x15.common.AgentMetadataR\bmetadata\x129\n" +
-	"\adetails\x18\x02 \x01(\v2\x1f.agent.EventAgentFailed.DetailsR\adetails\x1a\x81\x01\n" +
+	"durationMs\"\xff\x01\n" +
+	"\x10EventAgentFailed\x12/\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x13.core.AgentMetadataR\bmetadata\x129\n" +
+	"\adetails\x18\x02 \x01(\v2\x1f.agent.EventAgentFailed.DetailsR\adetails\x1a\x7f\n" +
 	"\aDetails\x12*\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x12.agent.AgentStatusR\x06status\x12)\n" +
-	"\x05error\x18\x02 \x01(\v2\x13.common.ErrorResultR\x05error\x12\x1f\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x12.agent.AgentStatusR\x06status\x12'\n" +
+	"\x05error\x18\x02 \x01(\v2\x11.core.ErrorResultR\x05error\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
 	"durationMs*x\n" +
 	"\vAgentStatus\x12\x1c\n" +
@@ -551,26 +552,26 @@ var file_agent_proto_goTypes = []any{
 	(*EventAgentStarted_Details)(nil), // 6: agent.EventAgentStarted.Details
 	(*EventAgentSuccess_Details)(nil), // 7: agent.EventAgentSuccess.Details
 	(*EventAgentFailed_Details)(nil),  // 8: agent.EventAgentFailed.Details
-	(*AgentMetadata)(nil),             // 9: common.AgentMetadata
-	(*AgentRequest)(nil),              // 10: common.AgentRequest
+	(*AgentMetadata)(nil),             // 9: core.AgentMetadata
+	(*AgentRequest)(nil),              // 10: core.AgentRequest
 	(*structpb.Struct)(nil),           // 11: google.protobuf.Struct
-	(*ErrorResult)(nil),               // 12: common.ErrorResult
+	(*ErrorResult)(nil),               // 12: core.ErrorResult
 }
 var file_agent_proto_depIdxs = []int32{
-	9,  // 0: agent.CmdAgentExecute.metadata:type_name -> common.AgentMetadata
+	9,  // 0: agent.CmdAgentExecute.metadata:type_name -> core.AgentMetadata
 	5,  // 1: agent.CmdAgentExecute.details:type_name -> agent.CmdAgentExecute.Details
-	9,  // 2: agent.EventAgentStarted.metadata:type_name -> common.AgentMetadata
+	9,  // 2: agent.EventAgentStarted.metadata:type_name -> core.AgentMetadata
 	6,  // 3: agent.EventAgentStarted.details:type_name -> agent.EventAgentStarted.Details
-	9,  // 4: agent.EventAgentSuccess.metadata:type_name -> common.AgentMetadata
+	9,  // 4: agent.EventAgentSuccess.metadata:type_name -> core.AgentMetadata
 	7,  // 5: agent.EventAgentSuccess.details:type_name -> agent.EventAgentSuccess.Details
-	9,  // 6: agent.EventAgentFailed.metadata:type_name -> common.AgentMetadata
+	9,  // 6: agent.EventAgentFailed.metadata:type_name -> core.AgentMetadata
 	8,  // 7: agent.EventAgentFailed.details:type_name -> agent.EventAgentFailed.Details
-	10, // 8: agent.CmdAgentExecute.Details.agent_request:type_name -> common.AgentRequest
+	10, // 8: agent.CmdAgentExecute.Details.agent_request:type_name -> core.AgentRequest
 	0,  // 9: agent.EventAgentStarted.Details.status:type_name -> agent.AgentStatus
 	0,  // 10: agent.EventAgentSuccess.Details.status:type_name -> agent.AgentStatus
 	11, // 11: agent.EventAgentSuccess.Details.result:type_name -> google.protobuf.Struct
 	0,  // 12: agent.EventAgentFailed.Details.status:type_name -> agent.AgentStatus
-	12, // 13: agent.EventAgentFailed.Details.error:type_name -> common.ErrorResult
+	12, // 13: agent.EventAgentFailed.Details.error:type_name -> core.ErrorResult
 	14, // [14:14] is the sub-list for method output_type
 	14, // [14:14] is the sub-list for method input_type
 	14, // [14:14] is the sub-list for extension type_name
@@ -583,7 +584,7 @@ func file_agent_proto_init() {
 	if File_agent_proto != nil {
 		return
 	}
-	file_common_proto_init()
+	file_core_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

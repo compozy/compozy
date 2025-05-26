@@ -130,14 +130,17 @@ func (x *EventLogEmitted) GetDetails() *EventLogEmitted_Details {
 }
 
 type EventLogEmitted_Details struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	LogLevel      LogLevel               `protobuf:"varint,1,opt,name=log_level,json=logLevel,proto3,enum=log.LogLevel" json:"log_level,omitempty"`
-	Component     string                 `protobuf:"bytes,2,opt,name=component,proto3" json:"component,omitempty"`
-	ComponentId   string                 `protobuf:"bytes,3,opt,name=component_id,json=componentId,proto3" json:"component_id,omitempty"`
-	Message       string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
-	Time          *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=time,proto3" json:"time,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	LogLevel        LogLevel               `protobuf:"varint,1,opt,name=log_level,json=logLevel,proto3,enum=log.LogLevel" json:"log_level,omitempty"`
+	WorkflowExecId  string                 `protobuf:"bytes,2,opt,name=workflow_exec_id,json=workflowExecId,proto3" json:"workflow_exec_id,omitempty"`
+	WorkflowId      string                 `protobuf:"bytes,3,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	Component       string                 `protobuf:"bytes,4,opt,name=component,proto3" json:"component,omitempty"`
+	ComponentId     string                 `protobuf:"bytes,5,opt,name=component_id,json=componentId,proto3" json:"component_id,omitempty"`
+	ComponentExecId string                 `protobuf:"bytes,6,opt,name=component_exec_id,json=componentExecId,proto3" json:"component_exec_id,omitempty"`
+	Message         string                 `protobuf:"bytes,7,opt,name=message,proto3" json:"message,omitempty"`
+	Time            *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=time,proto3" json:"time,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *EventLogEmitted_Details) Reset() {
@@ -177,6 +180,20 @@ func (x *EventLogEmitted_Details) GetLogLevel() LogLevel {
 	return LogLevel_LOG_LEVEL_UNSPECIFIED
 }
 
+func (x *EventLogEmitted_Details) GetWorkflowExecId() string {
+	if x != nil {
+		return x.WorkflowExecId
+	}
+	return ""
+}
+
+func (x *EventLogEmitted_Details) GetWorkflowId() string {
+	if x != nil {
+		return x.WorkflowId
+	}
+	return ""
+}
+
 func (x *EventLogEmitted_Details) GetComponent() string {
 	if x != nil {
 		return x.Component
@@ -187,6 +204,13 @@ func (x *EventLogEmitted_Details) GetComponent() string {
 func (x *EventLogEmitted_Details) GetComponentId() string {
 	if x != nil {
 		return x.ComponentId
+	}
+	return ""
+}
+
+func (x *EventLogEmitted_Details) GetComponentExecId() string {
+	if x != nil {
+		return x.ComponentExecId
 	}
 	return ""
 }
@@ -209,16 +233,21 @@ var File_log_proto protoreflect.FileDescriptor
 
 const file_log_proto_rawDesc = "" +
 	"\n" +
-	"\tlog.proto\x12\x03log\x1a\fcommon.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xbd\x02\n" +
-	"\x0fEventLogEmitted\x12/\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x13.common.LogMetadataR\bmetadata\x126\n" +
-	"\adetails\x18\x02 \x01(\v2\x1c.log.EventLogEmitted.DetailsR\adetails\x1a\xc0\x01\n" +
+	"\tlog.proto\x12\x03log\x1a\n" +
+	"core.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb2\x03\n" +
+	"\x0fEventLogEmitted\x12-\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x11.core.LogMetadataR\bmetadata\x126\n" +
+	"\adetails\x18\x02 \x01(\v2\x1c.log.EventLogEmitted.DetailsR\adetails\x1a\xb7\x02\n" +
 	"\aDetails\x12*\n" +
-	"\tlog_level\x18\x01 \x01(\x0e2\r.log.LogLevelR\blogLevel\x12\x1c\n" +
-	"\tcomponent\x18\x02 \x01(\tR\tcomponent\x12!\n" +
-	"\fcomponent_id\x18\x03 \x01(\tR\vcomponentId\x12\x18\n" +
-	"\amessage\x18\x04 \x01(\tR\amessage\x12.\n" +
-	"\x04time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x04time*w\n" +
+	"\tlog_level\x18\x01 \x01(\x0e2\r.log.LogLevelR\blogLevel\x12(\n" +
+	"\x10workflow_exec_id\x18\x02 \x01(\tR\x0eworkflowExecId\x12\x1f\n" +
+	"\vworkflow_id\x18\x03 \x01(\tR\n" +
+	"workflowId\x12\x1c\n" +
+	"\tcomponent\x18\x04 \x01(\tR\tcomponent\x12!\n" +
+	"\fcomponent_id\x18\x05 \x01(\tR\vcomponentId\x12*\n" +
+	"\x11component_exec_id\x18\x06 \x01(\tR\x0fcomponentExecId\x12\x18\n" +
+	"\amessage\x18\a \x01(\tR\amessage\x12.\n" +
+	"\x04time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x04time*w\n" +
 	"\bLogLevel\x12\x19\n" +
 	"\x15LOG_LEVEL_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fLOG_LEVEL_DEBUG\x10\x01\x12\x12\n" +
@@ -244,11 +273,11 @@ var file_log_proto_goTypes = []any{
 	(LogLevel)(0),                   // 0: log.LogLevel
 	(*EventLogEmitted)(nil),         // 1: log.EventLogEmitted
 	(*EventLogEmitted_Details)(nil), // 2: log.EventLogEmitted.Details
-	(*LogMetadata)(nil),             // 3: common.LogMetadata
+	(*LogMetadata)(nil),             // 3: core.LogMetadata
 	(*timestamppb.Timestamp)(nil),   // 4: google.protobuf.Timestamp
 }
 var file_log_proto_depIdxs = []int32{
-	3, // 0: log.EventLogEmitted.metadata:type_name -> common.LogMetadata
+	3, // 0: log.EventLogEmitted.metadata:type_name -> core.LogMetadata
 	2, // 1: log.EventLogEmitted.details:type_name -> log.EventLogEmitted.Details
 	0, // 2: log.EventLogEmitted.Details.log_level:type_name -> log.LogLevel
 	4, // 3: log.EventLogEmitted.Details.time:type_name -> google.protobuf.Timestamp
@@ -264,7 +293,7 @@ func file_log_proto_init() {
 	if File_log_proto != nil {
 		return
 	}
-	file_common_proto_init()
+	file_core_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

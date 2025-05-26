@@ -4,77 +4,68 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/compozy/engine/domain/project"
-	tkexecutor "github.com/compozy/compozy/engine/domain/task/executor"
-	"github.com/compozy/compozy/engine/domain/workflow"
-	wfexecutor "github.com/compozy/compozy/engine/domain/workflow/executor"
-	"github.com/compozy/compozy/engine/stmanager"
-	"github.com/compozy/compozy/engine/store"
+	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/nats"
+	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/task"
+	tkuc "github.com/compozy/compozy/engine/task/uc"
+	"github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/engine/workflow"
+	wfuc "github.com/compozy/compozy/engine/workflow/uc"
 	"github.com/compozy/compozy/pkg/logger"
-	"github.com/compozy/compozy/pkg/nats"
 )
 
+type Config struct {
+	WorkflowRepoFactory func() workflow.Repository
+	TaskRepoFactory     func() task.Repository
+	AgentRepoFactory    func() agent.Repository
+	ToolRepoFactory     func() tool.Repository
+}
+
 type Orchestrator struct {
-	StateManager *stmanager.Manager
-	nc           *nats.Client
-	pConfig      *project.Config
-	workflows    []*workflow.Config
-	wExecutor    *wfexecutor.Executor
-	tExecutor    *tkexecutor.Executor
+	ns            *nats.Server
+	nc            *nats.Client
+	store         core.Store
+	config        Config
+	publisher     core.EventPublisher
+	subscriber    core.EventSubscriber
+	projectConfig *project.Config
+	workflows     []*workflow.Config
 }
 
 func NewOrchestrator(
-	ctx context.Context,
 	ns *nats.Server,
-	store *store.Store,
-	pConfig *project.Config,
+	nc *nats.Client,
+	store core.Store,
+	config Config,
+	projectConfig *project.Config,
 	workflows []*workflow.Config,
-) (*Orchestrator, error) {
-	nc, err := nats.NewClient(ns.Conn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize NATS client: %w", err)
+) *Orchestrator {
+	publisher := nats.NewEventPublisher(nc)
+	subscriber := nats.NewEventSubscriber(nc)
+	return &Orchestrator{
+		ns:            ns,
+		nc:            nc,
+		publisher:     publisher,
+		subscriber:    subscriber,
+		store:         store,
+		config:        config,
+		projectConfig: projectConfig,
+		workflows:     workflows,
 	}
-	if err := nc.Setup(ctx); err != nil {
-		return nil, fmt.Errorf("failed to setup NATS client: %w", err)
-	}
-
-	stManager, err := stmanager.NewManager(
-		stmanager.WithNatsClient(nc),
-		stmanager.WithStore(store),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize state manager: %w", err)
-	}
-
-	wExecutor := wfexecutor.NewExecutor(nc, stManager, pConfig, workflows)
-	tExecutor := tkexecutor.NewExecutor(nc, stManager, pConfig, workflows)
-
-	orch := &Orchestrator{
-		nc:           nc,
-		StateManager: stManager,
-		pConfig:      pConfig,
-		workflows:    workflows,
-		wExecutor:    wExecutor,
-		tExecutor:    tExecutor,
-	}
-	return orch, nil
 }
 
-func (o *Orchestrator) Start(ctx context.Context) error {
-	if err := o.subscribeWorkflow(ctx); err != nil {
-		return fmt.Errorf("failed to subscribe to workflow commands: %w", err)
+func (o *Orchestrator) Config() *Config {
+	return &o.config
+}
+
+func (o *Orchestrator) Setup(ctx context.Context) error {
+	if err := o.registerWorkflow(ctx); err != nil {
+		return err
 	}
-	if err := o.subscribeTask(ctx); err != nil {
-		return fmt.Errorf("failed to subscribe to task commands: %w", err)
-	}
-	if err := o.StateManager.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start state manager: %w", err)
-	}
-	if err := o.wExecutor.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start workflow executor: %w", err)
-	}
-	if err := o.tExecutor.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start task executor: %w", err)
+	if err := o.registerTask(ctx); err != nil {
+		return err
 	}
 	return nil
 }
@@ -84,9 +75,119 @@ func (o *Orchestrator) Stop(ctx context.Context) error {
 	if err := o.nc.CloseWithContext(ctx); err != nil {
 		return fmt.Errorf("failed to close NATS client: %w", err)
 	}
-	if err := o.StateManager.CloseWithContext(ctx); err != nil {
-		return fmt.Errorf("failed to stop state manager: %w", err)
+	if err := o.store.CloseWithContext(ctx); err != nil {
+		return fmt.Errorf("failed to close store: %w", err)
 	}
 	logger.Debug("Orchestrator stopped successfully")
 	return nil
+}
+
+// -----------------------------------------------------------------------------
+// Workflow
+// -----------------------------------------------------------------------------
+
+func (o *Orchestrator) registerWorkflow(ctx context.Context) error {
+	if err := o.registerWorkflowTrigger(ctx); err != nil {
+		return err
+	}
+	if err := o.registerWorkflowExecute(ctx); err != nil {
+		return err
+	}
+	if err := o.registerWorkflowEvents(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *Orchestrator) registerWorkflowTrigger(ctx context.Context) error {
+	workflowRepo := o.config.WorkflowRepoFactory()
+	uc := wfuc.NewHandleTrigger(o.nc, workflowRepo, o.projectConfig, o.workflows)
+	name := nats.CmdConsumerName(core.ComponentWorkflow, core.CmdTrigger)
+	subjects := []string{uc.CMD.ToSubjectParams("*", "*")}
+	consumer, err := o.nc.GetCmdConsumer(ctx, name, subjects)
+	if err != nil {
+		return err
+	}
+	return o.subscriber.SubscribeConsumer(ctx, consumer, uc.Handler)
+}
+
+func (o *Orchestrator) registerWorkflowExecute(ctx context.Context) error {
+	workflowRepo := o.config.WorkflowRepoFactory()
+	uc := wfuc.NewHandleExecute(o.nc, workflowRepo, o.workflows)
+	name := nats.CmdConsumerName(core.ComponentWorkflow, core.CmdExecute)
+	subjects := []string{uc.CMD.ToSubjectParams("*", "*")}
+	consumer, err := o.nc.GetCmdConsumer(ctx, name, subjects)
+	if err != nil {
+		return err
+	}
+	return o.subscriber.SubscribeConsumer(ctx, consumer, uc.Handler)
+}
+
+func (o *Orchestrator) registerWorkflowEvents(ctx context.Context) error {
+	workflowRepo := o.config.WorkflowRepoFactory()
+	uc := wfuc.NewHandleEvents(o.store, workflowRepo)
+	name := nats.EventConsumerName(core.ComponentWorkflow, core.EvtAll)
+	subjects := []string{core.BuildEvtSubject("*", "*", "*", "*")}
+	consumer, err := o.nc.GetEvtConsumer(ctx, name, subjects)
+	if err != nil {
+		return err
+	}
+	return o.subscriber.SubscribeConsumer(ctx, consumer, uc.Handler)
+}
+
+// -----------------------------------------------------------------------------
+// Task
+// -----------------------------------------------------------------------------
+
+func (o *Orchestrator) registerTask(ctx context.Context) error {
+	if err := o.registerTaskDispatch(ctx); err != nil {
+		return err
+	}
+	if err := o.registerTaskExecute(ctx); err != nil {
+		return err
+	}
+	if err := o.registerTaskEvents(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *Orchestrator) registerTaskDispatch(ctx context.Context) error {
+	taskRepo := o.config.TaskRepoFactory()
+	uc := tkuc.NewHandleDispatch(o.nc, taskRepo, o.workflows)
+	name := nats.CmdConsumerName(core.ComponentTask, core.CmdDispatch)
+	subjects := []string{uc.CMD.ToSubjectParams("*", "*")}
+	consumer, err := o.nc.GetCmdConsumer(ctx, name, subjects)
+	if err != nil {
+		return err
+	}
+	return o.subscriber.SubscribeConsumer(ctx, consumer, uc.Handler)
+}
+
+func (o *Orchestrator) registerTaskExecute(ctx context.Context) error {
+	taskRepo := o.config.TaskRepoFactory()
+	uc := tkuc.NewHandleExecute(o.nc, taskRepo)
+	name := nats.CmdConsumerName(core.ComponentTask, core.CmdExecute)
+	subjects := []string{uc.CMD.ToSubjectParams("*", "*")}
+	consumer, err := o.nc.GetCmdConsumer(ctx, name, subjects)
+	if err != nil {
+		return err
+	}
+	return o.subscriber.SubscribeConsumer(ctx, consumer, uc.Handler)
+}
+
+func (o *Orchestrator) registerTaskEvents(ctx context.Context) error {
+	taskRepo := o.config.TaskRepoFactory()
+	uc := tkuc.NewHandleEvents(o.store, taskRepo)
+	name := nats.EventConsumerName(core.ComponentTask, core.EvtAll)
+	subjects := []string{
+		core.BuildEvtSubject(core.ComponentTask, "*", "*", "*"),
+		core.BuildEvtSubject(core.ComponentAgent, "*", "*", "*"),
+		core.BuildEvtSubject(core.ComponentTool, "*", "*", "*"),
+	}
+	consumer, err := o.nc.GetEvtConsumer(ctx, name, subjects)
+	if err != nil {
+		return err
+	}
+	return o.subscriber.SubscribeConsumer(ctx, consumer, uc.Handler)
 }

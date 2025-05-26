@@ -10,17 +10,38 @@ import (
 
 var defaultLogger *charmlog.Logger
 
-type LogLevel = charmlog.Level
+type LogLevel string
+type Logger = charmlog.Logger
 
 const (
-	DebugLevel LogLevel = charmlog.DebugLevel
-	InfoLevel  LogLevel = charmlog.InfoLevel
-	WarnLevel  LogLevel = charmlog.WarnLevel
-	ErrorLevel LogLevel = charmlog.ErrorLevel
+	DebugLevel LogLevel = "debug"
+	InfoLevel  LogLevel = "info"
+	WarnLevel  LogLevel = "warn"
+	ErrorLevel LogLevel = "error"
+	NoLevel    LogLevel = ""
 )
 
+func (c *LogLevel) String() string {
+	return string(*c)
+}
+
+func (c *LogLevel) ToCharmlogLevel() charmlog.Level {
+	switch *c {
+	case DebugLevel:
+		return charmlog.DebugLevel
+	case InfoLevel:
+		return charmlog.InfoLevel
+	case WarnLevel:
+		return charmlog.WarnLevel
+	case ErrorLevel:
+		return charmlog.ErrorLevel
+	default:
+		return charmlog.InfoLevel
+	}
+}
+
 type Config struct {
-	Level      charmlog.Level
+	Level      LogLevel
 	Output     io.Writer
 	JSON       bool
 	AddSource  bool
@@ -29,7 +50,7 @@ type Config struct {
 
 func DefaultConfig() *Config {
 	return &Config{
-		Level:      charmlog.InfoLevel,
+		Level:      InfoLevel,
 		Output:     os.Stdout,
 		JSON:       false,
 		AddSource:  false,
@@ -45,7 +66,7 @@ func Init(cfg *Config) {
 		ReportCaller:    true,
 		ReportTimestamp: true,
 		TimeFormat:      cfg.TimeFormat,
-		Level:           cfg.Level,
+		Level:           cfg.Level.ToCharmlogLevel(),
 	})
 	if cfg.JSON {
 		logger.SetFormatter(charmlog.JSONFormatter)

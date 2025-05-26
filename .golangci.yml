@@ -79,6 +79,9 @@ linters:
           - lll
         path: _test\.go
       - linters:
+          - dupl
+        path: pkg/pb
+      - linters:
           - gocritic
         text: unnecessaryDefer
       - linters:
@@ -95,7 +98,6 @@ linters:
       - third_party$
       - builtin$
       - examples$
-      - pkg/pb$
       - pkg/schemagen/main.go$
 
 formatters:

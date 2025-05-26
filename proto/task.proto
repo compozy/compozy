@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package task;
 
-import "common.proto";
+import "core.proto";
 import "google/protobuf/struct.proto";
 
 option go_package = "github.com/compozy/compozy/pkg/pb";
@@ -23,15 +23,15 @@ enum TaskStatus {
 // -----------------------------------------------------------------------------
 
 message CmdTaskDispatch {
-  common.TaskMetadata metadata = 1;
+  core.TaskMetadata metadata = 1;
 }
 
 message CmdTaskExecute {
-  common.TaskMetadata metadata = 1;
+  core.TaskMetadata metadata = 1;
 }
 
 message CmdTaskResume {
-  common.TaskMetadata metadata = 1;
+  core.TaskMetadata metadata = 1;
 }
 
 // -----------------------------------------------------------------------------
@@ -39,7 +39,7 @@ message CmdTaskResume {
 // -----------------------------------------------------------------------------
 
 message EventTaskDispatched {
-  common.TaskMetadata metadata = 1;
+  core.TaskMetadata metadata = 1;
 
   message Details {
     TaskStatus status = 1;
@@ -48,7 +48,7 @@ message EventTaskDispatched {
 }
 
 message EventTaskStarted {
-  common.TaskMetadata metadata = 1;
+  core.TaskMetadata metadata = 1;
 
   message Details {
     TaskStatus status = 1;
@@ -57,7 +57,7 @@ message EventTaskStarted {
 }
 
 message EventTaskWaiting {
-  common.TaskMetadata metadata = 1;
+  core.TaskMetadata metadata = 1;
 
   message Details {
     TaskStatus status = 1;
@@ -66,7 +66,7 @@ message EventTaskWaiting {
 }
 
 message EventTaskWaitingEnded {
-  common.TaskMetadata metadata = 1;
+  core.TaskMetadata metadata = 1;
 
   message Details {
     TaskStatus status = 1;
@@ -76,18 +76,18 @@ message EventTaskWaitingEnded {
 }
 
 message EventTaskWaitingTimedOut {
-  common.TaskMetadata metadata = 1;
+  core.TaskMetadata metadata = 1;
 
   message Details {
     TaskStatus status = 1;
-    common.ErrorResult error = 2;
+    core.ErrorResult error = 2;
     int64 duration_ms = 3;
   }
   Details details = 2;
 }
 
 message EventTaskSuccess {
-  common.TaskMetadata metadata = 1;
+  core.TaskMetadata metadata = 1;
 
   message Details {
     TaskStatus status = 1;
@@ -98,11 +98,11 @@ message EventTaskSuccess {
 }
 
 message EventTaskFailed {
-  common.TaskMetadata metadata = 1;
+  core.TaskMetadata metadata = 1;
 
   message Details {
     TaskStatus status = 1;
-    common.ErrorResult error = 2;
+    core.ErrorResult error = 2;
     int64 duration_ms = 3;
   }
   Details details = 2;

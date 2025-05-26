@@ -1,0 +1,40 @@
+package wfrouter
+
+import (
+	"fmt"
+
+	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/server/router"
+	"github.com/compozy/compozy/engine/workflow/events"
+	"github.com/gin-gonic/gin"
+)
+
+// Route: POST /api/workflows/:workflow_id/execute
+func handleExecute(c *gin.Context) {
+	workflowID := router.GetWorkflowID(c)
+	state := router.GetAppState(c)
+	ti := router.GetRequestBody[core.Input](c)
+	triggerInput, err := ti.ToStruct()
+	if err != nil {
+		reason := fmt.Sprintf("failed to convert trigger to struct: %s", workflowID)
+		reqErr := router.WorkflowExecutionError(workflowID, reason, err)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return
+	}
+
+	// Send workflow trigger
+	evt := events.NewCmdTrigger(state.NatsClient, triggerInput, workflowID)
+	if err := evt.Publish(c.Request.Context()); err != nil {
+		reason := fmt.Sprintf("failed to publish workflow trigger: %s", workflowID)
+		reqErr := router.WorkflowExecutionError(workflowID, reason, err)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return
+	}
+
+	execURL := fmt.Sprintf("%s/api/workflows/executions/%s", router.GetServerAddress(c), evt.Response.WorkflowExecID)
+	router.RespondAccepted(c, "workflow triggered successfully", gin.H{
+		"workflow_id":      evt.Response.WorkflowID,
+		"workflow_exec_id": evt.Response.WorkflowExecID,
+		"exec_url":         execURL,
+	})
+}

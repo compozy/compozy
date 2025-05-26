@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/compozy/compozy/pkg/nats"
+	"github.com/compozy/compozy/engine/infra/nats"
 	"github.com/stretchr/testify/require"
 )
 
