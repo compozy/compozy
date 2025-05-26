@@ -2,10 +2,7 @@ id: test-workflow
 version: "1.0.0"
 description: "Test workflow for code formatting"
 
-trigger:
-  type: webhook
-  config:
-    url: "/test-webhook"
+config:
   input:
     type: object
     properties:

@@ -1,9 +1,6 @@
 id: quotes
 
-trigger:
-  type: webhook
-  config:
-    url: "/translate"
+config:
   input:
     type: object
     properties:

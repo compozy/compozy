@@ -7,7 +7,6 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/trigger"
 	"github.com/compozy/compozy/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,13 +26,13 @@ func Test_LoadWorkflow(t *testing.T) {
 		config, err := Load(cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
+		require.NotNil(t, config.Opts)
 		require.NotNil(t, config.ID)
 		require.NotNil(t, config.Version)
 		require.NotNil(t, config.Description)
 		require.NotNil(t, config.Tasks)
 		require.NotNil(t, config.Tools)
 		require.NotNil(t, config.Agents)
-		require.NotNil(t, config.Trigger)
 		require.NotNil(t, config.Env)
 
 		assert.Equal(t, "test-workflow", config.ID)
@@ -67,11 +66,6 @@ func Test_LoadWorkflow(t *testing.T) {
 		assert.InDelta(t, float32(0.7), agentConfig.Config.Temperature, 0.0001)
 		assert.Equal(t, int32(4000), agentConfig.Config.MaxTokens)
 
-		// Validate trigger
-		assert.Equal(t, trigger.TriggerTypeWebhook, config.Trigger.Type)
-		require.NotNil(t, config.Trigger.Config)
-		assert.Equal(t, "/test-webhook", config.Trigger.Config.URL)
-
 		// Validate env
 		assert.Equal(t, "1.0.0", config.Env["WORKFLOW_VERSION"])
 		assert.Equal(t, "3", config.Env["MAX_RETRIES"])
@@ -93,14 +87,9 @@ func Test_WorkflowConfigValidation(t *testing.T) {
 		cwd, err := core.CWDFromPath("/test/path")
 		require.NoError(t, err)
 		config := &Config{
-			ID: workflowID,
-			Trigger: trigger.Config{
-				Type: trigger.TriggerTypeWebhook,
-				Config: &trigger.WebhookConfig{
-					URL: "/test",
-				},
-			},
-			cwd: cwd,
+			ID:   workflowID,
+			Opts: Opts{},
+			cwd:  cwd,
 		}
 
 		err = config.Validate()

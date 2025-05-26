@@ -12,7 +12,6 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
-	"github.com/compozy/compozy/engine/trigger"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/invopop/jsonschema"
 )
@@ -61,14 +60,10 @@ func GenerateParserSchemas(outDir string) error {
 		data any
 	}{
 		{"agent", &agent.Config{}},
-		{"author", &core.Author{}},
-		{"package-reference", core.NewPackageRefConfig("")},
 		{"project", &project.Config{}},
 		{"task", &task.Config{}},
 		{"tool", &tool.Config{}},
-		{"trigger", &trigger.Config{}},
 		{"workflow", &workflow.Config{}},
-		{"workflow_spec", &workflow.Config{}},
 	}
 
 	// Generate and write each schema

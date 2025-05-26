@@ -2,10 +2,7 @@ id: weather-agent
 version: 0.1.0
 description: A simple weather agent that provides weather information based on location
 
-trigger:
-  type: webhook
-  config:
-    url: "/weather"
+config:
   input:
     type: object
     properties:

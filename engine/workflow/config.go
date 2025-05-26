@@ -12,13 +12,17 @@ import (
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
-	"github.com/compozy/compozy/engine/trigger"
 )
+
+type Opts struct {
+	OnError     *task.ErrorTransitionConfig `json:"on_error,omitempty" yaml:"on_error,omitempty"`
+	InputSchema *schema.InputSchema         `json:"input,omitempty"    yaml:"input,omitempty"`
+}
 
 type Config struct {
 	ID          string         `json:"id"                    yaml:"id"`
 	Tasks       []task.Config  `json:"tasks"                 yaml:"tasks"`
-	Trigger     trigger.Config `json:"trigger"               yaml:"trigger"`
+	Opts        Opts           `json:"config"               yaml:"config"`
 	Version     string         `json:"version,omitempty"     yaml:"version,omitempty"`
 	Description string         `json:"description,omitempty" yaml:"description,omitempty"`
 	Author      *core.Author   `json:"author,omitempty"      yaml:"author,omitempty"`
@@ -84,11 +88,6 @@ func (w *Config) Validate() error {
 		return err
 	}
 
-	trigger := w.Trigger
-	if err := trigger.Validate(); err != nil {
-		return fmt.Errorf("trigger validation error: %w", err)
-	}
-
 	for i := 0; i < len(w.Tasks); i++ {
 		tc := &w.Tasks[i]
 		err := tc.Validate()
@@ -119,7 +118,7 @@ func (w *Config) ValidateParams(input *core.Input) error {
 	if input == nil {
 		return nil
 	}
-	inputSchema := w.Trigger.InputSchema
+	inputSchema := w.Opts.InputSchema
 	return schema.NewParamsValidator(*input, inputSchema.Schema, w.ID).Validate()
 }
 

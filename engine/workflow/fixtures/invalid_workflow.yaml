@@ -2,11 +2,6 @@ id: invalid-workflow
 version: "1.0.0"
 description: "Invalid workflow for testing"
 
-trigger:
-  type: webhook
-  config:
-    url: "/test-webhook"
-
 tasks:
   - id: invalid-basic-task
     type: basic
