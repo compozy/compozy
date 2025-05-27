@@ -67,6 +67,49 @@ func SetupIntegrationTestBed(
 	require.NotNil(t, ns, "NATS test server should not be nil")
 	require.NotNil(t, nc, "NATS client should not be nil")
 
+	return setupIntegrationTestBedCommon(ctx, t, cancel, ns, nc)
+}
+
+// SetupIntegrationTestBedWithNats creates an integration test bed with existing NATS server and client
+func SetupIntegrationTestBedWithNats(
+	t *testing.T,
+	testTimeout time.Duration,
+	_ []core.ComponentType,
+	natsServer *nats.Server,
+	natsClient *nats.Client,
+) *IntegrationTestBed {
+	t.Helper()
+
+	// Initialize logger for tests
+	logger.Init(&logger.Config{
+		Level:  logger.ErrorLevel, // Use error level to reduce noise in tests
+		Output: os.Stderr,
+		JSON:   false,
+	})
+
+	if GlobalBaseTestDir == "" {
+		var err error
+		GlobalBaseTestDir, err = os.MkdirTemp("", "compozy_integration_fallback_")
+		require.NoError(t, err, "Failed to create global base test directory (fallback)")
+		t.Logf("Warning: GlobalBaseTestDir created by fallback in SetupIntegrationTestBedWithNats for test %s. "+
+			"Consider running tests at package level.", t.Name())
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	require.NotNil(t, natsServer, "NATS test server should not be nil")
+	require.NotNil(t, natsClient, "NATS client should not be nil")
+
+	return setupIntegrationTestBedCommon(ctx, t, cancel, natsServer, natsClient)
+}
+
+// setupIntegrationTestBedCommon contains the common setup logic for both functions
+func setupIntegrationTestBedCommon(
+	ctx context.Context,
+	t *testing.T,
+	cancel context.CancelFunc,
+	ns *nats.Server,
+	nc *nats.Client,
+) *IntegrationTestBed {
 	stateDir := filepath.Join(GlobalBaseTestDir, t.Name())
 	err := os.MkdirAll(stateDir, 0o750)
 	require.NoError(t, err)
@@ -111,25 +154,48 @@ func SetupIntegrationTestBed(
 
 func (tb *IntegrationTestBed) Cleanup() {
 	tb.T.Helper()
+
+	// Cancel context first to signal shutdown
 	tb.cancelCtx()
 
-	if tb.NatsClient != nil {
+	// Only close NATS client and server if they're not shared instances
+	// Check if this is a shared instance by comparing with the global shared instances
+	if tb.NatsClient != nil && tb.NatsClient != sharedNatsClient {
 		err := tb.NatsClient.Close()
 		if err != nil {
 			tb.T.Logf("Error closing NATS client: %s", err)
 		}
+		tb.NatsClient = nil
 	}
-	if tb.NatsServer != nil {
+
+	if tb.NatsServer != nil && tb.NatsServer != sharedNatsServer {
 		err := tb.NatsServer.Shutdown()
 		if err != nil {
 			tb.T.Logf("Error shutting down NATS server: %s", err)
 		}
+		// Wait for shutdown with timeout to avoid hanging tests
+		shutdownDone := make(chan struct{})
+		go func() {
+			tb.NatsServer.WaitForShutdown()
+			close(shutdownDone)
+		}()
+
+		select {
+		case <-shutdownDone:
+			// Shutdown completed normally
+		case <-time.After(5 * time.Second):
+			tb.T.Logf("NATS server shutdown timed out after 5 seconds")
+		}
+		tb.NatsServer = nil
 	}
+
+	// Finally close the store
 	if tb.Store != nil {
 		err := tb.Store.Close()
 		if err != nil {
 			tb.T.Logf("Error closing store: %s", err)
 		}
+		tb.Store = nil
 	}
 }
 
@@ -178,6 +244,9 @@ func MainTestRunner(m *testing.M) int {
 	}
 
 	exitCode := m.Run()
+
+	// Cleanup shared NATS server
+	CleanupSharedNats()
 
 	err = os.RemoveAll(GlobalBaseTestDir)
 	if err != nil {

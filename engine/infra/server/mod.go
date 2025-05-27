@@ -30,6 +30,9 @@ type Server struct {
 	router *gin.Engine
 	ctx    context.Context
 	cancel context.CancelFunc
+	// Optional pre-existing NATS server and client for testing
+	NatsServer *nats.Server
+	NatsClient *nats.Client
 }
 
 func NewServer(config Config) *Server {
@@ -38,6 +41,19 @@ func NewServer(config Config) *Server {
 		Config: &config,
 		ctx:    ctx,
 		cancel: cancel,
+	}
+}
+
+// NewServerWithNats creates a server with existing NATS server and client
+// This is useful for testing where you want to reuse NATS connections
+func NewServerWithNats(config Config, natsServer *nats.Server, natsClient *nats.Client) *Server {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Server{
+		Config:     &config,
+		ctx:        ctx,
+		cancel:     cancel,
+		NatsServer: natsServer,
+		NatsClient: natsClient,
 	}
 }
 
@@ -107,6 +123,16 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 }
 
 func (s *Server) setupNatsWithCleanup(cwd *core.CWD) (*nats.Server, *nats.Client, func(), error) {
+	// If NATS server and client are already provided (e.g., in tests), use them
+	if s.NatsServer != nil && s.NatsClient != nil {
+		// Return a no-op cleanup function since we don't own these instances
+		cleanup := func() {
+			// No cleanup needed - the caller owns these instances
+		}
+		return s.NatsServer, s.NatsClient, cleanup, nil
+	}
+
+	// Otherwise, create new NATS server and client
 	ns, nc, err := setupNats(s.ctx, cwd)
 	if err != nil {
 		return nil, nil, nil, err

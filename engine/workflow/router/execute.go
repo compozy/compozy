@@ -13,6 +13,11 @@ func handleExecute(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
 	state := router.GetAppState(c)
 	input := router.GetRequestBody[core.Input](c)
+	if input == nil {
+		// Error already handled by GetRequestBody
+		return
+	}
+
 	inputMap, err := input.ToStruct()
 	if err != nil {
 		reason := fmt.Sprintf("failed to convert trigger to struct: %s", workflowID)
