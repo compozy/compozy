@@ -12,13 +12,18 @@ type GetExecution struct {
 	WorkflowExecID core.ID
 }
 
-func NewGetExecutionUC(repo workflow.Repository, workflowExecID core.ID) *GetExecution {
+func NewGetExecution(repo workflow.Repository, workflowExecID core.ID) *GetExecution {
 	return &GetExecution{
 		repo:           repo,
 		WorkflowExecID: workflowExecID,
 	}
 }
 
-func (uc *GetExecution) Execute(ctx context.Context) (*core.ExecutionMap, error) {
-	return uc.repo.LoadExecutionMap(ctx, uc.WorkflowExecID)
+func (uc *GetExecution) Execute(ctx context.Context) (*map[core.ID]any, error) {
+	exec, err := uc.repo.LoadExecution(ctx, uc.WorkflowExecID)
+	if err != nil {
+		return nil, err
+	}
+	execMap := exec.AsMap()
+	return &execMap, nil
 }

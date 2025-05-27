@@ -65,7 +65,8 @@ func (s *Server) Run() error {
 	}
 
 	// Setup NATS server
-	ns, nc, err := setupNats(s.ctx)
+	cwd := projectConfig.GetCWD()
+	ns, nc, err := setupNats(s.ctx, cwd)
 	if err != nil {
 		return fmt.Errorf("failed to setup NATS server: %w", err)
 	}
@@ -76,25 +77,27 @@ func (s *Server) Run() error {
 	}()
 
 	// Load store
-	dataDir := filepath.Join(core.GetStoreDir(), "data")
-	store, err := store.NewStore(dataDir)
+	dataDir := filepath.Join(core.GetStoreDir(cwd), "data")
+	dbFilePath := filepath.Join(dataDir, "compozy.db")
+	st, err := store.NewStore(dbFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to create state store: %w", err)
 	}
-
-	// Setup orchestrator
-	deps := appstate.NewBaseDeps(ns, nc, store, projectConfig, workflows)
-	orch, shouldReturn, err := setupOrchestrator(s.ctx, deps)
-	if shouldReturn {
-		return err
+	if err := st.Setup(); err != nil {
+		return fmt.Errorf("failed to setup store: %w", err)
 	}
 	defer func() {
-		if err := orch.Stop(s.ctx); err != nil {
-			logger.Error("Error shutting down orchestrator", "error", err)
+		if err := st.Close(); err != nil {
+			logger.Error("Error shutting down store", "error", err)
 		}
 	}()
 
-	// Create server state
+	// Setup orchestrator
+	deps := appstate.NewBaseDeps(ns, nc, st, projectConfig, workflows)
+	orch, err := setupOrchestrator(s.ctx, deps)
+	if err != nil {
+		return err
+	}
 	state, err := appstate.NewState(deps, orch)
 	if err != nil {
 		return fmt.Errorf("failed to create app state: %w", err)
@@ -145,7 +148,7 @@ func (s *Server) Run() error {
 	return nil
 }
 
-func setupOrchestrator(ctx context.Context, deps appstate.BaseDeps) (*orchestrator.Orchestrator, bool, error) {
+func setupOrchestrator(ctx context.Context, deps appstate.BaseDeps) (*orchestrator.Orchestrator, error) {
 	ns := deps.NatsServer
 	nc := deps.NatsClient
 	store := deps.Store
@@ -157,13 +160,18 @@ func setupOrchestrator(ctx context.Context, deps appstate.BaseDeps) (*orchestrat
 			return store.NewWorkflowRepository(projectConfig, workflows)
 		},
 		TaskRepoFactory: func() task.Repository {
-			return store.NewTaskRepository(projectConfig, workflows)
+			workflowRepo := store.NewWorkflowRepository(projectConfig, workflows)
+			return store.NewTaskRepository(workflowRepo)
 		},
 		AgentRepoFactory: func() agent.Repository {
-			return store.NewAgentRepository(projectConfig, workflows)
+			workflowRepo := store.NewWorkflowRepository(projectConfig, workflows)
+			taskRepo := store.NewTaskRepository(workflowRepo)
+			return store.NewAgentRepository(workflowRepo, taskRepo)
 		},
 		ToolRepoFactory: func() tool.Repository {
-			return store.NewToolRepository(projectConfig, workflows)
+			workflowRepo := store.NewWorkflowRepository(projectConfig, workflows)
+			taskRepo := store.NewTaskRepository(workflowRepo)
+			return store.NewToolRepository(workflowRepo, taskRepo)
 		},
 	}
 	orch := orchestrator.NewOrchestrator(
@@ -175,13 +183,14 @@ func setupOrchestrator(ctx context.Context, deps appstate.BaseDeps) (*orchestrat
 		workflows,
 	)
 	if err := orch.Setup(ctx); err != nil {
-		return nil, true, fmt.Errorf("failed to start orchestrator: %w", err)
+		logger.Error("Failed to setup orchestrator", "error", err)
+		return nil, fmt.Errorf("failed to setup orchestrator: %w", err)
 	}
-	return orch, false, nil
+	return orch, nil
 }
 
-func setupNats(ctx context.Context) (*nats.Server, *nats.Client, error) {
-	opts := nats.DefaultServerOptions()
+func setupNats(ctx context.Context, cwd *core.CWD) (*nats.Server, *nats.Client, error) {
+	opts := nats.DefaultServerOptions(cwd)
 	opts.EnableJetStream = true
 	natsServer, err := nats.NewNatsServer(opts)
 	if err != nil {

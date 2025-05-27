@@ -50,6 +50,17 @@ func (m *MockExecution) GetError() *core.Error            { return nil }
 func (m *MockExecution) SetDuration()                     {}
 func (m *MockExecution) CalcDuration() time.Duration      { return 0 }
 
+func (m *MockExecution) AsMap() map[core.ID]any {
+	return map[core.ID]any{
+		"trigger": map[string]any{
+			"input": m.parentInput,
+		},
+		"input":  m.input,
+		"output": m.output,
+		"env":    m.env,
+	}
+}
+
 func TestNormalizer_Normalize(t *testing.T) {
 	t.Run("Should create normalized context with all execution data", func(t *testing.T) {
 		normalizer := NewNormalizer()

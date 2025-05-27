@@ -25,7 +25,7 @@ func NewStoreKey(workflowExecID core.ID, taskExecID core.ID) StoreKey {
 }
 
 func (s *StoreKey) String() string {
-	return fmt.Sprintf("%s:task:%s", s.WorkflowExecID, s.TaskExecID)
+	return fmt.Sprintf("workflow:%s:task:%s", s.WorkflowExecID, s.TaskExecID)
 }
 
 func (s *StoreKey) Bytes() []byte {
@@ -90,6 +90,7 @@ func NewExecution(data *RequestData) (*Execution, error) {
 		return nil, fmt.Errorf("failed to merge env: %w", err)
 	}
 	baseExec := core.NewBaseExecution(
+		core.ComponentTask,
 		data.WorkflowId,
 		core.ID(data.WorkflowExecId),
 		data.ParentInput,
@@ -122,4 +123,21 @@ func (e *Execution) GetID() core.ID {
 
 func (e *Execution) GetComponentID() string {
 	return e.TaskID
+}
+
+func (e *Execution) AsMap() map[core.ID]any {
+	return map[core.ID]any{
+		"component":        e.GetComponent(),
+		"status":           e.GetStatus(),
+		"task_id":          e.TaskID,
+		"task_exec_id":     e.TaskExecID,
+		"workflow_id":      e.GetWorkflowID(),
+		"workflow_exec_id": e.GetWorkflowExecID(),
+		"input":            e.GetInput(),
+		"output":           e.GetOutput(),
+		"error":            e.GetError(),
+		"start_time":       e.StartTime,
+		"end_time":         e.EndTime,
+		"duration":         e.Duration,
+	}
 }

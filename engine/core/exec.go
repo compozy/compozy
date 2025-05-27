@@ -5,66 +5,6 @@ import (
 	"time"
 )
 
-type JSONMap struct {
-	ComponentID string  `json:"component_id"`
-	ExecID      ID      `json:"exec_id"`
-	Status      string  `json:"status"`
-	Parent      *Input  `json:"parent,omitempty"`
-	Input       *Input  `json:"input,omitempty"`
-	Output      *Output `json:"output,omitempty"`
-	Error       *Error  `json:"error,omitempty"`
-}
-
-func JSONMapFromExecution(execution Execution) JSONMap {
-	return JSONMap{
-		ComponentID: execution.GetComponentID(),
-		ExecID:      execution.GetID(),
-		Status:      string(execution.GetStatus()),
-		Parent:      execution.GetParentInput(),
-		Input:       execution.GetInput(),
-		Output:      execution.GetOutput(),
-		Error:       execution.GetError(),
-	}
-}
-
-func (jm *JSONMap) AsMap() map[ID]any {
-	return map[ID]any{
-		"component_id": jm.ComponentID,
-		"exec_id":      jm.ExecID,
-		"status":       jm.Status,
-		"parent":       jm.Parent,
-		"input":        jm.Input,
-		"output":       jm.Output,
-		"error":        jm.Error,
-	}
-}
-
-type ExecutionMap struct {
-	ExecID      ID             `json:"exec_id"`
-	ComponentID string         `json:"component_id"`
-	Status      string         `json:"status"`
-	Input       *Input         `json:"input"`
-	Output      *Output        `json:"output"`
-	Error       *Error         `json:"error"`
-	Tasks       map[ID]JSONMap `json:"tasks"`
-	Agents      map[ID]JSONMap `json:"agents"`
-	Tools       map[ID]JSONMap `json:"tools"`
-}
-
-func NewExecutionMap(execution Execution, tasksMap, agentsMap, toolsMap map[ID]JSONMap) *ExecutionMap {
-	return &ExecutionMap{
-		ExecID:      execution.GetID(),
-		ComponentID: execution.GetComponentID(),
-		Status:      string(execution.GetStatus()),
-		Input:       execution.GetInput(),
-		Output:      execution.GetOutput(),
-		Error:       execution.GetError(),
-		Tasks:       tasksMap,
-		Agents:      agentsMap,
-		Tools:       toolsMap,
-	}
-}
-
 // -----------------------------------------------------------------------------
 // Base Execution
 // -----------------------------------------------------------------------------
@@ -85,6 +25,7 @@ type Execution interface {
 	GetError() *Error
 	SetDuration()
 	CalcDuration() time.Duration
+	AsMap() map[ID]any
 }
 
 type BaseExecution struct {
@@ -103,6 +44,7 @@ type BaseExecution struct {
 }
 
 func NewBaseExecution(
+	component ComponentType,
 	workflowID string,
 	workflowExecID ID,
 	parentInput, input *Input,
@@ -111,6 +53,7 @@ func NewBaseExecution(
 	err *Error,
 ) *BaseExecution {
 	return &BaseExecution{
+		Component:      component,
 		WorkflowID:     workflowID,
 		WorkflowExecID: workflowExecID,
 		Status:         StatusPending,
@@ -183,6 +126,21 @@ func (b *BaseExecution) SetDuration() {
 
 func (b *BaseExecution) CalcDuration() time.Duration {
 	return b.EndTime.Sub(b.StartTime)
+}
+
+func (b *BaseExecution) AsMap() map[ID]any {
+	return map[ID]any{
+		"exec_id":      b.GetID(),
+		"component_id": b.GetComponentID(),
+		"status":       b.GetStatus(),
+		"parent":       b.GetParentInput(),
+		"input":        b.GetInput(),
+		"output":       b.GetOutput(),
+		"error":        b.GetError(),
+		"start_time":   b.StartTime,
+		"end_time":     b.EndTime,
+		"duration":     b.Duration,
+	}
 }
 
 // -----------------------------------------------------------------------------

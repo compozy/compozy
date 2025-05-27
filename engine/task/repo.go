@@ -13,6 +13,9 @@ type Repository interface {
 		metadata *pb.TaskMetadata,
 		config *Config,
 	) (*Execution, error)
-	LoadExecution(ctx context.Context, wExecID core.ID, taskExecID core.ID) (*Execution, error)
-	LoadExecutionsJSON(ctx context.Context, wExecID core.ID) (map[core.ID]core.JSONMap, error)
+	LoadExecution(ctx context.Context, taskExecID core.ID) (*Execution, error)
+	LoadExecutionsMapByWorkflowExecID(ctx context.Context, wExecID core.ID) (map[core.ID]any, error)
+	ListExecutionsByWorkflowAndTask(ctx context.Context, workflowID, taskID string) ([]*Execution, error)
+	ListExecutionsByWorkflow(ctx context.Context, workflowID string) ([]*Execution, error)
+	ListExecutionsByWorkflowExecID(ctx context.Context, workflowExecID core.ID) ([]*Execution, error)
 }

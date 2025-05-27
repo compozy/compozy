@@ -157,7 +157,7 @@ func TestTaskRepository_LoadExecution(t *testing.T) {
 		taskExecID, createdExecution := createTestTaskExecution(t, tb, workflowExecID, "format-code", taskConfig)
 
 		// Load the execution
-		loadedExecution, err := tb.TaskRepo.LoadExecution(tb.Ctx, workflowExecID, taskExecID)
+		loadedExecution, err := tb.TaskRepo.LoadExecution(tb.Ctx, taskExecID)
 		require.NoError(t, err)
 		require.NotNil(t, loadedExecution)
 
@@ -169,16 +169,14 @@ func TestTaskRepository_LoadExecution(t *testing.T) {
 	})
 
 	t.Run("Should return error for non-existent execution", func(t *testing.T) {
-		nonExistentWorkflowExecID := core.MustNewID()
 		nonExistentTaskExecID := core.MustNewID()
-
-		execution, err := tb.TaskRepo.LoadExecution(tb.Ctx, nonExistentWorkflowExecID, nonExistentTaskExecID)
+		execution, err := tb.TaskRepo.LoadExecution(tb.Ctx, nonExistentTaskExecID)
 		assert.Error(t, err)
 		assert.Nil(t, execution)
 	})
 }
 
-func TestTaskRepository_LoadExecutionsJSON(t *testing.T) {
+func TestTaskRepository_LoadExecutionsMapByWorkflowExecID(t *testing.T) {
 	tb := setupTaskRepoTestBed(t)
 	defer tb.Cleanup()
 
@@ -208,7 +206,7 @@ func TestTaskRepository_LoadExecutionsJSON(t *testing.T) {
 		taskExecID2, _ := createTestTaskExecution(t, tb, workflowExecID, "task-2", taskConfig2)
 
 		// Load executions JSON
-		executionsJSON, err := tb.TaskRepo.LoadExecutionsJSON(tb.Ctx, workflowExecID)
+		executionsJSON, err := tb.TaskRepo.LoadExecutionsMapByWorkflowExecID(tb.Ctx, workflowExecID)
 		require.NoError(t, err)
 		require.NotNil(t, executionsJSON)
 
@@ -216,23 +214,23 @@ func TestTaskRepository_LoadExecutionsJSON(t *testing.T) {
 		assert.Len(t, executionsJSON, 2)
 
 		// Verify execution data
-		exec1, exists := executionsJSON[taskExecID1]
+		exec1, exists := executionsJSON[taskExecID1].(map[core.ID]any)
 		assert.True(t, exists)
-		assert.Equal(t, "task-1", exec1.ComponentID)
-		assert.Equal(t, taskExecID1, exec1.ExecID)
-		assert.Equal(t, string(core.StatusPending), exec1.Status)
+		assert.Equal(t, "task-1", exec1[core.ID("task_id")])
+		assert.Equal(t, taskExecID1, exec1[core.ID("task_exec_id")])
+		assert.Equal(t, core.StatusPending, exec1[core.ID("status")])
 
-		exec2, exists := executionsJSON[taskExecID2]
+		exec2, exists := executionsJSON[taskExecID2].(map[core.ID]any)
 		assert.True(t, exists)
-		assert.Equal(t, "task-2", exec2.ComponentID)
-		assert.Equal(t, taskExecID2, exec2.ExecID)
-		assert.Equal(t, string(core.StatusPending), exec2.Status)
+		assert.Equal(t, "task-2", exec2[core.ID("task_id")])
+		assert.Equal(t, taskExecID2, exec2[core.ID("task_exec_id")])
+		assert.Equal(t, core.StatusPending, exec2[core.ID("status")])
 	})
 
 	t.Run("Should return empty map for workflow execution with no tasks", func(t *testing.T) {
 		nonExistentWorkflowExecID := core.MustNewID()
 
-		executionsJSON, err := tb.TaskRepo.LoadExecutionsJSON(tb.Ctx, nonExistentWorkflowExecID)
+		executionsJSON, err := tb.TaskRepo.LoadExecutionsMapByWorkflowExecID(tb.Ctx, nonExistentWorkflowExecID)
 		require.NoError(t, err)
 		assert.Empty(t, executionsJSON)
 	})
@@ -271,14 +269,14 @@ func TestTaskRepository_LoadExecutionsJSON(t *testing.T) {
 		taskExecID2, _ := createTestTaskExecution(t, tb, workflowExecID2, "task-2", taskConfig2)
 
 		// Load executions for first workflow only
-		executionsJSON1, err := tb.TaskRepo.LoadExecutionsJSON(tb.Ctx, workflowExecID1)
+		executionsJSON1, err := tb.TaskRepo.LoadExecutionsMapByWorkflowExecID(tb.Ctx, workflowExecID1)
 		require.NoError(t, err)
 		assert.Len(t, executionsJSON1, 1)
 		assert.Contains(t, executionsJSON1, taskExecID1)
 		assert.NotContains(t, executionsJSON1, taskExecID2)
 
 		// Load executions for second workflow only
-		executionsJSON2, err := tb.TaskRepo.LoadExecutionsJSON(tb.Ctx, workflowExecID2)
+		executionsJSON2, err := tb.TaskRepo.LoadExecutionsMapByWorkflowExecID(tb.Ctx, workflowExecID2)
 		require.NoError(t, err)
 		assert.Len(t, executionsJSON2, 1)
 		assert.Contains(t, executionsJSON2, taskExecID2)

@@ -25,7 +25,7 @@ func NewStoreKey(workflowExecID core.ID, toolExecID core.ID) StoreKey {
 }
 
 func (s *StoreKey) String() string {
-	return fmt.Sprintf("%s:tool:%s", s.WorkflowExecID, s.ToolExecID)
+	return fmt.Sprintf("workflow:%s:tool:%s", s.WorkflowExecID, s.ToolExecID)
 }
 
 func (s *StoreKey) Bytes() []byte {
@@ -102,6 +102,7 @@ func NewExecution(data *RequestData) (*Execution, error) {
 		return nil, fmt.Errorf("failed to merge input: %w", err)
 	}
 	baseExec := core.NewBaseExecution(
+		core.ComponentTool,
 		data.WorkflowId,
 		core.ID(data.WorkflowExecId),
 		data.ParentInput,
@@ -136,4 +137,23 @@ func (e *Execution) GetID() core.ID {
 
 func (e *Execution) GetComponentID() string {
 	return e.ToolID
+}
+
+func (e *Execution) AsMap() map[core.ID]any {
+	return map[core.ID]any{
+		"status":           e.GetStatus(),
+		"component":        e.GetComponent(),
+		"tool_id":          e.GetComponentID(),
+		"tool_exec_id":     e.GetID(),
+		"workflow_id":      e.GetWorkflowID(),
+		"workflow_exec_id": e.GetWorkflowExecID(),
+		"task_id":          e.TaskID,
+		"task_exec_id":     e.TaskExecID,
+		"input":            e.GetInput(),
+		"output":           e.GetOutput(),
+		"error":            e.GetError(),
+		"start_time":       e.StartTime,
+		"end_time":         e.EndTime,
+		"duration":         e.Duration,
+	}
 }

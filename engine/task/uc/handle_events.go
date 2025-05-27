@@ -6,17 +6,18 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/nats"
+	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/pkg/pb"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
 type HandleEvents struct {
-	store core.Store
+	store *store.Store
 	repo  task.Repository
 }
 
-func NewHandleEvents(store core.Store, repo task.Repository) *HandleEvents {
+func NewHandleEvents(store *store.Store, repo task.Repository) *HandleEvents {
 	return &HandleEvents{store: store, repo: repo}
 }
 
@@ -35,9 +36,8 @@ func (h *HandleEvents) Execute(ctx context.Context, msg jetstream.Msg) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse event data: %w", err)
 	}
-	workflowExecID := parsed.WorkflowExecID
 	taskExecID := parsed.ComponentExecID
-	execution, err := h.repo.LoadExecution(ctx, workflowExecID, taskExecID)
+	execution, err := h.repo.LoadExecution(ctx, taskExecID)
 	if err != nil {
 		return err
 	}

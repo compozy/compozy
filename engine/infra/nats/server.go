@@ -21,8 +21,8 @@ type ServerOptions struct {
 	StoreDir        string
 }
 
-func DefaultServerOptions() ServerOptions {
-	storeDir := filepath.Join(core.GetStoreDir(), "nats")
+func DefaultServerOptions(cwd *core.CWD) ServerOptions {
+	storeDir := filepath.Join(core.GetStoreDir(cwd), "nats")
 	return ServerOptions{
 		EnableLogging:   false,
 		ServerName:      "compozy_embedded_server",

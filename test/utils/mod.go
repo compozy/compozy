@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,6 +47,13 @@ func SetupIntegrationTestBed(
 ) *IntegrationTestBed {
 	t.Helper()
 
+	// Initialize logger for tests
+	logger.Init(&logger.Config{
+		Level:  logger.ErrorLevel, // Use error level to reduce noise in tests
+		Output: os.Stderr,
+		JSON:   false,
+	})
+
 	if GlobalBaseTestDir == "" {
 		var err error
 		GlobalBaseTestDir, err = os.MkdirTemp("", "compozy_integration_fallback_")
@@ -62,7 +70,13 @@ func SetupIntegrationTestBed(
 	err := os.MkdirAll(stateDir, 0o750)
 	require.NoError(t, err)
 
-	testStore, err := store.NewStore(stateDir)
+	// Create the database file path (not just the directory)
+	dbFilePath := filepath.Join(stateDir, "compozy.db")
+	testStore, err := store.NewStore(dbFilePath)
+	require.NoError(t, err)
+
+	// Setup the store (run migrations)
+	err = testStore.Setup()
 	require.NoError(t, err)
 
 	// Create a minimal project config for testing
@@ -74,10 +88,10 @@ func SetupIntegrationTestBed(
 	workflows := []*workflow.Config{}
 
 	// Create repositories with correct constructor signatures
-	workflowRepo := store.NewWorkflowRepository(testStore, projectConfig, workflows)
-	taskRepo := store.NewTaskRepository(testStore, workflowRepo)
-	agentRepo := store.NewAgentRepository(testStore, workflowRepo, taskRepo)
-	toolRepo := store.NewToolRepository(testStore, workflowRepo, taskRepo)
+	workflowRepo := testStore.NewWorkflowRepository(projectConfig, workflows)
+	taskRepo := testStore.NewTaskRepository(workflowRepo)
+	agentRepo := testStore.NewAgentRepository(workflowRepo, taskRepo)
+	toolRepo := testStore.NewToolRepository(workflowRepo, taskRepo)
 
 	return &IntegrationTestBed{
 		T:            t,
@@ -127,11 +141,24 @@ func SetupStateManagerForSubtest(
 ) (*store.Store, *project.Config) {
 	t.Helper()
 
+	// Initialize logger for tests if not already done
+	logger.Init(&logger.Config{
+		Level:  logger.ErrorLevel, // Use error level to reduce noise in tests
+		Output: os.Stderr,
+		JSON:   false,
+	})
+
 	subtestStateDir := filepath.Join(parentBaseDir, t.Name())
 	err := os.MkdirAll(subtestStateDir, 0o750)
 	require.NoError(t, err)
 
-	testStore, err := store.NewStore(subtestStateDir)
+	// Create the database file path (not just the directory)
+	dbFilePath := filepath.Join(subtestStateDir, "compozy.db")
+	testStore, err := store.NewStore(dbFilePath)
+	require.NoError(t, err)
+
+	// Setup the store (run migrations)
+	err = testStore.Setup()
 	require.NoError(t, err)
 
 	// Create a minimal project config for testing

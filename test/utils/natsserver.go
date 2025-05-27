@@ -4,12 +4,16 @@ import (
 	"context"
 	"testing"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/nats"
 	"github.com/stretchr/testify/require"
 )
 
 func SetupNatsServer(ctx context.Context, t *testing.T) (*nats.Server, *nats.Client) {
-	opts := nats.DefaultServerOptions()
+	tempDir := t.TempDir()
+	cwd, err := core.CWDFromPath(tempDir)
+	require.NoError(t, err, "CWD creation should succeed")
+	opts := nats.DefaultServerOptions(cwd)
 	opts.EnableJetStream = true
 
 	natsServer, err := nats.NewNatsServer(opts)

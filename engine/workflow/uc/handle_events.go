@@ -6,17 +6,18 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/nats"
+	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/pb"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
 type HandleEvents struct {
-	store core.Store
+	store *store.Store
 	repo  workflow.Repository
 }
 
-func NewHandleEvents(store core.Store, repo workflow.Repository) *HandleEvents {
+func NewHandleEvents(store *store.Store, repo workflow.Repository) *HandleEvents {
 	return &HandleEvents{store: store, repo: repo}
 }
 

@@ -2,18 +2,17 @@ package orchestrator
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/nats"
+	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	tkuc "github.com/compozy/compozy/engine/task/uc"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
 	wfuc "github.com/compozy/compozy/engine/workflow/uc"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 type Config struct {
@@ -26,7 +25,7 @@ type Config struct {
 type Orchestrator struct {
 	ns            *nats.Server
 	nc            *nats.Client
-	store         core.Store
+	store         *store.Store
 	config        Config
 	publisher     core.EventPublisher
 	subscriber    core.EventSubscriber
@@ -37,7 +36,7 @@ type Orchestrator struct {
 func NewOrchestrator(
 	ns *nats.Server,
 	nc *nats.Client,
-	store core.Store,
+	store *store.Store,
 	config Config,
 	projectConfig *project.Config,
 	workflows []*workflow.Config,
@@ -67,18 +66,6 @@ func (o *Orchestrator) Setup(ctx context.Context) error {
 	if err := o.registerTask(ctx); err != nil {
 		return err
 	}
-	return nil
-}
-
-func (o *Orchestrator) Stop(ctx context.Context) error {
-	logger.Debug("Shutting down Orchestrator")
-	if err := o.nc.CloseWithContext(ctx); err != nil {
-		return fmt.Errorf("failed to close NATS client: %w", err)
-	}
-	if err := o.store.CloseWithContext(ctx); err != nil {
-		return fmt.Errorf("failed to close store: %w", err)
-	}
-	logger.Debug("Orchestrator stopped successfully")
 	return nil
 }
 

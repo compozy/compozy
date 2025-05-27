@@ -13,6 +13,6 @@ type Repository interface {
 		metadata *pb.AgentMetadata,
 		config *Config,
 	) (*Execution, error)
-	LoadExecution(ctx context.Context, wExecID core.ID, agentExecID core.ID) (*Execution, error)
-	LoadExecutionsJSON(ctx context.Context, wExecID core.ID) (map[core.ID]core.JSONMap, error)
+	LoadExecution(ctx context.Context, agentExecID core.ID) (*Execution, error)
+	LoadExecutionsMapByWorkflowExecID(ctx context.Context, wExecID core.ID) (map[core.ID]any, error)
 }

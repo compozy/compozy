@@ -257,7 +257,7 @@ func TestAgentRepository_LoadExecution(t *testing.T) {
 		agentExecID, createdExecution := createTestAgentExecution(t, tb, workflowExecID, taskExecID, "code-assistant", agentConfig)
 
 		// Load the execution
-		loadedExecution, err := tb.AgentRepo.LoadExecution(tb.Ctx, workflowExecID, agentExecID)
+		loadedExecution, err := tb.AgentRepo.LoadExecution(tb.Ctx, agentExecID)
 		require.NoError(t, err)
 		require.NotNil(t, loadedExecution)
 
@@ -270,16 +270,14 @@ func TestAgentRepository_LoadExecution(t *testing.T) {
 	})
 
 	t.Run("Should return error for non-existent execution", func(t *testing.T) {
-		nonExistentWorkflowExecID := core.MustNewID()
 		nonExistentAgentExecID := core.MustNewID()
-
-		execution, err := tb.AgentRepo.LoadExecution(tb.Ctx, nonExistentWorkflowExecID, nonExistentAgentExecID)
+		execution, err := tb.AgentRepo.LoadExecution(tb.Ctx, nonExistentAgentExecID)
 		assert.Error(t, err)
 		assert.Nil(t, execution)
 	})
 }
 
-func TestAgentRepository_LoadExecutionsJSON(t *testing.T) {
+func TestAgentRepository_LoadExecutionsMapByWorkflowExecID(t *testing.T) {
 	tb := setupAgentRepoTestBed(t)
 	defer tb.Cleanup()
 
@@ -323,7 +321,7 @@ func TestAgentRepository_LoadExecutionsJSON(t *testing.T) {
 		agentExecID2, _ := createTestAgentExecution(t, tb, workflowExecID, taskExecID, "agent-2", agentConfig2)
 
 		// Load executions JSON
-		executionsJSON, err := tb.AgentRepo.LoadExecutionsJSON(tb.Ctx, workflowExecID)
+		executionsJSON, err := tb.AgentRepo.LoadExecutionsMapByWorkflowExecID(tb.Ctx, workflowExecID)
 		require.NoError(t, err)
 		require.NotNil(t, executionsJSON)
 
@@ -331,23 +329,23 @@ func TestAgentRepository_LoadExecutionsJSON(t *testing.T) {
 		assert.Len(t, executionsJSON, 2)
 
 		// Verify execution data
-		exec1, exists := executionsJSON[agentExecID1]
+		exec1, exists := executionsJSON[agentExecID1].(map[core.ID]any)
 		assert.True(t, exists)
-		assert.Equal(t, "agent-1", exec1.ComponentID)
-		assert.Equal(t, agentExecID1, exec1.ExecID)
-		assert.Equal(t, string(core.StatusPending), exec1.Status)
+		assert.Equal(t, "agent-1", exec1[core.ID("agent_id")])
+		assert.Equal(t, agentExecID1, exec1[core.ID("agent_exec_id")])
+		assert.Equal(t, core.StatusPending, exec1[core.ID("status")])
 
-		exec2, exists := executionsJSON[agentExecID2]
+		exec2, exists := executionsJSON[agentExecID2].(map[core.ID]any)
 		assert.True(t, exists)
-		assert.Equal(t, "agent-2", exec2.ComponentID)
-		assert.Equal(t, agentExecID2, exec2.ExecID)
-		assert.Equal(t, string(core.StatusPending), exec2.Status)
+		assert.Equal(t, "agent-2", exec2[core.ID("agent_id")])
+		assert.Equal(t, agentExecID2, exec2[core.ID("agent_exec_id")])
+		assert.Equal(t, core.StatusPending, exec2[core.ID("status")])
 	})
 
 	t.Run("Should return empty map for workflow execution with no agents", func(t *testing.T) {
 		nonExistentWorkflowExecID := core.MustNewID()
 
-		executionsJSON, err := tb.AgentRepo.LoadExecutionsJSON(tb.Ctx, nonExistentWorkflowExecID)
+		executionsJSON, err := tb.AgentRepo.LoadExecutionsMapByWorkflowExecID(tb.Ctx, nonExistentWorkflowExecID)
 		require.NoError(t, err)
 		assert.Empty(t, executionsJSON)
 	})

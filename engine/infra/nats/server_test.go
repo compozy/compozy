@@ -12,7 +12,10 @@ import (
 
 func TestNatsServerInitialization(t *testing.T) {
 	// Create server with default options
-	opts := DefaultServerOptions()
+	tempDir := t.TempDir()
+	cwd, err := core.CWDFromPath(tempDir)
+	require.NoError(t, err, "CWD creation should succeed")
+	opts := DefaultServerOptions(cwd)
 	opts.EnableJetStream = true
 
 	server, err := NewNatsServer(opts)
@@ -26,7 +29,10 @@ func TestNatsServerInitialization(t *testing.T) {
 
 func TestJetStreamCreation(t *testing.T) {
 	// Create server with JetStream enabled
-	opts := DefaultServerOptions()
+	tempDir := t.TempDir()
+	cwd, err := core.CWDFromPath(tempDir)
+	require.NoError(t, err, "CWD creation should succeed")
+	opts := DefaultServerOptions(cwd)
 	opts.EnableJetStream = true
 
 	server, err := NewNatsServer(opts)
@@ -67,7 +73,10 @@ func TestJetStreamCreation(t *testing.T) {
 }
 
 func TestNatsServerShutdown(t *testing.T) {
-	opts := DefaultServerOptions()
+	tempDir := t.TempDir()
+	cwd, err := core.CWDFromPath(tempDir)
+	require.NoError(t, err, "CWD creation should succeed")
+	opts := DefaultServerOptions(cwd)
 	server, err := NewNatsServer(opts)
 	require.NoError(t, err, "Server creation should succeed")
 	require.NotNil(t, server, "Server should not be nil")

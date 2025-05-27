@@ -215,12 +215,9 @@ func TestToolRepository_CreateExecution(t *testing.T) {
 			Execute:     "./script.ts",
 			InputSchema: &schema.InputSchema{
 				Schema: schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"script": map[string]any{
-							"type":        "string",
-							"description": "The script to run",
-						},
+					"script": map[string]any{
+						"type":        "string",
+						"description": "The script to run",
 					},
 					"required": []string{"script"},
 				},
@@ -277,7 +274,7 @@ func TestToolRepository_LoadExecution(t *testing.T) {
 		toolExecID, createdExecution := createTestToolExecution(t, tb, workflowExecID, taskExecID, "code-formatter", toolConfig)
 
 		// Load the execution
-		loadedExecution, err := tb.ToolRepo.LoadExecution(tb.Ctx, workflowExecID, toolExecID)
+		loadedExecution, err := tb.ToolRepo.LoadExecution(tb.Ctx, toolExecID)
 		require.NoError(t, err)
 		require.NotNil(t, loadedExecution)
 
@@ -290,16 +287,15 @@ func TestToolRepository_LoadExecution(t *testing.T) {
 	})
 
 	t.Run("Should return error for non-existent execution", func(t *testing.T) {
-		nonExistentWorkflowExecID := core.MustNewID()
 		nonExistentToolExecID := core.MustNewID()
 
-		execution, err := tb.ToolRepo.LoadExecution(tb.Ctx, nonExistentWorkflowExecID, nonExistentToolExecID)
+		execution, err := tb.ToolRepo.LoadExecution(tb.Ctx, nonExistentToolExecID)
 		assert.Error(t, err)
 		assert.Nil(t, execution)
 	})
 }
 
-func TestToolRepository_LoadExecutionsJSON(t *testing.T) {
+func TestToolRepository_LoadExecutionsMapByWorkflowExecID(t *testing.T) {
 	tb := setupToolRepoTestBed(t)
 	defer tb.Cleanup()
 
@@ -341,7 +337,7 @@ func TestToolRepository_LoadExecutionsJSON(t *testing.T) {
 		toolExecID2, _ := createTestToolExecution(t, tb, workflowExecID, taskExecID, "tool-2", toolConfig2)
 
 		// Load executions JSON
-		executionsJSON, err := tb.ToolRepo.LoadExecutionsJSON(tb.Ctx, workflowExecID)
+		executionsJSON, err := tb.ToolRepo.LoadExecutionsMapByWorkflowExecID(tb.Ctx, workflowExecID)
 		require.NoError(t, err)
 		require.NotNil(t, executionsJSON)
 
@@ -349,23 +345,23 @@ func TestToolRepository_LoadExecutionsJSON(t *testing.T) {
 		assert.Len(t, executionsJSON, 2)
 
 		// Verify execution data
-		exec1, exists := executionsJSON[toolExecID1]
+		exec1, exists := executionsJSON[toolExecID1].(map[core.ID]any)
 		assert.True(t, exists)
-		assert.Equal(t, "tool-1", exec1.ComponentID)
-		assert.Equal(t, toolExecID1, exec1.ExecID)
-		assert.Equal(t, string(core.StatusPending), exec1.Status)
+		assert.Equal(t, "tool-1", exec1[core.ID("tool_id")])
+		assert.Equal(t, toolExecID1, exec1[core.ID("tool_exec_id")])
+		assert.Equal(t, core.StatusPending, exec1[core.ID("status")])
 
-		exec2, exists := executionsJSON[toolExecID2]
+		exec2, exists := executionsJSON[toolExecID2].(map[core.ID]any)
 		assert.True(t, exists)
-		assert.Equal(t, "tool-2", exec2.ComponentID)
-		assert.Equal(t, toolExecID2, exec2.ExecID)
-		assert.Equal(t, string(core.StatusPending), exec2.Status)
+		assert.Equal(t, "tool-2", exec2[core.ID("tool_id")])
+		assert.Equal(t, toolExecID2, exec2[core.ID("tool_exec_id")])
+		assert.Equal(t, core.StatusPending, exec2[core.ID("status")])
 	})
 
 	t.Run("Should return empty map for workflow execution with no tools", func(t *testing.T) {
 		nonExistentWorkflowExecID := core.MustNewID()
 
-		executionsJSON, err := tb.ToolRepo.LoadExecutionsJSON(tb.Ctx, nonExistentWorkflowExecID)
+		executionsJSON, err := tb.ToolRepo.LoadExecutionsMapByWorkflowExecID(tb.Ctx, nonExistentWorkflowExecID)
 		require.NoError(t, err)
 		assert.Empty(t, executionsJSON)
 	})

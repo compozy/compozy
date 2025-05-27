@@ -15,13 +15,12 @@ type ToolRepository struct {
 	taskRepo     *TaskRepository
 }
 
-func NewToolRepository(
-	store *Store,
+func (s *Store) NewToolRepository(
 	workflowRepo *WorkflowRepository,
 	taskRepo *TaskRepository,
 ) *ToolRepository {
 	return &ToolRepository{
-		store:        store,
+		store:        s,
 		workflowRepo: workflowRepo,
 		taskRepo:     taskRepo,
 	}
@@ -38,7 +37,7 @@ func (r *ToolRepository) CreateExecution(
 		return nil, fmt.Errorf("failed to load workflow execution: %w", err)
 	}
 	taskExecID := core.ID(metadata.TaskExecId)
-	taskExecution, err := r.taskRepo.LoadExecution(ctx, workflowExecID, taskExecID)
+	taskExecution, err := r.taskRepo.LoadExecution(ctx, taskExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load task execution: %w", err)
 	}
@@ -71,28 +70,39 @@ func (r *ToolRepository) CreateExecution(
 
 func (r *ToolRepository) LoadExecution(
 	ctx context.Context,
-	wExecID core.ID,
 	toolExecID core.ID,
 ) (*tool.Execution, error) {
-	key := tool.NewStoreKey(wExecID, toolExecID)
-	execution, err := GetAndUnmarshalJSON[tool.Execution](ctx, r.store, key.Bytes())
+	data, err := r.store.GetToolExecutionByExecID(ctx, toolExecID.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tool execution: %w", err)
 	}
+	if data == nil {
+		return nil, fmt.Errorf("tool execution not found")
+	}
+
+	execution, err := unmarshalExecution[*tool.Execution](*data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal tool execution: %w", err)
+	}
+
 	return execution, nil
 }
 
-func (r *ToolRepository) LoadExecutionsJSON(
+func (r *ToolRepository) LoadExecutionsMapByWorkflowExecID(
 	ctx context.Context,
 	wExecID core.ID,
-) (map[core.ID]core.JSONMap, error) {
-	executions, err := GetExecutionsByComponent[*tool.Execution](ctx, r.store, wExecID, core.ComponentTool)
+) (map[core.ID]any, error) {
+	data, err := r.store.ListToolExecutionsByWorkflowExecID(ctx, string(wExecID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tool executions: %w", err)
 	}
-	jsonMap := make(map[core.ID]core.JSONMap)
+	executions, err := unmarshalExecutions[*tool.Execution](data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal tool executions: %w", err)
+	}
+	jsonMap := make(map[core.ID]any)
 	for _, execution := range executions {
-		jsonMap[execution.GetID()] = core.JSONMapFromExecution(execution)
+		jsonMap[execution.GetID()] = execution.AsMap()
 	}
 	return jsonMap, nil
 }

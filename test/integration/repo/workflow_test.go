@@ -188,17 +188,17 @@ func TestWorkflowRepository_LoadExecutionMap(t *testing.T) {
 		require.NoError(t, err)
 
 		// Load execution map
-		executionMap, err := tb.WorkflowRepo.LoadExecutionMap(tb.Ctx, workflowExecID)
+		execMap, err := tb.WorkflowRepo.LoadExecutionMap(tb.Ctx, workflowExecID)
 		require.NoError(t, err)
-		require.NotNil(t, executionMap)
+		require.NotNil(t, execMap)
 
 		// Verify execution map structure
-		assert.Equal(t, workflowExecID, executionMap.ExecID)
-		assert.Equal(t, "test-workflow", executionMap.ComponentID)
-		assert.Equal(t, string(core.StatusPending), executionMap.Status)
-		assert.NotNil(t, executionMap.Tasks)
-		assert.NotNil(t, executionMap.Agents)
-		assert.NotNil(t, executionMap.Tools)
+		assert.Equal(t, core.StatusPending, execMap["status"])
+		assert.Equal(t, "test-workflow", execMap["workflow_id"])
+		assert.Equal(t, workflowExecID, execMap["workflow_exec_id"])
+		assert.NotNil(t, execMap["tasks"])
+		assert.NotNil(t, execMap["agents"])
+		assert.NotNil(t, execMap["tools"])
 	})
 
 	t.Run("Should return error for non-existent execution", func(t *testing.T) {
@@ -289,12 +289,12 @@ func TestWorkflowRepository_ListExecutionsMap(t *testing.T) {
 
 		// Verify execution map
 		executionMap := executionMaps[0]
-		assert.Equal(t, workflowExecID, executionMap.ExecID)
-		assert.Equal(t, "test-workflow", executionMap.ComponentID)
-		assert.Equal(t, string(core.StatusPending), executionMap.Status)
-		assert.NotNil(t, executionMap.Tasks)
-		assert.NotNil(t, executionMap.Agents)
-		assert.NotNil(t, executionMap.Tools)
+		assert.Equal(t, workflowExecID, executionMap["workflow_exec_id"])
+		assert.Equal(t, "test-workflow", executionMap["workflow_id"])
+		assert.Equal(t, core.StatusPending, executionMap["status"])
+		assert.NotNil(t, executionMap["tasks"])
+		assert.NotNil(t, executionMap["agents"])
+		assert.NotNil(t, executionMap["tools"])
 	})
 
 	t.Run("Should return empty list when no executions exist", func(t *testing.T) {

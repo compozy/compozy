@@ -12,11 +12,7 @@ func GetVersion() string {
 	return "v0"
 }
 
-func GetStoreDir() string {
-	cwd, err := CWDFromPath("")
-	if err != nil {
-		panic(err)
-	}
+func GetStoreDir(cwd *CWD) string {
 	return filepath.Join(cwd.PathStr(), ".compozy")
 }
 

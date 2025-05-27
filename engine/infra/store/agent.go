@@ -15,13 +15,12 @@ type AgentRepository struct {
 	taskRepo     *TaskRepository
 }
 
-func NewAgentRepository(
-	store *Store,
+func (s *Store) NewAgentRepository(
 	workflowRepo *WorkflowRepository,
 	taskRepo *TaskRepository,
 ) *AgentRepository {
 	return &AgentRepository{
-		store:        store,
+		store:        s,
 		workflowRepo: workflowRepo,
 		taskRepo:     taskRepo,
 	}
@@ -38,7 +37,7 @@ func (r *AgentRepository) CreateExecution(
 		return nil, fmt.Errorf("failed to load workflow execution: %w", err)
 	}
 	taskExecID := core.ID(metadata.TaskExecId)
-	taskExecution, err := r.taskRepo.LoadExecution(ctx, workflowExecID, taskExecID)
+	taskExecution, err := r.taskRepo.LoadExecution(ctx, taskExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load task execution: %w", err)
 	}
@@ -71,28 +70,34 @@ func (r *AgentRepository) CreateExecution(
 
 func (r *AgentRepository) LoadExecution(
 	ctx context.Context,
-	wExecID core.ID,
 	agentExecID core.ID,
 ) (*agent.Execution, error) {
-	key := agent.NewStoreKey(wExecID, agentExecID)
-	execution, err := GetAndUnmarshalJSON[agent.Execution](ctx, r.store, key.Bytes())
+	data, err := r.store.GetAgentExecutionByExecID(ctx, agentExecID.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get agent execution: %w", err)
 	}
-	return execution, nil
+	if data == nil {
+		return nil, fmt.Errorf("agent execution not found")
+	}
+	return unmarshalExecution[*agent.Execution](*data)
 }
 
-func (r *AgentRepository) LoadExecutionsJSON(
+func (r *AgentRepository) LoadExecutionsMapByWorkflowExecID(
 	ctx context.Context,
 	wExecID core.ID,
-) (map[core.ID]core.JSONMap, error) {
-	executions, err := GetExecutionsByComponent[*agent.Execution](ctx, r.store, wExecID, core.ComponentAgent)
+) (map[core.ID]any, error) {
+	workflowExecID := wExecID.String()
+	data, err := r.store.ListAgentExecutionsByWorkflowExecID(ctx, workflowExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get agent executions: %w", err)
 	}
-	jsonMap := make(map[core.ID]core.JSONMap)
+	executions, err := unmarshalExecutions[*agent.Execution](data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal agent executions: %w", err)
+	}
+	jsonMap := make(map[core.ID]any)
 	for _, execution := range executions {
-		jsonMap[execution.GetID()] = core.JSONMapFromExecution(execution)
+		jsonMap[execution.GetID()] = execution.AsMap()
 	}
 	return jsonMap, nil
 }

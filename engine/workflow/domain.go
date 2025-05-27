@@ -81,6 +81,7 @@ func NewExecution(data *RequestData) (*Execution, error) {
 		return nil, fmt.Errorf("failed to merge env: %w", err)
 	}
 	baseExec := core.NewBaseExecution(
+		core.ComponentWorkflow,
 		data.WorkflowId,
 		core.ID(data.WorkflowExecId),
 		// TODO: For now, the parent input is the input
@@ -112,4 +113,19 @@ func (e *Execution) GetID() core.ID {
 
 func (e *Execution) GetComponentID() string {
 	return e.WorkflowID
+}
+
+func (e *Execution) AsMap() map[core.ID]any {
+	return map[core.ID]any{
+		"status":           e.GetStatus(),
+		"component":        e.GetComponent(),
+		"workflow_id":      e.GetWorkflowID(),
+		"workflow_exec_id": e.GetWorkflowExecID(),
+		"input":            e.GetInput(),
+		"output":           e.GetOutput(),
+		"error":            e.GetError(),
+		"start_time":       e.StartTime,
+		"end_time":         e.EndTime,
+		"duration":         e.Duration,
+	}
 }

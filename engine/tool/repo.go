@@ -13,6 +13,6 @@ type Repository interface {
 		metadata *pb.ToolMetadata,
 		config *Config,
 	) (*Execution, error)
-	LoadExecution(ctx context.Context, wExecID core.ID, toolExecID core.ID) (*Execution, error)
-	LoadExecutionsJSON(ctx context.Context, wExecID core.ID) (map[core.ID]core.JSONMap, error)
+	LoadExecution(ctx context.Context, toolExecID core.ID) (*Execution, error)
+	LoadExecutionsMapByWorkflowExecID(ctx context.Context, wExecID core.ID) (map[core.ID]any, error)
 }

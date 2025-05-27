@@ -14,11 +14,8 @@ type TaskRepository struct {
 	workflowRepo *WorkflowRepository
 }
 
-func NewTaskRepository(store *Store, workflowRepo *WorkflowRepository) *TaskRepository {
-	return &TaskRepository{
-		store:        store,
-		workflowRepo: workflowRepo,
-	}
+func (s *Store) NewTaskRepository(workflowRepo *WorkflowRepository) *TaskRepository {
+	return &TaskRepository{store: s, workflowRepo: workflowRepo}
 }
 
 func (r *TaskRepository) CreateExecution(
@@ -58,28 +55,93 @@ func (r *TaskRepository) CreateExecution(
 
 func (r *TaskRepository) LoadExecution(
 	ctx context.Context,
-	wExecID core.ID,
 	taskExecID core.ID,
 ) (*task.Execution, error) {
-	key := task.NewStoreKey(wExecID, taskExecID)
-	execution, err := GetAndUnmarshalJSON[task.Execution](ctx, r.store, key.Bytes())
+	data, err := r.store.GetTaskExecutionByExecID(ctx, taskExecID.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get task execution: %w", err)
 	}
-	return execution, nil
+	if data == nil {
+		return nil, fmt.Errorf("task execution not found")
+	}
+	return unmarshalExecution[*task.Execution](*data)
 }
 
-func (r *TaskRepository) LoadExecutionsJSON(
+func (r *TaskRepository) LoadExecutionsMapByWorkflowExecID(
 	ctx context.Context,
 	wExecID core.ID,
-) (map[core.ID]core.JSONMap, error) {
-	executions, err := GetExecutionsByComponent[*task.Execution](ctx, r.store, wExecID, core.ComponentTask)
+) (map[core.ID]any, error) {
+	workflowExecID := wExecID.String()
+	data, err := r.store.ListTaskExecutionsByWorkflowExecID(ctx, workflowExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get task executions: %w", err)
 	}
-	jsonMap := make(map[core.ID]core.JSONMap)
+	executions, err := unmarshalExecutions[*task.Execution](data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal task executions: %w", err)
+	}
+	jsonMap := make(map[core.ID]any)
 	for _, execution := range executions {
-		jsonMap[execution.GetID()] = core.JSONMapFromExecution(execution)
+		jsonMap[execution.GetID()] = execution.AsMap()
 	}
 	return jsonMap, nil
+}
+
+// ListExecutionsByWorkflowAndTask lists task executions for a specific workflow and task
+func (r *TaskRepository) ListExecutionsByWorkflowAndTask(
+	ctx context.Context,
+	workflowID, taskID string,
+) ([]*task.Execution, error) {
+	data, err := r.store.ListTaskExecutionsByTaskID(ctx, taskID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get task executions: %w", err)
+	}
+
+	executions, err := unmarshalExecutions[*task.Execution](data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal task executions: %w", err)
+	}
+
+	// Filter by workflow ID
+	var filteredExecutions []*task.Execution
+	for _, execution := range executions {
+		if execution.GetWorkflowID() == workflowID {
+			filteredExecutions = append(filteredExecutions, execution)
+		}
+	}
+
+	return filteredExecutions, nil
+}
+
+// ListExecutionsByWorkflow lists all task executions for a specific workflow
+func (r *TaskRepository) ListExecutionsByWorkflow(
+	ctx context.Context,
+	workflowID string,
+) ([]*task.Execution, error) {
+	data, err := r.store.ListTaskExecutionsByWorkflowID(ctx, workflowID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get task executions: %w", err)
+	}
+
+	executions, err := unmarshalExecutions[*task.Execution](data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal task executions: %w", err)
+	}
+
+	return executions, nil
+}
+
+func (r *TaskRepository) ListExecutionsByWorkflowExecID(
+	ctx context.Context,
+	workflowExecID core.ID,
+) ([]*task.Execution, error) {
+	data, err := r.store.ListTaskExecutionsByWorkflowExecID(ctx, workflowExecID.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get task executions: %w", err)
+	}
+	executions, err := unmarshalExecutions[*task.Execution](data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal task executions: %w", err)
+	}
+	return executions, nil
 }
