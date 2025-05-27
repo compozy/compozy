@@ -26,7 +26,6 @@ func listChildrenExecutions(c *gin.Context) {
 	router.RespondOK(c, "workflow executions retrieved", gin.H{
 		"executions": executions,
 	})
-
 }
 
 func listChildrenExecutionsByID(c *gin.Context) {

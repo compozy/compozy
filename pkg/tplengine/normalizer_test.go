@@ -59,23 +59,23 @@ func (m *MockExecution) GetStartTime() time.Time          { return time.Time{} }
 func (m *MockExecution) GetEndTime() time.Time            { return time.Time{} }
 func (m *MockExecution) GetDuration() time.Duration       { return 0 }
 
-func (e *MockExecution) AsExecMap() *core.ExecutionMap {
+func (m *MockExecution) AsExecMap() *core.ExecutionMap {
 	execMap := core.ExecutionMap{
-		Status:         e.GetStatus(),
-		Component:      e.GetComponent(),
-		WorkflowID:     e.GetWorkflowID(),
-		WorkflowExecID: e.GetWorkflowExecID(),
-		Input:          e.GetInput(),
-		Output:         e.GetOutput(),
-		Error:          e.GetError(),
-		StartTime:      e.GetStartTime(),
-		EndTime:        e.GetEndTime(),
-		Duration:       e.CalcDuration(),
+		Status:         m.GetStatus(),
+		Component:      m.GetComponent(),
+		WorkflowID:     m.GetWorkflowID(),
+		WorkflowExecID: m.GetWorkflowExecID(),
+		Input:          m.GetInput(),
+		Output:         m.GetOutput(),
+		Error:          m.GetError(),
+		StartTime:      m.GetStartTime(),
+		EndTime:        m.GetEndTime(),
+		Duration:       m.CalcDuration(),
 	}
 	return &execMap
 }
 
-func (e *MockExecution) AsMainExecMap() *core.MainExecutionMap {
+func (m *MockExecution) AsMainExecMap() *core.MainExecutionMap {
 	return nil
 }
 

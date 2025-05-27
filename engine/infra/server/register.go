@@ -24,11 +24,6 @@ func RegisterRoutes(router *gin.Engine, state *appstate.State) error {
 	agentrouter.Register(apiBase)
 	toolrouter.Register(apiBase)
 
-	// Register log routes
-	routerPkg := router
-	_ = routerPkg // TODO: fix import conflict
-	// router.RegisterLogRoutes(apiBase)
-
 	logger.Info("Completed route registration",
 		"total_workflows", len(state.Workflows),
 	)

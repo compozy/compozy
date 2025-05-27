@@ -22,7 +22,7 @@ func NewGetWorkflow(workflows []*workflow.Config, workflowID string) *GetWorkflo
 	}
 }
 
-func (uc *GetWorkflow) Execute(ctx context.Context) (*workflow.Config, error) {
+func (uc *GetWorkflow) Execute(_ context.Context) (*workflow.Config, error) {
 	return workflow.FindConfig(uc.workflows, uc.workflowID)
 }
 
@@ -40,6 +40,6 @@ func NewListWorkflows(workflows []*workflow.Config) *ListWorkflows {
 	}
 }
 
-func (uc *ListWorkflows) Execute(ctx context.Context) ([]*workflow.Config, error) {
+func (uc *ListWorkflows) Execute(_ context.Context) ([]*workflow.Config, error) {
 	return uc.workflows, nil
 }

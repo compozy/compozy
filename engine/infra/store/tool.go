@@ -104,7 +104,10 @@ func (r *ToolRepository) ListExecutionsByWorkflowID(ctx context.Context, workflo
 	return UnmarshalExecutions[tool.Execution](execs)
 }
 
-func (r *ToolRepository) ListExecutionsByWorkflowExecID(ctx context.Context, workflowExecID core.ID) ([]tool.Execution, error) {
+func (r *ToolRepository) ListExecutionsByWorkflowExecID(
+	ctx context.Context,
+	workflowExecID core.ID,
+) ([]tool.Execution, error) {
 	execs, err := r.store.queries.ListToolExecutionsByWorkflowExecID(ctx, workflowExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list tool executions by workflow exec ID: %w", err)
@@ -121,7 +124,10 @@ func (r *ToolRepository) ListExecutionsByTaskID(ctx context.Context, taskID stri
 	return UnmarshalExecutions[tool.Execution](execs)
 }
 
-func (r *ToolRepository) ListExecutionsByTaskExecID(ctx context.Context, taskExecID core.ID) ([]tool.Execution, error) {
+func (r *ToolRepository) ListExecutionsByTaskExecID(
+	ctx context.Context,
+	taskExecID core.ID,
+) ([]tool.Execution, error) {
 	execs, err := r.store.queries.ListToolExecutionsByTaskExecID(ctx, taskExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list tool executions by task exec ID: %w", err)
@@ -142,7 +148,7 @@ func (r *ToolRepository) ListExecutionsByToolID(ctx context.Context, toolID stri
 // Helpers
 // -----------------------------------------------------------------------------
 
-func (r *ToolRepository) ExecutionsToMap(ctx context.Context, execs []core.Execution) ([]*core.ExecutionMap, error) {
+func (r *ToolRepository) ExecutionsToMap(_ context.Context, execs []core.Execution) ([]*core.ExecutionMap, error) {
 	execMaps := make([]*core.ExecutionMap, len(execs))
 	for i, exec := range execs {
 		execMaps[i] = exec.AsExecMap()

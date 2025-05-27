@@ -1,9 +1,12 @@
 package repo
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
@@ -29,6 +32,7 @@ func setupToolRepoTestBed(t *testing.T) *utils.IntegrationTestBed {
 func createTestToolWorkflowExecution(
 	t *testing.T,
 	tb *utils.IntegrationTestBed,
+	workflowID string,
 	env core.EnvMap,
 	input *core.Input,
 ) core.ID {
@@ -36,14 +40,14 @@ func createTestToolWorkflowExecution(
 
 	workflowExecID := core.MustNewID()
 	workflowMetadata := &pb.WorkflowMetadata{
-		WorkflowId:     "test-workflow",
+		WorkflowId:     workflowID,
 		WorkflowExecId: string(workflowExecID),
 		Time:           timestamppb.Now(),
 		Source:         "test",
 	}
 
 	workflowConfig := &workflow.Config{
-		ID:      "test-workflow",
+		ID:      workflowID,
 		Version: "1.0.0",
 		Env:     env,
 	}
@@ -60,21 +64,26 @@ func createTestToolTaskExecution(
 	t *testing.T,
 	tb *utils.IntegrationTestBed,
 	workflowExecID core.ID,
+	taskID string,
 	taskConfig *task.Config,
 ) core.ID {
 	t.Helper()
 
+	// Get the workflow execution to extract the correct workflow ID
+	workflowExecution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, workflowExecID)
+	require.NoError(t, err)
+
 	taskExecID := core.MustNewID()
 	taskMetadata := &pb.TaskMetadata{
-		WorkflowId:     "test-workflow",
+		WorkflowId:     workflowExecution.WorkflowID, // Use the actual workflow ID
 		WorkflowExecId: string(workflowExecID),
-		TaskId:         "test-task",
+		TaskId:         taskID,
 		TaskExecId:     string(taskExecID),
 		Time:           timestamppb.Now(),
 		Source:         "test",
 	}
 
-	err := taskConfig.SetCWD(tb.StateDir)
+	err = taskConfig.SetCWD(tb.StateDir)
 	require.NoError(t, err)
 
 	_, err = tb.TaskRepo.CreateExecution(tb.Ctx, taskMetadata, taskConfig)
@@ -93,11 +102,19 @@ func createTestToolExecution(
 ) (core.ID, *tool.Execution) {
 	t.Helper()
 
+	// Get the workflow execution to extract the correct workflow ID
+	workflowExecution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, workflowExecID)
+	require.NoError(t, err)
+
+	// Get the task execution to extract the correct task ID
+	taskExecution, err := tb.TaskRepo.GetExecution(tb.Ctx, taskExecID)
+	require.NoError(t, err)
+
 	toolExecID := core.MustNewID()
 	toolMetadata := &pb.ToolMetadata{
-		WorkflowId:     "test-workflow",
+		WorkflowId:     workflowExecution.WorkflowID, // Use the actual workflow ID
 		WorkflowExecId: string(workflowExecID),
-		TaskId:         "test-task",
+		TaskId:         taskExecution.TaskID, // Use the actual task ID
 		TaskExecId:     string(taskExecID),
 		ToolId:         toolID,
 		ToolExecId:     string(toolExecID),
@@ -105,7 +122,7 @@ func createTestToolExecution(
 		Source:         "test",
 	}
 
-	err := toolConfig.SetCWD(tb.StateDir)
+	err = toolConfig.SetCWD(tb.StateDir)
 	require.NoError(t, err)
 
 	execution, err := tb.ToolRepo.CreateExecution(tb.Ctx, toolMetadata, toolConfig)
@@ -122,7 +139,7 @@ func TestToolRepository_CreateExecution(t *testing.T) {
 	t.Run("Should create tool execution successfully", func(t *testing.T) {
 		// Create workflow execution first
 		workflowExecID := createTestToolWorkflowExecution(
-			t, tb, core.EnvMap{"WORKFLOW_VAR": "workflow_value"},
+			t, tb, "test-workflow", core.EnvMap{"WORKFLOW_VAR": "workflow_value"},
 			&core.Input{"workflow_input": "test_data"},
 		)
 
@@ -133,7 +150,7 @@ func TestToolRepository_CreateExecution(t *testing.T) {
 			Action: "process",
 			Env:    core.EnvMap{"TASK_VAR": "task_value"},
 		}
-		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, taskConfig)
+		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
 		// Create tool config
 		toolConfig := &tool.Config{
@@ -195,7 +212,7 @@ func TestToolRepository_CreateExecution(t *testing.T) {
 	t.Run("Should handle execution creation with execute script", func(t *testing.T) {
 		// Create workflow execution first
 		workflowExecID := createTestToolWorkflowExecution(
-			t, tb, core.EnvMap{},
+			t, tb, "test-workflow", core.EnvMap{},
 			&core.Input{},
 		)
 
@@ -206,7 +223,7 @@ func TestToolRepository_CreateExecution(t *testing.T) {
 			Action: "process",
 			Env:    core.EnvMap{},
 		}
-		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, taskConfig)
+		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
 		// Create tool config with execute script
 		toolConfig := &tool.Config{
@@ -247,7 +264,7 @@ func TestToolRepository_LoadExecution(t *testing.T) {
 	t.Run("Should load existing execution", func(t *testing.T) {
 		// Create workflow execution first
 		workflowExecID := createTestToolWorkflowExecution(
-			t, tb, core.EnvMap{"WORKFLOW_VAR": "workflow_value"},
+			t, tb, "test-workflow", core.EnvMap{"WORKFLOW_VAR": "workflow_value"},
 			&core.Input{"workflow_input": "test_data"},
 		)
 
@@ -258,7 +275,7 @@ func TestToolRepository_LoadExecution(t *testing.T) {
 			Action: "process",
 			Env:    core.EnvMap{"TASK_VAR": "task_value"},
 		}
-		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, taskConfig)
+		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
 		// Create tool config
 		toolConfig := &tool.Config{
@@ -295,14 +312,14 @@ func TestToolRepository_LoadExecution(t *testing.T) {
 	})
 }
 
-func TestToolRepository_LoadExecutionsMapByWorkflowExecID(t *testing.T) {
+func TestToolRepository_ListExecutionsByWorkflowExecID(t *testing.T) {
 	tb := setupToolRepoTestBed(t)
 	defer tb.Cleanup()
 
-	t.Run("Should load executions JSON for existing workflow execution", func(t *testing.T) {
+	t.Run("Should list executions by workflow execution ID", func(t *testing.T) {
 		// Create workflow execution first
 		workflowExecID := createTestToolWorkflowExecution(
-			t, tb, core.EnvMap{},
+			t, tb, "test-workflow", core.EnvMap{},
 			&core.Input{},
 		)
 
@@ -313,7 +330,7 @@ func TestToolRepository_LoadExecutionsMapByWorkflowExecID(t *testing.T) {
 			Action: "process",
 			Env:    core.EnvMap{},
 		}
-		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, taskConfig)
+		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
 		// Create multiple tool executions for the same workflow execution
 		toolConfig1 := &tool.Config{
@@ -324,7 +341,7 @@ func TestToolRepository_LoadExecutionsMapByWorkflowExecID(t *testing.T) {
 			},
 			Env: core.EnvMap{},
 		}
-		toolExecID1, _ := createTestToolExecution(t, tb, workflowExecID, taskExecID, "tool-1", toolConfig1)
+		_, _ = createTestToolExecution(t, tb, workflowExecID, taskExecID, "tool-1", toolConfig1)
 
 		toolConfig2 := &tool.Config{
 			ID:          "tool-2",
@@ -334,36 +351,82 @@ func TestToolRepository_LoadExecutionsMapByWorkflowExecID(t *testing.T) {
 			},
 			Env: core.EnvMap{},
 		}
-		toolExecID2, _ := createTestToolExecution(t, tb, workflowExecID, taskExecID, "tool-2", toolConfig2)
+		_, _ = createTestToolExecution(t, tb, workflowExecID, taskExecID, "tool-2", toolConfig2)
 
-		// Load executions JSON
-		executionsJSON, err := tb.ToolRepo.LoadExecutionsMapByWorkflowExecID(tb.Ctx, workflowExecID)
+		// List executions by workflow execution ID
+		executions, err := tb.ToolRepo.ListExecutionsByWorkflowExecID(tb.Ctx, workflowExecID)
 		require.NoError(t, err)
-		require.NotNil(t, executionsJSON)
+		assert.Len(t, executions, 2)
 
-		// Verify we have both executions
-		assert.Len(t, executionsJSON, 2)
-
-		// Verify execution data
-		exec1, exists := executionsJSON[toolExecID1].(map[core.ID]any)
-		assert.True(t, exists)
-		assert.Equal(t, "tool-1", exec1[core.ID("tool_id")])
-		assert.Equal(t, toolExecID1, exec1[core.ID("tool_exec_id")])
-		assert.Equal(t, core.StatusPending, exec1[core.ID("status")])
-
-		exec2, exists := executionsJSON[toolExecID2].(map[core.ID]any)
-		assert.True(t, exists)
-		assert.Equal(t, "tool-2", exec2[core.ID("tool_id")])
-		assert.Equal(t, toolExecID2, exec2[core.ID("tool_exec_id")])
-		assert.Equal(t, core.StatusPending, exec2[core.ID("status")])
+		// Verify all returned executions have the correct workflow execution ID
+		for _, exec := range executions {
+			assert.Equal(t, workflowExecID, exec.WorkflowExecID)
+		}
 	})
 
-	t.Run("Should return empty map for workflow execution with no tools", func(t *testing.T) {
+	t.Run("Should return empty list for workflow execution with no tools", func(t *testing.T) {
 		nonExistentWorkflowExecID := core.MustNewID()
 
-		executionsJSON, err := tb.ToolRepo.LoadExecutionsMapByWorkflowExecID(tb.Ctx, nonExistentWorkflowExecID)
+		executions, err := tb.ToolRepo.ListExecutionsByWorkflowExecID(tb.Ctx, nonExistentWorkflowExecID)
 		require.NoError(t, err)
-		assert.Empty(t, executionsJSON)
+		assert.Empty(t, executions)
+	})
+}
+
+func TestToolRepository_ExecutionsToMap(t *testing.T) {
+	tb := setupToolRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should convert executions to execution maps", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := createTestToolWorkflowExecution(
+			t, tb, "test-workflow", core.EnvMap{},
+			&core.Input{},
+		)
+
+		// Create task execution
+		taskConfig := &task.Config{
+			ID:     "test-task",
+			Type:   "basic",
+			Action: "process",
+			Env:    core.EnvMap{},
+		}
+		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
+
+		// Create tool execution
+		toolConfig := &tool.Config{
+			ID:          "test-tool",
+			Description: "Test tool",
+			With: &core.Input{
+				"param": "value",
+			},
+			Env: core.EnvMap{},
+		}
+		_, execution := createTestToolExecution(t, tb, workflowExecID, taskExecID, "test-tool", toolConfig)
+
+		// Convert to execution maps
+		executions := []core.Execution{execution}
+		execMaps, err := tb.ToolRepo.ExecutionsToMap(tb.Ctx, executions)
+		require.NoError(t, err)
+		assert.Len(t, execMaps, 1)
+
+		// Verify execution map properties
+		execMap := execMaps[0]
+		assert.Equal(t, core.StatusPending, execMap.Status)
+		assert.Equal(t, core.ComponentTool, execMap.Component)
+		assert.Equal(t, "test-workflow", execMap.WorkflowID)
+		assert.Equal(t, workflowExecID, execMap.WorkflowExecID)
+		assert.Equal(t, "test-task", execMap.TaskID)
+		assert.Equal(t, taskExecID, execMap.TaskExecID)
+		assert.NotNil(t, execMap.ToolID)
+		assert.Equal(t, "test-tool", *execMap.ToolID)
+		assert.NotNil(t, execMap.ToolExecID)
+	})
+
+	t.Run("Should handle empty executions list", func(t *testing.T) {
+		execMaps, err := tb.ToolRepo.ExecutionsToMap(tb.Ctx, []core.Execution{})
+		require.NoError(t, err)
+		assert.Empty(t, execMaps)
 	})
 }
 
@@ -374,7 +437,7 @@ func TestToolRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 	t.Run("Should parse templates in tool input during execution creation", func(t *testing.T) {
 		// Create workflow execution with input data
 		workflowExecID := createTestToolWorkflowExecution(
-			t, tb, core.EnvMap{"WORKFLOW_VAR": "workflow_value"},
+			t, tb, "test-workflow", core.EnvMap{"WORKFLOW_VAR": "workflow_value"},
 			&core.Input{
 				"user_name": "John Doe",
 				"user_id":   123,
@@ -391,7 +454,7 @@ func TestToolRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 			},
 			Env: core.EnvMap{"TASK_VAR": "task_value"},
 		}
-		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, taskConfig)
+		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
 		// Create test tool config with template input
 		toolConfig := &tool.Config{
@@ -430,7 +493,7 @@ func TestToolRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 	t.Run("Should handle nested templates in tool configuration", func(t *testing.T) {
 		// Create workflow execution with nested input data
 		workflowExecID := createTestToolWorkflowExecution(
-			t, tb, core.EnvMap{"API_BASE": "https://api.example.com"},
+			t, tb, "test-workflow", core.EnvMap{"API_BASE": "https://api.example.com"},
 			&core.Input{
 				"user": map[string]any{
 					"profile": map[string]any{
@@ -450,7 +513,7 @@ func TestToolRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 			Action: "process",
 			Env:    core.EnvMap{},
 		}
-		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, taskConfig)
+		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
 		// Create tool config with nested templates
 		toolConfig := &tool.Config{
@@ -492,7 +555,7 @@ func TestToolRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 	t.Run("Should handle environment variable merging with templates", func(t *testing.T) {
 		// Create workflow execution
 		workflowExecID := createTestToolWorkflowExecution(
-			t, tb, core.EnvMap{
+			t, tb, "test-workflow", core.EnvMap{
 				"WORKFLOW_ENV": "from_workflow",
 				"SHARED_VAR":   "workflow_value",
 			},
@@ -511,7 +574,7 @@ func TestToolRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 				"SHARED_VAR": "task_value", // Should override workflow value
 			},
 		}
-		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, taskConfig)
+		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
 		// Create tool config with environment merging and templates
 		toolConfig := &tool.Config{
@@ -557,7 +620,7 @@ func TestToolRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 	t.Run("Should handle tool with package reference templates", func(t *testing.T) {
 		// Create workflow execution
 		workflowExecID := createTestToolWorkflowExecution(
-			t, tb, core.EnvMap{"PACKAGE_VERSION": "1.0.0"},
+			t, tb, "test-workflow", core.EnvMap{"PACKAGE_VERSION": "1.0.0"},
 			&core.Input{
 				"package_name": "compozy-tools",
 				"registry":     "npm",
@@ -571,7 +634,7 @@ func TestToolRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 			Action: "process",
 			Env:    core.EnvMap{},
 		}
-		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, taskConfig)
+		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
 		// Create tool config with package reference and templates
 		toolConfig := &tool.Config{
@@ -609,5 +672,369 @@ func TestToolRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 		// Verify environment templates
 		env := execution.GetEnv()
 		assert.Equal(t, "/packages/compozy-tools", env.Prop("PACKAGE_PATH"))
+	})
+}
+
+func TestToolRepository_GetExecution(t *testing.T) {
+	tb := setupToolRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should load existing execution", func(t *testing.T) {
+		// Create workflow execution first
+		workflowExecID := createTestToolWorkflowExecution(
+			t, tb, "test-workflow", core.EnvMap{"WORKFLOW_VAR": "workflow_value"},
+			&core.Input{"workflow_input": "test_data"},
+		)
+
+		// Create task execution
+		taskConfig := &task.Config{
+			ID:     "test-task",
+			Type:   "basic",
+			Action: "process",
+			Env:    core.EnvMap{"TASK_VAR": "task_value"},
+		}
+		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
+
+		// Create tool config
+		toolConfig := &tool.Config{
+			ID:          "test-tool",
+			Description: "Test tool",
+			Env:         core.EnvMap{"TOOL_VAR": "tool_value"},
+		}
+
+		// Create tool execution
+		toolExecID, createdExecution := createTestToolExecution(t, tb, workflowExecID, taskExecID, "test-tool", toolConfig)
+
+		// Load the execution
+		loadedExecution, err := tb.ToolRepo.GetExecution(tb.Ctx, toolExecID)
+		require.NoError(t, err)
+		require.NotNil(t, loadedExecution)
+
+		// Verify loaded execution matches created execution
+		assert.Equal(t, createdExecution.GetID(), loadedExecution.GetID())
+		assert.Equal(t, createdExecution.GetComponentID(), loadedExecution.GetComponentID())
+		assert.Equal(t, createdExecution.GetStatus(), loadedExecution.GetStatus())
+		assert.Equal(t, createdExecution.GetWorkflowExecID(), loadedExecution.GetWorkflowExecID())
+		assert.Equal(t, createdExecution.TaskExecID, loadedExecution.TaskExecID)
+	})
+
+	t.Run("Should return error for non-existent execution", func(t *testing.T) {
+		nonExistentToolExecID := core.MustNewID()
+		execution, err := tb.ToolRepo.GetExecution(tb.Ctx, nonExistentToolExecID)
+		assert.Error(t, err)
+		assert.Nil(t, execution)
+	})
+}
+
+func TestToolRepository_ListExecutions(t *testing.T) {
+	tb := setupToolRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should list all tool executions", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := createTestToolWorkflowExecution(
+			t, tb, "test-workflow", core.EnvMap{},
+			&core.Input{},
+		)
+
+		// Create task execution
+		taskConfig := &task.Config{
+			ID:     "test-task",
+			Type:   "basic",
+			Action: "process",
+			Env:    core.EnvMap{},
+		}
+		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
+
+		// Create multiple tool executions
+		toolConfig1 := &tool.Config{
+			ID:          "tool-1",
+			Description: "First tool",
+			Env:         core.EnvMap{},
+		}
+		_, _ = createTestToolExecution(t, tb, workflowExecID, taskExecID, "tool-1", toolConfig1)
+
+		toolConfig2 := &tool.Config{
+			ID:          "tool-2",
+			Description: "Second tool",
+			Env:         core.EnvMap{},
+		}
+		_, _ = createTestToolExecution(t, tb, workflowExecID, taskExecID, "tool-2", toolConfig2)
+
+		// List all executions
+		executions, err := tb.ToolRepo.ListExecutions(tb.Ctx)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(executions), 2)
+	})
+
+	t.Run("Should return empty list when no executions exist", func(t *testing.T) {
+		// Create a fresh test bed with empty database
+		dbFilePath := filepath.Join(tb.StateDir, "empty_tool_test.db")
+		emptyStore, err := store.NewStore(dbFilePath)
+		require.NoError(t, err)
+		defer emptyStore.Close()
+
+		err = emptyStore.Setup()
+		require.NoError(t, err)
+
+		// Create repositories with the empty store
+		projectConfig := &project.Config{}
+		err = projectConfig.SetCWD(tb.StateDir)
+		require.NoError(t, err)
+
+		workflows := []*workflow.Config{}
+		workflowRepo := emptyStore.NewWorkflowRepository(projectConfig, workflows)
+		taskRepo := emptyStore.NewTaskRepository(workflowRepo)
+		toolRepo := emptyStore.NewToolRepository(workflowRepo, taskRepo)
+
+		executions, err := toolRepo.ListExecutions(tb.Ctx)
+		require.NoError(t, err)
+		assert.Empty(t, executions)
+	})
+}
+
+func TestToolRepository_ListExecutionsByStatus(t *testing.T) {
+	tb := setupToolRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should list executions by status", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := createTestToolWorkflowExecution(
+			t, tb, "test-workflow", core.EnvMap{},
+			&core.Input{},
+		)
+
+		// Create task execution
+		taskConfig := &task.Config{
+			ID:     "test-task",
+			Type:   "basic",
+			Action: "process",
+			Env:    core.EnvMap{},
+		}
+		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
+
+		// Create tool execution
+		toolConfig := &tool.Config{
+			ID:          "test-tool",
+			Description: "Test tool",
+			Env:         core.EnvMap{},
+		}
+		_, _ = createTestToolExecution(t, tb, workflowExecID, taskExecID, "test-tool", toolConfig)
+
+		// List executions by status
+		executions, err := tb.ToolRepo.ListExecutionsByStatus(tb.Ctx, core.StatusPending)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(executions), 1)
+
+		// Verify all returned executions have the correct status
+		for _, exec := range executions {
+			assert.Equal(t, core.StatusPending, exec.Status)
+		}
+	})
+
+	t.Run("Should return empty list for status with no executions", func(t *testing.T) {
+		executions, err := tb.ToolRepo.ListExecutionsByStatus(tb.Ctx, core.StatusSuccess)
+		require.NoError(t, err)
+		assert.Empty(t, executions)
+	})
+}
+
+func TestToolRepository_ListExecutionsByWorkflowID(t *testing.T) {
+	tb := setupToolRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should list executions by workflow ID", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := createTestToolWorkflowExecution(
+			t, tb, "test-workflow", core.EnvMap{},
+			&core.Input{},
+		)
+
+		// Create task execution
+		taskConfig := &task.Config{
+			ID:     "test-task",
+			Type:   "basic",
+			Action: "process",
+			Env:    core.EnvMap{},
+		}
+		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
+
+		// Create tool execution
+		toolConfig := &tool.Config{
+			ID:          "test-tool",
+			Description: "Test tool",
+			Env:         core.EnvMap{},
+		}
+		_, _ = createTestToolExecution(t, tb, workflowExecID, taskExecID, "test-tool", toolConfig)
+
+		// List executions by workflow ID
+		executions, err := tb.ToolRepo.ListExecutionsByWorkflowID(tb.Ctx, "test-workflow")
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(executions), 1)
+
+		// Verify all returned executions have the correct workflow ID
+		for _, exec := range executions {
+			assert.Equal(t, "test-workflow", exec.WorkflowID)
+		}
+	})
+
+	t.Run("Should return empty list for non-existent workflow ID", func(t *testing.T) {
+		executions, err := tb.ToolRepo.ListExecutionsByWorkflowID(tb.Ctx, "non-existent-workflow")
+		require.NoError(t, err)
+		assert.Empty(t, executions)
+	})
+}
+
+func TestToolRepository_ListExecutionsByTaskID(t *testing.T) {
+	tb := setupToolRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should list executions by task ID", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := createTestToolWorkflowExecution(
+			t, tb, "test-workflow", core.EnvMap{},
+			&core.Input{},
+		)
+
+		// Create task execution
+		taskConfig := &task.Config{
+			ID:     "test-task",
+			Type:   "basic",
+			Action: "process",
+			Env:    core.EnvMap{},
+		}
+		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
+
+		// Create multiple tool executions for the same task
+		toolConfig1 := &tool.Config{
+			ID:          "tool-1",
+			Description: "First tool",
+			Env:         core.EnvMap{},
+		}
+		_, _ = createTestToolExecution(t, tb, workflowExecID, taskExecID, "tool-1", toolConfig1)
+
+		toolConfig2 := &tool.Config{
+			ID:          "tool-2",
+			Description: "Second tool",
+			Env:         core.EnvMap{},
+		}
+		_, _ = createTestToolExecution(t, tb, workflowExecID, taskExecID, "tool-2", toolConfig2)
+
+		// List executions by task ID
+		executions, err := tb.ToolRepo.ListExecutionsByTaskID(tb.Ctx, "test-task")
+		require.NoError(t, err)
+		assert.Len(t, executions, 2)
+
+		// Verify all returned executions have the correct task ID
+		for _, exec := range executions {
+			assert.Equal(t, "test-task", exec.TaskID)
+		}
+	})
+
+	t.Run("Should return empty list for non-existent task ID", func(t *testing.T) {
+		executions, err := tb.ToolRepo.ListExecutionsByTaskID(tb.Ctx, "non-existent-task")
+		require.NoError(t, err)
+		assert.Empty(t, executions)
+	})
+}
+
+func TestToolRepository_ListExecutionsByTaskExecID(t *testing.T) {
+	tb := setupToolRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should list executions by task execution ID", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := createTestToolWorkflowExecution(
+			t, tb, "test-workflow", core.EnvMap{},
+			&core.Input{},
+		)
+
+		// Create task execution
+		taskConfig := &task.Config{
+			ID:     "test-task",
+			Type:   "basic",
+			Action: "process",
+			Env:    core.EnvMap{},
+		}
+		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
+
+		// Create multiple tool executions for the same task execution
+		toolConfig1 := &tool.Config{
+			ID:          "tool-1",
+			Description: "First tool",
+			Env:         core.EnvMap{},
+		}
+		_, _ = createTestToolExecution(t, tb, workflowExecID, taskExecID, "tool-1", toolConfig1)
+
+		toolConfig2 := &tool.Config{
+			ID:          "tool-2",
+			Description: "Second tool",
+			Env:         core.EnvMap{},
+		}
+		_, _ = createTestToolExecution(t, tb, workflowExecID, taskExecID, "tool-2", toolConfig2)
+
+		// List executions by task execution ID
+		executions, err := tb.ToolRepo.ListExecutionsByTaskExecID(tb.Ctx, taskExecID)
+		require.NoError(t, err)
+		assert.Len(t, executions, 2)
+
+		// Verify all returned executions have the correct task execution ID
+		for _, exec := range executions {
+			assert.Equal(t, taskExecID, exec.TaskExecID)
+		}
+	})
+
+	t.Run("Should return empty list for non-existent task execution ID", func(t *testing.T) {
+		nonExistentTaskExecID := core.MustNewID()
+		executions, err := tb.ToolRepo.ListExecutionsByTaskExecID(tb.Ctx, nonExistentTaskExecID)
+		require.NoError(t, err)
+		assert.Empty(t, executions)
+	})
+}
+
+func TestToolRepository_ListExecutionsByToolID(t *testing.T) {
+	tb := setupToolRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should list executions by tool ID", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := createTestToolWorkflowExecution(
+			t, tb, "test-workflow", core.EnvMap{},
+			&core.Input{},
+		)
+
+		// Create task execution
+		taskConfig := &task.Config{
+			ID:     "test-task",
+			Type:   "basic",
+			Action: "process",
+			Env:    core.EnvMap{},
+		}
+		taskExecID := createTestToolTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
+
+		// Create multiple executions for the same tool ID
+		toolConfig := &tool.Config{
+			ID:          "test-tool",
+			Description: "Test tool",
+			Env:         core.EnvMap{},
+		}
+		_, _ = createTestToolExecution(t, tb, workflowExecID, taskExecID, "test-tool", toolConfig)
+		_, _ = createTestToolExecution(t, tb, workflowExecID, taskExecID, "test-tool", toolConfig)
+
+		// List executions by tool ID
+		executions, err := tb.ToolRepo.ListExecutionsByToolID(tb.Ctx, "test-tool")
+		require.NoError(t, err)
+		assert.Len(t, executions, 2)
+
+		// Verify all returned executions have the correct tool ID
+		for _, exec := range executions {
+			assert.Equal(t, "test-tool", exec.ToolID)
+		}
+	})
+
+	t.Run("Should return empty list for non-existent tool ID", func(t *testing.T) {
+		executions, err := tb.ToolRepo.ListExecutionsByToolID(tb.Ctx, "non-existent-tool")
+		require.NoError(t, err)
+		assert.Empty(t, executions)
 	})
 }

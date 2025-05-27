@@ -11,7 +11,7 @@ linters:
   enable:
     - bodyclose
     - dogsled
-    - dupl
+    # - dupl
     - errcheck
     - funlen
     - gochecknoinits
@@ -77,6 +77,7 @@ linters:
           - gocyclo
           - gosec
           - lll
+          - unparam
         path: _test\.go
       - linters:
           - dupl

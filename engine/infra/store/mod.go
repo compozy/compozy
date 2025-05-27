@@ -20,7 +20,7 @@ import (
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/golang-migrate/migrate/v4/source/file" // Required for file:// migration source URLs
 	_ "modernc.org/sqlite"
 )
 
@@ -62,7 +62,10 @@ func NewStore(dbFilePath string) (*Store, error) {
 
 	// Configure SQLite connection string for concurrent access
 	// Enable WAL mode, foreign keys, and set timeouts
-	connectionString := fmt.Sprintf("%s?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=1000&_foreign_keys=true&_busy_timeout=5000", dbFilePath)
+	connectionString := fmt.Sprintf(
+		"%s?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=1000&_foreign_keys=true&_busy_timeout=5000",
+		dbFilePath,
+	)
 
 	dbConn, err := sql.Open("sqlite", connectionString)
 	if err != nil {
@@ -147,7 +150,12 @@ func (s *Store) MigrateDB(migrationsSourceURL string) error {
 		"sqlite",
 		driver)
 	if err != nil {
-		return fmt.Errorf("failed to create migrate instance (migrationsSourceURL: %s, dbPath: %s): %w", migrationsSourceURL, s.dbPath, err)
+		return fmt.Errorf(
+			"failed to create migrate instance (migrationsSourceURL: %s, dbPath: %s): %w",
+			migrationsSourceURL,
+			s.dbPath,
+			err,
+		)
 	}
 
 	currentVersion, dirty, errVersion := m.Version()
@@ -156,21 +164,31 @@ func (s *Store) MigrateDB(migrationsSourceURL string) error {
 	}
 
 	if dirty {
-		logger.Error("ERROR: Database is in a dirty migration state. Version: %d. Please resolve manually (e.g., using 'make migrate-force version=%d'). Startup aborted.\n", currentVersion, currentVersion)
+		logger.Error(
+			"ERROR: Database is in a dirty migration state. Version: %d. "+
+				"Please resolve manually (e.g., using 'make migrate-force version=%d'). "+
+				"Startup aborted.\n",
+			currentVersion,
+			currentVersion,
+		)
 		return fmt.Errorf("database dirty (version %d)", currentVersion)
 	}
 
 	errUp := m.Up()
-	if errUp == nil {
-		finalVersion, _, _ := m.Version()
+	switch errUp {
+	case nil:
+		finalVersion, _, errFinalVersion := m.Version()
+		if errFinalVersion != nil {
+			return fmt.Errorf("failed to get final migration version: %w", errFinalVersion)
+		}
 		if finalVersion != currentVersion || (errVersion == migrate.ErrNilVersion && finalVersion != 0) {
 			fmt.Printf("Database migrations applied successfully. Current version: %d\n", finalVersion)
 		} else {
 			fmt.Printf("No new database migrations to apply. Database is up-to-date at version %d.\n", finalVersion)
 		}
-	} else if errUp == migrate.ErrNoChange {
+	case migrate.ErrNoChange:
 		fmt.Printf("No database migrations to apply. Database is up-to-date at version %d.\n", currentVersion)
-	} else {
+	default:
 		return fmt.Errorf("failed to apply migrations: %w", errUp)
 	}
 
@@ -182,7 +200,12 @@ func (s *Store) UpsertJSON(ctx context.Context, key []byte, value any) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
+			// Log rollback error but don't override the main error
+			fmt.Printf("Warning: failed to rollback transaction: %v\n", rollbackErr)
+		}
+	}()
 	data, err := json.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("failed to marshal JSON: %w", err)
@@ -264,9 +287,9 @@ func extractMetadata(value any) (*ExtractedMetadata, error) {
 			Status:         v.Status,
 			WorkflowID:     v.WorkflowID,
 			WorkflowExecID: v.WorkflowExecID,
-			TaskID:         sql.NullString{String: string(v.TaskID), Valid: true},
+			TaskID:         sql.NullString{String: v.TaskID, Valid: true},
 			TaskExecID:     v.TaskExecID,
-			AgentID:        sql.NullString{String: string(v.AgentID), Valid: true},
+			AgentID:        sql.NullString{String: v.AgentID, Valid: true},
 			AgentExecID:    v.AgentExecID,
 		}, nil
 	case *task.Execution:
@@ -275,7 +298,7 @@ func extractMetadata(value any) (*ExtractedMetadata, error) {
 			Status:         v.Status,
 			WorkflowID:     v.WorkflowID,
 			WorkflowExecID: v.WorkflowExecID,
-			TaskID:         sql.NullString{String: string(v.TaskID), Valid: true},
+			TaskID:         sql.NullString{String: v.TaskID, Valid: true},
 			TaskExecID:     v.TaskExecID,
 		}, nil
 	case *tool.Execution:
@@ -284,7 +307,9 @@ func extractMetadata(value any) (*ExtractedMetadata, error) {
 			Status:         v.Status,
 			WorkflowID:     v.WorkflowID,
 			WorkflowExecID: v.WorkflowExecID,
-			ToolID:         sql.NullString{String: string(v.ToolID), Valid: true},
+			TaskID:         sql.NullString{String: v.TaskID, Valid: true},
+			TaskExecID:     v.TaskExecID,
+			ToolID:         sql.NullString{String: v.ToolID, Valid: true},
 			ToolExecID:     v.ToolExecID,
 		}, nil
 	default:
@@ -294,8 +319,8 @@ func extractMetadata(value any) (*ExtractedMetadata, error) {
 
 func UnmarshalExecutions[T any](data []db.Execution) ([]T, error) {
 	results := make([]T, len(data))
-	for i, data := range data {
-		result, err := core.UnmarshalExecution[T](data.Data)
+	for i := range data {
+		result, err := core.UnmarshalExecution[T](data[i].Data)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal execution %d: %w", i, err)
 		}

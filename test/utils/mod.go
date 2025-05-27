@@ -43,7 +43,7 @@ type IntegrationTestBed struct {
 func SetupIntegrationTestBed(
 	t *testing.T,
 	testTimeout time.Duration,
-	componentsToWatch []core.ComponentType,
+	_ []core.ComponentType,
 ) *IntegrationTestBed {
 	t.Helper()
 
@@ -58,7 +58,8 @@ func SetupIntegrationTestBed(
 		var err error
 		GlobalBaseTestDir, err = os.MkdirTemp("", "compozy_integration_fallback_")
 		require.NoError(t, err, "Failed to create global base test directory (fallback)")
-		t.Logf("Warning: GlobalBaseTestDir created by fallback in SetupIntegrationTestBed for test %s. Consider running tests at package level.", t.Name())
+		t.Logf("Warning: GlobalBaseTestDir created by fallback in SetupIntegrationTestBed for test %s. "+
+			"Consider running tests at package level.", t.Name())
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
@@ -135,9 +136,9 @@ func (tb *IntegrationTestBed) Cleanup() {
 func SetupStateManagerForSubtest(
 	t *testing.T,
 	parentBaseDir string,
-	ns *nats.Server,
-	nc *nats.Client,
-	componentsToWatch []core.ComponentType,
+	_ *nats.Server,
+	_ *nats.Client,
+	_ []core.ComponentType,
 ) (*store.Store, *project.Config) {
 	t.Helper()
 

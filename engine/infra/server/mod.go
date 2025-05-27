@@ -58,78 +58,149 @@ func (s *Server) buildRouter(state *appstate.State) error {
 }
 
 func (s *Server) Run() error {
-	// Load project and workspace files
-	projectConfig, workflows, err := loadProject(s.Config.CWD, s.Config.ConfigFile)
-	if err != nil {
-		return fmt.Errorf("failed to load project: %w", err)
-	}
-
-	// Setup NATS server
-	cwd := projectConfig.GetCWD()
-	ns, nc, err := setupNats(s.ctx, cwd)
-	if err != nil {
-		return fmt.Errorf("failed to setup NATS server: %w", err)
-	}
-	defer func() {
-		if err := ns.Shutdown(); err != nil {
-			logger.Error("Error shutting down NATS server", "error", err)
-		}
-	}()
-
-	// Load store
-	dataDir := filepath.Join(core.GetStoreDir(cwd), "data")
-	dbFilePath := filepath.Join(dataDir, "compozy.db")
-	st, err := store.NewStore(dbFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to create state store: %w", err)
-	}
-	if err := st.Setup(); err != nil {
-		return fmt.Errorf("failed to setup store: %w", err)
-	}
-	defer func() {
-		if err := st.Close(); err != nil {
-			logger.Error("Error shutting down store", "error", err)
-		}
-	}()
-
-	// Setup orchestrator
-	deps := appstate.NewBaseDeps(ns, nc, st, projectConfig, workflows)
-	orch, err := setupOrchestrator(s.ctx, deps)
+	// Setup all dependencies
+	state, cleanupFuncs, err := s.setupDependencies()
 	if err != nil {
 		return err
 	}
-	state, err := appstate.NewState(deps, orch)
-	if err != nil {
-		return fmt.Errorf("failed to create app state: %w", err)
-	}
+	defer s.cleanup(cleanupFuncs)
 
 	// Build server routes
 	if err := s.buildRouter(state); err != nil {
 		return fmt.Errorf("failed to build router: %w", err)
 	}
 
+	// Start and run the HTTP server
+	return s.startAndRunServer()
+}
+
+func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
+	var cleanupFuncs []func()
+
+	// Load project and workspace files
+	projectConfig, workflows, err := loadProject(s.Config.CWD, s.Config.ConfigFile)
+	if err != nil {
+		return nil, cleanupFuncs, fmt.Errorf("failed to load project: %w", err)
+	}
+
+	// Setup NATS server
+	ns, nc, cleanup, err := s.setupNatsWithCleanup(projectConfig.GetCWD())
+	if err != nil {
+		return nil, cleanupFuncs, fmt.Errorf("failed to setup NATS server: %w", err)
+	}
+	cleanupFuncs = append(cleanupFuncs, cleanup)
+
+	// Setup store
+	st, cleanup, err := s.setupStoreWithCleanup(projectConfig.GetCWD())
+	if err != nil {
+		return nil, cleanupFuncs, fmt.Errorf("failed to setup store: %w", err)
+	}
+	cleanupFuncs = append(cleanupFuncs, cleanup)
+
+	// Setup orchestrator and app state
+	state, err := s.setupAppState(ns, nc, st, projectConfig, workflows)
+	if err != nil {
+		return nil, cleanupFuncs, err
+	}
+
+	return state, cleanupFuncs, nil
+}
+
+func (s *Server) setupNatsWithCleanup(cwd *core.CWD) (*nats.Server, *nats.Client, func(), error) {
+	ns, nc, err := setupNats(s.ctx, cwd)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	cleanup := func() {
+		if err := ns.Shutdown(); err != nil {
+			logger.Error("Error shutting down NATS server", "error", err)
+		}
+	}
+
+	return ns, nc, cleanup, nil
+}
+
+func (s *Server) setupStoreWithCleanup(cwd *core.CWD) (*store.Store, func(), error) {
+	dataDir := filepath.Join(core.GetStoreDir(cwd), "data")
+	dbFilePath := filepath.Join(dataDir, "compozy.db")
+	st, err := store.NewStore(dbFilePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create state store: %w", err)
+	}
+	if err := st.Setup(); err != nil {
+		return nil, nil, fmt.Errorf("failed to setup store: %w", err)
+	}
+
+	cleanup := func() {
+		if err := st.Close(); err != nil {
+			logger.Error("Error shutting down store", "error", err)
+		}
+	}
+
+	return st, cleanup, nil
+}
+
+func (s *Server) setupAppState(
+	ns *nats.Server,
+	nc *nats.Client,
+	st *store.Store,
+	projectConfig *project.Config,
+	workflows []*workflow.Config,
+) (*appstate.State, error) {
+	deps := appstate.NewBaseDeps(ns, nc, st, projectConfig, workflows)
+	orch, err := setupOrchestrator(s.ctx, deps)
+	if err != nil {
+		return nil, err
+	}
+	state, err := appstate.NewState(deps, orch)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create app state: %w", err)
+	}
+	return state, nil
+}
+
+func (s *Server) cleanup(cleanupFuncs []func()) {
+	for i := len(cleanupFuncs) - 1; i >= 0; i-- {
+		cleanupFuncs[i]()
+	}
+}
+
+func (s *Server) startAndRunServer() error {
+	srv := s.createHTTPServer()
+
+	// Start server in goroutine
+	go s.startServer(srv)
+
+	// Wait for shutdown signal and handle graceful shutdown
+	return s.handleGracefulShutdown(srv)
+}
+
+func (s *Server) createHTTPServer() *http.Server {
 	addr := s.Config.FullAddress()
 	logger.Info("Starting HTTP server",
 		"address", fmt.Sprintf("http://%s", addr),
 	)
 
-	srv := &http.Server{
+	return &http.Server{
 		Addr:         addr,
 		Handler:      s.router,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
+}
 
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("Server failed to start",
-				"error", err,
-			)
-			os.Exit(1)
-		}
-	}()
+func (s *Server) startServer(srv *http.Server) {
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		logger.Error("Server failed to start",
+			"error", err,
+		)
+		os.Exit(1)
+	}
+}
 
+func (s *Server) handleGracefulShutdown(srv *http.Server) error {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/pb"
 	"github.com/compozy/compozy/test/utils"
@@ -164,11 +165,11 @@ func TestWorkflowRepository_LoadExecution(t *testing.T) {
 	})
 }
 
-func TestWorkflowRepository_LoadExecutionMap(t *testing.T) {
+func TestWorkflowRepository_ExecutionToMap(t *testing.T) {
 	tb := setupWorkflowRepoTestBed(t)
 	defer tb.Cleanup()
 
-	t.Run("Should load execution map for existing execution", func(t *testing.T) {
+	t.Run("Should convert execution to execution map", func(t *testing.T) {
 		// Create an execution first
 		workflowExecID := core.MustNewID()
 		metadata := &pb.WorkflowMetadata{
@@ -184,29 +185,29 @@ func TestWorkflowRepository_LoadExecutionMap(t *testing.T) {
 			"test": "data",
 		}
 
-		_, err := tb.WorkflowRepo.CreateExecution(tb.Ctx, metadata, workflowConfig, input)
+		execution, err := tb.WorkflowRepo.CreateExecution(tb.Ctx, metadata, workflowConfig, input)
 		require.NoError(t, err)
 
-		// Load execution map
-		execMap, err := tb.WorkflowRepo.LoadExecutionMap(tb.Ctx, workflowExecID)
+		// Convert execution to map
+		execMap, err := tb.WorkflowRepo.ExecutionToMap(tb.Ctx, execution)
 		require.NoError(t, err)
 		require.NotNil(t, execMap)
 
 		// Verify execution map structure
-		assert.Equal(t, core.StatusPending, execMap["status"])
-		assert.Equal(t, "test-workflow", execMap["workflow_id"])
-		assert.Equal(t, workflowExecID, execMap["workflow_exec_id"])
-		assert.NotNil(t, execMap["tasks"])
-		assert.NotNil(t, execMap["agents"])
-		assert.NotNil(t, execMap["tools"])
+		assert.Equal(t, core.StatusPending, execMap.Status)
+		assert.Equal(t, "test-workflow", execMap.WorkflowID)
+		assert.Equal(t, workflowExecID, execMap.WorkflowExecID)
+		assert.NotNil(t, execMap.Tasks)
+		assert.NotNil(t, execMap.Agents)
+		assert.NotNil(t, execMap.Tools)
 	})
 
 	t.Run("Should return error for non-existent execution", func(t *testing.T) {
 		nonExistentID := core.MustNewID()
 
-		executionMap, err := tb.WorkflowRepo.LoadExecutionMap(tb.Ctx, nonExistentID)
+		// Try to get a non-existent execution first
+		_, err := tb.WorkflowRepo.GetExecution(tb.Ctx, nonExistentID)
 		assert.Error(t, err)
-		assert.Nil(t, executionMap)
 	})
 }
 
@@ -262,11 +263,11 @@ func TestWorkflowRepository_ListExecutions(t *testing.T) {
 	})
 }
 
-func TestWorkflowRepository_ListExecutionsMap(t *testing.T) {
+func TestWorkflowRepository_ExecutionsToMap(t *testing.T) {
 	tb := setupWorkflowRepoTestBed(t)
 	defer tb.Cleanup()
 
-	t.Run("Should list all workflow execution maps", func(t *testing.T) {
+	t.Run("Should convert executions to execution maps", func(t *testing.T) {
 		// Create an execution
 		workflowExecID := core.MustNewID()
 		metadata := &pb.WorkflowMetadata{
@@ -279,32 +280,29 @@ func TestWorkflowRepository_ListExecutionsMap(t *testing.T) {
 		workflowConfig := createTestWorkflowConfig(t, tb, "test-workflow", core.EnvMap{})
 		input := &core.Input{"test": "data"}
 
-		_, err := tb.WorkflowRepo.CreateExecution(tb.Ctx, metadata, workflowConfig, input)
+		execution, err := tb.WorkflowRepo.CreateExecution(tb.Ctx, metadata, workflowConfig, input)
 		require.NoError(t, err)
 
-		// List execution maps
-		executionMaps, err := tb.WorkflowRepo.ListExecutionsMap(tb.Ctx)
+		// Convert executions to maps
+		executions := []workflow.Execution{*execution}
+		executionMaps, err := tb.WorkflowRepo.ExecutionsToMap(tb.Ctx, executions)
 		require.NoError(t, err)
 		require.Len(t, executionMaps, 1)
 
 		// Verify execution map
 		executionMap := executionMaps[0]
-		assert.Equal(t, workflowExecID, executionMap["workflow_exec_id"])
-		assert.Equal(t, "test-workflow", executionMap["workflow_id"])
-		assert.Equal(t, core.StatusPending, executionMap["status"])
-		assert.NotNil(t, executionMap["tasks"])
-		assert.NotNil(t, executionMap["agents"])
-		assert.NotNil(t, executionMap["tools"])
+		assert.Equal(t, workflowExecID, executionMap.WorkflowExecID)
+		assert.Equal(t, "test-workflow", executionMap.WorkflowID)
+		assert.Equal(t, core.StatusPending, executionMap.Status)
+		assert.NotNil(t, executionMap.Tasks)
+		assert.NotNil(t, executionMap.Agents)
+		assert.NotNil(t, executionMap.Tools)
 	})
 
-	t.Run("Should return empty list when no executions exist", func(t *testing.T) {
-		// Use a fresh context to avoid interference from previous tests
-		// but reuse the same test bed to avoid NATS server conflicts
-		executionMaps, err := tb.WorkflowRepo.ListExecutionsMap(tb.Ctx)
+	t.Run("Should handle empty executions list", func(t *testing.T) {
+		executionMaps, err := tb.WorkflowRepo.ExecutionsToMap(tb.Ctx, []workflow.Execution{})
 		require.NoError(t, err)
-		// Since we created executions in the previous test, we expect them to be there
-		// This test verifies the method works, not that it returns empty results
-		assert.NotNil(t, executionMaps)
+		assert.Empty(t, executionMaps)
 	})
 }
 
@@ -475,5 +473,278 @@ func TestWorkflowRepository_CreateExecution_TemplateNormalization(t *testing.T) 
 		assert.Equal(t, "john.doe@example.com", processing["lowercase_email"])
 		assert.Equal(t, "35", processing["age_plus_ten"])
 		assert.Equal(t, "true", processing["contains_check"])
+	})
+}
+
+func TestWorkflowRepository_GetExecution(t *testing.T) {
+	tb := setupWorkflowRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should load existing execution", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := core.MustNewID()
+		metadata := &pb.WorkflowMetadata{
+			WorkflowId:     "test-workflow",
+			WorkflowExecId: string(workflowExecID),
+			Time:           timestamppb.Now(),
+			Source:         "test",
+		}
+
+		workflowConfig := createTestWorkflowConfig(t, tb, "test-workflow", core.EnvMap{"WORKFLOW_VAR": "workflow_value"})
+
+		input := &core.Input{
+			"test": "data",
+		}
+
+		createdExecution, err := tb.WorkflowRepo.CreateExecution(tb.Ctx, metadata, workflowConfig, input)
+		require.NoError(t, err)
+		require.NotNil(t, createdExecution)
+
+		// Load the execution
+		loadedExecution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, workflowExecID)
+		require.NoError(t, err)
+		require.NotNil(t, loadedExecution)
+
+		// Verify loaded execution matches created execution
+		assert.Equal(t, createdExecution.GetID(), loadedExecution.GetID())
+		assert.Equal(t, createdExecution.GetComponentID(), loadedExecution.GetComponentID())
+		assert.Equal(t, createdExecution.GetStatus(), loadedExecution.GetStatus())
+		assert.Equal(t, createdExecution.GetWorkflowExecID(), loadedExecution.GetWorkflowExecID())
+	})
+
+	t.Run("Should return error for non-existent execution", func(t *testing.T) {
+		nonExistentWorkflowExecID := core.MustNewID()
+		execution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, nonExistentWorkflowExecID)
+		assert.Error(t, err)
+		assert.Nil(t, execution)
+	})
+}
+
+func TestWorkflowRepository_ListExecutionsByStatus(t *testing.T) {
+	tb := setupWorkflowRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should list executions by status", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := core.MustNewID()
+		metadata := &pb.WorkflowMetadata{
+			WorkflowId:     "test-workflow",
+			WorkflowExecId: string(workflowExecID),
+			Time:           timestamppb.Now(),
+			Source:         "test",
+		}
+
+		workflowConfig := createTestWorkflowConfig(t, tb, "test-workflow", core.EnvMap{})
+
+		input := &core.Input{
+			"test": "data",
+		}
+
+		_, err := tb.WorkflowRepo.CreateExecution(tb.Ctx, metadata, workflowConfig, input)
+		require.NoError(t, err)
+
+		// List executions by status
+		executions, err := tb.WorkflowRepo.ListExecutionsByStatus(tb.Ctx, core.StatusPending)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(executions), 1)
+
+		// Verify all returned executions have the correct status
+		for _, exec := range executions {
+			assert.Equal(t, core.StatusPending, exec.Status)
+		}
+	})
+
+	t.Run("Should return empty list for status with no executions", func(t *testing.T) {
+		executions, err := tb.WorkflowRepo.ListExecutionsByStatus(tb.Ctx, core.StatusSuccess)
+		require.NoError(t, err)
+		assert.Empty(t, executions)
+	})
+}
+
+func TestWorkflowRepository_ListExecutionsByWorkflowID(t *testing.T) {
+	tb := setupWorkflowRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should list executions by workflow ID", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := core.MustNewID()
+		metadata := &pb.WorkflowMetadata{
+			WorkflowId:     "test-workflow",
+			WorkflowExecId: string(workflowExecID),
+			Time:           timestamppb.Now(),
+			Source:         "test",
+		}
+
+		workflowConfig := createTestWorkflowConfig(t, tb, "test-workflow", core.EnvMap{})
+
+		input := &core.Input{
+			"test": "data",
+		}
+
+		_, err := tb.WorkflowRepo.CreateExecution(tb.Ctx, metadata, workflowConfig, input)
+		require.NoError(t, err)
+
+		// List executions by workflow ID
+		executions, err := tb.WorkflowRepo.ListExecutionsByWorkflowID(tb.Ctx, "test-workflow")
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(executions), 1)
+
+		// Verify all returned executions have the correct workflow ID
+		for _, exec := range executions {
+			assert.Equal(t, "test-workflow", exec.WorkflowID)
+		}
+	})
+
+	t.Run("Should return empty list for non-existent workflow ID", func(t *testing.T) {
+		executions, err := tb.WorkflowRepo.ListExecutionsByWorkflowID(tb.Ctx, "non-existent-workflow")
+		require.NoError(t, err)
+		assert.Empty(t, executions)
+	})
+}
+
+func TestWorkflowRepository_ListChildrenExecutions(t *testing.T) {
+	tb := setupWorkflowRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should list children executions by workflow execution ID", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := core.MustNewID()
+		metadata := &pb.WorkflowMetadata{
+			WorkflowId:     "test-workflow",
+			WorkflowExecId: string(workflowExecID),
+			Time:           timestamppb.Now(),
+			Source:         "test",
+		}
+
+		workflowConfig := createTestWorkflowConfig(t, tb, "test-workflow", core.EnvMap{})
+
+		input := &core.Input{
+			"test": "data",
+		}
+
+		_, err := tb.WorkflowRepo.CreateExecution(tb.Ctx, metadata, workflowConfig, input)
+		require.NoError(t, err)
+
+		// Create task execution as child
+		taskConfig := &task.Config{
+			ID:     "test-task",
+			Type:   "basic",
+			Action: "process",
+			Env:    core.EnvMap{},
+		}
+		err = taskConfig.SetCWD(tb.StateDir)
+		require.NoError(t, err)
+
+		taskExecID := core.MustNewID()
+		taskMetadata := &pb.TaskMetadata{
+			WorkflowId:     "test-workflow",
+			WorkflowExecId: string(workflowExecID),
+			TaskId:         "test-task",
+			TaskExecId:     string(taskExecID),
+			Time:           timestamppb.Now(),
+			Source:         "test",
+		}
+		_, err = tb.TaskRepo.CreateExecution(tb.Ctx, taskMetadata, taskConfig)
+		require.NoError(t, err)
+
+		// List children executions
+		children, err := tb.WorkflowRepo.ListChildrenExecutions(tb.Ctx, workflowExecID)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(children), 1)
+
+		// Verify children are tasks, agents, or tools
+		for _, child := range children {
+			component := child.GetComponent()
+			assert.True(t, component == core.ComponentTask || component == core.ComponentAgent || component == core.ComponentTool)
+		}
+	})
+
+	t.Run("Should return empty list for workflow with no children", func(t *testing.T) {
+		// Create workflow execution without children
+		workflowExecID := core.MustNewID()
+		metadata := &pb.WorkflowMetadata{
+			WorkflowId:     "lonely-workflow",
+			WorkflowExecId: string(workflowExecID),
+			Time:           timestamppb.Now(),
+			Source:         "test",
+		}
+
+		workflowConfig := createTestWorkflowConfig(t, tb, "lonely-workflow", core.EnvMap{})
+
+		input := &core.Input{
+			"test": "data",
+		}
+
+		_, err := tb.WorkflowRepo.CreateExecution(tb.Ctx, metadata, workflowConfig, input)
+		require.NoError(t, err)
+
+		// List children executions
+		children, err := tb.WorkflowRepo.ListChildrenExecutions(tb.Ctx, workflowExecID)
+		require.NoError(t, err)
+		assert.Empty(t, children)
+	})
+}
+
+func TestWorkflowRepository_ListChildrenExecutionsByWorkflowID(t *testing.T) {
+	tb := setupWorkflowRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should list children executions by workflow ID", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := core.MustNewID()
+		metadata := &pb.WorkflowMetadata{
+			WorkflowId:     "parent-workflow",
+			WorkflowExecId: string(workflowExecID),
+			Time:           timestamppb.Now(),
+			Source:         "test",
+		}
+
+		workflowConfig := createTestWorkflowConfig(t, tb, "parent-workflow", core.EnvMap{})
+
+		input := &core.Input{
+			"test": "data",
+		}
+
+		_, err := tb.WorkflowRepo.CreateExecution(tb.Ctx, metadata, workflowConfig, input)
+		require.NoError(t, err)
+
+		// Create task execution as child
+		taskConfig := &task.Config{
+			ID:     "child-task",
+			Type:   "basic",
+			Action: "process",
+			Env:    core.EnvMap{},
+		}
+		err = taskConfig.SetCWD(tb.StateDir)
+		require.NoError(t, err)
+
+		taskExecID := core.MustNewID()
+		taskMetadata := &pb.TaskMetadata{
+			WorkflowId:     "parent-workflow",
+			WorkflowExecId: string(workflowExecID),
+			TaskId:         "child-task",
+			TaskExecId:     string(taskExecID),
+			Time:           timestamppb.Now(),
+			Source:         "test",
+		}
+		_, err = tb.TaskRepo.CreateExecution(tb.Ctx, taskMetadata, taskConfig)
+		require.NoError(t, err)
+
+		// List children executions by workflow ID
+		children, err := tb.WorkflowRepo.ListChildrenExecutionsByWorkflowID(tb.Ctx, "parent-workflow")
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(children), 1)
+
+		// Verify children are tasks, agents, or tools
+		for _, child := range children {
+			component := child.GetComponent()
+			assert.True(t, component == core.ComponentTask || component == core.ComponentAgent || component == core.ComponentTool)
+		}
+	})
+
+	t.Run("Should return empty list for workflow ID with no children", func(t *testing.T) {
+		children, err := tb.WorkflowRepo.ListChildrenExecutionsByWorkflowID(tb.Ctx, "non-existent-workflow")
+		require.NoError(t, err)
+		assert.Empty(t, children)
 	})
 }

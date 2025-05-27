@@ -3,8 +3,12 @@ package repo
 import (
 	"testing"
 
+	"path/filepath"
+
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
@@ -218,9 +222,79 @@ func TestAgentRepository_CreateExecution(t *testing.T) {
 		assert.Equal(t, "code-reviewer", execution.GetComponentID())
 		assert.Equal(t, core.StatusPending, execution.GetStatus())
 	})
+
+	t.Run("Should return error when workflow execution not found", func(t *testing.T) {
+		nonExistentWorkflowExecID := core.MustNewID()
+		agentExecID := core.MustNewID()
+		agentMetadata := &pb.AgentMetadata{
+			WorkflowId:     "test-workflow",
+			WorkflowExecId: string(nonExistentWorkflowExecID),
+			TaskId:         "test-task",
+			TaskExecId:     string(core.MustNewID()),
+			AgentId:        "test-agent",
+			AgentExecId:    string(agentExecID),
+			Time:           timestamppb.Now(),
+			Source:         "test",
+		}
+
+		agentConfig := &agent.Config{
+			ID:           "test-agent",
+			Instructions: "Test agent",
+			Config: agent.ProviderConfig{
+				Provider: agent.ProviderAnthropic,
+				Model:    agent.ModelClaude3Opus,
+			},
+			Env: core.EnvMap{},
+		}
+		err := agentConfig.SetCWD(tb.StateDir)
+		require.NoError(t, err)
+
+		execution, err := tb.AgentRepo.CreateExecution(tb.Ctx, agentMetadata, agentConfig)
+		assert.Error(t, err)
+		assert.Nil(t, execution)
+		assert.Contains(t, err.Error(), "failed to load workflow execution")
+	})
+
+	t.Run("Should return error when task execution not found", func(t *testing.T) {
+		// Create workflow execution first
+		workflowExecID := createTestAgentWorkflowExecution(
+			t, tb, core.EnvMap{},
+			&core.Input{},
+		)
+
+		nonExistentTaskExecID := core.MustNewID()
+		agentExecID := core.MustNewID()
+		agentMetadata := &pb.AgentMetadata{
+			WorkflowId:     "test-workflow",
+			WorkflowExecId: string(workflowExecID),
+			TaskId:         "test-task",
+			TaskExecId:     string(nonExistentTaskExecID),
+			AgentId:        "test-agent",
+			AgentExecId:    string(agentExecID),
+			Time:           timestamppb.Now(),
+			Source:         "test",
+		}
+
+		agentConfig := &agent.Config{
+			ID:           "test-agent",
+			Instructions: "Test agent",
+			Config: agent.ProviderConfig{
+				Provider: agent.ProviderAnthropic,
+				Model:    agent.ModelClaude3Opus,
+			},
+			Env: core.EnvMap{},
+		}
+		err := agentConfig.SetCWD(tb.StateDir)
+		require.NoError(t, err)
+
+		execution, err := tb.AgentRepo.CreateExecution(tb.Ctx, agentMetadata, agentConfig)
+		assert.Error(t, err)
+		assert.Nil(t, execution)
+		assert.Contains(t, err.Error(), "failed to load task execution")
+	})
 }
 
-func TestAgentRepository_LoadExecution(t *testing.T) {
+func TestAgentRepository_GetExecution(t *testing.T) {
 	tb := setupAgentRepoTestBed(t)
 	defer tb.Cleanup()
 
@@ -277,12 +351,188 @@ func TestAgentRepository_LoadExecution(t *testing.T) {
 	})
 }
 
-func TestAgentRepository_LoadExecutionsMapByWorkflowExecID(t *testing.T) {
+func TestAgentRepository_ListExecutions(t *testing.T) {
 	tb := setupAgentRepoTestBed(t)
 	defer tb.Cleanup()
 
-	t.Run("Should load executions JSON for existing workflow execution", func(t *testing.T) {
-		// Create workflow execution first
+	t.Run("Should list all agent executions", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := createTestAgentWorkflowExecution(
+			t, tb, core.EnvMap{},
+			&core.Input{},
+		)
+
+		// Create task execution
+		taskConfig := &task.Config{
+			ID:     "test-task",
+			Type:   "basic",
+			Action: "process",
+			Env:    core.EnvMap{},
+		}
+		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+
+		// Create multiple agent executions
+		agentConfig1 := &agent.Config{
+			ID:           "agent-1",
+			Instructions: "First agent",
+			Config: agent.ProviderConfig{
+				Provider: agent.ProviderAnthropic,
+				Model:    agent.ModelClaude3Opus,
+			},
+			Env: core.EnvMap{},
+		}
+		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "agent-1", agentConfig1)
+
+		agentConfig2 := &agent.Config{
+			ID:           "agent-2",
+			Instructions: "Second agent",
+			Config: agent.ProviderConfig{
+				Provider: agent.ProviderAnthropic,
+				Model:    agent.ModelClaude3Sonnet,
+			},
+			Env: core.EnvMap{},
+		}
+		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "agent-2", agentConfig2)
+
+		// List all executions
+		executions, err := tb.AgentRepo.ListExecutions(tb.Ctx)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(executions), 2)
+	})
+
+	t.Run("Should return empty list when no executions exist", func(t *testing.T) {
+		// Clear any existing data by creating a new database connection
+		// but reuse the same NATS server to avoid conflicts
+		dbFilePath := filepath.Join(tb.StateDir, "empty_test.db")
+		emptyStore, err := store.NewStore(dbFilePath)
+		require.NoError(t, err)
+		defer emptyStore.Close()
+
+		err = emptyStore.Setup()
+		require.NoError(t, err)
+
+		// Create repositories with the empty store
+		projectConfig := &project.Config{}
+		err = projectConfig.SetCWD(tb.StateDir)
+		require.NoError(t, err)
+
+		workflows := []*workflow.Config{}
+		workflowRepo := emptyStore.NewWorkflowRepository(projectConfig, workflows)
+		taskRepo := emptyStore.NewTaskRepository(workflowRepo)
+		agentRepo := emptyStore.NewAgentRepository(workflowRepo, taskRepo)
+
+		executions, err := agentRepo.ListExecutions(tb.Ctx)
+		require.NoError(t, err)
+		assert.Empty(t, executions)
+	})
+}
+
+func TestAgentRepository_ListExecutionsByStatus(t *testing.T) {
+	tb := setupAgentRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should list executions by status", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := createTestAgentWorkflowExecution(
+			t, tb, core.EnvMap{},
+			&core.Input{},
+		)
+
+		// Create task execution
+		taskConfig := &task.Config{
+			ID:     "test-task",
+			Type:   "basic",
+			Action: "process",
+			Env:    core.EnvMap{},
+		}
+		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+
+		// Create agent execution
+		agentConfig := &agent.Config{
+			ID:           "test-agent",
+			Instructions: "Test agent",
+			Config: agent.ProviderConfig{
+				Provider: agent.ProviderAnthropic,
+				Model:    agent.ModelClaude3Opus,
+			},
+			Env: core.EnvMap{},
+		}
+		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "test-agent", agentConfig)
+
+		// List executions by status
+		executions, err := tb.AgentRepo.ListExecutionsByStatus(tb.Ctx, core.StatusPending)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(executions), 1)
+
+		// Verify all returned executions have the correct status
+		for _, exec := range executions {
+			assert.Equal(t, core.StatusPending, exec.Status)
+		}
+	})
+
+	t.Run("Should return empty list for status with no executions", func(t *testing.T) {
+		executions, err := tb.AgentRepo.ListExecutionsByStatus(tb.Ctx, core.StatusSuccess)
+		require.NoError(t, err)
+		assert.Empty(t, executions)
+	})
+}
+
+func TestAgentRepository_ListExecutionsByWorkflowID(t *testing.T) {
+	tb := setupAgentRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should list executions by workflow ID", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := createTestAgentWorkflowExecution(
+			t, tb, core.EnvMap{},
+			&core.Input{},
+		)
+
+		// Create task execution
+		taskConfig := &task.Config{
+			ID:     "test-task",
+			Type:   "basic",
+			Action: "process",
+			Env:    core.EnvMap{},
+		}
+		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+
+		// Create agent execution
+		agentConfig := &agent.Config{
+			ID:           "test-agent",
+			Instructions: "Test agent",
+			Config: agent.ProviderConfig{
+				Provider: agent.ProviderAnthropic,
+				Model:    agent.ModelClaude3Opus,
+			},
+			Env: core.EnvMap{},
+		}
+		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "test-agent", agentConfig)
+
+		// List executions by workflow ID
+		executions, err := tb.AgentRepo.ListExecutionsByWorkflowID(tb.Ctx, "test-workflow")
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(executions), 1)
+
+		// Verify all returned executions have the correct workflow ID
+		for _, exec := range executions {
+			assert.Equal(t, "test-workflow", exec.WorkflowID)
+		}
+	})
+
+	t.Run("Should return empty list for non-existent workflow ID", func(t *testing.T) {
+		executions, err := tb.AgentRepo.ListExecutionsByWorkflowID(tb.Ctx, "non-existent-workflow")
+		require.NoError(t, err)
+		assert.Empty(t, executions)
+	})
+}
+
+func TestAgentRepository_ListExecutionsByWorkflowExecID(t *testing.T) {
+	tb := setupAgentRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should list executions by workflow execution ID", func(t *testing.T) {
+		// Create workflow execution
 		workflowExecID := createTestAgentWorkflowExecution(
 			t, tb, core.EnvMap{},
 			&core.Input{},
@@ -307,7 +557,7 @@ func TestAgentRepository_LoadExecutionsMapByWorkflowExecID(t *testing.T) {
 			},
 			Env: core.EnvMap{},
 		}
-		agentExecID1, _ := createTestAgentExecution(t, tb, workflowExecID, taskExecID, "agent-1", agentConfig1)
+		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "agent-1", agentConfig1)
 
 		agentConfig2 := &agent.Config{
 			ID:           "agent-2",
@@ -318,36 +568,245 @@ func TestAgentRepository_LoadExecutionsMapByWorkflowExecID(t *testing.T) {
 			},
 			Env: core.EnvMap{},
 		}
-		agentExecID2, _ := createTestAgentExecution(t, tb, workflowExecID, taskExecID, "agent-2", agentConfig2)
+		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "agent-2", agentConfig2)
 
-		// Load executions JSON
-		executionsJSON, err := tb.AgentRepo.LoadExecutionsMapByWorkflowExecID(tb.Ctx, workflowExecID)
+		// List executions by workflow execution ID
+		executions, err := tb.AgentRepo.ListExecutionsByWorkflowExecID(tb.Ctx, workflowExecID)
 		require.NoError(t, err)
-		require.NotNil(t, executionsJSON)
+		assert.Len(t, executions, 2)
 
-		// Verify we have both executions
-		assert.Len(t, executionsJSON, 2)
-
-		// Verify execution data
-		exec1, exists := executionsJSON[agentExecID1].(map[core.ID]any)
-		assert.True(t, exists)
-		assert.Equal(t, "agent-1", exec1[core.ID("agent_id")])
-		assert.Equal(t, agentExecID1, exec1[core.ID("agent_exec_id")])
-		assert.Equal(t, core.StatusPending, exec1[core.ID("status")])
-
-		exec2, exists := executionsJSON[agentExecID2].(map[core.ID]any)
-		assert.True(t, exists)
-		assert.Equal(t, "agent-2", exec2[core.ID("agent_id")])
-		assert.Equal(t, agentExecID2, exec2[core.ID("agent_exec_id")])
-		assert.Equal(t, core.StatusPending, exec2[core.ID("status")])
+		// Verify all returned executions have the correct workflow execution ID
+		for _, exec := range executions {
+			assert.Equal(t, workflowExecID, exec.WorkflowExecID)
+		}
 	})
 
-	t.Run("Should return empty map for workflow execution with no agents", func(t *testing.T) {
+	t.Run("Should return empty list for non-existent workflow execution ID", func(t *testing.T) {
 		nonExistentWorkflowExecID := core.MustNewID()
-
-		executionsJSON, err := tb.AgentRepo.LoadExecutionsMapByWorkflowExecID(tb.Ctx, nonExistentWorkflowExecID)
+		executions, err := tb.AgentRepo.ListExecutionsByWorkflowExecID(tb.Ctx, nonExistentWorkflowExecID)
 		require.NoError(t, err)
-		assert.Empty(t, executionsJSON)
+		assert.Empty(t, executions)
+	})
+}
+
+func TestAgentRepository_ListExecutionsByTaskID(t *testing.T) {
+	tb := setupAgentRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should list executions by task ID", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := createTestAgentWorkflowExecution(
+			t, tb, core.EnvMap{},
+			&core.Input{},
+		)
+
+		// Create task execution
+		taskConfig := &task.Config{
+			ID:     "test-task",
+			Type:   "basic",
+			Action: "process",
+			Env:    core.EnvMap{},
+		}
+		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+
+		// Create agent execution
+		agentConfig := &agent.Config{
+			ID:           "test-agent",
+			Instructions: "Test agent",
+			Config: agent.ProviderConfig{
+				Provider: agent.ProviderAnthropic,
+				Model:    agent.ModelClaude3Opus,
+			},
+			Env: core.EnvMap{},
+		}
+		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "test-agent", agentConfig)
+
+		// List executions by task ID
+		executions, err := tb.AgentRepo.ListExecutionsByTaskID(tb.Ctx, "test-task")
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(executions), 1)
+
+		// Verify all returned executions have the correct task ID
+		for _, exec := range executions {
+			assert.Equal(t, "test-task", exec.TaskID)
+		}
+	})
+
+	t.Run("Should return empty list for non-existent task ID", func(t *testing.T) {
+		executions, err := tb.AgentRepo.ListExecutionsByTaskID(tb.Ctx, "non-existent-task")
+		require.NoError(t, err)
+		assert.Empty(t, executions)
+	})
+}
+
+func TestAgentRepository_ListExecutionsByTaskExecID(t *testing.T) {
+	tb := setupAgentRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should list executions by task execution ID", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := createTestAgentWorkflowExecution(
+			t, tb, core.EnvMap{},
+			&core.Input{},
+		)
+
+		// Create task execution
+		taskConfig := &task.Config{
+			ID:     "test-task",
+			Type:   "basic",
+			Action: "process",
+			Env:    core.EnvMap{},
+		}
+		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+
+		// Create multiple agent executions for the same task execution
+		agentConfig1 := &agent.Config{
+			ID:           "agent-1",
+			Instructions: "First agent",
+			Config: agent.ProviderConfig{
+				Provider: agent.ProviderAnthropic,
+				Model:    agent.ModelClaude3Opus,
+			},
+			Env: core.EnvMap{},
+		}
+		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "agent-1", agentConfig1)
+
+		agentConfig2 := &agent.Config{
+			ID:           "agent-2",
+			Instructions: "Second agent",
+			Config: agent.ProviderConfig{
+				Provider: agent.ProviderAnthropic,
+				Model:    agent.ModelClaude3Sonnet,
+			},
+			Env: core.EnvMap{},
+		}
+		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "agent-2", agentConfig2)
+
+		// List executions by task execution ID
+		executions, err := tb.AgentRepo.ListExecutionsByTaskExecID(tb.Ctx, taskExecID)
+		require.NoError(t, err)
+		assert.Len(t, executions, 2)
+
+		// Verify all returned executions have the correct task execution ID
+		for _, exec := range executions {
+			assert.Equal(t, taskExecID, exec.TaskExecID)
+		}
+	})
+
+	t.Run("Should return empty list for non-existent task execution ID", func(t *testing.T) {
+		nonExistentTaskExecID := core.MustNewID()
+		executions, err := tb.AgentRepo.ListExecutionsByTaskExecID(tb.Ctx, nonExistentTaskExecID)
+		require.NoError(t, err)
+		assert.Empty(t, executions)
+	})
+}
+
+func TestAgentRepository_ListExecutionsByAgentID(t *testing.T) {
+	tb := setupAgentRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should list executions by agent ID", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := createTestAgentWorkflowExecution(
+			t, tb, core.EnvMap{},
+			&core.Input{},
+		)
+
+		// Create task execution
+		taskConfig := &task.Config{
+			ID:     "test-task",
+			Type:   "basic",
+			Action: "process",
+			Env:    core.EnvMap{},
+		}
+		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+
+		// Create multiple executions for the same agent ID
+		agentConfig := &agent.Config{
+			ID:           "test-agent",
+			Instructions: "Test agent",
+			Config: agent.ProviderConfig{
+				Provider: agent.ProviderAnthropic,
+				Model:    agent.ModelClaude3Opus,
+			},
+			Env: core.EnvMap{},
+		}
+		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "test-agent", agentConfig)
+		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "test-agent", agentConfig)
+
+		// List executions by agent ID
+		executions, err := tb.AgentRepo.ListExecutionsByAgentID(tb.Ctx, "test-agent")
+		require.NoError(t, err)
+		assert.Len(t, executions, 2)
+
+		// Verify all returned executions have the correct agent ID
+		for _, exec := range executions {
+			assert.Equal(t, "test-agent", exec.AgentID)
+		}
+	})
+
+	t.Run("Should return empty list for non-existent agent ID", func(t *testing.T) {
+		executions, err := tb.AgentRepo.ListExecutionsByAgentID(tb.Ctx, "non-existent-agent")
+		require.NoError(t, err)
+		assert.Empty(t, executions)
+	})
+}
+
+func TestAgentRepository_ExecutionsToMap(t *testing.T) {
+	tb := setupAgentRepoTestBed(t)
+	defer tb.Cleanup()
+
+	t.Run("Should convert executions to execution maps", func(t *testing.T) {
+		// Create workflow execution
+		workflowExecID := createTestAgentWorkflowExecution(
+			t, tb, core.EnvMap{},
+			&core.Input{},
+		)
+
+		// Create task execution
+		taskConfig := &task.Config{
+			ID:     "test-task",
+			Type:   "basic",
+			Action: "process",
+			Env:    core.EnvMap{},
+		}
+		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+
+		// Create agent execution
+		agentConfig := &agent.Config{
+			ID:           "test-agent",
+			Instructions: "Test agent",
+			Config: agent.ProviderConfig{
+				Provider: agent.ProviderAnthropic,
+				Model:    agent.ModelClaude3Opus,
+			},
+			Env: core.EnvMap{},
+		}
+		_, execution := createTestAgentExecution(t, tb, workflowExecID, taskExecID, "test-agent", agentConfig)
+
+		// Convert to execution maps
+		executions := []core.Execution{execution}
+		execMaps, err := tb.AgentRepo.ExecutionsToMap(tb.Ctx, executions)
+		require.NoError(t, err)
+		assert.Len(t, execMaps, 1)
+
+		// Verify execution map properties
+		execMap := execMaps[0]
+		assert.Equal(t, core.StatusPending, execMap.Status)
+		assert.Equal(t, core.ComponentAgent, execMap.Component)
+		assert.Equal(t, "test-workflow", execMap.WorkflowID)
+		assert.Equal(t, workflowExecID, execMap.WorkflowExecID)
+		assert.Equal(t, "test-task", execMap.TaskID)
+		assert.Equal(t, taskExecID, execMap.TaskExecID)
+		assert.NotNil(t, execMap.AgentID)
+		assert.Equal(t, "test-agent", *execMap.AgentID)
+		assert.NotNil(t, execMap.AgentExecID)
+	})
+
+	t.Run("Should handle empty executions list", func(t *testing.T) {
+		execMaps, err := tb.AgentRepo.ExecutionsToMap(tb.Ctx, []core.Execution{})
+		require.NoError(t, err)
+		assert.Empty(t, execMaps)
 	})
 }
 

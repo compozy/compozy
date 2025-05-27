@@ -93,7 +93,10 @@ func (r *TaskRepository) ListExecutionsByWorkflowID(ctx context.Context, workflo
 	return UnmarshalExecutions[task.Execution](execs)
 }
 
-func (r *TaskRepository) ListExecutionsByWorkflowExecID(ctx context.Context, workflowExecID core.ID) ([]task.Execution, error) {
+func (r *TaskRepository) ListExecutionsByWorkflowExecID(
+	ctx context.Context,
+	workflowExecID core.ID,
+) ([]task.Execution, error) {
 	execs, err := r.store.queries.ListTaskExecutionsByWorkflowExecID(ctx, workflowExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list task executions by workflow exec ID: %w", err)
@@ -110,7 +113,10 @@ func (r *TaskRepository) ListExecutionsByTaskID(ctx context.Context, taskID stri
 	return UnmarshalExecutions[task.Execution](execs)
 }
 
-func (r *TaskRepository) ListExecutionsByWorkflowAndTaskID(ctx context.Context, workflowID, taskID string) ([]task.Execution, error) {
+func (r *TaskRepository) ListExecutionsByWorkflowAndTaskID(
+	ctx context.Context,
+	workflowID, taskID string,
+) ([]task.Execution, error) {
 	arg := db.ListTaskExecutionsByWorkflowAndTaskIDParams{
 		WorkflowID: workflowID,
 		TaskID:     sql.NullString{String: taskID, Valid: true},
@@ -151,7 +157,7 @@ func (r *TaskRepository) ListChildrenExecutionsByTaskID(ctx context.Context, tas
 // Helpers
 // -----------------------------------------------------------------------------
 
-func (r *TaskRepository) ExecutionsToMap(ctx context.Context, execs []core.Execution) ([]*core.ExecutionMap, error) {
+func (r *TaskRepository) ExecutionsToMap(_ context.Context, execs []core.Execution) ([]*core.ExecutionMap, error) {
 	execMaps := make([]*core.ExecutionMap, len(execs))
 	for i, exec := range execs {
 		execMaps[i] = exec.AsExecMap()
@@ -159,23 +165,23 @@ func (r *TaskRepository) ExecutionsToMap(ctx context.Context, execs []core.Execu
 	return execMaps, nil
 }
 
-func (r *TaskRepository) BuildExecutions(ctx context.Context, execs []db.Execution) (
+func (r *TaskRepository) BuildExecutions(_ context.Context, execs []db.Execution) (
 	[]core.Execution,
 	[]core.Execution,
 	error,
 ) {
 	agents := make([]core.Execution, 0)
 	tools := make([]core.Execution, 0)
-	for _, exec := range execs {
-		switch exec.ComponentType {
+	for i := range execs {
+		switch execs[i].ComponentType {
 		case core.ComponentAgent:
-			item, err := core.UnmarshalExecution[*agent.Execution](exec.Data)
+			item, err := core.UnmarshalExecution[*agent.Execution](execs[i].Data)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to unmarshal agent execution: %w", err)
 			}
 			agents = append(agents, item)
 		case core.ComponentTool:
-			item, err := core.UnmarshalExecution[*tool.Execution](exec.Data)
+			item, err := core.UnmarshalExecution[*tool.Execution](execs[i].Data)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to unmarshal tool execution: %w", err)
 			}
