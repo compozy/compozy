@@ -257,7 +257,7 @@ func TestAgentRepository_LoadExecution(t *testing.T) {
 		agentExecID, createdExecution := createTestAgentExecution(t, tb, workflowExecID, taskExecID, "code-assistant", agentConfig)
 
 		// Load the execution
-		loadedExecution, err := tb.AgentRepo.LoadExecution(tb.Ctx, agentExecID)
+		loadedExecution, err := tb.AgentRepo.GetExecution(tb.Ctx, agentExecID)
 		require.NoError(t, err)
 		require.NotNil(t, loadedExecution)
 
@@ -271,7 +271,7 @@ func TestAgentRepository_LoadExecution(t *testing.T) {
 
 	t.Run("Should return error for non-existent execution", func(t *testing.T) {
 		nonExistentAgentExecID := core.MustNewID()
-		execution, err := tb.AgentRepo.LoadExecution(tb.Ctx, nonExistentAgentExecID)
+		execution, err := tb.AgentRepo.GetExecution(tb.Ctx, nonExistentAgentExecID)
 		assert.Error(t, err)
 		assert.Nil(t, execution)
 	})

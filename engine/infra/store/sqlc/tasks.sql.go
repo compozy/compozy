@@ -8,6 +8,8 @@ package db
 import (
 	"context"
 	"database/sql"
+
+	"github.com/compozy/compozy/engine/core"
 )
 
 const getTaskExecutionByExecID = `-- name: GetTaskExecutionByExecID :one
@@ -17,7 +19,7 @@ WHERE component_type = 'task' AND task_exec_id = ?1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetTaskExecutionByExecID(ctx context.Context, taskExecID sql.NullString) (Execution, error) {
+func (q *Queries) GetTaskExecutionByExecID(ctx context.Context, taskExecID core.ID) (Execution, error) {
 	row := q.db.QueryRowContext(ctx, getTaskExecutionByExecID, taskExecID)
 	var i Execution
 	err := row.Scan(
@@ -40,6 +42,52 @@ func (q *Queries) GetTaskExecutionByExecID(ctx context.Context, taskExecID sql.N
 	return i, err
 }
 
+const listTaskExecutions = `-- name: ListTaskExecutions :many
+SELECT id, "key", component_type, workflow_id, workflow_exec_id, task_id, task_exec_id, agent_id, agent_exec_id, tool_id, tool_exec_id, status, data, created_at, updated_at
+FROM executions
+WHERE component_type = 'task'
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListTaskExecutions(ctx context.Context) ([]Execution, error) {
+	rows, err := q.db.QueryContext(ctx, listTaskExecutions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Execution{}
+	for rows.Next() {
+		var i Execution
+		if err := rows.Scan(
+			&i.ID,
+			&i.Key,
+			&i.ComponentType,
+			&i.WorkflowID,
+			&i.WorkflowExecID,
+			&i.TaskID,
+			&i.TaskExecID,
+			&i.AgentID,
+			&i.AgentExecID,
+			&i.ToolID,
+			&i.ToolExecID,
+			&i.Status,
+			&i.Data,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTaskExecutionsByStatus = `-- name: ListTaskExecutionsByStatus :many
 SELECT id, "key", component_type, workflow_id, workflow_exec_id, task_id, task_exec_id, agent_id, agent_exec_id, tool_id, tool_exec_id, status, data, created_at, updated_at
 FROM executions
@@ -47,7 +95,7 @@ WHERE component_type = 'task' AND status = ?1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListTaskExecutionsByStatus(ctx context.Context, status string) ([]Execution, error) {
+func (q *Queries) ListTaskExecutionsByStatus(ctx context.Context, status core.StatusType) ([]Execution, error) {
 	rows, err := q.db.QueryContext(ctx, listTaskExecutionsByStatus, status)
 	if err != nil {
 		return nil, err
@@ -132,6 +180,57 @@ func (q *Queries) ListTaskExecutionsByTaskID(ctx context.Context, taskID sql.Nul
 	return items, nil
 }
 
+const listTaskExecutionsByWorkflowAndTaskID = `-- name: ListTaskExecutionsByWorkflowAndTaskID :many
+SELECT id, "key", component_type, workflow_id, workflow_exec_id, task_id, task_exec_id, agent_id, agent_exec_id, tool_id, tool_exec_id, status, data, created_at, updated_at
+FROM executions
+WHERE component_type = 'task' AND workflow_id = ?1 AND task_id = ?2
+ORDER BY created_at DESC
+`
+
+type ListTaskExecutionsByWorkflowAndTaskIDParams struct {
+	WorkflowID string         `db:"workflow_id" json:"workflow_id"`
+	TaskID     sql.NullString `db:"task_id" json:"task_id"`
+}
+
+func (q *Queries) ListTaskExecutionsByWorkflowAndTaskID(ctx context.Context, arg ListTaskExecutionsByWorkflowAndTaskIDParams) ([]Execution, error) {
+	rows, err := q.db.QueryContext(ctx, listTaskExecutionsByWorkflowAndTaskID, arg.WorkflowID, arg.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Execution{}
+	for rows.Next() {
+		var i Execution
+		if err := rows.Scan(
+			&i.ID,
+			&i.Key,
+			&i.ComponentType,
+			&i.WorkflowID,
+			&i.WorkflowExecID,
+			&i.TaskID,
+			&i.TaskExecID,
+			&i.AgentID,
+			&i.AgentExecID,
+			&i.ToolID,
+			&i.ToolExecID,
+			&i.Status,
+			&i.Data,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTaskExecutionsByWorkflowExecID = `-- name: ListTaskExecutionsByWorkflowExecID :many
 SELECT id, "key", component_type, workflow_id, workflow_exec_id, task_id, task_exec_id, agent_id, agent_exec_id, tool_id, tool_exec_id, status, data, created_at, updated_at
 FROM executions
@@ -139,7 +238,7 @@ WHERE component_type = 'task' AND workflow_exec_id = ?1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListTaskExecutionsByWorkflowExecID(ctx context.Context, workflowExecID string) ([]Execution, error) {
+func (q *Queries) ListTaskExecutionsByWorkflowExecID(ctx context.Context, workflowExecID core.ID) ([]Execution, error) {
 	rows, err := q.db.QueryContext(ctx, listTaskExecutionsByWorkflowExecID, workflowExecID)
 	if err != nil {
 		return nil, err
@@ -187,6 +286,98 @@ ORDER BY created_at DESC
 
 func (q *Queries) ListTaskExecutionsByWorkflowID(ctx context.Context, workflowID string) ([]Execution, error) {
 	rows, err := q.db.QueryContext(ctx, listTaskExecutionsByWorkflowID, workflowID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Execution{}
+	for rows.Next() {
+		var i Execution
+		if err := rows.Scan(
+			&i.ID,
+			&i.Key,
+			&i.ComponentType,
+			&i.WorkflowID,
+			&i.WorkflowExecID,
+			&i.TaskID,
+			&i.TaskExecID,
+			&i.AgentID,
+			&i.AgentExecID,
+			&i.ToolID,
+			&i.ToolExecID,
+			&i.Status,
+			&i.Data,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTaskChildrenExecutionsByTaskExecID = `-- name: ListTaskChildrenExecutionsByTaskExecID :many
+SELECT id, "key", component_type, workflow_id, workflow_exec_id, task_id, task_exec_id, agent_id, agent_exec_id, tool_id, tool_exec_id, status, data, created_at, updated_at
+FROM executions
+WHERE component_type != 'task' AND task_exec_id = ?1
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListTaskChildrenExecutionsByTaskExecID(ctx context.Context, taskExecID core.ID) ([]Execution, error) {
+	rows, err := q.db.QueryContext(ctx, listTaskChildrenExecutionsByTaskExecID, taskExecID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Execution{}
+	for rows.Next() {
+		var i Execution
+		if err := rows.Scan(
+			&i.ID,
+			&i.Key,
+			&i.ComponentType,
+			&i.WorkflowID,
+			&i.WorkflowExecID,
+			&i.TaskID,
+			&i.TaskExecID,
+			&i.AgentID,
+			&i.AgentExecID,
+			&i.ToolID,
+			&i.ToolExecID,
+			&i.Status,
+			&i.Data,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTaskChildrenExecutionsByTaskID = `-- name: ListTaskChildrenExecutionsByTaskID :many
+SELECT id, "key", component_type, workflow_id, workflow_exec_id, task_id, task_exec_id, agent_id, agent_exec_id, tool_id, tool_exec_id, status, data, created_at, updated_at
+FROM executions
+WHERE component_type != 'task' AND task_id = ?1
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListTaskChildrenExecutionsByTaskID(ctx context.Context, taskID sql.NullString) ([]Execution, error) {
+	rows, err := q.db.QueryContext(ctx, listTaskChildrenExecutionsByTaskID, taskID)
 	if err != nil {
 		return nil, err
 	}

@@ -3,9 +3,11 @@ package server
 import (
 	"fmt"
 
+	agentrouter "github.com/compozy/compozy/engine/agent/router"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	tkrouter "github.com/compozy/compozy/engine/task/router"
+	toolrouter "github.com/compozy/compozy/engine/tool/router"
 	wfrouter "github.com/compozy/compozy/engine/workflow/router"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -16,11 +18,16 @@ func RegisterRoutes(router *gin.Engine, state *appstate.State) error {
 	prefixURL := fmt.Sprintf("/api/%s", version)
 	apiBase := router.Group(prefixURL)
 
-	// Register workflow routes
+	// Register all component routers
 	wfrouter.Register(apiBase)
-
-	// Register task routes
 	tkrouter.Register(apiBase)
+	agentrouter.Register(apiBase)
+	toolrouter.Register(apiBase)
+
+	// Register log routes
+	routerPkg := router
+	_ = routerPkg // TODO: fix import conflict
+	// router.RegisterLogRoutes(apiBase)
 
 	logger.Info("Completed route registration",
 		"total_workflows", len(state.Workflows),

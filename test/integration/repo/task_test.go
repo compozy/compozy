@@ -157,7 +157,7 @@ func TestTaskRepository_LoadExecution(t *testing.T) {
 		taskExecID, createdExecution := createTestTaskExecution(t, tb, workflowExecID, "format-code", taskConfig)
 
 		// Load the execution
-		loadedExecution, err := tb.TaskRepo.LoadExecution(tb.Ctx, taskExecID)
+		loadedExecution, err := tb.TaskRepo.GetExecution(tb.Ctx, taskExecID)
 		require.NoError(t, err)
 		require.NotNil(t, loadedExecution)
 
@@ -170,7 +170,7 @@ func TestTaskRepository_LoadExecution(t *testing.T) {
 
 	t.Run("Should return error for non-existent execution", func(t *testing.T) {
 		nonExistentTaskExecID := core.MustNewID()
-		execution, err := tb.TaskRepo.LoadExecution(tb.Ctx, nonExistentTaskExecID)
+		execution, err := tb.TaskRepo.GetExecution(tb.Ctx, nonExistentTaskExecID)
 		assert.Error(t, err)
 		assert.Nil(t, execution)
 	})

@@ -8,6 +8,8 @@ package db
 import (
 	"context"
 	"database/sql"
+
+	"github.com/compozy/compozy/engine/core"
 )
 
 const getAgentExecutionByExecID = `-- name: GetAgentExecutionByExecID :one
@@ -17,7 +19,7 @@ WHERE component_type = 'agent' AND agent_exec_id = ?1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetAgentExecutionByExecID(ctx context.Context, agentExecID sql.NullString) (Execution, error) {
+func (q *Queries) GetAgentExecutionByExecID(ctx context.Context, agentExecID core.ID) (Execution, error) {
 	row := q.db.QueryRowContext(ctx, getAgentExecutionByExecID, agentExecID)
 	var i Execution
 	err := row.Scan(
@@ -38,6 +40,52 @@ func (q *Queries) GetAgentExecutionByExecID(ctx context.Context, agentExecID sql
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const listAgentExecutions = `-- name: ListAgentExecutions :many
+SELECT id, "key", component_type, workflow_id, workflow_exec_id, task_id, task_exec_id, agent_id, agent_exec_id, tool_id, tool_exec_id, status, data, created_at, updated_at
+FROM executions
+WHERE component_type = 'agent'
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListAgentExecutions(ctx context.Context) ([]Execution, error) {
+	rows, err := q.db.QueryContext(ctx, listAgentExecutions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Execution{}
+	for rows.Next() {
+		var i Execution
+		if err := rows.Scan(
+			&i.ID,
+			&i.Key,
+			&i.ComponentType,
+			&i.WorkflowID,
+			&i.WorkflowExecID,
+			&i.TaskID,
+			&i.TaskExecID,
+			&i.AgentID,
+			&i.AgentExecID,
+			&i.ToolID,
+			&i.ToolExecID,
+			&i.Status,
+			&i.Data,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAgentExecutionsByAgentID = `-- name: ListAgentExecutionsByAgentID :many
@@ -93,7 +141,7 @@ WHERE component_type = 'agent' AND status = ?1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListAgentExecutionsByStatus(ctx context.Context, status string) ([]Execution, error) {
+func (q *Queries) ListAgentExecutionsByStatus(ctx context.Context, status core.StatusType) ([]Execution, error) {
 	rows, err := q.db.QueryContext(ctx, listAgentExecutionsByStatus, status)
 	if err != nil {
 		return nil, err
@@ -139,7 +187,7 @@ WHERE component_type = 'agent' AND task_exec_id = ?1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListAgentExecutionsByTaskExecID(ctx context.Context, taskExecID sql.NullString) ([]Execution, error) {
+func (q *Queries) ListAgentExecutionsByTaskExecID(ctx context.Context, taskExecID core.ID) ([]Execution, error) {
 	rows, err := q.db.QueryContext(ctx, listAgentExecutionsByTaskExecID, taskExecID)
 	if err != nil {
 		return nil, err
@@ -231,7 +279,7 @@ WHERE component_type = 'agent' AND workflow_exec_id = ?1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListAgentExecutionsByWorkflowExecID(ctx context.Context, workflowExecID string) ([]Execution, error) {
+func (q *Queries) ListAgentExecutionsByWorkflowExecID(ctx context.Context, workflowExecID core.ID) ([]Execution, error) {
 	rows, err := q.db.QueryContext(ctx, listAgentExecutionsByWorkflowExecID, workflowExecID)
 	if err != nil {
 		return nil, err

@@ -19,6 +19,9 @@ type MockExecution struct {
 	componentID string
 	workflowID  string
 	status      core.StatusType
+	startTime   time.Time
+	endTime     time.Time
+	duration    time.Duration
 }
 
 func NewMockExecution() *MockExecution {
@@ -31,6 +34,9 @@ func NewMockExecution() *MockExecution {
 		componentID: "test-component",
 		workflowID:  "test-workflow",
 		status:      core.StatusPending,
+		startTime:   time.Time{},
+		endTime:     time.Time{},
+		duration:    0,
 	}
 }
 
@@ -49,16 +55,28 @@ func (m *MockExecution) GetOutput() *core.Output          { return m.output }
 func (m *MockExecution) GetError() *core.Error            { return nil }
 func (m *MockExecution) SetDuration()                     {}
 func (m *MockExecution) CalcDuration() time.Duration      { return 0 }
+func (m *MockExecution) GetStartTime() time.Time          { return time.Time{} }
+func (m *MockExecution) GetEndTime() time.Time            { return time.Time{} }
+func (m *MockExecution) GetDuration() time.Duration       { return 0 }
 
-func (m *MockExecution) AsMap() map[core.ID]any {
-	return map[core.ID]any{
-		"trigger": map[string]any{
-			"input": m.parentInput,
-		},
-		"input":  m.input,
-		"output": m.output,
-		"env":    m.env,
+func (e *MockExecution) AsExecMap() *core.ExecutionMap {
+	execMap := core.ExecutionMap{
+		Status:         e.GetStatus(),
+		Component:      e.GetComponent(),
+		WorkflowID:     e.GetWorkflowID(),
+		WorkflowExecID: e.GetWorkflowExecID(),
+		Input:          e.GetInput(),
+		Output:         e.GetOutput(),
+		Error:          e.GetError(),
+		StartTime:      e.GetStartTime(),
+		EndTime:        e.GetEndTime(),
+		Duration:       e.CalcDuration(),
 	}
+	return &execMap
+}
+
+func (e *MockExecution) AsMainExecMap() *core.MainExecutionMap {
+	return nil
 }
 
 func TestNormalizer_Normalize(t *testing.T) {

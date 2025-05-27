@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -11,34 +12,6 @@ import (
 
 func GetServerAddress(c *gin.Context) string {
 	return c.Request.Host
-}
-
-func GetURLParam(c *gin.Context, key string) string {
-	param := c.Param(key)
-	if param == "" {
-		reqErr := NewRequestError(
-			http.StatusBadRequest,
-			fmt.Sprintf("%s is required", key),
-			nil,
-		)
-		RespondWithError(c, reqErr.StatusCode, reqErr)
-		return ""
-	}
-	return param
-}
-
-func GetWorkflowID(c *gin.Context) string {
-	workflowID := c.Param("workflow_id")
-	if workflowID == "" {
-		reqErr := NewRequestError(
-			http.StatusBadRequest,
-			"workflow_id is required",
-			nil,
-		)
-		RespondWithError(c, reqErr.StatusCode, reqErr)
-		return ""
-	}
-	return workflowID
 }
 
 func GetAppState(c *gin.Context) *appstate.State {
@@ -69,4 +42,34 @@ func GetRequestBody[T any](c *gin.Context) *T {
 	}
 
 	return &input
+}
+
+func GetURLParam(c *gin.Context, key string) string {
+	param := c.Param(key)
+	if param == "" {
+		reqErr := NewRequestError(
+			http.StatusBadRequest,
+			fmt.Sprintf("%s is required", key),
+			nil,
+		)
+		RespondWithError(c, reqErr.StatusCode, reqErr)
+		return ""
+	}
+	return param
+}
+
+func GetWorkflowID(c *gin.Context) string {
+	return GetURLParam(c, "workflow_id")
+}
+
+func GetWorkflowExecID(c *gin.Context) core.ID {
+	return core.ID(GetURLParam(c, "workflow_exec_id"))
+}
+
+func GetTaskID(c *gin.Context) string {
+	return GetURLParam(c, "task_id")
+}
+
+func GetTaskExecID(c *gin.Context) core.ID {
+	return core.ID(GetURLParam(c, "task_exec_id"))
 }

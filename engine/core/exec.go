@@ -1,6 +1,8 @@
 package core
 
 import (
+	"encoding/json"
+	"fmt"
 	"maps"
 	"time"
 )
@@ -23,9 +25,13 @@ type Execution interface {
 	GetInput() *Input
 	GetOutput() *Output
 	GetError() *Error
+	GetStartTime() time.Time
+	GetEndTime() time.Time
+	GetDuration() time.Duration
 	SetDuration()
 	CalcDuration() time.Duration
-	AsMap() map[ID]any
+	AsMainExecMap() *MainExecutionMap
+	AsExecMap() *ExecutionMap
 }
 
 type BaseExecution struct {
@@ -115,6 +121,18 @@ func (b *BaseExecution) GetError() *Error {
 	return b.Error
 }
 
+func (b *BaseExecution) GetStartTime() time.Time {
+	return b.StartTime
+}
+
+func (b *BaseExecution) GetEndTime() time.Time {
+	return b.EndTime
+}
+
+func (b *BaseExecution) GetDuration() time.Duration {
+	return b.Duration
+}
+
 func (b *BaseExecution) IsRunning() bool {
 	return b.Status == "running"
 }
@@ -126,21 +144,6 @@ func (b *BaseExecution) SetDuration() {
 
 func (b *BaseExecution) CalcDuration() time.Duration {
 	return b.EndTime.Sub(b.StartTime)
-}
-
-func (b *BaseExecution) AsMap() map[ID]any {
-	return map[ID]any{
-		"exec_id":      b.GetID(),
-		"component_id": b.GetComponentID(),
-		"status":       b.GetStatus(),
-		"parent":       b.GetParentInput(),
-		"input":        b.GetInput(),
-		"output":       b.GetOutput(),
-		"error":        b.GetError(),
-		"start_time":   b.StartTime,
-		"end_time":     b.EndTime,
-		"duration":     b.Duration,
-	}
 }
 
 // -----------------------------------------------------------------------------
@@ -172,4 +175,43 @@ func SetExecutionResult(execution *BaseExecution, payload EventDetailsSuccess) {
 	res := &Output{}
 	maps.Copy((*res), output.AsMap())
 	execution.Output = res
+}
+
+// -----------------------------------------------------------------------------
+// Transform
+// -----------------------------------------------------------------------------
+
+type JSONB []byte
+
+func (j JSONB) Bytes() []byte {
+	return j
+}
+
+type DataBytes interface {
+	Bytes() []byte
+}
+
+func UnmarshalExecution[T any, D DataBytes](data D) (T, error) {
+	var result T
+	bytes := data.Bytes()
+	if err := json.Unmarshal(bytes, &result); err != nil {
+		return result, fmt.Errorf("failed to unmarshal JSON: %w", err)
+	}
+	return result, nil
+}
+
+func RefArray[T any](arr []T) []*T {
+	refs := make([]*T, len(arr))
+	for i, v := range arr {
+		refs[i] = &v
+	}
+	return refs
+}
+
+func UnrefArray[T any](arr []*T) []T {
+	refs := make([]T, len(arr))
+	for i, v := range arr {
+		refs[i] = *v
+	}
+	return refs
 }

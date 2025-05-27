@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/compozy/compozy/engine/core"
 	db "github.com/compozy/compozy/engine/infra/store/sqlc"
 	"github.com/compozy/compozy/pkg/logger"
 
@@ -220,10 +221,7 @@ func (s *Store) GetJSON(ctx context.Context, key []byte) (any, error) {
 		return nil, fmt.Errorf("failed to get execution: %w", err)
 	}
 	var result any
-	data, ok := exec.Data.([]byte)
-	if !ok {
-		return nil, fmt.Errorf("invalid data type: %T", exec.Data)
-	}
+	data := exec.Data.Bytes()
 	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
@@ -238,284 +236,66 @@ func (s *Store) DeleteJSON(ctx context.Context, key []byte) error {
 	return nil
 }
 
-func (s *Store) GetWorkflowExecutionByExecID(ctx context.Context, workflowExecID string) (*db.Execution, error) {
-	exec, err := s.queries.GetWorkflowExecutionByExecID(ctx, workflowExecID)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get workflow execution: %w", err)
-	}
-	return &exec, nil
-}
-
-func (s *Store) ListWorkflowExecutions(ctx context.Context) ([]db.Execution, error) {
-	execs, err := s.queries.ListWorkflowExecutions(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list workflow executions: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) ListWorkflowExecutionsByWorkflowID(ctx context.Context, workflowID string) ([]db.Execution, error) {
-	execs, err := s.queries.ListWorkflowExecutionsByWorkflowID(ctx, workflowID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list workflow executions by workflow ID: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) ListWorkflowExecutionsByStatus(ctx context.Context, status string) ([]db.Execution, error) {
-	execs, err := s.queries.ListWorkflowExecutionsByStatus(ctx, status)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list workflow executions by status: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) GetTaskExecutionByExecID(ctx context.Context, taskExecID string) (*db.Execution, error) {
-	execID := sql.NullString{String: taskExecID, Valid: true}
-	exec, err := s.queries.GetTaskExecutionByExecID(ctx, execID)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get task execution: %w", err)
-	}
-	return &exec, nil
-}
-
-func (s *Store) ListTaskExecutionsByStatus(ctx context.Context, status string) ([]db.Execution, error) {
-	execs, err := s.queries.ListTaskExecutionsByStatus(ctx, status)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list task executions by status: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) ListTaskExecutionsByWorkflowID(ctx context.Context, workflowID string) ([]db.Execution, error) {
-	execs, err := s.queries.ListTaskExecutionsByWorkflowID(ctx, workflowID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list task executions by workflow ID: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) ListTaskExecutionsByWorkflowExecID(ctx context.Context, workflowExecID string) ([]db.Execution, error) {
-	execs, err := s.queries.ListTaskExecutionsByWorkflowExecID(ctx, workflowExecID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list task executions by workflow exec ID: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) ListTaskExecutionsByTaskID(ctx context.Context, taskID string) ([]db.Execution, error) {
-	execID := sql.NullString{String: taskID, Valid: true}
-	execs, err := s.queries.ListTaskExecutionsByTaskID(ctx, execID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list task executions by task ID: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) GetAgentExecutionByExecID(ctx context.Context, agentExecID string) (*db.Execution, error) {
-	execID := sql.NullString{String: agentExecID, Valid: true}
-	exec, err := s.queries.GetAgentExecutionByExecID(ctx, execID)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get agent execution: %w", err)
-	}
-	return &exec, nil
-}
-
-func (s *Store) ListAgentExecutionsByStatus(ctx context.Context, status string) ([]db.Execution, error) {
-	execs, err := s.queries.ListAgentExecutionsByStatus(ctx, status)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list agent executions by status: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) ListAgentExecutionsByWorkflowID(ctx context.Context, workflowID string) ([]db.Execution, error) {
-	execs, err := s.queries.ListAgentExecutionsByWorkflowID(ctx, workflowID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list agent executions by workflow ID: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) ListAgentExecutionsByWorkflowExecID(ctx context.Context, workflowExecID string) ([]db.Execution, error) {
-	execs, err := s.queries.ListAgentExecutionsByWorkflowExecID(ctx, workflowExecID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list agent executions by workflow exec ID: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) ListAgentExecutionsByTaskID(ctx context.Context, taskID string) ([]db.Execution, error) {
-	execID := sql.NullString{String: taskID, Valid: true}
-	execs, err := s.queries.ListAgentExecutionsByTaskID(ctx, execID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list agent executions by task ID: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) ListAgentExecutionsByTaskExecID(ctx context.Context, taskExecID string) ([]db.Execution, error) {
-	execID := sql.NullString{String: taskExecID, Valid: true}
-	execs, err := s.queries.ListAgentExecutionsByTaskExecID(ctx, execID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list agent executions by task exec ID: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) ListAgentExecutionsByAgentID(ctx context.Context, agentID string) ([]db.Execution, error) {
-	execID := sql.NullString{String: agentID, Valid: true}
-	execs, err := s.queries.ListAgentExecutionsByAgentID(ctx, execID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list agent executions by agent ID: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) GetToolExecutionByExecID(ctx context.Context, toolExecID string) (*db.Execution, error) {
-	execID := sql.NullString{String: toolExecID, Valid: true}
-	exec, err := s.queries.GetToolExecutionByExecID(ctx, execID)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tool execution: %w", err)
-	}
-	return &exec, nil
-}
-
-func (s *Store) ListToolExecutionsByStatus(ctx context.Context, status string) ([]db.Execution, error) {
-	execs, err := s.queries.ListToolExecutionsByStatus(ctx, status)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list tool executions by status: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) ListToolExecutionsByWorkflowID(ctx context.Context, workflowID string) ([]db.Execution, error) {
-	execs, err := s.queries.ListToolExecutionsByWorkflowID(ctx, workflowID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list tool executions by workflow ID: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) ListToolExecutionsByWorkflowExecID(ctx context.Context, workflowExecID string) ([]db.Execution, error) {
-	execs, err := s.queries.ListToolExecutionsByWorkflowExecID(ctx, workflowExecID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list tool executions by workflow exec ID: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) ListToolExecutionsByTaskID(ctx context.Context, taskID string) ([]db.Execution, error) {
-	execID := sql.NullString{String: taskID, Valid: true}
-	execs, err := s.queries.ListToolExecutionsByTaskID(ctx, execID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list tool executions by task ID: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) ListToolExecutionsByTaskExecID(ctx context.Context, taskExecID string) ([]db.Execution, error) {
-	execID := sql.NullString{String: taskExecID, Valid: true}
-	execs, err := s.queries.ListToolExecutionsByTaskExecID(ctx, execID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list tool executions by task exec ID: %w", err)
-	}
-	return execs, nil
-}
-
-func (s *Store) ListToolExecutionsByToolID(ctx context.Context, toolID string) ([]db.Execution, error) {
-	execID := sql.NullString{String: toolID, Valid: true}
-	execs, err := s.queries.ListToolExecutionsByToolID(ctx, execID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list tool executions by tool ID: %w", err)
-	}
-	return execs, nil
-}
-
 type ExtractedMetadata struct {
-	Status         string
+	Status         core.StatusType
 	WorkflowID     string
-	WorkflowExecID string
-	ComponentType  string
+	WorkflowExecID core.ID
+	ComponentType  core.ComponentType
 	TaskID         sql.NullString
-	TaskExecID     sql.NullString
+	TaskExecID     core.ID
 	AgentID        sql.NullString
-	AgentExecID    sql.NullString
+	AgentExecID    core.ID
 	ToolID         sql.NullString
-	ToolExecID     sql.NullString
+	ToolExecID     core.ID
 }
 
 func extractMetadata(value any) (*ExtractedMetadata, error) {
 	switch v := value.(type) {
 	case *workflow.Execution:
 		return &ExtractedMetadata{
-			ComponentType:  "workflow",
-			Status:         string(v.Status),
+			ComponentType:  core.ComponentWorkflow,
+			Status:         v.Status,
 			WorkflowID:     v.WorkflowID,
-			WorkflowExecID: string(v.WorkflowExecID),
+			WorkflowExecID: v.WorkflowExecID,
 		}, nil
 	case *agent.Execution:
 		return &ExtractedMetadata{
-			ComponentType:  "agent",
-			Status:         string(v.Status),
+			ComponentType:  core.ComponentAgent,
+			Status:         v.Status,
 			WorkflowID:     v.WorkflowID,
-			WorkflowExecID: string(v.WorkflowExecID),
+			WorkflowExecID: v.WorkflowExecID,
 			TaskID:         sql.NullString{String: string(v.TaskID), Valid: true},
-			TaskExecID:     sql.NullString{String: string(v.TaskExecID), Valid: true},
+			TaskExecID:     v.TaskExecID,
 			AgentID:        sql.NullString{String: string(v.AgentID), Valid: true},
-			AgentExecID:    sql.NullString{String: string(v.AgentExecID), Valid: true},
+			AgentExecID:    v.AgentExecID,
 		}, nil
 	case *task.Execution:
 		return &ExtractedMetadata{
-			ComponentType:  "task",
-			Status:         string(v.Status),
+			ComponentType:  core.ComponentTask,
+			Status:         v.Status,
 			WorkflowID:     v.WorkflowID,
-			WorkflowExecID: string(v.WorkflowExecID),
+			WorkflowExecID: v.WorkflowExecID,
 			TaskID:         sql.NullString{String: string(v.TaskID), Valid: true},
-			TaskExecID:     sql.NullString{String: string(v.TaskExecID), Valid: true},
+			TaskExecID:     v.TaskExecID,
 		}, nil
 	case *tool.Execution:
 		return &ExtractedMetadata{
-			ComponentType:  "tool",
-			Status:         string(v.Status),
+			ComponentType:  core.ComponentTool,
+			Status:         v.Status,
 			WorkflowID:     v.WorkflowID,
-			WorkflowExecID: string(v.WorkflowExecID),
+			WorkflowExecID: v.WorkflowExecID,
 			ToolID:         sql.NullString{String: string(v.ToolID), Valid: true},
-			ToolExecID:     sql.NullString{String: string(v.ToolExecID), Valid: true},
+			ToolExecID:     v.ToolExecID,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported value type: %T", v)
 	}
 }
 
-func unmarshalExecution[T any](exec db.Execution) (T, error) {
-	var result T
-	data, ok := exec.Data.([]byte)
-	if !ok {
-		return result, fmt.Errorf("invalid data type: %T", exec.Data)
-	}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return result, fmt.Errorf("failed to unmarshal JSON: %w", err)
-	}
-	return result, nil
-}
-
-func unmarshalExecutions[T any](execs []db.Execution) ([]T, error) {
-	results := make([]T, len(execs))
-	for i, exec := range execs {
-		result, err := unmarshalExecution[T](exec)
+func UnmarshalExecutions[T any](data []db.Execution) ([]T, error) {
+	results := make([]T, len(data))
+	for i, data := range data {
+		result, err := core.UnmarshalExecution[T](data.Data)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal execution %d: %w", i, err)
 		}

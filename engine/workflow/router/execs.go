@@ -3,15 +3,13 @@ package wfrouter
 import (
 	"net/http"
 
-	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/workflow/uc"
 	"github.com/gin-gonic/gin"
 )
 
-// Route: GET /api/workflows/executions/:exec_id
-func getExecutionByExecID(c *gin.Context) {
-	workflowExecID := core.ID(router.GetURLParam(c, "exec_id"))
+func getExecution(c *gin.Context) {
+	workflowExecID := router.GetWorkflowExecID(c)
 	appState := router.GetAppState(c)
 	repo := appState.Orchestrator.Config().WorkflowRepoFactory()
 	uc := uc.NewGetExecution(repo, workflowExecID)
@@ -28,11 +26,10 @@ func getExecutionByExecID(c *gin.Context) {
 	router.RespondOK(c, "workflow execution retrieved", exec)
 }
 
-// Route: GET /api/workflows/executions
-func listExecutions(c *gin.Context) {
+func listAllExecutions(c *gin.Context) {
 	appState := router.GetAppState(c)
 	repo := appState.Orchestrator.Config().WorkflowRepoFactory()
-	uc := uc.NewListExecutions(repo)
+	uc := uc.NewListAllExecutions(repo)
 	executions, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(
@@ -48,12 +45,11 @@ func listExecutions(c *gin.Context) {
 	})
 }
 
-// Route: GET /api/workflows/:workflow_id/executions
-func listExecutionsByWorkflowID(c *gin.Context) {
-	workflowID := core.ID(router.GetURLParam(c, "workflow_id"))
+func listExecutionsByID(c *gin.Context) {
+	workflowID := router.GetWorkflowID(c)
 	appState := router.GetAppState(c)
 	repo := appState.Orchestrator.Config().WorkflowRepoFactory()
-	uc := uc.NewListExecutionsByWorkflowID(repo, workflowID)
+	uc := uc.NewListExecutionsByID(repo, workflowID)
 	executions, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(

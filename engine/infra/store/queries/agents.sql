@@ -4,6 +4,12 @@ FROM executions
 WHERE component_type = 'agent' AND agent_exec_id = :agent_exec_id
 ORDER BY created_at DESC;
 
+-- name: ListAgentExecutions :many
+SELECT *
+FROM executions
+WHERE component_type = 'agent'
+ORDER BY created_at DESC;
+
 -- name: ListAgentExecutionsByStatus :many
 SELECT *
 FROM executions

@@ -15,9 +15,12 @@ type Repository interface {
 		config *Config,
 		input *core.Input,
 	) (*Execution, error)
-	LoadExecution(ctx context.Context, workflowExecID core.ID) (*Execution, error)
-	LoadExecutionMap(ctx context.Context, workflowExecID core.ID) (map[core.ID]any, error)
+	GetExecution(ctx context.Context, workflowExecID core.ID) (*Execution, error)
 	ListExecutions(ctx context.Context) ([]Execution, error)
-	ListExecutionsMap(ctx context.Context) ([]map[core.ID]any, error)
-	ListExecutionsMapByWorkflowID(ctx context.Context, workflowID core.ID) ([]map[core.ID]any, error)
+	ListExecutionsByStatus(ctx context.Context, status core.StatusType) ([]Execution, error)
+	ListExecutionsByWorkflowID(ctx context.Context, workflowID string) ([]Execution, error)
+	ListChildrenExecutions(ctx context.Context, workflowExecID core.ID) ([]core.Execution, error)
+	ListChildrenExecutionsByWorkflowID(ctx context.Context, workflowID string) ([]core.Execution, error)
+	ExecutionToMap(ctx context.Context, execution *Execution) (*core.MainExecutionMap, error)
+	ExecutionsToMap(ctx context.Context, executions []Execution) ([]*core.MainExecutionMap, error)
 }

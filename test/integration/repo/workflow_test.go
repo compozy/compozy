@@ -145,7 +145,7 @@ func TestWorkflowRepository_LoadExecution(t *testing.T) {
 		require.NoError(t, err)
 
 		// Now load the execution
-		loadedExecution, err := tb.WorkflowRepo.LoadExecution(tb.Ctx, workflowExecID)
+		loadedExecution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, workflowExecID)
 		require.NoError(t, err)
 		require.NotNil(t, loadedExecution)
 
@@ -158,7 +158,7 @@ func TestWorkflowRepository_LoadExecution(t *testing.T) {
 	t.Run("Should return error for non-existent execution", func(t *testing.T) {
 		nonExistentID := core.MustNewID()
 
-		execution, err := tb.WorkflowRepo.LoadExecution(tb.Ctx, nonExistentID)
+		execution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, nonExistentID)
 		assert.Error(t, err)
 		assert.Nil(t, execution)
 	})

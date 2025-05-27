@@ -6,22 +6,24 @@ package db
 
 import (
 	"database/sql"
+
+	"github.com/compozy/compozy/engine/core"
 )
 
 type Execution struct {
-	ID             int64          `db:"id" json:"id"`
-	Key            string         `db:"key" json:"key"`
-	ComponentType  string         `db:"component_type" json:"component_type"`
-	WorkflowID     string         `db:"workflow_id" json:"workflow_id"`
-	WorkflowExecID string         `db:"workflow_exec_id" json:"workflow_exec_id"`
-	TaskID         sql.NullString `db:"task_id" json:"task_id"`
-	TaskExecID     sql.NullString `db:"task_exec_id" json:"task_exec_id"`
-	AgentID        sql.NullString `db:"agent_id" json:"agent_id"`
-	AgentExecID    sql.NullString `db:"agent_exec_id" json:"agent_exec_id"`
-	ToolID         sql.NullString `db:"tool_id" json:"tool_id"`
-	ToolExecID     sql.NullString `db:"tool_exec_id" json:"tool_exec_id"`
-	Status         string         `db:"status" json:"status"`
-	Data           interface{}    `db:"data" json:"data"`
-	CreatedAt      sql.NullTime   `db:"created_at" json:"created_at"`
-	UpdatedAt      sql.NullTime   `db:"updated_at" json:"updated_at"`
+	ID             int64              `db:"id" json:"id"`
+	Key            string             `db:"key" json:"key"`
+	ComponentType  core.ComponentType `db:"component_type" json:"component_type"`
+	WorkflowID     string             `db:"workflow_id" json:"workflow_id"`
+	WorkflowExecID core.ID            `db:"workflow_exec_id" json:"workflow_exec_id"`
+	TaskID         sql.NullString     `db:"task_id" json:"task_id"`
+	TaskExecID     core.ID            `db:"task_exec_id" json:"task_exec_id"`
+	AgentID        sql.NullString     `db:"agent_id" json:"agent_id"`
+	AgentExecID    core.ID            `db:"agent_exec_id" json:"agent_exec_id"`
+	ToolID         sql.NullString     `db:"tool_id" json:"tool_id"`
+	ToolExecID     core.ID            `db:"tool_exec_id" json:"tool_exec_id"`
+	Status         core.StatusType    `db:"status" json:"status"`
+	Data           core.JSONB         `db:"data" json:"data"`
+	CreatedAt      sql.NullTime       `db:"created_at" json:"created_at"`
+	UpdatedAt      sql.NullTime       `db:"updated_at" json:"updated_at"`
 }

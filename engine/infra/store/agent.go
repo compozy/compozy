@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/agent"
@@ -32,12 +33,12 @@ func (r *AgentRepository) CreateExecution(
 	config *agent.Config,
 ) (*agent.Execution, error) {
 	workflowExecID := core.ID(metadata.WorkflowExecId)
-	workflowExecution, err := r.workflowRepo.LoadExecution(ctx, workflowExecID)
+	workflowExecution, err := r.workflowRepo.GetExecution(ctx, workflowExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load workflow execution: %w", err)
 	}
 	taskExecID := core.ID(metadata.TaskExecId)
-	taskExecution, err := r.taskRepo.LoadExecution(ctx, taskExecID)
+	taskExecution, err := r.taskRepo.GetExecution(ctx, taskExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load task execution: %w", err)
 	}
@@ -68,36 +69,83 @@ func (r *AgentRepository) CreateExecution(
 	return execution, nil
 }
 
-func (r *AgentRepository) LoadExecution(
+func (r *AgentRepository) GetExecution(
 	ctx context.Context,
 	agentExecID core.ID,
 ) (*agent.Execution, error) {
-	data, err := r.store.GetAgentExecutionByExecID(ctx, agentExecID.String())
+	data, err := r.store.queries.GetAgentExecutionByExecID(ctx, agentExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get agent execution: %w", err)
 	}
-	if data == nil {
-		return nil, fmt.Errorf("agent execution not found")
-	}
-	return unmarshalExecution[*agent.Execution](*data)
+	return core.UnmarshalExecution[*agent.Execution](data.Data)
 }
 
-func (r *AgentRepository) LoadExecutionsMapByWorkflowExecID(
-	ctx context.Context,
-	wExecID core.ID,
-) (map[core.ID]any, error) {
-	workflowExecID := wExecID.String()
-	data, err := r.store.ListAgentExecutionsByWorkflowExecID(ctx, workflowExecID)
+func (r *AgentRepository) ListExecutions(ctx context.Context) ([]agent.Execution, error) {
+	execs, err := r.store.queries.ListTaskExecutions(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get agent executions: %w", err)
+		return nil, fmt.Errorf("failed to list task executions by status: %w", err)
 	}
-	executions, err := unmarshalExecutions[*agent.Execution](data)
+	return UnmarshalExecutions[agent.Execution](execs)
+}
+
+func (r *AgentRepository) ListExecutionsByStatus(ctx context.Context, status core.StatusType) ([]agent.Execution, error) {
+	execs, err := r.store.queries.ListAgentExecutionsByStatus(ctx, status)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal agent executions: %w", err)
+		return nil, fmt.Errorf("failed to list agent executions by status: %w", err)
 	}
-	jsonMap := make(map[core.ID]any)
-	for _, execution := range executions {
-		jsonMap[execution.GetID()] = execution.AsMap()
+	return UnmarshalExecutions[agent.Execution](execs)
+}
+
+func (r *AgentRepository) ListExecutionsByWorkflowID(ctx context.Context, workflowID string) ([]agent.Execution, error) {
+	execs, err := r.store.queries.ListAgentExecutionsByWorkflowID(ctx, workflowID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list agent executions by workflow ID: %w", err)
 	}
-	return jsonMap, nil
+	return UnmarshalExecutions[agent.Execution](execs)
+}
+
+func (r *AgentRepository) ListExecutionsByWorkflowExecID(ctx context.Context, workflowExecID core.ID) ([]agent.Execution, error) {
+	execs, err := r.store.queries.ListAgentExecutionsByWorkflowExecID(ctx, workflowExecID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list agent executions by workflow exec ID: %w", err)
+	}
+	return UnmarshalExecutions[agent.Execution](execs)
+}
+
+func (r *AgentRepository) ListExecutionsByTaskID(ctx context.Context, taskID string) ([]agent.Execution, error) {
+	execID := sql.NullString{String: taskID, Valid: true}
+	execs, err := r.store.queries.ListAgentExecutionsByTaskID(ctx, execID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list agent executions by task ID: %w", err)
+	}
+	return UnmarshalExecutions[agent.Execution](execs)
+}
+
+func (r *AgentRepository) ListExecutionsByTaskExecID(ctx context.Context, taskExecID core.ID) ([]agent.Execution, error) {
+	execs, err := r.store.queries.ListAgentExecutionsByTaskExecID(ctx, taskExecID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list agent executions by task exec ID: %w", err)
+	}
+	return UnmarshalExecutions[agent.Execution](execs)
+}
+
+func (r *AgentRepository) ListExecutionsByAgentID(ctx context.Context, agentID string) ([]agent.Execution, error) {
+	execID := sql.NullString{String: agentID, Valid: true}
+	execs, err := r.store.queries.ListAgentExecutionsByAgentID(ctx, execID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list agent executions by agent ID: %w", err)
+	}
+	return UnmarshalExecutions[agent.Execution](execs)
+}
+
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
+
+func (r *AgentRepository) ExecutionsToMap(ctx context.Context, execs []core.Execution) ([]*core.ExecutionMap, error) {
+	execMaps := make([]*core.ExecutionMap, len(execs))
+	for i, exec := range execs {
+		execMaps[i] = exec.AsExecMap()
+	}
+	return execMaps, nil
 }

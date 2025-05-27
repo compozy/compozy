@@ -4,6 +4,12 @@ FROM executions
 WHERE component_type = 'tool' AND tool_exec_id = :tool_exec_id
 ORDER BY created_at DESC;
 
+-- name: ListToolExecutions :many
+SELECT *
+FROM executions
+WHERE component_type = 'tool'
+ORDER BY created_at DESC;
+
 -- name: ListToolExecutionsByStatus :many
 SELECT *
 FROM executions

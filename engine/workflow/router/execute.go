@@ -9,7 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Route: POST /api/workflows/:workflow_id/execute
 func handleExecute(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
 	state := router.GetAppState(c)

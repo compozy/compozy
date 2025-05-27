@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/compozy/compozy/engine/core"
 )
 
 const getWorkflowExecutionByExecID = `-- name: GetWorkflowExecutionByExecID :one
@@ -16,7 +18,7 @@ WHERE component_type = 'workflow' AND workflow_exec_id = ?1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetWorkflowExecutionByExecID(ctx context.Context, workflowExecID string) (Execution, error) {
+func (q *Queries) GetWorkflowExecutionByExecID(ctx context.Context, workflowExecID core.ID) (Execution, error) {
 	row := q.db.QueryRowContext(ctx, getWorkflowExecutionByExecID, workflowExecID)
 	var i Execution
 	err := row.Scan(
@@ -92,7 +94,7 @@ WHERE component_type = 'workflow' AND status = ?1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListWorkflowExecutionsByStatus(ctx context.Context, status string) ([]Execution, error) {
+func (q *Queries) ListWorkflowExecutionsByStatus(ctx context.Context, status core.StatusType) ([]Execution, error) {
 	rows, err := q.db.QueryContext(ctx, listWorkflowExecutionsByStatus, status)
 	if err != nil {
 		return nil, err
@@ -134,12 +136,104 @@ func (q *Queries) ListWorkflowExecutionsByStatus(ctx context.Context, status str
 const listWorkflowExecutionsByWorkflowID = `-- name: ListWorkflowExecutionsByWorkflowID :many
 SELECT id, "key", component_type, workflow_id, workflow_exec_id, task_id, task_exec_id, agent_id, agent_exec_id, tool_id, tool_exec_id, status, data, created_at, updated_at
 FROM executions
-WHERE workflow_id = ?1 AND component_type = 'workflow'
+WHERE component_type = 'workflow' AND workflow_id = ?1
 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListWorkflowExecutionsByWorkflowID(ctx context.Context, workflowID string) ([]Execution, error) {
 	rows, err := q.db.QueryContext(ctx, listWorkflowExecutionsByWorkflowID, workflowID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Execution{}
+	for rows.Next() {
+		var i Execution
+		if err := rows.Scan(
+			&i.ID,
+			&i.Key,
+			&i.ComponentType,
+			&i.WorkflowID,
+			&i.WorkflowExecID,
+			&i.TaskID,
+			&i.TaskExecID,
+			&i.AgentID,
+			&i.AgentExecID,
+			&i.ToolID,
+			&i.ToolExecID,
+			&i.Status,
+			&i.Data,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkflowChildrenExecutionsByWorkflowExecID = `-- name: ListWorkflowChildrenExecutionsByWorkflowExecID :many
+SELECT id, "key", component_type, workflow_id, workflow_exec_id, task_id, task_exec_id, agent_id, agent_exec_id, tool_id, tool_exec_id, status, data, created_at, updated_at
+FROM executions
+WHERE component_type != 'workflow' AND workflow_exec_id = ?1
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListWorkflowChildrenExecutionsByWorkflowExecID(ctx context.Context, workflowExecID core.ID) ([]Execution, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkflowChildrenExecutionsByWorkflowExecID, workflowExecID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Execution{}
+	for rows.Next() {
+		var i Execution
+		if err := rows.Scan(
+			&i.ID,
+			&i.Key,
+			&i.ComponentType,
+			&i.WorkflowID,
+			&i.WorkflowExecID,
+			&i.TaskID,
+			&i.TaskExecID,
+			&i.AgentID,
+			&i.AgentExecID,
+			&i.ToolID,
+			&i.ToolExecID,
+			&i.Status,
+			&i.Data,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkflowChildrenExecutionsByWorkflowID = `-- name: ListWorkflowChildrenExecutionsByWorkflowID :many
+SELECT id, "key", component_type, workflow_id, workflow_exec_id, task_id, task_exec_id, agent_id, agent_exec_id, tool_id, tool_exec_id, status, data, created_at, updated_at
+FROM executions
+WHERE component_type != 'workflow' AND workflow_id = ?1
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListWorkflowChildrenExecutionsByWorkflowID(ctx context.Context, workflowID string) ([]Execution, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkflowChildrenExecutionsByWorkflowID, workflowID)
 	if err != nil {
 		return nil, err
 	}

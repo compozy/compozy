@@ -4,6 +4,12 @@ FROM executions
 WHERE component_type = 'task' AND task_exec_id = :task_exec_id
 ORDER BY created_at DESC;
 
+-- name: ListTaskExecutions :many
+SELECT *
+FROM executions
+WHERE component_type = 'task'
+ORDER BY created_at DESC;
+
 -- name: ListTaskExecutionsByStatus :many
 SELECT *
 FROM executions
@@ -27,3 +33,22 @@ SELECT *
 FROM executions
 WHERE component_type = 'task' AND task_id = :task_id
 ORDER BY created_at DESC;
+
+-- name: ListTaskExecutionsByWorkflowAndTaskID :many
+SELECT *
+FROM executions
+WHERE component_type = 'task' AND workflow_id = :workflow_id AND task_id = :task_id
+ORDER BY created_at DESC;
+
+-- name: ListTaskChildrenExecutionsByTaskExecID :many
+SELECT *
+FROM executions
+WHERE component_type != 'task' AND task_exec_id = :task_exec_id
+ORDER BY created_at DESC;
+
+-- name: ListTaskChildrenExecutionsByTaskID :many
+SELECT *
+FROM executions
+WHERE component_type != 'task' AND task_id = :task_id
+ORDER BY created_at DESC;
+

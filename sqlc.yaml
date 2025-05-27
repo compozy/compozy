@@ -14,3 +14,36 @@ sql:
         emit_interface: true
         emit_exact_table_names: false
         emit_empty_slices: true
+        overrides:
+          - column: "executions.data"
+            go_type:
+              import: "github.com/compozy/compozy/engine/core"
+              type: "JSONB"
+          - column: "executions.status"
+            go_type:
+              import: "github.com/compozy/compozy/engine/core"
+              type: "StatusType"
+          - column: "executions.component_type"
+            go_type:
+              import: "github.com/compozy/compozy/engine/core"
+              type: "ComponentType"
+          - column: "executions.data"
+            go_type:
+              import: "github.com/compozy/compozy/engine/core"
+              type: "JSONB"
+          - column: "executions.workflow_exec_id"
+            go_type:
+              import: "github.com/compozy/compozy/engine/core"
+              type: "ID"
+          - column: "executions.task_exec_id"
+            go_type:
+              import: "github.com/compozy/compozy/engine/core"
+              type: "ID"
+          - column: "executions.tool_exec_id"
+            go_type:
+              import: "github.com/compozy/compozy/engine/core"
+              type: "ID"
+          - column: "executions.agent_exec_id"
+            go_type:
+              import: "github.com/compozy/compozy/engine/core"
+              type: "ID"

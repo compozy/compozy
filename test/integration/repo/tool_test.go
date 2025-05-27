@@ -274,7 +274,7 @@ func TestToolRepository_LoadExecution(t *testing.T) {
 		toolExecID, createdExecution := createTestToolExecution(t, tb, workflowExecID, taskExecID, "code-formatter", toolConfig)
 
 		// Load the execution
-		loadedExecution, err := tb.ToolRepo.LoadExecution(tb.Ctx, toolExecID)
+		loadedExecution, err := tb.ToolRepo.GetExecution(tb.Ctx, toolExecID)
 		require.NoError(t, err)
 		require.NotNil(t, loadedExecution)
 
@@ -289,7 +289,7 @@ func TestToolRepository_LoadExecution(t *testing.T) {
 	t.Run("Should return error for non-existent execution", func(t *testing.T) {
 		nonExistentToolExecID := core.MustNewID()
 
-		execution, err := tb.ToolRepo.LoadExecution(tb.Ctx, nonExistentToolExecID)
+		execution, err := tb.ToolRepo.GetExecution(tb.Ctx, nonExistentToolExecID)
 		assert.Error(t, err)
 		assert.Nil(t, execution)
 	})

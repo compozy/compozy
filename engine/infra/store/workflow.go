@@ -3,9 +3,14 @@ package store
 import (
 	"context"
 	"fmt"
+	"slices"
 
+	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	db "github.com/compozy/compozy/engine/infra/store/sqlc"
 	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/pb"
 )
@@ -67,103 +72,158 @@ func (r *WorkflowRepository) CreateExecution(
 	return execution, nil
 }
 
-func (r *WorkflowRepository) LoadExecution(
+func (r *WorkflowRepository) GetExecution(
 	ctx context.Context,
 	workflowExecID core.ID,
 ) (*workflow.Execution, error) {
-	data, err := r.store.GetWorkflowExecutionByExecID(ctx, workflowExecID.String())
+	data, err := r.store.queries.GetWorkflowExecutionByExecID(ctx, workflowExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workflow execution: %w", err)
 	}
-	if data == nil {
-		return nil, fmt.Errorf("workflow execution not found")
-	}
-	return unmarshalExecution[*workflow.Execution](*data)
-}
-
-func (r *WorkflowRepository) LoadExecutionMap(
-	ctx context.Context,
-	workflowExecID core.ID,
-) (map[core.ID]any, error) {
-	execution, err := r.LoadExecution(ctx, workflowExecID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get workflow execution: %w", err)
-	}
-	return r.mapFromExecution(ctx, execution)
+	return core.UnmarshalExecution[*workflow.Execution](data.Data)
 }
 
 func (r *WorkflowRepository) ListExecutions(ctx context.Context) ([]workflow.Execution, error) {
-	data, err := r.store.ListWorkflowExecutions(ctx)
+	data, err := r.store.queries.ListWorkflowExecutions(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list workflow executions: %w", err)
 	}
-	return unmarshalExecutions[workflow.Execution](data)
+	return UnmarshalExecutions[workflow.Execution](data)
 }
 
-// TODO: support pagination
-func (r *WorkflowRepository) ListExecutionsMap(ctx context.Context) ([]map[core.ID]any, error) {
-	executions, err := r.ListExecutions(ctx)
+func (r *WorkflowRepository) ListExecutionsByWorkflowID(ctx context.Context, workflowID string) ([]workflow.Execution, error) {
+	execs, err := r.store.queries.ListWorkflowExecutionsByWorkflowID(ctx, workflowID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list workflow executions: %w", err)
+		return nil, fmt.Errorf("failed to list workflow executions by workflow ID: %w", err)
 	}
-	executionMaps := make([]map[core.ID]any, len(executions))
-	for i, execution := range executions {
-		executionMap, err := r.mapFromExecution(ctx, &execution)
-		if err != nil {
-			return nil, fmt.Errorf("failed to map workflow execution: %w", err)
-		}
-		executionMaps[i] = executionMap
-	}
-	return executionMaps, nil
+	return UnmarshalExecutions[workflow.Execution](execs)
 }
 
-// TODO: support pagination
-func (r *WorkflowRepository) ListExecutionsMapByWorkflowID(
-	ctx context.Context,
-	workflowID core.ID,
-) ([]map[core.ID]any, error) {
-	data, err := r.store.ListWorkflowExecutionsByWorkflowID(ctx, workflowID.String())
+func (r *WorkflowRepository) ListExecutionsByStatus(ctx context.Context, status core.StatusType) ([]workflow.Execution, error) {
+	execs, err := r.store.queries.ListWorkflowExecutionsByStatus(ctx, status)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list workflow executions: %w", err)
+		return nil, fmt.Errorf("failed to list workflow executions by status: %w", err)
 	}
-	executions, err := unmarshalExecutions[workflow.Execution](data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal workflow executions: %w", err)
-	}
-	executionMaps := make([]map[core.ID]any, len(executions))
-	for i, execution := range executions {
-		executionMap, err := r.mapFromExecution(ctx, &execution)
-		if err != nil {
-			return nil, fmt.Errorf("failed to map workflow execution: %w", err)
-		}
-		executionMaps[i] = executionMap
-	}
-	return executionMaps, nil
+	return UnmarshalExecutions[workflow.Execution](execs)
 }
 
-func (r *WorkflowRepository) mapFromExecution(
+func (r *WorkflowRepository) ListChildrenExecutions(ctx context.Context, workflowExecID core.ID) ([]core.Execution, error) {
+	execs, err := r.store.queries.ListWorkflowChildrenExecutionsByWorkflowExecID(ctx, workflowExecID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list workflow children executions: %w", err)
+	}
+	tasks, agents, tools, err := r.BuildExecutions(ctx, execs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build executions map: %w", err)
+	}
+	return slices.Concat(tasks, agents, tools), nil
+}
+
+func (r *WorkflowRepository) ListChildrenExecutionsByWorkflowID(ctx context.Context, workflowID string) ([]core.Execution, error) {
+	execs, err := r.store.queries.ListWorkflowChildrenExecutionsByWorkflowID(ctx, workflowID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list workflow children executions: %w", err)
+	}
+	tasks, agents, tools, err := r.BuildExecutions(ctx, execs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build executions map: %w", err)
+	}
+	return slices.Concat(tasks, agents, tools), nil
+}
+
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
+
+func (r *WorkflowRepository) ExecutionToMap(
 	ctx context.Context,
 	execution *workflow.Execution,
-) (map[core.ID]any, error) {
+) (*core.MainExecutionMap, error) {
 	workflowExecID := execution.GetID()
+	execs, err := r.store.queries.ListWorkflowChildrenExecutionsByWorkflowExecID(ctx, workflowExecID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list workflow children executions: %w", err)
+	}
+	childrenExecs, err := r.BuildExecutionsMap(ctx, execs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list children executions: %w", err)
+	}
+	execMap := execution.AsMainExecMap()
+	execMap.WithTasks(childrenExecs.Tasks)
+	execMap.WithAgents(childrenExecs.Agents)
+	execMap.WithTools(childrenExecs.Tools)
+	return execMap, nil
+}
+
+func (r *WorkflowRepository) ExecutionsToMap(
+	ctx context.Context,
+	executions []workflow.Execution,
+) ([]*core.MainExecutionMap, error) {
+	executionMaps := make([]*core.MainExecutionMap, len(executions))
+	for i, execution := range executions {
+		execMap, err := r.ExecutionToMap(ctx, &execution)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert workflow execution to map: %w", err)
+		}
+		executionMaps[i] = execMap
+	}
+	return executionMaps, nil
+}
+
+func (r *WorkflowRepository) BuildExecutionsMap(ctx context.Context, execs []db.Execution) (*core.ChildrenExecutionMap, error) {
 	taskRepo := r.store.NewTaskRepository(r)
 	agentRepo := r.store.NewAgentRepository(r, taskRepo)
 	toolRepo := r.store.NewToolRepository(r, taskRepo)
-	tasksMap, err := taskRepo.LoadExecutionsMapByWorkflowExecID(ctx, workflowExecID)
+	tasks, agents, tools, err := r.BuildExecutions(ctx, execs)
+	tasksMap, err := taskRepo.ExecutionsToMap(ctx, tasks)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get task executions: %w", err)
+		return nil, fmt.Errorf("failed to convert tasks to map: %w", err)
 	}
-	agentsMap, err := agentRepo.LoadExecutionsMapByWorkflowExecID(ctx, workflowExecID)
+	agentsMap, err := agentRepo.ExecutionsToMap(ctx, agents)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get agent executions: %w", err)
+		return nil, fmt.Errorf("failed to convert agents to map: %w", err)
 	}
-	toolsMap, err := toolRepo.LoadExecutionsMapByWorkflowExecID(ctx, workflowExecID)
+	toolsMap, err := toolRepo.ExecutionsToMap(ctx, tools)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get tool executions: %w", err)
+		return nil, fmt.Errorf("failed to convert tools to map: %w", err)
 	}
-	execMap := execution.AsMap()
-	execMap["tasks"] = tasksMap
-	execMap["agents"] = agentsMap
-	execMap["tools"] = toolsMap
-	return execMap, nil
+	return &core.ChildrenExecutionMap{
+		Tasks:  tasksMap,
+		Agents: agentsMap,
+		Tools:  toolsMap,
+	}, nil
+}
+
+func (r *WorkflowRepository) BuildExecutions(ctx context.Context, execs []db.Execution) (
+	[]core.Execution,
+	[]core.Execution,
+	[]core.Execution,
+	error,
+) {
+	tasks := make([]core.Execution, 0)
+	agents := make([]core.Execution, 0)
+	tools := make([]core.Execution, 0)
+	for _, exec := range execs {
+		switch exec.ComponentType {
+		case core.ComponentTask:
+			item, err := core.UnmarshalExecution[*task.Execution](exec.Data)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("failed to unmarshal task execution: %w", err)
+			}
+			tasks = append(tasks, item)
+		case core.ComponentAgent:
+			item, err := core.UnmarshalExecution[*agent.Execution](exec.Data)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("failed to unmarshal agent execution: %w", err)
+			}
+			agents = append(agents, item)
+		case core.ComponentTool:
+			item, err := core.UnmarshalExecution[*tool.Execution](exec.Data)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("failed to unmarshal tool execution: %w", err)
+			}
+			tools = append(tools, item)
+		}
+	}
+	return tasks, agents, tools, nil
 }

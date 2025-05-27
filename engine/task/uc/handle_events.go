@@ -37,7 +37,7 @@ func (h *HandleEvents) Execute(ctx context.Context, msg jetstream.Msg) error {
 		return fmt.Errorf("failed to parse event data: %w", err)
 	}
 	taskExecID := parsed.ComponentExecID
-	execution, err := h.repo.LoadExecution(ctx, taskExecID)
+	execution, err := h.repo.GetExecution(ctx, taskExecID)
 	if err != nil {
 		return err
 	}

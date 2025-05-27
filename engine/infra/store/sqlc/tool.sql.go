@@ -8,6 +8,8 @@ package db
 import (
 	"context"
 	"database/sql"
+
+	"github.com/compozy/compozy/engine/core"
 )
 
 const getToolExecutionByExecID = `-- name: GetToolExecutionByExecID :one
@@ -17,7 +19,7 @@ WHERE component_type = 'tool' AND tool_exec_id = ?1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetToolExecutionByExecID(ctx context.Context, toolExecID sql.NullString) (Execution, error) {
+func (q *Queries) GetToolExecutionByExecID(ctx context.Context, toolExecID core.ID) (Execution, error) {
 	row := q.db.QueryRowContext(ctx, getToolExecutionByExecID, toolExecID)
 	var i Execution
 	err := row.Scan(
@@ -40,6 +42,52 @@ func (q *Queries) GetToolExecutionByExecID(ctx context.Context, toolExecID sql.N
 	return i, err
 }
 
+const listToolExecutions = `-- name: ListToolExecutions :many
+SELECT id, "key", component_type, workflow_id, workflow_exec_id, task_id, task_exec_id, agent_id, agent_exec_id, tool_id, tool_exec_id, status, data, created_at, updated_at
+FROM executions
+WHERE component_type = 'tool'
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListToolExecutions(ctx context.Context) ([]Execution, error) {
+	rows, err := q.db.QueryContext(ctx, listToolExecutions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Execution{}
+	for rows.Next() {
+		var i Execution
+		if err := rows.Scan(
+			&i.ID,
+			&i.Key,
+			&i.ComponentType,
+			&i.WorkflowID,
+			&i.WorkflowExecID,
+			&i.TaskID,
+			&i.TaskExecID,
+			&i.AgentID,
+			&i.AgentExecID,
+			&i.ToolID,
+			&i.ToolExecID,
+			&i.Status,
+			&i.Data,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listToolExecutionsByStatus = `-- name: ListToolExecutionsByStatus :many
 SELECT id, "key", component_type, workflow_id, workflow_exec_id, task_id, task_exec_id, agent_id, agent_exec_id, tool_id, tool_exec_id, status, data, created_at, updated_at
 FROM executions
@@ -47,7 +95,7 @@ WHERE component_type = 'tool' AND status = ?1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListToolExecutionsByStatus(ctx context.Context, status string) ([]Execution, error) {
+func (q *Queries) ListToolExecutionsByStatus(ctx context.Context, status core.StatusType) ([]Execution, error) {
 	rows, err := q.db.QueryContext(ctx, listToolExecutionsByStatus, status)
 	if err != nil {
 		return nil, err
@@ -93,7 +141,7 @@ WHERE component_type = 'tool' AND task_exec_id = ?1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListToolExecutionsByTaskExecID(ctx context.Context, taskExecID sql.NullString) ([]Execution, error) {
+func (q *Queries) ListToolExecutionsByTaskExecID(ctx context.Context, taskExecID core.ID) ([]Execution, error) {
 	rows, err := q.db.QueryContext(ctx, listToolExecutionsByTaskExecID, taskExecID)
 	if err != nil {
 		return nil, err
@@ -231,7 +279,7 @@ WHERE component_type = 'tool' AND workflow_exec_id = ?1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListToolExecutionsByWorkflowExecID(ctx context.Context, workflowExecID string) ([]Execution, error) {
+func (q *Queries) ListToolExecutionsByWorkflowExecID(ctx context.Context, workflowExecID core.ID) ([]Execution, error) {
 	rows, err := q.db.QueryContext(ctx, listToolExecutionsByWorkflowExecID, workflowExecID)
 	if err != nil {
 		return nil, err

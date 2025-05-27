@@ -115,17 +115,22 @@ func (e *Execution) GetComponentID() string {
 	return e.WorkflowID
 }
 
-func (e *Execution) AsMap() map[core.ID]any {
-	return map[core.ID]any{
-		"status":           e.GetStatus(),
-		"component":        e.GetComponent(),
-		"workflow_id":      e.GetWorkflowID(),
-		"workflow_exec_id": e.GetWorkflowExecID(),
-		"input":            e.GetInput(),
-		"output":           e.GetOutput(),
-		"error":            e.GetError(),
-		"start_time":       e.StartTime,
-		"end_time":         e.EndTime,
-		"duration":         e.Duration,
+func (e *Execution) AsMainExecMap() *core.MainExecutionMap {
+	execMap := core.MainExecutionMap{
+		Status:         e.Status,
+		Component:      e.Component,
+		WorkflowID:     e.WorkflowID,
+		WorkflowExecID: e.WorkflowExecID,
+		Input:          e.GetInput(),
+		Output:         e.GetOutput(),
+		Error:          e.GetError(),
+		StartTime:      e.GetStartTime(),
+		EndTime:        e.GetEndTime(),
+		Duration:       e.GetDuration(),
 	}
+	return &execMap
+}
+
+func (e *Execution) AsExecMap() *core.ExecutionMap {
+	return nil
 }

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
@@ -32,12 +33,12 @@ func (r *ToolRepository) CreateExecution(
 	config *tool.Config,
 ) (*tool.Execution, error) {
 	workflowExecID := core.ID(metadata.WorkflowExecId)
-	workflowExecution, err := r.workflowRepo.LoadExecution(ctx, workflowExecID)
+	workflowExecution, err := r.workflowRepo.GetExecution(ctx, workflowExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load workflow execution: %w", err)
 	}
 	taskExecID := core.ID(metadata.TaskExecId)
-	taskExecution, err := r.taskRepo.LoadExecution(ctx, taskExecID)
+	taskExecution, err := r.taskRepo.GetExecution(ctx, taskExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load task execution: %w", err)
 	}
@@ -68,41 +69,83 @@ func (r *ToolRepository) CreateExecution(
 	return execution, nil
 }
 
-func (r *ToolRepository) LoadExecution(
+func (r *ToolRepository) GetExecution(
 	ctx context.Context,
 	toolExecID core.ID,
 ) (*tool.Execution, error) {
-	data, err := r.store.GetToolExecutionByExecID(ctx, toolExecID.String())
+	data, err := r.store.queries.GetToolExecutionByExecID(ctx, toolExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tool execution: %w", err)
 	}
-	if data == nil {
-		return nil, fmt.Errorf("tool execution not found")
-	}
-
-	execution, err := unmarshalExecution[*tool.Execution](*data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal tool execution: %w", err)
-	}
-
-	return execution, nil
+	return core.UnmarshalExecution[*tool.Execution](data.Data)
 }
 
-func (r *ToolRepository) LoadExecutionsMapByWorkflowExecID(
-	ctx context.Context,
-	wExecID core.ID,
-) (map[core.ID]any, error) {
-	data, err := r.store.ListToolExecutionsByWorkflowExecID(ctx, string(wExecID))
+func (r *ToolRepository) ListExecutions(ctx context.Context) ([]tool.Execution, error) {
+	execs, err := r.store.queries.ListToolExecutions(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get tool executions: %w", err)
+		return nil, fmt.Errorf("failed to list tool executions by status: %w", err)
 	}
-	executions, err := unmarshalExecutions[*tool.Execution](data)
+	return UnmarshalExecutions[tool.Execution](execs)
+}
+
+func (r *ToolRepository) ListExecutionsByStatus(ctx context.Context, status core.StatusType) ([]tool.Execution, error) {
+	execs, err := r.store.queries.ListToolExecutionsByStatus(ctx, status)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal tool executions: %w", err)
+		return nil, fmt.Errorf("failed to list tool executions by status: %w", err)
 	}
-	jsonMap := make(map[core.ID]any)
-	for _, execution := range executions {
-		jsonMap[execution.GetID()] = execution.AsMap()
+	return UnmarshalExecutions[tool.Execution](execs)
+}
+
+func (r *ToolRepository) ListExecutionsByWorkflowID(ctx context.Context, workflowID string) ([]tool.Execution, error) {
+	execs, err := r.store.queries.ListToolExecutionsByWorkflowID(ctx, workflowID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tool executions by workflow ID: %w", err)
 	}
-	return jsonMap, nil
+	return UnmarshalExecutions[tool.Execution](execs)
+}
+
+func (r *ToolRepository) ListExecutionsByWorkflowExecID(ctx context.Context, workflowExecID core.ID) ([]tool.Execution, error) {
+	execs, err := r.store.queries.ListToolExecutionsByWorkflowExecID(ctx, workflowExecID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tool executions by workflow exec ID: %w", err)
+	}
+	return UnmarshalExecutions[tool.Execution](execs)
+}
+
+func (r *ToolRepository) ListExecutionsByTaskID(ctx context.Context, taskID string) ([]tool.Execution, error) {
+	execID := sql.NullString{String: taskID, Valid: true}
+	execs, err := r.store.queries.ListToolExecutionsByTaskID(ctx, execID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tool executions by task ID: %w", err)
+	}
+	return UnmarshalExecutions[tool.Execution](execs)
+}
+
+func (r *ToolRepository) ListExecutionsByTaskExecID(ctx context.Context, taskExecID core.ID) ([]tool.Execution, error) {
+	execs, err := r.store.queries.ListToolExecutionsByTaskExecID(ctx, taskExecID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tool executions by task exec ID: %w", err)
+	}
+	return UnmarshalExecutions[tool.Execution](execs)
+}
+
+func (r *ToolRepository) ListExecutionsByToolID(ctx context.Context, toolID string) ([]tool.Execution, error) {
+	execID := sql.NullString{String: toolID, Valid: true}
+	execs, err := r.store.queries.ListToolExecutionsByToolID(ctx, execID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tool executions by tool ID: %w", err)
+	}
+	return UnmarshalExecutions[tool.Execution](execs)
+}
+
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
+
+func (r *ToolRepository) ExecutionsToMap(ctx context.Context, execs []core.Execution) ([]*core.ExecutionMap, error) {
+	execMaps := make([]*core.ExecutionMap, len(execs))
+	for i, exec := range execs {
+		execMaps[i] = exec.AsExecMap()
+	}
+	return execMaps, nil
 }

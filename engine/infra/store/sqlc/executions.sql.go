@@ -8,6 +8,8 @@ package db
 import (
 	"context"
 	"database/sql"
+
+	"github.com/compozy/compozy/engine/core"
 )
 
 const deleteExecution = `-- name: DeleteExecution :exec
@@ -84,18 +86,18 @@ INSERT INTO executions (
 `
 
 type UpsertExecutionParams struct {
-	ComponentType  string         `db:"component_type" json:"component_type"`
-	WorkflowID     string         `db:"workflow_id" json:"workflow_id"`
-	WorkflowExecID string         `db:"workflow_exec_id" json:"workflow_exec_id"`
-	TaskID         sql.NullString `db:"task_id" json:"task_id"`
-	TaskExecID     sql.NullString `db:"task_exec_id" json:"task_exec_id"`
-	AgentID        sql.NullString `db:"agent_id" json:"agent_id"`
-	AgentExecID    sql.NullString `db:"agent_exec_id" json:"agent_exec_id"`
-	ToolID         sql.NullString `db:"tool_id" json:"tool_id"`
-	ToolExecID     sql.NullString `db:"tool_exec_id" json:"tool_exec_id"`
-	Key            string         `db:"key" json:"key"`
-	Status         string         `db:"status" json:"status"`
-	Data           interface{}    `db:"data" json:"data"`
+	ComponentType  core.ComponentType `db:"component_type" json:"component_type"`
+	WorkflowID     string             `db:"workflow_id" json:"workflow_id"`
+	WorkflowExecID core.ID            `db:"workflow_exec_id" json:"workflow_exec_id"`
+	TaskID         sql.NullString     `db:"task_id" json:"task_id"`
+	TaskExecID     core.ID            `db:"task_exec_id" json:"task_exec_id"`
+	AgentID        sql.NullString     `db:"agent_id" json:"agent_id"`
+	AgentExecID    core.ID            `db:"agent_exec_id" json:"agent_exec_id"`
+	ToolID         sql.NullString     `db:"tool_id" json:"tool_id"`
+	ToolExecID     core.ID            `db:"tool_exec_id" json:"tool_exec_id"`
+	Key            string             `db:"key" json:"key"`
+	Status         core.StatusType    `db:"status" json:"status"`
+	Data           core.JSONB         `db:"data" json:"data"`
 }
 
 func (q *Queries) UpsertExecution(ctx context.Context, arg UpsertExecutionParams) error {
