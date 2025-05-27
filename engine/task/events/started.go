@@ -14,7 +14,7 @@ type EventStarted struct {
 }
 
 func NewEventStarted(nc *nats.Client, metadata *pb.TaskMetadata) *EventStarted {
-	source := core.SourceTaskExecutor
+	source := core.SourceTaskExecute
 	clonedMetadata := metadata.MustClone(source)
 	event := &pb.EventTaskStarted{
 		Metadata: clonedMetadata,

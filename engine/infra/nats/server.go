@@ -3,8 +3,10 @@ package nats
 import (
 	"fmt"
 	"net"
+	"path/filepath"
 	"time"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 )
@@ -15,16 +17,19 @@ type ServerOptions struct {
 	ServerName      string
 	EnableJetStream bool
 	JetStreamDomain string
-	Port            int // Port to listen on, 0 means random port
+	Port            int
+	StoreDir        string
 }
 
 func DefaultServerOptions() ServerOptions {
+	storeDir := filepath.Join(core.GetStoreDir(), "nats")
 	return ServerOptions{
 		EnableLogging:   false,
 		ServerName:      "compozy_embedded_server",
 		EnableJetStream: false,
-		JetStreamDomain: "compozy",
-		Port:            0, // Use random port by default
+		JetStreamDomain: fmt.Sprintf("compozy_%s", core.GetVersion()),
+		Port:            0,
+		StoreDir:        storeDir,
 	}
 }
 
@@ -39,7 +44,6 @@ func NewNatsServer(options ServerOptions) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to start embedded NATS server: %w", err)
 	}
-
 	return &Server{
 		NatsServer: ns,
 		Conn:       nc,
@@ -55,8 +59,12 @@ func runEmbeddedServer(options ServerOptions) (*nats.Conn, *server.Server, error
 		Port:       options.Port,
 	}
 
-	if options.EnableJetStream && options.JetStreamDomain != "" {
-		serverOpts.JetStreamDomain = options.JetStreamDomain
+	if options.EnableJetStream {
+		if options.JetStreamDomain != "" {
+			serverOpts.JetStreamDomain = options.JetStreamDomain
+		}
+		// Configure JetStream store directory
+		serverOpts.StoreDir = options.StoreDir
 	}
 
 	ns, err := server.NewServer(serverOpts)

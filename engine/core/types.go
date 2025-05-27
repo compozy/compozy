@@ -1,5 +1,25 @@
 package core
 
+import (
+	"os"
+	"path/filepath"
+)
+
+func GetVersion() string {
+	if version := os.Getenv("COMPOZY_VERSION"); version != "" {
+		return version
+	}
+	return "v0"
+}
+
+func GetStoreDir() string {
+	cwd, err := CWDFromPath("")
+	if err != nil {
+		panic(err)
+	}
+	return filepath.Join(cwd.PathStr(), ".compozy")
+}
+
 // -----------------------------------------------------------------------------
 // Component Type
 // -----------------------------------------------------------------------------
@@ -74,11 +94,6 @@ func (e EvtType) String() string {
 // -----------------------------------------------------------------------------
 // Subject
 // -----------------------------------------------------------------------------
-
-const (
-	SubjectPrefix   = "compozy"
-	MinSubjectParts = 6
-)
 
 type SubjectSegmentType string
 
@@ -193,11 +208,9 @@ func ToStatus(status string) StatusType {
 type SourceType string
 
 const (
-	SourceOrchestrator     SourceType = "orchestrator.Orchestrator"
-	SourceWorkflowExecutor SourceType = "workflow.Executor"
-	SourceTaskExecutor     SourceType = "task.Executor"
-	SourceAgentExecutor    SourceType = "agent.Executor"
-	SourceToolExecutor     SourceType = "tool.Executor"
+	SourceOrchestrator    SourceType = "orchestrator.Orchestrator"
+	SourceWorkflowExecute SourceType = "workflow.HandleExecute"
+	SourceTaskExecute     SourceType = "task.HandleExecute"
 )
 
 func (s SourceType) String() string {

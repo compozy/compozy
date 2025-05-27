@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/compozy/compozy/engine/server/appstate"
+	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )

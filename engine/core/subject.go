@@ -8,6 +8,11 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+const (
+	SubjectPrefix   = "compozy"
+	MinSubjectParts = 7
+)
+
 type Subjecter interface {
 	protoreflect.ProtoMessage
 	ToSubject() string
@@ -15,10 +20,11 @@ type Subjecter interface {
 }
 
 type SubjectData struct {
-	Component       ComponentType
+	Version         string
 	WorkflowExecID  ID
-	ComponentExecID ID
+	Component       ComponentType
 	Segment         SubjectSegmentType
+	ComponentExecID ID
 	SegmentAction   string
 }
 
@@ -44,23 +50,28 @@ var logLevelMap = map[string]logger.LogLevel{
 	"error": logger.ErrorLevel,
 }
 
+// Subject format: <version>.<prefix>.<workflow_exec_id>.<component>.<segment>.<component_exec_id>.<action>
 func parseSubject(subject string, segment SubjectSegmentType) (*SubjectData, error) {
 	parts := strings.Split(subject, ".")
 	if len(parts) < MinSubjectParts {
 		return nil, fmt.Errorf("invalid subject format: %s, expected at least %d parts", subject, MinSubjectParts)
 	}
-	if parts[0] != SubjectPrefix {
-		return nil, fmt.Errorf("invalid subject prefix: %s, expected %q", parts[0], SubjectPrefix)
+	if parts[0] != GetVersion() {
+		return nil, fmt.Errorf("invalid subject version: %s, expected %q", parts[0], GetVersion())
 	}
-	if parts[3] != string(segment) {
-		return nil, fmt.Errorf("invalid segment type: %s, expected %q", parts[3], segment)
+	if parts[1] != SubjectPrefix {
+		return nil, fmt.Errorf("invalid subject prefix: %s, expected %q", parts[1], SubjectPrefix)
+	}
+	if parts[4] != string(segment) {
+		return nil, fmt.Errorf("invalid segment type: %s, expected %q", parts[4], segment)
 	}
 	return &SubjectData{
-		Component:       ComponentType(parts[2]),
-		WorkflowExecID:  ID(parts[1]),
-		ComponentExecID: ID(parts[4]),
+		Version:         parts[1],
+		WorkflowExecID:  ID(parts[2]),
+		Component:       ComponentType(parts[3]),
+		ComponentExecID: ID(parts[5]),
 		Segment:         segment,
-		SegmentAction:   parts[5],
+		SegmentAction:   parts[6],
 	}, nil
 }
 
@@ -102,18 +113,18 @@ func ParseLogSubject(subject string) (*LogSubject, error) {
 }
 
 func BuildEvtSubject(comp ComponentType, workflowExecID string, execID string, evt EvtType) string {
-	return buildSubject(comp, workflowExecID, execID, SegmentEvent, evt.String())
+	return BuildSubject(comp, workflowExecID, execID, SegmentEvent, evt.String())
 }
 
 func BuildCmdSubject(comp ComponentType, workflowExecID string, execID string, cmd CmdType) string {
-	return buildSubject(comp, workflowExecID, execID, SegmentCmd, cmd.String())
+	return BuildSubject(comp, workflowExecID, execID, SegmentCmd, cmd.String())
 }
 
 func BuildLogSubject(comp ComponentType, workflowExecID string, execID string, lvl logger.LogLevel) string {
-	return buildSubject(comp, workflowExecID, execID, SegmentLog, lvl.String())
+	return BuildSubject(comp, workflowExecID, execID, SegmentLog, lvl.String())
 }
 
-func buildSubject(
+func BuildSubject(
 	comp ComponentType,
 	workflowExecID string,
 	execID string,
@@ -121,6 +132,7 @@ func buildSubject(
 	val string,
 ) string {
 	return strings.Join([]string{
+		GetVersion(),
 		SubjectPrefix,
 		workflowExecID,
 		string(comp),
@@ -128,4 +140,20 @@ func buildSubject(
 		execID,
 		val,
 	}, ".")
+}
+
+// -----------------------------------------------------------------------------
+// Stream Subject Patterns
+// -----------------------------------------------------------------------------
+
+func StreamCmdWildcard() string {
+	return BuildSubject("*", "*", "*", SegmentCmd, "*")
+}
+
+func StreamEventWildcard() string {
+	return BuildSubject("*", "*", "*", SegmentEvent, "*")
+}
+
+func StreamLogWidcard() string {
+	return BuildSubject("*", "*", "*", SegmentLog, "*")
 }

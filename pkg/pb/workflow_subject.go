@@ -9,7 +9,7 @@ import (
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a CmdWorkflowTrigger.
-// Pattern: compozy.<workflow_exec_id>.workflow.cmd.<workflow_exec_id>.trigger
+// Pattern: <version>.compozy.<workflow_exec_id>.workflow.cmd.<workflow_exec_id>.trigger
 func (x *CmdWorkflowTrigger) ToSubject() string {
 	wExecID := GetWorkflowExecID(x)
 	return core.BuildCmdSubject(core.ComponentWorkflow, wExecID, wExecID, core.CmdTrigger)
@@ -24,7 +24,7 @@ func (x *CmdWorkflowTrigger) ToSubjectParams(workflowExecID string, execID strin
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a CmdWorkflowExecute.
-// Pattern: compozy.<workflow_exec_id>.workflow.cmd.<workflow_exec_id>.execute
+// Pattern: <version>.compozy.<workflow_exec_id>.workflow.cmd.<workflow_exec_id>.execute
 func (x *CmdWorkflowExecute) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	return core.BuildCmdSubject(core.ComponentWorkflow, wExecID, wExecID, core.CmdExecute)
@@ -39,7 +39,7 @@ func (x *CmdWorkflowExecute) ToSubjectParams(workflowExecID string, execID strin
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a CmdWorkflowPause.
-// Pattern: compozy.<workflow_exec_id>.workflow.cmd.<workflow_exec_id>.pause
+// Pattern: <version>.compozy.<workflow_exec_id>.workflow.cmd.<workflow_exec_id>.pause
 func (x *CmdWorkflowPause) ToSubject() string {
 	wExecID := GetWorkflowExecID(x)
 	return core.BuildCmdSubject(core.ComponentWorkflow, wExecID, wExecID, core.CmdPause)
@@ -54,7 +54,7 @@ func (x *CmdWorkflowPause) ToSubjectParams(workflowExecID string, execID string)
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a CmdWorkflowResume.
-// Pattern: compozy.<workflow_exec_id>.workflow.cmd.<workflow_exec_id>.resume
+// Pattern: <version>.compozy.<workflow_exec_id>.workflow.cmd.<workflow_exec_id>.resume
 func (x *CmdWorkflowResume) ToSubject() string {
 	wExecID := GetWorkflowExecID(x)
 	return core.BuildCmdSubject(core.ComponentWorkflow, wExecID, wExecID, core.CmdResume)
@@ -69,7 +69,7 @@ func (x *CmdWorkflowResume) ToSubjectParams(workflowExecID string, execID string
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a CmdWorkflowCancel.
-// Pattern: compozy.<workflow_exec_id>.workflow.cmd.<workflow_exec_id>.cancel
+// Pattern: <version>.compozy.<workflow_exec_id>.workflow.cmd.<workflow_exec_id>.cancel
 func (x *CmdWorkflowCancel) ToSubject() string {
 	wExecID := GetWorkflowExecID(x)
 	return core.BuildCmdSubject(core.ComponentWorkflow, wExecID, wExecID, core.CmdCancel)
@@ -84,7 +84,7 @@ func (x *CmdWorkflowCancel) ToSubjectParams(workflowExecID string, execID string
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a EventWorkflowStarted.
-// Pattern: compozy.<workflow_exec_id>.workflow.evt.<workflow_exec_id>.started
+// Pattern: <version>.compozy.<workflow_exec_id>.workflow.evt.<workflow_exec_id>.started
 func (x *EventWorkflowStarted) ToSubject() string {
 	wExecID := GetWorkflowExecID(x)
 	return core.BuildEvtSubject(core.ComponentWorkflow, wExecID, wExecID, core.EvtStarted)
@@ -99,7 +99,7 @@ func (x *EventWorkflowStarted) ToSubjectParams(workflowExecID string, execID str
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a EventWorkflowPaused.
-// Pattern: compozy.<workflow_exec_id>.workflow.evt.<workflow_exec_id>.paused
+// Pattern: <version>.compozy.<workflow_exec_id>.workflow.evt.<workflow_exec_id>.paused
 func (x *EventWorkflowPaused) ToSubject() string {
 	wExecID := GetWorkflowExecID(x)
 	return core.BuildEvtSubject(core.ComponentWorkflow, wExecID, wExecID, core.EvtPaused)
@@ -114,7 +114,7 @@ func (x *EventWorkflowPaused) ToSubjectParams(workflowExecID string, execID stri
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a EventWorkflowResumed.
-// Pattern: compozy.<workflow_exec_id>.workflow.evt.<workflow_exec_id>.resumed
+// Pattern: <version>.compozy.<workflow_exec_id>.workflow.evt.<workflow_exec_id>.resumed
 func (x *EventWorkflowResumed) ToSubject() string {
 	wExecID := GetWorkflowExecID(x)
 	return core.BuildEvtSubject(core.ComponentWorkflow, wExecID, wExecID, core.EvtResumed)
@@ -129,7 +129,7 @@ func (x *EventWorkflowResumed) ToSubjectParams(workflowExecID string, execID str
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a EventWorkflowSuccess.
-// Pattern: compozy.<workflow_exec_id>.workflow.evt.<workflow_exec_id>.success
+// Pattern: <version>.compozy.<workflow_exec_id>.workflow.evt.<workflow_exec_id>.success
 func (x *EventWorkflowSuccess) ToSubject() string {
 	wExecID := GetWorkflowExecID(x)
 	return core.BuildEvtSubject(core.ComponentWorkflow, wExecID, wExecID, core.EvtSuccess)
@@ -144,7 +144,7 @@ func (x *EventWorkflowSuccess) ToSubjectParams(workflowExecID string, execID str
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a EventWorkflowFailed.
-// Pattern: compozy.<workflow_exec_id>.workflow.evt.<workflow_exec_id>.failed
+// Pattern: <version>.compozy.<workflow_exec_id>.workflow.evt.<workflow_exec_id>.failed
 func (x *EventWorkflowFailed) ToSubject() string {
 	wExecID := GetWorkflowExecID(x)
 	return core.BuildEvtSubject(core.ComponentWorkflow, wExecID, wExecID, core.EvtFailed)
@@ -159,7 +159,7 @@ func (x *EventWorkflowFailed) ToSubjectParams(workflowExecID string, execID stri
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a EventWorkflowCanceled.
-// Pattern: compozy.<workflow_exec_id>.workflow.evt.<workflow_exec_id>.canceled
+// Pattern: <version>.compozy.<workflow_exec_id>.workflow.evt.<workflow_exec_id>.canceled
 func (x *EventWorkflowCanceled) ToSubject() string {
 	wExecID := GetWorkflowExecID(x)
 	return core.BuildEvtSubject(core.ComponentWorkflow, wExecID, wExecID, core.EvtCanceled)
@@ -174,7 +174,7 @@ func (x *EventWorkflowCanceled) ToSubjectParams(workflowExecID string, execID st
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a EventWorkflowTimedOut.
-// Pattern: compozy.<workflow_exec_id>.workflow.evt.<workflow_exec_id>.timed_out
+// Pattern: <version>.compozy.<workflow_exec_id>.workflow.evt.<workflow_exec_id>.timed_out
 func (x *EventWorkflowTimedOut) ToSubject() string {
 	wExecID := GetWorkflowExecID(x)
 	return core.BuildEvtSubject(core.ComponentWorkflow, wExecID, wExecID, core.EvtTimedOut)

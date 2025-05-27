@@ -14,7 +14,7 @@ type EventStarted struct {
 }
 
 func NewEventStarted(nc *nats.Client, metadata *pb.WorkflowMetadata) *EventStarted {
-	source := core.SourceWorkflowExecutor
+	source := core.SourceWorkflowExecute
 	clonedMetadata := metadata.MustClone(source)
 	event := &pb.EventWorkflowStarted{
 		Metadata: clonedMetadata,

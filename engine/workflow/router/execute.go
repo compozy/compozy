@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/server/router"
+	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/workflow/events"
 	"github.com/gin-gonic/gin"
 )

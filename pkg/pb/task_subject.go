@@ -9,7 +9,7 @@ import (
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a CmdTaskDispatch.
-// Pattern: compozy.<workflow_exec_id>.task.cmd.<task_id>.dispatch
+// Pattern: <version>.compozy.<workflow_exec_id>.task.cmd.<task_id>.dispatch
 func (x *CmdTaskDispatch) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	tExecID := GetTaskExecID(x)
@@ -25,7 +25,7 @@ func (x *CmdTaskDispatch) ToSubjectParams(workflowExecID string, execID string) 
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a CmdTaskExecute.
-// Pattern: compozy.<workflow_exec_id>.task.cmd.<task_exec_id>.execute
+// Pattern: <version>.compozy.<workflow_exec_id>.task.cmd.<task_exec_id>.execute
 func (x *CmdTaskExecute) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	tExecID := GetTaskExecID(x)
@@ -41,7 +41,7 @@ func (x *CmdTaskExecute) ToSubjectParams(workflowExecID string, execID string) s
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a CmdTaskResume.
-// Pattern: compozy.<workflow_exec_id>.task.cmd.<task_exec_id>.resume
+// Pattern: <version>.compozy.<workflow_exec_id>.task.cmd.<task_exec_id>.resume
 func (x *CmdTaskResume) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	tExecID := GetTaskExecID(x)
@@ -57,7 +57,7 @@ func (x *CmdTaskResume) ToSubjectParams(workflowExecID string, execID string) st
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a EventTaskDispatched.
-// Pattern: compozy.<workflow_exec_id>.task.evt.<task_exec_id>.dispatched
+// Pattern: <version>.compozy.<workflow_exec_id>.task.evt.<task_exec_id>.dispatched
 func (x *EventTaskDispatched) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	tExecID := GetTaskExecID(x)
@@ -73,7 +73,7 @@ func (x *EventTaskDispatched) ToSubjectParams(workflowExecID string, execID stri
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a EventTaskStarted.
-// Pattern: compozy.<workflow_exec_id>.task.evt.<task_exec_id>.started
+// Pattern: <version>.compozy.<workflow_exec_id>.task.evt.<task_exec_id>.started
 func (x *EventTaskStarted) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	tExecID := GetTaskExecID(x)
@@ -89,7 +89,7 @@ func (x *EventTaskStarted) ToSubjectParams(workflowExecID string, execID string)
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a EventTaskWaiting.
-// Pattern: compozy.<workflow_exec_id>.task.evt.<task_exec_id>.waiting_started
+// Pattern: <version>.compozy.<workflow_exec_id>.task.evt.<task_exec_id>.waiting_started
 func (x *EventTaskWaiting) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	tExecID := GetTaskExecID(x)
@@ -105,7 +105,7 @@ func (x *EventTaskWaiting) ToSubjectParams(workflowExecID string, execID string)
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a EventTaskWaitingEnded.
-// Pattern: compozy.<workflow_exec_id>.task.evt.<task_exec_id>.waiting_ended
+// Pattern: <version>.compozy.<workflow_exec_id>.task.evt.<task_exec_id>.waiting_ended
 func (x *EventTaskWaitingEnded) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	tExecID := GetTaskExecID(x)
@@ -121,7 +121,7 @@ func (x *EventTaskWaitingEnded) ToSubjectParams(workflowExecID string, execID st
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a EventTaskWaitingTimedOut.
-// Pattern: compozy.<workflow_exec_id>.task.evt.<task_exec_id>.waiting_timed_out
+// Pattern: <version>.compozy.<workflow_exec_id>.task.evt.<task_exec_id>.waiting_timed_out
 func (x *EventTaskWaitingTimedOut) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	tExecID := GetTaskExecID(x)
@@ -137,7 +137,7 @@ func (x *EventTaskWaitingTimedOut) ToSubjectParams(workflowExecID string, execID
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a EventTaskSuccess.
-// Pattern: compozy.<workflow_exec_id>.task.evt.<task_exec_id>.success
+// Pattern: <version>.compozy.<workflow_exec_id>.task.evt.<task_exec_id>.success
 func (x *EventTaskSuccess) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	tExecID := GetTaskExecID(x)
@@ -153,7 +153,7 @@ func (x *EventTaskSuccess) ToSubjectParams(workflowExecID string, execID string)
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a EventTaskFailed.
-// Pattern: compozy.<workflow_exec_id>.task.evt.<task_exec_id>.failed
+// Pattern: <version>.compozy.<workflow_exec_id>.task.evt.<task_exec_id>.failed
 func (x *EventTaskFailed) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	tExecID := GetTaskExecID(x)

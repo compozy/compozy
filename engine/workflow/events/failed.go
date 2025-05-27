@@ -16,7 +16,7 @@ type EventFailed struct {
 
 func NewEventFailed(nc *nats.Client, metadata *pb.WorkflowMetadata, errData error) *EventFailed {
 	code := "WORKFLOW_EXECUTION_FAILED"
-	source := core.SourceWorkflowExecutor
+	source := core.SourceWorkflowExecute
 	clonedMetadata := metadata.MustClone(source)
 	event := &pb.EventWorkflowFailed{
 		Metadata: clonedMetadata,

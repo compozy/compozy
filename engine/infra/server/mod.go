@@ -13,11 +13,11 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/nats"
+	"github.com/compozy/compozy/engine/infra/server/appstate"
+	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/orchestrator"
 	"github.com/compozy/compozy/engine/project"
-	"github.com/compozy/compozy/engine/server/appstate"
-	"github.com/compozy/compozy/engine/server/router"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
@@ -76,7 +76,7 @@ func (s *Server) Run() error {
 	}()
 
 	// Load store
-	dataDir := filepath.Join(projectConfig.GetCWD().PathStr(), "/.compozy/data")
+	dataDir := filepath.Join(core.GetStoreDir(), "data")
 	store, err := store.NewStore(dataDir)
 	if err != nil {
 		return fmt.Errorf("failed to create state store: %w", err)

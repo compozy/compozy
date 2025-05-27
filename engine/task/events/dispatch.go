@@ -24,8 +24,9 @@ func NewCmdDispatch(
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate task execution ID: %w", err)
 	}
-	source := core.SourceWorkflowExecutor
+	source := core.SourceWorkflowExecute
 	metadata := &pb.TaskMetadata{
+		Version:        core.GetVersion(),
 		Source:         source.String(),
 		WorkflowId:     parentMetadata.WorkflowId,
 		WorkflowExecId: parentMetadata.WorkflowExecId,

@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/compozy/compozy/engine/server"
+	"github.com/compozy/compozy/engine/infra/server"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/utils"
 	"github.com/gin-gonic/gin"

@@ -16,7 +16,7 @@ type EventFailed struct {
 
 func NewEventFailed(nc *nats.Client, metadata *pb.TaskMetadata, errData error) *EventFailed {
 	code := "TASK_EXECUTION_FAILED"
-	source := core.SourceTaskExecutor
+	source := core.SourceTaskExecute
 	clonedMetadata := metadata.MustClone(source)
 	event := &pb.EventTaskFailed{
 		Metadata: clonedMetadata,

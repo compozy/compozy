@@ -12,60 +12,65 @@ option go_package = "github.com/compozy/compozy/pkg/pb";
 // -----------------------------------------------------------------------------
 
 message WorkflowMetadata {
-  string source = 1;
-  string workflow_id = 2;
-  string workflow_exec_id = 3;
-  string subject = 4;
-  google.protobuf.Timestamp time = 5;
+  string version = 1;
+  string source = 2;
+  string workflow_id = 3;
+  string workflow_exec_id = 4;
+  string subject = 5;
+  google.protobuf.Timestamp time = 6;
 }
 
 message TaskMetadata {
-  string source = 1;
-  string workflow_id = 2;
-  string workflow_exec_id = 3;
-  string task_id = 4;
-  string task_exec_id = 5;
-  string subject = 6;
-  google.protobuf.Timestamp time = 7;
-}
-
-message AgentMetadata {
-  string source = 1;
-  string workflow_id = 2;
-  string workflow_exec_id = 3;
-  string task_id = 4;
-  string task_exec_id = 5;
-  string agent_id = 6;
-  string agent_exec_id = 7;
-  string subject = 8;
-  google.protobuf.Timestamp time = 9;
-}
-
-message ToolMetadata {
-  string source = 1;
-  string workflow_id = 2;
-  string workflow_exec_id = 3;
-  string task_id = 4;
-  string task_exec_id = 5;
-  string tool_id = 6;
-  string tool_exec_id = 7;
-  string subject = 8;
-  google.protobuf.Timestamp time = 9;
-}
-
-message LogMetadata {
-  string source = 1;
-  string request_id = 2;
+  string version = 1;
+  string source = 2;
   string workflow_id = 3;
   string workflow_exec_id = 4;
   string task_id = 5;
   string task_exec_id = 6;
-  optional string agent_id = 7;
-  optional string agent_exec_id = 8;
-  optional string tool_id = 9;
-  optional string tool_exec_id = 10;
-  string subject = 11;
-  google.protobuf.Timestamp time = 12;
+  string subject = 7;
+  google.protobuf.Timestamp time = 8;
+}
+
+message AgentMetadata {
+  string version = 1;
+  string source = 2;
+  string workflow_id = 3;
+  string workflow_exec_id = 4;
+  string task_id = 5;
+  string task_exec_id = 6;
+  string agent_id = 7;
+  string agent_exec_id = 8;
+  string subject = 9;
+  google.protobuf.Timestamp time = 10;
+}
+
+message ToolMetadata {
+  string version = 1;
+  string source = 2;
+  string workflow_id = 3;
+  string workflow_exec_id = 4;
+  string task_id = 5;
+  string task_exec_id = 6;
+  string tool_id = 7;
+  string tool_exec_id = 8;
+  string subject = 9;
+  google.protobuf.Timestamp time = 10;
+}
+
+message LogMetadata {
+  string version = 1;
+  string source = 2;
+  string request_id = 3;
+  string workflow_id = 4;
+  string workflow_exec_id = 5;
+  string task_id = 6;
+  string task_exec_id = 7;
+  optional string agent_id = 8;
+  optional string agent_exec_id = 9;
+  optional string tool_id = 10;
+  optional string tool_exec_id = 11;
+  string subject = 12;
+  google.protobuf.Timestamp time = 13;
 }
 
 // -----------------------------------------------------------------------------

@@ -9,7 +9,7 @@ import (
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for a CmdToolExecute.
-// Pattern: compozy.<workflow_exec_id>.tool.cmd.<tool_exec_id>.execute
+// Pattern: <version>.compozy.<workflow_exec_id>.tool.cmd.<tool_exec_id>.execute
 func (x *CmdToolExecute) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	tExecID := GetToolExecID(x)
@@ -25,7 +25,7 @@ func (x *CmdToolExecute) ToSubjectParams(workflowExecID string, execID string) s
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for an EventToolStarted.
-// Pattern: compozy.<workflow_exec_id>.tool.evt.<tool_exec_id>.started
+// Pattern: <version>.compozy.<workflow_exec_id>.tool.evt.<tool_exec_id>.started
 func (x *EventToolStarted) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	tExecID := GetToolExecID(x)
@@ -41,7 +41,7 @@ func (x *EventToolStarted) ToSubjectParams(workflowExecID string, execID string)
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for an EventToolSuccess.
-// Pattern: compozy.<workflow_exec_id>.tool.evt.<tool_exec_id>.success
+// Pattern: <version>.compozy.<workflow_exec_id>.tool.evt.<tool_exec_id>.success
 func (x *EventToolSuccess) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	tExecID := GetToolExecID(x)
@@ -57,7 +57,7 @@ func (x *EventToolSuccess) ToSubjectParams(workflowExecID string, execID string)
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for an EventToolFailed.
-// Pattern: compozy.<workflow_exec_id>.tool.evt.<tool_exec_id>.failed
+// Pattern: <version>.compozy.<workflow_exec_id>.tool.evt.<tool_exec_id>.failed
 func (x *EventToolFailed) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	tExecID := GetToolExecID(x)

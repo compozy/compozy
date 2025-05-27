@@ -74,11 +74,12 @@ func (ResponseStatus) EnumDescriptor() ([]byte, []int) {
 
 type WorkflowMetadata struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	Source         string                 `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
-	WorkflowId     string                 `protobuf:"bytes,2,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
-	WorkflowExecId string                 `protobuf:"bytes,3,opt,name=workflow_exec_id,json=workflowExecId,proto3" json:"workflow_exec_id,omitempty"`
-	Subject        string                 `protobuf:"bytes,4,opt,name=subject,proto3" json:"subject,omitempty"`
-	Time           *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=time,proto3" json:"time,omitempty"`
+	Version        string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	Source         string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	WorkflowId     string                 `protobuf:"bytes,3,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	WorkflowExecId string                 `protobuf:"bytes,4,opt,name=workflow_exec_id,json=workflowExecId,proto3" json:"workflow_exec_id,omitempty"`
+	Subject        string                 `protobuf:"bytes,5,opt,name=subject,proto3" json:"subject,omitempty"`
+	Time           *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=time,proto3" json:"time,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -111,6 +112,13 @@ func (x *WorkflowMetadata) ProtoReflect() protoreflect.Message {
 // Deprecated: Use WorkflowMetadata.ProtoReflect.Descriptor instead.
 func (*WorkflowMetadata) Descriptor() ([]byte, []int) {
 	return file_core_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *WorkflowMetadata) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
 }
 
 func (x *WorkflowMetadata) GetSource() string {
@@ -150,13 +158,14 @@ func (x *WorkflowMetadata) GetTime() *timestamppb.Timestamp {
 
 type TaskMetadata struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	Source         string                 `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
-	WorkflowId     string                 `protobuf:"bytes,2,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
-	WorkflowExecId string                 `protobuf:"bytes,3,opt,name=workflow_exec_id,json=workflowExecId,proto3" json:"workflow_exec_id,omitempty"`
-	TaskId         string                 `protobuf:"bytes,4,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
-	TaskExecId     string                 `protobuf:"bytes,5,opt,name=task_exec_id,json=taskExecId,proto3" json:"task_exec_id,omitempty"`
-	Subject        string                 `protobuf:"bytes,6,opt,name=subject,proto3" json:"subject,omitempty"`
-	Time           *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=time,proto3" json:"time,omitempty"`
+	Version        string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	Source         string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	WorkflowId     string                 `protobuf:"bytes,3,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	WorkflowExecId string                 `protobuf:"bytes,4,opt,name=workflow_exec_id,json=workflowExecId,proto3" json:"workflow_exec_id,omitempty"`
+	TaskId         string                 `protobuf:"bytes,5,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	TaskExecId     string                 `protobuf:"bytes,6,opt,name=task_exec_id,json=taskExecId,proto3" json:"task_exec_id,omitempty"`
+	Subject        string                 `protobuf:"bytes,7,opt,name=subject,proto3" json:"subject,omitempty"`
+	Time           *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=time,proto3" json:"time,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -189,6 +198,13 @@ func (x *TaskMetadata) ProtoReflect() protoreflect.Message {
 // Deprecated: Use TaskMetadata.ProtoReflect.Descriptor instead.
 func (*TaskMetadata) Descriptor() ([]byte, []int) {
 	return file_core_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *TaskMetadata) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
 }
 
 func (x *TaskMetadata) GetSource() string {
@@ -242,15 +258,16 @@ func (x *TaskMetadata) GetTime() *timestamppb.Timestamp {
 
 type AgentMetadata struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	Source         string                 `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
-	WorkflowId     string                 `protobuf:"bytes,2,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
-	WorkflowExecId string                 `protobuf:"bytes,3,opt,name=workflow_exec_id,json=workflowExecId,proto3" json:"workflow_exec_id,omitempty"`
-	TaskId         string                 `protobuf:"bytes,4,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
-	TaskExecId     string                 `protobuf:"bytes,5,opt,name=task_exec_id,json=taskExecId,proto3" json:"task_exec_id,omitempty"`
-	AgentId        string                 `protobuf:"bytes,6,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
-	AgentExecId    string                 `protobuf:"bytes,7,opt,name=agent_exec_id,json=agentExecId,proto3" json:"agent_exec_id,omitempty"`
-	Subject        string                 `protobuf:"bytes,8,opt,name=subject,proto3" json:"subject,omitempty"`
-	Time           *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=time,proto3" json:"time,omitempty"`
+	Version        string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	Source         string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	WorkflowId     string                 `protobuf:"bytes,3,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	WorkflowExecId string                 `protobuf:"bytes,4,opt,name=workflow_exec_id,json=workflowExecId,proto3" json:"workflow_exec_id,omitempty"`
+	TaskId         string                 `protobuf:"bytes,5,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	TaskExecId     string                 `protobuf:"bytes,6,opt,name=task_exec_id,json=taskExecId,proto3" json:"task_exec_id,omitempty"`
+	AgentId        string                 `protobuf:"bytes,7,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	AgentExecId    string                 `protobuf:"bytes,8,opt,name=agent_exec_id,json=agentExecId,proto3" json:"agent_exec_id,omitempty"`
+	Subject        string                 `protobuf:"bytes,9,opt,name=subject,proto3" json:"subject,omitempty"`
+	Time           *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=time,proto3" json:"time,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -283,6 +300,13 @@ func (x *AgentMetadata) ProtoReflect() protoreflect.Message {
 // Deprecated: Use AgentMetadata.ProtoReflect.Descriptor instead.
 func (*AgentMetadata) Descriptor() ([]byte, []int) {
 	return file_core_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *AgentMetadata) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
 }
 
 func (x *AgentMetadata) GetSource() string {
@@ -350,15 +374,16 @@ func (x *AgentMetadata) GetTime() *timestamppb.Timestamp {
 
 type ToolMetadata struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	Source         string                 `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
-	WorkflowId     string                 `protobuf:"bytes,2,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
-	WorkflowExecId string                 `protobuf:"bytes,3,opt,name=workflow_exec_id,json=workflowExecId,proto3" json:"workflow_exec_id,omitempty"`
-	TaskId         string                 `protobuf:"bytes,4,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
-	TaskExecId     string                 `protobuf:"bytes,5,opt,name=task_exec_id,json=taskExecId,proto3" json:"task_exec_id,omitempty"`
-	ToolId         string                 `protobuf:"bytes,6,opt,name=tool_id,json=toolId,proto3" json:"tool_id,omitempty"`
-	ToolExecId     string                 `protobuf:"bytes,7,opt,name=tool_exec_id,json=toolExecId,proto3" json:"tool_exec_id,omitempty"`
-	Subject        string                 `protobuf:"bytes,8,opt,name=subject,proto3" json:"subject,omitempty"`
-	Time           *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=time,proto3" json:"time,omitempty"`
+	Version        string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	Source         string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	WorkflowId     string                 `protobuf:"bytes,3,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	WorkflowExecId string                 `protobuf:"bytes,4,opt,name=workflow_exec_id,json=workflowExecId,proto3" json:"workflow_exec_id,omitempty"`
+	TaskId         string                 `protobuf:"bytes,5,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	TaskExecId     string                 `protobuf:"bytes,6,opt,name=task_exec_id,json=taskExecId,proto3" json:"task_exec_id,omitempty"`
+	ToolId         string                 `protobuf:"bytes,7,opt,name=tool_id,json=toolId,proto3" json:"tool_id,omitempty"`
+	ToolExecId     string                 `protobuf:"bytes,8,opt,name=tool_exec_id,json=toolExecId,proto3" json:"tool_exec_id,omitempty"`
+	Subject        string                 `protobuf:"bytes,9,opt,name=subject,proto3" json:"subject,omitempty"`
+	Time           *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=time,proto3" json:"time,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -391,6 +416,13 @@ func (x *ToolMetadata) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ToolMetadata.ProtoReflect.Descriptor instead.
 func (*ToolMetadata) Descriptor() ([]byte, []int) {
 	return file_core_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ToolMetadata) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
 }
 
 func (x *ToolMetadata) GetSource() string {
@@ -458,18 +490,19 @@ func (x *ToolMetadata) GetTime() *timestamppb.Timestamp {
 
 type LogMetadata struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	Source         string                 `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
-	RequestId      string                 `protobuf:"bytes,2,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	WorkflowId     string                 `protobuf:"bytes,3,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
-	WorkflowExecId string                 `protobuf:"bytes,4,opt,name=workflow_exec_id,json=workflowExecId,proto3" json:"workflow_exec_id,omitempty"`
-	TaskId         string                 `protobuf:"bytes,5,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
-	TaskExecId     string                 `protobuf:"bytes,6,opt,name=task_exec_id,json=taskExecId,proto3" json:"task_exec_id,omitempty"`
-	AgentId        *string                `protobuf:"bytes,7,opt,name=agent_id,json=agentId,proto3,oneof" json:"agent_id,omitempty"`
-	AgentExecId    *string                `protobuf:"bytes,8,opt,name=agent_exec_id,json=agentExecId,proto3,oneof" json:"agent_exec_id,omitempty"`
-	ToolId         *string                `protobuf:"bytes,9,opt,name=tool_id,json=toolId,proto3,oneof" json:"tool_id,omitempty"`
-	ToolExecId     *string                `protobuf:"bytes,10,opt,name=tool_exec_id,json=toolExecId,proto3,oneof" json:"tool_exec_id,omitempty"`
-	Subject        string                 `protobuf:"bytes,11,opt,name=subject,proto3" json:"subject,omitempty"`
-	Time           *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=time,proto3" json:"time,omitempty"`
+	Version        string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	Source         string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	RequestId      string                 `protobuf:"bytes,3,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	WorkflowId     string                 `protobuf:"bytes,4,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	WorkflowExecId string                 `protobuf:"bytes,5,opt,name=workflow_exec_id,json=workflowExecId,proto3" json:"workflow_exec_id,omitempty"`
+	TaskId         string                 `protobuf:"bytes,6,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	TaskExecId     string                 `protobuf:"bytes,7,opt,name=task_exec_id,json=taskExecId,proto3" json:"task_exec_id,omitempty"`
+	AgentId        *string                `protobuf:"bytes,8,opt,name=agent_id,json=agentId,proto3,oneof" json:"agent_id,omitempty"`
+	AgentExecId    *string                `protobuf:"bytes,9,opt,name=agent_exec_id,json=agentExecId,proto3,oneof" json:"agent_exec_id,omitempty"`
+	ToolId         *string                `protobuf:"bytes,10,opt,name=tool_id,json=toolId,proto3,oneof" json:"tool_id,omitempty"`
+	ToolExecId     *string                `protobuf:"bytes,11,opt,name=tool_exec_id,json=toolExecId,proto3,oneof" json:"tool_exec_id,omitempty"`
+	Subject        string                 `protobuf:"bytes,12,opt,name=subject,proto3" json:"subject,omitempty"`
+	Time           *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=time,proto3" json:"time,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -502,6 +535,13 @@ func (x *LogMetadata) ProtoReflect() protoreflect.Message {
 // Deprecated: Use LogMetadata.ProtoReflect.Descriptor instead.
 func (*LogMetadata) Descriptor() ([]byte, []int) {
 	return file_core_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *LogMetadata) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
 }
 
 func (x *LogMetadata) GetSource() string {
@@ -1049,67 +1089,74 @@ var File_core_proto protoreflect.FileDescriptor
 const file_core_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"core.proto\x12\x04core\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xbf\x01\n" +
-	"\x10WorkflowMetadata\x12\x16\n" +
-	"\x06source\x18\x01 \x01(\tR\x06source\x12\x1f\n" +
-	"\vworkflow_id\x18\x02 \x01(\tR\n" +
+	"core.proto\x12\x04core\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd9\x01\n" +
+	"\x10WorkflowMetadata\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\x12\x16\n" +
+	"\x06source\x18\x02 \x01(\tR\x06source\x12\x1f\n" +
+	"\vworkflow_id\x18\x03 \x01(\tR\n" +
 	"workflowId\x12(\n" +
-	"\x10workflow_exec_id\x18\x03 \x01(\tR\x0eworkflowExecId\x12\x18\n" +
-	"\asubject\x18\x04 \x01(\tR\asubject\x12.\n" +
-	"\x04time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\"\xf6\x01\n" +
-	"\fTaskMetadata\x12\x16\n" +
-	"\x06source\x18\x01 \x01(\tR\x06source\x12\x1f\n" +
-	"\vworkflow_id\x18\x02 \x01(\tR\n" +
-	"workflowId\x12(\n" +
-	"\x10workflow_exec_id\x18\x03 \x01(\tR\x0eworkflowExecId\x12\x17\n" +
-	"\atask_id\x18\x04 \x01(\tR\x06taskId\x12 \n" +
-	"\ftask_exec_id\x18\x05 \x01(\tR\n" +
-	"taskExecId\x12\x18\n" +
-	"\asubject\x18\x06 \x01(\tR\asubject\x12.\n" +
-	"\x04time\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x04time\"\xb6\x02\n" +
-	"\rAgentMetadata\x12\x16\n" +
-	"\x06source\x18\x01 \x01(\tR\x06source\x12\x1f\n" +
-	"\vworkflow_id\x18\x02 \x01(\tR\n" +
-	"workflowId\x12(\n" +
-	"\x10workflow_exec_id\x18\x03 \x01(\tR\x0eworkflowExecId\x12\x17\n" +
-	"\atask_id\x18\x04 \x01(\tR\x06taskId\x12 \n" +
-	"\ftask_exec_id\x18\x05 \x01(\tR\n" +
-	"taskExecId\x12\x19\n" +
-	"\bagent_id\x18\x06 \x01(\tR\aagentId\x12\"\n" +
-	"\ragent_exec_id\x18\a \x01(\tR\vagentExecId\x12\x18\n" +
-	"\asubject\x18\b \x01(\tR\asubject\x12.\n" +
-	"\x04time\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x04time\"\xb1\x02\n" +
-	"\fToolMetadata\x12\x16\n" +
-	"\x06source\x18\x01 \x01(\tR\x06source\x12\x1f\n" +
-	"\vworkflow_id\x18\x02 \x01(\tR\n" +
-	"workflowId\x12(\n" +
-	"\x10workflow_exec_id\x18\x03 \x01(\tR\x0eworkflowExecId\x12\x17\n" +
-	"\atask_id\x18\x04 \x01(\tR\x06taskId\x12 \n" +
-	"\ftask_exec_id\x18\x05 \x01(\tR\n" +
-	"taskExecId\x12\x17\n" +
-	"\atool_id\x18\x06 \x01(\tR\x06toolId\x12 \n" +
-	"\ftool_exec_id\x18\a \x01(\tR\n" +
-	"toolExecId\x12\x18\n" +
-	"\asubject\x18\b \x01(\tR\asubject\x12.\n" +
-	"\x04time\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x04time\"\xde\x03\n" +
-	"\vLogMetadata\x12\x16\n" +
-	"\x06source\x18\x01 \x01(\tR\x06source\x12\x1d\n" +
-	"\n" +
-	"request_id\x18\x02 \x01(\tR\trequestId\x12\x1f\n" +
+	"\x10workflow_exec_id\x18\x04 \x01(\tR\x0eworkflowExecId\x12\x18\n" +
+	"\asubject\x18\x05 \x01(\tR\asubject\x12.\n" +
+	"\x04time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\"\x90\x02\n" +
+	"\fTaskMetadata\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\x12\x16\n" +
+	"\x06source\x18\x02 \x01(\tR\x06source\x12\x1f\n" +
 	"\vworkflow_id\x18\x03 \x01(\tR\n" +
 	"workflowId\x12(\n" +
 	"\x10workflow_exec_id\x18\x04 \x01(\tR\x0eworkflowExecId\x12\x17\n" +
 	"\atask_id\x18\x05 \x01(\tR\x06taskId\x12 \n" +
 	"\ftask_exec_id\x18\x06 \x01(\tR\n" +
+	"taskExecId\x12\x18\n" +
+	"\asubject\x18\a \x01(\tR\asubject\x12.\n" +
+	"\x04time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x04time\"\xd0\x02\n" +
+	"\rAgentMetadata\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\x12\x16\n" +
+	"\x06source\x18\x02 \x01(\tR\x06source\x12\x1f\n" +
+	"\vworkflow_id\x18\x03 \x01(\tR\n" +
+	"workflowId\x12(\n" +
+	"\x10workflow_exec_id\x18\x04 \x01(\tR\x0eworkflowExecId\x12\x17\n" +
+	"\atask_id\x18\x05 \x01(\tR\x06taskId\x12 \n" +
+	"\ftask_exec_id\x18\x06 \x01(\tR\n" +
+	"taskExecId\x12\x19\n" +
+	"\bagent_id\x18\a \x01(\tR\aagentId\x12\"\n" +
+	"\ragent_exec_id\x18\b \x01(\tR\vagentExecId\x12\x18\n" +
+	"\asubject\x18\t \x01(\tR\asubject\x12.\n" +
+	"\x04time\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\x04time\"\xcb\x02\n" +
+	"\fToolMetadata\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\x12\x16\n" +
+	"\x06source\x18\x02 \x01(\tR\x06source\x12\x1f\n" +
+	"\vworkflow_id\x18\x03 \x01(\tR\n" +
+	"workflowId\x12(\n" +
+	"\x10workflow_exec_id\x18\x04 \x01(\tR\x0eworkflowExecId\x12\x17\n" +
+	"\atask_id\x18\x05 \x01(\tR\x06taskId\x12 \n" +
+	"\ftask_exec_id\x18\x06 \x01(\tR\n" +
+	"taskExecId\x12\x17\n" +
+	"\atool_id\x18\a \x01(\tR\x06toolId\x12 \n" +
+	"\ftool_exec_id\x18\b \x01(\tR\n" +
+	"toolExecId\x12\x18\n" +
+	"\asubject\x18\t \x01(\tR\asubject\x12.\n" +
+	"\x04time\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\x04time\"\xf8\x03\n" +
+	"\vLogMetadata\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\x12\x16\n" +
+	"\x06source\x18\x02 \x01(\tR\x06source\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x03 \x01(\tR\trequestId\x12\x1f\n" +
+	"\vworkflow_id\x18\x04 \x01(\tR\n" +
+	"workflowId\x12(\n" +
+	"\x10workflow_exec_id\x18\x05 \x01(\tR\x0eworkflowExecId\x12\x17\n" +
+	"\atask_id\x18\x06 \x01(\tR\x06taskId\x12 \n" +
+	"\ftask_exec_id\x18\a \x01(\tR\n" +
 	"taskExecId\x12\x1e\n" +
-	"\bagent_id\x18\a \x01(\tH\x00R\aagentId\x88\x01\x01\x12'\n" +
-	"\ragent_exec_id\x18\b \x01(\tH\x01R\vagentExecId\x88\x01\x01\x12\x1c\n" +
-	"\atool_id\x18\t \x01(\tH\x02R\x06toolId\x88\x01\x01\x12%\n" +
-	"\ftool_exec_id\x18\n" +
-	" \x01(\tH\x03R\n" +
+	"\bagent_id\x18\b \x01(\tH\x00R\aagentId\x88\x01\x01\x12'\n" +
+	"\ragent_exec_id\x18\t \x01(\tH\x01R\vagentExecId\x88\x01\x01\x12\x1c\n" +
+	"\atool_id\x18\n" +
+	" \x01(\tH\x02R\x06toolId\x88\x01\x01\x12%\n" +
+	"\ftool_exec_id\x18\v \x01(\tH\x03R\n" +
 	"toolExecId\x88\x01\x01\x12\x18\n" +
-	"\asubject\x18\v \x01(\tR\asubject\x12.\n" +
-	"\x04time\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\x04timeB\v\n" +
+	"\asubject\x18\f \x01(\tR\asubject\x12.\n" +
+	"\x04time\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\x04timeB\v\n" +
 	"\t_agent_idB\x10\n" +
 	"\x0e_agent_exec_idB\n" +
 	"\n" +

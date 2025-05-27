@@ -41,21 +41,21 @@ func NewStreams(ctx context.Context, js jetstream.JetStream) (*Streams, error) {
 // NewStreamCommands creates the workflow commands stream
 func NewStreamCommands(ctx context.Context, js jetstream.JetStream) (jetstream.Stream, error) {
 	return createStream(ctx, js, core.StreamCommands,
-		[]string{"compozy.*.*.cmd.*.*"},
+		[]string{core.StreamCmdWildcard()},
 		24*time.Hour)
 }
 
 // NewStreamEvents creates the events stream
 func NewStreamEvents(ctx context.Context, js jetstream.JetStream) (jetstream.Stream, error) {
 	return createStream(ctx, js, core.StreamEvents,
-		[]string{"compozy.*.*.evt.*.*"},
+		[]string{core.StreamEventWildcard()},
 		7*24*time.Hour) // Longer retention for state events
 }
 
 // NewStreamLogs creates the logs stream
 func NewStreamLogs(ctx context.Context, js jetstream.JetStream) (jetstream.Stream, error) {
 	return createStream(ctx, js, core.StreamLogs,
-		[]string{"compozy.logs.*.*.*"},
+		[]string{core.StreamLogWidcard()},
 		3*24*time.Hour)
 }
 

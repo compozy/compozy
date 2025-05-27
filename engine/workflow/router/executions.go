@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/server/router"
+	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/workflow/uc"
 	"github.com/gin-gonic/gin"
 )

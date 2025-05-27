@@ -9,7 +9,7 @@ import (
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for an CmdAgentExecute.
-// Pattern: compozy.<workflow_exec_id>.agent.cmd.<agent_id>.execute
+// Pattern: <version>.compozy.<workflow_exec_id>.agent.cmd.<agent_id>.execute
 func (x *CmdAgentExecute) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	aExecID := GetAgentExecID(x)
@@ -25,7 +25,7 @@ func (x *CmdAgentExecute) ToSubjectParams(workflowExecID string, execID string) 
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for an EventAgentStarted.
-// Pattern: compozy.<workflow_exec_id>.agent.evt.<agent_exec_id>.started
+// Pattern: <version>.compozy.<workflow_exec_id>.agent.evt.<agent_exec_id>.started
 func (x *EventAgentStarted) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	aExecID := GetAgentExecID(x)
@@ -41,7 +41,7 @@ func (x *EventAgentStarted) ToSubjectParams(workflowExecID string, execID string
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for an EventAgentSuccess.
-// Pattern: compozy.<workflow_exec_id>.agent.evt.<agent_exec_id>.success
+// Pattern: <version>.compozy.<workflow_exec_id>.agent.evt.<agent_exec_id>.success
 func (x *EventAgentSuccess) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	aExecID := GetAgentExecID(x)
@@ -57,7 +57,7 @@ func (x *EventAgentSuccess) ToSubjectParams(workflowExecID string, execID string
 // -----------------------------------------------------------------------------
 
 // ToSubject generates the NATS subject for an EventAgentFailed.
-// Pattern: compozy.<workflow_exec_id>.agent.evt.<agent_exec_id>.failed
+// Pattern: <version>.compozy.<workflow_exec_id>.agent.evt.<agent_exec_id>.failed
 func (x *EventAgentFailed) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	aExecID := GetAgentExecID(x)

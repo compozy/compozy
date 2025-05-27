@@ -21,7 +21,7 @@ func logLevelToStr(lvl LogLevel) logger.LogLevel {
 }
 
 // ToSubject generates the NATS subject for a EventLogEmitted.
-// Pattern: compozy.<workflow_exec_id>.<component>.logs.<component_exec_id>.<log_level>
+// Pattern: <version>.compozy.<workflow_exec_id>.<component>.logs.<component_exec_id>.<log_level>
 func (x *EventLogEmitted) ToSubject() string {
 	wExecID := x.Metadata.WorkflowExecId
 	comp := core.ComponentType(x.GetDetails().GetComponent())

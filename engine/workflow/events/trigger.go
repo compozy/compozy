@@ -25,6 +25,7 @@ func NewCmdTrigger(nc *nats.Client, input *structpb.Struct, workflowID string) *
 	workflowExecID := core.MustNewID()
 	cmd := &pb.CmdWorkflowTrigger{
 		Metadata: &pb.WorkflowMetadata{
+			Version:        core.GetVersion(),
 			Source:         core.SourceOrchestrator.String(),
 			WorkflowId:     workflowID,
 			WorkflowExecId: workflowExecID.String(),

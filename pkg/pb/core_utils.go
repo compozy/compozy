@@ -62,6 +62,10 @@ func (x *AgentMetadata) Clone(source core.SourceType) (*AgentMetadata, error) {
 	}
 	metadataCopy.Time = timepb.Now()
 	metadataCopy.Source = source.String()
+	// Ensure version is set
+	if metadataCopy.Version == "" {
+		metadataCopy.Version = core.GetVersion()
+	}
 	return metadataCopy, nil
 }
 
@@ -80,6 +84,10 @@ func (x *TaskMetadata) Clone(source core.SourceType) (*TaskMetadata, error) {
 	}
 	metadataCopy.Time = timepb.Now()
 	metadataCopy.Source = source.String()
+	// Ensure version is set
+	if metadataCopy.Version == "" {
+		metadataCopy.Version = core.GetVersion()
+	}
 	return metadataCopy, nil
 }
 
@@ -98,6 +106,10 @@ func (x *ToolMetadata) Clone(source core.SourceType) (*ToolMetadata, error) {
 	}
 	metadataCopy.Time = timepb.Now()
 	metadataCopy.Source = source.String()
+	// Ensure version is set
+	if metadataCopy.Version == "" {
+		metadataCopy.Version = core.GetVersion()
+	}
 	return metadataCopy, nil
 }
 
@@ -116,6 +128,10 @@ func (x *WorkflowMetadata) Clone(source core.SourceType) (*WorkflowMetadata, err
 	}
 	metadataCopy.Time = timepb.Now()
 	metadataCopy.Source = source.String()
+	// Ensure version is set
+	if metadataCopy.Version == "" {
+		metadataCopy.Version = core.GetVersion()
+	}
 	return metadataCopy, nil
 }
 
