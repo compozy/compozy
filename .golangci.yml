@@ -95,6 +95,9 @@ linters:
       - linters:
           - dupl
         path: pkg/nats/event.go
+      - linters:
+          - lll
+        source: "//	@"
     paths:
       - third_party$
       - builtin$

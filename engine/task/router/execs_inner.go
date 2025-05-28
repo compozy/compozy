@@ -8,6 +8,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// listChildrenExecutions retrieves all child executions for a task execution
+//
+//	@Summary		List child executions by task execution ID
+//	@Description	Retrieve all child executions (agents, tools) for a specific task execution
+//	@Tags			executions
+//	@Accept			json
+//	@Produce		json
+//	@Param			task_exec_id	path		string														true	"Task Execution ID"	example("2Z4PVTL6K27XVT4A3NPKMDD5BG")
+//	@Success		200				{object}	router.Response{data=object{executions=[]core.Execution}}	"Child executions retrieved successfully"
+//	@Failure		400				{object}	router.Response{error=router.ErrorInfo}						"Invalid execution ID"
+//	@Failure		500				{object}	router.Response{error=router.ErrorInfo}						"Internal server error"
+//	@Router			/executions/tasks/{task_exec_id}/executions [get]
 func listChildrenExecutions(c *gin.Context) {
 	taskExecID := router.GetTaskExecID(c)
 	if taskExecID == "" {
@@ -34,6 +46,19 @@ func listChildrenExecutions(c *gin.Context) {
 	})
 }
 
+// listChildrenExecutionsByID retrieves all child executions for a task
+//
+//	@Summary		List child executions by task ID
+//	@Description	Retrieve all child executions (agents, tools) for a specific task
+//	@Tags			executions
+//	@Accept			json
+//	@Produce		json
+//	@Param			workflow_id	path		string														true	"Workflow ID"	example("data-processing")
+//	@Param			task_id		path		string														true	"Task ID"		example("validate-input")
+//	@Success		200			{object}	router.Response{data=object{executions=[]core.Execution}}	"Child executions retrieved successfully"
+//	@Failure		400			{object}	router.Response{error=router.ErrorInfo}						"Invalid task ID"
+//	@Failure		500			{object}	router.Response{error=router.ErrorInfo}						"Internal server error"
+//	@Router			/workflows/{workflow_id}/tasks/{task_id}/executions/children [get]
 func listChildrenExecutionsByID(c *gin.Context) {
 	taskID := router.GetTaskID(c)
 	if taskID == "" {
@@ -60,6 +85,18 @@ func listChildrenExecutionsByID(c *gin.Context) {
 	})
 }
 
+// listAgentExecutions retrieves agent executions for a task execution
+//
+//	@Summary		List agent executions by task execution ID
+//	@Description	Retrieve all agent executions for a specific task execution
+//	@Tags			executions
+//	@Accept			json
+//	@Produce		json
+//	@Param			task_exec_id	path		string														true	"Task Execution ID"	example("2Z4PVTL6K27XVT4A3NPKMDD5BG")
+//	@Success		200				{object}	router.Response{data=object{executions=[]agent.Execution}}	"Agent executions retrieved successfully"
+//	@Failure		400				{object}	router.Response{error=router.ErrorInfo}						"Invalid execution ID"
+//	@Failure		500				{object}	router.Response{error=router.ErrorInfo}						"Internal server error"
+//	@Router			/executions/tasks/{task_exec_id}/executions/agents [get]
 func listAgentExecutions(c *gin.Context) {
 	taskExecID := router.GetTaskExecID(c)
 	if taskExecID == "" {
@@ -86,6 +123,19 @@ func listAgentExecutions(c *gin.Context) {
 	})
 }
 
+// listAgentExecutionsByID retrieves agent executions for a task
+//
+//	@Summary		List agent executions by task ID
+//	@Description	Retrieve all agent executions for a specific task
+//	@Tags			executions
+//	@Accept			json
+//	@Produce		json
+//	@Param			workflow_id	path		string														true	"Workflow ID"	example("data-processing")
+//	@Param			task_id		path		string														true	"Task ID"		example("validate-input")
+//	@Success		200			{object}	router.Response{data=object{executions=[]agent.Execution}}	"Agent executions retrieved successfully"
+//	@Failure		400			{object}	router.Response{error=router.ErrorInfo}						"Invalid task ID"
+//	@Failure		500			{object}	router.Response{error=router.ErrorInfo}						"Internal server error"
+//	@Router			/workflows/{workflow_id}/tasks/{task_id}/executions/agents [get]
 func listAgentExecutionsByID(c *gin.Context) {
 	taskID := router.GetTaskID(c)
 	if taskID == "" {
@@ -112,6 +162,18 @@ func listAgentExecutionsByID(c *gin.Context) {
 	})
 }
 
+// listToolExecutions retrieves tool executions for a task execution
+//
+//	@Summary		List tool executions by task execution ID
+//	@Description	Retrieve all tool executions for a specific task execution
+//	@Tags			executions
+//	@Accept			json
+//	@Produce		json
+//	@Param			task_exec_id	path		string														true	"Task Execution ID"	example("2Z4PVTL6K27XVT4A3NPKMDD5BG")
+//	@Success		200				{object}	router.Response{data=object{executions=[]tool.Execution}}	"Tool executions retrieved successfully"
+//	@Failure		400				{object}	router.Response{error=router.ErrorInfo}						"Invalid execution ID"
+//	@Failure		500				{object}	router.Response{error=router.ErrorInfo}						"Internal server error"
+//	@Router			/executions/tasks/{task_exec_id}/executions/tools [get]
 func listToolExecutions(c *gin.Context) {
 	taskExecID := router.GetTaskExecID(c)
 	if taskExecID == "" {
@@ -138,6 +200,19 @@ func listToolExecutions(c *gin.Context) {
 	})
 }
 
+// listToolExecutionsByID retrieves tool executions for a task
+//
+//	@Summary		List tool executions by task ID
+//	@Description	Retrieve all tool executions for a specific task
+//	@Tags			executions
+//	@Accept			json
+//	@Produce		json
+//	@Param			workflow_id	path		string														true	"Workflow ID"	example("data-processing")
+//	@Param			task_id		path		string														true	"Task ID"		example("validate-input")
+//	@Success		200			{object}	router.Response{data=object{executions=[]tool.Execution}}	"Tool executions retrieved successfully"
+//	@Failure		400			{object}	router.Response{error=router.ErrorInfo}						"Invalid task ID"
+//	@Failure		500			{object}	router.Response{error=router.ErrorInfo}						"Internal server error"
+//	@Router			/workflows/{workflow_id}/tasks/{task_id}/executions/tools [get]
 func listToolExecutionsByID(c *gin.Context) {
 	taskID := router.GetTaskID(c)
 	if taskID == "" {

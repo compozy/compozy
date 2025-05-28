@@ -8,6 +8,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// getWorkflowByID retrieves a workflow by ID
+//
+//	@Summary		Get workflow by ID
+//	@Description	Retrieve a specific workflow configuration by its ID
+//	@Tags			workflows
+//	@Accept			json
+//	@Produce		json
+//	@Param			workflow_id	path		string									true	"Workflow ID"	example("data-processing")
+//	@Success		200			{object}	router.Response{data=workflow.Config}	"Workflow retrieved successfully"
+//	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid workflow ID"
+//	@Failure		404			{object}	router.Response{error=router.ErrorInfo}	"Workflow not found"
+//	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
+//	@Router			/workflows/{workflow_id} [get]
 func getWorkflowByID(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
 	if workflowID == "" {
@@ -31,6 +44,16 @@ func getWorkflowByID(c *gin.Context) {
 	router.RespondOK(c, "workflow retrieved", workflow)
 }
 
+// listWorkflows retrieves all workflows
+//
+//	@Summary		List all workflows
+//	@Description	Retrieve a list of all available workflow configurations
+//	@Tags			workflows
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	router.Response{data=object{workflows=[]workflow.Config}}	"Workflows retrieved successfully"
+//	@Failure		500	{object}	router.Response{error=router.ErrorInfo}						"Internal server error"
+//	@Router			/workflows [get]
 func listWorkflows(c *gin.Context) {
 	appState := router.GetAppState(c)
 	if appState == nil {

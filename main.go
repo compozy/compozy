@@ -1,3 +1,32 @@
+//	@title			Compozy API
+//	@version		1.0
+//	@description	Compozy is a workflow orchestration engine for AI agents, tasks, and tools
+//	@termsOfService	https://github.com/compozy/compozy
+
+//	@contact.name	Compozy Support
+//	@contact.url	https://github.com/compozy/compozy
+//	@contact.email	support@compozy.dev
+
+//	@license.name	MIT
+//	@license.url	https://github.com/compozy/compozy/blob/main/LICENSE
+
+//	@BasePath	/api/v0
+
+//	@tag.name			workflows
+//	@tag.description	Workflow management operations
+
+//	@tag.name			tasks
+//	@tag.description	Task management operations
+
+//	@tag.name			agents
+//	@tag.description	Agent management operations
+
+//	@tag.name			tools
+//	@tag.description	Tool management operations
+
+//	@tag.name			executions
+//	@tag.description	Execution monitoring operations
+
 package main
 
 import (

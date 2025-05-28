@@ -8,6 +8,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// getToolByID retrieves a tool by ID
+//
+//	@Summary		Get tool by ID
+//	@Description	Retrieve a specific tool configuration by its ID
+//	@Tags			tools
+//	@Accept			json
+//	@Produce		json
+//	@Param			tool_id	path		string									true	"Tool ID"	example("format-code")
+//	@Success		200		{object}	router.Response{data=tool.Config}		"Tool retrieved successfully"
+//	@Failure		400		{object}	router.Response{error=router.ErrorInfo}	"Invalid tool ID"
+//	@Failure		404		{object}	router.Response{error=router.ErrorInfo}	"Tool not found"
+//	@Failure		500		{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
+//	@Router			/tools/{tool_id} [get]
 func getToolByID(c *gin.Context) {
 	toolID := router.GetToolID(c)
 	if toolID == "" {
@@ -31,6 +44,16 @@ func getToolByID(c *gin.Context) {
 	router.RespondOK(c, "tool retrieved", tool)
 }
 
+// listTools retrieves all tools
+//
+//	@Summary		List all tools
+//	@Description	Retrieve a list of all available tool configurations
+//	@Tags			tools
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	router.Response{data=object{tools=[]tool.Config}}	"Tools retrieved successfully"
+//	@Failure		500	{object}	router.Response{error=router.ErrorInfo}				"Internal server error"
+//	@Router			/tools [get]
 func listTools(c *gin.Context) {
 	appState := router.GetAppState(c)
 	if appState == nil {

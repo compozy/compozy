@@ -8,6 +8,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// getTaskByID retrieves a task by ID within a workflow
+//
+//	@Summary		Get task by ID
+//	@Description	Retrieve a specific task configuration by its ID within a workflow
+//	@Tags			tasks
+//	@Accept			json
+//	@Produce		json
+//	@Param			workflow_id	path		string									true	"Workflow ID"	example("data-processing")
+//	@Param			task_id		path		string									true	"Task ID"		example("validate-input")
+//	@Success		200			{object}	router.Response{data=task.Config}		"Task retrieved successfully"
+//	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid workflow or task ID"
+//	@Failure		404			{object}	router.Response{error=router.ErrorInfo}	"Task not found"
+//	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
+//	@Router			/workflows/{workflow_id}/tasks/{task_id} [get]
 func getTaskByID(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
 	if workflowID == "" {
@@ -35,6 +49,19 @@ func getTaskByID(c *gin.Context) {
 	router.RespondOK(c, "task retrieved", task)
 }
 
+// listTasks retrieves all tasks for a workflow
+//
+//	@Summary		List tasks for a workflow
+//	@Description	Retrieve a list of all tasks within a specific workflow
+//	@Tags			tasks
+//	@Accept			json
+//	@Produce		json
+//	@Param			workflow_id	path		string												true	"Workflow ID"	example("data-processing")
+//	@Success		200			{object}	router.Response{data=object{tasks=[]task.Config}}	"Tasks retrieved successfully"
+//	@Failure		400			{object}	router.Response{error=router.ErrorInfo}				"Invalid workflow ID"
+//	@Failure		404			{object}	router.Response{error=router.ErrorInfo}				"Workflow not found"
+//	@Failure		500			{object}	router.Response{error=router.ErrorInfo}				"Internal server error"
+//	@Router			/workflows/{workflow_id}/tasks [get]
 func listTasks(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
 	if workflowID == "" {

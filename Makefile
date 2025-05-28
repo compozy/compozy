@@ -21,19 +21,27 @@ EVENT_PROTO_FILES=$(shell find $(PROTO_DIR) -path '*/events/*.proto')
 COMMAND_PROTO_FILES=$(shell find $(PROTO_DIR) -path '*/cmds/*.proto')
 COMMON_PROTO_FILES=$(shell find $(PROTO_DIR)/common -name '*.proto')
 
+# -----------------------------------------------------------------------------
+# Swagger/OpenAPI
+# -----------------------------------------------------------------------------
+SWAGGER_DIR=./docs
+SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
+
 .PHONY: all test lint fmt clean build dev dev-weather deps schemagen help integration-test
 .PHONY: tidy proto proto-deps test-go test-runtime start-nats stop-nats clean-nats restart-nats
+.PHONY: swagger swagger-deps swagger-gen swagger-serve
 
 # -----------------------------------------------------------------------------
 # Main Targets
 # -----------------------------------------------------------------------------
-all: proto test lint fmt
+all: proto swagger test lint fmt
 
 clean:
 	rm -rf $(BINARY_DIR)/
+	rm -rf $(SWAGGER_DIR)/
 	$(GOCMD) clean
 
-build: proto
+build: proto swagger
 	mkdir -p $(BINARY_DIR)
 	$(GOBUILD) -o $(BINARY_DIR)/$(BINARY_NAME) .
 	chmod +x $(BINARY_DIR)/$(BINARY_NAME)
@@ -64,7 +72,7 @@ tidy:
 	@echo "Tidying modules..."
 	$(GOCMD) mod tidy
 
-deps:
+deps: proto-deps swagger-deps
 	$(GOCMD) install gotest.tools/gotestsum@latest
 	$(GOCMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	$(GOCMD) install github.com/bokwoon95/wgo@latest
@@ -76,10 +84,31 @@ proto-deps:
 	$(GOCMD) install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 	@echo "Go protoc plugins installation complete."
 
+swagger-deps:
+	@echo "Installing Swagger dependencies..."
+	$(GOCMD) install github.com/swaggo/swag/cmd/swag@latest
+	@echo "Swagger dependencies installation complete."
+
 proto:
 	@echo "Generating Go code from protobuf definitions via script..."
 	@chmod +x scripts/proto.sh
 	@bash scripts/proto.sh "$(PROTO_DIR)" "$(PROTO_OUT_DIR)" "$(GO_MODULE_NAME)"
+
+# -----------------------------------------------------------------------------
+# Swagger/OpenAPI Generation
+# -----------------------------------------------------------------------------
+swagger: swagger-gen
+
+swagger-gen:
+	@echo "Generating Swagger documentation..."
+	@mkdir -p $(SWAGGER_DIR)
+	@swag init --dir ./ --generalInfo main.go --output $(SWAGGER_DIR) --parseDependency --parseInternal 2>&1 | grep -v "warning: failed to evaluate const" | grep -v "reflect: call of reflect.Value" | grep -v "strconv.ParseUint: parsing" || true
+	@echo "Swagger documentation generated at $(SWAGGER_DIR)"
+
+swagger-validate:
+	@echo "Validating Swagger documentation..."
+	@swag init --dir ./ --generalInfo main.go --output $(SWAGGER_DIR) --parseDependency --parseInternal --quiet
+	@echo "Swagger documentation is valid"
 
 # -----------------------------------------------------------------------------
 # Schema Generation

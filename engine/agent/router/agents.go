@@ -8,6 +8,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// getAgentByID retrieves an agent by ID
+//
+//	@Summary		Get agent by ID
+//	@Description	Retrieve a specific agent configuration by its ID
+//	@Tags			agents
+//	@Accept			json
+//	@Produce		json
+//	@Param			agent_id	path		string									true	"Agent ID"	example("code-assistant")
+//	@Success		200			{object}	router.Response{data=agent.Config}		"Agent retrieved successfully"
+//	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid agent ID"
+//	@Failure		404			{object}	router.Response{error=router.ErrorInfo}	"Agent not found"
+//	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
+//	@Router			/agents/{agent_id} [get]
 func getAgentByID(c *gin.Context) {
 	agentID := router.GetAgentID(c)
 	if agentID == "" {
@@ -31,6 +44,16 @@ func getAgentByID(c *gin.Context) {
 	router.RespondOK(c, "agent retrieved", agent)
 }
 
+// listAgents retrieves all agents
+//
+//	@Summary		List all agents
+//	@Description	Retrieve a list of all available agent configurations
+//	@Tags			agents
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	router.Response{data=object{agents=[]agent.Config}}	"Agents retrieved successfully"
+//	@Failure		500	{object}	router.Response{error=router.ErrorInfo}				"Internal server error"
+//	@Router			/agents [get]
 func listAgents(c *gin.Context) {
 	appState := router.GetAppState(c)
 	if appState == nil {
