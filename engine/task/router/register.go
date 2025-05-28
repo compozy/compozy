@@ -8,12 +8,13 @@ func Register(apiBase *gin.RouterGroup) {
 	{
 		tasksGroup := workflowsGroup.Group("/tasks")
 		{
-			// TODO: implement task definition routes
 			// GET /api/v0/workflows/:workflow_id/tasks
 			// List tasks for a workflow
+			tasksGroup.GET("", listTasks)
 
 			// GET /api/v0/workflows/:workflow_id/tasks/:task_id
 			// Get task definition
+			tasksGroup.GET("/:task_id", getTaskByID)
 
 			// GET /api/v0/workflows/:workflow_id/tasks/:task_id/executions
 			// List executions for a task

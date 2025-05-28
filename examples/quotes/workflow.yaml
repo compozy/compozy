@@ -23,5 +23,5 @@ tasks:
     type: basic
     use: tool(file=./tools/save_data.yaml)
     with:
-      message: "{{ tasks.translate_quote.output.message }}"
+      message: "{{ .tasks.translate_quote.output.message }}"
     final: true

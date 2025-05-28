@@ -10,7 +10,13 @@ import (
 
 func listChildrenExecutions(c *gin.Context) {
 	workflowExecID := router.GetWorkflowExecID(c)
+	if workflowExecID == "" {
+		return
+	}
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	repo := appState.Orchestrator.Config().WorkflowRepoFactory()
 	uc := uc.NewListChildrenExecutions(repo, workflowExecID)
 	executions, err := uc.Execute(c.Request.Context())
@@ -30,7 +36,13 @@ func listChildrenExecutions(c *gin.Context) {
 
 func listChildrenExecutionsByID(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
+	if workflowID == "" {
+		return
+	}
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	repo := appState.Orchestrator.Config().WorkflowRepoFactory()
 	uc := uc.NewListChildrenExecutionsByID(repo, workflowID)
 	executions, err := uc.Execute(c.Request.Context())
@@ -50,7 +62,13 @@ func listChildrenExecutionsByID(c *gin.Context) {
 
 func listTaskExecutions(c *gin.Context) {
 	workflowExecID := router.GetWorkflowExecID(c)
+	if workflowExecID == "" {
+		return
+	}
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	repo := appState.Orchestrator.Config().TaskRepoFactory()
 	uc := uc.NewListTaskExecutionsByExecID(repo, workflowExecID)
 	executions, err := uc.Execute(c.Request.Context())
@@ -70,7 +88,13 @@ func listTaskExecutions(c *gin.Context) {
 
 func listTaskExecutionsByID(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
+	if workflowID == "" {
+		return
+	}
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	repo := appState.Orchestrator.Config().TaskRepoFactory()
 	uc := uc.NewListTaskExecutionsByID(repo, workflowID)
 	executions, err := uc.Execute(c.Request.Context())
@@ -90,7 +114,13 @@ func listTaskExecutionsByID(c *gin.Context) {
 
 func listAgentExecutions(c *gin.Context) {
 	workflowExecID := router.GetWorkflowExecID(c)
+	if workflowExecID == "" {
+		return
+	}
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	repo := appState.Orchestrator.Config().AgentRepoFactory()
 	uc := uc.NewListAgentExecutionsByExecID(repo, workflowExecID)
 	executions, err := uc.Execute(c.Request.Context())
@@ -110,7 +140,13 @@ func listAgentExecutions(c *gin.Context) {
 
 func listAgentExecutionsByID(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
+	if workflowID == "" {
+		return
+	}
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	repo := appState.Orchestrator.Config().AgentRepoFactory()
 	uc := uc.NewListAgentExecutionsByID(repo, workflowID)
 	executions, err := uc.Execute(c.Request.Context())
@@ -130,7 +166,13 @@ func listAgentExecutionsByID(c *gin.Context) {
 
 func listToolExecutions(c *gin.Context) {
 	workflowExecID := router.GetWorkflowExecID(c)
+	if workflowExecID == "" {
+		return
+	}
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	repo := appState.Orchestrator.Config().ToolRepoFactory()
 	uc := uc.NewListToolExecutionsByExecID(repo, workflowExecID)
 	executions, err := uc.Execute(c.Request.Context())
@@ -150,7 +192,13 @@ func listToolExecutions(c *gin.Context) {
 
 func listToolExecutionsByID(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
+	if workflowID == "" {
+		return
+	}
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	repo := appState.Orchestrator.Config().ToolRepoFactory()
 	uc := uc.NewListToolExecutionsByID(repo, workflowID)
 	executions, err := uc.Execute(c.Request.Context())

@@ -10,7 +10,13 @@ import (
 
 func listChildrenExecutions(c *gin.Context) {
 	taskExecID := router.GetTaskExecID(c)
+	if taskExecID == "" {
+		return
+	}
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	repo := appState.Orchestrator.Config().TaskRepoFactory()
 	uc := uc.NewListChildrenExecutions(repo, taskExecID)
 	executions, err := uc.Execute(c.Request.Context())
@@ -23,14 +29,20 @@ func listChildrenExecutions(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	router.RespondOK(c, "workflow executions retrieved", gin.H{
+	router.RespondOK(c, "task children executions retrieved", gin.H{
 		"executions": executions,
 	})
 }
 
 func listChildrenExecutionsByID(c *gin.Context) {
 	taskID := router.GetTaskID(c)
+	if taskID == "" {
+		return
+	}
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	repo := appState.Orchestrator.Config().TaskRepoFactory()
 	uc := uc.NewListChildrenExecutionsByID(repo, taskID)
 	executions, err := uc.Execute(c.Request.Context())
@@ -43,14 +55,20 @@ func listChildrenExecutionsByID(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	router.RespondOK(c, "workflow executions retrieved", gin.H{
+	router.RespondOK(c, "task children executions retrieved", gin.H{
 		"executions": executions,
 	})
 }
 
 func listAgentExecutions(c *gin.Context) {
 	taskExecID := router.GetTaskExecID(c)
+	if taskExecID == "" {
+		return
+	}
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	repo := appState.Orchestrator.Config().AgentRepoFactory()
 	uc := uc.NewListAgentExecutionsByExecID(repo, taskExecID)
 	executions, err := uc.Execute(c.Request.Context())
@@ -70,7 +88,13 @@ func listAgentExecutions(c *gin.Context) {
 
 func listAgentExecutionsByID(c *gin.Context) {
 	taskID := router.GetTaskID(c)
+	if taskID == "" {
+		return
+	}
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	repo := appState.Orchestrator.Config().AgentRepoFactory()
 	uc := uc.NewListAgentExecutionsByID(repo, taskID)
 	executions, err := uc.Execute(c.Request.Context())
@@ -90,7 +114,13 @@ func listAgentExecutionsByID(c *gin.Context) {
 
 func listToolExecutions(c *gin.Context) {
 	taskExecID := router.GetTaskExecID(c)
+	if taskExecID == "" {
+		return
+	}
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	repo := appState.Orchestrator.Config().ToolRepoFactory()
 	uc := uc.NewListToolExecutionsByExecID(repo, taskExecID)
 	executions, err := uc.Execute(c.Request.Context())
@@ -110,7 +140,13 @@ func listToolExecutions(c *gin.Context) {
 
 func listToolExecutionsByID(c *gin.Context) {
 	taskID := router.GetTaskID(c)
+	if taskID == "" {
+		return
+	}
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	repo := appState.Orchestrator.Config().ToolRepoFactory()
 	uc := uc.NewListToolExecutionsByID(repo, taskID)
 	executions, err := uc.Execute(c.Request.Context())

@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/nats"
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/project"
@@ -40,65 +39,44 @@ type IntegrationTestBed struct {
 	ToolRepo     *store.ToolRepository
 }
 
-func SetupIntegrationTestBed(
-	t *testing.T,
-	testTimeout time.Duration,
-	_ []core.ComponentType,
-) *IntegrationTestBed {
+// initTestEnvironment initializes common test environment setup
+func initTestEnvironment(t *testing.T) {
 	t.Helper()
-
-	// Initialize logger for tests
 	logger.Init(&logger.Config{
-		Level:  logger.ErrorLevel, // Use error level to reduce noise in tests
+		Level:  logger.ErrorLevel,
 		Output: os.Stderr,
 		JSON:   false,
 	})
-
 	if GlobalBaseTestDir == "" {
 		var err error
 		GlobalBaseTestDir, err = os.MkdirTemp("", "compozy_integration_fallback_")
 		require.NoError(t, err, "Failed to create global base test directory (fallback)")
-		t.Logf("Warning: GlobalBaseTestDir created by fallback in SetupIntegrationTestBed for test %s. "+
+		t.Logf("Warning: GlobalBaseTestDir created by fallback for test %s. "+
 			"Consider running tests at package level.", t.Name())
 	}
+}
 
+func SetupIntegrationTestBed(t *testing.T, testTimeout time.Duration) *IntegrationTestBed {
+	t.Helper()
+	initTestEnvironment(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
-	ns, nc := SetupNatsServer(ctx, t)
+	ns, nc := GetSharedNatsServer(t)
 	require.NotNil(t, ns, "NATS test server should not be nil")
 	require.NotNil(t, nc, "NATS client should not be nil")
-
 	return setupIntegrationTestBedCommon(ctx, t, cancel, ns, nc)
 }
 
-// SetupIntegrationTestBedWithNats creates an integration test bed with existing NATS server and client
 func SetupIntegrationTestBedWithNats(
 	t *testing.T,
 	testTimeout time.Duration,
-	_ []core.ComponentType,
 	natsServer *nats.Server,
 	natsClient *nats.Client,
 ) *IntegrationTestBed {
 	t.Helper()
-
-	// Initialize logger for tests
-	logger.Init(&logger.Config{
-		Level:  logger.ErrorLevel, // Use error level to reduce noise in tests
-		Output: os.Stderr,
-		JSON:   false,
-	})
-
-	if GlobalBaseTestDir == "" {
-		var err error
-		GlobalBaseTestDir, err = os.MkdirTemp("", "compozy_integration_fallback_")
-		require.NoError(t, err, "Failed to create global base test directory (fallback)")
-		t.Logf("Warning: GlobalBaseTestDir created by fallback in SetupIntegrationTestBedWithNats for test %s. "+
-			"Consider running tests at package level.", t.Name())
-	}
-
+	initTestEnvironment(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	require.NotNil(t, natsServer, "NATS test server should not be nil")
 	require.NotNil(t, natsClient, "NATS client should not be nil")
-
 	return setupIntegrationTestBedCommon(ctx, t, cancel, natsServer, natsClient)
 }
 
@@ -199,43 +177,6 @@ func (tb *IntegrationTestBed) Cleanup() {
 	}
 }
 
-func SetupStateManagerForSubtest(
-	t *testing.T,
-	parentBaseDir string,
-	_ *nats.Server,
-	_ *nats.Client,
-	_ []core.ComponentType,
-) (*store.Store, *project.Config) {
-	t.Helper()
-
-	// Initialize logger for tests if not already done
-	logger.Init(&logger.Config{
-		Level:  logger.ErrorLevel, // Use error level to reduce noise in tests
-		Output: os.Stderr,
-		JSON:   false,
-	})
-
-	subtestStateDir := filepath.Join(parentBaseDir, t.Name())
-	err := os.MkdirAll(subtestStateDir, 0o750)
-	require.NoError(t, err)
-
-	// Create the database file path (not just the directory)
-	dbFilePath := filepath.Join(subtestStateDir, "compozy.db")
-	testStore, err := store.NewStore(dbFilePath)
-	require.NoError(t, err)
-
-	// Setup the store (run migrations)
-	err = testStore.Setup()
-	require.NoError(t, err)
-
-	// Create a minimal project config for testing
-	projectConfig := &project.Config{}
-	err = projectConfig.SetCWD(subtestStateDir)
-	require.NoError(t, err)
-
-	return testStore, projectConfig
-}
-
 func MainTestRunner(m *testing.M) int {
 	var err error
 	GlobalBaseTestDir, err = os.MkdirTemp("", "compozy_integration_tests_global_")
@@ -245,7 +186,6 @@ func MainTestRunner(m *testing.M) int {
 
 	exitCode := m.Run()
 
-	// Cleanup shared NATS server
 	CleanupSharedNats()
 
 	err = os.RemoveAll(GlobalBaseTestDir)

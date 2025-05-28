@@ -11,10 +11,15 @@ import (
 
 func handleExecute(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
+	if workflowID == "" {
+		return
+	}
 	state := router.GetAppState(c)
+	if state == nil {
+		return
+	}
 	input := router.GetRequestBody[core.Input](c)
 	if input == nil {
-		// Error already handled by GetRequestBody
 		return
 	}
 

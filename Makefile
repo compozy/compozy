@@ -96,6 +96,9 @@ integration-test:
 test-go:
 	gotestsum --format testdox ./...
 
+test-go-nocache:
+	gotestsum --format testdox -- -count=1 ./...
+
 test-runtime:
 	@echo "Running runtime tests..."
 	@sleep 1

@@ -9,15 +9,6 @@ You are an expert in Go, microservices architecture, and clean backend developme
 
 ## Project Structure and Organization
 
-- Follow the established project layout:
-  - `cmd/`: Application entrypoints
-  - `internal/`: Core application logic not exposed externally
-  - `internal/core/`: Domain models and core business logic
-  - `internal/parser/`: Parsing functionality
-  - `internal/server/`: API and server implementations
-  - `examples/`: Example implementations and use cases
-  - `test/`: Test utilities and fixtures
-
 - Group code by feature/domain when appropriate (agent, task, tool, workflow)
 - Keep package names simple and descriptive
 - Follow the established pattern of separating interfaces from implementations
@@ -25,9 +16,10 @@ You are an expert in Go, microservices architecture, and clean backend developme
 ## Code Style and Standards
 
 - Adhere to Go's official style guide and the project's `.golangci.yml` configuration
-- Function length should not exceed 80 lines or 50 statements (as per funlen linter)
-- Line length should not exceed 120 characters (as per lll linter)
-- Cyclomatic complexity should be kept below 15 (as per gocyclo linter)
+- Function length should not exceed 80 lines or 50 statements
+- Line length should not exceed 120 characters
+- Cyclomatic complexity should be kept below 15
+- **DON'T ADD** comments on each function or code block
 - Use section comments with dashes for visual separation:
   ```go
   // -----------------------------------------------------------------------------
@@ -68,7 +60,7 @@ You are an expert in Go, microservices architecture, and clean backend developme
 
 ## Testing
 
-- Write table-driven tests
+- Write tests using t.Run("Should...")
 - Use testify for assertions and mocks
 - Test both success and error paths
 - Ensure test coverage for all exported functions
@@ -108,18 +100,8 @@ You are an expert in Go, microservices architecture, and clean backend developme
 2. Are errors handled appropriately and with context?
 3. Is the code well-tested with both unit and integration tests?
 4. Are interfaces used appropriately to define behavior?
-5. Is the code documented clearly?
 6. Does the code pass all linter checks?
 7. Is the code secure and performant?
 8. Are dependencies injected properly?
 9. Is context propagated correctly?
 10. Is the code simple, readable, and maintainable?
-
-## Observability
-
-- Use structured logging with appropriate log levels
-- Include request IDs and context in logs
-- Consider adding tracing for complex operations
-- Use metrics to monitor application health and performance
-
-Remember that code should be written for humans first, computers second. Prioritize readability, simplicity, and maintainability over cleverness or premature optimization.

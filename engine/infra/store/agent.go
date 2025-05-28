@@ -42,6 +42,13 @@ func (r *AgentRepository) CreateExecution(
 	if err != nil {
 		return nil, fmt.Errorf("failed to load task execution: %w", err)
 	}
+
+	// Get the main execution map for template context
+	mainExecMap, err := r.workflowRepo.ExecutionToMap(ctx, workflowExecution)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get main execution map: %w", err)
+	}
+
 	parentInput := workflowExecution.GetInput()
 	agentEnv := config.GetEnv()
 	taskEnv := taskExecution.GetEnv()
@@ -58,7 +65,7 @@ func (r *AgentRepository) CreateExecution(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create agent request data: %w", err)
 	}
-	execution, err := agent.NewExecution(requestData)
+	execution, err := agent.NewExecutionWithContext(requestData, mainExecMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create agent execution: %w", err)
 	}

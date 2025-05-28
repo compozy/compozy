@@ -10,7 +10,6 @@ import (
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/schema"
-	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/pb"
 	"github.com/compozy/compozy/test/utils"
@@ -19,137 +18,39 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func setupAgentRepoTestBed(t *testing.T) *utils.IntegrationTestBed {
+func setupAgentTestBed(t *testing.T) *utils.IntegrationTestBed {
 	t.Helper()
-	componentsToWatch := []core.ComponentType{
-		core.ComponentWorkflow,
-		core.ComponentTask,
-		core.ComponentAgent,
-		core.ComponentTool,
-	}
-	return utils.SetupIntegrationTestBed(t, utils.DefaultTestTimeout, componentsToWatch)
-}
-
-func createTestAgentWorkflowExecution(
-	t *testing.T,
-	tb *utils.IntegrationTestBed,
-	env core.EnvMap,
-	input *core.Input,
-) core.ID {
-	t.Helper()
-
-	workflowExecID := core.MustNewID()
-	workflowMetadata := &pb.WorkflowMetadata{
-		WorkflowId:     "test-workflow",
-		WorkflowExecId: string(workflowExecID),
-		Time:           timestamppb.Now(),
-		Source:         "test",
-	}
-
-	workflowConfig := &workflow.Config{
-		ID:      "test-workflow",
-		Version: "1.0.0",
-		Env:     env,
-	}
-	err := workflowConfig.SetCWD(tb.StateDir)
-	require.NoError(t, err)
-
-	_, err = tb.WorkflowRepo.CreateExecution(tb.Ctx, workflowMetadata, workflowConfig, input)
-	require.NoError(t, err)
-
-	return workflowExecID
-}
-
-func createTestAgentTaskExecution(
-	t *testing.T,
-	tb *utils.IntegrationTestBed,
-	workflowExecID core.ID,
-	taskConfig *task.Config,
-) core.ID {
-	t.Helper()
-
-	taskExecID := core.MustNewID()
-	taskMetadata := &pb.TaskMetadata{
-		WorkflowId:     "test-workflow",
-		WorkflowExecId: string(workflowExecID),
-		TaskId:         "test-task",
-		TaskExecId:     string(taskExecID),
-		Time:           timestamppb.Now(),
-		Source:         "test",
-	}
-
-	err := taskConfig.SetCWD(tb.StateDir)
-	require.NoError(t, err)
-
-	_, err = tb.TaskRepo.CreateExecution(tb.Ctx, taskMetadata, taskConfig)
-	require.NoError(t, err)
-
-	return taskExecID
-}
-
-func createTestAgentExecution(
-	t *testing.T,
-	tb *utils.IntegrationTestBed,
-	workflowExecID core.ID,
-	taskExecID core.ID,
-	agentID string,
-	agentConfig *agent.Config,
-) (core.ID, *agent.Execution) {
-	t.Helper()
-	agentExecID := core.MustNewID()
-	agentMetadata := &pb.AgentMetadata{
-		WorkflowId:     "test-workflow",
-		WorkflowExecId: string(workflowExecID),
-		TaskId:         "test-task",
-		TaskExecId:     string(taskExecID),
-		AgentId:        agentID,
-		AgentExecId:    string(agentExecID),
-		Time:           timestamppb.Now(),
-		Source:         "test",
-	}
-	err := agentConfig.SetCWD(tb.StateDir)
-	require.NoError(t, err)
-	execution, err := tb.AgentRepo.CreateExecution(tb.Ctx, agentMetadata, agentConfig)
-	require.NoError(t, err)
-	require.NotNil(t, execution)
-	return agentExecID, execution
+	return utils.SetupIntegrationTestBed(t, utils.DefaultTestTimeout)
 }
 
 func TestAgentRepository_CreateExecution(t *testing.T) {
-	tb := setupAgentRepoTestBed(t)
+	tb := setupAgentTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should create agent execution successfully", func(t *testing.T) {
-		// Create workflow execution first
-		workflowExecID := createTestAgentWorkflowExecution(
-			t, tb, core.EnvMap{"WORKFLOW_VAR": "workflow_value"},
+		// Create workflow execution first using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
+			t, tb, "test-workflow",
+			core.EnvMap{"WORKFLOW_VAR": "workflow_value"},
 			&core.Input{"workflow_input": "test_data"},
 		)
 
-		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{"TASK_VAR": "task_value"},
-		}
-		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+		// Create task execution using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		taskConfig.Env = core.EnvMap{"TASK_VAR": "task_value"}
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
-		// Create agent config
-		agentConfig := &agent.Config{
-			ID:           "code-assistant",
-			Instructions: "You are a helpful coding assistant",
-			Config: agent.ProviderConfig{
-				Provider:    agent.ProviderAnthropic,
-				Model:       agent.ModelClaude3Opus,
-				Temperature: 0.7,
-				MaxTokens:   4000,
-			},
-			Env: core.EnvMap{"AGENT_VAR": "agent_value"},
+		// Create agent config using helper
+		agentConfig := utils.CreateTestAgentConfig(t, "code-assistant", "You are a helpful coding assistant", core.EnvMap{"AGENT_VAR": "agent_value"})
+		agentConfig.Config = agent.ProviderConfig{
+			Provider:    agent.ProviderAnthropic,
+			Model:       agent.ModelClaude3Opus,
+			Temperature: 0.7,
+			MaxTokens:   4000,
 		}
 
-		// Create agent execution
-		agentExecID, execution := createTestAgentExecution(t, tb, workflowExecID, taskExecID, "code-assistant", agentConfig)
+		// Create agent execution using helper
+		agentExecID, execution := utils.CreateTestAgentExecution(t, tb, taskExecID, "code-assistant", agentConfig)
 
 		// Verify execution properties
 		assert.Equal(t, agentExecID, execution.GetID())
@@ -164,62 +65,88 @@ func TestAgentRepository_CreateExecution(t *testing.T) {
 	})
 
 	t.Run("Should handle execution creation with actions", func(t *testing.T) {
-		// Create workflow execution first
-		workflowExecID := createTestAgentWorkflowExecution(
-			t, tb, core.EnvMap{},
+		// Create workflow execution first using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
+			t, tb, "test-workflow",
+			core.EnvMap{},
 			&core.Input{},
 		)
 
-		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+		// Create task execution using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
-		// Create agent config with actions
-		agentConfig := &agent.Config{
-			ID:           "code-reviewer",
-			Instructions: "You are a code review assistant",
-			Config: agent.ProviderConfig{
-				Provider:    agent.ProviderAnthropic,
-				Model:       agent.ModelClaude3Sonnet,
-				Temperature: 0.5,
-				MaxTokens:   2000,
-			},
-			Actions: []*agent.ActionConfig{
-				{
-					ID:     "review-code",
-					Prompt: "Review the following code for quality and best practices",
-					InputSchema: &schema.InputSchema{
-						Schema: schema.Schema{
-							"type": "object",
-							"properties": map[string]any{
-								"code": map[string]any{
-									"type":        "string",
-									"description": "The code to review",
-								},
-								"language": map[string]any{
-									"type":        "string",
-									"description": "The programming language",
-								},
+		// Create agent config with actions using helper
+		agentConfig := utils.CreateTestAgentConfig(t, "code-reviewer", "You are a code review assistant", core.EnvMap{})
+		agentConfig.Config = agent.ProviderConfig{
+			Provider:    agent.ProviderAnthropic,
+			Model:       agent.ModelClaude3Sonnet,
+			Temperature: 0.5,
+			MaxTokens:   2000,
+		}
+		agentConfig.Actions = []*agent.ActionConfig{
+			{
+				ID:     "review-code",
+				Prompt: "Review the following code for quality and best practices",
+				InputSchema: &schema.InputSchema{
+					Schema: schema.Schema{
+						"type": "object",
+						"properties": map[string]any{
+							"code": map[string]any{
+								"type":        "string",
+								"description": "The code to review",
 							},
-							"required": []string{"code"},
+							"language": map[string]any{
+								"type":        "string",
+								"description": "Programming language",
+							},
 						},
+						"required": []string{"code"},
 					},
 				},
 			},
-			Env: core.EnvMap{},
 		}
 
-		// Create agent execution
-		agentExecID, execution := createTestAgentExecution(t, tb, workflowExecID, taskExecID, "code-reviewer", agentConfig)
+		// Create agent execution using helper
+		agentExecID, execution := utils.CreateTestAgentExecution(t, tb, taskExecID, "code-reviewer", agentConfig)
 
 		// Verify execution properties
 		assert.Equal(t, agentExecID, execution.GetID())
 		assert.Equal(t, "code-reviewer", execution.GetComponentID())
+		assert.Equal(t, core.StatusPending, execution.GetStatus())
+		assert.Equal(t, workflowExecID, execution.GetWorkflowExecID())
+		assert.Equal(t, taskExecID, execution.TaskExecID)
+
+		// Verify actions are properly set
+		// Note: Actions are stored in the agent config, not directly accessible from execution
+		assert.Equal(t, agentExecID, execution.GetID())
+		assert.Equal(t, "code-reviewer", execution.GetComponentID())
+		assert.Equal(t, core.StatusPending, execution.GetStatus())
+		assert.Equal(t, workflowExecID, execution.GetWorkflowExecID())
+		assert.Equal(t, taskExecID, execution.TaskExecID)
+	})
+
+	t.Run("Should handle execution creation with empty env", func(t *testing.T) {
+		// Create workflow execution first using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
+			t, tb, "test-workflow",
+			core.EnvMap{},
+			&core.Input{},
+		)
+
+		// Create task execution using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "simple-task", "simple")
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "simple-task", taskConfig)
+
+		// Create agent config with empty env using helper
+		agentConfig := utils.CreateTestAgentConfig(t, "simple-agent", "Simple agent", core.EnvMap{})
+
+		// Create agent execution using helper
+		agentExecID, execution := utils.CreateTestAgentExecution(t, tb, taskExecID, "simple-agent", agentConfig)
+
+		// Verify execution properties
+		assert.Equal(t, agentExecID, execution.GetID())
+		assert.Equal(t, "simple-agent", execution.GetComponentID())
 		assert.Equal(t, core.StatusPending, execution.GetStatus())
 	})
 
@@ -257,8 +184,9 @@ func TestAgentRepository_CreateExecution(t *testing.T) {
 
 	t.Run("Should return error when task execution not found", func(t *testing.T) {
 		// Create workflow execution first
-		workflowExecID := createTestAgentWorkflowExecution(
-			t, tb, core.EnvMap{},
+		workflowExecID := utils.CreateTestWorkflowExecution(
+			t, tb, "test-workflow",
+			core.EnvMap{},
 			&core.Input{},
 		)
 
@@ -295,40 +223,33 @@ func TestAgentRepository_CreateExecution(t *testing.T) {
 }
 
 func TestAgentRepository_GetExecution(t *testing.T) {
-	tb := setupAgentRepoTestBed(t)
+	tb := setupAgentTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should load existing execution", func(t *testing.T) {
-		// Create workflow execution first
-		workflowExecID := createTestAgentWorkflowExecution(
-			t, tb, core.EnvMap{"WORKFLOW_VAR": "workflow_value"},
+		// Create workflow execution first using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
+			t, tb, "test-workflow",
+			core.EnvMap{"WORKFLOW_VAR": "workflow_value"},
 			&core.Input{"workflow_input": "test_data"},
 		)
 
-		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{"TASK_VAR": "task_value"},
-		}
-		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+		// Create task execution using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		taskConfig.Env = core.EnvMap{"TASK_VAR": "task_value"}
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
-		// Create agent config
-		agentConfig := &agent.Config{
-			ID:           "code-assistant",
-			Instructions: "You are a helpful coding assistant",
-			Config: agent.ProviderConfig{
-				Provider:    agent.ProviderAnthropic,
-				Model:       agent.ModelClaude3Opus,
-				Temperature: 0.7,
-				MaxTokens:   4000,
-			},
-			Env: core.EnvMap{"AGENT_VAR": "agent_value"},
+		// Create agent config using helper
+		agentConfig := utils.CreateTestAgentConfig(t, "code-assistant", "You are a helpful coding assistant", core.EnvMap{"AGENT_VAR": "agent_value"})
+		agentConfig.Config = agent.ProviderConfig{
+			Provider:    agent.ProviderAnthropic,
+			Model:       agent.ModelClaude3Opus,
+			Temperature: 0.7,
+			MaxTokens:   4000,
 		}
 
-		// Create agent execution
-		agentExecID, createdExecution := createTestAgentExecution(t, tb, workflowExecID, taskExecID, "code-assistant", agentConfig)
+		// Create agent execution using helper
+		agentExecID, createdExecution := utils.CreateTestAgentExecution(t, tb, taskExecID, "code-assistant", agentConfig)
 
 		// Load the execution
 		loadedExecution, err := tb.AgentRepo.GetExecution(tb.Ctx, agentExecID)
@@ -352,47 +273,35 @@ func TestAgentRepository_GetExecution(t *testing.T) {
 }
 
 func TestAgentRepository_ListExecutions(t *testing.T) {
-	tb := setupAgentRepoTestBed(t)
+	tb := setupAgentTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should list all agent executions", func(t *testing.T) {
-		// Create workflow execution
-		workflowExecID := createTestAgentWorkflowExecution(
-			t, tb, core.EnvMap{},
+		// Create workflow execution using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
+			t, tb, "test-workflow",
+			core.EnvMap{},
 			&core.Input{},
 		)
 
-		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+		// Create task execution using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
-		// Create multiple agent executions
-		agentConfig1 := &agent.Config{
-			ID:           "agent-1",
-			Instructions: "First agent",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderAnthropic,
-				Model:    agent.ModelClaude3Opus,
-			},
-			Env: core.EnvMap{},
+		// Create multiple agent executions using helpers
+		agentConfig1 := utils.CreateTestAgentConfig(t, "agent-1", "First agent", core.EnvMap{})
+		agentConfig1.Config = agent.ProviderConfig{
+			Provider: agent.ProviderAnthropic,
+			Model:    agent.ModelClaude3Opus,
 		}
-		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "agent-1", agentConfig1)
+		_, _ = utils.CreateTestAgentExecution(t, tb, taskExecID, "agent-1", agentConfig1)
 
-		agentConfig2 := &agent.Config{
-			ID:           "agent-2",
-			Instructions: "Second agent",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderAnthropic,
-				Model:    agent.ModelClaude3Sonnet,
-			},
-			Env: core.EnvMap{},
+		agentConfig2 := utils.CreateTestAgentConfig(t, "agent-2", "Second agent", core.EnvMap{})
+		agentConfig2.Config = agent.ProviderConfig{
+			Provider: agent.ProviderAnthropic,
+			Model:    agent.ModelClaude3Sonnet,
 		}
-		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "agent-2", agentConfig2)
+		_, _ = utils.CreateTestAgentExecution(t, tb, taskExecID, "agent-2", agentConfig2)
 
 		// List all executions
 		executions, err := tb.AgentRepo.ListExecutions(tb.Ctx)
@@ -428,36 +337,28 @@ func TestAgentRepository_ListExecutions(t *testing.T) {
 }
 
 func TestAgentRepository_ListExecutionsByStatus(t *testing.T) {
-	tb := setupAgentRepoTestBed(t)
+	tb := setupAgentTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should list executions by status", func(t *testing.T) {
-		// Create workflow execution
-		workflowExecID := createTestAgentWorkflowExecution(
-			t, tb, core.EnvMap{},
+		// Create workflow execution using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
+			t, tb, "test-workflow",
+			core.EnvMap{},
 			&core.Input{},
 		)
 
-		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+		// Create task execution using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
-		// Create agent execution
-		agentConfig := &agent.Config{
-			ID:           "test-agent",
-			Instructions: "Test agent",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderAnthropic,
-				Model:    agent.ModelClaude3Opus,
-			},
-			Env: core.EnvMap{},
+		// Create agent execution using helper
+		agentConfig := utils.CreateTestAgentConfig(t, "test-agent", "Test agent", core.EnvMap{})
+		agentConfig.Config = agent.ProviderConfig{
+			Provider: agent.ProviderAnthropic,
+			Model:    agent.ModelClaude3Opus,
 		}
-		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "test-agent", agentConfig)
+		_, _ = utils.CreateTestAgentExecution(t, tb, taskExecID, "test-agent", agentConfig)
 
 		// List executions by status
 		executions, err := tb.AgentRepo.ListExecutionsByStatus(tb.Ctx, core.StatusPending)
@@ -478,36 +379,28 @@ func TestAgentRepository_ListExecutionsByStatus(t *testing.T) {
 }
 
 func TestAgentRepository_ListExecutionsByWorkflowID(t *testing.T) {
-	tb := setupAgentRepoTestBed(t)
+	tb := setupAgentTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should list executions by workflow ID", func(t *testing.T) {
-		// Create workflow execution
-		workflowExecID := createTestAgentWorkflowExecution(
-			t, tb, core.EnvMap{},
+		// Create workflow execution using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
+			t, tb, "test-workflow",
+			core.EnvMap{},
 			&core.Input{},
 		)
 
-		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+		// Create task execution using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
-		// Create agent execution
-		agentConfig := &agent.Config{
-			ID:           "test-agent",
-			Instructions: "Test agent",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderAnthropic,
-				Model:    agent.ModelClaude3Opus,
-			},
-			Env: core.EnvMap{},
+		// Create agent execution using helper
+		agentConfig := utils.CreateTestAgentConfig(t, "test-agent", "Test agent", core.EnvMap{})
+		agentConfig.Config = agent.ProviderConfig{
+			Provider: agent.ProviderAnthropic,
+			Model:    agent.ModelClaude3Opus,
 		}
-		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "test-agent", agentConfig)
+		_, _ = utils.CreateTestAgentExecution(t, tb, taskExecID, "test-agent", agentConfig)
 
 		// List executions by workflow ID
 		executions, err := tb.AgentRepo.ListExecutionsByWorkflowID(tb.Ctx, "test-workflow")
@@ -528,47 +421,35 @@ func TestAgentRepository_ListExecutionsByWorkflowID(t *testing.T) {
 }
 
 func TestAgentRepository_ListExecutionsByWorkflowExecID(t *testing.T) {
-	tb := setupAgentRepoTestBed(t)
+	tb := setupAgentTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should list executions by workflow execution ID", func(t *testing.T) {
-		// Create workflow execution
-		workflowExecID := createTestAgentWorkflowExecution(
-			t, tb, core.EnvMap{},
+		// Create workflow execution using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
+			t, tb, "test-workflow",
+			core.EnvMap{},
 			&core.Input{},
 		)
 
-		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+		// Create task execution using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
-		// Create multiple agent executions for the same workflow execution
-		agentConfig1 := &agent.Config{
-			ID:           "agent-1",
-			Instructions: "First agent",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderAnthropic,
-				Model:    agent.ModelClaude3Opus,
-			},
-			Env: core.EnvMap{},
+		// Create multiple agent executions for the same workflow execution using helpers
+		agentConfig1 := utils.CreateTestAgentConfig(t, "agent-1", "First agent", core.EnvMap{})
+		agentConfig1.Config = agent.ProviderConfig{
+			Provider: agent.ProviderAnthropic,
+			Model:    agent.ModelClaude3Opus,
 		}
-		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "agent-1", agentConfig1)
+		_, _ = utils.CreateTestAgentExecution(t, tb, taskExecID, "agent-1", agentConfig1)
 
-		agentConfig2 := &agent.Config{
-			ID:           "agent-2",
-			Instructions: "Second agent",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderAnthropic,
-				Model:    agent.ModelClaude3Sonnet,
-			},
-			Env: core.EnvMap{},
+		agentConfig2 := utils.CreateTestAgentConfig(t, "agent-2", "Second agent", core.EnvMap{})
+		agentConfig2.Config = agent.ProviderConfig{
+			Provider: agent.ProviderAnthropic,
+			Model:    agent.ModelClaude3Sonnet,
 		}
-		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "agent-2", agentConfig2)
+		_, _ = utils.CreateTestAgentExecution(t, tb, taskExecID, "agent-2", agentConfig2)
 
 		// List executions by workflow execution ID
 		executions, err := tb.AgentRepo.ListExecutionsByWorkflowExecID(tb.Ctx, workflowExecID)
@@ -590,36 +471,28 @@ func TestAgentRepository_ListExecutionsByWorkflowExecID(t *testing.T) {
 }
 
 func TestAgentRepository_ListExecutionsByTaskID(t *testing.T) {
-	tb := setupAgentRepoTestBed(t)
+	tb := setupAgentTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should list executions by task ID", func(t *testing.T) {
-		// Create workflow execution
-		workflowExecID := createTestAgentWorkflowExecution(
-			t, tb, core.EnvMap{},
+		// Create workflow execution using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
+			t, tb, "test-workflow",
+			core.EnvMap{},
 			&core.Input{},
 		)
 
-		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+		// Create task execution using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
-		// Create agent execution
-		agentConfig := &agent.Config{
-			ID:           "test-agent",
-			Instructions: "Test agent",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderAnthropic,
-				Model:    agent.ModelClaude3Opus,
-			},
-			Env: core.EnvMap{},
+		// Create agent execution using helper
+		agentConfig := utils.CreateTestAgentConfig(t, "test-agent", "Test agent", core.EnvMap{})
+		agentConfig.Config = agent.ProviderConfig{
+			Provider: agent.ProviderAnthropic,
+			Model:    agent.ModelClaude3Opus,
 		}
-		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "test-agent", agentConfig)
+		_, _ = utils.CreateTestAgentExecution(t, tb, taskExecID, "test-agent", agentConfig)
 
 		// List executions by task ID
 		executions, err := tb.AgentRepo.ListExecutionsByTaskID(tb.Ctx, "test-task")
@@ -640,47 +513,35 @@ func TestAgentRepository_ListExecutionsByTaskID(t *testing.T) {
 }
 
 func TestAgentRepository_ListExecutionsByTaskExecID(t *testing.T) {
-	tb := setupAgentRepoTestBed(t)
+	tb := setupAgentTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should list executions by task execution ID", func(t *testing.T) {
-		// Create workflow execution
-		workflowExecID := createTestAgentWorkflowExecution(
-			t, tb, core.EnvMap{},
+		// Create workflow execution using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
+			t, tb, "test-workflow",
+			core.EnvMap{},
 			&core.Input{},
 		)
 
-		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+		// Create task execution using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
-		// Create multiple agent executions for the same task execution
-		agentConfig1 := &agent.Config{
-			ID:           "agent-1",
-			Instructions: "First agent",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderAnthropic,
-				Model:    agent.ModelClaude3Opus,
-			},
-			Env: core.EnvMap{},
+		// Create multiple agent executions for the same task execution using helpers
+		agentConfig1 := utils.CreateTestAgentConfig(t, "agent-1", "First agent", core.EnvMap{})
+		agentConfig1.Config = agent.ProviderConfig{
+			Provider: agent.ProviderAnthropic,
+			Model:    agent.ModelClaude3Opus,
 		}
-		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "agent-1", agentConfig1)
+		_, _ = utils.CreateTestAgentExecution(t, tb, taskExecID, "agent-1", agentConfig1)
 
-		agentConfig2 := &agent.Config{
-			ID:           "agent-2",
-			Instructions: "Second agent",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderAnthropic,
-				Model:    agent.ModelClaude3Sonnet,
-			},
-			Env: core.EnvMap{},
+		agentConfig2 := utils.CreateTestAgentConfig(t, "agent-2", "Second agent", core.EnvMap{})
+		agentConfig2.Config = agent.ProviderConfig{
+			Provider: agent.ProviderAnthropic,
+			Model:    agent.ModelClaude3Sonnet,
 		}
-		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "agent-2", agentConfig2)
+		_, _ = utils.CreateTestAgentExecution(t, tb, taskExecID, "agent-2", agentConfig2)
 
 		// List executions by task execution ID
 		executions, err := tb.AgentRepo.ListExecutionsByTaskExecID(tb.Ctx, taskExecID)
@@ -702,37 +563,29 @@ func TestAgentRepository_ListExecutionsByTaskExecID(t *testing.T) {
 }
 
 func TestAgentRepository_ListExecutionsByAgentID(t *testing.T) {
-	tb := setupAgentRepoTestBed(t)
+	tb := setupAgentTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should list executions by agent ID", func(t *testing.T) {
-		// Create workflow execution
-		workflowExecID := createTestAgentWorkflowExecution(
-			t, tb, core.EnvMap{},
+		// Create workflow execution using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
+			t, tb, "test-workflow",
+			core.EnvMap{},
 			&core.Input{},
 		)
 
-		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+		// Create task execution using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
-		// Create multiple executions for the same agent ID
-		agentConfig := &agent.Config{
-			ID:           "test-agent",
-			Instructions: "Test agent",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderAnthropic,
-				Model:    agent.ModelClaude3Opus,
-			},
-			Env: core.EnvMap{},
+		// Create multiple executions for the same agent ID using helper
+		agentConfig := utils.CreateTestAgentConfig(t, "test-agent", "Test agent", core.EnvMap{})
+		agentConfig.Config = agent.ProviderConfig{
+			Provider: agent.ProviderAnthropic,
+			Model:    agent.ModelClaude3Opus,
 		}
-		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "test-agent", agentConfig)
-		_, _ = createTestAgentExecution(t, tb, workflowExecID, taskExecID, "test-agent", agentConfig)
+		_, _ = utils.CreateTestAgentExecution(t, tb, taskExecID, "test-agent", agentConfig)
+		_, _ = utils.CreateTestAgentExecution(t, tb, taskExecID, "test-agent", agentConfig)
 
 		// List executions by agent ID
 		executions, err := tb.AgentRepo.ListExecutionsByAgentID(tb.Ctx, "test-agent")
@@ -753,36 +606,28 @@ func TestAgentRepository_ListExecutionsByAgentID(t *testing.T) {
 }
 
 func TestAgentRepository_ExecutionsToMap(t *testing.T) {
-	tb := setupAgentRepoTestBed(t)
+	tb := setupAgentTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should convert executions to execution maps", func(t *testing.T) {
-		// Create workflow execution
-		workflowExecID := createTestAgentWorkflowExecution(
-			t, tb, core.EnvMap{},
+		// Create workflow execution using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
+			t, tb, "test-workflow",
+			core.EnvMap{},
 			&core.Input{},
 		)
 
-		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+		// Create task execution using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
-		// Create agent execution
-		agentConfig := &agent.Config{
-			ID:           "test-agent",
-			Instructions: "Test agent",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderAnthropic,
-				Model:    agent.ModelClaude3Opus,
-			},
-			Env: core.EnvMap{},
+		// Create agent execution using helper
+		agentConfig := utils.CreateTestAgentConfig(t, "test-agent", "Test agent", core.EnvMap{})
+		agentConfig.Config = agent.ProviderConfig{
+			Provider: agent.ProviderAnthropic,
+			Model:    agent.ModelClaude3Opus,
 		}
-		_, execution := createTestAgentExecution(t, tb, workflowExecID, taskExecID, "test-agent", agentConfig)
+		_, execution := utils.CreateTestAgentExecution(t, tb, taskExecID, "test-agent", agentConfig)
 
 		// Convert to execution maps
 		executions := []core.Execution{execution}
@@ -811,53 +656,46 @@ func TestAgentRepository_ExecutionsToMap(t *testing.T) {
 }
 
 func TestAgentRepository_CreateExecution_TemplateNormalization(t *testing.T) {
-	tb := setupAgentRepoTestBed(t)
+	tb := setupAgentTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should parse templates in agent input during execution creation", func(t *testing.T) {
-		// Create workflow execution with input data
-		workflowExecID := createTestAgentWorkflowExecution(
-			t, tb, core.EnvMap{"WORKFLOW_VAR": "workflow_value"},
+		// Create workflow execution with input data using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
+			t, tb, "test-workflow",
+			core.EnvMap{"WORKFLOW_VAR": "workflow_value"},
 			&core.Input{
 				"user_name": "John Doe",
 				"user_id":   123,
 			},
 		)
 
-		// Create task execution with templates
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			With: &core.Input{
-				"task_data": "{{ .trigger.input.user_name }}",
-			},
-			Env: core.EnvMap{"TASK_VAR": "task_value"},
+		// Create task execution with templates using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		taskConfig.With = &core.Input{
+			"task_data": "{{ .trigger.input.user_name }}",
 		}
-		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+		taskConfig.Env = core.EnvMap{"TASK_VAR": "task_value"}
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
-		// Create test agent config with template input
-		agentConfig := &agent.Config{
-			ID:           "template-agent",
-			Instructions: "You are processing data for {{ .trigger.input.user_name }}",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderAnthropic,
-				Model:    agent.ModelClaude3Opus,
-			},
-			With: &core.Input{
-				"greeting":     "Hello, {{ .trigger.input.user_name }}!",
-				"user_id":      "{{ .trigger.input.user_id }}",
-				"env_message":  "Environment: {{ .env.WORKFLOW_VAR }}",
-				"static_value": "no template here",
-			},
-			Env: core.EnvMap{
-				"AGENT_VAR":   "agent_value",
-				"DYNAMIC_VAR": "{{ .trigger.input.user_name }}_processed",
-			},
+		// Create test agent config with template input using helper
+		agentConfig := utils.CreateTestAgentConfig(t, "template-agent", "You are processing data for {{ .trigger.input.user_name }}", core.EnvMap{
+			"AGENT_VAR":   "agent_value",
+			"DYNAMIC_VAR": "{{ .trigger.input.user_name }}_processed",
+		})
+		agentConfig.Config = agent.ProviderConfig{
+			Provider: agent.ProviderAnthropic,
+			Model:    agent.ModelClaude3Opus,
+		}
+		agentConfig.With = &core.Input{
+			"greeting":     "Hello, {{ .trigger.input.user_name }}!",
+			"user_id":      "{{ .trigger.input.user_id }}",
+			"env_message":  "Environment: {{ .env.WORKFLOW_VAR }}",
+			"static_value": "no template here",
 		}
 
-		// Create execution
-		_, execution := createTestAgentExecution(t, tb, workflowExecID, taskExecID, "template-agent", agentConfig)
+		// Create execution using helper
+		_, execution := utils.CreateTestAgentExecution(t, tb, taskExecID, "template-agent", agentConfig)
 
 		// Verify templates were parsed in input
 		input := execution.GetInput()
@@ -875,9 +713,10 @@ func TestAgentRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 	})
 
 	t.Run("Should handle nested templates in agent configuration", func(t *testing.T) {
-		// Create workflow execution with nested input data
-		workflowExecID := createTestAgentWorkflowExecution(
-			t, tb, core.EnvMap{"API_BASE": "https://api.example.com"},
+		// Create workflow execution with nested input data using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
+			t, tb, "test-workflow",
+			core.EnvMap{"API_BASE": "https://api.example.com"},
 			&core.Input{
 				"user": map[string]any{
 					"profile": map[string]any{
@@ -890,39 +729,30 @@ func TestAgentRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 			},
 		)
 
-		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+		// Create task execution using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
-		// Create agent config with nested templates
-		agentConfig := &agent.Config{
-			ID:           "nested-template-agent",
-			Instructions: "Process user {{ .trigger.input.user.profile.name }}",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderAnthropic,
-				Model:    agent.ModelClaude3Opus,
-			},
-			With: &core.Input{
-				"api_config": map[string]any{
-					"endpoint": "{{ .env.API_BASE }}/users/{{ .trigger.input.user.id }}",
-					"headers": map[string]any{
-						"X-User-Email": "{{ .trigger.input.user.profile.email }}",
-						"Content-Type": "application/json",
-					},
+		// Create agent config with nested templates using helper
+		agentConfig := utils.CreateTestAgentConfig(t, "nested-template-agent", "Process user {{ .trigger.input.user.profile.name }}", core.EnvMap{})
+		agentConfig.Config = agent.ProviderConfig{
+			Provider: agent.ProviderAnthropic,
+			Model:    agent.ModelClaude3Opus,
+		}
+		agentConfig.With = &core.Input{
+			"api_config": map[string]any{
+				"endpoint": "{{ .env.API_BASE }}/users/{{ .trigger.input.user.id }}",
+				"headers": map[string]any{
+					"X-User-Email": "{{ .trigger.input.user.profile.email }}",
+					"Content-Type": "application/json",
 				},
-				"user_display": "{{ .trigger.input.user.profile.name }}",
-				"action_type":  "{{ .trigger.input.action }}",
 			},
-			Env: core.EnvMap{},
+			"user_display": "{{ .trigger.input.user.profile.name }}",
+			"action_type":  "{{ .trigger.input.action }}",
 		}
 
-		// Create execution
-		_, execution := createTestAgentExecution(t, tb, workflowExecID, taskExecID, "nested-template-agent", agentConfig)
+		// Create execution using helper
+		_, execution := utils.CreateTestAgentExecution(t, tb, taskExecID, "nested-template-agent", agentConfig)
 
 		// Verify nested templates were parsed
 		input := execution.GetInput()
@@ -941,9 +771,10 @@ func TestAgentRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 	})
 
 	t.Run("Should handle environment variable merging with templates", func(t *testing.T) {
-		// Create workflow execution
-		workflowExecID := createTestAgentWorkflowExecution(
-			t, tb, core.EnvMap{
+		// Create workflow execution using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
+			t, tb, "test-workflow",
+			core.EnvMap{
 				"WORKFLOW_ENV": "from_workflow",
 				"SHARED_VAR":   "workflow_value",
 			},
@@ -952,37 +783,29 @@ func TestAgentRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 			},
 		)
 
-		// Create task execution with environment
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env: core.EnvMap{
-				"TASK_ENV":   "from_task",
-				"SHARED_VAR": "task_value", // Should override workflow value
-			},
+		// Create task execution with environment using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		taskConfig.Env = core.EnvMap{
+			"TASK_ENV":   "from_task",
+			"SHARED_VAR": "task_value", // Should override workflow value
 		}
-		taskExecID := createTestAgentTaskExecution(t, tb, workflowExecID, taskConfig)
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
-		// Create agent config with environment merging and templates
-		agentConfig := &agent.Config{
-			ID:           "env-merge-agent",
-			Instructions: "Process service {{ .trigger.input.service }}",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderAnthropic,
-				Model:    agent.ModelClaude3Opus,
-			},
-			With: &core.Input{},
-			Env: core.EnvMap{
-				"AGENT_ENV":    "from_agent",
-				"SHARED_VAR":   "agent_value", // Should override task value
-				"SERVICE_URL":  "https://{{ .trigger.input.service }}.example.com",
-				"COMBINED_VAR": "{{ .env.WORKFLOW_ENV }}_and_{{ .env.TASK_ENV }}_and_{{ .env.AGENT_ENV }}",
-			},
+		// Create agent config with environment merging and templates using helper
+		agentConfig := utils.CreateTestAgentConfig(t, "env-merge-agent", "Process service {{ .trigger.input.service }}", core.EnvMap{
+			"AGENT_ENV":    "from_agent",
+			"SHARED_VAR":   "agent_value", // Should override task value
+			"SERVICE_URL":  "https://{{ .trigger.input.service }}.example.com",
+			"COMBINED_VAR": "{{ .env.WORKFLOW_ENV }}_and_{{ .env.TASK_ENV }}_and_{{ .env.AGENT_ENV }}",
+		})
+		agentConfig.Config = agent.ProviderConfig{
+			Provider: agent.ProviderAnthropic,
+			Model:    agent.ModelClaude3Opus,
 		}
+		agentConfig.With = &core.Input{}
 
-		// Create execution
-		_, execution := createTestAgentExecution(t, tb, workflowExecID, taskExecID, "env-merge-agent", agentConfig)
+		// Create execution using helper
+		_, execution := utils.CreateTestAgentExecution(t, tb, taskExecID, "env-merge-agent", agentConfig)
 
 		// Verify environment variable merging and template parsing
 		env := execution.GetEnv()

@@ -3,7 +3,7 @@ id: translator
 config:
   provider: groq
   model: llama-3.3-70b-versatile
-  api_key: "{{ env.OPENAI_API_KEY }}"
+  api_key: "{{ .env.OPENAI_API_KEY }}"
 
 instructions: |
   You are a helpful translation assistant that accurately translates text between languages.
@@ -13,7 +13,7 @@ instructions: |
 
 actions:
   - id: translate
-    prompt: "Translate this text to {{ trigger.input.to_language }}: {{ input.quote }}"
+    prompt: "Translate this text to {{ .trigger.input.to_language }}: {{ .input.quote }}"
     input:
       type: object
       properties:

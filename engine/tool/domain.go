@@ -93,6 +93,10 @@ type Execution struct {
 }
 
 func NewExecution(data *RequestData) (*Execution, error) {
+	return NewExecutionWithContext(data, nil)
+}
+
+func NewExecutionWithContext(data *RequestData, mainExecMap *core.MainExecutionMap) (*Execution, error) {
 	env, err := data.TaskEnv.Merge(*data.ToolEnv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to merge env: %w", err)
@@ -120,7 +124,7 @@ func NewExecution(data *RequestData) (*Execution, error) {
 		RequestData:   data,
 	}
 	normalizer := tplengine.NewNormalizer()
-	if err := normalizer.ParseExecution(exec); err != nil {
+	if err := normalizer.ParseExecutionWithContext(exec, mainExecMap); err != nil {
 		return nil, fmt.Errorf("failed to parse execution: %w", err)
 	}
 	return exec, nil

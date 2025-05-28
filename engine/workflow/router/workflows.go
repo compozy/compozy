@@ -10,7 +10,13 @@ import (
 
 func getWorkflowByID(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
+	if workflowID == "" {
+		return
+	}
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	uc := wfuc.NewGetWorkflow(appState.Workflows, workflowID)
 	workflow, err := uc.Execute(c.Request.Context())
 	if err != nil {
@@ -27,6 +33,9 @@ func getWorkflowByID(c *gin.Context) {
 
 func listWorkflows(c *gin.Context) {
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	uc := wfuc.NewListWorkflows(appState.Workflows)
 	workflows, err := uc.Execute(c.Request.Context())
 	if err != nil {

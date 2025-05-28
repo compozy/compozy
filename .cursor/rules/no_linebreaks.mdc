@@ -1,0 +1,29 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+- Don't need to add extra line breaks between variables definitions and code blocks
+- When writing a function, mainly small functions, don't need line breaks
+
+## Bad
+
+```go
+func Foo() {
+    bar := "bar"
+
+    bar := "baz"
+
+    return
+}
+```
+
+## Good
+
+```go
+func Foo() {
+    bar := "bar"
+    bar := "baz"
+    return
+}
+```

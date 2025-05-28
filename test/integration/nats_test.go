@@ -17,20 +17,10 @@ func TestNatsServerMemoryStorage(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	natsServer, natsClient := utils.SetupNatsServer(ctx, t)
+	// Use shared NATS server instead of creating individual servers
+	natsServer, natsClient := utils.GetSharedNatsServer(t)
 	require.NotNil(t, natsServer, "NATS server should not be nil")
 	require.NotNil(t, natsClient, "NATS client should not be nil")
-	defer func() {
-		if natsClient != nil {
-			err := natsClient.Close()
-			if err != nil {
-				t.Logf("Error closing NATS client: %s", err)
-			}
-		}
-		if natsServer != nil {
-			natsServer.Shutdown()
-		}
-	}()
 
 	// Assert server is running
 	assert.True(t, natsServer.IsRunning(), "NATS server should be running")
@@ -48,15 +38,7 @@ func TestNatsServerMemoryStorage(t *testing.T) {
 }
 
 func TestCompleteIntegrationSetup(t *testing.T) {
-	// Set up test bed with all components
-	componentsToWatch := []core.ComponentType{
-		core.ComponentWorkflow,
-		core.ComponentTask,
-		core.ComponentAgent,
-		core.ComponentTool,
-	}
-
-	tb := utils.SetupIntegrationTestBed(t, utils.DefaultTestTimeout, componentsToWatch)
+	tb := utils.SetupIntegrationTestBed(t, utils.DefaultTestTimeout)
 	defer tb.Cleanup()
 
 	// Verify all components are properly set up
@@ -73,21 +55,10 @@ func TestNatsStreamConfig(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Setup NATS server with JetStream
-	natsServer, natsClient := utils.SetupNatsServer(ctx, t)
+	// Use shared NATS server instead of creating individual servers
+	natsServer, natsClient := utils.GetSharedNatsServer(t)
 	require.NotNil(t, natsServer, "NATS server should not be nil")
 	require.NotNil(t, natsClient, "NATS client should not be nil")
-	defer func() {
-		if natsClient != nil {
-			err := natsClient.Close()
-			if err != nil {
-				t.Logf("Error closing NATS client: %s", err)
-			}
-		}
-		if natsServer != nil {
-			natsServer.Shutdown()
-		}
-	}()
 
 	// Get JetStream context
 	_, err := natsClient.JetStream()
@@ -97,4 +68,11 @@ func TestNatsStreamConfig(t *testing.T) {
 	stream, err := natsClient.GetStream(ctx, core.StreamCommands)
 	require.NoError(t, err, "Agent command stream should exist")
 	require.NotNil(t, stream, "Agent command stream should not be nil")
+}
+
+func TestNatsIntegration(t *testing.T) {
+	tb := utils.SetupIntegrationTestBed(t, utils.DefaultTestTimeout)
+	defer tb.Cleanup()
+
+	// ... existing code ...
 }

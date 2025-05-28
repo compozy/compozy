@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,7 +11,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/agent"
-	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/infra/server/router"
@@ -37,16 +37,13 @@ type HTTPTestBed struct {
 func SetupHTTPTestBed(t *testing.T, testTimeout time.Duration) *HTTPTestBed {
 	t.Helper()
 
-	// Use shared NATS server for better performance
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	natsServer, natsClient := GetSharedNatsServer(t)
 
-	// Setup base integration test bed with shared NATS
-	integrationTB := SetupIntegrationTestBedWithNats(t, testTimeout, []core.ComponentType{
-		core.ComponentWorkflow,
-		core.ComponentTask,
-		core.ComponentAgent,
-		core.ComponentTool,
-	}, natsServer, natsClient)
+	integrationTB := SetupIntegrationTestBedWithNats(t, testTimeout, natsServer, natsClient)
+
+	integrationTB.Ctx = ctx
+	integrationTB.cancelCtx = cancel
 
 	// Create orchestrator
 	orchConfig := orchestrator.Config{
@@ -140,7 +137,7 @@ type HTTPResponse struct {
 }
 
 // ParseJSON parses the response body as JSON into the provided struct
-func (r *HTTPResponse) ParseJSON(v interface{}) error {
+func (r *HTTPResponse) ParseJSON(v any) error {
 	return json.Unmarshal(r.Body, v)
 }
 
@@ -166,7 +163,7 @@ func (r *HTTPResponse) GetAPIResponse() (*router.Response, error) {
 type HTTPRequest struct {
 	Method  string
 	Path    string
-	Body    interface{}
+	Body    any
 	Headers map[string]string
 }
 
@@ -243,7 +240,7 @@ func (htb *HTTPTestBed) GET(path string, headers ...map[string]string) (*HTTPRes
 }
 
 // POST makes a POST request
-func (htb *HTTPTestBed) POST(path string, body interface{}, headers ...map[string]string) (*HTTPResponse, error) {
+func (htb *HTTPTestBed) POST(path string, body any, headers ...map[string]string) (*HTTPResponse, error) {
 	req := HTTPRequest{
 		Method: http.MethodPost,
 		Path:   path,
@@ -256,7 +253,7 @@ func (htb *HTTPTestBed) POST(path string, body interface{}, headers ...map[strin
 }
 
 // PUT makes a PUT request
-func (htb *HTTPTestBed) PUT(path string, body interface{}, headers ...map[string]string) (*HTTPResponse, error) {
+func (htb *HTTPTestBed) PUT(path string, body any, headers ...map[string]string) (*HTTPResponse, error) {
 	req := HTTPRequest{
 		Method: http.MethodPut,
 		Path:   path,

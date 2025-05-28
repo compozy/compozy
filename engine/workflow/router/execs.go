@@ -10,7 +10,13 @@ import (
 
 func getExecution(c *gin.Context) {
 	workflowExecID := router.GetWorkflowExecID(c)
+	if workflowExecID == "" {
+		return
+	}
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	repo := appState.Orchestrator.Config().WorkflowRepoFactory()
 	uc := uc.NewGetExecution(repo, workflowExecID)
 	exec, err := uc.Execute(c.Request.Context())
@@ -28,6 +34,9 @@ func getExecution(c *gin.Context) {
 
 func listAllExecutions(c *gin.Context) {
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	repo := appState.Orchestrator.Config().WorkflowRepoFactory()
 	uc := uc.NewListAllExecutions(repo)
 	executions, err := uc.Execute(c.Request.Context())
@@ -47,7 +56,13 @@ func listAllExecutions(c *gin.Context) {
 
 func listExecutionsByID(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
+	if workflowID == "" {
+		return
+	}
 	appState := router.GetAppState(c)
+	if appState == nil {
+		return
+	}
 	repo := appState.Orchestrator.Config().WorkflowRepoFactory()
 	uc := uc.NewListExecutionsByID(repo, workflowID)
 	executions, err := uc.Execute(c.Request.Context())

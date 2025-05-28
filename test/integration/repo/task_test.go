@@ -10,7 +10,6 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/project"
-	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/pb"
 	"github.com/compozy/compozy/test/utils"
@@ -19,94 +18,29 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func setupTaskRepoTestBed(t *testing.T) *utils.IntegrationTestBed {
+func setupTaskTestBed(t *testing.T) *utils.IntegrationTestBed {
 	t.Helper()
-	componentsToWatch := []core.ComponentType{
-		core.ComponentWorkflow,
-		core.ComponentTask,
-	}
-	return utils.SetupIntegrationTestBed(t, utils.DefaultTestTimeout, componentsToWatch)
-}
-
-func createTestWorkflowExecution(
-	t *testing.T,
-	tb *utils.IntegrationTestBed,
-	workflowID string,
-	env core.EnvMap,
-	input *core.Input,
-) core.ID {
-	t.Helper()
-	workflowExecID := core.MustNewID()
-	workflowMetadata := &pb.WorkflowMetadata{
-		WorkflowId:     workflowID,
-		WorkflowExecId: string(workflowExecID),
-		Time:           timestamppb.Now(),
-		Source:         "test",
-	}
-	workflowConfig := &workflow.Config{
-		ID:      workflowID,
-		Version: "1.0.0",
-		Env:     env,
-	}
-	err := workflowConfig.SetCWD(tb.StateDir)
-	require.NoError(t, err)
-	_, err = tb.WorkflowRepo.CreateExecution(tb.Ctx, workflowMetadata, workflowConfig, input)
-	require.NoError(t, err)
-	return workflowExecID
-}
-
-func createTestTaskExecution(
-	t *testing.T,
-	tb *utils.IntegrationTestBed,
-	workflowExecID core.ID,
-	taskID string,
-	taskConfig *task.Config,
-) (core.ID, *task.Execution) {
-	t.Helper()
-
-	// Get the workflow execution to extract the correct workflow ID
-	workflowExecution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, workflowExecID)
-	require.NoError(t, err)
-
-	taskExecID := core.MustNewID()
-	taskMetadata := &pb.TaskMetadata{
-		WorkflowId:     workflowExecution.WorkflowID, // Use the actual workflow ID
-		WorkflowExecId: string(workflowExecID),
-		TaskId:         taskID,
-		TaskExecId:     string(taskExecID),
-		Time:           timestamppb.Now(),
-		Source:         "test",
-	}
-	err = taskConfig.SetCWD(tb.StateDir)
-	require.NoError(t, err)
-	execution, err := tb.TaskRepo.CreateExecution(tb.Ctx, taskMetadata, taskConfig)
-	require.NoError(t, err)
-	require.NotNil(t, execution)
-	return taskExecID, execution
+	return utils.SetupIntegrationTestBed(t, utils.DefaultTestTimeout)
 }
 
 func TestTaskRepository_CreateExecution(t *testing.T) {
-	tb := setupTaskRepoTestBed(t)
+	tb := setupTaskTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should create task execution successfully", func(t *testing.T) {
-		// Create workflow execution first
-		workflowExecID := createTestWorkflowExecution(
+		// Create workflow execution first using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow",
 			core.EnvMap{"WORKFLOW_VAR": "workflow_value"},
 			&core.Input{"workflow_input": "test_data"},
 		)
 
-		// Create task config
-		taskConfig := &task.Config{
-			ID:     "format-code",
-			Type:   "basic",
-			Action: "format",
-			Env:    core.EnvMap{"TEST_VAR": "test_value"},
-		}
+		// Create task config using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "format-code", "format")
+		taskConfig.Env = core.EnvMap{"TEST_VAR": "test_value"}
 
-		// Create task execution
-		taskExecID, execution := createTestTaskExecution(t, tb, workflowExecID, "format-code", taskConfig)
+		// Create task execution using helper
+		taskExecID, execution := utils.CreateTestTaskExecution(t, tb, workflowExecID, "format-code", taskConfig)
 
 		// Verify execution properties
 		assert.Equal(t, taskExecID, execution.GetID())
@@ -119,23 +53,18 @@ func TestTaskRepository_CreateExecution(t *testing.T) {
 	})
 
 	t.Run("Should handle execution creation with empty env", func(t *testing.T) {
-		// Create workflow execution first
-		workflowExecID := createTestWorkflowExecution(
+		// Create workflow execution first using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow",
 			core.EnvMap{},
 			&core.Input{},
 		)
 
-		// Create task config with empty env
-		taskConfig := &task.Config{
-			ID:     "simple-task",
-			Type:   "basic",
-			Action: "simple",
-			Env:    core.EnvMap{},
-		}
+		// Create task config with empty env using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "simple-task", "simple")
 
-		// Create task execution
-		taskExecID, execution := createTestTaskExecution(t, tb, workflowExecID, "simple-task", taskConfig)
+		// Create task execution using helper
+		taskExecID, execution := utils.CreateTestTaskExecution(t, tb, workflowExecID, "simple-task", taskConfig)
 
 		// Verify execution properties
 		assert.Equal(t, taskExecID, execution.GetID())
@@ -145,27 +74,23 @@ func TestTaskRepository_CreateExecution(t *testing.T) {
 }
 
 func TestTaskRepository_LoadExecution(t *testing.T) {
-	tb := setupTaskRepoTestBed(t)
+	tb := setupTaskTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should load existing execution", func(t *testing.T) {
-		// Create workflow execution first
-		workflowExecID := createTestWorkflowExecution(
+		// Create workflow execution first using helper
+		workflowExecID := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow",
 			core.EnvMap{"WORKFLOW_VAR": "workflow_value"},
 			&core.Input{"workflow_input": "test_data"},
 		)
 
-		// Create task config
-		taskConfig := &task.Config{
-			ID:     "format-code",
-			Type:   "basic",
-			Action: "format",
-			Env:    core.EnvMap{"TEST_VAR": "test_value"},
-		}
+		// Create task config using helper
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "format-code", "format")
+		taskConfig.Env = core.EnvMap{"TEST_VAR": "test_value"}
 
-		// Create task execution
-		taskExecID, createdExecution := createTestTaskExecution(t, tb, workflowExecID, "format-code", taskConfig)
+		// Create task execution using helper
+		taskExecID, createdExecution := utils.CreateTestTaskExecution(t, tb, workflowExecID, "format-code", taskConfig)
 
 		// Load the execution
 		loadedExecution, err := tb.TaskRepo.GetExecution(tb.Ctx, taskExecID)
@@ -188,33 +113,23 @@ func TestTaskRepository_LoadExecution(t *testing.T) {
 }
 
 func TestTaskRepository_ListExecutionsByWorkflowExecID(t *testing.T) {
-	tb := setupTaskRepoTestBed(t)
+	tb := setupTaskTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should list executions by workflow execution ID", func(t *testing.T) {
 		// Create workflow execution first
-		workflowExecID := createTestWorkflowExecution(
+		workflowExecID := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow",
 			core.EnvMap{},
 			&core.Input{},
 		)
 
 		// Create multiple task executions for the same workflow execution
-		taskConfig1 := &task.Config{
-			ID:     "task-1",
-			Type:   "basic",
-			Action: "action1",
-			Env:    core.EnvMap{},
-		}
-		_, _ = createTestTaskExecution(t, tb, workflowExecID, "task-1", taskConfig1)
+		taskConfig1 := utils.CreateTestBasicTaskConfig(t, "task-1", "action1")
+		_, _ = utils.CreateTestTaskExecution(t, tb, workflowExecID, "task-1", taskConfig1)
 
-		taskConfig2 := &task.Config{
-			ID:     "task-2",
-			Type:   "basic",
-			Action: "action2",
-			Env:    core.EnvMap{},
-		}
-		_, _ = createTestTaskExecution(t, tb, workflowExecID, "task-2", taskConfig2)
+		taskConfig2 := utils.CreateTestBasicTaskConfig(t, "task-2", "action2")
+		_, _ = utils.CreateTestTaskExecution(t, tb, workflowExecID, "task-2", taskConfig2)
 
 		// List executions by workflow execution ID
 		executions, err := tb.TaskRepo.ListExecutionsByWorkflowExecID(tb.Ctx, workflowExecID)
@@ -237,36 +152,26 @@ func TestTaskRepository_ListExecutionsByWorkflowExecID(t *testing.T) {
 
 	t.Run("Should handle workflow execution with tasks from different workflows", func(t *testing.T) {
 		// Create first workflow execution
-		workflowExecID1 := createTestWorkflowExecution(
+		workflowExecID1 := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow-1",
 			core.EnvMap{},
 			&core.Input{},
 		)
 
 		// Create second workflow execution
-		workflowExecID2 := createTestWorkflowExecution(
+		workflowExecID2 := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow-2",
 			core.EnvMap{},
 			&core.Input{},
 		)
 
 		// Create task for first workflow
-		taskConfig1 := &task.Config{
-			ID:     "task-1",
-			Type:   "basic",
-			Action: "action1",
-			Env:    core.EnvMap{},
-		}
-		taskExecID1, _ := createTestTaskExecution(t, tb, workflowExecID1, "task-1", taskConfig1)
+		taskConfig1 := utils.CreateTestBasicTaskConfig(t, "task-1", "action1")
+		taskExecID1, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID1, "task-1", taskConfig1)
 
 		// Create task for second workflow
-		taskConfig2 := &task.Config{
-			ID:     "task-2",
-			Type:   "basic",
-			Action: "action2",
-			Env:    core.EnvMap{},
-		}
-		taskExecID2, _ := createTestTaskExecution(t, tb, workflowExecID2, "task-2", taskConfig2)
+		taskConfig2 := utils.CreateTestBasicTaskConfig(t, "task-2", "action2")
+		taskExecID2, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID2, "task-2", taskConfig2)
 
 		// List executions for first workflow only
 		executions1, err := tb.TaskRepo.ListExecutionsByWorkflowExecID(tb.Ctx, workflowExecID1)
@@ -283,25 +188,20 @@ func TestTaskRepository_ListExecutionsByWorkflowExecID(t *testing.T) {
 }
 
 func TestTaskRepository_ExecutionsToMap(t *testing.T) {
-	tb := setupTaskRepoTestBed(t)
+	tb := setupTaskTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should convert executions to execution maps", func(t *testing.T) {
 		// Create workflow execution
-		workflowExecID := createTestWorkflowExecution(
+		workflowExecID := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow",
 			core.EnvMap{},
 			&core.Input{},
 		)
 
 		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		_, execution := createTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		_, execution := utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
 		// Convert to execution maps
 		executions := []core.Execution{execution}
@@ -326,12 +226,12 @@ func TestTaskRepository_ExecutionsToMap(t *testing.T) {
 }
 
 func TestTaskRepository_CreateExecution_TemplateNormalization(t *testing.T) {
-	tb := setupTaskRepoTestBed(t)
+	tb := setupTaskTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should parse templates in task input during execution creation", func(t *testing.T) {
 		// Create workflow execution with input data
-		workflowExecID := createTestWorkflowExecution(
+		workflowExecID := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow",
 			core.EnvMap{"WORKFLOW_VAR": "workflow_value"},
 			&core.Input{
@@ -341,24 +241,20 @@ func TestTaskRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 		)
 
 		// Create test task config with template input
-		taskConfig := &task.Config{
-			ID:     "template-task",
-			Type:   "basic",
-			Action: "process",
-			With: &core.Input{
-				"greeting":     "Hello, {{ .trigger.input.user_name }}!",
-				"user_id":      "{{ .trigger.input.user_id }}",
-				"env_message":  "Environment: {{ .env.WORKFLOW_VAR }}",
-				"static_value": "no template here",
-			},
-			Env: core.EnvMap{
-				"TASK_VAR":    "task_value",
-				"DYNAMIC_VAR": "{{ .trigger.input.user_name }}_processed",
-			},
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "template-task", "process")
+		taskConfig.With = &core.Input{
+			"greeting":     "Hello, {{ .trigger.input.user_name }}!",
+			"user_id":      "{{ .trigger.input.user_id }}",
+			"env_message":  "Environment: {{ .env.WORKFLOW_VAR }}",
+			"static_value": "no template here",
+		}
+		taskConfig.Env = core.EnvMap{
+			"TASK_VAR":    "task_value",
+			"DYNAMIC_VAR": "{{ .trigger.input.user_name }}_processed",
 		}
 
 		// Create execution
-		_, execution := createTestTaskExecution(t, tb, workflowExecID, "template-task", taskConfig)
+		_, execution := utils.CreateTestTaskExecution(t, tb, workflowExecID, "template-task", taskConfig)
 
 		// Verify templates were parsed in input
 		input := execution.GetInput()
@@ -376,7 +272,7 @@ func TestTaskRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 
 	t.Run("Should handle nested templates in task input", func(t *testing.T) {
 		// Create workflow execution with nested input data
-		workflowExecID := createTestWorkflowExecution(
+		workflowExecID := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow",
 			core.EnvMap{"API_BASE": "https://api.example.com"},
 			&core.Input{
@@ -392,26 +288,21 @@ func TestTaskRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 		)
 
 		// Create task config with nested templates
-		taskConfig := &task.Config{
-			ID:     "nested-template-task",
-			Type:   "basic",
-			Action: "process",
-			With: &core.Input{
-				"api_config": map[string]any{
-					"endpoint": "{{ .env.API_BASE }}/users/{{ .trigger.input.user.id }}",
-					"headers": map[string]any{
-						"X-User-Email": "{{ .trigger.input.user.profile.email }}",
-						"Content-Type": "application/json",
-					},
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "nested-template-task", "process")
+		taskConfig.With = &core.Input{
+			"api_config": map[string]any{
+				"endpoint": "{{ .env.API_BASE }}/users/{{ .trigger.input.user.id }}",
+				"headers": map[string]any{
+					"X-User-Email": "{{ .trigger.input.user.profile.email }}",
+					"Content-Type": "application/json",
 				},
-				"user_display": "{{ .trigger.input.user.profile.name }}",
-				"action_type":  "{{ .trigger.input.action }}",
 			},
-			Env: core.EnvMap{},
+			"user_display": "{{ .trigger.input.user.profile.name }}",
+			"action_type":  "{{ .trigger.input.action }}",
 		}
 
 		// Create execution
-		_, execution := createTestTaskExecution(t, tb, workflowExecID, "nested-template-task", taskConfig)
+		_, execution := utils.CreateTestTaskExecution(t, tb, workflowExecID, "nested-template-task", taskConfig)
 
 		// Verify nested templates were parsed
 		input := execution.GetInput()
@@ -431,7 +322,7 @@ func TestTaskRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 
 	t.Run("Should handle environment variable merging with templates", func(t *testing.T) {
 		// Create workflow execution
-		workflowExecID := createTestWorkflowExecution(
+		workflowExecID := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow",
 			core.EnvMap{
 				"WORKFLOW_ENV": "from_workflow",
@@ -443,21 +334,17 @@ func TestTaskRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 		)
 
 		// Create task config with environment merging and templates
-		taskConfig := &task.Config{
-			ID:     "env-merge-task",
-			Type:   "basic",
-			Action: "process",
-			With:   &core.Input{},
-			Env: core.EnvMap{
-				"TASK_ENV":     "from_task",
-				"SHARED_VAR":   "task_value", // Should override workflow value
-				"SERVICE_URL":  "https://{{ .trigger.input.service }}.example.com",
-				"COMBINED_VAR": "{{ .env.WORKFLOW_ENV }}_and_{{ .env.TASK_ENV }}",
-			},
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "env-merge-task", "process")
+		taskConfig.With = &core.Input{}
+		taskConfig.Env = core.EnvMap{
+			"TASK_ENV":     "from_task",
+			"SHARED_VAR":   "task_value", // Should override workflow value
+			"SERVICE_URL":  "https://{{ .trigger.input.service }}.example.com",
+			"COMBINED_VAR": "{{ .env.WORKFLOW_ENV }}_and_{{ .env.TASK_ENV }}",
 		}
 
 		// Create execution
-		_, execution := createTestTaskExecution(t, tb, workflowExecID, "env-merge-task", taskConfig)
+		_, execution := utils.CreateTestTaskExecution(t, tb, workflowExecID, "env-merge-task", taskConfig)
 
 		// Verify environment variable merging and template parsing
 		env := execution.GetEnv()
@@ -482,25 +369,21 @@ func TestTaskRepository_CreateExecution_TemplateNormalization(t *testing.T) {
 }
 
 func TestTaskRepository_GetExecution(t *testing.T) {
-	tb := setupTaskRepoTestBed(t)
+	tb := setupTaskTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should load existing execution", func(t *testing.T) {
 		// Create workflow execution first
-		workflowExecID := createTestWorkflowExecution(
+		workflowExecID := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow",
 			core.EnvMap{"WORKFLOW_VAR": "workflow_value"},
 			&core.Input{"workflow_input": "test_data"},
 		)
 
 		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{"TASK_VAR": "task_value"},
-		}
-		taskExecID, createdExecution := createTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		taskConfig.Env = core.EnvMap{"TASK_VAR": "task_value"}
+		taskExecID, createdExecution := utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
 		// Load the execution
 		loadedExecution, err := tb.TaskRepo.GetExecution(tb.Ctx, taskExecID)
@@ -523,33 +406,23 @@ func TestTaskRepository_GetExecution(t *testing.T) {
 }
 
 func TestTaskRepository_ListExecutions(t *testing.T) {
-	tb := setupTaskRepoTestBed(t)
+	tb := setupTaskTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should list all task executions", func(t *testing.T) {
 		// Create workflow execution
-		workflowExecID := createTestWorkflowExecution(
+		workflowExecID := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow",
 			core.EnvMap{},
 			&core.Input{},
 		)
 
 		// Create multiple task executions
-		taskConfig1 := &task.Config{
-			ID:     "task-1",
-			Type:   "basic",
-			Action: "action1",
-			Env:    core.EnvMap{},
-		}
-		_, _ = createTestTaskExecution(t, tb, workflowExecID, "task-1", taskConfig1)
+		taskConfig1 := utils.CreateTestBasicTaskConfig(t, "task-1", "action1")
+		_, _ = utils.CreateTestTaskExecution(t, tb, workflowExecID, "task-1", taskConfig1)
 
-		taskConfig2 := &task.Config{
-			ID:     "task-2",
-			Type:   "basic",
-			Action: "action2",
-			Env:    core.EnvMap{},
-		}
-		_, _ = createTestTaskExecution(t, tb, workflowExecID, "task-2", taskConfig2)
+		taskConfig2 := utils.CreateTestBasicTaskConfig(t, "task-2", "action2")
+		_, _ = utils.CreateTestTaskExecution(t, tb, workflowExecID, "task-2", taskConfig2)
 
 		// List all executions
 		executions, err := tb.TaskRepo.ListExecutions(tb.Ctx)
@@ -583,25 +456,20 @@ func TestTaskRepository_ListExecutions(t *testing.T) {
 }
 
 func TestTaskRepository_ListExecutionsByStatus(t *testing.T) {
-	tb := setupTaskRepoTestBed(t)
+	tb := setupTaskTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should list executions by status", func(t *testing.T) {
 		// Create workflow execution
-		workflowExecID := createTestWorkflowExecution(
+		workflowExecID := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow",
 			core.EnvMap{},
 			&core.Input{},
 		)
 
 		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		_, _ = createTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		_, _ = utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
 		// List executions by status
 		executions, err := tb.TaskRepo.ListExecutionsByStatus(tb.Ctx, core.StatusPending)
@@ -622,25 +490,20 @@ func TestTaskRepository_ListExecutionsByStatus(t *testing.T) {
 }
 
 func TestTaskRepository_ListExecutionsByWorkflowID(t *testing.T) {
-	tb := setupTaskRepoTestBed(t)
+	tb := setupTaskTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should list executions by workflow ID", func(t *testing.T) {
 		// Create workflow execution
-		workflowExecID := createTestWorkflowExecution(
+		workflowExecID := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow",
 			core.EnvMap{},
 			&core.Input{},
 		)
 
 		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		_, _ = createTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		_, _ = utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
 		// List executions by workflow ID
 		executions, err := tb.TaskRepo.ListExecutionsByWorkflowID(tb.Ctx, "test-workflow")
@@ -661,26 +524,21 @@ func TestTaskRepository_ListExecutionsByWorkflowID(t *testing.T) {
 }
 
 func TestTaskRepository_ListExecutionsByTaskID(t *testing.T) {
-	tb := setupTaskRepoTestBed(t)
+	tb := setupTaskTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should list executions by task ID", func(t *testing.T) {
 		// Create workflow execution
-		workflowExecID := createTestWorkflowExecution(
+		workflowExecID := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow",
 			core.EnvMap{},
 			&core.Input{},
 		)
 
 		// Create multiple executions for the same task ID
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		_, _ = createTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
-		_, _ = createTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		_, _ = utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
+		_, _ = utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
 		// List executions by task ID
 		executions, err := tb.TaskRepo.ListExecutionsByTaskID(tb.Ctx, "test-task")
@@ -701,7 +559,7 @@ func TestTaskRepository_ListExecutionsByTaskID(t *testing.T) {
 }
 
 func TestTaskRepository_ListExecutionsByWorkflowAndTaskID(t *testing.T) {
-	tb := setupTaskRepoTestBed(t)
+	tb := setupTaskTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should list executions by workflow and task ID", func(t *testing.T) {
@@ -710,28 +568,23 @@ func TestTaskRepository_ListExecutionsByWorkflowAndTaskID(t *testing.T) {
 		uniqueWorkflowID2 := fmt.Sprintf("other-workflow-%d", time.Now().UnixNano())
 
 		// Create workflow execution
-		workflowExecID := createTestWorkflowExecution(
+		workflowExecID := utils.CreateTestWorkflowExecution(
 			t, tb, uniqueWorkflowID1,
 			core.EnvMap{},
 			&core.Input{},
 		)
 
 		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		_, _ = createTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		_, _ = utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
 		// Create another workflow with different task
-		workflowExecID2 := createTestWorkflowExecution(
+		workflowExecID2 := utils.CreateTestWorkflowExecution(
 			t, tb, uniqueWorkflowID2,
 			core.EnvMap{},
 			&core.Input{},
 		)
-		_, _ = createTestTaskExecution(t, tb, workflowExecID2, "test-task", taskConfig)
+		_, _ = utils.CreateTestTaskExecution(t, tb, workflowExecID2, "test-task", taskConfig)
 
 		// List executions by workflow and task ID
 		executions, err := tb.TaskRepo.ListExecutionsByWorkflowAndTaskID(tb.Ctx, uniqueWorkflowID1, "test-task")
@@ -752,25 +605,20 @@ func TestTaskRepository_ListExecutionsByWorkflowAndTaskID(t *testing.T) {
 }
 
 func TestTaskRepository_ListChildrenExecutions(t *testing.T) {
-	tb := setupTaskRepoTestBed(t)
+	tb := setupTaskTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should list children executions by task execution ID", func(t *testing.T) {
 		// Create workflow execution
-		workflowExecID := createTestWorkflowExecution(
+		workflowExecID := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow",
 			core.EnvMap{},
 			&core.Input{},
 		)
 
 		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		taskExecID, _ := createTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "test-task", taskConfig)
 
 		// Create agent execution as child
 		agentConfig := &agent.Config{
@@ -813,20 +661,15 @@ func TestTaskRepository_ListChildrenExecutions(t *testing.T) {
 
 	t.Run("Should return empty list for task with no children", func(t *testing.T) {
 		// Create workflow execution
-		workflowExecID := createTestWorkflowExecution(
+		workflowExecID := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow",
 			core.EnvMap{},
 			&core.Input{},
 		)
 
 		// Create task execution without children
-		taskConfig := &task.Config{
-			ID:     "lonely-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		taskExecID, _ := createTestTaskExecution(t, tb, workflowExecID, "lonely-task", taskConfig)
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "lonely-task", "process")
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "lonely-task", taskConfig)
 
 		// List children executions
 		children, err := tb.TaskRepo.ListChildrenExecutions(tb.Ctx, taskExecID)
@@ -836,25 +679,20 @@ func TestTaskRepository_ListChildrenExecutions(t *testing.T) {
 }
 
 func TestTaskRepository_ListChildrenExecutionsByTaskID(t *testing.T) {
-	tb := setupTaskRepoTestBed(t)
+	tb := setupTaskTestBed(t)
 	defer tb.Cleanup()
 
 	t.Run("Should list children executions by task ID", func(t *testing.T) {
 		// Create workflow execution
-		workflowExecID := createTestWorkflowExecution(
+		workflowExecID := utils.CreateTestWorkflowExecution(
 			t, tb, "test-workflow",
 			core.EnvMap{},
 			&core.Input{},
 		)
 
 		// Create task execution
-		taskConfig := &task.Config{
-			ID:     "parent-task",
-			Type:   "basic",
-			Action: "process",
-			Env:    core.EnvMap{},
-		}
-		taskExecID, _ := createTestTaskExecution(t, tb, workflowExecID, "parent-task", taskConfig)
+		taskConfig := utils.CreateTestBasicTaskConfig(t, "parent-task", "process")
+		taskExecID, _ := utils.CreateTestTaskExecution(t, tb, workflowExecID, "parent-task", taskConfig)
 
 		// Create agent execution as child
 		agentConfig := &agent.Config{

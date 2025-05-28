@@ -42,6 +42,13 @@ func (r *ToolRepository) CreateExecution(
 	if err != nil {
 		return nil, fmt.Errorf("failed to load task execution: %w", err)
 	}
+
+	// Get the main execution map for template context
+	mainExecMap, err := r.workflowRepo.ExecutionToMap(ctx, workflowExecution)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get main execution map: %w", err)
+	}
+
 	parentInput := workflowExecution.GetInput()
 	toolEnv := config.GetEnv()
 	taskEnv := taskExecution.GetEnv()
@@ -58,7 +65,7 @@ func (r *ToolRepository) CreateExecution(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool request data: %w", err)
 	}
-	execution, err := tool.NewExecution(requestData)
+	execution, err := tool.NewExecutionWithContext(requestData, mainExecMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool execution: %w", err)
 	}
