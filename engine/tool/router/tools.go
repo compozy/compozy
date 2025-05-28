@@ -1,53 +1,53 @@
-package agentrouter
+package toolrouter
 
 import (
 	"net/http"
 
-	"github.com/compozy/compozy/engine/agent/uc"
 	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/tool/uc"
 	"github.com/gin-gonic/gin"
 )
 
-func getAgentByID(c *gin.Context) {
-	agentID := router.GetAgentID(c)
-	if agentID == "" {
+func getToolByID(c *gin.Context) {
+	toolID := router.GetToolID(c)
+	if toolID == "" {
 		return
 	}
 	appState := router.GetAppState(c)
 	if appState == nil {
 		return
 	}
-	uc := uc.NewGetAgent(appState.Workflows, agentID)
-	agent, err := uc.Execute(c.Request.Context())
+	uc := uc.NewGetTool(appState.Workflows, toolID)
+	tool, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(
 			http.StatusNotFound,
-			"agent not found",
+			"tool not found",
 			err,
 		)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	router.RespondOK(c, "agent retrieved", agent)
+	router.RespondOK(c, "tool retrieved", tool)
 }
 
-func listAgents(c *gin.Context) {
+func listTools(c *gin.Context) {
 	appState := router.GetAppState(c)
 	if appState == nil {
 		return
 	}
-	uc := uc.NewListAgents(appState.Workflows)
-	agents, err := uc.Execute(c.Request.Context())
+	uc := uc.NewListTools(appState.Workflows)
+	tools, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(
 			http.StatusInternalServerError,
-			"failed to list agents",
+			"failed to list tools",
 			err,
 		)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	router.RespondOK(c, "agents retrieved", gin.H{
-		"agents": agents,
+	router.RespondOK(c, "tools retrieved", gin.H{
+		"tools": tools,
 	})
 }

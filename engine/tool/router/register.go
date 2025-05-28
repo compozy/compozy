@@ -6,16 +6,17 @@ func Register(apiBase *gin.RouterGroup) {
 	// Tool definition routes
 	toolsGroup := apiBase.Group("/tools")
 	{
-		_ = toolsGroup // TODO: implement tool routes
-		// TODO: implement tool definition routes
 		// GET /api/v0/tools
 		// List all tools
+		toolsGroup.GET("", listTools)
 
 		// GET /api/v0/tools/:tool_id
 		// Get tool definition
+		toolsGroup.GET("/:tool_id", getToolByID)
 
 		// GET /api/v0/tools/:tool_id/executions
 		// List executions for a tool
+		toolsGroup.GET("/:tool_id/executions", listExecutionsByToolID)
 	}
 
 	// Global execution routes
@@ -24,16 +25,13 @@ func Register(apiBase *gin.RouterGroup) {
 		// Tool execution routes
 		toolExecGroup := executionsGroup.Group("/tools")
 		{
-			_ = toolExecGroup // TODO: implement tool execution routes
-			// TODO: implement tool execution routes
 			// GET /api/v0/executions/tools
 			// List all tool executions
+			toolExecGroup.GET("", listAllToolExecutions)
 
 			// GET /api/v0/executions/tools/:tool_exec_id
 			// Get tool execution details
-
-			// GET /api/v0/executions/tools/:tool_exec_id/logs
-			// Get logs for a tool execution
+			toolExecGroup.GET("/:tool_exec_id", getToolExecution)
 		}
 	}
 }

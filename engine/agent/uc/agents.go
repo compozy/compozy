@@ -50,7 +50,7 @@ func NewListAgents(workflows []*workflow.Config) *ListAgents {
 }
 
 func (uc *ListAgents) Execute(_ context.Context) ([]agent.Config, error) {
-	var agents []agent.Config
+	agents := make([]agent.Config, 0)
 	seen := make(map[string]bool)
 
 	for _, wf := range uc.workflows {

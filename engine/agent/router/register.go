@@ -25,16 +25,13 @@ func Register(apiBase *gin.RouterGroup) {
 		// Agent execution routes
 		agentExecGroup := executionsGroup.Group("/agents")
 		{
-			_ = agentExecGroup // TODO: implement agent execution routes
-			// TODO: implement agent execution routes
 			// GET /api/v0/executions/agents
 			// List all agent executions
+			agentExecGroup.GET("", listAllAgentExecutions)
 
 			// GET /api/v0/executions/agents/:agent_exec_id
 			// Get agent execution details
-
-			// GET /api/v0/executions/agents/:agent_exec_id/logs
-			// Get logs for an agent execution
+			agentExecGroup.GET("/:agent_exec_id", getAgentExecution)
 		}
 	}
 }
