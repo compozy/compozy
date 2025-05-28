@@ -6,16 +6,17 @@ func Register(apiBase *gin.RouterGroup) {
 	// Agent definition routes
 	agentsGroup := apiBase.Group("/agents")
 	{
-		_ = agentsGroup // TODO: implement agent routes
-		// TODO: implement agent definition routes
 		// GET /api/v0/agents
 		// List all agents
+		agentsGroup.GET("", listAgents)
 
 		// GET /api/v0/agents/:agent_id
 		// Get agent definition
+		agentsGroup.GET("/:agent_id", getAgentByID)
 
 		// GET /api/v0/agents/:agent_id/executions
 		// List executions for an agent
+		agentsGroup.GET("/:agent_id/executions", listExecutionsByAgentID)
 	}
 
 	// Global execution routes

@@ -73,3 +73,7 @@ func GetTaskID(c *gin.Context) string {
 func GetTaskExecID(c *gin.Context) core.ID {
 	return core.ID(GetURLParam(c, "task_exec_id"))
 }
+
+func GetAgentID(c *gin.Context) string {
+	return GetURLParam(c, "agent_id")
+}
