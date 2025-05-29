@@ -1,0 +1,37 @@
+id: code-processor
+description: A tool that processes code using external schema references with merging
+execute: ./format.ts
+input:
+  $ref: ./schemas.yaml::schemas.#(id=="code_input")!merge
+  # Additional inline properties that should be merged with the referenced schema
+  properties:
+    format_style:
+      type: string
+      enum: [standard, compact, verbose]
+      default: standard
+    strict_mode:
+      type: boolean
+      default: false
+  required:
+    - format_style
+output:
+  $ref: ./schemas.yaml::schemas.#(id=="code_output")!merge
+  # Additional properties to merge with the referenced output schema
+  properties:
+    execution_time:
+      type: number
+      description: Time taken to process in milliseconds
+    tool_version:
+      type: string
+      description: Version of the processing tool used
+env:
+  PROCESSOR_VERSION: "2.0.0"
+  LOG_LEVEL: "info"
+with:
+  code: "console.log('Hello, World!');"
+  language: "javascript"
+  format_style: "standard"
+  strict_mode: true
+  options:
+    indent_size: 4
+    use_tabs: false

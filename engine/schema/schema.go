@@ -1,9 +1,12 @@
 package schema
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
+	"github.com/compozy/compozy/pkg/ref"
+	"github.com/pkg/errors"
 	"github.com/santhosh-tekuri/jsonschema/v5"
 )
 
@@ -13,12 +16,69 @@ import (
 
 type Schema map[string]any
 
+// resolveSchemaRef is a private function to handle schema reference resolution
+func resolveSchemaRef(
+	ctx context.Context,
+	withRef *ref.WithRef,
+	refNode *ref.Node,
+	schema *Schema,
+	currentDoc any,
+	projectRoot, filePath, schemaType string,
+) error {
+	if refNode != nil && !refNode.IsEmpty() {
+		withRef.SetRefMetadata(filePath, projectRoot)
+		var schemaMap map[string]any
+		if *schema != nil {
+			schemaMap = map[string]any(*schema)
+		} else {
+			schemaMap = make(map[string]any)
+		}
+		schemaMap["$ref"] = refNode.String()
+		resolvedMap, err := withRef.ResolveMapReference(ctx, schemaMap, currentDoc)
+		if err != nil {
+			return errors.Wrapf(err, "failed to resolve %s schema $ref", schemaType)
+		}
+		*schema = Schema(resolvedMap)
+	}
+	return nil
+}
+
 type InputSchema struct {
-	Schema Schema `yaml:",inline"`
+	ref.WithRef
+	Ref    *ref.Node `json:"$ref,omitempty" yaml:"$ref,omitempty"`
+	Schema Schema    `yaml:",inline"`
+}
+
+func (s *InputSchema) ResolveRef(ctx context.Context, currentDoc any, projectRoot, filePath string) error {
+	return resolveSchemaRef(
+		ctx,
+		&s.WithRef,
+		s.Ref,
+		&s.Schema,
+		currentDoc,
+		projectRoot,
+		filePath,
+		"input",
+	)
 }
 
 type OutputSchema struct {
-	Schema Schema `yaml:",inline"`
+	ref.WithRef
+	Ref    *ref.Node `json:"$ref,omitempty" yaml:"$ref,omitempty"`
+	Schema Schema    `yaml:",inline"`
+}
+
+func (s *OutputSchema) ResolveRef(ctx context.Context, currentDoc any, projectRoot, filePath string) error {
+	return resolveSchemaRef(
+		ctx,
+		&s.WithRef,
+		s.Ref,
+		&s.Schema,
+		currentDoc,
+		projectRoot,
+		filePath,
+		"output",
+	)
 }
 
 func (s *Schema) Validate(value any) error {

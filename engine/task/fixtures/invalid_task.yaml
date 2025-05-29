@@ -1,6 +1,7 @@
 id: invalid-task
-$ref: ./base_task.yaml
-# Inputs schemas are not allowed for references
+type: invalid-type
+# Missing required executor configuration
+# Invalid task type should trigger validation error
 input:
   type: object
   properties:

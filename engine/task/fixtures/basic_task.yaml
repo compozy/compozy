@@ -1,24 +1,9 @@
 id: code-format
-input:
-  type: object
-  properties:
-    code:
-      type: string
-    language:
-      type: string
-    indent_size:
-      type: integer
-    use_tabs:
-      type: boolean
-  required:
-    - code
-output:
-  type: object
-  properties:
-    formatted_code:
-      type: string
-  required:
-    - formatted_code
+type: basic
+action: format
+executor:
+  type: agent
+  $ref: ./agents.yaml::agents.#(id=="code-formatter")
 env:
   FORMATTER_VERSION: "1.0.0"
 with:

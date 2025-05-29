@@ -1,0 +1,14 @@
+agents:
+  - id: code-formatter
+    config:
+      provider: openai
+      model: gpt-4o
+      temperature: 0.1
+    instructions: "You are a code formatter. Format the provided code according to best practices."
+
+  - id: code-reviewer
+    config:
+      provider: openai
+      model: gpt-4o
+      temperature: 0.3
+    instructions: "You are a code reviewer. Review the provided code and provide feedback."

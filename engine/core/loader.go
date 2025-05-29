@@ -1,10 +1,12 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -35,10 +37,10 @@ func resolvePath(cwd *CWD, path string) (string, error) {
 	return absPath, nil
 }
 
-func LoadConfig[T Config](cwd *CWD, path string) (T, error) {
+func LoadConfig[T Config](ctx context.Context, cwd *CWD, projectRoot string, filePath string) (T, error) {
 	var zero T
 
-	resolvedPath, err := resolvePath(cwd, path)
+	resolvedPath, err := resolvePath(cwd, filePath)
 	if err != nil {
 		return zero, err
 	}
@@ -55,8 +57,30 @@ func LoadConfig[T Config](cwd *CWD, path string) (T, error) {
 		return zero, fmt.Errorf("failed to decode YAML config: %w", err)
 	}
 
-	if err := config.SetCWD(filepath.Dir(resolvedPath)); err != nil {
-		return zero, err
+	metadata := ConfigMetadata{
+		CWD:         cwd,
+		FilePath:    filePath,
+		ProjectRoot: projectRoot,
 	}
+	config.SetMetadata(&metadata)
 	return config, nil
+}
+
+// LoadYAMLMap loads a YAML file from the given path and returns its contents as a map[string]any.
+func LoadYAMLMap(path string) (map[string]any, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to read YAML file %s", path)
+	}
+
+	var doc any
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, errors.Wrapf(err, "failed to parse YAML in %s", path)
+	}
+
+	// Ensure the result is a map[string]any
+	if docMap, ok := doc.(map[string]any); ok {
+		return docMap, nil
+	}
+	return nil, errors.Errorf("YAML file %s does not contain a map", path)
 }

@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"context"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -12,18 +13,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTest(t *testing.T, toolFile string) (cwd *core.CWD, dstPath string) {
+func setupTest(t *testing.T, toolFile string) (cwd *core.CWD, projectRoot, dstPath string) {
 	_, filename, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	cwd, dstPath = utils.SetupTest(t, filename)
-	dstPath = filepath.Join(dstPath, toolFile)
+	_, tempFixturesDir := utils.SetupTest(t, filename)
+	// Set CWD to the temporary fixtures directory where the files actually exist
+	cwd, err := core.CWDFromPath(tempFixturesDir)
+	require.NoError(t, err)
+	projectRoot = tempFixturesDir
+	dstPath = filepath.Join(tempFixturesDir, toolFile)
 	return
 }
 
 func Test_LoadTool(t *testing.T) {
 	t.Run("Should load basic tool configuration correctly", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "basic_tool.yaml")
-		config, err := Load(cwd, dstPath)
+		cwd, projectRoot, dstPath := setupTest(t, "basic_tool.yaml")
+
+		// Run the test
+		ctx := context.Background()
+		config, err := Load(ctx, cwd, projectRoot, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -70,8 +78,11 @@ func Test_LoadTool(t *testing.T) {
 	})
 
 	t.Run("Should load package tool configuration correctly", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "package_tool.yaml")
-		config, err := Load(cwd, dstPath)
+		cwd, projectRoot, dstPath := setupTest(t, "package_tool.yaml")
+
+		// Run the test
+		ctx := context.Background()
+		config, err := Load(ctx, cwd, projectRoot, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -136,8 +147,11 @@ func Test_LoadTool(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid tool configuration", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "invalid_tool.yaml")
-		config, err := Load(cwd, dstPath)
+		cwd, projectRoot, dstPath := setupTest(t, "invalid_tool.yaml")
+
+		// Run the test
+		ctx := context.Background()
+		config, err := Load(ctx, cwd, projectRoot, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -145,18 +159,208 @@ func Test_LoadTool(t *testing.T) {
 		err = config.Validate()
 		require.Error(t, err)
 	})
+
+	t.Run("Should load tool configuration with external schema references", func(t *testing.T) {
+		cwd, projectRoot, dstPath := setupTest(t, "ref_tool.yaml")
+
+		// Run the test
+		ctx := context.Background()
+		config, err := Load(ctx, cwd, projectRoot, dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
+
+		// Validate the config
+		err = config.Validate()
+		require.NoError(t, err)
+
+		require.NotNil(t, config.ID)
+		require.NotNil(t, config.Description)
+		require.NotNil(t, config.Execute)
+		require.NotNil(t, config.InputSchema)
+		require.NotNil(t, config.OutputSchema)
+		require.NotNil(t, config.Env)
+		require.NotNil(t, config.With)
+
+		assert.Equal(t, "code-processor", config.ID)
+		assert.Equal(t, "A tool that processes code using external schema references with merging", config.Description)
+		assert.Equal(t, "./format.ts", config.Execute)
+		assert.True(t, IsTypeScript(config.Execute))
+
+		// Validate input schema was resolved from external file and merged with inline properties
+		inputSchema := config.InputSchema.Schema
+		assert.Equal(t, "object", inputSchema.GetType())
+		require.NotNil(t, inputSchema.GetProperties())
+
+		// Properties from the referenced schema
+		assert.Contains(t, inputSchema.GetProperties(), "code")
+		assert.Contains(t, inputSchema.GetProperties(), "language")
+		assert.Contains(t, inputSchema.GetProperties(), "options")
+
+		// Additional inline properties that should be merged
+		assert.Contains(t, inputSchema.GetProperties(), "format_style")
+		assert.Contains(t, inputSchema.GetProperties(), "strict_mode")
+
+		// Verify the language property has enum constraints from external schema
+		languageProp := inputSchema.GetProperties()["language"]
+		if languageSchema, ok := (*languageProp)["enum"]; ok {
+			enumValues, ok := languageSchema.([]any)
+			require.True(t, ok)
+			assert.Contains(t, enumValues, "javascript")
+			assert.Contains(t, enumValues, "typescript")
+			assert.Contains(t, enumValues, "python")
+		}
+
+		// Verify the inline format_style property has its enum
+		formatStyleProp := inputSchema.GetProperties()["format_style"]
+		if formatStyleSchema, ok := (*formatStyleProp)["enum"]; ok {
+			enumValues, ok := formatStyleSchema.([]any)
+			require.True(t, ok)
+			assert.Contains(t, enumValues, "standard")
+			assert.Contains(t, enumValues, "compact")
+			assert.Contains(t, enumValues, "verbose")
+		}
+
+		// Check required fields - inline required replaces referenced required (array merge behavior)
+		if required, ok := inputSchema["required"].([]any); ok && len(required) > 0 {
+			// Due to array merge behavior, inline required replaces referenced required
+			assert.Contains(t, required, "format_style")
+			// Note: "code" and "language" from referenced schema are replaced by inline required
+		}
+
+		// Validate output schema was resolved and merged with inline properties
+		outputSchema := config.OutputSchema.Schema
+		assert.Equal(t, "object", outputSchema.GetType())
+		require.NotNil(t, outputSchema.GetProperties())
+
+		// Properties from the referenced schema
+		assert.Contains(t, outputSchema.GetProperties(), "processed_code")
+		assert.Contains(t, outputSchema.GetProperties(), "metadata")
+
+		// Additional inline properties that should be merged
+		assert.Contains(t, outputSchema.GetProperties(), "execution_time")
+		assert.Contains(t, outputSchema.GetProperties(), "tool_version")
+
+		if required, ok := outputSchema["required"].([]any); ok && len(required) > 0 {
+			assert.Contains(t, required, "processed_code")
+		}
+
+		// Validate env and with
+		assert.Equal(t, "2.0.0", config.Env["PROCESSOR_VERSION"])
+		assert.Equal(t, "info", config.Env["LOG_LEVEL"])
+		assert.Equal(t, "console.log('Hello, World!');", (*config.With)["code"])
+		assert.Equal(t, "javascript", (*config.With)["language"])
+		assert.Equal(t, "standard", (*config.With)["format_style"])
+		assert.Equal(t, true, (*config.With)["strict_mode"])
+
+		// Validate nested options from with
+		if options, ok := (*config.With)["options"].(map[string]any); ok {
+			assert.Equal(t, 4, options["indent_size"])
+			assert.Equal(t, false, options["use_tabs"])
+		}
+	})
+
+	t.Run("Should handle replace merge mode correctly", func(t *testing.T) {
+		cwd, projectRoot, dstPath := setupTest(t, "replace_mode_tool.yaml")
+
+		// Run the test
+		ctx := context.Background()
+		config, err := Load(ctx, cwd, projectRoot, dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
+
+		// Validate the config
+		err = config.Validate()
+		require.NoError(t, err)
+
+		assert.Equal(t, "replace-mode-processor", config.ID)
+
+		// Validate input schema with replace mode - should only have referenced schema, no inline properties
+		inputSchema := config.InputSchema.Schema
+		assert.Equal(t, "object", inputSchema.GetType())
+		properties := inputSchema.GetProperties()
+		require.NotNil(t, properties)
+
+		// Should have properties from referenced schema only
+		assert.Contains(t, properties, "code")
+		assert.Contains(t, properties, "language")
+		assert.Contains(t, properties, "options")
+
+		// Should NOT have inline properties due to replace mode
+		assert.NotContains(t, properties, "ignored_field")
+
+		// Required should come from referenced schema, not inline
+		if required, ok := inputSchema["required"].([]any); ok && len(required) > 0 {
+			assert.Contains(t, required, "code")
+			assert.Contains(t, required, "language")
+			assert.NotContains(t, required, "ignored_field")
+		}
+	})
+
+	t.Run("Should validate parameter merging with referenced schemas", func(t *testing.T) {
+		cwd, projectRoot, dstPath := setupTest(t, "ref_tool.yaml")
+
+		// Run the test
+		ctx := context.Background()
+		config, err := Load(ctx, cwd, projectRoot, dstPath)
+		require.NoError(t, err)
+
+		// Test parameter validation with merged schema
+		validParams := &core.Input{
+			"code":         "console.log('test');",
+			"language":     "javascript",
+			"format_style": "standard",
+			"strict_mode":  true,
+			"options": map[string]any{
+				"indent_size": 4,
+				"use_tabs":    false,
+			},
+		}
+
+		err = config.ValidateParams(validParams)
+		assert.NoError(t, err)
+
+		// Test with invalid parameters (missing required from inline)
+		invalidParams := &core.Input{
+			"code":     "console.log('test');",
+			"language": "javascript",
+			// Missing format_style which is required in inline schema
+		}
+
+		err = config.ValidateParams(invalidParams)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "with parameters invalid")
+
+		// Test with invalid enum value for referenced property
+		invalidEnumParams := &core.Input{
+			"code":         "console.log('test');",
+			"language":     "invalid_language", // Not in referenced enum
+			"format_style": "standard",
+		}
+
+		err = config.ValidateParams(invalidEnumParams)
+		assert.Error(t, err)
+	})
 }
 
 func Test_ToolConfigValidation(t *testing.T) {
 	toolID := "test-tool"
-	toolPath := "/test/path"
-	toolCWD, err := core.CWDFromPath(toolPath)
+	_, filename, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	fixturesDir := filepath.Join(filepath.Dir(filename), "fixtures")
+	toolCWD, err := core.CWDFromPath(fixturesDir)
 	require.NoError(t, err)
+
+	// Create tool metadata
+	metadata := &core.ConfigMetadata{
+		CWD:         toolCWD,
+		FilePath:    filepath.Join(fixturesDir, "tool.yaml"),
+		ProjectRoot: fixturesDir,
+	}
 
 	t.Run("Should validate valid tool configuration", func(t *testing.T) {
 		config := &Config{
-			ID:  toolID,
-			cwd: toolCWD,
+			ID:       toolID,
+			metadata: metadata,
 		}
 
 		err := config.Validate()
@@ -165,7 +369,8 @@ func Test_ToolConfigValidation(t *testing.T) {
 
 	t.Run("Should return error when CWD is missing", func(t *testing.T) {
 		config := &Config{
-			ID: toolID,
+			ID:       toolID,
+			metadata: &core.ConfigMetadata{},
 		}
 
 		err := config.Validate()
@@ -173,90 +378,79 @@ func Test_ToolConfigValidation(t *testing.T) {
 		assert.Contains(t, err.Error(), "current working directory is required for test-tool")
 	})
 
-	t.Run("Should return error for invalid package reference", func(t *testing.T) {
-		config := &Config{
-			ID:  toolID,
-			Use: core.NewPackageRefConfig("invalid"),
-			cwd: toolCWD,
-		}
-
-		err := config.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid package reference")
-	})
-
 	t.Run("Should return error for invalid execute path", func(t *testing.T) {
 		config := &Config{
+			ID:       toolID,
+			Execute:  "./nonexistent.ts",
+			metadata: metadata,
+		}
+
+		err := config.Validate()
+		assert.Error(t, err)
+	})
+
+	t.Run("Should validate tool with input and output schemas", func(t *testing.T) {
+		config := &Config{
 			ID:      toolID,
-			Execute: "./nonexistent.ts",
-			cwd:     toolCWD,
-		}
-
-		err := config.Validate()
-		assert.Error(t, err)
-	})
-
-	t.Run("Should return error when input schema is used with ID reference", func(t *testing.T) {
-		config := &Config{
-			ID:  toolID,
-			Use: core.NewPackageRefConfig("tool(id=test-tool)"),
+			Execute: "./format.ts",
 			InputSchema: &schema.InputSchema{
 				Schema: schema.Schema{
 					"type": "object",
-				},
-			},
-			cwd: toolCWD,
-		}
-
-		err := config.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "input schema not allowed for reference type id")
-	})
-
-	t.Run("Should return error when output schema is used with file reference", func(t *testing.T) {
-		config := &Config{
-			ID:  toolID,
-			Use: core.NewPackageRefConfig("tool(file=basic_tool.yaml)"),
-			OutputSchema: &schema.OutputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-				},
-			},
-			cwd: toolCWD,
-		}
-
-		err := config.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "output schema not allowed for reference type file")
-	})
-
-	t.Run("Should return error when schemas are used with dep reference", func(t *testing.T) {
-		config := &Config{
-			ID:  toolID,
-			Use: core.NewPackageRefConfig("tool(dep=compozy/tools:test-tool)"),
-			InputSchema: &schema.InputSchema{
-				Schema: schema.Schema{
-					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{
+							"type": "string",
+						},
+					},
+					"required": []string{"name"},
 				},
 			},
 			OutputSchema: &schema.OutputSchema{
 				Schema: schema.Schema{
 					"type": "object",
+					"properties": map[string]any{
+						"result": map[string]any{
+							"type": "string",
+						},
+					},
+					"required": []string{"result"},
 				},
 			},
-			cwd: toolCWD,
+			metadata: metadata,
 		}
 
 		err := config.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "input schema not allowed for reference type dep")
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should validate parameters against input schema", func(t *testing.T) {
+		config := &Config{
+			ID:      toolID,
+			Execute: "./test.ts",
+			InputSchema: &schema.InputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{
+							"type": "string",
+						},
+					},
+					"required": []string{"name"},
+				},
+			},
+			With: &core.Input{
+				"name": "test",
+			},
+			metadata: metadata,
+		}
+
+		err := config.ValidateParams(config.With)
+		assert.NoError(t, err)
 	})
 
 	t.Run("Should return error for tool with invalid parameters", func(t *testing.T) {
 		config := &Config{
 			ID:      toolID,
 			Execute: "./test.ts",
-			cwd:     toolCWD,
 			InputSchema: &schema.InputSchema{
 				Schema: schema.Schema{
 					"type": "object",
@@ -271,25 +465,42 @@ func Test_ToolConfigValidation(t *testing.T) {
 			With: &core.Input{
 				"age": 42,
 			},
+			metadata: metadata,
 		}
 
 		err := config.ValidateParams(config.With)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "with parameters invalid for test-tool")
 	})
-}
 
-func Test_ToolConfigCWD(t *testing.T) {
-	t.Run("Should handle CWD operations correctly", func(t *testing.T) {
-		config := &Config{}
+	t.Run("Should handle empty input schema gracefully", func(t *testing.T) {
+		config := &Config{
+			ID:      toolID,
+			Execute: "./test.ts",
+			With: &core.Input{
+				"param": "value",
+			},
+			metadata: metadata,
+		}
 
-		// Test setting CWD
-		config.SetCWD("/test/path")
-		assert.Equal(t, "/test/path", config.GetCWD().PathStr())
+		err := config.ValidateParams(config.With)
+		assert.NoError(t, err)
+	})
 
-		// Test updating CWD
-		config.SetCWD("/new/path")
-		assert.Equal(t, "/new/path", config.GetCWD().PathStr())
+	t.Run("Should handle nil input gracefully", func(t *testing.T) {
+		config := &Config{
+			ID:      toolID,
+			Execute: "./test.ts",
+			InputSchema: &schema.InputSchema{
+				Schema: schema.Schema{
+					"type": "object",
+				},
+			},
+			metadata: metadata,
+		}
+
+		err := config.ValidateParams(nil)
+		assert.NoError(t, err)
 	})
 }
 

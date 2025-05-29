@@ -1,0 +1,81 @@
+schemas:
+  - id: code_input
+    type: object
+    properties:
+      code:
+        type: string
+        description: The source code to process
+      language:
+        type: string
+        description: The programming language
+        enum: [javascript, typescript, python, go, rust]
+      options:
+        type: object
+        properties:
+          indent_size:
+            type: integer
+            minimum: 1
+            maximum: 8
+            default: 2
+          use_tabs:
+            type: boolean
+            default: false
+        additionalProperties: false
+    required:
+      - code
+      - language
+
+  - id: code_output
+    type: object
+    properties:
+      processed_code:
+        type: string
+        description: The processed source code
+      metadata:
+        type: object
+        properties:
+          lines_processed:
+            type: integer
+          time_taken:
+            type: number
+          warnings:
+            type: array
+            items:
+              type: string
+    required:
+      - processed_code
+
+  - id: file_input
+    type: object
+    properties:
+      file_path:
+        type: string
+        description: Path to the file to process
+      content:
+        type: string
+        description: File content if provided directly
+      encoding:
+        type: string
+        enum: [utf-8, ascii, base64]
+        default: utf-8
+    anyOf:
+      - required: [file_path]
+      - required: [content]
+
+  - id: error_response
+    type: object
+    properties:
+      error:
+        type: object
+        properties:
+          code:
+            type: string
+          message:
+            type: string
+          details:
+            type: object
+        required:
+          - code
+          - message
+    required:
+      - error

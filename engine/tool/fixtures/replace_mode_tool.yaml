@@ -1,0 +1,25 @@
+id: replace-mode-processor
+description: A tool demonstrating replace merge mode
+execute: ./format.ts
+input:
+  # Replace mode - inline properties should be ignored
+  $ref: ./schemas.yaml::schemas.#(id=="code_input")!replace
+  # These inline properties should be ignored due to replace mode
+  type: object
+  properties:
+    ignored_field:
+      type: string
+  required:
+    - ignored_field
+
+output:
+  $ref: ./schemas.yaml::schemas.#(id=="code_output")
+
+env:
+  PROCESSOR_VERSION: "1.0.0"
+with:
+  code: "console.log('replace mode test');"
+  language: "javascript"
+  options:
+    indent_size: 2
+    use_tabs: false

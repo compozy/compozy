@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"path/filepath"
 
+	"slices"
+
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 )
@@ -35,13 +37,13 @@ func walkGJSONPath(doc any, path string, metadata *DocMetadata) (any, error) {
 }
 
 // Resolve resolves the reference using the provided context and document metadata.
-func (r *Ref) Resolve(ctx context.Context, currentDoc any, currentFilePath, projectRoot string) (any, error) {
+func (r *Ref) Resolve(ctx context.Context, currentDoc any, filePath, projectRoot string) (any, error) {
 	if r == nil {
 		return nil, errors.New("cannot resolve nil reference")
 	}
 	metadata := &DocMetadata{
 		CurrentDoc:      &simpleDocument{data: currentDoc},
-		FilePath:        currentFilePath,
+		FilePath:        filePath,
 		ProjectRoot:     projectRoot,
 		VisitedRefs:     make(map[string]int),
 		MaxDepth:        DefaultMaxDepth,
@@ -62,10 +64,8 @@ func (r *Ref) resolveWithMetadata(ctx context.Context, metadata *DocMetadata) (a
 		return nil, errors.Errorf("max resolution depth exceeded: %d", metadata.MaxDepth)
 	}
 	currentRefString := r.String()
-	for _, ref := range metadata.ResolutionStack {
-		if ref == currentRefString {
-			return nil, errors.Errorf("circular reference detected: %s", currentRefString)
-		}
+	if slices.Contains(metadata.ResolutionStack, currentRefString) {
+		return nil, errors.Errorf("circular reference detected: %s", currentRefString)
 	}
 	metadata.ResolutionStack = append(metadata.ResolutionStack, currentRefString)
 	defer func() {

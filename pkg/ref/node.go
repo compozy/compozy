@@ -1,6 +1,7 @@
 package ref
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/pkg/errors"
@@ -8,10 +9,11 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Node
+// Node - Flexible reference node that handles both string and object forms
 // -----------------------------------------------------------------------------
 
-// Node represents a reference node that can be unmarshaled from either a string or object form.
+// Node represents a flexible reference that can be marshaled/unmarshaled as either
+// a string (shorthand form) or an object (verbose form).
 type Node struct {
 	ref *Ref
 }
@@ -21,80 +23,111 @@ func NewNode(ref *Ref) *Node {
 	return &Node{ref: ref}
 }
 
-// GetRef returns the underlying Ref.
-func (rn *Node) GetRef() *Ref {
-	return rn.ref
-}
-
-// IsEmpty returns true if the Node has no reference.
-func (rn *Node) IsEmpty() bool {
-	return rn.ref == nil
-}
-
-// UnmarshalYAML implements yaml.Unmarshaler to handle both string and object forms.
-func (rn *Node) UnmarshalYAML(node *yaml.Node) error {
-	ref, err := ParseRef(node)
+// NewNodeFromString creates a new Node from a string reference.
+func NewNodeFromString(refStr string) (*Node, error) {
+	ref, err := parseStringRef(refStr)
 	if err != nil {
-		return errors.Wrap(err, "failed to unmarshal YAML")
+		return nil, err
 	}
-	rn.ref = ref
-	return nil
+	return &Node{ref: ref}, nil
 }
 
-// MarshalYAML implements yaml.Marshaler to output the appropriate form.
-func (rn *Node) MarshalYAML() (any, error) {
-	if rn.ref == nil {
-		return nil, nil
-	}
-	if rn.shouldUseStringForm() {
-		return rn.ref.String(), nil
-	}
-	return rn.ref, nil
-}
-
-// shouldUseStringForm determines if we should use string form for marshaling.
-func (rn *Node) shouldUseStringForm() bool {
-	return rn.ref != nil && (rn.ref.Mode == ModeMerge || rn.ref.Mode == "")
-}
-
-// UnmarshalJSON implements json.Unmarshaler for JSON support.
-func (rn *Node) UnmarshalJSON(data []byte) error {
-	var str string
-	if err := json.Unmarshal(data, &str); err == nil {
-		ref, err := parseRefValue(str)
-		if err != nil {
-			return errors.Wrap(err, "failed to parse JSON string ref")
-		}
-		rn.ref = ref
+// InnerRef returns the underlying InnerRef.
+func (n *Node) InnerRef() *Ref {
+	if n == nil {
 		return nil
 	}
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
-		return errors.New("$ref must be a string or object")
+	return n.ref
+}
+
+// IsEmpty returns true if the node contains no reference.
+func (n *Node) IsEmpty() bool {
+	return n == nil || n.ref == nil
+}
+
+// String returns the string representation of the reference.
+func (n *Node) String() string {
+	if n.IsEmpty() {
+		return ""
 	}
-	ref, err := parseRefValue(obj)
-	if err != nil {
-		return errors.Wrap(err, "failed to parse JSON object ref")
+	return n.ref.String()
+}
+
+// Resolve resolves the reference using the provided context and metadata.
+func (n *Node) Resolve(ctx context.Context, currentDoc any, currentFilePath, projectRoot string) (any, error) {
+	if n.IsEmpty() {
+		return nil, errors.New("cannot resolve empty reference node")
 	}
-	rn.ref = ref
+	return n.ref.Resolve(ctx, currentDoc, currentFilePath, projectRoot)
+}
+
+// ApplyMergeMode applies the merge mode to combine reference and inline values.
+func (n *Node) ApplyMergeMode(refValue, inlineValue any) (any, error) {
+	if n.IsEmpty() {
+		return inlineValue, nil
+	}
+	return n.ref.ApplyMergeMode(refValue, inlineValue)
+}
+
+// -----------------------------------------------------------------------------
+// JSON Marshaling/Unmarshaling
+// -----------------------------------------------------------------------------
+
+// MarshalJSON implements json.Marshaler.
+// It serializes as a string if it's a simple reference, otherwise as an object.
+func (n Node) MarshalJSON() ([]byte, error) {
+	if n.ref == nil {
+		return json.Marshal(nil)
+	}
+	// Always try to marshal as string first since the spec supports string form for all cases
+	return json.Marshal(n.ref.String())
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (n *Node) UnmarshalJSON(data []byte) error {
+	// Handle null values
+	if string(data) == "null" {
+		n.ref = nil
+		return nil
+	}
+	// Try to unmarshal as string first
+	var refStr string
+	if err := json.Unmarshal(data, &refStr); err == nil {
+		ref, err := parseStringRef(refStr)
+		if err != nil {
+			return errors.Wrap(err, "failed to parse string reference")
+		}
+		n.ref = ref
+		return nil
+	}
+	// Try to unmarshal as object
+	var refObj Ref
+	if err := json.Unmarshal(data, &refObj); err != nil {
+		return errors.Wrap(err, "failed to parse reference object")
+	}
+	n.ref = &refObj
 	return nil
 }
 
-// MarshalJSON implements json.Marshaler for JSON support.
-func (rn *Node) MarshalJSON() ([]byte, error) {
-	if rn.ref == nil {
-		return json.Marshal(nil)
+// -----------------------------------------------------------------------------
+// YAML Marshaling/Unmarshaling
+// -----------------------------------------------------------------------------
+
+// MarshalYAML implements yaml.Marshaler.
+func (n Node) MarshalYAML() (any, error) {
+	if n.ref == nil {
+		return nil, nil
 	}
-	if rn.shouldUseStringForm() {
-		return json.Marshal(rn.ref.String())
-	}
-	return json.Marshal(rn.ref)
+	// Always try to marshal as string first since the spec supports string form for all cases
+	return n.ref.String(), nil
 }
 
-// ApplyMergeMode applies the merge mode from the Node.
-func (rn *Node) ApplyMergeMode(refValue, inlineValue any) (any, error) {
-	if rn.ref == nil {
-		return inlineValue, nil
+// UnmarshalYAML implements yaml.Unmarshaler.
+func (n *Node) UnmarshalYAML(node *yaml.Node) error {
+	ref, err := ParseRef(node)
+	if err != nil {
+		return err
 	}
-	return rn.ref.ApplyMergeMode(refValue, inlineValue)
+	n.ref = ref
+	return nil
 }

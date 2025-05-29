@@ -1,40 +1,13 @@
 id: code-review
 type: decision
 condition: review_score
+executor:
+  type: agent
+  $ref: ./agents.yaml::agents.#(id=="code-reviewer")
 routes:
   approved: deploy
   needs_changes: update-code
   rejected: notify-team
-input:
-  type: object
-  properties:
-    code:
-      type: string
-    review_score:
-      type: number
-    min_score:
-      type: number
-    max_comments:
-      type: integer
-  required:
-    - code
-    - review_score
-output:
-  type: object
-  properties:
-    status:
-      type: string
-    comments:
-      type: array
-      items:
-        type: object
-        properties:
-          line:
-            type: number
-          message:
-            type: string
-  required:
-    - status
 env:
   REVIEW_THRESHOLD: "0.8"
 with:

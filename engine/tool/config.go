@@ -1,7 +1,7 @@
 package tool
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -10,39 +10,27 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/pkg/ref"
+	"github.com/pkg/errors"
 )
 
 // Config represents a tool configuration
 type Config struct {
-	ID           string                 `json:"id,omitempty"          yaml:"id,omitempty"`
-	Description  string                 `json:"description,omitempty" yaml:"description,omitempty"`
-	Execute      string                 `json:"execute,omitempty"     yaml:"execute,omitempty"`
-	Use          *core.PackageRefConfig `json:"use,omitempty"         yaml:"use,omitempty"`
-	InputSchema  *schema.InputSchema    `json:"input,omitempty"       yaml:"input,omitempty"`
-	OutputSchema *schema.OutputSchema   `json:"output,omitempty"      yaml:"output,omitempty"`
-	With         *core.Input            `json:"with,omitempty"        yaml:"with,omitempty"`
-	Env          core.EnvMap            `json:"env,omitempty"         yaml:"env,omitempty"`
+	ref.WithRef
+	Ref          *ref.Node            `json:"$ref,omitempty"         yaml:"$ref,omitempty"`
+	ID           string               `json:"id,omitempty"           yaml:"id,omitempty"`
+	Description  string               `json:"description,omitempty"  yaml:"description,omitempty"`
+	Execute      string               `json:"execute,omitempty"      yaml:"execute,omitempty"`
+	InputSchema  *schema.InputSchema  `json:"input,omitempty"        yaml:"input,omitempty"`
+	OutputSchema *schema.OutputSchema `json:"output,omitempty"       yaml:"output,omitempty"`
+	With         *core.Input          `json:"with,omitempty"         yaml:"with,omitempty"`
+	Env          core.EnvMap          `json:"env,omitempty"          yaml:"env,omitempty"`
 
-	cwd *core.CWD // internal field for current working directory
+	metadata *core.ConfigMetadata
 }
 
 func (t *Config) Component() core.ConfigType {
 	return core.ConfigTool
-}
-
-// SetCWD sets the current working directory for the tool
-func (t *Config) SetCWD(path string) error {
-	cwd, err := core.CWDFromPath(path)
-	if err != nil {
-		return err
-	}
-	t.cwd = cwd
-	return nil
-}
-
-// GetCWD returns the current working directory
-func (t *Config) GetCWD() *core.CWD {
-	return t.cwd
 }
 
 func (t *Config) GetEnv() *core.EnvMap {
@@ -60,22 +48,65 @@ func (t *Config) GetInput() *core.Input {
 	return t.With
 }
 
+func (t *Config) GetMetadata() *core.ConfigMetadata {
+	return t.metadata
+}
+
+func (t *Config) SetMetadata(metadata *core.ConfigMetadata) {
+	t.metadata = metadata
+}
+
 // Load loads a tool configuration from a file
-func Load(cwd *core.CWD, path string) (*Config, error) {
-	config, err := core.LoadConfig[*Config](cwd, path)
+func Load(ctx context.Context, cwd *core.CWD, projectRoot string, filePath string) (*Config, error) {
+	config, err := core.LoadConfig[*Config](ctx, cwd, projectRoot, filePath)
 	if err != nil {
 		return nil, err
 	}
+
+	filePath = config.metadata.FilePath
+	currentDoc, err := core.LoadYAMLMap(filePath)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load current document")
+	}
+
+	// Resolve top-level $ref
+	if config.Ref != nil && !config.Ref.IsEmpty() {
+		config.SetRefMetadata(filePath, projectRoot)
+		if err := config.WithRef.ResolveAndMergeNode(
+			ctx,
+			config.Ref,
+			config,
+			currentDoc,
+			ref.ModeMerge,
+		); err != nil {
+			return nil, errors.Wrap(err, "failed to resolve top-level $ref")
+		}
+	}
+
+	// Resolve input schema $ref
+	inSchema := config.InputSchema
+	if inSchema != nil && !inSchema.Ref.IsEmpty() {
+		if err := inSchema.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+			return nil, errors.Wrap(err, "failed to resolve input schema $ref")
+		}
+	}
+
+	// Resolve output schema $ref
+	outSchema := config.OutputSchema
+	if outSchema != nil && !outSchema.Ref.IsEmpty() {
+		if err := outSchema.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+			return nil, errors.Wrap(err, "failed to resolve output schema $ref")
+		}
+	}
+
 	return config, nil
 }
 
 // Validate validates the tool configuration
 func (t *Config) Validate() error {
 	v := schema.NewCompositeValidator(
-		schema.NewCWDValidator(t.cwd, t.ID),
-		NewSchemaValidator(t.Use, t.InputSchema, t.OutputSchema),
-		NewPackageRefValidator(t.Use, t.cwd.PathStr()),
-		NewExecuteValidator(t.Execute, t.cwd).WithID(t.ID),
+		schema.NewCWDValidator(t.metadata.CWD, t.ID),
+		NewExecuteValidator(t),
 	)
 	return v.Validate()
 }
@@ -96,36 +127,16 @@ func (t *Config) Merge(other any) error {
 	return mergo.Merge(t, otherConfig, mergo.WithOverride)
 }
 
-// LoadID loads the ID from either the direct ID field or resolves it from a package reference
-func (t *Config) LoadID() (string, error) {
-	return core.LoadID(t, t.ID, t.Use)
-}
-
 func IsTypeScript(path string) bool {
 	ext := filepath.Ext(path)
 	return strings.EqualFold(ext, ".ts")
 }
 
-func (t *Config) LoadFileRef(cwd *core.CWD) (*Config, error) {
-	if t.Use == nil {
-		return nil, nil
-	}
-	ref, err := t.Use.IntoRef()
-	if err != nil {
-		return nil, err
-	}
-	if !ref.Type.IsFile() {
-		return t, nil
-	}
-	if ref.Component.IsTool() {
-		cfg, err := Load(cwd, ref.Value())
-		if err != nil {
-			return nil, err
-		}
-		err = t.Merge(cfg)
-		if err != nil {
-			return nil, err
+func FindConfig(tools []Config, toolID string) (*Config, error) {
+	for i := range tools {
+		if tools[i].ID == toolID {
+			return &tools[i], nil
 		}
 	}
-	return t, nil
+	return nil, fmt.Errorf("tool not found")
 }

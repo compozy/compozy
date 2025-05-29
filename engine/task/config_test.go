@@ -1,31 +1,34 @@
 package task
 
 import (
+	"context"
 	"path/filepath"
 	"runtime"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/pkg/ref"
 	"github.com/compozy/compozy/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func setupTest(t *testing.T, taskFile string) (cwd *core.CWD, dstPath string) {
+func setupTest(t *testing.T, taskFile string) (cwd *core.CWD, projectRoot, dstPath string) {
 	_, filename, _, ok := runtime.Caller(0)
 	require.True(t, ok)
 	cwd, dstPath = utils.SetupTest(t, filename)
+	projectRoot = cwd.PathStr()
 	dstPath = filepath.Join(dstPath, taskFile)
 	return
 }
 
 func Test_LoadTask(t *testing.T) {
 	t.Run("Should load basic task configuration correctly", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "basic_task.yaml")
+		cwd, projectRoot, dstPath := setupTest(t, "basic_task.yaml")
 
 		// Run the test
-		config, err := Load(cwd, dstPath)
+		ctx := context.Background()
+		config, err := Load(ctx, cwd, projectRoot, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -36,8 +39,6 @@ func Test_LoadTask(t *testing.T) {
 		require.NotNil(t, config.ID)
 		require.NotNil(t, config.Type)
 		require.NotNil(t, config.Action)
-		require.NotNil(t, config.InputSchema)
-		require.NotNil(t, config.OutputSchema)
 		require.NotNil(t, config.Env)
 		require.NotNil(t, config.With)
 		require.NotNil(t, config.OnSuccess)
@@ -45,25 +46,6 @@ func Test_LoadTask(t *testing.T) {
 
 		assert.Equal(t, "code-format", config.ID)
 		assert.Equal(t, TaskTypeBasic, config.Type)
-
-		// Validate input schema
-		schema := config.InputSchema.Schema
-		assert.Equal(t, "object", schema.GetType())
-		require.NotNil(t, schema.GetProperties())
-		assert.Contains(t, schema.GetProperties(), "code")
-		assert.Contains(t, schema.GetProperties(), "language")
-		if required, ok := schema["required"].([]string); ok && len(required) > 0 {
-			assert.Contains(t, required, "code")
-		}
-
-		// Validate output schema
-		outSchema := config.OutputSchema.Schema
-		assert.Equal(t, "object", outSchema.GetType())
-		require.NotNil(t, outSchema.GetProperties())
-		assert.Contains(t, outSchema.GetProperties(), "formatted_code")
-		if required, ok := outSchema["required"].([]string); ok && len(required) > 0 {
-			assert.Contains(t, required, "formatted_code")
-		}
 
 		// Validate env and with
 		assert.Equal(t, "1.0.0", config.Env["FORMATTER_VERSION"])
@@ -76,10 +58,11 @@ func Test_LoadTask(t *testing.T) {
 	})
 
 	t.Run("Should load decision task configuration correctly", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "decision_task.yaml")
+		cwd, projectRoot, dstPath := setupTest(t, "decision_task.yaml")
 
 		// Run the test
-		config, err := Load(cwd, dstPath)
+		ctx := context.Background()
+		config, err := Load(ctx, cwd, projectRoot, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -91,8 +74,6 @@ func Test_LoadTask(t *testing.T) {
 		require.NotNil(t, config.Type)
 		require.NotEmpty(t, config.Condition)
 		require.NotNil(t, config.Routes)
-		require.NotNil(t, config.InputSchema)
-		require.NotNil(t, config.OutputSchema)
 		require.NotNil(t, config.Env)
 		require.NotNil(t, config.With)
 		require.NotNil(t, config.OnError)
@@ -107,27 +88,6 @@ func Test_LoadTask(t *testing.T) {
 		assert.Equal(t, "update-code", config.Routes["needs_changes"])
 		assert.Equal(t, "notify-team", config.Routes["rejected"])
 
-		// Validate input schema
-		schema := config.InputSchema.Schema
-		assert.Equal(t, "object", schema.GetType())
-		require.NotNil(t, schema.GetProperties())
-		assert.Contains(t, schema.GetProperties(), "code")
-		assert.Contains(t, schema.GetProperties(), "review_score")
-		if required, ok := schema["required"].([]string); ok && len(required) > 0 {
-			assert.Contains(t, required, "code")
-			assert.Contains(t, required, "review_score")
-		}
-
-		// Validate output schema
-		outSchema := config.OutputSchema.Schema
-		assert.Equal(t, "object", outSchema.GetType())
-		require.NotNil(t, outSchema.GetProperties())
-		assert.Contains(t, outSchema.GetProperties(), "status")
-		assert.Contains(t, outSchema.GetProperties(), "comments")
-		if required, ok := outSchema["required"].([]string); ok && len(required) > 0 {
-			assert.Contains(t, required, "status")
-		}
-
 		// Validate env and with
 		assert.Equal(t, "0.8", config.Env["REVIEW_THRESHOLD"])
 		assert.Equal(t, 0.7, (*config.With)["min_score"])
@@ -138,10 +98,11 @@ func Test_LoadTask(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid task configuration", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "invalid_task.yaml")
+		cwd, projectRoot, dstPath := setupTest(t, "invalid_task.yaml")
 
 		// Run the test
-		config, err := Load(cwd, dstPath)
+		ctx := context.Background()
+		config, err := Load(ctx, cwd, projectRoot, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -156,19 +117,54 @@ func Test_TaskConfigValidation(t *testing.T) {
 	taskCWD, err := core.CWDFromPath("/test/path")
 	require.NoError(t, err)
 
-	t.Run("Should validate valid basic task", func(t *testing.T) {
+	// Create task metadata
+	metadata := &core.ConfigMetadata{
+		CWD:         taskCWD,
+		FilePath:    "/test/path/task.yaml",
+		ProjectRoot: "/test/path",
+	}
+
+	t.Run("Should validate valid basic task with agent executor", func(t *testing.T) {
+		agentRef, err := ref.NewNodeFromString("agents.#(id==\"test-agent\")")
+		require.NoError(t, err)
+
 		config := &Config{
 			ID:     taskID,
 			Type:   TaskTypeBasic,
 			Action: "test-action",
-			cwd:    taskCWD,
+			Executor: Executor{
+				Type: ExecutorAgent,
+				Ref:  *agentRef,
+			},
+			metadata: metadata,
 		}
 
-		err := config.Validate()
+		err = config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should validate valid basic task with tool executor", func(t *testing.T) {
+		toolRef, err := ref.NewNodeFromString("tools.#(id==\"test-tool\")")
+		require.NoError(t, err)
+
+		config := &Config{
+			ID:   taskID,
+			Type: TaskTypeBasic,
+			Executor: Executor{
+				Type: ExecutorTool,
+				Ref:  *toolRef,
+			},
+			metadata: metadata,
+		}
+
+		err = config.Validate()
 		assert.NoError(t, err)
 	})
 
 	t.Run("Should validate valid decision task", func(t *testing.T) {
+		agentRef, err := ref.NewNodeFromString("agents.#(id==\"decision-agent\")")
+		require.NoError(t, err)
+
 		config := &Config{
 			ID:        taskID,
 			Type:      TaskTypeDecision,
@@ -176,165 +172,209 @@ func Test_TaskConfigValidation(t *testing.T) {
 			Routes: map[string]string{
 				"route1": "next1",
 			},
-			cwd: taskCWD,
+			Executor: Executor{
+				Type: ExecutorAgent,
+				Ref:  *agentRef,
+			},
+			metadata: metadata,
 		}
 
-		err := config.Validate()
+		err = config.Validate()
 		assert.NoError(t, err)
 	})
 
 	t.Run("Should return error when CWD is missing", func(t *testing.T) {
+		agentRef, err := ref.NewNodeFromString("agents.#(id==\"test-agent\")")
+		require.NoError(t, err)
+
 		config := &Config{
-			ID:   "test-task",
+			ID:   taskID,
 			Type: TaskTypeBasic,
+			Executor: Executor{
+				Type: ExecutorAgent,
+				Ref:  *agentRef,
+			},
+			metadata: &core.ConfigMetadata{},
 		}
 
-		err := config.Validate()
+		err = config.Validate()
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "current working directory is required for test-task")
 	})
 
-	t.Run("Should return error for invalid package reference", func(t *testing.T) {
+	t.Run("Should return error for missing executor type", func(t *testing.T) {
+		agentRef, err := ref.NewNodeFromString("agents.#(id==\"test-agent\")")
+		require.NoError(t, err)
+
 		config := &Config{
-			ID:  taskID,
-			Use: core.NewPackageRefConfig("invalid"),
-			cwd: taskCWD,
+			ID:   taskID,
+			Type: TaskTypeBasic,
+			Executor: Executor{
+				Ref: *agentRef,
+			},
+			metadata: metadata,
 		}
 
-		err := config.Validate()
+		err = config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid package reference")
+		assert.Contains(t, err.Error(), "executor type is required")
+	})
+
+	t.Run("Should return error for invalid executor type", func(t *testing.T) {
+		agentRef, err := ref.NewNodeFromString("agents.#(id==\"test-agent\")")
+		require.NoError(t, err)
+
+		config := &Config{
+			ID:   taskID,
+			Type: TaskTypeBasic,
+			Executor: Executor{
+				Type: "invalid",
+				Ref:  *agentRef,
+			},
+			metadata: metadata,
+		}
+
+		err = config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid executor type: invalid")
+	})
+
+	t.Run("Should return error for empty executor reference", func(t *testing.T) {
+		config := &Config{
+			ID:   taskID,
+			Type: TaskTypeBasic,
+			Executor: Executor{
+				Type: ExecutorAgent,
+			},
+			metadata: metadata,
+		}
+
+		err = config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "executor reference is required")
 	})
 
 	t.Run("Should return error for invalid task type", func(t *testing.T) {
+		agentRef, err := ref.NewNodeFromString("agents.#(id==\"test-agent\")")
+		require.NoError(t, err)
+
 		config := &Config{
-			ID:   "test-task",
+			ID:   taskID,
 			Type: "invalid",
-			cwd:  taskCWD,
+			Executor: Executor{
+				Type: ExecutorAgent,
+				Ref:  *agentRef,
+			},
+			metadata: metadata,
 		}
 
-		err := config.Validate()
+		err = config.Validate()
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid task type: invalid")
 	})
 
-	t.Run("Should return error for decision task missing configuration", func(t *testing.T) {
+	t.Run("Should return error for decision task missing condition", func(t *testing.T) {
+		agentRef, err := ref.NewNodeFromString("agents.#(id==\"decision-agent\")")
+		require.NoError(t, err)
+
 		config := &Config{
 			ID:   taskID,
 			Type: TaskTypeDecision,
-			cwd:  taskCWD,
+			Routes: map[string]string{
+				"route1": "next1",
+			},
+			Executor: Executor{
+				Type: ExecutorAgent,
+				Ref:  *agentRef,
+			},
+			metadata: metadata,
 		}
 
-		err := config.Validate()
+		err = config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "condition or routes are required for decision task type")
+		assert.Contains(t, err.Error(), "condition is required for decision tasks")
 	})
 
 	t.Run("Should return error for decision task missing routes", func(t *testing.T) {
+		agentRef, err := ref.NewNodeFromString("agents.#(id==\"decision-agent\")")
+		require.NoError(t, err)
+
 		config := &Config{
-			ID:   "test-task",
-			Type: TaskTypeDecision,
-			cwd:  taskCWD,
+			ID:        taskID,
+			Type:      TaskTypeDecision,
+			Condition: "test-condition",
+			Executor: Executor{
+				Type: ExecutorAgent,
+				Ref:  *agentRef,
+			},
+			metadata: metadata,
 		}
 
-		err := config.Validate()
+		err = config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "condition or routes are required for decision task type")
+		assert.Contains(t, err.Error(), "routes are required for decision tasks")
 	})
 
-	t.Run("Should return error when input schema is used with ID reference", func(t *testing.T) {
+	t.Run("Should return error for tool executor with action", func(t *testing.T) {
+		toolRef, err := ref.NewNodeFromString("tools.#(id==\"test-tool\")")
+		require.NoError(t, err)
+
 		config := &Config{
-			ID:  taskID,
-			Use: core.NewPackageRefConfig("task(id=test-task)"),
-			InputSchema: &schema.InputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-				},
+			ID:     taskID,
+			Type:   TaskTypeBasic,
+			Action: "test-action",
+			Executor: Executor{
+				Type: ExecutorTool,
+				Ref:  *toolRef,
 			},
-			cwd: taskCWD,
+			metadata: metadata,
 		}
 
-		err := config.Validate()
+		err = config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "input schema not allowed for reference type id")
+		assert.Contains(t, err.Error(), "action is not allowed when executor type is tool")
 	})
 
-	t.Run("Should return error when output schema is used with file reference", func(t *testing.T) {
+	t.Run("Should return error for agent executor without action", func(t *testing.T) {
+		agentRef, err := ref.NewNodeFromString("agents.#(id==\"test-agent\")")
+		require.NoError(t, err)
+
 		config := &Config{
-			ID:  taskID,
-			Use: core.NewPackageRefConfig("task(file=basic_task.yaml)"),
-			OutputSchema: &schema.OutputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-				},
-			},
-			cwd: taskCWD,
-		}
-
-		err := config.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "output schema not allowed for reference type file")
-	})
-
-	t.Run("Should return error when schemas are used with dep reference", func(t *testing.T) {
-		config := &Config{
-			ID:  taskID,
-			Use: core.NewPackageRefConfig("task(dep=compozy/tasks:test-task)"),
-			InputSchema: &schema.InputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-				},
-			},
-			OutputSchema: &schema.OutputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-				},
-			},
-			cwd: taskCWD,
-		}
-
-		err := config.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "input schema not allowed for reference type dep")
-	})
-
-	t.Run("Should return error for task with invalid parameters", func(t *testing.T) {
-		config := &Config{
-			ID:   "test-task",
+			ID:   taskID,
 			Type: TaskTypeBasic,
-			cwd:  taskCWD,
-			InputSchema: &schema.InputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"name": map[string]any{
-							"type": "string",
-						},
-					},
-					"required": []string{"name"},
-				},
+			Executor: Executor{
+				Type: ExecutorAgent,
+				Ref:  *agentRef,
+			},
+			metadata: metadata,
+		}
+
+		err = config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "action is required when executor type is agent")
+	})
+
+	t.Run("Should handle parameter validation gracefully", func(t *testing.T) {
+		agentRef, err := ref.NewNodeFromString("agents.#(id==\"test-agent\")")
+		require.NoError(t, err)
+
+		config := &Config{
+			ID:     taskID,
+			Type:   TaskTypeBasic,
+			Action: "test-action",
+			Executor: Executor{
+				Type: ExecutorAgent,
+				Ref:  *agentRef,
 			},
 			With: &core.Input{
-				"age": 42,
+				"param": "value",
 			},
+			metadata: metadata,
 		}
 
-		err := config.ValidateParams(config.With)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "with parameters invalid for test-task")
-	})
-}
-
-func Test_TaskConfigCWD(t *testing.T) {
-	t.Run("Should handle CWD operations correctly", func(t *testing.T) {
-		config := &Config{}
-		assert.Nil(t, config.GetCWD())
-
-		config.SetCWD("/test/path")
-		assert.Equal(t, "/test/path", config.GetCWD().PathStr())
-
-		config.SetCWD("/new/path")
-		assert.Equal(t, "/new/path", config.GetCWD().PathStr())
+		// Parameter validation should now return nil since it's handled by the referenced agent/tool
+		err = config.ValidateParams(config.With)
+		assert.NoError(t, err)
 	})
 }
 

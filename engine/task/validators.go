@@ -1,11 +1,7 @@
 package task
 
 import (
-	"errors"
 	"fmt"
-
-	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/schema"
 )
 
 // -----------------------------------------------------------------------------
@@ -13,183 +9,82 @@ import (
 // -----------------------------------------------------------------------------
 
 type TypeValidator struct {
-	pkgRef    *core.PackageRefConfig
-	taskType  Type
-	action    string
-	condition string
-	routes    map[string]string
+	config *Config
 }
 
-func NewTaskTypeValidator(
-	pkgRef *core.PackageRefConfig,
-	taskType Type,
-	action string,
-	condition string,
-	routes map[string]string,
-) *TypeValidator {
+func NewTaskTypeValidator(config *Config) *TypeValidator {
 	return &TypeValidator{
-		pkgRef:    pkgRef,
-		taskType:  taskType,
-		action:    action,
-		condition: condition,
-		routes:    routes,
+		config: config,
 	}
 }
 
 func (v *TypeValidator) Validate() error {
-	if v.taskType == "" {
+	if v.config.Type == "" {
 		return nil
 	}
-
-	ref, err := v.getPackageRef()
-	if err != nil {
-		return err
+	if v.config.Type != TaskTypeBasic && v.config.Type != TaskTypeDecision {
+		return fmt.Errorf("invalid task type: %s", v.config.Type)
 	}
-
-	if err := v.validateTaskType(); err != nil {
-		return err
-	}
-
-	if ref != nil {
-		if err := v.validateBasicTaskWithRef(ref); err != nil {
+	if !v.config.Executor.Ref.IsEmpty() {
+		if err := v.validateBasicTaskWithRef(); err != nil {
 			return err
 		}
 	}
-
-	if v.taskType == TaskTypeDecision {
+	if v.config.Type == TaskTypeDecision {
 		if err := v.validateDecisionTask(); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
-func (v *TypeValidator) getPackageRef() (*core.PackageRef, error) {
-	if v.pkgRef != nil {
-		return v.pkgRef.IntoRef()
-	}
-	return nil, nil
-}
-
-func (v *TypeValidator) validateTaskType() error {
-	if v.taskType != TaskTypeBasic && v.taskType != TaskTypeDecision {
-		return fmt.Errorf("invalid task type: %s", v.taskType)
-	}
-	return nil
-}
-
-func (v *TypeValidator) validateBasicTaskWithRef(ref *core.PackageRef) error {
-	if v.taskType != TaskTypeBasic {
+func (v *TypeValidator) validateBasicTaskWithRef() error {
+	if v.config.Type != TaskTypeBasic {
 		return nil
 	}
-	isTask := ref.Component.IsTask()
-	isAgent := ref.Component.IsAgent()
-	isTool := ref.Component.IsTool()
-	if (isTask || isTool) && v.action != "" {
-		return fmt.Errorf("action is not allowed when referencing a task or tool")
+	executorType := v.config.Executor.Type
+	if executorType == ExecutorTool && v.config.Action != "" {
+		return fmt.Errorf("action is not allowed when executor type is tool")
 	}
-	if isAgent && v.action == "" {
-		return fmt.Errorf("action is required when referencing an agent")
-	}
-	if ref.Component.IsTool() && v.action != "" {
-		return fmt.Errorf("action is not allowed when referencing a tool")
+	if executorType == ExecutorAgent && v.config.Action == "" {
+		return fmt.Errorf("action is required when executor type is agent")
 	}
 	return nil
 }
 
 func (v *TypeValidator) validateDecisionTask() error {
-	if v.condition == "" && len(v.routes) == 0 {
-		return fmt.Errorf("condition or routes are required for decision task type")
+	if v.config.Condition == "" {
+		return fmt.Errorf("condition is required for decision tasks")
 	}
-	if len(v.routes) == 0 {
-		return fmt.Errorf("decision task must have at least one route")
-	}
-	for _, route := range v.routes {
-		if route == "" {
-			return fmt.Errorf("route cannot be empty")
-		}
+	if len(v.config.Routes) == 0 {
+		return fmt.Errorf("routes are required for decision tasks")
 	}
 	return nil
 }
 
 // -----------------------------------------------------------------------------
-// PackageRefValidator
+// ExecutorValidator
 // -----------------------------------------------------------------------------
 
-type PackageRefValidator struct {
-	cwd    string
-	pkgRef *core.PackageRefConfig
+type ExecutorValidator struct {
+	config *Config
 }
 
-func NewPackageRefValidator(pkgRef *core.PackageRefConfig, cwd string) *PackageRefValidator {
-	return &PackageRefValidator{
-		cwd:    cwd,
-		pkgRef: pkgRef,
-	}
-}
-
-func (v *PackageRefValidator) Validate() error {
-	if v.cwd == "" {
-		return fmt.Errorf("cwd is required")
-	}
-	if v.pkgRef == nil {
-		return nil
-	}
-	ref, err := v.pkgRef.IntoRef()
-	if err != nil {
-		return fmt.Errorf("invalid package reference: %w", err)
-	}
-	if !ref.Component.IsTask() && !ref.Component.IsTool() && !ref.Component.IsAgent() {
-		return fmt.Errorf("invalid package reference: %w", errors.New("invalid component type"))
-	}
-	if err := ref.Type.Validate(v.cwd); err != nil {
-		return fmt.Errorf("invalid package reference: %w", err)
-	}
-	return nil
-}
-
-// -----------------------------------------------------------------------------
-// SchemaValidator
-// -----------------------------------------------------------------------------
-
-type SchemaValidator struct {
-	pkgRef       *core.PackageRefConfig
-	inputSchema  *schema.InputSchema
-	outputSchema *schema.OutputSchema
-}
-
-func NewSchemaValidator(
-	pkgRef *core.PackageRefConfig,
-	inputSchema *schema.InputSchema,
-	outputSchema *schema.OutputSchema,
-) *SchemaValidator {
-	return &SchemaValidator{
-		pkgRef:       pkgRef,
-		inputSchema:  inputSchema,
-		outputSchema: outputSchema,
+func NewExecutorValidator(config *Config) *ExecutorValidator {
+	return &ExecutorValidator{
+		config: config,
 	}
 }
 
-func (v *SchemaValidator) Validate() error {
-	if v.pkgRef != nil {
-		ref, err := v.pkgRef.IntoRef()
-		if err != nil {
-			return fmt.Errorf("invalid package reference: %w", err)
-		}
-
-		switch ref.Type.Type {
-		case "id", "dep", "file":
-			if ref.Component.IsTask() {
-				if v.inputSchema != nil {
-					return fmt.Errorf("input schema not allowed for reference type %s", ref.Type.Type)
-				}
-				if v.outputSchema != nil {
-					return fmt.Errorf("output schema not allowed for reference type %s", ref.Type.Type)
-				}
-			}
-		}
+func (v *ExecutorValidator) Validate() error {
+	if v.config.Executor.Type == "" {
+		return fmt.Errorf("executor type is required")
 	}
-
+	if v.config.Executor.Type != ExecutorAgent && v.config.Executor.Type != ExecutorTool {
+		return fmt.Errorf("invalid executor type: %s", v.config.Executor.Type)
+	}
+	if v.config.Executor.Ref.IsEmpty() {
+		return fmt.Errorf("executor reference is required")
+	}
 	return nil
 }
