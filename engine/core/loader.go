@@ -1,7 +1,6 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -60,58 +59,4 @@ func LoadConfig[T Config](cwd *CWD, path string) (T, error) {
 		return zero, err
 	}
 	return config, nil
-}
-
-func LoadID(
-	config Config,
-	id string,
-	use *PackageRefConfig,
-) (string, error) {
-	// If ID is directly set, return it
-	if id != "" {
-		return id, nil
-	}
-
-	// Convert package reference to ref
-	ref, err := use.IntoRef()
-	if err != nil {
-		return "", err
-	}
-
-	switch ref.Type.Type {
-	case RefTypeNameID:
-		return ref.Type.Value, nil
-	case RefTypeNameFile:
-		cwd := config.GetCWD()
-		filePath, err := cwd.JoinAndCheck(ref.Type.Value)
-		if err != nil {
-			return "", err
-		}
-
-		file, err := os.Open(filePath)
-		if err != nil {
-			return "", err
-		}
-		defer file.Close()
-
-		var yamlConfig struct {
-			ID string `yaml:"id"`
-		}
-
-		decoder := yaml.NewDecoder(file)
-		if err := decoder.Decode(&yamlConfig); err != nil {
-			return "", err
-		}
-
-		if yamlConfig.ID == "" {
-			return "", errors.New("missing ID field")
-		}
-
-		return yamlConfig.ID, nil
-	case RefTypeNameDep:
-		// TODO: implement dependency resolution
-		return "", errors.New("dependency resolution not implemented for LoadID()")
-	default:
-		return "", errors.New("invalid reference type")
-	}
 }

@@ -1,0 +1,29 @@
+external_schemas:
+  - id: user_input
+    type: object
+    properties:
+      name:
+        type: string
+      email:
+        type: string
+        format: email
+    required:
+      - name
+      - email
+
+external_tools:
+  - id: email_tool
+    description: "Send email notifications"
+    execute: "./email.ts"
+    input:
+      $ref: external_schemas.#(id=="user_input")
+
+external_config:
+  database:
+    host: "localhost"
+    port: 5432
+    name: "test_db"
+
+  api:
+    base_url: "https://api.example.com"
+    timeout: 30

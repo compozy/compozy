@@ -1,9 +1,7 @@
 id: translator
 
 config:
-  provider: groq
-  model: llama-3.3-70b-versatile
-  api_key: "{{ .env.OPENAI_API_KEY }}"
+  $ref: $global::providers.#(id=="groq_llama")
 
 instructions: |
   You are a helpful translation assistant that accurately translates text between languages.

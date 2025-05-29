@@ -8,3 +8,9 @@ author:
 
 workflows:
   - source: ./workflow.yaml
+
+providers:
+  - id: groq_llama
+    provider: groq
+    model: llama-3.3-70b-versatile
+    api_key: "{{ .env.OPENAI_API_KEY }}"

@@ -9,19 +9,21 @@ config:
         description: The language to translate to
 
 tasks:
-  - use: task(file=./tasks/get_quote.yaml)
+  - $ref: ./tasks/get_quote.yaml
     on_success:
       next: translate_quote
 
-  - use: task(file=./tasks/translate_quote.yaml)
+  - $ref: ./tasks/translate_quote.yaml
     with:
-      quote: "{{ tasks.get_quote.output.quote }}"
+      quote: "{{ .tasks.get_quote.output.quote }}"
     on_success:
       next: save_results
 
   - id: save_results
     type: basic
-    use: tool(file=./tools/save_data.yaml)
+    executor:
+      type: tool
+      $ref: ./tools/save_data.yaml
     with:
       message: "{{ .tasks.translate_quote.output.message }}"
     final: true

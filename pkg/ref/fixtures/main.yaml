@@ -1,0 +1,85 @@
+schemas:
+  - id: city_input
+    type: object
+    properties:
+      city:
+        type: string
+        description: "The city name"
+      country:
+        type: string
+        description: "The country code"
+    required:
+      - city
+
+  - id: weather_output
+    type: object
+    properties:
+      temperature:
+        type: number
+      humidity:
+        type: number
+      description:
+        type: string
+
+providers:
+  - id: groq_llama
+    provider: groq
+    model: llama-3.1-70b-versatile
+    api_key: "${GROQ_API_KEY}"
+    temperature: 0.7
+
+  - id: openai_gpt4
+    provider: openai
+    model: gpt-4
+    api_key: "${OPENAI_API_KEY}"
+    temperature: 0.5
+
+tools:
+  - id: weather_tool
+    description: "Get weather information for a city"
+    execute: "./weather.ts"
+    input:
+      $ref: schemas.#(id=="city_input")
+    output:
+      $ref: schemas.#(id=="weather_output")
+
+  - id: save_tool
+    description: "Save data to file"
+    execute: "./save.ts"
+
+agents:
+  - id: weather_agent
+    instructions: "You are a weather assistant"
+    config:
+      $ref: providers.#(id=="groq_llama")
+    tools:
+      - $ref: tools.#(id=="weather_tool")
+
+tasks:
+  - id: get_weather
+    type: basic
+    action: weather_agent
+    input:
+      $ref: schemas.#(id=="city_input")
+    output:
+      $ref: schemas.#(id=="weather_output")
+
+# Test arrays for append mode
+test_arrays:
+  base_items:
+    - item1
+    - item2
+  additional_items:
+    - item3
+    - item4
+
+# Test nested structures
+nested:
+  level1:
+    level2:
+      value: "deep_value"
+      array:
+        - name: "first"
+          value: 1
+        - name: "second"
+          value: 2

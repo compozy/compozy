@@ -1,0 +1,41 @@
+name: "Test Project"
+version: "1.0.0"
+description: "Test project for $ref functionality"
+
+global_providers:
+  - id: groq_llama
+    provider: groq
+    model: llama-3.1-70b-versatile
+    api_key: "${GROQ_API_KEY}"
+    temperature: 0.7
+    max_tokens: 4096
+
+  - id: openai_gpt4
+    provider: openai
+    model: gpt-4
+    api_key: "${OPENAI_API_KEY}"
+    temperature: 0.5
+    max_tokens: 2048
+
+global_schemas:
+  - id: common_error
+    type: object
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+      details:
+        type: object
+    required:
+      - code
+      - message
+
+environments:
+  development:
+    log_level: debug
+    env_file: ".env.dev"
+
+  production:
+    log_level: info
+    env_file: ".env.prod"

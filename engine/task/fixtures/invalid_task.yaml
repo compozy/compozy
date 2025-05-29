@@ -1,5 +1,5 @@
 id: invalid-task
-use: task(file=/basic_task.yaml)
+$ref: ./base_task.yaml
 # Inputs schemas are not allowed for references
 input:
   type: object

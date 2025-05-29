@@ -73,8 +73,8 @@ func NewStore(dbFilePath string) (*Store, error) {
 	}
 
 	// Configure connection pool for concurrent access
-	dbConn.SetMaxOpenConns(25)                 // Allow up to 25 concurrent connections
-	dbConn.SetMaxIdleConns(5)                  // Keep 5 idle connections
+	dbConn.SetMaxOpenConns(100)                // Allow up to 25 concurrent connections
+	dbConn.SetMaxIdleConns(100)                // Keep 5 idle connections
 	dbConn.SetConnMaxLifetime(5 * time.Minute) // Recycle connections every 5 minutes
 
 	if err = dbConn.Ping(); err != nil {

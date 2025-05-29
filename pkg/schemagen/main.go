@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 
 	"github.com/compozy/compozy/engine/agent"
-	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
@@ -31,27 +29,27 @@ func GenerateParserSchemas(outDir string) error {
 		AllowAdditionalProperties:  false,                                     // Disallow additional properties
 		DoNotReference:             false,                                     // Use $ref for nested types
 		BaseSchemaID:               "http://json-schema.org/draft-07/schema#", // Use Draft 7
-		Mapper: func(t reflect.Type) *jsonschema.Schema {
-			if t.Kind() == reflect.Ptr {
-				t = t.Elem()
-				schema := jsonschema.ReflectFromType(t)
-				if schema != nil {
-					typeStr := schema.Type
-					if typeStr == "" {
-						typeStr = "string"
-					}
-					schema.Type = typeStr
-				}
-				return schema
-			}
-			if t == reflect.TypeOf(core.PackageRefConfig("")) {
-				return &jsonschema.Schema{
-					Type:    "string",
-					Pattern: `^(agent|tool|task)\((id|file|dep)=[^)]+\)$`,
-				}
-			}
-			return nil
-		},
+		// Mapper: func(t reflect.Type) *jsonschema.Schema {
+		// 	if t.Kind() == reflect.Ptr {
+		// 		t = t.Elem()
+		// 		schema := jsonschema.ReflectFromType(t)
+		// 		if schema != nil {
+		// 			typeStr := schema.Type
+		// 			if typeStr == "" {
+		// 				typeStr = "string"
+		// 			}
+		// 			schema.Type = typeStr
+		// 		}
+		// 		return schema
+		// 	}
+		// 	if t == reflect.TypeOf(core.PackageRefConfig("")) {
+		// 		return &jsonschema.Schema{
+		// 			Type:    "string",
+		// 			Pattern: `^(agent|tool|task)\((id|file|dep)=[^)]+\)$`,
+		// 		}
+		// 	}
+		// 	return nil
+		// },
 	}
 
 	// Define the structs for which to generate schemas

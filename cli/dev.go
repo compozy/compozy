@@ -55,6 +55,7 @@ func DevCmd() *cobra.Command {
 	cmd.Flags().Bool("cors", false, "Enable CORS")
 	cmd.Flags().String("cwd", "", "Working directory for the project")
 	cmd.Flags().String("config", "compozy.yaml", "Path to the project configuration file")
+	cmd.Flags().String("environment", "development", "Environment to run the server in")
 
 	// Logging configuration flags
 	cmd.Flags().String("log-level", "info", "Log level (debug, info, warn, error)")

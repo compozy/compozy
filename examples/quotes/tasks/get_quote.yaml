@@ -1,3 +1,5 @@
 id: get_quote
 type: basic
-use: tool(file=../tools/get_quote.yaml)
+executor:
+  type: tool
+  $ref: ../tools/get_quote.yaml

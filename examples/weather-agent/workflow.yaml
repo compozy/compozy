@@ -2,24 +2,28 @@ id: weather-agent
 version: 0.1.0
 description: A simple weather agent that provides weather information based on location
 
-config:
-  input:
+schemas:
+  - id: city_input
     type: object
     properties:
       city:
         type: string
         description: The city to get weather information for
+    required: [city]
+
+config:
+  # With this option, params passed to the workflow will be
+  # passed down in the execution context for tasks, agents and tools
+  inherit_params: true
+  input:
+    $ref: schemas.#(id=="city_input")
 
 tools:
   - id: weather_tool
     description: Get the current weather for a specific location
     execute: ./weather_tool.ts
     input:
-      type: object
-      properties:
-        city:
-          type: string
-          description: The city to get weather information for
+      $ref: schemas.#(id=="city_input")
     output:
       type: object
       properties:
@@ -43,9 +47,7 @@ tools:
 agents:
   - id: inline_agent
     config:
-      provider: groq
-      model: llama-3.3-70b-versatile
-      api_key: "{{ .env.OPENAI_API_KEY }}"
+      $ref: $global::providers.#(id=="groq_llama")
     instructions: |
       You are a helpful weather assistant that provides accurate weather information.
       Your primary function is to help users get weather details for specific locations.
@@ -55,7 +57,7 @@ agents:
         - Provide weather information and clothing suggestions based on conditions
       Use the weather_tool to fetch current weather data.
     tools:
-      - use: tool(id=weather_tool)
+      - $ref: tools.#(id=="weather_tool")
     actions:
       - id: get_current_weather
         prompt: What is the weather in {{ .input.city }}?
@@ -103,18 +105,20 @@ agents:
 
 tasks:
   - id: get_current_weather
-    type: basic
-    use: agent(id=inline_agent)
-    action: get_current_weather
+    executor:
+      type: agent
+      $ref: agents.#(id=="inline_agent")
+      action: get_current_weather
     with:
       city: "{{ .trigger.input.city }}"
     on_success:
       next: suggest_activities
 
   - id: suggest_activities
-    type: basic
-    use: agent(id=inline_agent)
-    action: suggest_activities
+    executor:
+      type: agent
+      $ref: agents.#(id=="inline_agent")
+      action: suggest_activities
     with:
       city: "{{ .trigger.input.city }}"
       temperature: "{{ .tasks.get_current_weather.output.temperature }}"
@@ -123,9 +127,10 @@ tasks:
       next: suggest_clothing
 
   - id: suggest_clothing
-    type: basic
-    use: agent(id=inline_agent)
-    action: suggest_clothing
+    executor:
+      type: agent
+      $ref: agents.#(id=="inline_agent")
+      action: suggest_clothing
     with:
       city: "{{ .trigger.input.city }}"
       temperature: "{{ .tasks.get_current_weather.output.temperature }}"
@@ -135,9 +140,10 @@ tasks:
       next: save_weather_data
 
   - id: save_weather_data
-    type: basic
-    use: tool(id=save_data)
     final: true
+    executor:
+      type: tool
+      $ref: tools.#(id=="save_data")
     with:
       city: "{{ .trigger.input.city }}"
       temperature: "{{ .tasks.get_current_weather.output.temperature }}"

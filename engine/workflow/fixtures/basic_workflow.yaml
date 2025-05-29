@@ -18,8 +18,9 @@ config:
 tasks:
   - id: format-code
     type: basic
-    use: agent(id=code-assistant)
-    action: format-code
+    executor:
+      $ref: agents.#(id=="code-assistant")
+      action: format-code
     with:
       code: "{{ trigger.input.code }}"
       language: "{{ trigger.input.language }}"
@@ -28,7 +29,8 @@ tasks:
 
   - id: save-formatted-code
     type: basic
-    use: tool(id=code-formatter)
+    executor:
+      $ref: tools.#(id=="code-formatter")
     final: true
     with:
       code: "{{ tasks.format-code.output.formatted_code }}"
@@ -80,7 +82,7 @@ agents:
         - Use consistent indentation
         - Add appropriate spacing
     tools:
-      - use: tool(id=code-formatter)
+      - $ref: tools.#(id=="code-formatter")
     actions:
       - id: format-code
         prompt: |

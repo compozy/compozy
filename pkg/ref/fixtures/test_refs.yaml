@@ -1,0 +1,89 @@
+# Test document with various $ref examples
+
+# Property references (same document)
+property_refs:
+  # Simple property reference
+  simple_ref:
+    $ref: schemas.#(id=="city_input")
+
+  # Property reference with path
+  nested_ref:
+    $ref: nested.level1.level2.value
+
+  # Array index reference
+  array_index_ref:
+    $ref: schemas.0
+
+  # Array filter reference
+  array_filter_ref:
+    $ref: nested.level1.level2.array.#(name=="first")
+
+# File references
+file_refs:
+  # Simple file reference
+  external_schema:
+    $ref: ./external.yaml::external_schemas.#(id=="user_input")
+
+  # File reference with merge mode
+  external_config:
+    $ref:
+      type: file
+      file: ./external.yaml
+      path: external_config.database
+      mode: merge
+    # Inline properties that should merge
+    ssl: true
+    pool_size: 10
+
+# Global references
+global_refs:
+  # Global provider reference
+  global_provider:
+    $ref:
+      type: global
+      path: global_providers.#(id=="groq_llama")
+
+  # Global schema reference with string form
+  global_schema:
+    $ref: $global::global_schemas.#(id=="common_error")
+
+# Merge mode tests
+merge_tests:
+  # Replace mode
+  replace_test:
+    $ref: schemas.#(id=="city_input")!replace
+    # This should be ignored due to replace mode
+    extra_field: "ignored"
+
+  # Merge mode (default)
+  merge_test:
+    $ref: providers.#(id=="groq_llama")
+    # These should merge with the referenced provider
+    custom_field: "custom_value"
+    temperature: 0.9 # This should override the referenced temperature
+
+  # Append mode for arrays
+  append_test:
+    $ref: test_arrays.base_items!append
+    # This should be treated as an array to append to
+
+# Error test cases (these should fail)
+error_tests:
+  # Invalid path
+  invalid_path:
+    $ref: nonexistent.path
+
+  # Invalid array filter
+  invalid_filter:
+    $ref: schemas.#(id=="nonexistent")
+
+  # Invalid file
+  invalid_file:
+    $ref: ./nonexistent.yaml::some.path
+
+# Circular reference test
+circular_a:
+  $ref: circular_b
+
+circular_b:
+  $ref: circular_a

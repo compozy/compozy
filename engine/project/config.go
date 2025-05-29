@@ -7,37 +7,16 @@ import (
 	"dario.cat/mergo"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 type (
-	LogLevel     string
 	Dependencies []*core.PackageRef
-	Environment  string
 )
-
-const (
-	EnvironmentDevelopment Environment = "development"
-	EnvironmentProduction  Environment = "production"
-	EnvironmentStaging     Environment = "staging"
-
-	LogLevelDebug   LogLevel = "debug"
-	LogLevelInfo    LogLevel = "info"
-	LogLevelWarning LogLevel = "warning"
-	LogLevelError   LogLevel = "error"
-)
-
-func IsValidLogLevel(level LogLevel) bool {
-	switch level {
-	case LogLevelDebug, LogLevelInfo, LogLevelWarning, LogLevelError:
-		return true
-	default:
-		return false
-	}
-}
 
 type EnvironmentConfig struct {
-	LogLevel LogLevel `json:"log_level" yaml:"log_level"`
-	EnvFile  string   `json:"env_file"  yaml:"env_file"`
+	LogLevel logger.LogLevel `json:"log_level" yaml:"log_level"`
+	EnvFile  string          `json:"env_file"  yaml:"env_file"`
 }
 
 type WorkflowSourceConfig struct {

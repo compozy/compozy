@@ -17,9 +17,21 @@ const (
 	TaskTypeDecision Type = "decision"
 )
 
+type ExecutorType string
+
+const (
+	ExecutorAgent ExecutorType = "agent"
+	ExecutorTool  ExecutorType = "tool"
+)
+
+type Executor struct {
+	Type ExecutorType `json:"type" yaml:"type"`
+}
+
 type Config struct {
 	ID           string                   `json:"id,omitempty"         yaml:"id,omitempty"`
 	Use          *core.PackageRefConfig   `json:"use,omitempty"        yaml:"use,omitempty"`
+	Executor     Executor                 `json:"executor" yaml:"executor"`
 	Type         Type                     `json:"type,omitempty"       yaml:"type,omitempty"`
 	OnSuccess    *SuccessTransitionConfig `json:"on_success,omitempty" yaml:"on_success,omitempty"`
 	OnError      *ErrorTransitionConfig   `json:"on_error,omitempty"   yaml:"on_error,omitempty"`

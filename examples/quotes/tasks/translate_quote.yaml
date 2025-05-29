@@ -1,13 +1,7 @@
 id: translate_quote
 type: basic
-use: agent(file=../agents/translator.yaml)
-action: translate
-
+executor:
+  type: agent
+  $ref: ../agents/translator.yaml
 input:
-  type: object
-  properties:
-    quote:
-      type: string
-      description: Quote to translate
-  required:
-    - quote
+  $ref: $global::schemas.#(id=="quote")

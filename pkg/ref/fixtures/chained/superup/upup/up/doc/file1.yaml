@@ -1,0 +1,3 @@
+data:
+  $ref: ../file2.yaml::data
+  value: file1_value
