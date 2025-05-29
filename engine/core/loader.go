@@ -10,7 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func resolvePath(cwd *CWD, path string) (string, error) {
+func ResolvedPath(cwd *CWD, path string) (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("path cannot be empty")
 	}
@@ -40,7 +40,7 @@ func resolvePath(cwd *CWD, path string) (string, error) {
 func LoadConfig[T Config](ctx context.Context, cwd *CWD, projectRoot string, filePath string) (T, error) {
 	var zero T
 
-	resolvedPath, err := resolvePath(cwd, filePath)
+	resolvedPath, err := ResolvedPath(cwd, filePath)
 	if err != nil {
 		return zero, err
 	}

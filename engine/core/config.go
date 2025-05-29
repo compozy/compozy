@@ -7,11 +7,12 @@ type ConfigMetadata struct {
 }
 
 func (m *ConfigMetadata) ResolvedPath() (string, error) {
-	return resolvePath(m.CWD, m.FilePath)
+	return ResolvedPath(m.CWD, m.FilePath)
 }
 
 type Config interface {
 	Component() ConfigType
+	GetCWD() *CWD
 	GetEnv() *EnvMap
 	GetInput() *Input
 	GetMetadata() *ConfigMetadata

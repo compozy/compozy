@@ -58,6 +58,10 @@ func (t *Config) Component() core.ConfigType {
 	return core.ConfigTask
 }
 
+func (t *Config) GetCWD() *core.CWD {
+	return t.metadata.CWD
+}
+
 func (t *Config) GetEnv() *core.EnvMap {
 	if t.Env == nil {
 		t.Env = make(core.EnvMap)

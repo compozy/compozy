@@ -314,7 +314,12 @@ func loadProject(cwd string, file string) (*project.Config, []*workflow.Config, 
 	logger.Info("Starting compozy server")
 	logger.Debug("Loading config file", "config_file", file)
 
-	projectConfig, err := project.Load(pCWD, file)
+	projectRoot, err := core.ResolvedPath(pCWD, file)
+	if err != nil {
+		logger.Error("Failed to resolve project root", "error", err)
+		return nil, nil, err
+	}
+	projectConfig, err := project.Load(context.Background(), pCWD, projectRoot)
 	if err != nil {
 		logger.Error("Failed to load project config", "error", err)
 		return nil, nil, err

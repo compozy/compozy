@@ -1,6 +1,7 @@
 package project
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -32,12 +33,21 @@ type Config struct {
 	Environments map[string]*EnvironmentConfig `json:"environments,omitempty" yaml:"environments,omitempty"`
 	Workflows    []*WorkflowSourceConfig       `json:"workflows"              yaml:"workflows"`
 
-	cwd *core.CWD
-	env *core.EnvMap
+	cwd      *core.CWD
+	env      *core.EnvMap
+	metadata *core.ConfigMetadata
 }
 
 func (p *Config) Component() core.ConfigType {
 	return core.ConfigProject
+}
+
+func (p *Config) GetMetadata() *core.ConfigMetadata {
+	return p.metadata
+}
+
+func (p *Config) SetMetadata(metadata *core.ConfigMetadata) {
+	p.metadata = metadata
 }
 
 func (p *Config) SetCWD(path string) error {
@@ -76,8 +86,8 @@ func (p *Config) LoadID() (string, error) {
 	return p.Name, nil
 }
 
-func Load(cwd *core.CWD, path string) (*Config, error) {
-	config, err := core.LoadConfig[*Config](cwd, path)
+func Load(ctx context.Context, cwd *core.CWD, projectRoot string) (*Config, error) {
+	config, err := core.LoadConfig[*Config](ctx, cwd, projectRoot, projectRoot)
 	if err != nil {
 		return nil, err
 	}
