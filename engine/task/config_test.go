@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/pkg/ref"
 	"github.com/compozy/compozy/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +37,7 @@ func Test_LoadTask(t *testing.T) {
 
 		require.NotNil(t, config.ID)
 		require.NotNil(t, config.Type)
-		require.NotNil(t, config.Action)
+		require.NotNil(t, config.Executor.Action)
 		require.NotNil(t, config.Env)
 		require.NotNil(t, config.With)
 		require.NotNil(t, config.OnSuccess)
@@ -125,16 +124,13 @@ func Test_TaskConfigValidation(t *testing.T) {
 	}
 
 	t.Run("Should validate valid basic task with agent executor", func(t *testing.T) {
-		agentRef, err := ref.NewNodeFromString("agents.#(id==\"test-agent\")")
-		require.NoError(t, err)
-
 		config := &Config{
-			ID:     taskID,
-			Type:   TaskTypeBasic,
-			Action: "test-action",
+			ID:   taskID,
+			Type: TaskTypeBasic,
 			Executor: Executor{
-				Type: ExecutorAgent,
-				Ref:  *agentRef,
+				Action: "test-action",
+				Type:   ExecutorAgent,
+				Ref:    "agents.#(id==\"test-agent\")",
 			},
 			metadata: metadata,
 		}
@@ -144,15 +140,12 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should validate valid basic task with tool executor", func(t *testing.T) {
-		toolRef, err := ref.NewNodeFromString("tools.#(id==\"test-tool\")")
-		require.NoError(t, err)
-
 		config := &Config{
 			ID:   taskID,
 			Type: TaskTypeBasic,
 			Executor: Executor{
 				Type: ExecutorTool,
-				Ref:  *toolRef,
+				Ref:  "tools.#(id==\"test-tool\")",
 			},
 			metadata: metadata,
 		}
@@ -162,19 +155,16 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should validate valid decision task", func(t *testing.T) {
-		agentRef, err := ref.NewNodeFromString("agents.#(id==\"decision-agent\")")
-		require.NoError(t, err)
-
 		config := &Config{
-			ID:        taskID,
-			Type:      TaskTypeDecision,
+			ID:   taskID,
+			Type: TaskTypeDecision,
+			Executor: Executor{
+				Type: ExecutorAgent,
+				Ref:  "agents.#(id==\"decision-agent\")",
+			},
 			Condition: "test-condition",
 			Routes: map[string]string{
 				"route1": "next1",
-			},
-			Executor: Executor{
-				Type: ExecutorAgent,
-				Ref:  *agentRef,
 			},
 			metadata: metadata,
 		}
@@ -184,15 +174,12 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error when CWD is missing", func(t *testing.T) {
-		agentRef, err := ref.NewNodeFromString("agents.#(id==\"test-agent\")")
-		require.NoError(t, err)
-
 		config := &Config{
 			ID:   taskID,
 			Type: TaskTypeBasic,
 			Executor: Executor{
 				Type: ExecutorAgent,
-				Ref:  *agentRef,
+				Ref:  "agents.#(id==\"test-agent\")",
 			},
 			metadata: &core.ConfigMetadata{},
 		}
@@ -203,14 +190,11 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error for missing executor type", func(t *testing.T) {
-		agentRef, err := ref.NewNodeFromString("agents.#(id==\"test-agent\")")
-		require.NoError(t, err)
-
 		config := &Config{
 			ID:   taskID,
 			Type: TaskTypeBasic,
 			Executor: Executor{
-				Ref: *agentRef,
+				Ref: "agents.#(id==\"test-agent\")",
 			},
 			metadata: metadata,
 		}
@@ -221,15 +205,12 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid executor type", func(t *testing.T) {
-		agentRef, err := ref.NewNodeFromString("agents.#(id==\"test-agent\")")
-		require.NoError(t, err)
-
 		config := &Config{
 			ID:   taskID,
 			Type: TaskTypeBasic,
 			Executor: Executor{
 				Type: "invalid",
-				Ref:  *agentRef,
+				Ref:  "agents.#(id==\"test-agent\")",
 			},
 			metadata: metadata,
 		}
@@ -255,15 +236,12 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid task type", func(t *testing.T) {
-		agentRef, err := ref.NewNodeFromString("agents.#(id==\"test-agent\")")
-		require.NoError(t, err)
-
 		config := &Config{
 			ID:   taskID,
 			Type: "invalid",
 			Executor: Executor{
 				Type: ExecutorAgent,
-				Ref:  *agentRef,
+				Ref:  "agents.#(id==\"test-agent\")",
 			},
 			metadata: metadata,
 		}
@@ -274,18 +252,15 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error for decision task missing condition", func(t *testing.T) {
-		agentRef, err := ref.NewNodeFromString("agents.#(id==\"decision-agent\")")
-		require.NoError(t, err)
-
 		config := &Config{
 			ID:   taskID,
 			Type: TaskTypeDecision,
-			Routes: map[string]string{
-				"route1": "next1",
-			},
 			Executor: Executor{
 				Type: ExecutorAgent,
-				Ref:  *agentRef,
+				Ref:  "agents.#(id==\"decision-agent\")",
+			},
+			Routes: map[string]string{
+				"route1": "next1",
 			},
 			metadata: metadata,
 		}
@@ -296,18 +271,15 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error for decision task missing routes", func(t *testing.T) {
-		agentRef, err := ref.NewNodeFromString("agents.#(id==\"decision-agent\")")
-		require.NoError(t, err)
-
 		config := &Config{
-			ID:        taskID,
-			Type:      TaskTypeDecision,
-			Condition: "test-condition",
+			ID:   taskID,
+			Type: TaskTypeDecision,
 			Executor: Executor{
 				Type: ExecutorAgent,
-				Ref:  *agentRef,
+				Ref:  "agents.#(id==\"decision-agent\")",
 			},
-			metadata: metadata,
+			Condition: "test-condition",
+			metadata:  metadata,
 		}
 
 		err = config.Validate()
@@ -316,16 +288,13 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error for tool executor with action", func(t *testing.T) {
-		toolRef, err := ref.NewNodeFromString("tools.#(id==\"test-tool\")")
-		require.NoError(t, err)
-
 		config := &Config{
-			ID:     taskID,
-			Type:   TaskTypeBasic,
-			Action: "test-action",
+			ID:   taskID,
+			Type: TaskTypeBasic,
 			Executor: Executor{
-				Type: ExecutorTool,
-				Ref:  *toolRef,
+				Type:   ExecutorTool,
+				Ref:    "tools.#(id==\"test-tool\")",
+				Action: "test-action",
 			},
 			metadata: metadata,
 		}
@@ -336,15 +305,12 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should return error for agent executor without action", func(t *testing.T) {
-		agentRef, err := ref.NewNodeFromString("agents.#(id==\"test-agent\")")
-		require.NoError(t, err)
-
 		config := &Config{
 			ID:   taskID,
 			Type: TaskTypeBasic,
 			Executor: Executor{
 				Type: ExecutorAgent,
-				Ref:  *agentRef,
+				Ref:  "agents.#(id==\"test-agent\")",
 			},
 			metadata: metadata,
 		}
@@ -355,16 +321,13 @@ func Test_TaskConfigValidation(t *testing.T) {
 	})
 
 	t.Run("Should handle parameter validation gracefully", func(t *testing.T) {
-		agentRef, err := ref.NewNodeFromString("agents.#(id==\"test-agent\")")
-		require.NoError(t, err)
-
 		config := &Config{
-			ID:     taskID,
-			Type:   TaskTypeBasic,
-			Action: "test-action",
+			ID:   taskID,
+			Type: TaskTypeBasic,
 			Executor: Executor{
-				Type: ExecutorAgent,
-				Ref:  *agentRef,
+				Type:   ExecutorAgent,
+				Ref:    "agents.#(id==\"test-agent\")",
+				Action: "test-action",
 			},
 			With: &core.Input{
 				"param": "value",
@@ -442,7 +405,8 @@ func Test_LoadTaskWithNestedReferences(t *testing.T) {
 		// Verify basic task properties
 		assert.Equal(t, "code-format", config.ID)
 		assert.Equal(t, "agent", string(config.Executor.Type))
-		assert.False(t, config.Executor.Ref.IsEmpty())
+		assert.NotNil(t, config.Executor.Ref)
+		assert.NotEqual(t, "", config.Executor.Ref)
 
 		// The executor should now contain the resolved agent configuration
 		resolvedAgent, err := config.Executor.GetAgent()

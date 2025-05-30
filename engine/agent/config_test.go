@@ -60,12 +60,6 @@ func Test_LoadAgent(t *testing.T) {
 		}
 		require.NotNil(t, reviewAction, "review-code action should be present")
 
-		t.Logf("Review action found: %+v", reviewAction)
-		t.Logf("Review action InputSchema: %+v", reviewAction.InputSchema)
-		if reviewAction.InputSchema != nil {
-			t.Logf("Review action InputSchema.Schema: %+v", reviewAction.InputSchema.Schema)
-		}
-
 		require.NotNil(t, reviewAction.InputSchema)
 		schema := reviewAction.InputSchema.Schema
 		assert.Equal(t, "object", schema.GetType())

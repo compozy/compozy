@@ -27,7 +27,7 @@ type Message struct {
 // ProviderConfig represents provider-specific configuration options
 type ProviderConfig struct {
 	ref.WithRef
-	Ref              *ref.Node    `json:"$ref,omitempty"              yaml:"$ref,omitempty"`
+	Ref              any          `json:"$ref,omitempty"              yaml:"$ref,omitempty"              is_ref:"true"`
 	Provider         ProviderName `json:"provider"                    yaml:"provider"`
 	Model            ModelName    `json:"model"                       yaml:"model"`
 	APIKey           string       `json:"api_key"                     yaml:"api_key"`
@@ -44,18 +44,9 @@ func (p *ProviderConfig) ResolveRef(ctx context.Context, currentDoc map[string]a
 	if p == nil {
 		return nil
 	}
-	// Resolve provider $ref
-	if p.Ref != nil && !p.Ref.IsEmpty() {
-		p.SetRefMetadata(filePath, projectRoot)
-		if err := p.WithRef.ResolveAndMergeNode(
-			ctx,
-			p.Ref,
-			p,
-			currentDoc,
-			ref.ModeMerge,
-		); err != nil {
-			return errors.Wrap(err, "failed to resolve provider config reference")
-		}
+	p.SetRefMetadata(filePath, projectRoot)
+	if err := p.ResolveAndMergeReferences(ctx, p, currentDoc, ref.ModeMerge); err != nil {
+		return errors.Wrap(err, "failed to resolve provider config reference")
 	}
 	return nil
 }

@@ -3,8 +3,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"path/filepath"
-	"strings"
 
 	"dario.cat/mergo"
 
@@ -17,7 +15,7 @@ import (
 
 type ActionConfig struct {
 	ref.WithRef
-	Ref          *ref.Node            `json:"$ref,omitempty"   yaml:"$ref,omitempty"`
+	Ref          any                  `json:"$ref,omitempty"   yaml:"$ref,omitempty"   is_ref:"true"`
 	ID           string               `json:"id"               yaml:"id"`
 	Prompt       string               `json:"prompt"           yaml:"prompt"           validate:"required"`
 	InputSchema  *schema.InputSchema  `json:"input,omitempty"  yaml:"input,omitempty"`
@@ -33,6 +31,26 @@ func (a *ActionConfig) SetMetadata(metadata *core.ConfigMetadata) {
 
 func (a *ActionConfig) GetMetadata() *core.ConfigMetadata {
 	return a.metadata
+}
+
+// GetInputSchema implements schema.SchemaContainer interface
+func (a *ActionConfig) GetInputSchema() *schema.InputSchema {
+	return a.InputSchema
+}
+
+// SetInputSchema implements schema.SchemaContainer interface
+func (a *ActionConfig) SetInputSchema(inputSchema *schema.InputSchema) {
+	a.InputSchema = inputSchema
+}
+
+// GetOutputSchema implements schema.SchemaContainer interface
+func (a *ActionConfig) GetOutputSchema() *schema.OutputSchema {
+	return a.OutputSchema
+}
+
+// SetOutputSchema implements schema.SchemaContainer interface
+func (a *ActionConfig) SetOutputSchema(outputSchema *schema.OutputSchema) {
+	a.OutputSchema = outputSchema
 }
 
 func (a *ActionConfig) Validate() error {
@@ -56,13 +74,8 @@ func (a *ActionConfig) ResolveRef(ctx context.Context, currentDoc map[string]any
 	if a == nil {
 		return nil
 	}
-
-	// Determine the correct document context for nested schema resolution
-	schemaCurrentDoc := currentDoc
-	schemaFilePath := filePath
-
-	// Resolve action $ref and process schemas
-	if err := schema.ResolveAndProcessSchemas(
+	// Resolve all references in a single call
+	if err := schema.ResolveConfigSchemas(
 		ctx,
 		&a.WithRef,
 		a.Ref,
@@ -70,50 +83,13 @@ func (a *ActionConfig) ResolveRef(ctx context.Context, currentDoc map[string]any
 		currentDoc,
 		projectRoot,
 		filePath,
-		&a.InputSchema,
-		&a.OutputSchema,
+		a,
 	); err != nil {
 		return errors.Wrapf(err, "failed to resolve action reference for action %s", a.ID)
 	}
-
-	// If this action was loaded from a file reference, we need to update the document context
-	// for nested schema resolution to use the action's source file
-	if a.Ref != nil && !a.Ref.IsEmpty() {
-		refString := a.Ref.String()
-		if strings.Contains(refString, "::") {
-			// This is a file reference like "./actions.yaml::actions.#(id=="review-code")"
-			parts := strings.Split(refString, "::")
-			if len(parts) >= 1 {
-				filePart := parts[0]
-				if !strings.HasPrefix(filePart, "/") && !strings.HasPrefix(filePart, "$global") {
-					// It's a relative file reference - load the action file's document
-					actionFilePath := filepath.Join(filepath.Dir(filePath), filePart)
-					actionDoc, err := core.LoadYAMLMap(actionFilePath)
-					if err != nil {
-						return errors.Wrapf(err, "failed to load action document from %s for nested schema resolution", actionFilePath)
-					}
-					// Update context for nested schema resolution
-					schemaCurrentDoc = actionDoc
-					schemaFilePath = actionFilePath
-				}
-			}
-		}
-	}
-
-	// Resolve action schema references using the correct document context
-	if a.InputSchema != nil {
-		if err := a.InputSchema.ResolveRef(ctx, schemaCurrentDoc, projectRoot, schemaFilePath); err != nil {
-			return errors.Wrapf(err, "failed to resolve input schema $ref for action %s", a.ID)
-		}
-	}
-	if a.OutputSchema != nil {
-		if err := a.OutputSchema.ResolveRef(ctx, schemaCurrentDoc, projectRoot, schemaFilePath); err != nil {
-			return errors.Wrapf(err, "failed to resolve output schema $ref for action %s", a.ID)
-		}
-	}
 	// Resolve action input (With) $ref
 	if a.With != nil {
-		if err := a.With.ResolveRef(ctx, schemaCurrentDoc, projectRoot, schemaFilePath); err != nil {
+		if err := a.With.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
 			return errors.Wrapf(err, "failed to resolve action input (with) $ref for action %s", a.ID)
 		}
 	}
@@ -122,7 +98,7 @@ func (a *ActionConfig) ResolveRef(ctx context.Context, currentDoc map[string]any
 
 type Config struct {
 	ref.WithRef
-	Ref          *ref.Node            `json:"$ref,omitempty"         yaml:"$ref,omitempty"`
+	Ref          any                  `json:"$ref,omitempty"         yaml:"$ref,omitempty"         is_ref:"true"`
 	ID           string               `json:"id"                     yaml:"id"                validate:"required"`
 	Instructions string               `json:"instructions"           yaml:"instructions"      validate:"required"`
 	Config       ProviderConfig       `json:"config"                 yaml:"config"            validate:"required"`
@@ -172,13 +148,33 @@ func (a *Config) SetMetadata(metadata *core.ConfigMetadata) {
 	}
 }
 
+// GetInputSchema implements schema.SchemaContainer interface
+func (a *Config) GetInputSchema() *schema.InputSchema {
+	return a.InputSchema
+}
+
+// SetInputSchema implements schema.SchemaContainer interface
+func (a *Config) SetInputSchema(inputSchema *schema.InputSchema) {
+	a.InputSchema = inputSchema
+}
+
+// GetOutputSchema implements schema.SchemaContainer interface
+func (a *Config) GetOutputSchema() *schema.OutputSchema {
+	return a.OutputSchema
+}
+
+// SetOutputSchema implements schema.SchemaContainer interface
+func (a *Config) SetOutputSchema(outputSchema *schema.OutputSchema) {
+	a.OutputSchema = outputSchema
+}
+
 // ResolveRef resolves all references within the agent configuration, including top-level $ref
 func (a *Config) ResolveRef(ctx context.Context, currentDoc map[string]any, projectRoot, filePath string) error {
 	if a == nil {
 		return nil
 	}
-	// Resolve top-level $ref and process schemas
-	if err := schema.ResolveAndProcessSchemas(
+	// Resolve all references in a single call
+	if err := schema.ResolveConfigSchemas(
 		ctx,
 		&a.WithRef,
 		a.Ref,
@@ -186,10 +182,9 @@ func (a *Config) ResolveRef(ctx context.Context, currentDoc map[string]any, proj
 		currentDoc,
 		projectRoot,
 		filePath,
-		&a.InputSchema,
-		&a.OutputSchema,
+		a,
 	); err != nil {
-		return errors.Wrap(err, "failed to resolve top-level $ref")
+		return errors.Wrap(err, "failed to resolve references")
 	}
 	// Resolve provider config reference
 	if err := loadProvider(ctx, &a.Config, currentDoc, projectRoot, filePath); err != nil {
@@ -205,18 +200,6 @@ func (a *Config) ResolveRef(ctx context.Context, currentDoc map[string]any, proj
 	for i := range a.Actions {
 		if err := loadAction(ctx, a.Actions[i], currentDoc, projectRoot, filePath); err != nil {
 			return err
-		}
-	}
-	// Resolve input schema $ref
-	if a.InputSchema != nil && !a.InputSchema.Ref.IsEmpty() {
-		if err := a.InputSchema.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
-			return errors.Wrap(err, "failed to resolve input schema $ref")
-		}
-	}
-	// Resolve output schema $ref
-	if a.OutputSchema != nil && !a.OutputSchema.Ref.IsEmpty() {
-		if err := a.OutputSchema.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
-			return errors.Wrap(err, "failed to resolve output schema $ref")
 		}
 	}
 	// Resolve input (With) $ref
@@ -240,6 +223,9 @@ func Load(ctx context.Context, cwd *core.CWD, projectRoot string, filePath strin
 	}
 	if err := config.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
 		return nil, err
+	}
+	if err := config.Validate(); err != nil {
+		return nil, errors.Wrap(err, "failed to validate agent config")
 	}
 	return config, nil
 }

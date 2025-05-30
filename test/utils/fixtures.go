@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -24,7 +25,7 @@ func LoadExampleWorkflow(t *testing.T, exampleName string) (*workflow.Config, *c
 
 	// Load the workflow
 	workflowPath := filepath.Join(examplesDir, "workflow.yaml")
-	workflowConfig, err := workflow.Load(cwd, workflowPath)
+	workflowConfig, err := workflow.Load(context.Background(), cwd, examplesDir, workflowPath)
 	require.NoError(t, err, "Failed to load workflow from examples")
 
 	return workflowConfig, cwd
@@ -43,7 +44,7 @@ func LoadExampleProject(t *testing.T, exampleName string) (*project.Config, *cor
 
 	// Load the project
 	projectPath := filepath.Join(examplesDir, "compozy.yaml")
-	projectConfig, err := project.Load(cwd, projectPath)
+	projectConfig, err := project.Load(context.Background(), cwd, projectPath)
 	require.NoError(t, err, "Failed to load project from examples")
 
 	return projectConfig, cwd

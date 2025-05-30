@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
@@ -30,8 +31,14 @@ func CreateTestWorkflowConfig(
 		Version: "1.0.0",
 		Env:     env,
 	}
-	err := workflowConfig.SetCWD(tb.StateDir)
+	cwd, err := core.CWDFromPath(tb.StateDir)
 	require.NoError(t, err)
+	metadata := &core.ConfigMetadata{
+		CWD:         cwd,
+		FilePath:    filepath.Join(tb.StateDir, "workflow.yaml"),
+		ProjectRoot: tb.StateDir,
+	}
+	workflowConfig.SetMetadata(metadata)
 	return workflowConfig
 }
 
@@ -89,10 +96,9 @@ func CreateTestTaskConfig(
 ) *task.Config {
 	t.Helper()
 	return &task.Config{
-		ID:     taskID,
-		Type:   taskType,
-		Action: action,
-		Env:    env,
+		ID:   taskID,
+		Type: taskType,
+		Env:  env,
 	}
 }
 
@@ -142,8 +148,14 @@ func CreateTestTaskExecution(
 		Time:           timestamppb.Now(),
 		Source:         "test",
 	}
-	err = taskConfig.SetCWD(tb.StateDir)
+	cwd, err := core.CWDFromPath(tb.StateDir)
 	require.NoError(t, err)
+	metadata := &core.ConfigMetadata{
+		CWD:         cwd,
+		FilePath:    filepath.Join(tb.StateDir, "task.yaml"),
+		ProjectRoot: tb.StateDir,
+	}
+	taskConfig.SetMetadata(metadata)
 	execution, err := tb.TaskRepo.CreateExecution(
 		tb.Ctx,
 		taskMetadata,
@@ -194,8 +206,14 @@ func CreateTestAgentExecution(
 		Time:           timestamppb.Now(),
 		Source:         "test",
 	}
-	err = agentConfig.SetCWD(tb.StateDir)
+	cwd, err := core.CWDFromPath(tb.StateDir)
 	require.NoError(t, err)
+	metadata := &core.ConfigMetadata{
+		CWD:         cwd,
+		FilePath:    filepath.Join(tb.StateDir, "agent.yaml"),
+		ProjectRoot: tb.StateDir,
+	}
+	agentConfig.SetMetadata(metadata)
 	execution, err := tb.AgentRepo.CreateExecution(
 		tb.Ctx,
 		agentMetadata,
@@ -245,8 +263,14 @@ func CreateTestToolExecution(
 		Time:           timestamppb.Now(),
 		Source:         "test",
 	}
-	err = toolConfig.SetCWD(tb.StateDir)
+	cwd, err := core.CWDFromPath(tb.StateDir)
 	require.NoError(t, err)
+	metadata := &core.ConfigMetadata{
+		CWD:         cwd,
+		FilePath:    filepath.Join(tb.StateDir, "tool.yaml"),
+		ProjectRoot: tb.StateDir,
+	}
+	toolConfig.SetMetadata(metadata)
 	execution, err := tb.ToolRepo.CreateExecution(
 		tb.Ctx,
 		toolMetadata,

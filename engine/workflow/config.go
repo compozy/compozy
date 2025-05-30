@@ -79,37 +79,30 @@ func (w *Config) ResolveRef(ctx context.Context, currentDoc map[string]any, proj
 	if w == nil {
 		return nil
 	}
-	// Workflow configs typically don't have top-level references themselves
-	// but we need to resolve references in child components
-
 	// Resolve task references
 	for i := range w.Tasks {
 		if err := w.Tasks[i].ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
 			return errors.Wrapf(err, "failed to resolve task reference for task %s", w.Tasks[i].ID)
 		}
 	}
-
 	// Resolve agent references
 	for i := range w.Agents {
 		if err := w.Agents[i].ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
 			return errors.Wrapf(err, "failed to resolve agent reference for agent %s", w.Agents[i].ID)
 		}
 	}
-
 	// Resolve tool references
 	for i := range w.Tools {
 		if err := w.Tools[i].ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
 			return errors.Wrapf(err, "failed to resolve tool reference for tool %s", w.Tools[i].ID)
 		}
 	}
-
 	// Resolve input schema reference
 	if w.Opts.InputSchema != nil {
 		if err := w.Opts.InputSchema.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
 			return errors.Wrap(err, "failed to resolve workflow input schema reference")
 		}
 	}
-
 	return nil
 }
 
@@ -145,34 +138,7 @@ func (w *Config) Validate() error {
 	v := schema.NewCompositeValidator(
 		schema.NewCWDValidator(cwd, w.ID),
 	)
-	if err := v.Validate(); err != nil {
-		return err
-	}
-
-	for i := 0; i < len(w.Tasks); i++ {
-		tc := &w.Tasks[i]
-		err := tc.Validate()
-		if err != nil {
-			return fmt.Errorf("task validation error: %s", err)
-		}
-	}
-
-	for i := 0; i < len(w.Agents); i++ {
-		ac := &w.Agents[i]
-		err := ac.Validate()
-		if err != nil {
-			return fmt.Errorf("agent validation error: %s", err)
-		}
-	}
-
-	for _, tc := range w.Tools {
-		err := tc.Validate()
-		if err != nil {
-			return fmt.Errorf("tool validation error: %s", err)
-		}
-	}
-
-	return nil
+	return v.Validate()
 }
 
 func (w *Config) ValidateParams(input *core.Input) error {

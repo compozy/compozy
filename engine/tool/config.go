@@ -17,7 +17,7 @@ import (
 // Config represents a tool configuration
 type Config struct {
 	ref.WithRef
-	Ref          *ref.Node            `json:"$ref,omitempty"         yaml:"$ref,omitempty"`
+	Ref          any                  `json:"$ref,omitempty"         yaml:"$ref,omitempty"         is_ref:"true"`
 	ID           string               `json:"id,omitempty"           yaml:"id,omitempty"`
 	Description  string               `json:"description,omitempty"  yaml:"description,omitempty"`
 	Execute      string               `json:"execute,omitempty"      yaml:"execute,omitempty"`
@@ -60,14 +60,33 @@ func (t *Config) SetMetadata(metadata *core.ConfigMetadata) {
 	t.metadata = metadata
 }
 
+// GetInputSchema implements schema.SchemaContainer interface
+func (t *Config) GetInputSchema() *schema.InputSchema {
+	return t.InputSchema
+}
+
+// SetInputSchema implements schema.SchemaContainer interface
+func (t *Config) SetInputSchema(inputSchema *schema.InputSchema) {
+	t.InputSchema = inputSchema
+}
+
+// GetOutputSchema implements schema.SchemaContainer interface
+func (t *Config) GetOutputSchema() *schema.OutputSchema {
+	return t.OutputSchema
+}
+
+// SetOutputSchema implements schema.SchemaContainer interface
+func (t *Config) SetOutputSchema(outputSchema *schema.OutputSchema) {
+	t.OutputSchema = outputSchema
+}
+
 // ResolveRef resolves all references within the tool configuration, including top-level $ref
 func (t *Config) ResolveRef(ctx context.Context, currentDoc map[string]any, projectRoot, filePath string) error {
 	if t == nil {
 		return nil
 	}
-
-	// Resolve top-level $ref and process schemas
-	if err := schema.ResolveAndProcessSchemas(
+	// Resolve all references in a single call
+	if err := schema.ResolveConfigSchemas(
 		ctx,
 		&t.WithRef,
 		t.Ref,
@@ -75,33 +94,16 @@ func (t *Config) ResolveRef(ctx context.Context, currentDoc map[string]any, proj
 		currentDoc,
 		projectRoot,
 		filePath,
-		&t.InputSchema,
-		&t.OutputSchema,
+		t,
 	); err != nil {
-		return errors.Wrap(err, "failed to resolve top-level $ref")
+		return errors.Wrap(err, "failed to resolve references")
 	}
-
-	// Resolve input schema $ref
-	if t.InputSchema != nil && !t.InputSchema.Ref.IsEmpty() {
-		if err := t.InputSchema.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
-			return errors.Wrap(err, "failed to resolve input schema $ref")
-		}
-	}
-
-	// Resolve output schema $ref
-	if t.OutputSchema != nil && !t.OutputSchema.Ref.IsEmpty() {
-		if err := t.OutputSchema.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
-			return errors.Wrap(err, "failed to resolve output schema $ref")
-		}
-	}
-
 	// Resolve tool input (With) $ref
 	if t.With != nil {
 		if err := t.With.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
 			return errors.Wrap(err, "failed to resolve tool input (with) $ref")
 		}
 	}
-
 	return nil
 }
 
@@ -111,18 +113,17 @@ func Load(ctx context.Context, cwd *core.CWD, projectRoot string, filePath strin
 	if err != nil {
 		return nil, err
 	}
-
 	filePath = config.metadata.FilePath
 	currentDoc, err := core.LoadYAMLMap(filePath)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load current document")
 	}
-
-	// Resolve all references (including top-level)
 	if err := config.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
 		return nil, err
 	}
-
+	if err := config.Validate(); err != nil {
+		return nil, errors.Wrap(err, "failed to validate tool config")
+	}
 	return config, nil
 }
 
@@ -139,7 +140,8 @@ func (t *Config) ValidateParams(input *core.Input) error {
 	if t.InputSchema == nil || input == nil {
 		return nil
 	}
-	return schema.NewParamsValidator(*input, t.InputSchema.Schema, t.ID).Validate()
+	validator := schema.NewParamsValidator(*input, t.InputSchema.Schema, t.ID)
+	return validator.Validate()
 }
 
 // Merge merges another tool configuration into this one

@@ -50,7 +50,7 @@ func Test_LoadWorkflow(t *testing.T) {
 		assert.Equal(t, "basic", string(task.Type))
 		// Note: The new executor uses $ref instead of the old Use field
 		assert.Equal(t, "agent", string(task.Executor.Type))
-		assert.Equal(t, "format-code", task.Action)
+		assert.Equal(t, "format-code", task.Executor.Action)
 
 		// Validate tools
 		require.Len(t, config.Tools, 1)
@@ -82,7 +82,7 @@ func Test_LoadWorkflow(t *testing.T) {
 		require.Error(t, err)
 		require.Nil(t, config)
 		// The error should come from task validation since the workflow loads but tasks are invalid
-		assert.Contains(t, err.Error(), "task validation error")
+		assert.Contains(t, err.Error(), "failed to resolve executor")
 	})
 }
 

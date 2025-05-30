@@ -14,57 +14,22 @@ import (
 // Schema
 // -----------------------------------------------------------------------------
 
+// Schema represents a JSON schema
 type Schema map[string]any
-
-// resolveSchemaRef is a private function to handle schema reference resolution
-func resolveSchemaRef(
-	ctx context.Context,
-	withRef *ref.WithRef,
-	refNode *ref.Node,
-	schema *Schema,
-	currentDoc any,
-	projectRoot, filePath, schemaType string,
-) error {
-	if refNode != nil && !refNode.IsEmpty() {
-		withRef.SetRefMetadata(filePath, projectRoot)
-		var schemaMap map[string]any
-		if *schema != nil {
-			schemaMap = map[string]any(*schema)
-		} else {
-			schemaMap = make(map[string]any)
-		}
-		schemaMap["$ref"] = refNode.String()
-		resolvedMap, err := withRef.ResolveMapReference(ctx, schemaMap, currentDoc)
-		if err != nil {
-			return errors.Wrapf(err, "failed to resolve %s schema $ref", schemaType)
-		}
-		*schema = Schema(resolvedMap)
-	}
-	return nil
-}
 
 type InputSchema struct {
 	ref.WithRef
-	Ref    *ref.Node `json:"$ref,omitempty" yaml:"$ref,omitempty"`
-	Schema Schema    `yaml:",inline"`
+	Ref    any    `json:"$ref,omitempty" yaml:"$ref,omitempty" is_ref:"true"`
+	Schema Schema `yaml:",inline"`
 }
 
 func (s *InputSchema) ResolveRef(ctx context.Context, currentDoc any, projectRoot, filePath string) error {
-	// First resolve any top-level Ref field
-	if err := resolveSchemaRef(
-		ctx,
-		&s.WithRef,
-		s.Ref,
-		&s.Schema,
-		currentDoc,
-		projectRoot,
-		filePath,
-		"input",
-	); err != nil {
+	// Handle the case where we have a Ref field that needs to be merged with existing Schema
+	if err := resolveSchemaRef(ctx, &s.WithRef, s.Ref, &s.Schema, currentDoc, projectRoot, filePath, "input"); err != nil {
 		return err
 	}
 	// Then resolve any nested $ref fields within the schema itself
-	if err := s.resolveNestedRefs(ctx, currentDoc, projectRoot, filePath); err != nil {
+	if err := resolveNestedSchemaRefs(ctx, &s.WithRef, &s.Schema, currentDoc, projectRoot, filePath); err != nil {
 		return errors.Wrap(err, "failed to resolve nested input schema references")
 	}
 	return nil
@@ -72,63 +37,48 @@ func (s *InputSchema) ResolveRef(ctx context.Context, currentDoc any, projectRoo
 
 type OutputSchema struct {
 	ref.WithRef
-	Ref    *ref.Node `json:"$ref,omitempty" yaml:"$ref,omitempty"`
-	Schema Schema    `yaml:",inline"`
+	Ref    any    `json:"$ref,omitempty" yaml:"$ref,omitempty" is_ref:"true"`
+	Schema Schema `yaml:",inline"`
 }
 
 func (s *OutputSchema) ResolveRef(ctx context.Context, currentDoc any, projectRoot, filePath string) error {
-	// First resolve any top-level Ref field
-	if err := resolveSchemaRef(
-		ctx,
-		&s.WithRef,
-		s.Ref,
-		&s.Schema,
-		currentDoc,
-		projectRoot,
-		filePath,
-		"output",
-	); err != nil {
+	// Handle the case where we have a Ref field that needs to be merged with existing Schema
+	if err := resolveSchemaRef(ctx, &s.WithRef, s.Ref, &s.Schema, currentDoc, projectRoot, filePath, "output"); err != nil {
 		return err
 	}
 	// Then resolve any nested $ref fields within the schema itself
-	if err := s.resolveNestedRefs(ctx, currentDoc, projectRoot, filePath); err != nil {
+	if err := resolveNestedSchemaRefs(ctx, &s.WithRef, &s.Schema, currentDoc, projectRoot, filePath); err != nil {
 		return errors.Wrap(err, "failed to resolve nested output schema references")
 	}
 	return nil
 }
 
-// resolveNestedRefs resolves any $ref fields within the schema itself
-func (s *InputSchema) resolveNestedRefs(ctx context.Context, currentDoc any, projectRoot, filePath string) error {
-	if s.Schema == nil {
-		return nil
+// resolveSchemaRef handles ref resolution for both InputSchema and OutputSchema
+func resolveSchemaRef(ctx context.Context, withRef *ref.WithRef, refField any, schema *Schema, currentDoc any, projectRoot, filePath, schemaType string) error {
+	withRef.SetRefMetadata(filePath, projectRoot)
+	resolvedMap, err := withRef.ResolveRefWithInlineData(ctx, refField, map[string]any(*schema), currentDoc)
+	if err != nil {
+		return errors.Wrapf(err, "failed to resolve %s schema $ref", schemaType)
 	}
-	// Check if the schema contains $ref fields and resolve them
-	if _, hasRef := s.Schema["$ref"]; hasRef {
-		// Ensure the WithRef metadata is properly set
-		s.WithRef.SetRefMetadata(filePath, projectRoot)
-		resolvedMap, err := s.WithRef.ResolveMapReference(ctx, map[string]any(s.Schema), currentDoc)
-		if err != nil {
-			return err
-		}
-		s.Schema = Schema(resolvedMap)
-	}
+	// Update the schema with the resolved result
+	*schema = Schema(resolvedMap)
 	return nil
 }
 
-// resolveNestedRefs resolves any $ref fields within the schema itself
-func (s *OutputSchema) resolveNestedRefs(ctx context.Context, currentDoc any, projectRoot, filePath string) error {
-	if s.Schema == nil {
+// resolveNestedSchemaRefs resolves any $ref fields within the schema itself
+func resolveNestedSchemaRefs(ctx context.Context, withRef *ref.WithRef, schema *Schema, currentDoc any, projectRoot, filePath string) error {
+	if *schema == nil {
 		return nil
 	}
 	// Check if the schema contains $ref fields and resolve them
-	if _, hasRef := s.Schema["$ref"]; hasRef {
+	if _, hasRef := (*schema)["$ref"]; hasRef {
 		// Ensure the WithRef metadata is properly set
-		s.WithRef.SetRefMetadata(filePath, projectRoot)
-		resolvedMap, err := s.WithRef.ResolveMapReference(ctx, map[string]any(s.Schema), currentDoc)
+		withRef.SetRefMetadata(filePath, projectRoot)
+		resolvedMap, err := withRef.ResolveMapReference(ctx, map[string]any(*schema), currentDoc)
 		if err != nil {
 			return err
 		}
-		s.Schema = Schema(resolvedMap)
+		*schema = Schema(resolvedMap)
 	}
 	return nil
 }
@@ -176,60 +126,108 @@ func (s *Schema) GetProperties() map[string]*Schema {
 	return result
 }
 
-// ProcessSchemasFromResolvedData converts resolved raw input/output data to proper schema objects.
-// This is used after reference resolution to populate InputSchema/OutputSchema fields from YAML data.
-func ProcessSchemasFromResolvedData(resolvedData map[string]any, inputSchema **InputSchema, outputSchema **OutputSchema) {
-	// Process input schema
-	if inputData, exists := resolvedData["input"]; exists && *inputSchema == nil {
-		if inputMap, ok := inputData.(map[string]any); ok {
-			*inputSchema = &InputSchema{
-				Schema: Schema(inputMap),
-			}
-		}
-	}
-	// Process output schema
-	if outputData, exists := resolvedData["output"]; exists && *outputSchema == nil {
-		if outputMap, ok := outputData.(map[string]any); ok {
-			*outputSchema = &OutputSchema{
-				Schema: Schema(outputMap),
-			}
-		}
-	}
+// SchemaContainer defines an interface for structs that contain input and output schemas
+type SchemaContainer interface {
+	GetInputSchema() *InputSchema
+	SetInputSchema(*InputSchema)
+	GetOutputSchema() *OutputSchema
+	SetOutputSchema(*OutputSchema)
 }
 
-// ResolveAndProcessSchemas handles the complete reference resolution and schema processing pattern.
-// This eliminates duplication and ensures efficient single-pass reference resolution.
-func ResolveAndProcessSchemas(
+// ResolveConfigSchemas handles complete schema resolution for config structs.
+// This consolidates both top-level reference resolution and individual schema resolution.
+func ResolveConfigSchemas(
 	ctx context.Context,
 	withRef *ref.WithRef,
-	refNode *ref.Node,
+	refField any,
 	target any,
 	currentDoc map[string]any,
 	projectRoot, filePath string,
-	inputSchema **InputSchema,
-	outputSchema **OutputSchema,
+	schemaContainer SchemaContainer,
 ) error {
-	if refNode == nil || refNode.IsEmpty() {
-		return nil
+	// Resolve top-level reference if present
+	if refField != nil {
+		withRef.SetRefMetadata(filePath, projectRoot)
+		if hasRef := isValidRef(refField); hasRef {
+			if err := withRef.ResolveAndMergeReferences(
+				ctx,
+				target,
+				currentDoc,
+				ref.ModeMerge,
+			); err != nil {
+				return errors.Wrap(err, "failed to resolve top-level reference")
+			}
+			// Process schemas from resolved reference data
+			if err := processSchemaFromResolvedRef(
+				ctx, withRef, refField, currentDoc, projectRoot, filePath, schemaContainer,
+			); err != nil {
+				return errors.Wrap(err, "failed to process schemas from resolved reference")
+			}
+		}
 	}
-	withRef.SetRefMetadata(filePath, projectRoot)
-	// Resolve and merge the reference into the target struct
-	if err := withRef.ResolveAndMergeNode(
-		ctx,
-		refNode,
-		target,
-		currentDoc,
-		ref.ModeMerge,
-	); err != nil {
-		return err
+	// Resolve individual schema references
+	if inputSchema := schemaContainer.GetInputSchema(); inputSchema != nil {
+		if err := inputSchema.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+			return errors.Wrap(err, "failed to resolve input schema reference")
+		}
 	}
-	// Get the resolved data for schema processing (without re-resolving)
-	resolvedData, err := withRef.ResolveRef(ctx, refNode, currentDoc)
-	if err != nil {
-		return err
-	}
-	if resolvedMap, ok := resolvedData.(map[string]any); ok {
-		ProcessSchemasFromResolvedData(resolvedMap, inputSchema, outputSchema)
+	if outputSchema := schemaContainer.GetOutputSchema(); outputSchema != nil {
+		if err := outputSchema.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+			return errors.Wrap(err, "failed to resolve output schema reference")
+		}
 	}
 	return nil
+}
+
+// processSchemaFromResolvedRef handles the case where schemas need to be populated from resolved reference data
+func processSchemaFromResolvedRef(
+	ctx context.Context,
+	withRef *ref.WithRef,
+	refField any,
+	currentDoc map[string]any,
+	projectRoot, filePath string,
+	schemaContainer SchemaContainer,
+) error {
+	parsedRef, err := withRef.ParseRefFromValue(refField)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse reference")
+	}
+	if parsedRef == nil {
+		return nil
+	}
+	resolvedData, err := parsedRef.Resolve(ctx, currentDoc, filePath, projectRoot)
+	if err != nil {
+		return errors.Wrap(err, "failed to resolve reference")
+	}
+	if resolvedMap, ok := resolvedData.(map[string]any); ok {
+		// Process input schema
+		if inputData, exists := resolvedMap["input"]; exists && schemaContainer.GetInputSchema() == nil {
+			if inputMap, ok := inputData.(map[string]any); ok {
+				schemaContainer.SetInputSchema(&InputSchema{
+					Schema: Schema(inputMap),
+				})
+			}
+		}
+		// Process output schema
+		if outputData, exists := resolvedMap["output"]; exists && schemaContainer.GetOutputSchema() == nil {
+			if outputMap, ok := outputData.(map[string]any); ok {
+				schemaContainer.SetOutputSchema(&OutputSchema{
+					Schema: Schema(outputMap),
+				})
+			}
+		}
+	}
+	return nil
+}
+
+// isValidRef checks if a reference field contains a valid reference
+func isValidRef(refField any) bool {
+	switch v := refField.(type) {
+	case string:
+		return v != ""
+	case map[string]any:
+		return len(v) > 0
+	default:
+		return false
+	}
 }

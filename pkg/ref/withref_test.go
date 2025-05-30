@@ -9,264 +9,216 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
-// WithRefTestConfig demonstrates the intended usage pattern with WithRef composition
-type WithRefTestConfig struct {
+// TestConfig demonstrates the usage pattern with is_ref tag
+type TestConfig struct {
 	WithRef
-	Ref     Node   `json:"$ref" yaml:"$ref"`
+	Ref     any    `json:"$ref" yaml:"$ref" is_ref:"true"`
 	Name    string `json:"name" yaml:"name"`
 	Enabled bool   `json:"enabled" yaml:"enabled"`
+}
+
+// TestMultiRefConfig has multiple reference fields
+type TestMultiRefConfig struct {
+	WithRef
+	BaseRef   any    `json:"base_ref" yaml:"base_ref" is_ref:"true"`
+	SchemaRef any    `json:"schema_ref" yaml:"schema_ref" is_ref:"true"`
+	Name      string `json:"name" yaml:"name"`
+	Version   string `json:"version" yaml:"version"`
 }
 
 // -----------------------------------------------------------------------------
 // Test Helpers
 // -----------------------------------------------------------------------------
 
-// setupWithRefTest sets up the test environment by returning the fixtures directory and main YAML path.
-func setupWithRefTest(t *testing.T) (string, string) {
+func setupTest(t *testing.T) (string, string) {
 	t.Helper()
-
-	// Get the directory of this test file
 	_, filename, _, ok := runtime.Caller(0)
 	require.True(t, ok, "failed to get current file path")
-
 	testDir := filepath.Dir(filename)
 	fixturesDir := filepath.Join(testDir, "fixtures")
 	mainYAML := filepath.Join(fixturesDir, "main.yaml")
-
-	// Verify fixtures exist
 	_, err := os.Stat(mainYAML)
 	require.NoError(t, err, "fixtures/main.yaml not found")
-
 	return fixturesDir, mainYAML
 }
 
 // -----------------------------------------------------------------------------
-// WithRef Resolve* Tests
+// Core Reference Resolution Tests
 // -----------------------------------------------------------------------------
 
-func TestWithRef_ResolveFunctions(t *testing.T) {
-	fixturesDir, mainPath := setupWithRefTest(t)
+func TestWithRef_ResolveReferences(t *testing.T) {
+	fixturesDir, mainPath := setupTest(t)
 	mainDoc := loadYAMLFile(t, mainPath)
 	mainData, err := mainDoc.Get("")
 	require.NoError(t, err)
 
-	// Test configuration struct for ResolveAndMergeNode
-	type TestStruct struct {
-		Name    string `yaml:"name"`
-		Value   any    `yaml:"value"`
-		Enabled bool   `yaml:"enabled"`
-	}
-
-	t.Run("Should resolve property reference", func(t *testing.T) {
-		config := WithRefTestConfig{}
+	t.Run("Should resolve string reference", func(t *testing.T) {
+		yamlContent := `
+$ref: schemas.#(id=="city_input")
+name: "String Ref Config"
+enabled: true
+`
+		var config TestConfig
 		config.SetRefMetadata(mainPath, fixturesDir)
-		node, err := NewNodeFromString("schemas.#(id==\"city_input\")")
+		err := yaml.Unmarshal([]byte(yamlContent), &config)
 		require.NoError(t, err)
-		config.Ref = *node
 
 		ctx := context.Background()
-		result, err := config.ResolveRef(ctx, &config.Ref, mainData)
+		err = config.ResolveReferences(ctx, &config, mainData)
 		require.NoError(t, err)
 
-		schema, ok := result.(map[string]any)
+		schema, ok := config.Ref.(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "city_input", schema["id"])
+		assert.Equal(t, "object", schema["type"])
+		assert.Equal(t, "String Ref Config", config.Name)
+		assert.True(t, config.Enabled)
+	})
+
+	t.Run("Should resolve object reference", func(t *testing.T) {
+		yamlContent := `
+$ref:
+  type: property
+  path: schemas.#(id=="weather_output")
+  mode: replace
+name: "Object Ref Config"
+enabled: false
+`
+		var config TestConfig
+		config.SetRefMetadata(mainPath, fixturesDir)
+		err := yaml.Unmarshal([]byte(yamlContent), &config)
+		require.NoError(t, err)
+
+		ctx := context.Background()
+		err = config.ResolveReferences(ctx, &config, mainData)
+		require.NoError(t, err)
+
+		schema, ok := config.Ref.(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "weather_output", schema["id"])
 		assert.Equal(t, "object", schema["type"])
 	})
 
 	t.Run("Should resolve file reference", func(t *testing.T) {
-		config := WithRefTestConfig{}
+		yamlContent := `
+$ref: ./external.yaml::external_schemas.#(id=="user_input")
+name: "External Config"
+`
+		var config TestConfig
 		config.SetRefMetadata(mainPath, fixturesDir)
-		node, err := NewNodeFromString("./external.yaml::external_schemas.#(id==\"user_input\")")
+		err := yaml.Unmarshal([]byte(yamlContent), &config)
 		require.NoError(t, err)
-		config.Ref = *node
 
 		ctx := context.Background()
-		result, err := config.ResolveRef(ctx, &config.Ref, mainData)
+		err = config.ResolveReferences(ctx, &config, mainData)
 		require.NoError(t, err)
 
-		schema, ok := result.(map[string]any)
+		schema, ok := config.Ref.(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "user_input", schema["id"])
-		assert.Equal(t, "object", schema["type"])
+		properties, ok := schema["properties"].(map[string]any)
+		require.True(t, ok)
+		assert.Contains(t, properties, "name")
+		assert.Contains(t, properties, "email")
 	})
 
 	t.Run("Should resolve global reference", func(t *testing.T) {
-		config := WithRefTestConfig{}
+		yamlContent := `
+$ref: $global::global_providers.#(id=="groq_llama")
+name: "Global Config"
+`
+		var config TestConfig
 		config.SetRefMetadata(mainPath, fixturesDir)
-		node, err := NewNodeFromString("$global::global_providers.#(id==\"groq_llama\")")
+		err := yaml.Unmarshal([]byte(yamlContent), &config)
 		require.NoError(t, err)
-		config.Ref = *node
 
 		ctx := context.Background()
-		result, err := config.ResolveRef(ctx, &config.Ref, mainData)
+		err = config.ResolveReferences(ctx, &config, mainData)
 		require.NoError(t, err)
 
-		provider, ok := result.(map[string]any)
+		provider, ok := config.Ref.(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "groq_llama", provider["id"])
 		assert.Equal(t, "groq", provider["provider"])
 	})
 
-	t.Run("Should handle empty node in ResolveRef", func(t *testing.T) {
-		config := WithRefTestConfig{}
+	t.Run("Should resolve multiple reference fields", func(t *testing.T) {
+		yamlContent := `
+base_ref: schemas.#(id=="city_input")
+schema_ref: ./external.yaml::external_config.database
+name: "Multi Ref Config"
+version: "1.0"
+`
+		var config TestMultiRefConfig
 		config.SetRefMetadata(mainPath, fixturesDir)
-		var node Node
-		config.Ref = node
+		err := yaml.Unmarshal([]byte(yamlContent), &config)
+		require.NoError(t, err)
 
 		ctx := context.Background()
-		result, err := config.ResolveRef(ctx, &config.Ref, mainData)
-		require.NoError(t, err)
-		assert.Nil(t, result)
-	})
-
-	t.Run("Should handle invalid path in ResolveRef", func(t *testing.T) {
-		config := WithRefTestConfig{}
-		config.SetRefMetadata(mainPath, fixturesDir)
-		node, err := NewNodeFromString("nonexistent.path")
-		require.NoError(t, err)
-		config.Ref = *node
-
-		ctx := context.Background()
-		_, err = config.ResolveRef(ctx, &config.Ref, mainData)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "not found")
-	})
-
-	t.Run("Should resolve and merge with merge mode", func(t *testing.T) {
-		config := WithRefTestConfig{}
-		config.SetRefMetadata(mainPath, fixturesDir)
-		node, err := NewNodeFromString("schemas.#(id==\"city_input\")")
-		require.NoError(t, err)
-		config.Ref = *node
-
-		inlineValue := map[string]any{
-			"extra_field": "inline_value",
-			"type":        "modified_object",
-		}
-
-		ctx := context.Background()
-		result, err := config.ResolveAndMergeRef(ctx, &config.Ref, inlineValue, mainData)
+		err = config.ResolveReferences(ctx, &config, mainData)
 		require.NoError(t, err)
 
-		merged, ok := result.(map[string]any)
+		baseSchema, ok := config.BaseRef.(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, "city_input", merged["id"])
-		assert.Equal(t, "modified_object", merged["type"]) // inline wins
-		assert.Equal(t, "inline_value", merged["extra_field"])
-	})
+		assert.Equal(t, "city_input", baseSchema["id"])
 
-	t.Run("Should resolve and merge with replace mode", func(t *testing.T) {
-		config := WithRefTestConfig{}
-		config.SetRefMetadata(mainPath, fixturesDir)
-		node, err := NewNodeFromString("schemas.#(id==\"city_input\")!replace")
-		require.NoError(t, err)
-		config.Ref = *node
-
-		inlineValue := map[string]any{
-			"extra_field": "inline_value",
-		}
-
-		ctx := context.Background()
-		result, err := config.ResolveAndMergeRef(ctx, &config.Ref, inlineValue, mainData)
-		require.NoError(t, err)
-
-		merged, ok := result.(map[string]any)
+		dbConfig, ok := config.SchemaRef.(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, "city_input", merged["id"])
-		assert.Equal(t, "object", merged["type"])
-		assert.NotContains(t, merged, "extra_field") // inline ignored
+		assert.Contains(t, dbConfig, "host")
+		assert.Contains(t, dbConfig, "port")
+
+		assert.Equal(t, "Multi Ref Config", config.Name)
+		assert.Equal(t, "1.0", config.Version)
 	})
+}
 
-	t.Run("Should resolve and merge with append mode", func(t *testing.T) {
-		config := WithRefTestConfig{}
+// -----------------------------------------------------------------------------
+// Merge Functionality Tests
+// -----------------------------------------------------------------------------
+
+func TestWithRef_MergeReferences(t *testing.T) {
+	fixturesDir, mainPath := setupTest(t)
+	mainDoc := loadYAMLFile(t, mainPath)
+	mainData, err := mainDoc.Get("")
+	require.NoError(t, err)
+
+	t.Run("Should merge references into struct", func(t *testing.T) {
+		yamlContent := `
+$ref: schemas.#(id=="city_input")
+name: "Merge Test Config"
+enabled: true
+`
+		var config TestConfig
 		config.SetRefMetadata(mainPath, fixturesDir)
-		node, err := NewNodeFromString("test_arrays.base_items!append")
+		err := yaml.Unmarshal([]byte(yamlContent), &config)
 		require.NoError(t, err)
-		config.Ref = *node
-
-		inlineValue := []any{"inline1", "inline2"}
 
 		ctx := context.Background()
-		result, err := config.ResolveAndMergeRef(ctx, &config.Ref, inlineValue, mainData)
+		err = config.ResolveAndMergeReferences(ctx, &config, mainData, ModeMerge)
 		require.NoError(t, err)
 
-		merged, ok := result.([]any)
-		require.True(t, ok)
-		assert.Equal(t, []any{"inline1", "inline2", "item1", "item2"}, merged)
+		// Original fields preserved, reference field unchanged (excluded from merge)
+		assert.Equal(t, "Merge Test Config", config.Name)
+		assert.True(t, config.Enabled)
+		assert.Equal(t, `schemas.#(id=="city_input")`, config.Ref)
 	})
+}
 
-	t.Run("Should handle empty node in ResolveAndMergeRef", func(t *testing.T) {
-		config := WithRefTestConfig{}
-		config.SetRefMetadata(mainPath, fixturesDir)
-		var node Node
-		config.Ref = node
-		inlineValue := map[string]any{"test": "value"}
+// -----------------------------------------------------------------------------
+// Map Resolution Tests
+// -----------------------------------------------------------------------------
 
-		ctx := context.Background()
-		result, err := config.ResolveAndMergeRef(ctx, &config.Ref, inlineValue, mainData)
-		require.NoError(t, err)
-		assert.Equal(t, inlineValue, result)
-	})
+func TestWithRef_MapResolution(t *testing.T) {
+	fixturesDir, mainPath := setupTest(t)
+	mainDoc := loadYAMLFile(t, mainPath)
+	mainData, err := mainDoc.Get("")
+	require.NoError(t, err)
 
-	t.Run("Should resolve and merge node with property reference", func(t *testing.T) {
-		config := WithRefTestConfig{}
-		config.SetRefMetadata(mainPath, fixturesDir)
-		node, err := NewNodeFromString("schemas.#(id==\"city_input\")")
-		require.NoError(t, err)
-		config.Ref = *node
-
-		// Create a struct that represents a schema config
-		type SchemaConfig struct {
-			ID         string `yaml:"id"`
-			Type       string `yaml:"type"`
-			ExtraField string `yaml:"extra_field"`
-		}
-
-		target := &SchemaConfig{
-			ExtraField: "inline",
-		}
-
-		ctx := context.Background()
-		err = config.ResolveAndMergeNode(ctx, &config.Ref, target, mainData, ModeMerge)
-		require.NoError(t, err)
-
-		// Verify that the resolved reference data was merged into the struct
-		assert.Equal(t, "city_input", target.ID)
-		assert.Equal(t, "object", target.Type)
-		assert.Equal(t, "inline", target.ExtraField) // inline field preserved
-	})
-
-	t.Run("Should handle nil target in ResolveAndMergeNode", func(t *testing.T) {
-		config := WithRefTestConfig{}
-		config.SetRefMetadata(mainPath, fixturesDir)
-		node, err := NewNodeFromString("schemas.#(id==\"city_input\")")
-		require.NoError(t, err)
-		config.Ref = *node
-
-		ctx := context.Background()
-		err = config.ResolveAndMergeNode(ctx, &config.Ref, nil, mainData, ModeMerge)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "target must not be nil")
-	})
-
-	t.Run("Should handle empty node in ResolveAndMergeNode", func(t *testing.T) {
-		config := WithRefTestConfig{}
-		config.SetRefMetadata(mainPath, fixturesDir)
-		var node Node
-		config.Ref = node
-		target := &TestStruct{Name: "Test"}
-
-		ctx := context.Background()
-		err := config.ResolveAndMergeNode(ctx, &config.Ref, target, mainData, ModeMerge)
-		require.NoError(t, err)
-		assert.Equal(t, "Test", target.Name)
-	})
-
-	t.Run("Should resolve map with nested references", func(t *testing.T) {
-		config := WithRefTestConfig{}
+	t.Run("Should resolve nested map references", func(t *testing.T) {
+		config := TestConfig{}
 		config.SetRefMetadata(mainPath, fixturesDir)
 		data := map[string]any{
 			"config": map[string]any{
@@ -285,13 +237,11 @@ func TestWithRef_ResolveFunctions(t *testing.T) {
 		result, err := config.ResolveMapReference(ctx, data, mainData)
 		require.NoError(t, err)
 
-		// Verify config section
 		configMap, ok := result["config"].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "city_input", configMap["id"])
 		assert.Equal(t, "value", configMap["extra"])
 
-		// Verify array section
 		array, ok := result["array"].([]any)
 		require.True(t, ok)
 		arrayMap, ok := array[0].(map[string]any)
@@ -300,21 +250,8 @@ func TestWithRef_ResolveFunctions(t *testing.T) {
 		assert.Equal(t, "added", arrayMap["new_field"])
 	})
 
-	t.Run("Should handle invalid reference in ResolveMapReference", func(t *testing.T) {
-		config := WithRefTestConfig{}
-		config.SetRefMetadata(mainPath, fixturesDir)
-		data := map[string]any{
-			"$ref": "nonexistent.path",
-		}
-
-		ctx := context.Background()
-		_, err := config.ResolveMapReference(ctx, data, mainData)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "not found")
-	})
-
-	t.Run("Should handle map with no references in ResolveMapReference", func(t *testing.T) {
-		config := WithRefTestConfig{}
+	t.Run("Should handle map without references", func(t *testing.T) {
+		config := TestConfig{}
 		config.SetRefMetadata(mainPath, fixturesDir)
 		data := map[string]any{
 			"name":  "test",
@@ -327,8 +264,8 @@ func TestWithRef_ResolveFunctions(t *testing.T) {
 		assert.Equal(t, data, result)
 	})
 
-	t.Run("Should resolve map with chained file references", func(t *testing.T) {
-		config := WithRefTestConfig{}
+	t.Run("Should resolve chained file references", func(t *testing.T) {
+		config := TestConfig{}
 		chainedDir := filepath.Join(fixturesDir, "chained")
 		file1Path := filepath.Join(chainedDir, "superup", "upup", "up", "doc", "file1.yaml")
 		file1Doc := loadYAMLFile(t, file1Path)
@@ -345,6 +282,77 @@ func TestWithRef_ResolveFunctions(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, "file4_value", merged["value"])
-		assert.NotContains(t, merged, "$ref") // Ensure all references resolved
+		assert.NotContains(t, merged, "$ref")
+	})
+}
+
+// -----------------------------------------------------------------------------
+// Edge Cases Tests
+// -----------------------------------------------------------------------------
+
+func TestWithRef_EdgeCases(t *testing.T) {
+	fixturesDir, mainPath := setupTest(t)
+	mainDoc := loadYAMLFile(t, mainPath)
+	mainData, err := mainDoc.Get("")
+	require.NoError(t, err)
+
+	t.Run("Should handle empty reference field", func(t *testing.T) {
+		var config TestConfig
+		config.SetRefMetadata(mainPath, fixturesDir)
+		config.Name = "Test"
+		config.Enabled = true
+
+		ctx := context.Background()
+		err := config.ResolveReferences(ctx, &config, mainData)
+		require.NoError(t, err)
+
+		assert.Equal(t, "Test", config.Name)
+		assert.True(t, config.Enabled)
+		assert.Nil(t, config.Ref)
+	})
+
+	t.Run("Should handle struct without is_ref fields", func(t *testing.T) {
+		type NoRefConfig struct {
+			WithRef
+			Name    string `json:"name" yaml:"name"`
+			Enabled bool   `json:"enabled" yaml:"enabled"`
+		}
+
+		var config NoRefConfig
+		config.SetRefMetadata(mainPath, fixturesDir)
+		config.Name = "Test"
+		config.Enabled = true
+
+		ctx := context.Background()
+		err := config.ResolveReferences(ctx, &config, mainData)
+		require.NoError(t, err)
+
+		assert.Equal(t, "Test", config.Name)
+		assert.True(t, config.Enabled)
+	})
+
+	t.Run("Should handle invalid reference gracefully", func(t *testing.T) {
+		var config TestConfig
+		config.SetRefMetadata(mainPath, fixturesDir)
+		config.Ref = "nonexistent.path"
+
+		ctx := context.Background()
+		err := config.ResolveReferences(ctx, &config, mainData)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("Should skip non-string and non-map reference values", func(t *testing.T) {
+		var config TestConfig
+		config.SetRefMetadata(mainPath, fixturesDir)
+		config.Ref = 123 // invalid type
+		config.Name = "Test"
+
+		ctx := context.Background()
+		err := config.ResolveReferences(ctx, &config, mainData)
+		require.NoError(t, err)
+
+		assert.Equal(t, 123, config.Ref) // unchanged
+		assert.Equal(t, "Test", config.Name)
 	})
 }

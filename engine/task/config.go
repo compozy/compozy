@@ -32,7 +32,10 @@ const (
 type Executor struct {
 	ref.WithRef
 	Type ExecutorType `json:"type" yaml:"type"`
-	Ref  ref.Node     `json:"$ref" yaml:"$ref" `
+	Ref  any          `json:"$ref" yaml:"$ref" is_ref:"true"`
+
+	// Basic task properties
+	Action string `json:"action,omitempty" yaml:"action,omitempty"`
 
 	agent    *agent.Config
 	tool     *tool.Config
@@ -68,7 +71,7 @@ func (e *Executor) ResolveRef(ctx context.Context, currentDoc map[string]any, pr
 	if e == nil {
 		return nil
 	}
-	if e.Ref.IsEmpty() {
+	if e.Ref == nil {
 		return nil // Don't error for empty ref, just skip resolution
 	}
 	// Ensure we have metadata to work with
@@ -76,7 +79,7 @@ func (e *Executor) ResolveRef(ctx context.Context, currentDoc map[string]any, pr
 		return errors.New("executor metadata is not set")
 	}
 	e.SetRefMetadata(filePath, projectRoot)
-	resolvedValue, err := e.WithRef.ResolveRef(ctx, &e.Ref, currentDoc)
+	resolvedValue, err := e.ResolveRefWithInlineData(ctx, e.Ref, map[string]any{}, currentDoc)
 	if err != nil {
 		return errors.Wrap(err, "failed to resolve executor reference")
 	}
@@ -132,7 +135,7 @@ func (e *Executor) ResolveRef(ctx context.Context, currentDoc map[string]any, pr
 
 type Config struct {
 	ref.WithRef
-	Ref       *ref.Node                `json:"$ref,omitempty"       yaml:"$ref,omitempty"`
+	Ref       any                      `json:"$ref,omitempty"       yaml:"$ref,omitempty"       is_ref:"true"`
 	ID        string                   `json:"id,omitempty"         yaml:"id,omitempty"`
 	Executor  Executor                 `json:"executor" yaml:"executor"`
 	Type      Type                     `json:"type,omitempty"       yaml:"type,omitempty"`
@@ -141,9 +144,6 @@ type Config struct {
 	Final     bool                     `json:"final,omitempty"      yaml:"final,omitempty"`
 	With      *core.Input              `json:"with,omitempty"       yaml:"with,omitempty"`
 	Env       core.EnvMap              `json:"env,omitempty"        yaml:"env,omitempty"`
-
-	// Basic task properties
-	Action string `json:"action,omitempty" yaml:"action,omitempty"`
 
 	// Decision task properties
 	Condition string            `json:"condition,omitempty" yaml:"condition,omitempty"`
@@ -188,19 +188,14 @@ func (t *Config) ResolveRef(ctx context.Context, currentDoc map[string]any, proj
 	if t == nil {
 		return nil
 	}
-	// Resolve top-level $ref
-	if t.Ref != nil && !t.Ref.IsEmpty() {
+	// Resolve top-level $ref if present
+	if t.Ref != nil {
 		t.SetRefMetadata(filePath, projectRoot)
-		if err := t.WithRef.ResolveAndMergeNode(
-			ctx,
-			t.Ref,
-			t,
-			currentDoc,
-			ref.ModeMerge,
-		); err != nil {
+		if err := t.ResolveAndMergeReferences(ctx, t, currentDoc, ref.ModeMerge); err != nil {
 			return errors.Wrap(err, "failed to resolve top-level $ref")
 		}
 	}
+	// Set metadata for executor and resolve its references
 	t.Executor.SetMetadata(t.metadata)
 	if err := t.Executor.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
 		return errors.Wrap(err, "failed to resolve executor $ref")
@@ -230,6 +225,9 @@ func Load(ctx context.Context, cwd *core.CWD, projectRoot string, filePath strin
 	// Resolve all references using the standardized method
 	if err := config.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
 		return nil, err
+	}
+	if err := config.Validate(); err != nil {
+		return nil, errors.Wrap(err, "failed to validate task config")
 	}
 	return config, nil
 }

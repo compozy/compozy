@@ -2,6 +2,7 @@ package ref
 
 import (
 	"context"
+	"maps"
 	"reflect"
 	"strings"
 
@@ -26,73 +27,182 @@ func (w *WithRef) SetRefMetadata(filePath, projectRoot string) {
 	}
 }
 
-// ResolveRef resolves a reference node with the given context and returns the result.
-func (w *WithRef) ResolveRef(
-	ctx context.Context,
-	node *Node,
-	currentDoc any,
-) (any, error) {
-	if node.IsEmpty() {
-		return nil, nil
-	}
-	filePath := w.refMetadata.FilePath
-	projectRoot := w.refMetadata.ProjectRoot
-	return node.Resolve(ctx, currentDoc, filePath, projectRoot)
-}
-
-// MergeRefValue merges a reference value with inline values using the specified node.
-func (w *WithRef) MergeRefValue(node *Node, refValue, inlineValue any) (any, error) {
-	if node.IsEmpty() {
-		return inlineValue, nil
-	}
-	return node.ApplyMergeMode(refValue, inlineValue)
-}
-
-// ResolveAndMergeRef resolves a reference and merges it with inline values in one step.
-func (w *WithRef) ResolveAndMergeRef(
-	ctx context.Context,
-	node *Node,
-	inlineValue any,
-	currentDoc any,
-) (any, error) {
-	if node.IsEmpty() {
-		return inlineValue, nil
-	}
-	filePath := w.refMetadata.FilePath
-	projectRoot := w.refMetadata.ProjectRoot
-	resolvedValue, err := node.Resolve(ctx, currentDoc, filePath, projectRoot)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to resolve reference")
-	}
-	return node.ApplyMergeMode(resolvedValue, inlineValue)
-}
-
-// ResolveAndMergeNode resolves a reference node and merges it with inline values, updating the target struct.
-func (w *WithRef) ResolveAndMergeNode(
-	ctx context.Context,
-	node *Node,
-	target any,
-	currentDoc any,
-	mergeMode Mode,
-) error {
-	if node.IsEmpty() {
-		return nil
-	}
+// ResolveReferences resolves all fields with is_ref tag in the target struct
+func (w *WithRef) ResolveReferences(ctx context.Context, target any, currentDoc any) error {
 	if err := w.validateTarget(target); err != nil {
 		return err
 	}
-	resolvedValue, err := w.ResolveRef(ctx, node, currentDoc)
+	targetValue := reflect.ValueOf(target).Elem()
+	targetType := targetValue.Type()
+	for i := range targetValue.NumField() {
+		field := targetValue.Field(i)
+		fieldType := targetType.Field(i)
+		if !w.isRefField(fieldType) {
+			continue
+		}
+		if err := w.resolveRefField(ctx, field, fieldType, currentDoc); err != nil {
+			return errors.Wrapf(err, "failed to resolve reference field %s", fieldType.Name)
+		}
+	}
+	return nil
+}
+
+// ResolveAndMergeReferences resolves all reference fields and merges them into the struct
+func (w *WithRef) ResolveAndMergeReferences(ctx context.Context, target any, currentDoc any, mergeMode Mode) error {
+	if err := w.validateTarget(target); err != nil {
+		return err
+	}
+	targetValue := reflect.ValueOf(target).Elem()
+	targetType := targetValue.Type()
+	for i := range targetValue.NumField() {
+		field := targetValue.Field(i)
+		fieldType := targetType.Field(i)
+		if !w.isRefField(fieldType) {
+			continue
+		}
+		if err := w.resolveAndMergeRefField(ctx, field, fieldType, target, currentDoc, mergeMode); err != nil {
+			return errors.Wrapf(err, "failed to resolve and merge reference field %s", fieldType.Name)
+		}
+	}
+	return nil
+}
+
+// isRefField checks if a field has the is_ref tag
+func (w *WithRef) isRefField(fieldType reflect.StructField) bool {
+	return fieldType.Tag.Get("is_ref") == "true"
+}
+
+// resolveRefField resolves a single reference field
+func (w *WithRef) resolveRefField(ctx context.Context, field reflect.Value, fieldType reflect.StructField, currentDoc any) error {
+	if !field.CanSet() {
+		return nil
+	}
+	refValue := field.Interface()
+	if refValue == nil {
+		return nil
+	}
+	// Parse the reference from the field value
+	ref, err := w.ParseRefFromValue(refValue)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse reference")
+	}
+	if ref == nil {
+		return nil
+	}
+	// Resolve the reference
+	filePath := w.refMetadata.FilePath
+	projectRoot := w.refMetadata.ProjectRoot
+	resolvedValue, err := ref.Resolve(ctx, currentDoc, filePath, projectRoot)
+	if err != nil {
+		return errors.Wrap(err, "failed to resolve reference")
+	}
+	// Set the resolved value back to the field
+	if resolvedValue != nil {
+		field.Set(reflect.ValueOf(resolvedValue))
+	}
+	return nil
+}
+
+// resolveAndMergeRefField resolves a reference field and merges it into the parent struct
+func (w *WithRef) resolveAndMergeRefField(ctx context.Context, field reflect.Value, fieldType reflect.StructField, target any, currentDoc any, mergeMode Mode) error {
+	if !field.CanSet() {
+		return nil
+	}
+	refValue := field.Interface()
+	if refValue == nil {
+		return nil
+	}
+	// Parse the reference from the field value
+	ref, err := w.ParseRefFromValue(refValue)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse reference")
+	}
+	if ref == nil {
+		return nil
+	}
+	// Resolve the reference
+	filePath := w.refMetadata.FilePath
+	projectRoot := w.refMetadata.ProjectRoot
+	resolvedValue, err := ref.Resolve(ctx, currentDoc, filePath, projectRoot)
 	if err != nil {
 		return errors.Wrap(err, "failed to resolve reference")
 	}
 	if resolvedValue == nil {
 		return nil
 	}
+	// Merge the resolved value into the target struct
 	resolvedMap, ok := resolvedValue.(map[string]any)
 	if !ok {
 		return errors.New("resolved reference must be a map/object to merge into struct")
 	}
-	return w.mergeIntoStruct(target, resolvedMap, node, mergeMode)
+	// Apply the merge with the specified mode
+	targetValue := reflect.ValueOf(target).Elem()
+	currentMap := w.structToMap(targetValue)
+	mergedValue, err := ref.ApplyMergeMode(resolvedMap, currentMap)
+	if err != nil {
+		return errors.Wrap(err, "failed to apply merge mode")
+	}
+	mergedMap, ok := mergedValue.(map[string]any)
+	if !ok {
+		return errors.New("merged value must be a map")
+	}
+	w.setStructFields(targetValue, mergedMap)
+	return nil
+}
+
+// ParseRefFromValue parses a reference from any value (string or object)
+func (w *WithRef) ParseRefFromValue(value any) (*Ref, error) {
+	switch v := value.(type) {
+	case string:
+		if v == "" {
+			return nil, nil
+		}
+		return parseStringRef(v)
+	case map[string]any:
+		return w.parseRefFromMap(v)
+	default:
+		return nil, nil
+	}
+}
+
+// parseRefFromMap parses a reference from a map representation
+func (w *WithRef) parseRefFromMap(m map[string]any) (*Ref, error) {
+	ref := &Ref{}
+	if typeVal, ok := m["type"].(string); ok {
+		switch typeVal {
+		case "property":
+			ref.Type = TypeProperty
+		case "file":
+			ref.Type = TypeFile
+		case "global":
+			ref.Type = TypeGlobal
+		default:
+			return nil, errors.Errorf("unknown reference type: %s", typeVal)
+		}
+	} else {
+		ref.Type = TypeProperty // default
+	}
+	if path, ok := m["path"].(string); ok {
+		ref.Path = path
+	}
+	if file, ok := m["file"].(string); ok {
+		ref.File = file
+	}
+	if mode, ok := m["mode"].(string); ok {
+		switch mode {
+		case "merge":
+			ref.Mode = ModeMerge
+		case "replace":
+			ref.Mode = ModeReplace
+		case "append":
+			ref.Mode = ModeAppend
+		default:
+			return nil, errors.Errorf("unknown merge mode: %s", mode)
+		}
+	} else {
+		ref.Mode = ModeMerge // default
+	}
+	return ref, nil
 }
 
 // ResolveMapReference resolves $ref fields in a map recursively.
@@ -105,6 +215,19 @@ func (w *WithRef) ResolveMapReference(
 		return w.resolveMapWithRef(ctx, data, refValue, currentDoc)
 	}
 	return w.resolveMapWithoutRef(ctx, data, currentDoc)
+}
+
+// ResolveRefWithInlineData resolves a ref field and merges it with existing inline data
+func (w *WithRef) ResolveRefWithInlineData(ctx context.Context, refField any, inlineData map[string]any, currentDoc any) (map[string]any, error) {
+	if refField == nil {
+		return inlineData, nil
+	}
+	// Create a map that contains both the $ref and the existing inline properties
+	dataWithRef := make(map[string]any, len(inlineData)+1)
+	maps.Copy(dataWithRef, inlineData)
+	dataWithRef["$ref"] = refField
+	// Use ResolveMapReference to resolve the $ref and merge with inline properties
+	return w.ResolveMapReference(ctx, dataWithRef, currentDoc)
 }
 
 // -----------------------------------------------------------------------------
@@ -163,7 +286,8 @@ func (w *WithRef) shouldIncludeField(field reflect.Value, fieldType reflect.Stru
 	return field.CanSet() &&
 		fieldType.Name != "WithRef" &&
 		field.IsValid() &&
-		!field.IsZero()
+		!field.IsZero() &&
+		!w.isRefField(fieldType) // exclude is_ref fields from map conversion
 }
 
 // setStructFields sets field values from merged map back to struct
@@ -172,7 +296,7 @@ func (w *WithRef) setStructFields(structValue reflect.Value, mergedMap map[strin
 	for i := range structValue.NumField() {
 		field := structValue.Field(i)
 		fieldType := structType.Field(i)
-		if !field.CanSet() || fieldType.Name == "WithRef" {
+		if !field.CanSet() || fieldType.Name == "WithRef" || w.isRefField(fieldType) {
 			continue
 		}
 		fieldName := w.getFieldName(fieldType)
@@ -192,34 +316,6 @@ func (w *WithRef) setFieldValue(field reflect.Value, value any) {
 	}
 }
 
-// mergeIntoStruct handles the complete merge operation into a struct
-func (w *WithRef) mergeIntoStruct(target any, resolvedMap map[string]any, node *Node, mergeMode Mode) error {
-	targetValue := reflect.ValueOf(target).Elem()
-	nodeCopy := w.createNodeWithMergeMode(node, mergeMode)
-	currentMap := w.structToMap(targetValue)
-	mergedValue, err := nodeCopy.ApplyMergeMode(resolvedMap, currentMap)
-	if err != nil {
-		return errors.Wrap(err, "failed to apply merge mode")
-	}
-	mergedMap, ok := mergedValue.(map[string]any)
-	if !ok {
-		return errors.New("merged value must be a map")
-	}
-	w.setStructFields(targetValue, mergedMap)
-	return nil
-}
-
-// createNodeWithMergeMode creates a copy of the node with the specified merge mode
-func (w *WithRef) createNodeWithMergeMode(node *Node, mergeMode Mode) *Node {
-	nodeCopy := *node
-	if nodeCopy.ref != nil {
-		refCopy := *nodeCopy.ref
-		refCopy.Mode = mergeMode
-		nodeCopy.ref = &refCopy
-	}
-	return &nodeCopy
-}
-
 // resolveMapWithRef handles maps that contain $ref
 func (w *WithRef) resolveMapWithRef(
 	ctx context.Context,
@@ -231,14 +327,20 @@ func (w *WithRef) resolveMapWithRef(
 	if !ok {
 		return nil, errors.New("$ref must be a string")
 	}
-	node, err := NewNodeFromString(refStr)
+	ref, err := parseStringRef(refStr)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse $ref")
 	}
 	inlineData := w.extractInlineData(data)
-	mergedValue, err := w.ResolveAndMergeRef(ctx, node, inlineData, currentDoc)
+	filePath := w.refMetadata.FilePath
+	projectRoot := w.refMetadata.ProjectRoot
+	resolvedValue, err := ref.Resolve(ctx, currentDoc, filePath, projectRoot)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to resolve $ref")
+	}
+	mergedValue, err := ref.ApplyMergeMode(resolvedValue, inlineData)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to apply merge mode")
 	}
 	resolvedMap, ok := mergedValue.(map[string]any)
 	if !ok {

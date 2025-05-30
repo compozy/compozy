@@ -4,6 +4,21 @@ import (
 	"fmt"
 )
 
+// isRefEmpty checks if a reference field is empty
+func isRefEmpty(ref any) bool {
+	if ref == nil {
+		return true
+	}
+	switch v := ref.(type) {
+	case string:
+		return v == ""
+	case map[string]any:
+		return len(v) == 0
+	default:
+		return false
+	}
+}
+
 // -----------------------------------------------------------------------------
 // TaskTypeValidator
 // -----------------------------------------------------------------------------
@@ -25,7 +40,7 @@ func (v *TypeValidator) Validate() error {
 	if v.config.Type != TaskTypeBasic && v.config.Type != TaskTypeDecision {
 		return fmt.Errorf("invalid task type: %s", v.config.Type)
 	}
-	if !v.config.Executor.Ref.IsEmpty() {
+	if !isRefEmpty(v.config.Executor.Ref) {
 		if err := v.validateBasicTaskWithRef(); err != nil {
 			return err
 		}
@@ -43,10 +58,10 @@ func (v *TypeValidator) validateBasicTaskWithRef() error {
 		return nil
 	}
 	executorType := v.config.Executor.Type
-	if executorType == ExecutorTool && v.config.Action != "" {
+	if executorType == ExecutorTool && v.config.Executor.Action != "" {
 		return fmt.Errorf("action is not allowed when executor type is tool")
 	}
-	if executorType == ExecutorAgent && v.config.Action == "" {
+	if executorType == ExecutorAgent && v.config.Executor.Action == "" {
 		return fmt.Errorf("action is required when executor type is agent")
 	}
 	return nil
@@ -86,7 +101,7 @@ func (v *ExecutorValidator) Validate() error {
 	if v.config.Executor.Type != ExecutorAgent && v.config.Executor.Type != ExecutorTool {
 		return fmt.Errorf("invalid executor type: %s", v.config.Executor.Type)
 	}
-	if v.config.Executor.Ref.IsEmpty() {
+	if isRefEmpty(v.config.Executor.Ref) {
 		return fmt.Errorf("executor reference is required")
 	}
 	if v.config.Executor.Type == ExecutorAgent {

@@ -5,12 +5,19 @@ description: "Invalid workflow for testing"
 tasks:
   - id: invalid-basic-task
     type: basic
-    # Missing action field
+    # Missing executor field entirely
+    action: test
 
   - id: invalid-decision-task
     type: decision
+    executor:
+      type: agent
+      $ref: agents.#(id=="nonexistent-agent")
     # Missing routes field
 
   - id: invalid-task-type
     type: invalid
+    executor:
+      type: tool
+      $ref: tools.#(id=="nonexistent-tool")
     action: test
