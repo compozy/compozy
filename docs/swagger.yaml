@@ -2,6 +2,7 @@ basePath: /api/v0
 definitions:
   agent.ActionConfig:
     properties:
+      $ref: {}
       id:
         type: string
       input:
@@ -17,6 +18,7 @@ definitions:
     type: object
   agent.Config:
     properties:
+      $ref: {}
       actions:
         items:
           $ref: '#/definitions/agent.ActionConfig'
@@ -37,8 +39,6 @@ definitions:
         items:
           $ref: '#/definitions/tool.Config'
         type: array
-      use:
-        type: string
       with:
         $ref: '#/definitions/core.Input'
     required:
@@ -161,6 +161,7 @@ definitions:
     - ModelGemma3
   agent.ProviderConfig:
     properties:
+      $ref: {}
       api_key:
         type: string
       api_url:
@@ -451,11 +452,13 @@ definitions:
     type: object
   schema.InputSchema:
     properties:
+      $ref: {}
       schema:
         $ref: '#/definitions/schema.Schema'
     type: object
   schema.OutputSchema:
     properties:
+      $ref: {}
       schema:
         $ref: '#/definitions/schema.Schema'
     type: object
@@ -464,34 +467,28 @@ definitions:
     type: object
   task.Config:
     properties:
-      action:
-        description: Basic task properties
-        type: string
+      $ref: {}
       condition:
         description: Decision task properties
         type: string
       env:
         $ref: '#/definitions/core.EnvMap'
+      executor:
+        $ref: '#/definitions/task.Executor'
       final:
         type: boolean
       id:
         type: string
-      input:
-        $ref: '#/definitions/schema.InputSchema'
       on_error:
         $ref: '#/definitions/task.ErrorTransitionConfig'
       on_success:
         $ref: '#/definitions/task.SuccessTransitionConfig'
-      output:
-        $ref: '#/definitions/schema.OutputSchema'
       routes:
         additionalProperties:
           type: string
         type: object
       type:
         $ref: '#/definitions/task.Type'
-      use:
-        type: string
       with:
         $ref: '#/definitions/core.Input'
     type: object
@@ -537,6 +534,23 @@ definitions:
       workflow_id:
         type: string
     type: object
+  task.Executor:
+    properties:
+      $ref: {}
+      action:
+        description: Basic task properties
+        type: string
+      type:
+        $ref: '#/definitions/task.ExecutorType'
+    type: object
+  task.ExecutorType:
+    enum:
+    - agent
+    - tool
+    type: string
+    x-enum-varnames:
+    - ExecutorAgent
+    - ExecutorTool
   task.RequestData:
     properties:
       metadata:
@@ -618,6 +632,7 @@ definitions:
     type: object
   tool.Config:
     properties:
+      $ref: {}
       description:
         type: string
       env:
@@ -630,8 +645,6 @@ definitions:
         $ref: '#/definitions/schema.InputSchema'
       output:
         $ref: '#/definitions/schema.OutputSchema'
-      use:
-        type: string
       with:
         $ref: '#/definitions/core.Input'
     type: object

@@ -3098,6 +3098,7 @@ const docTemplate = `{
                 "prompt"
             ],
             "properties": {
+                "$ref": {},
                 "id": {
                     "type": "string"
                 },
@@ -3123,6 +3124,7 @@ const docTemplate = `{
                 "instructions"
             ],
             "properties": {
+                "$ref": {},
                 "actions": {
                     "type": "array",
                     "items": {
@@ -3152,9 +3154,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/tool.Config"
                     }
-                },
-                "use": {
-                    "type": "string"
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"
@@ -3299,6 +3298,7 @@ const docTemplate = `{
         "agent.ProviderConfig": {
             "type": "object",
             "properties": {
+                "$ref": {},
                 "api_key": {
                     "type": "string"
                 },
@@ -3720,6 +3720,7 @@ const docTemplate = `{
         "schema.InputSchema": {
             "type": "object",
             "properties": {
+                "$ref": {},
                 "schema": {
                     "$ref": "#/definitions/schema.Schema"
                 }
@@ -3728,6 +3729,7 @@ const docTemplate = `{
         "schema.OutputSchema": {
             "type": "object",
             "properties": {
+                "$ref": {},
                 "schema": {
                     "$ref": "#/definitions/schema.Schema"
                 }
@@ -3740,10 +3742,7 @@ const docTemplate = `{
         "task.Config": {
             "type": "object",
             "properties": {
-                "action": {
-                    "description": "Basic task properties",
-                    "type": "string"
-                },
+                "$ref": {},
                 "condition": {
                     "description": "Decision task properties",
                     "type": "string"
@@ -3751,23 +3750,20 @@ const docTemplate = `{
                 "env": {
                     "$ref": "#/definitions/core.EnvMap"
                 },
+                "executor": {
+                    "$ref": "#/definitions/task.Executor"
+                },
                 "final": {
                     "type": "boolean"
                 },
                 "id": {
                     "type": "string"
                 },
-                "input": {
-                    "$ref": "#/definitions/schema.InputSchema"
-                },
                 "on_error": {
                     "$ref": "#/definitions/task.ErrorTransitionConfig"
                 },
                 "on_success": {
                     "$ref": "#/definitions/task.SuccessTransitionConfig"
-                },
-                "output": {
-                    "$ref": "#/definitions/schema.OutputSchema"
                 },
                 "routes": {
                     "type": "object",
@@ -3777,9 +3773,6 @@ const docTemplate = `{
                 },
                 "type": {
                     "$ref": "#/definitions/task.Type"
-                },
-                "use": {
-                    "type": "string"
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"
@@ -3849,6 +3842,30 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "task.Executor": {
+            "type": "object",
+            "properties": {
+                "$ref": {},
+                "action": {
+                    "description": "Basic task properties",
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/task.ExecutorType"
+                }
+            }
+        },
+        "task.ExecutorType": {
+            "type": "string",
+            "enum": [
+                "agent",
+                "tool"
+            ],
+            "x-enum-varnames": [
+                "ExecutorAgent",
+                "ExecutorTool"
+            ]
         },
         "task.RequestData": {
             "type": "object",
@@ -3952,6 +3969,7 @@ const docTemplate = `{
         "tool.Config": {
             "type": "object",
             "properties": {
+                "$ref": {},
                 "description": {
                     "type": "string"
                 },
@@ -3969,9 +3987,6 @@ const docTemplate = `{
                 },
                 "output": {
                     "$ref": "#/definitions/schema.OutputSchema"
-                },
-                "use": {
-                    "type": "string"
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"

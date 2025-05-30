@@ -94,7 +94,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	var cleanupFuncs []func()
 
 	// Load project and workspace files
-	projectConfig, workflows, err := loadProject(s.Config.CWD, s.Config.ConfigFile)
+	projectConfig, workflows, err := loadProject(s.ctx, s.Config.CWD, s.Config.ConfigFile)
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to load project: %w", err)
 	}
@@ -306,7 +306,7 @@ func setupNats(ctx context.Context, cwd *core.CWD) (*nats.Server, *nats.Client, 
 	return natsServer, nc, nil
 }
 
-func loadProject(cwd string, file string) (*project.Config, []*workflow.Config, error) {
+func loadProject(ctx context.Context, cwd string, file string) (*project.Config, []*workflow.Config, error) {
 	pCWD, err := core.CWDFromPath(cwd)
 	if err != nil {
 		return nil, nil, err
@@ -314,12 +314,13 @@ func loadProject(cwd string, file string) (*project.Config, []*workflow.Config, 
 	logger.Info("Starting compozy server")
 	logger.Debug("Loading config file", "config_file", file)
 
-	projectRoot, err := core.ResolvedPath(pCWD, file)
+	projectFilePath, err := core.ResolvedPath(pCWD, file)
 	if err != nil {
-		logger.Error("Failed to resolve project root", "error", err)
+		logger.Error("Failed to resolve project file path", "error", err)
 		return nil, nil, err
 	}
-	projectConfig, err := project.Load(context.Background(), pCWD, projectRoot)
+
+	projectConfig, err := project.Load(ctx, pCWD, projectFilePath)
 	if err != nil {
 		logger.Error("Failed to load project config", "error", err)
 		return nil, nil, err

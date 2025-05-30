@@ -14,34 +14,77 @@ import (
 // -----------------------------------------------------------------------------
 
 var refPattern = regexp.MustCompile(`^(?:(?P<source>.+?)::)?(?P<path>[^!]*)(?:!(?P<mode>.+))?$`)
+var globalRefPattern = regexp.MustCompile(`^(\$global)::([^!]*)(?:!(.+))?$`)
+var fileRefPattern = regexp.MustCompile(`^([^!]+)(?:!(.+))?$`)
 
 // parseStringRef parses a reference string into a Ref.
 func parseStringRef(refStr string) (*Ref, error) {
 	ref := &Ref{Mode: ModeMerge}
-	matches := refPattern.FindStringSubmatch(refStr)
-	if matches == nil {
-		return nil, errors.New("invalid reference format: " + refStr)
-	}
-	source := matches[1]
-	ref.Path = matches[2]
-	if mode := matches[3]; mode != "" {
-		ref.Mode = Mode(mode)
-		if ref.Mode != ModeMerge && ref.Mode != ModeReplace && ref.Mode != ModeAppend {
-			return nil, errors.New("invalid mode: " + string(ref.Mode))
-		}
-	}
+
+	// First, identify the type based on string patterns
 	switch {
-	case source == "$global":
+	case strings.HasPrefix(refStr, "$global"):
+		// Parse global reference: $global::path!mode
+		matches := globalRefPattern.FindStringSubmatch(refStr)
+		if matches == nil {
+			return nil, errors.New("invalid global reference format: " + refStr)
+		}
 		ref.Type = TypeGlobal
-	case isFileSource(source):
-		ref.Type = TypeFile
-		ref.File = source
+		ref.Path = matches[2]
+		if mode := matches[3]; mode != "" {
+			ref.Mode = Mode(mode)
+		}
+
+	case isFileSource(refStr) || (strings.Contains(refStr, "::") && isFileSource(strings.Split(refStr, "::")[0])):
+		// Parse file reference: ./file.yaml or ./file.yaml::path!mode
+		if strings.Contains(refStr, "::") {
+			// File with path: ./file.yaml::path!mode
+			matches := refPattern.FindStringSubmatch(refStr)
+			if matches == nil {
+				return nil, errors.New("invalid file reference format: " + refStr)
+			}
+			ref.Type = TypeFile
+			ref.File = matches[1]
+			ref.Path = matches[2]
+			if mode := matches[3]; mode != "" {
+				ref.Mode = Mode(mode)
+			}
+		} else {
+			// Just file: ./file.yaml!mode
+			matches := fileRefPattern.FindStringSubmatch(refStr)
+			if matches == nil {
+				return nil, errors.New("invalid file reference format: " + refStr)
+			}
+			ref.Type = TypeFile
+			ref.File = matches[1]
+			ref.Path = ""
+			if mode := matches[2]; mode != "" {
+				ref.Mode = Mode(mode)
+			}
+		}
+
 	default:
+		// Parse property reference: property.path!mode or source::property.path!mode
+		matches := refPattern.FindStringSubmatch(refStr)
+		if matches == nil {
+			return nil, errors.New("invalid reference format: " + refStr)
+		}
 		ref.Type = TypeProperty
+		source := matches[1]
+		ref.Path = matches[2]
 		if source != "" {
 			ref.Path = source
 		}
+		if mode := matches[3]; mode != "" {
+			ref.Mode = Mode(mode)
+		}
 	}
+
+	// Validate mode
+	if ref.Mode != ModeMerge && ref.Mode != ModeReplace && ref.Mode != ModeAppend {
+		return nil, errors.New("invalid mode: " + string(ref.Mode))
+	}
+
 	return ref, nil
 }
 

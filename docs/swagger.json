@@ -3091,6 +3091,7 @@
                 "prompt"
             ],
             "properties": {
+                "$ref": {},
                 "id": {
                     "type": "string"
                 },
@@ -3116,6 +3117,7 @@
                 "instructions"
             ],
             "properties": {
+                "$ref": {},
                 "actions": {
                     "type": "array",
                     "items": {
@@ -3145,9 +3147,6 @@
                     "items": {
                         "$ref": "#/definitions/tool.Config"
                     }
-                },
-                "use": {
-                    "type": "string"
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"
@@ -3292,6 +3291,7 @@
         "agent.ProviderConfig": {
             "type": "object",
             "properties": {
+                "$ref": {},
                 "api_key": {
                     "type": "string"
                 },
@@ -3713,6 +3713,7 @@
         "schema.InputSchema": {
             "type": "object",
             "properties": {
+                "$ref": {},
                 "schema": {
                     "$ref": "#/definitions/schema.Schema"
                 }
@@ -3721,6 +3722,7 @@
         "schema.OutputSchema": {
             "type": "object",
             "properties": {
+                "$ref": {},
                 "schema": {
                     "$ref": "#/definitions/schema.Schema"
                 }
@@ -3733,10 +3735,7 @@
         "task.Config": {
             "type": "object",
             "properties": {
-                "action": {
-                    "description": "Basic task properties",
-                    "type": "string"
-                },
+                "$ref": {},
                 "condition": {
                     "description": "Decision task properties",
                     "type": "string"
@@ -3744,23 +3743,20 @@
                 "env": {
                     "$ref": "#/definitions/core.EnvMap"
                 },
+                "executor": {
+                    "$ref": "#/definitions/task.Executor"
+                },
                 "final": {
                     "type": "boolean"
                 },
                 "id": {
                     "type": "string"
                 },
-                "input": {
-                    "$ref": "#/definitions/schema.InputSchema"
-                },
                 "on_error": {
                     "$ref": "#/definitions/task.ErrorTransitionConfig"
                 },
                 "on_success": {
                     "$ref": "#/definitions/task.SuccessTransitionConfig"
-                },
-                "output": {
-                    "$ref": "#/definitions/schema.OutputSchema"
                 },
                 "routes": {
                     "type": "object",
@@ -3770,9 +3766,6 @@
                 },
                 "type": {
                     "$ref": "#/definitions/task.Type"
-                },
-                "use": {
-                    "type": "string"
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"
@@ -3842,6 +3835,30 @@
                     "type": "string"
                 }
             }
+        },
+        "task.Executor": {
+            "type": "object",
+            "properties": {
+                "$ref": {},
+                "action": {
+                    "description": "Basic task properties",
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/task.ExecutorType"
+                }
+            }
+        },
+        "task.ExecutorType": {
+            "type": "string",
+            "enum": [
+                "agent",
+                "tool"
+            ],
+            "x-enum-varnames": [
+                "ExecutorAgent",
+                "ExecutorTool"
+            ]
         },
         "task.RequestData": {
             "type": "object",
@@ -3945,6 +3962,7 @@
         "tool.Config": {
             "type": "object",
             "properties": {
+                "$ref": {},
                 "description": {
                     "type": "string"
                 },
@@ -3962,9 +3980,6 @@
                 },
                 "output": {
                     "$ref": "#/definitions/schema.OutputSchema"
-                },
-                "use": {
-                    "type": "string"
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"

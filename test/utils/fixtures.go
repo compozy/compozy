@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -16,18 +17,25 @@ import (
 func LoadExampleWorkflow(t *testing.T, exampleName string) (*workflow.Config, *core.CWD) {
 	t.Helper()
 
-	// Get the absolute path to the examples directory
-	examplesDir, err := filepath.Abs(filepath.Join("..", "..", "..", "examples", exampleName))
-	require.NoError(t, err, "Failed to get absolute path to examples directory")
+	// Get the absolute path to the examples directory by finding the project root
+	projectRoot, err := findProjectRoot()
+	require.NoError(t, err, "Failed to find project root")
 
-	cwd, err := core.CWDFromPath(examplesDir)
+	exampleDir := filepath.Join(projectRoot, "examples", exampleName)
+	cwd, err := core.CWDFromPath(exampleDir)
 	require.NoError(t, err, "Failed to create CWD from examples path")
 
-	// Load the workflow
-	workflowPath := filepath.Join(examplesDir, "workflow.yaml")
-	workflowConfig, err := workflow.Load(context.Background(), cwd, examplesDir, workflowPath)
-	require.NoError(t, err, "Failed to load workflow from examples")
+	// Load the project configuration first
+	projectPath := filepath.Join(exampleDir, "compozy.yaml")
+	projectConfig, err := project.Load(context.Background(), cwd, projectPath)
+	require.NoError(t, err, "Failed to load workflows from project")
 
+	// Load workflows from the project
+	workflows, err := workflow.WorkflowsFromProject(context.Background(), projectConfig)
+	require.NoError(t, err, "Failed to load workflows from project")
+	require.Len(t, workflows, 1, "Expected exactly one workflow")
+
+	workflowConfig := workflows[0]
 	return workflowConfig, cwd
 }
 
@@ -35,10 +43,11 @@ func LoadExampleWorkflow(t *testing.T, exampleName string) (*workflow.Config, *c
 func LoadExampleProject(t *testing.T, exampleName string) (*project.Config, *core.CWD) {
 	t.Helper()
 
-	// Get the absolute path to the examples directory
-	examplesDir, err := filepath.Abs(filepath.Join("..", "..", "..", "examples", exampleName))
-	require.NoError(t, err, "Failed to get absolute path to examples directory")
+	// Get the absolute path to the examples directory by finding the project root
+	projectRoot, err := findProjectRoot()
+	require.NoError(t, err, "Failed to find project root")
 
+	examplesDir := filepath.Join(projectRoot, "examples", exampleName)
 	cwd, err := core.CWDFromPath(examplesDir)
 	require.NoError(t, err, "Failed to create CWD from examples path")
 
@@ -101,4 +110,29 @@ func GetQuotesTestInput() *core.Input {
 	return &core.Input{
 		"to_language": "Spanish",
 	}
+}
+
+// findProjectRoot finds the project root by looking for go.mod file
+func findProjectRoot() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+
+	for {
+		// Check if go.mod exists in current directory
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir, nil
+		}
+
+		// Move up one directory
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			// Reached the root directory
+			break
+		}
+		dir = parent
+	}
+
+	return "", os.ErrNotExist
 }

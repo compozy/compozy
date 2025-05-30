@@ -40,7 +40,7 @@ func (w *WithRef) ResolveReferences(ctx context.Context, target any, currentDoc 
 		if !w.isRefField(fieldType) {
 			continue
 		}
-		if err := w.resolveRefField(ctx, field, fieldType, currentDoc); err != nil {
+		if err := w.resolveRefField(ctx, field, currentDoc); err != nil {
 			return errors.Wrapf(err, "failed to resolve reference field %s", fieldType.Name)
 		}
 	}
@@ -60,7 +60,7 @@ func (w *WithRef) ResolveAndMergeReferences(ctx context.Context, target any, cur
 		if !w.isRefField(fieldType) {
 			continue
 		}
-		if err := w.resolveAndMergeRefField(ctx, field, fieldType, target, currentDoc, mergeMode); err != nil {
+		if err := w.resolveAndMergeRefField(ctx, field, target, currentDoc); err != nil {
 			return errors.Wrapf(err, "failed to resolve and merge reference field %s", fieldType.Name)
 		}
 	}
@@ -73,7 +73,7 @@ func (w *WithRef) isRefField(fieldType reflect.StructField) bool {
 }
 
 // resolveRefField resolves a single reference field
-func (w *WithRef) resolveRefField(ctx context.Context, field reflect.Value, fieldType reflect.StructField, currentDoc any) error {
+func (w *WithRef) resolveRefField(ctx context.Context, field reflect.Value, currentDoc any) error {
 	if !field.CanSet() {
 		return nil
 	}
@@ -104,7 +104,7 @@ func (w *WithRef) resolveRefField(ctx context.Context, field reflect.Value, fiel
 }
 
 // resolveAndMergeRefField resolves a reference field and merges it into the parent struct
-func (w *WithRef) resolveAndMergeRefField(ctx context.Context, field reflect.Value, fieldType reflect.StructField, target any, currentDoc any, mergeMode Mode) error {
+func (w *WithRef) resolveAndMergeRefField(ctx context.Context, field reflect.Value, target any, currentDoc any) error {
 	if !field.CanSet() {
 		return nil
 	}

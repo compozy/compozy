@@ -217,13 +217,17 @@ func Load(ctx context.Context, cwd *core.CWD, projectRoot string, filePath strin
 	if string(config.Type) == "" {
 		config.Type = TaskTypeBasic
 	}
-	filePath = config.metadata.FilePath
-	currentDoc, err := core.LoadYAMLMap(filePath)
+	// Get the resolved absolute path for loading the current document
+	resolvedFilePath, err := core.ResolvedPath(cwd, filePath)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to resolve file path")
+	}
+	currentDoc, err := core.LoadYAMLMap(resolvedFilePath)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load current document")
 	}
-	// Resolve all references using the standardized method
-	if err := config.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+	// Resolve all references using the resolved absolute file path
+	if err := config.ResolveRef(ctx, currentDoc, projectRoot, resolvedFilePath); err != nil {
 		return nil, err
 	}
 	if err := config.Validate(); err != nil {

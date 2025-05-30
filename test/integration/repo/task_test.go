@@ -630,8 +630,13 @@ func TestTaskRepository_ListChildrenExecutions(t *testing.T) {
 			},
 			Env: core.EnvMap{},
 		}
-		err := agentConfig.SetCWD(tb.StateDir)
+		cwd, err := core.CWDFromPath(tb.StateDir)
 		require.NoError(t, err)
+		agentConfig.SetMetadata(&core.ConfigMetadata{
+			CWD:         cwd,
+			FilePath:    "",
+			ProjectRoot: tb.StateDir,
+		})
 
 		agentExecID := core.MustNewID()
 		agentMetadata := &pb.AgentMetadata{
@@ -704,8 +709,13 @@ func TestTaskRepository_ListChildrenExecutionsByTaskID(t *testing.T) {
 			},
 			Env: core.EnvMap{},
 		}
-		err := agentConfig.SetCWD(tb.StateDir)
+		cwd, err := core.CWDFromPath(tb.StateDir)
 		require.NoError(t, err)
+		agentConfig.SetMetadata(&core.ConfigMetadata{
+			CWD:         cwd,
+			FilePath:    "",
+			ProjectRoot: tb.StateDir,
+		})
 
 		agentExecID := core.MustNewID()
 		agentMetadata := &pb.AgentMetadata{

@@ -11,10 +11,9 @@ import (
 )
 
 func SetupTest(t *testing.T, filename string) (*core.CWD, string) {
-	testDir := filepath.Dir(filename)
-	cwd, err := core.CWDFromPath(testDir)
+	cwd, err := core.CWDFromPath(filename)
 	require.NoError(t, err)
-	dstPath := SetupFixture(t, testDir)
+	dstPath := SetupFixture(t, filepath.Dir(filename))
 	return cwd, dstPath
 }
 

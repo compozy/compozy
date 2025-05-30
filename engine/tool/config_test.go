@@ -149,15 +149,12 @@ func Test_LoadTool(t *testing.T) {
 	t.Run("Should return error for invalid tool configuration", func(t *testing.T) {
 		cwd, projectRoot, dstPath := setupTest(t, "invalid_tool.yaml")
 
-		// Run the test
+		// Run the test - Load should now fail directly due to internal validation
 		ctx := context.Background()
 		config, err := Load(ctx, cwd, projectRoot, dstPath)
-		require.NoError(t, err)
-		require.NotNil(t, config)
-
-		// Validate the config
-		err = config.Validate()
 		require.Error(t, err)
+		assert.Nil(t, config)
+		assert.Contains(t, err.Error(), "file not found or inaccessible")
 	})
 
 	t.Run("Should load tool configuration with external schema references", func(t *testing.T) {

@@ -111,18 +111,19 @@ func Load(ctx context.Context, cwd *core.CWD, projectRoot string, filePath strin
 	if err != nil {
 		return nil, err
 	}
-
-	filePath = config.metadata.FilePath
-	currentDoc, err := core.LoadYAMLMap(filePath)
+	// Get the resolved absolute path for loading the current document
+	resolvedFilePath, err := core.ResolvedPath(cwd, filePath)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to resolve file path")
+	}
+	currentDoc, err := core.LoadYAMLMap(resolvedFilePath)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load current document")
 	}
-
-	// Resolve all references
-	if err := config.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+	// Resolve all references - use resolvedFilePath so ref resolution can find relative files
+	if err := config.ResolveRef(ctx, currentDoc, projectRoot, resolvedFilePath); err != nil {
 		return nil, err
 	}
-
 	err = config.Validate()
 	if err != nil {
 		return nil, err

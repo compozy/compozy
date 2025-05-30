@@ -99,15 +99,12 @@ func Test_LoadTask(t *testing.T) {
 	t.Run("Should return error for invalid task configuration", func(t *testing.T) {
 		cwd, projectRoot, dstPath := setupTest(t, "invalid_task.yaml")
 
-		// Run the test
+		// Run the test - Load should now fail directly due to internal validation
 		ctx := context.Background()
 		config, err := Load(ctx, cwd, projectRoot, dstPath)
-		require.NoError(t, err)
-		require.NotNil(t, config)
-
-		// Validate the config
-		err = config.Validate()
 		require.Error(t, err)
+		assert.Nil(t, config)
+		assert.Contains(t, err.Error(), "invalid task type: invalid-type")
 	})
 }
 

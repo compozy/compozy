@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -23,7 +24,7 @@ func TestFileReferences(t *testing.T) {
 	projectCWD, err := core.CWDFromPath(".")
 	require.NoError(t, err, "Failed to get project CWD")
 
-	projectConfig, err := project.Load(projectCWD, examplePath)
+	projectConfig, err := project.Load(context.Background(), projectCWD, examplePath)
 	require.NoError(t, err, "Failed to load project config")
 
 	// Test paths we'll use across multiple tests
@@ -38,7 +39,7 @@ func TestFileReferences(t *testing.T) {
 	})
 
 	t.Run("Should load workflows from sources", func(t *testing.T) {
-		workflows, err := workflow.WorkflowsFromProject(projectConfig)
+		workflows, err := workflow.WorkflowsFromProject(context.Background(), projectConfig)
 		require.NoError(t, err, "Failed to load workflows")
 		require.NotEmpty(t, workflows, "No workflows were loaded")
 		require.Len(t, workflows, 1, "Expected one workflow")
@@ -55,16 +56,17 @@ func TestFileReferences(t *testing.T) {
 			t.Run("First task (get_quote)", func(t *testing.T) {
 				getQuoteTask := &workflow.Tasks[0]
 				getQuoteTaskCWD := getQuoteTask.GetCWD()
-				require.NotNil(t, getQuoteTask.Use, "Task use is nil")
+				require.NotNil(t, getQuoteTask.Executor.Ref, "Task executor ref is nil")
 				assert.Equal(t, getQuoteTaskCWD.PathStr(), tasksPath, "Task CWD not set correctly")
 				assert.Equal(t, "get_quote", getQuoteTask.ID, "Task ID not set correctly")
 				assert.Equal(t, "basic", string(getQuoteTask.Type), "Task type not set correctly")
 
-				// Verify use reference
-				useRef, err := getQuoteTask.Use.IntoRef()
-				require.NoError(t, err, "Failed to parse task use reference")
-				assert.True(t, useRef.Component.IsTool(), "Expected tool reference")
-				assert.True(t, useRef.Type.IsFile(), "Expected file reference")
+				// Verify executor configuration
+				assert.Equal(t, "tool", string(getQuoteTask.Executor.Type), "Expected tool executor type")
+				// Verify the tool was resolved and loaded
+				tool, err := getQuoteTask.Executor.GetTool()
+				require.NoError(t, err, "Failed to get resolved tool config")
+				assert.Equal(t, "get_quote", tool.ID, "Tool ID not resolved correctly")
 			})
 
 			t.Run("Second task (translate_quote)", func(t *testing.T) {
@@ -73,12 +75,12 @@ func TestFileReferences(t *testing.T) {
 				assert.Equal(t, "basic", string(translateTask.Type), "Task type not set correctly")
 				assert.Equal(t, tasksPath, translateTask.GetCWD().PathStr(), "Task CWD not set correctly")
 
-				// Verify use reference
-				translateUseRef, err := translateTask.Use.IntoRef()
-				require.NoError(t, err, "Failed to parse task use reference")
-				assert.True(t, translateUseRef.Component.IsAgent(), "Expected agent reference")
-				assert.True(t, translateUseRef.Type.IsFile(), "Expected file reference")
-				assert.Equal(t, "translate", translateTask.Action, "Task action not set correctly")
+				// Verify executor configuration
+				assert.Equal(t, "agent", string(translateTask.Executor.Type), "Expected agent executor type")
+				// Verify the agent was resolved and loaded
+				agent, err := translateTask.Executor.GetAgent()
+				require.NoError(t, err, "Failed to get resolved agent config")
+				assert.Equal(t, "translator", agent.ID, "Agent ID not resolved correctly")
 			})
 
 			t.Run("Third task (save_results)", func(t *testing.T) {
@@ -86,11 +88,12 @@ func TestFileReferences(t *testing.T) {
 				assert.Equal(t, "save_results", saveTask.ID, "Task ID not set correctly")
 				assert.Equal(t, "basic", string(saveTask.Type), "Task type not set correctly")
 
-				// Verify use reference
-				saveUseRef, err := saveTask.Use.IntoRef()
-				require.NoError(t, err, "Failed to parse task use reference")
-				assert.True(t, saveUseRef.Component.IsTool(), "Expected tool reference")
-				assert.True(t, saveUseRef.Type.IsFile(), "Expected file reference")
+				// Verify executor configuration
+				assert.Equal(t, "tool", string(saveTask.Executor.Type), "Expected tool executor type")
+				// Verify the tool was resolved and loaded
+				tool, err := saveTask.Executor.GetTool()
+				require.NoError(t, err, "Failed to get resolved tool config")
+				assert.Equal(t, "save_data", tool.ID, "Tool ID not resolved correctly")
 				assert.True(t, saveTask.Final, "Expected task to be final")
 			})
 		})
@@ -216,9 +219,7 @@ func TestFileReferences(t *testing.T) {
 
 			// Verify that tasks correctly reference their tools and agents
 			firstTask := &workflow.Tasks[0]
-			useRef, err := firstTask.Use.IntoRef()
-			require.NoError(t, err, "Failed to parse task use reference")
-			assert.True(t, useRef.Component.IsTool(), "Expected tool reference")
+			assert.Equal(t, "tool", string(firstTask.Executor.Type), "Expected tool executor type")
 
 			// Verify that the referenced tool was loaded
 			toolFound := false
@@ -232,9 +233,7 @@ func TestFileReferences(t *testing.T) {
 
 			// Check that the second task correctly references the translator agent
 			secondTask := &workflow.Tasks[1]
-			agentRef, err := secondTask.Use.IntoRef()
-			require.NoError(t, err, "Failed to parse task use reference")
-			assert.True(t, agentRef.Component.IsAgent(), "Expected agent reference")
+			assert.Equal(t, "agent", string(secondTask.Executor.Type), "Expected agent executor type")
 
 			// Verify that the referenced agent was loaded
 			agentFound := false

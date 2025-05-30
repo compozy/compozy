@@ -173,8 +173,13 @@ func TestAgentRepository_CreateExecution(t *testing.T) {
 			},
 			Env: core.EnvMap{},
 		}
-		err := agentConfig.SetCWD(tb.StateDir)
+		cwd, err := core.CWDFromPath(tb.StateDir)
 		require.NoError(t, err)
+		agentConfig.SetMetadata(&core.ConfigMetadata{
+			CWD:         cwd,
+			FilePath:    "",
+			ProjectRoot: tb.StateDir,
+		})
 
 		execution, err := tb.AgentRepo.CreateExecution(tb.Ctx, agentMetadata, agentConfig)
 		assert.Error(t, err)
@@ -212,8 +217,13 @@ func TestAgentRepository_CreateExecution(t *testing.T) {
 			},
 			Env: core.EnvMap{},
 		}
-		err := agentConfig.SetCWD(tb.StateDir)
+		cwd, err := core.CWDFromPath(tb.StateDir)
 		require.NoError(t, err)
+		agentConfig.SetMetadata(&core.ConfigMetadata{
+			CWD:         cwd,
+			FilePath:    "",
+			ProjectRoot: tb.StateDir,
+		})
 
 		execution, err := tb.AgentRepo.CreateExecution(tb.Ctx, agentMetadata, agentConfig)
 		assert.Error(t, err)

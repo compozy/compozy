@@ -4,15 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"dario.cat/mergo"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/pkg/logger"
-)
-
-type (
-	Dependencies []*core.PackageRef
 )
 
 type EnvironmentConfig struct {
@@ -28,8 +25,7 @@ type Config struct {
 	Name         string                        `json:"name"                   yaml:"name"`
 	Version      string                        `json:"version"                yaml:"version"`
 	Description  string                        `json:"description,omitempty"  yaml:"description,omitempty"`
-	Author       core.Author                   `json:"author,omitempty"       yaml:"author,omitempty"`
-	Dependencies *Dependencies                 `json:"dependencies,omitempty" yaml:"dependencies,omitempty"`
+	Author       core.Author                   `json:"author"       yaml:"author"`
 	Environments map[string]*EnvironmentConfig `json:"environments,omitempty" yaml:"environments,omitempty"`
 	Workflows    []*WorkflowSourceConfig       `json:"workflows"              yaml:"workflows"`
 
@@ -91,10 +87,16 @@ func (p *Config) LoadID() (string, error) {
 	return p.Name, nil
 }
 
-func Load(ctx context.Context, cwd *core.CWD, projectRoot string) (*Config, error) {
-	config, err := core.LoadConfig[*Config](ctx, cwd, projectRoot, projectRoot)
+func Load(ctx context.Context, cwd *core.CWD, filePath string) (*Config, error) {
+	projectRoot := filepath.Dir(filePath)
+	config, err := core.LoadConfig[*Config](ctx, cwd, projectRoot, filePath)
 	if err != nil {
 		return nil, err
+	}
+
+	// Set the project's CWD to the project root directory
+	if err := config.SetCWD(projectRoot); err != nil {
+		return nil, fmt.Errorf("failed to set project CWD to project root: %w", err)
 	}
 
 	env, err := config.loadEnv()
