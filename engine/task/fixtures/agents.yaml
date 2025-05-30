@@ -5,6 +5,8 @@ agents:
       model: gpt-4o
       temperature: 0.1
     instructions: "You are a code formatter. Format the provided code according to best practices."
+    actions:
+      - $ref: ./actions.yaml::actions.#(id=="format-code")
 
   - id: code-reviewer
     config:
@@ -12,3 +14,5 @@ agents:
       model: gpt-4o
       temperature: 0.3
     instructions: "You are a code reviewer. Review the provided code and provide feedback."
+    actions:
+      - $ref: ./actions.yaml::actions.#(id=="review-code")

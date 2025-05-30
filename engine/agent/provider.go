@@ -1,7 +1,11 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
+
+	"github.com/compozy/compozy/pkg/ref"
+	"github.com/pkg/errors"
 )
 
 // MessageRole represents the role of a message
@@ -22,6 +26,8 @@ type Message struct {
 
 // ProviderConfig represents provider-specific configuration options
 type ProviderConfig struct {
+	ref.WithRef
+	Ref              *ref.Node    `json:"$ref,omitempty"              yaml:"$ref,omitempty"`
 	Provider         ProviderName `json:"provider"                    yaml:"provider"`
 	Model            ModelName    `json:"model"                       yaml:"model"`
 	APIKey           string       `json:"api_key"                     yaml:"api_key"`
@@ -33,9 +39,31 @@ type ProviderConfig struct {
 	PresencePenalty  float32      `json:"presence_penalty,omitempty"  yaml:"presence_penalty,omitempty"`
 }
 
+// ResolveRef resolves all references within the provider configuration, including top-level $ref
+func (p *ProviderConfig) ResolveRef(ctx context.Context, currentDoc map[string]any, projectRoot, filePath string) error {
+	if p == nil {
+		return nil
+	}
+	// Resolve provider $ref
+	if p.Ref != nil && !p.Ref.IsEmpty() {
+		p.SetRefMetadata(filePath, projectRoot)
+		if err := p.WithRef.ResolveAndMergeNode(
+			ctx,
+			p.Ref,
+			p,
+			currentDoc,
+			ref.ModeMerge,
+		); err != nil {
+			return errors.Wrap(err, "failed to resolve provider config reference")
+		}
+	}
+	return nil
+}
+
 // AsJSON converts the provider configuration to a JSON value
 func (p *Config) AsJSON() (json.RawMessage, error) {
-	return json.Marshal(p)
+	data, err := json.Marshal(p)
+	return json.RawMessage(data), err
 }
 
 // NewProviderConfig creates a new ProviderConfig with the API URL populated

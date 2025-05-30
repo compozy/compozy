@@ -1,0 +1,108 @@
+actions:
+  - id: format-code
+    prompt: |
+      Format the provided code according to best practices and style guidelines.
+
+      You should:
+      1. Apply consistent indentation and spacing
+      2. Follow language-specific style conventions
+      3. Optimize imports and remove unused variables
+      4. Ensure proper line length limits
+      5. Apply the requested formatting style
+
+      Return the formatted code along with a detailed list of changes made.
+    input:
+      $ref: "./schemas.yaml::schemas.code_input"
+    output:
+      $ref: "./schemas.yaml::schemas.format_output"
+
+  - id: review-code
+    prompt: |
+      Review the provided code and provide comprehensive feedback on:
+
+      1. **Code Quality**: Structure, readability, and maintainability
+      2. **Performance**: Potential bottlenecks and optimization opportunities
+      3. **Security**: Vulnerabilities and security best practices
+      4. **Best Practices**: Language-specific conventions and patterns
+      5. **Testing**: Test coverage and testability
+
+      Focus on the specified areas if provided. Provide actionable suggestions
+      for each issue identified.
+    input:
+      $ref: "./schemas.yaml::schemas.review_input"
+    output:
+      $ref: "./schemas.yaml::schemas.review_output"
+
+  - id: generate-tests
+    prompt: |
+      Generate comprehensive unit tests for the provided code.
+
+      You should:
+      1. Analyze the code structure and identify testable units
+      2. Create test cases for normal behavior, edge cases, and error conditions
+      3. Use the specified testing framework and follow its conventions
+      4. Aim for the target code coverage percentage
+      5. Include setup and teardown where necessary
+      6. Add meaningful test descriptions and assertions
+
+      Focus on creating maintainable and readable tests.
+    input:
+      $ref: "./schemas.yaml::schemas.test_input"
+    output:
+      $ref: "./schemas.yaml::schemas.test_output"
+
+  - id: optimize-code
+    prompt: |
+      Optimize the provided code for better performance while maintaining functionality.
+
+      Focus on:
+      1. Algorithm efficiency improvements
+      2. Memory usage optimization
+      3. Reducing computational complexity
+      4. Eliminating redundant operations
+      5. Language-specific performance optimizations
+
+      Explain the optimizations made and their expected impact.
+    input:
+      $ref: "./schemas.yaml::schemas.code_input"
+    output:
+      type: object
+      properties:
+        optimized_code:
+          type: string
+          description: The optimized source code
+        optimizations:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum:
+                  [algorithm, memory, complexity, redundancy, language_specific]
+              description:
+                type: string
+              impact:
+                type: string
+                enum: [low, medium, high]
+              before_snippet:
+                type: string
+              after_snippet:
+                type: string
+            required: [type, description, impact]
+          description: List of optimizations applied
+        performance_estimate:
+          type: object
+          properties:
+            time_improvement:
+              type: string
+              description: Estimated time complexity improvement
+            space_improvement:
+              type: string
+              description: Estimated space complexity improvement
+            benchmark_suggestion:
+              type: string
+              description: Suggested benchmarking approach
+          required: [time_improvement, space_improvement]
+      required: [optimized_code, optimizations, performance_estimate]
+      additionalProperties: false

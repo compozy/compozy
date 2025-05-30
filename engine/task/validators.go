@@ -77,6 +77,9 @@ func NewExecutorValidator(config *Config) *ExecutorValidator {
 }
 
 func (v *ExecutorValidator) Validate() error {
+	if v.config.Type != TaskTypeBasic {
+		return nil
+	}
 	if v.config.Executor.Type == "" {
 		return fmt.Errorf("executor type is required")
 	}
@@ -85,6 +88,20 @@ func (v *ExecutorValidator) Validate() error {
 	}
 	if v.config.Executor.Ref.IsEmpty() {
 		return fmt.Errorf("executor reference is required")
+	}
+	if v.config.Executor.Type == ExecutorAgent {
+		if agent, err := v.config.Executor.GetAgent(); err == nil && agent != nil {
+			if err := agent.Validate(); err != nil {
+				return fmt.Errorf("resolved agent config is invalid: %w", err)
+			}
+		}
+	}
+	if v.config.Executor.Type == ExecutorTool {
+		if tool, err := v.config.Executor.GetTool(); err == nil && tool != nil {
+			if err := tool.Validate(); err != nil {
+				return fmt.Errorf("resolved tool config is invalid: %w", err)
+			}
+		}
 	}
 	return nil
 }

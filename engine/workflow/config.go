@@ -1,7 +1,7 @@
 package workflow
 
 import (
-	"errors"
+	"context"
 	"fmt"
 
 	"dario.cat/mergo"
@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
+	"github.com/pkg/errors"
 )
 
 type Opts struct {
@@ -30,27 +31,18 @@ type Config struct {
 	Agents      []agent.Config `json:"agents,omitempty"      yaml:"agents,omitempty"`
 	Env         core.EnvMap    `json:"env,omitempty"         yaml:"env,omitempty"`
 
-	cwd *core.CWD
+	metadata *core.ConfigMetadata
 }
 
 func (w *Config) Component() core.ConfigType {
 	return core.ConfigWorkflow
 }
 
-func (w *Config) SetCWD(path string) error {
-	cwd, err := core.CWDFromPath(path)
-	if err != nil {
-		return err
-	}
-	w.cwd = cwd
-	if err := setComponentsCWD(w, w.cwd); err != nil {
-		return err
+func (w *Config) GetCWD() *core.CWD {
+	if w.metadata != nil {
+		return w.metadata.CWD
 	}
 	return nil
-}
-
-func (w *Config) GetCWD() *core.CWD {
-	return w.cwd
 }
 
 func (w *Config) GetEnv() *core.EnvMap {
@@ -65,24 +57,93 @@ func (w *Config) GetInput() *core.Input {
 	return &core.Input{}
 }
 
-func Load(cwd *core.CWD, path string) (*Config, error) {
-	wc, err := core.LoadConfig[*Config](cwd, path)
+func (w *Config) GetMetadata() *core.ConfigMetadata {
+	return w.metadata
+}
+
+func (w *Config) SetMetadata(metadata *core.ConfigMetadata) {
+	w.metadata = metadata
+	// Set metadata for all child components
+	for i := range w.Tasks {
+		w.Tasks[i].SetMetadata(metadata)
+	}
+	for i := range w.Agents {
+		w.Agents[i].SetMetadata(metadata)
+	}
+	for i := range w.Tools {
+		w.Tools[i].SetMetadata(metadata)
+	}
+}
+
+func (w *Config) ResolveRef(ctx context.Context, currentDoc map[string]any, projectRoot, filePath string) error {
+	if w == nil {
+		return nil
+	}
+	// Workflow configs typically don't have top-level references themselves
+	// but we need to resolve references in child components
+
+	// Resolve task references
+	for i := range w.Tasks {
+		if err := w.Tasks[i].ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+			return errors.Wrapf(err, "failed to resolve task reference for task %s", w.Tasks[i].ID)
+		}
+	}
+
+	// Resolve agent references
+	for i := range w.Agents {
+		if err := w.Agents[i].ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+			return errors.Wrapf(err, "failed to resolve agent reference for agent %s", w.Agents[i].ID)
+		}
+	}
+
+	// Resolve tool references
+	for i := range w.Tools {
+		if err := w.Tools[i].ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+			return errors.Wrapf(err, "failed to resolve tool reference for tool %s", w.Tools[i].ID)
+		}
+	}
+
+	// Resolve input schema reference
+	if w.Opts.InputSchema != nil {
+		if err := w.Opts.InputSchema.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+			return errors.Wrap(err, "failed to resolve workflow input schema reference")
+		}
+	}
+
+	return nil
+}
+
+func Load(ctx context.Context, cwd *core.CWD, projectRoot string, filePath string) (*Config, error) {
+	config, err := core.LoadConfig[*Config](ctx, cwd, projectRoot, filePath)
 	if err != nil {
 		return nil, err
 	}
-	if err := loadFileRefs(wc); err != nil {
+
+	filePath = config.metadata.FilePath
+	currentDoc, err := core.LoadYAMLMap(filePath)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load current document")
+	}
+
+	// Resolve all references
+	if err := config.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
 		return nil, err
 	}
-	err = wc.Validate()
+
+	err = config.Validate()
 	if err != nil {
 		return nil, err
 	}
-	return wc, nil
+	return config, nil
 }
 
 func (w *Config) Validate() error {
+	var cwd *core.CWD
+	if w.metadata != nil {
+		cwd = w.metadata.CWD
+	}
 	v := schema.NewCompositeValidator(
-		schema.NewCWDValidator(w.cwd, w.ID),
+		schema.NewCWDValidator(cwd, w.ID),
 	)
 	if err := v.Validate(); err != nil {
 		return err
@@ -119,143 +180,32 @@ func (w *Config) ValidateParams(input *core.Input) error {
 		return nil
 	}
 	inputSchema := w.Opts.InputSchema
+	if inputSchema == nil {
+		return nil
+	}
 	return schema.NewParamsValidator(*input, inputSchema.Schema, w.ID).Validate()
 }
 
 func (w *Config) Merge(other any) error {
 	otherConfig, ok := other.(*Config)
 	if !ok {
-		return fmt.Errorf("failed to merge workflow configs: %w", errors.New("invalid type for merge"))
+		return fmt.Errorf("failed to merge workflow configs: %w", fmt.Errorf("invalid type for merge"))
 	}
 	return mergo.Merge(w, otherConfig, mergo.WithOverride)
 }
 
-func (w *Config) LoadID() (string, error) {
-	return w.ID, nil
-}
-
-func WorkflowsFromProject(projectConfig *project.Config) ([]*Config, error) {
+func WorkflowsFromProject(ctx context.Context, projectConfig *project.Config) ([]*Config, error) {
 	cwd := projectConfig.GetCWD()
+	projectRoot := projectConfig.GetMetadata().ProjectRoot
 	var ws []*Config
 	for _, wf := range projectConfig.Workflows {
-		config, err := Load(cwd, wf.Source)
+		config, err := Load(ctx, cwd, projectRoot, wf.Source)
 		if err != nil {
 			return nil, err
 		}
 		ws = append(ws, config)
 	}
 	return ws, nil
-}
-
-func setComponentsCWD(wc *Config, cwd *core.CWD) error {
-	if err := setTasksCWD(wc, cwd); err != nil {
-		return err
-	}
-	if err := setToolsCWD(wc, cwd); err != nil {
-		return err
-	}
-	if err := setAgentsCWD(wc, cwd); err != nil {
-		return err
-	}
-	return nil
-}
-
-func setTasksCWD(wc *Config, cwd *core.CWD) error {
-	for i := range wc.Tasks {
-		if wc.Tasks[i].Use != nil {
-			ref, err := wc.Tasks[i].Use.IntoRef()
-			if err != nil {
-				return err
-			}
-			if ref.Type.IsFile() && ref.Component.IsTask() {
-				taskPath, err := cwd.JoinAndCheck(ref.Type.Value)
-				if err != nil {
-					return err
-				}
-				if err := wc.Tasks[i].SetCWD(taskPath); err != nil {
-					return err
-				}
-				continue
-			}
-		}
-		if err := wc.Tasks[i].SetCWD(cwd.PathStr()); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func setToolsCWD(wc *Config, cwd *core.CWD) error {
-	for i := range wc.Tools {
-		if wc.Tools[i].Use != nil {
-			ref, err := wc.Tools[i].Use.IntoRef()
-			if err != nil {
-				return err
-			}
-			if ref.Type.IsFile() && ref.Component.IsTool() {
-				toolPath, err := cwd.JoinAndCheck(ref.Type.Value)
-				if err != nil {
-					return err
-				}
-				if err := wc.Tools[i].SetCWD(toolPath); err != nil {
-					return err
-				}
-				continue
-			}
-		}
-		if err := wc.Tools[i].SetCWD(cwd.PathStr()); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func setAgentsCWD(wc *Config, cwd *core.CWD) error {
-	for i := range wc.Agents {
-		if wc.Agents[i].Use != nil {
-			ref, err := wc.Agents[i].Use.IntoRef()
-			if err != nil {
-				return err
-			}
-			if ref.Type.IsFile() && ref.Component.IsAgent() {
-				agentPath, err := cwd.JoinAndCheck(ref.Type.Value)
-				if err != nil {
-					return err
-				}
-				if err := wc.Agents[i].SetCWD(agentPath); err != nil {
-					return err
-				}
-				continue
-			}
-		}
-		if err := wc.Agents[i].SetCWD(cwd.PathStr()); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func loadFileRefs(wc *Config) error {
-	if err := LoadTasksRef(wc); err != nil {
-		return err
-	}
-	if err := LoadAgentsRef(wc); err != nil {
-		return err
-	}
-	if err := LoadToolsRef(wc); err != nil {
-		return err
-	}
-	return nil
-}
-
-// GetID returns the workflow ID
-func (w *Config) GetID() string {
-	return w.ID
-}
-
-// GetTasks returns the workflow tasks
-func (w *Config) GetTasks() []task.Config {
-	return w.Tasks
 }
 
 func FindConfig(workflows []*Config, workflowID string) (*Config, error) {
@@ -265,130 +215,4 @@ func FindConfig(workflows []*Config, workflowID string) (*Config, error) {
 		}
 	}
 	return nil, fmt.Errorf("workflow not found")
-}
-
-// -----------------------------------------------------------------------------
-// Loaders
-// -----------------------------------------------------------------------------
-
-func LoadAgentsRef(wc *Config) error {
-	for i := range wc.Agents {
-		cfg, err := wc.Agents[i].LoadFileRef(wc.GetCWD())
-		if err != nil {
-			return err
-		}
-		if cfg != nil {
-			wc.Agents[i] = *cfg
-		}
-	}
-	return nil
-}
-
-func LoadToolsRef(wc *Config) error {
-	for i := range wc.Tools {
-		cfg, err := wc.Tools[i].LoadFileRef(wc.GetCWD())
-		if err != nil {
-			return err
-		}
-		if cfg != nil {
-			wc.Tools[i] = *cfg
-		}
-	}
-	return nil
-}
-
-func LoadTasksRef(wc *Config) error {
-	for i := 0; i < len(wc.Tasks); i++ {
-		tc := &wc.Tasks[i]
-		cfg, err := tc.LoadFileRef(wc.GetCWD())
-		if err != nil {
-			return fmt.Errorf("failed to load task reference for task %s: %w", tc.ID, err)
-		}
-		if cfg != nil {
-			wc.Tasks[i] = *cfg
-			if err := loadReferencedComponents(wc, cfg); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func loadReferencedComponents(wc *Config, tc *task.Config) error {
-	if err := loadAgentsRefOnTask(wc, tc); err != nil {
-		return fmt.Errorf("failed to load agent reference for task %s: %w", tc.ID, err)
-	}
-
-	if err := loadToolsRefOnTask(wc, tc); err != nil {
-		return fmt.Errorf("failed to load tool reference for task %s: %w", tc.ID, err)
-	}
-
-	return nil
-}
-
-func loadAgentsRefOnTask(wc *Config, tc *task.Config) error {
-	if tc.Use == nil {
-		return nil
-	}
-
-	ref, err := tc.Use.IntoRef()
-	if err != nil {
-		return err
-	}
-
-	if !ref.Type.IsFile() || !ref.Component.IsAgent() {
-		return nil
-	}
-
-	cfg, err := agent.Load(tc.GetCWD(), ref.Value())
-	if err != nil {
-		return err
-	}
-
-	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("invalid agent configuration: %w", err)
-	}
-
-	for i := 0; i < len(wc.Agents); i++ {
-		ac := &wc.Agents[i]
-		if ac.ID == cfg.ID {
-			return nil
-		}
-	}
-
-	wc.Agents = append(wc.Agents, *cfg)
-	return nil
-}
-
-func loadToolsRefOnTask(wc *Config, tc *task.Config) error {
-	if tc.Use == nil {
-		return nil
-	}
-
-	ref, err := tc.Use.IntoRef()
-	if err != nil {
-		return err
-	}
-
-	if !ref.Type.IsFile() || !ref.Component.IsTool() {
-		return nil
-	}
-
-	cfg, err := tool.Load(tc.GetCWD(), ref.Value())
-	if err != nil {
-		return err
-	}
-
-	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("invalid tool configuration: %w", err)
-	}
-
-	for _, tc := range wc.Tools {
-		if tc.ID == cfg.ID {
-			return nil
-		}
-	}
-
-	wc.Tools = append(wc.Tools, *cfg)
-	return nil
 }

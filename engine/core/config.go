@@ -1,5 +1,7 @@
 package core
 
+import "context"
+
 type ConfigMetadata struct {
 	CWD         *CWD
 	FilePath    string
@@ -17,6 +19,7 @@ type Config interface {
 	GetInput() *Input
 	GetMetadata() *ConfigMetadata
 	SetMetadata(metadata *ConfigMetadata)
+	ResolveRef(ctx context.Context, currentDoc map[string]any, projectRoot, filePath string) error
 	Validate() error
 	ValidateParams(input *Input) error
 	Merge(other any) error

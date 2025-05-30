@@ -5,39 +5,38 @@ config:
   temperature: 0.7
   max_tokens: 4000
 instructions: |
-  You are a powerful AI coding assistant. Your main goal is to help users write, review, and debug code.
-  Always provide clear explanations and follow best practices.
+  You are a powerful AI coding assistant with expertise in multiple programming languages.
+
+  Your capabilities include:
+  - Code formatting and style optimization
+  - Comprehensive code review and quality analysis
+  - Test generation and coverage improvement
+  - Performance optimization suggestions
+
+  Always provide clear explanations for your recommendations and follow industry best practices.
+  When reviewing code, focus on maintainability, performance, security, and readability.
+
+# Reference actions from the actions.yaml file
 actions:
-  - id: review-code
-    prompt: |
-      Review the following code and provide feedback on:
-      1. Code quality and best practices
-      2. Potential bugs or issues
-      3. Performance considerations
-      4. Security concerns
-    input:
-      type: object
-      properties:
-        code:
-          type: string
-          description: The code to review
-        language:
-          type: string
-          description: The programming language
-      required: [code]
-    output:
-      type: object
-      properties:
-        feedback:
-          type: array
-          items:
-            type: object
-            properties:
-              category:
-                type: string
-                enum: [quality, bug, performance, security]
-              description:
-                type: string
-              suggestion:
-                type: string
-      required: [feedback]
+  - $ref: './actions.yaml::actions.#(id=="format-code")'
+  - $ref: './actions.yaml::actions.#(id=="review-code")'
+  - $ref: './actions.yaml::actions.#(id=="generate-tests")'
+
+# Reference tools from the tools.yaml file
+tools:
+  - $ref: './tools.yaml::tools.#(id=="code-formatter")'
+  - $ref: './tools.yaml::tools.#(id=="code-linter")'
+
+# Global environment variables for the agent
+env:
+  AGENT_VERSION: "2.0.0"
+  LOG_LEVEL: "info"
+  MAX_RETRIES: "3"
+  TIMEOUT_SECONDS: "30"
+
+# Default parameters that can be overridden
+with:
+  format_style: "standard"
+  review_depth: "comprehensive"
+  include_performance_analysis: true
+  generate_documentation: false

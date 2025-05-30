@@ -50,6 +50,11 @@ func (p *Config) SetMetadata(metadata *core.ConfigMetadata) {
 	p.metadata = metadata
 }
 
+// ResolveRef is a no-op for project configs as they don't contain references
+func (p *Config) ResolveRef(ctx context.Context, currentDoc map[string]any, projectRoot, filePath string) error {
+	return nil
+}
+
 func (p *Config) SetCWD(path string) error {
 	cwd, err := core.CWDFromPath(path)
 	if err != nil {

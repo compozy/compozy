@@ -1,9 +1,6 @@
 id: code-review
 type: decision
 condition: review_score
-executor:
-  type: agent
-  $ref: ./agents.yaml::agents.#(id=="code-reviewer")
 routes:
   approved: deploy
   needs_changes: update-code

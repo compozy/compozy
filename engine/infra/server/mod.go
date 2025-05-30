@@ -331,7 +331,7 @@ func loadProject(cwd string, file string) (*project.Config, []*workflow.Config, 
 	}
 
 	// Load workflows from sources
-	workflows, err := workflow.WorkflowsFromProject(projectConfig)
+	workflows, err := workflow.WorkflowsFromProject(context.Background(), projectConfig)
 	if err != nil {
 		logger.Error("Failed to load workflows", "error", err)
 		return nil, nil, err

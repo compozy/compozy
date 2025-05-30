@@ -1,0 +1,314 @@
+id: advanced-code-assistant
+config:
+  provider: anthropic
+  model: claude-3-opus-20240229
+  temperature: 0.3
+  max_tokens: 8000
+  top_p: 0.9
+instructions: |
+  You are an expert senior software engineer and code architect with deep expertise across
+  multiple programming languages, frameworks, and software engineering practices.
+
+  Your specializations include:
+  - **Architecture & Design**: System design, design patterns, SOLID principles
+  - **Code Quality**: Static analysis, code smells, refactoring strategies
+  - **Performance**: Profiling, optimization, scalability considerations
+  - **Security**: Vulnerability analysis, secure coding practices, threat modeling
+  - **Testing**: TDD/BDD, test strategies, coverage analysis, test automation
+  - **DevOps**: CI/CD, infrastructure as code, monitoring, observability
+
+  Always provide:
+  1. Clear rationale for your recommendations
+  2. Alternative approaches when applicable
+  3. Trade-offs and considerations
+  4. Implementation guidance with examples
+  5. Long-term maintenance implications
+
+# Reference all actions from actions.yaml with different specializations
+actions:
+  # Core code manipulation actions
+  - $ref: './actions.yaml::actions.#(id=="format-code")'
+    with:
+      format_style: "verbose"
+      max_line_length: 100
+
+  - $ref: './actions.yaml::actions.#(id=="review-code")'
+    with:
+      focus_areas: ["performance", "security", "maintainability"]
+      severity_threshold: "warning"
+
+  - $ref: './actions.yaml::actions.#(id=="generate-tests")'
+    with:
+      test_framework: "jest"
+      coverage_target: 95
+
+  - $ref: './actions.yaml::actions.#(id=="optimize-code")'
+    with:
+      optimization_level: "aggressive"
+      preserve_readability: true
+
+  # Additional inline actions for specialized tasks
+  - id: architectural-review
+    prompt: |
+      Perform a comprehensive architectural review of the provided code focusing on:
+
+      1. **Design Patterns**: Identify and evaluate existing patterns, suggest improvements
+      2. **SOLID Principles**: Assess adherence and recommend refactoring
+      3. **Coupling & Cohesion**: Analyze dependencies and component boundaries
+      4. **Scalability**: Evaluate design for future growth and performance
+      5. **Maintainability**: Assess code organization and documentation
+
+      Provide specific architectural recommendations with implementation examples.
+    input:
+      type: object
+      properties:
+        code:
+          type: string
+          description: The codebase or module to review
+        language:
+          type: string
+          description: The programming language
+        architecture_type:
+          type: string
+          enum: [monolith, microservices, serverless, distributed]
+        scale_requirements:
+          type: object
+          properties:
+            expected_users:
+              type: integer
+            data_volume:
+              type: string
+            availability_target:
+              type: string
+      required: [code, language, architecture_type]
+    output:
+      type: object
+      properties:
+        architectural_score:
+          type: number
+          minimum: 0
+          maximum: 10
+        design_patterns:
+          type: array
+          items:
+            type: object
+            properties:
+              pattern_name:
+                type: string
+              current_usage:
+                type: string
+                enum: [absent, partial, correct, overused]
+              recommendation:
+                type: string
+              example_implementation:
+                type: string
+        solid_compliance:
+          type: object
+          properties:
+            single_responsibility:
+              type: object
+              properties:
+                score:
+                  type: number
+                issues:
+                  type: array
+                  items:
+                    type: string
+            open_closed:
+              type: object
+              properties:
+                score:
+                  type: number
+                recommendations:
+                  type: array
+                  items:
+                    type: string
+        refactoring_plan:
+          type: array
+          items:
+            type: object
+            properties:
+              priority:
+                type: string
+                enum: [low, medium, high, critical]
+              effort:
+                type: string
+                enum: [small, medium, large]
+              description:
+                type: string
+              expected_benefit:
+                type: string
+      required:
+        [
+          architectural_score,
+          design_patterns,
+          solid_compliance,
+          refactoring_plan,
+        ]
+
+  - id: security-audit
+    prompt: |
+      Conduct a thorough security audit of the provided code, examining:
+
+      1. **Input Validation**: SQL injection, XSS, command injection vulnerabilities
+      2. **Authentication & Authorization**: Access controls, session management
+      3. **Data Protection**: Encryption, sensitive data handling, privacy compliance
+      4. **Dependencies**: Known vulnerabilities in third-party packages
+      5. **Configuration**: Security misconfigurations, hardcoded secrets
+      6. **Error Handling**: Information disclosure through error messages
+
+      Provide prioritized remediation steps with secure implementation examples.
+    input:
+      $ref: "./schemas.yaml::schemas.review_input"
+    output:
+      type: object
+      properties:
+        security_score:
+          type: number
+          minimum: 0
+          maximum: 10
+        vulnerabilities:
+          type: array
+          items:
+            type: object
+            properties:
+              severity:
+                type: string
+                enum: [low, medium, high, critical]
+              category:
+                type: string
+                enum: [injection, auth, crypto, data, config, logging]
+              description:
+                type: string
+              location:
+                type: string
+              cwe_id:
+                type: string
+              remediation:
+                type: string
+              secure_example:
+                type: string
+        compliance_check:
+          type: object
+          properties:
+            owasp_top10:
+              type: array
+              items:
+                type: object
+                properties:
+                  risk:
+                    type: string
+                  status:
+                    type: string
+                    enum: [compliant, vulnerable, needs_review]
+        recommendations:
+          type: array
+          items:
+            type: string
+      required:
+        [security_score, vulnerabilities, compliance_check, recommendations]
+
+# Reference tools with specific configurations
+tools:
+  - $ref: './tools.yaml::tools.#(id=="code-formatter")'
+    with:
+      format_style: "verbose"
+      max_line_length: 100
+
+  - $ref: './tools.yaml::tools.#(id=="code-linter")'
+    with:
+      rules: ["all", "strict", "security"]
+      severity_level: "error"
+
+  - $ref: './tools.yaml::tools.#(id=="test-generator")'
+    with:
+      coverage_target: 95
+      test_framework: "jest"
+
+  - $ref: './tools.yaml::tools.#(id=="code-analyzer")'
+    with:
+      analysis_type:
+        ["complexity", "dependencies", "metrics", "security", "performance"]
+      depth: "deep"
+
+# Input schema for the agent - references shared schema
+input:
+  $ref: "./schemas.yaml::schemas.review_input"
+
+# Enhanced output schema for comprehensive analysis
+output:
+  type: object
+  properties:
+    analysis_summary:
+      type: object
+      properties:
+        overall_score:
+          type: number
+          minimum: 0
+          maximum: 10
+        confidence_level:
+          type: string
+          enum: [low, medium, high]
+        analysis_duration:
+          type: string
+        recommendations_count:
+          type: integer
+    detailed_results:
+      type: object
+      properties:
+        code_quality:
+          $ref: "./schemas.yaml::schemas.review_output"
+        security_audit:
+          type: object
+          description: "Results from security-audit action"
+        architectural_review:
+          type: object
+          description: "Results from architectural-review action"
+        performance_analysis:
+          type: object
+          description: "Results from optimize-code action"
+    action_plan:
+      type: array
+      items:
+        type: object
+        properties:
+          phase:
+            type: string
+            enum: [immediate, short_term, long_term]
+          priority:
+            type: string
+            enum: [low, medium, high, critical]
+          category:
+            type: string
+            enum: [quality, security, performance, architecture, testing]
+          description:
+            type: string
+          estimated_effort:
+            type: string
+          expected_impact:
+            type: string
+        required: [phase, priority, category, description]
+  required: [analysis_summary, detailed_results, action_plan]
+
+# Environment configuration for advanced analysis
+env:
+  AGENT_VERSION: "3.0.0"
+  ANALYSIS_DEPTH: "comprehensive"
+  LOG_LEVEL: "debug"
+  MAX_RETRIES: "5"
+  TIMEOUT_SECONDS: "120"
+  SECURITY_SCANNING: "enabled"
+  PERFORMANCE_PROFILING: "enabled"
+  ARCHITECTURAL_ANALYSIS: "enabled"
+
+# Default parameters for comprehensive analysis
+with:
+  focus_areas:
+    ["performance", "security", "readability", "maintainability", "testing"]
+  severity_threshold: "info"
+  include_architectural_review: true
+  include_security_audit: true
+  include_performance_analysis: true
+  generate_action_plan: true
+  analysis_depth: "comprehensive"
+  confidence_threshold: 0.8

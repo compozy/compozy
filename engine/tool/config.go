@@ -60,6 +60,51 @@ func (t *Config) SetMetadata(metadata *core.ConfigMetadata) {
 	t.metadata = metadata
 }
 
+// ResolveRef resolves all references within the tool configuration, including top-level $ref
+func (t *Config) ResolveRef(ctx context.Context, currentDoc map[string]any, projectRoot, filePath string) error {
+	if t == nil {
+		return nil
+	}
+
+	// Resolve top-level $ref and process schemas
+	if err := schema.ResolveAndProcessSchemas(
+		ctx,
+		&t.WithRef,
+		t.Ref,
+		t,
+		currentDoc,
+		projectRoot,
+		filePath,
+		&t.InputSchema,
+		&t.OutputSchema,
+	); err != nil {
+		return errors.Wrap(err, "failed to resolve top-level $ref")
+	}
+
+	// Resolve input schema $ref
+	if t.InputSchema != nil && !t.InputSchema.Ref.IsEmpty() {
+		if err := t.InputSchema.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+			return errors.Wrap(err, "failed to resolve input schema $ref")
+		}
+	}
+
+	// Resolve output schema $ref
+	if t.OutputSchema != nil && !t.OutputSchema.Ref.IsEmpty() {
+		if err := t.OutputSchema.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+			return errors.Wrap(err, "failed to resolve output schema $ref")
+		}
+	}
+
+	// Resolve tool input (With) $ref
+	if t.With != nil {
+		if err := t.With.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+			return errors.Wrap(err, "failed to resolve tool input (with) $ref")
+		}
+	}
+
+	return nil
+}
+
 // Load loads a tool configuration from a file
 func Load(ctx context.Context, cwd *core.CWD, projectRoot string, filePath string) (*Config, error) {
 	config, err := core.LoadConfig[*Config](ctx, cwd, projectRoot, filePath)
@@ -73,34 +118,9 @@ func Load(ctx context.Context, cwd *core.CWD, projectRoot string, filePath strin
 		return nil, errors.Wrap(err, "failed to load current document")
 	}
 
-	// Resolve top-level $ref
-	if config.Ref != nil && !config.Ref.IsEmpty() {
-		config.SetRefMetadata(filePath, projectRoot)
-		if err := config.WithRef.ResolveAndMergeNode(
-			ctx,
-			config.Ref,
-			config,
-			currentDoc,
-			ref.ModeMerge,
-		); err != nil {
-			return nil, errors.Wrap(err, "failed to resolve top-level $ref")
-		}
-	}
-
-	// Resolve input schema $ref
-	inSchema := config.InputSchema
-	if inSchema != nil && !inSchema.Ref.IsEmpty() {
-		if err := inSchema.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
-			return nil, errors.Wrap(err, "failed to resolve input schema $ref")
-		}
-	}
-
-	// Resolve output schema $ref
-	outSchema := config.OutputSchema
-	if outSchema != nil && !outSchema.Ref.IsEmpty() {
-		if err := outSchema.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
-			return nil, errors.Wrap(err, "failed to resolve output schema $ref")
-		}
+	// Resolve all references (including top-level)
+	if err := config.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+		return nil, err
 	}
 
 	return config, nil

@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"context"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -12,18 +13,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTest(t *testing.T, workflowFile string) (cwd *core.CWD, dstPath string) {
+func setupTest(t *testing.T, workflowFile string) (cwd *core.CWD, projectRoot, dstPath string) {
 	_, filename, _, ok := runtime.Caller(0)
 	require.True(t, ok)
 	cwd, dstPath = utils.SetupTest(t, filename)
+	projectRoot = cwd.PathStr()
 	dstPath = filepath.Join(dstPath, workflowFile)
 	return
 }
 
 func Test_LoadWorkflow(t *testing.T) {
 	t.Run("Should load basic workflow configuration correctly", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "basic_workflow.yaml")
-		config, err := Load(cwd, dstPath)
+		cwd, projectRoot, dstPath := setupTest(t, "basic_workflow.yaml")
+
+		ctx := context.Background()
+		config, err := Load(ctx, cwd, projectRoot, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 		require.NotNil(t, config.Opts)
@@ -44,9 +48,8 @@ func Test_LoadWorkflow(t *testing.T) {
 		task := config.Tasks[0]
 		assert.Equal(t, "format-code", task.ID)
 		assert.Equal(t, "basic", string(task.Type))
-		require.NotNil(t, task.Use)
-		assert.Equal(t, core.NewPackageRefConfig("agent(id=code-assistant)"), task.Use)
-		require.NotNil(t, task.Action)
+		// Note: The new executor uses $ref instead of the old Use field
+		assert.Equal(t, "agent", string(task.Executor.Type))
 		assert.Equal(t, "format-code", task.Action)
 
 		// Validate tools
@@ -72,11 +75,14 @@ func Test_LoadWorkflow(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid workflow configuration", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "invalid_workflow.yaml")
-		config, err := Load(cwd, dstPath)
+		cwd, projectRoot, dstPath := setupTest(t, "invalid_workflow.yaml")
+
+		ctx := context.Background()
+		config, err := Load(ctx, cwd, projectRoot, dstPath)
 		require.Error(t, err)
 		require.Nil(t, config)
-		assert.Contains(t, err.Error(), "condition or routes are required for decision task type")
+		// The error should come from task validation since the workflow loads but tasks are invalid
+		assert.Contains(t, err.Error(), "task validation error")
 	})
 }
 
@@ -86,11 +92,18 @@ func Test_WorkflowConfigValidation(t *testing.T) {
 	t.Run("Should validate valid workflow configuration", func(t *testing.T) {
 		cwd, err := core.CWDFromPath("/test/path")
 		require.NoError(t, err)
+
+		metadata := &core.ConfigMetadata{
+			CWD:         cwd,
+			FilePath:    "/test/path/workflow.yaml",
+			ProjectRoot: "/test/path",
+		}
+
 		config := &Config{
 			ID:   workflowID,
 			Opts: Opts{},
-			cwd:  cwd,
 		}
+		config.SetMetadata(metadata)
 
 		err = config.Validate()
 		require.NoError(t, err)
@@ -107,17 +120,31 @@ func Test_WorkflowConfigValidation(t *testing.T) {
 	})
 }
 
-func Test_WorkflowConfigCWD(t *testing.T) {
-	t.Run("Should handle CWD operations correctly", func(t *testing.T) {
-		config := &Config{}
+func Test_WorkflowConfigMetadata(t *testing.T) {
+	t.Run("Should handle metadata operations correctly", func(t *testing.T) {
+		cwd, err := core.CWDFromPath("/test/path")
+		require.NoError(t, err)
 
-		// Test setting CWD
-		config.SetCWD("/test/path")
+		metadata := &core.ConfigMetadata{
+			CWD:         cwd,
+			FilePath:    "/test/path/workflow.yaml",
+			ProjectRoot: "/test/path",
+		}
+
+		config := &Config{}
+		config.SetMetadata(metadata)
+
+		assert.Equal(t, "/test/path/workflow.yaml", config.GetMetadata().FilePath)
 		assert.Equal(t, "/test/path", config.GetCWD().PathStr())
 
-		// Test updating CWD
-		config.SetCWD("/new/path")
-		assert.Equal(t, "/new/path", config.GetCWD().PathStr())
+		// Test updating metadata
+		newMetadata := &core.ConfigMetadata{
+			CWD:         cwd,
+			FilePath:    "/new/path/workflow.yaml",
+			ProjectRoot: "/new/path",
+		}
+		config.SetMetadata(newMetadata)
+		assert.Equal(t, "/new/path/workflow.yaml", config.GetMetadata().FilePath)
 	})
 }
 

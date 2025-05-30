@@ -1,0 +1,177 @@
+tools:
+  - id: code-formatter
+    description: "A TypeScript tool for formatting code according to various style guidelines"
+    execute: "./format.ts"
+    input:
+      $ref: "./schemas.yaml::schemas.code_input"
+    output:
+      $ref: "./schemas.yaml::schemas.format_output"
+    env:
+      FORMATTER_VERSION: "2.1.0"
+      NODE_ENV: "production"
+    with:
+      format_style: "standard"
+      max_line_length: 120
+
+  - id: code-linter
+    description: "A comprehensive code linting tool that analyzes code quality"
+    execute: "./lint.ts"
+    input:
+      type: object
+      properties:
+        code:
+          type: string
+          description: The source code to lint
+        language:
+          type: string
+          description: The programming language
+        rules:
+          type: array
+          items:
+            type: string
+          description: Specific linting rules to apply
+        severity_level:
+          type: string
+          enum: [error, warning, info]
+          default: warning
+      required: [code, language]
+      additionalProperties: false
+    output:
+      type: object
+      properties:
+        issues:
+          type: array
+          items:
+            type: object
+            properties:
+              line:
+                type: integer
+              column:
+                type: integer
+              rule:
+                type: string
+              severity:
+                type: string
+                enum: [error, warning, info]
+              message:
+                type: string
+              fix_suggestion:
+                type: string
+            required: [line, rule, severity, message]
+        summary:
+          type: object
+          properties:
+            total_issues:
+              type: integer
+            errors:
+              type: integer
+            warnings:
+              type: integer
+            info:
+              type: integer
+          required: [total_issues, errors, warnings, info]
+      required: [issues, summary]
+      additionalProperties: false
+    env:
+      ESLINT_VERSION: "8.0.0"
+      LINTER_CONFIG: "strict"
+    with:
+      rules: ["no-unused-vars", "no-console", "prefer-const"]
+      severity_level: "warning"
+
+  - id: test-generator
+    description: "A tool that generates unit tests for given code"
+    execute: "./generate-tests.ts"
+    input:
+      $ref: "./schemas.yaml::schemas.test_input"
+    output:
+      $ref: "./schemas.yaml::schemas.test_output"
+    env:
+      TEST_FRAMEWORK: "jest"
+      NODE_ENV: "test"
+    with:
+      coverage_target: 85
+      test_framework: "jest"
+
+  - id: code-analyzer
+    description: "A static code analysis tool that provides detailed insights"
+    execute: "./analyze.ts"
+    input:
+      type: object
+      properties:
+        code:
+          type: string
+          description: The source code to analyze
+        language:
+          type: string
+          description: The programming language
+        analysis_type:
+          type: array
+          items:
+            type: string
+            enum: [complexity, dependencies, metrics, security, performance]
+          description: Types of analysis to perform
+        depth:
+          type: string
+          enum: [shallow, medium, deep]
+          default: medium
+      required: [code, language, analysis_type]
+      additionalProperties: false
+    output:
+      type: object
+      properties:
+        complexity:
+          type: object
+          properties:
+            cyclomatic:
+              type: integer
+            cognitive:
+              type: integer
+            maintainability_index:
+              type: number
+        dependencies:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              version:
+                type: string
+              type:
+                type: string
+                enum: [import, dependency, dev_dependency]
+        metrics:
+          type: object
+          properties:
+            lines_of_code:
+              type: integer
+            functions:
+              type: integer
+            classes:
+              type: integer
+            test_coverage:
+              type: number
+        security_issues:
+          type: array
+          items:
+            type: object
+            properties:
+              severity:
+                type: string
+                enum: [low, medium, high, critical]
+              description:
+                type: string
+              location:
+                type: string
+        performance_hints:
+          type: array
+          items:
+            type: string
+      additionalProperties: false
+    env:
+      NODE_VERSION: "18.0.0"
+      ANALYZER_CONFIG: "comprehensive"
+    with:
+      analysis_type: ["complexity", "dependencies", "metrics"]
+      depth: "medium"

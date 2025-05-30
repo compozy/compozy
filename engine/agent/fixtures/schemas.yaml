@@ -1,0 +1,172 @@
+schemas:
+  code_input:
+    type: object
+    properties:
+      code:
+        type: string
+        description: The source code to process
+      language:
+        type: string
+        description: The programming language
+        enum: [javascript, typescript, python, go, java, rust]
+      options:
+        type: object
+        properties:
+          format_style:
+            type: string
+            enum: [standard, compact, verbose]
+          max_line_length:
+            type: integer
+            minimum: 80
+            maximum: 200
+        additionalProperties: false
+    required: [code, language]
+    additionalProperties: false
+
+  review_input:
+    type: object
+    properties:
+      code:
+        type: string
+        description: The source code to review
+      language:
+        type: string
+        description: The programming language
+      focus_areas:
+        type: array
+        items:
+          type: string
+          enum: [performance, security, readability, maintainability, testing]
+        description: Specific areas to focus the review on
+      severity_threshold:
+        type: string
+        enum: [info, warning, error]
+        default: warning
+    required: [code, language]
+    additionalProperties: false
+
+  format_output:
+    type: object
+    properties:
+      formatted_code:
+        type: string
+        description: The formatted source code
+      changes_made:
+        type: array
+        items:
+          type: object
+          properties:
+            line:
+              type: integer
+            type:
+              type: string
+              enum: [indentation, spacing, style, syntax]
+            description:
+              type: string
+          required: [line, type, description]
+        description: List of formatting changes applied
+      statistics:
+        type: object
+        properties:
+          lines_changed:
+            type: integer
+          total_lines:
+            type: integer
+        required: [lines_changed, total_lines]
+    required: [formatted_code, changes_made, statistics]
+    additionalProperties: false
+
+  review_output:
+    type: object
+    properties:
+      score:
+        type: number
+        minimum: 0
+        maximum: 10
+        description: Overall code quality score
+      feedback:
+        type: array
+        items:
+          type: object
+          properties:
+            line:
+              type: integer
+              minimum: 1
+            column:
+              type: integer
+              minimum: 1
+            category:
+              type: string
+              enum:
+                [performance, security, readability, maintainability, testing]
+            severity:
+              type: string
+              enum: [info, warning, error]
+            message:
+              type: string
+            suggestion:
+              type: string
+          required: [line, category, severity, message]
+        description: Detailed feedback items
+      summary:
+        type: object
+        properties:
+          total_issues:
+            type: integer
+          critical_issues:
+            type: integer
+          recommendations:
+            type: array
+            items:
+              type: string
+        required: [total_issues, critical_issues]
+    required: [score, feedback, summary]
+    additionalProperties: false
+
+  test_input:
+    type: object
+    properties:
+      code:
+        type: string
+        description: The code to generate tests for
+      language:
+        type: string
+        description: The programming language
+      test_framework:
+        type: string
+        description: The testing framework to use
+      coverage_target:
+        type: number
+        minimum: 0
+        maximum: 100
+        default: 80
+    required: [code, language, test_framework]
+    additionalProperties: false
+
+  test_output:
+    type: object
+    properties:
+      test_code:
+        type: string
+        description: The generated test code
+      test_cases:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            description:
+              type: string
+            type:
+              type: string
+              enum: [unit, integration, edge_case]
+          required: [name, description, type]
+        description: List of generated test cases
+      coverage_estimate:
+        type: number
+        minimum: 0
+        maximum: 100
+        description: Estimated code coverage percentage
+    required: [test_code, test_cases, coverage_estimate]
+    additionalProperties: false

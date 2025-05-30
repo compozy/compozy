@@ -1,0 +1,74 @@
+actions:
+  - id: format-code
+    prompt: "Format the provided code according to best practices and style guidelines"
+    input:
+      type: object
+      properties:
+        code:
+          type: string
+          description: The source code to format
+        language:
+          type: string
+          description: The programming language
+        style:
+          type: string
+          description: The formatting style to use
+          enum: [standard, compact, verbose]
+      required: [code, language]
+    output:
+      type: object
+      properties:
+        formatted_code:
+          type: string
+          description: The formatted source code
+        changes_made:
+          type: array
+          items:
+            type: string
+          description: List of formatting changes applied
+      required: [formatted_code]
+
+  - id: review-code
+    prompt: "Review the provided code and provide detailed feedback on quality, best practices, and potential improvements"
+    input:
+      type: object
+      properties:
+        code:
+          type: string
+          description: The source code to review
+        language:
+          type: string
+          description: The programming language
+        focus_areas:
+          type: array
+          items:
+            type: string
+            enum: [performance, security, readability, maintainability]
+          description: Specific areas to focus the review on
+      required: [code, language]
+    output:
+      type: object
+      properties:
+        score:
+          type: number
+          minimum: 0
+          maximum: 10
+          description: Overall code quality score
+        feedback:
+          type: array
+          items:
+            type: object
+            properties:
+              line:
+                type: integer
+              message:
+                type: string
+              severity:
+                type: string
+                enum: [info, warning, error]
+        suggestions:
+          type: array
+          items:
+            type: string
+          description: Improvement suggestions
+      required: [score, feedback]

@@ -1,10 +1,12 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"maps"
 
 	"dario.cat/mergo"
+	"github.com/compozy/compozy/pkg/ref"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -31,6 +33,20 @@ func NewInput(m map[string]any) Input {
 		return make(Input)
 	}
 	return Input(m)
+}
+
+func (i *Input) ResolveRef(ctx context.Context, currentDoc any, projectRoot, filePath string) error {
+	if i == nil {
+		return nil
+	}
+	withRef := &ref.WithRef{}
+	withRef.SetRefMetadata(filePath, projectRoot)
+	resolved, err := withRef.ResolveMapReference(ctx, map[string]any(*i), currentDoc)
+	if err != nil {
+		return err
+	}
+	*i = Input(resolved)
+	return nil
 }
 
 func (i *Input) Merge(other Input) (Input, error) {
@@ -78,6 +94,20 @@ func (i *Input) AsMap() map[string]any {
 // -----------------------------------------------------------------------------
 // Output
 // -----------------------------------------------------------------------------
+
+func (o *Output) ResolveRef(ctx context.Context, currentDoc any, projectRoot, filePath string) error {
+	if o == nil {
+		return nil
+	}
+	withRef := &ref.WithRef{}
+	withRef.SetRefMetadata(filePath, projectRoot)
+	resolved, err := withRef.ResolveMapReference(ctx, map[string]any(*o), currentDoc)
+	if err != nil {
+		return err
+	}
+	*o = Output(resolved)
+	return nil
+}
 
 func (o *Output) Merge(other Output) (Output, error) {
 	if o == nil {

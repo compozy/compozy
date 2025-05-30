@@ -424,3 +424,53 @@ func Test_TaskConfigMerge(t *testing.T) {
 		assert.Equal(t, "next2", *base.OnError.Next)
 	})
 }
+
+func Test_LoadTaskWithNestedReferences(t *testing.T) {
+	t.Run("Should resolve nested references when task executor references agent with action references", func(t *testing.T) {
+		cwd, projectRoot, dstPath := setupTest(t, "basic_task.yaml")
+
+		// Load the task
+		ctx := context.Background()
+		config, err := Load(ctx, cwd, projectRoot, dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
+
+		// Validate the task config
+		err = config.Validate()
+		require.NoError(t, err)
+
+		// Verify basic task properties
+		assert.Equal(t, "code-format", config.ID)
+		assert.Equal(t, "agent", string(config.Executor.Type))
+		assert.False(t, config.Executor.Ref.IsEmpty())
+
+		// The executor should now contain the resolved agent configuration
+		resolvedAgent, err := config.Executor.GetAgent()
+		require.NoError(t, err)
+		require.NotNil(t, resolvedAgent)
+
+		// Verify the resolved agent has the expected properties
+		assert.Equal(t, "code-formatter", resolvedAgent.ID)
+		assert.Equal(t, "You are a code formatter. Format the provided code according to best practices.", resolvedAgent.Instructions)
+
+		// The agent should have actions resolved from actions.yaml
+		require.Len(t, resolvedAgent.Actions, 1)
+
+		// The action should have actual data from actions.yaml, not just a $ref
+		action := resolvedAgent.Actions[0]
+		require.NotNil(t, action)
+		assert.Equal(t, "format-code", action.ID)
+		assert.Equal(t, "Format the provided code according to best practices and style guidelines", action.Prompt)
+
+		// Verify the action has the input schema from actions.yaml
+		require.NotNil(t, action.InputSchema)
+		inputSchema := action.InputSchema.Schema
+		assert.Equal(t, "object", inputSchema["type"])
+
+		properties, ok := inputSchema["properties"].(map[string]any)
+		require.True(t, ok)
+		assert.Contains(t, properties, "code")
+		assert.Contains(t, properties, "language")
+		assert.Contains(t, properties, "style")
+	})
+}
