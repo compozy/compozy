@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"dario.cat/mergo"
 	"gopkg.in/yaml.v3"
@@ -95,14 +96,25 @@ func (e *Executor) ResolveRef(ctx context.Context, currentDoc map[string]any, pr
 			return errors.Wrap(err, "failed to unmarshal resolved value to agent config")
 		}
 		// Set metadata for the resolved agent config
+		// Use the resolved reference path to determine the correct CWD
+		agentFilePath := filePath
+		executorRefMetadata := e.GetRefMetadata()
+		if executorRefMetadata != nil && executorRefMetadata.RefPath != "" {
+			agentFilePath = executorRefMetadata.RefPath
+		}
+		agentDir := filepath.Dir(agentFilePath)
+		agentCWD, err := core.CWDFromPath(agentDir)
+		if err != nil {
+			return errors.Wrap(err, "failed to create CWD for agent config")
+		}
 		metadata := &core.ConfigMetadata{
-			CWD:         e.metadata.CWD,
-			FilePath:    filePath,
+			CWD:         agentCWD,
+			FilePath:    agentFilePath,
 			ProjectRoot: projectRoot,
 		}
 		agentConfig.SetMetadata(metadata)
 		// Resolve any references within the agent config
-		if err := agentConfig.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+		if err := agentConfig.ResolveRef(ctx, currentDoc, projectRoot, agentFilePath); err != nil {
 			return errors.Wrap(err, "failed to resolve agent config references")
 		}
 		e.agent = &agentConfig
@@ -112,14 +124,25 @@ func (e *Executor) ResolveRef(ctx context.Context, currentDoc map[string]any, pr
 			return errors.Wrap(err, "failed to unmarshal resolved value as tool config")
 		}
 		// Set metadata for the resolved tool config
+		// Use the resolved reference path to determine the correct CWD
+		toolFilePath := filePath
+		executorRefMetadata := e.GetRefMetadata()
+		if executorRefMetadata != nil && executorRefMetadata.RefPath != "" {
+			toolFilePath = executorRefMetadata.RefPath
+		}
+		toolDir := filepath.Dir(toolFilePath)
+		toolCWD, err := core.CWDFromPath(toolDir)
+		if err != nil {
+			return errors.Wrap(err, "failed to create CWD for tool config")
+		}
 		metadata := &core.ConfigMetadata{
-			CWD:         e.metadata.CWD,
-			FilePath:    filePath,
+			CWD:         toolCWD,
+			FilePath:    toolFilePath,
 			ProjectRoot: projectRoot,
 		}
 		toolConfig.SetMetadata(metadata)
 		// Resolve any references within the tool config
-		if err := toolConfig.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+		if err := toolConfig.ResolveRef(ctx, currentDoc, projectRoot, toolFilePath); err != nil {
 			return errors.Wrap(err, "failed to resolve tool config references")
 		}
 		e.tool = &toolConfig
@@ -194,16 +217,38 @@ func (t *Config) ResolveRef(ctx context.Context, currentDoc map[string]any, proj
 		if err := t.ResolveAndMergeReferences(ctx, t, currentDoc, ref.ModeMerge); err != nil {
 			return errors.Wrap(err, "failed to resolve top-level $ref")
 		}
+		// After resolving the top-level $ref, update the task's metadata to reflect the new file path
+		refMetadata := t.GetRefMetadata()
+		if refMetadata != nil && refMetadata.RefPath != "" {
+			// Update the task's CWD to be based on the referenced file's directory
+			refDir := filepath.Dir(refMetadata.RefPath)
+			refCWD, err := core.CWDFromPath(refDir)
+			if err != nil {
+				return errors.Wrap(err, "failed to create CWD from referenced file path")
+			}
+			// Update the task's metadata with the new CWD and file path
+			t.metadata.CWD = refCWD
+			t.metadata.FilePath = refMetadata.RefPath
+		}
 	}
 	// Set metadata for executor and resolve its references
 	// Use the task's current metadata which should now be updated after reference resolution
 	t.Executor.SetMetadata(t.metadata)
-	if err := t.Executor.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+
+	// Determine the correct file path for executor reference resolution
+	executorFilePath := filePath
+	refMetadata := t.GetRefMetadata()
+	if refMetadata != nil && refMetadata.RefPath != "" {
+		// If the task was loaded via $ref, use the task file's path for executor resolution
+		executorFilePath = refMetadata.RefPath
+	}
+
+	if err := t.Executor.ResolveRef(ctx, currentDoc, projectRoot, executorFilePath); err != nil {
 		return errors.Wrap(err, "failed to resolve executor $ref")
 	}
 	// Resolve task input (With) $ref
 	if t.With != nil {
-		if err := t.With.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
+		if err := t.With.ResolveRef(ctx, currentDoc, projectRoot, executorFilePath); err != nil {
 			return errors.Wrap(err, "failed to resolve task input (with) $ref")
 		}
 	}

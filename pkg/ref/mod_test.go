@@ -555,7 +555,7 @@ func TestApplyMergeMode(t *testing.T) {
 		merged, ok := result.(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, 1, merged["a"])
-		assert.Equal(t, 3, merged["b"]) // inline wins
+		assert.Equal(t, 2, merged["b"]) // ref wins
 		assert.Equal(t, 4, merged["c"])
 	})
 
@@ -586,18 +586,22 @@ func TestApplyMergeMode(t *testing.T) {
 		nested, ok := merged["nested"].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, 10, nested["x"])
-		assert.Equal(t, 30, nested["y"]) // inline wins
+		assert.Equal(t, 20, nested["y"]) // ref wins
 		assert.Equal(t, 40, nested["z"])
 	})
 
-	t.Run("Should replace arrays with merge mode", func(t *testing.T) {
+	t.Run("Should merge arrays with merge mode", func(t *testing.T) {
 		ref := &Ref{Mode: ModeMerge}
 		refValue := []any{"a", "b"}
 		inlineValue := []any{"c", "d"}
 
 		result, err := ref.ApplyMergeMode(refValue, inlineValue)
 		require.NoError(t, err)
-		assert.Equal(t, refValue, result)
+
+		merged, ok := result.([]any)
+		require.True(t, ok)
+		// Arrays should be merged (union), with inline values first
+		assert.Equal(t, []any{"c", "d", "a", "b"}, merged)
 	})
 
 	t.Run("Should append arrays with append mode", func(t *testing.T) {

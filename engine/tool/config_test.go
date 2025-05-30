@@ -217,11 +217,16 @@ func Test_LoadTool(t *testing.T) {
 			assert.Contains(t, enumValues, "verbose")
 		}
 
-		// Check required fields - inline required replaces referenced required (array merge behavior)
+		// Check required fields - arrays are merged in merge mode
 		if required, ok := inputSchema["required"].([]any); ok && len(required) > 0 {
-			// Due to array merge behavior, inline required replaces referenced required
-			assert.Contains(t, required, "format_style")
-			// Note: "code" and "language" from referenced schema are replaced by inline required
+			// Debug: print what's actually in the required array
+			t.Logf("Required array contains: %v", required)
+			// Arrays are merged, so we should have values from both reference and inline
+			assert.Contains(t, required, "format_style") // from inline
+			assert.Contains(t, required, "code")         // from reference
+			assert.Contains(t, required, "language")     // from reference
+		} else {
+			t.Logf("No required array found or it's empty")
 		}
 
 		// Validate output schema was resolved and merged with inline properties

@@ -30,6 +30,11 @@ func (w *WithRef) SetRefMetadata(filePath, projectRoot string) {
 	}
 }
 
+// GetRefMetadata returns the reference metadata
+func (w *WithRef) GetRefMetadata() *WithRefMetadata {
+	return w.refMetadata
+}
+
 // ResolveReferences resolves all fields with is_ref tag in the target struct
 func (w *WithRef) ResolveReferences(ctx context.Context, target any, currentDoc any) error {
 	if err := w.validateTarget(target); err != nil {
@@ -96,11 +101,11 @@ func (w *WithRef) resolveRefField(ctx context.Context, field reflect.Value, curr
 	filePath := w.refMetadata.FilePath
 	projectRoot := w.refMetadata.ProjectRoot
 	resolvedValue, err := ref.Resolve(ctx, currentDoc, filePath, projectRoot)
-	if err := w.setRefPathWithRef(ref); err != nil {
-		return errors.Wrap(err, "failed to set ref path")
-	}
 	if err != nil {
 		return errors.Wrap(err, "failed to resolve reference")
+	}
+	if err := w.setRefPathWithRef(ref); err != nil {
+		return errors.Wrap(err, "failed to set ref path")
 	}
 	// Set the resolved value back to the field
 	if resolvedValue != nil {
@@ -364,11 +369,11 @@ func (w *WithRef) resolveMapWithRef(
 	filePath := w.refMetadata.FilePath
 	projectRoot := w.refMetadata.ProjectRoot
 	resolvedValue, err := ref.Resolve(ctx, currentDoc, filePath, projectRoot)
-	if err := w.setRefPathWithRef(ref); err != nil {
-		return nil, errors.Wrap(err, "failed to set ref path")
-	}
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to resolve $ref")
+	}
+	if err := w.setRefPathWithRef(ref); err != nil {
+		return nil, errors.Wrap(err, "failed to set ref path")
 	}
 	mergedValue, err := ref.ApplyMergeMode(resolvedValue, inlineData)
 	if err != nil {
@@ -444,7 +449,17 @@ func (w *WithRef) resolveSlice(
 
 func (w *WithRef) setRefPathWithRef(ref *Ref) error {
 	if ref.Type == TypeFile {
-		refPath, err := filepath.Abs(filepath.Join(w.refMetadata.ProjectRoot, ref.File))
+		// For relative file references, resolve relative to the current file's directory
+		// For absolute file references, use as-is
+		var refPath string
+		var err error
+		if filepath.IsAbs(ref.File) {
+			refPath, err = filepath.Abs(ref.File)
+		} else {
+			// Resolve relative to the current file's directory
+			currentDir := filepath.Dir(w.refMetadata.FilePath)
+			refPath, err = filepath.Abs(filepath.Join(currentDir, ref.File))
+		}
 		if err != nil {
 			return errors.Wrap(err, "failed to get absolute path for ref file")
 		}

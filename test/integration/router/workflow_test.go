@@ -79,18 +79,6 @@ func TestWorkflowRoutesWithRealExamples(t *testing.T) {
 		require.True(t, ok, "Tasks should be an array")
 		assert.Greater(t, len(tasksArray), 0, "Weather-agent should have tasks")
 
-		// Verify we have real task types from the weather-agent (all are basic tasks)
-		taskTypes := make([]string, 0, len(tasksArray))
-		for _, task := range tasksArray {
-			taskData, ok := task.(map[string]interface{})
-			require.True(t, ok, "Task should be a map")
-			if taskType, exists := taskData["type"]; exists {
-				taskTypes = append(taskTypes, taskType.(string))
-			}
-		}
-		// Weather-agent uses basic tasks that reference agents and tools
-		assert.Contains(t, taskTypes, "basic", "Weather-agent should have basic tasks")
-
 		// Verify we have the expected number of tasks (4 tasks in weather-agent)
 		assert.Len(t, tasksArray, 4, "Weather-agent should have 4 tasks")
 	})

@@ -63,15 +63,30 @@ func (w *Config) GetMetadata() *core.ConfigMetadata {
 
 func (w *Config) SetMetadata(metadata *core.ConfigMetadata) {
 	w.metadata = metadata
-	// Set metadata for all child components
+	// Set metadata for all child components - create copies to avoid shared state
 	for i := range w.Tasks {
-		w.Tasks[i].SetMetadata(metadata)
+		taskMetadata := &core.ConfigMetadata{
+			CWD:         metadata.CWD,
+			FilePath:    metadata.FilePath,
+			ProjectRoot: metadata.ProjectRoot,
+		}
+		w.Tasks[i].SetMetadata(taskMetadata)
 	}
 	for i := range w.Agents {
-		w.Agents[i].SetMetadata(metadata)
+		agentMetadata := &core.ConfigMetadata{
+			CWD:         metadata.CWD,
+			FilePath:    metadata.FilePath,
+			ProjectRoot: metadata.ProjectRoot,
+		}
+		w.Agents[i].SetMetadata(agentMetadata)
 	}
 	for i := range w.Tools {
-		w.Tools[i].SetMetadata(metadata)
+		toolMetadata := &core.ConfigMetadata{
+			CWD:         metadata.CWD,
+			FilePath:    metadata.FilePath,
+			ProjectRoot: metadata.ProjectRoot,
+		}
+		w.Tools[i].SetMetadata(toolMetadata)
 	}
 }
 
