@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/test/utils"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -74,17 +75,24 @@ func TestTaskRoutesWithRealExamples(t *testing.T) {
 		taskData, ok := apiResp.Data.(map[string]interface{})
 		require.True(t, ok, "Task data should be a map")
 		assert.Equal(t, taskID, taskData["id"], "Task ID should match")
-		assert.Equal(t, "basic", taskData["type"], "Weather-agent tasks are basic type")
-		assert.Contains(t, taskData, "use", "Should contain use field")
-		assert.Contains(t, taskData, "action", "Should contain action field")
+		spew.Dump(taskData)
+		assert.Contains(t, taskData, "executor", "Should contain executor field")
 		assert.Contains(t, taskData, "with", "Should contain with field for input templates")
 
-		// Verify the task uses an agent
-		useField, exists := taskData["use"]
-		require.True(t, exists, "Task should have use field")
-		useStr, ok := useField.(string)
-		require.True(t, ok, "Use field should be a string")
-		assert.Contains(t, useStr, "agent(id=inline_agent)", "Should reference the inline_agent")
+		// Verify the task has an executor with the correct structure
+		executor, exists := taskData["executor"]
+		require.True(t, exists, "Task should have executor field")
+		executorMap, ok := executor.(map[string]interface{})
+		require.True(t, ok, "Executor field should be a map")
+		assert.Contains(t, executorMap, "type", "Executor should have type field")
+		assert.Contains(t, executorMap, "$ref", "Executor should have $ref field")
+
+		// Verify the executor type (should be "agent" for weather-agent tasks)
+		executorType, exists := executorMap["type"]
+		require.True(t, exists, "Executor should have type field")
+		typeStr, ok := executorType.(string)
+		require.True(t, ok, "Executor type should be a string")
+		assert.Equal(t, "agent", typeStr, "Weather-agent tasks should use agent executor")
 	})
 }
 

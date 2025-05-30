@@ -196,6 +196,7 @@ func (t *Config) ResolveRef(ctx context.Context, currentDoc map[string]any, proj
 		}
 	}
 	// Set metadata for executor and resolve its references
+	// Use the task's current metadata which should now be updated after reference resolution
 	t.Executor.SetMetadata(t.metadata)
 	if err := t.Executor.ResolveRef(ctx, currentDoc, projectRoot, filePath); err != nil {
 		return errors.Wrap(err, "failed to resolve executor $ref")

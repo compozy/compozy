@@ -5,6 +5,7 @@ import "context"
 type ConfigMetadata struct {
 	CWD         *CWD
 	FilePath    string
+	RefPath     string
 	ProjectRoot string
 }
 

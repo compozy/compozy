@@ -1,9 +1,6 @@
 package ref
 
 import (
-	"maps"
-
-	"dario.cat/mergo"
 	"github.com/pkg/errors"
 )
 
@@ -46,28 +43,25 @@ func (m *AppendMode) Merge(refValue, inlineValue any) (any, error) {
 // Merge Mode
 // -----------------------------------------------------------------------------
 
-// MergeMode merges reference and inline values, with inline winning conflicts.
+// MergeMode merges reference and inline values, with reference winning conflicts.
 type MergeMode struct{}
 
 func (m *MergeMode) Merge(refValue, inlineValue any) (any, error) {
-	// For arrays, replace (as per spec)
 	if _, ok := refValue.([]any); ok {
 		return refValue, nil
 	}
-
-	// For maps, deep merge with inline winning conflicts
 	refMap, refOk := refValue.(map[string]any)
 	inlineMap, inlineOk := inlineValue.(map[string]any)
 	if refOk && inlineOk {
 		result := make(map[string]any)
-		maps.Copy(result, refMap)
-		if err := mergo.Merge(&result, inlineMap, mergo.WithOverride); err != nil {
-			return nil, errors.Wrap(err, "failed to merge maps")
+		for k, v := range inlineMap {
+			result[k] = v
+		}
+		for k, v := range refMap {
+			result[k] = v
 		}
 		return result, nil
 	}
-
-	// For other types, inline wins
 	return inlineValue, nil
 }
 

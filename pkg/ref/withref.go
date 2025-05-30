@@ -3,14 +3,17 @@ package ref
 import (
 	"context"
 	"maps"
+	"path/filepath"
 	"reflect"
 	"strings"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 )
 
 type WithRefMetadata struct {
 	FilePath    string
+	RefPath     string
 	ProjectRoot string
 }
 
@@ -93,6 +96,9 @@ func (w *WithRef) resolveRefField(ctx context.Context, field reflect.Value, curr
 	filePath := w.refMetadata.FilePath
 	projectRoot := w.refMetadata.ProjectRoot
 	resolvedValue, err := ref.Resolve(ctx, currentDoc, filePath, projectRoot)
+	if err := w.setRefPathWithRef(ref); err != nil {
+		return errors.Wrap(err, "failed to set ref path")
+	}
 	if err != nil {
 		return errors.Wrap(err, "failed to resolve reference")
 	}
@@ -131,6 +137,9 @@ func (w *WithRef) resolveAndMergeRefField(ctx context.Context, field reflect.Val
 		return nil
 	}
 	// Merge the resolved value into the target struct
+	if err := w.setRefPathWithRef(ref); err != nil {
+		return errors.Wrap(err, "failed to set ref path")
+	}
 	resolvedMap, ok := resolvedValue.(map[string]any)
 	if !ok {
 		return errors.New("resolved reference must be a map/object to merge into struct")
@@ -286,7 +295,6 @@ func (w *WithRef) shouldIncludeField(field reflect.Value, fieldType reflect.Stru
 	return field.CanSet() &&
 		fieldType.Name != "WithRef" &&
 		field.IsValid() &&
-		!field.IsZero() &&
 		!w.isRefField(fieldType) // exclude is_ref fields from map conversion
 }
 
@@ -309,10 +317,31 @@ func (w *WithRef) setStructFields(structValue reflect.Value, mergedMap map[strin
 // setFieldValue sets a single field value with type conversion if needed
 func (w *WithRef) setFieldValue(field reflect.Value, value any) {
 	valueReflect := reflect.ValueOf(value)
+
+	// Direct assignment if types match
 	if valueReflect.Type().AssignableTo(field.Type()) {
 		field.Set(valueReflect)
-	} else if valueReflect.Type().ConvertibleTo(field.Type()) {
+		return
+	}
+
+	// Type conversion if possible
+	if valueReflect.Type().ConvertibleTo(field.Type()) {
 		field.Set(valueReflect.Convert(field.Type()))
+		return
+	}
+
+	// Handle map to struct conversion using mapstructure
+	if valueMap, ok := value.(map[string]any); ok && field.Kind() == reflect.Struct {
+		config := &mapstructure.DecoderConfig{
+			Result:           field.Addr().Interface(),
+			WeaklyTypedInput: true,
+			TagName:          "json",
+		}
+
+		decoder, err := mapstructure.NewDecoder(config)
+		if err == nil {
+			decoder.Decode(valueMap) // Ignore error for graceful fallback
+		}
 	}
 }
 
@@ -335,6 +364,9 @@ func (w *WithRef) resolveMapWithRef(
 	filePath := w.refMetadata.FilePath
 	projectRoot := w.refMetadata.ProjectRoot
 	resolvedValue, err := ref.Resolve(ctx, currentDoc, filePath, projectRoot)
+	if err := w.setRefPathWithRef(ref); err != nil {
+		return nil, errors.Wrap(err, "failed to set ref path")
+	}
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to resolve $ref")
 	}
@@ -408,4 +440,15 @@ func (w *WithRef) resolveSlice(
 		result[i] = resolved
 	}
 	return result, nil
+}
+
+func (w *WithRef) setRefPathWithRef(ref *Ref) error {
+	if ref.Type == TypeFile {
+		refPath, err := filepath.Abs(filepath.Join(w.refMetadata.ProjectRoot, ref.File))
+		if err != nil {
+			return errors.Wrap(err, "failed to get absolute path for ref file")
+		}
+		w.refMetadata.RefPath = refPath
+	}
+	return nil
 }

@@ -103,6 +103,45 @@ func (w *Config) ResolveRef(ctx context.Context, currentDoc map[string]any, proj
 			return errors.Wrap(err, "failed to resolve workflow input schema reference")
 		}
 	}
+	// Collect referenced tools and agents from tasks
+	if err := w.collectReferencedComponents(); err != nil {
+		return errors.Wrap(err, "failed to collect referenced components from tasks")
+	}
+	return nil
+}
+
+// collectReferencedComponents collects tools and agents referenced by tasks
+// and adds them to the workflow's Tools and Agents arrays if not already present
+func (w *Config) collectReferencedComponents() error {
+	// Track existing IDs to avoid duplicates
+	existingToolIDs := make(map[string]bool)
+	for _, tool := range w.Tools {
+		existingToolIDs[tool.ID] = true
+	}
+	existingAgentIDs := make(map[string]bool)
+	for _, agent := range w.Agents {
+		existingAgentIDs[agent.ID] = true
+	}
+	// Collect tools and agents from task executors
+	for i := range w.Tasks {
+		taskConfig := &w.Tasks[i]
+		if taskConfig.Executor.Type == task.ExecutorTool {
+			if tool, err := taskConfig.Executor.GetTool(); err == nil && tool != nil {
+				if !existingToolIDs[tool.ID] {
+					w.Tools = append(w.Tools, *tool)
+					existingToolIDs[tool.ID] = true
+				}
+			}
+		}
+		if taskConfig.Executor.Type == task.ExecutorAgent {
+			if agent, err := taskConfig.Executor.GetAgent(); err == nil && agent != nil {
+				if !existingAgentIDs[agent.ID] {
+					w.Agents = append(w.Agents, *agent)
+					existingAgentIDs[agent.ID] = true
+				}
+			}
+		}
+	}
 	return nil
 }
 
