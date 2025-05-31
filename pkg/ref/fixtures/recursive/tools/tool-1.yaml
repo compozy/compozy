@@ -1,0 +1,4 @@
+id: quote
+name: "Quote Tool"
+description: "A tool for generating quotes"
+execute: "./quote.ts"

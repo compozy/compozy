@@ -1,0 +1,46 @@
+id: complex_app
+name: "Complex Application"
+version: "2.0.0"
+description: "A complex application to test recursive resolution"
+
+# Direct service reference that contains multiple nested refs
+main_service:
+  $ref: ./services/api/v1/service.yaml
+
+# Workflow that references tasks, agents, and services
+primary_workflow:
+  $ref: ./workflows/nested/deep/user-workflow.yaml!merge
+  name: "Overridden Workflow Name"
+
+# Array of configurations with mixed references
+configurations:
+  - name: "base_config"
+    config:
+      $ref: ./configs/base/auth-config.yaml
+  - name: "override_config"
+    config:
+      $ref: ./configs/overrides/workflow-config.yaml
+  - name: "inline_with_ref"
+    config:
+      $ref: ./shared/providers/base-llm.yaml!merge
+      model: "gpt-3.5-turbo"
+      temperature: 0.9
+
+# Nested object with multiple ref levels
+authentication:
+  provider:
+    $ref: ./services/auth/auth-provider.yaml
+  schemas:
+    user:
+      $ref: ./shared/schemas/user.yaml
+    role:
+      $ref: ./shared/schemas/role.yaml
+
+# Array of handlers with different ref patterns
+handlers:
+  - $ref: ./services/api/v1/handlers/list-users.yaml
+  - $ref: ./services/api/v1/handlers/get-user.yaml
+  - custom_handler:
+      id: custom
+      transform:
+        $ref: ./services/api/v1/handlers/transform/user-transform.yaml

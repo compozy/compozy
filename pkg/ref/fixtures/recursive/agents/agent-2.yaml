@@ -1,0 +1,7 @@
+id: agent
+name: "Test Agent"
+tool:
+  $ref: ../tools/tool-1.yaml
+provider:
+  type: "openai"
+  model: "gpt-4"

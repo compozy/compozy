@@ -1,0 +1,11 @@
+id: auth_provider
+type: "jwt"
+config:
+  $ref: ../../configs/base/auth-config.yaml!merge
+  secret: "${JWT_SECRET}"
+  expiresIn: "24h"
+validation:
+  userSchema:
+    $ref: ../../shared/schemas/user.yaml
+  roleSchema:
+    $ref: ../../shared/schemas/role.yaml

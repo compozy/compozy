@@ -1,0 +1,8 @@
+$ref: ../base/auth-config.yaml!merge
+timeout: 300
+retries: 5
+notifications:
+  agent:
+    $ref: ../../agents/agent-2.yaml
+  template:
+    $ref: ./notification-template.yaml

@@ -1,0 +1,16 @@
+id: list_users_handler
+name: "List Users Handler"
+workflow:
+  $ref: ./list-workflow.yaml
+input:
+  type: object
+  properties:
+    limit:
+      type: integer
+      default: 50
+    offset:
+      type: integer
+      default: 0
+output:
+  schema:
+    $ref: ../../../../shared/schemas/user.yaml

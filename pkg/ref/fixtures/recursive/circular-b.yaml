@@ -1,0 +1,6 @@
+id: circular_b
+name: "Circular Reference B"
+
+data:
+  $ref: ./circular-test.yaml::circular_a
+  value: "circular_b_data"

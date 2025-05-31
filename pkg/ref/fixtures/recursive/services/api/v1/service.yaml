@@ -1,0 +1,21 @@
+id: api_service
+name: "User API Service"
+version: "1.0.0"
+auth:
+  schema:
+    $ref: ../../../shared/schemas/user.yaml
+  provider:
+    $ref: ../../auth/auth-provider.yaml
+llm:
+  $ref: ../../../shared/providers/base-llm.yaml
+  model: "gpt-4"
+  temperature: 0.5
+endpoints:
+  - path: "/users"
+    method: "GET"
+    handler:
+      $ref: ./handlers/list-users.yaml
+  - path: "/users/:id"
+    method: "GET"
+    handler:
+      $ref: ./handlers/get-user.yaml

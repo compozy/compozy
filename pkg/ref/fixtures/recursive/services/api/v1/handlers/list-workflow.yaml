@@ -1,0 +1,8 @@
+id: list_workflow
+name: "List Workflow"
+description: "Simple workflow for listing users"
+steps:
+  - id: validate_params
+    type: validation
+  - id: fetch_data
+    type: fetch

@@ -1,0 +1,32 @@
+id: global_refs_test
+name: "Global References Test"
+
+# Reference global providers
+providers:
+  main_provider:
+    $ref: $global::global_providers.#(id=="groq_llama")!merge
+    temperature: 0.8
+
+  secondary_provider:
+    $ref: $global::global_providers.#(id=="openai_gpt4")
+
+# Reference global schemas
+schemas:
+  error_schema:
+    $ref: $global::global_schemas.#(id=="common_error")
+
+  extended_error:
+    $ref: $global::global_schemas.#(id=="common_error")!merge
+    properties:
+      timestamp:
+        type: string
+        format: date-time
+
+# Mix of global and local references
+configuration:
+  provider:
+    $ref: $global::global_providers.#(id=="groq_llama")
+  local_service:
+    $ref: ./services/api/v1/service.yaml
+  shared_schema:
+    $ref: ./shared/schemas/user.yaml

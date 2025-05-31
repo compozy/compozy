@@ -1,0 +1,8 @@
+algorithm: "HS256"
+issuer: "compozy-auth"
+audience: "compozy-api"
+expiresIn: "1h"
+refreshExpiresIn: "7d"
+allowedOrigins:
+  - "http://localhost:3000"
+  - "https://api.example.com"

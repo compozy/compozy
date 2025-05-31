@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// WithRefMetadata holds metadata for reference resolution.
 type WithRefMetadata struct {
 	FilePath    string
 	RefPath     string
@@ -23,6 +24,7 @@ type WithRef struct {
 	refMetadata *WithRefMetadata
 }
 
+// SetRefMetadata sets the reference metadata.
 func (w *WithRef) SetRefMetadata(filePath, projectRoot string) {
 	w.refMetadata = &WithRefMetadata{
 		FilePath:    filePath,
@@ -30,58 +32,79 @@ func (w *WithRef) SetRefMetadata(filePath, projectRoot string) {
 	}
 }
 
-// GetRefMetadata returns the reference metadata
+// GetRefMetadata returns the reference metadata.
 func (w *WithRef) GetRefMetadata() *WithRefMetadata {
 	return w.refMetadata
 }
 
-// ResolveReferences resolves all fields with is_ref tag in the target struct
+// ResolveReferences resolves all fields with is_ref tag in the target struct.
 func (w *WithRef) ResolveReferences(ctx context.Context, target any, currentDoc any) error {
-	if err := w.validateTarget(target); err != nil {
-		return err
-	}
-	targetValue := reflect.ValueOf(target).Elem()
-	targetType := targetValue.Type()
-	for i := range targetValue.NumField() {
-		field := targetValue.Field(i)
-		fieldType := targetType.Field(i)
-		if !w.isRefField(fieldType) {
-			continue
-		}
-		if err := w.resolveRefField(ctx, field, currentDoc); err != nil {
-			return errors.Wrapf(err, "failed to resolve reference field %s", fieldType.Name)
-		}
-	}
-	return nil
+	return w.resolveFields(ctx, target, currentDoc, false, ModeMerge)
 }
 
-// ResolveAndMergeReferences resolves all reference fields and merges them into the struct
+// ResolveAndMergeReferences resolves all reference fields and merges them into the struct.
 func (w *WithRef) ResolveAndMergeReferences(ctx context.Context, target any, currentDoc any, mergeMode Mode) error {
+	return w.resolveFields(ctx, target, currentDoc, true, mergeMode)
+}
+
+// ResolveMapReference resolves $ref fields in a map recursively.
+func (w *WithRef) ResolveMapReference(
+	ctx context.Context,
+	data map[string]any,
+	currentDoc any,
+) (map[string]any, error) {
+	if refValue, hasRef := data[refKey]; hasRef {
+		return w.resolveMapWithRef(ctx, data, refValue, currentDoc)
+	}
+	return w.resolveMapWithoutRef(ctx, data, currentDoc)
+}
+
+// ResolveRefWithInlineData resolves a ref field and merges it with existing inline data.
+func (w *WithRef) ResolveRefWithInlineData(
+	ctx context.Context,
+	refField any,
+	inlineData map[string]any,
+	currentDoc any,
+) (map[string]any, error) {
+	if refField == nil {
+		return inlineData, nil
+	}
+	dataWithRef := make(map[string]any, len(inlineData)+1)
+	maps.Copy(dataWithRef, inlineData)
+	dataWithRef[refKey] = refField
+	return w.ResolveMapReference(ctx, dataWithRef, currentDoc)
+}
+
+// resolveFields handles field resolution and optional merging for both ResolveReferences and ResolveAndMergeReferences.
+func (w *WithRef) resolveFields(ctx context.Context, target any, currentDoc any, merge bool, mergeMode Mode) error {
 	if err := w.validateTarget(target); err != nil {
 		return err
 	}
 	targetValue := reflect.ValueOf(target).Elem()
 	targetType := targetValue.Type()
-	for i := range targetValue.NumField() {
+
+	for i := 0; i < targetValue.NumField(); i++ {
 		field := targetValue.Field(i)
 		fieldType := targetType.Field(i)
-		if !w.isRefField(fieldType) {
+		if !w.isRefField(&fieldType) {
 			continue
 		}
-		if err := w.resolveAndMergeRefField(ctx, field, target, currentDoc); err != nil {
-			return errors.Wrapf(err, "failed to resolve and merge reference field %s", fieldType.Name)
+		if err := w.processRefField(ctx, field, target, currentDoc, merge, mergeMode); err != nil {
+			return errors.Wrapf(err, "failed to process reference field %s", fieldType.Name)
 		}
 	}
 	return nil
 }
 
-// isRefField checks if a field has the is_ref tag
-func (w *WithRef) isRefField(fieldType reflect.StructField) bool {
-	return fieldType.Tag.Get("is_ref") == "true"
-}
-
-// resolveRefField resolves a single reference field
-func (w *WithRef) resolveRefField(ctx context.Context, field reflect.Value, currentDoc any) error {
+// processRefField resolves or merges a single reference field.
+func (w *WithRef) processRefField(
+	ctx context.Context,
+	field reflect.Value,
+	target any,
+	currentDoc any,
+	merge bool,
+	mergeMode Mode,
+) error {
 	if !field.CanSet() {
 		return nil
 	}
@@ -89,41 +112,7 @@ func (w *WithRef) resolveRefField(ctx context.Context, field reflect.Value, curr
 	if refValue == nil {
 		return nil
 	}
-	// Parse the reference from the field value
-	ref, err := w.ParseRefFromValue(refValue)
-	if err != nil {
-		return errors.Wrap(err, "failed to parse reference")
-	}
-	if ref == nil {
-		return nil
-	}
-	// Resolve the reference
-	filePath := w.refMetadata.FilePath
-	projectRoot := w.refMetadata.ProjectRoot
-	resolvedValue, err := ref.Resolve(ctx, currentDoc, filePath, projectRoot)
-	if err != nil {
-		return errors.Wrap(err, "failed to resolve reference")
-	}
-	if err := w.setRefPathWithRef(ref); err != nil {
-		return errors.Wrap(err, "failed to set ref path")
-	}
-	// Set the resolved value back to the field
-	if resolvedValue != nil {
-		field.Set(reflect.ValueOf(resolvedValue))
-	}
-	return nil
-}
 
-// resolveAndMergeRefField resolves a reference field and merges it into the parent struct
-func (w *WithRef) resolveAndMergeRefField(ctx context.Context, field reflect.Value, target any, currentDoc any) error {
-	if !field.CanSet() {
-		return nil
-	}
-	refValue := field.Interface()
-	if refValue == nil {
-		return nil
-	}
-	// Parse the reference from the field value
 	ref, err := w.ParseRefFromValue(refValue)
 	if err != nil {
 		return errors.Wrap(err, "failed to parse reference")
@@ -131,31 +120,40 @@ func (w *WithRef) resolveAndMergeRefField(ctx context.Context, field reflect.Val
 	if ref == nil {
 		return nil
 	}
-	// Resolve the reference
-	filePath := w.refMetadata.FilePath
-	projectRoot := w.refMetadata.ProjectRoot
-	resolvedValue, err := ref.Resolve(ctx, currentDoc, filePath, projectRoot)
+
+	resolvedValue, err := ref.Resolve(ctx, currentDoc, w.refMetadata.FilePath, w.refMetadata.ProjectRoot)
 	if err != nil {
 		return errors.Wrap(err, "failed to resolve reference")
 	}
 	if resolvedValue == nil {
 		return nil
 	}
-	// Merge the resolved value into the target struct
+
 	if err := w.setRefPathWithRef(ref); err != nil {
 		return errors.Wrap(err, "failed to set ref path")
 	}
+
+	if merge {
+		return w.mergeResolvedValue(target, resolvedValue, mergeMode)
+	}
+	field.Set(reflect.ValueOf(resolvedValue))
+	return nil
+}
+
+// mergeResolvedValue merges the resolved reference value into the target struct.
+func (w *WithRef) mergeResolvedValue(target any, resolvedValue any, mergeMode Mode) error {
 	resolvedMap, ok := resolvedValue.(map[string]any)
 	if !ok {
 		return errors.New("resolved reference must be a map/object to merge into struct")
 	}
-	// Apply the merge with the specified mode
+
 	targetValue := reflect.ValueOf(target).Elem()
 	currentMap := w.structToMap(targetValue)
-	mergedValue, err := ref.ApplyMergeMode(resolvedMap, currentMap)
+	mergedValue, err := (&Ref{Mode: mergeMode}).ApplyMergeMode(resolvedMap, currentMap)
 	if err != nil {
 		return errors.Wrap(err, "failed to apply merge mode")
 	}
+
 	mergedMap, ok := mergedValue.(map[string]any)
 	if !ok {
 		return errors.New("merged value must be a map")
@@ -164,7 +162,12 @@ func (w *WithRef) resolveAndMergeRefField(ctx context.Context, field reflect.Val
 	return nil
 }
 
-// ParseRefFromValue parses a reference from any value (string or object)
+// isRefField checks if a field has the is_ref tag.
+func (w *WithRef) isRefField(fieldType *reflect.StructField) bool {
+	return fieldType.Tag.Get("is_ref") == "true"
+}
+
+// ParseRefFromValue parses a reference from any value (string or object).
 func (w *WithRef) ParseRefFromValue(value any) (*Ref, error) {
 	switch v := value.(type) {
 	case string:
@@ -179,9 +182,9 @@ func (w *WithRef) ParseRefFromValue(value any) (*Ref, error) {
 	}
 }
 
-// parseRefFromMap parses a reference from a map representation
+// parseRefFromMap parses a reference from a map representation.
 func (w *WithRef) parseRefFromMap(m map[string]any) (*Ref, error) {
-	ref := &Ref{}
+	ref := &Ref{Type: TypeProperty, Mode: ModeMerge} // Defaults
 	if typeVal, ok := m["type"].(string); ok {
 		switch typeVal {
 		case "property":
@@ -193,8 +196,6 @@ func (w *WithRef) parseRefFromMap(m map[string]any) (*Ref, error) {
 		default:
 			return nil, errors.Errorf("unknown reference type: %s", typeVal)
 		}
-	} else {
-		ref.Type = TypeProperty // default
 	}
 	if path, ok := m["path"].(string); ok {
 		ref.Path = path
@@ -213,42 +214,11 @@ func (w *WithRef) parseRefFromMap(m map[string]any) (*Ref, error) {
 		default:
 			return nil, errors.Errorf("unknown merge mode: %s", mode)
 		}
-	} else {
-		ref.Mode = ModeMerge // default
 	}
 	return ref, nil
 }
 
-// ResolveMapReference resolves $ref fields in a map recursively.
-func (w *WithRef) ResolveMapReference(
-	ctx context.Context,
-	data map[string]any,
-	currentDoc any,
-) (map[string]any, error) {
-	if refValue, hasRef := data["$ref"]; hasRef {
-		return w.resolveMapWithRef(ctx, data, refValue, currentDoc)
-	}
-	return w.resolveMapWithoutRef(ctx, data, currentDoc)
-}
-
-// ResolveRefWithInlineData resolves a ref field and merges it with existing inline data
-func (w *WithRef) ResolveRefWithInlineData(ctx context.Context, refField any, inlineData map[string]any, currentDoc any) (map[string]any, error) {
-	if refField == nil {
-		return inlineData, nil
-	}
-	// Create a map that contains both the $ref and the existing inline properties
-	dataWithRef := make(map[string]any, len(inlineData)+1)
-	maps.Copy(dataWithRef, inlineData)
-	dataWithRef["$ref"] = refField
-	// Use ResolveMapReference to resolve the $ref and merge with inline properties
-	return w.ResolveMapReference(ctx, dataWithRef, currentDoc)
-}
-
-// -----------------------------------------------------------------------------
-// Helpers
-// -----------------------------------------------------------------------------
-
-// validateTarget validates that the target is a pointer to struct
+// validateTarget validates that the target is a pointer to a struct.
 func (w *WithRef) validateTarget(target any) error {
 	if target == nil {
 		return errors.New("target must not be nil")
@@ -260,97 +230,83 @@ func (w *WithRef) validateTarget(target any) error {
 	return nil
 }
 
-// getFieldName extracts the field name from JSON/YAML tags
-func (w *WithRef) getFieldName(fieldType reflect.StructField) string {
-	fieldName := fieldType.Name
+// getFieldName extracts the field name from JSON/YAML tags.
+func (w *WithRef) getFieldName(fieldType *reflect.StructField) string {
 	if jsonTag := fieldType.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
 		if commaIdx := strings.Index(jsonTag, ","); commaIdx > 0 {
-			fieldName = jsonTag[:commaIdx]
-		} else {
-			fieldName = jsonTag
+			return jsonTag[:commaIdx]
 		}
-	} else if yamlTag := fieldType.Tag.Get("yaml"); yamlTag != "" && yamlTag != "-" {
-		if commaIdx := strings.Index(yamlTag, ","); commaIdx > 0 {
-			fieldName = yamlTag[:commaIdx]
-		} else {
-			fieldName = yamlTag
-		}
+		return jsonTag
 	}
-	return fieldName
+	if yamlTag := fieldType.Tag.Get("yaml"); yamlTag != "" && yamlTag != "-" {
+		if commaIdx := strings.Index(yamlTag, ","); commaIdx > 0 {
+			return yamlTag[:commaIdx]
+		}
+		return yamlTag
+	}
+	return fieldType.Name
 }
 
-// structToMap converts struct fields to a map, excluding WithRef and unexported fields
+// structToMap converts struct fields to a map, excluding WithRef and unexported fields.
 func (w *WithRef) structToMap(structValue reflect.Value) map[string]any {
-	structType := structValue.Type()
 	currentMap := make(map[string]any)
-	for i := range structValue.NumField() {
+	for i := 0; i < structValue.NumField(); i++ {
 		field := structValue.Field(i)
-		fieldType := structType.Field(i)
-		if !w.shouldIncludeField(field, fieldType) {
+		fieldType := structValue.Type().Field(i)
+		if !w.shouldIncludeField(field, &fieldType) {
 			continue
 		}
-		fieldName := w.getFieldName(fieldType)
-		currentMap[fieldName] = field.Interface()
+		currentMap[w.getFieldName(&fieldType)] = field.Interface()
 	}
 	return currentMap
 }
 
-// shouldIncludeField determines if a field should be included in the map
-func (w *WithRef) shouldIncludeField(field reflect.Value, fieldType reflect.StructField) bool {
-	return field.CanSet() &&
-		fieldType.Name != "WithRef" &&
-		field.IsValid() &&
-		!w.isRefField(fieldType) // exclude is_ref fields from map conversion
+// shouldIncludeField determines if a field should be included in the map.
+func (w *WithRef) shouldIncludeField(field reflect.Value, fieldType *reflect.StructField) bool {
+	return field.CanSet() && fieldType.Name != "WithRef" && field.IsValid() && !w.isRefField(fieldType)
 }
 
-// setStructFields sets field values from merged map back to struct
+// setStructFields sets field values from a merged map back to the struct.
 func (w *WithRef) setStructFields(structValue reflect.Value, mergedMap map[string]any) {
-	structType := structValue.Type()
-	for i := range structValue.NumField() {
+	for i := 0; i < structValue.NumField(); i++ {
 		field := structValue.Field(i)
-		fieldType := structType.Field(i)
-		if !field.CanSet() || fieldType.Name == "WithRef" || w.isRefField(fieldType) {
+		fieldType := structValue.Type().Field(i)
+		if !field.CanSet() || fieldType.Name == "WithRef" || w.isRefField(&fieldType) {
 			continue
 		}
-		fieldName := w.getFieldName(fieldType)
-		if value, exists := mergedMap[fieldName]; exists && value != nil {
+		if value, exists := mergedMap[w.getFieldName(&fieldType)]; exists && value != nil {
 			w.setFieldValue(field, value)
 		}
 	}
 }
 
-// setFieldValue sets a single field value with type conversion if needed
+// setFieldValue sets a single field value with type conversion if needed.
 func (w *WithRef) setFieldValue(field reflect.Value, value any) {
 	valueReflect := reflect.ValueOf(value)
-
-	// Direct assignment if types match
 	if valueReflect.Type().AssignableTo(field.Type()) {
 		field.Set(valueReflect)
 		return
 	}
-
-	// Type conversion if possible
 	if valueReflect.Type().ConvertibleTo(field.Type()) {
 		field.Set(valueReflect.Convert(field.Type()))
 		return
 	}
-
-	// Handle map to struct conversion using mapstructure
 	if valueMap, ok := value.(map[string]any); ok && field.Kind() == reflect.Struct {
 		config := &mapstructure.DecoderConfig{
 			Result:           field.Addr().Interface(),
 			WeaklyTypedInput: true,
 			TagName:          "json",
 		}
-
-		decoder, err := mapstructure.NewDecoder(config)
-		if err == nil {
-			decoder.Decode(valueMap) // Ignore error for graceful fallback
+		if decoder, err := mapstructure.NewDecoder(config); err == nil {
+			if err := decoder.Decode(valueMap); err != nil {
+				// Best effort - if we can't decode to struct, skip
+				return
+			}
 		}
 	}
 }
 
-// resolveMapWithRef handles maps that contain $ref
+// resolveMapWithRef handles maps that contain $ref.
 func (w *WithRef) resolveMapWithRef(
 	ctx context.Context,
 	data map[string]any,
@@ -365,39 +321,49 @@ func (w *WithRef) resolveMapWithRef(
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse $ref")
 	}
-	inlineData := w.extractInlineData(data)
-	filePath := w.refMetadata.FilePath
-	projectRoot := w.refMetadata.ProjectRoot
-	resolvedValue, err := ref.Resolve(ctx, currentDoc, filePath, projectRoot)
+
+	// Resolve the reference using the Ref's own resolution logic
+	resolvedValue, err := ref.Resolve(ctx, currentDoc, w.refMetadata.FilePath, w.refMetadata.ProjectRoot)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to resolve $ref")
 	}
-	if err := w.setRefPathWithRef(ref); err != nil {
-		return nil, errors.Wrap(err, "failed to set ref path")
-	}
-	mergedValue, err := ref.ApplyMergeMode(resolvedValue, inlineData)
+
+	// Apply merge mode with inline data
+	// Note: The inline data from the map containing the $ref takes precedence
+	mergedValue, err := ref.ApplyMergeMode(resolvedValue, w.extractInlineData(data))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to apply merge mode")
 	}
-	resolvedMap, ok := mergedValue.(map[string]any)
-	if !ok {
-		return nil, errors.New("$ref did not resolve to a map")
+
+	// The resolved value might not be a map (could be array, string, etc)
+	// Only process as map if it's actually a map
+	if resolvedMap, ok := mergedValue.(map[string]any); ok {
+		// File references are already fully resolved by Ref.Resolve
+		// Property and global references might still have nested refs to resolve
+		if ref.Type == TypeFile {
+			// File references are already fully resolved
+			return resolvedMap, nil
+		}
+		// For property and global references, continue resolving nested refs
+		return w.resolveMapWithoutRef(ctx, resolvedMap, currentDoc)
 	}
-	return resolvedMap, nil
+
+	// If it's not a map, return an error as WithRef expects map results
+	return nil, errors.New("$ref did not resolve to a map")
 }
 
-// extractInlineData extracts all data except $ref
+// extractInlineData extracts all data except $ref.
 func (w *WithRef) extractInlineData(data map[string]any) map[string]any {
 	inlineData := make(map[string]any, len(data)-1)
 	for k, v := range data {
-		if k != "$ref" {
+		if k != refKey {
 			inlineData[k] = v
 		}
 	}
 	return inlineData
 }
 
-// resolveMapWithoutRef handles regular maps without $ref
+// resolveMapWithoutRef handles regular maps without $ref.
 func (w *WithRef) resolveMapWithoutRef(
 	ctx context.Context,
 	data map[string]any,
@@ -414,56 +380,55 @@ func (w *WithRef) resolveMapWithoutRef(
 	return result, nil
 }
 
-// resolveValue resolves a single value that could be a map, slice, or primitive
-func (w *WithRef) resolveValue(
-	ctx context.Context,
-	value any,
-	currentDoc any,
-) (any, error) {
+// resolveValue resolves a single value that could be a map, slice, or primitive.
+func (w *WithRef) resolveValue(ctx context.Context, value any, currentDoc any) (any, error) {
 	switch v := value.(type) {
 	case map[string]any:
-		return w.ResolveMapReference(ctx, v, currentDoc)
+		// Create a new WithRef instance with the current metadata context
+		// This ensures each recursive call maintains its own file path context
+		subResolver := &WithRef{
+			refMetadata: &WithRefMetadata{
+				FilePath:    w.refMetadata.FilePath,
+				RefPath:     w.refMetadata.RefPath,
+				ProjectRoot: w.refMetadata.ProjectRoot,
+			},
+		}
+		return subResolver.ResolveMapReference(ctx, v, currentDoc)
 	case []any:
-		return w.resolveSlice(ctx, v, currentDoc)
+		result := make([]any, len(v))
+		for i, item := range v {
+			resolved, err := w.resolveValue(ctx, item, currentDoc)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to resolve slice item at index %d", i)
+			}
+			result[i] = resolved
+		}
+		return result, nil
 	default:
 		return value, nil
 	}
 }
 
-// resolveSlice resolves references in a slice
-func (w *WithRef) resolveSlice(
-	ctx context.Context,
-	slice []any,
-	currentDoc any,
-) ([]any, error) {
-	result := make([]any, len(slice))
-	for i, item := range slice {
-		resolved, err := w.resolveValue(ctx, item, currentDoc)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to resolve slice item at index %d", i)
-		}
-		result[i] = resolved
-	}
-	return result, nil
-}
-
+// setRefPathWithRef sets the RefPath in metadata for file-type references.
 func (w *WithRef) setRefPathWithRef(ref *Ref) error {
-	if ref.Type == TypeFile {
-		// For relative file references, resolve relative to the current file's directory
-		// For absolute file references, use as-is
-		var refPath string
+	if ref.Type != TypeFile {
+		return nil
+	}
+	var refPath string
+	if filepath.IsAbs(ref.File) {
 		var err error
-		if filepath.IsAbs(ref.File) {
-			refPath, err = filepath.Abs(ref.File)
-		} else {
-			// Resolve relative to the current file's directory
-			currentDir := filepath.Dir(w.refMetadata.FilePath)
-			refPath, err = filepath.Abs(filepath.Join(currentDir, ref.File))
-		}
+		refPath, err = filepath.Abs(ref.File)
 		if err != nil {
 			return errors.Wrap(err, "failed to get absolute path for ref file")
 		}
-		w.refMetadata.RefPath = refPath
+	} else {
+		currentDir := filepath.Dir(w.refMetadata.FilePath)
+		var err error
+		refPath, err = filepath.Abs(filepath.Join(currentDir, ref.File))
+		if err != nil {
+			return errors.Wrap(err, "failed to get absolute path for ref file")
+		}
 	}
+	w.refMetadata.RefPath = refPath
 	return nil
 }

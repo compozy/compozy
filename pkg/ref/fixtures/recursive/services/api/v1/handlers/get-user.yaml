@@ -1,0 +1,7 @@
+id: get_user_handler
+name: "Get User Handler"
+agent:
+  $ref: ../../../../agents/agent-2.yaml
+  instructions: "Fetch user by ID"
+transform:
+  $ref: ./transform/user-transform.yaml

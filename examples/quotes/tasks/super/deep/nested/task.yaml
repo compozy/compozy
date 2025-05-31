@@ -1,7 +1,0 @@
-type: basic
-executor:
-  type: agent
-  $ref: ../../../../agents/translator.yaml
-  action: translate
-input:
-  $ref: $global::schemas.#(id=="quote")

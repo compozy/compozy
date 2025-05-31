@@ -1,0 +1,6 @@
+id: notification_template
+subject: "Workflow Status: {{status}}"
+body: |
+  Workflow {{workflow_id}} has {{status}}.
+  Time: {{timestamp}}
+  Details: {{details}}

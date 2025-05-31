@@ -14,27 +14,48 @@ type MergeStrategy interface {
 }
 
 // -----------------------------------------------------------------------------
-// Replace Mode
+// Strategy Factory
 // -----------------------------------------------------------------------------
 
-type ReplaceMode struct{}
+// GetMergeStrategy returns the appropriate merge strategy for the given mode.
+func GetMergeStrategy(mode Mode) (MergeStrategy, error) {
+	switch mode {
+	case ModeReplace:
+		return &ReplaceStrategy{}, nil
+	case ModeAppend:
+		return &AppendStrategy{}, nil
+	case ModeMerge:
+		return &DeepMergeStrategy{}, nil
+	default:
+		return nil, errors.Errorf("unknown merge mode: %s", mode)
+	}
+}
 
-func (m *ReplaceMode) Merge(refValue, _ any) (any, error) {
+// -----------------------------------------------------------------------------
+// Replace Strategy
+// -----------------------------------------------------------------------------
+
+type ReplaceStrategy struct{}
+
+func (s *ReplaceStrategy) Merge(refValue, _ any) (any, error) {
 	return refValue, nil
 }
 
 // -----------------------------------------------------------------------------
-// Append Mode
+// Append Strategy
 // -----------------------------------------------------------------------------
 
-type AppendMode struct{}
+type AppendStrategy struct{}
 
-func (m *AppendMode) Merge(refValue, inlineValue any) (any, error) {
-	refSlice, refOk := refValue.([]any)
-	inlineSlice, inlineOk := inlineValue.([]any)
+func (s *AppendStrategy) Merge(refValue, inlineValue any) (any, error) {
+	refSlice, refOk := toSlice(refValue)
+	inlineSlice, inlineOk := toSlice(inlineValue)
+
 	if !refOk || !inlineOk {
-		return nil, errors.New("append mode only valid on arrays")
+		return nil, errors.New("append mode requires both values to be arrays")
 	}
+
+	// Create result with inline values first, then ref values
 	result := make([]any, 0, len(inlineSlice)+len(refSlice))
 	result = append(result, inlineSlice...)
 	result = append(result, refSlice...)
@@ -42,12 +63,12 @@ func (m *AppendMode) Merge(refValue, inlineValue any) (any, error) {
 }
 
 // -----------------------------------------------------------------------------
-// Merge Mode
+// Deep Merge Strategy
 // -----------------------------------------------------------------------------
 
-type MergeMode struct{}
+type DeepMergeStrategy struct{}
 
-func (m *MergeMode) Merge(refValue, inlineValue any) (any, error) {
+func (s *DeepMergeStrategy) Merge(refValue, inlineValue any) (any, error) {
 	// Handle nil cases
 	if refValue == nil {
 		return inlineValue, nil
@@ -56,160 +77,237 @@ func (m *MergeMode) Merge(refValue, inlineValue any) (any, error) {
 		return refValue, nil
 	}
 
-	// Normalize inputs to map[string]any, []any, or scalars
-	refNormalized, inlineNormalized, err := normalizeInputs(refValue, inlineValue)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to normalize inputs")
-	}
+	// Try to merge as maps
+	refMap, refIsMap := toMap(refValue)
+	inlineMap, inlineIsMap := toMap(inlineValue)
 
-	// Handle slices
-	refSlice, refIsSlice := refNormalized.([]any)
-	inlineSlice, inlineIsSlice := inlineNormalized.([]any)
-	if refIsSlice && inlineIsSlice {
-		// Perform union: include all inline elements, then ref elements
-		result := make([]any, 0, len(inlineSlice)+len(refSlice))
-		for _, inlineItem := range inlineSlice {
-			mergedItem, err := m.Merge(nil, inlineItem) // Normalize item
-			if err != nil {
-				return nil, errors.Wrap(err, "failed to merge inline slice item")
-			}
-			result = append(result, mergedItem)
-		}
-		for _, refItem := range refSlice {
-			mergedItem, err := m.Merge(refItem, nil) // Normalize item
-			if err != nil {
-				return nil, errors.Wrap(err, "failed to merge ref slice item")
-			}
-			result = append(result, mergedItem)
-		}
-		return result, nil
-	}
-
-	// Handle maps
-	refMap, refIsMap := refNormalized.(map[string]any)
-	inlineMap, inlineIsMap := inlineNormalized.(map[string]any)
 	if refIsMap && inlineIsMap {
-		// If inline map is empty, just return the ref map
-		if len(inlineMap) == 0 {
-			return refMap, nil
-		}
-		// Use Mergo to deep merge maps, with refValue winning conflicts
+		return s.mergeMaps(refMap, inlineMap)
+	}
+
+	// Try to merge as slices
+	refSlice, refIsSlice := toSlice(refValue)
+	inlineSlice, inlineIsSlice := toSlice(inlineValue)
+
+	if refIsSlice && inlineIsSlice {
+		return s.mergeSlices(refSlice, inlineSlice), nil
+	}
+
+	// For different types or scalar values, ref wins (takes precedence)
+	return refValue, nil
+}
+
+func (s *DeepMergeStrategy) mergeMaps(refMap, inlineMap map[string]any) (any, error) {
+	// If inline map is empty, just return ref map
+	if len(inlineMap) == 0 {
+		return refMap, nil
+	}
+
+	// Fast path for flat maps (no nested maps or slices)
+	if isFlat(refMap) && isFlat(inlineMap) {
 		result := make(map[string]any, len(inlineMap)+len(refMap))
-		// Merge inlineMap first (lower priority)
-		if err := mergo.Map(&result, inlineMap, mergo.WithAppendSlice); err != nil {
-			return nil, errors.Wrap(err, "failed to merge inline map")
+		// First copy inline values (base)
+		for k, v := range inlineMap {
+			result[k] = v
 		}
-		// Merge refMap with override to prioritize ref values
-		if err := mergo.Map(&result, refMap, mergo.WithOverride, mergo.WithAppendSlice); err != nil {
-			return nil, errors.Wrap(err, "failed to merge ref map")
+		// Then apply ref values (override)
+		for k, v := range refMap {
+			result[k] = v
 		}
 		return result, nil
 	}
 
-	// For non-map, non-slice types, ref wins
-	return refNormalized, nil
+	// Create result map with proper capacity
+	result := make(map[string]any, len(inlineMap)+len(refMap))
+
+	// First copy inline values (base)
+	for k, v := range inlineMap {
+		result[k] = v
+	}
+
+	// Then apply ref values (override), recursively merging nested structures
+	for k, refVal := range refMap {
+		if inlineVal, exists := inlineMap[k]; exists {
+			// Recursively merge nested values
+			merged, err := s.Merge(refVal, inlineVal)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to merge key '%s'", k)
+			}
+			result[k] = merged
+		} else {
+			result[k] = refVal
+		}
+	}
+
+	return result, nil
 }
 
-// normalizeInputs converts inputs to map[string]any, []any, or scalars
-func normalizeInputs(refValue, inlineValue any) (any, any, error) {
-	refNormalized, err := normalizeValue(refValue)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to normalize ref value")
-	}
-	inlineNormalized, err := normalizeValue(inlineValue)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to normalize inline value")
-	}
-	return refNormalized, inlineNormalized, nil
+func (s *DeepMergeStrategy) mergeSlices(refSlice, inlineSlice []any) []any {
+	// For slices, perform union: inline elements first, then ref elements
+	result := make([]any, 0, len(inlineSlice)+len(refSlice))
+	result = append(result, inlineSlice...)
+	result = append(result, refSlice...)
+	return result
 }
 
-// normalizeValue converts structs to map[string]any and handles nested types
-func normalizeValue(value any) (any, error) {
+// isFlat checks if a map contains only primitive values (no nested maps or slices).
+func isFlat(m map[string]any) bool {
+	for _, v := range m {
+		switch v.(type) {
+		case map[string]any, []any:
+			return false
+		case map[any]any, []map[string]any, []map[any]any:
+			return false
+		}
+	}
+	return true
+}
+
+// -----------------------------------------------------------------------------
+// Helper Functions
+// -----------------------------------------------------------------------------
+
+// toMap attempts to convert a value to map[string]any.
+func toMap(value any) (map[string]any, bool) {
+	// Direct type assertion
+	if m, ok := value.(map[string]any); ok {
+		return m, true
+	}
+
+	// Handle nil
 	if value == nil {
-		return nil, nil
+		return nil, false
 	}
 
-	// Handle maps and slices directly
-	switch v := value.(type) {
-	case map[string]any:
-		// Recursively normalize map values
-		result := make(map[string]any, len(v))
-		for k, val := range v {
-			normalizedVal, err := normalizeValue(val)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to normalize map key %s", k)
-			}
-			result[k] = normalizedVal
-		}
-		return result, nil
-	case []any:
-		// Recursively normalize slice elements
-		result := make([]any, len(v))
-		for i, val := range v {
-			normalizedVal, err := normalizeValue(val)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to normalize slice index %d", i)
-			}
-			result[i] = normalizedVal
-		}
-		return result, nil
-	}
-
-	// Use reflection for structs
+	// Use reflection for struct conversion
 	v := reflect.ValueOf(value)
 	if v.Kind() == reflect.Ptr {
 		if v.IsNil() {
-			return nil, nil
+			return nil, false
 		}
 		v = v.Elem()
 	}
 
 	if v.Kind() == reflect.Struct {
-		result := make(map[string]any)
-		t := v.Type()
-		for i := range v.NumField() {
-			field := t.Field(i)
-			if !field.IsExported() {
-				continue
-			}
-			fieldValue := v.Field(i).Interface()
-			// Recursively normalize field value
-			normalizedField, err := normalizeValue(fieldValue)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to normalize field %s", field.Name)
-			}
-			// Use JSON/YAML tag if available, otherwise field name
-			fieldName := field.Name
-			if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
-				fieldName = strings.Split(jsonTag, ",")[0]
-			} else if yamlTag := field.Tag.Get("yaml"); yamlTag != "" && yamlTag != "-" {
-				fieldName = strings.Split(yamlTag, ",")[0]
-			}
-			result[fieldName] = normalizedField
-		}
-		return result, nil
+		return structToMap(v), true
 	}
 
-	// Return non-struct, non-map, non-slice values as-is
-	return value, nil
+	return nil, false
+}
+
+// toSlice attempts to convert a value to []any.
+func toSlice(value any) ([]any, bool) {
+	// Direct type assertion
+	if s, ok := value.([]any); ok {
+		return s, true
+	}
+
+	// Handle nil
+	if value == nil {
+		return nil, false
+	}
+
+	// Use reflection for other slice types
+	v := reflect.ValueOf(value)
+	if v.Kind() == reflect.Slice {
+		result := make([]any, v.Len())
+		for i := 0; i < v.Len(); i++ {
+			result[i] = v.Index(i).Interface()
+		}
+		return result, true
+	}
+
+	return nil, false
+}
+
+// structToMap converts a struct to map[string]any using reflection.
+func structToMap(v reflect.Value) map[string]any {
+	result := make(map[string]any)
+	t := v.Type()
+
+	for i := 0; i < v.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+
+		fieldValue := v.Field(i).Interface()
+		fieldName := getFieldName(&field)
+
+		// Recursively convert nested structs
+		if nestedMap, ok := toMap(fieldValue); ok {
+			result[fieldName] = nestedMap
+		} else if nestedSlice, ok := toSlice(fieldValue); ok {
+			result[fieldName] = nestedSlice
+		} else {
+			result[fieldName] = fieldValue
+		}
+	}
+
+	return result
+}
+
+// getFieldName extracts the field name from tags.
+func getFieldName(field *reflect.StructField) string {
+	// Check JSON tag first
+	if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
+		if idx := strings.Index(jsonTag, ","); idx > 0 {
+			return jsonTag[:idx]
+		}
+		return jsonTag
+	}
+
+	// Check YAML tag
+	if yamlTag := field.Tag.Get("yaml"); yamlTag != "" && yamlTag != "-" {
+		if idx := strings.Index(yamlTag, ","); idx > 0 {
+			return yamlTag[:idx]
+		}
+		return yamlTag
+	}
+
+	return field.Name
 }
 
 // -----------------------------------------------------------------------------
 // Apply Merge Mode
 // -----------------------------------------------------------------------------
 
+// ApplyMergeMode applies the appropriate merge strategy based on the mode.
 func (r *Ref) ApplyMergeMode(refValue, inlineValue any) (any, error) {
 	if r == nil {
 		return inlineValue, nil
 	}
-	var strategy MergeStrategy
-	switch r.Mode {
-	case ModeReplace:
-		strategy = &ReplaceMode{}
-	case ModeAppend:
-		strategy = &AppendMode{}
-	default:
-		strategy = &MergeMode{}
+
+	strategy, err := GetMergeStrategy(r.Mode)
+	if err != nil {
+		return nil, err
 	}
+
 	return strategy.Merge(refValue, inlineValue)
+}
+
+// -----------------------------------------------------------------------------
+// Deprecated: Legacy merge implementation using mergo
+// -----------------------------------------------------------------------------
+
+// LegacyMergeMode uses the mergo library for backward compatibility.
+type LegacyMergeMode struct{}
+
+func (m *LegacyMergeMode) Merge(refValue, inlineValue any) (any, error) {
+	refMap, refOk := refValue.(map[string]any)
+	inlineMap, inlineOk := inlineValue.(map[string]any)
+
+	if !refOk || !inlineOk {
+		return refValue, nil
+	}
+
+	result := make(map[string]any)
+	if err := mergo.Map(&result, inlineMap, mergo.WithAppendSlice); err != nil {
+		return nil, errors.Wrap(err, "failed to merge inline map")
+	}
+	if err := mergo.Map(&result, refMap, mergo.WithOverride, mergo.WithAppendSlice); err != nil {
+		return nil, errors.Wrap(err, "failed to merge ref map")
+	}
+
+	return result, nil
 }

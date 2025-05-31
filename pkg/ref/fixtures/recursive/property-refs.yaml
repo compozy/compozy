@@ -1,0 +1,55 @@
+id: property_refs
+name: "Property References Test"
+
+# Define base schemas
+schemas:
+  base_user:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+
+  extended_user:
+    $ref: schemas.base_user!merge
+    properties:
+      email:
+        type: string
+        format: email
+      role:
+        $ref: roles.admin
+
+# Define roles
+roles:
+  admin:
+    name: "Administrator"
+    permissions: ["read", "write", "delete"]
+  user:
+    name: "User"
+    permissions: ["read"]
+
+# Use property references in configurations
+configs:
+  user_config:
+    schema:
+      $ref: schemas.extended_user
+    default_role:
+      $ref: roles.user
+
+  admin_config:
+    schema:
+      $ref: schemas.extended_user
+    default_role:
+      $ref: roles.admin
+
+# Array with property references
+users:
+  - $ref: schemas.extended_user!merge
+    id: "user1"
+    name: "John Doe"
+    email: "john@example.com"
+  - $ref: schemas.extended_user!merge
+    id: "user2"
+    name: "Jane Smith"
+    email: "jane@example.com"

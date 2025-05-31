@@ -1,0 +1,4 @@
+id: task1
+name: "Main Task"
+config:
+  $ref: ./super/deep/nested/task.yaml

@@ -1,0 +1,8 @@
+id: base_llm
+provider: openai
+temperature: 0.7
+max_tokens: 2048
+timeout: 30
+retry:
+  attempts: 3
+  delay: 1000

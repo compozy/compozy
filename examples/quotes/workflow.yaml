@@ -9,10 +9,6 @@ config:
         description: The language to translate to
 
 tasks:
-  - $ref: ./tasks/nested.yaml
-    on_success:
-      next: get_quote
-
   - $ref: ./tasks/get_quote.yaml
     on_success:
       next: translate_quote

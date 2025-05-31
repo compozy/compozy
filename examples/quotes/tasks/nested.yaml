@@ -1,2 +1,0 @@
-id: nested
-$ref: ./super/deep/nested/task.yaml

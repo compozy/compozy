@@ -1,0 +1,9 @@
+id: permission
+type: object
+properties:
+  resource:
+    type: string
+  action:
+    type: string
+  conditions:
+    $ref: ../../shared/schemas/conditions.yaml

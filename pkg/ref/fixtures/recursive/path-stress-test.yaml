@@ -1,0 +1,46 @@
+id: path_stress_test
+name: "Path Resolution Stress Test"
+
+# Test various relative path patterns
+test_cases:
+  # Going up multiple levels and back down
+  deep_navigation:
+    $ref: ./services/api/v1/handlers/transform/user-transform.yaml
+
+  # Reference from deep location going to root and back
+  from_deep_to_root:
+    handler:
+      $ref: ./services/api/v1/handlers/list-users.yaml
+
+  # Test path with multiple up/down traversals
+  complex_path:
+    schema:
+      $ref: ./shared/schemas/user.yaml
+    auth:
+      $ref: ./services/auth/auth-provider.yaml
+    workflow:
+      $ref: ./workflows/nested/deep/user-workflow.yaml
+
+  # Array filter with file reference
+  filtered_array:
+    $ref: ./complex-app.yaml::configurations.#(name=="override_config").config
+
+  # Nested property access with file reference
+  nested_property:
+    $ref: ./services/api/v1/service.yaml::auth.schema
+
+  # Chain of file references
+  reference_chain:
+    # This references a file that references another file
+    $ref: ./configs/overrides/workflow-config.yaml::notifications.agent
+
+  # Mix of modes
+  mode_tests:
+    replace_mode:
+      $ref: ./shared/providers/base-llm.yaml!replace
+      extra: "should be ignored"
+
+    merge_mode:
+      $ref: ./shared/providers/base-llm.yaml!merge
+      extra: "should be kept"
+      temperature: 0.3

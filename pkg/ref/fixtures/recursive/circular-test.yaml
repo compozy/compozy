@@ -1,0 +1,13 @@
+id: circular_test
+name: "Circular Reference Test"
+
+# This should work - referencing a file that references another file
+valid_chain:
+  $ref: ./services/api/v1/service.yaml
+
+# This creates a circular reference and should be detected
+circular_a:
+  $ref: ./circular-b.yaml::data
+
+data:
+  value: "circular_a_data"

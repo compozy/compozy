@@ -1,8 +1,6 @@
 package ref
 
 import (
-	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -13,76 +11,55 @@ import (
 // String Parsing
 // -----------------------------------------------------------------------------
 
-var refPattern = regexp.MustCompile(`^(?:(?P<source>.+?)::)?(?P<path>[^!]*)(?:!(?P<mode>.+))?$`)
-var globalRefPattern = regexp.MustCompile(`^(\$global)::([^!]*)(?:!(.+))?$`)
-var fileRefPattern = regexp.MustCompile(`^([^!]+)(?:!(.+))?$`)
-
 // parseStringRef parses a reference string into a Ref.
 func parseStringRef(refStr string) (*Ref, error) {
-	ref := &Ref{Mode: ModeMerge}
-
-	// First, identify the type based on string patterns
-	switch {
-	case strings.HasPrefix(refStr, "$global"):
-		// Parse global reference: $global::path!mode
-		matches := globalRefPattern.FindStringSubmatch(refStr)
-		if matches == nil {
-			return nil, errors.New("invalid global reference format: " + refStr)
-		}
-		ref.Type = TypeGlobal
-		ref.Path = matches[2]
-		if mode := matches[3]; mode != "" {
-			ref.Mode = Mode(mode)
-		}
-
-	case isFileSource(refStr) || (strings.Contains(refStr, "::") && isFileSource(strings.Split(refStr, "::")[0])):
-		// Parse file reference: ./file.yaml or ./file.yaml::path!mode
-		if strings.Contains(refStr, "::") {
-			// File with path: ./file.yaml::path!mode
-			matches := refPattern.FindStringSubmatch(refStr)
-			if matches == nil {
-				return nil, errors.New("invalid file reference format: " + refStr)
-			}
-			ref.Type = TypeFile
-			ref.File = matches[1]
-			ref.Path = matches[2]
-			if mode := matches[3]; mode != "" {
-				ref.Mode = Mode(mode)
-			}
-		} else {
-			// Just file: ./file.yaml!mode
-			matches := fileRefPattern.FindStringSubmatch(refStr)
-			if matches == nil {
-				return nil, errors.New("invalid file reference format: " + refStr)
-			}
-			ref.Type = TypeFile
-			ref.File = matches[1]
-			ref.Path = ""
-			if mode := matches[2]; mode != "" {
-				ref.Mode = Mode(mode)
-			}
-		}
-
-	default:
-		// Parse property reference: property.path!mode or source::property.path!mode
-		matches := refPattern.FindStringSubmatch(refStr)
-		if matches == nil {
-			return nil, errors.New("invalid reference format: " + refStr)
-		}
-		ref.Type = TypeProperty
-		source := matches[1]
-		ref.Path = matches[2]
-		if source != "" {
-			ref.Path = source
-		}
-		if mode := matches[3]; mode != "" {
-			ref.Mode = Mode(mode)
-		}
+	if refStr == "" {
+		return &Ref{Type: TypeProperty, Mode: ModeMerge}, nil
 	}
 
-	// Validate mode
-	if ref.Mode != ModeMerge && ref.Mode != ModeReplace && ref.Mode != ModeAppend {
-		return nil, errors.New("invalid mode: " + string(ref.Mode))
+	ref := &Ref{Mode: ModeMerge}
+
+	// Extract mode if present
+	modeIdx := strings.LastIndex(refStr, "!")
+	if modeIdx != -1 && modeIdx < len(refStr)-1 {
+		mode := refStr[modeIdx+1:]
+		if err := validateMode(mode); err != nil {
+			return nil, err
+		}
+		ref.Mode = Mode(mode)
+		refStr = refStr[:modeIdx]
+	}
+
+	// Handle global reference
+	if strings.HasPrefix(refStr, "$global") {
+		ref.Type = TypeGlobal
+		if strings.HasPrefix(refStr, "$global::") {
+			ref.Path = strings.TrimPrefix(refStr, "$global::")
+		}
+		return ref, nil
+	}
+
+	// Check for file reference (contains :: or is a file path)
+	if idx := strings.Index(refStr, "::"); idx != -1 {
+		source := refStr[:idx]
+		ref.Path = refStr[idx+2:]
+
+		if isFileSource(source) {
+			ref.Type = TypeFile
+			ref.File = source
+		} else {
+			// If source is not a file, it's a property reference with the full path
+			ref.Type = TypeProperty
+			ref.Path = refStr
+		}
+	} else if isFileSource(refStr) {
+		// Just a file reference without path
+		ref.Type = TypeFile
+		ref.File = refStr
+	} else {
+		// Simple property reference
+		ref.Type = TypeProperty
+		ref.Path = refStr
 	}
 
 	return ref, nil
@@ -95,6 +72,16 @@ func isFileSource(source string) bool {
 		strings.HasPrefix(source, "/") ||
 		strings.HasPrefix(source, "http://") ||
 		strings.HasPrefix(source, "https://")
+}
+
+// validateMode validates that the mode is one of the allowed values.
+func validateMode(mode string) error {
+	switch Mode(mode) {
+	case ModeMerge, ModeReplace, ModeAppend:
+		return nil
+	default:
+		return errors.Errorf("invalid mode: %s", mode)
+	}
 }
 
 // -----------------------------------------------------------------------------
@@ -113,27 +100,21 @@ func ParseRef(node *yaml.Node) (*Ref, error) {
 			Column:  node.Column,
 		}
 	}
+
 	ref := &Ref{Mode: ModeMerge}
 	for i := 0; i < len(node.Content); i += 2 {
 		key := node.Content[i].Value
 		value := node.Content[i+1].Value
-		switch key {
-		case "type":
-			ref.Type = Type(value)
-		case "path":
-			ref.Path = value
-		case "mode":
-			ref.Mode = Mode(value)
-		case "file":
-			ref.File = value
-		default:
+
+		if err := setRefField(ref, key, value); err != nil {
 			return nil, &Error{
-				Message: fmt.Sprintf("unknown field '%s' for $ref", key),
+				Message: err.Error(),
 				Line:    node.Content[i].Line,
 				Column:  node.Content[i].Column,
 			}
 		}
 	}
+
 	if ref.Type == "" {
 		return nil, &Error{
 			Message: "type is required for object form $ref",
@@ -141,65 +122,63 @@ func ParseRef(node *yaml.Node) (*Ref, error) {
 			Column:  node.Column,
 		}
 	}
-	if err := validateRefFields(ref, node); err != nil {
-		return nil, err
+
+	if err := validateRefFields(ref); err != nil {
+		return nil, &Error{
+			Message: err.Error(),
+			Line:    node.Line,
+			Column:  node.Column,
+		}
 	}
+
 	return ref, nil
 }
 
+// setRefField sets a field on the Ref struct based on key-value pair.
+func setRefField(ref *Ref, key, value string) error {
+	switch key {
+	case "type":
+		switch value {
+		case "property", string(TypeFile), "global":
+			ref.Type = Type(value)
+		default:
+			return errors.Errorf("unknown ref type: %s", value)
+		}
+	case "path":
+		ref.Path = value
+	case "mode":
+		if err := validateMode(value); err != nil {
+			return err
+		}
+		ref.Mode = Mode(value)
+	case "file":
+		ref.File = value
+	default:
+		return errors.Errorf("unknown field '%s' for $ref", key)
+	}
+	return nil
+}
+
 // validateRefFields validates the fields of a Ref based on its type.
-func validateRefFields(ref *Ref, node *yaml.Node) error {
+func validateRefFields(ref *Ref) error {
 	switch ref.Type {
 	case TypeProperty:
 		if ref.File != "" {
-			return &Error{
-				Message: "property type cannot have file field",
-				Line:    node.Line,
-				Column:  node.Column,
-			}
+			return errors.New("property type cannot have file field")
 		}
 		if ref.Path == "" {
-			return &Error{
-				Message: "path is required for property type",
-				Line:    node.Line,
-				Column:  node.Column,
-			}
+			return errors.New("path is required for property type")
 		}
 	case TypeFile:
 		if ref.File == "" {
-			return &Error{
-				Message: "file type requires file field",
-				Line:    node.Line,
-				Column:  node.Column,
-			}
+			return errors.New("file type requires file field")
 		}
 		if !isFileSource(ref.File) {
-			return &Error{
-				Message: fmt.Sprintf("invalid file path: %s", ref.File),
-				Line:    node.Line,
-				Column:  node.Column,
-			}
+			return errors.Errorf("invalid file path: %s", ref.File)
 		}
 	case TypeGlobal:
 		if ref.File != "" {
-			return &Error{
-				Message: "global type cannot have file field",
-				Line:    node.Line,
-				Column:  node.Column,
-			}
-		}
-	default:
-		return &Error{
-			Message: fmt.Sprintf("unknown ref type: %s", ref.Type),
-			Line:    node.Line,
-			Column:  node.Column,
-		}
-	}
-	if ref.Mode != "" && ref.Mode != ModeMerge && ref.Mode != ModeReplace && ref.Mode != ModeAppend {
-		return &Error{
-			Message: fmt.Sprintf("invalid mode: %s", ref.Mode),
-			Line:    node.Line,
-			Column:  node.Column,
+			return errors.New("global type cannot have file field")
 		}
 	}
 	return nil
@@ -211,15 +190,36 @@ func parseRefValue(refValue any) (*Ref, error) {
 	case string:
 		return parseStringRef(v)
 	case map[string]any:
-		yamlData, err := yaml.Marshal(v)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to marshal ref")
+		// Convert map to Ref struct
+		ref := &Ref{Mode: ModeMerge}
+
+		if typeVal, ok := v["type"].(string); ok {
+			if err := setRefField(ref, "type", typeVal); err != nil {
+				return nil, err
+			}
+		} else {
+			ref.Type = TypeProperty // Default type
 		}
-		var node yaml.Node
-		if err := yaml.Unmarshal(yamlData, &node); err != nil {
-			return nil, errors.Wrap(err, "failed to unmarshal ref")
+
+		if path, ok := v["path"].(string); ok {
+			ref.Path = path
 		}
-		return ParseRef(&node)
+
+		if file, ok := v["file"].(string); ok {
+			ref.File = file
+		}
+
+		if mode, ok := v["mode"].(string); ok {
+			if err := setRefField(ref, "mode", mode); err != nil {
+				return nil, err
+			}
+		}
+
+		if err := validateRefFields(ref); err != nil {
+			return nil, err
+		}
+
+		return ref, nil
 	default:
 		return nil, nil
 	}

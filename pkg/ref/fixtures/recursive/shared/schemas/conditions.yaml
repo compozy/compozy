@@ -1,0 +1,14 @@
+id: conditions
+type: object
+properties:
+  environment:
+    type: string
+  timeRange:
+    type: object
+    properties:
+      start:
+        type: string
+        format: date-time
+      end:
+        type: string
+        format: date-time

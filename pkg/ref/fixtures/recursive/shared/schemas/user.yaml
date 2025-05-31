@@ -1,0 +1,16 @@
+id: user_schema
+type: object
+properties:
+  id:
+    type: string
+  name:
+    type: string
+  email:
+    type: string
+    format: email
+  role:
+    $ref: ./role.yaml
+required:
+  - id
+  - name
+  - email

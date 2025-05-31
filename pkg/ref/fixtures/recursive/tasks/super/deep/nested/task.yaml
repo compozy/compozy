@@ -1,0 +1,8 @@
+foo: bar
+description: "Nested task configuration"
+agent:
+  $ref: ../../../../agents/agent-2.yaml
+tools:
+  - name: "tool1"
+    ref:
+      $ref: ../../../../tools/tool-1.yaml

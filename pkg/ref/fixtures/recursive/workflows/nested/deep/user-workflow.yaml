@@ -1,0 +1,15 @@
+id: user_workflow
+name: "User Management Workflow"
+steps:
+  - id: validate_auth
+    task:
+      $ref: ../../../tasks/super/deep/nested/task.yaml
+  - id: fetch_users
+    agent:
+      $ref: ../../../agents/agent-2.yaml!merge
+      instructions: "Fetch all users with pagination"
+  - id: transform_data
+    service:
+      $ref: ../../../services/api/v1/service.yaml
+config:
+  $ref: ../../../configs/overrides/workflow-config.yaml

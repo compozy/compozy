@@ -1,0 +1,8 @@
+id: user_transform
+type: "jq"
+expression: ".user | {id, name, email}"
+validation:
+  input:
+    $ref: ../../../../../shared/schemas/user.yaml
+  output:
+    $ref: ../../../../../shared/schemas/user.yaml
