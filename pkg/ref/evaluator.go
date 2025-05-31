@@ -132,6 +132,12 @@ func (ev *Evaluator) Eval(node Node) (Node, error) {
 					return nil, fmt.Errorf("%s node may not contain sibling keys", dirName)
 				}
 				if directive, ok := getDirectives()[dirName]; ok {
+					// Run validator first if present
+					if directive.Validator != nil {
+						if err := directive.Validator(value); err != nil {
+							return nil, err
+						}
+					}
 					result, err := directive.Handler(ev, value)
 					if err != nil {
 						return nil, err

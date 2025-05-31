@@ -28,6 +28,65 @@ const (
 // $merge Directive
 // -----------------------------------------------------------------------------
 
+func validateMerge(node Node) error {
+	// Check if this is potentially a directive node that needs evaluation first
+	if isDirectiveNode(node) {
+		return nil
+	}
+
+	switch v := node.(type) {
+	case []any:
+		return validateMergeArray(v)
+	case map[string]any:
+		return validateMergeMap(v)
+	default:
+		return fmt.Errorf("$merge must be a sequence or mapping with 'sources'")
+	}
+}
+
+func isDirectiveNode(node Node) bool {
+	m, ok := node.(map[string]any)
+	if !ok || len(m) != 1 {
+		return false
+	}
+	for key := range m {
+		if key == "$use" || key == "$ref" || key == "$merge" {
+			return true
+		}
+	}
+	return false
+}
+
+func validateMergeArray(v []any) error {
+	if len(v) == 0 {
+		return fmt.Errorf("$merge sources cannot be empty")
+	}
+	return nil
+}
+
+func validateMergeMap(v map[string]any) error {
+	// Must have 'sources' key
+	sourcesRaw, ok := v["sources"]
+	if !ok {
+		return fmt.Errorf("$merge mapping must contain 'sources' key")
+	}
+	sourcesList, ok := sourcesRaw.([]any)
+	if !ok {
+		return fmt.Errorf("$merge sources must be a sequence")
+	}
+	if len(sourcesList) == 0 {
+		return fmt.Errorf("$merge sources cannot be empty")
+	}
+
+	// Validate no unknown keys
+	for k := range v {
+		if k != "sources" && k != "strategy" && k != "key_conflict" {
+			return fmt.Errorf("unknown key in $merge: %s", k)
+		}
+	}
+	return nil
+}
+
 func handleMerge(ev *Evaluator, node Node) (Node, error) {
 	// First check if the node itself is a directive that needs evaluation
 	if evaluated, ok, err := tryEvaluateDirective(ev, node); ok {
@@ -38,15 +97,8 @@ func handleMerge(ev *Evaluator, node Node) (Node, error) {
 		return handleMerge(ev, evaluated)
 	}
 
-	// Parse merge configuration
-	sources, strategy, keyConflict, err := parseMergeConfig(node)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(sources) == 0 {
-		return nil, fmt.Errorf("$merge sources cannot be empty")
-	}
+	// Parse merge configuration (validation already done)
+	sources, strategy, keyConflict := parseMergeConfig(node)
 
 	// Evaluate all sources first
 	evaluatedSources := make([]any, len(sources))
@@ -93,23 +145,24 @@ func tryEvaluateDirective(ev *Evaluator, node Node) (Node, bool, error) {
 	return nil, false, nil
 }
 
-// parseMergeConfig extracts merge configuration from the node
-func parseMergeConfig(node Node) (sources []any, strategy, keyConflict string, err error) {
+// parseMergeConfig extracts merge configuration from the node (assumes validation passed)
+func parseMergeConfig(node Node) (sources []any, strategy, keyConflict string) {
 	switch v := node.(type) {
 	case []any:
 		// Shorthand syntax
-		return v, strategyDefault, keyConflictLast, nil
+		return v, strategyDefault, keyConflictLast
 	case map[string]any:
 		// Explicit syntax
 		sourcesRaw, ok := v["sources"]
 		if !ok {
-			return nil, "", "", fmt.Errorf("$merge mapping must contain 'sources' key")
+			// Should never happen after validation
+			panic("parseMergeConfig: sources key not found")
 		}
-		sourcesList, ok := sourcesRaw.([]any)
+		sources, ok = sourcesRaw.([]any)
 		if !ok {
-			return nil, "", "", fmt.Errorf("$merge sources must be a sequence")
+			// Should never happen after validation
+			panic("parseMergeConfig: sources is not an array")
 		}
-		sources = sourcesList
 
 		// Get strategy (default based on content type)
 		if s, ok := v["strategy"].(string); ok {
@@ -125,16 +178,10 @@ func parseMergeConfig(node Node) (sources []any, strategy, keyConflict string, e
 			keyConflict = keyConflictLast
 		}
 
-		// Validate no unknown keys
-		for k := range v {
-			if k != "sources" && k != "strategy" && k != "key_conflict" {
-				return nil, "", "", fmt.Errorf("unknown key in $merge: %s", k)
-			}
-		}
-
-		return sources, strategy, keyConflict, nil
+		return sources, strategy, keyConflict
 	default:
-		return nil, "", "", fmt.Errorf("$merge must be a sequence or mapping with 'sources'")
+		// Should never reach here after validation
+		panic("unexpected node type in parseMergeConfig")
 	}
 }
 
@@ -142,7 +189,6 @@ func parseMergeConfig(node Node) (sources []any, strategy, keyConflict string, e
 func determineMergeType(sources []any) (string, error) {
 	var allMaps, allSlices bool
 	var hasNonNil bool
-
 	for _, src := range sources {
 		if src == nil {
 			continue
@@ -165,7 +211,6 @@ func determineMergeType(sources []any) (string, error) {
 			return "", fmt.Errorf("$merge source must be an object or array, got %T", src)
 		}
 	}
-
 	if !hasNonNil {
 		return "nil", nil
 	}
@@ -182,14 +227,17 @@ func mergeObjects(sources []any, strategy, keyConflict string) (Node, error) {
 	if strategy == strategyDefault {
 		strategy = strategyDeep
 	}
-	// Validate strategy
+
+	// Validate strategy with specific error message
 	if strategy != strategyDeep && strategy != strategyShallow {
 		return nil, fmt.Errorf("invalid object merge strategy: %s (must be 'deep' or 'shallow')", strategy)
 	}
-	// Validate key_conflict
+
+	// Validate key_conflict with specific error message
 	if keyConflict != keyConflictLast && keyConflict != keyConflictFirst && keyConflict != keyConflictError {
 		return nil, fmt.Errorf("invalid key_conflict: %s (must be 'last', 'first', or 'error')", keyConflict)
 	}
+
 	result := make(map[string]any)
 	// For deep merge with "last" conflict resolution, we can use mergo
 	if strategy == strategyDeep && keyConflict == keyConflictLast {
@@ -204,7 +252,6 @@ func mergeObjects(sources []any, strategy, keyConflict string) (Node, error) {
 		if !ok {
 			continue // Skip non-maps (defensive)
 		}
-
 		if err := mergeObjectsCustom(result, srcMap, strategy, keyConflict); err != nil {
 			return nil, err
 		}
@@ -268,10 +315,12 @@ func mergeArrays(sources []any, strategy string) (Node, error) {
 	if strategy == strategyDefault {
 		strategy = strategyConcat
 	}
-	// Validate strategy
+
+	// Validate strategy with specific error message
 	if strategy != strategyConcat && strategy != strategyPrepend && strategy != strategyUnique {
 		return nil, fmt.Errorf("invalid array merge strategy: %s (must be 'concat', 'prepend', or 'unique')", strategy)
 	}
+
 	switch strategy {
 	case strategyConcat:
 		return mergeArraysConcat(sources), nil

@@ -6,18 +6,26 @@ import "fmt"
 // $use Directive
 // -----------------------------------------------------------------------------
 
+func validateUse(node Node) error {
+	str, ok := node.(string)
+	if !ok {
+		return fmt.Errorf("$use must be a string")
+	}
+	matches := useDirectiveRegex.FindStringSubmatch(str)
+	if matches == nil {
+		return fmt.Errorf("invalid $use syntax: %s, expected format: "+
+			"<component=agent|tool|task>(<scope=local|global>::<gjson_path>)", str)
+	}
+	return nil
+}
+
 func handleUse(es *Evaluator, node Node) (Node, error) {
 	str, ok := node.(string)
 	if !ok {
+		// This should never happen as validation passed
 		return nil, fmt.Errorf("$use must be a string")
 	}
-
 	matches := useDirectiveRegex.FindStringSubmatch(str)
-	if matches == nil {
-		return nil, fmt.Errorf("invalid $use syntax: %s, expected format: "+
-			"<component=agent|tool|task>(<scope=local|global>::<gjson_path>)", str)
-	}
-
 	component := matches[1]
 	scope := matches[2]
 	gjsonPath := matches[3]

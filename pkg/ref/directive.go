@@ -6,8 +6,9 @@ import (
 )
 
 type Directive struct {
-	Name    string
-	Handler func(ctx *Evaluator, node Node) (Node, error)
+	Name      string
+	Validator func(node Node) error
+	Handler   func(ctx *Evaluator, node Node) (Node, error)
 }
 
 var (
@@ -23,9 +24,9 @@ var (
 func getDirectives() map[string]Directive {
 	once.Do(func() {
 		directives = map[string]Directive{
-			"$use":   {Name: "$use", Handler: handleUse},
-			"$ref":   {Name: "$ref", Handler: handleRef},
-			"$merge": {Name: "$merge", Handler: handleMerge},
+			"$use":   {Name: "$use", Validator: validateUse, Handler: handleUse},
+			"$ref":   {Name: "$ref", Validator: validateRef, Handler: handleRef},
+			"$merge": {Name: "$merge", Validator: validateMerge, Handler: handleMerge},
 		}
 	})
 	return directives
