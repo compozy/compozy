@@ -2,33 +2,37 @@ id: weather-agent
 version: 0.1.0
 description: A simple weather agent that provides weather information based on location
 
-config:
-  input:
+schemas:
+  - id: city_input
     type: object
     properties:
       city:
         type: string
         description: The city to get weather information for
+    required: [city]
+
+  - id: weather_output
+    type: object
+    properties:
+      temperature:
+        type: number
+        description: Current temperature
+      humidity:
+        type: number
+        description: Current humidity percentage
+
+config:
+  input:
+    $ref: local::schemas.#(id=="city_input")
 
 tools:
   - id: weather_tool
     description: Get the current weather for a specific location
     execute: ./weather_tool.ts
     input:
-      type: object
-      properties:
-        city:
-          type: string
-          description: The city to get weather information for
+      $ref: local::schemas.#(id=="city_input")
     output:
-      type: object
-      properties:
-        temperature:
-          type: number
-          description: Current temperature
-        humidity:
-          type: number
-          description: Current humidity percentage
+      $ref: local::schemas.$(id=="weather_output")
 
   - id: save_data
     description: Save the weather data to a file
@@ -43,9 +47,7 @@ tools:
 agents:
   - id: inline_agent
     config:
-      provider: groq
-      model: llama-3.3-70b-versatile
-      api_key: "{{ .env.OPENAI_API_KEY }}"
+      $ref: $global::models.#(id=groq-llama)
     instructions: |
       You are a helpful weather assistant that provides accurate weather information.
       Your primary function is to help users get weather details for specific locations.
@@ -55,22 +57,16 @@ agents:
         - Provide weather information and clothing suggestions based on conditions
       Use the weather_tool to fetch current weather data.
     tools:
-      - use: tool(id=weather_tool)
+      - $use: tool(local::tools.#(id=="weather_tool"))
     actions:
       - id: get_current_weather
         prompt: What is the weather in {{ .input.city }}?
         output:
           type: object
           properties:
-            weather:
-              type: string
-              description: Current weather conditions (e.g., Sunny, Rainy)
-            temperature:
-              type: number
-              description: Current temperature
-            city:
-              type: string
-              description: The city to get weather information for
+            $merge:
+              - $ref: local::schemas.#(id=="city_input")
+              - $ref: local::schemas.$(id=="weather_output)
 
       - id: suggest_activities
         prompt: |
@@ -104,7 +100,7 @@ agents:
 tasks:
   - id: get_current_weather
     type: basic
-    use: agent(id=inline_agent)
+    $use: agent(local::agents.#(id="inline_agent"))
     action: get_current_weather
     with:
       city: "{{ .trigger.input.city }}"
@@ -113,7 +109,7 @@ tasks:
 
   - id: suggest_activities
     type: basic
-    use: agent(id=inline_agent)
+    $use: agent(local::agents.#(id="inline_agent"))
     action: suggest_activities
     with:
       city: "{{ .trigger.input.city }}"
@@ -124,7 +120,7 @@ tasks:
 
   - id: suggest_clothing
     type: basic
-    use: agent(id=inline_agent)
+    $use: agent(local::agents.#(id="inline_agent"))
     action: suggest_clothing
     with:
       city: "{{ .trigger.input.city }}"
@@ -136,7 +132,7 @@ tasks:
 
   - id: save_weather_data
     type: basic
-    use: tool(id=save_data)
+    $use: tool(local::tools.#(id="save_data"))
     final: true
     with:
       city: "{{ .trigger.input.city }}"
