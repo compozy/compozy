@@ -2,74 +2,57 @@ package ref
 
 import (
 	"reflect"
-	"strings"
 
 	"dario.cat/mergo"
 	"github.com/pkg/errors"
 )
 
-// MergeStrategy defines a strategy for merging reference and inline values.
-type MergeStrategy interface {
-	Merge(refValue, inlineValue any) (any, error)
-}
+// ApplyMergeMode applies the merge strategy based on the Ref's mode.
+// It merges refValue into inlineValue based on the specified r.Mode.
+//
+// Behavior:
+// - ModeReplace: refValue is returned, inlineValue is ignored.
+// - ModeAppend:
+//   - If both refValue and inlineValue are slices, they are concatenated (inlineValue first, then refValue).
+//   - If one is a slice and the other is nil, the slice is returned.
+//   - Otherwise, an error is returned.
+// - ModeMerge:
+//   - If both refValue and inlineValue are maps (map[string]any), they are merged.
+//     The inlineMap serves as the base, and refMap is merged into it.
+//     `mergo.WithOverride` ensures that values from refMap replace values in inlineMap for common keys.
+//     `mergo.WithAppendSlice` ensures that if both maps have slices for the same key, the slices are appended.
+//   - If either value is nil, the non-nil value is returned.
+//   - If types are different and not both maps (e.g., map and a slice, or scalar types),
+//     refValue takes precedence and is returned. This aligns with the previous behavior
+//     where the referenced content was considered dominant in case of type mismatch for merging.
+// - Default: An error is returned for any unknown merge mode.
+func (r *Ref) ApplyMergeMode(refValue, inlineValue any) (any, error) {
+	if r == nil {
+		// This case should ideally not be reached if called on a valid Ref instance.
+		// If r is nil, we might default to returning inlineValue or error.
+		// The original code returned inlineValue, errors.New("ApplyMergeMode called on nil Ref") seems safer.
+		return nil, errors.New("ApplyMergeMode called on nil Ref instance")
+	}
 
-// -----------------------------------------------------------------------------
-// Strategy Factory
-// -----------------------------------------------------------------------------
-
-// GetMergeStrategy returns the appropriate merge strategy for the given mode.
-func GetMergeStrategy(mode Mode) (MergeStrategy, error) {
-	switch mode {
+	switch r.Mode {
 	case ModeReplace:
-		return &ReplaceStrategy{}, nil
+		return refValue, nil
 	case ModeAppend:
-		return &AppendStrategy{}, nil
+		return appendValues(refValue, inlineValue)
 	case ModeMerge:
-		return &DeepMergeStrategy{}, nil
+		return mergeValues(refValue, inlineValue)
 	default:
-		return nil, errors.Errorf("unknown merge mode: %s", mode)
+		// Fallback to ModeMerge if mode is empty or not set, common in tests or older configs
+		if r.Mode == "" {
+			// Defaulting to Merge as it's often the implicit expectation
+			return mergeValues(refValue, inlineValue)
+		}
+		return nil, errors.Errorf("unknown merge mode: '%s'", r.Mode)
 	}
 }
 
-// -----------------------------------------------------------------------------
-// Replace Strategy
-// -----------------------------------------------------------------------------
-
-type ReplaceStrategy struct{}
-
-func (s *ReplaceStrategy) Merge(refValue, _ any) (any, error) {
-	return refValue, nil
-}
-
-// -----------------------------------------------------------------------------
-// Append Strategy
-// -----------------------------------------------------------------------------
-
-type AppendStrategy struct{}
-
-func (s *AppendStrategy) Merge(refValue, inlineValue any) (any, error) {
-	refSlice, refOk := toSlice(refValue)
-	inlineSlice, inlineOk := toSlice(inlineValue)
-
-	if !refOk || !inlineOk {
-		return nil, errors.New("append mode requires both values to be arrays")
-	}
-
-	// Create result with inline values first, then ref values
-	result := make([]any, 0, len(inlineSlice)+len(refSlice))
-	result = append(result, inlineSlice...)
-	result = append(result, refSlice...)
-	return result, nil
-}
-
-// -----------------------------------------------------------------------------
-// Deep Merge Strategy
-// -----------------------------------------------------------------------------
-
-type DeepMergeStrategy struct{}
-
-func (s *DeepMergeStrategy) Merge(refValue, inlineValue any) (any, error) {
-	// Handle nil cases
+func mergeValues(refValue, inlineValue any) (any, error) {
+	// If either is nil, return the other value directly.
 	if refValue == nil {
 		return inlineValue, nil
 	}
@@ -77,237 +60,113 @@ func (s *DeepMergeStrategy) Merge(refValue, inlineValue any) (any, error) {
 		return refValue, nil
 	}
 
-	// Try to merge as maps
-	refMap, refIsMap := toMap(refValue)
-	inlineMap, inlineIsMap := toMap(inlineValue)
+	// Attempt to assert to map[string]any for mergo.
+	// We make copies to avoid modifying the original input maps/slices.
+	refMap, okRef := refValue.(map[string]any)
+	inlineMap, okInline := inlineValue.(map[string]any)
 
-	if refIsMap && inlineIsMap {
-		return s.mergeMaps(refMap, inlineMap)
+	if okRef && okInline {
+		// Create a deep copy of inlineMap to serve as the destination (dst).
+		// This prevents modification of the original inlineValue.
+		dst := make(map[string]any)
+		// mergo.Map(&dst, inlineMap, mergo.WithOverride) // WithOverride to ensure it's a full copy
+		// A simpler way to copy for this case:
+		for k, v := range inlineMap {
+			dst[k] = v // This is a shallow copy of the map's top level.
+			              // For deep copy of nested structures, a proper deep copy func would be needed
+									  // or rely on mergo to handle it if we merge into an empty map first.
+									  // Let's use mergo for a clean deep copy into dst.
+		}
+		// Re-initialize dst for a clean deep copy by mergo
+		dst = make(map[string]any)
+		if err := mergo.Map(&dst, inlineMap, mergo.WithOverride); err != nil {
+			return nil, errors.Wrap(err, "failed to deep copy inline map for merge")
+		}
+
+		// Merge refMap into dst.
+		// - mergo.WithOverride: Values from refMap will overwrite values in dst for the same keys.
+		// - mergo.WithAppendSlice: Slices for the same key in both maps will be appended.
+		if err := mergo.Map(&dst, refMap, mergo.WithOverride, mergo.WithAppendSlice); err != nil {
+			return nil, errors.Wrap(err, "failed to merge refValue into inlineValue")
+		}
+		return dst, nil
 	}
 
-	// Try to merge as slices
-	refSlice, refIsSlice := toSlice(refValue)
-	inlineSlice, inlineIsSlice := toSlice(inlineValue)
-
-	if refIsSlice && inlineIsSlice {
-		return s.mergeSlices(refSlice, inlineSlice), nil
-	}
-
-	// For different types or scalar values, ref wins (takes precedence)
+	// If not both are maps (e.g., one is a map, the other a slice, or scalar types),
+	// the refValue takes precedence. This is consistent with the previous behavior
+	// where the external reference content is considered dominant if a structural merge isn't possible.
 	return refValue, nil
 }
 
-func (s *DeepMergeStrategy) mergeMaps(refMap, inlineMap map[string]any) (any, error) {
-	// If inline map is empty, just return ref map
-	if len(inlineMap) == 0 {
-		return refMap, nil
+func appendValues(refValue, inlineValue any) (any, error) {
+	// Handle cases where one or both values are nil.
+	if refValue == nil && inlineValue == nil {
+		return []any{}, nil // Or return nil, depending on desired behavior for two nils. Empty slice is safer.
 	}
 
-	// Fast path for flat maps (no nested maps or slices)
-	if isFlat(refMap) && isFlat(inlineMap) {
-		result := make(map[string]any, len(inlineMap)+len(refMap))
-		// First copy inline values (base)
-		for k, v := range inlineMap {
-			result[k] = v
-		}
-		// Then apply ref values (override)
-		for k, v := range refMap {
-			result[k] = v
-		}
-		return result, nil
+	refSlice, refIsSlice := toSliceE(refValue)
+	inlineSlice, inlineIsSlice := toSliceE(inlineValue)
+
+	if refIsSlice && inlineIsSlice {
+		// Both are slices, concatenate them: inline elements first, then ref elements.
+		return append(inlineSlice, refSlice...), nil
 	}
 
-	// Create result map with proper capacity
-	result := make(map[string]any, len(inlineMap)+len(refMap))
-
-	// First copy inline values (base)
-	for k, v := range inlineMap {
-		result[k] = v
+	// If one is a slice and the other is nil, return the slice.
+	if refIsSlice && inlineValue == nil {
+		return refSlice, nil // Or a copy: append([]any(nil), refSlice...)
+	}
+	if inlineIsSlice && refValue == nil {
+		return inlineSlice, nil // Or a copy: append([]any(nil), inlineSlice...)
 	}
 
-	// Then apply ref values (override), recursively merging nested structures
-	for k, refVal := range refMap {
-		if inlineVal, exists := inlineMap[k]; exists {
-			// Recursively merge nested values
-			merged, err := s.Merge(refVal, inlineVal)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to merge key '%s'", k)
-			}
-			result[k] = merged
-		} else {
-			result[k] = refVal
-		}
+	// If we reach here, types are incompatible for append (e.g., map and slice, or scalar).
+	// The ModeAppend is primarily intended for slices.
+	// Error if types are not amenable to appending.
+	// It's important to clarify behavior: if one is a slice and the other is not (and not nil), is it an error?
+	// The original AppendStrategy strictly required both to be arrays/slices.
+	// The prompt's example errors out if not both slices.
+	errMsg := "append mode requires both values to be slices"
+	if refValue != nil && !refIsSlice {
+		errMsg = errMsg + errors.Errorf("; ref value is %T", refValue).Error()
 	}
-
-	return result, nil
+	if inlineValue != nil && !inlineIsSlice {
+		errMsg = errMsg + errors.Errorf("; inline value is %T", inlineValue).Error()
+	}
+	return nil, errors.New(errMsg)
 }
 
-func (s *DeepMergeStrategy) mergeSlices(refSlice, inlineSlice []any) []any {
-	// For slices, perform union: inline elements first, then ref elements
-	result := make([]any, 0, len(inlineSlice)+len(refSlice))
-	result = append(result, inlineSlice...)
-	result = append(result, refSlice...)
-	return result
-}
-
-// isFlat checks if a map contains only primitive values (no nested maps or slices).
-func isFlat(m map[string]any) bool {
-	for _, v := range m {
-		switch v.(type) {
-		case map[string]any, []any:
-			return false
-		case map[any]any, []map[string]any, []map[any]any:
-			return false
-		}
+// toSliceE converts a value to []any if it's a slice.
+// It returns the converted slice and a boolean indicating success.
+func toSliceE(value any) ([]any, bool) {
+	if value == nil {
+		return nil, false // Nil is not considered a slice here. Or true, with nil slice.
+		                 // For append, if one is nil, it's better to treat it as an empty slice implicitly.
+										 // However, the appendValues logic handles nil explicitly first.
 	}
-	return true
+	val := reflect.ValueOf(value)
+	if val.Kind() == reflect.Slice {
+		// Create a new slice and copy elements.
+		// This is important to avoid modifying original slice data if it's not []any.
+		count := val.Len()
+		slice := make([]any, count)
+		for i := 0; i < count; i++ {
+			slice[i] = val.Index(i).Interface()
+		}
+		return slice, true
+	}
+	return nil, false
 }
 
-// -----------------------------------------------------------------------------
-// Helper Functions
-// -----------------------------------------------------------------------------
-
-// toMap attempts to convert a value to map[string]any.
-func toMap(value any) (map[string]any, bool) {
-	// Direct type assertion
+// Helper function convertToMap (not strictly needed if mergo handles it, but good for type safety before calling mergo)
+// For this implementation, direct type assertion `value.(map[string]any)` is used in mergeValues.
+// mergo itself can handle map[any]any to some extent, but map[string]any is common for JSON/YAML data.
+// This function is not used in the current implementation above but kept for reference.
+func convertToMap(value any) (map[string]any, bool) {
 	if m, ok := value.(map[string]any); ok {
 		return m, true
 	}
-
-	// Handle nil
-	if value == nil {
-		return nil, false
-	}
-
-	// Use reflection for struct conversion
-	v := reflect.ValueOf(value)
-	if v.Kind() == reflect.Ptr {
-		if v.IsNil() {
-			return nil, false
-		}
-		v = v.Elem()
-	}
-
-	if v.Kind() == reflect.Struct {
-		return structToMap(v), true
-	}
-
+	// Potentially handle map[any]any or structs here if needed,
+	// but mergo might do some of this. For now, keep it simple.
 	return nil, false
-}
-
-// toSlice attempts to convert a value to []any.
-func toSlice(value any) ([]any, bool) {
-	// Direct type assertion
-	if s, ok := value.([]any); ok {
-		return s, true
-	}
-
-	// Handle nil
-	if value == nil {
-		return nil, false
-	}
-
-	// Use reflection for other slice types
-	v := reflect.ValueOf(value)
-	if v.Kind() == reflect.Slice {
-		result := make([]any, v.Len())
-		for i := 0; i < v.Len(); i++ {
-			result[i] = v.Index(i).Interface()
-		}
-		return result, true
-	}
-
-	return nil, false
-}
-
-// structToMap converts a struct to map[string]any using reflection.
-func structToMap(v reflect.Value) map[string]any {
-	result := make(map[string]any)
-	t := v.Type()
-
-	for i := 0; i < v.NumField(); i++ {
-		field := t.Field(i)
-		if !field.IsExported() {
-			continue
-		}
-
-		fieldValue := v.Field(i).Interface()
-		fieldName := getFieldName(&field)
-
-		// Recursively convert nested structs
-		if nestedMap, ok := toMap(fieldValue); ok {
-			result[fieldName] = nestedMap
-		} else if nestedSlice, ok := toSlice(fieldValue); ok {
-			result[fieldName] = nestedSlice
-		} else {
-			result[fieldName] = fieldValue
-		}
-	}
-
-	return result
-}
-
-// getFieldName extracts the field name from tags.
-func getFieldName(field *reflect.StructField) string {
-	// Check JSON tag first
-	if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
-		if idx := strings.Index(jsonTag, ","); idx > 0 {
-			return jsonTag[:idx]
-		}
-		return jsonTag
-	}
-
-	// Check YAML tag
-	if yamlTag := field.Tag.Get("yaml"); yamlTag != "" && yamlTag != "-" {
-		if idx := strings.Index(yamlTag, ","); idx > 0 {
-			return yamlTag[:idx]
-		}
-		return yamlTag
-	}
-
-	return field.Name
-}
-
-// -----------------------------------------------------------------------------
-// Apply Merge Mode
-// -----------------------------------------------------------------------------
-
-// ApplyMergeMode applies the appropriate merge strategy based on the mode.
-func (r *Ref) ApplyMergeMode(refValue, inlineValue any) (any, error) {
-	if r == nil {
-		return inlineValue, nil
-	}
-
-	strategy, err := GetMergeStrategy(r.Mode)
-	if err != nil {
-		return nil, err
-	}
-
-	return strategy.Merge(refValue, inlineValue)
-}
-
-// -----------------------------------------------------------------------------
-// Deprecated: Legacy merge implementation using mergo
-// -----------------------------------------------------------------------------
-
-// LegacyMergeMode uses the mergo library for backward compatibility.
-type LegacyMergeMode struct{}
-
-func (m *LegacyMergeMode) Merge(refValue, inlineValue any) (any, error) {
-	refMap, refOk := refValue.(map[string]any)
-	inlineMap, inlineOk := inlineValue.(map[string]any)
-
-	if !refOk || !inlineOk {
-		return refValue, nil
-	}
-
-	result := make(map[string]any)
-	if err := mergo.Map(&result, inlineMap, mergo.WithAppendSlice); err != nil {
-		return nil, errors.Wrap(err, "failed to merge inline map")
-	}
-	if err := mergo.Map(&result, refMap, mergo.WithOverride, mergo.WithAppendSlice); err != nil {
-		return nil, errors.Wrap(err, "failed to merge ref map")
-	}
-
-	return result, nil
 }

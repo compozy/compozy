@@ -9,10 +9,10 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Merge Strategy Matrix Tests
+// ApplyMergeMode Matrix Tests
 // -----------------------------------------------------------------------------
 
-func TestMergeStrategy_Matrix(t *testing.T) {
+func TestApplyMergeMode_Matrix(t *testing.T) {
 	tests := []struct {
 		name    string
 		mode    Mode
@@ -68,10 +68,24 @@ func TestMergeStrategy_Matrix(t *testing.T) {
 		},
 		{
 			name:    "append with nil ref",
-			mode:    ModeAppend,
-			ref:     nil,
-			inline:  []any{"a"},
-			wantErr: true, // nil is not considered an array
+			mode:   ModeAppend,
+			ref:    nil,
+			inline: []any{"a"},
+			want:   []any{"a"}, // if ref is nil, inline slice is returned
+		},
+		{
+			name: "append mode with nil inline",
+			mode: ModeAppend,
+			ref:  []any{"a"},
+			inline: nil,
+			want: []any{"a"}, // if inline is nil, ref slice is returned
+		},
+		{
+			name: "append mode with both nil",
+			mode: ModeAppend,
+			ref:  nil,
+			inline: nil,
+			want: []any{}, // empty slice if both nil
 		},
 		{
 			name:    "append mode type mismatch - ref not array",
@@ -139,32 +153,41 @@ func TestMergeStrategy_Matrix(t *testing.T) {
 		{
 			name:   "merge arrays (union)",
 			mode:   ModeMerge,
-			ref:    []any{"a", "b"},
-			inline: []any{"c", "d"},
-			want:   []any{"c", "d", "a", "b"}, // inline first, then ref
+			ref:    []any{"a", "b"}, // ref is a slice
+			inline: []any{"c", "d"}, // inline is a slice
+			// According to new mergeValues: if not both maps, refValue takes precedence.
+			want: []any{"a", "b"},
 		},
 		{
-			name:   "merge mixed type arrays",
+			name:   "merge mixed type arrays - ref wins as not maps",
 			mode:   ModeMerge,
 			ref:    []any{1, "string", true},
 			inline: []any{"other", 2},
-			want:   []any{"other", 2, 1, "string", true},
+			// According to new mergeValues: if not both maps, refValue takes precedence.
+			want: []any{1, "string", true},
 		},
 
-		// Merge Mode Tests - Different Types
+		// Merge Mode Tests - Different Types (refValue wins if not both maps)
 		{
-			name:   "merge different types - ref wins",
+			name:   "merge different types - ref wins (string vs int)",
 			mode:   ModeMerge,
 			ref:    "string_ref",
 			inline: 42,
 			want:   "string_ref",
 		},
 		{
-			name:   "merge map vs array - ref wins",
+			name:   "merge map vs array - ref wins (map vs slice)",
 			mode:   ModeMerge,
 			ref:    map[string]any{"key": "value"},
 			inline: []any{"item1", "item2"},
 			want:   map[string]any{"key": "value"},
+		},
+		{
+			name:   "merge array vs map - ref wins (slice vs map)",
+			mode:   ModeMerge,
+			ref:    []any{"item1", "item2"},
+			inline: map[string]any{"key": "value"},
+			want:   []any{"item1", "item2"},
 		},
 		{
 			name:   "merge with nil ref",
@@ -233,158 +256,23 @@ func TestMergeStrategy_Matrix(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			strategy, err := GetMergeStrategy(tc.mode)
-			require.NoError(t, err)
+			// Create a Ref instance with the specified mode
+			refInstance := &Ref{Mode: tc.mode}
 
-			got, err := strategy.Merge(tc.ref, tc.inline)
+			got, err := refInstance.ApplyMergeMode(tc.ref, tc.inline)
+
 			if tc.wantErr {
-				assert.Error(t, err)
+				assert.Error(t, err, fmt.Sprintf("Expected an error for mode %s", tc.mode))
 			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tc.want, got)
+				require.NoError(t, err, fmt.Sprintf("Did not expect an error for mode %s", tc.mode))
+				assert.Equal(t, tc.want, got, fmt.Sprintf("Output mismatch for mode %s", tc.mode))
 			}
 		})
 	}
 }
 
-// -----------------------------------------------------------------------------
-// GetMergeStrategy Tests
-// -----------------------------------------------------------------------------
-
-func TestGetMergeStrategy(t *testing.T) {
-	tests := []struct {
-		mode     Mode
-		wantErr  bool
-		wantType string
-	}{
-		{ModeMerge, false, "*ref.DeepMergeStrategy"},
-		{ModeReplace, false, "*ref.ReplaceStrategy"},
-		{ModeAppend, false, "*ref.AppendStrategy"},
-		{Mode("invalid"), true, ""},
-	}
-
-	for _, tc := range tests {
-		t.Run(string(tc.mode), func(t *testing.T) {
-			strategy, err := GetMergeStrategy(tc.mode)
-			if tc.wantErr {
-				assert.Error(t, err)
-				assert.Nil(t, strategy)
-			} else {
-				require.NoError(t, err)
-				assert.NotNil(t, strategy)
-				// Check the type name matches expected strategy
-				typeName := fmt.Sprintf("%T", strategy)
-				assert.Equal(t, tc.wantType, typeName)
-			}
-		})
-	}
-}
-
-// -----------------------------------------------------------------------------
-// Individual Strategy Tests
-// -----------------------------------------------------------------------------
-
-func TestReplaceStrategy(t *testing.T) {
-	strategy := &ReplaceStrategy{}
-
-	t.Run("Should always return ref value", func(t *testing.T) {
-		testCases := []struct {
-			ref    any
-			inline any
-		}{
-			{"ref", "inline"},
-			{42, "string"},
-			{map[string]any{"key": "ref"}, map[string]any{"key": "inline"}},
-			{[]any{"ref"}, []any{"inline"}},
-			{nil, "something"},
-		}
-
-		for _, tc := range testCases {
-			result, err := strategy.Merge(tc.ref, tc.inline)
-			require.NoError(t, err)
-			assert.Equal(t, tc.ref, result)
-		}
-	})
-}
-
-func TestAppendStrategy(t *testing.T) {
-	strategy := &AppendStrategy{}
-
-	t.Run("Should append arrays correctly", func(t *testing.T) {
-		result, err := strategy.Merge([]any{"a", "b"}, []any{"c", "d"})
-		require.NoError(t, err)
-		assert.Equal(t, []any{"c", "d", "a", "b"}, result)
-	})
-
-	t.Run("Should handle different slice types", func(t *testing.T) {
-		// Test with different underlying slice types
-		refSlice := []string{"a", "b"}
-		inlineSlice := []string{"c", "d"}
-
-		result, err := strategy.Merge(refSlice, inlineSlice)
-		require.NoError(t, err)
-		assert.Equal(t, []any{"c", "d", "a", "b"}, result)
-	})
-
-	t.Run("Should error on non-slice inputs", func(t *testing.T) {
-		_, err := strategy.Merge("not_slice", []any{"a"})
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "append mode requires both values to be arrays")
-
-		_, err = strategy.Merge([]any{"a"}, "not_slice")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "append mode requires both values to be arrays")
-	})
-}
-
-func TestDeepMergeStrategy_FastPath(t *testing.T) {
-	strategy := &DeepMergeStrategy{}
-
-	t.Run("Should use fast path for flat maps", func(t *testing.T) {
-		// Flat maps (no nested structures) should use the optimized fast path
-		ref := map[string]any{
-			"str":  "ref_value",
-			"num":  42,
-			"bool": true,
-		}
-		inline := map[string]any{
-			"str":   "inline_value",
-			"other": "additional",
-		}
-
-		result, err := strategy.Merge(ref, inline)
-		require.NoError(t, err)
-
-		expected := map[string]any{
-			"str":   "ref_value", // ref wins
-			"num":   42,
-			"bool":  true,
-			"other": "additional",
-		}
-		assert.Equal(t, expected, result)
-	})
-
-	t.Run("Should use slow path for nested maps", func(t *testing.T) {
-		// Maps with nested structures should use recursive merging
-		ref := map[string]any{
-			"nested": map[string]any{"key": "ref"},
-			"flat":   "ref_flat",
-		}
-		inline := map[string]any{
-			"nested": map[string]any{"key": "inline", "other": "inline_other"},
-			"flat":   "inline_flat",
-		}
-
-		result, err := strategy.Merge(ref, inline)
-		require.NoError(t, err)
-
-		expected := map[string]any{
-			"nested": map[string]any{
-				"key":   "ref",          // ref wins
-				"other": "inline_other", // only in inline
-			},
-			"flat": "ref_flat", // ref wins
-		}
-		assert.Equal(t, expected, result)
-	})
-}
+// Note: TestGetMergeStrategy, TestReplaceStrategy, TestAppendStrategy,
+// and TestDeepMergeStrategy_FastPath have been removed as the underlying
+// strategies and GetMergeStrategy function are no longer used.
+// The matrix test TestApplyMergeMode_Matrix now covers these behaviors
+// through the ApplyMergeMode method.

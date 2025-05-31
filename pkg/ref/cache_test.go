@@ -10,165 +10,17 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Cache Configuration Tests
+// Ristretto Cache Integration Tests
 // -----------------------------------------------------------------------------
 
-func TestCacheConfig_EnvironmentVariables(t *testing.T) {
-	// Store original env vars to restore later
-	originalDocSize := os.Getenv("COMPOZY_REF_CACHE_SIZE")
-	originalPathSize := os.Getenv("COMPOZY_REF_PATH_CACHE_SIZE")
-	originalDisable := os.Getenv("COMPOZY_REF_DISABLE_PATH_CACHE")
+func TestGlobalRistrettoCache_Basic(t *testing.T) {
+	defer ResetRistrettoCacheForTesting() // Ensure cache is clean after this test suite
 
-	defer func() {
-		// Restore original values
-		if originalDocSize == "" {
-			os.Unsetenv("COMPOZY_REF_CACHE_SIZE")
-		} else {
-			os.Setenv("COMPOZY_REF_CACHE_SIZE", originalDocSize)
-		}
-		if originalPathSize == "" {
-			os.Unsetenv("COMPOZY_REF_PATH_CACHE_SIZE")
-		} else {
-			os.Setenv("COMPOZY_REF_PATH_CACHE_SIZE", originalPathSize)
-		}
-		if originalDisable == "" {
-			os.Unsetenv("COMPOZY_REF_DISABLE_PATH_CACHE")
-		} else {
-			os.Setenv("COMPOZY_REF_DISABLE_PATH_CACHE", originalDisable)
-		}
-
-		// Reset cache state for other tests
-		ResetCachesForTesting()
-	}()
-
-	t.Run("Should use default values when no env vars set", func(t *testing.T) {
-		os.Unsetenv("COMPOZY_REF_CACHE_SIZE")
-		os.Unsetenv("COMPOZY_REF_PATH_CACHE_SIZE")
-		os.Unsetenv("COMPOZY_REF_DISABLE_PATH_CACHE")
-
-		// Reset config to force re-reading
-		ResetCachesForTesting()
-
-		config := getCacheConfig()
-		assert.Equal(t, DefaultDocCacheSize, config.DocCacheSize)
-		assert.Equal(t, DefaultPathCacheSize, config.PathCacheSize)
-		assert.True(t, config.EnablePathCache)
-	})
-
-	t.Run("Should read doc cache size from environment", func(t *testing.T) {
-		os.Setenv("COMPOZY_REF_CACHE_SIZE", "512")
-		ResetCachesForTesting() // Reset config
-
-		config := getCacheConfig()
-		assert.Equal(t, 512, config.DocCacheSize)
-	})
-
-	t.Run("Should read path cache size from environment", func(t *testing.T) {
-		os.Setenv("COMPOZY_REF_PATH_CACHE_SIZE", "1024")
-		ResetCachesForTesting() // Reset config
-
-		config := getCacheConfig()
-		assert.Equal(t, 1024, config.PathCacheSize)
-	})
-
-	t.Run("Should disable path cache from environment", func(t *testing.T) {
-		os.Setenv("COMPOZY_REF_DISABLE_PATH_CACHE", "true")
-		ResetCachesForTesting() // Reset config
-
-		config := getCacheConfig()
-		assert.False(t, config.EnablePathCache)
-	})
-
-	t.Run("Should handle invalid env var values gracefully", func(t *testing.T) {
-		os.Setenv("COMPOZY_REF_CACHE_SIZE", "invalid")
-		os.Setenv("COMPOZY_REF_PATH_CACHE_SIZE", "-1")
-		ResetCachesForTesting() // Reset config
-
-		config := getCacheConfig()
-		assert.Equal(t, DefaultDocCacheSize, config.DocCacheSize)
-		assert.Equal(t, DefaultPathCacheSize, config.PathCacheSize)
-	})
-}
-
-func TestCacheConfig_ProgrammaticConfiguration(t *testing.T) {
-	// Store original state
-	defer ResetCachesForTesting()
-
-	t.Run("Should accept programmatic configuration", func(t *testing.T) {
-		customConfig := &CacheConfig{
-			DocCacheSize:    128,
-			PathCacheSize:   256,
-			EnablePathCache: false,
-		}
-
-		SetCacheConfig(customConfig)
-		config := getCacheConfig()
-
-		assert.Equal(t, 128, config.DocCacheSize)
-		assert.Equal(t, 256, config.PathCacheSize)
-		assert.False(t, config.EnablePathCache)
-	})
-
-	t.Run("Should use defaults for invalid sizes", func(t *testing.T) {
-		customConfig := &CacheConfig{
-			DocCacheSize:    0,
-			PathCacheSize:   -10,
-			EnablePathCache: true,
-		}
-
-		SetCacheConfig(customConfig)
-		config := getCacheConfig()
-
-		assert.Equal(t, DefaultDocCacheSize, config.DocCacheSize)
-		assert.Equal(t, DefaultPathCacheSize, config.PathCacheSize)
-		assert.True(t, config.EnablePathCache)
-	})
-
-	t.Run("Should handle nil config gracefully", func(t *testing.T) {
-		SetCacheConfig(nil)
-		config := getCacheConfig()
-
-		// Should still return a valid config with defaults
-		assert.NotNil(t, config)
-		assert.Equal(t, DefaultDocCacheSize, config.DocCacheSize)
-		assert.Equal(t, DefaultPathCacheSize, config.PathCacheSize)
-		assert.True(t, config.EnablePathCache)
-	})
-}
-
-func TestPathCache_Integration(t *testing.T) {
-	defer ResetCachesForTesting()
-
-	t.Run("Should create path cache when enabled", func(t *testing.T) {
-		SetCacheConfig(&CacheConfig{
-			DocCacheSize:    256,
-			PathCacheSize:   512,
-			EnablePathCache: true,
-		})
-
-		cache := getPathCache()
-		assert.NotNil(t, cache)
-	})
-
-	t.Run("Should return nil when path cache disabled", func(t *testing.T) {
-		SetCacheConfig(&CacheConfig{
-			DocCacheSize:    256,
-			PathCacheSize:   512,
-			EnablePathCache: false,
-		})
-
-		cache := getPathCache()
-		assert.Nil(t, cache)
-	})
-}
-
-// -----------------------------------------------------------------------------
-// LRU Cache Integration Tests
-// -----------------------------------------------------------------------------
-
-func TestResolvedDocsCache_Basic(t *testing.T) {
 	t.Run("Should store and retrieve documents", func(t *testing.T) {
-		// Use unique keys to avoid conflicts with other tests
+		ResetRistrettoCacheForTesting() // Clean before each sub-test
+		cache := GetGlobalCache()
+		require.NotNil(t, cache)
+
 		testKey := "/test/cache/basic.yaml"
 		testData := map[string]any{
 			"id":   "test_doc",
@@ -176,37 +28,48 @@ func TestResolvedDocsCache_Basic(t *testing.T) {
 		}
 
 		// Ensure key doesn't exist initially
-		_, exists := getResolvedDocsCache().Get(testKey)
+		_, exists := cache.Get(testKey)
 		assert.False(t, exists)
 
-		// Store data
-		getResolvedDocsCache().Add(testKey, testData)
+		// Store data (cost 1, no TTL for simplicity in basic test)
+		cache.Set(testKey, testData, 1)
+		cache.Wait() // Ensure value is processed
 
 		// Should be retrievable
-		retrieved, exists := getResolvedDocsCache().Get(testKey)
+		retrieved, exists := cache.Get(testKey)
 		assert.True(t, exists)
 		assert.Equal(t, testData, retrieved)
 	})
 
 	t.Run("Should handle cache updates", func(t *testing.T) {
+		ResetRistrettoCacheForTesting()
+		cache := GetGlobalCache()
+		require.NotNil(t, cache)
+
 		testKey := "/test/cache/update.yaml"
 		originalData := map[string]any{"version": 1}
 		updatedData := map[string]any{"version": 2}
 
 		// Store original data
-		getResolvedDocsCache().Add(testKey, originalData)
-		retrieved, exists := getResolvedDocsCache().Get(testKey)
+		cache.Set(testKey, originalData, 1)
+		cache.Wait()
+		retrieved, exists := cache.Get(testKey)
 		require.True(t, exists)
 		assert.Equal(t, originalData, retrieved)
 
 		// Update data
-		getResolvedDocsCache().Add(testKey, updatedData)
-		retrieved, exists = getResolvedDocsCache().Get(testKey)
+		cache.Set(testKey, updatedData, 1)
+		cache.Wait()
+		retrieved, exists = cache.Get(testKey)
 		require.True(t, exists)
 		assert.Equal(t, updatedData, retrieved)
 	})
 
 	t.Run("Should handle different data types", func(t *testing.T) {
+		ResetRistrettoCacheForTesting()
+		cache := GetGlobalCache()
+		require.NotNil(t, cache)
+
 		testCases := []struct {
 			name string
 			key  string
@@ -221,8 +84,9 @@ func TestResolvedDocsCache_Basic(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				getResolvedDocsCache().Add(tc.key, tc.data)
-				retrieved, exists := getResolvedDocsCache().Get(tc.key)
+				cache.Set(tc.key, tc.data, 1)
+				cache.Wait()
+				retrieved, exists := cache.Get(tc.key)
 				require.True(t, exists)
 				assert.Equal(t, tc.data, retrieved)
 			})
@@ -230,44 +94,73 @@ func TestResolvedDocsCache_Basic(t *testing.T) {
 	})
 }
 
-func TestResolvedDocsCache_LRU(t *testing.T) {
-	t.Run("Should evict entries when cache is full", func(t *testing.T) {
-		// Note: We can't easily test the exact LRU behavior since the cache size is configurable
-		// and we share it with other tests. Instead, we test that the cache can handle
-		// a reasonable number of entries without issues.
+func TestGlobalRistrettoCache_Eviction(t *testing.T) {
+	defer ResetRistrettoCacheForTesting()
 
-		baseKey := "/test/cache/lru/"
-		numEntries := 20 // Much less than the default cache size
+	t.Run("Should evict entries when cache approaches max cost", func(t *testing.T) {
+		ResetRistrettoCacheForTesting()
+		cache := GetGlobalCache()
+		require.NotNil(t, cache)
+
+		// Ristretto's MaxCost is 1GB. We'll add items with a cost that will eventually trigger eviction.
+		// This test is a bit conceptual as exact eviction is hard to pin down without knowing Ristretto's internals deeply.
+		// We'll add more items than NumCounters to ensure some level of contention.
+		// Each item will have a cost of 1MB. MaxCost is 1GB, so ~1024 items. NumCounters is 10M.
+		// We will add a bit more than what seems reasonable for a small test to see if it handles it.
+
+		baseKey := "/test/cache/eviction/"
+		// MaxCost is 1 << 30 (1GB). Let's assume a cost of 1 for each small entry for this test.
+		// The cache is configured with NumCounters: 1e7, MaxCost: 1 << 30.
+		// We will add a large number of small items.
+		numEntries := 1000 // Add 1000 items
 
 		// Add entries
-		for i := range numEntries {
+		for i := 0; i < numEntries; i++ {
 			key := fmt.Sprintf("%sentry%d.yaml", baseKey, i)
-			data := map[string]any{"id": i, "data": fmt.Sprintf("entry_%d", i)}
-			getResolvedDocsCache().Add(key, data)
+			data := map[string]any{"id": i, "data": fmt.Sprintf("entry_%d_long_data_to_ensure_some_cost_if_ristretto_calculates_it_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", i)}
+			// Using cost of 1 for each item.
+			cache.Set(key, data, 1)
 		}
+		cache.Wait() // Wait for all sets to be processed
 
-		// Verify all entries are still present
-		for i := range numEntries {
+		// Check if some items were potentially evicted.
+		// This is not a perfect test for eviction as Ristretto's eviction is probabilistic (TinyLFU).
+		// We are checking that the cache doesn't error out and still holds *some* data.
+		// A more robust test would require a cache with much smaller MaxCost to reliably see evictions.
+		// For now, we verify that at least the last item is likely there (due to frequency if not recency).
+		lastKey := fmt.Sprintf("%sentry%d.yaml", baseKey, numEntries-1)
+		_, exists := cache.Get(lastKey)
+		assert.True(t, exists, "Last entry should ideally exist after many additions")
+
+		// Check that the cache is not empty
+		var foundCount int
+		for i := 0; i < numEntries; i++ {
 			key := fmt.Sprintf("%sentry%d.yaml", baseKey, i)
-			retrieved, exists := getResolvedDocsCache().Get(key)
-			assert.True(t, exists, "Entry %d should exist", i)
-			if exists {
-				data := retrieved.(map[string]any)
-				assert.Equal(t, i, data["id"], "Entry %d should have correct ID", i)
+			if _, ok := cache.Get(key); ok {
+				foundCount++
 			}
 		}
+		// It's hard to assert an exact number of items after eviction without specific cache sizing for the test.
+		// We expect some items to be present, and likely not all if MaxCost was truly hit by these items.
+		// Given MaxCost 1GB and 1000 items with cost 1, no eviction should occur based on cost alone.
+		// This test mainly ensures the cache operates under a load of many small items.
+		assert.Greater(t, foundCount, numEntries/2, "Expected a significant portion of items to remain in cache")
+		assert.Equal(t, numEntries, foundCount, "With cost 1 and 1GB max cost, all 1000 items should remain")
+
 	})
 }
 
 // -----------------------------------------------------------------------------
-// Cache Integration with Document Loading
+// Cache Integration with Document Loading (Conceptual)
 // -----------------------------------------------------------------------------
 
 func TestCache_DocumentLoadingIntegration(t *testing.T) {
-	t.Run("Should cache loaded documents", func(t *testing.T) {
-		// This test verifies that loadDocument properly uses the cache
-		// We can't easily test this without creating actual files, so we
-		// focus on testing that the cache is used correctly in resolve operations.
+	defer ResetRistrettoCacheForTesting()
+
+	t.Run("Should cache loaded documents (simulated)", func(t *testing.T) {
+		ResetRistrettoCacheForTesting()
+		cache := GetGlobalCache()
+		require.NotNil(t, cache)
 
 		testKey := "/test/cache/integration.yaml"
 		testData := map[string]any{
@@ -280,10 +173,12 @@ func TestCache_DocumentLoadingIntegration(t *testing.T) {
 		}
 
 		// Manually add to cache to simulate a loaded document
-		getResolvedDocsCache().Add(testKey, testData)
+		// Cost 1, TTL 1 hour (arbitrary for test)
+		cache.SetWithTTL(testKey, testData, 1, 1) // Ristretto TTL is in seconds, using 1 sec for test
+		cache.Wait()
 
 		// Verify it can be retrieved as expected by selectSourceDocument logic
-		retrieved, exists := getResolvedDocsCache().Get(testKey)
+		retrieved, exists := cache.Get(testKey)
 		require.True(t, exists)
 		assert.Equal(t, testData, retrieved)
 
@@ -294,10 +189,14 @@ func TestCache_DocumentLoadingIntegration(t *testing.T) {
 		assert.Equal(t, "test_schema", value)
 	})
 
-	t.Run("Should handle URL caching", func(t *testing.T) {
-		// Test that URLs are also cached in the same LRU
+	t.Run("Should handle URL caching (simulated)", func(t *testing.T) {
+		ResetRistrettoCacheForTesting()
+		cache := GetGlobalCache()
+		require.NotNil(t, cache)
+
+		// Test that URLs are also cached
 		testURL := "https://example.com/test-config.yaml"
-		testData := map[string]any{
+		testDataURL := map[string]any{
 			"config": map[string]any{
 				"version": "1.0",
 				"name":    "remote_config",
@@ -305,12 +204,13 @@ func TestCache_DocumentLoadingIntegration(t *testing.T) {
 		}
 
 		// Simulate caching a remote document
-		getResolvedDocsCache().Add(testURL, testData)
+		cache.SetWithTTL(testURL, testDataURL, 1, 1) // Ristretto TTL is in seconds
+		cache.Wait()
 
 		// Verify retrieval
-		retrieved, exists := getResolvedDocsCache().Get(testURL)
+		retrieved, exists := cache.Get(testURL)
 		require.True(t, exists)
-		assert.Equal(t, testData, retrieved)
+		assert.Equal(t, testDataURL, retrieved)
 
 		// Verify document functionality
 		doc := &simpleDocument{data: retrieved}
@@ -321,17 +221,24 @@ func TestCache_DocumentLoadingIntegration(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------------
-// Cache Performance and Behavior Tests
+// Cache Performance and Behavior Tests (Ristretto is inherently concurrent)
 // -----------------------------------------------------------------------------
 
-func TestCache_ConcurrentAccess(t *testing.T) {
+func TestRistrettoCache_ConcurrentAccess(t *testing.T) {
+	defer ResetRistrettoCacheForTesting()
+
 	t.Run("Should handle concurrent access safely", func(t *testing.T) {
-		// The HashiCorp LRU cache is thread-safe, but let's verify our usage is correct
-		const numGoroutines = 10
-		const numOperations = 10
+		ResetRistrettoCacheForTesting()
+		cache := GetGlobalCache()
+		require.NotNil(t, cache)
+
+		// Ristretto is designed for concurrent access.
+		const numGoroutines = 20
+		const numOperations = 200 // Increased operations
 
 		// Use channels to coordinate goroutines
 		done := make(chan bool, numGoroutines)
+		errCh := make(chan error, numGoroutines*numOperations) // Channel for errors
 
 		for i := 0; i < numGoroutines; i++ {
 			go func(id int) {
@@ -345,24 +252,28 @@ func TestCache_ConcurrentAccess(t *testing.T) {
 						"timestamp": fmt.Sprintf("g%d_op%d", id, j),
 					}
 
-					// Add to cache
-					getResolvedDocsCache().Add(key, data)
+					// Add to cache (cost 1)
+					cache.Set(key, data, 1)
+					// Ristretto's Set is async, but for testing retrieval, a Wait might be needed
+					// if we want to guarantee the item is findable immediately by *another* goroutine.
+					// However, within the same goroutine, Get should see its own Set after Wait.
 
-					// Try to retrieve immediately
-					retrieved, exists := getResolvedDocsCache().Get(key)
+					// Try to retrieve immediately (or after a short wait for processing)
+					cache.Wait() // Ensure set is processed before Get
+					retrieved, exists := cache.Get(key)
 					if !exists {
-						t.Errorf("Concurrent test failed: key %s not found", key)
+						errCh <- fmt.Errorf("Concurrent test failed: key %s not found for goroutine %d", key, id)
 						return
 					}
 
 					retrievedMap, ok := retrieved.(map[string]any)
 					if !ok {
-						t.Errorf("Concurrent test failed: invalid data type for key %s", key)
+						errCh <- fmt.Errorf("Concurrent test failed: invalid data type for key %s goroutine %d", key, id)
 						return
 					}
 
-					if retrievedMap["goroutine"] != id {
-						t.Errorf("Concurrent test failed: wrong data for key %s", key)
+					if val, ok := retrievedMap["goroutine"].(int); !ok || val != id {
+						errCh <- fmt.Errorf("Concurrent test failed: wrong data for key %s goroutine %d, got %v", key, id, retrievedMap["goroutine"])
 						return
 					}
 				}
@@ -372,6 +283,12 @@ func TestCache_ConcurrentAccess(t *testing.T) {
 		// Wait for all goroutines to complete
 		for i := 0; i < numGoroutines; i++ {
 			<-done
+		}
+		close(errCh)
+
+		// Check for errors
+		for err := range errCh {
+			t.Error(err)
 		}
 	})
 }

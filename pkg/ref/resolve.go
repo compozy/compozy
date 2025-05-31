@@ -24,14 +24,16 @@ const (
 // getCachedPath returns GJSON result for optimal performance with optional path caching
 func getCachedPath(jsonBytes []byte, path string) gjson.Result {
 	// Try to use cached compiled path if available
-	if cache := getPathCache(); cache != nil {
-		if compiledPath, exists := cache.Get(path); exists {
-			return gjson.GetBytes(jsonBytes, compiledPath)
+	if compiledPath, exists := GetGlobalCache().Get(path); exists {
+		// Ensure that compiledPath is a string before using it with gjson.GetBytes
+		if pathStr, ok := compiledPath.(string); ok {
+			return gjson.GetBytes(jsonBytes, pathStr)
 		}
-
-		// Cache the path for future use (GJSON paths don't need compilation but caching helps with repetition)
-		cache.Add(path, path)
 	}
+
+	// Cache the path for future use (GJSON paths don't need compilation but caching helps with repetition)
+	// Cost is 1 as the path string is small.
+	GetGlobalCache().Set(path, path, 1)
 
 	return gjson.GetBytes(jsonBytes, path)
 }
@@ -186,7 +188,7 @@ func (r *Ref) selectSourceDocument(ctx context.Context, metadata *DocMetadata) (
 		}
 
 		// Check cache first
-		if cached, ok := getResolvedDocsCache().Get(absoluteFilePath); ok {
+		if cached, ok := GetGlobalCache().Get(absoluteFilePath); ok {
 			doc := &simpleDocument{data: cached}
 			metadata.FilePath = absoluteFilePath
 			metadata.CurrentDoc = doc
@@ -211,7 +213,7 @@ func (r *Ref) selectSourceDocument(ctx context.Context, metadata *DocMetadata) (
 		globalPath := filepath.Join(metadata.ProjectRoot, "compozy.yaml")
 
 		// Check cache first
-		if cached, ok := getResolvedDocsCache().Get(globalPath); ok {
+		if cached, ok := GetGlobalCache().Get(globalPath); ok {
 			doc := &simpleDocument{data: cached}
 			metadata.FilePath = globalPath
 			metadata.CurrentDoc = doc

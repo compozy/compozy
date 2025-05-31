@@ -10,159 +10,77 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"fmt"
 
-	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/dgraph-io/ristretto"
+	"github.com/kelseyhightower/envconfig"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
 
-// Default cache sizes
-const (
-	DefaultDocCacheSize  = 256
-	DefaultPathCacheSize = 512
-)
-
-// Cache configuration
-type CacheConfig struct {
-	DocCacheSize    int
-	PathCacheSize   int
-	EnablePathCache bool
+// ristrettoConfig holds configuration values for the global Ristretto cache,
+// populated from environment variables.
+type ristrettoConfig struct {
+	NumCounters int64 `envconfig:"NUM_COUNTERS" default:"10000000"`    // Default 10M
+	MaxCost     int64 `envconfig:"MAX_COST"     default:"1073741824"` // Default 1GB (1 << 30)
+	BufferItems int64 `envconfig:"BUFFER_ITEMS" default:"64"`
+	Metrics     bool  `envconfig:"METRICS"      default:"true"`
 }
 
-// Global cache instances
-var (
-	resolvedDocs     *lru.Cache[string, any]
-	resolvedDocsOnce sync.Once
+// Global cache instance
+var globalCache *ristretto.Cache
 
-	pathCache     *lru.Cache[string, string] // path -> compiled gjson path
-	pathCacheOnce sync.Once
-
-	cacheConfig               *CacheConfig
-	configOnce                sync.Once
-	configSetProgrammatically bool // Flag to prevent env var override
-)
-
-// getCacheConfig returns the cache configuration, reading from environment variables if available
-func getCacheConfig() *CacheConfig {
-	// If config is already set programmatically, return it
-	if cacheConfig != nil && configSetProgrammatically {
-		return cacheConfig
+func init() {
+	var rCfg ristrettoConfig
+	// Use a prefix for environment variables, e.g., COMPOZY_REF_NUM_COUNTERS
+	err := envconfig.Process("compozy_ref", &rCfg)
+	if err != nil {
+		// Log the error and use hardcoded defaults, as panicking might be too aggressive for a library.
+		fmt.Fprintf(os.Stderr, "Warning: Error processing Ristretto cache config from env: %v. Using default values.\n", err)
+		// Set defaults manually if envconfig fails (though 'default' struct tags should handle cases where vars aren't set)
+		// This manual setting is more of a fallback if Process itself fails unexpectedly.
+		rCfg.NumCounters = 10000000
+		rCfg.MaxCost = 1 << 30
+		rCfg.BufferItems = 64
+		rCfg.Metrics = true
 	}
 
-	configOnce.Do(func() {
-		// Don't override programmatically set config
-		if cacheConfig != nil && configSetProgrammatically {
-			return
-		}
+	// Validate parsed/defaulted values to ensure they are sensible
+	if rCfg.NumCounters <= 0 {
+		fmt.Fprintf(os.Stderr, "Warning: Invalid Ristretto NumCounters (%d), using default 10M.\n", rCfg.NumCounters)
+		rCfg.NumCounters = 10000000
+	}
+	if rCfg.MaxCost <= 0 {
+		fmt.Fprintf(os.Stderr, "Warning: Invalid Ristretto MaxCost (%d), using default 1GB.\n", rCfg.MaxCost)
+		rCfg.MaxCost = 1 << 30
+	}
+	if rCfg.BufferItems <= 0 {
+		fmt.Fprintf(os.Stderr, "Warning: Invalid Ristretto BufferItems (%d), using default 64.\n", rCfg.BufferItems)
+		rCfg.BufferItems = 64
+	}
 
-		docSize := DefaultDocCacheSize
-		pathSize := DefaultPathCacheSize
-		enablePathCache := true
-
-		// Read from environment variables
-		if envDocSize := os.Getenv("COMPOZY_REF_CACHE_SIZE"); envDocSize != "" {
-			if size, err := strconv.Atoi(envDocSize); err == nil && size > 0 {
-				docSize = size
-			}
-		}
-
-		if envPathSize := os.Getenv("COMPOZY_REF_PATH_CACHE_SIZE"); envPathSize != "" {
-			if size, err := strconv.Atoi(envPathSize); err == nil && size > 0 {
-				pathSize = size
-			}
-		}
-
-		if envDisablePathCache := os.Getenv("COMPOZY_REF_DISABLE_PATH_CACHE"); envDisablePathCache != "" {
-			enablePathCache = envDisablePathCache != "true" && envDisablePathCache != "1"
-		}
-
-		cacheConfig = &CacheConfig{
-			DocCacheSize:    docSize,
-			PathCacheSize:   pathSize,
-			EnablePathCache: enablePathCache,
-		}
+	globalCache, err = ristretto.NewCache(&ristretto.Config{
+		NumCounters: rCfg.NumCounters,
+		MaxCost:     rCfg.MaxCost,
+		BufferItems: rCfg.BufferItems,
+		Metrics:     rCfg.Metrics,
 	})
-	return cacheConfig
-}
-
-// SetCacheConfig allows programmatic configuration of cache settings.
-// This must be called before any cache operations or it will have no effect.
-func SetCacheConfig(config *CacheConfig) {
-	// Reset the once guards first to allow reconfiguration
-	resolvedDocsOnce = sync.Once{}
-	pathCacheOnce = sync.Once{}
-	configOnce = sync.Once{}
-
-	// Clear existing caches
-	resolvedDocs = nil
-	pathCache = nil
-	cacheConfig = nil
-	configSetProgrammatically = false
-
-	// Set the new config
-	if config == nil {
-		cacheConfig = &CacheConfig{
-			DocCacheSize:    DefaultDocCacheSize,
-			PathCacheSize:   DefaultPathCacheSize,
-			EnablePathCache: true,
-		}
-		configSetProgrammatically = false // Use env vars for nil config
-	} else {
-		cacheConfig = &CacheConfig{
-			DocCacheSize:    config.DocCacheSize,
-			PathCacheSize:   config.PathCacheSize,
-			EnablePathCache: config.EnablePathCache,
-		}
-		if cacheConfig.DocCacheSize <= 0 {
-			cacheConfig.DocCacheSize = DefaultDocCacheSize
-		}
-		if cacheConfig.PathCacheSize <= 0 {
-			cacheConfig.PathCacheSize = DefaultPathCacheSize
-		}
-		configSetProgrammatically = true // Mark as programmatic
+	if err != nil {
+		// Panic if cache creation itself fails, as this is a critical component.
+		panic(fmt.Sprintf("Failed to create global Ristretto cache: %v", err))
 	}
 }
 
-// ResetCachesForTesting resets all caches and configuration for testing purposes
-func ResetCachesForTesting() {
-	resolvedDocsOnce = sync.Once{}
-	pathCacheOnce = sync.Once{}
-	configOnce = sync.Once{}
-	resolvedDocs = nil
-	pathCache = nil
-	cacheConfig = nil
-	configSetProgrammatically = false
+// Function to get the global cache
+func GetGlobalCache() *ristretto.Cache {
+	return globalCache
 }
 
-// getResolvedDocsCache returns the global LRU cache, initializing it if necessary
-func getResolvedDocsCache() *lru.Cache[string, any] {
-	resolvedDocsOnce.Do(func() {
-		config := getCacheConfig()
-		var err error
-		resolvedDocs, err = lru.New[string, any](config.DocCacheSize)
-		if err != nil {
-			panic("failed to create LRU cache: " + err.Error())
-		}
-	})
-	return resolvedDocs
-}
-
-// getPathCache returns the global path cache, initializing it if necessary
-func getPathCache() *lru.Cache[string, string] {
-	if !getCacheConfig().EnablePathCache {
-		return nil
-	}
-
-	pathCacheOnce.Do(func() {
-		config := getCacheConfig()
-		var err error
-		pathCache, err = lru.New[string, string](config.PathCacheSize)
-		if err != nil {
-			// Path cache is optional, don't panic
-			pathCache = nil
-		}
-	})
-	return pathCache
+// Function to reset cache for testing (if needed by tests)
+func ResetRistrettoCacheForTesting() {
+	globalCache.Clear()
+	// Or re-initialize if simpler and acceptable for tests
+	// init()
 }
 
 // httpClient is a shared HTTP client with a timeout and redirect policy for loading remote documents.
@@ -235,7 +153,7 @@ func loadDocument(ctx context.Context, filePath, cwd string) (Document, error) {
 	}
 
 	// Check cache first
-	if cached, ok := getResolvedDocsCache().Get(fullPath); ok {
+	if cached, ok := globalCache.Get(fullPath); ok {
 		return &simpleDocument{data: cached}, nil
 	}
 
@@ -266,7 +184,8 @@ func loadDocument(ctx context.Context, filePath, cwd string) (Document, error) {
 	}
 
 	// Cache the parsed document data
-	getResolvedDocsCache().Add(fullPath, doc)
+	// Assuming cost is 1 for simplicity for now. TTL set to 1 hour.
+	globalCache.SetWithTTL(fullPath, doc, 1, 1*time.Hour)
 
 	return &simpleDocument{data: doc}, nil
 }
@@ -274,7 +193,7 @@ func loadDocument(ctx context.Context, filePath, cwd string) (Document, error) {
 // loadFromURL loads a YAML document from a URL.
 func loadFromURL(ctx context.Context, urlStr string) (Document, error) {
 	// Check cache first (URLs are also cached in the same LRU)
-	if cached, ok := getResolvedDocsCache().Get(urlStr); ok {
+	if cached, ok := globalCache.Get(urlStr); ok {
 		return &simpleDocument{data: cached}, nil
 	}
 
@@ -314,7 +233,8 @@ func loadFromURL(ctx context.Context, urlStr string) (Document, error) {
 	}
 
 	// Cache remote document
-	getResolvedDocsCache().Add(urlStr, doc)
+	// Assuming cost is 1 for simplicity for now. TTL set to 1 hour.
+	globalCache.SetWithTTL(urlStr, doc, 1, 1*time.Hour)
 
 	return &simpleDocument{data: doc}, nil
 }
