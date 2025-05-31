@@ -122,16 +122,19 @@ func (w *WithRef) GetRefMetadata() *WithRefMetadata {
 }
 
 // ResolveReferences resolves all fields with is_ref tag in the target struct.
+// Deprecated: use Resolver.Resolve instead.
 func (w *WithRef) ResolveReferences(ctx context.Context, target any, currentDoc any) error {
 	return w.resolveFields(ctx, target, currentDoc, false, ModeMerge)
 }
 
 // ResolveAndMergeReferences resolves all reference fields and merges them into the struct.
+// Deprecated: use Resolver.Resolve with Resolver.Mode to control merge behaviour.
 func (w *WithRef) ResolveAndMergeReferences(ctx context.Context, target any, currentDoc any, mergeMode Mode) error {
 	return w.resolveFields(ctx, target, currentDoc, true, mergeMode)
 }
 
 // ResolveMapReference resolves $ref fields in a map recursively.
+// Deprecated: use Resolver.Resolve instead.
 func (w *WithRef) ResolveMapReference(
 	ctx context.Context,
 	data map[string]any,
@@ -144,6 +147,7 @@ func (w *WithRef) ResolveMapReference(
 }
 
 // ResolveRefWithInlineData resolves a ref field and merges it with existing inline data.
+// Deprecated: use Resolver.Resolve instead.
 func (w *WithRef) ResolveRefWithInlineData(
 	ctx context.Context,
 	refField any,

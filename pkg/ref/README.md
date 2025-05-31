@@ -46,12 +46,11 @@ func main() {
         },
     }
 
-    // Resolve all references in the document
-    resolver := &ref.WithRef{}
-    resolver.SetRefMetadata("/path/to/file.yaml", "/project/root")
-    
+    // Resolve all references in the document using the new Resolver API
+    res := ref.NewResolver("/project/root")
+
     ctx := context.Background()
-    resolved, err := resolver.ResolveMapReference(ctx, data, data)
+    resolved, err := res.Resolve(ctx, data, ref.Meta{FilePath: "/path/to/file.yaml"})
     if err != nil {
         panic(err)
     }
@@ -85,21 +84,21 @@ result, err := ref.Resolve(ctx, currentDoc, "/path/to/config.yaml", "/project/ro
 
 ```go
 type Config struct {
-    ref.WithRef
+    ref.Meta
     DatabaseRef any    `json:"database_ref" yaml:"database_ref" is_ref:"true"`
     Name        string `json:"name" yaml:"name"`
     Port        int    `json:"port" yaml:"port"`
 }
 
 var config Config
-config.SetRefMetadata("/path/to/config.yaml", "/project/root")
 
 // Parse YAML/JSON into config...
 yaml.Unmarshal(data, &config)
 
-// Resolve all reference fields
+// Resolve all reference fields using Resolver
 ctx := context.Background()
-err := config.ResolveReferences(ctx, &config, currentDoc)
+res := ref.NewResolver("/project/root")
+_, err := res.Resolve(ctx, &config, ref.Meta{FilePath: "/path/to/config.yaml"})
 ```
 
 ## Configuration
@@ -317,7 +316,8 @@ type Ref struct {
 }
 
 type WithRef struct {
-    // Embed in structs to add reference resolution capabilities
+    // Embed in structs to add reference resolution capabilities.
+    // Deprecated: use Resolver instead.
 }
 
 type CacheConfig struct {
@@ -336,11 +336,8 @@ func (r *Ref) Resolve(ctx context.Context, currentDoc any, filePath, projectRoot
 // Configure caching
 func SetCacheConfig(config *CacheConfig)
 
-// Resolve references in structs
-func (w *WithRef) ResolveReferences(ctx context.Context, target any, currentDoc any) error
-
-// Resolve references in maps
-func (w *WithRef) ResolveMapReference(ctx context.Context, data map[string]any, currentDoc any) (map[string]any, error)
+// New unified resolver
+func (r *Resolver) Resolve(ctx context.Context, v any, meta ...Meta) (any, error)
 ```
 
 ## Migration Guide
