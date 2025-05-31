@@ -131,7 +131,7 @@ func (ev *Evaluator) Eval(node Node) (Node, error) {
 				if len(m) != 1 {
 					return nil, fmt.Errorf("%s node may not contain sibling keys", dirName)
 				}
-				if directive, ok := directives[dirName]; ok {
+				if directive, ok := getDirectives()[dirName]; ok {
 					result, err := directive.Handler(ev, value)
 					if err != nil {
 						return nil, err
