@@ -17,8 +17,6 @@ import (
 const (
 	// refKey is the JSON/YAML key for references
 	refKey = "$ref"
-	// minParallelElements is the minimum number of elements to process in parallel
-	minParallelElements = 4
 )
 
 // getCachedPath returns GJSON result for optimal performance with optional path caching
@@ -36,21 +34,6 @@ func getCachedPath(jsonBytes []byte, path string) gjson.Result {
 	GetGlobalCache().Set(path, path, 1)
 
 	return gjson.GetBytes(jsonBytes, path)
-}
-
-// resolveConfig holds configuration for resolution behavior.
-type resolveConfig struct {
-	enableParallel bool
-	maxGoroutines  int
-}
-
-// getResolveConfig returns the optimal resolve configuration based on runtime.
-func getResolveConfig() *resolveConfig {
-	numCPU := runtime.NumCPU()
-	return &resolveConfig{
-		enableParallel: numCPU > 1,
-		maxGoroutines:  numCPU * 2, // Allow some oversubscription for I/O bound work
-	}
 }
 
 // walkGJSONPath extracts a value from a document using a GJSON path.
@@ -390,8 +373,6 @@ func hasIntegers(value any) bool {
 
 // deepResolveValue recursively resolves all references in a value with optional parallel processing.
 func (r *Ref) deepResolveValue(ctx context.Context, value any, metadata *DocMetadata) (any, error) {
-	config := getResolveConfig()
-
 	switch v := value.(type) {
 	case map[string]any:
 		// Check if this map has a $ref
@@ -439,11 +420,11 @@ func (r *Ref) deepResolveValue(ctx context.Context, value any, metadata *DocMeta
 		}
 
 		// No $ref in this map, resolve values (potentially in parallel)
-		return r.resolveMapParallel(ctx, v, metadata, config)
+		return r.resolveMapParallel(ctx, v, metadata)
 
 	case []any:
 		// Resolve array elements (potentially in parallel)
-		return r.resolveSliceParallel(ctx, v, metadata, config)
+		return r.resolveSliceParallel(ctx, v, metadata)
 
 	default:
 		// Primitive value, normalize and return
@@ -452,12 +433,11 @@ func (r *Ref) deepResolveValue(ctx context.Context, value any, metadata *DocMeta
 }
 
 // resolveMapParallel resolves map values with optional parallel processing.
-func (r *Ref) resolveMapParallel(ctx context.Context, v map[string]any, metadata *DocMetadata,
-	config *resolveConfig) (map[string]any, error) {
+func (r *Ref) resolveMapParallel(ctx context.Context, v map[string]any, metadata *DocMetadata) (map[string]any, error) {
 	result := make(map[string]any, len(v))
 
-	// For small maps or single-core systems, use sequential processing
-	if !config.enableParallel || len(v) < minParallelElements {
+	// For small maps or single-core systems (or if map len is less than 4), use sequential processing
+	if runtime.NumCPU() <= 1 || len(v) < 4 {
 		for key, val := range v {
 			resolved, err := r.deepResolveValue(ctx, val, metadata)
 			if err != nil {
@@ -477,7 +457,11 @@ func (r *Ref) resolveMapParallel(ctx context.Context, v map[string]any, metadata
 
 	resultCh := make(chan mapResult, len(v))
 	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(config.maxGoroutines)
+	limit := runtime.NumCPU() * 2
+	if limit < 1 {
+		limit = 1
+	}
+	g.SetLimit(limit)
 
 	// Launch goroutines for each key-value pair
 	for key, val := range v {
@@ -523,12 +507,11 @@ func (r *Ref) resolveMapParallel(ctx context.Context, v map[string]any, metadata
 }
 
 // resolveSliceParallel resolves slice elements with optional parallel processing.
-func (r *Ref) resolveSliceParallel(ctx context.Context, v []any, metadata *DocMetadata,
-	config *resolveConfig) ([]any, error) {
+func (r *Ref) resolveSliceParallel(ctx context.Context, v []any, metadata *DocMetadata) ([]any, error) {
 	result := make([]any, len(v))
 
-	// For small slices or single-core systems, use sequential processing
-	if !config.enableParallel || len(v) < minParallelElements {
+	// For small slices or single-core systems (or if slice len is less than 4), use sequential processing
+	if runtime.NumCPU() <= 1 || len(v) < 4 {
 		for i, item := range v {
 			resolved, err := r.deepResolveValue(ctx, item, metadata)
 			if err != nil {
@@ -541,7 +524,11 @@ func (r *Ref) resolveSliceParallel(ctx context.Context, v []any, metadata *DocMe
 
 	// Parallel processing for larger slices
 	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(config.maxGoroutines)
+	limit := runtime.NumCPU() * 2
+	if limit < 1 {
+		limit = 1
+	}
+	g.SetLimit(limit)
 
 	// Use mutex to protect result slice writes
 	var mu sync.Mutex
