@@ -362,6 +362,251 @@ func TestEdgeCases(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------------
+// Merge Directive Tests
+// -----------------------------------------------------------------------------
+
+func TestMergeDirective(t *testing.T) {
+	localScope := map[string]any{
+		"defaults": map[string]any{
+			"deploy": map[string]any{
+				"replicas": 1,
+				"resources": map[string]any{
+					"cpu":    "100m",
+					"memory": "128Mi",
+				},
+			},
+		},
+		"base_tags": []any{"base", "common"},
+		"prod": map[string]any{
+			"deploy": map[string]any{
+				"replicas": 3,
+				"resources": map[string]any{
+					"cpu": "500m",
+				},
+			},
+		},
+		"extra_tags": []any{"extra", "additional"},
+	}
+
+	globalScope := map[string]any{
+		"envs": map[string]any{
+			"prod": map[string]any{
+				"deploy": map[string]any{
+					"resources": map[string]any{
+						"memory": "512Mi",
+					},
+					"autoscaling": true,
+				},
+			},
+		},
+	}
+
+	t.Run("Should merge objects with shorthand syntax", func(t *testing.T) {
+		input := `{"deploy":{"$merge":[{"host":"localhost","port":80},{"port":8080,"proto":"https"}]}}`
+		got := MustEvalBytes(t, []byte(input))
+		want := map[string]any{
+			"deploy": map[string]any{
+				"host":  "localhost",
+				"port":  float64(8080),
+				"proto": "https",
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should merge arrays with shorthand syntax", func(t *testing.T) {
+		input := `{"tags":{"$merge":[["auth","logging"],["metrics","tracing"]]}}`
+		got := MustEvalBytes(t, []byte(input))
+		want := map[string]any{
+			"tags": []any{"auth", "logging", "metrics", "tracing"},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should deep merge objects by default", func(t *testing.T) {
+		input := `{"deploy":{"$merge":[{"$ref":"local::defaults.deploy"},{"$ref":"local::prod.deploy"}]}}`
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(localScope))
+		want := map[string]any{
+			"deploy": map[string]any{
+				"replicas": float64(3),
+				"resources": map[string]any{
+					"cpu":    "500m",
+					"memory": "128Mi",
+				},
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should merge with explicit deep strategy", func(t *testing.T) {
+		input := `{"deploy":{"$merge":{"strategy":"deep","sources":[{"$ref":"local::defaults.deploy"},{"$ref":"global::envs.prod.deploy"},{"retries":5}]}}}`
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(localScope), WithGlobalScope(globalScope))
+		want := map[string]any{
+			"deploy": map[string]any{
+				"replicas": float64(1),
+				"resources": map[string]any{
+					"cpu":    "100m",
+					"memory": "512Mi",
+				},
+				"autoscaling": true,
+				"retries":     float64(5),
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should merge with shallow strategy", func(t *testing.T) {
+		input := `{"deploy":{"$merge":{"strategy":"shallow","sources":[{"$ref":"local::defaults.deploy"},{"$ref":"local::prod.deploy"}]}}}`
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(localScope))
+		want := map[string]any{
+			"deploy": map[string]any{
+				"replicas": float64(3),
+				"resources": map[string]any{
+					"cpu": "500m",
+				},
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should handle key_conflict=first", func(t *testing.T) {
+		input := `{"config":{"$merge":{"key_conflict":"first","sources":[{"port":8080},{"port":9090},{"host":"localhost"}]}}}`
+		got := MustEvalBytes(t, []byte(input))
+		want := map[string]any{
+			"config": map[string]any{
+				"port": float64(8080),
+				"host": "localhost",
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should handle key_conflict=error", func(t *testing.T) {
+		input := `{"config":{"$merge":{"key_conflict":"error","sources":[{"port":8080},{"port":9090}]}}}`
+		_, err := ProcessBytes([]byte(input))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "key conflict: 'port' already exists")
+	})
+
+	t.Run("Should merge arrays with unique strategy", func(t *testing.T) {
+		input := `{"tags":{"$merge":{"strategy":"unique","sources":[{"$ref":"local::base_tags"},["build","docker","build"]]}}}`
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(localScope))
+		want := map[string]any{
+			"tags": []any{"base", "common", "build", "docker"},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should merge arrays with prepend strategy", func(t *testing.T) {
+		input := `{"tags":{"$merge":{"strategy":"prepend","sources":[["first","second"],["third","fourth"]]}}}`
+		got := MustEvalBytes(t, []byte(input))
+		want := map[string]any{
+			"tags": []any{"third", "fourth", "first", "second"},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should handle nil sources gracefully", func(t *testing.T) {
+		input := `{"config":{"$merge":[{"$ref":"local::nullable"},{"port":8080}]}}`
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(map[string]any{"nullable": nil}))
+		want := map[string]any{
+			"config": map[string]any{
+				"port": float64(8080),
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should resolve nested directives in merge sources", func(t *testing.T) {
+		nestedScope := map[string]any{
+			"configs": []any{
+				map[string]any{"$ref": "local::base.config"},
+				map[string]any{"name": "override"},
+			},
+			"base": map[string]any{
+				"config": map[string]any{"host": "localhost", "port": 3000},
+			},
+		}
+		input := `{"result":{"$merge":{"$ref":"local::configs"}}}`
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(nestedScope))
+		want := map[string]any{
+			"result": map[string]any{
+				"host": "localhost",
+				"port": float64(3000),
+				"name": "override",
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+}
+
+func TestMergeDirectiveErrors(t *testing.T) {
+	cases := []testCase{
+		{
+			name:        "Should fail on empty sources",
+			input:       `{"$merge":[]}`,
+			wantErr:     true,
+			errContains: "sources cannot be empty",
+		},
+		{
+			name:        "Should fail on mixed source types",
+			input:       `{"$merge":[{"key":"value"},["array","item"]]}`,
+			wantErr:     true,
+			errContains: "must be all objects or all arrays",
+		},
+		{
+			name:        "Should fail on invalid object strategy",
+			input:       `{"$merge":{"strategy":"invalid","sources":[{"a":1},{"b":2}]}}`,
+			wantErr:     true,
+			errContains: "invalid object merge strategy",
+		},
+		{
+			name:        "Should fail on invalid array strategy",
+			input:       `{"$merge":{"strategy":"invalid","sources":[["a"],["b"]]}}`,
+			wantErr:     true,
+			errContains: "invalid array merge strategy",
+		},
+		{
+			name:        "Should fail on invalid key_conflict",
+			input:       `{"$merge":{"key_conflict":"invalid","sources":[{"a":1},{"b":2}]}}`,
+			wantErr:     true,
+			errContains: "invalid key_conflict",
+		},
+		{
+			name:        "Should fail on unknown merge option",
+			input:       `{"$merge":{"unknown":"option","sources":[{"a":1}]}}`,
+			wantErr:     true,
+			errContains: "unknown key in $merge",
+		},
+		{
+			name:        "Should fail on missing sources in mapping",
+			input:       `{"$merge":{"strategy":"deep"}}`,
+			wantErr:     true,
+			errContains: "must contain 'sources' key",
+		},
+		{
+			name:        "Should fail when sources is not a sequence",
+			input:       `{"$merge":{"sources":"not-a-list"}}`,
+			wantErr:     true,
+			errContains: "sources must be a sequence",
+		},
+		{
+			name:        "Should fail on scalar merge source",
+			input:       `{"$merge":["string",{"key":"value"}]}`,
+			wantErr:     true,
+			errContains: "must be an object or array",
+		},
+		{
+			name:        "Should fail on sibling keys with $merge",
+			input:       `{"$merge":[{"a":1}],"extra":"key"}`,
+			wantErr:     true,
+			errContains: "sibling keys",
+		},
+	}
+	runTestCases(t, cases)
+}
+
+// -----------------------------------------------------------------------------
 // Public API Tests
 // -----------------------------------------------------------------------------
 

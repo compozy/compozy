@@ -125,7 +125,7 @@ func (ev *Evaluator) Eval(node Node) (Node, error) {
 
 	if m, ok := node.(map[string]any); ok {
 		// Check for directives in deterministic order
-		for _, dirName := range []string{"$use", "$ref"} {
+		for _, dirName := range []string{"$use", "$ref", "$merge"} {
 			if value, exists := m[dirName]; exists {
 				// Stricter validation: directive nodes should only contain the directive key
 				if len(m) != 1 {

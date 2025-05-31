@@ -52,7 +52,8 @@ func MustEvalBytes(t testing.TB, data []byte, options ...EvalConfigOption) Node 
 	if err != nil {
 		t.Fatalf("failed to evaluate: %v", err)
 	}
-	return result
+	// Normalize numeric values to match JSON behavior
+	return normalizeResult(result)
 }
 
 // TestDataPath returns the path to a test data file.
@@ -79,5 +80,31 @@ func normalizeNumbers(v any) {
 				normalizeNumbers(x)
 			}
 		}
+	}
+}
+
+// normalizeResult ensures all numeric values are float64 to match JSON unmarshalling behavior
+func normalizeResult(v any) any {
+	switch vv := v.(type) {
+	case map[string]any:
+		result := make(map[string]any)
+		for k, x := range vv {
+			result[k] = normalizeResult(x)
+		}
+		return result
+	case []any:
+		result := make([]any, len(vv))
+		for i, x := range vv {
+			result[i] = normalizeResult(x)
+		}
+		return result
+	case int:
+		return float64(vv)
+	case int64:
+		return float64(vv)
+	case int32:
+		return float64(vv)
+	default:
+		return vv
 	}
 }
