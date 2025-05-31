@@ -2,7 +2,6 @@ package ref
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -173,8 +172,8 @@ func TestCache_DocumentLoadingIntegration(t *testing.T) {
 		}
 
 		// Manually add to cache to simulate a loaded document
-		// Cost 1, TTL 1 hour (arbitrary for test)
-		cache.SetWithTTL(testKey, testData, 1, 1) // Ristretto TTL is in seconds, using 1 sec for test
+		// Cost 1
+		cache.Set(testKey, testData, 1)
 		cache.Wait()
 
 		// Verify it can be retrieved as expected by selectSourceDocument logic
@@ -204,7 +203,7 @@ func TestCache_DocumentLoadingIntegration(t *testing.T) {
 		}
 
 		// Simulate caching a remote document
-		cache.SetWithTTL(testURL, testDataURL, 1, 1) // Ristretto TTL is in seconds
+		cache.Set(testURL, testDataURL, 1)
 		cache.Wait()
 
 		// Verify retrieval

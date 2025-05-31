@@ -138,14 +138,14 @@ func BenchmarkCache_DocumentLoad(b *testing.B) {
 		},
 	}
 
-	cache := getResolvedDocsCache()
+	cache := GetGlobalCache()
 	testKey := "/benchmark/test.yaml"
 
 	b.Run("CacheWrite", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			key := fmt.Sprintf("%s_%d", testKey, i)
-			cache.Add(key, testData)
+			cache.Set(key, testData, 1)
 		}
 	})
 
@@ -153,8 +153,9 @@ func BenchmarkCache_DocumentLoad(b *testing.B) {
 		// Pre-populate cache
 		for i := 0; i < 1000; i++ {
 			key := fmt.Sprintf("%s_%d", testKey, i)
-			cache.Add(key, testData)
+			cache.Set(key, testData, 1)
 		}
+		cache.Wait() // Ensure all writes are processed
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
@@ -162,40 +163,6 @@ func BenchmarkCache_DocumentLoad(b *testing.B) {
 			_, _ = cache.Get(key)
 		}
 	})
-}
-
-func BenchmarkPathCache_Performance(b *testing.B) {
-	// Benchmark path cache performance
-	if pathCache := getPathCache(); pathCache != nil {
-		testPaths := []string{
-			"schemas.0.id",
-			"schemas.#(id==\"test\").properties",
-			"config.database.host",
-			"nested.level1.level2.value",
-			"array.#(name==\"item\").data",
-		}
-
-		b.Run("PathCacheWrite", func(b *testing.B) {
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				path := testPaths[i%len(testPaths)]
-				pathCache.Add(path, path)
-			}
-		})
-
-		b.Run("PathCacheRead", func(b *testing.B) {
-			// Pre-populate cache
-			for _, path := range testPaths {
-				pathCache.Add(path, path)
-			}
-
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				path := testPaths[i%len(testPaths)]
-				_, _ = pathCache.Get(path)
-			}
-		})
-	}
 }
 
 // -----------------------------------------------------------------------------

@@ -2,15 +2,13 @@ package ref
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"sync"
 	"time"
-	"fmt"
 
 	"github.com/dgraph-io/ristretto"
 	"github.com/kelseyhightower/envconfig"
@@ -21,7 +19,7 @@ import (
 // ristrettoConfig holds configuration values for the global Ristretto cache,
 // populated from environment variables.
 type ristrettoConfig struct {
-	NumCounters int64 `envconfig:"NUM_COUNTERS" default:"10000000"`    // Default 10M
+	NumCounters int64 `envconfig:"NUM_COUNTERS" default:"10000000"`   // Default 10M
 	MaxCost     int64 `envconfig:"MAX_COST"     default:"1073741824"` // Default 1GB (1 << 30)
 	BufferItems int64 `envconfig:"BUFFER_ITEMS" default:"64"`
 	Metrics     bool  `envconfig:"METRICS"      default:"true"`
@@ -185,7 +183,8 @@ func loadDocument(ctx context.Context, filePath, cwd string) (Document, error) {
 
 	// Cache the parsed document data
 	// Assuming cost is 1 for simplicity for now. TTL set to 1 hour.
-	globalCache.SetWithTTL(fullPath, doc, 1, 1*time.Hour)
+	globalCache.SetWithTTL(fullPath, doc, 1, time.Hour)
+	globalCache.Wait() // Ensure the value is stored
 
 	return &simpleDocument{data: doc}, nil
 }
@@ -234,7 +233,8 @@ func loadFromURL(ctx context.Context, urlStr string) (Document, error) {
 
 	// Cache remote document
 	// Assuming cost is 1 for simplicity for now. TTL set to 1 hour.
-	globalCache.SetWithTTL(urlStr, doc, 1, 1*time.Hour)
+	globalCache.SetWithTTL(urlStr, doc, 1, time.Hour)
+	globalCache.Wait() // Ensure the value is stored
 
 	return &simpleDocument{data: doc}, nil
 }

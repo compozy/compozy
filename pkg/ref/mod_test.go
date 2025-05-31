@@ -624,7 +624,7 @@ func TestApplyMergeMode(t *testing.T) {
 
 		_, err := ref.ApplyMergeMode(refValue, inlineValue)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "append mode requires both values to be arrays")
+		assert.Contains(t, err.Error(), "append mode requires both values to be slices")
 	})
 }
 

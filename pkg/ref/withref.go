@@ -5,11 +5,8 @@ import (
 	"maps"
 	"path/filepath"
 	"reflect"
-	"strings"
-	"sync"
 
-	"github.com/jinzhu/copier"
-	"github.com/mitchellh/mapstructure" // Keep for setFieldValue if it remains, or remove if setFieldValue is removed
+	"github.com/jinzhu/copier" // Keep for setFieldValue if it remains, or remove if setFieldValue is removed
 	"github.com/pkg/errors"
 )
 

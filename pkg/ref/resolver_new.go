@@ -93,7 +93,7 @@ func (r *Resolver) Resolve(ctx context.Context, v any, meta ...Meta) (any, error
 			// If it's a map of a different type, we might not be able to resolve it directly
 			// or we might need a conversion step. For now, return original if not map[string]any.
 			// Consider logging a warning or returning an error based on strictness requirements.
-			return v, nil // Or: errors.Errorf("map type %T not supported for direct resolution, expected map[string]any", val.Interface())
+			return v, nil
 		}
 		return r.resolveMap(ctx, mapData, docMeta)
 	case reflect.Slice:
@@ -101,7 +101,7 @@ func (r *Resolver) Resolve(ctx context.Context, v any, meta ...Meta) (any, error
 		if !ok {
 			// Similar to maps, if it's a slice of a different type.
 			// Return original if not []any.
-			return v, nil // Or: errors.Errorf("slice type %T not supported for direct resolution, expected []any", val.Interface())
+			return v, nil
 		}
 		return r.resolveSlice(ctx, sliceData, docMeta)
 	default:
@@ -168,7 +168,7 @@ func (r *Resolver) resolveStruct(ctx context.Context, v any, docMeta DocMetadata
 		// The currentDoc for a struct field resolution is the struct itself.
 		// Prepare DocMetadata for resolving this specific field's reference.
 		// FilePath and ProjectRoot are inherited from the parent docMeta.
-		fieldRefDocMeta := docMeta                 // Create a copy
+		fieldRefDocMeta := docMeta                            // Create a copy
 		fieldRefDocMeta.CurrentDoc = &simpleDocument{data: v} // The struct itself is the context for property refs
 		// For CurrentDocJSON, ideally marshal 'v' once if many property refs,
 		// but resolveWithMetadata also marshals if CurrentDocJSON is nil.
@@ -295,7 +295,9 @@ func (r *Resolver) resolveSlice(ctx context.Context, s []any, docMeta DocMetadat
 func parseRefFromInterface(refDef any) (*Ref, error) {
 	switch v := refDef.(type) {
 	case string:
-		if v == "" { return nil, nil } // Empty string is not a ref, or handled by caller.
+		if v == "" {
+			return nil, nil
+		} // Empty string is not a ref, or handled by caller.
 		return parseStringRef(v) // Assumes parseStringRef exists (e.g., from parse.go)
 	case map[string]any:
 		// This logic adapted from WithRef.parseRefFromMap
@@ -314,12 +316,12 @@ func parseRefFromInterface(refDef any) (*Ref, error) {
 			ref.File = fileStr
 		}
 		if modeStr, ok := v["mode"].(string); ok {
-			ref.Mode = Mode(modeStr) // Directly convert string to Mode
+			ref.Mode = Mode(modeStr)                                                                          // Directly convert string to Mode
 			if ref.Mode != ModeMerge && ref.Mode != ModeReplace && ref.Mode != ModeAppend && ref.Mode != "" { // "" mode defaults to Merge
 				return nil, errors.Errorf("unknown merge mode: '%s'", modeStr)
 			}
 			if ref.Mode == "" { // Explicitly set default if mode was an empty string
-			    ref.Mode = ModeMerge
+				ref.Mode = ModeMerge
 			}
 		}
 		// Basic validation for file type having a file path

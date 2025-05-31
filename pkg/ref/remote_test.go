@@ -115,6 +115,9 @@ func TestLoadFromURL_Caching(t *testing.T) {
 	const yamlContent = "cached: true\n"
 
 	t.Run("Should cache remote documents with TTL", func(t *testing.T) {
+		// Reset cache to ensure clean state
+		ResetRistrettoCacheForTesting()
+
 		rt := NewMockRT()
 		rt.Stub("https://cfg.local/cache-test.yaml", http.StatusOK, yamlContent, nil)
 

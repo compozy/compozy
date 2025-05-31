@@ -1,6 +1,7 @@
 package ref
 
 import (
+	"fmt"
 	"reflect"
 
 	"dario.cat/mergo"
@@ -16,6 +17,7 @@ import (
 //   - If both refValue and inlineValue are slices, they are concatenated (inlineValue first, then refValue).
 //   - If one is a slice and the other is nil, the slice is returned.
 //   - Otherwise, an error is returned.
+//
 // - ModeMerge:
 //   - If both refValue and inlineValue are maps (map[string]any), they are merged.
 //     The inlineMap serves as the base, and refMap is merged into it.
@@ -25,6 +27,7 @@ import (
 //   - If types are different and not both maps (e.g., map and a slice, or scalar types),
 //     refValue takes precedence and is returned. This aligns with the previous behavior
 //     where the referenced content was considered dominant in case of type mismatch for merging.
+//
 // - Default: An error is returned for any unknown merge mode.
 func (r *Ref) ApplyMergeMode(refValue, inlineValue any) (any, error) {
 	if r == nil {
@@ -73,9 +76,9 @@ func mergeValues(refValue, inlineValue any) (any, error) {
 		// A simpler way to copy for this case:
 		for k, v := range inlineMap {
 			dst[k] = v // This is a shallow copy of the map's top level.
-			              // For deep copy of nested structures, a proper deep copy func would be needed
-									  // or rely on mergo to handle it if we merge into an empty map first.
-									  // Let's use mergo for a clean deep copy into dst.
+			// For deep copy of nested structures, a proper deep copy func would be needed
+			// or rely on mergo to handle it if we merge into an empty map first.
+			// Let's use mergo for a clean deep copy into dst.
 		}
 		// Re-initialize dst for a clean deep copy by mergo
 		dst = make(map[string]any)
@@ -92,7 +95,17 @@ func mergeValues(refValue, inlineValue any) (any, error) {
 		return dst, nil
 	}
 
-	// If not both are maps (e.g., one is a map, the other a slice, or scalar types),
+	// Check if both values are slices - merge them like append mode
+	refSlice, refIsSlice := toSliceE(refValue)
+	inlineSlice, inlineIsSlice := toSliceE(inlineValue)
+
+	if refIsSlice && inlineIsSlice {
+		// Both are slices, merge them: inline elements first, then ref elements
+		// This is consistent with how mergo.WithAppendSlice works for maps
+		return append(inlineSlice, refSlice...), nil
+	}
+
+	// If not both are maps or both are slices (e.g., one is a map, the other a slice, or scalar types),
 	// the refValue takes precedence. This is consistent with the previous behavior
 	// where the external reference content is considered dominant if a structural merge isn't possible.
 	return refValue, nil
@@ -128,10 +141,10 @@ func appendValues(refValue, inlineValue any) (any, error) {
 	// The prompt's example errors out if not both slices.
 	errMsg := "append mode requires both values to be slices"
 	if refValue != nil && !refIsSlice {
-		errMsg = errMsg + errors.Errorf("; ref value is %T", refValue).Error()
+		errMsg = errMsg + fmt.Sprintf("; ref value is %T", refValue)
 	}
 	if inlineValue != nil && !inlineIsSlice {
-		errMsg = errMsg + errors.Errorf("; inline value is %T", inlineValue).Error()
+		errMsg = errMsg + fmt.Sprintf("; inline value is %T", inlineValue)
 	}
 	return nil, errors.New(errMsg)
 }
@@ -141,8 +154,8 @@ func appendValues(refValue, inlineValue any) (any, error) {
 func toSliceE(value any) ([]any, bool) {
 	if value == nil {
 		return nil, false // Nil is not considered a slice here. Or true, with nil slice.
-		                 // For append, if one is nil, it's better to treat it as an empty slice implicitly.
-										 // However, the appendValues logic handles nil explicitly first.
+		// For append, if one is nil, it's better to treat it as an empty slice implicitly.
+		// However, the appendValues logic handles nil explicitly first.
 	}
 	val := reflect.ValueOf(value)
 	if val.Kind() == reflect.Slice {
@@ -155,18 +168,5 @@ func toSliceE(value any) ([]any, bool) {
 		}
 		return slice, true
 	}
-	return nil, false
-}
-
-// Helper function convertToMap (not strictly needed if mergo handles it, but good for type safety before calling mergo)
-// For this implementation, direct type assertion `value.(map[string]any)` is used in mergeValues.
-// mergo itself can handle map[any]any to some extent, but map[string]any is common for JSON/YAML data.
-// This function is not used in the current implementation above but kept for reference.
-func convertToMap(value any) (map[string]any, bool) {
-	if m, ok := value.(map[string]any); ok {
-		return m, true
-	}
-	// Potentially handle map[any]any or structs here if needed,
-	// but mergo might do some of this. For now, keep it simple.
 	return nil, false
 }

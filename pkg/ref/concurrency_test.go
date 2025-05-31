@@ -17,12 +17,8 @@ import (
 // -----------------------------------------------------------------------------
 
 func TestParallelCycleDetection(t *testing.T) {
-	// Lower the parallel threshold for testing to ensure parallel execution
-	originalMinParallelElements := minParallelElements
-	defer func() {
-		// NOTE: cannot change const here, this is just documenting the intention
-		_ = originalMinParallelElements
-	}()
+	// The parallel threshold is now hardcoded in the implementation to 4 elements
+	// and runtime.NumCPU() > 1
 
 	t.Run("Should detect cycles across parallel branches", func(t *testing.T) {
 		// Create a map with two keys that reference each other
@@ -259,7 +255,7 @@ func TestRaceConditions(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should handle concurrent cache access", func(t *testing.T) {
-		// Test concurrent access to the LRU cache
+		// Test concurrent access to the Ristretto cache
 		const numGoroutines = 50
 		const filePath = "/test/concurrent.yaml"
 
@@ -274,8 +270,9 @@ func TestRaceConditions(t *testing.T) {
 				defer wg.Done()
 
 				// Try to set and get from cache concurrently
-				getResolvedDocsCache().Add(filePath, testData)
-				retrieved, exists := getResolvedDocsCache().Get(filePath)
+				GetGlobalCache().Set(filePath, testData, 1)
+				GetGlobalCache().Wait() // Ensure the set is processed
+				retrieved, exists := GetGlobalCache().Get(filePath)
 
 				if !exists {
 					errors <- fmt.Errorf("goroutine %d: cache entry not found", id)

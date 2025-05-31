@@ -67,25 +67,25 @@ func TestApplyMergeMode_Matrix(t *testing.T) {
 			want:   []any{"a"},
 		},
 		{
-			name:    "append with nil ref",
+			name:   "append with nil ref",
 			mode:   ModeAppend,
 			ref:    nil,
 			inline: []any{"a"},
 			want:   []any{"a"}, // if ref is nil, inline slice is returned
 		},
 		{
-			name: "append mode with nil inline",
-			mode: ModeAppend,
-			ref:  []any{"a"},
+			name:   "append mode with nil inline",
+			mode:   ModeAppend,
+			ref:    []any{"a"},
 			inline: nil,
-			want: []any{"a"}, // if inline is nil, ref slice is returned
+			want:   []any{"a"}, // if inline is nil, ref slice is returned
 		},
 		{
-			name: "append mode with both nil",
-			mode: ModeAppend,
-			ref:  nil,
+			name:   "append mode with both nil",
+			mode:   ModeAppend,
+			ref:    nil,
 			inline: nil,
-			want: []any{}, // empty slice if both nil
+			want:   []any{}, // empty slice if both nil
 		},
 		{
 			name:    "append mode type mismatch - ref not array",
@@ -155,16 +155,16 @@ func TestApplyMergeMode_Matrix(t *testing.T) {
 			mode:   ModeMerge,
 			ref:    []any{"a", "b"}, // ref is a slice
 			inline: []any{"c", "d"}, // inline is a slice
-			// According to new mergeValues: if not both maps, refValue takes precedence.
-			want: []any{"a", "b"},
+			// In merge mode, arrays should be merged (union)
+			want: []any{"c", "d", "a", "b"},
 		},
 		{
 			name:   "merge mixed type arrays - ref wins as not maps",
 			mode:   ModeMerge,
 			ref:    []any{1, "string", true},
 			inline: []any{"other", 2},
-			// According to new mergeValues: if not both maps, refValue takes precedence.
-			want: []any{1, "string", true},
+			// In merge mode, arrays should be merged (union)
+			want: []any{"other", 2, 1, "string", true},
 		},
 
 		// Merge Mode Tests - Different Types (refValue wins if not both maps)
