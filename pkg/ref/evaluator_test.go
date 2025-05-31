@@ -3,8 +3,10 @@ package ref
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -257,6 +259,16 @@ func TestDirectiveErrors(t *testing.T) {
 		{name: "Should fail on empty ref path", input: `{"$ref":"local::"}`, options: []EvalConfigOption{WithLocalScope(scope)}, wantErr: true, errContains: "invalid $ref syntax"},
 		{name: "Should fail when local scope nil", input: `{"$ref":"local::foo"}`, wantErr: true, errContains: "local scope is not configured"},
 		{name: "Should fail when global scope nil", input: `{"$ref":"global::foo"}`, wantErr: true, errContains: "global scope is not configured"},
+		{
+			name:  "Should fail on cyclic reference",
+			input: `{"$ref":"local::a"}`,
+			options: []EvalConfigOption{WithLocalScope(map[string]any{
+				"a": map[string]any{"$ref": "local::b"},
+				"b": map[string]any{"$ref": "local::a"},
+			})},
+			wantErr:     true,
+			errContains: "cyclic reference",
+		},
 	}
 	runTestCases(t, cases)
 }
@@ -602,6 +614,13 @@ func TestMergeDirectiveErrors(t *testing.T) {
 			wantErr:     true,
 			errContains: "sibling keys",
 		},
+		{
+			name:        "Should fail when $ref evaluates to scalar",
+			input:       `{"$merge":[{"$ref":"local::scalar"},{"key":"value"}]}`,
+			options:     []EvalConfigOption{WithLocalScope(map[string]any{"scalar": "string value"})},
+			wantErr:     true,
+			errContains: "must be an object or array",
+		},
 	}
 	runTestCases(t, cases)
 }
@@ -638,6 +657,88 @@ val:
 	})
 }
 
+func TestWithScopes(t *testing.T) {
+	localScope := map[string]any{
+		"local_key": "local_value",
+	}
+	globalScope := map[string]any{
+		"global_key": "global_value",
+	}
+
+	t.Run("Should set both scopes with WithScopes", func(t *testing.T) {
+		yamlDoc := `
+local:
+  $ref: "local::local_key"
+global:
+  $ref: "global::global_key"`
+
+		got := MustEvalBytes(t, []byte(yamlDoc), WithScopes(localScope, globalScope))
+		want := map[string]any{
+			"local":  "local_value",
+			"global": "global_value",
+		}
+		assert.Equal(t, want, got)
+	})
+}
+
+func TestWithPreEval(t *testing.T) {
+	t.Run("Should apply pre-eval hook to transform nodes", func(t *testing.T) {
+		// Pre-eval hook that converts strings to uppercase
+		preEval := func(node Node) (Node, error) {
+			if str, ok := node.(string); ok {
+				return strings.ToUpper(str), nil
+			}
+			return node, nil
+		}
+
+		yamlDoc := `
+name: john
+city: paris`
+
+		got := MustEvalBytes(t, []byte(yamlDoc), WithPreEval(preEval))
+		want := map[string]any{
+			"name": "JOHN",
+			"city": "PARIS",
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should handle pre-eval errors", func(t *testing.T) {
+		// Pre-eval hook that fails on specific values
+		preEval := func(node Node) (Node, error) {
+			if str, ok := node.(string); ok && str == "forbidden" {
+				return nil, fmt.Errorf("forbidden value")
+			}
+			return node, nil
+		}
+
+		yamlDoc := `value: forbidden`
+
+		_, err := ProcessBytes([]byte(yamlDoc), WithPreEval(preEval))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "pre-evaluation hook failed")
+		assert.Contains(t, err.Error(), "forbidden value")
+	})
+
+	t.Run("Should apply pre-eval before directive evaluation", func(t *testing.T) {
+		// Pre-eval hook that transforms a special prefix into a directive
+		preEval := func(node Node) (Node, error) {
+			if str, ok := node.(string); ok && strings.HasPrefix(str, "REF:") {
+				ref := strings.TrimPrefix(str, "REF:")
+				return map[string]any{"$ref": ref}, nil
+			}
+			return node, nil
+		}
+
+		localScope := map[string]any{"value": "success"}
+		yamlDoc := `result: REF:local::value`
+
+		got := MustEvalBytes(t, []byte(yamlDoc), WithLocalScope(localScope), WithPreEval(preEval))
+		want := map[string]any{"result": "success"}
+		assert.Equal(t, want, got)
+	})
+}
+
 // -----------------------------------------------------------------------------
 // Idempotence Tests
 // -----------------------------------------------------------------------------
@@ -660,5 +761,69 @@ server:
 		expect := map[string]any{"name": "demo", "server": map[string]any{"host": "localhost", "port": float64(8080)}}
 		assert.Equal(t, expect, out1)
 		assert.Equal(t, expect, out3)
+	})
+}
+
+// -----------------------------------------------------------------------------
+// Directive Registration Tests
+// -----------------------------------------------------------------------------
+
+func TestRegisterDirective(t *testing.T) {
+	// Custom directive that doubles numbers
+	doubleDirective := Directive{
+		Name: "$double",
+		Validator: func(node Node) error {
+			switch v := node.(type) {
+			case float64, int:
+				return nil
+			default:
+				return fmt.Errorf("$double expects a number, got %T", v)
+			}
+		},
+		Handler: func(_ EvaluatorContext, node Node) (Node, error) {
+			switch v := node.(type) {
+			case float64:
+				return v * 2, nil
+			case int:
+				return float64(v) * 2, nil
+			default:
+				return nil, fmt.Errorf("$double expects a number")
+			}
+		},
+	}
+
+	t.Run("Should register custom directive", func(t *testing.T) {
+		err := Register(doubleDirective)
+		require.NoError(t, err)
+
+		// Test using the custom directive
+		input := `{"result": {"$double": 21}}`
+		got := MustEvalBytes(t, []byte(input))
+		want := map[string]any{"result": float64(42)}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should fail to register duplicate directive", func(t *testing.T) {
+		err := Register(doubleDirective)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "already registered")
+	})
+
+	t.Run("Should fail to register directive without $", func(t *testing.T) {
+		err := Register(Directive{Name: "invalid", Handler: func(_ EvaluatorContext, _ Node) (Node, error) { return nil, nil }})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "must start with '$'")
+	})
+
+	t.Run("Should fail to register directive without handler", func(t *testing.T) {
+		err := Register(Directive{Name: "$nohandler"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "handler cannot be nil")
+	})
+
+	t.Run("Should fail to register directive without name", func(t *testing.T) {
+		err := Register(Directive{Handler: func(_ EvaluatorContext, _ Node) (Node, error) { return nil, nil }})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "name cannot be empty")
 	})
 }

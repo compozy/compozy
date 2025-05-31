@@ -2,9 +2,6 @@ package ref
 
 import (
 	"fmt"
-	"maps"
-
-	"dario.cat/mergo"
 )
 
 // -----------------------------------------------------------------------------
@@ -121,14 +118,14 @@ func validateMergeMap(v map[string]any) error {
 	return nil
 }
 
-func handleMerge(ev *Evaluator, node Node) (Node, error) {
+func handleMerge(ctx EvaluatorContext, node Node) (Node, error) {
 	// First check if the node itself is a directive that needs evaluation
-	if evaluated, ok, err := tryEvaluateDirective(ev, node); ok {
+	if evaluated, ok, err := tryEvaluateDirective(ctx, node); ok {
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate directive in $merge: %w", err)
 		}
 		// Now process the evaluated result
-		return handleMerge(ev, evaluated)
+		return handleMerge(ctx, evaluated)
 	}
 
 	// Parse merge configuration (validation already done)
@@ -137,7 +134,7 @@ func handleMerge(ev *Evaluator, node Node) (Node, error) {
 	// Evaluate all sources first
 	evaluatedSources := make([]any, len(sources))
 	for i, src := range sources {
-		evaluated, err := ev.Eval(src)
+		evaluated, err := ctx.Eval(src)
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate $merge source at index %d: %w", i, err)
 		}
@@ -162,7 +159,7 @@ func handleMerge(ev *Evaluator, node Node) (Node, error) {
 }
 
 // tryEvaluateDirective checks if node is a directive that needs evaluation
-func tryEvaluateDirective(ev *Evaluator, node Node) (Node, bool, error) {
+func tryEvaluateDirective(ctx EvaluatorContext, node Node) (Node, bool, error) {
 	m, ok := node.(map[string]any)
 	if !ok {
 		return nil, false, nil
@@ -172,7 +169,7 @@ func tryEvaluateDirective(ev *Evaluator, node Node) (Node, bool, error) {
 	for _, dirName := range []string{"$use", "$ref", "$merge"} {
 		if _, exists := m[dirName]; exists && len(m) == 1 {
 			// This is a directive node, evaluate it first
-			evaluated, err := ev.Eval(node)
+			evaluated, err := ctx.Eval(node)
 			return evaluated, true, err
 		}
 	}
@@ -272,12 +269,13 @@ func mergeObjects(sources []any, strategy StrategyType, keyConflict KeyConflictT
 		return nil, fmt.Errorf("invalid key_conflict: %s (must be 'last', 'first', or 'error')", keyConflict)
 	}
 
-	result := make(map[string]any)
-	// For deep merge with "last" conflict resolution, we can use mergo
+	// For the common case (deep + last), use optimized implementation
 	if strategy == StrategyDeep && keyConflict == KeyConflictLast {
-		return mergeObjectsWithMergo(sources)
+		return deepMergeMaps(sources), nil
 	}
+
 	// Custom logic for other cases
+	result := make(map[string]any)
 	for _, src := range sources {
 		if src == nil {
 			continue
@@ -293,10 +291,32 @@ func mergeObjects(sources []any, strategy StrategyType, keyConflict KeyConflictT
 	return result, nil
 }
 
-// mergeObjectsWithMergo uses the mergo library for deep merge with last-wins
-func mergeObjectsWithMergo(sources []any) (Node, error) {
-	result := make(map[string]any)
-	for _, src := range sources {
+// deepMergeMaps performs an optimized deep merge with last-wins semantics
+func deepMergeMaps(sources []any) map[string]any {
+	if len(sources) == 0 {
+		return make(map[string]any)
+	}
+	// Start with the first non-nil map
+	var result map[string]any
+	startIdx := 0
+	for i, src := range sources {
+		if src != nil {
+			if srcMap, ok := src.(map[string]any); ok {
+				result = make(map[string]any, len(srcMap))
+				for k, v := range srcMap {
+					result[k] = v
+				}
+				startIdx = i + 1
+				break
+			}
+		}
+	}
+	if result == nil {
+		return make(map[string]any)
+	}
+	// Merge remaining sources
+	for i := startIdx; i < len(sources); i++ {
+		src := sources[i]
 		if src == nil {
 			continue
 		}
@@ -304,11 +324,39 @@ func mergeObjectsWithMergo(sources []any) (Node, error) {
 		if !ok {
 			continue
 		}
-		if err := mergo.Merge(&result, srcMap, mergo.WithOverride); err != nil {
-			return nil, fmt.Errorf("failed to merge maps: %w", err)
+		for key, srcValue := range srcMap {
+			if existingValue, exists := result[key]; exists {
+				// Both are maps - merge recursively
+				if existingMap, ok1 := existingValue.(map[string]any); ok1 {
+					if srcValueMap, ok2 := srcValue.(map[string]any); ok2 {
+						deepMergeInPlace(existingMap, srcValueMap)
+						continue
+					}
+				}
+			}
+			// Otherwise, just replace
+			result[key] = srcValue
 		}
 	}
-	return result, nil
+
+	return result
+}
+
+// deepMergeInPlace merges src into dst, modifying dst in place
+func deepMergeInPlace(dst, src map[string]any) {
+	for key, srcValue := range src {
+		if dstValue, exists := dst[key]; exists {
+			// Both are maps - merge recursively
+			if dstMap, ok1 := dstValue.(map[string]any); ok1 {
+				if srcMap, ok2 := srcValue.(map[string]any); ok2 {
+					deepMergeInPlace(dstMap, srcMap)
+					continue
+				}
+			}
+		}
+		// Otherwise, just replace
+		dst[key] = srcValue
+	}
 }
 
 // mergeObjectsCustom handles custom merge logic for specific strategies/conflicts
@@ -324,22 +372,21 @@ func mergeObjectsCustom(result, srcMap map[string]any, strategy StrategyType, ke
 				// Continue to merge or replace
 			}
 
+			// Only need to handle deep merge here
 			if strategy == StrategyDeep {
 				// Deep merge if both values are maps
 				if existingMap, ok1 := existing.(map[string]any); ok1 {
 					if valueMap, ok2 := value.(map[string]any); ok2 {
-						merged := make(map[string]any)
-						maps.Copy(merged, existingMap)
-						if err := mergo.Merge(&merged, valueMap, mergo.WithOverride); err != nil {
+						// Instead of creating a new map and copying, merge in-place
+						if err := mergeObjectsCustom(existingMap, valueMap, strategy, keyConflict); err != nil {
 							return fmt.Errorf("failed to deep merge key '%s': %w", key, err)
 						}
-						result[key] = merged
 						continue
 					}
 				}
 			}
 		}
-		// Shallow merge or non-map value
+		// Shallow merge, non-map value, or new key - just assign directly
 		result[key] = value
 	}
 	return nil
