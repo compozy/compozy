@@ -8,21 +8,55 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Constants
+// Types
 // -----------------------------------------------------------------------------
 
-const (
-	strategyDefault = "default"
-	strategyDeep    = "deep"
-	strategyShallow = "shallow"
-	strategyConcat  = "concat"
-	strategyPrepend = "prepend"
-	strategyUnique  = "unique"
+type StrategyType string
+type KeyConflictType string
 
-	keyConflictLast  = "last"
-	keyConflictFirst = "first"
-	keyConflictError = "error"
+const (
+	StrategyDefault StrategyType = "default"
+	StrategyDeep    StrategyType = "deep"
+	StrategyShallow StrategyType = "shallow"
+	StrategyConcat  StrategyType = "concat"
+	StrategyPrepend StrategyType = "prepend"
+	StrategyUnique  StrategyType = "unique"
+
+	KeyConflictLast  KeyConflictType = "last"
+	KeyConflictFirst KeyConflictType = "first"
+	KeyConflictError KeyConflictType = "error"
 )
+
+func (s StrategyType) String() string {
+	return string(s)
+}
+
+func (s StrategyType) IsValid() bool {
+	return s == StrategyDefault ||
+		s == StrategyDeep ||
+		s == StrategyShallow ||
+		s == StrategyConcat ||
+		s == StrategyPrepend ||
+		s == StrategyUnique
+}
+
+func (s StrategyType) isValidForObjects() bool {
+	return s == StrategyDeep || s == StrategyShallow
+}
+
+func (s StrategyType) isValidForArrays() bool {
+	return s == StrategyConcat || s == StrategyPrepend || s == StrategyUnique
+}
+
+func (k KeyConflictType) String() string {
+	return string(k)
+}
+
+func (k KeyConflictType) IsValid() bool {
+	return k == KeyConflictLast ||
+		k == KeyConflictFirst ||
+		k == KeyConflictError
+}
 
 // -----------------------------------------------------------------------------
 // $merge Directive
@@ -146,11 +180,11 @@ func tryEvaluateDirective(ev *Evaluator, node Node) (Node, bool, error) {
 }
 
 // parseMergeConfig extracts merge configuration from the node (assumes validation passed)
-func parseMergeConfig(node Node) (sources []any, strategy, keyConflict string) {
+func parseMergeConfig(node Node) (sources []any, strategy StrategyType, keyConflict KeyConflictType) {
 	switch v := node.(type) {
 	case []any:
 		// Shorthand syntax
-		return v, strategyDefault, keyConflictLast
+		return v, StrategyDefault, KeyConflictLast
 	case map[string]any:
 		// Explicit syntax
 		sourcesRaw, ok := v["sources"]
@@ -166,16 +200,16 @@ func parseMergeConfig(node Node) (sources []any, strategy, keyConflict string) {
 
 		// Get strategy (default based on content type)
 		if s, ok := v["strategy"].(string); ok {
-			strategy = s
+			strategy = StrategyType(s)
 		} else {
-			strategy = strategyDefault
+			strategy = StrategyDefault
 		}
 
 		// Get key_conflict option for objects (default: last)
 		if kc, ok := v["key_conflict"].(string); ok {
-			keyConflict = kc
+			keyConflict = KeyConflictType(kc)
 		} else {
-			keyConflict = keyConflictLast
+			keyConflict = KeyConflictLast
 		}
 
 		return sources, strategy, keyConflict
@@ -223,24 +257,24 @@ func determineMergeType(sources []any) (string, error) {
 	return "", fmt.Errorf("$merge sources must be objects or arrays")
 }
 
-func mergeObjects(sources []any, strategy, keyConflict string) (Node, error) {
-	if strategy == strategyDefault {
-		strategy = strategyDeep
+func mergeObjects(sources []any, strategy StrategyType, keyConflict KeyConflictType) (Node, error) {
+	if strategy == StrategyDefault {
+		strategy = StrategyDeep
 	}
 
 	// Validate strategy with specific error message
-	if strategy != strategyDeep && strategy != strategyShallow {
+	if !strategy.isValidForObjects() {
 		return nil, fmt.Errorf("invalid object merge strategy: %s (must be 'deep' or 'shallow')", strategy)
 	}
 
 	// Validate key_conflict with specific error message
-	if keyConflict != keyConflictLast && keyConflict != keyConflictFirst && keyConflict != keyConflictError {
+	if !keyConflict.IsValid() {
 		return nil, fmt.Errorf("invalid key_conflict: %s (must be 'last', 'first', or 'error')", keyConflict)
 	}
 
 	result := make(map[string]any)
 	// For deep merge with "last" conflict resolution, we can use mergo
-	if strategy == strategyDeep && keyConflict == keyConflictLast {
+	if strategy == StrategyDeep && keyConflict == KeyConflictLast {
 		return mergeObjectsWithMergo(sources)
 	}
 	// Custom logic for other cases
@@ -278,19 +312,19 @@ func mergeObjectsWithMergo(sources []any) (Node, error) {
 }
 
 // mergeObjectsCustom handles custom merge logic for specific strategies/conflicts
-func mergeObjectsCustom(result, srcMap map[string]any, strategy, keyConflict string) error {
+func mergeObjectsCustom(result, srcMap map[string]any, strategy StrategyType, keyConflict KeyConflictType) error {
 	for key, value := range srcMap {
 		if existing, exists := result[key]; exists {
 			switch keyConflict {
-			case keyConflictError:
+			case KeyConflictError:
 				return fmt.Errorf("key conflict: '%s' already exists", key)
-			case keyConflictFirst:
+			case KeyConflictFirst:
 				continue // Keep existing value
-			case keyConflictLast:
+			case KeyConflictLast:
 				// Continue to merge or replace
 			}
 
-			if strategy == strategyDeep {
+			if strategy == StrategyDeep {
 				// Deep merge if both values are maps
 				if existingMap, ok1 := existing.(map[string]any); ok1 {
 					if valueMap, ok2 := value.(map[string]any); ok2 {
@@ -311,22 +345,22 @@ func mergeObjectsCustom(result, srcMap map[string]any, strategy, keyConflict str
 	return nil
 }
 
-func mergeArrays(sources []any, strategy string) (Node, error) {
-	if strategy == strategyDefault {
-		strategy = strategyConcat
+func mergeArrays(sources []any, strategy StrategyType) (Node, error) {
+	if strategy == StrategyDefault {
+		strategy = StrategyConcat
 	}
 
 	// Validate strategy with specific error message
-	if strategy != strategyConcat && strategy != strategyPrepend && strategy != strategyUnique {
+	if !strategy.isValidForArrays() {
 		return nil, fmt.Errorf("invalid array merge strategy: %s (must be 'concat', 'prepend', or 'unique')", strategy)
 	}
 
 	switch strategy {
-	case strategyConcat:
+	case StrategyConcat:
 		return mergeArraysConcat(sources), nil
-	case strategyPrepend:
+	case StrategyPrepend:
 		return mergeArraysPrepend(sources), nil
-	case strategyUnique:
+	case StrategyUnique:
 		return mergeArraysUnique(sources), nil
 	default:
 		// Should not reach here due to validation above
