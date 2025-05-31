@@ -6,64 +6,167 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
 
-// fileCache provides a simple LRU-style cache for loaded documents
-type fileCache struct {
-	mu      sync.RWMutex
-	cache   map[string]Document
-	access  map[string]int64
-	maxSize int
+// Default cache sizes
+const (
+	DefaultDocCacheSize  = 256
+	DefaultPathCacheSize = 512
+)
+
+// Cache configuration
+type CacheConfig struct {
+	DocCacheSize    int
+	PathCacheSize   int
+	EnablePathCache bool
 }
 
-var globalFileCache = &fileCache{
-	cache:   make(map[string]Document),
-	access:  make(map[string]int64),
-	maxSize: 128,
-}
+// Global cache instances
+var (
+	resolvedDocs     *lru.Cache[string, any]
+	resolvedDocsOnce sync.Once
 
-func (fc *fileCache) get(key string) (Document, bool) {
-	fc.mu.RLock()
-	defer fc.mu.RUnlock()
-	doc, exists := fc.cache[key]
-	if exists {
-		fc.access[key] = time.Now().UnixNano()
+	pathCache     *lru.Cache[string, string] // path -> compiled gjson path
+	pathCacheOnce sync.Once
+
+	cacheConfig               *CacheConfig
+	configOnce                sync.Once
+	configSetProgrammatically bool // Flag to prevent env var override
+)
+
+// getCacheConfig returns the cache configuration, reading from environment variables if available
+func getCacheConfig() *CacheConfig {
+	// If config is already set programmatically, return it
+	if cacheConfig != nil && configSetProgrammatically {
+		return cacheConfig
 	}
-	return doc, exists
-}
 
-func (fc *fileCache) set(key string, doc Document) {
-	fc.mu.Lock()
-	defer fc.mu.Unlock()
+	configOnce.Do(func() {
+		// Don't override programmatically set config
+		if cacheConfig != nil && configSetProgrammatically {
+			return
+		}
 
-	// Simple eviction if we're at capacity
-	if len(fc.cache) >= fc.maxSize {
-		// Find oldest accessed item
-		var oldestKey string
-		var oldestTime = time.Now().UnixNano()
-		for k, accessTime := range fc.access {
-			if accessTime < oldestTime {
-				oldestTime = accessTime
-				oldestKey = k
+		docSize := DefaultDocCacheSize
+		pathSize := DefaultPathCacheSize
+		enablePathCache := true
+
+		// Read from environment variables
+		if envDocSize := os.Getenv("COMPOZY_REF_CACHE_SIZE"); envDocSize != "" {
+			if size, err := strconv.Atoi(envDocSize); err == nil && size > 0 {
+				docSize = size
 			}
 		}
-		if oldestKey != "" {
-			delete(fc.cache, oldestKey)
-			delete(fc.access, oldestKey)
+
+		if envPathSize := os.Getenv("COMPOZY_REF_PATH_CACHE_SIZE"); envPathSize != "" {
+			if size, err := strconv.Atoi(envPathSize); err == nil && size > 0 {
+				pathSize = size
+			}
 		}
+
+		if envDisablePathCache := os.Getenv("COMPOZY_REF_DISABLE_PATH_CACHE"); envDisablePathCache != "" {
+			enablePathCache = envDisablePathCache != "true" && envDisablePathCache != "1"
+		}
+
+		cacheConfig = &CacheConfig{
+			DocCacheSize:    docSize,
+			PathCacheSize:   pathSize,
+			EnablePathCache: enablePathCache,
+		}
+	})
+	return cacheConfig
+}
+
+// SetCacheConfig allows programmatic configuration of cache settings.
+// This must be called before any cache operations or it will have no effect.
+func SetCacheConfig(config *CacheConfig) {
+	// Reset the once guards first to allow reconfiguration
+	resolvedDocsOnce = sync.Once{}
+	pathCacheOnce = sync.Once{}
+	configOnce = sync.Once{}
+
+	// Clear existing caches
+	resolvedDocs = nil
+	pathCache = nil
+	cacheConfig = nil
+	configSetProgrammatically = false
+
+	// Set the new config
+	if config == nil {
+		cacheConfig = &CacheConfig{
+			DocCacheSize:    DefaultDocCacheSize,
+			PathCacheSize:   DefaultPathCacheSize,
+			EnablePathCache: true,
+		}
+		configSetProgrammatically = false // Use env vars for nil config
+	} else {
+		cacheConfig = &CacheConfig{
+			DocCacheSize:    config.DocCacheSize,
+			PathCacheSize:   config.PathCacheSize,
+			EnablePathCache: config.EnablePathCache,
+		}
+		if cacheConfig.DocCacheSize <= 0 {
+			cacheConfig.DocCacheSize = DefaultDocCacheSize
+		}
+		if cacheConfig.PathCacheSize <= 0 {
+			cacheConfig.PathCacheSize = DefaultPathCacheSize
+		}
+		configSetProgrammatically = true // Mark as programmatic
+	}
+}
+
+// ResetCachesForTesting resets all caches and configuration for testing purposes
+func ResetCachesForTesting() {
+	resolvedDocsOnce = sync.Once{}
+	pathCacheOnce = sync.Once{}
+	configOnce = sync.Once{}
+	resolvedDocs = nil
+	pathCache = nil
+	cacheConfig = nil
+	configSetProgrammatically = false
+}
+
+// getResolvedDocsCache returns the global LRU cache, initializing it if necessary
+func getResolvedDocsCache() *lru.Cache[string, any] {
+	resolvedDocsOnce.Do(func() {
+		config := getCacheConfig()
+		var err error
+		resolvedDocs, err = lru.New[string, any](config.DocCacheSize)
+		if err != nil {
+			panic("failed to create LRU cache: " + err.Error())
+		}
+	})
+	return resolvedDocs
+}
+
+// getPathCache returns the global path cache, initializing it if necessary
+func getPathCache() *lru.Cache[string, string] {
+	if !getCacheConfig().EnablePathCache {
+		return nil
 	}
 
-	fc.cache[key] = doc
-	fc.access[key] = time.Now().UnixNano()
+	pathCacheOnce.Do(func() {
+		config := getCacheConfig()
+		var err error
+		pathCache, err = lru.New[string, string](config.PathCacheSize)
+		if err != nil {
+			// Path cache is optional, don't panic
+			pathCache = nil
+		}
+	})
+	return pathCache
 }
 
 // httpClient is a shared HTTP client with a timeout and redirect policy for loading remote documents.
+// This can be overridden for testing by setting customHTTPClient.
 var httpClient = &http.Client{
 	Timeout: 10 * time.Second,
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -76,6 +179,27 @@ var httpClient = &http.Client{
 		}
 		return nil
 	},
+}
+
+// customHTTPClient allows injection of a custom HTTP client for testing
+var customHTTPClient *http.Client
+
+// getHTTPClient returns the HTTP client to use for remote requests
+func getHTTPClient() *http.Client {
+	if customHTTPClient != nil {
+		return customHTTPClient
+	}
+	return httpClient
+}
+
+// SetHTTPClientForTesting allows tests to inject a custom HTTP client
+func SetHTTPClientForTesting(client *http.Client) {
+	customHTTPClient = client
+}
+
+// ResetHTTPClientForTesting resets the HTTP client to the default
+func ResetHTTPClientForTesting() {
+	customHTTPClient = nil
 }
 
 // loadDocument loads a YAML document from a file or URL.
@@ -111,8 +235,8 @@ func loadDocument(ctx context.Context, filePath, cwd string) (Document, error) {
 	}
 
 	// Check cache first
-	if doc, exists := globalFileCache.get(fullPath); exists {
-		return doc, nil
+	if cached, ok := getResolvedDocsCache().Get(fullPath); ok {
+		return &simpleDocument{data: cached}, nil
 	}
 
 	info, err := os.Stat(fullPath)
@@ -141,15 +265,19 @@ func loadDocument(ctx context.Context, filePath, cwd string) (Document, error) {
 		return nil, errors.Wrapf(err, "failed to parse YAML in %s", fullPath)
 	}
 
-	result := &simpleDocument{data: doc}
-	// Cache the result
-	globalFileCache.set(fullPath, result)
+	// Cache the parsed document data
+	getResolvedDocsCache().Add(fullPath, doc)
 
-	return result, nil
+	return &simpleDocument{data: doc}, nil
 }
 
 // loadFromURL loads a YAML document from a URL.
 func loadFromURL(ctx context.Context, urlStr string) (Document, error) {
+	// Check cache first (URLs are also cached in the same LRU)
+	if cached, ok := getResolvedDocsCache().Get(urlStr); ok {
+		return &simpleDocument{data: cached}, nil
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, http.NoBody)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create request for %s", urlStr)
@@ -158,7 +286,7 @@ func loadFromURL(ctx context.Context, urlStr string) (Document, error) {
 	// Set a reasonable User-Agent
 	req.Header.Set("User-Agent", "Compozy-Ref-Resolver/1.0")
 
-	resp, err := httpClient.Do(req)
+	resp, err := getHTTPClient().Do(req)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to fetch %s", urlStr)
 	}
@@ -184,5 +312,9 @@ func loadFromURL(ctx context.Context, urlStr string) (Document, error) {
 	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return nil, errors.Wrapf(err, "failed to parse YAML from %s", urlStr)
 	}
+
+	// Cache remote document
+	getResolvedDocsCache().Add(urlStr, doc)
+
 	return &simpleDocument{data: doc}, nil
 }

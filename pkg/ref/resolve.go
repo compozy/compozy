@@ -4,15 +4,52 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"runtime"
+	"sync"
+
+	"slices"
 
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
 	// refKey is the JSON/YAML key for references
 	refKey = "$ref"
+	// minParallelElements is the minimum number of elements to process in parallel
+	minParallelElements = 4
 )
+
+// getCachedPath returns GJSON result for optimal performance with optional path caching
+func getCachedPath(jsonBytes []byte, path string) gjson.Result {
+	// Try to use cached compiled path if available
+	if cache := getPathCache(); cache != nil {
+		if compiledPath, exists := cache.Get(path); exists {
+			return gjson.GetBytes(jsonBytes, compiledPath)
+		}
+
+		// Cache the path for future use (GJSON paths don't need compilation but caching helps with repetition)
+		cache.Add(path, path)
+	}
+
+	return gjson.GetBytes(jsonBytes, path)
+}
+
+// resolveConfig holds configuration for resolution behavior.
+type resolveConfig struct {
+	enableParallel bool
+	maxGoroutines  int
+}
+
+// getResolveConfig returns the optimal resolve configuration based on runtime.
+func getResolveConfig() *resolveConfig {
+	numCPU := runtime.NumCPU()
+	return &resolveConfig{
+		enableParallel: numCPU > 1,
+		maxGoroutines:  numCPU * 2, // Allow some oversubscription for I/O bound work
+	}
+}
 
 // walkGJSONPath extracts a value from a document using a GJSON path.
 func walkGJSONPath(doc any, path string, metadata *DocMetadata) (any, error) {
@@ -40,8 +77,8 @@ func walkGJSONPath(doc any, path string, metadata *DocMetadata) (any, error) {
 		}
 	}
 
-	// Use GetBytes directly instead of converting to string
-	result := gjson.GetBytes(jsonBytes, path)
+	// Use cached GJSON path lookup
+	result := getCachedPath(jsonBytes, path)
 	if !result.Exists() {
 		return nil, errors.Errorf("path '%s' not found", path)
 	}
@@ -57,9 +94,9 @@ func (r *Ref) Resolve(ctx context.Context, currentDoc any, filePath, projectRoot
 		CurrentDoc:      &simpleDocument{data: currentDoc},
 		FilePath:        filePath,
 		ProjectRoot:     projectRoot,
-		VisitedRefs:     make(map[string]int),
 		MaxDepth:        DefaultMaxDepth,
 		ResolutionStack: make([]string, 0),
+		inStack:         make(map[string]struct{}),
 	}
 	// Pre-marshal the current document to optimize repeated path lookups
 	if jsonBytes, err := json.Marshal(currentDoc); err == nil {
@@ -70,8 +107,8 @@ func (r *Ref) Resolve(ctx context.Context, currentDoc any, filePath, projectRoot
 
 // resolveWithMetadata resolves the reference with the given metadata.
 func (r *Ref) resolveWithMetadata(ctx context.Context, metadata *DocMetadata) (any, error) {
-	if metadata.VisitedRefs == nil {
-		metadata.VisitedRefs = make(map[string]int)
+	if metadata.inStack == nil {
+		metadata.inStack = make(map[string]struct{})
 	}
 	if metadata.ResolutionStack == nil {
 		metadata.ResolutionStack = make([]string, 0)
@@ -86,18 +123,11 @@ func (r *Ref) resolveWithMetadata(ctx context.Context, metadata *DocMetadata) (a
 		refID = metadata.FilePath + "::" + refID
 	}
 
-	// Use O(1) map lookup instead of O(N) slice scan for circular reference detection
-	if _, visited := metadata.VisitedRefs[refID]; visited {
+	// Check for cycles using per-goroutine stack
+	if metadata.pushRef(refID) {
 		return nil, errors.Errorf("circular reference detected: %s", r.String())
 	}
-
-	// Mark as visited and add to stack for error reporting
-	metadata.VisitedRefs[refID]++
-	metadata.ResolutionStack = append(metadata.ResolutionStack, refID)
-	defer func() {
-		delete(metadata.VisitedRefs, refID)
-		metadata.ResolutionStack = metadata.ResolutionStack[:len(metadata.ResolutionStack)-1]
-	}()
+	defer metadata.popRef()
 
 	// Store the original file path for file references
 	originalFilePath := metadata.FilePath
@@ -135,8 +165,8 @@ func (r *Ref) resolveWithMetadata(ctx context.Context, metadata *DocMetadata) (a
 		metadata.FilePath = originalFilePath
 	}
 
-	// Ensure the final resolved value has consistent types
-	return normalizeValue(resolvedValue), nil
+	// Ensure the final resolved value has consistent types with JSON/YAML processing
+	return normalizeValueRecursive(resolvedValue, true), nil
 }
 
 // selectSourceDocument selects the source document based on the reference type.
@@ -155,6 +185,15 @@ func (r *Ref) selectSourceDocument(ctx context.Context, metadata *DocMetadata) (
 			absoluteFilePath = filepath.Clean(filepath.Join(currentDir, r.File))
 		}
 
+		// Check cache first
+		if cached, ok := getResolvedDocsCache().Get(absoluteFilePath); ok {
+			doc := &simpleDocument{data: cached}
+			metadata.FilePath = absoluteFilePath
+			metadata.CurrentDoc = doc
+			metadata.CurrentDocJSON = nil // Reset JSON cache for new document
+			return doc, nil
+		}
+
 		doc, err := loadDocument(ctx, r.File, currentDir)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to load file %s", r.File)
@@ -170,6 +209,16 @@ func (r *Ref) selectSourceDocument(ctx context.Context, metadata *DocMetadata) (
 		return doc, nil
 	case TypeGlobal:
 		globalPath := filepath.Join(metadata.ProjectRoot, "compozy.yaml")
+
+		// Check cache first
+		if cached, ok := getResolvedDocsCache().Get(globalPath); ok {
+			doc := &simpleDocument{data: cached}
+			metadata.FilePath = globalPath
+			metadata.CurrentDoc = doc
+			metadata.CurrentDocJSON = nil // Reset JSON cache for new document
+			return doc, nil
+		}
+
 		doc, err := loadDocument(ctx, globalPath, metadata.ProjectRoot)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to load global config")
@@ -188,7 +237,7 @@ func (r *Ref) selectSourceDocument(ctx context.Context, metadata *DocMetadata) (
 func (r *Ref) resolveNestedRef(ctx context.Context, value any, metadata *DocMetadata) (any, error) {
 	valueMap, ok := value.(map[string]any)
 	if !ok {
-		return normalizeValue(value), nil
+		return normalizeValueRecursive(value, true), nil
 	}
 	refValue, hasRef := valueMap[refKey]
 	if !hasRef {
@@ -197,7 +246,7 @@ func (r *Ref) resolveNestedRef(ctx context.Context, value any, metadata *DocMeta
 		if err != nil {
 			return nil, err
 		}
-		return normalizeValue(resolved), nil
+		return normalizeValueRecursive(resolved, true), nil
 	}
 
 	nestedRef, err := parseRefValue(refValue)
@@ -205,7 +254,7 @@ func (r *Ref) resolveNestedRef(ctx context.Context, value any, metadata *DocMeta
 		return nil, errors.Wrap(err, "failed to parse nested $ref")
 	}
 	if nestedRef == nil {
-		return normalizeValue(value), nil
+		return normalizeValueRecursive(value, true), nil
 	}
 
 	// Resolve the nested reference using the current metadata context
@@ -228,10 +277,10 @@ func (r *Ref) resolveNestedRef(ctx context.Context, value any, metadata *DocMeta
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to apply merge mode")
 		}
-		return normalizeValue(mergedValue), nil
+		return normalizeValueRecursive(mergedValue, true), nil
 	}
 
-	return normalizeValue(resolvedValue), nil
+	return normalizeValueRecursive(resolvedValue, true), nil
 }
 
 // normalizeValue ensures consistent types for values when needed for JSON marshaling.
@@ -337,8 +386,10 @@ func hasIntegers(value any) bool {
 	return false
 }
 
-// deepResolveValue recursively resolves all references in a value (map, slice, or primitive).
+// deepResolveValue recursively resolves all references in a value with optional parallel processing.
 func (r *Ref) deepResolveValue(ctx context.Context, value any, metadata *DocMetadata) (any, error) {
+	config := getResolveConfig()
+
 	switch v := value.(type) {
 	case map[string]any:
 		// Check if this map has a $ref
@@ -348,16 +399,15 @@ func (r *Ref) deepResolveValue(ctx context.Context, value any, metadata *DocMeta
 				return nil, errors.Wrap(err, "failed to parse $ref")
 			}
 			if nestedRef != nil {
-				// IMPORTANT: Create a copy of metadata to preserve the current file context
-				// for other references in the same file
+				// Share the same cycle detection for consistent detection across all resolution paths
 				nestedMetadata := &DocMetadata{
 					CurrentDoc:      metadata.CurrentDoc,
 					CurrentDocJSON:  metadata.CurrentDocJSON,
 					FilePath:        metadata.FilePath,
 					ProjectRoot:     metadata.ProjectRoot,
-					VisitedRefs:     metadata.VisitedRefs,
 					MaxDepth:        metadata.MaxDepth,
 					ResolutionStack: metadata.ResolutionStack,
+					inStack:         metadata.inStack, // Share the same stack for nested resolution
 				}
 
 				// Resolve the reference
@@ -379,17 +429,33 @@ func (r *Ref) deepResolveValue(ctx context.Context, value any, metadata *DocMeta
 					if err != nil {
 						return nil, errors.Wrap(err, "failed to apply merge mode")
 					}
-					// Normalize the merged value for consistency
-					return normalizeValue(mergedValue), nil
+					return normalizeValueRecursive(mergedValue, true), nil
 				}
 
-				// Normalize the resolved value for consistency
-				return normalizeValue(resolvedValue), nil
+				return normalizeValueRecursive(resolvedValue, true), nil
 			}
 		}
 
-		// No $ref in this map, but recursively resolve values
-		result := make(map[string]any, len(v))
+		// No $ref in this map, resolve values (potentially in parallel)
+		return r.resolveMapParallel(ctx, v, metadata, config)
+
+	case []any:
+		// Resolve array elements (potentially in parallel)
+		return r.resolveSliceParallel(ctx, v, metadata, config)
+
+	default:
+		// Primitive value, normalize and return
+		return normalizeValueRecursive(value, true), nil
+	}
+}
+
+// resolveMapParallel resolves map values with optional parallel processing.
+func (r *Ref) resolveMapParallel(ctx context.Context, v map[string]any, metadata *DocMetadata,
+	config *resolveConfig) (map[string]any, error) {
+	result := make(map[string]any, len(v))
+
+	// For small maps or single-core systems, use sequential processing
+	if !config.enableParallel || len(v) < minParallelElements {
 		for key, val := range v {
 			resolved, err := r.deepResolveValue(ctx, val, metadata)
 			if err != nil {
@@ -398,10 +464,69 @@ func (r *Ref) deepResolveValue(ctx context.Context, value any, metadata *DocMeta
 			result[key] = resolved
 		}
 		return result, nil
+	}
 
-	case []any:
-		// Recursively resolve array elements
-		result := make([]any, len(v))
+	// Parallel processing for larger maps
+	type mapResult struct {
+		key   string
+		value any
+		err   error
+	}
+
+	resultCh := make(chan mapResult, len(v))
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(config.maxGoroutines)
+
+	// Launch goroutines for each key-value pair
+	for key, val := range v {
+		key, val := key, val // Capture loop variables
+		g.Go(func() error {
+			// Create independent metadata for each parallel branch to avoid race conditions
+			localMetadata := &DocMetadata{
+				CurrentDoc:      metadata.CurrentDoc,
+				CurrentDocJSON:  metadata.CurrentDocJSON,
+				FilePath:        metadata.FilePath,
+				ProjectRoot:     metadata.ProjectRoot,
+				MaxDepth:        metadata.MaxDepth,
+				ResolutionStack: append([]string(nil), metadata.ResolutionStack...),
+				inStack:         make(map[string]struct{}),
+			}
+
+			// Copy current stack state to new goroutine
+			for _, refID := range metadata.ResolutionStack {
+				localMetadata.inStack[refID] = struct{}{}
+			}
+
+			resolved, err := r.deepResolveValue(gctx, val, localMetadata)
+			resultCh <- mapResult{key: key, value: resolved, err: err}
+			return err
+		})
+	}
+
+	// Wait for all goroutines to complete
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	close(resultCh)
+
+	// Collect results
+	for res := range resultCh {
+		if res.err != nil {
+			return nil, errors.Wrapf(res.err, "failed to resolve value at key '%s'", res.key)
+		}
+		result[res.key] = res.value
+	}
+
+	return result, nil
+}
+
+// resolveSliceParallel resolves slice elements with optional parallel processing.
+func (r *Ref) resolveSliceParallel(ctx context.Context, v []any, metadata *DocMetadata,
+	config *resolveConfig) ([]any, error) {
+	result := make([]any, len(v))
+
+	// For small slices or single-core systems, use sequential processing
+	if !config.enableParallel || len(v) < minParallelElements {
 		for i, item := range v {
 			resolved, err := r.deepResolveValue(ctx, item, metadata)
 			if err != nil {
@@ -410,9 +535,80 @@ func (r *Ref) deepResolveValue(ctx context.Context, value any, metadata *DocMeta
 			result[i] = resolved
 		}
 		return result, nil
-
-	default:
-		// Primitive value, normalize and return
-		return normalizeValue(value), nil
 	}
+
+	// Parallel processing for larger slices
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(config.maxGoroutines)
+
+	// Use mutex to protect result slice writes
+	var mu sync.Mutex
+
+	// Launch goroutines for each element
+	for i, item := range v {
+		i, item := i, item // Capture loop variables
+		g.Go(func() error {
+			// Create independent metadata for each parallel branch to avoid race conditions
+			localMetadata := &DocMetadata{
+				CurrentDoc:      metadata.CurrentDoc,
+				CurrentDocJSON:  metadata.CurrentDocJSON,
+				FilePath:        metadata.FilePath,
+				ProjectRoot:     metadata.ProjectRoot,
+				MaxDepth:        metadata.MaxDepth,
+				ResolutionStack: slices.Clone(metadata.ResolutionStack),
+				inStack:         make(map[string]struct{}),
+			}
+
+			// Copy current stack state to new goroutine
+			for _, refID := range metadata.ResolutionStack {
+				localMetadata.inStack[refID] = struct{}{}
+			}
+
+			resolved, err := r.deepResolveValue(gctx, item, localMetadata)
+			if err != nil {
+				return errors.Wrapf(err, "failed to resolve array item at index %d", i)
+			}
+
+			mu.Lock()
+			result[i] = resolved
+			mu.Unlock()
+
+			return nil
+		})
+	}
+
+	// Wait for all goroutines to complete
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// DocMetadata cycle detection helpers
+func (md *DocMetadata) pushRef(refID string) bool {
+	if md.inStack == nil {
+		md.inStack = make(map[string]struct{})
+	}
+
+	// Check if already in current stack (real cycle)
+	if _, exists := md.inStack[refID]; exists {
+		return true // Cycle detected
+	}
+
+	// Add to stack
+	md.ResolutionStack = append(md.ResolutionStack, refID)
+	md.inStack[refID] = struct{}{}
+	return false // No cycle
+}
+
+func (md *DocMetadata) popRef() {
+	if len(md.ResolutionStack) == 0 {
+		return
+	}
+
+	// Remove from end of stack
+	refID := md.ResolutionStack[len(md.ResolutionStack)-1]
+	md.ResolutionStack = md.ResolutionStack[:len(md.ResolutionStack)-1]
+	delete(md.inStack, refID)
 }

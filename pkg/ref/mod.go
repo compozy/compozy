@@ -110,12 +110,13 @@ func (r *Ref) String() string {
 // DocMetadata holds metadata for document resolution.
 type DocMetadata struct {
 	CurrentDoc      Document
-	CurrentDocJSON  []byte
+	CurrentDocJSON  []byte // Read-only: pre-marshaled JSON for GJSON path lookups
 	FilePath        string
 	ProjectRoot     string
-	VisitedRefs     map[string]int
 	MaxDepth        int
 	ResolutionStack []string
+	// Per-goroutine cycle detection (not shared across goroutines)
+	inStack map[string]struct{} // Fast lookup for cycle detection
 }
 
 // Error represents a reference resolution error with context.

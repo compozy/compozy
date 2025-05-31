@@ -6,10 +6,94 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 )
+
+// fieldPlan contains pre-computed field information for a struct type.
+type fieldPlan struct {
+	refFields    []fieldInfo // Fields marked with is_ref:"true"
+	normalFields []fieldInfo // Regular fields for map conversion
+}
+
+// fieldInfo contains cached information about a struct field.
+type fieldInfo struct {
+	index int    // Field index in the struct
+	name  string // JSON/YAML field name
+	isRef bool   // Whether field has is_ref:"true"
+}
+
+// fieldPlanCache caches field plans by reflect.Type.
+var fieldPlanCache = &sync.Map{}
+
+// getFieldPlan returns a cached field plan for the given struct type.
+func getFieldPlan(structType reflect.Type) *fieldPlan {
+	if cached, ok := fieldPlanCache.Load(structType); ok {
+		plan, ok := cached.(*fieldPlan)
+		if !ok {
+			// This should never happen, but handle gracefully
+			plan = buildFieldPlan(structType)
+			fieldPlanCache.Store(structType, plan)
+		}
+		return plan
+	}
+
+	plan := buildFieldPlan(structType)
+	fieldPlanCache.Store(structType, plan)
+	return plan
+}
+
+// buildFieldPlan builds a field plan for the given struct type.
+func buildFieldPlan(structType reflect.Type) *fieldPlan {
+	plan := &fieldPlan{
+		refFields:    make([]fieldInfo, 0),
+		normalFields: make([]fieldInfo, 0),
+	}
+
+	for i := 0; i < structType.NumField(); i++ {
+		field := structType.Field(i)
+		if !field.IsExported() || field.Name == "WithRef" {
+			continue
+		}
+
+		info := fieldInfo{
+			index: i,
+			name:  getFieldNameFromTags(&field),
+			isRef: field.Tag.Get("is_ref") == "true",
+		}
+
+		if info.isRef {
+			plan.refFields = append(plan.refFields, info)
+		} else {
+			plan.normalFields = append(plan.normalFields, info)
+		}
+	}
+
+	return plan
+}
+
+// getFieldNameFromTags extracts the field name from JSON/YAML tags.
+func getFieldNameFromTags(field *reflect.StructField) string {
+	// Check JSON tag first
+	if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
+		if idx := strings.Index(jsonTag, ","); idx > 0 {
+			return jsonTag[:idx]
+		}
+		return jsonTag
+	}
+
+	// Check YAML tag
+	if yamlTag := field.Tag.Get("yaml"); yamlTag != "" && yamlTag != "-" {
+		if idx := strings.Index(yamlTag, ","); idx > 0 {
+			return yamlTag[:idx]
+		}
+		return yamlTag
+	}
+
+	return field.Name
+}
 
 // WithRefMetadata holds metadata for reference resolution.
 type WithRefMetadata struct {
@@ -75,29 +159,35 @@ func (w *WithRef) ResolveRefWithInlineData(
 	return w.ResolveMapReference(ctx, dataWithRef, currentDoc)
 }
 
-// resolveFields handles field resolution and optional merging for both ResolveReferences and ResolveAndMergeReferences.
+// resolveFields handles field resolution and optional merging using cached field plans.
 func (w *WithRef) resolveFields(ctx context.Context, target any, currentDoc any, merge bool, mergeMode Mode) error {
 	if err := w.validateTarget(target); err != nil {
 		return err
 	}
+
 	targetValue := reflect.ValueOf(target).Elem()
 	targetType := targetValue.Type()
 
-	for i := 0; i < targetValue.NumField(); i++ {
-		field := targetValue.Field(i)
-		fieldType := targetType.Field(i)
-		if !w.isRefField(&fieldType) {
+	// Get cached field plan
+	plan := getFieldPlan(targetType)
+
+	// Process only reference fields
+	for _, fieldInfo := range plan.refFields {
+		field := targetValue.Field(fieldInfo.index)
+		if !field.CanSet() {
 			continue
 		}
-		if err := w.processRefField(ctx, field, target, currentDoc, merge, mergeMode); err != nil {
-			return errors.Wrapf(err, "failed to process reference field %s", fieldType.Name)
+
+		if err := w.processRefFieldWithInfo(ctx, field, target, currentDoc, merge, mergeMode); err != nil {
+			return errors.Wrapf(err, "failed to process reference field %s", fieldInfo.name)
 		}
 	}
+
 	return nil
 }
 
-// processRefField resolves or merges a single reference field.
-func (w *WithRef) processRefField(
+// processRefFieldWithInfo resolves or merges a single reference field using cached field info.
+func (w *WithRef) processRefFieldWithInfo(
 	ctx context.Context,
 	field reflect.Value,
 	target any,
@@ -105,9 +195,6 @@ func (w *WithRef) processRefField(
 	merge bool,
 	mergeMode Mode,
 ) error {
-	if !field.CanSet() {
-		return nil
-	}
 	refValue := field.Interface()
 	if refValue == nil {
 		return nil
@@ -148,7 +235,7 @@ func (w *WithRef) mergeResolvedValue(target any, resolvedValue any, mergeMode Mo
 	}
 
 	targetValue := reflect.ValueOf(target).Elem()
-	currentMap := w.structToMap(targetValue)
+	currentMap := w.structToMapWithPlan(targetValue)
 	mergedValue, err := (&Ref{Mode: mergeMode}).ApplyMergeMode(resolvedMap, currentMap)
 	if err != nil {
 		return errors.Wrap(err, "failed to apply merge mode")
@@ -158,13 +245,8 @@ func (w *WithRef) mergeResolvedValue(target any, resolvedValue any, mergeMode Mo
 	if !ok {
 		return errors.New("merged value must be a map")
 	}
-	w.setStructFields(targetValue, mergedMap)
+	w.setStructFieldsWithPlan(targetValue, mergedMap)
 	return nil
-}
-
-// isRefField checks if a field has the is_ref tag.
-func (w *WithRef) isRefField(fieldType *reflect.StructField) bool {
-	return fieldType.Tag.Get("is_ref") == "true"
 }
 
 // ParseRefFromValue parses a reference from any value (string or object).
@@ -230,51 +312,32 @@ func (w *WithRef) validateTarget(target any) error {
 	return nil
 }
 
-// getFieldName extracts the field name from JSON/YAML tags.
-func (w *WithRef) getFieldName(fieldType *reflect.StructField) string {
-	if jsonTag := fieldType.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
-		if commaIdx := strings.Index(jsonTag, ","); commaIdx > 0 {
-			return jsonTag[:commaIdx]
+// structToMapWithPlan converts struct fields to a map using cached field plan.
+func (w *WithRef) structToMapWithPlan(structValue reflect.Value) map[string]any {
+	plan := getFieldPlan(structValue.Type())
+	result := make(map[string]any, len(plan.normalFields))
+
+	for _, fieldInfo := range plan.normalFields {
+		field := structValue.Field(fieldInfo.index)
+		if field.CanSet() && field.IsValid() {
+			result[fieldInfo.name] = field.Interface()
 		}
-		return jsonTag
 	}
-	if yamlTag := fieldType.Tag.Get("yaml"); yamlTag != "" && yamlTag != "-" {
-		if commaIdx := strings.Index(yamlTag, ","); commaIdx > 0 {
-			return yamlTag[:commaIdx]
-		}
-		return yamlTag
-	}
-	return fieldType.Name
+
+	return result
 }
 
-// structToMap converts struct fields to a map, excluding WithRef and unexported fields.
-func (w *WithRef) structToMap(structValue reflect.Value) map[string]any {
-	currentMap := make(map[string]any)
-	for i := 0; i < structValue.NumField(); i++ {
-		field := structValue.Field(i)
-		fieldType := structValue.Type().Field(i)
-		if !w.shouldIncludeField(field, &fieldType) {
+// setStructFieldsWithPlan sets field values from a merged map back to the struct using cached field plan.
+func (w *WithRef) setStructFieldsWithPlan(structValue reflect.Value, mergedMap map[string]any) {
+	plan := getFieldPlan(structValue.Type())
+
+	for _, fieldInfo := range plan.normalFields {
+		field := structValue.Field(fieldInfo.index)
+		if !field.CanSet() {
 			continue
 		}
-		currentMap[w.getFieldName(&fieldType)] = field.Interface()
-	}
-	return currentMap
-}
 
-// shouldIncludeField determines if a field should be included in the map.
-func (w *WithRef) shouldIncludeField(field reflect.Value, fieldType *reflect.StructField) bool {
-	return field.CanSet() && fieldType.Name != "WithRef" && field.IsValid() && !w.isRefField(fieldType)
-}
-
-// setStructFields sets field values from a merged map back to the struct.
-func (w *WithRef) setStructFields(structValue reflect.Value, mergedMap map[string]any) {
-	for i := 0; i < structValue.NumField(); i++ {
-		field := structValue.Field(i)
-		fieldType := structValue.Type().Field(i)
-		if !field.CanSet() || fieldType.Name == "WithRef" || w.isRefField(&fieldType) {
-			continue
-		}
-		if value, exists := mergedMap[w.getFieldName(&fieldType)]; exists && value != nil {
+		if value, exists := mergedMap[fieldInfo.name]; exists && value != nil {
 			w.setFieldValue(field, value)
 		}
 	}
