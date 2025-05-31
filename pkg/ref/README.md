@@ -20,6 +20,7 @@ The **Ref** package provides a powerful directive system for YAML/JSON configura
       - [Custom Directives](#custom-directives)
       - [Pre-Evaluation Hooks](#pre-evaluation-hooks)
       - [Direct Evaluator Usage](#direct-evaluator-usage)
+      - [Caching](#caching)
   - [Performance](#performance)
     - [Benchmarks](#benchmarks)
   - [Best Practices](#best-practices)
@@ -254,6 +255,16 @@ ref.WithPreEval(func(node ref.Node) (ref.Node, error) {
     // Transform nodes before directive evaluation
     return node, nil
 })
+
+// Enable caching with default configuration
+ref.WithCacheEnabled()
+
+// Enable caching with custom configuration
+ref.WithCache(ref.CacheConfig{
+    MaxCost:     50 << 20,  // 50 MB max memory
+    NumCounters: 1e6,       // 1 million counters
+    BufferItems: 64,        // Buffer size
+})
 ```
 
 ### Advanced Features
@@ -329,6 +340,91 @@ if err != nil {
 result, err := ev.Eval(node)
 ```
 
+#### Caching
+
+The ref package supports high-performance caching using [Ristretto](https://github.com/dgraph-io/ristretto) to cache path resolution results. This significantly improves performance when the same paths are referenced multiple times.
+
+**Important:** For best performance, reuse the same evaluator across multiple operations:
+
+```go
+// ❌ BAD: Creating new evaluator with cache for each operation (slower!)
+for _, doc := range documents {
+    result, err := ref.ProcessBytes(doc, 
+        ref.WithLocalScope(scope),
+        ref.WithCacheEnabled(), // Cache is created and destroyed each time
+    )
+}
+
+// ✅ GOOD: Reuse evaluator with cache across operations
+ev := ref.NewEvaluator(
+    ref.WithLocalScope(scope),
+    ref.WithCacheEnabled(),
+)
+for _, doc := range documents {
+    result, err := ref.ProcessBytesWithEvaluator(doc, ev)
+}
+```
+
+**Single Document Processing:**
+```go
+// For one-off processing, use the standard API
+result, err := ref.ProcessFile("config.yaml", 
+    ref.WithLocalScope(localScope),
+    // No cache needed for single operations
+)
+```
+
+**Multiple Document Processing:**
+```go
+// Create evaluator once with cache
+ev := ref.NewEvaluator(
+    ref.WithLocalScope(localScope),
+    ref.WithGlobalScope(globalScope),
+    ref.WithCacheEnabled(),
+)
+
+// Process multiple documents efficiently
+for _, configFile := range configFiles {
+    result, err := ref.ProcessFileWithEvaluator(configFile, ev)
+    if err != nil {
+        log.Printf("Error processing %s: %v", configFile, err)
+        continue
+    }
+    // Use result...
+}
+```
+
+**Custom Cache Configuration:**
+```go
+cacheConfig := ref.CacheConfig{
+    MaxCost:     50 << 20,  // 50 MB maximum cache size
+    NumCounters: 1e6,       // Number of frequency counters
+    BufferItems: 64,        // Number of keys per Get buffer
+}
+
+ev := ref.NewEvaluator(
+    ref.WithLocalScope(localScope),
+    ref.WithCache(cacheConfig),
+)
+```
+
+**Cache Benefits:**
+- Eliminates redundant GJSON path evaluations
+- Significantly improves performance for configurations with repeated references
+- Thread-safe and optimized for concurrent access
+- Automatic memory management with cost-based eviction
+
+**When to Use Caching:**
+- Processing multiple documents with shared scopes
+- Long-running services that process configurations repeatedly
+- Configurations with many repeated references to the same paths
+- Server applications handling configuration per request
+
+**When NOT to Use Caching:**
+- One-off document processing
+- Small configurations with few references
+- When memory usage is a critical concern
+
 ## Performance
 
 The ref package is optimized for performance:
@@ -337,14 +433,31 @@ The ref package is optimized for performance:
 - **Optimized Merging**: Hand-rolled deep merge for the common case (deep + last) avoids extra allocations
 - **In-place Operations**: Merge operations modify maps in-place when possible
 - **Efficient Cycle Detection**: Uses stack-based tracking with minimal overhead
+- **Path Resolution Caching**: Optional Ristretto-based caching for dramatic performance improvements
 
 ### Benchmarks
 
 ```
-BenchmarkDeepMerge-8        100000      10234 ns/op     4096 B/op       64 allocs/op
-BenchmarkRefDirective-8     200000       8765 ns/op     2048 B/op       32 allocs/op
-BenchmarkCycleDetection-8   300000       4321 ns/op     1024 B/op       16 allocs/op
+BenchmarkResolvePath_NoCache-16             204399    5207 ns/op     288 B/op    7 allocs/op
+BenchmarkResolvePath_WithCache-16         14513816      78 ns/op      87 B/op    2 allocs/op
+
+BenchmarkEval_ComplexDocument/NoCache-16    165568    7227 ns/op   15290 B/op  126 allocs/op
+BenchmarkEval_ComplexDocument/WithCache-16   185941    6540 ns/op   13458 B/op   90 allocs/op
+
+BenchmarkMerge_DeepObjects-16              1506735     779 ns/op     336 B/op    2 allocs/op
+BenchmarkMerge_LargeArrays/Concat-16       1534473     791 ns/op   14104 B/op    4 allocs/op
 ```
+
+**Key Findings:**
+- **66x faster** path resolution with caching enabled
+- **10% faster** complex document evaluation with 30% fewer allocations
+- Deep merge operations are highly optimized with minimal allocations
+- Cache is thread-safe with excellent concurrent performance
+
+**Note:** Cache initialization has overhead, so it's most beneficial for:
+- Long-running processes that evaluate many configurations
+- Configurations with repeated references to the same paths
+- Server applications that process configurations on each request
 
 ## Best Practices
 

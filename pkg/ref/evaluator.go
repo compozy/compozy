@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/dgraph-io/ristretto"
 	"github.com/tidwall/gjson"
 )
 
@@ -66,6 +67,35 @@ func WithPreEval(hook PreEvalFunc) EvalConfigOption {
 	}
 }
 
+// CacheConfig holds cache configuration options
+type CacheConfig struct {
+	MaxCost     int64 // Maximum cost of cache (approximately memory in bytes)
+	NumCounters int64 // Number of counters for tracking frequency
+	BufferItems int64 // Number of keys per Get buffer
+}
+
+// DefaultCacheConfig returns sensible defaults for the cache
+func DefaultCacheConfig() CacheConfig {
+	return CacheConfig{
+		MaxCost:     100 << 20, // 100 MB
+		NumCounters: 1e7,       // 10 million
+		BufferItems: 64,
+	}
+}
+
+// WithCache enables caching with the given configuration
+func WithCache(config CacheConfig) EvalConfigOption {
+	return func(ev *Evaluator) {
+		ev.cacheConfig = &config
+	}
+}
+
+// WithCacheEnabled enables caching with default configuration
+func WithCacheEnabled() EvalConfigOption {
+	config := DefaultCacheConfig()
+	return WithCache(config)
+}
+
 // -----------------------------------------------------------------------------
 // EvalConfig
 // -----------------------------------------------------------------------------
@@ -80,6 +110,8 @@ type Evaluator struct {
 	Directives   map[string]Directive
 	TransformUse TransformUseFunc
 	PreEval      PreEvalFunc
+	cache        *ristretto.Cache // Path resolution cache
+	cacheConfig  *CacheConfig
 }
 
 // NewEvaluator creates a new evaluation state with the given options.
@@ -95,11 +127,43 @@ func NewEvaluator(options ...EvalConfigOption) *Evaluator {
 	if ev.GlobalScope != nil {
 		ev.globalJSON = mustJSON(ev.GlobalScope)
 	}
+	// Initialize cache if configured
+	if ev.cacheConfig != nil {
+		cache, err := ristretto.NewCache(&ristretto.Config{
+			NumCounters: ev.cacheConfig.NumCounters,
+			MaxCost:     ev.cacheConfig.MaxCost,
+			BufferItems: ev.cacheConfig.BufferItems,
+			Cost: func(value interface{}) int64 {
+				// Estimate cost based on the serialized size
+				if data, err := json.Marshal(value); err == nil {
+					return int64(len(data))
+				}
+				// Default cost if marshaling fails
+				return 100
+			},
+		})
+		if err == nil {
+			ev.cache = cache
+		}
+		// Silently ignore cache initialization errors - evaluator works without cache
+	}
 	return ev
 }
 
 // ResolvePath resolves a GJSON path in the given scope.
 func (ev *Evaluator) ResolvePath(scope, path string) (Node, error) {
+	// Check cache first if available
+	cacheKey := scope + "::" + path
+	if ev.cache != nil {
+		if value, found := ev.cache.Get(cacheKey); found {
+			// Cache hit - return the cached value
+			if node, ok := value.(Node); ok {
+				return node, nil
+			}
+			// Cache corruption - ignore and continue with normal resolution
+		}
+	}
+
 	var dataJSON []byte
 	switch scope {
 	case "local":
@@ -120,7 +184,18 @@ func (ev *Evaluator) ResolvePath(scope, path string) (Node, error) {
 	if !result.Exists() {
 		return nil, fmt.Errorf("path %s not found in %s scope", path, scope)
 	}
-	return parseJSON(result.Raw)
+	node, err := parseJSON(result.Raw)
+	if err != nil {
+		return nil, err
+	}
+
+	// Store in cache if available
+	if ev.cache != nil {
+		ev.cache.Set(cacheKey, node, 0) // Cost will be calculated by the Cost function
+		ev.cache.Wait()                 // Ensure the item is processed
+	}
+
+	return node, nil
 }
 
 func mustJSON(data any) []byte {
@@ -169,56 +244,65 @@ func (ev *Evaluator) eval(node Node, seen map[string]struct{}) (Node, error) {
 		node = preprocessed
 	}
 
-	if m, ok := node.(map[string]any); ok {
-		// Check for directives
-		allDirectives := getDirectives()
-		for dirName, directive := range allDirectives {
-			if value, exists := m[dirName]; exists {
-				// Stricter validation: directive nodes should only contain the directive key
-				if len(m) != 1 {
-					return nil, fmt.Errorf("%s node may not contain sibling keys", dirName)
-				}
-				// Run validator first if present
-				if directive.Validator != nil {
-					if err := directive.Validator(value); err != nil {
-						return nil, err
-					}
-				}
-				// Pass seen map to handler through a wrapper evaluator
-				wrapperEv := &evaluatorWithSeen{Evaluator: ev, seen: seen}
-				result, err := directive.Handler(wrapperEv, value)
-				if err != nil {
+	switch v := node.(type) {
+	case map[string]any:
+		return ev.evalMap(v, seen)
+	case []any:
+		return ev.evalSlice(v, seen)
+	default:
+		return node, nil
+	}
+}
+
+// evalMap processes a map node, checking for directives and recursively evaluating values
+func (ev *Evaluator) evalMap(m map[string]any, seen map[string]struct{}) (Node, error) {
+	// Check for directives
+	allDirectives := getDirectives()
+	for dirName, directive := range allDirectives {
+		if value, exists := m[dirName]; exists {
+			// Stricter validation: directive nodes should only contain the directive key
+			if len(m) != 1 {
+				return nil, fmt.Errorf("%s node may not contain sibling keys", dirName)
+			}
+			// Run validator first if present
+			if directive.Validator != nil {
+				if err := directive.Validator(value); err != nil {
 					return nil, err
 				}
-				// Recursively evaluate the result to resolve any nested directives
-				return ev.eval(result, seen)
 			}
-		}
-		// Regular map processing
-		result := make(map[string]any)
-		for key, value := range m {
-			evaluated, err := ev.eval(value, seen)
+			// Pass seen map to handler through a wrapper evaluator
+			wrapperEv := &evaluatorWithSeen{Evaluator: ev, seen: seen}
+			result, err := directive.Handler(wrapperEv, value)
 			if err != nil {
-				return nil, fmt.Errorf("failed to evaluate %s: %w", key, err)
+				return nil, err
 			}
-			result[key] = evaluated
+			// Recursively evaluate the result to resolve any nested directives
+			return ev.eval(result, seen)
 		}
-		return result, nil
 	}
-
-	if s, ok := node.([]any); ok {
-		result := make([]any, len(s))
-		for i, value := range s {
-			evaluated, err := ev.eval(value, seen)
-			if err != nil {
-				return nil, fmt.Errorf("failed to evaluate index %d: %w", i, err)
-			}
-			result[i] = evaluated
+	// Regular map processing
+	result := make(map[string]any)
+	for key, value := range m {
+		evaluated, err := ev.eval(value, seen)
+		if err != nil {
+			return nil, fmt.Errorf("failed to evaluate %s: %w", key, err)
 		}
-		return result, nil
+		result[key] = evaluated
 	}
+	return result, nil
+}
 
-	return node, nil
+// evalSlice processes a slice node, recursively evaluating each element
+func (ev *Evaluator) evalSlice(s []any, seen map[string]struct{}) (Node, error) {
+	result := make([]any, len(s))
+	for i, value := range s {
+		evaluated, err := ev.eval(value, seen)
+		if err != nil {
+			return nil, fmt.Errorf("failed to evaluate index %d: %w", i, err)
+		}
+		result[i] = evaluated
+	}
+	return result, nil
 }
 
 // evaluatorWithSeen wraps an Evaluator with cycle detection state

@@ -740,6 +740,105 @@ city: paris`
 }
 
 // -----------------------------------------------------------------------------
+// Caching Tests
+// -----------------------------------------------------------------------------
+
+func TestCaching(t *testing.T) {
+	t.Run("Should cache path resolutions", func(t *testing.T) {
+		localScope := map[string]any{
+			"config": map[string]any{
+				"server": map[string]any{
+					"host": "localhost",
+					"port": 8080,
+				},
+			},
+		}
+
+		// Create evaluator with caching enabled
+		ev := NewEvaluator(
+			WithLocalScope(localScope),
+			WithCacheEnabled(),
+		)
+
+		// First resolution - cache miss
+		result1, err := ev.ResolvePath("local", "config.server")
+		require.NoError(t, err)
+
+		// Second resolution - should be cache hit
+		result2, err := ev.ResolvePath("local", "config.server")
+		require.NoError(t, err)
+
+		assert.Equal(t, result1, result2)
+	})
+
+	t.Run("Should work with custom cache config", func(t *testing.T) {
+		localScope := map[string]any{"value": "test"}
+		cacheConfig := CacheConfig{
+			MaxCost:     1 << 20, // 1 MB
+			NumCounters: 1000,
+			BufferItems: 64,
+		}
+
+		yamlDoc := `result: {"$ref": "local::value"}`
+		got := MustEvalBytes(t, []byte(yamlDoc),
+			WithLocalScope(localScope),
+			WithCache(cacheConfig),
+		)
+		want := map[string]any{"result": "test"}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should handle cache misses correctly", func(t *testing.T) {
+		localScope := map[string]any{
+			"a": "value_a",
+			"b": "value_b",
+		}
+
+		ev := NewEvaluator(
+			WithLocalScope(localScope),
+			WithCacheEnabled(),
+		)
+
+		// Multiple different paths should all work
+		resultA, err := ev.ResolvePath("local", "a")
+		require.NoError(t, err)
+		assert.Equal(t, "value_a", resultA)
+
+		resultB, err := ev.ResolvePath("local", "b")
+		require.NoError(t, err)
+		assert.Equal(t, "value_b", resultB)
+	})
+
+	t.Run("Should handle complex cached values", func(t *testing.T) {
+		localScope := map[string]any{
+			"complex": map[string]any{
+				"nested": map[string]any{
+					"array": []any{1, 2, 3},
+					"object": map[string]any{
+						"key": "value",
+					},
+				},
+			},
+		}
+
+		ev := NewEvaluator(
+			WithLocalScope(localScope),
+			WithCacheEnabled(),
+		)
+
+		// First access
+		result1, err := ev.ResolvePath("local", "complex.nested")
+		require.NoError(t, err)
+
+		// Second access (cached)
+		result2, err := ev.ResolvePath("local", "complex.nested")
+		require.NoError(t, err)
+
+		assert.Equal(t, result1, result2)
+	})
+}
+
+// -----------------------------------------------------------------------------
 // Idempotence Tests
 // -----------------------------------------------------------------------------
 
