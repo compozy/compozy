@@ -13,6 +13,16 @@ The **Ref** package provides a powerful directive system for YAML/JSON configura
     - [`$ref` - Direct Value Injection](#ref---direct-value-injection)
     - [`$use` - Component Transformation](#use---component-transformation)
     - [`$merge` - Declarative Merging](#merge---declarative-merging)
+  - [Inline Merge](#inline-merge)
+    - [Syntax](#syntax)
+    - [Default Behavior](#default-behavior)
+    - [Merge Options](#merge-options)
+    - [Examples](#examples)
+      - [Basic Inline Merge](#basic-inline-merge)
+      - [Explicit Merge Options](#explicit-merge-options)
+      - [Key Conflict Handling](#key-conflict-handling)
+      - [Inline Merge with $use](#inline-merge-with-use)
+      - [Complex Nested Scenarios](#complex-nested-scenarios)
   - [API Reference](#api-reference)
     - [Basic Usage](#basic-usage)
     - [Configuration Options](#configuration-options)
@@ -28,7 +38,7 @@ The **Ref** package provides a powerful directive system for YAML/JSON configura
     - [2. Avoid Deep Nesting](#2-avoid-deep-nesting)
     - [3. Use Appropriate Directives](#3-use-appropriate-directives)
     - [4. Handle Errors Properly](#4-handle-errors-properly)
-  - [Examples](#examples)
+  - [Examples](#examples-1)
     - [Complete Application Configuration](#complete-application-configuration)
     - [Working with Arrays](#working-with-arrays)
     - [Error Handling Examples](#error-handling-examples)
@@ -37,6 +47,7 @@ The **Ref** package provides a powerful directive system for YAML/JSON configura
 ## Features
 
 - **Three Core Directives**: `$ref`, `$use`, and `$merge` for different use cases
+- **Inline Merge**: Automatic merging of directive results with sibling keys using `!merge:<options>` syntax
 - **Cycle Detection**: Prevents infinite recursion with automatic cycle detection
 - **Thread-Safe**: Safe for concurrent use across multiple goroutines
 - **Extensible**: Register custom directives for domain-specific transformations
@@ -93,9 +104,9 @@ app:
 
 ### `$ref` - Direct Value Injection
 
-Injects any value (scalar, object, or array) directly from a scope.
+Injects any value (scalar, object, or array) directly from a scope. Supports **inline merge** when sibling keys are present.
 
-**Syntax**: `$ref: <scope>::<gjson_path>`
+**Syntax**: `$ref: <scope>::<gjson_path>[!merge:<options>]`
 
 **Example**:
 ```yaml
@@ -113,6 +124,21 @@ server:
     port: 8080
 ```
 
+**Inline Merge Example**:
+```yaml
+# Input
+server:
+  $ref: "local::defaults.server"
+  port: 9090
+  ssl: true
+
+# Output (automatic merge)
+server:
+  host: "0.0.0.0"
+  port: 9090     # sibling overrides
+  ssl: true      # sibling adds
+```
+
 **Path Syntax**: Uses [GJSON](https://github.com/tidwall/gjson) syntax for powerful path queries:
 - `config.server.port` - Nested object access
 - `users.0.name` - Array index access
@@ -121,9 +147,9 @@ server:
 
 ### `$use` - Component Transformation
 
-Transforms a referenced value into a component configuration (agent, tool, or task).
+Transforms a referenced value into a component configuration (agent, tool, or task). Supports **inline merge** when sibling keys are present.
 
-**Syntax**: `$use: <component>(<scope>::<gjson_path>)`
+**Syntax**: `$use: <component>(<scope>::<gjson_path>)[!merge:<options>]`
 
 **Example**:
 ```yaml
@@ -138,6 +164,29 @@ agents:
   - agent:
       type: background
       replicas: 3
+```
+
+**Inline Merge Example**:
+```yaml
+# Input
+deployment:
+  $use: "agent(local::worker.config)"
+  resources:
+    cpu: "500m"
+  metadata:
+    labels:
+      env: "prod"
+
+# Output (automatic merge)
+deployment:
+  agent:
+    type: "background"
+    replicas: 3
+  resources:
+    cpu: "500m"
+  metadata:
+    labels:
+      env: "prod"
 ```
 
 **Custom Transformation**: You can customize how `$use` transforms values:
@@ -161,7 +210,7 @@ result, err := ref.ProcessBytes(data,
 
 ### `$merge` - Declarative Merging
 
-Merges multiple objects or arrays with configurable strategies.
+Merges multiple objects or arrays with configurable strategies. **Note**: Unlike `$ref` and `$use`, the `$merge` directive does not support sibling keys.
 
 **Syntax**: 
 ```yaml
@@ -170,9 +219,9 @@ $merge: [source1, source2, ...]
 
 # Explicit with options
 $merge:
-  strategy: deep|shallow      # for objects
-  strategy: concat|prepend|unique  # for arrays
-  key_conflict: last|first|error   # for objects
+  strategy: deep|shallow|replace      # for objects
+  strategy: concat|prepend|unique|append|union  # for arrays
+  key_conflict: replace|first|error   # for objects (default: replace)
   sources:
     - source1
     - source2
@@ -211,6 +260,136 @@ tags:
 
 # Output
 tags: [web, api, worker]
+```
+
+## Inline Merge
+
+The `$ref` and `$use` directives support **inline merge**, which automatically merges the directive result with sibling keys in the same object. This enables powerful composition patterns without requiring explicit `$merge` directives.
+
+### Syntax
+
+**For `$ref` directive:**
+```yaml
+$ref: "<scope>::<path>[!merge:<options>]"
+```
+
+**For `$use` directive:**
+```yaml
+$use: "<component>(<scope>::<path>)[!merge:<options>]"
+```
+
+### Default Behavior
+
+When a `$ref` or `$use` directive has sibling keys, inline merge is **automatically enabled** with these defaults:
+- **Strategy**: `deep` (for objects) 
+- **Key Conflict**: `replace` (siblings override directive result)
+- **No Inline Merge**: `$merge` directive does not support sibling keys
+
+### Merge Options
+
+The `!merge:<options>` syntax accepts the following options:
+
+| Option | Values | Default | Description |
+|--------|--------|---------|-------------|
+| **Strategy** (Objects) | `deep`, `shallow`, `replace` | `deep` | How to merge nested objects |
+| **Strategy** (Arrays) | `concat`, `prepend`, `unique`, `append`, `union` | `concat` | How to merge arrays |
+| **Key Conflict** | `replace`, `first`, `error` | `replace` | How to handle key conflicts |
+
+### Examples
+
+#### Basic Inline Merge
+
+```yaml
+# Input
+server:
+  $ref: "local::defaults.server"
+  port: 9090
+  ssl: true
+
+# With scope: {"defaults": {"server": {"host": "localhost", "port": 8080}}}
+
+# Output (automatic deep merge)
+server:
+  host: "localhost"
+  port: 9090     # sibling overrides
+  ssl: true      # sibling adds new key
+```
+
+#### Explicit Merge Options
+
+```yaml
+# Deep merge with explicit options
+config:
+  $ref: "local::base.config!merge:<deep,replace>"
+  timeout: 30
+  features:
+    logging: false
+
+# Shallow merge (replaces nested objects entirely)
+config:
+  $ref: "local::base.config!merge:<shallow>"
+  database:
+    host: "prod-db"  # completely replaces base.config.database
+
+# Replace strategy (ignores siblings)
+config:
+  $ref: "local::base.config!merge:<replace>"
+  timeout: 30      # this will be ignored
+```
+
+#### Key Conflict Handling
+
+```yaml
+# First wins (directive result takes precedence)
+server:
+  $ref: "local::defaults.server!merge:<deep,first>"
+  host: "override"  # ignored, directive result wins
+
+# Error on conflicts
+server:
+  $ref: "local::defaults.server!merge:<deep,error>"
+  host: "conflict"  # ERROR: key conflict detected
+```
+
+#### Inline Merge with $use
+
+```yaml
+# $use with sibling keys
+deployment:
+  $use: "agent(local::worker.config)"
+  metadata:
+    labels:
+      env: "prod"
+  resources:
+    cpu: "500m"
+
+# Output
+deployment:
+  agent:
+    type: "background"
+    replicas: 3
+  metadata:
+    labels:
+      env: "prod"
+  resources:
+    cpu: "500m"
+```
+
+#### Complex Nested Scenarios
+
+```yaml
+# Inline merge inside $merge directive
+config:
+  $merge:
+    - name: "my-app"
+    - database:
+        $ref: "local::db.defaults!merge:<deep>"
+        ssl: true
+        pool:
+          timeout: 30
+    - $ref: "local::overrides"
+
+# The $ref with inline merge is evaluated first, then becomes a source for $merge
 ```
 
 ## API Reference
@@ -518,19 +697,32 @@ if err != nil {
 name: my-app
 environment: $ref: "local::env"
 
+# Using inline merge for server configuration
 server:
-  $merge:
-    - $ref: "local::defaults.server"
-    - $ref: "global::overrides.server"
-    - port: ${PORT:-8080}  # With pre-eval env expansion
+  $ref: "local::defaults.server"
+  port: ${PORT:-8080}  # Override port with env expansion
+  ssl: true            # Add SSL configuration
 
+# Using $merge for complex scenarios
 database:
-  $use: tool(global::tools.postgres)
+  $merge:
+    - $ref: "local::defaults.database"
+    - $ref: "global::overrides.database"
+    - maxConnections: 100
+
+# Using $use with inline merge
+worker:
+  $use: "agent(local::agents.worker)"
+  resources:
+    cpu: "500m"
+    memory: "1Gi"
+  scaling:
+    enabled: true
 
 features:
   $merge:
     strategy: deep
-    key_conflict: last
+    key_conflict: replace
     sources:
       - $ref: "local::base_features"
       - $ref: "global::env_features"

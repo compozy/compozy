@@ -4,26 +4,38 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
+	"strings"
 	"sync"
 )
 
 type Directive struct {
 	Name      string
 	Validator func(node Node) error
-	Handler   func(ctx EvaluatorContext, node Node) (Node, error)
+	Handler   func(ctx EvaluatorContext, parentNode map[string]any, node Node) (Node, error)
+}
+
+// MergeOptions holds the parsed inline merge options
+type MergeOptions struct {
+	Enabled     bool
+	Strategy    StrategyType
+	KeyConflict KeyConflictType
 }
 
 var (
-	useDirectiveRegex = regexp.MustCompile(`^(?P<component>agent|tool|task)\((?P<scope>local|global)::(?P<path>.+)\)$`)
-	refDirectiveRegex = regexp.MustCompile(`^(?P<scope>local|global)::(?P<path>.+)$`)
+	// Updated regex patterns to capture optional inline merge syntax
+	useDirectiveRegex = regexp.MustCompile(
+		`^(?P<component>agent|tool|task)\((?P<scope>local|global)::(?P<path>.+?)\)(?:!merge:<(?P<merge_opts>[^>]*)>)?$`)
+	refDirectiveRegex = regexp.MustCompile(`^(?P<scope>local|global)::(?P<path>.+?)(?:!merge:<(?P<merge_opts>[^>]*)>)?$`)
 
 	// Named group indices for safer extraction
 	useIdxComponent = useDirectiveRegex.SubexpIndex("component")
 	useIdxScope     = useDirectiveRegex.SubexpIndex("scope")
 	useIdxPath      = useDirectiveRegex.SubexpIndex("path")
+	useIdxMergeOpts = useDirectiveRegex.SubexpIndex("merge_opts")
 
-	refIdxScope = refDirectiveRegex.SubexpIndex("scope")
-	refIdxPath  = refDirectiveRegex.SubexpIndex("path")
+	refIdxScope     = refDirectiveRegex.SubexpIndex("scope")
+	refIdxPath      = refDirectiveRegex.SubexpIndex("path")
+	refIdxMergeOpts = refDirectiveRegex.SubexpIndex("merge_opts")
 )
 
 var (
@@ -80,4 +92,53 @@ func Register(d Directive) error {
 
 	directives[d.Name] = d
 	return nil
+}
+
+// parseMergeOptions parses the inline merge options string
+// Format: [strategy][,key_conflict]
+// Examples: "deep", "shallow,error", "replace", ",first"
+func parseMergeOptions(opts string) MergeOptions {
+	result := MergeOptions{
+		Enabled:     opts != "",         // Only enabled when merge options are present
+		Strategy:    StrategyDeep,       // default for objects
+		KeyConflict: KeyConflictReplace, // default is now replace
+	}
+
+	if opts == "" {
+		return result
+	}
+
+	// Split by comma to get individual options
+	parts := splitMergeOptions(opts)
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		// Check if it's a strategy
+		strategy := StrategyType(part)
+		if strategy.IsValid() {
+			result.Strategy = strategy
+			continue
+		}
+
+		// Check if it's a key conflict option
+		keyConflict := KeyConflictType(part)
+		if keyConflict.IsValid() {
+			result.KeyConflict = keyConflict
+			continue
+		}
+	}
+
+	return result
+}
+
+// splitMergeOptions splits the options string by comma, handling edge cases
+func splitMergeOptions(opts string) []string {
+	if opts == "" {
+		return nil
+	}
+	return strings.Split(opts, ",")
 }

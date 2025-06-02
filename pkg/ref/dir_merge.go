@@ -8,20 +8,26 @@ import (
 // Types
 // -----------------------------------------------------------------------------
 
-type StrategyType string
-type KeyConflictType string
+type (
+	StrategyType    string
+	KeyConflictType string
+)
 
 const (
 	StrategyDefault StrategyType = "default"
 	StrategyDeep    StrategyType = "deep"
 	StrategyShallow StrategyType = "shallow"
+	StrategyReplace StrategyType = "replace"
 	StrategyConcat  StrategyType = "concat"
 	StrategyPrepend StrategyType = "prepend"
 	StrategyUnique  StrategyType = "unique"
+	StrategyAppend  StrategyType = "append" // alias for concat
+	StrategyUnion   StrategyType = "union"  // alias for unique
 
-	KeyConflictLast  KeyConflictType = "last"
-	KeyConflictFirst KeyConflictType = "first"
-	KeyConflictError KeyConflictType = "error"
+	KeyConflictReplace KeyConflictType = "replace" // new default (was "last")
+	KeyConflictLast    KeyConflictType = "last"    // kept for backward compatibility
+	KeyConflictFirst   KeyConflictType = "first"
+	KeyConflictError   KeyConflictType = "error"
 )
 
 func (s StrategyType) String() string {
@@ -32,17 +38,21 @@ func (s StrategyType) IsValid() bool {
 	return s == StrategyDefault ||
 		s == StrategyDeep ||
 		s == StrategyShallow ||
+		s == StrategyReplace ||
 		s == StrategyConcat ||
 		s == StrategyPrepend ||
-		s == StrategyUnique
+		s == StrategyUnique ||
+		s == StrategyAppend ||
+		s == StrategyUnion
 }
 
 func (s StrategyType) isValidForObjects() bool {
-	return s == StrategyDeep || s == StrategyShallow
+	return s == StrategyDeep || s == StrategyShallow || s == StrategyReplace
 }
 
 func (s StrategyType) isValidForArrays() bool {
-	return s == StrategyConcat || s == StrategyPrepend || s == StrategyUnique
+	return s == StrategyConcat || s == StrategyPrepend || s == StrategyUnique ||
+		s == StrategyAppend || s == StrategyUnion || s == StrategyReplace
 }
 
 func (k KeyConflictType) String() string {
@@ -50,7 +60,8 @@ func (k KeyConflictType) String() string {
 }
 
 func (k KeyConflictType) IsValid() bool {
-	return k == KeyConflictLast ||
+	return k == KeyConflictReplace ||
+		k == KeyConflictLast ||
 		k == KeyConflictFirst ||
 		k == KeyConflictError
 }
@@ -118,14 +129,19 @@ func validateMergeMap(v map[string]any) error {
 	return nil
 }
 
-func handleMerge(ctx EvaluatorContext, node Node) (Node, error) {
+func handleMerge(ctx EvaluatorContext, parentNode map[string]any, node Node) (Node, error) {
+	// Check for sibling keys - $merge doesn't support inline merge
+	if len(parentNode) > 1 {
+		return nil, fmt.Errorf("$merge directive cannot have sibling keys")
+	}
+
 	// First check if the node itself is a directive that needs evaluation
 	if evaluated, ok, err := tryEvaluateDirective(ctx, node); ok {
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate directive in $merge: %w", err)
 		}
 		// Now process the evaluated result
-		return handleMerge(ctx, evaluated)
+		return handleMerge(ctx, parentNode, evaluated)
 	}
 
 	// Parse merge configuration (validation already done)
@@ -181,7 +197,7 @@ func parseMergeConfig(node Node) (sources []any, strategy StrategyType, keyConfl
 	switch v := node.(type) {
 	case []any:
 		// Shorthand syntax
-		return v, StrategyDefault, KeyConflictLast
+		return v, StrategyDefault, KeyConflictReplace
 	case map[string]any:
 		// Explicit syntax
 		sourcesRaw, ok := v["sources"]
@@ -202,11 +218,11 @@ func parseMergeConfig(node Node) (sources []any, strategy StrategyType, keyConfl
 			strategy = StrategyDefault
 		}
 
-		// Get key_conflict option for objects (default: last)
+		// Get key_conflict option for objects (default: replace)
 		if kc, ok := v["key_conflict"].(string); ok {
 			keyConflict = KeyConflictType(kc)
 		} else {
-			keyConflict = KeyConflictLast
+			keyConflict = KeyConflictReplace
 		}
 
 		return sources, strategy, keyConflict
@@ -259,14 +275,29 @@ func mergeObjects(sources []any, strategy StrategyType, keyConflict KeyConflictT
 		strategy = StrategyDeep
 	}
 
+	// Handle replace strategy - just return the last non-nil source
+	if strategy == StrategyReplace {
+		for i := len(sources) - 1; i >= 0; i-- {
+			if sources[i] != nil {
+				return sources[i], nil
+			}
+		}
+		return map[string]any{}, nil
+	}
+
 	// Validate strategy with specific error message
 	if !strategy.isValidForObjects() {
-		return nil, fmt.Errorf("invalid object merge strategy: %s (must be 'deep' or 'shallow')", strategy)
+		return nil, fmt.Errorf("invalid object merge strategy: %s (must be 'deep', 'shallow', or 'replace')", strategy)
 	}
 
 	// Validate key_conflict with specific error message
 	if !keyConflict.IsValid() {
-		return nil, fmt.Errorf("invalid key_conflict: %s (must be 'last', 'first', or 'error')", keyConflict)
+		return nil, fmt.Errorf("invalid key_conflict: %s (must be 'replace', 'last', 'first', or 'error')", keyConflict)
+	}
+
+	// Handle backward compatibility: replace is the new name for last
+	if keyConflict == KeyConflictReplace {
+		keyConflict = KeyConflictLast
 	}
 
 	// For the common case (deep + last), use optimized implementation
@@ -397,9 +428,28 @@ func mergeArrays(sources []any, strategy StrategyType) (Node, error) {
 		strategy = StrategyConcat
 	}
 
+	// Handle aliases
+	switch strategy {
+	case StrategyAppend:
+		strategy = StrategyConcat
+	case StrategyUnion:
+		strategy = StrategyUnique
+	}
+
+	// Handle replace strategy - just return the last non-nil source
+	if strategy == StrategyReplace {
+		for i := len(sources) - 1; i >= 0; i-- {
+			if sources[i] != nil {
+				return sources[i], nil
+			}
+		}
+		return []any{}, nil
+	}
+
 	// Validate strategy with specific error message
 	if !strategy.isValidForArrays() {
-		return nil, fmt.Errorf("invalid array merge strategy: %s (must be 'concat', 'prepend', or 'unique')", strategy)
+		return nil, fmt.Errorf("invalid array merge strategy: %s (must be 'concat', 'prepend', 'unique', or 'replace')",
+			strategy)
 	}
 
 	switch strategy {

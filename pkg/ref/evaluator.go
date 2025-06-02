@@ -255,15 +255,22 @@ func (ev *Evaluator) eval(node Node, seen map[string]struct{}) (Node, error) {
 }
 
 // evalMap processes a map node, checking for directives and recursively evaluating values
-func (ev *Evaluator) evalMap(m map[string]any, seen map[string]struct{}) (Node, error) {
+func (ev *Evaluator) evalMap(parent map[string]any, seen map[string]struct{}) (Node, error) {
 	// Check for directives
 	allDirectives := getDirectives()
+	directiveCount := 0
+
+	for dirName := range allDirectives {
+		if _, exists := parent[dirName]; exists {
+			directiveCount++
+		}
+	}
+	if directiveCount > 1 {
+		return nil, fmt.Errorf("multiple directives are not allowed in a map")
+	}
+
 	for dirName, directive := range allDirectives {
-		if value, exists := m[dirName]; exists {
-			// Stricter validation: directive nodes should only contain the directive key
-			if len(m) != 1 {
-				return nil, fmt.Errorf("%s node may not contain sibling keys", dirName)
-			}
+		if value, exists := parent[dirName]; exists {
 			// Run validator first if present
 			if directive.Validator != nil {
 				if err := directive.Validator(value); err != nil {
@@ -272,7 +279,7 @@ func (ev *Evaluator) evalMap(m map[string]any, seen map[string]struct{}) (Node, 
 			}
 			// Pass seen map to handler through a wrapper evaluator
 			wrapperEv := &evaluatorWithSeen{Evaluator: ev, seen: seen}
-			result, err := directive.Handler(wrapperEv, value)
+			result, err := directive.Handler(wrapperEv, parent, value)
 			if err != nil {
 				return nil, err
 			}
@@ -282,7 +289,7 @@ func (ev *Evaluator) evalMap(m map[string]any, seen map[string]struct{}) (Node, 
 	}
 	// Regular map processing
 	result := make(map[string]any)
-	for key, value := range m {
+	for key, value := range parent {
 		evaluated, err := ev.eval(value, seen)
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate %s: %w", key, err)

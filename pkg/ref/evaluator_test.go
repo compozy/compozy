@@ -253,7 +253,6 @@ func TestDirectiveErrors(t *testing.T) {
 		{name: "Should fail on unknown scope", input: `{"$ref":"planet::foo"}`, wantErr: true, errContains: "invalid $ref syntax"},
 		{name: "Should fail on missing path", input: `{"$ref":"local::does.not.exist"}`, options: []EvalConfigOption{WithLocalScope(scope)}, wantErr: true, errContains: "not found"},
 		{name: "Should fail on bad $use syntax", input: `{"$use":"agent(bad)"}`, wantErr: true, errContains: "invalid $use syntax"},
-		{name: "Should fail on sibling keys", input: `{"$ref":"local::foo","oops":1}`, wantErr: true, errContains: "sibling keys"},
 		{name: "Should fail when $ref not string", input: `{"$ref":123}`, wantErr: true, errContains: "$ref must be a string"},
 		{name: "Should fail on empty $use", input: `{"$use":""}`, wantErr: true, errContains: "invalid $use syntax"},
 		{name: "Should fail on empty ref path", input: `{"$ref":"local::"}`, options: []EvalConfigOption{WithLocalScope(scope)}, wantErr: true, errContains: "invalid $ref syntax"},
@@ -278,11 +277,11 @@ func TestDirectiveErrors(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestDeterministicDirectivePick(t *testing.T) {
-	t.Run("Should consistently fail on sibling keys", func(t *testing.T) {
+	t.Run("Should consistently fail on multiple directives", func(t *testing.T) {
 		for range 10 {
 			_, err := ProcessBytes([]byte(`{"$ref":"local::x","$use":"agent(local::y)"}`), WithLocalScope(map[string]any{"x": "a", "y": "b"}))
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "sibling keys")
+			assert.Contains(t, err.Error(), "multiple directives are not allowed")
 		}
 	})
 }
@@ -550,6 +549,144 @@ func TestMergeDirective(t *testing.T) {
 		}
 		assert.Equal(t, want, got)
 	})
+
+	t.Run("Should handle $ref with inline merge inside $merge sources", func(t *testing.T) {
+		nestedScope := map[string]any{
+			"base": map[string]any{
+				"server": map[string]any{
+					"host": "localhost",
+					"port": 8080,
+				},
+			},
+			"config": map[string]any{
+				"timeout": 30,
+			},
+			"overrides": map[string]any{
+				"port": 9090,
+				"ssl":  true,
+			},
+		}
+
+		// This tests a $merge that contains a $ref with inline merge
+		// The $ref should merge its result with sibling keys, then that merged result
+		// becomes a source for the outer $merge
+		input := `result:
+  $merge:
+    - name: "test-service"
+    - $ref: "local::base.server!merge:<deep>"
+      extra: "from-ref"
+    - $ref: "local::overrides"`
+
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(nestedScope))
+		want := map[string]any{
+			"result": map[string]any{
+				"name":  "test-service",
+				"host":  "localhost",
+				"port":  float64(9090), // overrides wins
+				"extra": "from-ref",
+				"ssl":   true,
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should handle $use with inline merge inside $merge sources", func(t *testing.T) {
+		nestedScope := map[string]any{
+			"components": map[string]any{
+				"worker": map[string]any{
+					"type":     "background",
+					"replicas": 2,
+				},
+			},
+		}
+
+		// This tests a $merge that contains a $use with inline merge
+		input := `deployment:
+  $merge:
+    - metadata:
+        name: "my-deployment"
+    - $use: "agent(local::components.worker)"
+      resources:
+        cpu: "100m"
+    - scaling:
+        enabled: true`
+
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(nestedScope))
+		want := map[string]any{
+			"deployment": map[string]any{
+				"metadata": map[string]any{
+					"name": "my-deployment",
+				},
+				"agent": map[string]any{
+					"type":     "background",
+					"replicas": float64(2),
+				},
+				"resources": map[string]any{
+					"cpu": "100m",
+				},
+				"scaling": map[string]any{
+					"enabled": true,
+				},
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should handle complex nested inline merge scenarios", func(t *testing.T) {
+		complexScope := map[string]any{
+			"defaults": map[string]any{
+				"database": map[string]any{
+					"host": "localhost",
+					"port": 5432,
+					"pool": map[string]any{
+						"min": 5,
+						"max": 20,
+					},
+				},
+			},
+			"environments": map[string]any{
+				"prod": map[string]any{
+					"host": "prod-db.example.com",
+					"pool": map[string]any{
+						"max": 50,
+					},
+				},
+			},
+		}
+
+		// Complex nesting: $merge containing $ref with inline merge that does deep merging
+		input := `config:
+  $merge:
+    - app:
+        name: "my-app"
+    - database:
+        $ref: "local::defaults.database!merge:<deep>"
+        ssl: true
+        pool:
+          timeout: 30
+    - database:
+        $ref: "local::environments.prod"`
+
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(complexScope))
+		want := map[string]any{
+			"config": map[string]any{
+				"app": map[string]any{
+					"name": "my-app",
+				},
+				"database": map[string]any{
+					"host": "prod-db.example.com", // prod overrides defaults
+					"port": float64(5432),         // from defaults
+					"ssl":  true,                  // from inline merge
+					"pool": map[string]any{
+						"min":     float64(5),  // from defaults
+						"max":     float64(50), // prod overrides
+						"timeout": float64(30), // from inline merge
+					},
+				},
+			},
+		}
+		assert.Equal(t, want, got)
+	})
 }
 
 func TestMergeDirectiveErrors(t *testing.T) {
@@ -612,7 +749,7 @@ func TestMergeDirectiveErrors(t *testing.T) {
 			name:        "Should fail on sibling keys with $merge",
 			input:       `{"$merge":[{"a":1}],"extra":"key"}`,
 			wantErr:     true,
-			errContains: "sibling keys",
+			errContains: "$merge directive cannot have sibling keys",
 		},
 		{
 			name:        "Should fail when $ref evaluates to scalar",
@@ -651,7 +788,7 @@ val:
 	t.Run("Should process file correctly", func(t *testing.T) {
 		dir := t.TempDir()
 		file := filepath.Join(dir, "doc.yaml")
-		require.NoError(t, os.WriteFile(file, []byte(yamlDoc), 0644))
+		require.NoError(t, os.WriteFile(file, []byte(yamlDoc), 0o644))
 		got := MustEval(t, file, WithLocalScope(scope))
 		assert.Equal(t, expected, got)
 	})
@@ -879,7 +1016,7 @@ func TestRegisterDirective(t *testing.T) {
 				return fmt.Errorf("$double expects a number, got %T", v)
 			}
 		},
-		Handler: func(_ EvaluatorContext, node Node) (Node, error) {
+		Handler: func(_ EvaluatorContext, _ map[string]any, node Node) (Node, error) {
 			switch v := node.(type) {
 			case float64:
 				return v * 2, nil
@@ -909,7 +1046,7 @@ func TestRegisterDirective(t *testing.T) {
 	})
 
 	t.Run("Should fail to register directive without $", func(t *testing.T) {
-		err := Register(Directive{Name: "invalid", Handler: func(_ EvaluatorContext, _ Node) (Node, error) { return nil, nil }})
+		err := Register(Directive{Name: "invalid", Handler: func(_ EvaluatorContext, _ map[string]any, _ Node) (Node, error) { return nil, nil }})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "must start with '$'")
 	})
@@ -921,8 +1058,237 @@ func TestRegisterDirective(t *testing.T) {
 	})
 
 	t.Run("Should fail to register directive without name", func(t *testing.T) {
-		err := Register(Directive{Handler: func(_ EvaluatorContext, _ Node) (Node, error) { return nil, nil }})
+		err := Register(Directive{Handler: func(_ EvaluatorContext, _ map[string]any, _ Node) (Node, error) { return nil, nil }})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "name cannot be empty")
+	})
+}
+
+// -----------------------------------------------------------------------------
+// Inline Merge Tests
+// -----------------------------------------------------------------------------
+
+func TestInlineMerge(t *testing.T) {
+	localScope := map[string]any{
+		"test": map[string]any{
+			"data": map[string]any{
+				"foo": "bar",
+			},
+		},
+		"defaults": map[string]any{
+			"server": map[string]any{
+				"host": "localhost",
+				"port": 8080,
+			},
+		},
+		"arrays": map[string]any{
+			"tags": []any{"dev", "test"},
+		},
+	}
+
+	t.Run("Should merge sibling keys with $ref by default", func(t *testing.T) {
+		input := `foo:
+  $ref: "local::test.data"
+  bar: baz`
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(localScope))
+		want := map[string]any{
+			"foo": map[string]any{
+				"foo": "bar",
+				"bar": "baz",
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should merge sibling keys with $use by default", func(t *testing.T) {
+		input := `myagent:
+  $use: "agent(local::test.data)"
+  extra: value`
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(localScope))
+		want := map[string]any{
+			"myagent": map[string]any{
+				"agent": map[string]any{
+					"foo": "bar",
+				},
+				"extra": "value",
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should handle explicit deep merge", func(t *testing.T) {
+		input := `server:
+  $ref: "local::defaults.server!merge:<deep>"
+  port: 9090
+  ssl: true`
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(localScope))
+		want := map[string]any{
+			"server": map[string]any{
+				"host": "localhost",
+				"port": float64(9090),
+				"ssl":  true,
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should handle shallow merge", func(t *testing.T) {
+		nestedScope := map[string]any{
+			"base": map[string]any{
+				"config": map[string]any{
+					"nested": map[string]any{
+						"deep": "value",
+					},
+					"level1": "base",
+				},
+			},
+		}
+		input := `result:
+  $ref: "local::base.config!merge:<shallow>"
+  level1: "override"
+  nested:
+    other: "new"`
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(nestedScope))
+		want := map[string]any{
+			"result": map[string]any{
+				"level1": "override",
+				"nested": map[string]any{
+					"other": "new",
+				},
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should handle key conflict first", func(t *testing.T) {
+		input := `config:
+  $ref: "local::defaults.server!merge:<deep,first>"
+  host: "0.0.0.0"`
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(localScope))
+		want := map[string]any{
+			"config": map[string]any{
+				"host": "localhost", // First wins
+				"port": float64(8080),
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should handle key conflict error", func(t *testing.T) {
+		input := `config:
+  $ref: "local::defaults.server!merge:<deep,error>"
+  host: "0.0.0.0"`
+		_, err := ProcessBytes([]byte(input), WithLocalScope(localScope))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "key conflict: 'host' already exists")
+	})
+
+	t.Run("Should handle replace strategy", func(t *testing.T) {
+		input := `config:
+  $ref: "local::defaults.server!merge:<replace>"
+  extra: "ignored"`
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(localScope))
+		want := map[string]any{
+			"config": map[string]any{
+				"host": "localhost",
+				"port": float64(8080),
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should handle empty merge options", func(t *testing.T) {
+		input := `config:
+  $ref: "local::defaults.server"
+  ssl: true`
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(localScope))
+		want := map[string]any{
+			"config": map[string]any{
+				"host": "localhost",
+				"port": float64(8080),
+				"ssl":  true,
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("Should fail when merging array with object siblings", func(t *testing.T) {
+		input := `result:
+  $ref: "local::arrays.tags"
+  extra: value`
+		_, err := ProcessBytes([]byte(input), WithLocalScope(localScope))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot merge array result with object siblings")
+	})
+
+	t.Run("Should fail when merging scalar with siblings", func(t *testing.T) {
+		scalarScope := map[string]any{
+			"value": "scalar",
+		}
+		input := `result:
+  $ref: "local::value"
+  extra: value`
+		_, err := ProcessBytes([]byte(input), WithLocalScope(scalarScope))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot merge scalar result with siblings")
+	})
+
+	t.Run("Should handle nil result with siblings", func(t *testing.T) {
+		nilScope := map[string]any{
+			"nothing": nil,
+		}
+		input := `result:
+  $ref: "local::nothing"
+  foo: bar`
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(nilScope))
+		want := map[string]any{
+			"result": map[string]any{
+				"foo": "bar",
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+}
+
+func TestInlineMergeWithTransformUse(t *testing.T) {
+	localScope := map[string]any{
+		"component": map[string]any{
+			"type": "base",
+			"config": map[string]any{
+				"timeout": 30,
+			},
+		},
+	}
+
+	transform := func(component string, cfg Node) (string, Node, error) {
+		return "custom_" + component, map[string]any{
+			"wrapped": true,
+			"data":    cfg,
+		}, nil
+	}
+
+	t.Run("Should merge with transformed $use result", func(t *testing.T) {
+		input := `service:
+  $use: "agent(local::component)"
+  metadata:
+    version: "1.0"`
+		got := MustEvalBytes(t, []byte(input), WithLocalScope(localScope), WithTransformUse(transform))
+		want := map[string]any{
+			"service": map[string]any{
+				"custom_agent": map[string]any{
+					"wrapped": true,
+					"data": map[string]any{
+						"type": "base",
+						"config": map[string]any{
+							"timeout": float64(30),
+						},
+					},
+				},
+				"metadata": map[string]any{
+					"version": "1.0",
+				},
+			},
+		}
+		assert.Equal(t, want, got)
 	})
 }
