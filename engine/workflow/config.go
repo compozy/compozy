@@ -125,11 +125,11 @@ func (w *Config) Merge(other any) error {
 	return mergo.Merge(w, otherConfig, mergo.WithOverride)
 }
 
-func WorkflowsFromProject(projectConfig *project.Config) ([]*Config, error) {
+func WorkflowsFromProject(projectConfig *project.Config, ev *ref.Evaluator) ([]*Config, error) {
 	cwd := projectConfig.GetCWD()
 	var ws []*Config
 	for _, wf := range projectConfig.Workflows {
-		config, err := Load(cwd, wf.Source)
+		config, err := LoadAndEval(cwd, wf.Source, ev)
 		if err != nil {
 			return nil, err
 		}

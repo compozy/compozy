@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"dario.cat/mergo"
+	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
 )
@@ -53,6 +54,7 @@ type Config struct {
 	Dependencies *Dependencies                 `json:"dependencies,omitempty" yaml:"dependencies,omitempty"`
 	Environments map[string]*EnvironmentConfig `json:"environments,omitempty" yaml:"environments,omitempty"`
 	Workflows    []*WorkflowSourceConfig       `json:"workflows"              yaml:"workflows"`
+	Models       []*agent.ProviderConfig       `json:"models"                 yaml:"models"`
 
 	filePath string
 	cwd      *core.CWD
@@ -125,6 +127,10 @@ func (p *Config) GetEnv() *core.EnvMap {
 
 func (p *Config) GetInput() *core.Input {
 	return &core.Input{}
+}
+
+func (p *Config) AsMap() (map[string]any, error) {
+	return core.ConfigAsMap(p)
 }
 
 func Load(cwd *core.CWD, path string) (*Config, error) {

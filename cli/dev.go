@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/infra/server"
+	"github.com/compozy/compozy/engine/infra/temporal"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/utils"
 	"github.com/gin-gonic/gin"
@@ -41,6 +42,27 @@ func getServerConfig(cmd *cobra.Command) (*server.Config, error) {
 	return serverConfig, nil
 }
 
+func getTemporalConfig(cmd *cobra.Command) (*temporal.Config, error) {
+	hostPort, err := cmd.Flags().GetString("temporal-host")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get temporal-host flag: %w", err)
+	}
+	namespace, err := cmd.Flags().GetString("temporal-namespace")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get temporal-namespace flag: %w", err)
+	}
+	taskQueue, err := cmd.Flags().GetString("temporal-task-queue")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get temporal-task-queue flag: %w", err)
+	}
+
+	return &temporal.Config{
+		HostPort:  hostPort,
+		Namespace: namespace,
+		TaskQueue: taskQueue,
+	}, nil
+}
+
 // DevCmd returns the dev command
 func DevCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -55,6 +77,11 @@ func DevCmd() *cobra.Command {
 	cmd.Flags().Bool("cors", false, "Enable CORS")
 	cmd.Flags().String("cwd", "", "Working directory for the project")
 	cmd.Flags().String("config", "compozy.yaml", "Path to the project configuration file")
+
+	// Temporal configuration flags
+	cmd.Flags().String("temporal-host", "localhost:7233", "Temporal server host:port")
+	cmd.Flags().String("temporal-namespace", "default", "Temporal namespace")
+	cmd.Flags().String("temporal-task-queue", "compozy-task-queue", "Temporal task queue name")
 
 	// Logging configuration flags
 	cmd.Flags().String("log-level", "info", "Log level (debug, info, warn, error)")
@@ -80,16 +107,27 @@ func DevCmd() *cobra.Command {
 
 func handleDevCmd(cmd *cobra.Command, _ []string) error {
 	gin.SetMode(gin.ReleaseMode)
+
+	// Get server configuration
 	scfg, err := getServerConfig(cmd)
 	if err != nil {
 		return err
 	}
 
+	// Get Temporal configuration
+	tcfg, err := getTemporalConfig(cmd)
+	if err != nil {
+		return err
+	}
+
+	// Setup logging
 	logLevel, logJSON, logSource, err := logger.GetLoggerConfig(cmd)
 	if err != nil {
 		return err
 	}
 	logger.SetupLogger(logLevel, logJSON, logSource)
-	srv := server.NewServer(*scfg)
+
+	// Create and run server
+	srv := server.NewServer(*scfg, tcfg)
 	return srv.Run()
 }

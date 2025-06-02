@@ -1,0 +1,86 @@
+# To use specific versions, create a .env file with:
+# TEMPORAL_VERSION=1.28.0
+# TEMPORAL_UI_VERSION=2.45.0
+# TEMPORAL_ADMINTOOLS_VERSION=1.28.0
+# POSTGRESQL_VERSION=15-alpine
+
+services:
+  postgresql:
+    container_name: temporal-postgresql
+    image: postgres:${POSTGRESQL_VERSION:-15-alpine}
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal
+      POSTGRES_DB: temporal
+    networks:
+      - temporal-network
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  temporal:
+    container_name: temporal
+    image: temporalio/auto-setup:${TEMPORAL_VERSION:-latest}
+    depends_on:
+      - postgresql
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CLI_ADDRESS=temporal:7233
+    networks:
+      - temporal-network
+    ports:
+      - "7233:7233"  # Temporal gRPC endpoint
+    volumes:
+      - ./temporal-dev.yaml:/etc/temporal/config/dynamicconfig/development-sql.yaml
+    healthcheck:
+      test: ["CMD", "temporal", "workflow", "list", "--namespace", "default"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  temporal-admin-tools:
+    container_name: temporal-admin-tools
+    image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION:-latest}
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CLI_ADDRESS=temporal:7233
+    networks:
+      - temporal-network
+    stdin_open: true
+    tty: true
+
+  temporal-ui:
+    container_name: temporal-ui
+    image: temporalio/ui:${TEMPORAL_UI_VERSION:-latest}
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    networks:
+      - temporal-network
+    ports:
+      - "8080:8080"  # Temporal Web UI
+
+networks:
+  temporal-network:
+    driver: bridge
+    name: temporal-network
+
+volumes:
+  postgres_data:
+    driver: local

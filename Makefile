@@ -28,7 +28,7 @@ SWAGGER_DIR=./docs
 SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
 
 .PHONY: all test lint fmt clean build dev dev-weather deps schemagen help integration-test
-.PHONY: tidy proto proto-deps test-go test-runtime start-nats stop-nats clean-nats restart-nats
+.PHONY: tidy proto proto-deps test-go test-runtime start-docker stop-docker clean-docker restart-docker
 .PHONY: swagger swagger-deps swagger-gen swagger-serve
 
 # -----------------------------------------------------------------------------
@@ -132,28 +132,28 @@ test-go-nocache:
 test-runtime:
 	@echo "Running runtime tests..."
 	@sleep 1
-	@make start-nats
+	@make start-docker
 	@deno test --allow-sys --allow-env --allow-net --allow-read pkg/runtime/tests/
-	@make stop-nats
+	@make stop-docker
 
 test:
-	make start-nats
+	make start-docker
 	make test-go
 	make test-runtime
-	make stop-nats
+	make stop-docker
 
 # -----------------------------------------------------------------------------
 # Docker & NATS Management
 # -----------------------------------------------------------------------------
-start-nats:
-	docker compose -f docker-compose.yml up -d
+start-docker:
+	docker compose -f ./cluster/docker-compose.yml up -d
 
-stop-nats:
-	docker compose -f docker-compose.yml down
+stop-docker:
+	docker compose -f ./cluster/docker-compose.yml down
 
-clean-nats:
-	docker compose -f docker-compose.yml down --volumes --rmi all
+clean-docker:
+	docker compose -f ./cluster/docker-compose.yml down --volumes --rmi all
 
-restart-nats:
-	make stop-nats
-	make start-nats
+restart-docker:
+	make stop-docker
+	make start-docker
