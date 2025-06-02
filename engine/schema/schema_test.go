@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,7 +12,7 @@ func Test_SchemaValidate(t *testing.T) {
 		schema := &Schema{
 			"type": "string",
 		}
-		err := schema.Validate("test")
+		_, err := schema.Validate(context.Background(), "test")
 		assert.NoError(t, err)
 	})
 
@@ -19,7 +20,7 @@ func Test_SchemaValidate(t *testing.T) {
 		schema := &Schema{
 			"type": "string",
 		}
-		err := schema.Validate(123)
+		_, err := schema.Validate(context.Background(), 123)
 		assert.Error(t, err)
 	})
 
@@ -27,7 +28,7 @@ func Test_SchemaValidate(t *testing.T) {
 		schema := &Schema{
 			"type": "number",
 		}
-		err := schema.Validate(123.45)
+		_, err := schema.Validate(context.Background(), 123.45)
 		assert.NoError(t, err)
 	})
 
@@ -35,7 +36,7 @@ func Test_SchemaValidate(t *testing.T) {
 		schema := &Schema{
 			"type": "number",
 		}
-		err := schema.Validate("test")
+		_, err := schema.Validate(context.Background(), "test")
 		assert.Error(t, err)
 	})
 
@@ -56,7 +57,7 @@ func Test_SchemaValidate(t *testing.T) {
 			"name": "John",
 			"age":  30,
 		}
-		err := schema.Validate(value)
+		_, err := schema.Validate(context.Background(), value)
 		assert.NoError(t, err)
 	})
 
@@ -70,7 +71,7 @@ func Test_SchemaValidate(t *testing.T) {
 			},
 			"required": []string{"name"},
 		}
-		err := schema.Validate(map[string]any{})
+		_, err := schema.Validate(context.Background(), map[string]any{})
 		assert.Error(t, err)
 	})
 
@@ -86,7 +87,7 @@ func Test_SchemaValidate(t *testing.T) {
 		value := map[string]any{
 			"name": 123,
 		}
-		err := schema.Validate(value)
+		_, err := schema.Validate(context.Background(), value)
 		assert.Error(t, err)
 	})
 
@@ -98,7 +99,7 @@ func Test_SchemaValidate(t *testing.T) {
 			},
 		}
 		value := []any{"a", "b", "c"}
-		err := schema.Validate(value)
+		_, err := schema.Validate(context.Background(), value)
 		assert.NoError(t, err)
 	})
 
@@ -110,13 +111,13 @@ func Test_SchemaValidate(t *testing.T) {
 			},
 		}
 		value := []any{"a", 2, "c"}
-		err := schema.Validate(value)
+		_, err := schema.Validate(context.Background(), value)
 		assert.Error(t, err)
 	})
 
 	t.Run("Should handle nil schema", func(t *testing.T) {
 		var schema *Schema
-		err := schema.Validate("test")
+		_, err := schema.Validate(context.Background(), "test")
 		assert.NoError(t, err)
 	})
 }

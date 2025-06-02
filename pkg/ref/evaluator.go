@@ -133,7 +133,7 @@ func NewEvaluator(options ...EvalConfigOption) *Evaluator {
 			NumCounters: ev.cacheConfig.NumCounters,
 			MaxCost:     ev.cacheConfig.MaxCost,
 			BufferItems: ev.cacheConfig.BufferItems,
-			Cost: func(value interface{}) int64 {
+			Cost: func(value any) int64 {
 				// Estimate cost based on the serialized size
 				if data, err := json.Marshal(value); err == nil {
 					return int64(len(data))
@@ -217,6 +217,26 @@ func parseJSON(raw string) (Node, error) {
 // GetTransformUse returns the TransformUse function
 func (ev *Evaluator) GetTransformUse() TransformUseFunc {
 	return ev.TransformUse
+}
+
+// WithLocalScope sets the local scope.
+func (ev *Evaluator) WithLocalScope(scope map[string]any) *Evaluator {
+	if ev.LocalScope == nil {
+		ev.LocalScope = make(map[string]any)
+	}
+	ev.LocalScope = scope
+	ev.localJSON = mustJSON(scope)
+	return ev
+}
+
+// WithGlobalScope sets the global scope.
+func (ev *Evaluator) WithGlobalScope(scope map[string]any) *Evaluator {
+	if ev.GlobalScope == nil {
+		ev.GlobalScope = make(map[string]any)
+	}
+	ev.GlobalScope = scope
+	ev.globalJSON = mustJSON(scope)
+	return ev
 }
 
 // -----------------------------------------------------------------------------

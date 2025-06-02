@@ -3733,6 +3733,7 @@
         "task.Config": {
             "type": "object",
             "properties": {
+                "$use": {},
                 "action": {
                     "description": "Basic task properties",
                     "type": "string"
@@ -3770,9 +3771,6 @@
                 },
                 "type": {
                     "$ref": "#/definitions/task.Type"
-                },
-                "use": {
-                    "type": "string"
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"
@@ -3945,6 +3943,7 @@
         "tool.Config": {
             "type": "object",
             "properties": {
+                "$use": {},
                 "description": {
                     "type": "string"
                 },
@@ -3962,9 +3961,6 @@
                 },
                 "output": {
                     "$ref": "#/definitions/schema.OutputSchema"
-                },
-                "use": {
-                    "type": "string"
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"

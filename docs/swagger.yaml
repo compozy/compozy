@@ -464,6 +464,7 @@ definitions:
     type: object
   task.Config:
     properties:
+      $use: {}
       action:
         description: Basic task properties
         type: string
@@ -490,8 +491,6 @@ definitions:
         type: object
       type:
         $ref: '#/definitions/task.Type'
-      use:
-        type: string
       with:
         $ref: '#/definitions/core.Input'
     type: object
@@ -618,6 +617,7 @@ definitions:
     type: object
   tool.Config:
     properties:
+      $use: {}
       description:
         type: string
       env:
@@ -630,8 +630,6 @@ definitions:
         $ref: '#/definitions/schema.InputSchema'
       output:
         $ref: '#/definitions/schema.OutputSchema'
-      use:
-        type: string
       with:
         $ref: '#/definitions/core.Input'
     type: object

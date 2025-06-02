@@ -1,9 +1,8 @@
 package repo
 
 import (
-	"testing"
-
 	"path/filepath"
+	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -88,21 +87,19 @@ func TestAgentRepository_CreateExecution(t *testing.T) {
 			{
 				ID:     "review-code",
 				Prompt: "Review the following code for quality and best practices",
-				InputSchema: &schema.InputSchema{
-					Schema: schema.Schema{
-						"type": "object",
-						"properties": map[string]any{
-							"code": map[string]any{
-								"type":        "string",
-								"description": "The code to review",
-							},
-							"language": map[string]any{
-								"type":        "string",
-								"description": "Programming language",
-							},
+				InputSchema: &schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"code": map[string]any{
+							"type":        "string",
+							"description": "The code to review",
 						},
-						"required": []string{"code"},
+						"language": map[string]any{
+							"type":        "string",
+							"description": "Programming language",
+						},
 					},
+					"required": []string{"code"},
 				},
 			},
 		}

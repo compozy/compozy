@@ -28,7 +28,9 @@ func CreateTestWorkflowConfig(
 	workflowConfig := &workflow.Config{
 		ID:      workflowID,
 		Version: "1.0.0",
-		Env:     env,
+		Opts: workflow.Opts{
+			Env: env,
+		},
 	}
 	err := workflowConfig.SetCWD(tb.StateDir)
 	require.NoError(t, err)

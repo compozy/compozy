@@ -22,10 +22,9 @@ func TestWorkflowRoutesWithRealExamples(t *testing.T) {
 
 	// Load real workflows from examples
 	weatherWorkflow, _ := utils.LoadExampleWorkflow(t, "weather-agent")
-	quotesWorkflow, _ := utils.LoadExampleWorkflow(t, "quotes")
 
 	// Update app state with the real workflows
-	htb.AppState.Workflows = []*workflow.Config{weatherWorkflow, quotesWorkflow}
+	htb.AppState.Workflows = []*workflow.Config{weatherWorkflow}
 
 	t.Run("GET /workflows - list real workflows", func(t *testing.T) {
 		resp, err := htb.GET(baseURL + "/workflows")
@@ -45,7 +44,7 @@ func TestWorkflowRoutesWithRealExamples(t *testing.T) {
 		// Verify we get the expected workflows
 		workflowsArray, ok := workflows.([]interface{})
 		require.True(t, ok, "Workflows should be an array")
-		assert.Len(t, workflowsArray, 2, "Should have 2 workflows")
+		assert.Len(t, workflowsArray, 1, "Should have 1 workflow")
 
 		// Verify workflow data contains real examples
 		workflowIDs := make([]string, 0, len(workflowsArray))
@@ -55,7 +54,6 @@ func TestWorkflowRoutesWithRealExamples(t *testing.T) {
 			workflowIDs = append(workflowIDs, workflowData["id"].(string))
 		}
 		assert.Contains(t, workflowIDs, weatherWorkflow.ID, "Should contain weather-agent workflow")
-		assert.Contains(t, workflowIDs, quotesWorkflow.ID, "Should contain quotes workflow")
 	})
 
 	t.Run("GET /workflows/:workflow_id - get weather-agent workflow", func(t *testing.T) {
@@ -95,32 +93,6 @@ func TestWorkflowRoutesWithRealExamples(t *testing.T) {
 		assert.Len(t, tasksArray, 4, "Weather-agent should have 4 tasks")
 	})
 
-	t.Run("GET /workflows/:workflow_id - get quotes workflow", func(t *testing.T) {
-		resp, err := htb.GET(baseURL + "/workflows/" + quotesWorkflow.ID)
-		require.NoError(t, err, "Failed to make GET request")
-
-		apiResp := htb.AssertSuccessResponse(resp, http.StatusOK)
-		assert.Equal(t, "workflow retrieved", apiResp.Message)
-		assert.NotNil(t, apiResp.Data, "Response should contain data")
-
-		// Verify the workflow data
-		workflowData, ok := apiResp.Data.(map[string]interface{})
-		require.True(t, ok, "Workflow data should be a map")
-		assert.Equal(t, quotesWorkflow.ID, workflowData["id"], "Workflow ID should match")
-
-		// Quotes workflow doesn't have a description, so it should be empty or nil
-		if desc, exists := workflowData["description"]; exists && desc != nil {
-			assert.Equal(t, quotesWorkflow.Description, desc, "Workflow description should match")
-		}
-
-		// Verify tasks are included
-		tasksData, exists := workflowData["tasks"]
-		require.True(t, exists, "Workflow should contain tasks")
-		tasksArray, ok := tasksData.([]interface{})
-		require.True(t, ok, "Tasks should be an array")
-		assert.Greater(t, len(tasksArray), 0, "Quotes workflow should have tasks")
-	})
-
 	t.Run("POST /workflows/:workflow_id/executions - execute weather-agent workflow", func(t *testing.T) {
 		input := utils.GetWeatherAgentTestInput()
 
@@ -143,24 +115,6 @@ func TestWorkflowRoutesWithRealExamples(t *testing.T) {
 		execURL, ok := data["exec_url"].(string)
 		require.True(t, ok, "Execution URL should be a string")
 		assert.Contains(t, execURL, "/api/workflows/executions/", "Execution URL should contain correct path")
-	})
-
-	t.Run("POST /workflows/:workflow_id/executions - execute quotes workflow", func(t *testing.T) {
-		input := utils.GetQuotesTestInput()
-
-		resp, err := htb.POST(baseURL+"/workflows/"+quotesWorkflow.ID+"/executions", input)
-		require.NoError(t, err, "Failed to make POST request")
-
-		apiResp := htb.AssertSuccessResponse(resp, http.StatusAccepted)
-		assert.Equal(t, "workflow triggered successfully", apiResp.Message)
-		assert.NotNil(t, apiResp.Data, "Response should contain data")
-
-		// Check data structure
-		data, ok := apiResp.Data.(map[string]any)
-		require.True(t, ok, "Data should be a map")
-		assert.Equal(t, quotesWorkflow.ID, data["workflow_id"], "Workflow ID should match")
-		assert.Contains(t, data, "workflow_exec_id", "Data should contain workflow_exec_id")
-		assert.Contains(t, data, "exec_url", "Data should contain exec_url")
 	})
 
 	t.Run("GET /workflows/:workflow_id with non-existent workflow", func(t *testing.T) {

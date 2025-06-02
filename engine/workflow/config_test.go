@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/ref"
 	"github.com/compozy/compozy/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,10 +21,23 @@ func setupTest(t *testing.T, workflowFile string) (cwd *core.CWD, dstPath string
 	return
 }
 
+var globalScope = map[string]any{
+	"models": []any{
+		map[string]any{
+			"id":          "gpt-4o",
+			"provider":    "openai",
+			"model":       "gpt-4o",
+			"temperature": 0.7,
+			"max_tokens":  4000,
+		},
+	},
+}
+
 func Test_LoadWorkflow(t *testing.T) {
 	t.Run("Should load basic workflow configuration correctly", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "basic_workflow.yaml")
-		config, err := Load(cwd, dstPath)
+		ev := ref.NewEvaluator(ref.WithGlobalScope(globalScope))
+		config, err := LoadAndEval(cwd, dstPath, ev)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 		require.NotNil(t, config.Opts)
@@ -33,7 +47,7 @@ func Test_LoadWorkflow(t *testing.T) {
 		require.NotNil(t, config.Tasks)
 		require.NotNil(t, config.Tools)
 		require.NotNil(t, config.Agents)
-		require.NotNil(t, config.Env)
+		require.NotNil(t, config.Opts.Env)
 
 		assert.Equal(t, "test-workflow", config.ID)
 		assert.Equal(t, "1.0.0", config.Version)
@@ -44,8 +58,6 @@ func Test_LoadWorkflow(t *testing.T) {
 		task := config.Tasks[0]
 		assert.Equal(t, "format-code", task.ID)
 		assert.Equal(t, "basic", string(task.Type))
-		require.NotNil(t, task.Use)
-		assert.Equal(t, core.NewPackageRefConfig("agent(id=code-assistant)"), task.Use)
 		require.NotNil(t, task.Action)
 		assert.Equal(t, "format-code", task.Action)
 
@@ -61,22 +73,25 @@ func Test_LoadWorkflow(t *testing.T) {
 		agentConfig := config.Agents[0]
 		assert.Equal(t, "code-assistant", agentConfig.ID)
 		require.NotNil(t, agentConfig.Config)
-		assert.Equal(t, agent.ProviderName("anthropic"), agentConfig.Config.Provider)
-		assert.Equal(t, agent.ModelName("claude-3-opus"), agentConfig.Config.Model)
+		assert.Equal(t, agent.ProviderName("openai"), agentConfig.Config.Provider)
+		assert.Equal(t, agent.ModelName("gpt-4o"), agentConfig.Config.Model)
 		assert.InDelta(t, float32(0.7), agentConfig.Config.Temperature, 0.0001)
 		assert.Equal(t, int32(4000), agentConfig.Config.MaxTokens)
 
 		// Validate env
-		assert.Equal(t, "1.0.0", config.Env["WORKFLOW_VERSION"])
-		assert.Equal(t, "3", config.Env["MAX_RETRIES"])
+		assert.Equal(t, "1.0.0", config.Opts.Env["WORKFLOW_VERSION"])
+		assert.Equal(t, "3", config.Opts.Env["MAX_RETRIES"])
 	})
 
 	t.Run("Should return error for invalid workflow configuration", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "invalid_workflow.yaml")
 		config, err := Load(cwd, dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
+
+		err = config.Validate()
 		require.Error(t, err)
-		require.Nil(t, config)
-		assert.Contains(t, err.Error(), "condition or routes are required for decision task type")
+		assert.Contains(t, err.Error(), "condition is required for decision tasks")
 	})
 }
 
@@ -124,14 +139,18 @@ func Test_WorkflowConfigCWD(t *testing.T) {
 func Test_WorkflowConfigMerge(t *testing.T) {
 	t.Run("Should merge configurations correctly", func(t *testing.T) {
 		baseConfig := &Config{
-			Env: core.EnvMap{
-				"KEY1": "value1",
+			Opts: Opts{
+				Env: core.EnvMap{
+					"KEY1": "value1",
+				},
 			},
 		}
 
 		otherConfig := &Config{
-			Env: core.EnvMap{
-				"KEY2": "value2",
+			Opts: Opts{
+				Env: core.EnvMap{
+					"KEY2": "value2",
+				},
 			},
 		}
 
@@ -139,7 +158,7 @@ func Test_WorkflowConfigMerge(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check that base config has both env variables
-		assert.Equal(t, "value1", baseConfig.Env["KEY1"])
-		assert.Equal(t, "value2", baseConfig.Env["KEY2"])
+		assert.Equal(t, "value1", baseConfig.Opts.Env["KEY1"])
+		assert.Equal(t, "value2", baseConfig.Opts.Env["KEY2"])
 	})
 }

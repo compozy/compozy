@@ -1,4 +1,3 @@
-// biome-ignore lint/suspicious/noExplicitAny: <explanation>
-export async function run(input: any): Promise<any> {
+export function run(input: any): any {
   return input;
 }

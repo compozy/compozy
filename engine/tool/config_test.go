@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"context"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -45,94 +46,28 @@ func Test_LoadTool(t *testing.T) {
 		assert.True(t, IsTypeScript(config.Execute))
 
 		// Validate input schema
-		schema := config.InputSchema.Schema
-		assert.Equal(t, "object", schema.GetType())
-		require.NotNil(t, schema.GetProperties())
-		assert.Contains(t, schema.GetProperties(), "code")
-		assert.Contains(t, schema.GetProperties(), "language")
-		if required, ok := schema["required"].([]string); ok && len(required) > 0 {
-			assert.Contains(t, required, "code")
-		}
+		schema := config.InputSchema
+		compiledSchema, err := schema.Compile()
+		require.NoError(t, err)
+		assert.Equal(t, []string{"object"}, []string(compiledSchema.Type))
+		require.NotNil(t, compiledSchema.Properties)
+		assert.Contains(t, (*compiledSchema.Properties), "code")
+		assert.Contains(t, (*compiledSchema.Properties), "language")
+		assert.Contains(t, compiledSchema.Required, "code")
 
 		// Validate output schema
-		outSchema := config.OutputSchema.Schema
-		assert.Equal(t, "object", outSchema.GetType())
-		require.NotNil(t, outSchema.GetProperties())
-		assert.Contains(t, outSchema.GetProperties(), "formatted_code")
-		if required, ok := outSchema["required"].([]string); ok && len(required) > 0 {
-			assert.Contains(t, required, "formatted_code")
-		}
+		outSchema := config.OutputSchema
+		compiledOutSchema, err := outSchema.Compile()
+		require.NoError(t, err)
+		assert.Equal(t, []string{"object"}, []string(compiledOutSchema.Type))
+		require.NotNil(t, compiledOutSchema.Properties)
+		assert.Contains(t, (*compiledOutSchema.Properties), "formatted_code")
+		assert.Contains(t, compiledOutSchema.Required, "formatted_code")
 
 		// Validate env and with
 		assert.Equal(t, "1.0.0", config.Env["FORMATTER_VERSION"])
 		assert.Equal(t, 2, (*config.With)["indent_size"])
 		assert.Equal(t, false, (*config.With)["use_tabs"])
-	})
-
-	t.Run("Should load package tool configuration correctly", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "package_tool.yaml")
-		config, err := Load(cwd, dstPath)
-		require.NoError(t, err)
-		require.NotNil(t, config)
-
-		// Validate the config
-		err = config.Validate()
-		require.NoError(t, err)
-
-		require.NotNil(t, config.ID)
-		require.NotNil(t, config.Description)
-		require.NotNil(t, config.InputSchema)
-		require.NotNil(t, config.OutputSchema)
-		require.NotNil(t, config.Env)
-		require.NotNil(t, config.With)
-
-		assert.Equal(t, "code-linter", config.ID)
-		assert.Equal(t, "A tool for linting code", config.Description)
-
-		// Validate input schema
-		schema := config.InputSchema.Schema
-		assert.Equal(t, "object", schema.GetType())
-		require.NotNil(t, schema.GetProperties())
-		assert.Contains(t, schema.GetProperties(), "code")
-		assert.Contains(t, schema.GetProperties(), "language")
-		if required, ok := schema["required"].([]string); ok && len(required) > 0 {
-			assert.Contains(t, required, "code")
-		}
-
-		// Validate output schema
-		outSchema := config.OutputSchema.Schema
-		assert.Equal(t, "object", outSchema.GetType())
-		require.NotNil(t, outSchema.GetProperties())
-		assert.Contains(t, outSchema.GetProperties(), "issues")
-		issues := outSchema.GetProperties()["issues"]
-		assert.Equal(t, "array", issues.GetType())
-
-		// Get the items from the schema
-		if items, ok := (*issues)["items"].(map[string]any); ok {
-			// Check properties directly from the items map
-			if itemType, ok := items["type"].(string); ok {
-				assert.Equal(t, "object", itemType)
-			}
-
-			if itemProps, ok := items["properties"].(map[string]any); ok {
-				assert.Contains(t, itemProps, "line")
-				assert.Contains(t, itemProps, "message")
-				assert.Contains(t, itemProps, "severity")
-			} else {
-				t.Error("Item properties not found or not a map")
-			}
-		} else {
-			t.Error("Items not found or not a map")
-		}
-
-		if required, ok := outSchema["required"].([]string); ok && len(required) > 0 {
-			assert.Contains(t, required, "issues")
-		}
-
-		// Validate env and with
-		assert.Equal(t, "8.0.0", config.Env["ESLINT_VERSION"])
-		assert.Equal(t, 10, (*config.With)["max_warnings"])
-		assert.Equal(t, true, (*config.With)["fix"])
 	})
 
 	t.Run("Should return error for invalid tool configuration", func(t *testing.T) {
@@ -173,18 +108,6 @@ func Test_ToolConfigValidation(t *testing.T) {
 		assert.Contains(t, err.Error(), "current working directory is required for test-tool")
 	})
 
-	t.Run("Should return error for invalid package reference", func(t *testing.T) {
-		config := &Config{
-			ID:  toolID,
-			Use: core.NewPackageRefConfig("invalid"),
-			cwd: toolCWD,
-		}
-
-		err := config.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid package reference")
-	})
-
 	t.Run("Should return error for invalid execute path", func(t *testing.T) {
 		config := &Config{
 			ID:      toolID,
@@ -196,84 +119,26 @@ func Test_ToolConfigValidation(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run("Should return error when input schema is used with ID reference", func(t *testing.T) {
-		config := &Config{
-			ID:  toolID,
-			Use: core.NewPackageRefConfig("tool(id=test-tool)"),
-			InputSchema: &schema.InputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-				},
-			},
-			cwd: toolCWD,
-		}
-
-		err := config.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "input schema not allowed for reference type id")
-	})
-
-	t.Run("Should return error when output schema is used with file reference", func(t *testing.T) {
-		config := &Config{
-			ID:  toolID,
-			Use: core.NewPackageRefConfig("tool(file=basic_tool.yaml)"),
-			OutputSchema: &schema.OutputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-				},
-			},
-			cwd: toolCWD,
-		}
-
-		err := config.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "output schema not allowed for reference type file")
-	})
-
-	t.Run("Should return error when schemas are used with dep reference", func(t *testing.T) {
-		config := &Config{
-			ID:  toolID,
-			Use: core.NewPackageRefConfig("tool(dep=compozy/tools:test-tool)"),
-			InputSchema: &schema.InputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-				},
-			},
-			OutputSchema: &schema.OutputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-				},
-			},
-			cwd: toolCWD,
-		}
-
-		err := config.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "input schema not allowed for reference type dep")
-	})
-
 	t.Run("Should return error for tool with invalid parameters", func(t *testing.T) {
 		config := &Config{
 			ID:      toolID,
 			Execute: "./test.ts",
 			cwd:     toolCWD,
-			InputSchema: &schema.InputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"name": map[string]any{
-							"type": "string",
-						},
+			InputSchema: &schema.Schema{
+				"type": "object",
+				"properties": map[string]any{
+					"name": map[string]any{
+						"type": "string",
 					},
-					"required": []string{"name"},
 				},
+				"required": []string{"name"},
 			},
 			With: &core.Input{
 				"age": 42,
 			},
 		}
 
-		err := config.ValidateParams(config.With)
+		err := config.ValidateParams(context.Background(), config.With)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "with parameters invalid for test-tool")
 	})

@@ -2,6 +2,7 @@ package ref
 
 import (
 	"fmt"
+	"maps"
 )
 
 // -----------------------------------------------------------------------------
@@ -31,6 +32,7 @@ func handleUse(ctx EvaluatorContext, parentNode map[string]any, node Node) (Node
 	component := matches[useIdxComponent]
 	scope := matches[useIdxScope]
 	gjsonPath := matches[useIdxPath]
+
 	mergeOptsStr := ""
 	if useIdxMergeOpts >= 0 && len(matches) > useIdxMergeOpts {
 		mergeOptsStr = matches[useIdxMergeOpts]
@@ -56,26 +58,17 @@ func handleUse(ctx EvaluatorContext, parentNode map[string]any, node Node) (Node
 
 	// Collect siblings
 	siblings := make(map[string]any)
-	for k, v := range parentNode {
-		if k != "$use" {
-			siblings[k] = v
-		}
-	}
+	maps.Copy(siblings, parentNode)
+	delete(siblings, "$use")
 
 	// If no siblings, just return the result
-	if len(siblings) == 0 {
+	if len(parentNode) == 0 {
 		return result, nil
 	}
 
 	// Siblings exist - merge is enabled by default
 	// Parse merge options if provided, otherwise use defaults
 	mergeOpts := parseMergeOptions(mergeOptsStr)
-	if mergeOptsStr == "" {
-		// Enable merge with defaults when siblings exist
-		mergeOpts.Enabled = true
-	}
-
-	// Perform inline merge - result is always an object from $use
 	sources := []any{result, siblings}
 	return mergeObjects(sources, mergeOpts.Strategy, mergeOpts.KeyConflict)
 }

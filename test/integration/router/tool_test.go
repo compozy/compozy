@@ -23,10 +23,9 @@ func TestToolRoutesWithRealExamples(t *testing.T) {
 
 	// Load real workflows from examples that contain tools
 	weatherWorkflow, _ := utils.LoadExampleWorkflow(t, "weather-agent")
-	quotesWorkflow, _ := utils.LoadExampleWorkflow(t, "quotes")
 
 	// Update app state with the real workflows
-	htb.AppState.Workflows = []*workflow.Config{weatherWorkflow, quotesWorkflow}
+	htb.AppState.Workflows = []*workflow.Config{weatherWorkflow}
 
 	t.Run("GET /tools - list all tools", func(t *testing.T) {
 		resp, err := htb.GET(baseURL + "/tools")

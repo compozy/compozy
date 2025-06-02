@@ -1,10 +1,11 @@
 package schema
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
-	"github.com/santhosh-tekuri/jsonschema/v5"
+	"github.com/kaptinlin/jsonschema"
 )
 
 // -----------------------------------------------------------------------------
@@ -12,58 +13,35 @@ import (
 // -----------------------------------------------------------------------------
 
 type Schema map[string]any
+type SchemaResult = jsonschema.EvaluationResult
 
-type InputSchema struct {
-	Schema Schema `yaml:",inline"`
-}
-
-type OutputSchema struct {
-	Schema Schema `yaml:",inline"`
-}
-
-func (s *Schema) Validate(value any) error {
+func (s *Schema) Compile() (*jsonschema.Schema, error) {
 	if s == nil {
-		return nil
+		return nil, nil
 	}
-
-	// Convert schema to JSON for jsonschema
-	schemaJSON, err := json.Marshal(s)
+	bytes, err := json.Marshal(s)
 	if err != nil {
-		return fmt.Errorf("failed to marshal schema: %w", err)
+		return nil, fmt.Errorf("failed to compile schema: %w", err)
 	}
-
-	// Compile the schema
-	schema, err := jsonschema.CompileString("schema.json", string(schemaJSON))
+	compiler := jsonschema.NewCompiler()
+	schema, err := compiler.Compile(bytes)
 	if err != nil {
-		return fmt.Errorf("invalid schema: %w", err)
+		return nil, fmt.Errorf("failed to compile schema: %w", err)
 	}
-
-	// Perform validation
-	if err := schema.Validate(value); err != nil {
-		return err
-	}
-
-	return nil
+	return schema, nil
 }
 
-func (s *Schema) GetType() string {
-	if typ, ok := (*s)["type"].(string); ok {
-		return typ
+func (s *Schema) Validate(ctx context.Context, value any) (*SchemaResult, error) {
+	schema, err := s.Compile()
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile schema: %w", err)
 	}
-	return ""
-}
-
-func (s *Schema) GetProperties() map[string]*Schema {
-	props, ok := (*s)["properties"].(map[string]any)
-	if !ok {
-		return nil
+	if schema == nil {
+		return nil, nil
 	}
-	result := make(map[string]*Schema)
-	for k, v := range props {
-		if schema, ok := v.(map[string]any); ok {
-			s := Schema(schema)
-			result[k] = &s
-		}
+	result := schema.Validate(value)
+	if result.Valid {
+		return result, nil
 	}
-	return result
+	return nil, fmt.Errorf("schema validation failed: %v", result.Errors)
 }

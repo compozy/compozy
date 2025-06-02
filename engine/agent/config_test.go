@@ -1,13 +1,13 @@
 package agent
 
 import (
+	"context"
 	"path/filepath"
 	"runtime"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
-	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,38 +44,40 @@ func Test_LoadAgent(t *testing.T) {
 		assert.Equal(t, "review-code", action.ID)
 
 		require.NotNil(t, action.InputSchema)
-		schema := action.InputSchema.Schema
-		assert.Equal(t, "object", schema.GetType())
-		require.NotNil(t, schema.GetProperties())
-		assert.Contains(t, schema.GetProperties(), "code")
-		assert.Contains(t, schema.GetProperties(), "language")
-		if required, ok := schema["required"].([]string); ok && len(required) > 0 {
-			assert.Contains(t, required, "code")
-		}
+		schema := action.InputSchema
+		compiledSchema, err := schema.Compile()
+		require.NoError(t, err)
+		assert.Equal(t, []string{"object"}, []string(compiledSchema.Type))
+		require.NotNil(t, compiledSchema.Properties)
+		assert.Contains(t, (*compiledSchema.Properties), "code")
+		assert.Contains(t, (*compiledSchema.Properties), "language")
+		assert.Contains(t, compiledSchema.Required, "code")
 
 		require.NotNil(t, action.OutputSchema)
-		outSchema := action.OutputSchema.Schema
-		assert.Equal(t, "object", outSchema.GetType())
-		require.NotNil(t, outSchema.GetProperties())
-		assert.Contains(t, outSchema.GetProperties(), "feedback")
+		outSchema := action.OutputSchema
+		compiledOutSchema, err := outSchema.Compile()
+		require.NoError(t, err)
+		assert.Equal(t, []string{"object"}, []string(compiledOutSchema.Type))
+		require.NotNil(t, compiledOutSchema.Properties)
+		assert.Contains(t, (*compiledOutSchema.Properties), "feedback")
+		assert.Contains(t, compiledOutSchema.Required, "feedback")
 
-		feedback := outSchema.GetProperties()["feedback"]
-		assert.NotNil(t, feedback)
-		assert.Equal(t, "array", feedback.GetType())
+		// Get the feedback property from compiled schema
+		feedbackProp := (*compiledOutSchema.Properties)["feedback"]
+		require.NotNil(t, feedbackProp)
+		assert.Equal(t, []string{"array"}, []string(feedbackProp.Type))
 
-		if itemsMap, ok := (*feedback)["items"].(map[string]any); ok {
-			if typ, ok := itemsMap["type"].(string); ok {
-				assert.Equal(t, "object", typ)
-			}
+		// Check array items structure
+		require.NotNil(t, feedbackProp.Items)
+		itemSchema := feedbackProp.Items
+		assert.Equal(t, []string{"object"}, []string(itemSchema.Type))
+		require.NotNil(t, itemSchema.Properties)
 
-			if props, ok := itemsMap["properties"].(map[string]any); ok {
-				assert.Contains(t, props, "category")
-				assert.Contains(t, props, "description")
-				assert.Contains(t, props, "suggestion")
-			}
-		} else {
-			t.Error("Items is not a map or not found")
-		}
+		// Check that the required properties exist in items
+		itemProps := (*itemSchema.Properties)
+		assert.Contains(t, itemProps, "category")
+		assert.Contains(t, itemProps, "description")
+		assert.Contains(t, itemProps, "suggestion")
 	})
 }
 
@@ -108,22 +110,20 @@ func Test_AgentActionConfigValidation(t *testing.T) {
 			ID:     "test-action",
 			Prompt: "test prompt",
 			cwd:    actionCWD,
-			InputSchema: &schema.InputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"name": map[string]any{
-							"type": "string",
-						},
+			InputSchema: &schema.Schema{
+				"type": "object",
+				"properties": map[string]any{
+					"name": map[string]any{
+						"type": "string",
 					},
-					"required": []string{"name"},
 				},
+				"required": []string{"name"},
 			},
 			With: &core.Input{
 				"age": 42,
 			},
 		}
-		err := config.ValidateParams(*config.With)
+		err := config.ValidateParams(context.Background(), config.With)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "with parameters invalid for test-action")
 	})
@@ -200,101 +200,26 @@ func Test_AgentConfigValidation(t *testing.T) {
 		assert.Contains(t, err.Error(), "current working directory is required for test-agent")
 	})
 
-	t.Run("Should return error for invalid package reference", func(t *testing.T) {
-		config := &Config{
-			ID:      agentID,
-			Use:     core.NewPackageRefConfig("invalid"),
-			Config:  ProviderConfig{},
-			Tools:   []tool.Config{},
-			Actions: []*ActionConfig{},
-			cwd:     agentCWD,
-		}
-		err := config.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid package reference")
-	})
-
-	t.Run("Should return error when input schema is used with ID reference", func(t *testing.T) {
-		config := &Config{
-			ID:           agentID,
-			Use:          core.NewPackageRefConfig("agent(id=test-agent)"),
-			Config:       ProviderConfig{},
-			Instructions: "test instructions",
-			InputSchema: &schema.InputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-				},
-			},
-			cwd: agentCWD,
-		}
-		err := config.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "input schema not allowed for reference type id")
-	})
-
-	t.Run("Should return error when output schema is used with file reference", func(t *testing.T) {
-		config := &Config{
-			ID:           agentID,
-			Use:          core.NewPackageRefConfig("agent(file=basic_agent.yaml)"),
-			Config:       ProviderConfig{},
-			Instructions: "test instructions",
-			OutputSchema: &schema.OutputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-				},
-			},
-			cwd: agentCWD,
-		}
-		err := config.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "output schema not allowed for reference type file")
-	})
-
-	t.Run("Should return error when schemas are used with dep reference", func(t *testing.T) {
-		config := &Config{
-			ID:           agentID,
-			Use:          core.NewPackageRefConfig("agent(dep=compozy/agents:test-agent)"),
-			Config:       ProviderConfig{},
-			Instructions: "test instructions",
-			InputSchema: &schema.InputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-				},
-			},
-			OutputSchema: &schema.OutputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-				},
-			},
-			cwd: agentCWD,
-		}
-		err := config.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "input schema not allowed for reference type dep")
-	})
-
 	t.Run("Should return error when parameters are invalid", func(t *testing.T) {
 		config := &Config{
 			ID:           agentID,
 			Config:       ProviderConfig{},
 			Instructions: "test instructions",
-			InputSchema: &schema.InputSchema{
-				Schema: schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"name": map[string]any{
-							"type": "string",
-						},
+			InputSchema: &schema.Schema{
+				"type": "object",
+				"properties": map[string]any{
+					"name": map[string]any{
+						"type": "string",
 					},
-					"required": []string{"name"},
 				},
+				"required": []string{"name"},
 			},
 			With: &core.Input{
 				"age": 42,
 			},
 			cwd: agentCWD,
 		}
-		err := config.ValidateParams(config.With)
+		err := config.ValidateParams(context.Background(), config.With)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "with parameters invalid for test-agent")
 	})

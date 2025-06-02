@@ -1,6 +1,7 @@
 package project
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -53,12 +54,21 @@ type Config struct {
 	Environments map[string]*EnvironmentConfig `json:"environments,omitempty" yaml:"environments,omitempty"`
 	Workflows    []*WorkflowSourceConfig       `json:"workflows"              yaml:"workflows"`
 
-	cwd *core.CWD
-	env *core.EnvMap
+	filePath string
+	cwd      *core.CWD
+	env      *core.EnvMap
 }
 
 func (p *Config) Component() core.ConfigType {
 	return core.ConfigProject
+}
+
+func (p *Config) GetFilePath() string {
+	return p.filePath
+}
+
+func (p *Config) SetFilePath(path string) {
+	p.filePath = path
 }
 
 func (p *Config) SetCWD(path string) error {
@@ -81,7 +91,7 @@ func (p *Config) Validate() error {
 	return validator.Validate()
 }
 
-func (p *Config) ValidateParams(_ *core.Input) error {
+func (p *Config) ValidateParams(_ context.Context, _ *core.Input) error {
 	return nil
 }
 
@@ -95,20 +105,6 @@ func (p *Config) Merge(other any) error {
 
 func (p *Config) LoadID() (string, error) {
 	return p.Name, nil
-}
-
-func Load(cwd *core.CWD, path string) (*Config, error) {
-	config, err := core.LoadConfig[*Config](cwd, path)
-	if err != nil {
-		return nil, err
-	}
-
-	env, err := config.loadEnv()
-	if err != nil {
-		return nil, err
-	}
-	config.SetEnv(env)
-	return config, nil
 }
 
 func (p *Config) loadEnv() (core.EnvMap, error) {
@@ -129,4 +125,22 @@ func (p *Config) GetEnv() *core.EnvMap {
 
 func (p *Config) GetInput() *core.Input {
 	return &core.Input{}
+}
+
+func Load(cwd *core.CWD, path string) (*Config, error) {
+	filePath, err := core.ResolvePath(cwd, path)
+	if err != nil {
+		return nil, err
+	}
+	config, _, err := core.LoadConfig[*Config](filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	env, err := config.loadEnv()
+	if err != nil {
+		return nil, err
+	}
+	config.SetEnv(env)
+	return config, nil
 }

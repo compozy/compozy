@@ -3740,6 +3740,7 @@ const docTemplate = `{
         "task.Config": {
             "type": "object",
             "properties": {
+                "$use": {},
                 "action": {
                     "description": "Basic task properties",
                     "type": "string"
@@ -3777,9 +3778,6 @@ const docTemplate = `{
                 },
                 "type": {
                     "$ref": "#/definitions/task.Type"
-                },
-                "use": {
-                    "type": "string"
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"
@@ -3952,6 +3950,7 @@ const docTemplate = `{
         "tool.Config": {
             "type": "object",
             "properties": {
+                "$use": {},
                 "description": {
                     "type": "string"
                 },
@@ -3969,9 +3968,6 @@ const docTemplate = `{
                 },
                 "output": {
                     "$ref": "#/definitions/schema.OutputSchema"
-                },
-                "use": {
-                    "type": "string"
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"

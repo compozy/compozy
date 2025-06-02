@@ -10,8 +10,10 @@ import (
 
 var defaultLogger *charmlog.Logger
 
-type LogLevel string
-type Logger = charmlog.Logger
+type (
+	LogLevel string
+	Logger   = charmlog.Logger
+)
 
 const (
 	DebugLevel LogLevel = "debug"

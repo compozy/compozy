@@ -24,8 +24,7 @@ const (
 	StrategyAppend  StrategyType = "append" // alias for concat
 	StrategyUnion   StrategyType = "union"  // alias for unique
 
-	KeyConflictReplace KeyConflictType = "replace" // new default (was "last")
-	KeyConflictLast    KeyConflictType = "last"    // kept for backward compatibility
+	KeyConflictReplace KeyConflictType = "replace"
 	KeyConflictFirst   KeyConflictType = "first"
 	KeyConflictError   KeyConflictType = "error"
 )
@@ -61,7 +60,6 @@ func (k KeyConflictType) String() string {
 
 func (k KeyConflictType) IsValid() bool {
 	return k == KeyConflictReplace ||
-		k == KeyConflictLast ||
 		k == KeyConflictFirst ||
 		k == KeyConflictError
 }
@@ -292,16 +290,11 @@ func mergeObjects(sources []any, strategy StrategyType, keyConflict KeyConflictT
 
 	// Validate key_conflict with specific error message
 	if !keyConflict.IsValid() {
-		return nil, fmt.Errorf("invalid key_conflict: %s (must be 'replace', 'last', 'first', or 'error')", keyConflict)
+		return nil, fmt.Errorf("invalid key_conflict: %s (must be 'replace', 'first', or 'error')", keyConflict)
 	}
 
-	// Handle backward compatibility: replace is the new name for last
-	if keyConflict == KeyConflictReplace {
-		keyConflict = KeyConflictLast
-	}
-
-	// For the common case (deep + last), use optimized implementation
-	if strategy == StrategyDeep && keyConflict == KeyConflictLast {
+	// For the common case (deep + replace), use optimized implementation
+	if strategy == StrategyDeep && keyConflict == KeyConflictReplace {
 		return deepMergeMaps(sources), nil
 	}
 
@@ -399,7 +392,7 @@ func mergeObjectsCustom(result, srcMap map[string]any, strategy StrategyType, ke
 				return fmt.Errorf("key conflict: '%s' already exists", key)
 			case KeyConflictFirst:
 				continue // Keep existing value
-			case KeyConflictLast:
+			case KeyConflictReplace:
 				// Continue to merge or replace
 			}
 

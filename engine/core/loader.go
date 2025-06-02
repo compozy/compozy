@@ -1,15 +1,15 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/compozy/compozy/pkg/ref"
 	"gopkg.in/yaml.v3"
 )
 
-func resolvePath(cwd *CWD, path string) (string, error) {
+func ResolvePath(cwd *CWD, path string) (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("path cannot be empty")
 	}
@@ -36,82 +36,72 @@ func resolvePath(cwd *CWD, path string) (string, error) {
 	return absPath, nil
 }
 
-func LoadConfig[T Config](cwd *CWD, path string) (T, error) {
+func LoadConfig[T Config](filePath string) (T, string, error) {
 	var zero T
 
-	resolvedPath, err := resolvePath(cwd, path)
+	file, err := os.Open(filePath)
 	if err != nil {
-		return zero, err
-	}
-
-	file, err := os.Open(resolvedPath)
-	if err != nil {
-		return zero, fmt.Errorf("failed to open config file: %w", err)
+		return zero, "", fmt.Errorf("failed to open config file: %w", err)
 	}
 	defer file.Close()
 
 	var config T
 	decoder := yaml.NewDecoder(file)
 	if err := decoder.Decode(&config); err != nil {
-		return zero, fmt.Errorf("failed to decode YAML config: %w", err)
+		return zero, "", fmt.Errorf("failed to decode YAML config: %w", err)
 	}
 
-	if err := config.SetCWD(filepath.Dir(resolvedPath)); err != nil {
-		return zero, err
+	config.SetFilePath(filePath)
+	if err := config.SetCWD(filepath.Dir(filePath)); err != nil {
+		return zero, "", err
 	}
-	return config, nil
+
+	return config, filePath, nil
 }
 
-func LoadID(
-	config Config,
-	id string,
-	use *PackageRefConfig,
-) (string, error) {
-	// If ID is directly set, return it
-	if id != "" {
-		return id, nil
-	}
+func LoadConfigWithEvaluator[T Config](filePath string, ev *ref.Evaluator) (T, string, error) {
+	var zero T
 
-	// Convert package reference to ref
-	ref, err := use.IntoRef()
+	file, err := os.Open(filePath)
 	if err != nil {
-		return "", err
+		return zero, "", fmt.Errorf("failed to open config file: %w", err)
+	}
+	defer file.Close()
+
+	node, err := ref.ProcessReaderWithEvaluator(file, ev)
+	if err != nil {
+		return zero, "", fmt.Errorf("failed to process file: %w", err)
 	}
 
-	switch ref.Type.Type {
-	case RefTypeNameID:
-		return ref.Type.Value, nil
-	case RefTypeNameFile:
-		cwd := config.GetCWD()
-		filePath, err := cwd.JoinAndCheck(ref.Type.Value)
-		if err != nil {
-			return "", err
-		}
-
-		file, err := os.Open(filePath)
-		if err != nil {
-			return "", err
-		}
-		defer file.Close()
-
-		var yamlConfig struct {
-			ID string `yaml:"id"`
-		}
-
-		decoder := yaml.NewDecoder(file)
-		if err := decoder.Decode(&yamlConfig); err != nil {
-			return "", err
-		}
-
-		if yamlConfig.ID == "" {
-			return "", errors.New("missing ID field")
-		}
-
-		return yamlConfig.ID, nil
-	case RefTypeNameDep:
-		// TODO: implement dependency resolution
-		return "", errors.New("dependency resolution not implemented for LoadID()")
-	default:
-		return "", errors.New("invalid reference type")
+	processedData, err := yaml.Marshal(node)
+	if err != nil {
+		return zero, "", fmt.Errorf("failed to marshal processed config: %w", err)
 	}
+
+	var config T
+	if err := yaml.Unmarshal(processedData, &config); err != nil {
+		return zero, "", fmt.Errorf("failed to unmarshal processed config: %w", err)
+	}
+
+	config.SetFilePath(filePath)
+	if err := config.SetCWD(filepath.Dir(filePath)); err != nil {
+		return zero, "", err
+	}
+
+	return config, filePath, nil
+}
+
+func MapFromFilePath(path string) (map[string]any, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	var itemMap map[string]any
+	err = yaml.Unmarshal(data, &itemMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal local scope: %w", err)
+	}
+
+	return itemMap, nil
 }

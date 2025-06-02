@@ -1,4 +1,6 @@
 id: code-format
+$use: agent(local::agents.#(id=="code-assistant"))
+action: format
 input:
   type: object
   properties:

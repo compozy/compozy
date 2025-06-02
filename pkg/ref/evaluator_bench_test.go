@@ -243,7 +243,7 @@ func BenchmarkMerge_DeepObjects(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := mergeObjects(sources, StrategyDeep, KeyConflictLast)
+		_, err := mergeObjects(sources, StrategyDeep, KeyConflictReplace)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -259,7 +259,7 @@ func BenchmarkMerge_ShallowObjects(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := mergeObjects(sources, StrategyShallow, KeyConflictLast)
+		_, err := mergeObjects(sources, StrategyShallow, KeyConflictReplace)
 		if err != nil {
 			b.Fatal(err)
 		}

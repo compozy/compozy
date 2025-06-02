@@ -32,7 +32,7 @@ tools:
     input:
       $ref: local::schemas.#(id=="city_input")
     output:
-      $ref: local::schemas.$(id=="weather_output")
+      $ref: local::schemas.#(id=="weather_output")
 
   - id: save_data
     description: Save the weather data to a file
@@ -47,7 +47,7 @@ tools:
 agents:
   - id: inline_agent
     config:
-      $ref: $global::models.#(id=groq-llama)
+      $ref: global::models.#(id=="groq-llama")
     instructions: |
       You are a helpful weather assistant that provides accurate weather information.
       Your primary function is to help users get weather details for specific locations.
@@ -66,7 +66,7 @@ agents:
           properties:
             $merge:
               - $ref: local::schemas.#(id=="city_input")
-              - $ref: local::schemas.$(id=="weather_output)
+              - $ref: local::schemas.#(id=="weather_output")
 
       - id: suggest_activities
         prompt: |

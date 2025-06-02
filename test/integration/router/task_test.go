@@ -75,16 +75,8 @@ func TestTaskRoutesWithRealExamples(t *testing.T) {
 		require.True(t, ok, "Task data should be a map")
 		assert.Equal(t, taskID, taskData["id"], "Task ID should match")
 		assert.Equal(t, "basic", taskData["type"], "Weather-agent tasks are basic type")
-		assert.Contains(t, taskData, "use", "Should contain use field")
 		assert.Contains(t, taskData, "action", "Should contain action field")
 		assert.Contains(t, taskData, "with", "Should contain with field for input templates")
-
-		// Verify the task uses an agent
-		useField, exists := taskData["use"]
-		require.True(t, exists, "Task should have use field")
-		useStr, ok := useField.(string)
-		require.True(t, ok, "Use field should be a string")
-		assert.Contains(t, useStr, "agent(id=inline_agent)", "Should reference the inline_agent")
 	})
 }
 

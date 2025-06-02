@@ -38,33 +38,29 @@ func TestToolRepository_CreateExecution(t *testing.T) {
 
 		// Create tool config using helper
 		toolConfig := utils.CreateTestToolConfig(t, "code-formatter", "A tool for formatting code", core.EnvMap{"TOOL_VAR": "tool_value"})
-		toolConfig.InputSchema = &schema.InputSchema{
-			Schema: schema.Schema{
-				"type": "object",
-				"properties": map[string]any{
-					"code": map[string]any{
-						"type":        "string",
-						"description": "The code to format",
-					},
-					"language": map[string]any{
-						"type":        "string",
-						"description": "The programming language",
-					},
+		toolConfig.InputSchema = &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"code": map[string]any{
+					"type":        "string",
+					"description": "The code to format",
 				},
-				"required": []string{"code"},
+				"language": map[string]any{
+					"type":        "string",
+					"description": "The programming language",
+				},
 			},
+			"required": []string{"code"},
 		}
-		toolConfig.OutputSchema = &schema.OutputSchema{
-			Schema: schema.Schema{
-				"type": "object",
-				"properties": map[string]any{
-					"formatted_code": map[string]any{
-						"type":        "string",
-						"description": "The formatted code",
-					},
+		toolConfig.OutputSchema = &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"formatted_code": map[string]any{
+					"type":        "string",
+					"description": "The formatted code",
 				},
-				"required": []string{"formatted_code"},
 			},
+			"required": []string{"formatted_code"},
 		}
 		toolConfig.With = &core.Input{
 			"indent_size": 2,

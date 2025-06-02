@@ -16,7 +16,6 @@ type Directive struct {
 
 // MergeOptions holds the parsed inline merge options
 type MergeOptions struct {
-	Enabled     bool
 	Strategy    StrategyType
 	KeyConflict KeyConflictType
 }
@@ -99,7 +98,6 @@ func Register(d Directive) error {
 // Examples: "deep", "shallow,error", "replace", ",first"
 func parseMergeOptions(opts string) MergeOptions {
 	result := MergeOptions{
-		Enabled:     opts != "",         // Only enabled when merge options are present
 		Strategy:    StrategyDeep,       // default for objects
 		KeyConflict: KeyConflictReplace, // default is now replace
 	}

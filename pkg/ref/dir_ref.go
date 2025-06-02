@@ -1,6 +1,9 @@
 package ref
 
-import "fmt"
+import (
+	"fmt"
+	"maps"
+)
 
 // -----------------------------------------------------------------------------
 // $ref Directive
@@ -40,11 +43,8 @@ func handleRef(ctx EvaluatorContext, parentNode map[string]any, node Node) (Node
 
 	// Collect siblings
 	siblings := make(map[string]any)
-	for k, v := range parentNode {
-		if k != "$ref" {
-			siblings[k] = v
-		}
-	}
+	maps.Copy(siblings, parentNode)
+	delete(siblings, "$ref")
 
 	// If no siblings, just return the result
 	if len(siblings) == 0 {
@@ -54,12 +54,6 @@ func handleRef(ctx EvaluatorContext, parentNode map[string]any, node Node) (Node
 	// Siblings exist - merge is enabled by default
 	// Parse merge options if provided, otherwise use defaults
 	mergeOpts := parseMergeOptions(mergeOptsStr)
-	if mergeOptsStr == "" {
-		// Enable merge with defaults when siblings exist
-		mergeOpts.Enabled = true
-	}
-
-	// Perform inline merge based on result type
 	return performInlineMerge(result, siblings, mergeOpts)
 }
 

@@ -56,7 +56,7 @@ func findProjectRoot() (string, error) {
 
 func NewStore(dbFilePath string) (*Store, error) {
 	dir := filepath.Dir(dbFilePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create database directory %s: %w", dir, err)
 	}
 

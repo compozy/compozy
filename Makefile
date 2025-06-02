@@ -55,8 +55,8 @@ lint:
 
 fmt:
 	@echo "Formatting code..."
-	@golangci-lint fmt
-	@gofumpt -l -w .
+	golangci-lint fmt
+	gofumpt -l -w .
 	@echo "Formatting completed successfully"
 
 # -----------------------------------------------------------------------------
@@ -77,6 +77,7 @@ deps: proto-deps swagger-deps
 	$(GOCMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	$(GOCMD) install github.com/bokwoon95/wgo@latest
 	$(GOCMD) install github.com/segmentio/golines@latest
+	$(GOCMD) install mvdan.cc/gofumpt@latest
 
 proto-deps:
 	@echo "Installing Go protoc plugins..."

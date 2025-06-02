@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,8 +13,8 @@ func Test_ParamsValidator_Validate_NilParamsWithSchema(t *testing.T) {
 			"type": "object",
 		}
 
-		v := NewParamsValidator(nil, *s, "testID")
-		err := v.Validate()
+		v := NewParamsValidator(nil, s, "testID")
+		err := v.Validate(context.Background())
 		assert.Error(t, err)
 		if err != nil {
 			assert.Contains(t, err.Error(), "parameters are nil but a schema is defined")
