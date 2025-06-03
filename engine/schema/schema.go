@@ -13,7 +13,7 @@ import (
 // -----------------------------------------------------------------------------
 
 type Schema map[string]any
-type SchemaResult = jsonschema.EvaluationResult
+type Result = jsonschema.EvaluationResult
 
 func (s *Schema) Compile() (*jsonschema.Schema, error) {
 	if s == nil {
@@ -31,7 +31,7 @@ func (s *Schema) Compile() (*jsonschema.Schema, error) {
 	return schema, nil
 }
 
-func (s *Schema) Validate(ctx context.Context, value any) (*SchemaResult, error) {
+func (s *Schema) Validate(_ context.Context, value any) (*Result, error) {
 	schema, err := s.Compile()
 	if err != nil {
 		return nil, fmt.Errorf("failed to compile schema: %w", err)

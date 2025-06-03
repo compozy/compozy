@@ -140,7 +140,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 
 		err := config.ValidateParams(context.Background(), config.With)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "with parameters invalid for test-tool")
+		assert.Contains(t, err.Error(), "Required property 'name' is missing")
 	})
 }
 

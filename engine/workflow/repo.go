@@ -4,23 +4,22 @@ import (
 	"context"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/pkg/pb"
 )
 
+type StateFilter struct {
+	Status         *core.StatusType `json:"status,omitempty"`
+	WorkflowID     *string          `json:"workflow_id,omitempty"`
+	WorkflowExecID *core.ID         `json:"workflow_exec_id,omitempty"`
+}
+
 type Repository interface {
-	FindConfig(workflows []*Config, workflowID string) (*Config, error)
-	CreateExecution(
-		ctx context.Context,
-		metadata *pb.WorkflowMetadata,
-		config *Config,
-		input *core.Input,
-	) (*Execution, error)
-	GetExecution(ctx context.Context, workflowExecID core.ID) (*Execution, error)
-	ListExecutions(ctx context.Context) ([]Execution, error)
-	ListExecutionsByStatus(ctx context.Context, status core.StatusType) ([]Execution, error)
-	ListExecutionsByWorkflowID(ctx context.Context, workflowID string) ([]Execution, error)
-	ListChildrenExecutions(ctx context.Context, workflowExecID core.ID) ([]core.Execution, error)
-	ListChildrenExecutionsByWorkflowID(ctx context.Context, workflowID string) ([]core.Execution, error)
-	ExecutionToMap(ctx context.Context, execution *Execution) (*core.MainExecutionMap, error)
-	ExecutionsToMap(ctx context.Context, executions []Execution) ([]*core.MainExecutionMap, error)
+	ListStates(ctx context.Context, filter *StateFilter) ([]*State, error)
+	UpsertState(ctx context.Context, state *State) error
+	UpdateStatus(ctx context.Context, workflowExecID string, status core.StatusType) error
+	GetState(ctx context.Context, stateID StateID) (*State, error)
+	GetStateByID(ctx context.Context, workflowID string) (*State, error)
+	GetStateByExecID(ctx context.Context, workflowExecID core.ID) (*State, error)
+	GetStateByTaskID(ctx context.Context, workflowID, taskID string) (*State, error)
+	GetStateByAgentID(ctx context.Context, workflowID, agentID string) (*State, error)
+	GetStateByToolID(ctx context.Context, workflowID, toolID string) (*State, error)
 }

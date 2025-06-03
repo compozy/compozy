@@ -5,7 +5,6 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
-	"github.com/compozy/compozy/engine/workflow/events"
 	"github.com/gin-gonic/gin"
 )
 
@@ -17,9 +16,8 @@ type ExecuteWorkflowRequest struct {
 
 // ExecuteWorkflowResponse represents the response for workflow execution
 type ExecuteWorkflowResponse struct {
-	WorkflowID     string `json:"workflow_id" example:"data-processing"`
-	WorkflowExecID string `json:"workflow_exec_id" example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
-	ExecURL        string `json:"exec_url" example:"localhost:8080/api/workflows/executions/2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	StateID string `json:"state_id" example:"id_2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	ExecURL string `json:"exec_url" example:"localhost:8080/api/workflows/executions/id_2Z4PVTL6K27XVT4A3NPKMDD5BG"`
 }
 
 // handleExecute triggers a workflow execution
@@ -50,27 +48,19 @@ func handleExecute(c *gin.Context) {
 		return
 	}
 
-	inputMap, err := input.ToStruct()
+	// Trigger workflow using Temporal orchestrator
+	orch := state.Orchestrator
+	workflowStateID, err := orch.TriggerWorkflow(c.Request.Context(), workflowID, input)
 	if err != nil {
-		reason := fmt.Sprintf("failed to convert trigger to struct: %s", workflowID)
+		reason := fmt.Sprintf("failed to trigger workflow: %s", workflowID)
 		reqErr := router.WorkflowExecutionError(workflowID, reason, err)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
 
-	// Send workflow trigger
-	evt := events.NewCmdTrigger(state.NatsClient, inputMap, workflowID)
-	if err := evt.Publish(c.Request.Context()); err != nil {
-		reason := fmt.Sprintf("failed to publish workflow trigger: %s", workflowID)
-		reqErr := router.WorkflowExecutionError(workflowID, reason, err)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		return
-	}
-
-	execURL := fmt.Sprintf("%s/api/workflows/executions/%s", router.GetServerAddress(c), evt.Response.WorkflowExecID)
+	execURL := fmt.Sprintf("%s/api/workflows/executions/%s", router.GetServerAddress(c), workflowStateID.String())
 	router.RespondAccepted(c, "workflow triggered successfully", gin.H{
-		"workflow_id":      evt.Response.WorkflowID,
-		"workflow_exec_id": evt.Response.WorkflowExecID,
-		"exec_url":         execURL,
+		"state_id": workflowStateID,
+		"exec_url": execURL,
 	})
 }

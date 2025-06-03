@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/nats"
 	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/infra/temporal"
 	"github.com/compozy/compozy/engine/orchestrator"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/workflow"
@@ -20,34 +20,30 @@ const (
 )
 
 type BaseDeps struct {
-	NatsServer    *nats.Server
-	NatsClient    *nats.Client
-	Store         *store.Store
-	ProjectConfig *project.Config
-	Workflows     []*workflow.Config
+	Store          *store.Store
+	TemporalClient *temporal.Client
+	ProjectConfig  *project.Config
+	Workflows      []*workflow.Config
 }
 
 func NewBaseDeps(
-	ns *nats.Server,
-	nc *nats.Client,
-	store *store.Store,
+	tc *temporal.Client,
 	projectConfig *project.Config,
 	workflows []*workflow.Config,
+	store *store.Store,
 ) BaseDeps {
 	return BaseDeps{
-		NatsServer:    ns,
-		NatsClient:    nc,
-		Store:         store,
-		ProjectConfig: projectConfig,
-		Workflows:     workflows,
+		TemporalClient: tc,
+		ProjectConfig:  projectConfig,
+		Workflows:      workflows,
+		Store:          store,
 	}
 }
 
 type State struct {
 	BaseDeps
-	CWD                *core.CWD
-	Orchestrator       *orchestrator.Orchestrator
-	OrchestratorConfig *orchestrator.Config
+	CWD          *core.CWD
+	Orchestrator *orchestrator.Orchestrator
 }
 
 func NewState(deps BaseDeps, orch *orchestrator.Orchestrator) (*State, error) {
@@ -58,12 +54,10 @@ func NewState(deps BaseDeps, orch *orchestrator.Orchestrator) (*State, error) {
 	if cwd == nil {
 		return nil, fmt.Errorf("project config must have a valid CWD")
 	}
-
 	return &State{
-		CWD:                cwd,
-		BaseDeps:           deps,
-		Orchestrator:       orch,
-		OrchestratorConfig: orch.Config(),
+		CWD:          cwd,
+		BaseDeps:     deps,
+		Orchestrator: orch,
 	}, nil
 }
 
@@ -74,7 +68,7 @@ func WithState(ctx context.Context, state *State) context.Context {
 func GetState(ctx context.Context) (*State, error) {
 	state, ok := ctx.Value(StateKey).(*State)
 	if !ok {
-		return nil, fmt.Errorf("app state not found in context")
+		return nil, fmt.Errorf("temporal app state not found in context")
 	}
 	return state, nil
 }

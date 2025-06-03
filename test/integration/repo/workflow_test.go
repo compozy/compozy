@@ -1,451 +1,373 @@
-package repo
+package store
 
 import (
+	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/test/utils"
+	testutils "github.com/compozy/compozy/test"
+	"github.com/jackc/pgx/v5"
+	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func setupWorkflowTestBed(t *testing.T) *utils.IntegrationTestBed {
-	t.Helper()
-	return utils.SetupIntegrationTestBed(t, utils.DefaultTestTimeout)
+func TestWorkflowRepo_UpsertState(t *testing.T) {
+	mockSetup := testutils.NewMockSetup(t)
+	defer mockSetup.Close()
+
+	repo := store.NewWorkflowRepo(mockSetup.Mock)
+	ctx := context.Background()
+	state := &workflow.State{
+		StateID: workflow.StateID{WorkflowID: "wf1", WorkflowExec: core.ID("exec1")},
+		Status:  core.StatusPending,
+		Input:   &core.Input{"key": "value"},
+		Tasks:   make(map[string]*task.State),
+	}
+
+	dataBuilder := testutils.NewDataBuilder()
+	inputJSON := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
+	expectedOutputJSON := dataBuilder.MustCreateNilJSONB()
+	expectedErrorJSON := dataBuilder.MustCreateNilJSONB()
+
+	queries := mockSetup.NewQueryExpectations()
+	queries.ExpectWorkflowStateQueryForUpsert([]any{
+		state.WorkflowExec, state.WorkflowID, state.Status,
+		inputJSON,
+		expectedOutputJSON,
+		expectedErrorJSON,
+	})
+
+	err := repo.UpsertState(ctx, state)
+	assert.NoError(t, err)
+	mockSetup.ExpectationsWereMet()
 }
 
-func TestWorkflowRepository_FindConfig(t *testing.T) {
-	tb := setupWorkflowTestBed(t)
-	defer tb.Cleanup()
+func TestWorkflowRepo_GetState(t *testing.T) {
+	mockSetup := testutils.NewMockSetup(t)
+	defer mockSetup.Close()
 
-	t.Run("Should find existing workflow config", func(t *testing.T) {
-		workflowConfig := utils.CreateTestWorkflowConfig(t, tb, "test-workflow", core.EnvMap{})
-		workflowConfig.Description = "Test workflow for code formatting"
-		workflows := []*workflow.Config{workflowConfig}
+	repo := store.NewWorkflowRepo(mockSetup.Mock)
+	ctx := context.Background()
+	stateID := workflow.StateID{WorkflowID: "wf1", WorkflowExec: core.ID("exec1")}
 
-		config, err := tb.WorkflowRepo.FindConfig(workflows, "test-workflow")
-		require.NoError(t, err)
-		require.NotNil(t, config)
-		assert.Equal(t, "test-workflow", config.ID)
-		assert.Equal(t, "1.0.0", config.Version)
-		assert.Equal(t, "Test workflow for code formatting", config.Description)
-	})
+	dataBuilder := testutils.NewDataBuilder()
+	inputData := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
 
-	t.Run("Should return error for non-existent workflow", func(t *testing.T) {
-		workflows := []*workflow.Config{}
+	// Use utility functions to set up the test
+	tx := mockSetup.NewTransactionExpectations()
+	queries := mockSetup.NewQueryExpectations()
+	workflowRowBuilder := mockSetup.NewWorkflowStateRowBuilder()
+	taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 
-		config, err := tb.WorkflowRepo.FindConfig(workflows, "non-existent-workflow")
-		assert.Error(t, err)
-		assert.Nil(t, config)
-		assert.Contains(t, err.Error(), "workflow not found")
-	})
+	tx.ExpectBegin()
+
+	// Create workflow state rows
+	workflowRows := workflowRowBuilder.CreateWorkflowStateRows(
+		"exec1", "wf1", core.StatusPending, inputData,
+	)
+
+	// Expect workflow query
+	queries.ExpectWorkflowStateQuery(
+		"SELECT workflow_exec_id, workflow_id, status, input, output, error FROM workflow_states",
+		[]any{stateID.WorkflowID, stateID.WorkflowExec},
+		workflowRows,
+	)
+
+	// Create empty task rows and expect task query
+	taskRows := taskRowBuilder.CreateEmptyTaskStateRows()
+	queries.ExpectTaskStateQuery(stateID.WorkflowExec, taskRows)
+
+	tx.ExpectCommit()
+
+	state, err := repo.GetState(ctx, stateID)
+	assert.NoError(t, err)
+	assert.Equal(t, stateID.WorkflowID, state.WorkflowID)
+	assert.Equal(t, core.StatusPending, state.Status)
+	assert.NotNil(t, state.Input)
+	assert.NotNil(t, state.Tasks)
+	assert.Len(t, state.Tasks, 0) // No tasks in this test
+	mockSetup.ExpectationsWereMet()
 }
 
-func TestWorkflowRepository_CreateExecution(t *testing.T) {
-	tb := setupWorkflowTestBed(t)
-	defer tb.Cleanup()
+func TestWorkflowRepo_GetState_WithTasks(t *testing.T) {
+	mockSetup := testutils.NewMockSetup(t)
+	defer mockSetup.Close()
 
-	t.Run("Should create workflow execution successfully", func(t *testing.T) {
-		workflowConfig := utils.CreateTestWorkflowConfig(t, tb, "test-workflow", core.EnvMap{"TEST_VAR": "test_value"})
-		workflowConfig.Description = "Test workflow"
-		input := &core.Input{
-			"code":     "console.log('hello')",
-			"language": "javascript",
-		}
+	repo := store.NewWorkflowRepo(mockSetup.Mock)
+	ctx := context.Background()
+	stateID := workflow.StateID{WorkflowID: "wf1", WorkflowExec: core.ID("exec1")}
 
-		workflowExecID := utils.CreateTestWorkflowExecution(t, tb, "test-workflow", core.EnvMap{"TEST_VAR": "test_value"}, input)
-		execution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, workflowExecID)
-		require.NoError(t, err)
-		require.NotNil(t, execution)
+	dataBuilder := testutils.NewDataBuilder()
+	inputData := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
+	taskInputData := dataBuilder.MustCreateInputData(map[string]any{"task_key": "task_value"})
 
-		assert.Equal(t, workflowExecID, execution.GetID())
-		assert.Equal(t, "test-workflow", execution.GetComponentID())
-		assert.Equal(t, core.StatusPending, execution.GetStatus())
-		assert.NotNil(t, execution.GetInput())
-		assert.Equal(t, "console.log('hello')", execution.GetInput().Prop("code"))
-		assert.Equal(t, "javascript", execution.GetInput().Prop("language"))
-	})
+	tx := mockSetup.NewTransactionExpectations()
+	queries := mockSetup.NewQueryExpectations()
+	workflowRowBuilder := mockSetup.NewWorkflowStateRowBuilder()
+	taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 
-	t.Run("Should handle execution creation with empty input", func(t *testing.T) {
-		input := &core.Input{}
-		workflowExecID := utils.CreateTestWorkflowExecution(t, tb, "test-workflow", core.EnvMap{}, input)
+	tx.ExpectBegin()
 
-		execution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, workflowExecID)
-		require.NoError(t, err)
-		require.NotNil(t, execution)
-		assert.Equal(t, workflowExecID, execution.GetID())
-	})
+	// Create workflow state rows
+	workflowRows := workflowRowBuilder.CreateWorkflowStateRows(
+		"exec1", "wf1", core.StatusPending, inputData,
+	)
+
+	// Expect workflow query
+	queries.ExpectWorkflowStateQuery(
+		"SELECT workflow_exec_id, workflow_id, status, input, output, error FROM workflow_states",
+		[]any{stateID.WorkflowID, stateID.WorkflowExec},
+		workflowRows,
+	)
+
+	// Create task rows with data - use string directly instead of pointer
+	taskRows := taskRowBuilder.CreateTaskStateRows(
+		"task_exec1", "task1", "exec1", "wf1",
+		core.StatusPending, "agent1", nil, taskInputData,
+	)
+	queries.ExpectTaskStateQuery(stateID.WorkflowExec, taskRows)
+
+	tx.ExpectCommit()
+
+	state, err := repo.GetState(ctx, stateID)
+	assert.NoError(t, err)
+	assert.Equal(t, stateID.WorkflowID, state.WorkflowID)
+	assert.Equal(t, core.StatusPending, state.Status)
+	assert.NotNil(t, state.Input)
+	assert.NotNil(t, state.Tasks)
+	assert.Len(t, state.Tasks, 1)
+	assert.Contains(t, state.Tasks, "task1")
+	assert.Equal(t, "agent1", *state.Tasks["task1"].AgentID)
+	mockSetup.ExpectationsWereMet()
 }
 
-func TestWorkflowRepository_LoadExecution(t *testing.T) {
-	tb := setupWorkflowTestBed(t)
-	defer tb.Cleanup()
+func TestWorkflowRepo_GetState_NotFound(t *testing.T) {
+	mockSetup := testutils.NewMockSetup(t)
+	defer mockSetup.Close()
 
-	t.Run("Should load existing execution", func(t *testing.T) {
-		input := &core.Input{
-			"code":     "console.log('hello')",
-			"language": "javascript",
-		}
-		workflowExecID := utils.CreateTestWorkflowExecution(t, tb, "test-workflow", core.EnvMap{"TEST_VAR": "test_value"}, input)
-		loadedExecution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, workflowExecID)
-		require.NoError(t, err)
-		require.NotNil(t, loadedExecution)
+	repo := store.NewWorkflowRepo(mockSetup.Mock)
+	ctx := context.Background()
+	stateID := workflow.StateID{WorkflowID: "wf1", WorkflowExec: core.ID("exec1")}
 
-		assert.Equal(t, workflowExecID, loadedExecution.GetID())
-		assert.Equal(t, "test-workflow", loadedExecution.GetComponentID())
-		assert.Equal(t, core.StatusPending, loadedExecution.GetStatus())
-	})
+	tx := mockSetup.NewTransactionExpectations()
+	tx.ExpectBegin()
 
-	t.Run("Should return error for non-existent execution", func(t *testing.T) {
-		nonExistentID := core.MustNewID()
-		execution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, nonExistentID)
-		assert.Error(t, err)
-		assert.Nil(t, execution)
-	})
+	mockSetup.Mock.ExpectQuery("SELECT workflow_exec_id, workflow_id, status, input, output, error FROM workflow_states").
+		WithArgs(stateID.WorkflowID, stateID.WorkflowExec).
+		WillReturnError(pgx.ErrNoRows)
+
+	tx.ExpectRollback()
+
+	_, err := repo.GetState(ctx, stateID)
+	assert.ErrorIs(t, err, store.WorkflowErrNotFound)
+	mockSetup.ExpectationsWereMet()
 }
 
-func TestWorkflowRepository_ExecutionToMap(t *testing.T) {
-	tb := setupWorkflowTestBed(t)
-	defer tb.Cleanup()
+// Helper function for simpler Get tests
+func testSimpleWorkflowGet(t *testing.T, testName string, setupAndRun func(*testutils.MockSetup, store.WorkflowRepo, context.Context)) {
+	mockSetup := testutils.NewMockSetup(t)
+	defer mockSetup.Close()
 
-	t.Run("Should convert execution to execution map", func(t *testing.T) {
-		input := &core.Input{
-			"test": "data",
-		}
-		workflowExecID := utils.CreateTestWorkflowExecution(t, tb, "test-workflow", core.EnvMap{}, input)
-		execution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, workflowExecID)
-		require.NoError(t, err)
-		execMap, err := tb.WorkflowRepo.ExecutionToMap(tb.Ctx, execution)
-		require.NoError(t, err)
-		require.NotNil(t, execMap)
+	repo := store.NewWorkflowRepo(mockSetup.Mock)
+	ctx := context.Background()
 
-		assert.Equal(t, core.StatusPending, execMap.Status)
-		assert.Equal(t, "test-workflow", execMap.WorkflowID)
-		assert.Equal(t, workflowExecID, execMap.WorkflowExecID)
-		assert.NotNil(t, execMap.Tasks)
-		assert.NotNil(t, execMap.Agents)
-		assert.NotNil(t, execMap.Tools)
-	})
-
-	t.Run("Should return error for non-existent execution", func(t *testing.T) {
-		nonExistentID := core.MustNewID()
-
-		_, err := tb.WorkflowRepo.GetExecution(tb.Ctx, nonExistentID)
-		assert.Error(t, err)
-	})
-}
-
-func TestWorkflowRepository_ListExecutions(t *testing.T) {
-	tb := setupWorkflowTestBed(t)
-	defer tb.Cleanup()
-
-	t.Run("Should list all executions", func(t *testing.T) {
-		input := &core.Input{"test": "data"}
-		workflowExecID1 := utils.CreateTestWorkflowExecution(t, tb, "test-workflow-1", core.EnvMap{}, input)
-		workflowExecID2 := utils.CreateTestWorkflowExecution(t, tb, "test-workflow-2", core.EnvMap{}, input)
-		executions, err := tb.WorkflowRepo.ListExecutions(tb.Ctx)
-		require.NoError(t, err)
-		require.Len(t, executions, 2)
-		executionIDs := make([]core.ID, len(executions))
-		for i, exec := range executions {
-			executionIDs[i] = exec.GetID()
-		}
-		assert.Contains(t, executionIDs, workflowExecID1)
-		assert.Contains(t, executionIDs, workflowExecID2)
-	})
-
-	t.Run("Should return empty list when no executions exist", func(t *testing.T) {
-		executions, err := tb.WorkflowRepo.ListExecutions(tb.Ctx)
-		require.NoError(t, err)
-		assert.NotNil(t, executions)
-	})
-}
-
-func TestWorkflowRepository_ExecutionsToMap(t *testing.T) {
-	tb := setupWorkflowTestBed(t)
-	defer tb.Cleanup()
-
-	t.Run("Should convert executions to execution maps", func(t *testing.T) {
-		input := &core.Input{"test": "data"}
-		workflowExecID := utils.CreateTestWorkflowExecution(t, tb, "test-workflow", core.EnvMap{}, input)
-		execution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, workflowExecID)
-		require.NoError(t, err)
-
-		executions := []workflow.Execution{*execution}
-		executionMaps, err := tb.WorkflowRepo.ExecutionsToMap(tb.Ctx, executions)
-		require.NoError(t, err)
-		require.Len(t, executionMaps, 1)
-
-		executionMap := executionMaps[0]
-		assert.Equal(t, workflowExecID, executionMap.WorkflowExecID)
-		assert.Equal(t, "test-workflow", executionMap.WorkflowID)
-		assert.Equal(t, core.StatusPending, executionMap.Status)
-		assert.NotNil(t, executionMap.Tasks)
-		assert.NotNil(t, executionMap.Agents)
-		assert.NotNil(t, executionMap.Tools)
-	})
-
-	t.Run("Should handle empty executions list", func(t *testing.T) {
-		executionMaps, err := tb.WorkflowRepo.ExecutionsToMap(tb.Ctx, []workflow.Execution{})
-		require.NoError(t, err)
-		assert.Empty(t, executionMaps)
+	t.Run(testName, func(_ *testing.T) {
+		setupAndRun(mockSetup, *repo, ctx)
+		mockSetup.ExpectationsWereMet()
 	})
 }
 
-func TestWorkflowRepository_CreateExecution_TemplateNormalization(t *testing.T) {
-	tb := setupWorkflowTestBed(t)
-	defer tb.Cleanup()
+func TestWorkflowRepo_GetStateByID(t *testing.T) {
+	testSimpleWorkflowGet(t, "should get state by ID", func(mockSetup *testutils.MockSetup, repo store.WorkflowRepo, ctx context.Context) {
+		workflowID := "wf1"
 
-	t.Run("Should parse templates in workflow input during execution creation", func(t *testing.T) {
-		workflowInput := &core.Input{
-			"service":     "user-service",
-			"environment": "production",
-			"config": map[string]any{
-				"api_url":     "https://{{ .trigger.input.service }}.example.com",
-				"environment": "{{ .trigger.input.environment }}",
-				"project":     "{{ .env.PROJECT_NAME }}",
-			},
-		}
-		workflowExecID := utils.CreateTestWorkflowExecution(t, tb, "test-workflow", core.EnvMap{
-			"PROJECT_NAME": "compozy",
-			"DYNAMIC_VAR":  "{{ .trigger.input.service }}_processed",
-			"COMBINED_VAR": "{{ .env.PROJECT_NAME }}_{{ .trigger.input.environment }}",
-		}, workflowInput)
+		tx := mockSetup.NewTransactionExpectations()
+		queries := mockSetup.NewQueryExpectations()
+		workflowRowBuilder := mockSetup.NewWorkflowStateRowBuilder()
+		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 
-		execution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, workflowExecID)
-		require.NoError(t, err)
-		require.NotNil(t, execution)
-		input := execution.GetInput()
-		assert.Equal(t, "user-service", input.Prop("service"))
-		assert.Equal(t, "production", input.Prop("environment"))
-		config, ok := input.Prop("config").(map[string]any)
-		require.True(t, ok)
-		assert.Equal(t, "https://user-service.example.com", config["api_url"])
-		assert.Equal(t, "production", config["environment"])
-		assert.Equal(t, "compozy", config["project"])
-		env := execution.GetEnv()
-		assert.Equal(t, "compozy", env.Prop("PROJECT_NAME"))
-		assert.Equal(t, "user-service_processed", env.Prop("DYNAMIC_VAR"))
-		assert.Equal(t, "compozy_production", env.Prop("COMBINED_VAR"))
-	})
+		tx.ExpectBegin()
 
-	t.Run("Should handle complex nested templates in workflow", func(t *testing.T) {
-		workflowInput := &core.Input{
-			"request": map[string]any{
-				"user": map[string]any{
-					"id":    "user123",
-					"email": "user@example.com",
-				},
-				"action": "create",
-			},
-			"api_config": map[string]any{
-				"endpoint": "{{ .env.API_BASE }}/{{ .env.API_VERSION }}/users/{{ .trigger.input.request.user.id }}",
-				"headers": map[string]any{
-					"Authorization": "Bearer token",
-					"X-User-Email":  "{{ .trigger.input.request.user.email }}",
-					"X-Action":      "{{ .trigger.input.request.action }}",
-				},
-				"metadata": []any{
-					"{{ .trigger.input.request.action }}",
-					"user_{{ .trigger.input.request.user.id }}",
-					"static_value",
-				},
-			},
-		}
-		workflowExecID := utils.CreateTestWorkflowExecution(t, tb, "complex-workflow", core.EnvMap{
-			"API_BASE":    "https://api.example.com",
-			"API_VERSION": "v1",
-		}, workflowInput)
-		execution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, workflowExecID)
-		require.NoError(t, err)
-		require.NotNil(t, execution)
-		input := execution.GetInput()
+		workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
+		queries.ExpectWorkflowStateQuery(
+			"SELECT workflow_exec_id, workflow_id, status, input, output, error FROM workflow_states",
+			[]any{workflowID},
+			workflowRows,
+		)
 
-		request, ok := input.Prop("request").(map[string]any)
-		require.True(t, ok)
-		user, ok := request["user"].(map[string]any)
-		require.True(t, ok)
-		assert.Equal(t, "user123", user["id"])
-		assert.Equal(t, "user@example.com", user["email"])
+		taskRows := taskRowBuilder.CreateEmptyTaskStateRows()
+		queries.ExpectTaskStateQuery(core.ID("exec1"), taskRows)
 
-		apiConfig, ok := input.Prop("api_config").(map[string]any)
-		require.True(t, ok)
-		assert.Equal(t, "https://api.example.com/v1/users/user123", apiConfig["endpoint"])
+		tx.ExpectCommit()
 
-		headers, ok := apiConfig["headers"].(map[string]any)
-		require.True(t, ok)
-		assert.Equal(t, "Bearer token", headers["Authorization"])
-		assert.Equal(t, "user@example.com", headers["X-User-Email"])
-		assert.Equal(t, "create", headers["X-Action"])
-
-		metadata, ok := apiConfig["metadata"].([]any)
-		require.True(t, ok)
-		assert.Equal(t, "create", metadata[0])
-		assert.Equal(t, "user_user123", metadata[1])
-		assert.Equal(t, "static_value", metadata[2])
-	})
-
-	t.Run("Should handle templates with sprig functions", func(t *testing.T) {
-		workflowInput := &core.Input{
-			"user_name": "john doe",
-			"email":     "JOHN.DOE@EXAMPLE.COM",
-			"age":       25,
-			"processing": map[string]any{
-				"formatted_name":  "{{ title .trigger.input.user_name }}",
-				"lowercase_email": "{{ lower .trigger.input.email }}",
-				"age_plus_ten":    "{{ add .trigger.input.age 10 }}",
-				"contains_check":  "{{ contains \"doe\" .trigger.input.user_name }}",
-			},
-		}
-
-		workflowExecID := utils.CreateTestWorkflowExecution(t, tb, "sprig-workflow", core.EnvMap{}, workflowInput)
-		execution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, workflowExecID)
-		require.NoError(t, err)
-		require.NotNil(t, execution)
-		input := execution.GetInput()
-
-		processing, ok := input.Prop("processing").(map[string]any)
-		require.True(t, ok)
-		assert.Equal(t, "John Doe", processing["formatted_name"])
-		assert.Equal(t, "john.doe@example.com", processing["lowercase_email"])
-		assert.Equal(t, "35", processing["age_plus_ten"])
-		assert.Equal(t, "true", processing["contains_check"])
+		state, err := repo.GetStateByID(ctx, workflowID)
+		assert.NoError(t, err)
+		assert.Equal(t, workflowID, state.WorkflowID)
+		assert.NotNil(t, state.Tasks)
 	})
 }
 
-func TestWorkflowRepository_GetExecution(t *testing.T) {
-	tb := setupWorkflowTestBed(t)
-	defer tb.Cleanup()
+// Continue with similar simplified patterns for other tests...
+func TestWorkflowRepo_GetStateByExecID(t *testing.T) {
+	testSimpleWorkflowGet(t, "should get state by exec ID", func(mockSetup *testutils.MockSetup, repo store.WorkflowRepo, ctx context.Context) {
+		workflowExecID := core.ID("exec1")
 
-	t.Run("Should load existing execution", func(t *testing.T) {
-		input := &core.Input{
-			"test": "data",
-		}
-		workflowExecID := utils.CreateTestWorkflowExecution(t, tb, "test-workflow", core.EnvMap{"WORKFLOW_VAR": "workflow_value"}, input)
-		loadedExecution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, workflowExecID)
-		require.NoError(t, err)
-		require.NotNil(t, loadedExecution)
-		assert.Equal(t, workflowExecID, loadedExecution.GetID())
-		assert.Equal(t, "test-workflow", loadedExecution.GetComponentID())
-		assert.Equal(t, core.StatusPending, loadedExecution.GetStatus())
-		assert.Equal(t, workflowExecID, loadedExecution.GetWorkflowExecID())
-	})
+		tx := mockSetup.NewTransactionExpectations()
+		queries := mockSetup.NewQueryExpectations()
+		workflowRowBuilder := mockSetup.NewWorkflowStateRowBuilder()
+		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 
-	t.Run("Should return error for non-existent execution", func(t *testing.T) {
-		nonExistentWorkflowExecID := core.MustNewID()
-		execution, err := tb.WorkflowRepo.GetExecution(tb.Ctx, nonExistentWorkflowExecID)
-		assert.Error(t, err)
-		assert.Nil(t, execution)
-	})
-}
+		tx.ExpectBegin()
 
-func TestWorkflowRepository_ListExecutionsByStatus(t *testing.T) {
-	tb := setupWorkflowTestBed(t)
-	defer tb.Cleanup()
+		workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
+		queries.ExpectWorkflowStateQuery(
+			"SELECT workflow_exec_id, workflow_id, status, input, output, error FROM workflow_states",
+			[]any{workflowExecID},
+			workflowRows,
+		)
 
-	t.Run("Should list executions by status", func(t *testing.T) {
-		input := &core.Input{
-			"test": "data",
-		}
-		utils.CreateTestWorkflowExecution(t, tb, "test-workflow", core.EnvMap{}, input)
-		executions, err := tb.WorkflowRepo.ListExecutionsByStatus(tb.Ctx, core.StatusPending)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(executions), 1)
+		taskRows := taskRowBuilder.CreateEmptyTaskStateRows()
+		queries.ExpectTaskStateQuery(workflowExecID, taskRows)
 
-		for _, exec := range executions {
-			assert.Equal(t, core.StatusPending, exec.Status)
-		}
-	})
+		tx.ExpectCommit()
 
-	t.Run("Should return empty list for status with no executions", func(t *testing.T) {
-		executions, err := tb.WorkflowRepo.ListExecutionsByStatus(tb.Ctx, core.StatusSuccess)
-		require.NoError(t, err)
-		assert.Empty(t, executions)
+		state, err := repo.GetStateByExecID(ctx, workflowExecID)
+		assert.NoError(t, err)
+		assert.Equal(t, workflowExecID, state.WorkflowExec)
+		assert.NotNil(t, state.Tasks)
 	})
 }
 
-func TestWorkflowRepository_ListExecutionsByWorkflowID(t *testing.T) {
-	tb := setupWorkflowTestBed(t)
-	defer tb.Cleanup()
+func TestWorkflowRepo_GetStateByTaskID(t *testing.T) {
+	testSimpleWorkflowGet(t, "should get state by task ID", func(mockSetup *testutils.MockSetup, repo store.WorkflowRepo, ctx context.Context) {
+		workflowID := "wf1"
+		taskID := "task1"
 
-	t.Run("Should list executions by workflow ID", func(t *testing.T) {
-		input := &core.Input{
-			"test": "data",
-		}
-		utils.CreateTestWorkflowExecution(t, tb, "test-workflow", core.EnvMap{}, input)
-		executions, err := tb.WorkflowRepo.ListExecutionsByWorkflowID(tb.Ctx, "test-workflow")
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(executions), 1)
+		tx := mockSetup.NewTransactionExpectations()
+		queries := mockSetup.NewQueryExpectations()
+		workflowRowBuilder := mockSetup.NewWorkflowStateRowBuilder()
+		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 
-		for _, exec := range executions {
-			assert.Equal(t, "test-workflow", exec.WorkflowID)
-		}
-	})
+		tx.ExpectBegin()
 
-	t.Run("Should return empty list for non-existent workflow ID", func(t *testing.T) {
-		executions, err := tb.WorkflowRepo.ListExecutionsByWorkflowID(tb.Ctx, "non-existent-workflow")
-		require.NoError(t, err)
-		assert.Empty(t, executions)
-	})
-}
+		workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
+		queries.ExpectWorkflowStateQuery(
+			"SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error FROM workflow_states w",
+			[]any{workflowID, taskID},
+			workflowRows,
+		)
 
-func TestWorkflowRepository_ListChildrenExecutions(t *testing.T) {
-	tb := setupWorkflowTestBed(t)
-	defer tb.Cleanup()
+		taskRows := taskRowBuilder.CreateEmptyTaskStateRows()
+		queries.ExpectTaskStateQuery(core.ID("exec1"), taskRows)
 
-	t.Run("Should list children executions by workflow execution ID", func(t *testing.T) {
-		input := &core.Input{
-			"test": "data",
-		}
-		workflowExecID := utils.CreateTestWorkflowExecution(t, tb, "test-workflow", core.EnvMap{}, input)
-		taskConfig := utils.CreateTestBasicTaskConfig(t, "test-task", "process")
-		_, _ = utils.CreateTestTaskExecution(t, tb, workflowExecID, taskConfig.ID, taskConfig)
-		children, err := tb.WorkflowRepo.ListChildrenExecutions(tb.Ctx, workflowExecID)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(children), 1)
+		tx.ExpectCommit()
 
-		for _, child := range children {
-			component := child.GetComponent()
-			assert.True(t, component == core.ComponentTask || component == core.ComponentAgent || component == core.ComponentTool)
-		}
-	})
-
-	t.Run("Should return empty list for workflow with no children", func(t *testing.T) {
-		input := &core.Input{
-			"test": "data",
-		}
-		workflowExecID := utils.CreateTestWorkflowExecution(t, tb, "lonely-workflow", core.EnvMap{}, input)
-		children, err := tb.WorkflowRepo.ListChildrenExecutions(tb.Ctx, workflowExecID)
-		require.NoError(t, err)
-		assert.Empty(t, children)
+		state, err := repo.GetStateByTaskID(ctx, workflowID, taskID)
+		assert.NoError(t, err)
+		assert.Equal(t, workflowID, state.WorkflowID)
+		assert.NotNil(t, state.Tasks)
 	})
 }
 
-func TestWorkflowRepository_ListChildrenExecutionsByWorkflowID(t *testing.T) {
-	tb := setupWorkflowTestBed(t)
-	defer tb.Cleanup()
+func TestWorkflowRepo_GetStateByAgentID(t *testing.T) {
+	testSimpleWorkflowGet(t, "should get state by agent ID", func(mockSetup *testutils.MockSetup, repo store.WorkflowRepo, ctx context.Context) {
+		workflowID := "wf1"
+		agentID := "agent1"
 
-	t.Run("Should list children executions by workflow ID", func(t *testing.T) {
-		input := &core.Input{
-			"test": "data",
-		}
-		workflowExecID := utils.CreateTestWorkflowExecution(t, tb, "parent-workflow", core.EnvMap{}, input)
-		taskConfig := utils.CreateTestBasicTaskConfig(t, "child-task", "process")
-		_, _ = utils.CreateTestTaskExecution(t, tb, workflowExecID, taskConfig.ID, taskConfig)
-		children, err := tb.WorkflowRepo.ListChildrenExecutionsByWorkflowID(tb.Ctx, "parent-workflow")
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(children), 1)
+		tx := mockSetup.NewTransactionExpectations()
+		queries := mockSetup.NewQueryExpectations()
+		workflowRowBuilder := mockSetup.NewWorkflowStateRowBuilder()
+		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 
-		for _, child := range children {
-			component := child.GetComponent()
-			assert.True(t, component == core.ComponentTask || component == core.ComponentAgent || component == core.ComponentTool)
-		}
+		tx.ExpectBegin()
+
+		workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
+		queries.ExpectWorkflowStateQuery(
+			"SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error FROM workflow_states w",
+			[]any{workflowID, agentID},
+			workflowRows,
+		)
+
+		taskRows := taskRowBuilder.CreateEmptyTaskStateRows()
+		queries.ExpectTaskStateQuery(core.ID("exec1"), taskRows)
+
+		tx.ExpectCommit()
+
+		state, err := repo.GetStateByAgentID(ctx, workflowID, agentID)
+		assert.NoError(t, err)
+		assert.Equal(t, workflowID, state.WorkflowID)
+		assert.NotNil(t, state.Tasks)
 	})
+}
 
-	t.Run("Should return empty list for workflow ID with no children", func(t *testing.T) {
-		children, err := tb.WorkflowRepo.ListChildrenExecutionsByWorkflowID(tb.Ctx, "non-existent-workflow")
-		require.NoError(t, err)
-		assert.Empty(t, children)
+func TestWorkflowRepo_GetStateByToolID(t *testing.T) {
+	testSimpleWorkflowGet(t, "should get state by tool ID", func(mockSetup *testutils.MockSetup, repo store.WorkflowRepo, ctx context.Context) {
+		workflowID := "wf1"
+		toolID := "tool1"
+
+		tx := mockSetup.NewTransactionExpectations()
+		queries := mockSetup.NewQueryExpectations()
+		workflowRowBuilder := mockSetup.NewWorkflowStateRowBuilder()
+		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
+
+		tx.ExpectBegin()
+
+		workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
+		queries.ExpectWorkflowStateQuery(
+			"SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error FROM workflow_states w",
+			[]any{workflowID, toolID},
+			workflowRows,
+		)
+
+		taskRows := taskRowBuilder.CreateEmptyTaskStateRows()
+		queries.ExpectTaskStateQuery(core.ID("exec1"), taskRows)
+
+		tx.ExpectCommit()
+
+		state, err := repo.GetStateByToolID(ctx, workflowID, toolID)
+		assert.NoError(t, err)
+		assert.Equal(t, workflowID, state.WorkflowID)
+		assert.NotNil(t, state.Tasks)
 	})
+}
+
+func TestWorkflowRepo_UpdateStatus(t *testing.T) {
+	mockSetup := testutils.NewMockSetup(t)
+	defer mockSetup.Close()
+
+	repo := store.NewWorkflowRepo(mockSetup.Mock)
+	ctx := context.Background()
+	workflowExecID := "exec1"
+	newStatus := core.StatusRunning
+
+	// Expect the update query with 1 row affected (success)
+	mockSetup.Mock.ExpectExec("UPDATE workflow_states").
+		WithArgs(newStatus, workflowExecID).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+
+	err := repo.UpdateStatus(ctx, workflowExecID, newStatus)
+	assert.NoError(t, err)
+	mockSetup.ExpectationsWereMet()
+}
+
+func TestWorkflowRepo_UpdateStatus_NotFound(t *testing.T) {
+	mockSetup := testutils.NewMockSetup(t)
+	defer mockSetup.Close()
+
+	repo := store.NewWorkflowRepo(mockSetup.Mock)
+	ctx := context.Background()
+	workflowExecID := "nonexistent"
+	newStatus := core.StatusRunning
+
+	// Expect the update query with 0 rows affected (not found)
+	mockSetup.Mock.ExpectExec("UPDATE workflow_states").
+		WithArgs(newStatus, workflowExecID).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+
+	err := repo.UpdateStatus(ctx, workflowExecID, newStatus)
+	assert.ErrorIs(t, err, store.WorkflowErrNotFound)
+	mockSetup.ExpectationsWereMet()
 }

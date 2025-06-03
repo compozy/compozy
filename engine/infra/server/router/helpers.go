@@ -66,6 +66,10 @@ func GetWorkflowExecID(c *gin.Context) core.ID {
 	return core.ID(GetURLParam(c, "workflow_exec_id"))
 }
 
+func GetWorkflowStateID(c *gin.Context) string {
+	return GetURLParam(c, "state_id")
+}
+
 func GetTaskID(c *gin.Context) string {
 	return GetURLParam(c, "task_id")
 }

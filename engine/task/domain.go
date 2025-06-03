@@ -1,152 +1,138 @@
 package task
 
 import (
+	"database/sql"
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/pkg/pb"
-	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // -----------------------------------------------------------------------------
-// StoreKey
+// State
 // -----------------------------------------------------------------------------
 
-type StoreKey struct {
-	WorkflowExecID core.ID
-	TaskExecID     core.ID
+type StateID struct {
+	TaskID     string  `json:"task_id" db:"task_id"`
+	TaskExecID core.ID `json:"task_exec_id" db:"task_exec_id"`
 }
 
-func NewStoreKey(workflowExecID core.ID, taskExecID core.ID) StoreKey {
-	return StoreKey{
-		WorkflowExecID: workflowExecID,
-		TaskExecID:     taskExecID,
-	}
-}
-
-func (s *StoreKey) String() string {
-	return fmt.Sprintf("workflow:%s:task:%s", s.WorkflowExecID, s.TaskExecID)
-}
-
-func (s *StoreKey) Bytes() []byte {
-	return []byte(s.String())
-}
-
-// -----------------------------------------------------------------------------
-// RequestData
-// -----------------------------------------------------------------------------
-
-type RequestData struct {
-	*pb.TaskMetadata `json:"metadata"`
-	ParentInput      *core.Input  `json:"parent_input"`
-	TaskInput        *core.Input  `json:"task_input"`
-	WorkflowEnv      *core.EnvMap `json:"workflow_env"`
-	TaskEnv          *core.EnvMap `json:"task_env"`
-}
-
-func NewRequestData(
-	metadata *pb.TaskMetadata,
-	parentInput, taskInput *core.Input,
-	workflowEnv, taskEnv *core.EnvMap,
-) (*RequestData, error) {
-	return &RequestData{
-		TaskMetadata: metadata,
-		ParentInput:  parentInput,
-		TaskInput:    taskInput,
-		WorkflowEnv:  workflowEnv,
-		TaskEnv:      taskEnv,
-	}, nil
-}
-
-func (r *RequestData) GetTaskExecID() core.ID {
-	return core.ID(r.TaskExecId)
-}
-
-func (r *RequestData) GetWorkflowExecID() core.ID {
-	return core.ID(r.WorkflowExecId)
-}
-
-func (r *RequestData) ToStoreKey() StoreKey {
-	return StoreKey{
-		WorkflowExecID: core.ID(r.WorkflowExecId),
-		TaskExecID:     core.ID(r.TaskExecId),
-	}
-}
-
-// -----------------------------------------------------------------------------
-// Execution
-// -----------------------------------------------------------------------------
-
-type Execution struct {
-	*core.BaseExecution
-	TaskID      string       `json:"task_id"`
-	TaskExecID  core.ID      `json:"task_exec_id"`
-	RequestData *RequestData `json:"request_data,omitempty"`
-}
-
-func NewExecution(data *RequestData) (*Execution, error) {
-	return NewExecutionWithContext(data, nil)
-}
-
-func NewExecutionWithContext(data *RequestData, mainExecMap *core.MainExecutionMap) (*Execution, error) {
-	env, err := data.WorkflowEnv.Merge(*data.TaskEnv)
-	if err != nil {
-		return nil, fmt.Errorf("failed to merge env: %w", err)
-	}
-	baseExec := core.NewBaseExecution(
-		core.ComponentTask,
-		data.WorkflowId,
-		core.ID(data.WorkflowExecId),
-		data.ParentInput,
-		data.TaskInput,
-		nil,
-		&env,
-		nil,
-	)
-	exec := &Execution{
-		BaseExecution: baseExec,
-		TaskID:        data.TaskId,
-		TaskExecID:    core.ID(data.TaskExecId),
-		RequestData:   data,
-	}
-	normalizer := tplengine.NewNormalizer()
-	if err := normalizer.ParseExecutionWithContext(exec, mainExecMap); err != nil {
-		return nil, fmt.Errorf("failed to parse execution: %w", err)
-	}
-	return exec, nil
-}
-
-func (e *Execution) StoreKey() []byte {
-	storeKey := e.RequestData.ToStoreKey()
-	return storeKey.Bytes()
-}
-
-func (e *Execution) GetID() core.ID {
-	return e.TaskExecID
-}
-
-func (e *Execution) GetComponentID() string {
+func (e *StateID) GetComponentID() string {
 	return e.TaskID
 }
 
-func (e *Execution) AsMainExecMap() *core.MainExecutionMap {
-	return nil
+func (e *StateID) GetExecID() core.ID {
+	return e.TaskExecID
 }
 
-func (e *Execution) AsExecMap() *core.ExecutionMap {
-	execMap := core.ExecutionMap{
-		Status:         e.Status,
-		Component:      e.Component,
-		WorkflowID:     e.WorkflowID,
-		WorkflowExecID: e.WorkflowExecID,
-		TaskID:         e.TaskID,
-		TaskExecID:     e.TaskExecID,
-		Input:          e.GetInput(),
-		Output:         e.GetOutput(),
-		Error:          e.GetError(),
-		StartTime:      e.GetStartTime(),
-		EndTime:        e.GetEndTime(),
-		Duration:       e.GetDuration(),
+func (e *StateID) String() string {
+	return fmt.Sprintf("%s_%s", e.TaskID, e.TaskExecID)
+}
+
+func (e *StateID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(e.String())
+}
+
+func UnmarshalStateID(data []byte) (*StateID, error) {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return nil, err
 	}
-	return &execMap
+	parts := strings.Split(s, "_")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid state ID format: %s", s)
+	}
+	return &StateID{TaskID: parts[0], TaskExecID: core.ID(parts[1])}, nil
+}
+
+type State struct {
+	StateID // Anonymous embedding: fields from StateID are promoted
+
+	Status    core.StatusType    `json:"status" db:"status"`
+	Component core.ComponentType `json:"component" db:"workflow_id"` // Maps to workflow_id in DB
+	AgentID   *string            `json:"agent_id,omitempty" db:"agent_id"`
+	ToolID    *string            `json:"tool_id,omitempty" db:"tool_id"`
+	Input     *core.Input        `json:"input,omitempty" db:"input"`
+	Output    *core.Output       `json:"output,omitempty" db:"output"`
+	Error     *core.Error        `json:"error,omitempty" db:"error"`
+}
+
+// StateDB is used for database scanning with JSONB fields as []byte
+type StateDB struct {
+	StateID
+
+	Status         core.StatusType `db:"status"`
+	WorkflowID     string          `db:"workflow_id"`
+	WorkflowExecID core.ID         `db:"workflow_exec_id"`
+	AgentIDRaw     sql.NullString  `db:"agent_id"` // Can be NULL
+	ToolIDRaw      sql.NullString  `db:"tool_id"`  // Can be NULL
+	InputRaw       []byte          `db:"input"`
+	OutputRaw      []byte          `db:"output"`
+	ErrorRaw       []byte          `db:"error"`
+}
+
+// ToState converts StateDB to State with proper JSON unmarshaling
+func (sdb *StateDB) ToState() (*State, error) {
+	state := &State{
+		StateID:   sdb.StateID,
+		Status:    sdb.Status,
+		Component: core.ComponentTask, // Always task for this domain
+	}
+
+	// Handle nullable AgentID
+	if sdb.AgentIDRaw.Valid {
+		state.AgentID = &sdb.AgentIDRaw.String
+	}
+
+	// Handle nullable ToolID
+	if sdb.ToolIDRaw.Valid {
+		state.ToolID = &sdb.ToolIDRaw.String
+	}
+
+	// Unmarshal input
+	if sdb.InputRaw != nil {
+		var input core.Input
+		if err := json.Unmarshal(sdb.InputRaw, &input); err != nil {
+			return nil, fmt.Errorf("unmarshaling input: %w", err)
+		}
+		state.Input = &input
+	}
+
+	// Unmarshal output
+	if sdb.OutputRaw != nil {
+		var output core.Output
+		if err := json.Unmarshal(sdb.OutputRaw, &output); err != nil {
+			return nil, fmt.Errorf("unmarshaling output: %w", err)
+		}
+		state.Output = &output
+	}
+
+	// Unmarshal error
+	if sdb.ErrorRaw != nil {
+		var errorObj core.Error
+		if err := json.Unmarshal(sdb.ErrorRaw, &errorObj); err != nil {
+			return nil, fmt.Errorf("unmarshaling error: %w", err)
+		}
+		state.Error = &errorObj
+	}
+
+	return state, nil
+}
+
+func (e *State) AsMap() (map[core.ID]any, error) {
+	val, err := json.Marshal(e)
+	if err != nil {
+		return nil, err
+	}
+	var result map[core.ID]any
+	err = json.Unmarshal(val, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (e *State) UpdateStatus(status core.StatusType) {
+	e.Status = status
 }

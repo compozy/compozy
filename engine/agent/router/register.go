@@ -3,35 +3,18 @@ package agentrouter
 import "github.com/gin-gonic/gin"
 
 func Register(apiBase *gin.RouterGroup) {
-	// Agent definition routes
-	agentsGroup := apiBase.Group("/agents")
+	// Agent definition routes under workflows
+	workflowsGroup := apiBase.Group("/workflows/:workflow_id")
 	{
-		// GET /api/v0/agents
-		// List all agents
-		agentsGroup.GET("", listAgents)
-
-		// GET /api/v0/agents/:agent_id
-		// Get agent definition
-		agentsGroup.GET("/:agent_id", getAgentByID)
-
-		// GET /api/v0/agents/:agent_id/executions
-		// List executions for an agent
-		agentsGroup.GET("/:agent_id/executions", listExecutionsByAgentID)
-	}
-
-	// Global execution routes
-	executionsGroup := apiBase.Group("/executions")
-	{
-		// Agent execution routes
-		agentExecGroup := executionsGroup.Group("/agents")
+		agentsGroup := workflowsGroup.Group("/agents")
 		{
-			// GET /api/v0/executions/agents
-			// List all agent executions
-			agentExecGroup.GET("", listAllAgentExecutions)
+			// GET /api/v0/workflows/:workflow_id/agents
+			// List all agents for a workflow
+			agentsGroup.GET("", listAgents)
 
-			// GET /api/v0/executions/agents/:agent_exec_id
-			// Get agent execution details
-			agentExecGroup.GET("/:agent_exec_id", getAgentExecution)
+			// GET /api/v0/workflows/:workflow_id/agents/:agent_id
+			// Get agent definition
+			agentsGroup.GET("/:agent_id", getAgentByID)
 		}
 	}
 }

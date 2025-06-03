@@ -253,7 +253,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 
 		err := config.ValidateParams(context.Background(), config.With)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "with parameters invalid for test-task")
+		assert.Contains(t, err.Error(), "Required property 'name' is missing")
 	})
 }
 

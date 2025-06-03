@@ -47,7 +47,7 @@ tools:
 agents:
   - id: inline_agent
     config:
-      $ref: global::models.#(id=="groq-llama")
+      $ref: global::models.#(provider=="groq")
     instructions: |
       You are a helpful weather assistant that provides accurate weather information.
       Your primary function is to help users get weather details for specific locations.

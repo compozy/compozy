@@ -2,12 +2,17 @@ basePath: /api/v0
 definitions:
   agent.ActionConfig:
     properties:
+      $merge: {}
+      $ref:
+        type: string
+      $use:
+        type: string
       id:
         type: string
       input:
-        $ref: '#/definitions/schema.InputSchema'
+        $ref: '#/definitions/schema.Schema'
       output:
-        $ref: '#/definitions/schema.OutputSchema'
+        $ref: '#/definitions/schema.Schema'
       prompt:
         type: string
       with:
@@ -28,60 +33,21 @@ definitions:
       id:
         type: string
       input:
-        $ref: '#/definitions/schema.InputSchema'
+        $ref: '#/definitions/schema.Schema'
       instructions:
         type: string
       output:
-        $ref: '#/definitions/schema.OutputSchema'
+        $ref: '#/definitions/schema.Schema'
       tools:
         items:
           $ref: '#/definitions/tool.Config'
         type: array
-      use:
-        type: string
       with:
         $ref: '#/definitions/core.Input'
     required:
     - config
     - id
     - instructions
-    type: object
-  agent.Execution:
-    properties:
-      agent_exec_id:
-        type: string
-      agent_id:
-        type: string
-      component:
-        $ref: '#/definitions/core.ComponentType'
-      duration:
-        $ref: '#/definitions/time.Duration'
-      end_time:
-        type: string
-      env:
-        $ref: '#/definitions/core.EnvMap'
-      error:
-        $ref: '#/definitions/core.Error'
-      input:
-        $ref: '#/definitions/core.Input'
-      output:
-        $ref: '#/definitions/core.Output'
-      parent_input:
-        $ref: '#/definitions/core.Input'
-      request_data:
-        $ref: '#/definitions/agent.RequestData'
-      start_time:
-        type: string
-      status:
-        $ref: '#/definitions/core.StatusType'
-      task_exec_id:
-        type: string
-      task_id:
-        type: string
-      workflow_exec_id:
-        type: string
-      workflow_id:
-        type: string
     type: object
   agent.ModelName:
     enum:
@@ -200,21 +166,6 @@ definitions:
     - ProviderPerplexity
     - ProviderXAI
     - ProviderGoogle
-  agent.RequestData:
-    properties:
-      agent_env:
-        $ref: '#/definitions/core.EnvMap'
-      agent_input:
-        $ref: '#/definitions/core.Input'
-      metadata:
-        $ref: '#/definitions/pb.AgentMetadata'
-      parent_input:
-        $ref: '#/definitions/core.Input'
-      task_env:
-        $ref: '#/definitions/core.EnvMap'
-      task_input:
-        $ref: '#/definitions/core.Input'
-    type: object
   core.Author:
     properties:
       contributors:
@@ -269,78 +220,8 @@ definitions:
       message:
         type: string
     type: object
-  core.ExecutionMap:
-    properties:
-      agent_exec_id:
-        type: string
-      agent_id:
-        type: string
-      component:
-        $ref: '#/definitions/core.ComponentType'
-      duration:
-        $ref: '#/definitions/time.Duration'
-      end_time:
-        type: string
-      error:
-        $ref: '#/definitions/core.Error'
-      input:
-        $ref: '#/definitions/core.Input'
-      output:
-        $ref: '#/definitions/core.Output'
-      start_time:
-        type: string
-      status:
-        $ref: '#/definitions/core.StatusType'
-      task_exec_id:
-        type: string
-      task_id:
-        type: string
-      tool_exec_id:
-        type: string
-      tool_id:
-        type: string
-      workflow_exec_id:
-        type: string
-      workflow_id:
-        type: string
-    type: object
   core.Input:
     additionalProperties: {}
-    type: object
-  core.MainExecutionMap:
-    properties:
-      agents:
-        items:
-          $ref: '#/definitions/core.ExecutionMap'
-        type: array
-      component:
-        $ref: '#/definitions/core.ComponentType'
-      duration:
-        $ref: '#/definitions/time.Duration'
-      end_time:
-        type: string
-      error:
-        $ref: '#/definitions/core.Error'
-      input:
-        $ref: '#/definitions/core.Input'
-      output:
-        $ref: '#/definitions/core.Output'
-      start_time:
-        type: string
-      status:
-        $ref: '#/definitions/core.StatusType'
-      tasks:
-        items:
-          $ref: '#/definitions/core.ExecutionMap'
-        type: array
-      tools:
-        items:
-          $ref: '#/definitions/core.ExecutionMap'
-        type: array
-      workflow_exec_id:
-        type: string
-      workflow_id:
-        type: string
     type: object
   core.Output:
     additionalProperties: {}
@@ -365,71 +246,6 @@ definitions:
     - StatusCanceled
     - StatusWaiting
     - StatusPaused
-  pb.AgentMetadata:
-    properties:
-      agent_exec_id:
-        type: string
-      agent_id:
-        type: string
-      source:
-        type: string
-      subject:
-        type: string
-      task_exec_id:
-        type: string
-      task_id:
-        type: string
-      time:
-        $ref: '#/definitions/timestamppb.Timestamp'
-      version:
-        type: string
-      workflow_exec_id:
-        type: string
-      workflow_id:
-        type: string
-    type: object
-  pb.TaskMetadata:
-    properties:
-      source:
-        type: string
-      subject:
-        type: string
-      task_exec_id:
-        type: string
-      task_id:
-        type: string
-      time:
-        $ref: '#/definitions/timestamppb.Timestamp'
-      version:
-        type: string
-      workflow_exec_id:
-        type: string
-      workflow_id:
-        type: string
-    type: object
-  pb.ToolMetadata:
-    properties:
-      source:
-        type: string
-      subject:
-        type: string
-      task_exec_id:
-        type: string
-      task_id:
-        type: string
-      time:
-        $ref: '#/definitions/timestamppb.Timestamp'
-      tool_exec_id:
-        type: string
-      tool_id:
-        type: string
-      version:
-        type: string
-      workflow_exec_id:
-        type: string
-      workflow_id:
-        type: string
-    type: object
   router.ErrorInfo:
     properties:
       code:
@@ -449,25 +265,16 @@ definitions:
       status:
         type: integer
     type: object
-  schema.InputSchema:
-    properties:
-      schema:
-        $ref: '#/definitions/schema.Schema'
-    type: object
-  schema.OutputSchema:
-    properties:
-      schema:
-        $ref: '#/definitions/schema.Schema'
-    type: object
   schema.Schema:
     additionalProperties: {}
     type: object
   task.Config:
     properties:
-      $use: {}
       action:
         description: Basic task properties
         type: string
+      agent:
+        $ref: '#/definitions/agent.Config'
       condition:
         description: Decision task properties
         type: string
@@ -478,17 +285,19 @@ definitions:
       id:
         type: string
       input:
-        $ref: '#/definitions/schema.InputSchema'
+        $ref: '#/definitions/schema.Schema'
       on_error:
         $ref: '#/definitions/task.ErrorTransitionConfig'
       on_success:
         $ref: '#/definitions/task.SuccessTransitionConfig'
       output:
-        $ref: '#/definitions/schema.OutputSchema'
+        $ref: '#/definitions/schema.Schema'
       routes:
         additionalProperties:
           type: string
         type: object
+      tool:
+        $ref: '#/definitions/tool.Config'
       type:
         $ref: '#/definitions/task.Type'
       with:
@@ -502,52 +311,6 @@ definitions:
         $ref: '#/definitions/task.RetryPolicyConfig'
       with:
         $ref: '#/definitions/core.Input'
-    type: object
-  task.Execution:
-    properties:
-      component:
-        $ref: '#/definitions/core.ComponentType'
-      duration:
-        $ref: '#/definitions/time.Duration'
-      end_time:
-        type: string
-      env:
-        $ref: '#/definitions/core.EnvMap'
-      error:
-        $ref: '#/definitions/core.Error'
-      input:
-        $ref: '#/definitions/core.Input'
-      output:
-        $ref: '#/definitions/core.Output'
-      parent_input:
-        $ref: '#/definitions/core.Input'
-      request_data:
-        $ref: '#/definitions/task.RequestData'
-      start_time:
-        type: string
-      status:
-        $ref: '#/definitions/core.StatusType'
-      task_exec_id:
-        type: string
-      task_id:
-        type: string
-      workflow_exec_id:
-        type: string
-      workflow_id:
-        type: string
-    type: object
-  task.RequestData:
-    properties:
-      metadata:
-        $ref: '#/definitions/pb.TaskMetadata'
-      parent_input:
-        $ref: '#/definitions/core.Input'
-      task_env:
-        $ref: '#/definitions/core.EnvMap'
-      task_input:
-        $ref: '#/definitions/core.Input'
-      workflow_env:
-        $ref: '#/definitions/core.EnvMap'
     type: object
   task.RetryPolicyConfig:
     properties:
@@ -564,6 +327,32 @@ definitions:
         description: Maximum number of retry attempts
         type: integer
     type: object
+  task.State:
+    properties:
+      agent_id:
+        type: string
+      component:
+        $ref: '#/definitions/core.ComponentType'
+      error:
+        $ref: '#/definitions/core.Error'
+      input:
+        $ref: '#/definitions/core.Input'
+      output:
+        $ref: '#/definitions/core.Output'
+      state_id:
+        $ref: '#/definitions/task.StateID'
+      status:
+        $ref: '#/definitions/core.StatusType'
+      tool_id:
+        type: string
+    type: object
+  task.StateID:
+    properties:
+      taskExecID:
+        type: string
+      taskID:
+        type: string
+    type: object
   task.SuccessTransitionConfig:
     properties:
       next:
@@ -579,45 +368,8 @@ definitions:
     x-enum-varnames:
     - TaskTypeBasic
     - TaskTypeDecision
-  time.Duration:
-    enum:
-    - -9223372036854775808
-    - 9223372036854775807
-    - 1
-    - 1000
-    - 1000000
-    - 1000000000
-    - 60000000000
-    - 3600000000000
-    type: integer
-    x-enum-varnames:
-    - minDuration
-    - maxDuration
-    - Nanosecond
-    - Microsecond
-    - Millisecond
-    - Second
-    - Minute
-    - Hour
-  timestamppb.Timestamp:
-    properties:
-      nanos:
-        description: |-
-          Non-negative fractions of a second at nanosecond resolution. Negative
-          second values with fractions must still have non-negative nanos values
-          that count forward in time. Must be from 0 to 999,999,999
-          inclusive.
-        type: integer
-      seconds:
-        description: |-
-          Represents seconds of UTC time since Unix epoch
-          1970-01-01T00:00:00Z. Must be from 0001-01-01T00:00:00Z to
-          9999-12-31T23:59:59Z inclusive.
-        type: integer
-    type: object
   tool.Config:
     properties:
-      $use: {}
       description:
         type: string
       env:
@@ -627,62 +379,10 @@ definitions:
       id:
         type: string
       input:
-        $ref: '#/definitions/schema.InputSchema'
+        $ref: '#/definitions/schema.Schema'
       output:
-        $ref: '#/definitions/schema.OutputSchema'
+        $ref: '#/definitions/schema.Schema'
       with:
-        $ref: '#/definitions/core.Input'
-    type: object
-  tool.Execution:
-    properties:
-      component:
-        $ref: '#/definitions/core.ComponentType'
-      duration:
-        $ref: '#/definitions/time.Duration'
-      end_time:
-        type: string
-      env:
-        $ref: '#/definitions/core.EnvMap'
-      error:
-        $ref: '#/definitions/core.Error'
-      input:
-        $ref: '#/definitions/core.Input'
-      output:
-        $ref: '#/definitions/core.Output'
-      parent_input:
-        $ref: '#/definitions/core.Input'
-      request_data:
-        $ref: '#/definitions/tool.RequestData'
-      start_time:
-        type: string
-      status:
-        $ref: '#/definitions/core.StatusType'
-      task_exec_id:
-        type: string
-      task_id:
-        type: string
-      tool_exec_id:
-        type: string
-      tool_id:
-        type: string
-      workflow_exec_id:
-        type: string
-      workflow_id:
-        type: string
-    type: object
-  tool.RequestData:
-    properties:
-      metadata:
-        $ref: '#/definitions/pb.ToolMetadata'
-      parent_input:
-        $ref: '#/definitions/core.Input'
-      task_env:
-        $ref: '#/definitions/core.EnvMap'
-      task_input:
-        $ref: '#/definitions/core.Input'
-      tool_env:
-        $ref: '#/definitions/core.EnvMap'
-      tool_input:
         $ref: '#/definitions/core.Input'
     type: object
   wfrouter.ExecuteWorkflowResponse:
@@ -709,10 +409,12 @@ definitions:
         $ref: '#/definitions/workflow.Opts'
       description:
         type: string
-      env:
-        $ref: '#/definitions/core.EnvMap'
       id:
         type: string
+      schemas:
+        items:
+          $ref: '#/definitions/schema.Schema'
+        type: array
       tasks:
         items:
           $ref: '#/definitions/task.Config'
@@ -726,10 +428,36 @@ definitions:
     type: object
   workflow.Opts:
     properties:
+      env:
+        $ref: '#/definitions/core.EnvMap'
       input:
-        $ref: '#/definitions/schema.InputSchema'
+        $ref: '#/definitions/schema.Schema'
       on_error:
         $ref: '#/definitions/task.ErrorTransitionConfig'
+    type: object
+  workflow.State:
+    properties:
+      error:
+        $ref: '#/definitions/core.Error'
+      input:
+        $ref: '#/definitions/core.Input'
+      output:
+        $ref: '#/definitions/core.Output'
+      state_id:
+        $ref: '#/definitions/workflow.StateID'
+      status:
+        $ref: '#/definitions/core.StatusType'
+      tasks:
+        additionalProperties:
+          $ref: '#/definitions/task.State'
+        type: object
+    type: object
+  workflow.StateID:
+    properties:
+      workflowExec:
+        type: string
+      workflowID:
+        type: string
     type: object
 info:
   contact:
@@ -745,558 +473,6 @@ info:
   title: Compozy API
   version: "1.0"
 paths:
-  /agents:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve a list of all available agent configurations
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Agents retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    agents:
-                      items:
-                        $ref: '#/definitions/agent.Config'
-                      type: array
-                  type: object
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List all agents
-      tags:
-      - agents
-  /agents/{agent_id}:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve a specific agent configuration by its ID
-      parameters:
-      - description: Agent ID
-        example: '"code-assistant"'
-        in: path
-        name: agent_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Agent retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/agent.Config'
-              type: object
-        "400":
-          description: Invalid agent ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "404":
-          description: Agent not found
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: Get agent by ID
-      tags:
-      - agents
-  /agents/{agent_id}/executions:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve all executions for a specific agent
-      parameters:
-      - description: Agent ID
-        example: '"code-assistant"'
-        in: path
-        name: agent_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Agent executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items:
-                        $ref: '#/definitions/agent.Execution'
-                      type: array
-                  type: object
-              type: object
-        "400":
-          description: Invalid agent ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List executions by agent ID
-      tags:
-      - executions
-  /executions/agents:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve a list of all agent executions across all workflows
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Agent executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items:
-                        $ref: '#/definitions/agent.Execution'
-                      type: array
-                  type: object
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List all agent executions
-      tags:
-      - executions
-  /executions/agents/{agent_exec_id}:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve a specific agent execution by its execution ID
-      parameters:
-      - description: Agent Execution ID
-        example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
-        in: path
-        name: agent_exec_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Agent execution retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/agent.Execution'
-              type: object
-        "400":
-          description: Invalid execution ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "404":
-          description: Execution not found
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: Get agent execution by ID
-      tags:
-      - executions
-  /executions/tasks:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve a list of all task executions across all workflows
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Task executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items:
-                        $ref: '#/definitions/task.Execution'
-                      type: array
-                  type: object
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List all task executions
-      tags:
-      - executions
-  /executions/tasks/{task_exec_id}:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve a specific task execution by its execution ID
-      parameters:
-      - description: Task Execution ID
-        example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
-        in: path
-        name: task_exec_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Task execution retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/task.Execution'
-              type: object
-        "400":
-          description: Invalid execution ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "404":
-          description: Execution not found
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: Get task execution by ID
-      tags:
-      - executions
-  /executions/tasks/{task_exec_id}/executions:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve all child executions (agents, tools) for a specific task
-        execution
-      parameters:
-      - description: Task Execution ID
-        example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
-        in: path
-        name: task_exec_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Child executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items: {}
-                      type: array
-                  type: object
-              type: object
-        "400":
-          description: Invalid execution ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List child executions by task execution ID
-      tags:
-      - executions
-  /executions/tasks/{task_exec_id}/executions/agents:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve all agent executions for a specific task execution
-      parameters:
-      - description: Task Execution ID
-        example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
-        in: path
-        name: task_exec_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Agent executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items:
-                        $ref: '#/definitions/agent.Execution'
-                      type: array
-                  type: object
-              type: object
-        "400":
-          description: Invalid execution ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List agent executions by task execution ID
-      tags:
-      - executions
-  /executions/tasks/{task_exec_id}/executions/tools:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve all tool executions for a specific task execution
-      parameters:
-      - description: Task Execution ID
-        example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
-        in: path
-        name: task_exec_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Tool executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items:
-                        $ref: '#/definitions/tool.Execution'
-                      type: array
-                  type: object
-              type: object
-        "400":
-          description: Invalid execution ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List tool executions by task execution ID
-      tags:
-      - executions
-  /executions/tools:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve a list of all tool executions across all workflows
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Tool executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items:
-                        $ref: '#/definitions/tool.Execution'
-                      type: array
-                  type: object
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List all tool executions
-      tags:
-      - executions
-  /executions/tools/{tool_exec_id}:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve a specific tool execution by its execution ID
-      parameters:
-      - description: Tool Execution ID
-        example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
-        in: path
-        name: tool_exec_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Tool execution retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/tool.Execution'
-              type: object
-        "400":
-          description: Invalid execution ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "404":
-          description: Execution not found
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: Get tool execution by ID
-      tags:
-      - executions
   /executions/workflows:
     get:
       consumes:
@@ -1315,7 +491,7 @@ paths:
                   properties:
                     executions:
                       items:
-                        $ref: '#/definitions/core.MainExecutionMap'
+                        $ref: '#/definitions/workflow.State'
                       type: array
                   type: object
               type: object
@@ -1330,7 +506,7 @@ paths:
               type: object
       summary: List all workflow executions
       tags:
-      - executions
+      - workflows
   /executions/workflows/{workflow_exec_id}:
     get:
       consumes:
@@ -1353,7 +529,7 @@ paths:
             - $ref: '#/definitions/router.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/core.MainExecutionMap'
+                  $ref: '#/definitions/workflow.State'
               type: object
         "400":
           description: Invalid execution ID
@@ -1384,345 +560,7 @@ paths:
               type: object
       summary: Get workflow execution by ID
       tags:
-      - executions
-  /executions/workflows/{workflow_exec_id}/executions:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve all child executions (tasks, agents, tools) for a specific
-        workflow execution
-      parameters:
-      - description: Workflow Execution ID
-        example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
-        in: path
-        name: workflow_exec_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Child executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items: {}
-                      type: array
-                  type: object
-              type: object
-        "400":
-          description: Invalid execution ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List child executions by workflow execution ID
-      tags:
-      - executions
-  /executions/workflows/{workflow_exec_id}/executions/agents:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve all agent executions for a specific workflow execution
-      parameters:
-      - description: Workflow Execution ID
-        example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
-        in: path
-        name: workflow_exec_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Agent executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items:
-                        $ref: '#/definitions/agent.Execution'
-                      type: array
-                  type: object
-              type: object
-        "400":
-          description: Invalid execution ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List agent executions by workflow execution ID
-      tags:
-      - executions
-  /executions/workflows/{workflow_exec_id}/executions/tasks:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve all task executions for a specific workflow execution
-      parameters:
-      - description: Workflow Execution ID
-        example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
-        in: path
-        name: workflow_exec_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Task executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items:
-                        $ref: '#/definitions/task.Execution'
-                      type: array
-                  type: object
-              type: object
-        "400":
-          description: Invalid execution ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List task executions by workflow execution ID
-      tags:
-      - executions
-  /executions/workflows/{workflow_exec_id}/executions/tools:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve all tool executions for a specific workflow execution
-      parameters:
-      - description: Workflow Execution ID
-        example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
-        in: path
-        name: workflow_exec_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Tool executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items:
-                        $ref: '#/definitions/tool.Execution'
-                      type: array
-                  type: object
-              type: object
-        "400":
-          description: Invalid execution ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List tool executions by workflow execution ID
-      tags:
-      - executions
-  /tools:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve a list of all available tool configurations
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Tools retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    tools:
-                      items:
-                        $ref: '#/definitions/tool.Config'
-                      type: array
-                  type: object
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List all tools
-      tags:
-      - tools
-  /tools/{tool_id}:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve a specific tool configuration by its ID
-      parameters:
-      - description: Tool ID
-        example: '"format-code"'
-        in: path
-        name: tool_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Tool retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/tool.Config'
-              type: object
-        "400":
-          description: Invalid tool ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "404":
-          description: Tool not found
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: Get tool by ID
-      tags:
-      - tools
-  /tools/{tool_id}/executions:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve all executions for a specific tool
-      parameters:
-      - description: Tool ID
-        example: '"format-code"'
-        in: path
-        name: tool_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Tool executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items:
-                        $ref: '#/definitions/tool.Execution'
-                      type: array
-                  type: object
-              type: object
-        "400":
-          description: Invalid tool ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List executions by tool ID
-      tags:
-      - executions
+      - workflows
   /workflows:
     get:
       consumes:
@@ -1811,6 +649,105 @@ paths:
       summary: Get workflow by ID
       tags:
       - workflows
+  /workflows/{workflow_id}/agents:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a list of all available agent configurations
+      parameters:
+      - description: Workflow ID
+        in: path
+        name: workflow_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Agents retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  properties:
+                    agents:
+                      items:
+                        $ref: '#/definitions/agent.Config'
+                      type: array
+                  type: object
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
+      summary: List all agents
+      tags:
+      - agents
+  /workflows/{workflow_id}/agents/{agent_id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a specific agent configuration by its ID
+      parameters:
+      - description: Workflow ID
+        in: path
+        name: workflow_id
+        required: true
+        type: string
+      - description: Agent ID
+        example: '"code-assistant"'
+        in: path
+        name: agent_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Agent retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/agent.Config'
+              type: object
+        "400":
+          description: Invalid agent ID
+          schema:
+            allOf:
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
+        "404":
+          description: Agent not found
+          schema:
+            allOf:
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
+      summary: Get agent by ID
+      tags:
+      - agents
   /workflows/{workflow_id}/executions:
     get:
       consumes:
@@ -1836,7 +773,7 @@ paths:
                   properties:
                     executions:
                       items:
-                        $ref: '#/definitions/core.MainExecutionMap'
+                        $ref: '#/definitions/workflow.State'
                       type: array
                   type: object
               type: object
@@ -1860,7 +797,7 @@ paths:
               type: object
       summary: List executions by workflow ID
       tags:
-      - executions
+      - workflows
     post:
       consumes:
       - application/json
@@ -1920,206 +857,6 @@ paths:
       summary: Execute workflow
       tags:
       - workflows
-  /workflows/{workflow_id}/executions/children:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve all child executions (tasks, agents, tools) for a specific
-        workflow
-      parameters:
-      - description: Workflow ID
-        example: '"data-processing"'
-        in: path
-        name: workflow_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Child executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items: {}
-                      type: array
-                  type: object
-              type: object
-        "400":
-          description: Invalid workflow ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List child executions by workflow ID
-      tags:
-      - executions
-  /workflows/{workflow_id}/executions/children/agents:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve all agent executions for a specific workflow
-      parameters:
-      - description: Workflow ID
-        example: '"data-processing"'
-        in: path
-        name: workflow_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Agent executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items:
-                        $ref: '#/definitions/agent.Execution'
-                      type: array
-                  type: object
-              type: object
-        "400":
-          description: Invalid workflow ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List agent executions by workflow ID
-      tags:
-      - executions
-  /workflows/{workflow_id}/executions/children/tasks:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve all task executions for a specific workflow
-      parameters:
-      - description: Workflow ID
-        example: '"data-processing"'
-        in: path
-        name: workflow_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Task executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items:
-                        $ref: '#/definitions/task.Execution'
-                      type: array
-                  type: object
-              type: object
-        "400":
-          description: Invalid workflow ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List task executions by workflow ID
-      tags:
-      - executions
-  /workflows/{workflow_id}/executions/children/tools:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve all tool executions for a specific workflow
-      parameters:
-      - description: Workflow ID
-        example: '"data-processing"'
-        in: path
-        name: workflow_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Tool executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items:
-                        $ref: '#/definitions/tool.Execution'
-                      type: array
-                  type: object
-              type: object
-        "400":
-          description: Invalid workflow ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List tool executions by workflow ID
-      tags:
-      - executions
   /workflows/{workflow_id}/tasks:
     get:
       consumes:
@@ -2239,49 +976,33 @@ paths:
       summary: Get task by ID
       tags:
       - tasks
-  /workflows/{workflow_id}/tasks/{task_id}/executions:
+  /workflows/{workflow_id}/tools:
     get:
       consumes:
       - application/json
-      description: Retrieve all executions for a specific task within a workflow
+      description: Retrieve a list of all available tool configurations
       parameters:
       - description: Workflow ID
-        example: '"data-processing"'
         in: path
         name: workflow_id
-        required: true
-        type: string
-      - description: Task ID
-        example: '"validate-input"'
-        in: path
-        name: task_id
         required: true
         type: string
       produces:
       - application/json
       responses:
         "200":
-          description: Task executions retrieved successfully
+          description: Tools retrieved successfully
           schema:
             allOf:
             - $ref: '#/definitions/router.Response'
             - properties:
                 data:
                   properties:
-                    executions:
+                    tools:
                       items:
-                        $ref: '#/definitions/task.Execution'
+                        $ref: '#/definitions/tool.Config'
                       type: array
                   type: object
-              type: object
-        "400":
-          description: Invalid workflow or task ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
               type: object
         "500":
           description: Internal server error
@@ -2292,46 +1013,49 @@ paths:
                 error:
                   $ref: '#/definitions/router.ErrorInfo'
               type: object
-      summary: List executions by task ID
+      summary: List all tools
       tags:
-      - executions
-  /workflows/{workflow_id}/tasks/{task_id}/executions/agents:
+      - tools
+  /workflows/{workflow_id}/tools/{tool_id}:
     get:
       consumes:
       - application/json
-      description: Retrieve all agent executions for a specific task
+      description: Retrieve a specific tool configuration by its ID
       parameters:
       - description: Workflow ID
-        example: '"data-processing"'
         in: path
         name: workflow_id
         required: true
         type: string
-      - description: Task ID
-        example: '"validate-input"'
+      - description: Tool ID
+        example: '"format-code"'
         in: path
-        name: task_id
+        name: tool_id
         required: true
         type: string
       produces:
       - application/json
       responses:
         "200":
-          description: Agent executions retrieved successfully
+          description: Tool retrieved successfully
           schema:
             allOf:
             - $ref: '#/definitions/router.Response'
             - properties:
                 data:
-                  properties:
-                    executions:
-                      items:
-                        $ref: '#/definitions/agent.Execution'
-                      type: array
-                  type: object
+                  $ref: '#/definitions/tool.Config'
               type: object
         "400":
-          description: Invalid task ID
+          description: Invalid tool ID
+          schema:
+            allOf:
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
+        "404":
+          description: Tool not found
           schema:
             allOf:
             - $ref: '#/definitions/router.Response'
@@ -2348,120 +1072,9 @@ paths:
                 error:
                   $ref: '#/definitions/router.ErrorInfo'
               type: object
-      summary: List agent executions by task ID
+      summary: Get tool by ID
       tags:
-      - executions
-  /workflows/{workflow_id}/tasks/{task_id}/executions/children:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve all child executions (agents, tools) for a specific task
-      parameters:
-      - description: Workflow ID
-        example: '"data-processing"'
-        in: path
-        name: workflow_id
-        required: true
-        type: string
-      - description: Task ID
-        example: '"validate-input"'
-        in: path
-        name: task_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Child executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items: {}
-                      type: array
-                  type: object
-              type: object
-        "400":
-          description: Invalid task ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List child executions by task ID
-      tags:
-      - executions
-  /workflows/{workflow_id}/tasks/{task_id}/executions/tools:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve all tool executions for a specific task
-      parameters:
-      - description: Workflow ID
-        example: '"data-processing"'
-        in: path
-        name: workflow_id
-        required: true
-        type: string
-      - description: Task ID
-        example: '"validate-input"'
-        in: path
-        name: task_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Tool executions retrieved successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                data:
-                  properties:
-                    executions:
-                      items:
-                        $ref: '#/definitions/tool.Execution'
-                      type: array
-                  type: object
-              type: object
-        "400":
-          description: Invalid task ID
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-            - $ref: '#/definitions/router.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/router.ErrorInfo'
-              type: object
-      summary: List tool executions by task ID
-      tags:
-      - executions
+      - tools
 swagger: "2.0"
 tags:
 - description: Workflow management operations
@@ -2472,5 +1085,3 @@ tags:
   name: agents
 - description: Tool management operations
   name: tools
-- description: Execution monitoring operations
-  name: executions

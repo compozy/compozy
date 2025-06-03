@@ -24,1000 +24,6 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/agents": {
-            "get": {
-                "description": "Retrieve a list of all available agent configurations",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "agents"
-                ],
-                "summary": "List all agents",
-                "responses": {
-                    "200": {
-                        "description": "Agents retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "agents": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/agent.Config"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/agents/{agent_id}": {
-            "get": {
-                "description": "Retrieve a specific agent configuration by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "agents"
-                ],
-                "summary": "Get agent by ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"code-assistant\"",
-                        "description": "Agent ID",
-                        "name": "agent_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Agent retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/agent.Config"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid agent ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "Agent not found",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/agents/{agent_id}/executions": {
-            "get": {
-                "description": "Retrieve all executions for a specific agent",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List executions by agent ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"code-assistant\"",
-                        "description": "Agent ID",
-                        "name": "agent_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Agent executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/agent.Execution"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid agent ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/executions/agents": {
-            "get": {
-                "description": "Retrieve a list of all agent executions across all workflows",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List all agent executions",
-                "responses": {
-                    "200": {
-                        "description": "Agent executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/agent.Execution"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/executions/agents/{agent_exec_id}": {
-            "get": {
-                "description": "Retrieve a specific agent execution by its execution ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "Get agent execution by ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
-                        "description": "Agent Execution ID",
-                        "name": "agent_exec_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Agent execution retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/agent.Execution"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid execution ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "Execution not found",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/executions/tasks": {
-            "get": {
-                "description": "Retrieve a list of all task executions across all workflows",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List all task executions",
-                "responses": {
-                    "200": {
-                        "description": "Task executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/task.Execution"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/executions/tasks/{task_exec_id}": {
-            "get": {
-                "description": "Retrieve a specific task execution by its execution ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "Get task execution by ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
-                        "description": "Task Execution ID",
-                        "name": "task_exec_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Task execution retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/task.Execution"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid execution ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "Execution not found",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/executions/tasks/{task_exec_id}/executions": {
-            "get": {
-                "description": "Retrieve all child executions (agents, tools) for a specific task execution",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List child executions by task execution ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
-                        "description": "Task Execution ID",
-                        "name": "task_exec_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Child executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {}
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid execution ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/executions/tasks/{task_exec_id}/executions/agents": {
-            "get": {
-                "description": "Retrieve all agent executions for a specific task execution",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List agent executions by task execution ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
-                        "description": "Task Execution ID",
-                        "name": "task_exec_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Agent executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/agent.Execution"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid execution ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/executions/tasks/{task_exec_id}/executions/tools": {
-            "get": {
-                "description": "Retrieve all tool executions for a specific task execution",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List tool executions by task execution ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
-                        "description": "Task Execution ID",
-                        "name": "task_exec_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Tool executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/tool.Execution"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid execution ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/executions/tools": {
-            "get": {
-                "description": "Retrieve a list of all tool executions across all workflows",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List all tool executions",
-                "responses": {
-                    "200": {
-                        "description": "Tool executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/tool.Execution"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/executions/tools/{tool_exec_id}": {
-            "get": {
-                "description": "Retrieve a specific tool execution by its execution ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "Get tool execution by ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
-                        "description": "Tool Execution ID",
-                        "name": "tool_exec_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Tool execution retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/tool.Execution"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid execution ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "Execution not found",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
         "/executions/workflows": {
             "get": {
                 "description": "Retrieve a list of all workflow executions across all workflows",
@@ -1028,7 +34,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "executions"
+                    "workflows"
                 ],
                 "summary": "List all workflow executions",
                 "responses": {
@@ -1048,7 +54,7 @@ const docTemplate = `{
                                                 "executions": {
                                                     "type": "array",
                                                     "items": {
-                                                        "$ref": "#/definitions/core.MainExecutionMap"
+                                                        "$ref": "#/definitions/workflow.State"
                                                     }
                                                 }
                                             }
@@ -1089,7 +95,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "executions"
+                    "workflows"
                 ],
                 "summary": "Get workflow execution by ID",
                 "parameters": [
@@ -1114,7 +120,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/core.MainExecutionMap"
+                                            "$ref": "#/definitions/workflow.State"
                                         }
                                     }
                                 }
@@ -1141,609 +147,6 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Execution not found",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/executions/workflows/{workflow_exec_id}/executions": {
-            "get": {
-                "description": "Retrieve all child executions (tasks, agents, tools) for a specific workflow execution",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List child executions by workflow execution ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
-                        "description": "Workflow Execution ID",
-                        "name": "workflow_exec_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Child executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {}
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid execution ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/executions/workflows/{workflow_exec_id}/executions/agents": {
-            "get": {
-                "description": "Retrieve all agent executions for a specific workflow execution",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List agent executions by workflow execution ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
-                        "description": "Workflow Execution ID",
-                        "name": "workflow_exec_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Agent executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/agent.Execution"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid execution ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/executions/workflows/{workflow_exec_id}/executions/tasks": {
-            "get": {
-                "description": "Retrieve all task executions for a specific workflow execution",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List task executions by workflow execution ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
-                        "description": "Workflow Execution ID",
-                        "name": "workflow_exec_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Task executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/task.Execution"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid execution ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/executions/workflows/{workflow_exec_id}/executions/tools": {
-            "get": {
-                "description": "Retrieve all tool executions for a specific workflow execution",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List tool executions by workflow execution ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
-                        "description": "Workflow Execution ID",
-                        "name": "workflow_exec_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Tool executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/tool.Execution"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid execution ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/tools": {
-            "get": {
-                "description": "Retrieve a list of all available tool configurations",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tools"
-                ],
-                "summary": "List all tools",
-                "responses": {
-                    "200": {
-                        "description": "Tools retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "tools": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/tool.Config"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/tools/{tool_id}": {
-            "get": {
-                "description": "Retrieve a specific tool configuration by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tools"
-                ],
-                "summary": "Get tool by ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"format-code\"",
-                        "description": "Tool ID",
-                        "name": "tool_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Tool retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/tool.Config"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid tool ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "Tool not found",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/tools/{tool_id}/executions": {
-            "get": {
-                "description": "Retrieve all executions for a specific tool",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List executions by tool ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"format-code\"",
-                        "description": "Tool ID",
-                        "name": "tool_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Tool executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/tool.Execution"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid tool ID",
                         "schema": {
                             "allOf": [
                                 {
@@ -1941,6 +344,182 @@ const docTemplate = `{
                 }
             }
         },
+        "/workflows/{workflow_id}/agents": {
+            "get": {
+                "description": "Retrieve a list of all available agent configurations",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "summary": "List all agents",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow ID",
+                        "name": "workflow_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Agents retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "agents": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/definitions/agent.Config"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/workflows/{workflow_id}/agents/{agent_id}": {
+            "get": {
+                "description": "Retrieve a specific agent configuration by its ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "summary": "Get agent by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow ID",
+                        "name": "workflow_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"code-assistant\"",
+                        "description": "Agent ID",
+                        "name": "agent_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Agent retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/agent.Config"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid agent ID",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Agent not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/workflows/{workflow_id}/executions": {
             "get": {
                 "description": "Retrieve all executions for a specific workflow",
@@ -1951,7 +530,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "executions"
+                    "workflows"
                 ],
                 "summary": "List executions by workflow ID",
                 "parameters": [
@@ -1981,7 +560,7 @@ const docTemplate = `{
                                                 "executions": {
                                                     "type": "array",
                                                     "items": {
-                                                        "$ref": "#/definitions/core.MainExecutionMap"
+                                                        "$ref": "#/definitions/workflow.State"
                                                     }
                                                 }
                                             }
@@ -2099,360 +678,6 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Workflow not found",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/workflows/{workflow_id}/executions/children": {
-            "get": {
-                "description": "Retrieve all child executions (tasks, agents, tools) for a specific workflow",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List child executions by workflow ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"data-processing\"",
-                        "description": "Workflow ID",
-                        "name": "workflow_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Child executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {}
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid workflow ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/workflows/{workflow_id}/executions/children/agents": {
-            "get": {
-                "description": "Retrieve all agent executions for a specific workflow",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List agent executions by workflow ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"data-processing\"",
-                        "description": "Workflow ID",
-                        "name": "workflow_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Agent executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/agent.Execution"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid workflow ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/workflows/{workflow_id}/executions/children/tasks": {
-            "get": {
-                "description": "Retrieve all task executions for a specific workflow",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List task executions by workflow ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"data-processing\"",
-                        "description": "Workflow ID",
-                        "name": "workflow_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Task executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/task.Execution"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid workflow ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/workflows/{workflow_id}/executions/children/tools": {
-            "get": {
-                "description": "Retrieve all tool executions for a specific workflow",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List tool executions by workflow ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"data-processing\"",
-                        "description": "Workflow ID",
-                        "name": "workflow_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Tool executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/tool.Execution"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid workflow ID",
                         "schema": {
                             "allOf": [
                                 {
@@ -2704,9 +929,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/workflows/{workflow_id}/tasks/{task_id}/executions": {
+        "/workflows/{workflow_id}/tools": {
             "get": {
-                "description": "Retrieve all executions for a specific task within a workflow",
+                "description": "Retrieve a list of all available tool configurations",
                 "consumes": [
                     "application/json"
                 ],
@@ -2714,30 +939,21 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "executions"
+                    "tools"
                 ],
-                "summary": "List executions by task ID",
+                "summary": "List all tools",
                 "parameters": [
                     {
                         "type": "string",
-                        "example": "\"data-processing\"",
                         "description": "Workflow ID",
                         "name": "workflow_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"validate-input\"",
-                        "description": "Task ID",
-                        "name": "task_id",
                         "in": "path",
                         "required": true
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Task executions retrieved successfully",
+                        "description": "Tools retrieved successfully",
                         "schema": {
                             "allOf": [
                                 {
@@ -2749,31 +965,13 @@ const docTemplate = `{
                                         "data": {
                                             "type": "object",
                                             "properties": {
-                                                "executions": {
+                                                "tools": {
                                                     "type": "array",
                                                     "items": {
-                                                        "$ref": "#/definitions/task.Execution"
+                                                        "$ref": "#/definitions/tool.Config"
                                                     }
                                                 }
                                             }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid workflow or task ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
                                         }
                                     }
                                 }
@@ -2801,9 +999,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/workflows/{workflow_id}/tasks/{task_id}/executions/agents": {
+        "/workflows/{workflow_id}/tools/{tool_id}": {
             "get": {
-                "description": "Retrieve all agent executions for a specific task",
+                "description": "Retrieve a specific tool configuration by its ID",
                 "consumes": [
                     "application/json"
                 ],
@@ -2811,13 +1009,12 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "executions"
+                    "tools"
                 ],
-                "summary": "List agent executions by task ID",
+                "summary": "Get tool by ID",
                 "parameters": [
                     {
                         "type": "string",
-                        "example": "\"data-processing\"",
                         "description": "Workflow ID",
                         "name": "workflow_id",
                         "in": "path",
@@ -2825,16 +1022,16 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "\"validate-input\"",
-                        "description": "Task ID",
-                        "name": "task_id",
+                        "example": "\"format-code\"",
+                        "description": "Tool ID",
+                        "name": "tool_id",
                         "in": "path",
                         "required": true
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Agent executions retrieved successfully",
+                        "description": "Tool retrieved successfully",
                         "schema": {
                             "allOf": [
                                 {
@@ -2844,15 +1041,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/agent.Execution"
-                                                    }
-                                                }
-                                            }
+                                            "$ref": "#/definitions/tool.Config"
                                         }
                                     }
                                 }
@@ -2860,7 +1049,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Invalid task ID",
+                        "description": "Invalid tool ID",
                         "schema": {
                             "allOf": [
                                 {
@@ -2877,182 +1066,8 @@ const docTemplate = `{
                             ]
                         }
                     },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/workflows/{workflow_id}/tasks/{task_id}/executions/children": {
-            "get": {
-                "description": "Retrieve all child executions (agents, tools) for a specific task",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List child executions by task ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"data-processing\"",
-                        "description": "Workflow ID",
-                        "name": "workflow_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"validate-input\"",
-                        "description": "Task ID",
-                        "name": "task_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Child executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {}
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid task ID",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/workflows/{workflow_id}/tasks/{task_id}/executions/tools": {
-            "get": {
-                "description": "Retrieve all tool executions for a specific task",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "List tool executions by task ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"data-processing\"",
-                        "description": "Workflow ID",
-                        "name": "workflow_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"validate-input\"",
-                        "description": "Task ID",
-                        "name": "task_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Tool executions retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "executions": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/tool.Execution"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid task ID",
+                    "404": {
+                        "description": "Tool not found",
                         "schema": {
                             "allOf": [
                                 {
@@ -3098,14 +1113,21 @@ const docTemplate = `{
                 "prompt"
             ],
             "properties": {
+                "$merge": {},
+                "$ref": {
+                    "type": "string"
+                },
+                "$use": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
                 "input": {
-                    "$ref": "#/definitions/schema.InputSchema"
+                    "$ref": "#/definitions/schema.Schema"
                 },
                 "output": {
-                    "$ref": "#/definitions/schema.OutputSchema"
+                    "$ref": "#/definitions/schema.Schema"
                 },
                 "prompt": {
                     "type": "string"
@@ -3139,13 +1161,13 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "input": {
-                    "$ref": "#/definitions/schema.InputSchema"
+                    "$ref": "#/definitions/schema.Schema"
                 },
                 "instructions": {
                     "type": "string"
                 },
                 "output": {
-                    "$ref": "#/definitions/schema.OutputSchema"
+                    "$ref": "#/definitions/schema.Schema"
                 },
                 "tools": {
                     "type": "array",
@@ -3153,67 +1175,8 @@ const docTemplate = `{
                         "$ref": "#/definitions/tool.Config"
                     }
                 },
-                "use": {
-                    "type": "string"
-                },
                 "with": {
                     "$ref": "#/definitions/core.Input"
-                }
-            }
-        },
-        "agent.Execution": {
-            "type": "object",
-            "properties": {
-                "agent_exec_id": {
-                    "type": "string"
-                },
-                "agent_id": {
-                    "type": "string"
-                },
-                "component": {
-                    "$ref": "#/definitions/core.ComponentType"
-                },
-                "duration": {
-                    "$ref": "#/definitions/time.Duration"
-                },
-                "end_time": {
-                    "type": "string"
-                },
-                "env": {
-                    "$ref": "#/definitions/core.EnvMap"
-                },
-                "error": {
-                    "$ref": "#/definitions/core.Error"
-                },
-                "input": {
-                    "$ref": "#/definitions/core.Input"
-                },
-                "output": {
-                    "$ref": "#/definitions/core.Output"
-                },
-                "parent_input": {
-                    "$ref": "#/definitions/core.Input"
-                },
-                "request_data": {
-                    "$ref": "#/definitions/agent.RequestData"
-                },
-                "start_time": {
-                    "type": "string"
-                },
-                "status": {
-                    "$ref": "#/definitions/core.StatusType"
-                },
-                "task_exec_id": {
-                    "type": "string"
-                },
-                "task_id": {
-                    "type": "string"
-                },
-                "workflow_exec_id": {
-                    "type": "string"
-                },
-                "workflow_id": {
-                    "type": "string"
                 }
             }
         },
@@ -3351,29 +1314,6 @@ const docTemplate = `{
                 "ProviderGoogle"
             ]
         },
-        "agent.RequestData": {
-            "type": "object",
-            "properties": {
-                "agent_env": {
-                    "$ref": "#/definitions/core.EnvMap"
-                },
-                "agent_input": {
-                    "$ref": "#/definitions/core.Input"
-                },
-                "metadata": {
-                    "$ref": "#/definitions/pb.AgentMetadata"
-                },
-                "parent_input": {
-                    "$ref": "#/definitions/core.Input"
-                },
-                "task_env": {
-                    "$ref": "#/definitions/core.EnvMap"
-                },
-                "task_input": {
-                    "$ref": "#/definitions/core.Input"
-                }
-            }
-        },
         "core.Author": {
             "type": "object",
             "properties": {
@@ -3452,115 +1392,9 @@ const docTemplate = `{
                 }
             }
         },
-        "core.ExecutionMap": {
-            "type": "object",
-            "properties": {
-                "agent_exec_id": {
-                    "type": "string"
-                },
-                "agent_id": {
-                    "type": "string"
-                },
-                "component": {
-                    "$ref": "#/definitions/core.ComponentType"
-                },
-                "duration": {
-                    "$ref": "#/definitions/time.Duration"
-                },
-                "end_time": {
-                    "type": "string"
-                },
-                "error": {
-                    "$ref": "#/definitions/core.Error"
-                },
-                "input": {
-                    "$ref": "#/definitions/core.Input"
-                },
-                "output": {
-                    "$ref": "#/definitions/core.Output"
-                },
-                "start_time": {
-                    "type": "string"
-                },
-                "status": {
-                    "$ref": "#/definitions/core.StatusType"
-                },
-                "task_exec_id": {
-                    "type": "string"
-                },
-                "task_id": {
-                    "type": "string"
-                },
-                "tool_exec_id": {
-                    "type": "string"
-                },
-                "tool_id": {
-                    "type": "string"
-                },
-                "workflow_exec_id": {
-                    "type": "string"
-                },
-                "workflow_id": {
-                    "type": "string"
-                }
-            }
-        },
         "core.Input": {
             "type": "object",
             "additionalProperties": {}
-        },
-        "core.MainExecutionMap": {
-            "type": "object",
-            "properties": {
-                "agents": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/core.ExecutionMap"
-                    }
-                },
-                "component": {
-                    "$ref": "#/definitions/core.ComponentType"
-                },
-                "duration": {
-                    "$ref": "#/definitions/time.Duration"
-                },
-                "end_time": {
-                    "type": "string"
-                },
-                "error": {
-                    "$ref": "#/definitions/core.Error"
-                },
-                "input": {
-                    "$ref": "#/definitions/core.Input"
-                },
-                "output": {
-                    "$ref": "#/definitions/core.Output"
-                },
-                "start_time": {
-                    "type": "string"
-                },
-                "status": {
-                    "$ref": "#/definitions/core.StatusType"
-                },
-                "tasks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/core.ExecutionMap"
-                    }
-                },
-                "tools": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/core.ExecutionMap"
-                    }
-                },
-                "workflow_exec_id": {
-                    "type": "string"
-                },
-                "workflow_id": {
-                    "type": "string"
-                }
-            }
         },
         "core.Output": {
             "type": "object",
@@ -3588,105 +1422,6 @@ const docTemplate = `{
                 "StatusWaiting",
                 "StatusPaused"
             ]
-        },
-        "pb.AgentMetadata": {
-            "type": "object",
-            "properties": {
-                "agent_exec_id": {
-                    "type": "string"
-                },
-                "agent_id": {
-                    "type": "string"
-                },
-                "source": {
-                    "type": "string"
-                },
-                "subject": {
-                    "type": "string"
-                },
-                "task_exec_id": {
-                    "type": "string"
-                },
-                "task_id": {
-                    "type": "string"
-                },
-                "time": {
-                    "$ref": "#/definitions/timestamppb.Timestamp"
-                },
-                "version": {
-                    "type": "string"
-                },
-                "workflow_exec_id": {
-                    "type": "string"
-                },
-                "workflow_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "pb.TaskMetadata": {
-            "type": "object",
-            "properties": {
-                "source": {
-                    "type": "string"
-                },
-                "subject": {
-                    "type": "string"
-                },
-                "task_exec_id": {
-                    "type": "string"
-                },
-                "task_id": {
-                    "type": "string"
-                },
-                "time": {
-                    "$ref": "#/definitions/timestamppb.Timestamp"
-                },
-                "version": {
-                    "type": "string"
-                },
-                "workflow_exec_id": {
-                    "type": "string"
-                },
-                "workflow_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "pb.ToolMetadata": {
-            "type": "object",
-            "properties": {
-                "source": {
-                    "type": "string"
-                },
-                "subject": {
-                    "type": "string"
-                },
-                "task_exec_id": {
-                    "type": "string"
-                },
-                "task_id": {
-                    "type": "string"
-                },
-                "time": {
-                    "$ref": "#/definitions/timestamppb.Timestamp"
-                },
-                "tool_exec_id": {
-                    "type": "string"
-                },
-                "tool_id": {
-                    "type": "string"
-                },
-                "version": {
-                    "type": "string"
-                },
-                "workflow_exec_id": {
-                    "type": "string"
-                },
-                "workflow_id": {
-                    "type": "string"
-                }
-            }
         },
         "router.ErrorInfo": {
             "type": "object",
@@ -3717,22 +1452,6 @@ const docTemplate = `{
                 }
             }
         },
-        "schema.InputSchema": {
-            "type": "object",
-            "properties": {
-                "schema": {
-                    "$ref": "#/definitions/schema.Schema"
-                }
-            }
-        },
-        "schema.OutputSchema": {
-            "type": "object",
-            "properties": {
-                "schema": {
-                    "$ref": "#/definitions/schema.Schema"
-                }
-            }
-        },
         "schema.Schema": {
             "type": "object",
             "additionalProperties": {}
@@ -3740,10 +1459,12 @@ const docTemplate = `{
         "task.Config": {
             "type": "object",
             "properties": {
-                "$use": {},
                 "action": {
                     "description": "Basic task properties",
                     "type": "string"
+                },
+                "agent": {
+                    "$ref": "#/definitions/agent.Config"
                 },
                 "condition": {
                     "description": "Decision task properties",
@@ -3759,7 +1480,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "input": {
-                    "$ref": "#/definitions/schema.InputSchema"
+                    "$ref": "#/definitions/schema.Schema"
                 },
                 "on_error": {
                     "$ref": "#/definitions/task.ErrorTransitionConfig"
@@ -3768,13 +1489,16 @@ const docTemplate = `{
                     "$ref": "#/definitions/task.SuccessTransitionConfig"
                 },
                 "output": {
-                    "$ref": "#/definitions/schema.OutputSchema"
+                    "$ref": "#/definitions/schema.Schema"
                 },
                 "routes": {
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
                     }
+                },
+                "tool": {
+                    "$ref": "#/definitions/tool.Config"
                 },
                 "type": {
                     "$ref": "#/definitions/task.Type"
@@ -3798,76 +1522,6 @@ const docTemplate = `{
                 }
             }
         },
-        "task.Execution": {
-            "type": "object",
-            "properties": {
-                "component": {
-                    "$ref": "#/definitions/core.ComponentType"
-                },
-                "duration": {
-                    "$ref": "#/definitions/time.Duration"
-                },
-                "end_time": {
-                    "type": "string"
-                },
-                "env": {
-                    "$ref": "#/definitions/core.EnvMap"
-                },
-                "error": {
-                    "$ref": "#/definitions/core.Error"
-                },
-                "input": {
-                    "$ref": "#/definitions/core.Input"
-                },
-                "output": {
-                    "$ref": "#/definitions/core.Output"
-                },
-                "parent_input": {
-                    "$ref": "#/definitions/core.Input"
-                },
-                "request_data": {
-                    "$ref": "#/definitions/task.RequestData"
-                },
-                "start_time": {
-                    "type": "string"
-                },
-                "status": {
-                    "$ref": "#/definitions/core.StatusType"
-                },
-                "task_exec_id": {
-                    "type": "string"
-                },
-                "task_id": {
-                    "type": "string"
-                },
-                "workflow_exec_id": {
-                    "type": "string"
-                },
-                "workflow_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "task.RequestData": {
-            "type": "object",
-            "properties": {
-                "metadata": {
-                    "$ref": "#/definitions/pb.TaskMetadata"
-                },
-                "parent_input": {
-                    "$ref": "#/definitions/core.Input"
-                },
-                "task_env": {
-                    "$ref": "#/definitions/core.EnvMap"
-                },
-                "task_input": {
-                    "$ref": "#/definitions/core.Input"
-                },
-                "workflow_env": {
-                    "$ref": "#/definitions/core.EnvMap"
-                }
-            }
-        },
         "task.RetryPolicyConfig": {
             "type": "object",
             "properties": {
@@ -3886,6 +1540,46 @@ const docTemplate = `{
                 "max_attempts": {
                     "description": "Maximum number of retry attempts",
                     "type": "integer"
+                }
+            }
+        },
+        "task.State": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
+                "component": {
+                    "$ref": "#/definitions/core.ComponentType"
+                },
+                "error": {
+                    "$ref": "#/definitions/core.Error"
+                },
+                "input": {
+                    "$ref": "#/definitions/core.Input"
+                },
+                "output": {
+                    "$ref": "#/definitions/core.Output"
+                },
+                "state_id": {
+                    "$ref": "#/definitions/task.StateID"
+                },
+                "status": {
+                    "$ref": "#/definitions/core.StatusType"
+                },
+                "tool_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "task.StateID": {
+            "type": "object",
+            "properties": {
+                "taskExecID": {
+                    "type": "string"
+                },
+                "taskID": {
+                    "type": "string"
                 }
             }
         },
@@ -3911,46 +1605,9 @@ const docTemplate = `{
                 "TaskTypeDecision"
             ]
         },
-        "time.Duration": {
-            "type": "integer",
-            "enum": [
-                -9223372036854775808,
-                9223372036854775807,
-                1,
-                1000,
-                1000000,
-                1000000000,
-                60000000000,
-                3600000000000
-            ],
-            "x-enum-varnames": [
-                "minDuration",
-                "maxDuration",
-                "Nanosecond",
-                "Microsecond",
-                "Millisecond",
-                "Second",
-                "Minute",
-                "Hour"
-            ]
-        },
-        "timestamppb.Timestamp": {
-            "type": "object",
-            "properties": {
-                "nanos": {
-                    "description": "Non-negative fractions of a second at nanosecond resolution. Negative\nsecond values with fractions must still have non-negative nanos values\nthat count forward in time. Must be from 0 to 999,999,999\ninclusive.",
-                    "type": "integer"
-                },
-                "seconds": {
-                    "description": "Represents seconds of UTC time since Unix epoch\n1970-01-01T00:00:00Z. Must be from 0001-01-01T00:00:00Z to\n9999-12-31T23:59:59Z inclusive.",
-                    "type": "integer"
-                }
-            }
-        },
         "tool.Config": {
             "type": "object",
             "properties": {
-                "$use": {},
                 "description": {
                     "type": "string"
                 },
@@ -3964,91 +1621,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "input": {
-                    "$ref": "#/definitions/schema.InputSchema"
+                    "$ref": "#/definitions/schema.Schema"
                 },
                 "output": {
-                    "$ref": "#/definitions/schema.OutputSchema"
+                    "$ref": "#/definitions/schema.Schema"
                 },
                 "with": {
-                    "$ref": "#/definitions/core.Input"
-                }
-            }
-        },
-        "tool.Execution": {
-            "type": "object",
-            "properties": {
-                "component": {
-                    "$ref": "#/definitions/core.ComponentType"
-                },
-                "duration": {
-                    "$ref": "#/definitions/time.Duration"
-                },
-                "end_time": {
-                    "type": "string"
-                },
-                "env": {
-                    "$ref": "#/definitions/core.EnvMap"
-                },
-                "error": {
-                    "$ref": "#/definitions/core.Error"
-                },
-                "input": {
-                    "$ref": "#/definitions/core.Input"
-                },
-                "output": {
-                    "$ref": "#/definitions/core.Output"
-                },
-                "parent_input": {
-                    "$ref": "#/definitions/core.Input"
-                },
-                "request_data": {
-                    "$ref": "#/definitions/tool.RequestData"
-                },
-                "start_time": {
-                    "type": "string"
-                },
-                "status": {
-                    "$ref": "#/definitions/core.StatusType"
-                },
-                "task_exec_id": {
-                    "type": "string"
-                },
-                "task_id": {
-                    "type": "string"
-                },
-                "tool_exec_id": {
-                    "type": "string"
-                },
-                "tool_id": {
-                    "type": "string"
-                },
-                "workflow_exec_id": {
-                    "type": "string"
-                },
-                "workflow_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "tool.RequestData": {
-            "type": "object",
-            "properties": {
-                "metadata": {
-                    "$ref": "#/definitions/pb.ToolMetadata"
-                },
-                "parent_input": {
-                    "$ref": "#/definitions/core.Input"
-                },
-                "task_env": {
-                    "$ref": "#/definitions/core.EnvMap"
-                },
-                "task_input": {
-                    "$ref": "#/definitions/core.Input"
-                },
-                "tool_env": {
-                    "$ref": "#/definitions/core.EnvMap"
-                },
-                "tool_input": {
                     "$ref": "#/definitions/core.Input"
                 }
             }
@@ -4088,11 +1666,14 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
-                "env": {
-                    "$ref": "#/definitions/core.EnvMap"
-                },
                 "id": {
                     "type": "string"
+                },
+                "schemas": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/schema.Schema"
+                    }
                 },
                 "tasks": {
                     "type": "array",
@@ -4114,11 +1695,51 @@ const docTemplate = `{
         "workflow.Opts": {
             "type": "object",
             "properties": {
+                "env": {
+                    "$ref": "#/definitions/core.EnvMap"
+                },
                 "input": {
-                    "$ref": "#/definitions/schema.InputSchema"
+                    "$ref": "#/definitions/schema.Schema"
                 },
                 "on_error": {
                     "$ref": "#/definitions/task.ErrorTransitionConfig"
+                }
+            }
+        },
+        "workflow.State": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/core.Error"
+                },
+                "input": {
+                    "$ref": "#/definitions/core.Input"
+                },
+                "output": {
+                    "$ref": "#/definitions/core.Output"
+                },
+                "state_id": {
+                    "$ref": "#/definitions/workflow.StateID"
+                },
+                "status": {
+                    "$ref": "#/definitions/core.StatusType"
+                },
+                "tasks": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/task.State"
+                    }
+                }
+            }
+        },
+        "workflow.StateID": {
+            "type": "object",
+            "properties": {
+                "workflowExec": {
+                    "type": "string"
+                },
+                "workflowID": {
+                    "type": "string"
                 }
             }
         }
@@ -4139,10 +1760,6 @@ const docTemplate = `{
         {
             "description": "Tool management operations",
             "name": "tools"
-        },
-        {
-            "description": "Execution monitoring operations",
-            "name": "executions"
         }
     ]
 }`

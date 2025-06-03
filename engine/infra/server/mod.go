@@ -6,54 +6,40 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
-	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/nats"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/infra/temporal"
 	"github.com/compozy/compozy/engine/orchestrator"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/pkg/ref"
 	"github.com/gin-gonic/gin"
 )
 
 type Server struct {
-	Config *Config
-	router *gin.Engine
-	ctx    context.Context
-	cancel context.CancelFunc
-	// Optional pre-existing NATS server and client for testing
-	NatsServer *nats.Server
-	NatsClient *nats.Client
+	Config         *Config
+	TemporalConfig *temporal.Config
+	StoreConfig    *store.Config
+	router         *gin.Engine
+	ctx            context.Context
+	cancel         context.CancelFunc
 }
 
-func NewServer(config Config) *Server {
+func NewServer(config Config, tConfig *temporal.Config, sConfig *store.Config) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		Config: &config,
-		ctx:    ctx,
-		cancel: cancel,
-	}
-}
-
-// NewServerWithNats creates a server with existing NATS server and client
-// This is useful for testing where you want to reuse NATS connections
-func NewServerWithNats(config Config, natsServer *nats.Server, natsClient *nats.Client) *Server {
-	ctx, cancel := context.WithCancel(context.Background())
-	return &Server{
-		Config:     &config,
-		ctx:        ctx,
-		cancel:     cancel,
-		NatsServer: natsServer,
-		NatsClient: natsClient,
+		Config:         &config,
+		TemporalConfig: tConfig,
+		StoreConfig:    sConfig,
+		ctx:            ctx,
+		cancel:         cancel,
 	}
 }
 
@@ -90,6 +76,74 @@ func (s *Server) Run() error {
 	return s.startAndRunServer()
 }
 
+func loadProject(cwd string, file string) (*project.Config, []*workflow.Config, error) {
+	pCWD, err := core.CWDFromPath(cwd)
+	if err != nil {
+		return nil, nil, err
+	}
+	logger.Info("Starting compozy server")
+	logger.Debug("Loading config file", "config_file", file)
+
+	projectConfig, err := project.Load(pCWD, file)
+	if err != nil {
+		logger.Error("Failed to load project config", "error", err)
+		return nil, nil, err
+	}
+
+	if err := projectConfig.Validate(); err != nil {
+		logger.Error("Invalid project config", "error", err)
+		return nil, nil, err
+	}
+	globalScope, err := projectConfig.AsMap()
+	if err != nil {
+		logger.Error("Failed to convert project config to map", "error", err)
+		return nil, nil, err
+	}
+
+	ev := ref.NewEvaluator(
+		ref.WithGlobalScope(globalScope),
+		ref.WithCacheEnabled(),
+	)
+
+	// Load workflows from sources
+	workflows, err := workflow.WorkflowsFromProject(projectConfig, ev)
+	if err != nil {
+		logger.Error("Failed to load workflows", "error", err)
+		return nil, nil, err
+	}
+
+	return projectConfig, workflows, nil
+}
+
+func setupOrchestrator(ctx context.Context, deps appstate.BaseDeps) (*orchestrator.Orchestrator, error) {
+	tc := deps.TemporalClient
+	projectConfig := deps.ProjectConfig
+	workflows := deps.Workflows
+	orchConfig := &orchestrator.Config{
+		WorkflowRepo: func() workflow.Repository {
+			return deps.Store.NewWorkflowRepo()
+		},
+		TaskRepo: func() task.Repository {
+			return deps.Store.NewTaskRepo()
+		},
+	}
+	orch, err := orchestrator.NewOrchestrator(
+		tc,
+		orchConfig,
+		projectConfig,
+		workflows,
+	)
+	if err != nil {
+		logger.Error("Failed to create orchestrator", "error", err)
+		return nil, fmt.Errorf("failed to create orchestrator: %w", err)
+	}
+	if err := orch.Setup(ctx); err != nil {
+		logger.Error("Failed to setup orchestrator", "error", err)
+		return nil, fmt.Errorf("failed to setup orchestrator: %w", err)
+	}
+	return orch, nil
+}
+
 func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	var cleanupFuncs []func()
 
@@ -99,91 +153,34 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 		return nil, cleanupFuncs, fmt.Errorf("failed to load project: %w", err)
 	}
 
-	// Setup NATS server
-	ns, nc, cleanup, err := s.setupNatsWithCleanup(projectConfig.GetCWD())
+	// Setup Temporal client
+	tc, err := temporal.New(s.TemporalConfig)
 	if err != nil {
-		return nil, cleanupFuncs, fmt.Errorf("failed to setup NATS server: %w", err)
+		return nil, cleanupFuncs, fmt.Errorf("failed to create temporal client: %w", err)
 	}
-	cleanupFuncs = append(cleanupFuncs, cleanup)
+	cleanupFuncs = append(cleanupFuncs, func() {
+		tc.Close()
+	})
 
-	// Setup store
-	st, cleanup, err := s.setupStoreWithCleanup(projectConfig.GetCWD())
+	store, err := store.SetupStore(s.ctx, s.StoreConfig)
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to setup store: %w", err)
 	}
-	cleanupFuncs = append(cleanupFuncs, cleanup)
+	cleanupFuncs = append(cleanupFuncs, func() {
+		store.DB.Close()
+	})
 
-	// Setup orchestrator and app state
-	state, err := s.setupAppState(ns, nc, st, projectConfig, workflows)
+	deps := appstate.NewBaseDeps(tc, projectConfig, workflows, store)
+	orch, err := setupOrchestrator(s.ctx, deps)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
-
-	return state, cleanupFuncs, nil
-}
-
-func (s *Server) setupNatsWithCleanup(cwd *core.CWD) (*nats.Server, *nats.Client, func(), error) {
-	// If NATS server and client are already provided (e.g., in tests), use them
-	if s.NatsServer != nil && s.NatsClient != nil {
-		// Return a no-op cleanup function since we don't own these instances
-		cleanup := func() {
-			// No cleanup needed - the caller owns these instances
-		}
-		return s.NatsServer, s.NatsClient, cleanup, nil
-	}
-
-	// Otherwise, create new NATS server and client
-	ns, nc, err := setupNats(s.ctx, cwd)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	cleanup := func() {
-		if err := ns.Shutdown(); err != nil {
-			logger.Error("Error shutting down NATS server", "error", err)
-		}
-	}
-
-	return ns, nc, cleanup, nil
-}
-
-func (s *Server) setupStoreWithCleanup(cwd *core.CWD) (*store.Store, func(), error) {
-	dataDir := filepath.Join(core.GetStoreDir(cwd), "data")
-	dbFilePath := filepath.Join(dataDir, "compozy.db")
-	st, err := store.NewStore(dbFilePath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create state store: %w", err)
-	}
-	if err := st.Setup(); err != nil {
-		return nil, nil, fmt.Errorf("failed to setup store: %w", err)
-	}
-
-	cleanup := func() {
-		if err := st.Close(); err != nil {
-			logger.Error("Error shutting down store", "error", err)
-		}
-	}
-
-	return st, cleanup, nil
-}
-
-func (s *Server) setupAppState(
-	ns *nats.Server,
-	nc *nats.Client,
-	st *store.Store,
-	projectConfig *project.Config,
-	workflows []*workflow.Config,
-) (*appstate.State, error) {
-	deps := appstate.NewBaseDeps(ns, nc, st, projectConfig, workflows)
-	orch, err := setupOrchestrator(s.ctx, deps)
-	if err != nil {
-		return nil, err
-	}
 	state, err := appstate.NewState(deps, orch)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create app state: %w", err)
+		return nil, cleanupFuncs, fmt.Errorf("failed to create app state: %w", err)
 	}
-	return state, nil
+
+	return state, cleanupFuncs, nil
 }
 
 func (s *Server) cleanup(cleanupFuncs []func()) {
@@ -207,7 +204,6 @@ func (s *Server) createHTTPServer() *http.Server {
 	logger.Info("Starting HTTP server",
 		"address", fmt.Sprintf("http://%s", addr),
 	)
-
 	return &http.Server{
 		Addr:         addr,
 		Handler:      s.router,
@@ -243,94 +239,4 @@ func (s *Server) handleGracefulShutdown(srv *http.Server) error {
 
 	logger.Info("Server shutdown completed successfully")
 	return nil
-}
-
-func setupOrchestrator(ctx context.Context, deps appstate.BaseDeps) (*orchestrator.Orchestrator, error) {
-	ns := deps.NatsServer
-	nc := deps.NatsClient
-	store := deps.Store
-	projectConfig := deps.ProjectConfig
-	workflows := deps.Workflows
-
-	orchConfig := orchestrator.Config{
-		WorkflowRepoFactory: func() workflow.Repository {
-			return store.NewWorkflowRepository(projectConfig, workflows)
-		},
-		TaskRepoFactory: func() task.Repository {
-			workflowRepo := store.NewWorkflowRepository(projectConfig, workflows)
-			return store.NewTaskRepository(workflowRepo)
-		},
-		AgentRepoFactory: func() agent.Repository {
-			workflowRepo := store.NewWorkflowRepository(projectConfig, workflows)
-			taskRepo := store.NewTaskRepository(workflowRepo)
-			return store.NewAgentRepository(workflowRepo, taskRepo)
-		},
-		ToolRepoFactory: func() tool.Repository {
-			workflowRepo := store.NewWorkflowRepository(projectConfig, workflows)
-			taskRepo := store.NewTaskRepository(workflowRepo)
-			return store.NewToolRepository(workflowRepo, taskRepo)
-		},
-	}
-	orch := orchestrator.NewOrchestrator(
-		ns,
-		nc,
-		store,
-		orchConfig,
-		projectConfig,
-		workflows,
-	)
-	if err := orch.Setup(ctx); err != nil {
-		logger.Error("Failed to setup orchestrator", "error", err)
-		return nil, fmt.Errorf("failed to setup orchestrator: %w", err)
-	}
-	return orch, nil
-}
-
-func setupNats(ctx context.Context, cwd *core.CWD) (*nats.Server, *nats.Client, error) {
-	opts := nats.DefaultServerOptions(cwd)
-	opts.EnableJetStream = true
-	natsServer, err := nats.NewNatsServer(opts)
-	if err != nil {
-		logger.Error("Failed to setup NATS server", "error", err)
-		return nil, nil, err
-	}
-	nc, err := nats.NewClient(natsServer.Conn)
-	if err != nil {
-		logger.Error("Failed to create NATS client", "error", err)
-		return nil, nil, err
-	}
-	if err := nc.SetupStreams(ctx); err != nil {
-		logger.Error("Failed to setup NATS streams", "error", err)
-		return nil, nil, err
-	}
-	return natsServer, nc, nil
-}
-
-func loadProject(cwd string, file string) (*project.Config, []*workflow.Config, error) {
-	pCWD, err := core.CWDFromPath(cwd)
-	if err != nil {
-		return nil, nil, err
-	}
-	logger.Info("Starting compozy server")
-	logger.Debug("Loading config file", "config_file", file)
-
-	projectConfig, err := project.Load(pCWD, file)
-	if err != nil {
-		logger.Error("Failed to load project config", "error", err)
-		return nil, nil, err
-	}
-
-	if err := projectConfig.Validate(); err != nil {
-		logger.Error("Invalid project config", "error", err)
-		return nil, nil, err
-	}
-
-	// Load workflows from sources
-	workflows, err := workflow.WorkflowsFromProject(projectConfig)
-	if err != nil {
-		logger.Error("Failed to load workflows", "error", err)
-		return nil, nil, err
-	}
-
-	return projectConfig, workflows, nil
 }

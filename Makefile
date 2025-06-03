@@ -1,3 +1,4 @@
+-include .env
 # Makefile for Compozy Go Project
 
 # -----------------------------------------------------------------------------
@@ -12,36 +13,26 @@ BINARY_DIR=bin
 SRC_DIRS=./...
 
 # -----------------------------------------------------------------------------
-# Protobuf Generation
-# -----------------------------------------------------------------------------
-PROTO_DIR=./proto
-PROTO_OUT_DIR=./pkg/pb
-GO_MODULE_NAME := $(shell go list -m)
-EVENT_PROTO_FILES=$(shell find $(PROTO_DIR) -path '*/events/*.proto')
-COMMAND_PROTO_FILES=$(shell find $(PROTO_DIR) -path '*/cmds/*.proto')
-COMMON_PROTO_FILES=$(shell find $(PROTO_DIR)/common -name '*.proto')
-
-# -----------------------------------------------------------------------------
 # Swagger/OpenAPI
 # -----------------------------------------------------------------------------
 SWAGGER_DIR=./docs
 SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
 
 .PHONY: all test lint fmt clean build dev dev-weather deps schemagen help integration-test
-.PHONY: tidy proto proto-deps test-go test-runtime start-nats stop-nats clean-nats restart-nats
+.PHONY: tidy test-go start-docker stop-docker clean-docker restart-docker
 .PHONY: swagger swagger-deps swagger-gen swagger-serve
 
 # -----------------------------------------------------------------------------
 # Main Targets
 # -----------------------------------------------------------------------------
-all: proto swagger test lint fmt
+all: swagger test lint fmt
 
 clean:
 	rm -rf $(BINARY_DIR)/
 	rm -rf $(SWAGGER_DIR)/
 	$(GOCMD) clean
 
-build: proto swagger
+build: swagger
 	mkdir -p $(BINARY_DIR)
 	$(GOBUILD) -o $(BINARY_DIR)/$(BINARY_NAME) .
 	chmod +x $(BINARY_DIR)/$(BINARY_NAME)
@@ -66,34 +57,24 @@ dev:
 	$(GOCMD) run . dev
 
 dev-weather:
-	wgo run . dev --cwd examples/weather-agent --debug
+	wgo run . dev --cwd examples/weather-agent --env-file .env --debug
 
 tidy:
 	@echo "Tidying modules..."
 	$(GOCMD) mod tidy
 
-deps: proto-deps swagger-deps
+deps: swagger-deps
 	$(GOCMD) install gotest.tools/gotestsum@latest
-	$(GOCMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	$(GOCMD) install github.com/bokwoon95/wgo@latest
 	$(GOCMD) install github.com/segmentio/golines@latest
 	$(GOCMD) install mvdan.cc/gofumpt@latest
-
-proto-deps:
-	@echo "Installing Go protoc plugins..."
-	$(GOCMD) install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-	$(GOCMD) install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-	@echo "Go protoc plugins installation complete."
+	$(GOCMD) install github.com/pressly/goose/v3/cmd/goose@latest
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.1.6
 
 swagger-deps:
 	@echo "Installing Swagger dependencies..."
 	$(GOCMD) install github.com/swaggo/swag/cmd/swag@latest
 	@echo "Swagger dependencies installation complete."
-
-proto:
-	@echo "Generating Go code from protobuf definitions via script..."
-	@chmod +x scripts/proto.sh
-	@bash scripts/proto.sh "$(PROTO_DIR)" "$(PROTO_OUT_DIR)" "$(GO_MODULE_NAME)"
 
 # -----------------------------------------------------------------------------
 # Swagger/OpenAPI Generation
@@ -129,31 +110,55 @@ test-go:
 test-go-nocache:
 	gotestsum --format testdox -- -count=1 ./...
 
-test-runtime:
-	@echo "Running runtime tests..."
-	@sleep 1
-	@make start-nats
-	@deno test --allow-sys --allow-env --allow-net --allow-read pkg/runtime/tests/
-	@make stop-nats
-
 test:
-	make start-nats
+	make start-docker
 	make test-go
-	make test-runtime
-	make stop-nats
+	make stop-docker
 
 # -----------------------------------------------------------------------------
 # Docker & NATS Management
 # -----------------------------------------------------------------------------
-start-nats:
-	docker compose -f docker-compose.yml up -d
+start-docker:
+	docker compose -f ./cluster/docker-compose.yml up -d
 
-stop-nats:
-	docker compose -f docker-compose.yml down
+stop-docker:
+	docker compose -f ./cluster/docker-compose.yml down
 
-clean-nats:
-	docker compose -f docker-compose.yml down --volumes --rmi all
+clean-docker:
+	docker compose -f ./cluster/docker-compose.yml down --volumes --rmi all
 
-restart-nats:
-	make stop-nats
-	make start-nats
+restart-docker:
+	make stop-docker
+	make start-docker
+
+# -----------------------------------------------------------------------------
+# Database
+# -----------------------------------------------------------------------------
+DB_USER ?= postgres
+DB_PASSWORD ?= postgres
+DB_HOST ?= localhost
+DB_PORT ?= 5432
+DB_NAME ?= compozy
+
+GOOSE_DBSTRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable
+GOOSE_COMMAND = GOOSE_DRIVER=postgres GOOSE_DBSTRING=${GOOSE_DBSTRING} goose -dir ./engine/infra/store/migrations
+
+migrate-status:
+	$(GOOSE_COMMAND) status
+
+migrate-up:
+	$(GOOSE_COMMAND) up
+
+migrate-down:
+	$(GOOSE_COMMAND) down
+
+migrate-create:
+	$(GOOSE_COMMAND) create $(name) sql
+
+migrate-validate:
+	$(GOOSE_COMMAND) validate
+
+migrate-reset:
+	$(GOOSE_COMMAND) reset
+
+reset-db: restart-docker migrate-up

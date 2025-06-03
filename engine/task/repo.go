@@ -4,23 +4,28 @@ import (
 	"context"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/pkg/pb"
 )
 
+type StateFilter struct {
+	Status         *core.StatusType `json:"status,omitempty"`
+	WorkflowID     *string          `json:"workflow_id,omitempty"`
+	WorkflowExecID *core.ID         `json:"workflow_exec_id,omitempty"`
+	TaskID         *string          `json:"task_id,omitempty"`
+	TaskExecID     *core.ID         `json:"task_exec_id,omitempty"`
+	AgentID        *string          `json:"agent_id,omitempty"`
+	ToolID         *string          `json:"tool_id,omitempty"`
+}
+
 type Repository interface {
-	CreateExecution(
-		ctx context.Context,
-		metadata *pb.TaskMetadata,
-		config *Config,
-	) (*Execution, error)
-	GetExecution(ctx context.Context, taskExecID core.ID) (*Execution, error)
-	ListExecutions(ctx context.Context) ([]Execution, error)
-	ListExecutionsByTaskID(ctx context.Context, taskID string) ([]Execution, error)
-	ListExecutionsByStatus(ctx context.Context, status core.StatusType) ([]Execution, error)
-	ListExecutionsByWorkflowID(ctx context.Context, workflowID string) ([]Execution, error)
-	ListExecutionsByWorkflowExecID(ctx context.Context, workflowExecID core.ID) ([]Execution, error)
-	ListExecutionsByWorkflowAndTaskID(ctx context.Context, workflowID, taskID string) ([]Execution, error)
-	ListChildrenExecutions(ctx context.Context, taskExecID core.ID) ([]core.Execution, error)
-	ListChildrenExecutionsByTaskID(ctx context.Context, taskID string) ([]core.Execution, error)
-	ExecutionsToMap(ctx context.Context, execs []core.Execution) ([]*core.ExecutionMap, error)
+	ListStates(ctx context.Context, filter *StateFilter) ([]*State, error)
+	UpsertState(ctx context.Context, workflowID string, workflowExecID core.ID, state *State) error
+	GetState(ctx context.Context, workflowID string, workflowExecID core.ID, taskStateID StateID) (*State, error)
+	GetTaskByID(ctx context.Context, workflowID string, workflowExecID core.ID, taskID string) (*State, error)
+	GetTaskByExecID(ctx context.Context, workflowID string, workflowExecID core.ID, taskExecID core.ID) (*State, error)
+	GetTaskByAgentID(ctx context.Context, workflowID string, workflowExecID core.ID, agentID string) (*State, error)
+	GetTaskByToolID(ctx context.Context, workflowID string, workflowExecID core.ID, toolID string) (*State, error)
+	ListTasksInWorkflow(ctx context.Context, workflowExecID core.ID) (map[string]*State, error)
+	ListTasksByStatus(ctx context.Context, workflowExecID core.ID, status core.StatusType) ([]*State, error)
+	ListTasksByAgent(ctx context.Context, workflowExecID core.ID, agentID string) ([]*State, error)
+	ListTasksByTool(ctx context.Context, workflowExecID core.ID, toolID string) ([]*State, error)
 }
