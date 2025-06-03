@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/workflow"
 	testutils "github.com/compozy/compozy/test"
 	"github.com/jackc/pgx/v5"
+	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -331,4 +332,42 @@ func TestWorkflowRepo_GetStateByToolID(t *testing.T) {
 		assert.Equal(t, workflowID, state.WorkflowID)
 		assert.NotNil(t, state.Tasks)
 	})
+}
+
+func TestWorkflowRepo_UpdateStatus(t *testing.T) {
+	mockSetup := testutils.NewMockSetup(t)
+	defer mockSetup.Close()
+
+	repo := store.NewWorkflowRepo(mockSetup.Mock)
+	ctx := context.Background()
+	workflowExecID := "exec1"
+	newStatus := core.StatusRunning
+
+	// Expect the update query with 1 row affected (success)
+	mockSetup.Mock.ExpectExec("UPDATE workflow_states").
+		WithArgs(newStatus, workflowExecID).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+
+	err := repo.UpdateStatus(ctx, workflowExecID, newStatus)
+	assert.NoError(t, err)
+	mockSetup.ExpectationsWereMet()
+}
+
+func TestWorkflowRepo_UpdateStatus_NotFound(t *testing.T) {
+	mockSetup := testutils.NewMockSetup(t)
+	defer mockSetup.Close()
+
+	repo := store.NewWorkflowRepo(mockSetup.Mock)
+	ctx := context.Background()
+	workflowExecID := "nonexistent"
+	newStatus := core.StatusRunning
+
+	// Expect the update query with 0 rows affected (not found)
+	mockSetup.Mock.ExpectExec("UPDATE workflow_states").
+		WithArgs(newStatus, workflowExecID).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+
+	err := repo.UpdateStatus(ctx, workflowExecID, newStatus)
+	assert.ErrorIs(t, err, store.WorkflowErrNotFound)
+	mockSetup.ExpectationsWereMet()
 }

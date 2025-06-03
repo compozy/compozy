@@ -10,37 +10,26 @@ import (
 
 const UpdateWorkflowStatusLabel = "UpdateWorkflowStatus"
 
-type UpdateWorkflowStatusInput struct {
+type UpdateStatusInput struct {
 	WorkflowID     string
 	WorkflowExecID core.ID
-	NewStatus      core.StatusType
+	Status         core.StatusType
 }
 
-type UpdateWorkflowStatusActivity struct {
+type UpdateStatus struct {
 	workflowRepo workflow.Repository
 }
 
-func NewUpdateWorkflowStatusActivity(workflowRepo workflow.Repository) *UpdateWorkflowStatusActivity {
-	return &UpdateWorkflowStatusActivity{
+func NewUpdateStatus(workflowRepo workflow.Repository) *UpdateStatus {
+	return &UpdateStatus{
 		workflowRepo: workflowRepo,
 	}
 }
 
-func (a *UpdateWorkflowStatusActivity) Run(ctx context.Context, input *UpdateWorkflowStatusInput) error {
-	stateID := workflow.StateID{
-		WorkflowID:   input.WorkflowID,
-		WorkflowExec: input.WorkflowExecID,
-	}
-
-	state, err := a.workflowRepo.GetState(ctx, stateID)
-	if err != nil {
-		return fmt.Errorf("failed to get workflow state %s: %w", stateID.String(), err)
-	}
-
-	state.UpdateStatus(input.NewStatus)
-
-	if err := a.workflowRepo.UpsertState(ctx, state); err != nil {
-		return fmt.Errorf("failed to upsert workflow state %s with new status %s: %w", stateID.String(), input.NewStatus, err)
+func (a *UpdateStatus) Run(ctx context.Context, input *UpdateStatusInput) error {
+	workflowExecID := input.WorkflowExecID.String()
+	if err := a.workflowRepo.UpdateStatus(ctx, workflowExecID, input.Status); err != nil {
+		return fmt.Errorf("failed to update workflow %s with new status %s: %w", workflowExecID, input.Status, err)
 	}
 	return nil
 }

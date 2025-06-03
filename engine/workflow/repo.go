@@ -15,6 +15,7 @@ type StateFilter struct {
 type Repository interface {
 	ListStates(ctx context.Context, filter *StateFilter) ([]*State, error)
 	UpsertState(ctx context.Context, state *State) error
+	UpdateStatus(ctx context.Context, workflowExecID string, status core.StatusType) error
 	GetState(ctx context.Context, stateID StateID) (*State, error)
 	GetStateByID(ctx context.Context, workflowID string) (*State, error)
 	GetStateByExecID(ctx context.Context, workflowExecID core.ID) (*State, error)

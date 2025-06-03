@@ -71,10 +71,10 @@ func handlePauseSignal(
 	var signal any
 	c.Receive(ctx, &signal)
 	logger.Info("Workflow pause signal received. Initiating status update.")
-	statusInput := &wfacts.UpdateWorkflowStatusInput{
+	statusInput := &wfacts.UpdateStatusInput{
 		WorkflowID:     wfInput.WorkflowID,
 		WorkflowExecID: wfInput.WorkflowExecID,
-		NewStatus:      core.StatusPaused,
+		Status:         core.StatusPaused,
 	}
 	future := workflow.ExecuteActivity(activityCtx, wfacts.UpdateWorkflowStatusLabel, statusInput)
 	_ = future
@@ -91,10 +91,10 @@ func handleResumeSignal(
 	var signal any
 	c.Receive(ctx, &signal)
 	logger.Info("Workflow resume signal received. Initiating status update.")
-	statusInput := &wfacts.UpdateWorkflowStatusInput{
+	statusInput := &wfacts.UpdateStatusInput{
 		WorkflowID:     wfInput.WorkflowID,
 		WorkflowExecID: wfInput.WorkflowExecID,
-		NewStatus:      core.StatusRunning,
+		Status:         core.StatusRunning,
 	}
 	future := workflow.ExecuteActivity(activityCtx, wfacts.UpdateWorkflowStatusLabel, statusInput)
 	_ = future
@@ -111,10 +111,10 @@ func handleCancelSignal(
 	var signal any
 	c.Receive(ctx, &signal)
 	logger.Info("Workflow cancel signal received. Setting manual cancel flag and initiating status update.")
-	statusInput := &wfacts.UpdateWorkflowStatusInput{
+	statusInput := &wfacts.UpdateStatusInput{
 		WorkflowID:     wfInput.WorkflowID,
 		WorkflowExecID: wfInput.WorkflowExecID,
-		NewStatus:      core.StatusCanceled,
+		Status:         core.StatusCanceled,
 	}
 	future := workflow.ExecuteActivity(activityCtx, wfacts.UpdateWorkflowStatusLabel, statusInput)
 	_ = future

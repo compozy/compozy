@@ -223,6 +223,30 @@ func (r *WorkflowRepo) UpsertState(ctx context.Context, state *workflow.State) e
 	return nil
 }
 
+// UpdateStatus updates the status of a workflow state by execution ID.
+func (r *WorkflowRepo) UpdateStatus(
+	ctx context.Context,
+	workflowExecID string,
+	status core.StatusType,
+) error {
+	query := `
+		UPDATE workflow_states
+		SET status = $1, updated_at = now()
+		WHERE workflow_exec_id = $2
+	`
+
+	cmdTag, err := r.db.Exec(ctx, query, status, workflowExecID)
+	if err != nil {
+		return fmt.Errorf("updating workflow status: %w", err)
+	}
+
+	if cmdTag.RowsAffected() == 0 {
+		return WorkflowErrNotFound
+	}
+
+	return nil
+}
+
 // GetState retrieves a workflow state by its StateID.
 func (r *WorkflowRepo) GetState(ctx context.Context, stateID workflow.StateID) (*workflow.State, error) {
 	var result *workflow.State
