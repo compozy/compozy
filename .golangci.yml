@@ -87,7 +87,7 @@ linters:
         text: unnecessaryDefer
       - linters:
           - gocritic
-        path: engine/orchestrator/orchestrator.go
+        path: engine/worker/worker.go
       - linters:
           - gochecknoinits
           - goconst

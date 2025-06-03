@@ -1,11 +1,10 @@
-package orchestrator
+package worker
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/temporal"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
@@ -14,7 +13,7 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Temporal-based Orchestrator
+// Temporal-based Worker
 // -----------------------------------------------------------------------------
 
 type Config struct {
@@ -22,30 +21,34 @@ type Config struct {
 	TaskRepo     func() task.Repository
 }
 
-type Orchestrator struct {
+type Worker struct {
+	client        *Client
 	config        *Config
-	tc            *temporal.Client
-	activities    *temporal.Activities
+	activities    *Activities
 	worker        worker.Worker
 	projectConfig *project.Config
 	workflows     []*workflow.Config
 }
 
-func NewOrchestrator(
-	tc *temporal.Client,
+func NewWorker(
 	config *Config,
+	clientConfig *TemporalConfig,
 	projectConfig *project.Config,
 	workflows []*workflow.Config,
-) (*Orchestrator, error) {
-	worker := tc.NewWorker(tc.Config().TaskQueue)
-	activities := temporal.NewActivities(
+) (*Worker, error) {
+	client, err := NewClient(clientConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create worker client: %w", err)
+	}
+	worker := client.NewWorker(client.Config().TaskQueue)
+	activities := NewActivities(
 		projectConfig,
 		workflows,
 		config.WorkflowRepo(),
 		config.TaskRepo(),
 	)
-	return &Orchestrator{
-		tc:            tc,
+	return &Worker{
+		client:        client,
 		config:        config,
 		worker:        worker,
 		projectConfig: projectConfig,
@@ -54,20 +57,21 @@ func NewOrchestrator(
 	}, nil
 }
 
-func (o *Orchestrator) Setup(_ context.Context) error {
-	o.tc.RegisterWorker(o.worker, o.activities)
+func (o *Worker) Setup(_ context.Context) error {
+	o.client.RegisterWorker(o.worker, o.activities)
 	return o.worker.Start()
 }
 
-func (o *Orchestrator) Stop() {
+func (o *Worker) Stop() {
+	o.client.Close()
 	o.worker.Stop()
 }
 
-func (o *Orchestrator) WorkflowRepo() workflow.Repository {
+func (o *Worker) WorkflowRepo() workflow.Repository {
 	return o.config.WorkflowRepo()
 }
 
-func (o *Orchestrator) TaskRepo() task.Repository {
+func (o *Worker) TaskRepo() task.Repository {
 	return o.config.TaskRepo()
 }
 
@@ -75,14 +79,14 @@ func (o *Orchestrator) TaskRepo() task.Repository {
 // Workflow Operations
 // -----------------------------------------------------------------------------
 
-func (o *Orchestrator) TriggerWorkflow(
+func (o *Worker) TriggerWorkflow(
 	ctx context.Context,
 	workflowID string,
 	input *core.Input,
 ) (*workflow.StateID, error) {
 	// Start workflow
 	workflowExecID := core.MustNewID()
-	workflowInput := temporal.WorkflowInput{
+	workflowInput := WorkflowInput{
 		WorkflowID:     workflowID,
 		WorkflowExecID: workflowExecID,
 		Input:          input,
@@ -90,13 +94,13 @@ func (o *Orchestrator) TriggerWorkflow(
 
 	options := client.StartWorkflowOptions{
 		ID:        workflowExecID.String(),
-		TaskQueue: o.tc.Config().TaskQueue,
+		TaskQueue: o.client.Config().TaskQueue,
 	}
 
-	_, err := o.tc.ExecuteWorkflow(
+	_, err := o.client.ExecuteWorkflow(
 		ctx,
 		options,
-		temporal.CompozyWorkflow,
+		CompozyWorkflow,
 		workflowInput,
 	)
 	if err != nil {
@@ -109,14 +113,14 @@ func (o *Orchestrator) TriggerWorkflow(
 	}, nil
 }
 
-func (o *Orchestrator) PauseWorkflow(ctx context.Context, workflowExecID string) error {
-	return o.tc.SignalWorkflow(ctx, workflowExecID, "", temporal.SignalPause, nil)
+func (o *Worker) PauseWorkflow(ctx context.Context, workflowExecID string) error {
+	return o.client.SignalWorkflow(ctx, workflowExecID, "", SignalPause, nil)
 }
 
-func (o *Orchestrator) ResumeWorkflow(ctx context.Context, workflowExecID string) error {
-	return o.tc.SignalWorkflow(ctx, workflowExecID, "", temporal.SignalResume, nil)
+func (o *Worker) ResumeWorkflow(ctx context.Context, workflowExecID string) error {
+	return o.client.SignalWorkflow(ctx, workflowExecID, "", SignalResume, nil)
 }
 
-func (o *Orchestrator) CancelWorkflow(ctx context.Context, workflowExecID string) error {
-	return o.tc.SignalWorkflow(ctx, workflowExecID, "", temporal.SignalCancel, nil)
+func (o *Worker) CancelWorkflow(ctx context.Context, workflowExecID string) error {
+	return o.client.SignalWorkflow(ctx, workflowExecID, "", SignalCancel, nil)
 }

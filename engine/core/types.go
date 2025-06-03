@@ -204,7 +204,7 @@ func ToStatus(status string) StatusType {
 type SourceType string
 
 const (
-	SourceOrchestrator    SourceType = "orchestrator.Orchestrator"
+	SourceWorker          SourceType = "worker.Worker"
 	SourceWorkflowExecute SourceType = "workflow.HandleExecute"
 	SourceTaskExecute     SourceType = "task.HandleExecute"
 )

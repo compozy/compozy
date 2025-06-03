@@ -6,7 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/infra/server"
 	"github.com/compozy/compozy/engine/infra/store"
-	"github.com/compozy/compozy/engine/infra/temporal"
+	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/utils"
 	"github.com/gin-gonic/gin"
@@ -109,7 +109,7 @@ func getDatabaseConfig(cmd *cobra.Command) (*store.Config, error) {
 	}, nil
 }
 
-func getTemporalConfig(cmd *cobra.Command) (*temporal.Config, error) {
+func getTemporalConfig(cmd *cobra.Command) (*worker.TemporalConfig, error) {
 	hostPort, err := cmd.Flags().GetString("temporal-host")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get temporal-host flag: %w", err)
@@ -136,7 +136,7 @@ func getTemporalConfig(cmd *cobra.Command) (*temporal.Config, error) {
 		taskQueue = getEnvOrDefault("TEMPORAL_TASK_QUEUE", "compozy-task-queue")
 	}
 
-	return &temporal.Config{
+	return &worker.TemporalConfig{
 		HostPort:  hostPort,
 		Namespace: namespace,
 		TaskQueue: taskQueue,

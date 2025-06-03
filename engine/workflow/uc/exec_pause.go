@@ -3,7 +3,7 @@ package uc
 import (
 	"context"
 
-	"github.com/compozy/compozy/engine/orchestrator"
+	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 )
 
@@ -12,14 +12,14 @@ import (
 // -----------------------------------------------------------------------------
 
 type PauseExecution struct {
-	orchestrator *orchestrator.Orchestrator
-	stateID      string
+	worker  *worker.Worker
+	stateID string
 }
 
-func NewPauseExecution(orchestrator *orchestrator.Orchestrator, stateID string) *PauseExecution {
+func NewPauseExecution(worker *worker.Worker, stateID string) *PauseExecution {
 	return &PauseExecution{
-		orchestrator: orchestrator,
-		stateID:      stateID,
+		worker:  worker,
+		stateID: stateID,
 	}
 }
 
@@ -28,5 +28,5 @@ func (uc *PauseExecution) Execute(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return uc.orchestrator.PauseWorkflow(ctx, string(stateID.WorkflowExec))
+	return uc.worker.PauseWorkflow(ctx, string(stateID.WorkflowExec))
 }

@@ -1,4 +1,4 @@
-package temporal
+package worker
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ import (
 // Client
 // -----------------------------------------------------------------------------
 
-type Config struct {
+type TemporalConfig struct {
 	HostPort  string
 	Namespace string
 	TaskQueue string
@@ -20,10 +20,10 @@ type Config struct {
 
 type Client struct {
 	client.Client
-	config *Config
+	config *TemporalConfig
 }
 
-func New(cfg *Config) (*Client, error) {
+func NewClient(cfg *TemporalConfig) (*Client, error) {
 	options := client.Options{
 		HostPort:  cfg.HostPort,
 		Namespace: cfg.Namespace,
@@ -39,7 +39,7 @@ func New(cfg *Config) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) Config() *Config {
+func (c *Client) Config() *TemporalConfig {
 	return c.config
 }
 

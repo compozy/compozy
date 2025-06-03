@@ -13,10 +13,9 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/store"
-	"github.com/compozy/compozy/engine/infra/temporal"
-	"github.com/compozy/compozy/engine/orchestrator"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/ref"
@@ -25,14 +24,14 @@ import (
 
 type Server struct {
 	Config         *Config
-	TemporalConfig *temporal.Config
+	TemporalConfig *worker.TemporalConfig
 	StoreConfig    *store.Config
 	router         *gin.Engine
 	ctx            context.Context
 	cancel         context.CancelFunc
 }
 
-func NewServer(config Config, tConfig *temporal.Config, sConfig *store.Config) *Server {
+func NewServer(config Config, tConfig *worker.TemporalConfig, sConfig *store.Config) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
 		Config:         &config,
@@ -76,6 +75,41 @@ func (s *Server) Run() error {
 	return s.startAndRunServer()
 }
 
+func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
+	var cleanupFuncs []func()
+
+	// Load project and workspace files
+	projectConfig, workflows, err := loadProject(s.Config.CWD, s.Config.ConfigFile)
+	if err != nil {
+		return nil, cleanupFuncs, fmt.Errorf("failed to load project: %w", err)
+	}
+
+	store, err := store.SetupStore(s.ctx, s.StoreConfig)
+	if err != nil {
+		return nil, cleanupFuncs, fmt.Errorf("failed to setup store: %w", err)
+	}
+	cleanupFuncs = append(cleanupFuncs, func() {
+		store.DB.Close()
+	})
+
+	clientConfig := s.TemporalConfig
+	deps := appstate.NewBaseDeps(projectConfig, workflows, store, clientConfig)
+	worker, err := setupWorker(s.ctx, deps)
+	if err != nil {
+		return nil, cleanupFuncs, err
+	}
+	cleanupFuncs = append(cleanupFuncs, func() {
+		worker.Stop()
+	})
+
+	state, err := appstate.NewState(deps, worker)
+	if err != nil {
+		return nil, cleanupFuncs, fmt.Errorf("failed to create app state: %w", err)
+	}
+
+	return state, cleanupFuncs, nil
+}
+
 func loadProject(cwd string, file string) (*project.Config, []*workflow.Config, error) {
 	pCWD, err := core.CWDFromPath(cwd)
 	if err != nil {
@@ -100,12 +134,11 @@ func loadProject(cwd string, file string) (*project.Config, []*workflow.Config, 
 		return nil, nil, err
 	}
 
+	// Load workflows from sources
 	ev := ref.NewEvaluator(
 		ref.WithGlobalScope(globalScope),
 		ref.WithCacheEnabled(),
 	)
-
-	// Load workflows from sources
 	workflows, err := workflow.WorkflowsFromProject(projectConfig, ev)
 	if err != nil {
 		logger.Error("Failed to load workflows", "error", err)
@@ -115,11 +148,8 @@ func loadProject(cwd string, file string) (*project.Config, []*workflow.Config, 
 	return projectConfig, workflows, nil
 }
 
-func setupOrchestrator(ctx context.Context, deps appstate.BaseDeps) (*orchestrator.Orchestrator, error) {
-	tc := deps.TemporalClient
-	projectConfig := deps.ProjectConfig
-	workflows := deps.Workflows
-	orchConfig := &orchestrator.Config{
+func setupWorker(ctx context.Context, deps appstate.BaseDeps) (*worker.Worker, error) {
+	workerConfig := &worker.Config{
 		WorkflowRepo: func() workflow.Repository {
 			return deps.Store.NewWorkflowRepo()
 		},
@@ -127,60 +157,21 @@ func setupOrchestrator(ctx context.Context, deps appstate.BaseDeps) (*orchestrat
 			return deps.Store.NewTaskRepo()
 		},
 	}
-	orch, err := orchestrator.NewOrchestrator(
-		tc,
-		orchConfig,
-		projectConfig,
-		workflows,
+	worker, err := worker.NewWorker(
+		workerConfig,
+		deps.ClientConfig,
+		deps.ProjectConfig,
+		deps.Workflows,
 	)
 	if err != nil {
-		logger.Error("Failed to create orchestrator", "error", err)
-		return nil, fmt.Errorf("failed to create orchestrator: %w", err)
+		logger.Error("Failed to create worker", "error", err)
+		return nil, fmt.Errorf("failed to create worker: %w", err)
 	}
-	if err := orch.Setup(ctx); err != nil {
-		logger.Error("Failed to setup orchestrator", "error", err)
-		return nil, fmt.Errorf("failed to setup orchestrator: %w", err)
+	if err := worker.Setup(ctx); err != nil {
+		logger.Error("Failed to setup worker", "error", err)
+		return nil, fmt.Errorf("failed to setup worker: %w", err)
 	}
-	return orch, nil
-}
-
-func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
-	var cleanupFuncs []func()
-
-	// Load project and workspace files
-	projectConfig, workflows, err := loadProject(s.Config.CWD, s.Config.ConfigFile)
-	if err != nil {
-		return nil, cleanupFuncs, fmt.Errorf("failed to load project: %w", err)
-	}
-
-	// Setup Temporal client
-	tc, err := temporal.New(s.TemporalConfig)
-	if err != nil {
-		return nil, cleanupFuncs, fmt.Errorf("failed to create temporal client: %w", err)
-	}
-	cleanupFuncs = append(cleanupFuncs, func() {
-		tc.Close()
-	})
-
-	store, err := store.SetupStore(s.ctx, s.StoreConfig)
-	if err != nil {
-		return nil, cleanupFuncs, fmt.Errorf("failed to setup store: %w", err)
-	}
-	cleanupFuncs = append(cleanupFuncs, func() {
-		store.DB.Close()
-	})
-
-	deps := appstate.NewBaseDeps(tc, projectConfig, workflows, store)
-	orch, err := setupOrchestrator(s.ctx, deps)
-	if err != nil {
-		return nil, cleanupFuncs, err
-	}
-	state, err := appstate.NewState(deps, orch)
-	if err != nil {
-		return nil, cleanupFuncs, fmt.Errorf("failed to create app state: %w", err)
-	}
-
-	return state, cleanupFuncs, nil
+	return worker, nil
 }
 
 func (s *Server) cleanup(cleanupFuncs []func()) {

@@ -30,7 +30,7 @@ func getExecution(c *gin.Context) {
 	if appState == nil {
 		return
 	}
-	repo := appState.Orchestrator.WorkflowRepo()
+	repo := appState.Worker.WorkflowRepo()
 	useCase := uc.NewGetExecution(repo, stateID)
 	exec, err := useCase.Execute(c.Request.Context())
 	if err != nil {
@@ -60,7 +60,7 @@ func listAllExecutions(c *gin.Context) {
 	if appState == nil {
 		return
 	}
-	repo := appState.Orchestrator.WorkflowRepo()
+	repo := appState.Worker.WorkflowRepo()
 	useCase := uc.NewListAllExecutions(repo)
 	executions, err := useCase.Execute(c.Request.Context())
 	if err != nil {
@@ -98,7 +98,7 @@ func listExecutionsByID(c *gin.Context) {
 	if appState == nil {
 		return
 	}
-	repo := appState.Orchestrator.WorkflowRepo()
+	repo := appState.Worker.WorkflowRepo()
 	useCase := uc.NewListExecutionsByID(repo, wfID)
 	execs, err := useCase.Execute(c.Request.Context())
 	if err != nil {
@@ -136,7 +136,7 @@ func pauseExecution(c *gin.Context) {
 	if appState == nil {
 		return
 	}
-	useCase := uc.NewPauseExecution(appState.Orchestrator, stateID)
+	useCase := uc.NewPauseExecution(appState.Worker, stateID)
 	err := useCase.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(
@@ -171,7 +171,7 @@ func resumeExecution(c *gin.Context) {
 	if appState == nil {
 		return
 	}
-	useCase := uc.NewResumeExecution(appState.Orchestrator, stateID)
+	useCase := uc.NewResumeExecution(appState.Worker, stateID)
 	err := useCase.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(
@@ -206,7 +206,7 @@ func cancelExecution(c *gin.Context) {
 	if appState == nil {
 		return
 	}
-	useCase := uc.NewCancelExecution(appState.Orchestrator, stateID)
+	useCase := uc.NewCancelExecution(appState.Worker, stateID)
 	err := useCase.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(

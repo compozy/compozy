@@ -3,7 +3,7 @@ package uc
 import (
 	"context"
 
-	"github.com/compozy/compozy/engine/orchestrator"
+	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 )
 
@@ -12,14 +12,14 @@ import (
 // -----------------------------------------------------------------------------
 
 type ResumeExecution struct {
-	orchestrator *orchestrator.Orchestrator
-	stateID      string
+	worker  *worker.Worker
+	stateID string
 }
 
-func NewResumeExecution(orchestrator *orchestrator.Orchestrator, stateID string) *ResumeExecution {
+func NewResumeExecution(worker *worker.Worker, stateID string) *ResumeExecution {
 	return &ResumeExecution{
-		orchestrator: orchestrator,
-		stateID:      stateID,
+		worker:  worker,
+		stateID: stateID,
 	}
 }
 
@@ -28,5 +28,5 @@ func (uc *ResumeExecution) Execute(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return uc.orchestrator.ResumeWorkflow(ctx, string(stateID.WorkflowExec))
+	return uc.worker.ResumeWorkflow(ctx, string(stateID.WorkflowExec))
 }
