@@ -49,7 +49,8 @@ func handleExecute(c *gin.Context) {
 	}
 
 	// Trigger workflow using Temporal orchestrator
-	workflowStateID, err := state.Orchestrator.TriggerWorkflow(c.Request.Context(), workflowID, input)
+	orch := state.Orchestrator
+	workflowStateID, err := orch.TriggerWorkflow(c.Request.Context(), workflowID, input)
 	if err != nil {
 		reason := fmt.Sprintf("failed to trigger workflow: %s", workflowID)
 		reqErr := router.WorkflowExecutionError(workflowID, reason, err)

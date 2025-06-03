@@ -14,8 +14,8 @@ import (
 // -----------------------------------------------------------------------------
 
 type StateID struct {
-	WorkflowID   string
-	WorkflowExec core.ID
+	WorkflowID   string  `json:"workflow_id" db:"workflow_id"`
+	WorkflowExec core.ID `json:"workflow_exec" db:"workflow_exec_id"`
 }
 
 func StateIDFromString(s string) (*StateID, error) {
@@ -47,17 +47,70 @@ func (e *StateID) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
 	}
-	e.WorkflowID, e.WorkflowExec = strings.Split(s, "_")[0], core.ID(strings.Split(s, "_")[1])
+	parts := strings.Split(s, "_")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid state ID format after unmarshal: %s", s)
+	}
+	e.WorkflowID, e.WorkflowExec = parts[0], core.ID(parts[1])
 	return nil
 }
 
 type State struct {
-	Status  core.StatusType        `json:"status"`
-	StateID StateID                `json:"state_id"`
-	Input   *core.Input            `json:"input"`
-	Output  *core.Output           `json:"output"`
-	Error   *core.Error            `json:"error"`
-	Tasks   map[string]*task.State `json:"tasks"`
+	StateID
+
+	Status core.StatusType        `json:"status" db:"status"`
+	Input  *core.Input            `json:"input" db:"input"`
+	Output *core.Output           `json:"output" db:"output"`
+	Error  *core.Error            `json:"error" db:"error"`
+	Tasks  map[string]*task.State `json:"tasks"`
+}
+
+// StateDB is used for database scanning with JSONB fields as []byte
+type StateDB struct {
+	StateID
+
+	Status    core.StatusType `db:"status"`
+	InputRaw  []byte          `db:"input"`
+	OutputRaw []byte          `db:"output"`
+	ErrorRaw  []byte          `db:"error"`
+}
+
+// ToState converts StateDB to State with proper JSON unmarshaling
+func (sdb *StateDB) ToState() (*State, error) {
+	state := &State{
+		StateID: sdb.StateID,
+		Status:  sdb.Status,
+		Tasks:   make(map[string]*task.State),
+	}
+
+	// Unmarshal input
+	if sdb.InputRaw != nil {
+		var input core.Input
+		if err := json.Unmarshal(sdb.InputRaw, &input); err != nil {
+			return nil, fmt.Errorf("unmarshaling input: %w", err)
+		}
+		state.Input = &input
+	}
+
+	// Unmarshal output
+	if sdb.OutputRaw != nil {
+		var output core.Output
+		if err := json.Unmarshal(sdb.OutputRaw, &output); err != nil {
+			return nil, fmt.Errorf("unmarshaling output: %w", err)
+		}
+		state.Output = &output
+	}
+
+	// Unmarshal error
+	if sdb.ErrorRaw != nil {
+		var errorObj core.Error
+		if err := json.Unmarshal(sdb.ErrorRaw, &errorObj); err != nil {
+			return nil, fmt.Errorf("unmarshaling error: %w", err)
+		}
+		state.Error = &errorObj
+	}
+
+	return state, nil
 }
 
 func NewState(workflowID string, workflowExecID core.ID, input *core.Input) *State {
@@ -93,7 +146,7 @@ func (e *State) UpdateStatus(status core.StatusType) {
 }
 
 func (e *State) AddTask(task *task.State) {
-	e.Tasks[task.StateID.String()] = task
+	e.Tasks[task.String()] = task
 }
 
 func (e *State) GetTask(taskID task.StateID) *task.State {
@@ -102,7 +155,7 @@ func (e *State) GetTask(taskID task.StateID) *task.State {
 
 func (e *State) GetTaskByID(taskID string) *task.State {
 	for _, task := range e.Tasks {
-		if task.StateID.TaskID == taskID {
+		if task.TaskID == taskID {
 			return task
 		}
 	}
@@ -111,7 +164,7 @@ func (e *State) GetTaskByID(taskID string) *task.State {
 
 func (e *State) GetTaskByExecID(taskExecID core.ID) *task.State {
 	for _, task := range e.Tasks {
-		if task.StateID.TaskExecID == taskExecID {
+		if task.TaskExecID == taskExecID {
 			return task
 		}
 	}

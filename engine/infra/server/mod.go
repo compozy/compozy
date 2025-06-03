@@ -12,9 +12,11 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/infra/temporal"
 	"github.com/compozy/compozy/engine/orchestrator"
 	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/ref"
@@ -72,6 +74,74 @@ func (s *Server) Run() error {
 	return s.startAndRunServer()
 }
 
+func loadProject(cwd string, file string) (*project.Config, []*workflow.Config, error) {
+	pCWD, err := core.CWDFromPath(cwd)
+	if err != nil {
+		return nil, nil, err
+	}
+	logger.Info("Starting compozy server")
+	logger.Debug("Loading config file", "config_file", file)
+
+	projectConfig, err := project.Load(pCWD, file)
+	if err != nil {
+		logger.Error("Failed to load project config", "error", err)
+		return nil, nil, err
+	}
+
+	if err := projectConfig.Validate(); err != nil {
+		logger.Error("Invalid project config", "error", err)
+		return nil, nil, err
+	}
+	globalScope, err := projectConfig.AsMap()
+	if err != nil {
+		logger.Error("Failed to convert project config to map", "error", err)
+		return nil, nil, err
+	}
+
+	ev := ref.NewEvaluator(
+		ref.WithGlobalScope(globalScope),
+		ref.WithCacheEnabled(),
+	)
+
+	// Load workflows from sources
+	workflows, err := workflow.WorkflowsFromProject(projectConfig, ev)
+	if err != nil {
+		logger.Error("Failed to load workflows", "error", err)
+		return nil, nil, err
+	}
+
+	return projectConfig, workflows, nil
+}
+
+func setupOrchestrator(ctx context.Context, deps appstate.BaseDeps) (*orchestrator.Orchestrator, error) {
+	tc := deps.TemporalClient
+	projectConfig := deps.ProjectConfig
+	workflows := deps.Workflows
+	orchConfig := &orchestrator.Config{
+		WorkflowRepo: func() workflow.Repository {
+			return deps.Store.NewWorkflowRepo()
+		},
+		TaskRepo: func() task.Repository {
+			return deps.Store.NewTaskRepo()
+		},
+	}
+	orch, err := orchestrator.NewOrchestrator(
+		tc,
+		orchConfig,
+		projectConfig,
+		workflows,
+	)
+	if err != nil {
+		logger.Error("Failed to create orchestrator", "error", err)
+		return nil, fmt.Errorf("failed to create orchestrator: %w", err)
+	}
+	if err := orch.Setup(ctx); err != nil {
+		logger.Error("Failed to setup orchestrator", "error", err)
+		return nil, fmt.Errorf("failed to setup orchestrator: %w", err)
+	}
+	return orch, nil
+}
+
 func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	var cleanupFuncs []func()
 
@@ -90,30 +160,25 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 		tc.Close()
 	})
 
-	// Setup orchestrator and app state
-	state, err := s.setupAppState(tc, projectConfig, workflows)
+	store, err := store.SetupStore(s.ctx)
+	if err != nil {
+		return nil, cleanupFuncs, fmt.Errorf("failed to setup store: %w", err)
+	}
+	cleanupFuncs = append(cleanupFuncs, func() {
+		store.DB.Close()
+	})
+
+	deps := appstate.NewBaseDeps(tc, projectConfig, workflows, store)
+	orch, err := setupOrchestrator(s.ctx, deps)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
-
-	return state, cleanupFuncs, nil
-}
-
-func (s *Server) setupAppState(
-	tc *temporal.Client,
-	projectConfig *project.Config,
-	workflows []*workflow.Config,
-) (*appstate.State, error) {
-	deps := appstate.NewBaseDeps(tc, projectConfig, workflows)
-	orch, err := setupOrchestrator(s.ctx, deps)
-	if err != nil {
-		return nil, err
-	}
 	state, err := appstate.NewState(deps, orch)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create app state: %w", err)
+		return nil, cleanupFuncs, fmt.Errorf("failed to create app state: %w", err)
 	}
-	return state, nil
+
+	return state, cleanupFuncs, nil
 }
 
 func (s *Server) cleanup(cleanupFuncs []func()) {
@@ -172,65 +237,4 @@ func (s *Server) handleGracefulShutdown(srv *http.Server) error {
 
 	logger.Info("Server shutdown completed successfully")
 	return nil
-}
-
-func setupOrchestrator(ctx context.Context, deps appstate.BaseDeps) (*orchestrator.Orchestrator, error) {
-	tc := deps.TemporalClient
-	projectConfig := deps.ProjectConfig
-	workflows := deps.Workflows
-
-	// Create orchestrator with Temporal
-	orch, err := orchestrator.NewOrchestrator(
-		tc,
-		projectConfig,
-		workflows,
-	)
-	if err != nil {
-		logger.Error("Failed to create orchestrator", "error", err)
-		return nil, fmt.Errorf("failed to create orchestrator: %w", err)
-	}
-	if err := orch.Setup(ctx); err != nil {
-		logger.Error("Failed to setup orchestrator", "error", err)
-		return nil, fmt.Errorf("failed to setup orchestrator: %w", err)
-	}
-	return orch, nil
-}
-
-func loadProject(cwd string, file string) (*project.Config, []*workflow.Config, error) {
-	pCWD, err := core.CWDFromPath(cwd)
-	if err != nil {
-		return nil, nil, err
-	}
-	logger.Info("Starting compozy server")
-	logger.Debug("Loading config file", "config_file", file)
-
-	projectConfig, err := project.Load(pCWD, file)
-	if err != nil {
-		logger.Error("Failed to load project config", "error", err)
-		return nil, nil, err
-	}
-
-	if err := projectConfig.Validate(); err != nil {
-		logger.Error("Invalid project config", "error", err)
-		return nil, nil, err
-	}
-	globalScope, err := projectConfig.AsMap()
-	if err != nil {
-		logger.Error("Failed to convert project config to map", "error", err)
-		return nil, nil, err
-	}
-
-	ev := ref.NewEvaluator(
-		ref.WithGlobalScope(globalScope),
-		ref.WithCacheEnabled(),
-	)
-
-	// Load workflows from sources
-	workflows, err := workflow.WorkflowsFromProject(projectConfig, ev)
-	if err != nil {
-		logger.Error("Failed to load workflows", "error", err)
-		return nil, nil, err
-	}
-
-	return projectConfig, workflows, nil
 }

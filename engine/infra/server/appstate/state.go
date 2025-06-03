@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/infra/temporal"
 	"github.com/compozy/compozy/engine/orchestrator"
 	"github.com/compozy/compozy/engine/project"
@@ -19,6 +20,7 @@ const (
 )
 
 type BaseDeps struct {
+	Store          *store.Store
 	TemporalClient *temporal.Client
 	ProjectConfig  *project.Config
 	Workflows      []*workflow.Config
@@ -28,11 +30,13 @@ func NewBaseDeps(
 	tc *temporal.Client,
 	projectConfig *project.Config,
 	workflows []*workflow.Config,
+	store *store.Store,
 ) BaseDeps {
 	return BaseDeps{
 		TemporalClient: tc,
 		ProjectConfig:  projectConfig,
 		Workflows:      workflows,
+		Store:          store,
 	}
 }
 

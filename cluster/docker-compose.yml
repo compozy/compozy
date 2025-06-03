@@ -1,11 +1,17 @@
-# To use specific versions, create a .env file with:
+# To use specific versions and database configuration, create a .env file with:
+# DB_HOST=localhost
+# DB_PORT=5432
+# DB_USER=temporal
+# DB_PASSWORD=temporal
+# DB_NAME=temporal
 # TEMPORAL_VERSION=1.28.0
 # TEMPORAL_UI_VERSION=2.45.0
 # TEMPORAL_ADMINTOOLS_VERSION=1.28.0
 # POSTGRESQL_VERSION=15-alpine
 
 services:
-  postgresql:
+  # PostgreSQL for Temporal (development only - hardcoded values)
+  temporal-postgresql:
     container_name: temporal-postgresql
     image: postgres:${POSTGRESQL_VERSION:-15-alpine}
     environment:
@@ -15,11 +21,31 @@ services:
     networks:
       - temporal-network
     ports:
-      - "5432:5432"
+      - "5433:5432"  # Different port to avoid conflicts
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - temporal_postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # PostgreSQL for the application
+  app-postgresql:
+    container_name: app-postgresql
+    image: postgres:${POSTGRESQL_VERSION:-15-alpine}
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-compozy}
+    networks:
+      - temporal-network
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - app_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -28,13 +54,13 @@ services:
     container_name: temporal
     image: temporalio/auto-setup:${TEMPORAL_VERSION:-latest}
     depends_on:
-      - postgresql
+      - temporal-postgresql
     environment:
       - DB=postgres12
       - DB_PORT=5432
       - POSTGRES_USER=temporal
       - POSTGRES_PWD=temporal
-      - POSTGRES_SEEDS=postgresql
+      - POSTGRES_SEEDS=temporal-postgresql
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
       - TEMPORAL_ADDRESS=temporal:7233
       - TEMPORAL_CLI_ADDRESS=temporal:7233
@@ -82,5 +108,7 @@ networks:
     name: temporal-network
 
 volumes:
-  postgres_data:
+  temporal_postgres_data:
+    driver: local
+  app_postgres_data:
     driver: local

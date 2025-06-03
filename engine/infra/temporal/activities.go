@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 )
@@ -12,6 +13,7 @@ type Activities struct {
 	projectConfig                *project.Config
 	workflows                    []*workflow.Config
 	workflowRepo                 workflow.Repository
+	taskRepo                     task.Repository
 	updateWorkflowStatusActivity *wfacts.UpdateWorkflowStatusActivity
 }
 
@@ -19,11 +21,13 @@ func NewActivities(
 	projectConfig *project.Config,
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
+	taskRepo task.Repository,
 ) *Activities {
 	return &Activities{
 		projectConfig:                projectConfig,
 		workflows:                    workflows,
 		workflowRepo:                 workflowRepo,
+		taskRepo:                     taskRepo,
 		updateWorkflowStatusActivity: wfacts.NewUpdateWorkflowStatusActivity(workflowRepo),
 	}
 }

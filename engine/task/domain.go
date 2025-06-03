@@ -1,6 +1,7 @@
 package task
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -13,8 +14,8 @@ import (
 // -----------------------------------------------------------------------------
 
 type StateID struct {
-	TaskID     string
-	TaskExecID core.ID
+	TaskID     string  `json:"task_id" db:"task_id"`
+	TaskExecID core.ID `json:"task_exec_id" db:"task_exec_id"`
 }
 
 func (e *StateID) GetComponentID() string {
@@ -39,18 +40,84 @@ func UnmarshalStateID(data []byte) (*StateID, error) {
 		return nil, err
 	}
 	parts := strings.Split(s, "_")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid state ID format: %s", s)
+	}
 	return &StateID{TaskID: parts[0], TaskExecID: core.ID(parts[1])}, nil
 }
 
 type State struct {
-	Status    core.StatusType    `json:"status"`
-	Component core.ComponentType `json:"component"`
-	StateID   StateID            `json:"state_id"`
-	AgentID   *string            `json:"agent_id,omitempty"`
-	ToolID    *string            `json:"tool_id,omitempty"`
-	Input     *core.Input        `json:"input,omitempty"`
-	Output    *core.Output       `json:"output,omitempty"`
-	Error     *core.Error        `json:"error,omitempty"`
+	StateID // Anonymous embedding: fields from StateID are promoted
+
+	Status    core.StatusType    `json:"status" db:"status"`
+	Component core.ComponentType `json:"component" db:"workflow_id"` // Maps to workflow_id in DB
+	AgentID   *string            `json:"agent_id,omitempty" db:"agent_id"`
+	ToolID    *string            `json:"tool_id,omitempty" db:"tool_id"`
+	Input     *core.Input        `json:"input,omitempty" db:"input"`
+	Output    *core.Output       `json:"output,omitempty" db:"output"`
+	Error     *core.Error        `json:"error,omitempty" db:"error"`
+}
+
+// StateDB is used for database scanning with JSONB fields as []byte
+type StateDB struct {
+	StateID
+
+	Status         core.StatusType `db:"status"`
+	WorkflowID     string          `db:"workflow_id"`
+	WorkflowExecID core.ID         `db:"workflow_exec_id"`
+	AgentIDRaw     sql.NullString  `db:"agent_id"` // Can be NULL
+	ToolIDRaw      sql.NullString  `db:"tool_id"`  // Can be NULL
+	InputRaw       []byte          `db:"input"`
+	OutputRaw      []byte          `db:"output"`
+	ErrorRaw       []byte          `db:"error"`
+}
+
+// ToState converts StateDB to State with proper JSON unmarshaling
+func (sdb *StateDB) ToState() (*State, error) {
+	state := &State{
+		StateID:   sdb.StateID,
+		Status:    sdb.Status,
+		Component: core.ComponentTask, // Always task for this domain
+	}
+
+	// Handle nullable AgentID
+	if sdb.AgentIDRaw.Valid {
+		state.AgentID = &sdb.AgentIDRaw.String
+	}
+
+	// Handle nullable ToolID
+	if sdb.ToolIDRaw.Valid {
+		state.ToolID = &sdb.ToolIDRaw.String
+	}
+
+	// Unmarshal input
+	if sdb.InputRaw != nil {
+		var input core.Input
+		if err := json.Unmarshal(sdb.InputRaw, &input); err != nil {
+			return nil, fmt.Errorf("unmarshaling input: %w", err)
+		}
+		state.Input = &input
+	}
+
+	// Unmarshal output
+	if sdb.OutputRaw != nil {
+		var output core.Output
+		if err := json.Unmarshal(sdb.OutputRaw, &output); err != nil {
+			return nil, fmt.Errorf("unmarshaling output: %w", err)
+		}
+		state.Output = &output
+	}
+
+	// Unmarshal error
+	if sdb.ErrorRaw != nil {
+		var errorObj core.Error
+		if err := json.Unmarshal(sdb.ErrorRaw, &errorObj); err != nil {
+			return nil, fmt.Errorf("unmarshaling error: %w", err)
+		}
+		state.Error = &errorObj
+	}
+
+	return state, nil
 }
 
 func (e *State) AsMap() (map[core.ID]any, error) {

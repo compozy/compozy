@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/infra/temporal"
 	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
@@ -17,37 +17,40 @@ import (
 // Temporal-based Orchestrator
 // -----------------------------------------------------------------------------
 
+type Config struct {
+	WorkflowRepo func() workflow.Repository
+	TaskRepo     func() task.Repository
+}
+
 type Orchestrator struct {
+	config        *Config
 	tc            *temporal.Client
 	activities    *temporal.Activities
 	worker        worker.Worker
 	projectConfig *project.Config
 	workflows     []*workflow.Config
-	workflowRepo  workflow.Repository
 }
 
 func NewOrchestrator(
 	tc *temporal.Client,
+	config *Config,
 	projectConfig *project.Config,
 	workflows []*workflow.Config,
 ) (*Orchestrator, error) {
 	worker := tc.NewWorker(tc.Config().TaskQueue)
-	workflowRepo, err := store.NewWorkflowRepository()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create workflow repository: %w", err)
-	}
 	activities := temporal.NewActivities(
 		projectConfig,
 		workflows,
-		workflowRepo,
+		config.WorkflowRepo(),
+		config.TaskRepo(),
 	)
 	return &Orchestrator{
 		tc:            tc,
+		config:        config,
 		worker:        worker,
 		projectConfig: projectConfig,
 		workflows:     workflows,
 		activities:    activities,
-		workflowRepo:  workflowRepo,
 	}, nil
 }
 
@@ -61,7 +64,11 @@ func (o *Orchestrator) Stop() {
 }
 
 func (o *Orchestrator) WorkflowRepo() workflow.Repository {
-	return o.workflowRepo
+	return o.config.WorkflowRepo()
+}
+
+func (o *Orchestrator) TaskRepo() task.Repository {
+	return o.config.TaskRepo()
 }
 
 // -----------------------------------------------------------------------------
