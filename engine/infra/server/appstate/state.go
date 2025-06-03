@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/infra/temporal"
 	"github.com/compozy/compozy/engine/orchestrator"
 	"github.com/compozy/compozy/engine/project"
@@ -21,20 +20,17 @@ const (
 
 type BaseDeps struct {
 	TemporalClient *temporal.Client
-	Store          *store.Store
 	ProjectConfig  *project.Config
 	Workflows      []*workflow.Config
 }
 
 func NewBaseDeps(
 	tc *temporal.Client,
-	store *store.Store,
 	projectConfig *project.Config,
 	workflows []*workflow.Config,
 ) BaseDeps {
 	return BaseDeps{
 		TemporalClient: tc,
-		Store:          store,
 		ProjectConfig:  projectConfig,
 		Workflows:      workflows,
 	}
@@ -42,9 +38,8 @@ func NewBaseDeps(
 
 type State struct {
 	BaseDeps
-	CWD                        *core.CWD
-	Orchestrator               *orchestrator.Orchestrator
-	TemporalOrchestratorConfig *orchestrator.Config
+	CWD          *core.CWD
+	Orchestrator *orchestrator.Orchestrator
 }
 
 func NewState(deps BaseDeps, orch *orchestrator.Orchestrator) (*State, error) {
@@ -56,10 +51,9 @@ func NewState(deps BaseDeps, orch *orchestrator.Orchestrator) (*State, error) {
 		return nil, fmt.Errorf("project config must have a valid CWD")
 	}
 	return &State{
-		CWD:                        cwd,
-		BaseDeps:                   deps,
-		Orchestrator:               orch,
-		TemporalOrchestratorConfig: orch.Config(),
+		CWD:          cwd,
+		BaseDeps:     deps,
+		Orchestrator: orch,
 	}, nil
 }
 

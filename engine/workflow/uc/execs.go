@@ -3,7 +3,6 @@ package uc
 import (
 	"context"
 
-	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/workflow"
 )
 
@@ -12,23 +11,27 @@ import (
 // -----------------------------------------------------------------------------
 
 type GetExecution struct {
-	repo           workflow.Repository
-	workflowExecID core.ID
+	repo    workflow.Repository
+	stateID string
 }
 
-func NewGetExecution(repo workflow.Repository, workflowExecID core.ID) *GetExecution {
+func NewGetExecution(repo workflow.Repository, stateID string) *GetExecution {
 	return &GetExecution{
-		repo:           repo,
-		workflowExecID: workflowExecID,
+		repo:    repo,
+		stateID: stateID,
 	}
 }
 
-func (uc *GetExecution) Execute(ctx context.Context) (*core.MainExecutionMap, error) {
-	exec, err := uc.repo.GetExecution(ctx, uc.workflowExecID)
+func (uc *GetExecution) Execute(ctx context.Context) (*workflow.State, error) {
+	stateID, err := workflow.StateIDFromString(uc.stateID)
 	if err != nil {
 		return nil, err
 	}
-	return uc.repo.ExecutionToMap(ctx, exec)
+	exec, err := uc.repo.GetState(ctx, *stateID)
+	if err != nil {
+		return nil, err
+	}
+	return exec, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -43,12 +46,12 @@ func NewListAllExecutions(repo workflow.Repository) *ListAllExecutions {
 	return &ListAllExecutions{repo: repo}
 }
 
-func (uc *ListAllExecutions) Execute(ctx context.Context) ([]*core.MainExecutionMap, error) {
-	execs, err := uc.repo.ListExecutions(ctx)
+func (uc *ListAllExecutions) Execute(ctx context.Context) ([]*workflow.State, error) {
+	execs, err := uc.repo.ListStates(ctx, &workflow.StateFilter{})
 	if err != nil {
 		return nil, err
 	}
-	return uc.repo.ExecutionsToMap(ctx, execs)
+	return execs, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -67,10 +70,11 @@ func NewListExecutionsByID(repo workflow.Repository, workflowID string) *ListExe
 	}
 }
 
-func (uc *ListExecutionsByID) Execute(ctx context.Context) ([]*core.MainExecutionMap, error) {
-	execs, err := uc.repo.ListExecutionsByWorkflowID(ctx, uc.workflowID)
+func (uc *ListExecutionsByID) Execute(ctx context.Context) ([]*workflow.State, error) {
+	filter := &workflow.StateFilter{WorkflowID: &uc.workflowID}
+	execs, err := uc.repo.ListStates(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
-	return uc.repo.ExecutionsToMap(ctx, execs)
+	return execs, nil
 }

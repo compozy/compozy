@@ -16,9 +16,8 @@ type ExecuteWorkflowRequest struct {
 
 // ExecuteWorkflowResponse represents the response for workflow execution
 type ExecuteWorkflowResponse struct {
-	WorkflowID     string `json:"workflow_id" example:"data-processing"`
-	WorkflowExecID string `json:"workflow_exec_id" example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
-	ExecURL        string `json:"exec_url" example:"localhost:8080/api/workflows/executions/2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	StateID string `json:"state_id" example:"id_2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	ExecURL string `json:"exec_url" example:"localhost:8080/api/workflows/executions/id_2Z4PVTL6K27XVT4A3NPKMDD5BG"`
 }
 
 // handleExecute triggers a workflow execution
@@ -50,7 +49,7 @@ func handleExecute(c *gin.Context) {
 	}
 
 	// Trigger workflow using Temporal orchestrator
-	workflowExecID, err := state.Orchestrator.TriggerWorkflow(c.Request.Context(), workflowID, *input)
+	workflowStateID, err := state.Orchestrator.TriggerWorkflow(c.Request.Context(), workflowID, input)
 	if err != nil {
 		reason := fmt.Sprintf("failed to trigger workflow: %s", workflowID)
 		reqErr := router.WorkflowExecutionError(workflowID, reason, err)
@@ -58,10 +57,9 @@ func handleExecute(c *gin.Context) {
 		return
 	}
 
-	execURL := fmt.Sprintf("%s/api/workflows/executions/%s", router.GetServerAddress(c), workflowExecID)
+	execURL := fmt.Sprintf("%s/api/workflows/executions/%s", router.GetServerAddress(c), workflowStateID.String())
 	router.RespondAccepted(c, "workflow triggered successfully", gin.H{
-		"workflow_id":      workflowID,
-		"workflow_exec_id": workflowExecID,
-		"exec_url":         execURL,
+		"state_id": workflowStateID.String(),
+		"exec_url": execURL,
 	})
 }

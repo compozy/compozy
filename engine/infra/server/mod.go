@@ -6,20 +6,15 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
-	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/infra/server/router"
-	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/infra/temporal"
 	"github.com/compozy/compozy/engine/orchestrator"
 	"github.com/compozy/compozy/engine/project"
-	"github.com/compozy/compozy/engine/task"
-	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/ref"
@@ -95,15 +90,8 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 		tc.Close()
 	})
 
-	// Setup store
-	st, cleanup, err := s.setupStore(projectConfig.GetCWD())
-	if err != nil {
-		return nil, cleanupFuncs, fmt.Errorf("failed to setup store: %w", err)
-	}
-	cleanupFuncs = append(cleanupFuncs, cleanup)
-
 	// Setup orchestrator and app state
-	state, err := s.setupAppState(tc, st, projectConfig, workflows)
+	state, err := s.setupAppState(tc, projectConfig, workflows)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
@@ -111,31 +99,12 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	return state, cleanupFuncs, nil
 }
 
-func (s *Server) setupStore(cwd *core.CWD) (*store.Store, func(), error) {
-	dataDir := filepath.Join(core.GetStoreDir(cwd), "data")
-	dbFilePath := filepath.Join(dataDir, "compozy.db")
-	st, err := store.NewStore(dbFilePath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create state store: %w", err)
-	}
-	if err := st.Setup(); err != nil {
-		return nil, nil, fmt.Errorf("failed to setup store: %w", err)
-	}
-	cleanup := func() {
-		if err := st.Close(); err != nil {
-			logger.Error("Error shutting down store", "error", err)
-		}
-	}
-	return st, cleanup, nil
-}
-
 func (s *Server) setupAppState(
 	tc *temporal.Client,
-	st *store.Store,
 	projectConfig *project.Config,
 	workflows []*workflow.Config,
 ) (*appstate.State, error) {
-	deps := appstate.NewBaseDeps(tc, st, projectConfig, workflows)
+	deps := appstate.NewBaseDeps(tc, projectConfig, workflows)
 	orch, err := setupOrchestrator(s.ctx, deps)
 	if err != nil {
 		return nil, err
@@ -207,38 +176,19 @@ func (s *Server) handleGracefulShutdown(srv *http.Server) error {
 
 func setupOrchestrator(ctx context.Context, deps appstate.BaseDeps) (*orchestrator.Orchestrator, error) {
 	tc := deps.TemporalClient
-	store := deps.Store
 	projectConfig := deps.ProjectConfig
 	workflows := deps.Workflows
 
-	orchConfig := orchestrator.Config{
-		WorkflowRepoFactory: func() workflow.Repository {
-			return store.NewWorkflowRepository(projectConfig, workflows)
-		},
-		TaskRepoFactory: func() task.Repository {
-			workflowRepo := store.NewWorkflowRepository(projectConfig, workflows)
-			return store.NewTaskRepository(workflowRepo)
-		},
-		AgentRepoFactory: func() agent.Repository {
-			workflowRepo := store.NewWorkflowRepository(projectConfig, workflows)
-			taskRepo := store.NewTaskRepository(workflowRepo)
-			return store.NewAgentRepository(workflowRepo, taskRepo)
-		},
-		ToolRepoFactory: func() tool.Repository {
-			workflowRepo := store.NewWorkflowRepository(projectConfig, workflows)
-			taskRepo := store.NewTaskRepository(workflowRepo)
-			return store.NewToolRepository(workflowRepo, taskRepo)
-		},
-	}
-
 	// Create orchestrator with Temporal
-	orch := orchestrator.NewOrchestrator(
+	orch, err := orchestrator.NewOrchestrator(
 		tc,
-		orchConfig,
 		projectConfig,
 		workflows,
 	)
-
+	if err != nil {
+		logger.Error("Failed to create orchestrator", "error", err)
+		return nil, fmt.Errorf("failed to create orchestrator: %w", err)
+	}
 	if err := orch.Setup(ctx); err != nil {
 		logger.Error("Failed to setup orchestrator", "error", err)
 		return nil, fmt.Errorf("failed to setup orchestrator: %w", err)

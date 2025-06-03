@@ -125,7 +125,7 @@ func Test_AgentActionConfigValidation(t *testing.T) {
 		}
 		err := config.ValidateParams(context.Background(), config.With)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "with parameters invalid for test-action")
+		assert.Contains(t, err.Error(), "Required property 'name' is missing")
 	})
 }
 
@@ -221,6 +221,6 @@ func Test_AgentConfigValidation(t *testing.T) {
 		}
 		err := config.ValidateParams(context.Background(), config.With)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "with parameters invalid for test-agent")
+		assert.Contains(t, err.Error(), "Required property 'name' is missing")
 	})
 }

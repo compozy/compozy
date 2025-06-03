@@ -1,38 +1,26 @@
 package temporal
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/compozy/compozy/engine/core"
-	wf "github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/pb"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
+
+	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 )
+
+type WorkflowInput = wfacts.TriggerInput
 
 // -----------------------------------------------------------------------------
 // Workflow Definition
 // -----------------------------------------------------------------------------
 
-type WorkflowInput struct {
-	Metadata *pb.WorkflowMetadata
-	Config   *wf.Config
-	Input    core.Input
-}
-
-type TaskResult struct {
-	Status core.StatusType
-	Output map[string]interface{}
-	Error  error
-}
-
 func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) error {
 	logger := workflow.GetLogger(ctx)
-	logger.Info("Starting workflow", "workflow_id", input.Metadata.WorkflowExecId)
+	logger.Info("Starting workflow", "workflow_id", input.WorkflowID, "exec_id", input.WorkflowExecID)
+	RegisterSignalHandlers(ctx, input)
 
-	// Set activity options
-	ao := workflow.ActivityOptions{
+	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 30 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    time.Second,
@@ -40,77 +28,20 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) error {
 			MaximumInterval:    time.Minute,
 			MaximumAttempts:    3,
 		},
-	}
-	ctx = workflow.WithActivityOptions(ctx, ao)
-
-	// Execute tasks based on workflow config
-	for _, taskSpec := range input.Config.Tasks {
-		taskCmd := &pb.CmdTaskExecute{
-			Metadata: &pb.TaskMetadata{
-				WorkflowExecId: input.Metadata.WorkflowExecId,
-				TaskExecId:     generateTaskExecID(taskSpec.ID),
-				TaskId:         taskSpec.ID,
-			},
-		}
-
-		// Execute the task activity
-		err := workflow.ExecuteActivity(ctx, "TaskExecuteActivity", taskCmd).Get(ctx, nil)
-		if err != nil {
-			logger.Error("Task execution failed", "task_id", taskSpec.ID, "error", err)
-			return fmt.Errorf("task %s failed: %w", taskSpec.ID, err)
-		}
-	}
-
-	return nil
-}
-
-// -----------------------------------------------------------------------------
-// Signal Handlers
-// -----------------------------------------------------------------------------
-
-const (
-	SignalPause  = "pause"
-	SignalResume = "resume"
-	SignalCancel = "cancel"
-)
-
-func RegisterSignalHandlers(ctx workflow.Context) {
-	pauseChan := workflow.GetSignalChannel(ctx, SignalPause)
-	resumeChan := workflow.GetSignalChannel(ctx, SignalResume)
-	cancelChan := workflow.GetSignalChannel(ctx, SignalCancel)
-
-	workflow.Go(ctx, func(ctx workflow.Context) {
-		for {
-			selector := workflow.NewSelector(ctx)
-
-			selector.AddReceive(pauseChan, func(c workflow.ReceiveChannel, more bool) {
-				var signal interface{}
-				c.Receive(ctx, &signal)
-				// Handle pause logic
-			})
-
-			selector.AddReceive(resumeChan, func(c workflow.ReceiveChannel, more bool) {
-				var signal interface{}
-				c.Receive(ctx, &signal)
-				// Handle resume logic
-			})
-
-			selector.AddReceive(cancelChan, func(c workflow.ReceiveChannel, more bool) {
-				var signal interface{}
-				c.Receive(ctx, &signal)
-				// Handle cancel logic
-				workflow.GetLogger(ctx).Info("Workflow canceled via signal")
-			})
-
-			selector.Select(ctx)
-		}
 	})
-}
 
-// -----------------------------------------------------------------------------
-// Helper Functions
-// -----------------------------------------------------------------------------
+	logger.Info("Executing main trigger activity...")
+	var executionResult *workflow.Execution
+	err := workflow.ExecuteActivity(
+		ctx,
+		wfacts.TriggerLabel,
+		input,
+	).Get(ctx, &executionResult)
+	if err != nil {
+		logger.Error("Failed to execute trigger activity", "error", err)
+		return err
+	}
 
-func generateTaskExecID(taskID string) string {
-	return fmt.Sprintf("%s-%d", taskID, time.Now().UnixNano())
+	logger.Info("Workflow logic implies completion.", "workflow_id", input.WorkflowID, "exec_id", input.WorkflowExecID)
+	return nil
 }

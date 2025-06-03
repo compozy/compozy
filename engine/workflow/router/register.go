@@ -21,22 +21,6 @@ func Register(apiBase *gin.RouterGroup) {
 		// POST /api/v0/workflows/:workflow_id/executions
 		// Start a new workflow execution
 		workflowsGroup.POST("/:workflow_id/executions", handleExecute)
-
-		// GET /api/v0/workflows/:workflow_id/executions/children
-		// List all children executions for a workflow
-		workflowsGroup.GET("/:workflow_id/executions/children", listChildrenExecutionsByID)
-
-		// GET /api/v0/workflows/:workflow_id/executions/tasks
-		// List all children task executions for a workflow
-		workflowsGroup.GET("/:workflow_id/executions/children/tasks", listTaskExecutionsByID)
-
-		// GET /api/v0/workflows/:workflow_id/executions/agents
-		// List all children agent executions for a workflow
-		workflowsGroup.GET("/:workflow_id/executions/children/agents", listAgentExecutionsByID)
-
-		// GET /api/v0/workflows/:workflow_id/executions/tools
-		// List all children tool executions for a workflow
-		workflowsGroup.GET("/:workflow_id/executions/children/tools", listToolExecutionsByID)
 	}
 
 	// Global execution routes
@@ -49,29 +33,25 @@ func Register(apiBase *gin.RouterGroup) {
 			// List all workflow executions
 			workflowExecGroup.GET("", listAllExecutions)
 
-			// GET /api/v0/executions/workflows/:workflow_exec_id
+			// GET /api/v0/executions/workflows/:state_id
 			// Get workflow execution details
-			workflowExecGroup.GET("/:workflow_exec_id", getExecution)
+			workflowExecGroup.GET("/:state_id", getExecution)
+
+			// POST /api/v0/executions/workflows/:state_id/pause
+			// Pause workflow execution
+			workflowExecGroup.POST("/:state_id/pause", pauseExecution)
+
+			// POST /api/v0/executions/workflows/:state_id/resume
+			// Resume workflow execution
+			workflowExecGroup.POST("/:state_id/resume", resumeExecution)
+
+			// POST /api/v0/executions/workflows/:state_id/cancel
+			// Cancel workflow execution
+			workflowExecGroup.POST("/:state_id/cancel", cancelExecution)
 
 			// TODO: implement logs route
-			// GET /api/v0/executions/workflows/:workflow_exec_id/logs
+			// GET /api/v0/executions/workflows/:state_id/logs
 			// Get logs for a workflow execution
-
-			// GET /api/v0/executions/workflows/:workflow_exec_id/executions
-			// List all executions within a workflow execution
-			workflowExecGroup.GET("/:workflow_exec_id/executions", listChildrenExecutions)
-
-			// GET /api/v0/executions/workflows/:workflow_exec_id/executions/tasks
-			// List task executions within a workflow execution
-			workflowExecGroup.GET("/:workflow_exec_id/executions/tasks", listTaskExecutions)
-
-			// GET /api/v0/executions/workflows/:workflow_exec_id/executions/agents
-			// List agent executions within a workflow execution
-			workflowExecGroup.GET("/:workflow_exec_id/executions/agents", listAgentExecutions)
-
-			// GET /api/v0/executions/workflows/:workflow_exec_id/executions/tools
-			// List tool executions within a workflow execution
-			workflowExecGroup.GET("/:workflow_exec_id/executions/tools", listToolExecutions)
 		}
 	}
 }
