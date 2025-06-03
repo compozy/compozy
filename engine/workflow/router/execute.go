@@ -11,13 +11,15 @@ import (
 // ExecuteWorkflowRequest represents the request body for workflow execution
 // This is only used for Swagger documentation - the actual handler uses core.Input directly
 type ExecuteWorkflowRequest struct {
-	Input map[string]interface{} `json:"input" swaggerignore:"true"`
+	Input  core.Input `json:"input" swaggerignore:"true"`
+	TaskID string     `json:"task_id" swaggerignore:"true"`
 }
 
 // ExecuteWorkflowResponse represents the response for workflow execution
 type ExecuteWorkflowResponse struct {
-	StateID string `json:"state_id" example:"id_2Z4PVTL6K27XVT4A3NPKMDD5BG"`
-	ExecURL string `json:"exec_url" example:"localhost:8080/api/workflows/executions/id_2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	ExecURL    string `json:"exec_url" example:"localhost:8080/api/workflows/executions/2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	ExecID     string `json:"exec_id" example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	WorkflowID string `json:"workflow_id" example:"data-processing"`
 }
 
 // handleExecute triggers a workflow execution
@@ -43,14 +45,14 @@ func handleExecute(c *gin.Context) {
 	if state == nil {
 		return
 	}
-	input := router.GetRequestBody[core.Input](c)
-	if input == nil {
-		return
-	}
-
-	// Trigger workflow using Temporal worker
+	body := router.GetRequestBody[ExecuteWorkflowRequest](c)
 	worker := state.Worker
-	workflowStateID, err := worker.TriggerWorkflow(c.Request.Context(), workflowID, input)
+	workflowStateID, err := worker.TriggerWorkflow(
+		c.Request.Context(),
+		workflowID,
+		&body.Input,
+		body.TaskID,
+	)
 	if err != nil {
 		reason := fmt.Sprintf("failed to trigger workflow: %s", workflowID)
 		reqErr := router.WorkflowExecutionError(workflowID, reason, err)
@@ -58,9 +60,11 @@ func handleExecute(c *gin.Context) {
 		return
 	}
 
-	execURL := fmt.Sprintf("%s/api/workflows/executions/%s", router.GetServerAddress(c), workflowStateID.String())
+	execID := workflowStateID.WorkflowExecID.String()
+	execURL := fmt.Sprintf("%s/api/workflows/executions/%s", router.GetServerAddress(c), execID)
 	router.RespondAccepted(c, "workflow triggered successfully", gin.H{
-		"state_id": workflowStateID,
-		"exec_url": execURL,
+		"exec_url":    execURL,
+		"exec_id":     execID,
+		"workflow_id": workflowStateID.WorkflowID,
 	})
 }

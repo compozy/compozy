@@ -1,11 +1,12 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS task_states (
+    component        text NOT NULL,
+    status           text NOT NULL,
     task_exec_id     text NOT NULL PRIMARY KEY,
     task_id          text NOT NULL,
     workflow_exec_id text NOT NULL,
     workflow_id      text NOT NULL,
-    status           text NOT NULL,
     agent_id         text,
     tool_id          text,
     input            jsonb,
@@ -25,6 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_task_states_status ON task_states (status);
 CREATE INDEX IF NOT EXISTS idx_task_states_workflow_id ON task_states (workflow_id);
 CREATE INDEX IF NOT EXISTS idx_task_states_workflow_exec_id ON task_states (workflow_exec_id);
 CREATE INDEX IF NOT EXISTS idx_task_states_task_id ON task_states (task_id);
+CREATE INDEX IF NOT EXISTS idx_task_states_component ON task_states (component);
 CREATE INDEX IF NOT EXISTS idx_task_states_agent_id ON task_states (agent_id);
 CREATE INDEX IF NOT EXISTS idx_task_states_tool_id ON task_states (tool_id);
 CREATE INDEX IF NOT EXISTS idx_task_states_created_at ON task_states (created_at);
@@ -49,6 +51,7 @@ DROP INDEX IF EXISTS idx_task_states_workflow_exec_id_agent_id;
 DROP INDEX IF EXISTS idx_task_states_workflow_exec_id_task_id;
 DROP INDEX IF EXISTS idx_task_states_updated_at;
 DROP INDEX IF EXISTS idx_task_states_created_at;
+DROP INDEX IF EXISTS idx_task_states_component;
 DROP INDEX IF EXISTS idx_task_states_tool_id;
 DROP INDEX IF EXISTS idx_task_states_agent_id;
 DROP INDEX IF EXISTS idx_task_states_task_id;

@@ -28,7 +28,8 @@ func NewUpdateState(workflowRepo workflow.Repository) *UpdateState {
 }
 
 func (a *UpdateState) Run(ctx context.Context, input *UpdateStateInput) error {
-	state, err := a.workflowRepo.GetState(ctx, input.StateID)
+	workflowExecID := input.StateID.WorkflowExecID
+	state, err := a.workflowRepo.GetState(ctx, workflowExecID)
 	if err != nil {
 		return fmt.Errorf("failed to get workflow %s: %w", input.StateID, err)
 	}

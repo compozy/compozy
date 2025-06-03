@@ -13,6 +13,7 @@ type TriggerInput struct {
 	WorkflowID     string      `json:"workflow_id"`
 	WorkflowExecID core.ID     `json:"workflow_exec_id"`
 	Input          *core.Input `json:"input"`
+	InitialTaskID  string
 }
 
 type Trigger struct {

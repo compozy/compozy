@@ -3,6 +3,7 @@ package uc
 import (
 	"context"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/workflow"
 )
 
@@ -11,23 +12,16 @@ import (
 // -----------------------------------------------------------------------------
 
 type GetExecution struct {
-	repo    workflow.Repository
-	stateID string
+	repo           workflow.Repository
+	workflowExecID core.ID
 }
 
-func NewGetExecution(repo workflow.Repository, stateID string) *GetExecution {
-	return &GetExecution{
-		repo:    repo,
-		stateID: stateID,
-	}
+func NewGetExecution(repo workflow.Repository, workflowExecID core.ID) *GetExecution {
+	return &GetExecution{repo: repo, workflowExecID: workflowExecID}
 }
 
 func (uc *GetExecution) Execute(ctx context.Context) (*workflow.State, error) {
-	stateID, err := workflow.StateIDFromString(uc.stateID)
-	if err != nil {
-		return nil, err
-	}
-	exec, err := uc.repo.GetState(ctx, *stateID)
+	exec, err := uc.repo.GetState(ctx, uc.workflowExecID)
 	if err != nil {
 		return nil, err
 	}

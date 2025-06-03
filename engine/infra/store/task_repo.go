@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// TaskErrNotFound is returned when a task state is not found.
-var TaskErrNotFound = fmt.Errorf("task state not found")
+// ErrTaskNotFound is returned when a task state is not found.
+var ErrTaskNotFound = fmt.Errorf("task state not found")
 
 // TaskRepo implements the task.Repository interface.
 type TaskRepo struct {
@@ -28,7 +28,7 @@ func NewTaskRepo(db DBInterface) *TaskRepo {
 func (r *TaskRepo) ListStates(ctx context.Context, filter *task.StateFilter) ([]*task.State, error) {
 	sb := squirrel.Select(
 		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-		"status", "agent_id", "tool_id", "input", "output", "error",
+		"component", "status", "agent_id", "tool_id", "input", "output", "error",
 	).
 		From("task_states").
 		PlaceholderFormat(squirrel.Dollar)
@@ -82,8 +82,6 @@ func (r *TaskRepo) ListStates(ctx context.Context, filter *task.StateFilter) ([]
 // UpsertState inserts or updates a task state.
 func (r *TaskRepo) UpsertState(
 	ctx context.Context,
-	workflowID string,
-	workflowExecID core.ID,
 	state *task.State,
 ) error {
 	input, err := ToJSONB(state.Input)
@@ -101,24 +99,25 @@ func (r *TaskRepo) UpsertState(
 
 	query := `
 		INSERT INTO task_states (
-			task_exec_id, task_id, workflow_exec_id, workflow_id, status,
+			task_exec_id, task_id, workflow_exec_id, workflow_id, component, status,
 			agent_id, tool_id, input, output, error
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		ON CONFLICT (task_exec_id) DO UPDATE SET
 			task_id = $2,
 			workflow_exec_id = $3,
 			workflow_id = $4,
-			status = $5,
-			agent_id = $6,
-			tool_id = $7,
-			input = $8,
-			output = $9,
-			error = $10,
+			component = $5,
+			status = $6,
+			agent_id = $7,
+			tool_id = $8,
+			input = $9,
+			output = $10,
+			error = $11,
 			updated_at = now()
 	`
 
 	_, err = r.db.Exec(ctx, query,
-		state.TaskExecID, state.TaskID, workflowExecID, workflowID, state.Status,
+		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, state.Component, state.Status,
 		state.AgentID, state.ToolID, input, output, errJSON,
 	)
 	if err != nil {
@@ -128,129 +127,23 @@ func (r *TaskRepo) UpsertState(
 	return nil
 }
 
-// GetState retrieves a task state by its StateID.
+// GetState retrieves a task state by its task execution ID.
 func (r *TaskRepo) GetState(
 	ctx context.Context,
-	workflowID string,
-	workflowExecID core.ID,
-	taskStateID task.StateID,
-) (*task.State, error) {
-	query := `
-		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id,
-		       status, agent_id, tool_id, input, output, error
-		FROM task_states
-		WHERE task_exec_id = $1 AND workflow_id = $2 AND workflow_exec_id = $3
-	`
-
-	var stateDB task.StateDB
-	err := pgxscan.Get(ctx, r.db, &stateDB, query, taskStateID.TaskExecID, workflowID, workflowExecID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, TaskErrNotFound
-		}
-		return nil, fmt.Errorf("scanning state: %w", err)
-	}
-
-	return stateDB.ToState()
-}
-
-// GetTaskByID retrieves a task state by task ID.
-func (r *TaskRepo) GetTaskByID(
-	ctx context.Context,
-	workflowID string,
-	workflowExecID core.ID,
-	taskID string,
-) (*task.State, error) {
-	query := `
-		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id,
-		       status, agent_id, tool_id, input, output, error
-		FROM task_states
-		WHERE task_id = $1 AND workflow_id = $2 AND workflow_exec_id = $3
-	`
-
-	var stateDB task.StateDB
-	err := pgxscan.Get(ctx, r.db, &stateDB, query, taskID, workflowID, workflowExecID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, TaskErrNotFound
-		}
-		return nil, fmt.Errorf("scanning state: %w", err)
-	}
-
-	return stateDB.ToState()
-}
-
-// GetTaskByExecID retrieves a task state by task execution ID.
-func (r *TaskRepo) GetTaskByExecID(
-	ctx context.Context,
-	workflowID string,
-	workflowExecID core.ID,
 	taskExecID core.ID,
 ) (*task.State, error) {
 	query := `
 		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id,
-		       status, agent_id, tool_id, input, output, error
+		       component, status, agent_id, tool_id, input, output, error
 		FROM task_states
-		WHERE task_exec_id = $1 AND workflow_id = $2 AND workflow_exec_id = $3
+		WHERE task_exec_id = $1
 	`
 
 	var stateDB task.StateDB
-	err := pgxscan.Get(ctx, r.db, &stateDB, query, taskExecID, workflowID, workflowExecID)
+	err := pgxscan.Get(ctx, r.db, &stateDB, query, taskExecID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, TaskErrNotFound
-		}
-		return nil, fmt.Errorf("scanning state: %w", err)
-	}
-
-	return stateDB.ToState()
-}
-
-// GetTaskByAgentID retrieves a task state by agent ID.
-func (r *TaskRepo) GetTaskByAgentID(
-	ctx context.Context,
-	workflowID string,
-	workflowExecID core.ID,
-	agentID string,
-) (*task.State, error) {
-	query := `
-		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id,
-		       status, agent_id, tool_id, input, output, error
-		FROM task_states
-		WHERE agent_id = $1 AND workflow_id = $2 AND workflow_exec_id = $3
-	`
-
-	var stateDB task.StateDB
-	err := pgxscan.Get(ctx, r.db, &stateDB, query, agentID, workflowID, workflowExecID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, TaskErrNotFound
-		}
-		return nil, fmt.Errorf("scanning state: %w", err)
-	}
-
-	return stateDB.ToState()
-}
-
-// GetTaskByToolID retrieves a task state by tool ID.
-func (r *TaskRepo) GetTaskByToolID(
-	ctx context.Context,
-	workflowID string,
-	workflowExecID core.ID,
-	toolID string,
-) (*task.State, error) {
-	query := `
-		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id,
-		       status, agent_id, tool_id, input, output, error
-		FROM task_states
-		WHERE tool_id = $1 AND workflow_id = $2 AND workflow_exec_id = $3
-	`
-
-	var stateDB task.StateDB
-	err := pgxscan.Get(ctx, r.db, &stateDB, query, toolID, workflowID, workflowExecID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, TaskErrNotFound
+			return nil, ErrTaskNotFound
 		}
 		return nil, fmt.Errorf("scanning state: %w", err)
 	}
@@ -265,7 +158,7 @@ func (r *TaskRepo) ListTasksInWorkflow(
 ) (map[string]*task.State, error) {
 	query := `
 		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id,
-		       status, agent_id, tool_id, input, output, error
+		       component, status, agent_id, tool_id, input, output, error
 		FROM task_states
 		WHERE workflow_exec_id = $1
 	`
@@ -295,7 +188,7 @@ func (r *TaskRepo) ListTasksByStatus(
 ) ([]*task.State, error) {
 	query := `
 		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id,
-		       status, agent_id, tool_id, input, output, error
+		       component, status, agent_id, tool_id, input, output, error
 		FROM task_states
 		WHERE workflow_exec_id = $1 AND status = $2
 	`
@@ -325,7 +218,7 @@ func (r *TaskRepo) ListTasksByAgent(
 ) ([]*task.State, error) {
 	query := `
 		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id,
-		       status, agent_id, tool_id, input, output, error
+		       component, status, agent_id, tool_id, input, output, error
 		FROM task_states
 		WHERE workflow_exec_id = $1 AND agent_id = $2
 	`
@@ -355,7 +248,7 @@ func (r *TaskRepo) ListTasksByTool(
 ) ([]*task.State, error) {
 	query := `
 		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id,
-		       status, agent_id, tool_id, input, output, error
+		       component, status, agent_id, tool_id, input, output, error
 		FROM task_states
 		WHERE workflow_exec_id = $1 AND tool_id = $2
 	`

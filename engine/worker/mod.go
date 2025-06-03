@@ -83,6 +83,7 @@ func (o *Worker) TriggerWorkflow(
 	ctx context.Context,
 	workflowID string,
 	input *core.Input,
+	initTaskID string,
 ) (*workflow.StateID, error) {
 	// Start workflow
 	workflowExecID := core.MustNewID()
@@ -90,6 +91,7 @@ func (o *Worker) TriggerWorkflow(
 		WorkflowID:     workflowID,
 		WorkflowExecID: workflowExecID,
 		Input:          input,
+		InitialTaskID:  initTaskID,
 	}
 
 	options := client.StartWorkflowOptions{
@@ -106,21 +108,23 @@ func (o *Worker) TriggerWorkflow(
 	if err != nil {
 		return nil, fmt.Errorf("failed to start workflow: %w", err)
 	}
-
 	return &workflow.StateID{
-		WorkflowID:   workflowID,
-		WorkflowExec: workflowExecID,
+		WorkflowID:     workflowID,
+		WorkflowExecID: workflowExecID,
 	}, nil
 }
 
-func (o *Worker) PauseWorkflow(ctx context.Context, workflowExecID string) error {
-	return o.client.SignalWorkflow(ctx, workflowExecID, "", SignalPause, nil)
+func (o *Worker) PauseWorkflow(ctx context.Context, workflowExecID core.ID) error {
+	id := workflowExecID.String()
+	return o.client.SignalWorkflow(ctx, id, "", SignalPause, nil)
 }
 
-func (o *Worker) ResumeWorkflow(ctx context.Context, workflowExecID string) error {
-	return o.client.SignalWorkflow(ctx, workflowExecID, "", SignalResume, nil)
+func (o *Worker) ResumeWorkflow(ctx context.Context, workflowExecID core.ID) error {
+	id := workflowExecID.String()
+	return o.client.SignalWorkflow(ctx, id, "", SignalResume, nil)
 }
 
-func (o *Worker) CancelWorkflow(ctx context.Context, workflowExecID string) error {
-	return o.client.SignalWorkflow(ctx, workflowExecID, "", SignalCancel, nil)
+func (o *Worker) CancelWorkflow(ctx context.Context, workflowExecID core.ID) error {
+	id := workflowExecID.String()
+	return o.client.SignalWorkflow(ctx, id, "", SignalCancel, nil)
 }

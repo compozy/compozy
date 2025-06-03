@@ -83,7 +83,7 @@ func handlePauseSignal(
 	label := wfacts.UpdateStateLabel
 	future := workflow.ExecuteActivity(ctx, label, statusInput)
 	_ = future
-	logger.Info("UpdateWorkflowStatusActivity to Paused initiated.")
+	logger.Info("UpdateStateActivity to Paused initiated.")
 }
 
 func handleResumeSignal(
@@ -102,7 +102,7 @@ func handleResumeSignal(
 	label := wfacts.UpdateStateLabel
 	future := workflow.ExecuteActivity(ctx, label, statusInput)
 	_ = future
-	logger.Info("UpdateWorkflowStatusActivity to Running initiated.")
+	logger.Info("UpdateStateActivity to Running initiated.")
 }
 
 func handleCancelSignal(
@@ -125,7 +125,7 @@ func handleCancelSignal(
 		logger.Error("Failed to update workflow status to Canceled", "error", err)
 		// Optionally handle failure (e.g., retry or log for manual intervention)
 	} else {
-		logger.Info("UpdateWorkflowStatusActivity to Canceled completed.")
+		logger.Info("UpdateStateActivity to Canceled completed.")
 	}
 	cancelFunc()
 	logger.Info("Workflow context canceled.")

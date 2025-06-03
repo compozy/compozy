@@ -47,47 +47,52 @@ func UnmarshalStateID(data []byte) (*StateID, error) {
 }
 
 type State struct {
-	StateID // Anonymous embedding: fields from StateID are promoted
-
-	Status    core.StatusType    `json:"status" db:"status"`
-	Component core.ComponentType `json:"component" db:"workflow_id"` // Maps to workflow_id in DB
-	AgentID   *string            `json:"agent_id,omitempty" db:"agent_id"`
-	ToolID    *string            `json:"tool_id,omitempty" db:"tool_id"`
-	Input     *core.Input        `json:"input,omitempty" db:"input"`
-	Output    *core.Output       `json:"output,omitempty" db:"output"`
-	Error     *core.Error        `json:"error,omitempty" db:"error"`
+	StateID
+	Component      core.ComponentType `json:"component" db:"component"`
+	Status         core.StatusType    `json:"status" db:"status"`
+	WorkflowID     string             `json:"workflow_id" db:"workflow_id"`
+	WorkflowExecID core.ID            `json:"workflow_exec_id" db:"workflow_exec_id"`
+	AgentID        *string            `json:"agent_id,omitempty" db:"agent_id"`
+	ToolID         *string            `json:"tool_id,omitempty" db:"tool_id"`
+	Input          *core.Input        `json:"input,omitempty" db:"input"`
+	Output         *core.Output       `json:"output,omitempty" db:"output"`
+	Error          *core.Error        `json:"error,omitempty" db:"error"`
 }
 
 // StateDB is used for database scanning with JSONB fields as []byte
 type StateDB struct {
 	StateID
-
-	Status         core.StatusType `db:"status"`
-	WorkflowID     string          `db:"workflow_id"`
-	WorkflowExecID core.ID         `db:"workflow_exec_id"`
-	AgentIDRaw     sql.NullString  `db:"agent_id"` // Can be NULL
-	ToolIDRaw      sql.NullString  `db:"tool_id"`  // Can be NULL
-	InputRaw       []byte          `db:"input"`
-	OutputRaw      []byte          `db:"output"`
-	ErrorRaw       []byte          `db:"error"`
+	Component      core.ComponentType `db:"component"`
+	Status         core.StatusType    `db:"status"`
+	WorkflowID     string             `db:"workflow_id"`
+	WorkflowExecID core.ID            `db:"workflow_exec_id"`
+	AgentIDRaw     sql.NullString     `db:"agent_id"` // Can be NULL
+	ToolIDRaw      sql.NullString     `db:"tool_id"`  // Can be NULL
+	InputRaw       []byte             `db:"input"`
+	OutputRaw      []byte             `db:"output"`
+	ErrorRaw       []byte             `db:"error"`
 }
 
 // ToState converts StateDB to State with proper JSON unmarshaling
 func (sdb *StateDB) ToState() (*State, error) {
 	state := &State{
-		StateID:   sdb.StateID,
-		Status:    sdb.Status,
-		Component: core.ComponentTask, // Always task for this domain
+		StateID:        sdb.StateID,
+		WorkflowID:     sdb.WorkflowID,
+		WorkflowExecID: sdb.WorkflowExecID,
+		Status:         sdb.Status,
+		Component:      core.ComponentTask,
 	}
 
 	// Handle nullable AgentID
 	if sdb.AgentIDRaw.Valid {
 		state.AgentID = &sdb.AgentIDRaw.String
+		state.Component = core.ComponentAgent
 	}
 
 	// Handle nullable ToolID
 	if sdb.ToolIDRaw.Valid {
 		state.ToolID = &sdb.ToolIDRaw.String
+		state.Component = core.ComponentTool
 	}
 
 	// Unmarshal input

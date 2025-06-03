@@ -16,9 +16,8 @@ type Repository interface {
 	ListStates(ctx context.Context, filter *StateFilter) ([]*State, error)
 	UpsertState(ctx context.Context, state *State) error
 	UpdateStatus(ctx context.Context, workflowExecID string, status core.StatusType) error
-	GetState(ctx context.Context, stateID StateID) (*State, error)
+	GetState(ctx context.Context, workflowExecID core.ID) (*State, error)
 	GetStateByID(ctx context.Context, workflowID string) (*State, error)
-	GetStateByExecID(ctx context.Context, workflowExecID core.ID) (*State, error)
 	GetStateByTaskID(ctx context.Context, workflowID, taskID string) (*State, error)
 	GetStateByAgentID(ctx context.Context, workflowID, agentID string) (*State, error)
 	GetStateByToolID(ctx context.Context, workflowID, toolID string) (*State, error)

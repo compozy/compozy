@@ -2,6 +2,7 @@ package logger
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 
@@ -106,9 +107,14 @@ func NewLogger(cfg *Config) Logger {
 	return &loggerImpl{charmLogger: charmLogger}
 }
 
-func Init(cfg *Config) {
+func Init(cfg *Config) error {
 	logger := NewLogger(cfg)
-	defaultLogger = logger.(*loggerImpl)
+	loggerImpl, ok := logger.(*loggerImpl)
+	if !ok {
+		return fmt.Errorf("failed to initialize logger")
+	}
+	defaultLogger = loggerImpl
+	return nil
 }
 
 func FromContext(_ context.Context) Logger {

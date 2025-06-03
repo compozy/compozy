@@ -14,8 +14,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// WorkflowErrNotFound is returned when a workflow state is not found.
-var WorkflowErrNotFound = fmt.Errorf("workflow state not found")
+// ErrWorkflowNotFound is returned when a workflow state is not found.
+var ErrWorkflowNotFound = fmt.Errorf("workflow state not found")
 
 // WorkflowRepo implements the workflow.Repository interface.
 type WorkflowRepo struct {
@@ -67,7 +67,7 @@ func (r *WorkflowRepo) getStateDBWithTx(
 	err := pgxscan.Get(ctx, tx, &stateDB, query, args...)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, WorkflowErrNotFound
+			return nil, ErrWorkflowNotFound
 		}
 		return nil, fmt.Errorf("scanning state: %w", err)
 	}
@@ -118,7 +118,7 @@ func (r *WorkflowRepo) populateTaskStatesWithTx(
 	tasks, err := r.listTasksInWorkflowWithTx(
 		ctx,
 		tx,
-		state.WorkflowExec,
+		state.WorkflowExecID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to load task states: %w", err)
@@ -171,7 +171,7 @@ func (r *WorkflowRepo) ListStates(
 		// Populate child task states using existing task repo method
 		tasks, err := r.taskRepo.ListTasksInWorkflow(
 			ctx,
-			state.WorkflowExec,
+			state.WorkflowExecID,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("populating task states: %w", err)
@@ -213,7 +213,7 @@ func (r *WorkflowRepo) UpsertState(ctx context.Context, state *workflow.State) e
 	`
 
 	_, err = r.db.Exec(ctx, query,
-		state.WorkflowExec, state.WorkflowID, state.Status,
+		state.WorkflowExecID, state.WorkflowID, state.Status,
 		input, output, errJSON,
 	)
 	if err != nil {
@@ -241,29 +241,27 @@ func (r *WorkflowRepo) UpdateStatus(
 	}
 
 	if cmdTag.RowsAffected() == 0 {
-		return WorkflowErrNotFound
+		return ErrWorkflowNotFound
 	}
 
 	return nil
 }
 
 // GetState retrieves a workflow state by its StateID.
-func (r *WorkflowRepo) GetState(ctx context.Context, stateID workflow.StateID) (*workflow.State, error) {
+func (r *WorkflowRepo) GetState(ctx context.Context, workflowExecID core.ID) (*workflow.State, error) {
 	var result *workflow.State
 
 	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
 			SELECT workflow_exec_id, workflow_id, status, input, output, error
 			FROM workflow_states
-			WHERE workflow_id = $1 AND workflow_exec_id = $2
+			WHERE workflow_exec_id = $1
 		`
-
 		stateDB, err := r.getStateDBWithTx(
 			ctx,
 			tx,
 			query,
-			stateID.WorkflowID,
-			stateID.WorkflowExec,
+			workflowExecID,
 		)
 		if err != nil {
 			return err
@@ -299,42 +297,6 @@ func (r *WorkflowRepo) GetStateByID(ctx context.Context, workflowID string) (*wo
 		`
 
 		stateDB, err := r.getStateDBWithTx(ctx, tx, query, workflowID)
-		if err != nil {
-			return err
-		}
-
-		state, err := stateDB.ToState()
-		if err != nil {
-			return err
-		}
-
-		// Populate child task states within the same transaction
-		if err := r.populateTaskStatesWithTx(ctx, tx, state); err != nil {
-			return err
-		}
-
-		result = state
-		return nil
-	})
-
-	return result, err
-}
-
-// GetStateByExecID retrieves a workflow state by workflow execution ID.
-func (r *WorkflowRepo) GetStateByExecID(
-	ctx context.Context,
-	workflowExecID core.ID,
-) (*workflow.State, error) {
-	var result *workflow.State
-
-	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
-		query := `
-			SELECT workflow_exec_id, workflow_id, status, input, output, error
-			FROM workflow_states
-			WHERE workflow_exec_id = $1
-		`
-
-		stateDB, err := r.getStateDBWithTx(ctx, tx, query, workflowExecID)
 		if err != nil {
 			return err
 		}

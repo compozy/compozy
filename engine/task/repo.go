@@ -18,12 +18,8 @@ type StateFilter struct {
 
 type Repository interface {
 	ListStates(ctx context.Context, filter *StateFilter) ([]*State, error)
-	UpsertState(ctx context.Context, workflowID string, workflowExecID core.ID, state *State) error
-	GetState(ctx context.Context, workflowID string, workflowExecID core.ID, taskStateID StateID) (*State, error)
-	GetTaskByID(ctx context.Context, workflowID string, workflowExecID core.ID, taskID string) (*State, error)
-	GetTaskByExecID(ctx context.Context, workflowID string, workflowExecID core.ID, taskExecID core.ID) (*State, error)
-	GetTaskByAgentID(ctx context.Context, workflowID string, workflowExecID core.ID, agentID string) (*State, error)
-	GetTaskByToolID(ctx context.Context, workflowID string, workflowExecID core.ID, toolID string) (*State, error)
+	UpsertState(ctx context.Context, state *State) error
+	GetState(ctx context.Context, taskExecID core.ID) (*State, error)
 	ListTasksInWorkflow(ctx context.Context, workflowExecID core.ID) (map[string]*State, error)
 	ListTasksByStatus(ctx context.Context, workflowExecID core.ID, status core.StatusType) ([]*State, error)
 	ListTasksByAgent(ctx context.Context, workflowExecID core.ID, agentID string) ([]*State, error)

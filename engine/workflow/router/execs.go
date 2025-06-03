@@ -15,15 +15,15 @@ import (
 //	@Tags			executions
 //	@Accept			json
 //	@Produce		json
-//	@Param			state_id	path		string										true	"Workflow Execution ID"	example("2Z4PVTL6K27XVT4A3NPKMDD5BG")
+//	@Param			exec_id	path		string										true	"Workflow Execution ID"	example("2Z4PVTL6K27XVT4A3NPKMDD5BG")
 //	@Success		200					{object}	router.Response{data=workflow.State}	"Workflow execution retrieved successfully"
 //	@Failure		400					{object}	router.Response{error=router.ErrorInfo}		"Invalid execution ID"
 //	@Failure		404					{object}	router.Response{error=router.ErrorInfo}		"Execution not found"
 //	@Failure		500					{object}	router.Response{error=router.ErrorInfo}		"Internal server error"
-//	@Router			/executions/workflows/{state_id} [get]
+//	@Router			/executions/workflows/{exec_id} [get]
 func getExecution(c *gin.Context) {
-	stateID := router.GetWorkflowStateID(c)
-	if stateID == "" {
+	execID := router.GetWorkflowExecID(c)
+	if execID == "" {
 		return
 	}
 	appState := router.GetAppState(c)
@@ -31,7 +31,7 @@ func getExecution(c *gin.Context) {
 		return
 	}
 	repo := appState.Worker.WorkflowRepo()
-	useCase := uc.NewGetExecution(repo, stateID)
+	useCase := uc.NewGetExecution(repo, execID)
 	exec, err := useCase.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(
@@ -122,21 +122,21 @@ func listExecutionsByID(c *gin.Context) {
 //	@Tags			executions
 //	@Accept			json
 //	@Produce		json
-//	@Param			state_id	path		string	true	"Workflow Execution ID"	example("workflowID_execID")
+//	@Param			exec_id	path		string	true	"Workflow Execution ID"	example("workflowID_execID")
 //	@Success		200			{object}	router.Response{data=string}	"Workflow execution paused successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid execution ID"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/executions/workflows/{state_id}/pause [post]
+//	@Router			/executions/workflows/{exec_id}/pause [post]
 func pauseExecution(c *gin.Context) {
-	stateID := router.GetWorkflowStateID(c)
-	if stateID == "" {
+	execID := router.GetWorkflowExecID(c)
+	if execID == "" {
 		return
 	}
 	appState := router.GetAppState(c)
 	if appState == nil {
 		return
 	}
-	useCase := uc.NewPauseExecution(appState.Worker, stateID)
+	useCase := uc.NewPauseExecution(appState.Worker, execID)
 	err := useCase.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(
@@ -157,21 +157,21 @@ func pauseExecution(c *gin.Context) {
 //	@Tags			executions
 //	@Accept			json
 //	@Produce		json
-//	@Param			state_id	path		string	true	"Workflow Execution ID"	example("workflowID_execID")
+//	@Param			exec_id	path		string	true	"Workflow Execution ID"	example("workflowID_execID")
 //	@Success		200			{object}	router.Response{data=string}	"Workflow execution resumed successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid execution ID"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/executions/workflows/{state_id}/resume [post]
+//	@Router			/executions/workflows/{exec_id}/resume [post]
 func resumeExecution(c *gin.Context) {
-	stateID := router.GetWorkflowStateID(c)
-	if stateID == "" {
+	execID := router.GetWorkflowExecID(c)
+	if execID == "" {
 		return
 	}
 	appState := router.GetAppState(c)
 	if appState == nil {
 		return
 	}
-	useCase := uc.NewResumeExecution(appState.Worker, stateID)
+	useCase := uc.NewResumeExecution(appState.Worker, execID)
 	err := useCase.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(
@@ -192,21 +192,21 @@ func resumeExecution(c *gin.Context) {
 //	@Tags			executions
 //	@Accept			json
 //	@Produce		json
-//	@Param			state_id	path		string	true	"Workflow Execution ID"	example("workflowID_execID")
+//	@Param			exec_id	path		string	true	"Workflow Execution ID"	example("workflowID_execID")
 //	@Success		200			{object}	router.Response{data=string}	"Workflow execution canceled successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid execution ID"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/executions/workflows/{state_id}/cancel [post]
+//	@Router			/executions/workflows/{exec_id}/cancel [post]
 func cancelExecution(c *gin.Context) {
-	stateID := router.GetWorkflowStateID(c)
-	if stateID == "" {
+	execID := router.GetWorkflowExecID(c)
+	if execID == "" {
 		return
 	}
 	appState := router.GetAppState(c)
 	if appState == nil {
 		return
 	}
-	useCase := uc.NewCancelExecution(appState.Worker, stateID)
+	useCase := uc.NewCancelExecution(appState.Worker, execID)
 	err := useCase.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(

@@ -33,24 +33,24 @@ func Register(apiBase *gin.RouterGroup) {
 			// List all workflow executions
 			workflowExecGroup.GET("", listAllExecutions)
 
-			// GET /api/v0/executions/workflows/:state_id
+			// GET /api/v0/executions/workflows/:exec_id
 			// Get workflow execution details
-			workflowExecGroup.GET("/:state_id", getExecution)
+			workflowExecGroup.GET("/:exec_id", getExecution)
 
-			// POST /api/v0/executions/workflows/:state_id/pause
+			// POST /api/v0/executions/workflows/:exec_id/pause
 			// Pause workflow execution
-			workflowExecGroup.POST("/:state_id/pause", pauseExecution)
+			workflowExecGroup.POST("/:exec_id/pause", pauseExecution)
 
-			// POST /api/v0/executions/workflows/:state_id/resume
+			// POST /api/v0/executions/workflows/:exec_id/resume
 			// Resume workflow execution
-			workflowExecGroup.POST("/:state_id/resume", resumeExecution)
+			workflowExecGroup.POST("/:exec_id/resume", resumeExecution)
 
-			// POST /api/v0/executions/workflows/:state_id/cancel
+			// POST /api/v0/executions/workflows/:exec_id/cancel
 			// Cancel workflow execution
-			workflowExecGroup.POST("/:state_id/cancel", cancelExecution)
+			workflowExecGroup.POST("/:exec_id/cancel", cancelExecution)
 
 			// TODO: implement logs route
-			// GET /api/v0/executions/workflows/:state_id/logs
+			// GET /api/v0/executions/workflows/:exec_id/logs
 			// Get logs for a workflow execution
 		}
 	}

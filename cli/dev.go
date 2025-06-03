@@ -280,7 +280,9 @@ func handleDevCmd(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	logger.SetupLogger(logLevel, logJSON, logSource)
+	if err := logger.SetupLogger(logLevel, logJSON, logSource); err != nil {
+		return err
+	}
 
 	// Create and run server with database configuration
 	srv := server.NewServer(*scfg, tcfg, dbCfg)

@@ -16,14 +16,14 @@ const StateKey = "workflowState"
 // -----------------------------------------------------------------------------
 
 type StateID struct {
-	WorkflowID   string  `json:"workflow_id" db:"workflow_id"`
-	WorkflowExec core.ID `json:"workflow_exec" db:"workflow_exec_id"`
+	WorkflowID     string  `json:"workflow_id" db:"workflow_id"`
+	WorkflowExecID core.ID `json:"workflow_exec" db:"workflow_exec_id"`
 }
 
 func NewStateID(workflowID string, workflowExec core.ID) StateID {
 	return StateID{
-		WorkflowID:   workflowID,
-		WorkflowExec: workflowExec,
+		WorkflowID:     workflowID,
+		WorkflowExecID: workflowExec,
 	}
 }
 
@@ -32,7 +32,7 @@ func StateIDFromString(s string) (*StateID, error) {
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("invalid state ID: %s", s)
 	}
-	return &StateID{WorkflowID: parts[0], WorkflowExec: core.ID(parts[1])}, nil
+	return &StateID{WorkflowID: parts[0], WorkflowExecID: core.ID(parts[1])}, nil
 }
 
 func (e *StateID) GetComponentID() string {
@@ -40,11 +40,11 @@ func (e *StateID) GetComponentID() string {
 }
 
 func (e *StateID) GetExecID() core.ID {
-	return e.WorkflowExec
+	return e.WorkflowExecID
 }
 
 func (e *StateID) String() string {
-	return fmt.Sprintf("%s_%s", e.WorkflowID, e.WorkflowExec)
+	return fmt.Sprintf("%s_%s", e.WorkflowID, e.WorkflowExecID)
 }
 
 func (e *StateID) MarshalJSON() ([]byte, error) {
@@ -60,7 +60,7 @@ func (e *StateID) UnmarshalJSON(data []byte) error {
 	if len(parts) != 2 {
 		return fmt.Errorf("invalid state ID format after unmarshal: %s", s)
 	}
-	e.WorkflowID, e.WorkflowExec = parts[0], core.ID(parts[1])
+	e.WorkflowID, e.WorkflowExecID = parts[0], core.ID(parts[1])
 	return nil
 }
 
@@ -122,8 +122,8 @@ func (sdb *StateDB) ToState() (*State, error) {
 
 func NewState(workflowID string, workflowExecID core.ID, input *core.Input) *State {
 	stateID := StateID{
-		WorkflowID:   workflowID,
-		WorkflowExec: workflowExecID,
+		WorkflowID:     workflowID,
+		WorkflowExecID: workflowExecID,
 	}
 	return &State{
 		Status:  core.StatusRunning,
