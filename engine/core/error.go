@@ -6,6 +6,14 @@ type Error struct {
 	Details map[string]any `json:"details,omitempty"`
 }
 
+func NewError(err error, code string, details map[string]any) *Error {
+	return &Error{
+		Message: err.Error(),
+		Code:    code,
+		Details: details,
+	}
+}
+
 func (e *Error) AsMap() map[string]any {
 	if e == nil {
 		return nil

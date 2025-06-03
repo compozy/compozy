@@ -9,17 +9,19 @@ type Store struct {
 	DB *DB
 }
 
-func SetupStore(ctx context.Context) (*Store, error) {
-	dbConfig := Config{
-		ConnString: os.Getenv("DB_CONN_STRING"),
-		Host:       os.Getenv("DB_HOST"),
-		Port:       os.Getenv("DB_PORT"),
-		User:       os.Getenv("DB_USER"),
-		Password:   os.Getenv("DB_PASSWORD"),
-		DBName:     os.Getenv("DB_NAME"),
-		SSLMode:    os.Getenv("DB_SSL_MODE"),
+func SetupStore(ctx context.Context, config *Config) (*Store, error) {
+	if config == nil {
+		config = &Config{
+			ConnString: os.Getenv("DB_CONN_STRING"),
+			Host:       os.Getenv("DB_HOST"),
+			Port:       os.Getenv("DB_PORT"),
+			User:       os.Getenv("DB_USER"),
+			Password:   os.Getenv("DB_PASSWORD"),
+			DBName:     os.Getenv("DB_NAME"),
+			SSLMode:    os.Getenv("DB_SSL_MODE"),
+		}
 	}
-	db, err := NewDB(ctx, &dbConfig)
+	db, err := NewDB(ctx, config)
 	if err != nil {
 		return nil, err
 	}

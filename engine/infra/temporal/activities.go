@@ -14,7 +14,7 @@ type Activities struct {
 	workflows                    []*workflow.Config
 	workflowRepo                 workflow.Repository
 	taskRepo                     task.Repository
-	updateWorkflowStatusActivity *wfacts.UpdateStatus
+	updateWorkflowStatusActivity *wfacts.UpdateState
 }
 
 func NewActivities(
@@ -28,17 +28,24 @@ func NewActivities(
 		workflows:                    workflows,
 		workflowRepo:                 workflowRepo,
 		taskRepo:                     taskRepo,
-		updateWorkflowStatusActivity: wfacts.NewUpdateStatus(workflowRepo),
+		updateWorkflowStatusActivity: wfacts.NewUpdateState(workflowRepo),
 	}
 }
 
-func (a *Activities) WorkflowTrigger(ctx context.Context, input *wfacts.TriggerInput) (*workflow.State, error) {
+// TriggerWorkflow executes the activity to trigger the workflow
+func (a *Activities) TriggerWorkflow(ctx context.Context, input *wfacts.TriggerInput) (*workflow.State, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	act := wfacts.NewTrigger(a.workflows, a.workflowRepo)
 	return act.Run(ctx, input)
 }
 
-// UpdateWorkflowStatus executes the activity to update workflow status
-func (a *Activities) UpdateWorkflowStatus(ctx context.Context, input *wfacts.UpdateStatusInput) error {
-	act := wfacts.NewUpdateStatus(a.workflowRepo)
+// UpdateWorkflowState executes the activity to update workflow status
+func (a *Activities) UpdateWorkflowState(ctx context.Context, input *wfacts.UpdateStateInput) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	act := wfacts.NewUpdateState(a.workflowRepo)
 	return act.Run(ctx, input)
 }

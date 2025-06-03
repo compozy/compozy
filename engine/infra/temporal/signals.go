@@ -8,6 +8,7 @@ import (
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/compozy/compozy/engine/core"
+	wf "github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 )
 
@@ -25,29 +26,33 @@ const (
 // Signal Handlers
 // -----------------------------------------------------------------------------
 
-func RegisterSignalHandlers(ctx workflow.Context, wfInput WorkflowInput) {
+func RegisterSignals(
+	ctx workflow.Context,
+	cancelFunc workflow.CancelFunc,
+	input *WorkflowInput,
+) (*PauseGate, error) {
 	logger := workflow.GetLogger(ctx)
 	pauseChan := workflow.GetSignalChannel(ctx, SignalPause)
 	resumeChan := workflow.GetSignalChannel(ctx, SignalResume)
 	cancelChan := workflow.GetSignalChannel(ctx, SignalCancel)
-	statusUpdateAo := workflow.ActivityOptions{
+	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 30 * time.Second,
 		RetryPolicy: &temporal.RetryPolicy{
 			MaximumAttempts: 3,
 		},
-	}
-	activityCtx := workflow.WithActivityOptions(ctx, statusUpdateAo)
+	})
+	stateID := wf.NewStateID(input.WorkflowID, input.WorkflowExecID)
 	workflow.Go(ctx, func(ctx workflow.Context) {
 		for {
 			selector := workflow.NewSelector(ctx)
 			selector.AddReceive(pauseChan, func(c workflow.ReceiveChannel, _ bool) {
-				handlePauseSignal(ctx, c, wfInput, activityCtx, logger)
+				handlePauseSignal(ctx, c, logger, stateID)
 			})
 			selector.AddReceive(resumeChan, func(c workflow.ReceiveChannel, _ bool) {
-				handleResumeSignal(ctx, c, wfInput, activityCtx, logger)
+				handleResumeSignal(ctx, c, logger, stateID)
 			})
 			selector.AddReceive(cancelChan, func(c workflow.ReceiveChannel, _ bool) {
-				handleCancelSignal(ctx, c, wfInput, activityCtx, logger)
+				handleCancelSignal(ctx, c, logger, cancelFunc, stateID)
 			})
 			selector.Select(ctx)
 			if ctx.Err() != nil {
@@ -59,64 +64,69 @@ func RegisterSignalHandlers(ctx workflow.Context, wfInput WorkflowInput) {
 			}
 		}
 	})
+	return NewPauseGate(ctx)
 }
 
 func handlePauseSignal(
 	ctx workflow.Context,
-	c workflow.ReceiveChannel,
-	wfInput WorkflowInput,
-	activityCtx workflow.Context,
+	channel workflow.ReceiveChannel,
 	logger log.Logger,
+	stateID wf.StateID,
 ) {
 	var signal any
-	c.Receive(ctx, &signal)
+	channel.Receive(ctx, &signal)
 	logger.Info("Workflow pause signal received. Initiating status update.")
-	statusInput := &wfacts.UpdateStatusInput{
-		WorkflowID:     wfInput.WorkflowID,
-		WorkflowExecID: wfInput.WorkflowExecID,
-		Status:         core.StatusPaused,
+	statusInput := &wfacts.UpdateStateInput{
+		StateID: stateID,
+		Status:  core.StatusPaused,
 	}
-	future := workflow.ExecuteActivity(activityCtx, wfacts.UpdateWorkflowStatusLabel, statusInput)
+	label := wfacts.UpdateStateLabel
+	future := workflow.ExecuteActivity(ctx, label, statusInput)
 	_ = future
 	logger.Info("UpdateWorkflowStatusActivity to Paused initiated.")
 }
 
 func handleResumeSignal(
 	ctx workflow.Context,
-	c workflow.ReceiveChannel,
-	wfInput WorkflowInput,
-	activityCtx workflow.Context,
+	channel workflow.ReceiveChannel,
 	logger log.Logger,
+	stateID wf.StateID,
 ) {
 	var signal any
-	c.Receive(ctx, &signal)
+	channel.Receive(ctx, &signal)
 	logger.Info("Workflow resume signal received. Initiating status update.")
-	statusInput := &wfacts.UpdateStatusInput{
-		WorkflowID:     wfInput.WorkflowID,
-		WorkflowExecID: wfInput.WorkflowExecID,
-		Status:         core.StatusRunning,
+	statusInput := &wfacts.UpdateStateInput{
+		StateID: stateID,
+		Status:  core.StatusRunning,
 	}
-	future := workflow.ExecuteActivity(activityCtx, wfacts.UpdateWorkflowStatusLabel, statusInput)
+	label := wfacts.UpdateStateLabel
+	future := workflow.ExecuteActivity(ctx, label, statusInput)
 	_ = future
 	logger.Info("UpdateWorkflowStatusActivity to Running initiated.")
 }
 
 func handleCancelSignal(
 	ctx workflow.Context,
-	c workflow.ReceiveChannel,
-	wfInput WorkflowInput,
-	activityCtx workflow.Context,
+	channel workflow.ReceiveChannel,
 	logger log.Logger,
+	cancelFunc workflow.CancelFunc,
+	stateID wf.StateID,
 ) {
 	var signal any
-	c.Receive(ctx, &signal)
-	logger.Info("Workflow cancel signal received. Setting manual cancel flag and initiating status update.")
-	statusInput := &wfacts.UpdateStatusInput{
-		WorkflowID:     wfInput.WorkflowID,
-		WorkflowExecID: wfInput.WorkflowExecID,
-		Status:         core.StatusCanceled,
+	channel.Receive(ctx, &signal)
+	logger.Info("Workflow cancel signal received. Initiating status update and cancellation.")
+	label := wfacts.UpdateStateLabel
+	statusInput := &wfacts.UpdateStateInput{
+		StateID: stateID,
+		Status:  core.StatusCanceled,
 	}
-	future := workflow.ExecuteActivity(activityCtx, wfacts.UpdateWorkflowStatusLabel, statusInput)
-	_ = future
-	logger.Info("UpdateWorkflowStatusActivity to Canceled initiated.")
+	future := workflow.ExecuteActivity(ctx, label, statusInput)
+	if err := future.Get(ctx, nil); err != nil {
+		logger.Error("Failed to update workflow status to Canceled", "error", err)
+		// Optionally handle failure (e.g., retry or log for manual intervention)
+	} else {
+		logger.Info("UpdateWorkflowStatusActivity to Canceled completed.")
+	}
+	cancelFunc()
+	logger.Info("Workflow context canceled.")
 }

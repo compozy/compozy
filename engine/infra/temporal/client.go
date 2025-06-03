@@ -3,12 +3,13 @@ package temporal
 import (
 	"fmt"
 
+	"github.com/compozy/compozy/pkg/logger"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 )
 
 // -----------------------------------------------------------------------------
-// Configuration
+// Client
 // -----------------------------------------------------------------------------
 
 type Config struct {
@@ -16,18 +17,6 @@ type Config struct {
 	Namespace string
 	TaskQueue string
 }
-
-func DefaultConfig() Config {
-	return Config{
-		HostPort:  "localhost:7233",
-		Namespace: "default",
-		TaskQueue: "compozy-task-queue",
-	}
-}
-
-// -----------------------------------------------------------------------------
-// Client
-// -----------------------------------------------------------------------------
 
 type Client struct {
 	client.Client
@@ -38,6 +27,7 @@ func New(cfg *Config) (*Client, error) {
 	options := client.Options{
 		HostPort:  cfg.HostPort,
 		Namespace: cfg.Namespace,
+		Logger:    logger.GetDefault(),
 	}
 	temporalClient, err := client.Dial(options)
 	if err != nil {
@@ -63,6 +53,6 @@ func (c *Client) Close() {
 
 func (c *Client) RegisterWorker(w worker.Worker, activities *Activities) {
 	w.RegisterWorkflow(CompozyWorkflow)
-	w.RegisterActivity(activities.WorkflowTrigger)
-	w.RegisterActivity(activities.UpdateWorkflowStatus)
+	w.RegisterActivity(activities.TriggerWorkflow)
+	w.RegisterActivity(activities.UpdateWorkflowState)
 }

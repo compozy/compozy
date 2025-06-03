@@ -57,7 +57,7 @@ dev:
 	$(GOCMD) run . dev
 
 dev-weather:
-	wgo run . dev --cwd examples/weather-agent --debug
+	wgo run . dev --cwd examples/weather-agent --env-file .env --debug
 
 tidy:
 	@echo "Tidying modules..."
@@ -134,11 +134,11 @@ restart-docker:
 # -----------------------------------------------------------------------------
 # Database
 # -----------------------------------------------------------------------------
-DB_USER ?= temporal
-DB_PASSWORD ?= temporal
+DB_USER ?= postgres
+DB_PASSWORD ?= postgres
 DB_HOST ?= localhost
 DB_PORT ?= 5432
-DB_NAME ?= temporal
+DB_NAME ?= compozy
 
 GOOSE_DBSTRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable
 GOOSE_COMMAND = GOOSE_DRIVER=postgres GOOSE_DBSTRING=${GOOSE_DBSTRING} goose -dir ./engine/infra/store/migrations

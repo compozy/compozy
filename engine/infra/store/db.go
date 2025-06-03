@@ -3,14 +3,12 @@ package store
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/exp/slog"
 )
 
 // DBInterface defines the minimal interface needed by repositories.
@@ -71,14 +69,20 @@ func NewDB(ctx context.Context, cfg *Config) (*DB, error) {
 		return nil, fmt.Errorf("pinging database: %w", err)
 	}
 
-	slog.Info("Database connection established", "dsn", sanitizeDSN(connString))
+	logger.With(
+		"host", cfg.Host,
+		"port", cfg.Port,
+		"user", cfg.User,
+		"db_name", cfg.DBName,
+		"ssl_mode", cfg.SSLMode,
+	).Info("Database connection established")
 	return &DB{pool: pool}, nil
 }
 
 // Close shuts down the connection pool.
 func (db *DB) Close() error {
 	db.pool.Close()
-	slog.Info("Database connection closed")
+	logger.Info("Database connection closed")
 	return nil
 }
 
@@ -122,15 +126,4 @@ func getEnvOrDefault(val, def string) string {
 		return def
 	}
 	return val
-}
-
-func sanitizeDSN(dsn string) string {
-	if passwordIdx := strings.Index(dsn, "password="); passwordIdx != -1 {
-		endIdx := strings.Index(dsn[passwordIdx:], " ") + passwordIdx
-		if endIdx == passwordIdx-1 {
-			endIdx = len(dsn)
-		}
-		return dsn[:passwordIdx+8] + "****" + dsn[endIdx:]
-	}
-	return dsn
 }

@@ -2,18 +2,17 @@ package activities
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/workflow"
 )
 
-const TriggerLabel = "WorkflowTrigger"
+const TriggerLabel = "TriggerWorkflow"
 
 type TriggerInput struct {
-	WorkflowID     string
-	WorkflowExecID core.ID
-	Input          *core.Input
+	WorkflowID     string      `json:"workflow_id"`
+	WorkflowExecID core.ID     `json:"workflow_exec_id"`
+	Input          *core.Input `json:"input"`
 }
 
 type Trigger struct {
@@ -29,21 +28,14 @@ func NewTrigger(workflows []*workflow.Config, workflowRepo workflow.Repository) 
 }
 
 func (a *Trigger) Run(ctx context.Context, input *TriggerInput) (*workflow.State, error) {
-	workflowID := input.WorkflowID
-	_, err := workflow.FindConfig(a.workflows, workflowID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find workflow config: %w", err)
-	}
-
 	repo := a.workflowRepo
-	workflowState := workflow.NewState(
+	wfState := workflow.NewState(
 		input.WorkflowID,
 		input.WorkflowExecID,
 		input.Input,
 	)
-	if err := repo.UpsertState(ctx, workflowState); err != nil {
-		return nil, fmt.Errorf("failed to create workflow state: %w", err)
+	if err := repo.UpsertState(ctx, wfState); err != nil {
+		return nil, err
 	}
-
-	return workflowState, nil
+	return wfState, nil
 }

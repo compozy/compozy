@@ -9,6 +9,8 @@ import (
 	"github.com/compozy/compozy/engine/task"
 )
 
+const StateKey = "workflowState"
+
 // -----------------------------------------------------------------------------
 // State
 // -----------------------------------------------------------------------------
@@ -16,6 +18,13 @@ import (
 type StateID struct {
 	WorkflowID   string  `json:"workflow_id" db:"workflow_id"`
 	WorkflowExec core.ID `json:"workflow_exec" db:"workflow_exec_id"`
+}
+
+func NewStateID(workflowID string, workflowExec core.ID) StateID {
+	return StateID{
+		WorkflowID:   workflowID,
+		WorkflowExec: workflowExec,
+	}
 }
 
 func StateIDFromString(s string) (*StateID, error) {
@@ -57,7 +66,6 @@ func (e *StateID) UnmarshalJSON(data []byte) error {
 
 type State struct {
 	StateID
-
 	Status core.StatusType        `json:"status" db:"status"`
 	Input  *core.Input            `json:"input" db:"input"`
 	Output *core.Output           `json:"output" db:"output"`
@@ -68,7 +76,6 @@ type State struct {
 // StateDB is used for database scanning with JSONB fields as []byte
 type StateDB struct {
 	StateID
-
 	Status    core.StatusType `db:"status"`
 	InputRaw  []byte          `db:"input"`
 	OutputRaw []byte          `db:"output"`
@@ -141,8 +148,19 @@ func (e *State) AsMap() (map[core.ID]any, error) {
 	return result, nil
 }
 
-func (e *State) UpdateStatus(status core.StatusType) {
+func (e *State) WithStatus(status core.StatusType) *State {
 	e.Status = status
+	return e
+}
+
+func (e *State) WithError(err *core.Error) *State {
+	e.Error = err
+	return e
+}
+
+func (e *State) WithOutput(output *core.Output) *State {
+	e.Output = output
+	return e
 }
 
 func (e *State) AddTask(task *task.State) {

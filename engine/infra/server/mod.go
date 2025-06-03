@@ -26,16 +26,18 @@ import (
 type Server struct {
 	Config         *Config
 	TemporalConfig *temporal.Config
+	StoreConfig    *store.Config
 	router         *gin.Engine
 	ctx            context.Context
 	cancel         context.CancelFunc
 }
 
-func NewServer(config Config, tConfig *temporal.Config) *Server {
+func NewServer(config Config, tConfig *temporal.Config, sConfig *store.Config) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
 		Config:         &config,
 		TemporalConfig: tConfig,
+		StoreConfig:    sConfig,
 		ctx:            ctx,
 		cancel:         cancel,
 	}
@@ -160,7 +162,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 		tc.Close()
 	})
 
-	store, err := store.SetupStore(s.ctx)
+	store, err := store.SetupStore(s.ctx, s.StoreConfig)
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to setup store: %w", err)
 	}

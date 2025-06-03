@@ -8,11 +8,22 @@ import (
 	charmlog "github.com/charmbracelet/log"
 )
 
-var defaultLogger *charmlog.Logger
+var defaultLogger *loggerImpl
 
 type (
 	LogLevel string
-	Logger   = charmlog.Logger
+	// Logger defines the interface for structured logging
+	Logger interface {
+		Debug(msg string, keyvals ...any)
+		Info(msg string, keyvals ...any)
+		Warn(msg string, keyvals ...any)
+		Error(msg string, keyvals ...any)
+	}
+
+	// loggerImpl implements Logger interface using charm logger
+	loggerImpl struct {
+		charmLogger *charmlog.Logger
+	}
 )
 
 const (
@@ -42,6 +53,22 @@ func (c *LogLevel) ToCharmlogLevel() charmlog.Level {
 	}
 }
 
+func (l *loggerImpl) Debug(msg string, keyvals ...any) {
+	l.charmLogger.Debug(msg, keyvals...)
+}
+
+func (l *loggerImpl) Info(msg string, keyvals ...any) {
+	l.charmLogger.Info(msg, keyvals...)
+}
+
+func (l *loggerImpl) Warn(msg string, keyvals ...any) {
+	l.charmLogger.Warn(msg, keyvals...)
+}
+
+func (l *loggerImpl) Error(msg string, keyvals ...any) {
+	l.charmLogger.Error(msg, keyvals...)
+}
+
 type Config struct {
 	Level      LogLevel
 	Output     io.Writer
@@ -60,27 +87,35 @@ func DefaultConfig() *Config {
 	}
 }
 
-func Init(cfg *Config) {
+func NewLogger(cfg *Config) Logger {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
-	logger := charmlog.NewWithOptions(cfg.Output, charmlog.Options{
+	charmLogger := charmlog.NewWithOptions(cfg.Output, charmlog.Options{
 		ReportCaller:    true,
 		ReportTimestamp: true,
 		TimeFormat:      cfg.TimeFormat,
 		Level:           cfg.Level.ToCharmlogLevel(),
 	})
 	if cfg.JSON {
-		logger.SetFormatter(charmlog.JSONFormatter)
+		charmLogger.SetFormatter(charmlog.JSONFormatter)
 	} else {
-		logger.SetFormatter(charmlog.TextFormatter)
-
-		logger.SetStyles(getDefaultStyles())
+		charmLogger.SetFormatter(charmlog.TextFormatter)
+		charmLogger.SetStyles(getDefaultStyles())
 	}
-	defaultLogger = logger
+	return &loggerImpl{charmLogger: charmLogger}
 }
 
-func FromContext(_ context.Context) *charmlog.Logger {
+func Init(cfg *Config) {
+	logger := NewLogger(cfg)
+	defaultLogger = logger.(*loggerImpl)
+}
+
+func FromContext(_ context.Context) Logger {
+	return defaultLogger
+}
+
+func GetDefault() Logger {
 	return defaultLogger
 }
 
@@ -101,5 +136,5 @@ func Error(msg string, args ...any) {
 }
 
 func With(args ...any) *charmlog.Logger {
-	return defaultLogger.With(args...)
+	return defaultLogger.charmLogger.With(args...)
 }
