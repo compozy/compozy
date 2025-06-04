@@ -61,6 +61,7 @@ func (n *ConfigNormalizer) NormalizeTask(
 		},
 		MergedEnv: baseEnv,
 	}
+	taskConfig.Env = &baseEnv
 	if err := n.normalizer.NormalizeTaskConfig(taskConfig, normCtx); err != nil {
 		return baseEnv, fmt.Errorf("failed to normalize task config for %s: %w", taskConfig.ID, err)
 	}
@@ -92,7 +93,7 @@ func (n *ConfigNormalizer) NormalizeAgentComponent(
 	}
 
 	// Build complete parent context with all task config properties
-	parentConfig, err := core.ConfigAsMap(taskConfig)
+	parentConfig, err := core.AsMapDefault(taskConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert task config to map: %w", err)
 	}
@@ -148,14 +149,10 @@ func (n *ConfigNormalizer) NormalizeToolComponent(
 			err,
 		)
 	}
-
-	// Build complete parent context with all task config properties
-	parentConfig, err := core.ConfigAsMap(taskConfig)
+	parentConfig, err := core.AsMapDefault(taskConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert task config to map: %w", err)
 	}
-
-	// Add runtime state if available
 	if workflowState.Tasks != nil {
 		if taskState, exists := workflowState.Tasks[taskConfig.ID]; exists {
 			parentConfig["input"] = taskState.Input
@@ -196,7 +193,7 @@ func (n *ConfigNormalizer) NormalizeSuccessTransition(
 	}
 
 	// Build complete parent context with all workflow config properties
-	parentConfig, err := core.ConfigAsMap(workflowConfig)
+	parentConfig, err := core.AsMapDefault(workflowConfig)
 	if err != nil {
 		return fmt.Errorf("failed to convert workflow config to map: %w", err)
 	}
@@ -233,7 +230,7 @@ func (n *ConfigNormalizer) NormalizeErrorTransition(
 	}
 
 	// Build complete parent context with all workflow config properties
-	parentConfig, err := core.ConfigAsMap(workflowConfig)
+	parentConfig, err := core.AsMapDefault(workflowConfig)
 	if err != nil {
 		return fmt.Errorf("failed to convert workflow config to map: %w", err)
 	}

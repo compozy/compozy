@@ -17,21 +17,21 @@ import (
 )
 
 type Opts struct {
-	core.GlobalOpts `json:",inline" yaml:",inline"`
-	InputSchema     *schema.Schema `json:"input,omitempty" yaml:"input,omitempty"`
-	Env             *core.EnvMap   `json:"env,omitempty"   yaml:"env,omitempty"`
+	core.GlobalOpts `json:",inline" yaml:",inline" mapstructure:",squash"`
+	InputSchema     *schema.Schema `json:"input,omitempty" yaml:"input,omitempty" mapstructure:"input,omitempty"`
+	Env             *core.EnvMap   `json:"env,omitempty"   yaml:"env,omitempty"   mapstructure:"env,omitempty"`
 }
 
 type Config struct {
-	ID          string          `json:"id"                    yaml:"id"`
-	Version     string          `json:"version,omitempty"     yaml:"version,omitempty"`
-	Description string          `json:"description,omitempty" yaml:"description,omitempty"`
-	Schemas     []schema.Schema `json:"schemas,omitempty"     yaml:"schemas,omitempty"`
-	Opts        Opts            `json:"config"                yaml:"config"`
-	Author      *core.Author    `json:"author,omitempty"      yaml:"author,omitempty"`
-	Tools       []tool.Config   `json:"tools,omitempty"       yaml:"tools,omitempty"`
-	Agents      []agent.Config  `json:"agents,omitempty"      yaml:"agents,omitempty"`
-	Tasks       []task.Config   `json:"tasks"                 yaml:"tasks"`
+	ID          string          `json:"id"                    yaml:"id"                    mapstructure:"id"`
+	Version     string          `json:"version,omitempty"     yaml:"version,omitempty"     mapstructure:"version,omitempty"`
+	Description string          `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description,omitempty"`
+	Schemas     []schema.Schema `json:"schemas,omitempty"     yaml:"schemas,omitempty"     mapstructure:"schemas,omitempty"`
+	Opts        Opts            `json:"config"                yaml:"config"                mapstructure:"config"`
+	Author      *core.Author    `json:"author,omitempty"      yaml:"author,omitempty"      mapstructure:"author,omitempty"`
+	Tools       []tool.Config   `json:"tools,omitempty"       yaml:"tools,omitempty"       mapstructure:"tools,omitempty"`
+	Agents      []agent.Config  `json:"agents,omitempty"      yaml:"agents,omitempty"      mapstructure:"agents,omitempty"`
+	Tasks       []task.Config   `json:"tasks"                 yaml:"tasks"                 mapstructure:"tasks"`
 
 	filePath string
 	cwd      *core.CWD
@@ -125,6 +125,27 @@ func (w *Config) Merge(other any) error {
 	return mergo.Merge(w, otherConfig, mergo.WithOverride)
 }
 
+func (w *Config) AsMap() (map[string]any, error) {
+	return core.AsMapDefault(w)
+}
+
+func (w *Config) FromMap(data any) error {
+	config, err := core.FromMapDefault[*Config](data)
+	if err != nil {
+		return err
+	}
+	return w.Merge(config)
+}
+
+func (w *Config) GetID() string {
+	return w.ID
+}
+
+// GetTasks returns the workflow tasks
+func (w *Config) GetTasks() []task.Config {
+	return w.Tasks
+}
+
 func WorkflowsFromProject(projectConfig *project.Config, ev *ref.Evaluator) ([]*Config, error) {
 	cwd := projectConfig.GetCWD()
 	projectEnv := projectConfig.GetEnv()
@@ -178,16 +199,6 @@ func setAgentsCWD(wc *Config, cwd *core.CWD) error {
 		}
 	}
 	return nil
-}
-
-// GetID returns the workflow ID
-func (w *Config) GetID() string {
-	return w.ID
-}
-
-// GetTasks returns the workflow tasks
-func (w *Config) GetTasks() []task.Config {
-	return w.Tasks
 }
 
 func Load(cwd *core.CWD, path string) (*Config, error) {

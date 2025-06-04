@@ -12,22 +12,22 @@ import (
 )
 
 type WorkflowSourceConfig struct {
-	Source string `json:"source" yaml:"source"`
+	Source string `json:"source" yaml:"source" mapstructure:"source"`
 }
 
 type Opts struct {
-	core.GlobalOpts `json:",inline" yaml:",inline"`
+	core.GlobalOpts `json:",inline" yaml:",inline" mapstructure:",squash"`
 }
 
 type Config struct {
-	Name        string                  `json:"name"        yaml:"name"`
-	Version     string                  `json:"version"     yaml:"version"`
-	Description string                  `json:"description" yaml:"description"`
-	Author      core.Author             `json:"author"      yaml:"author"`
-	Workflows   []*WorkflowSourceConfig `json:"workflows"   yaml:"workflows"`
-	Models      []*agent.ProviderConfig `json:"models"      yaml:"models"`
-	Schemas     []schema.Schema         `json:"schemas"     yaml:"schemas"`
-	Opts        Opts                    `json:"config"      yaml:"config"`
+	Name        string                  `json:"name"        yaml:"name"        mapstructure:"name"`
+	Version     string                  `json:"version"     yaml:"version"     mapstructure:"version"`
+	Description string                  `json:"description" yaml:"description" mapstructure:"description"`
+	Author      core.Author             `json:"author"      yaml:"author"      mapstructure:"author"`
+	Workflows   []*WorkflowSourceConfig `json:"workflows"   yaml:"workflows"   mapstructure:"workflows"`
+	Models      []*agent.ProviderConfig `json:"models"      yaml:"models"      mapstructure:"models"`
+	Schemas     []schema.Schema         `json:"schemas"     yaml:"schemas"     mapstructure:"schemas"`
+	Opts        Opts                    `json:"config"      yaml:"config"      mapstructure:"config"`
 
 	filePath string
 	cwd      *core.CWD
@@ -103,7 +103,15 @@ func (p *Config) GetInput() *core.Input {
 }
 
 func (p *Config) AsMap() (map[string]any, error) {
-	return core.ConfigAsMap(p)
+	return core.AsMapDefault(p)
+}
+
+func (p *Config) FromMap(data any) error {
+	config, err := core.FromMapDefault[*Config](data)
+	if err != nil {
+		return err
+	}
+	return p.Merge(config)
 }
 
 func Load(cwd *core.CWD, path string) (*Config, error) {

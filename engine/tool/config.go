@@ -16,13 +16,13 @@ import (
 
 // Config represents a tool configuration
 type Config struct {
-	ID           string         `json:"id,omitempty"          yaml:"id,omitempty"`
-	Description  string         `json:"description,omitempty" yaml:"description,omitempty"`
-	Execute      string         `json:"execute,omitempty"     yaml:"execute,omitempty"`
-	InputSchema  *schema.Schema `json:"input,omitempty"       yaml:"input,omitempty"`
-	OutputSchema *schema.Schema `json:"output,omitempty"      yaml:"output,omitempty"`
-	With         *core.Input    `json:"with,omitempty"        yaml:"with,omitempty"`
-	Env          *core.EnvMap   `json:"env,omitempty"         yaml:"env,omitempty"`
+	ID           string         `json:"id,omitempty"          yaml:"id,omitempty"          mapstructure:"id,omitempty"`
+	Description  string         `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description,omitempty"`
+	Execute      string         `json:"execute,omitempty"     yaml:"execute,omitempty"     mapstructure:"execute,omitempty"`
+	InputSchema  *schema.Schema `json:"input,omitempty"       yaml:"input,omitempty"       mapstructure:"input,omitempty"`
+	OutputSchema *schema.Schema `json:"output,omitempty"      yaml:"output,omitempty"      mapstructure:"output,omitempty"`
+	With         *core.Input    `json:"with,omitempty"        yaml:"with,omitempty"        mapstructure:"with,omitempty"`
+	Env          *core.EnvMap   `json:"env,omitempty"         yaml:"env,omitempty"         mapstructure:"env,omitempty"`
 
 	filePath string
 	cwd      *core.CWD
@@ -93,6 +93,18 @@ func (t *Config) Merge(other any) error {
 		return fmt.Errorf("failed to merge tool configs: %w", errors.New("invalid type for merge"))
 	}
 	return mergo.Merge(t, otherConfig, mergo.WithOverride)
+}
+
+func (t *Config) AsMap() (map[string]any, error) {
+	return core.AsMapDefault(t)
+}
+
+func (t *Config) FromMap(data any) error {
+	config, err := core.FromMapDefault[*Config](data)
+	if err != nil {
+		return err
+	}
+	return t.Merge(config)
 }
 
 func IsTypeScript(path string) bool {

@@ -504,7 +504,7 @@ func TestNormalizer_ErrorHandling(t *testing.T) {
 
 		err := n.NormalizeTaskConfig(taskConfig, ctx)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to normalize task config input")
+		assert.Contains(t, err.Error(), "failed to normalize task config")
 	})
 
 	t.Run("Should handle missing context gracefully", func(t *testing.T) {
@@ -547,7 +547,7 @@ func TestNormalizer_ErrorHandling(t *testing.T) {
 		err := n.NormalizeTaskConfig(taskConfig, ctx)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "worklow")
-		assert.Contains(t, err.Error(), "failed to normalize task config input")
+		assert.Contains(t, err.Error(), "failed to normalize task config")
 	})
 
 	t.Run("Should fail on misspelled field access", func(t *testing.T) {
@@ -576,6 +576,6 @@ func TestNormalizer_ErrorHandling(t *testing.T) {
 		err := n.NormalizeTaskConfig(taskConfig, ctx)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "outpu")
-		assert.Contains(t, err.Error(), "failed to normalize task config input")
+		assert.Contains(t, err.Error(), "failed to normalize task config")
 	})
 }

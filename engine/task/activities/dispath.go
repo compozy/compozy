@@ -20,6 +20,11 @@ type DispatchInput struct {
 	TaskID         string  `json:"task_id"`
 }
 
+type DispatchOutput struct {
+	State  *task.State
+	Config *task.Config
+}
+
 type DispatchData struct {
 	WorkflowState  *workflow.State
 	WorkflowConfig *workflow.Config
@@ -49,7 +54,7 @@ func NewDispatch(
 }
 
 // Run executes a task
-func (a *Dispatch) Run(ctx context.Context, input *DispatchInput) (*task.State, error) {
+func (a *Dispatch) Run(ctx context.Context, input *DispatchInput) (*DispatchOutput, error) {
 	// Load execution data
 	execData, err := a.loadData(ctx, input)
 	if err != nil {
@@ -60,7 +65,10 @@ func (a *Dispatch) Run(ctx context.Context, input *DispatchInput) (*task.State, 
 	if err != nil {
 		return nil, err
 	}
-	return state, nil
+	return &DispatchOutput{
+		State:  state,
+		Config: execData.TaskConfig,
+	}, nil
 }
 
 func (a *Dispatch) createState(

@@ -11,6 +11,11 @@ import (
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
+const (
+	inputKey  = "input"
+	outputKey = "output"
+)
+
 type Normalizer struct {
 	engine *tplengine.TemplateEngine
 }
@@ -36,45 +41,34 @@ func (n *Normalizer) buildContext(ctx *NormalizationContext) map[string]any {
 		"workflow": n.buildWorkflowContext(ctx),
 		"tasks":    n.buildTasksContext(ctx),
 	}
-
-	// Add parent context
 	if parent := n.buildParentContext(ctx); parent != nil {
 		context["parent"] = parent
 	}
-
-	// Add current input context
 	if ctx.CurrentInput != nil {
-		context["input"] = ctx.CurrentInput
+		context[inputKey] = ctx.CurrentInput
 	}
-
-	// Add merged environment context
 	if ctx.MergedEnv != nil {
 		context["env"] = ctx.MergedEnv
 	}
-
 	return context
 }
 
 func (n *Normalizer) buildWorkflowContext(ctx *NormalizationContext) map[string]any {
 	workflowContext := map[string]any{
-		"id":     ctx.WorkflowState.WorkflowID,
-		"input":  ctx.WorkflowState.Input,
-		"output": ctx.WorkflowState.Output,
+		"id":      ctx.WorkflowState.WorkflowID,
+		inputKey:  ctx.WorkflowState.Input,
+		outputKey: ctx.WorkflowState.Output,
 	}
-
-	// Add workflow config properties if available
 	if ctx.WorkflowConfig != nil {
-		wfMap, err := core.ConfigAsMap(ctx.WorkflowConfig)
+		wfMap, err := core.AsMapDefault(ctx.WorkflowConfig)
 		if err == nil {
-			// Merge config properties with runtime state
 			for k, v := range wfMap {
-				if k != "input" && k != "output" { // Don't override runtime state
+				if k != inputKey && k != outputKey { // Don't override runtime state
 					workflowContext[k] = v
 				}
 			}
 		}
 	}
-
 	return workflowContext
 }
 
@@ -83,35 +77,29 @@ func (n *Normalizer) buildTasksContext(ctx *NormalizationContext) map[string]any
 	if ctx.WorkflowState.Tasks == nil {
 		return tasksMap
 	}
-
 	for taskID, taskState := range ctx.WorkflowState.Tasks {
 		taskContext := map[string]any{
-			"id":     taskID,
-			"input":  taskState.Input,
-			"output": taskState.Output,
+			"id":      taskID,
+			inputKey:  taskState.Input,
+			outputKey: taskState.Output,
 		}
-
-		// Add task config properties if available
 		if ctx.TaskConfigs != nil {
 			if taskConfig, exists := ctx.TaskConfigs[taskID]; exists {
 				n.mergeTaskConfig(taskContext, taskConfig)
 			}
 		}
-
 		tasksMap[taskID] = taskContext
 	}
-
 	return tasksMap
 }
 
 func (n *Normalizer) mergeTaskConfig(taskContext map[string]any, taskConfig *task.Config) {
-	taskConfigMap, err := core.ConfigAsMap(taskConfig)
+	taskConfigMap, err := taskConfig.AsMap()
 	if err != nil {
 		return
 	}
-	// Merge config properties with runtime state
 	for k, v := range taskConfigMap {
-		if k != "input" && k != "output" { // Don't override runtime state
+		if k != inputKey && k != outputKey { // Don't override runtime state
 			taskContext[k] = v
 		}
 	}
@@ -121,25 +109,19 @@ func (n *Normalizer) buildParentContext(ctx *NormalizationContext) map[string]an
 	if ctx.ParentConfig != nil {
 		return ctx.ParentConfig
 	}
-
 	if ctx.ParentTaskConfig != nil {
-		// If parent is a task, build parent context from task config
-		parentMap, err := core.ConfigAsMap(ctx.ParentTaskConfig)
+		parentMap, err := ctx.ParentTaskConfig.AsMap()
 		if err != nil {
 			return nil
 		}
-
-		// Also add runtime state if available
 		if ctx.WorkflowState.Tasks != nil {
 			if parentTaskState, exists := ctx.WorkflowState.Tasks[ctx.ParentTaskConfig.ID]; exists {
-				parentMap["input"] = parentTaskState.Input
-				parentMap["output"] = parentTaskState.Output
+				parentMap[inputKey] = parentTaskState.Input
+				parentMap[outputKey] = parentTaskState.Output
 			}
 		}
-
 		return parentMap
 	}
-
 	return nil
 }
 
@@ -151,37 +133,23 @@ func (n *Normalizer) NormalizeTaskConfig(config *task.Config, ctx *Normalization
 	if config == nil {
 		return nil
 	}
-
-	// Update current input in context
 	if ctx.CurrentInput == nil && config.With != nil {
 		ctx.CurrentInput = config.With
 	}
-
-	// Note: When a task is called by another task, set ParentTaskConfig instead of ParentConfig
-	// The buildContext method will handle extracting the parent task's configuration and runtime state
 	context := n.buildContext(ctx)
-
-	// Normalize input (With field)
-	if config.With != nil {
-		if err := n.normalizeInput(config.With, context); err != nil {
-			return fmt.Errorf("failed to normalize task config input: %w", err)
-		}
+	configMap, err := config.AsMap()
+	if err != nil {
+		return fmt.Errorf("failed to convert task config to map: %w", err)
 	}
-
-	// Normalize environment variables
-	if err := n.normalizeEnvMap(config.Env, context); err != nil {
-		return fmt.Errorf("failed to normalize task config env: %w", err)
+	parsed, err := n.engine.ParseMapWithFilter(configMap, context, func(k string) bool {
+		return k == "agent" || k == "tool" || k == inputKey || k == outputKey
+	})
+	if err != nil {
+		return fmt.Errorf("failed to normalize task config: %w", err)
 	}
-
-	// Normalize string fields
-	if err := n.normalizeStringField(&config.Action, context); err != nil {
-		return fmt.Errorf("failed to normalize task config action: %w", err)
+	if err := config.FromMap(parsed); err != nil {
+		return fmt.Errorf("failed to update task config from normalized map: %w", err)
 	}
-
-	if err := n.normalizeStringField(&config.Condition, context); err != nil {
-		return fmt.Errorf("failed to normalize task config condition: %w", err)
-	}
-
 	return nil
 }
 
@@ -193,40 +161,38 @@ func (n *Normalizer) NormalizeAgentConfig(
 	if config == nil {
 		return nil
 	}
-
-	// Update current input in context
 	if ctx.CurrentInput == nil && config.With != nil {
 		ctx.CurrentInput = config.With
 	}
-
 	context := n.buildContext(ctx)
-
-	// Normalize input (With field)
-	if config.With != nil {
-		if err := n.normalizeInput(config.With, context); err != nil {
-			return fmt.Errorf("failed to normalize agent config input: %w", err)
+	configMap, err := config.AsMap()
+	if err != nil {
+		return fmt.Errorf("failed to convert task config to map: %w", err)
+	}
+	parsed, err := n.engine.ParseMapWithFilter(configMap, context, func(k string) bool {
+		return k == "actions" || k == "tools" || k == inputKey || k == outputKey
+	})
+	if err != nil {
+		return fmt.Errorf("failed to normalize task config: %w", err)
+	}
+	if err := config.FromMap(parsed); err != nil {
+		return fmt.Errorf("failed to update task config from normalized map: %w", err)
+	}
+	if err := n.NormalizeAgentActions(config, ctx, actionID); err != nil {
+		return fmt.Errorf("failed to normalize agent actions: %w", err)
+	}
+	for _, toolConfig := range config.Tools {
+		if err := n.NormalizeToolConfig(&toolConfig, ctx); err != nil {
+			return fmt.Errorf("failed to normalize tool config: %w", err)
 		}
 	}
+	return nil
+}
 
-	// Normalize environment variables
-	if err := n.normalizeEnvMap(config.Env, context); err != nil {
-		return fmt.Errorf("failed to normalize agent config env: %w", err)
-	}
-
-	// Normalize instructions (most important for agents)
-	if err := n.normalizeStringField(&config.Instructions, context); err != nil {
-		return fmt.Errorf("failed to normalize agent config instructions: %w", err)
-	}
-
+func (n *Normalizer) NormalizeAgentActions(config *agent.Config, ctx *NormalizationContext, actionID string) error {
 	// Normalize agent actions (only if actionID is provided and actions exist)
 	if actionID != "" && len(config.Actions) > 0 {
-		var aConfig *agent.ActionConfig
-		for _, action := range config.Actions {
-			if action.ID == actionID {
-				aConfig = action
-				break
-			}
-		}
+		aConfig := agent.FindActionConfig(config.Actions, actionID)
 		if aConfig == nil {
 			return fmt.Errorf("agent action %s not found in agent config %s", actionID, config.ID)
 		}
@@ -241,7 +207,7 @@ func (n *Normalizer) NormalizeAgentConfig(
 			TaskConfigs:    ctx.TaskConfigs,
 			ParentConfig: map[string]any{
 				"id":           config.ID,
-				"input":        config.With,
+				inputKey:       config.With,
 				"instructions": config.Instructions,
 				"config":       config.Config,
 			},
@@ -252,43 +218,6 @@ func (n *Normalizer) NormalizeAgentConfig(
 			return fmt.Errorf("failed to normalize agent action config: %w", err)
 		}
 	}
-
-	return nil
-}
-
-func (n *Normalizer) NormalizeToolConfig(config *tool.Config, ctx *NormalizationContext) error {
-	if config == nil {
-		return nil
-	}
-
-	// Update current input in context
-	if ctx.CurrentInput == nil && config.With != nil {
-		ctx.CurrentInput = config.With
-	}
-
-	context := n.buildContext(ctx)
-
-	// Normalize input (With field)
-	if config.With != nil {
-		if err := n.normalizeInput(config.With, context); err != nil {
-			return fmt.Errorf("failed to normalize tool config input: %w", err)
-		}
-	}
-
-	// Normalize environment variables
-	if err := n.normalizeEnvMap(config.Env, context); err != nil {
-		return fmt.Errorf("failed to normalize tool config env: %w", err)
-	}
-
-	// Normalize string fields
-	if err := n.normalizeStringField(&config.Execute, context); err != nil {
-		return fmt.Errorf("failed to normalize tool config execute: %w", err)
-	}
-
-	if err := n.normalizeStringField(&config.Description, context); err != nil {
-		return fmt.Errorf("failed to normalize tool config description: %w", err)
-	}
-
 	return nil
 }
 
@@ -296,24 +225,46 @@ func (n *Normalizer) NormalizeAgentActionConfig(config *agent.ActionConfig, ctx 
 	if config == nil {
 		return nil
 	}
-
-	// Update current input in context
 	if ctx.CurrentInput == nil && config.With != nil {
 		ctx.CurrentInput = config.With
 	}
-
 	context := n.buildContext(ctx)
-
-	// Normalize input (With field)
-	if config.With != nil {
-		if err := n.normalizeInput(config.With, context); err != nil {
-			return fmt.Errorf("failed to normalize agent action config input: %w", err)
-		}
+	configMap, err := config.AsMap()
+	if err != nil {
+		return fmt.Errorf("failed to convert task config to map: %w", err)
 	}
+	parsed, err := n.engine.ParseMapWithFilter(configMap, context, func(k string) bool {
+		return k == inputKey || k == outputKey
+	})
+	if err != nil {
+		return fmt.Errorf("failed to normalize task config: %w", err)
+	}
+	if err := config.FromMap(parsed); err != nil {
+		return fmt.Errorf("failed to update task config from normalized map: %w", err)
+	}
+	return nil
+}
 
-	// Normalize prompt (most important for actions)
-	if err := n.normalizeStringField(&config.Prompt, context); err != nil {
-		return fmt.Errorf("failed to normalize agent action config prompt: %w", err)
+func (n *Normalizer) NormalizeToolConfig(config *tool.Config, ctx *NormalizationContext) error {
+	if config == nil {
+		return nil
+	}
+	if ctx.CurrentInput == nil && config.With != nil {
+		ctx.CurrentInput = config.With
+	}
+	context := n.buildContext(ctx)
+	configMap, err := config.AsMap()
+	if err != nil {
+		return fmt.Errorf("failed to convert task config to map: %w", err)
+	}
+	parsed, err := n.engine.ParseMapWithFilter(configMap, context, func(k string) bool {
+		return k == inputKey || k == outputKey
+	})
+	if err != nil {
+		return fmt.Errorf("failed to normalize task config: %w", err)
+	}
+	if err := config.FromMap(parsed); err != nil {
+		return fmt.Errorf("failed to update task config from normalized map: %w", err)
 	}
 
 	return nil
@@ -323,26 +274,21 @@ func (n *Normalizer) NormalizeTransition(transition *core.SuccessTransition, ctx
 	if transition == nil {
 		return nil
 	}
-
-	// Update current input in context
 	if ctx.CurrentInput == nil && transition.With != nil {
 		ctx.CurrentInput = transition.With
 	}
-
 	context := n.buildContext(ctx)
-
-	// Normalize Next field
-	if err := n.normalizeStringField(transition.Next, context); err != nil {
-		return fmt.Errorf("failed to normalize transition next field: %w", err)
+	configMap, err := transition.AsMap()
+	if err != nil {
+		return fmt.Errorf("failed to convert transition to map: %w", err)
 	}
-
-	// Normalize input (With field)
-	if transition.With != nil {
-		if err := n.normalizeInput(transition.With, context); err != nil {
-			return fmt.Errorf("failed to normalize transition input: %w", err)
-		}
+	parsed, err := n.engine.ParseMap(configMap, context)
+	if err != nil {
+		return fmt.Errorf("failed to normalize transition: %w", err)
 	}
-
+	if err := transition.FromMap(parsed); err != nil {
+		return fmt.Errorf("failed to update transition from normalized map: %w", err)
+	}
 	return nil
 }
 
@@ -350,76 +296,20 @@ func (n *Normalizer) NormalizeErrorTransition(transition *core.ErrorTransition, 
 	if transition == nil {
 		return nil
 	}
-
-	// Update current input in context
 	if ctx.CurrentInput == nil && transition.With != nil {
 		ctx.CurrentInput = transition.With
 	}
-
 	context := n.buildContext(ctx)
-
-	// Normalize Next field
-	if err := n.normalizeStringField(transition.Next, context); err != nil {
-		return fmt.Errorf("failed to normalize error transition next field: %w", err)
+	configMap, err := transition.AsMap()
+	if err != nil {
+		return fmt.Errorf("failed to convert transition to map: %w", err)
 	}
-
-	// Normalize input (With field)
-	if transition.With != nil {
-		if err := n.normalizeInput(transition.With, context); err != nil {
-			return fmt.Errorf("failed to normalize error transition input: %w", err)
-		}
+	parsed, err := n.engine.ParseMap(configMap, context)
+	if err != nil {
+		return fmt.Errorf("failed to normalize transition: %w", err)
 	}
-
-	return nil
-}
-
-// -----------------------------------------------------------------------------
-// Helper Methods
-// -----------------------------------------------------------------------------
-
-func (n *Normalizer) normalizeInput(input *core.Input, context map[string]any) error {
-	if input == nil {
-		return nil
-	}
-
-	for k, v := range *input {
-		parsedValue, err := n.engine.ParseMap(v, context)
-		if err != nil {
-			return fmt.Errorf("failed to parse template in input[%s]: %w", k, err)
-		}
-		(*input)[k] = parsedValue
-	}
-	return nil
-}
-
-func (n *Normalizer) normalizeEnvMap(envMap *core.EnvMap, context map[string]any) error {
-	if envMap == nil {
-		return nil
-	}
-
-	for k, v := range *envMap {
-		if tplengine.HasTemplate(v) {
-			parsed, err := n.engine.RenderString(v, context)
-			if err != nil {
-				return fmt.Errorf("failed to parse template in env[%s]: %w", k, err)
-			}
-			(*envMap)[k] = parsed
-		}
-	}
-	return nil
-}
-
-func (n *Normalizer) normalizeStringField(field *string, context map[string]any) error {
-	if field == nil || *field == "" {
-		return nil
-	}
-
-	if tplengine.HasTemplate(*field) {
-		parsed, err := n.engine.RenderString(*field, context)
-		if err != nil {
-			return fmt.Errorf("failed to parse template in string field: %w", err)
-		}
-		*field = parsed
+	if err := transition.FromMap(parsed); err != nil {
+		return fmt.Errorf("failed to update transition from normalized map: %w", err)
 	}
 	return nil
 }

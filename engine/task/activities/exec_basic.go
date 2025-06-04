@@ -18,10 +18,7 @@ import (
 
 const ExecuteBasicLabel = "ExecuteBasicTask"
 
-type ExecuteBasicInput struct {
-	State  task.State  `json:"state"`
-	Config task.Config `json:"config"`
-}
+type ExecuteBasicInput = DispatchOutput
 
 type ExecuteBasicData struct {
 	WorkflowConfig *workflow.Config
@@ -52,7 +49,7 @@ func NewExecuteBasic(
 }
 
 func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task.Response, error) {
-	state := &input.State
+	state := input.State
 	// Load execution data
 	execData, err := a.loadData(state, input)
 	if err != nil {
@@ -96,20 +93,14 @@ func (a *ExecuteBasic) loadData(state *task.State, input *ExecuteBasicInput) (*E
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workflow config: %w", err)
 	}
-	// Find agent config
-	agentID := *state.AgentID
-	agentConfig, err := workflow.FindAgentConfig[*agent.Config](a.workflows, agentID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find agent config: %w", err)
-	}
-	// Find action config
+	agentConfig := input.Config.Agent
 	actionConfig, err := a.findActionConfig(agentConfig, *state.ActionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find action config: %w", err)
 	}
 	return &ExecuteBasicData{
 		WorkflowConfig: workflowConfig,
-		TaskConfig:     &input.Config,
+		TaskConfig:     input.Config,
 		AgentConfig:    agentConfig,
 		ActionConfig:   actionConfig,
 	}, nil

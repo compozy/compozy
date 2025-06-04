@@ -24,7 +24,7 @@ func NewGetData(projectConfig *project.Config, workflows []*workflow.Config) *Ge
 	return &GetData{ProjectConfig: projectConfig, Workflows: workflows}
 }
 
-func (a *GetData) Run(ctx context.Context, input *GetDataInput) (*GetData, error) {
+func (a *GetData) Run(_ context.Context, input *GetDataInput) (*GetData, error) {
 	workflowConfig, err := workflow.FindConfig(a.Workflows, input.WorkflowID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workflow config: %w", err)

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"dario.cat/mergo"
 	str2duration "github.com/xhit/go-str2duration/v2"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -11,32 +12,60 @@ import (
 
 // SuccessTransition represents a success transition configuration
 type SuccessTransition struct {
-	Next *string `json:"next,omitempty" yaml:"next,omitempty"`
-	With *Input  `json:"with,omitempty" yaml:"with,omitempty"`
+	Next *string `json:"next,omitempty" yaml:"next,omitempty" mapstructure:"next,omitempty"`
+	With *Input  `json:"with,omitempty" yaml:"with,omitempty" mapstructure:"with,omitempty"`
+}
+
+// AsMap converts the provider configuration to a map for template normalization
+func (p *SuccessTransition) AsMap() (map[string]any, error) {
+	return AsMapDefault(p)
+}
+
+// FromMap updates the provider configuration from a normalized map
+func (p *SuccessTransition) FromMap(data any) error {
+	config, err := FromMapDefault[SuccessTransition](data)
+	if err != nil {
+		return err
+	}
+	return mergo.Merge(p, config, mergo.WithOverride)
 }
 
 // ErrorTransition represents an error transition configuration
 type ErrorTransition struct {
-	Next *string `json:"next,omitempty" yaml:"next,omitempty"`
-	With *Input  `json:"with,omitempty" yaml:"with,omitempty"`
+	Next *string `json:"next,omitempty" yaml:"next,omitempty" mapstructure:"next,omitempty"`
+	With *Input  `json:"with,omitempty" yaml:"with,omitempty" mapstructure:"with,omitempty"`
+}
+
+// AsMap converts the provider configuration to a map for template normalization
+func (p *ErrorTransition) AsMap() (map[string]any, error) {
+	return AsMapDefault(p)
+}
+
+// FromMap updates the provider configuration from a normalized map
+func (p *ErrorTransition) FromMap(data any) error {
+	config, err := FromMapDefault[ErrorTransition](data)
+	if err != nil {
+		return err
+	}
+	return mergo.Merge(p, config, mergo.WithOverride)
 }
 
 // RetryPolicyConfig defines the retry behavior for a transition
 type RetryPolicyConfig struct {
-	InitialInterval        string   `json:"initial_interval,omitempty"          yaml:"initial_interval,omitempty"`
-	BackoffCoefficient     float64  `json:"backoff_coefficient,omitempty"       yaml:"backoff_coefficient,omitempty"`
-	MaximumAttempts        int32    `json:"maximum_attempts,omitempty"          yaml:"maximum_attempts,omitempty"`
-	MaximumInterval        string   `json:"maximum_interval,omitempty"          yaml:"maximum_interval,omitempty"`
-	NonRetryableErrorTypes []string `json:"non_retryable_error_types,omitempty" yaml:"non_retryable_error_types,omitempty"`
+	InitialInterval        string   `json:"initial_interval,omitempty"          yaml:"initial_interval,omitempty"          mapstructure:"initial_interval,omitempty"`
+	BackoffCoefficient     float64  `json:"backoff_coefficient,omitempty"       yaml:"backoff_coefficient,omitempty"       mapstructure:"backoff_coefficient,omitempty"`
+	MaximumAttempts        int32    `json:"maximum_attempts,omitempty"          yaml:"maximum_attempts,omitempty"          mapstructure:"maximum_attempts,omitempty"`
+	MaximumInterval        string   `json:"maximum_interval,omitempty"          yaml:"maximum_interval,omitempty"          mapstructure:"maximum_interval,omitempty"`
+	NonRetryableErrorTypes []string `json:"non_retryable_error_types,omitempty" yaml:"non_retryable_error_types,omitempty" mapstructure:"non_retryable_error_types,omitempty"`
 }
 
 type GlobalOpts struct {
-	OnError                *ErrorTransition   `json:"on_error,omitempty"                  yaml:"on_error,omitempty"`
-	RetryPolicy            *RetryPolicyConfig `json:"retry_policy,omitempty"              yaml:"retry_policy,omitempty"`
-	ScheduleToStartTimeout string             `json:"schedule_to_start_timeout,omitempty" yaml:"schedule_to_start_timeout,omitempty"`
-	StartToCloseTimeout    string             `json:"start_to_close_timeout,omitempty"    yaml:"start_to_close_timeout,omitempty"`
-	ScheduleToCloseTimeout string             `json:"schedule_to_close_timeout,omitempty" yaml:"schedule_to_close_timeout,omitempty"`
-	HeartbeatTimeout       string             `json:"heartbeat_timeout,omitempty"         yaml:"heartbeat_timeout,omitempty"`
+	OnError                *ErrorTransition   `json:"on_error,omitempty"                  yaml:"on_error,omitempty"                  mapstructure:"on_error,omitempty"`
+	RetryPolicy            *RetryPolicyConfig `json:"retry_policy,omitempty"              yaml:"retry_policy,omitempty"              mapstructure:"retry_policy,omitempty"`
+	ScheduleToStartTimeout string             `json:"schedule_to_start_timeout,omitempty" yaml:"schedule_to_start_timeout,omitempty" mapstructure:"schedule_to_start_timeout,omitempty"`
+	StartToCloseTimeout    string             `json:"start_to_close_timeout,omitempty"    yaml:"start_to_close_timeout,omitempty"    mapstructure:"start_to_close_timeout,omitempty"`
+	ScheduleToCloseTimeout string             `json:"schedule_to_close_timeout,omitempty" yaml:"schedule_to_close_timeout,omitempty" mapstructure:"schedule_to_close_timeout,omitempty"`
+	HeartbeatTimeout       string             `json:"heartbeat_timeout,omitempty"         yaml:"heartbeat_timeout,omitempty"         mapstructure:"heartbeat_timeout,omitempty"`
 }
 
 // ResolvedActivityOptions contains the final resolved activity options

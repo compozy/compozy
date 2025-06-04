@@ -11,6 +11,7 @@ GOFMT=gofmt -s -w
 BINARY_NAME=compozy
 BINARY_DIR=bin
 SRC_DIRS=./...
+LINTCMD=golangci-lint-v2
 
 # -----------------------------------------------------------------------------
 # Swagger/OpenAPI
@@ -41,12 +42,12 @@ build: swagger
 # Code Quality & Formatting
 # -----------------------------------------------------------------------------
 lint:
-	golangci-lint run --fix
+	$(LINTCMD) run --fix
 	@echo "Linting completed successfully"
 
 fmt:
 	@echo "Formatting code..."
-	golangci-lint fmt
+	$(LINTCMD) fmt
 	@echo "Formatting completed successfully"
 
 # -----------------------------------------------------------------------------

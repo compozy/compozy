@@ -57,7 +57,10 @@ func (a *Activities) UpdateWorkflowState(ctx context.Context, input *wfacts.Upda
 	return act.Run(ctx, input)
 }
 
-func (a *Activities) DispatchTask(ctx context.Context, input *tkfacts.DispatchInput) (*task.State, error) {
+func (a *Activities) DispatchTask(
+	ctx context.Context,
+	input *tkfacts.DispatchInput,
+) (*tkfacts.DispatchOutput, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

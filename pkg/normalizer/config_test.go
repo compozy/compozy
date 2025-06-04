@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
@@ -681,5 +682,232 @@ func TestConfigNormalizer_BuildTaskConfigsMap(t *testing.T) {
 		taskConfigs := []task.Config{}
 		configMap := BuildTaskConfigsMap(taskConfigs)
 		assert.Empty(t, configMap)
+	})
+}
+
+func TestConfigNormalizer_ProviderConfigNormalization(t *testing.T) {
+	normalizer := NewConfigNormalizer()
+
+	t.Run("Should normalize ProviderConfig templates including APIKey", func(t *testing.T) {
+		agentConfig := &agent.Config{
+			ID: "test-agent",
+			Config: agent.ProviderConfig{
+				Provider: agent.ProviderGroq,
+				Model:    agent.ModelLLama3370bVersatile,
+				APIKey:   "{{ .env.OPENAI_API_KEY }}",
+				APIURL:   "{{ .env.BASE_URL }}/v1",
+			},
+			Instructions: "Test instructions",
+			With: &core.Input{
+				"test": "value",
+			},
+		}
+
+		taskConfig := &task.Config{
+			ID:     "test-task",
+			Type:   task.TaskTypeBasic,
+			Action: "test",
+		}
+
+		workflowState := &workflow.State{
+			WorkflowID:     "test-workflow",
+			WorkflowExecID: "exec-123",
+		}
+
+		workflowConfig := &workflow.Config{
+			ID:    "test-workflow",
+			Tasks: []task.Config{*taskConfig},
+		}
+
+		allTaskConfigs := BuildTaskConfigsMap(workflowConfig.Tasks)
+
+		// Create normalization context with environment containing the API key
+		normCtx := &NormalizationContext{
+			WorkflowState:  workflowState,
+			WorkflowConfig: workflowConfig,
+			TaskConfigs:    allTaskConfigs,
+			ParentConfig: map[string]any{
+				"id": "test-task",
+			},
+			CurrentInput: agentConfig.With,
+			MergedEnv: core.EnvMap{
+				"OPENAI_API_KEY": "sk-test-api-key-12345",
+				"BASE_URL":       "https://api.test.com",
+			},
+		}
+
+		err := normalizer.normalizer.NormalizeAgentConfig(agentConfig, normCtx, "")
+		require.NoError(t, err)
+
+		// The API key template should be resolved
+		assert.Equal(t, "sk-test-api-key-12345", agentConfig.Config.APIKey)
+		assert.Equal(t, "https://api.test.com/v1", agentConfig.Config.APIURL)
+	})
+}
+
+func TestConfigNormalizer_MapstructureCompatibility(t *testing.T) {
+	normalizer := NewConfigNormalizer()
+
+	t.Run("Should handle all mapstructure field mappings correctly", func(t *testing.T) {
+		// Test task config with on_success, on_error, and config fields
+		taskConfig := &task.Config{
+			ID:   "test-task",
+			Type: task.TaskTypeBasic,
+			Opts: task.Opts{
+				GlobalOpts: core.GlobalOpts{
+					ScheduleToStartTimeout: "{{ .env.SCHEDULE_TIMEOUT }}",
+					StartToCloseTimeout:    "{{ .env.START_TIMEOUT }}",
+					RetryPolicy: &core.RetryPolicyConfig{
+						InitialInterval: "{{ .env.INITIAL_INTERVAL }}",
+						MaximumAttempts: 5,
+					},
+				},
+			},
+			OnSuccess: &core.SuccessTransition{
+				Next: &[]string{"next-task"}[0],
+				With: &core.Input{
+					"message": "{{ .env.SUCCESS_MSG }}",
+				},
+			},
+			OnError: &core.ErrorTransition{
+				Next: &[]string{"error-handler"}[0],
+				With: &core.Input{
+					"error": "{{ .env.ERROR_MSG }}",
+				},
+			},
+		}
+
+		// Test agent config with config field (ProviderConfig)
+		agentConfig := &agent.Config{
+			ID: "test-agent",
+			Config: agent.ProviderConfig{
+				Provider: agent.ProviderOpenAI,
+				Model:    agent.ModelGPT4o,
+				APIKey:   "{{ .env.API_KEY }}",
+				APIURL:   "{{ .env.API_URL }}",
+			},
+			Instructions: "Test agent with API key {{ .env.API_KEY }}",
+		}
+
+		// Test workflow config with config field (Opts)
+		workflowConfig := &workflow.Config{
+			ID:      "test-workflow",
+			Version: "{{ .env.VERSION }}",
+			Author: &core.Author{
+				Name:  "{{ .env.AUTHOR_NAME }}",
+				Email: "{{ .env.AUTHOR_EMAIL }}",
+			},
+			Opts: workflow.Opts{
+				GlobalOpts: core.GlobalOpts{
+					ScheduleToStartTimeout: "{{ .env.WF_TIMEOUT }}",
+				},
+				Env: &core.EnvMap{
+					"WF_VAR": "{{ .env.WORKFLOW_VAR }}",
+				},
+			},
+			Tasks:  []task.Config{*taskConfig},
+			Agents: []agent.Config{*agentConfig},
+		}
+
+		// Test project config with config field (Opts)
+		projectConfig := &project.Config{
+			Name:        "{{ .env.PROJECT_NAME }}",
+			Version:     "{{ .env.PROJECT_VERSION }}",
+			Description: "Test project with version {{ .env.PROJECT_VERSION }}",
+			Author: core.Author{
+				Name:  "{{ .env.PROJECT_AUTHOR }}",
+				Email: "{{ .env.PROJECT_EMAIL }}",
+			},
+			Opts: project.Opts{
+				GlobalOpts: core.GlobalOpts{
+					StartToCloseTimeout: "{{ .env.PROJECT_TIMEOUT }}",
+				},
+			},
+			Workflows: []*project.WorkflowSourceConfig{
+				{
+					Source: "{{ .env.WORKFLOW_SOURCE }}",
+				},
+			},
+		}
+
+		workflowState := &workflow.State{
+			WorkflowID:     "test-workflow",
+			WorkflowExecID: "exec-123",
+		}
+
+		// Environment with values for all the templates
+		testEnv := core.EnvMap{
+			"SCHEDULE_TIMEOUT": "2m",
+			"START_TIMEOUT":    "5m",
+			"INITIAL_INTERVAL": "1s",
+			"SUCCESS_MSG":      "Task completed successfully",
+			"ERROR_MSG":        "Task failed",
+			"API_KEY":          "sk-test-key-123",
+			"API_URL":          "https://api.openai.com/v1",
+			"VERSION":          "1.2.3",
+			"AUTHOR_NAME":      "John Doe",
+			"AUTHOR_EMAIL":     "john@example.com",
+			"WF_TIMEOUT":       "10m",
+			"WORKFLOW_VAR":     "workflow-value",
+			"PROJECT_NAME":     "My Project",
+			"PROJECT_VERSION":  "2.0.0",
+			"PROJECT_AUTHOR":   "Jane Smith",
+			"PROJECT_EMAIL":    "jane@example.com",
+			"PROJECT_TIMEOUT":  "15m",
+			"WORKFLOW_SOURCE":  "./workflows/main.yaml",
+		}
+
+		// Test task normalization (on_success, on_error, config fields)
+		allTaskConfigs := BuildTaskConfigsMap(workflowConfig.Tasks)
+		normCtx := &NormalizationContext{
+			WorkflowState:  workflowState,
+			WorkflowConfig: workflowConfig,
+			TaskConfigs:    allTaskConfigs,
+			MergedEnv:      testEnv,
+		}
+
+		err := normalizer.normalizer.NormalizeTaskConfig(taskConfig, normCtx)
+		require.NoError(t, err)
+
+		// Verify task config templates were resolved (including nested structures)
+		assert.Equal(t, "2m", taskConfig.Opts.ScheduleToStartTimeout)
+		assert.Equal(t, "5m", taskConfig.Opts.StartToCloseTimeout)
+		assert.Equal(t, "1s", taskConfig.Opts.RetryPolicy.InitialInterval)
+		assert.Equal(t, int32(5), taskConfig.Opts.RetryPolicy.MaximumAttempts)
+		assert.Equal(t, "Task completed successfully", (*taskConfig.OnSuccess.With)["message"])
+		assert.Equal(t, "Task failed", (*taskConfig.OnError.With)["error"])
+
+		// Test agent normalization (config field with ProviderConfig)
+		err = normalizer.normalizer.NormalizeAgentConfig(agentConfig, normCtx, "")
+		require.NoError(t, err)
+
+		// Verify agent config templates were resolved
+		assert.Equal(t, "sk-test-key-123", agentConfig.Config.APIKey)
+		assert.Equal(t, "https://api.openai.com/v1", agentConfig.Config.APIURL)
+		assert.Equal(t, "Test agent with API key sk-test-key-123", agentConfig.Instructions)
+
+		// Test direct config serialization/deserialization
+		// This tests the FromMapDefault path directly
+		configMap, err := projectConfig.AsMap()
+		require.NoError(t, err)
+
+		// Parse templates in the map
+		context := map[string]any{"env": testEnv}
+		parsed, err := normalizer.normalizer.engine.ParseMap(configMap, context)
+		require.NoError(t, err)
+
+		// Deserialize back to struct (this is where mapstructure tags are crucial)
+		newProjectConfig := &project.Config{}
+		err = newProjectConfig.FromMap(parsed)
+		require.NoError(t, err)
+
+		// Verify project config templates were resolved correctly
+		assert.Equal(t, "My Project", newProjectConfig.Name)
+		assert.Equal(t, "2.0.0", newProjectConfig.Version)
+		assert.Equal(t, "Test project with version 2.0.0", newProjectConfig.Description)
+		assert.Equal(t, "Jane Smith", newProjectConfig.Author.Name)
+		assert.Equal(t, "jane@example.com", newProjectConfig.Author.Email)
+		assert.Equal(t, "15m", newProjectConfig.Opts.StartToCloseTimeout)
+		assert.Equal(t, "./workflows/main.yaml", newProjectConfig.Workflows[0].Source)
 	})
 }
