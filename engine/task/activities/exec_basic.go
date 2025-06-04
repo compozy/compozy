@@ -421,6 +421,13 @@ func (a *ExecuteBasic) responseOnError(
 
 	workflowConfig := execData.WorkflowConfig
 	taskConfig := execData.TaskConfig
+
+	// Check if there's an error transition defined
+	if taskConfig.OnError == nil || taskConfig.OnError.Next == nil {
+		// No error transition defined, fail the workflow
+		return nil, fmt.Errorf("task failed with no error transition defined: %w", executionErr)
+	}
+
 	onSuccess, onError, err := a.normalizeTransitions(ctx, execData, state)
 	if err != nil {
 		// If normalization fails due to cancellation, return basic response
