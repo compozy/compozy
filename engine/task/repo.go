@@ -58,7 +58,7 @@ func CreateAndPersistState(
 		TaskID:         input.TaskID,
 		TaskExecID:     input.TaskExecID,
 		Component:      result.Component,
-		Status:         core.StatusRunning,
+		Status:         core.StatusPending,
 		WorkflowID:     input.WorkflowID,
 		WorkflowExecID: input.WorkflowExecID,
 		AgentID:        result.AgentID,

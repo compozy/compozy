@@ -61,7 +61,7 @@ func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterWorkflow(CompozyWorkflow)
 	o.worker.RegisterActivity(o.activities.TriggerWorkflow)
 	o.worker.RegisterActivity(o.activities.UpdateWorkflowState)
-	o.worker.RegisterActivity(o.activities.ExecuteTask)
+	o.worker.RegisterActivity(o.activities.DispatchTask)
 	return o.worker.Start()
 }
 

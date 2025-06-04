@@ -40,7 +40,7 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) error {
 		return errorHandler(err)
 	}
 
-	_, err = executeFirstTask(ctx, pauseGate, wState, &input)
+	_, err = dispatchFirstTask(ctx, pauseGate, wState, &input)
 	if err != nil {
 		return errorHandler(err)
 	}
@@ -96,7 +96,7 @@ func triggerWorkflow(
 	return state, nil
 }
 
-func executeFirstTask(
+func dispatchFirstTask(
 	ctx workflow.Context,
 	pauseGate *PauseGate,
 	wState *wf.State,
@@ -106,8 +106,8 @@ func executeFirstTask(
 		return nil, err
 	}
 	var state *task.State
-	actLabel := tkacts.ExecuteLabel
-	actInput := &tkacts.ExecuteInput{
+	actLabel := tkacts.DispatchLabel
+	actInput := &tkacts.DispatchInput{
 		WorkflowID:     wState.WorkflowID,
 		WorkflowExecID: wState.WorkflowExecID,
 		TaskID:         input.InitialTaskID,

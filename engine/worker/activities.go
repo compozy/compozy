@@ -49,10 +49,10 @@ func (a *Activities) UpdateWorkflowState(ctx context.Context, input *wfacts.Upda
 	return act.Run(ctx, input)
 }
 
-func (a *Activities) ExecuteTask(ctx context.Context, input *tkfacts.ExecuteInput) (*task.State, error) {
+func (a *Activities) DispatchTask(ctx context.Context, input *tkfacts.DispatchInput) (*task.State, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewExecute(a.workflows, a.workflowRepo, a.taskRepo)
+	act := tkfacts.NewDispatch(a.workflows, a.workflowRepo, a.taskRepo)
 	return act.Run(ctx, input)
 }
