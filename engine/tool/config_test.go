@@ -65,7 +65,7 @@ func Test_LoadTool(t *testing.T) {
 		assert.Contains(t, compiledOutSchema.Required, "formatted_code")
 
 		// Validate env and with
-		assert.Equal(t, "1.0.0", config.Env["FORMATTER_VERSION"])
+		assert.Equal(t, "1.0.0", config.GetEnv().Prop("FORMATTER_VERSION"))
 		assert.Equal(t, 2, (*config.With)["indent_size"])
 		assert.Equal(t, false, (*config.With)["use_tabs"])
 	})
@@ -161,14 +161,14 @@ func Test_ToolConfigCWD(t *testing.T) {
 func Test_ToolConfigMerge(t *testing.T) {
 	t.Run("Should merge configurations correctly", func(t *testing.T) {
 		baseConfig := &Config{
-			Env: core.EnvMap{
+			Env: &core.EnvMap{
 				"KEY1": "value1",
 			},
 			With: &core.Input{},
 		}
 
 		otherConfig := &Config{
-			Env: core.EnvMap{
+			Env: &core.EnvMap{
 				"KEY2": "value2",
 			},
 			With: &core.Input{},
@@ -178,8 +178,8 @@ func Test_ToolConfigMerge(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check that base config has both env variables
-		assert.Equal(t, "value1", baseConfig.Env["KEY1"])
-		assert.Equal(t, "value2", baseConfig.Env["KEY2"])
+		assert.Equal(t, "value1", baseConfig.GetEnv().Prop("KEY1"))
+		assert.Equal(t, "value2", baseConfig.GetEnv().Prop("KEY2"))
 	})
 }
 

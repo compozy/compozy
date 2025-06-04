@@ -47,7 +47,6 @@ lint:
 fmt:
 	@echo "Formatting code..."
 	golangci-lint fmt
-	gofumpt -l -w .
 	@echo "Formatting completed successfully"
 
 # -----------------------------------------------------------------------------
@@ -66,10 +65,7 @@ tidy:
 deps: swagger-deps
 	$(GOCMD) install gotest.tools/gotestsum@latest
 	$(GOCMD) install github.com/bokwoon95/wgo@latest
-	$(GOCMD) install github.com/segmentio/golines@latest
-	$(GOCMD) install mvdan.cc/gofumpt@latest
 	$(GOCMD) install github.com/pressly/goose/v3/cmd/goose@latest
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.1.6
 
 swagger-deps:
 	@echo "Installing Swagger dependencies..."
@@ -177,4 +173,5 @@ migrate-reset:
 
 reset-db:
 	@make reset-docker
+	@make migrate-reset
 	@make migrate-up

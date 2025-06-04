@@ -172,7 +172,11 @@ func TestWorkflowRepo_GetState_NotFound(t *testing.T) {
 }
 
 // Helper function for simpler Get tests
-func testSimpleWorkflowGet(t *testing.T, testName string, setupAndRun func(*testutils.MockSetup, *store.WorkflowRepo, context.Context)) {
+func testSimpleWorkflowGet(
+	t *testing.T,
+	testName string,
+	setupAndRun func(*testutils.MockSetup, *store.WorkflowRepo, context.Context),
+) {
 	mockSetup := testutils.NewMockSetup(t)
 	defer mockSetup.Close()
 
@@ -186,127 +190,143 @@ func testSimpleWorkflowGet(t *testing.T, testName string, setupAndRun func(*test
 }
 
 func TestWorkflowRepo_GetStateByID(t *testing.T) {
-	testSimpleWorkflowGet(t, "should get state by ID", func(mockSetup *testutils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
-		workflowID := "wf1"
+	testSimpleWorkflowGet(
+		t,
+		"should get state by ID",
+		func(mockSetup *testutils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
+			workflowID := "wf1"
 
-		tx := mockSetup.NewTransactionExpectations()
-		queries := mockSetup.NewQueryExpectations()
-		workflowRowBuilder := mockSetup.NewWorkflowStateRowBuilder()
-		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
+			tx := mockSetup.NewTransactionExpectations()
+			queries := mockSetup.NewQueryExpectations()
+			workflowRowBuilder := mockSetup.NewWorkflowStateRowBuilder()
+			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 
-		tx.ExpectBegin()
+			tx.ExpectBegin()
 
-		workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
-		queries.ExpectWorkflowStateQuery(
-			"SELECT workflow_exec_id, workflow_id, status, input, output, error FROM workflow_states",
-			[]any{workflowID},
-			workflowRows,
-		)
+			workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
+			queries.ExpectWorkflowStateQuery(
+				"SELECT workflow_exec_id, workflow_id, status, input, output, error FROM workflow_states",
+				[]any{workflowID},
+				workflowRows,
+			)
 
-		taskRows := taskRowBuilder.CreateEmptyTaskStateRows()
-		queries.ExpectTaskStateQuery(core.ID("exec1"), taskRows)
+			taskRows := taskRowBuilder.CreateEmptyTaskStateRows()
+			queries.ExpectTaskStateQuery(core.ID("exec1"), taskRows)
 
-		tx.ExpectCommit()
+			tx.ExpectCommit()
 
-		state, err := repo.GetStateByID(ctx, workflowID)
-		assert.NoError(t, err)
-		assert.Equal(t, workflowID, state.WorkflowID)
-		assert.NotNil(t, state.Tasks)
-	})
+			state, err := repo.GetStateByID(ctx, workflowID)
+			assert.NoError(t, err)
+			assert.Equal(t, workflowID, state.WorkflowID)
+			assert.NotNil(t, state.Tasks)
+		},
+	)
 }
 
 // Continue with similar simplified patterns for other tests...
 func TestWorkflowRepo_GetStateByTaskID(t *testing.T) {
-	testSimpleWorkflowGet(t, "should get state by task ID", func(mockSetup *testutils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
-		workflowID := "wf1"
-		taskID := "task1"
+	testSimpleWorkflowGet(
+		t,
+		"should get state by task ID",
+		func(mockSetup *testutils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
+			workflowID := "wf1"
+			taskID := "task1"
 
-		tx := mockSetup.NewTransactionExpectations()
-		queries := mockSetup.NewQueryExpectations()
-		workflowRowBuilder := mockSetup.NewWorkflowStateRowBuilder()
-		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
+			tx := mockSetup.NewTransactionExpectations()
+			queries := mockSetup.NewQueryExpectations()
+			workflowRowBuilder := mockSetup.NewWorkflowStateRowBuilder()
+			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 
-		tx.ExpectBegin()
+			tx.ExpectBegin()
 
-		workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
-		queries.ExpectWorkflowStateQuery(
-			"SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error FROM workflow_states w",
-			[]any{workflowID, taskID},
-			workflowRows,
-		)
+			workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
+			queries.ExpectWorkflowStateQuery(
+				"SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error FROM workflow_states w",
+				[]any{workflowID, taskID},
+				workflowRows,
+			)
 
-		taskRows := taskRowBuilder.CreateEmptyTaskStateRows()
-		queries.ExpectTaskStateQuery(core.ID("exec1"), taskRows)
+			taskRows := taskRowBuilder.CreateEmptyTaskStateRows()
+			queries.ExpectTaskStateQuery(core.ID("exec1"), taskRows)
 
-		tx.ExpectCommit()
+			tx.ExpectCommit()
 
-		state, err := repo.GetStateByTaskID(ctx, workflowID, taskID)
-		assert.NoError(t, err)
-		assert.Equal(t, workflowID, state.WorkflowID)
-		assert.NotNil(t, state.Tasks)
-	})
+			state, err := repo.GetStateByTaskID(ctx, workflowID, taskID)
+			assert.NoError(t, err)
+			assert.Equal(t, workflowID, state.WorkflowID)
+			assert.NotNil(t, state.Tasks)
+		},
+	)
 }
 
 func TestWorkflowRepo_GetStateByAgentID(t *testing.T) {
-	testSimpleWorkflowGet(t, "should get state by agent ID", func(mockSetup *testutils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
-		workflowID := "wf1"
-		agentID := "agent1"
+	testSimpleWorkflowGet(
+		t,
+		"should get state by agent ID",
+		func(mockSetup *testutils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
+			workflowID := "wf1"
+			agentID := "agent1"
 
-		tx := mockSetup.NewTransactionExpectations()
-		queries := mockSetup.NewQueryExpectations()
-		workflowRowBuilder := mockSetup.NewWorkflowStateRowBuilder()
-		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
+			tx := mockSetup.NewTransactionExpectations()
+			queries := mockSetup.NewQueryExpectations()
+			workflowRowBuilder := mockSetup.NewWorkflowStateRowBuilder()
+			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 
-		tx.ExpectBegin()
+			tx.ExpectBegin()
 
-		workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
-		queries.ExpectWorkflowStateQuery(
-			"SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error FROM workflow_states w",
-			[]any{workflowID, agentID},
-			workflowRows,
-		)
+			workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
+			queries.ExpectWorkflowStateQuery(
+				"SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error FROM workflow_states w",
+				[]any{workflowID, agentID},
+				workflowRows,
+			)
 
-		taskRows := taskRowBuilder.CreateEmptyTaskStateRows()
-		queries.ExpectTaskStateQuery(core.ID("exec1"), taskRows)
+			taskRows := taskRowBuilder.CreateEmptyTaskStateRows()
+			queries.ExpectTaskStateQuery(core.ID("exec1"), taskRows)
 
-		tx.ExpectCommit()
+			tx.ExpectCommit()
 
-		state, err := repo.GetStateByAgentID(ctx, workflowID, agentID)
-		assert.NoError(t, err)
-		assert.Equal(t, workflowID, state.WorkflowID)
-		assert.NotNil(t, state.Tasks)
-	})
+			state, err := repo.GetStateByAgentID(ctx, workflowID, agentID)
+			assert.NoError(t, err)
+			assert.Equal(t, workflowID, state.WorkflowID)
+			assert.NotNil(t, state.Tasks)
+		},
+	)
 }
 
 func TestWorkflowRepo_GetStateByToolID(t *testing.T) {
-	testSimpleWorkflowGet(t, "should get state by tool ID", func(mockSetup *testutils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
-		workflowID := "wf1"
-		toolID := "tool1"
+	testSimpleWorkflowGet(
+		t,
+		"should get state by tool ID",
+		func(mockSetup *testutils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
+			workflowID := "wf1"
+			toolID := "tool1"
 
-		tx := mockSetup.NewTransactionExpectations()
-		queries := mockSetup.NewQueryExpectations()
-		workflowRowBuilder := mockSetup.NewWorkflowStateRowBuilder()
-		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
+			tx := mockSetup.NewTransactionExpectations()
+			queries := mockSetup.NewQueryExpectations()
+			workflowRowBuilder := mockSetup.NewWorkflowStateRowBuilder()
+			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 
-		tx.ExpectBegin()
+			tx.ExpectBegin()
 
-		workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
-		queries.ExpectWorkflowStateQuery(
-			"SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error FROM workflow_states w",
-			[]any{workflowID, toolID},
-			workflowRows,
-		)
+			workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
+			queries.ExpectWorkflowStateQuery(
+				"SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error FROM workflow_states w",
+				[]any{workflowID, toolID},
+				workflowRows,
+			)
 
-		taskRows := taskRowBuilder.CreateEmptyTaskStateRows()
-		queries.ExpectTaskStateQuery(core.ID("exec1"), taskRows)
+			taskRows := taskRowBuilder.CreateEmptyTaskStateRows()
+			queries.ExpectTaskStateQuery(core.ID("exec1"), taskRows)
 
-		tx.ExpectCommit()
+			tx.ExpectCommit()
 
-		state, err := repo.GetStateByToolID(ctx, workflowID, toolID)
-		assert.NoError(t, err)
-		assert.Equal(t, workflowID, state.WorkflowID)
-		assert.NotNil(t, state.Tasks)
-	})
+			state, err := repo.GetStateByToolID(ctx, workflowID, toolID)
+			assert.NoError(t, err)
+			assert.Equal(t, workflowID, state.WorkflowID)
+			assert.NotNil(t, state.Tasks)
+		},
+	)
 }
 
 func TestWorkflowRepo_UpdateStatus(t *testing.T) {

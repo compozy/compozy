@@ -12,7 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/worker"
-	"github.com/compozy/compozy/engine/workflow"
+	wf "github.com/compozy/compozy/engine/workflow"
 	utils "github.com/compozy/compozy/test/integration/helper"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.temporal.io/sdk/testsuite"
@@ -20,9 +20,9 @@ import (
 
 // ContainerTestConfig holds configuration for a test scenario using dedicated test database
 type ContainerTestConfig struct {
-	WorkflowConfig   *workflow.Config
+	WorkflowConfig   *wf.Config
 	ProjectConfig    *project.Config
-	WorkflowRepo     workflow.Repository
+	WorkflowRepo     wf.Repository
 	TaskRepo         task.Repository
 	DB               *pgxpool.Pool
 	ExpectedDuration time.Duration
@@ -44,7 +44,7 @@ func CreateContainerTestConfig(t *testing.T) *ContainerTestConfig {
 
 	// Create test workflow configuration with unique ID
 	workflowID := fmt.Sprintf("%s-workflow", testID)
-	workflowConfig := &workflow.Config{
+	workflowConfig := &wf.Config{
 		ID:          workflowID,
 		Version:     "1.0.0",
 		Description: "Test workflow for integration testing",
@@ -69,8 +69,8 @@ func CreateContainerTestConfig(t *testing.T) *ContainerTestConfig {
 				"Process this message: {{.message}}",
 			),
 		},
-		Opts: workflow.Opts{
-			Env: core.EnvMap{
+		Opts: wf.Opts{
+			Env: &core.EnvMap{
 				"TEST_MODE": "true",
 			},
 		},
@@ -97,14 +97,14 @@ func CreateContainerTestConfig(t *testing.T) *ContainerTestConfig {
 }
 
 // CreateContainerTestConfigForMultiTask creates a container test configuration for multi-task workflows
-func CreateContainerTestConfigForMultiTask(t *testing.T, workflowConfig *workflow.Config) *ContainerTestConfig {
+func CreateContainerTestConfigForMultiTask(t *testing.T, workflowConfig *wf.Config) *ContainerTestConfig {
 	config := CreateContainerTestConfig(t)
 	config.WorkflowConfig = workflowConfig
 	return config
 }
 
 // CreateContainerTestConfigForCancellation creates a container test configuration for cancellation workflows
-func CreateContainerTestConfigForCancellation(t *testing.T, workflowConfig *workflow.Config) *ContainerTestConfig {
+func CreateContainerTestConfigForCancellation(t *testing.T, workflowConfig *wf.Config) *ContainerTestConfig {
 	config := CreateContainerTestConfig(t)
 	config.WorkflowConfig = workflowConfig
 	return config
@@ -210,9 +210,9 @@ func stringPtr(s string) *string {
 }
 
 // CreatePauseableWorkflowConfig creates a workflow config with multiple tasks for pause/resume testing
-func CreatePauseableWorkflowConfig() *workflow.Config {
+func CreatePauseableWorkflowConfig() *wf.Config {
 	testID := GenerateUniqueTestID("pauseable")
-	return &workflow.Config{
+	return &wf.Config{
 		ID:          testID,
 		Version:     "1.0.0",
 		Description: "Multi-task workflow for pause/resume testing",
@@ -227,7 +227,7 @@ func CreatePauseableWorkflowConfig() *workflow.Config {
 				With: &core.Input{
 					"step": "1",
 				},
-				OnSuccess: &task.SuccessTransition{
+				OnSuccess: &core.SuccessTransition{
 					Next: stringPtr("task-2"),
 				},
 			},
@@ -241,7 +241,7 @@ func CreatePauseableWorkflowConfig() *workflow.Config {
 				With: &core.Input{
 					"step": "2",
 				},
-				OnSuccess: &task.SuccessTransition{
+				OnSuccess: &core.SuccessTransition{
 					Next: stringPtr("task-3"),
 				},
 			},
@@ -278,8 +278,8 @@ func CreatePauseableWorkflowConfig() *workflow.Config {
 				},
 			},
 		},
-		Opts: workflow.Opts{
-			Env: core.EnvMap{
+		Opts: wf.Opts{
+			Env: &core.EnvMap{
 				"TEST_MODE": "true",
 			},
 		},
@@ -287,9 +287,9 @@ func CreatePauseableWorkflowConfig() *workflow.Config {
 }
 
 // CreateCancellableWorkflowConfig creates a workflow that can be canceled during execution
-func CreateCancellableWorkflowConfig() *workflow.Config {
+func CreateCancellableWorkflowConfig() *wf.Config {
 	testID := GenerateUniqueTestID("cancellable")
-	return &workflow.Config{
+	return &wf.Config{
 		ID:          testID,
 		Version:     "1.0.0",
 		Description: "Long-running workflow for cancellation testing",
@@ -314,8 +314,8 @@ func CreateCancellableWorkflowConfig() *workflow.Config {
 				"Process for duration: {{.duration}}. Think deeply.",
 			),
 		},
-		Opts: workflow.Opts{
-			Env: core.EnvMap{
+		Opts: wf.Opts{
+			Env: &core.EnvMap{
 				"TEST_MODE": "true",
 			},
 		},

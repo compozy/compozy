@@ -7,7 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/compozy/compozy/engine/workflow"
+	wf "github.com/compozy/compozy/engine/workflow"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 )
@@ -17,7 +17,7 @@ import (
 // -----------------------------------------------------------------------------
 
 type Config struct {
-	WorkflowRepo func() workflow.Repository
+	WorkflowRepo func() wf.Repository
 	TaskRepo     func() task.Repository
 }
 
@@ -27,14 +27,14 @@ type Worker struct {
 	activities    *Activities
 	worker        worker.Worker
 	projectConfig *project.Config
-	workflows     []*workflow.Config
+	workflows     []*wf.Config
 }
 
 func NewWorker(
 	config *Config,
 	clientConfig *TemporalConfig,
 	projectConfig *project.Config,
-	workflows []*workflow.Config,
+	workflows []*wf.Config,
 ) (*Worker, error) {
 	client, err := NewClient(clientConfig)
 	if err != nil {
@@ -59,6 +59,7 @@ func NewWorker(
 
 func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterWorkflow(CompozyWorkflow)
+	o.worker.RegisterActivity(o.activities.GetWorkflowData)
 	o.worker.RegisterActivity(o.activities.TriggerWorkflow)
 	o.worker.RegisterActivity(o.activities.UpdateWorkflowState)
 	o.worker.RegisterActivity(o.activities.DispatchTask)
@@ -71,7 +72,7 @@ func (o *Worker) Stop() {
 	o.worker.Stop()
 }
 
-func (o *Worker) WorkflowRepo() workflow.Repository {
+func (o *Worker) WorkflowRepo() wf.Repository {
 	return o.config.WorkflowRepo()
 }
 
@@ -102,7 +103,7 @@ func (o *Worker) TriggerWorkflow(
 		ID:        workflowExecID.String(),
 		TaskQueue: o.client.Config().TaskQueue,
 	}
-	workflowConfig, err := workflow.FindConfig(o.workflows, workflowID)
+	workflowConfig, err := wf.FindConfig(o.workflows, workflowID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workflow config: %w", err)
 	}

@@ -143,9 +143,9 @@ func (n *Normalizer) buildParentContext(ctx *NormalizationContext) map[string]an
 	return nil
 }
 
-// -----
+// -----------------------------------------------------------------------------
 // Configuration Normalization
-// -----
+// -----------------------------------------------------------------------------
 
 func (n *Normalizer) NormalizeTaskConfig(config *task.Config, ctx *NormalizationContext) error {
 	if config == nil {
@@ -169,7 +169,7 @@ func (n *Normalizer) NormalizeTaskConfig(config *task.Config, ctx *Normalization
 	}
 
 	// Normalize environment variables
-	if err := n.normalizeEnvMap(&config.Env, context); err != nil {
+	if err := n.normalizeEnvMap(config.Env, context); err != nil {
 		return fmt.Errorf("failed to normalize task config env: %w", err)
 	}
 
@@ -209,7 +209,7 @@ func (n *Normalizer) NormalizeAgentConfig(
 	}
 
 	// Normalize environment variables
-	if err := n.normalizeEnvMap(&config.Env, context); err != nil {
+	if err := n.normalizeEnvMap(config.Env, context); err != nil {
 		return fmt.Errorf("failed to normalize agent config env: %w", err)
 	}
 
@@ -276,7 +276,7 @@ func (n *Normalizer) NormalizeToolConfig(config *tool.Config, ctx *Normalization
 	}
 
 	// Normalize environment variables
-	if err := n.normalizeEnvMap(&config.Env, context); err != nil {
+	if err := n.normalizeEnvMap(config.Env, context); err != nil {
 		return fmt.Errorf("failed to normalize tool config env: %w", err)
 	}
 
@@ -319,7 +319,7 @@ func (n *Normalizer) NormalizeAgentActionConfig(config *agent.ActionConfig, ctx 
 	return nil
 }
 
-func (n *Normalizer) NormalizeTransition(transition *task.SuccessTransition, ctx *NormalizationContext) error {
+func (n *Normalizer) NormalizeTransition(transition *core.SuccessTransition, ctx *NormalizationContext) error {
 	if transition == nil {
 		return nil
 	}
@@ -346,7 +346,7 @@ func (n *Normalizer) NormalizeTransition(transition *task.SuccessTransition, ctx
 	return nil
 }
 
-func (n *Normalizer) NormalizeErrorTransition(transition *task.ErrorTransition, ctx *NormalizationContext) error {
+func (n *Normalizer) NormalizeErrorTransition(transition *core.ErrorTransition, ctx *NormalizationContext) error {
 	if transition == nil {
 		return nil
 	}
@@ -370,36 +370,12 @@ func (n *Normalizer) NormalizeErrorTransition(transition *task.ErrorTransition, 
 		}
 	}
 
-	// Normalize retry policy fields
-	if transition.RetryPolicy != nil {
-		if err := n.normalizeRetryPolicy(transition.RetryPolicy, context); err != nil {
-			return fmt.Errorf("failed to normalize error transition retry policy: %w", err)
-		}
-	}
-
 	return nil
 }
 
-func (n *Normalizer) normalizeRetryPolicy(policy *task.RetryPolicyConfig, context map[string]any) error {
-	if policy == nil {
-		return nil
-	}
-
-	// Normalize string fields in retry policy
-	if err := n.normalizeStringField(policy.BackoffInitial, context); err != nil {
-		return fmt.Errorf("failed to normalize retry policy backoff_initial: %w", err)
-	}
-
-	if err := n.normalizeStringField(policy.BackoffMax, context); err != nil {
-		return fmt.Errorf("failed to normalize retry policy backoff_max: %w", err)
-	}
-
-	return nil
-}
-
-// -----
+// -----------------------------------------------------------------------------
 // Helper Methods
-// -----
+// -----------------------------------------------------------------------------
 
 func (n *Normalizer) normalizeInput(input *core.Input, context map[string]any) error {
 	if input == nil {

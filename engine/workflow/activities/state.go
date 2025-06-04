@@ -40,7 +40,6 @@ func (a *UpdateState) Run(ctx context.Context, input *UpdateStateInput) error {
 		return fmt.Errorf("failed to get workflow %s: %w", input.WorkflowExecID, err)
 	}
 
-	oldStatus := state.Status
 	state.WithStatus(input.Status)
 	if input.Error != nil {
 		state.WithError(input.Error)
@@ -54,7 +53,7 @@ func (a *UpdateState) Run(ctx context.Context, input *UpdateStateInput) error {
 	}
 
 	// Cascade state changes to tasks when appropriate
-	if err := a.cascadeStateToTasks(ctx, workflowExecID, oldStatus, input.Status); err != nil {
+	if err := a.cascadeStateToTasks(ctx, workflowExecID, input.Status); err != nil {
 		return fmt.Errorf("failed to cascade state to tasks: %w", err)
 	}
 
@@ -65,7 +64,7 @@ func (a *UpdateState) Run(ctx context.Context, input *UpdateStateInput) error {
 func (a *UpdateState) cascadeStateToTasks(
 	ctx context.Context,
 	workflowExecID core.ID,
-	_, newStatus core.StatusType,
+	newStatus core.StatusType,
 ) error {
 	// Only cascade for certain status transitions
 	if !shouldCascadeToTasks(newStatus) {
@@ -96,10 +95,8 @@ func (a *UpdateState) cascadeStateToTasks(
 // shouldCascadeToTasks determines if workflow status changes should cascade to tasks
 func shouldCascadeToTasks(workflowStatus core.StatusType) bool {
 	switch workflowStatus {
-	case core.StatusPaused, core.StatusCanceled, core.StatusFailed:
+	case core.StatusPaused, core.StatusCanceled, core.StatusFailed, core.StatusTimedOut:
 		return true
-	case core.StatusRunning:
-		return true // For resume operations
 	default:
 		return false
 	}
@@ -108,7 +105,10 @@ func shouldCascadeToTasks(workflowStatus core.StatusType) bool {
 // shouldUpdateTaskState determines if a task should be updated based on its current status
 func shouldUpdateTaskState(taskStatus, workflowStatus core.StatusType) bool {
 	// Don't update tasks that have already completed successfully
-	if taskStatus == core.StatusSuccess {
+	if taskStatus == core.StatusSuccess ||
+		taskStatus == core.StatusFailed ||
+		taskStatus == core.StatusCanceled ||
+		taskStatus == core.StatusTimedOut {
 		return false
 	}
 
@@ -119,9 +119,12 @@ func shouldUpdateTaskState(taskStatus, workflowStatus core.StatusType) bool {
 	case core.StatusRunning:
 		// Only resume tasks that are currently paused
 		return taskStatus == core.StatusPaused
-	case core.StatusCanceled, core.StatusFailed:
+	case core.StatusCanceled, core.StatusFailed, core.StatusTimedOut:
 		// Cancel/fail all non-completed tasks
-		return taskStatus == core.StatusPending || taskStatus == core.StatusRunning || taskStatus == core.StatusPaused
+		return taskStatus == core.StatusPending ||
+			taskStatus == core.StatusRunning ||
+			taskStatus == core.StatusPaused ||
+			taskStatus == core.StatusWaiting
 	default:
 		return false
 	}

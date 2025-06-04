@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // -----------------------------------------------------------------------------
@@ -14,18 +15,18 @@ import (
 // -----------------------------------------------------------------------------
 
 type State struct {
-	Component      core.ComponentType `json:"component" db:"component"`
-	Status         core.StatusType    `json:"status" db:"status"`
-	TaskID         string             `json:"task_id" db:"task_id"`
-	TaskExecID     core.ID            `json:"task_exec_id" db:"task_exec_id"`
-	WorkflowID     string             `json:"workflow_id" db:"workflow_id"`
-	WorkflowExecID core.ID            `json:"workflow_exec_id" db:"workflow_exec_id"`
-	AgentID        *string            `json:"agent_id,omitempty" db:"agent_id"`
+	Component      core.ComponentType `json:"component"           db:"component"`
+	Status         core.StatusType    `json:"status"              db:"status"`
+	TaskID         string             `json:"task_id"             db:"task_id"`
+	TaskExecID     core.ID            `json:"task_exec_id"        db:"task_exec_id"`
+	WorkflowID     string             `json:"workflow_id"         db:"workflow_id"`
+	WorkflowExecID core.ID            `json:"workflow_exec_id"    db:"workflow_exec_id"`
+	AgentID        *string            `json:"agent_id,omitempty"  db:"agent_id"`
 	ActionID       *string            `json:"action_id,omitempty" db:"action_id"`
-	ToolID         *string            `json:"tool_id,omitempty" db:"tool_id"`
-	Input          *core.Input        `json:"input,omitempty" db:"input"`
-	Output         *core.Output       `json:"output,omitempty" db:"output"`
-	Error          *core.Error        `json:"error,omitempty" db:"error"`
+	ToolID         *string            `json:"tool_id,omitempty"   db:"tool_id"`
+	Input          *core.Input        `json:"input,omitempty"     db:"input"`
+	Output         *core.Output       `json:"output,omitempty"    db:"output"`
+	Error          *core.Error        `json:"error,omitempty"     db:"error"`
 }
 
 // StateDB is used for database scanning with JSONB fields as []byte
@@ -129,8 +130,31 @@ func (e *State) UpdateStatus(status core.StatusType) {
 // -----------------------------------------------------------------------------
 
 type Response struct {
-	OnSuccess *SuccessTransition `json:"on_success"`
-	OnError   *ErrorTransition   `json:"on_error"`
-	State     *State             `json:"state"`
-	NextTask  *Config            `json:"next_task"`
+	OnSuccess *core.SuccessTransition `json:"on_success"`
+	OnError   *core.ErrorTransition   `json:"on_error"`
+	State     *State                  `json:"state"`
+	NextTask  *Config                 `json:"next_task"`
+}
+
+func (r *Response) NextTaskID() string {
+	state := r.State
+	taskID := state.TaskID
+	var nextTaskID string
+	switch {
+	case state.Status == core.StatusSuccess && r.OnSuccess != nil && r.OnSuccess.Next != nil:
+		nextTaskID = *r.OnSuccess.Next
+		logger.Info("Task succeeded, transitioning to next task",
+			"current_task", taskID,
+			"next_task", nextTaskID,
+		)
+	case state.Status == core.StatusFailed && r.OnError != nil && r.OnError.Next != nil:
+		nextTaskID = *r.OnError.Next
+		logger.Info("Task failed, transitioning to error task",
+			"current_task", taskID,
+			"next_task", nextTaskID,
+		)
+	default:
+		logger.Info("No more tasks to execute", "current_task", taskID)
+	}
+	return nextTaskID
 }

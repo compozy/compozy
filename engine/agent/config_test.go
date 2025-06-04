@@ -151,14 +151,14 @@ func Test_AgentConfigCWD(t *testing.T) {
 func Test_AgentConfigMerge(t *testing.T) {
 	t.Run("Should merge configurations correctly", func(t *testing.T) {
 		baseConfig := &Config{
-			Env: core.EnvMap{
+			Env: &core.EnvMap{
 				"KEY1": "value1",
 			},
 			With: &core.Input{},
 		}
 
 		otherConfig := &Config{
-			Env: core.EnvMap{
+			Env: &core.EnvMap{
 				"KEY2": "value2",
 			},
 			With: &core.Input{},
@@ -168,8 +168,8 @@ func Test_AgentConfigMerge(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check that base config has both env variables
-		assert.Equal(t, "value1", baseConfig.Env["KEY1"])
-		assert.Equal(t, "value2", baseConfig.Env["KEY2"])
+		assert.Equal(t, "value1", baseConfig.GetEnv().Prop("KEY1"))
+		assert.Equal(t, "value2", baseConfig.GetEnv().Prop("KEY2"))
 	})
 }
 

@@ -19,7 +19,8 @@ import (
 const ExecuteBasicLabel = "ExecuteBasicTask"
 
 type ExecuteBasicInput struct {
-	State task.State `json:"state"`
+	State  task.State  `json:"state"`
+	Config task.Config `json:"config"`
 }
 
 type ExecuteBasicData struct {
@@ -53,7 +54,7 @@ func NewExecuteBasic(
 func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task.Response, error) {
 	state := &input.State
 	// Load execution data
-	execData, err := a.loadData(state)
+	execData, err := a.loadData(state, input)
 	if err != nil {
 		return nil, err
 	}
@@ -88,18 +89,12 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 	return a.responseOnSuccess(ctx, execData, state, result)
 }
 
-func (a *ExecuteBasic) loadData(state *task.State) (*ExecuteBasicData, error) {
+func (a *ExecuteBasic) loadData(state *task.State, input *ExecuteBasicInput) (*ExecuteBasicData, error) {
 	// Find workflow config
 	workflowID := state.WorkflowID
 	workflowConfig, err := workflow.FindConfig(a.workflows, workflowID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workflow config: %w", err)
-	}
-	// Find task config
-	taskID := state.TaskID
-	taskConfig, err := task.FindConfig(workflowConfig.Tasks, taskID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find task config: %w", err)
 	}
 	// Find agent config
 	agentID := *state.AgentID
@@ -114,7 +109,7 @@ func (a *ExecuteBasic) loadData(state *task.State) (*ExecuteBasicData, error) {
 	}
 	return &ExecuteBasicData{
 		WorkflowConfig: workflowConfig,
-		TaskConfig:     taskConfig,
+		TaskConfig:     &input.Config,
 		AgentConfig:    agentConfig,
 		ActionConfig:   actionConfig,
 	}, nil
@@ -247,7 +242,7 @@ func (a *ExecuteBasic) normalizeTransitions(
 	ctx context.Context,
 	execData *ExecuteBasicData,
 	state *task.State,
-) (*task.SuccessTransition, *task.ErrorTransition, error) {
+) (*core.SuccessTransition, *core.ErrorTransition, error) {
 	workflowExecID := state.WorkflowExecID
 	workflowConfig := execData.WorkflowConfig
 	taskConfig := execData.TaskConfig
@@ -285,16 +280,16 @@ func (a *ExecuteBasic) normalizeTransitions(
 }
 
 func (a *ExecuteBasic) normalizeSuccessTransition(
-	transition *task.SuccessTransition,
+	transition *core.SuccessTransition,
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	allTaskConfigs map[string]*task.Config,
 	baseEnv core.EnvMap,
-) (*task.SuccessTransition, error) {
+) (*core.SuccessTransition, error) {
 	if transition == nil {
 		return nil, nil
 	}
-	normalizedTransition := &task.SuccessTransition{
+	normalizedTransition := &core.SuccessTransition{
 		Next: transition.Next,
 		With: transition.With,
 	}
@@ -316,19 +311,18 @@ func (a *ExecuteBasic) normalizeSuccessTransition(
 }
 
 func (a *ExecuteBasic) normalizeErrorTransition(
-	transition *task.ErrorTransition,
+	transition *core.ErrorTransition,
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	allTaskConfigs map[string]*task.Config,
 	baseEnv core.EnvMap,
-) (*task.ErrorTransition, error) {
+) (*core.ErrorTransition, error) {
 	if transition == nil {
 		return nil, nil
 	}
-	normalizedTransition := &task.ErrorTransition{
-		Next:        transition.Next,
-		With:        transition.With,
-		RetryPolicy: transition.RetryPolicy,
+	normalizedTransition := &core.ErrorTransition{
+		Next: transition.Next,
+		With: transition.With,
 	}
 	if transition.With != nil {
 		withCopy := make(core.Input)

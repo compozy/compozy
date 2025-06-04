@@ -115,7 +115,12 @@ func (v *DatabaseStateVerifier) VerifyTaskState(
 	for {
 		select {
 		case <-ctx.Done():
-			v.t.Fatalf("Timeout waiting for task %s in workflow %s to reach status %s", taskID, workflowExecID, expectedStatus)
+			v.t.Fatalf(
+				"Timeout waiting for task %s in workflow %s to reach status %s",
+				taskID,
+				workflowExecID,
+				expectedStatus,
+			)
 		case <-ticker.C:
 			tasks, err := v.taskRepo.ListTasksInWorkflow(context.Background(), workflowExecID)
 			if err != nil {

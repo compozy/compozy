@@ -79,7 +79,12 @@ func TestWorkflowPauseAndResume(t *testing.T) {
 
 	// Check final states to verify completion
 	workflowState := dbVerifier.GetWorkflowState(workflowExecID)
-	assert.Equal(t, core.StatusSuccess, workflowState.Status, "Workflow should complete successfully after pause/resume")
+	assert.Equal(
+		t,
+		core.StatusSuccess,
+		workflowState.Status,
+		"Workflow should complete successfully after pause/resume",
+	)
 
 	// Verify state consistency - all tasks should reach appropriate final states
 	dbVerifier.VerifyTaskStateConsistency(workflowExecID)

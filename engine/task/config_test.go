@@ -68,7 +68,7 @@ func Test_LoadTask(t *testing.T) {
 		assert.Contains(t, compiledOutSchema.Required, "formatted_code")
 
 		// Validate env and with
-		assert.Equal(t, "1.0.0", config.Env["FORMATTER_VERSION"])
+		assert.Equal(t, "1.0.0", config.GetEnv().Prop("FORMATTER_VERSION"))
 		assert.Equal(t, 2, (*config.With)["indent_size"])
 		assert.Equal(t, false, (*config.With)["use_tabs"])
 
@@ -131,7 +131,7 @@ func Test_LoadTask(t *testing.T) {
 		assert.Contains(t, compiledOutSchema2.Required, "status")
 
 		// Validate env and with
-		assert.Equal(t, "0.8", config.Env["REVIEW_THRESHOLD"])
+		assert.Equal(t, "0.8", config.GetEnv().Prop("REVIEW_THRESHOLD"))
 		assert.Equal(t, 0.7, (*config.With)["min_score"])
 		assert.Equal(t, 10, (*config.With)["max_comments"])
 
@@ -275,31 +275,31 @@ func Test_TaskConfigMerge(t *testing.T) {
 		next1 := "next1"
 		next2 := "next2"
 		base := &Config{
-			Env: core.EnvMap{
+			Env: &core.EnvMap{
 				"KEY1": "value1",
 			},
 			With: &core.Input{
 				"param1": "value1",
 			},
-			OnSuccess: &SuccessTransition{
+			OnSuccess: &core.SuccessTransition{
 				Next: &next1,
 			},
-			OnError: &ErrorTransition{
+			OnError: &core.ErrorTransition{
 				Next: &next1,
 			},
 		}
 
 		other := &Config{
-			Env: core.EnvMap{
+			Env: &core.EnvMap{
 				"KEY2": "value2",
 			},
 			With: &core.Input{
 				"param2": "value2",
 			},
-			OnSuccess: &SuccessTransition{
+			OnSuccess: &core.SuccessTransition{
 				Next: &next2,
 			},
-			OnError: &ErrorTransition{
+			OnError: &core.ErrorTransition{
 				Next: &next2,
 			},
 		}
@@ -308,8 +308,8 @@ func Test_TaskConfigMerge(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check merged values
-		assert.Equal(t, "value1", base.Env["KEY1"])
-		assert.Equal(t, "value2", base.Env["KEY2"])
+		assert.Equal(t, "value1", base.GetEnv().Prop("KEY1"))
+		assert.Equal(t, "value2", base.GetEnv().Prop("KEY2"))
 		assert.Equal(t, "value1", (*base.With)["param1"])
 		assert.Equal(t, "value2", (*base.With)["param2"])
 		assert.Equal(t, "next2", *base.OnSuccess.Next)

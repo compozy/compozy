@@ -12,7 +12,7 @@ type Config interface {
 	GetFilePath() string
 	SetCWD(path string) error
 	GetCWD() *CWD
-	GetEnv() *EnvMap
+	GetEnv() EnvMap
 	GetInput() *Input
 	Validate() error
 	ValidateParams(ctx context.Context, input *Input) error

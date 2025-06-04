@@ -79,8 +79,8 @@ func Test_LoadWorkflow(t *testing.T) {
 		assert.Equal(t, int32(4000), agentConfig.Config.MaxTokens)
 
 		// Validate env
-		assert.Equal(t, "1.0.0", config.Opts.Env["WORKFLOW_VERSION"])
-		assert.Equal(t, "3", config.Opts.Env["MAX_RETRIES"])
+		assert.Equal(t, "1.0.0", config.GetEnv().Prop("WORKFLOW_VERSION"))
+		assert.Equal(t, "3", config.GetEnv().Prop("MAX_RETRIES"))
 	})
 
 	t.Run("Should return error for invalid workflow configuration", func(t *testing.T) {
@@ -140,7 +140,7 @@ func Test_WorkflowConfigMerge(t *testing.T) {
 	t.Run("Should merge configurations correctly", func(t *testing.T) {
 		baseConfig := &Config{
 			Opts: Opts{
-				Env: core.EnvMap{
+				Env: &core.EnvMap{
 					"KEY1": "value1",
 				},
 			},
@@ -148,7 +148,7 @@ func Test_WorkflowConfigMerge(t *testing.T) {
 
 		otherConfig := &Config{
 			Opts: Opts{
-				Env: core.EnvMap{
+				Env: &core.EnvMap{
 					"KEY2": "value2",
 				},
 			},
@@ -158,7 +158,7 @@ func Test_WorkflowConfigMerge(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check that base config has both env variables
-		assert.Equal(t, "value1", baseConfig.Opts.Env["KEY1"])
-		assert.Equal(t, "value2", baseConfig.Opts.Env["KEY2"])
+		assert.Equal(t, "value1", baseConfig.GetEnv().Prop("KEY1"))
+		assert.Equal(t, "value2", baseConfig.GetEnv().Prop("KEY2"))
 	})
 }

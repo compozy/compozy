@@ -21,16 +21,24 @@ const (
 	TaskTypeDecision Type = "decision"
 )
 
+type Opts struct {
+	core.GlobalOpts `json:",inline" yaml:",inline"`
+}
+
 type Config struct {
-	ID           string             `json:"id,omitempty"         yaml:"id,omitempty"`
-	Type         Type               `json:"type,omitempty"       yaml:"type,omitempty"`
-	OnSuccess    *SuccessTransition `json:"on_success,omitempty" yaml:"on_success,omitempty"`
-	OnError      *ErrorTransition   `json:"on_error,omitempty"   yaml:"on_error,omitempty"`
-	Final        bool               `json:"final"      yaml:"final,omitempty"`
-	InputSchema  *schema.Schema     `json:"input,omitempty"      yaml:"input,omitempty"`
-	OutputSchema *schema.Schema     `json:"output,omitempty"     yaml:"output,omitempty"`
-	With         *core.Input        `json:"with,omitempty"       yaml:"with,omitempty"`
-	Env          core.EnvMap        `json:"env,omitempty"        yaml:"env,omitempty"`
+	ID           string         `json:"id,omitempty"     yaml:"id,omitempty"`
+	Type         Type           `json:"type,omitempty"   yaml:"type,omitempty"`
+	InputSchema  *schema.Schema `json:"input,omitempty"  yaml:"input,omitempty"`
+	OutputSchema *schema.Schema `json:"output,omitempty" yaml:"output,omitempty"`
+	With         *core.Input    `json:"with,omitempty"   yaml:"with,omitempty"`
+	Env          *core.EnvMap   `json:"env,omitempty"    yaml:"env,omitempty"`
+	Opts         Opts           `json:"config"           yaml:"config"`
+
+	// Task configuration
+	OnSuccess *core.SuccessTransition `json:"on_success,omitempty" yaml:"on_success,omitempty"`
+	OnError   *core.ErrorTransition   `json:"on_error,omitempty"   yaml:"on_error,omitempty"`
+	Sleep     string                  `json:"sleep"                yaml:"sleep"`
+	Final     bool                    `json:"final"                yaml:"final"`
 
 	// Basic task properties
 	Action string `json:"action,omitempty" yaml:"action,omitempty"`
@@ -70,12 +78,12 @@ func (t *Config) GetCWD() *core.CWD {
 	return t.cwd
 }
 
-func (t *Config) GetEnv() *core.EnvMap {
+func (t *Config) GetEnv() core.EnvMap {
 	if t.Env == nil {
-		t.Env = make(core.EnvMap)
-		return &t.Env
+		t.Env = &core.EnvMap{}
+		return *t.Env
 	}
-	return &t.Env
+	return *t.Env
 }
 
 func (t *Config) GetInput() *core.Input {
@@ -91,6 +99,11 @@ func (t *Config) GetAgent() *agent.Config {
 
 func (t *Config) GetTool() *tool.Config {
 	return t.Tool
+}
+
+// GetGlobalOpts returns the task-level global options (including timeouts and retry policy)
+func (t *Config) GetGlobalOpts() *core.GlobalOpts {
+	return &t.Opts.GlobalOpts
 }
 
 func (t *Config) Validate() error {

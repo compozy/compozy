@@ -15,13 +15,19 @@ type WorkflowSourceConfig struct {
 	Source string `json:"source" yaml:"source"`
 }
 
+type Opts struct {
+	core.GlobalOpts `json:",inline" yaml:",inline"`
+}
+
 type Config struct {
-	Name        string                  `json:"name"                   yaml:"name"`
-	Version     string                  `json:"version"                yaml:"version"`
-	Description string                  `json:"description,omitempty"  yaml:"description,omitempty"`
-	Author      core.Author             `json:"author,omitempty"       yaml:"author,omitempty"`
-	Workflows   []*WorkflowSourceConfig `json:"workflows"              yaml:"workflows"`
-	Models      []*agent.ProviderConfig `json:"models"                 yaml:"models"`
+	Name        string                  `json:"name"        yaml:"name"`
+	Version     string                  `json:"version"     yaml:"version"`
+	Description string                  `json:"description" yaml:"description"`
+	Author      core.Author             `json:"author"      yaml:"author"`
+	Workflows   []*WorkflowSourceConfig `json:"workflows"   yaml:"workflows"`
+	Models      []*agent.ProviderConfig `json:"models"      yaml:"models"`
+	Schemas     []schema.Schema         `json:"schemas"     yaml:"schemas"`
+	Opts        Opts                    `json:"config"      yaml:"config"`
 
 	filePath string
 	cwd      *core.CWD
@@ -88,8 +94,8 @@ func (p *Config) SetEnv(env core.EnvMap) {
 	p.env = &env
 }
 
-func (p *Config) GetEnv() *core.EnvMap {
-	return p.env
+func (p *Config) GetEnv() core.EnvMap {
+	return *p.env
 }
 
 func (p *Config) GetInput() *core.Input {

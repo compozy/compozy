@@ -278,7 +278,10 @@ func TestMissingKeyError(t *testing.T) {
 			},
 		}
 		// This approach works - use hasKey to check safely
-		result, err := engine.RenderString("{{ if hasKey .config \"missing\" }}{{ .config.missing }}{{ else }}default-value{{ end }}", context)
+		result, err := engine.RenderString(
+			"{{ if hasKey .config \"missing\" }}{{ .config.missing }}{{ else }}default-value{{ end }}",
+			context,
+		)
 		assert.NoError(t, err)
 		assert.Equal(t, "default-value", result)
 	})

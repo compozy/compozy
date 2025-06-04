@@ -1,12 +1,13 @@
 package worker
 
 import (
+	"fmt"
 	"time"
 
-	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	tkacts "github.com/compozy/compozy/engine/task/activities"
 	wf "github.com/compozy/compozy/engine/workflow"
@@ -14,19 +15,30 @@ import (
 )
 
 type WorkflowInput = wfacts.TriggerInput
-
-// -----------------------------------------------------------------------------
-// Workflow Definition
-// -----------------------------------------------------------------------------
+type WorkflowData = wfacts.GetData
 
 func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) error {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Starting workflow", "workflow_id", input.WorkflowID, "exec_id", input.WorkflowExecID)
-	ctx = initialContext(ctx)
+
+	// Get workflow data
+	data, err := getWorkflowData(ctx, input)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow data: %w", err)
+	}
+
+	// Initial context
+	projectConfig := data.ProjectConfig
+	workflowConfig, err := wf.FindConfig(data.Workflows, input.WorkflowID)
+	data.WorkflowConfig = workflowConfig
+	if err != nil {
+		return fmt.Errorf("failed to find workflow config: %w", err)
+	}
+	ctx = activityContext(ctx, projectConfig, workflowConfig)
 
 	// Execute main trigger activity
 	logger.Info("Executing main trigger activity...")
-	wState, err := triggerWorkflow(ctx, &input)
+	wState, err := triggerWorkflow(ctx, data, &input)
 	if err != nil {
 		logger.Error("Failed to execute trigger activity", "error", err)
 		return err
@@ -41,13 +53,13 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) error {
 	}
 
 	// Dispatch and execute first task
-	taskState, err := dispatchFirstTask(ctx, pauseGate, wState, &input)
+	firstTaskState, err := dispatchFirstTask(ctx, data, pauseGate, wState, &input)
 	if err != nil {
 		return errorHandler(err)
 	}
 
 	// Execute tasks
-	err = executeTasks(ctx, pauseGate, taskState)
+	err = executeTasks(ctx, data, pauseGate, firstTaskState)
 	if err != nil {
 		return errorHandler(err)
 	}
@@ -68,25 +80,60 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) error {
 // Context
 // -----------------------------------------------------------------------------
 
-func initialContext(ctx workflow.Context) workflow.Context {
-	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-		StartToCloseTimeout: 30 * time.Minute,
-		RetryPolicy: &temporal.RetryPolicy{
-			InitialInterval:    time.Second,
-			BackoffCoefficient: 2.0,
-			MaximumInterval:    time.Minute,
-			MaximumAttempts:    3,
-		},
-	})
-	return ctx
+func activityContext(
+	ctx workflow.Context,
+	projectConfig *project.Config,
+	workflowConfig *wf.Config,
+) workflow.Context {
+	resolved := core.ResolveActivityOptions(
+		&projectConfig.Opts.GlobalOpts,
+		&workflowConfig.Opts.GlobalOpts,
+		nil,
+	)
+	activityOptions := resolved.ToTemporalActivityOptions()
+	return workflow.WithActivityOptions(ctx, activityOptions)
+}
+
+func activityContextForTask(
+	ctx workflow.Context,
+	projectConfig *project.Config,
+	workflowConfig *wf.Config,
+	taskID string,
+) workflow.Context {
+	taskConfig, err := task.FindConfig(workflowConfig.Tasks, taskID)
+	if err != nil {
+		return ctx
+	}
+	resolved := core.ResolveActivityOptions(
+		&projectConfig.Opts.GlobalOpts,
+		&workflowConfig.Opts.GlobalOpts,
+		&taskConfig.Opts.GlobalOpts,
+	)
+	activityOptions := resolved.ToTemporalActivityOptions()
+	return workflow.WithActivityOptions(ctx, activityOptions)
 }
 
 // -----------------------------------------------------------------------------
 // Workflow Functions
 // -----------------------------------------------------------------------------
 
+func getWorkflowData(ctx workflow.Context, input WorkflowInput) (*WorkflowData, error) {
+	ctx = workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
+		StartToCloseTimeout: 10 * time.Second,
+	})
+	actLabel := wfacts.GetDataLabel
+	actInput := &wfacts.GetDataInput{WorkflowID: input.WorkflowID}
+	var data *wfacts.GetData
+	err := workflow.ExecuteLocalActivity(ctx, actLabel, actInput).Get(ctx, &data)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 func triggerWorkflow(
 	ctx workflow.Context,
+	data *WorkflowData,
 	input *wfacts.TriggerInput,
 ) (*wf.State, error) {
 	var state *wf.State
@@ -97,6 +144,12 @@ func triggerWorkflow(
 		Input:          input.Input,
 		InitialTaskID:  input.InitialTaskID,
 	}
+	ctx = activityContextForTask(
+		ctx,
+		data.ProjectConfig,
+		data.WorkflowConfig,
+		input.InitialTaskID,
+	)
 	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &state)
 	if err != nil {
 		return nil, err
@@ -131,6 +184,7 @@ func completeWorkflow(
 
 func dispatchFirstTask(
 	ctx workflow.Context,
+	data *WorkflowData,
 	pauseGate *PauseGate,
 	wState *wf.State,
 	input *wfacts.TriggerInput,
@@ -145,6 +199,12 @@ func dispatchFirstTask(
 		WorkflowExecID: wState.WorkflowExecID,
 		TaskID:         input.InitialTaskID,
 	}
+	ctx = activityContextForTask(
+		ctx,
+		data.ProjectConfig,
+		data.WorkflowConfig,
+		input.InitialTaskID,
+	)
 	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &state)
 	if err != nil {
 		return nil, err
@@ -152,8 +212,60 @@ func dispatchFirstTask(
 	return state, nil
 }
 
+func executeTasks(
+	ctx workflow.Context,
+	data *WorkflowData,
+	pauseGate *PauseGate,
+	firstTaskState *task.State,
+) error {
+	logger := workflow.GetLogger(ctx)
+	currentTask := firstTaskState
+	for currentTask != nil {
+		// Check pause state before each task
+		if err := pauseGate.Await(); err != nil {
+			return err
+		}
+
+		logger.Info("Executing task", "task_id", currentTask.TaskID, "task_exec_id", currentTask.TaskExecID)
+		ctx = activityContextForTask(ctx, data.ProjectConfig, data.WorkflowConfig, currentTask.TaskID)
+		response, err := executeBasicTask(ctx, data, pauseGate, currentTask)
+		if err != nil {
+			if err := checkCancellation(ctx, err, "Task execution canceled"); err != nil {
+				return err
+			}
+			logger.Error("Failed to execute task", "task_id", currentTask.TaskID, "error", err)
+			return err
+		}
+
+		logger.Info("Task executed successfully",
+			"status", response.State.Status,
+			"task_id", currentTask.TaskID,
+		)
+
+		// Dispatch next task if there is one
+		nextTaskID := response.NextTaskID()
+		if nextTaskID != "" {
+			currentTaskState := response.State
+			nextTaskState, err := dispatchTask(ctx, pauseGate, currentTaskState, nextTaskID)
+			if err != nil {
+				if err := checkCancellation(ctx, err, "Task dispatch canceled"); err != nil {
+					return err
+				}
+				logger.Error("Failed to dispatch next task", "next_task", nextTaskID, "error", err)
+				return err
+			}
+			currentTask = nextTaskState
+		} else {
+			currentTask = nil
+		}
+	}
+
+	return nil
+}
+
 func executeBasicTask(
 	ctx workflow.Context,
+	data *WorkflowData,
 	pauseGate *PauseGate,
 	taskState *task.State,
 ) (*task.Response, error) {
@@ -161,11 +273,16 @@ func executeBasicTask(
 	if err := pauseGate.Await(); err != nil {
 		return nil, err
 	}
+	taskConfig, err := task.FindConfig(data.WorkflowConfig.Tasks, taskState.TaskID)
+	if err != nil {
+		return nil, err
+	}
 
 	var response *task.Response
 	actLabel := tkacts.ExecuteBasicLabel
 	actInput := &tkacts.ExecuteBasicInput{
-		State: *taskState,
+		State:  *taskState,
+		Config: *taskConfig,
 	}
 
 	// Use a selector to handle both task completion and cancellation
@@ -221,70 +338,4 @@ func dispatchTask(
 		return nil, err
 	}
 	return state, nil
-}
-
-func executeTasks(
-	ctx workflow.Context,
-	pauseGate *PauseGate,
-	taskState *task.State,
-) error {
-	logger := workflow.GetLogger(ctx)
-	currentTask := taskState
-	for currentTask != nil {
-		// Check pause state before each task
-		if err := pauseGate.Await(); err != nil {
-			return err
-		}
-
-		logger.Info("Executing task", "task_id", currentTask.TaskID, "task_exec_id", currentTask.TaskExecID)
-		response, err := executeBasicTask(ctx, pauseGate, currentTask)
-		if err != nil {
-			if err := checkCancellation(ctx, err, "Task execution canceled"); err != nil {
-				return err
-			}
-			logger.Error("Failed to execute task", "task_id", currentTask.TaskID, "error", err)
-			return err
-		}
-
-		logger.Info("Task executed successfully",
-			"task_id", currentTask.TaskID,
-			"status", response.State.Status,
-		)
-
-		// Handle task transitions and determine next task
-		var nextTaskID string
-		switch {
-		case response.State.Status == core.StatusSuccess && response.OnSuccess != nil && response.OnSuccess.Next != nil:
-			nextTaskID = *response.OnSuccess.Next
-			logger.Info("Task succeeded, transitioning to next task",
-				"current_task", currentTask.TaskID,
-				"next_task", nextTaskID,
-			)
-		case response.State.Status == core.StatusFailed && response.OnError != nil && response.OnError.Next != nil:
-			nextTaskID = *response.OnError.Next
-			logger.Info("Task failed, transitioning to error task",
-				"current_task", currentTask.TaskID,
-				"next_task", nextTaskID,
-			)
-		default:
-			logger.Info("No more tasks to execute", "current_task", currentTask.TaskID)
-		}
-
-		// Dispatch next task if there is one
-		if nextTaskID != "" {
-			nextTaskState, err := dispatchTask(ctx, pauseGate, response.State, nextTaskID)
-			if err != nil {
-				if err := checkCancellation(ctx, err, "Task dispatch canceled"); err != nil {
-					return err
-				}
-				logger.Error("Failed to dispatch next task", "next_task", nextTaskID, "error", err)
-				return err
-			}
-			currentTask = nextTaskState
-		} else {
-			currentTask = nil
-		}
-	}
-
-	return nil
 }

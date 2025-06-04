@@ -31,6 +31,14 @@ func NewActivities(
 	}
 }
 
+func (a *Activities) GetWorkflowData(ctx context.Context, input *wfacts.GetDataInput) (*wfacts.GetData, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := wfacts.NewGetData(a.projectConfig, a.workflows)
+	return act.Run(ctx, input)
+}
+
 // TriggerWorkflow executes the activity to trigger the workflow
 func (a *Activities) TriggerWorkflow(ctx context.Context, input *wfacts.TriggerInput) (*workflow.State, error) {
 	if err := ctx.Err(); err != nil {

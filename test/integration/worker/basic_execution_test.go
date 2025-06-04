@@ -188,7 +188,7 @@ func TestWorkflowDatabasePersistence(t *testing.T) {
 
 	// Verify input data was correctly persisted
 	assert.NotNil(t, workflowState.Input, "Workflow input should be persisted")
-	inputMap := map[string]interface{}(*workflowState.Input)
+	inputMap := map[string]any(*workflowState.Input)
 	assert.Equal(t, testMessage, inputMap["message"], "Input message should match")
 
 	// Verify task data persistence

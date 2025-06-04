@@ -27,7 +27,7 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 				"workflow_version": "{{ .workflow.version }}",
 				"workflow_author":  "{{ .workflow.author.name }}",
 			},
-			Env: core.EnvMap{
+			Env: &core.EnvMap{
 				"TASK_ENV": "task-value",
 			},
 		}
@@ -50,7 +50,7 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 				Email: "john@example.com",
 			},
 			Opts: workflow.Opts{
-				Env: core.EnvMap{
+				Env: &core.EnvMap{
 					"WORKFLOW_ENV": "workflow-value",
 				},
 			},
@@ -195,7 +195,7 @@ Data to process: {{ .tasks.data_fetcher.output.raw_data }}`,
 				"task_type":  "{{ .parent.type }}",
 				"task_final": "{{ .parent.final }}",
 			},
-			Env: core.EnvMap{
+			Env: &core.EnvMap{
 				"AGENT_ENV": "agent-value",
 			},
 		}
@@ -208,7 +208,7 @@ Data to process: {{ .tasks.data_fetcher.output.raw_data }}`,
 			With: &core.Input{
 				"city": "Seattle",
 			},
-			Env: core.EnvMap{
+			Env: &core.EnvMap{
 				"TASK_ENV": "task-value",
 			},
 		}
@@ -242,7 +242,7 @@ Data to process: {{ .tasks.data_fetcher.output.raw_data }}`,
 			ID:      "data-workflow",
 			Version: "2.1.0",
 			Opts: workflow.Opts{
-				Env: core.EnvMap{
+				Env: &core.EnvMap{
 					"WORKFLOW_ENV": "workflow-value",
 				},
 			},
@@ -387,7 +387,7 @@ func TestConfigNormalizer_NormalizeToolComponent(t *testing.T) {
 					"x-task-id":     "{{ .parent.id }}",
 				},
 			},
-			Env: core.EnvMap{
+			Env: &core.EnvMap{
 				"TOOL_ENV": "tool-value",
 			},
 		}
@@ -400,7 +400,7 @@ func TestConfigNormalizer_NormalizeToolComponent(t *testing.T) {
 			With: &core.Input{
 				"token": "secret-token",
 			},
-			Env: core.EnvMap{
+			Env: &core.EnvMap{
 				"TASK_ENV": "task-value",
 			},
 		}
@@ -423,7 +423,7 @@ func TestConfigNormalizer_NormalizeToolComponent(t *testing.T) {
 		workflowConfig := &workflow.Config{
 			ID: "api-workflow",
 			Opts: workflow.Opts{
-				Env: core.EnvMap{
+				Env: &core.EnvMap{
 					"WORKFLOW_ENV": "workflow-value",
 					"SCRIPTS_PATH": "/app/scripts",
 					"API_BASE_URL": "https://api.example.com",
@@ -484,7 +484,7 @@ func TestConfigNormalizer_TaskCallingSubTask(t *testing.T) {
 				"workflow_id":   "{{ .workflow.id }}",
 				"config":        "{{ .tasks.config_loader.output.settings }}",
 			},
-			Env: core.EnvMap{
+			Env: &core.EnvMap{
 				"PARENT_TASK": "{{ .parent.id }}",
 				"PARENT_TYPE": "{{ .parent.type }}",
 			},
@@ -557,8 +557,8 @@ func TestConfigNormalizer_TaskCallingSubTask(t *testing.T) {
 		assert.Equal(t, "30s", settings["timeout"])
 
 		// Verify environment template resolution
-		assert.Equal(t, "batch-processor", subtaskConfig.Env["PARENT_TASK"])
-		assert.Equal(t, string(task.TaskTypeBasic), subtaskConfig.Env["PARENT_TYPE"])
+		assert.Equal(t, "batch-processor", subtaskConfig.GetEnv().Prop("PARENT_TASK"))
+		assert.Equal(t, string(task.TaskTypeBasic), subtaskConfig.GetEnv().Prop("PARENT_TYPE"))
 	})
 }
 
@@ -568,7 +568,7 @@ func TestConfigNormalizer_ErrorHandling(t *testing.T) {
 	t.Run("Should return error for missing template key in environment", func(t *testing.T) {
 		taskConfig := &task.Config{
 			ID: "error-task",
-			Env: core.EnvMap{
+			Env: &core.EnvMap{
 				"INVALID": "{{ .invalid.template }}",
 			},
 		}

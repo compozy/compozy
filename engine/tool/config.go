@@ -22,7 +22,7 @@ type Config struct {
 	InputSchema  *schema.Schema `json:"input,omitempty"       yaml:"input,omitempty"`
 	OutputSchema *schema.Schema `json:"output,omitempty"      yaml:"output,omitempty"`
 	With         *core.Input    `json:"with,omitempty"        yaml:"with,omitempty"`
-	Env          core.EnvMap    `json:"env,omitempty"         yaml:"env,omitempty"`
+	Env          *core.EnvMap   `json:"env,omitempty"         yaml:"env,omitempty"`
 
 	filePath string
 	cwd      *core.CWD
@@ -55,17 +55,17 @@ func (t *Config) GetCWD() *core.CWD {
 	return t.cwd
 }
 
-func (t *Config) GetEnv() *core.EnvMap {
+func (t *Config) GetEnv() core.EnvMap {
 	if t.Env == nil {
-		t.Env = make(core.EnvMap)
-		return &t.Env
+		t.Env = &core.EnvMap{}
+		return *t.Env
 	}
-	return &t.Env
+	return *t.Env
 }
 
 func (t *Config) GetInput() *core.Input {
 	if t.With == nil {
-		t.With = &core.Input{}
+		return &core.Input{}
 	}
 	return t.With
 }

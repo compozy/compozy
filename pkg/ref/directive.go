@@ -24,7 +24,9 @@ var (
 	// Updated regex patterns to capture optional inline merge syntax
 	useDirectiveRegex = regexp.MustCompile(
 		`^(?P<component>agent|tool|task)\((?P<scope>local|global)::(?P<path>.+?)\)(?:!merge:<(?P<merge_opts>[^>]*)>)?$`)
-	refDirectiveRegex = regexp.MustCompile(`^(?P<scope>local|global)::(?P<path>.+?)(?:!merge:<(?P<merge_opts>[^>]*)>)?$`)
+	refDirectiveRegex = regexp.MustCompile(
+		`^(?P<scope>local|global)::(?P<path>.+?)(?:!merge:<(?P<merge_opts>[^>]*)>)?$`,
+	)
 
 	// Named group indices for safer extraction
 	useIdxComponent = useDirectiveRegex.SubexpIndex("component")

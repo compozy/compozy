@@ -17,9 +17,9 @@ import (
 )
 
 type Opts struct {
-	OnError     *task.ErrorTransition `json:"on_error,omitempty" yaml:"on_error,omitempty"`
-	InputSchema *schema.Schema        `json:"input,omitempty"    yaml:"input,omitempty"`
-	Env         core.EnvMap           `json:"env,omitempty"         yaml:"env,omitempty"`
+	core.GlobalOpts `json:",inline" yaml:",inline"`
+	InputSchema     *schema.Schema `json:"input,omitempty" yaml:"input,omitempty"`
+	Env             *core.EnvMap   `json:"env,omitempty"   yaml:"env,omitempty"`
 }
 
 type Config struct {
@@ -27,7 +27,7 @@ type Config struct {
 	Version     string          `json:"version,omitempty"     yaml:"version,omitempty"`
 	Description string          `json:"description,omitempty" yaml:"description,omitempty"`
 	Schemas     []schema.Schema `json:"schemas,omitempty"     yaml:"schemas,omitempty"`
-	Opts        Opts            `json:"config"               yaml:"config"`
+	Opts        Opts            `json:"config"                yaml:"config"`
 	Author      *core.Author    `json:"author,omitempty"      yaml:"author,omitempty"`
 	Tools       []tool.Config   `json:"tools,omitempty"       yaml:"tools,omitempty"`
 	Agents      []agent.Config  `json:"agents,omitempty"      yaml:"agents,omitempty"`
@@ -57,12 +57,12 @@ func (w *Config) GetCWD() *core.CWD {
 	return w.cwd
 }
 
-func (w *Config) GetEnv() *core.EnvMap {
+func (w *Config) GetEnv() core.EnvMap {
 	if w.Opts.Env == nil {
-		w.Opts.Env = make(core.EnvMap)
-		return &w.Opts.Env
+		w.Opts.Env = &core.EnvMap{}
+		return *w.Opts.Env
 	}
-	return &w.Opts.Env
+	return *w.Opts.Env
 }
 
 func (w *Config) GetInput() *core.Input {
@@ -127,9 +127,11 @@ func (w *Config) Merge(other any) error {
 
 func WorkflowsFromProject(projectConfig *project.Config, ev *ref.Evaluator) ([]*Config, error) {
 	cwd := projectConfig.GetCWD()
+	projectEnv := projectConfig.GetEnv()
 	var ws []*Config
 	for _, wf := range projectConfig.Workflows {
 		config, err := LoadAndEval(cwd, wf.Source, ev)
+		config.Opts.Env = &projectEnv
 		if err != nil {
 			return nil, err
 		}

@@ -98,6 +98,9 @@ linters:
       - linters:
           - lll
         source: "//	@"
+      - linters:
+          - lll
+        source: "`.*`"
     paths:
       - third_party$
       - builtin$
@@ -108,6 +111,15 @@ formatters:
   enable:
     - gofmt
     - goimports
+    - golines
+  settings:
+    gofmt:
+      rewrite-rules:
+        - pattern: "interface{}"
+          replacement: "any"
+    golines:
+      max-len: 120
+
   exclusions:
     generated: lax
     paths:
