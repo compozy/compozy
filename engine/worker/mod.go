@@ -101,8 +101,15 @@ func (o *Worker) TriggerWorkflow(
 		ID:        workflowExecID.String(),
 		TaskQueue: o.client.Config().TaskQueue,
 	}
+	workflowConfig, err := workflow.FindConfig(o.workflows, workflowID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find workflow config: %w", err)
+	}
+	if err := workflowConfig.ValidateParams(ctx, input); err != nil {
+		return nil, fmt.Errorf("failed to validate workflow params: %w", err)
+	}
 
-	_, err := o.client.ExecuteWorkflow(
+	_, err = o.client.ExecuteWorkflow(
 		ctx,
 		options,
 		CompozyWorkflow,

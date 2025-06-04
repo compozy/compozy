@@ -81,7 +81,14 @@ func (a *Execute) Run(ctx context.Context, input *ExecuteInput) (*task.State, er
 		TaskID:         input.TaskID,
 		TaskExecID:     taskExecID,
 	}
-	return task.CreateAndPersistState(ctx, a.taskRepo, &stateInput, result)
+	taskState, err := task.CreateAndPersistState(ctx, a.taskRepo, &stateInput, result)
+	if err != nil {
+		return nil, err
+	}
+	if err := execCtx.TaskConfig.ValidateParams(ctx, taskState.Input); err != nil {
+		return nil, fmt.Errorf("failed to validate task params: %w", err)
+	}
+	return taskState, nil
 }
 
 // loadExecutionContext loads all necessary configurations
