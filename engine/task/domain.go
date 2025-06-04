@@ -123,3 +123,14 @@ func (e *State) AsMap() (map[core.ID]any, error) {
 func (e *State) UpdateStatus(status core.StatusType) {
 	e.Status = status
 }
+
+// -----------------------------------------------------------------------------
+// Response
+// -----------------------------------------------------------------------------
+
+type Response struct {
+	OnSuccess *SuccessTransition `json:"on_success"`
+	OnError   *ErrorTransition   `json:"on_error"`
+	State     *State             `json:"state"`
+	NextTask  *Config            `json:"next_task"`
+}

@@ -2,8 +2,8 @@ package task
 
 import "github.com/compozy/compozy/engine/core"
 
-// SuccessTransitionConfig represents a success transition configuration
-type SuccessTransitionConfig struct {
+// SuccessTransition represents a success transition configuration
+type SuccessTransition struct {
 	Next *string     `json:"next,omitempty" yaml:"next,omitempty"`
 	With *core.Input `json:"with,omitempty" yaml:"with,omitempty"`
 }
@@ -20,8 +20,8 @@ type RetryPolicyConfig struct {
 	BackoffFactor *float64 `json:"backoff_factor,omitempty"  yaml:"backoff_factor,omitempty"`
 }
 
-// ErrorTransitionConfig represents an error transition configuration
-type ErrorTransitionConfig struct {
+// ErrorTransition represents an error transition configuration
+type ErrorTransition struct {
 	Next        *string            `json:"next,omitempty"         yaml:"next,omitempty"`
 	With        *core.Input        `json:"with,omitempty"         yaml:"with,omitempty"`
 	RetryPolicy *RetryPolicyConfig `json:"retry_policy,omitempty" yaml:"retry_policy,omitempty"`

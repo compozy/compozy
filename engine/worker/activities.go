@@ -45,7 +45,7 @@ func (a *Activities) UpdateWorkflowState(ctx context.Context, input *wfacts.Upda
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	act := wfacts.NewUpdateState(a.workflowRepo)
+	act := wfacts.NewUpdateState(a.workflowRepo, a.taskRepo)
 	return act.Run(ctx, input)
 }
 
@@ -54,5 +54,13 @@ func (a *Activities) DispatchTask(ctx context.Context, input *tkfacts.DispatchIn
 		return nil, err
 	}
 	act := tkfacts.NewDispatch(a.workflows, a.workflowRepo, a.taskRepo)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) ExecuteBasicTask(ctx context.Context, input *tkfacts.ExecuteBasicInput) (*task.Response, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewExecuteBasic(a.workflows, a.workflowRepo, a.taskRepo)
 	return act.Run(ctx, input)
 }

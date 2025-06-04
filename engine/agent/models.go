@@ -12,6 +12,7 @@ const (
 	ProviderPerplexity ProviderName = "perplexity"
 	ProviderXAI        ProviderName = "xai"
 	ProviderGoogle     ProviderName = "google"
+	ProviderMock       ProviderName = "mock" // Mock provider for testing
 )
 
 // ModelName represents the name of a model
@@ -69,6 +70,9 @@ const (
 	ModelGemini20Flash ModelName = "gemini-2.0-flash"
 	ModelGemini25Flash ModelName = "gemini-2.5-flash"
 	ModelGemma3        ModelName = "gemma-3"
+
+	// Mock models for testing
+	ModelMockTest ModelName = "mock-test"
 )
 
 // Provider defines an interface for retrieving the API URL of a provider
@@ -150,6 +154,8 @@ func GetProvider(name ProviderName) Provider {
 		return &XAIProvider{}
 	case ProviderGoogle:
 		return &GoogleProvider{}
+	case ProviderMock:
+		return nil // Mock provider for testing
 	default:
 		return nil
 	}

@@ -17,9 +17,9 @@ import (
 )
 
 type Opts struct {
-	OnError     *task.ErrorTransitionConfig `json:"on_error,omitempty" yaml:"on_error,omitempty"`
-	InputSchema *schema.Schema              `json:"input,omitempty"    yaml:"input,omitempty"`
-	Env         core.EnvMap                 `json:"env,omitempty"         yaml:"env,omitempty"`
+	OnError     *task.ErrorTransition `json:"on_error,omitempty" yaml:"on_error,omitempty"`
+	InputSchema *schema.Schema        `json:"input,omitempty"    yaml:"input,omitempty"`
+	Env         core.EnvMap           `json:"env,omitempty"         yaml:"env,omitempty"`
 }
 
 type Config struct {
@@ -188,15 +188,6 @@ func (w *Config) GetTasks() []task.Config {
 	return w.Tasks
 }
 
-func FindConfig(workflows []*Config, workflowID string) (*Config, error) {
-	for _, wf := range workflows {
-		if wf.ID == workflowID {
-			return wf, nil
-		}
-	}
-	return nil, fmt.Errorf("workflow not found")
-}
-
 func Load(cwd *core.CWD, path string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
@@ -224,4 +215,29 @@ func LoadAndEval(cwd *core.CWD, path string, ev *ref.Evaluator) (*Config, error)
 		return nil, err
 	}
 	return config, nil
+}
+
+func FindConfig(workflows []*Config, workflowID string) (*Config, error) {
+	for _, wf := range workflows {
+		if wf.ID == workflowID {
+			return wf, nil
+		}
+	}
+	return nil, fmt.Errorf("workflow not found")
+}
+
+func FindAgentConfig[C core.Config](workflows []*Config, agentID string) (C, error) {
+	var cfg C
+	for _, wf := range workflows {
+		for i := range wf.Agents {
+			if wf.Agents[i].ID == agentID {
+				cfg, ok := any(&wf.Agents[i]).(C)
+				if !ok {
+					return cfg, fmt.Errorf("agent config is not of type %T", cfg)
+				}
+				return cfg, nil
+			}
+		}
+	}
+	return cfg, fmt.Errorf("agent not found: %s", agentID)
 }

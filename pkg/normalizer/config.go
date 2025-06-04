@@ -172,3 +172,77 @@ func (n *ConfigNormalizer) NormalizeToolComponent(
 	}
 	return mergedEnv, nil
 }
+
+// NormalizeSuccessTransition normalizes a success transition configuration.
+func (n *ConfigNormalizer) NormalizeSuccessTransition(
+	transition *task.SuccessTransition,
+	workflowState *workflow.State,
+	workflowConfig *workflow.Config,
+	allTaskConfigs map[string]*task.Config,
+	mergedEnv core.EnvMap,
+) error {
+	if transition == nil {
+		return nil
+	}
+
+	// Build complete parent context with all workflow config properties
+	parentConfig, err := core.ConfigAsMap(workflowConfig)
+	if err != nil {
+		return fmt.Errorf("failed to convert workflow config to map: %w", err)
+	}
+
+	// Add workflow runtime state
+	parentConfig["input"] = workflowState.Input
+	parentConfig["output"] = workflowState.Output
+
+	normCtx := &NormalizationContext{
+		WorkflowState:  workflowState,
+		WorkflowConfig: workflowConfig,
+		TaskConfigs:    allTaskConfigs,
+		ParentConfig:   parentConfig,
+		CurrentInput:   transition.With,
+		MergedEnv:      mergedEnv,
+	}
+
+	if err := n.normalizer.NormalizeTransition(transition, normCtx); err != nil {
+		return fmt.Errorf("failed to normalize success transition: %w", err)
+	}
+	return nil
+}
+
+// NormalizeErrorTransition normalizes an error transition configuration.
+func (n *ConfigNormalizer) NormalizeErrorTransition(
+	transition *task.ErrorTransition,
+	workflowState *workflow.State,
+	workflowConfig *workflow.Config,
+	allTaskConfigs map[string]*task.Config,
+	mergedEnv core.EnvMap,
+) error {
+	if transition == nil {
+		return nil
+	}
+
+	// Build complete parent context with all workflow config properties
+	parentConfig, err := core.ConfigAsMap(workflowConfig)
+	if err != nil {
+		return fmt.Errorf("failed to convert workflow config to map: %w", err)
+	}
+
+	// Add workflow runtime state
+	parentConfig["input"] = workflowState.Input
+	parentConfig["output"] = workflowState.Output
+
+	normCtx := &NormalizationContext{
+		WorkflowState:  workflowState,
+		WorkflowConfig: workflowConfig,
+		TaskConfigs:    allTaskConfigs,
+		ParentConfig:   parentConfig,
+		CurrentInput:   transition.With,
+		MergedEnv:      mergedEnv,
+	}
+
+	if err := n.normalizer.NormalizeErrorTransition(transition, normCtx); err != nil {
+		return fmt.Errorf("failed to normalize error transition: %w", err)
+	}
+	return nil
+}

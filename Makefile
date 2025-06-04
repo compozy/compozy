@@ -104,19 +104,33 @@ schemagen:
 integration-test:
 	gotestsum -f testdox -- ./test/integration/...
 
+# Fast tests for daily development (excludes slow integration/worker tests)
 test-go:
-	gotestsum --format testdox ./...
+	gotestsum --format testdox -- -parallel=8 $(shell go list ./... | grep -v '/test/integration/worker')
+
+# Complete test suite including slow integration/worker tests
+test-all:
+	gotestsum --format testdox -- -parallel=8 ./...
+
+test-go-fast:
+	gotestsum --format testdox -- -parallel=16 -short ./...
 
 test-go-nocache:
-	gotestsum --format testdox -- -count=1 ./...
+	gotestsum --format testdox -- -count=1 -parallel=8 ./...
+
+test-integration-only:
+	gotestsum --format testdox -- -parallel=4 ./test/integration/...
+
+test-unit-only:
+	gotestsum --format testdox -- -parallel=16 ./... -skip="./test/integration/..."
 
 test:
 	make start-docker
-	make test-go
+	make test-all
 	make stop-docker
 
 # -----------------------------------------------------------------------------
-# Docker & NATS Management
+# Docker & Database Management
 # -----------------------------------------------------------------------------
 start-docker:
 	docker compose -f ./cluster/docker-compose.yml up -d

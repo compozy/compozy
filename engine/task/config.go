@@ -22,15 +22,15 @@ const (
 )
 
 type Config struct {
-	ID           string                   `json:"id,omitempty"         yaml:"id,omitempty"`
-	Type         Type                     `json:"type,omitempty"       yaml:"type,omitempty"`
-	OnSuccess    *SuccessTransitionConfig `json:"on_success,omitempty" yaml:"on_success,omitempty"`
-	OnError      *ErrorTransitionConfig   `json:"on_error,omitempty"   yaml:"on_error,omitempty"`
-	Final        bool                     `json:"final"      yaml:"final,omitempty"`
-	InputSchema  *schema.Schema           `json:"input,omitempty"      yaml:"input,omitempty"`
-	OutputSchema *schema.Schema           `json:"output,omitempty"     yaml:"output,omitempty"`
-	With         *core.Input              `json:"with,omitempty"       yaml:"with,omitempty"`
-	Env          core.EnvMap              `json:"env,omitempty"        yaml:"env,omitempty"`
+	ID           string             `json:"id,omitempty"         yaml:"id,omitempty"`
+	Type         Type               `json:"type,omitempty"       yaml:"type,omitempty"`
+	OnSuccess    *SuccessTransition `json:"on_success,omitempty" yaml:"on_success,omitempty"`
+	OnError      *ErrorTransition   `json:"on_error,omitempty"   yaml:"on_error,omitempty"`
+	Final        bool               `json:"final"      yaml:"final,omitempty"`
+	InputSchema  *schema.Schema     `json:"input,omitempty"      yaml:"input,omitempty"`
+	OutputSchema *schema.Schema     `json:"output,omitempty"     yaml:"output,omitempty"`
+	With         *core.Input        `json:"with,omitempty"       yaml:"with,omitempty"`
+	Env          core.EnvMap        `json:"env,omitempty"        yaml:"env,omitempty"`
 
 	// Basic task properties
 	Action string `json:"action,omitempty" yaml:"action,omitempty"`

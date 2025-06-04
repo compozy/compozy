@@ -62,6 +62,7 @@ func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterActivity(o.activities.TriggerWorkflow)
 	o.worker.RegisterActivity(o.activities.UpdateWorkflowState)
 	o.worker.RegisterActivity(o.activities.DispatchTask)
+	o.worker.RegisterActivity(o.activities.ExecuteBasicTask)
 	return o.worker.Start()
 }
 

@@ -281,10 +281,10 @@ func Test_TaskConfigMerge(t *testing.T) {
 			With: &core.Input{
 				"param1": "value1",
 			},
-			OnSuccess: &SuccessTransitionConfig{
+			OnSuccess: &SuccessTransition{
 				Next: &next1,
 			},
-			OnError: &ErrorTransitionConfig{
+			OnError: &ErrorTransition{
 				Next: &next1,
 			},
 		}
@@ -296,10 +296,10 @@ func Test_TaskConfigMerge(t *testing.T) {
 			With: &core.Input{
 				"param2": "value2",
 			},
-			OnSuccess: &SuccessTransitionConfig{
+			OnSuccess: &SuccessTransition{
 				Next: &next2,
 			},
-			OnError: &ErrorTransitionConfig{
+			OnError: &ErrorTransition{
 				Next: &next2,
 			},
 		}
