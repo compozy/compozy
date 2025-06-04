@@ -13,15 +13,15 @@ import (
 )
 
 type Config struct {
-	ID           string          `json:"id"                yaml:"id"                validate:"required"`
-	Config       ProviderConfig  `json:"config"            yaml:"config"            validate:"required"`
-	Instructions string          `json:"instructions"      yaml:"instructions"      validate:"required"`
-	Tools        []tool.Config   `json:"tools,omitempty"   yaml:"tools,omitempty"`
-	Actions      []*ActionConfig `json:"actions,omitempty" yaml:"actions,omitempty"`
-	InputSchema  *schema.Schema  `json:"input,omitempty"   yaml:"input,omitempty"`
-	OutputSchema *schema.Schema  `json:"output,omitempty"  yaml:"output,omitempty"`
-	With         *core.Input     `json:"with,omitempty"    yaml:"with,omitempty"`
-	Env          core.EnvMap     `json:"env,omitempty"     yaml:"env,omitempty"`
+	ID           string          `json:"id"                yaml:"id"                mapstructure:"id"                validate:"required"`
+	Config       ProviderConfig  `json:"config"            yaml:"config"            mapstructure:"config"            validate:"required"`
+	Instructions string          `json:"instructions"      yaml:"instructions"      mapstructure:"instructions"      validate:"required"`
+	Tools        []tool.Config   `json:"tools,omitempty"   yaml:"tools,omitempty"   mapstructure:"tools,omitempty"`
+	Actions      []*ActionConfig `json:"actions,omitempty" yaml:"actions,omitempty" mapstructure:"actions,omitempty"`
+	InputSchema  *schema.Schema  `json:"input,omitempty"   yaml:"input,omitempty"   mapstructure:"input,omitempty"`
+	OutputSchema *schema.Schema  `json:"output,omitempty"  yaml:"output,omitempty"  mapstructure:"output,omitempty"`
+	With         *core.Input     `json:"with,omitempty"    yaml:"with,omitempty"    mapstructure:"with,omitempty"`
+	Env          *core.EnvMap    `json:"env,omitempty"     yaml:"env,omitempty"     mapstructure:"env,omitempty"`
 
 	filePath string
 	cwd      *core.CWD
@@ -64,12 +64,12 @@ func (a *Config) GetInput() *core.Input {
 	return a.With
 }
 
-func (a *Config) GetEnv() *core.EnvMap {
+func (a *Config) GetEnv() core.EnvMap {
 	if a.Env == nil {
-		a.Env = make(core.EnvMap)
-		return &a.Env
+		a.Env = &core.EnvMap{}
+		return *a.Env
 	}
-	return &a.Env
+	return *a.Env
 }
 
 func (a *Config) Validate() error {
@@ -94,6 +94,18 @@ func (a *Config) Merge(other any) error {
 		return fmt.Errorf("failed to merge agent configs: %s", "invalid type for merge")
 	}
 	return mergo.Merge(a, otherConfig, mergo.WithOverride)
+}
+
+func (a *Config) AsMap() (map[string]any, error) {
+	return core.AsMapDefault(a)
+}
+
+func (a *Config) FromMap(data any) error {
+	config, err := core.FromMapDefault[*Config](data)
+	if err != nil {
+		return err
+	}
+	return a.Merge(config)
 }
 
 func Load(cwd *core.CWD, path string) (*Config, error) {

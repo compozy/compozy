@@ -12,21 +12,26 @@ import (
 	"github.com/compozy/compozy/pkg/normalizer"
 )
 
-const ExecuteLabel = "ExecuteTask"
+const DispatchLabel = "DispatchTask"
 
-type ExecuteInput struct {
+type DispatchInput struct {
 	WorkflowID     string  `json:"workflow_id"`
 	WorkflowExecID core.ID `json:"workflow_exec_id"`
 	TaskID         string  `json:"task_id"`
 }
 
-type ExecutionContext struct {
+type DispatchOutput struct {
+	State  *task.State
+	Config *task.Config
+}
+
+type DispatchData struct {
 	WorkflowState  *workflow.State
 	WorkflowConfig *workflow.Config
 	TaskConfig     *task.Config
 }
 
-type Execute struct {
+type Dispatch struct {
 	workflows    []*workflow.Config
 	workflowRepo workflow.Repository
 	taskRepo     task.Repository
@@ -34,13 +39,13 @@ type Execute struct {
 	taskConfigs  map[string]*task.Config
 }
 
-// NewExecute creates a new Execute activity
-func NewExecute(
+// NewDispatch creates a new Dispatch activity
+func NewDispatch(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
-) *Execute {
-	return &Execute{
+) *Dispatch {
+	return &Dispatch{
 		workflows:    workflows,
 		workflowRepo: workflowRepo,
 		taskRepo:     taskRepo,
@@ -49,26 +54,45 @@ func NewExecute(
 }
 
 // Run executes a task
-func (a *Execute) Run(ctx context.Context, input *ExecuteInput) (*task.State, error) {
-	// Load execution context
-	execCtx, err := a.loadExecutionContext(ctx, input)
+func (a *Dispatch) Run(ctx context.Context, input *DispatchInput) (*DispatchOutput, error) {
+	// Load execution data
+	execData, err := a.loadData(ctx, input)
 	if err != nil {
 		return nil, err
 	}
 
-	a.taskConfigs = normalizer.BuildTaskConfigsMap(execCtx.WorkflowConfig.Tasks)
+	state, err := a.createState(ctx, execData, input)
+	if err != nil {
+		return nil, err
+	}
+	return &DispatchOutput{
+		State:  state,
+		Config: execData.TaskConfig,
+	}, nil
+}
+
+func (a *Dispatch) createState(
+	ctx context.Context,
+	execData *DispatchData,
+	input *DispatchInput,
+) (*task.State, error) {
+	a.taskConfigs = normalizer.BuildTaskConfigsMap(execData.WorkflowConfig.Tasks)
 	baseEnv, err := a.normalizer.NormalizeTask(
-		execCtx.WorkflowState,
-		execCtx.WorkflowConfig,
-		execCtx.TaskConfig,
+		execData.WorkflowState,
+		execData.WorkflowConfig,
+		execData.TaskConfig,
 	)
 	if err != nil {
-		errMsg := fmt.Sprintf("failed to normalize task %s for workflow %s", execCtx.TaskConfig.ID, execCtx.WorkflowConfig.ID)
+		errMsg := fmt.Sprintf(
+			"failed to normalize task %s for workflow %s",
+			execData.TaskConfig.ID,
+			execData.WorkflowConfig.ID,
+		)
 		return nil, fmt.Errorf("%s: %w", errMsg, err)
 	}
 
 	// Process component and get result
-	result, err := a.processComponent(execCtx, baseEnv)
+	result, err := a.processComponent(execData, baseEnv)
 	if err != nil {
 		return nil, err
 	}
@@ -85,14 +109,14 @@ func (a *Execute) Run(ctx context.Context, input *ExecuteInput) (*task.State, er
 	if err != nil {
 		return nil, err
 	}
-	if err := execCtx.TaskConfig.ValidateParams(ctx, taskState.Input); err != nil {
+	if err := execData.TaskConfig.ValidateParams(ctx, taskState.Input); err != nil {
 		return nil, fmt.Errorf("failed to validate task params: %w", err)
 	}
 	return taskState, nil
 }
 
-// loadExecutionContext loads all necessary configurations
-func (a *Execute) loadExecutionContext(ctx context.Context, input *ExecuteInput) (*ExecutionContext, error) {
+// loadData loads all necessary configurations
+func (a *Dispatch) loadData(ctx context.Context, input *DispatchInput) (*DispatchData, error) {
 	workflowState, err := a.workflowRepo.GetState(ctx, input.WorkflowExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workflow state: %w", err)
@@ -113,7 +137,7 @@ func (a *Execute) loadExecutionContext(ctx context.Context, input *ExecuteInput)
 		return nil, fmt.Errorf("failed to find task config: %w", err)
 	}
 
-	return &ExecutionContext{
+	return &DispatchData{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
 		TaskConfig:     taskConfig,
@@ -121,70 +145,70 @@ func (a *Execute) loadExecutionContext(ctx context.Context, input *ExecuteInput)
 }
 
 // processComponent processes the appropriate component (agent, tool, or task)
-func (a *Execute) processComponent(
-	execCtx *ExecutionContext,
+func (a *Dispatch) processComponent(
+	execData *DispatchData,
 	baseEnv core.EnvMap,
 ) (*task.PartialState, error) {
-	agentConfig := execCtx.TaskConfig.GetAgent()
-	toolConfig := execCtx.TaskConfig.GetTool()
+	agentConfig := execData.TaskConfig.GetAgent()
+	toolConfig := execData.TaskConfig.GetTool()
 
 	switch {
 	case agentConfig != nil:
-		return a.processAgent(execCtx, agentConfig)
+		return a.processAgent(execData, agentConfig)
 	case toolConfig != nil:
-		return a.processTool(execCtx, toolConfig)
+		return a.processTool(execData, toolConfig)
 	default:
 		return &task.PartialState{
 			Component: core.ComponentTask,
-			Input:     execCtx.TaskConfig.With,
-			ActionID:  &execCtx.TaskConfig.Action,
+			Input:     execData.TaskConfig.With,
+			ActionID:  &execData.TaskConfig.Action,
 			MergedEnv: baseEnv,
 		}, nil
 	}
 }
 
 // processAgent processes an agent component
-func (a *Execute) processAgent(
-	execCtx *ExecutionContext,
+func (a *Dispatch) processAgent(
+	execData *DispatchData,
 	agentConfig *agent.Config,
 ) (*task.PartialState, error) {
 	// Normalize agent configuration and get merged environment
 	mergedEnv, err := a.normalizer.NormalizeAgentComponent(
-		execCtx.WorkflowState,
-		execCtx.WorkflowConfig,
-		execCtx.TaskConfig,
+		execData.WorkflowState,
+		execData.WorkflowConfig,
+		execData.TaskConfig,
 		agentConfig,
 		a.taskConfigs,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to process agent component for task %s: %w", execCtx.TaskConfig.ID, err)
+		return nil, fmt.Errorf("failed to process agent component for task %s: %w", execData.TaskConfig.ID, err)
 	}
 
 	agentID := agentConfig.ID
 	return &task.PartialState{
 		Component: core.ComponentAgent,
 		AgentID:   &agentID,
-		ActionID:  &execCtx.TaskConfig.Action,
+		ActionID:  &execData.TaskConfig.Action,
 		Input:     agentConfig.With,
 		MergedEnv: mergedEnv,
 	}, nil
 }
 
 // processTool processes a tool component
-func (a *Execute) processTool(
-	execCtx *ExecutionContext,
+func (a *Dispatch) processTool(
+	execData *DispatchData,
 	toolConfig *tool.Config,
 ) (*task.PartialState, error) {
 	// Normalize tool configuration and get merged environment
 	mergedEnv, err := a.normalizer.NormalizeToolComponent(
-		execCtx.WorkflowState,
-		execCtx.WorkflowConfig,
-		execCtx.TaskConfig,
+		execData.WorkflowState,
+		execData.WorkflowConfig,
+		execData.TaskConfig,
 		toolConfig,
 		a.taskConfigs,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to process tool component for task %s: %w", execCtx.TaskConfig.ID, err)
+		return nil, fmt.Errorf("failed to process tool component for task %s: %w", execData.TaskConfig.ID, err)
 	}
 
 	toolID := toolConfig.ID

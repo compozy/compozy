@@ -187,7 +187,7 @@ func TestNormalizer_NormalizeTaskConfig(t *testing.T) {
 				"data":     "{{ .tasks.fetcher.output.data }}",
 				"workflow": "{{ .workflow.id }}",
 			},
-			Env: core.EnvMap{
+			Env: &core.EnvMap{
 				"CITY": "{{ .workflow.input.city | upper }}",
 			},
 		}
@@ -215,7 +215,7 @@ func TestNormalizer_NormalizeTaskConfig(t *testing.T) {
 		assert.Equal(t, "process_seattle", taskConfig.Action)
 		assert.Equal(t, "fetched-data", (*taskConfig.With)["data"])
 		assert.Equal(t, "my-workflow", (*taskConfig.With)["workflow"])
-		assert.Equal(t, "SEATTLE", taskConfig.Env["CITY"])
+		assert.Equal(t, "SEATTLE", taskConfig.GetEnv().Prop("CITY"))
 	})
 
 	t.Run("Should handle condition field normalization", func(t *testing.T) {
@@ -258,7 +258,7 @@ Parent task: {{ .parent.id }}`,
 			With: &core.Input{
 				"context": "{{ .tasks.context_builder.output.context }}",
 			},
-			Env: core.EnvMap{
+			Env: &core.EnvMap{
 				"AGENT_MODE": "{{ .env.MODE | default \"production\" }}",
 			},
 			Config: agent.ProviderConfig{Model: agent.ModelGPT4oMini},
@@ -296,7 +296,7 @@ Parent task: caller-task`
 
 		assert.Equal(t, expectedInstructions, agentConfig.Instructions)
 		assert.Equal(t, "generated-context", (*agentConfig.With)["context"])
-		assert.Equal(t, "debug", agentConfig.Env["AGENT_MODE"])
+		assert.Equal(t, "debug", agentConfig.GetEnv().Prop("AGENT_MODE"))
 	})
 
 	t.Run("Should normalize agent actions and access parent agent config", func(t *testing.T) {
@@ -349,7 +349,7 @@ func TestNormalizer_NormalizeToolConfig(t *testing.T) {
 				"endpoint": "{{ .env.API_URL }}/{{ .parent.action }}",
 				"city":     "{{ .parent.input.city }}",
 			},
-			Env: core.EnvMap{
+			Env: &core.EnvMap{
 				"TOOL_MODE": "{{ .parent.type }}_mode",
 			},
 		}
@@ -380,7 +380,7 @@ func TestNormalizer_NormalizeToolConfig(t *testing.T) {
 		assert.Equal(t, "Tool for api-task task", toolConfig.Description)
 		assert.Equal(t, "https://api.example.com/fetch", (*toolConfig.With)["endpoint"])
 		assert.Equal(t, "Chicago", (*toolConfig.With)["city"])
-		assert.Equal(t, "basic_mode", toolConfig.Env["TOOL_MODE"])
+		assert.Equal(t, "basic_mode", toolConfig.GetEnv().Prop("TOOL_MODE"))
 	})
 }
 
@@ -504,7 +504,7 @@ func TestNormalizer_ErrorHandling(t *testing.T) {
 
 		err := n.NormalizeTaskConfig(taskConfig, ctx)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to normalize task config input")
+		assert.Contains(t, err.Error(), "failed to normalize task config")
 	})
 
 	t.Run("Should handle missing context gracefully", func(t *testing.T) {
@@ -547,7 +547,7 @@ func TestNormalizer_ErrorHandling(t *testing.T) {
 		err := n.NormalizeTaskConfig(taskConfig, ctx)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "worklow")
-		assert.Contains(t, err.Error(), "failed to normalize task config input")
+		assert.Contains(t, err.Error(), "failed to normalize task config")
 	})
 
 	t.Run("Should fail on misspelled field access", func(t *testing.T) {
@@ -576,6 +576,6 @@ func TestNormalizer_ErrorHandling(t *testing.T) {
 		err := n.NormalizeTaskConfig(taskConfig, ctx)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "outpu")
-		assert.Contains(t, err.Error(), "failed to normalize task config input")
+		assert.Contains(t, err.Error(), "failed to normalize task config")
 	})
 }

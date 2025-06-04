@@ -16,12 +16,12 @@ const StateKey = "workflowState"
 // -----------------------------------------------------------------------------
 
 type State struct {
-	WorkflowID     string                 `json:"workflow_id" db:"workflow_id"`
+	WorkflowID     string                 `json:"workflow_id"      db:"workflow_id"`
 	WorkflowExecID core.ID                `json:"workflow_exec_id" db:"workflow_exec_id"`
-	Status         core.StatusType        `json:"status" db:"status"`
-	Input          *core.Input            `json:"input" db:"input"`
-	Output         *core.Output           `json:"output" db:"output"`
-	Error          *core.Error            `json:"error" db:"error"`
+	Status         core.StatusType        `json:"status"           db:"status"`
+	Input          *core.Input            `json:"input"            db:"input"`
+	Output         *core.Output           `json:"output"           db:"output"`
+	Error          *core.Error            `json:"error"            db:"error"`
 	Tasks          map[string]*task.State `json:"tasks"`
 }
 

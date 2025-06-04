@@ -53,7 +53,11 @@ func TestTaskRepo_UpsertState(t *testing.T) {
 }
 
 // Helper function for task Get tests
-func testTaskGet(t *testing.T, testName string, setupAndRun func(*testutils.MockSetup, *store.TaskRepo, context.Context)) {
+func testTaskGet(
+	t *testing.T,
+	testName string,
+	setupAndRun func(*testutils.MockSetup, *store.TaskRepo, context.Context),
+) {
 	mockSetup := testutils.NewMockSetup(t)
 	defer mockSetup.Close()
 
@@ -67,46 +71,58 @@ func testTaskGet(t *testing.T, testName string, setupAndRun func(*testutils.Mock
 }
 
 func TestTaskRepo_GetState(t *testing.T) {
-	testTaskGet(t, "should get task state", func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-		taskExecID := core.ID("task_exec1")
+	testTaskGet(
+		t,
+		"should get task state",
+		func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+			taskExecID := core.ID("task_exec1")
 
-		dataBuilder := testutils.NewDataBuilder()
-		inputData := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
+			dataBuilder := testutils.NewDataBuilder()
+			inputData := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
 
-		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-		taskRows := taskRowBuilder.CreateTaskStateRows(
-			"task_exec1", "task1", "exec1", "wf1",
-			core.StatusPending, "agent1", nil, inputData,
-		)
+			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
+			taskRows := taskRowBuilder.CreateTaskStateRows(
+				"task_exec1", "task1", "exec1", "wf1",
+				core.StatusPending, "agent1", nil, inputData,
+			)
 
-		mockSetup.Mock.ExpectQuery("SELECT \\*").
-			WithArgs(taskExecID).
-			WillReturnRows(taskRows)
+			mockSetup.Mock.ExpectQuery("SELECT \\*").
+				WithArgs(taskExecID).
+				WillReturnRows(taskRows)
 
-		state, err := repo.GetState(ctx, taskExecID)
-		assert.NoError(t, err)
-		assert.Equal(t, taskExecID, state.TaskExecID)
-		assert.Equal(t, core.StatusPending, state.Status)
-		assert.NotNil(t, state.Input)
-		assert.Equal(t, "agent1", *state.AgentID)
-	})
+			state, err := repo.GetState(ctx, taskExecID)
+			assert.NoError(t, err)
+			assert.Equal(t, taskExecID, state.TaskExecID)
+			assert.Equal(t, core.StatusPending, state.Status)
+			assert.NotNil(t, state.Input)
+			assert.Equal(t, "agent1", *state.AgentID)
+		},
+	)
 }
 
 func TestTaskRepo_GetState_NotFound(t *testing.T) {
-	testTaskGet(t, "should return not found error", func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-		taskExecID := core.ID("task_exec1")
+	testTaskGet(
+		t,
+		"should return not found error",
+		func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+			taskExecID := core.ID("task_exec1")
 
-		mockSetup.Mock.ExpectQuery("SELECT \\*").
-			WithArgs(taskExecID).
-			WillReturnError(pgx.ErrNoRows)
+			mockSetup.Mock.ExpectQuery("SELECT \\*").
+				WithArgs(taskExecID).
+				WillReturnError(pgx.ErrNoRows)
 
-		_, err := repo.GetState(ctx, taskExecID)
-		assert.ErrorIs(t, err, store.ErrTaskNotFound)
-	})
+			_, err := repo.GetState(ctx, taskExecID)
+			assert.ErrorIs(t, err, store.ErrTaskNotFound)
+		},
+	)
 }
 
 // Helper for list tests that return multiple states
-func testTaskList(t *testing.T, testName string, setupAndRun func(*testutils.MockSetup, *store.TaskRepo, context.Context)) {
+func testTaskList(
+	t *testing.T,
+	testName string,
+	setupAndRun func(*testutils.MockSetup, *store.TaskRepo, context.Context),
+) {
 	mockSetup := testutils.NewMockSetup(t)
 	defer mockSetup.Close()
 
@@ -120,116 +136,136 @@ func testTaskList(t *testing.T, testName string, setupAndRun func(*testutils.Moc
 }
 
 func TestTaskRepo_ListTasksInWorkflow(t *testing.T) {
-	testTaskList(t, "should list tasks in workflow", func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-		workflowExecID := core.ID("exec1")
-		agentID := "agent1"
-		toolID := "tool1"
+	testTaskList(
+		t,
+		"should list tasks in workflow",
+		func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+			workflowExecID := core.ID("exec1")
+			agentID := "agent1"
+			toolID := "tool1"
 
-		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-		taskRows := taskRowBuilder.CreateEmptyTaskStateRows().
-			AddRow("task_exec1", "task1", "exec1", "wf1", core.ComponentAgent, core.StatusPending, agentID, "default_action", nil, nil, nil, nil).
-			AddRow("task_exec2", "task2", "exec1", "wf1", core.ComponentTool, core.StatusRunning, nil, nil, toolID, nil, nil, nil)
+			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
+			taskRows := taskRowBuilder.CreateEmptyTaskStateRows().
+				AddRow("task_exec1", "task1", "exec1", "wf1", core.ComponentAgent, core.StatusPending, agentID, "default_action", nil, nil, nil, nil).
+				AddRow("task_exec2", "task2", "exec1", "wf1", core.ComponentTool, core.StatusRunning, nil, nil, toolID, nil, nil, nil)
 
-		mockSetup.Mock.ExpectQuery("SELECT \\*").
-			WithArgs(workflowExecID).
-			WillReturnRows(taskRows)
+			mockSetup.Mock.ExpectQuery("SELECT \\*").
+				WithArgs(workflowExecID).
+				WillReturnRows(taskRows)
 
-		states, err := repo.ListTasksInWorkflow(ctx, workflowExecID)
-		assert.NoError(t, err)
-		assert.Len(t, states, 2)
-		assert.Contains(t, states, "task1")
-		assert.Contains(t, states, "task2")
-		assert.Equal(t, "agent1", *states["task1"].AgentID)
-		assert.Equal(t, "tool1", *states["task2"].ToolID)
-	})
+			states, err := repo.ListTasksInWorkflow(ctx, workflowExecID)
+			assert.NoError(t, err)
+			assert.Len(t, states, 2)
+			assert.Contains(t, states, "task1")
+			assert.Contains(t, states, "task2")
+			assert.Equal(t, "agent1", *states["task1"].AgentID)
+			assert.Equal(t, "tool1", *states["task2"].ToolID)
+		},
+	)
 }
 
 func TestTaskRepo_ListTasksByStatus(t *testing.T) {
-	testTaskList(t, "should list tasks by status", func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-		workflowExecID := core.ID("exec1")
-		status := core.StatusPending
+	testTaskList(
+		t,
+		"should list tasks by status",
+		func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+			workflowExecID := core.ID("exec1")
+			status := core.StatusPending
 
-		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-		taskRows := taskRowBuilder.CreateTaskStateRows(
-			"task_exec1", "task1", "exec1", "wf1",
-			core.StatusPending, nil, nil, nil,
-		)
+			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
+			taskRows := taskRowBuilder.CreateTaskStateRows(
+				"task_exec1", "task1", "exec1", "wf1",
+				core.StatusPending, nil, nil, nil,
+			)
 
-		mockSetup.Mock.ExpectQuery("SELECT \\*").
-			WithArgs(workflowExecID, status).
-			WillReturnRows(taskRows)
+			mockSetup.Mock.ExpectQuery("SELECT \\*").
+				WithArgs(workflowExecID, status).
+				WillReturnRows(taskRows)
 
-		states, err := repo.ListTasksByStatus(ctx, workflowExecID, status)
-		assert.NoError(t, err)
-		assert.Len(t, states, 1)
-		assert.Equal(t, core.StatusPending, states[0].Status)
-	})
+			states, err := repo.ListTasksByStatus(ctx, workflowExecID, status)
+			assert.NoError(t, err)
+			assert.Len(t, states, 1)
+			assert.Equal(t, core.StatusPending, states[0].Status)
+		},
+	)
 }
 
 func TestTaskRepo_ListTasksByAgent(t *testing.T) {
-	testTaskList(t, "should list tasks by agent", func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-		workflowExecID := core.ID("exec1")
-		agentID := "agent1"
+	testTaskList(
+		t,
+		"should list tasks by agent",
+		func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+			workflowExecID := core.ID("exec1")
+			agentID := "agent1"
 
-		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-		taskRows := taskRowBuilder.CreateTaskStateRows(
-			"task_exec1", "task1", "exec1", "wf1",
-			core.StatusPending, agentID, nil, nil,
-		)
+			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
+			taskRows := taskRowBuilder.CreateTaskStateRows(
+				"task_exec1", "task1", "exec1", "wf1",
+				core.StatusPending, agentID, nil, nil,
+			)
 
-		mockSetup.Mock.ExpectQuery("SELECT \\*").
-			WithArgs(workflowExecID, agentID).
-			WillReturnRows(taskRows)
+			mockSetup.Mock.ExpectQuery("SELECT \\*").
+				WithArgs(workflowExecID, agentID).
+				WillReturnRows(taskRows)
 
-		states, err := repo.ListTasksByAgent(ctx, workflowExecID, agentID)
-		assert.NoError(t, err)
-		assert.Len(t, states, 1)
-		assert.Equal(t, "agent1", *states[0].AgentID)
-	})
+			states, err := repo.ListTasksByAgent(ctx, workflowExecID, agentID)
+			assert.NoError(t, err)
+			assert.Len(t, states, 1)
+			assert.Equal(t, "agent1", *states[0].AgentID)
+		},
+	)
 }
 
 func TestTaskRepo_ListTasksByTool(t *testing.T) {
-	testTaskList(t, "should list tasks by tool", func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-		workflowExecID := core.ID("exec1")
-		toolID := "tool1"
+	testTaskList(
+		t,
+		"should list tasks by tool",
+		func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+			workflowExecID := core.ID("exec1")
+			toolID := "tool1"
 
-		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-		taskRows := taskRowBuilder.CreateTaskStateRows(
-			"task_exec1", "task1", "exec1", "wf1",
-			core.StatusPending, nil, toolID, nil,
-		)
+			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
+			taskRows := taskRowBuilder.CreateTaskStateRows(
+				"task_exec1", "task1", "exec1", "wf1",
+				core.StatusPending, nil, toolID, nil,
+			)
 
-		mockSetup.Mock.ExpectQuery("SELECT \\*").
-			WithArgs(workflowExecID, toolID).
-			WillReturnRows(taskRows)
+			mockSetup.Mock.ExpectQuery("SELECT \\*").
+				WithArgs(workflowExecID, toolID).
+				WillReturnRows(taskRows)
 
-		states, err := repo.ListTasksByTool(ctx, workflowExecID, toolID)
-		assert.NoError(t, err)
-		assert.Len(t, states, 1)
-		assert.Equal(t, "tool1", *states[0].ToolID)
-	})
+			states, err := repo.ListTasksByTool(ctx, workflowExecID, toolID)
+			assert.NoError(t, err)
+			assert.Len(t, states, 1)
+			assert.Equal(t, "tool1", *states[0].ToolID)
+		},
+	)
 }
 
 func TestTaskRepo_ListStates(t *testing.T) {
-	testTaskList(t, "should list states with filter", func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-		filter := &task.StateFilter{
-			Status:         &[]core.StatusType{core.StatusPending}[0],
-			WorkflowExecID: &[]core.ID{core.ID("exec1")}[0],
-		}
+	testTaskList(
+		t,
+		"should list states with filter",
+		func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+			filter := &task.StateFilter{
+				Status:         &[]core.StatusType{core.StatusPending}[0],
+				WorkflowExecID: &[]core.ID{core.ID("exec1")}[0],
+			}
 
-		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-		taskRows := taskRowBuilder.CreateTaskStateRows(
-			"task_exec1", "task1", "exec1", "wf1",
-			core.StatusPending, nil, nil, nil,
-		)
+			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
+			taskRows := taskRowBuilder.CreateTaskStateRows(
+				"task_exec1", "task1", "exec1", "wf1",
+				core.StatusPending, nil, nil, nil,
+			)
 
-		mockSetup.Mock.ExpectQuery("SELECT \\*").
-			WithArgs(core.StatusPending, core.ID("exec1")).
-			WillReturnRows(taskRows)
+			mockSetup.Mock.ExpectQuery("SELECT \\*").
+				WithArgs(core.StatusPending, core.ID("exec1")).
+				WillReturnRows(taskRows)
 
-		states, err := repo.ListStates(ctx, filter)
-		assert.NoError(t, err)
-		assert.Len(t, states, 1)
-		assert.Equal(t, core.StatusPending, states[0].Status)
-	})
+			states, err := repo.ListStates(ctx, filter)
+			assert.NoError(t, err)
+			assert.Len(t, states, 1)
+			assert.Equal(t, core.StatusPending, states[0].Status)
+		},
+	)
 }

@@ -17,21 +17,21 @@ import (
 )
 
 type Opts struct {
-	OnError     *task.ErrorTransitionConfig `json:"on_error,omitempty" yaml:"on_error,omitempty"`
-	InputSchema *schema.Schema              `json:"input,omitempty"    yaml:"input,omitempty"`
-	Env         core.EnvMap                 `json:"env,omitempty"         yaml:"env,omitempty"`
+	core.GlobalOpts `json:",inline" yaml:",inline" mapstructure:",squash"`
+	InputSchema     *schema.Schema `json:"input,omitempty" yaml:"input,omitempty" mapstructure:"input,omitempty"`
+	Env             *core.EnvMap   `json:"env,omitempty"   yaml:"env,omitempty"   mapstructure:"env,omitempty"`
 }
 
 type Config struct {
-	ID          string          `json:"id"                    yaml:"id"`
-	Version     string          `json:"version,omitempty"     yaml:"version,omitempty"`
-	Description string          `json:"description,omitempty" yaml:"description,omitempty"`
-	Schemas     []schema.Schema `json:"schemas,omitempty"     yaml:"schemas,omitempty"`
-	Opts        Opts            `json:"config"               yaml:"config"`
-	Author      *core.Author    `json:"author,omitempty"      yaml:"author,omitempty"`
-	Tools       []tool.Config   `json:"tools,omitempty"       yaml:"tools,omitempty"`
-	Agents      []agent.Config  `json:"agents,omitempty"      yaml:"agents,omitempty"`
-	Tasks       []task.Config   `json:"tasks"                 yaml:"tasks"`
+	ID          string          `json:"id"                    yaml:"id"                    mapstructure:"id"`
+	Version     string          `json:"version,omitempty"     yaml:"version,omitempty"     mapstructure:"version,omitempty"`
+	Description string          `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description,omitempty"`
+	Schemas     []schema.Schema `json:"schemas,omitempty"     yaml:"schemas,omitempty"     mapstructure:"schemas,omitempty"`
+	Opts        Opts            `json:"config"                yaml:"config"                mapstructure:"config"`
+	Author      *core.Author    `json:"author,omitempty"      yaml:"author,omitempty"      mapstructure:"author,omitempty"`
+	Tools       []tool.Config   `json:"tools,omitempty"       yaml:"tools,omitempty"       mapstructure:"tools,omitempty"`
+	Agents      []agent.Config  `json:"agents,omitempty"      yaml:"agents,omitempty"      mapstructure:"agents,omitempty"`
+	Tasks       []task.Config   `json:"tasks"                 yaml:"tasks"                 mapstructure:"tasks"`
 
 	filePath string
 	cwd      *core.CWD
@@ -57,12 +57,12 @@ func (w *Config) GetCWD() *core.CWD {
 	return w.cwd
 }
 
-func (w *Config) GetEnv() *core.EnvMap {
+func (w *Config) GetEnv() core.EnvMap {
 	if w.Opts.Env == nil {
-		w.Opts.Env = make(core.EnvMap)
-		return &w.Opts.Env
+		w.Opts.Env = &core.EnvMap{}
+		return *w.Opts.Env
 	}
-	return &w.Opts.Env
+	return *w.Opts.Env
 }
 
 func (w *Config) GetInput() *core.Input {
@@ -125,11 +125,34 @@ func (w *Config) Merge(other any) error {
 	return mergo.Merge(w, otherConfig, mergo.WithOverride)
 }
 
+func (w *Config) AsMap() (map[string]any, error) {
+	return core.AsMapDefault(w)
+}
+
+func (w *Config) FromMap(data any) error {
+	config, err := core.FromMapDefault[*Config](data)
+	if err != nil {
+		return err
+	}
+	return w.Merge(config)
+}
+
+func (w *Config) GetID() string {
+	return w.ID
+}
+
+// GetTasks returns the workflow tasks
+func (w *Config) GetTasks() []task.Config {
+	return w.Tasks
+}
+
 func WorkflowsFromProject(projectConfig *project.Config, ev *ref.Evaluator) ([]*Config, error) {
 	cwd := projectConfig.GetCWD()
+	projectEnv := projectConfig.GetEnv()
 	var ws []*Config
 	for _, wf := range projectConfig.Workflows {
 		config, err := LoadAndEval(cwd, wf.Source, ev)
+		config.Opts.Env = &projectEnv
 		if err != nil {
 			return nil, err
 		}
@@ -178,25 +201,6 @@ func setAgentsCWD(wc *Config, cwd *core.CWD) error {
 	return nil
 }
 
-// GetID returns the workflow ID
-func (w *Config) GetID() string {
-	return w.ID
-}
-
-// GetTasks returns the workflow tasks
-func (w *Config) GetTasks() []task.Config {
-	return w.Tasks
-}
-
-func FindConfig(workflows []*Config, workflowID string) (*Config, error) {
-	for _, wf := range workflows {
-		if wf.ID == workflowID {
-			return wf, nil
-		}
-	}
-	return nil, fmt.Errorf("workflow not found")
-}
-
 func Load(cwd *core.CWD, path string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
@@ -224,4 +228,29 @@ func LoadAndEval(cwd *core.CWD, path string, ev *ref.Evaluator) (*Config, error)
 		return nil, err
 	}
 	return config, nil
+}
+
+func FindConfig(workflows []*Config, workflowID string) (*Config, error) {
+	for _, wf := range workflows {
+		if wf.ID == workflowID {
+			return wf, nil
+		}
+	}
+	return nil, fmt.Errorf("workflow not found")
+}
+
+func FindAgentConfig[C core.Config](workflows []*Config, agentID string) (C, error) {
+	var cfg C
+	for _, wf := range workflows {
+		for i := range wf.Agents {
+			if wf.Agents[i].ID == agentID {
+				cfg, ok := any(&wf.Agents[i]).(C)
+				if !ok {
+					return cfg, fmt.Errorf("agent config is not of type %T", cfg)
+				}
+				return cfg, nil
+			}
+		}
+	}
+	return cfg, fmt.Errorf("agent not found: %s", agentID)
 }

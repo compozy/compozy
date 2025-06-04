@@ -21,28 +21,36 @@ const (
 	TaskTypeDecision Type = "decision"
 )
 
+type Opts struct {
+	core.GlobalOpts `json:",inline" yaml:",inline" mapstructure:",squash"`
+}
+
 type Config struct {
-	ID           string                   `json:"id,omitempty"         yaml:"id,omitempty"`
-	Type         Type                     `json:"type,omitempty"       yaml:"type,omitempty"`
-	OnSuccess    *SuccessTransitionConfig `json:"on_success,omitempty" yaml:"on_success,omitempty"`
-	OnError      *ErrorTransitionConfig   `json:"on_error,omitempty"   yaml:"on_error,omitempty"`
-	Final        bool                     `json:"final"      yaml:"final,omitempty"`
-	InputSchema  *schema.Schema           `json:"input,omitempty"      yaml:"input,omitempty"`
-	OutputSchema *schema.Schema           `json:"output,omitempty"     yaml:"output,omitempty"`
-	With         *core.Input              `json:"with,omitempty"       yaml:"with,omitempty"`
-	Env          core.EnvMap              `json:"env,omitempty"        yaml:"env,omitempty"`
+	ID           string         `json:"id,omitempty"     yaml:"id,omitempty"     mapstructure:"id,omitempty"`
+	Type         Type           `json:"type,omitempty"   yaml:"type,omitempty"   mapstructure:"type,omitempty"`
+	InputSchema  *schema.Schema `json:"input,omitempty"  yaml:"input,omitempty"  mapstructure:"input,omitempty"`
+	OutputSchema *schema.Schema `json:"output,omitempty" yaml:"output,omitempty" mapstructure:"output,omitempty"`
+	With         *core.Input    `json:"with,omitempty"   yaml:"with,omitempty"   mapstructure:"with,omitempty"`
+	Env          *core.EnvMap   `json:"env,omitempty"    yaml:"env,omitempty"    mapstructure:"env,omitempty"`
+	Opts         Opts           `json:"config"           yaml:"config"           mapstructure:"config"`
+
+	// Task configuration
+	OnSuccess *core.SuccessTransition `json:"on_success,omitempty" yaml:"on_success,omitempty" mapstructure:"on_success,omitempty"`
+	OnError   *core.ErrorTransition   `json:"on_error,omitempty"   yaml:"on_error,omitempty"   mapstructure:"on_error,omitempty"`
+	Sleep     string                  `json:"sleep"                yaml:"sleep"                mapstructure:"sleep"`
+	Final     bool                    `json:"final"                yaml:"final"                mapstructure:"final"`
 
 	// Basic task properties
-	Action string `json:"action,omitempty" yaml:"action,omitempty"`
+	Action string `json:"action,omitempty" yaml:"action,omitempty" mapstructure:"action,omitempty"`
 
 	// Decision task properties
-	Condition string            `json:"condition,omitempty" yaml:"condition,omitempty"`
-	Routes    map[string]string `json:"routes,omitempty"    yaml:"routes,omitempty"`
+	Condition string            `json:"condition,omitempty" yaml:"condition,omitempty" mapstructure:"condition,omitempty"`
+	Routes    map[string]string `json:"routes,omitempty"    yaml:"routes,omitempty"    mapstructure:"routes,omitempty"`
 
 	filePath string
 	cwd      *core.CWD
-	Agent    *agent.Config `json:"agent,omitempty" yaml:"agent,omitempty"`
-	Tool     *tool.Config  `json:"tool,omitempty"  yaml:"tool,omitempty"`
+	Agent    *agent.Config `json:"agent,omitempty" yaml:"agent,omitempty" mapstructure:"agent,omitempty"`
+	Tool     *tool.Config  `json:"tool,omitempty"  yaml:"tool,omitempty"  mapstructure:"tool,omitempty"`
 }
 
 func (t *Config) Component() core.ConfigType {
@@ -70,12 +78,12 @@ func (t *Config) GetCWD() *core.CWD {
 	return t.cwd
 }
 
-func (t *Config) GetEnv() *core.EnvMap {
+func (t *Config) GetEnv() core.EnvMap {
 	if t.Env == nil {
-		t.Env = make(core.EnvMap)
-		return &t.Env
+		t.Env = &core.EnvMap{}
+		return *t.Env
 	}
-	return &t.Env
+	return *t.Env
 }
 
 func (t *Config) GetInput() *core.Input {
@@ -91,6 +99,11 @@ func (t *Config) GetAgent() *agent.Config {
 
 func (t *Config) GetTool() *tool.Config {
 	return t.Tool
+}
+
+// GetGlobalOpts returns the task-level global options (including timeouts and retry policy)
+func (t *Config) GetGlobalOpts() *core.GlobalOpts {
+	return &t.Opts.GlobalOpts
 }
 
 func (t *Config) Validate() error {
@@ -114,6 +127,19 @@ func (t *Config) Merge(other any) error {
 		return fmt.Errorf("failed to merge task configs: %w", errors.New("invalid type for merge"))
 	}
 	return mergo.Merge(t, otherConfig, mergo.WithOverride)
+}
+
+func (t *Config) AsMap() (map[string]any, error) {
+	return core.AsMapDefault(t)
+}
+
+// FromMap updates the provider configuration from a normalized map
+func (t *Config) FromMap(data any) error {
+	config, err := core.FromMapDefault[*Config](data)
+	if err != nil {
+		return err
+	}
+	return t.Merge(config)
 }
 
 func FindConfig(tasks []Config, taskID string) (*Config, error) {

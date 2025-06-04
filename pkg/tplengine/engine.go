@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -189,6 +190,51 @@ func (e *TemplateEngine) ParseMap(value any, data map[string]any) (any, error) {
 		result := make([]any, len(v))
 		for i, val := range v {
 			parsedVal, err := e.ParseMap(val, data)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse template in array index %d: %w", i, err)
+			}
+			result[i] = parsedVal
+		}
+		return result, nil
+	default:
+		// Convert boolean values to strings for non-template cases
+		if boolVal, ok := v.(bool); ok {
+			return fmt.Sprintf("%t", boolVal), nil
+		}
+		// For other types (int, float, etc.), return as is
+		return v, nil
+	}
+}
+
+func (e *TemplateEngine) ParseMapWithFilter(value any, data map[string]any, filter func(k string) bool) (any, error) {
+	if value == nil {
+		return nil, nil
+	}
+	switch v := value.(type) {
+	case string:
+		return e.parseStringValue(v, data)
+	case map[string]any:
+		result := make(map[string]any, len(v))
+		for k, val := range v {
+			if filter != nil && filter(k) {
+				result[k] = val
+				continue
+			}
+			parsedVal, err := e.ParseMapWithFilter(val, data, filter)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse template in map key %s: %w", k, err)
+			}
+			result[k] = parsedVal
+		}
+		return result, nil
+	case []any:
+		result := make([]any, len(v))
+		for i, val := range v {
+			if filter != nil && filter(strconv.Itoa(i)) {
+				result[i] = val
+				continue
+			}
+			parsedVal, err := e.ParseMapWithFilter(val, data, filter)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse template in array index %d: %w", i, err)
 			}

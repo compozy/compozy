@@ -11,14 +11,14 @@ import (
 // ExecuteWorkflowRequest represents the request body for workflow execution
 // This is only used for Swagger documentation - the actual handler uses core.Input directly
 type ExecuteWorkflowRequest struct {
-	Input  core.Input `json:"input" swaggerignore:"true"`
+	Input  core.Input `json:"input"   swaggerignore:"true"`
 	TaskID string     `json:"task_id" swaggerignore:"true"`
 }
 
 // ExecuteWorkflowResponse represents the response for workflow execution
 type ExecuteWorkflowResponse struct {
-	ExecURL    string `json:"exec_url" example:"localhost:8080/api/workflows/executions/2Z4PVTL6K27XVT4A3NPKMDD5BG"`
-	ExecID     string `json:"exec_id" example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	ExecURL    string `json:"exec_url"    example:"localhost:8080/api/workflows/executions/2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	ExecID     string `json:"exec_id"     example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
 	WorkflowID string `json:"workflow_id" example:"data-processing"`
 }
 

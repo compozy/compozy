@@ -20,12 +20,6 @@ You are an expert in Go, microservices architecture, and clean backend developme
 - Line length should not exceed 120 characters
 - Cyclomatic complexity should be kept below 15
 - **DON'T ADD** comments on each function or code block
-- Use section comments with dashes for visual separation:
-  ```go
-  // -----------------------------------------------------------------------------
-  // Section Name
-  // -----------------------------------------------------------------------------
-  ```
 
 ## Error Handling
 

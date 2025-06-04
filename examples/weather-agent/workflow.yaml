@@ -20,6 +20,9 @@ schemas:
       humidity:
         type: number
         description: Current humidity percentage
+      weather:
+        type: string
+        description: Weather condition description
 
 config:
   input:

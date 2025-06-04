@@ -250,14 +250,51 @@ func TestRecursiveEvaluation(t *testing.T) {
 func TestDirectiveErrors(t *testing.T) {
 	scope := map[string]any{"foo": "bar"}
 	cases := []testCase{
-		{name: "Should fail on unknown scope", input: `{"$ref":"planet::foo"}`, wantErr: true, errContains: "invalid $ref syntax"},
-		{name: "Should fail on missing path", input: `{"$ref":"local::does.not.exist"}`, options: []EvalConfigOption{WithLocalScope(scope)}, wantErr: true, errContains: "not found"},
-		{name: "Should fail on bad $use syntax", input: `{"$use":"agent(bad)"}`, wantErr: true, errContains: "invalid $use syntax"},
-		{name: "Should fail when $ref not string", input: `{"$ref":123}`, wantErr: true, errContains: "$ref must be a string"},
+		{
+			name:        "Should fail on unknown scope",
+			input:       `{"$ref":"planet::foo"}`,
+			wantErr:     true,
+			errContains: "invalid $ref syntax",
+		},
+		{
+			name:        "Should fail on missing path",
+			input:       `{"$ref":"local::does.not.exist"}`,
+			options:     []EvalConfigOption{WithLocalScope(scope)},
+			wantErr:     true,
+			errContains: "not found",
+		},
+		{
+			name:        "Should fail on bad $use syntax",
+			input:       `{"$use":"agent(bad)"}`,
+			wantErr:     true,
+			errContains: "invalid $use syntax",
+		},
+		{
+			name:        "Should fail when $ref not string",
+			input:       `{"$ref":123}`,
+			wantErr:     true,
+			errContains: "$ref must be a string",
+		},
 		{name: "Should fail on empty $use", input: `{"$use":""}`, wantErr: true, errContains: "invalid $use syntax"},
-		{name: "Should fail on empty ref path", input: `{"$ref":"local::"}`, options: []EvalConfigOption{WithLocalScope(scope)}, wantErr: true, errContains: "invalid $ref syntax"},
-		{name: "Should fail when local scope nil", input: `{"$ref":"local::foo"}`, wantErr: true, errContains: "local scope is not configured"},
-		{name: "Should fail when global scope nil", input: `{"$ref":"global::foo"}`, wantErr: true, errContains: "global scope is not configured"},
+		{
+			name:        "Should fail on empty ref path",
+			input:       `{"$ref":"local::"}`,
+			options:     []EvalConfigOption{WithLocalScope(scope)},
+			wantErr:     true,
+			errContains: "invalid $ref syntax",
+		},
+		{
+			name:        "Should fail when local scope nil",
+			input:       `{"$ref":"local::foo"}`,
+			wantErr:     true,
+			errContains: "local scope is not configured",
+		},
+		{
+			name:        "Should fail when global scope nil",
+			input:       `{"$ref":"global::foo"}`,
+			wantErr:     true,
+			errContains: "global scope is not configured",
+		},
 		{
 			name:  "Should fail on cyclic reference",
 			input: `{"$ref":"local::a"}`,
@@ -279,7 +316,10 @@ func TestDirectiveErrors(t *testing.T) {
 func TestDeterministicDirectivePick(t *testing.T) {
 	t.Run("Should consistently fail on multiple directives", func(t *testing.T) {
 		for range 10 {
-			_, err := ProcessBytes([]byte(`{"$ref":"local::x","$use":"agent(local::y)"}`), WithLocalScope(map[string]any{"x": "a", "y": "b"}))
+			_, err := ProcessBytes(
+				[]byte(`{"$ref":"local::x","$use":"agent(local::y)"}`),
+				WithLocalScope(map[string]any{"x": "a", "y": "b"}),
+			)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "multiple directives are not allowed")
 		}
@@ -343,13 +383,21 @@ func TestEvaluatorConcurrency(t *testing.T) {
 
 func TestEdgeCases(t *testing.T) {
 	t.Run("Should handle nil target", func(t *testing.T) {
-		got := MustEvalBytes(t, []byte(`{"val":{"$ref":"local::nullable"}}`), WithLocalScope(map[string]any{"nullable": nil}))
+		got := MustEvalBytes(
+			t,
+			[]byte(`{"val":{"$ref":"local::nullable"}}`),
+			WithLocalScope(map[string]any{"nullable": nil}),
+		)
 		want := map[string]any{"val": nil}
 		assert.Equal(t, want, got)
 	})
 
 	t.Run("Should handle unicode keys", func(t *testing.T) {
-		got := MustEvalBytes(t, []byte(`{"$ref":"local::métricas.latência"}`), WithLocalScope(map[string]any{"métricas": map[string]any{"latência": 99}}))
+		got := MustEvalBytes(
+			t,
+			[]byte(`{"$ref":"local::métricas.latência"}`),
+			WithLocalScope(map[string]any{"métricas": map[string]any{"latência": 99}}),
+		)
 		want := float64(99)
 		assert.Equal(t, want, got)
 	})
@@ -1046,7 +1094,12 @@ func TestRegisterDirective(t *testing.T) {
 	})
 
 	t.Run("Should fail to register directive without $", func(t *testing.T) {
-		err := Register(Directive{Name: "invalid", Handler: func(_ EvaluatorContext, _ map[string]any, _ Node) (Node, error) { return nil, nil }})
+		err := Register(
+			Directive{
+				Name:    "invalid",
+				Handler: func(_ EvaluatorContext, _ map[string]any, _ Node) (Node, error) { return nil, nil },
+			},
+		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "must start with '$'")
 	})
@@ -1058,7 +1111,9 @@ func TestRegisterDirective(t *testing.T) {
 	})
 
 	t.Run("Should fail to register directive without name", func(t *testing.T) {
-		err := Register(Directive{Handler: func(_ EvaluatorContext, _ map[string]any, _ Node) (Node, error) { return nil, nil }})
+		err := Register(
+			Directive{Handler: func(_ EvaluatorContext, _ map[string]any, _ Node) (Node, error) { return nil, nil }},
+		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "name cannot be empty")
 	})

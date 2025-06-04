@@ -11,6 +11,7 @@ GOFMT=gofmt -s -w
 BINARY_NAME=compozy
 BINARY_DIR=bin
 SRC_DIRS=./...
+LINTCMD=golangci-lint-v2
 
 # -----------------------------------------------------------------------------
 # Swagger/OpenAPI
@@ -41,13 +42,12 @@ build: swagger
 # Code Quality & Formatting
 # -----------------------------------------------------------------------------
 lint:
-	golangci-lint run --fix
+	$(LINTCMD) run --fix
 	@echo "Linting completed successfully"
 
 fmt:
 	@echo "Formatting code..."
-	golangci-lint fmt
-	gofumpt -l -w .
+	$(LINTCMD) fmt
 	@echo "Formatting completed successfully"
 
 # -----------------------------------------------------------------------------
@@ -66,10 +66,7 @@ tidy:
 deps: swagger-deps
 	$(GOCMD) install gotest.tools/gotestsum@latest
 	$(GOCMD) install github.com/bokwoon95/wgo@latest
-	$(GOCMD) install github.com/segmentio/golines@latest
-	$(GOCMD) install mvdan.cc/gofumpt@latest
 	$(GOCMD) install github.com/pressly/goose/v3/cmd/goose@latest
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.1.6
 
 swagger-deps:
 	@echo "Installing Swagger dependencies..."
@@ -104,19 +101,33 @@ schemagen:
 integration-test:
 	gotestsum -f testdox -- ./test/integration/...
 
+# Fast tests for daily development (excludes slow integration/worker tests)
 test-go:
-	gotestsum --format testdox ./...
+	gotestsum --format testdox -- -parallel=8 $(shell go list ./... | grep -v '/test/integration/worker')
+
+# Complete test suite including slow integration/worker tests
+test-all:
+	gotestsum --format testdox -- -parallel=8 ./...
+
+test-go-fast:
+	gotestsum --format testdox -- -parallel=16 -short ./...
 
 test-go-nocache:
-	gotestsum --format testdox -- -count=1 ./...
+	gotestsum --format testdox -- -count=1 -parallel=8 ./...
+
+test-integration-only:
+	gotestsum --format testdox -- -parallel=4 ./test/integration/...
+
+test-unit-only:
+	gotestsum --format testdox -- -parallel=16 ./... -skip="./test/integration/..."
 
 test:
 	make start-docker
-	make test-go
+	make test-all
 	make stop-docker
 
 # -----------------------------------------------------------------------------
-# Docker & NATS Management
+# Docker & Database Management
 # -----------------------------------------------------------------------------
 start-docker:
 	docker compose -f ./cluster/docker-compose.yml up -d
@@ -163,4 +174,5 @@ migrate-reset:
 
 reset-db:
 	@make reset-docker
+	@make migrate-reset
 	@make migrate-up

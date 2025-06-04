@@ -35,11 +35,11 @@ func (e *EnvMap) Merge(other EnvMap) (EnvMap, error) {
 	return result, nil
 }
 
-func (e *EnvMap) Prop(key string) string {
+func (e EnvMap) Prop(key string) string {
 	if e == nil {
 		return ""
 	}
-	return (*e)[key]
+	return e[key]
 }
 
 func (e *EnvMap) Set(key, value string) {

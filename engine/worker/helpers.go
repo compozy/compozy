@@ -22,9 +22,9 @@ func BuildErrorHandler(ctx workflow.Context, input *WorkflowInput) func(err erro
 		},
 	})
 	return func(err error) error {
-		if temporal.IsCanceledError(err) {
-			logger.Info("Workflow canceled during sleep")
-			return nil
+		if temporal.IsCanceledError(err) || err == workflow.ErrCanceled {
+			logger.Info("Workflow canceled")
+			return err
 		}
 		logger.Info("Updating workflow status to Failed due to error", "error", err)
 		label := wfacts.UpdateStateLabel
@@ -35,8 +35,12 @@ func BuildErrorHandler(ctx workflow.Context, input *WorkflowInput) func(err erro
 			Error:          core.NewError(err, "workflow_execution_error", nil),
 		}
 		future := workflow.ExecuteActivity(ctx, label, statusInput)
-		if err := future.Get(ctx, nil); err != nil {
-			logger.Error("Failed to update workflow status to Failed", "error", err)
+		if updateErr := future.Get(ctx, nil); updateErr != nil {
+			if temporal.IsCanceledError(updateErr) {
+				logger.Info("Status update canceled")
+			} else {
+				logger.Error("Failed to update workflow status to Failed", "error", updateErr)
+			}
 		} else {
 			logger.Info("Successfully updated workflow status to Failed")
 		}
@@ -49,20 +53,40 @@ func BuildErrorHandler(ctx workflow.Context, input *WorkflowInput) func(err erro
 // -----------------------------------------------------------------------------
 
 func SleepWithPause(ctx workflow.Context, dur time.Duration, g *PauseGate) error {
+	// Check if context is already canceled
+	if ctx.Err() == workflow.ErrCanceled {
+		logger.Info("Sleep skipped due to cancellation")
+		return workflow.ErrCanceled
+	}
+
 	timerDone := false
 	timer := workflow.NewTimer(ctx, dur)
 
 	for !timerDone {
+		// Check cancellation before each iteration
+		if ctx.Err() == workflow.ErrCanceled {
+			logger.Info("Sleep interrupted by cancellation")
+			return workflow.ErrCanceled
+		}
+
 		sel := workflow.NewSelector(ctx)
 		sel.AddFuture(timer, func(workflow.Future) { timerDone = true })
-		sel.AddReceive(g.pause, func(workflow.ReceiveChannel, bool) { g.paused = true })
-		sel.AddReceive(g.resume, func(workflow.ReceiveChannel, bool) { g.paused = false })
+		sel.AddReceive(g.pause, func(workflow.ReceiveChannel, bool) {
+			if ctx.Err() != workflow.ErrCanceled {
+				g.paused = true
+			}
+		})
+		sel.AddReceive(g.resume, func(workflow.ReceiveChannel, bool) {
+			if ctx.Err() != workflow.ErrCanceled {
+				g.paused = false
+			}
+		})
 		sel.Select(ctx)
 
-		// NEW: abort immediately on cancellation
-		if ctx.Err() != workflow.ErrCanceled {
+		// Check again after select
+		if ctx.Err() == workflow.ErrCanceled {
 			logger.Info("Sleep interrupted by cancellation")
-			return nil
+			return workflow.ErrCanceled
 		}
 
 		if g.paused {
@@ -70,6 +94,15 @@ func SleepWithPause(ctx workflow.Context, dur time.Duration, g *PauseGate) error
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+func checkCancellation(ctx workflow.Context, err error, msg string) error {
+	logger := workflow.GetLogger(ctx)
+	if err == workflow.ErrCanceled || temporal.IsCanceledError(err) {
+		logger.Info(msg)
+		return err
 	}
 	return nil
 }
