@@ -50,9 +50,3 @@ func (c *Client) NewWorker(taskQueue string) worker.Worker {
 func (c *Client) Close() {
 	c.Client.Close()
 }
-
-func (c *Client) RegisterWorker(w worker.Worker, activities *Activities) {
-	w.RegisterWorkflow(CompozyWorkflow)
-	w.RegisterActivity(activities.TriggerWorkflow)
-	w.RegisterActivity(activities.UpdateWorkflowState)
-}

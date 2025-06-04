@@ -60,7 +60,7 @@ agents:
       - $use: tool(local::tools.#(id=="weather_tool"))
     actions:
       - id: get_current_weather
-        prompt: What is the weather in {{ .input.city }}?
+        prompt: What is the weather in {{ .parent.input.city }}?
         output:
           type: object
           properties:
@@ -70,10 +70,10 @@ agents:
 
       - id: suggest_activities
         prompt: |
-          Given the current conditions in {{ .input.city }}:
-          - Weather: {{ .input.weather }}
-          - Temperature: {{ .input.temperature }}°C
-          Suggest appropriate activities specifically from {{ .input.city }} for these weather conditions
+          Given the current conditions in {{ .parent.input.city }}:
+          - Weather: {{ .parent.input.weather }}
+          - Temperature: {{ .parent.input.temperature }}°C
+          Suggest appropriate activities specifically from {{ .parent.input.city }} for these weather conditions
         output:
           type: object
           properties:
@@ -85,9 +85,9 @@ agents:
 
       - id: suggest_clothing
         prompt: |
-          Given the current conditions in {{ .input.city }}:
-          - Weather: {{ .input.weather }} at {{ .input.temperature }}°C
-          - Planned activities: {{ .input.activities }}
+          Given the current conditions in {{ .parent.input.city }}:
+          - Weather: {{ .parent.input.weather }} at {{ .parent.input.temperature }}°C
+          - Planned activities: {{ .parent.input.activities }}
         output:
           type: object
           properties:
@@ -103,7 +103,7 @@ tasks:
     $use: agent(local::agents.#(id="inline_agent"))
     action: get_current_weather
     with:
-      city: "{{ .trigger.input.city }}"
+      city: "{{ .workflow.input.city }}"
     on_success:
       next: suggest_activities
 
@@ -112,7 +112,7 @@ tasks:
     $use: agent(local::agents.#(id="inline_agent"))
     action: suggest_activities
     with:
-      city: "{{ .trigger.input.city }}"
+      city: "{{ .workflow.input.city }}"
       temperature: "{{ .tasks.get_current_weather.output.temperature }}"
       weather: "{{ .tasks.get_current_weather.output.weather }}"
     on_success:
@@ -123,7 +123,7 @@ tasks:
     $use: agent(local::agents.#(id="inline_agent"))
     action: suggest_clothing
     with:
-      city: "{{ .trigger.input.city }}"
+      city: "{{ .workflow.input.city }}"
       temperature: "{{ .tasks.get_current_weather.output.temperature }}"
       weather: "{{ .tasks.get_current_weather.output.weather }}"
       activities: "{{ .tasks.suggest_activities.output.activities }}"
@@ -135,7 +135,7 @@ tasks:
     $use: tool(local::tools.#(id="save_data"))
     final: true
     with:
-      city: "{{ .trigger.input.city }}"
+      city: "{{ .workflow.input.city }}"
       temperature: "{{ .tasks.get_current_weather.output.temperature }}"
       weather: "{{ .tasks.get_current_weather.output.weather }}"
       clothing: "{{ .tasks.suggest_clothing.output.clothing }}"

@@ -8,7 +8,6 @@ import (
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/compozy/compozy/engine/core"
-	wf "github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 )
 
@@ -41,18 +40,17 @@ func RegisterSignals(
 			MaximumAttempts: 3,
 		},
 	})
-	stateID := wf.NewStateID(input.WorkflowID, input.WorkflowExecID)
 	workflow.Go(ctx, func(ctx workflow.Context) {
 		for {
 			selector := workflow.NewSelector(ctx)
 			selector.AddReceive(pauseChan, func(c workflow.ReceiveChannel, _ bool) {
-				handlePauseSignal(ctx, c, logger, stateID)
+				handlePauseSignal(ctx, c, logger, input)
 			})
 			selector.AddReceive(resumeChan, func(c workflow.ReceiveChannel, _ bool) {
-				handleResumeSignal(ctx, c, logger, stateID)
+				handleResumeSignal(ctx, c, logger, input)
 			})
 			selector.AddReceive(cancelChan, func(c workflow.ReceiveChannel, _ bool) {
-				handleCancelSignal(ctx, c, logger, cancelFunc, stateID)
+				handleCancelSignal(ctx, c, logger, cancelFunc, input)
 			})
 			selector.Select(ctx)
 			if ctx.Err() != nil {
@@ -71,14 +69,15 @@ func handlePauseSignal(
 	ctx workflow.Context,
 	channel workflow.ReceiveChannel,
 	logger log.Logger,
-	stateID wf.StateID,
+	input *WorkflowInput,
 ) {
 	var signal any
 	channel.Receive(ctx, &signal)
 	logger.Info("Workflow pause signal received. Initiating status update.")
 	statusInput := &wfacts.UpdateStateInput{
-		StateID: stateID,
-		Status:  core.StatusPaused,
+		WorkflowID:     input.WorkflowID,
+		WorkflowExecID: input.WorkflowExecID,
+		Status:         core.StatusPaused,
 	}
 	label := wfacts.UpdateStateLabel
 	future := workflow.ExecuteActivity(ctx, label, statusInput)
@@ -90,14 +89,15 @@ func handleResumeSignal(
 	ctx workflow.Context,
 	channel workflow.ReceiveChannel,
 	logger log.Logger,
-	stateID wf.StateID,
+	input *WorkflowInput,
 ) {
 	var signal any
 	channel.Receive(ctx, &signal)
 	logger.Info("Workflow resume signal received. Initiating status update.")
 	statusInput := &wfacts.UpdateStateInput{
-		StateID: stateID,
-		Status:  core.StatusRunning,
+		WorkflowID:     input.WorkflowID,
+		WorkflowExecID: input.WorkflowExecID,
+		Status:         core.StatusRunning,
 	}
 	label := wfacts.UpdateStateLabel
 	future := workflow.ExecuteActivity(ctx, label, statusInput)
@@ -110,15 +110,16 @@ func handleCancelSignal(
 	channel workflow.ReceiveChannel,
 	logger log.Logger,
 	cancelFunc workflow.CancelFunc,
-	stateID wf.StateID,
+	input *WorkflowInput,
 ) {
 	var signal any
 	channel.Receive(ctx, &signal)
 	logger.Info("Workflow cancel signal received. Initiating status update and cancellation.")
 	label := wfacts.UpdateStateLabel
 	statusInput := &wfacts.UpdateStateInput{
-		StateID: stateID,
-		Status:  core.StatusCanceled,
+		WorkflowID:     input.WorkflowID,
+		WorkflowExecID: input.WorkflowExecID,
+		Status:         core.StatusCanceled,
 	}
 	future := workflow.ExecuteActivity(ctx, label, statusInput)
 	if err := future.Get(ctx, nil); err != nil {

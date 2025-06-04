@@ -58,7 +58,10 @@ func NewWorker(
 }
 
 func (o *Worker) Setup(_ context.Context) error {
-	o.client.RegisterWorker(o.worker, o.activities)
+	o.worker.RegisterWorkflow(CompozyWorkflow)
+	o.worker.RegisterActivity(o.activities.TriggerWorkflow)
+	o.worker.RegisterActivity(o.activities.UpdateWorkflowState)
+	o.worker.RegisterActivity(o.activities.ExecuteTask)
 	return o.worker.Start()
 }
 
@@ -84,7 +87,7 @@ func (o *Worker) TriggerWorkflow(
 	workflowID string,
 	input *core.Input,
 	initTaskID string,
-) (*workflow.StateID, error) {
+) (*WorkflowInput, error) {
 	// Start workflow
 	workflowExecID := core.MustNewID()
 	workflowInput := WorkflowInput{
@@ -108,10 +111,7 @@ func (o *Worker) TriggerWorkflow(
 	if err != nil {
 		return nil, fmt.Errorf("failed to start workflow: %w", err)
 	}
-	return &workflow.StateID{
-		WorkflowID:     workflowID,
-		WorkflowExecID: workflowExecID,
-	}, nil
+	return &workflowInput, nil
 }
 
 func (o *Worker) PauseWorkflow(ctx context.Context, workflowExecID core.ID) error {

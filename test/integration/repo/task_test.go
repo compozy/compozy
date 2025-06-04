@@ -21,13 +21,16 @@ func TestTaskRepo_UpsertState(t *testing.T) {
 	workflowID := "wf1"
 	workflowExecID := core.ID("exec1")
 	agentID := "agent1"
+	actionID := "default_action"
 	state := &task.State{
-		StateID:        task.StateID{TaskExecID: core.ID("task_exec1"), TaskID: "task1"},
+		TaskExecID:     core.ID("task_exec1"),
+		TaskID:         "task1",
 		Component:      core.ComponentAgent,
 		Status:         core.StatusPending,
 		WorkflowID:     workflowID,
 		WorkflowExecID: workflowExecID,
 		AgentID:        &agentID,
+		ActionID:       &actionID,
 		Input:          &core.Input{"key": "value"},
 	}
 
@@ -39,7 +42,7 @@ func TestTaskRepo_UpsertState(t *testing.T) {
 	queries := mockSetup.NewQueryExpectations()
 	queries.ExpectTaskStateQueryForUpsert([]any{
 		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, state.Component, state.Status,
-		state.AgentID, state.ToolID, inputJSON, // Use actual input data
+		state.AgentID, state.ActionID, state.ToolID, inputJSON, // Use actual input data
 		expectedOutputJSON,
 		expectedErrorJSON,
 	})
@@ -76,7 +79,7 @@ func TestTaskRepo_GetState(t *testing.T) {
 			core.StatusPending, "agent1", nil, inputData,
 		)
 
-		mockSetup.Mock.ExpectQuery("SELECT task_exec_id, task_id, workflow_exec_id, workflow_id").
+		mockSetup.Mock.ExpectQuery("SELECT \\*").
 			WithArgs(taskExecID).
 			WillReturnRows(taskRows)
 
@@ -93,7 +96,7 @@ func TestTaskRepo_GetState_NotFound(t *testing.T) {
 	testTaskGet(t, "should return not found error", func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
 		taskExecID := core.ID("task_exec1")
 
-		mockSetup.Mock.ExpectQuery("SELECT task_exec_id, task_id, workflow_exec_id, workflow_id").
+		mockSetup.Mock.ExpectQuery("SELECT \\*").
 			WithArgs(taskExecID).
 			WillReturnError(pgx.ErrNoRows)
 
@@ -124,10 +127,10 @@ func TestTaskRepo_ListTasksInWorkflow(t *testing.T) {
 
 		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 		taskRows := taskRowBuilder.CreateEmptyTaskStateRows().
-			AddRow("task_exec1", "task1", "exec1", "wf1", core.StatusPending, agentID, nil, nil, nil, nil).
-			AddRow("task_exec2", "task2", "exec1", "wf1", core.StatusRunning, nil, toolID, nil, nil, nil)
+			AddRow("task_exec1", "task1", "exec1", "wf1", core.ComponentAgent, core.StatusPending, agentID, "default_action", nil, nil, nil, nil).
+			AddRow("task_exec2", "task2", "exec1", "wf1", core.ComponentTool, core.StatusRunning, nil, nil, toolID, nil, nil, nil)
 
-		mockSetup.Mock.ExpectQuery("SELECT task_exec_id, task_id, workflow_exec_id, workflow_id").
+		mockSetup.Mock.ExpectQuery("SELECT \\*").
 			WithArgs(workflowExecID).
 			WillReturnRows(taskRows)
 
@@ -152,7 +155,7 @@ func TestTaskRepo_ListTasksByStatus(t *testing.T) {
 			core.StatusPending, nil, nil, nil,
 		)
 
-		mockSetup.Mock.ExpectQuery("SELECT task_exec_id, task_id, workflow_exec_id, workflow_id").
+		mockSetup.Mock.ExpectQuery("SELECT \\*").
 			WithArgs(workflowExecID, status).
 			WillReturnRows(taskRows)
 
@@ -174,7 +177,7 @@ func TestTaskRepo_ListTasksByAgent(t *testing.T) {
 			core.StatusPending, agentID, nil, nil,
 		)
 
-		mockSetup.Mock.ExpectQuery("SELECT task_exec_id, task_id, workflow_exec_id, workflow_id").
+		mockSetup.Mock.ExpectQuery("SELECT \\*").
 			WithArgs(workflowExecID, agentID).
 			WillReturnRows(taskRows)
 
@@ -196,7 +199,7 @@ func TestTaskRepo_ListTasksByTool(t *testing.T) {
 			core.StatusPending, nil, toolID, nil,
 		)
 
-		mockSetup.Mock.ExpectQuery("SELECT task_exec_id, task_id, workflow_exec_id, workflow_id").
+		mockSetup.Mock.ExpectQuery("SELECT \\*").
 			WithArgs(workflowExecID, toolID).
 			WillReturnRows(taskRows)
 
@@ -220,7 +223,7 @@ func TestTaskRepo_ListStates(t *testing.T) {
 			core.StatusPending, nil, nil, nil,
 		)
 
-		mockSetup.Mock.ExpectQuery("SELECT task_exec_id, task_id, workflow_exec_id, workflow_id").
+		mockSetup.Mock.ExpectQuery("SELECT \\*").
 			WithArgs(core.StatusPending, core.ID("exec1")).
 			WillReturnRows(taskRows)
 

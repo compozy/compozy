@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
 )
@@ -13,46 +13,15 @@ import (
 // State
 // -----------------------------------------------------------------------------
 
-type StateID struct {
-	TaskID     string  `json:"task_id" db:"task_id"`
-	TaskExecID core.ID `json:"task_exec_id" db:"task_exec_id"`
-}
-
-func (e *StateID) GetComponentID() string {
-	return e.TaskID
-}
-
-func (e *StateID) GetExecID() core.ID {
-	return e.TaskExecID
-}
-
-func (e *StateID) String() string {
-	return fmt.Sprintf("%s_%s", e.TaskID, e.TaskExecID)
-}
-
-func (e *StateID) MarshalJSON() ([]byte, error) {
-	return json.Marshal(e.String())
-}
-
-func UnmarshalStateID(data []byte) (*StateID, error) {
-	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return nil, err
-	}
-	parts := strings.Split(s, "_")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid state ID format: %s", s)
-	}
-	return &StateID{TaskID: parts[0], TaskExecID: core.ID(parts[1])}, nil
-}
-
 type State struct {
-	StateID
 	Component      core.ComponentType `json:"component" db:"component"`
 	Status         core.StatusType    `json:"status" db:"status"`
+	TaskID         string             `json:"task_id" db:"task_id"`
+	TaskExecID     core.ID            `json:"task_exec_id" db:"task_exec_id"`
 	WorkflowID     string             `json:"workflow_id" db:"workflow_id"`
 	WorkflowExecID core.ID            `json:"workflow_exec_id" db:"workflow_exec_id"`
 	AgentID        *string            `json:"agent_id,omitempty" db:"agent_id"`
+	ActionID       *string            `json:"action_id,omitempty" db:"action_id"`
 	ToolID         *string            `json:"tool_id,omitempty" db:"tool_id"`
 	Input          *core.Input        `json:"input,omitempty" db:"input"`
 	Output         *core.Output       `json:"output,omitempty" db:"output"`
@@ -61,22 +30,27 @@ type State struct {
 
 // StateDB is used for database scanning with JSONB fields as []byte
 type StateDB struct {
-	StateID
 	Component      core.ComponentType `db:"component"`
 	Status         core.StatusType    `db:"status"`
+	TaskID         string             `db:"task_id"`
+	TaskExecID     core.ID            `db:"task_exec_id"`
 	WorkflowID     string             `db:"workflow_id"`
 	WorkflowExecID core.ID            `db:"workflow_exec_id"`
-	AgentIDRaw     sql.NullString     `db:"agent_id"` // Can be NULL
-	ToolIDRaw      sql.NullString     `db:"tool_id"`  // Can be NULL
+	AgentIDRaw     sql.NullString     `db:"agent_id"`  // Can be NULL
+	ActionIDRaw    sql.NullString     `db:"action_id"` // Can be NULL
+	ToolIDRaw      sql.NullString     `db:"tool_id"`   // Can be NULL
 	InputRaw       []byte             `db:"input"`
 	OutputRaw      []byte             `db:"output"`
 	ErrorRaw       []byte             `db:"error"`
+	CreatedAt      time.Time          `db:"created_at"`
+	UpdatedAt      time.Time          `db:"updated_at"`
 }
 
 // ToState converts StateDB to State with proper JSON unmarshaling
 func (sdb *StateDB) ToState() (*State, error) {
 	state := &State{
-		StateID:        sdb.StateID,
+		TaskID:         sdb.TaskID,
+		TaskExecID:     sdb.TaskExecID,
 		WorkflowID:     sdb.WorkflowID,
 		WorkflowExecID: sdb.WorkflowExecID,
 		Status:         sdb.Status,
@@ -85,8 +59,16 @@ func (sdb *StateDB) ToState() (*State, error) {
 
 	// Handle nullable AgentID
 	if sdb.AgentIDRaw.Valid {
-		state.AgentID = &sdb.AgentIDRaw.String
+		agentID := sdb.AgentIDRaw.String
+		state.AgentID = &agentID
 		state.Component = core.ComponentAgent
+
+		// Handle nullable ActionID
+		if sdb.ActionIDRaw.Valid {
+			state.ActionID = &sdb.ActionIDRaw.String
+		} else {
+			return nil, fmt.Errorf("action_id is required for agent")
+		}
 	}
 
 	// Handle nullable ToolID

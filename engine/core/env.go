@@ -71,3 +71,35 @@ func (e *EnvMap) AsMap() map[string]any {
 	}
 	return result
 }
+
+// EnvMerger handles environment merging logic
+type EnvMerger struct{}
+
+// Merge combines multiple environment maps in order, with later maps overriding earlier ones
+func (e *EnvMerger) Merge(envs ...EnvMap) (EnvMap, error) {
+	result := make(EnvMap)
+	for _, env := range envs {
+		if env == nil {
+			continue
+		}
+		merged, err := result.Merge(env)
+		if err != nil {
+			return nil, fmt.Errorf("failed to merge environments: %w", err)
+		}
+		result = merged
+	}
+	return result, nil
+}
+
+// MergeWithDefaults merges environments, ensuring non-nil maps
+func (e *EnvMerger) MergeWithDefaults(envs ...EnvMap) (EnvMap, error) {
+	safeEnvs := make([]EnvMap, 0, len(envs))
+	for _, env := range envs {
+		if env == nil {
+			safeEnvs = append(safeEnvs, make(EnvMap))
+		} else {
+			safeEnvs = append(safeEnvs, env)
+		}
+	}
+	return e.Merge(safeEnvs...)
+}

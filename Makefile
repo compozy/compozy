@@ -19,7 +19,7 @@ SWAGGER_DIR=./docs
 SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
 
 .PHONY: all test lint fmt clean build dev dev-weather deps schemagen help integration-test
-.PHONY: tidy test-go start-docker stop-docker clean-docker restart-docker
+.PHONY: tidy test-go start-docker stop-docker clean-docker reset-docker
 .PHONY: swagger swagger-deps swagger-gen swagger-serve
 
 # -----------------------------------------------------------------------------
@@ -125,9 +125,9 @@ stop-docker:
 	docker compose -f ./cluster/docker-compose.yml down
 
 clean-docker:
-	docker compose -f ./cluster/docker-compose.yml down --volumes --rmi all
+	docker compose -f ./cluster/docker-compose.yml down --volumes
 
-restart-docker:
+reset-docker:
 	make stop-docker
 	make start-docker
 
@@ -161,4 +161,6 @@ migrate-validate:
 migrate-reset:
 	$(GOOSE_COMMAND) reset
 
-reset-db: restart-docker migrate-up
+reset-db:
+	@make reset-docker
+	@make migrate-up

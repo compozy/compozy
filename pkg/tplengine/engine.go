@@ -11,6 +11,7 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
+	"github.com/compozy/compozy/engine/core"
 	"gopkg.in/yaml.v3"
 )
 
@@ -57,7 +58,7 @@ func (e *TemplateEngine) WithFormat(format EngineFormat) *TemplateEngine {
 
 // AddTemplate adds a template to the engine
 func (e *TemplateEngine) AddTemplate(name, templateStr string) error {
-	tmpl, err := template.New(name).Funcs(sprig.FuncMap()).Parse(templateStr)
+	tmpl, err := template.New(name).Option("missingkey=error").Funcs(sprig.FuncMap()).Parse(templateStr)
 	if err != nil {
 		return fmt.Errorf("failed to parse template: %w", err)
 	}
@@ -88,7 +89,7 @@ func (e *TemplateEngine) RenderString(templateStr string, context map[string]any
 	}
 
 	// Create a new template and parse the string
-	tmpl, err := template.New("inline").Funcs(sprig.FuncMap()).Parse(templateStr)
+	tmpl, err := template.New("inline").Option("missingkey=error").Funcs(sprig.FuncMap()).Parse(templateStr)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse template: %w", err)
 	}
@@ -98,7 +99,7 @@ func (e *TemplateEngine) RenderString(templateStr string, context map[string]any
 
 // renderTemplate renders a parsed template with the given context
 func (e *TemplateEngine) renderTemplate(tmpl *template.Template, context map[string]any) (string, error) {
-	processedContext := preprocessContext(context)
+	processedContext := e.preprocessContext(context)
 	maps.Copy(processedContext, e.globalValues)
 
 	var buf bytes.Buffer
@@ -166,20 +167,14 @@ func (e *TemplateEngine) ProcessFile(filePath string, context map[string]any) (*
 	return e.ProcessString(string(templateBytes), context)
 }
 
+// ParseMap processes a value and resolves any templates within it
 func (e *TemplateEngine) ParseMap(value any, data map[string]any) (any, error) {
 	if value == nil {
 		return nil, nil
 	}
 	switch v := value.(type) {
 	case string:
-		if HasTemplate(v) {
-			parsed, err := e.RenderString(v, data)
-			if err != nil {
-				return nil, err
-			}
-			return parsed, nil
-		}
-		return v, nil
+		return e.parseStringValue(v, data)
 	case map[string]any:
 		result := make(map[string]any, len(v))
 		for k, val := range v {
@@ -201,9 +196,116 @@ func (e *TemplateEngine) ParseMap(value any, data map[string]any) (any, error) {
 		}
 		return result, nil
 	default:
-		// For other types (int, bool, etc.), return as is
+		// Convert boolean values to strings for non-template cases
+		if boolVal, ok := v.(bool); ok {
+			return fmt.Sprintf("%t", boolVal), nil
+		}
+		// For other types (int, float, etc.), return as is
 		return v, nil
 	}
+}
+
+// parseStringValue handles parsing of string values that may contain templates
+func (e *TemplateEngine) parseStringValue(v string, data map[string]any) (any, error) {
+	if !HasTemplate(v) {
+		return v, nil
+	}
+	// Handle simple object references to preserve object types
+	if e.isSimpleObjectReference(v) {
+		if obj := e.extractObjectFromContext(v, data); obj != nil {
+			// Convert boolean values to strings when returning objects
+			if boolVal, ok := obj.(bool); ok {
+				return fmt.Sprintf("%t", boolVal), nil
+			}
+			return obj, nil
+		}
+	}
+	parsed, err := e.RenderString(v, data)
+	if err != nil {
+		return nil, err
+	}
+	// Convert boolean results from template rendering to strings
+	if parsed == "true" || parsed == "false" {
+		return parsed, nil
+	}
+	// Check if the parsed result is a JSON-like string and try to parse it
+	if strings.HasPrefix(parsed, "{") || strings.HasPrefix(parsed, "[") {
+		var jsonObj any
+		if json.Unmarshal([]byte(parsed), &jsonObj) == nil {
+			return jsonObj, nil
+		}
+	}
+	return parsed, nil
+}
+
+// isSimpleObjectReference checks if a template string is a simple object reference
+func (e *TemplateEngine) isSimpleObjectReference(template string) bool {
+	// Check if it's a simple reference like {{ .tasks.something.output.data }}
+	trimmed := strings.TrimSpace(template)
+	hasTemplateMarkers := strings.HasPrefix(trimmed, "{{") &&
+		strings.HasSuffix(trimmed, "}}") &&
+		strings.Count(trimmed, "{{") == 1 &&
+		strings.Count(trimmed, "}}") == 1
+	hasNoFilters := !strings.Contains(trimmed, "|")
+	hasObjectPath := strings.Contains(trimmed, ".output.") ||
+		strings.Contains(trimmed, ".input.") ||
+		strings.Contains(trimmed, ".tasks.")
+	return hasTemplateMarkers && hasNoFilters && hasObjectPath
+}
+
+// extractObjectFromContext tries to extract an object directly from the context
+func (e *TemplateEngine) extractObjectFromContext(template string, data map[string]any) any {
+	// Extract the path from the template
+	template = strings.TrimSpace(template)
+	if !strings.HasPrefix(template, "{{") || !strings.HasSuffix(template, "}}") {
+		return nil
+	}
+
+	path := strings.TrimSpace(template[2 : len(template)-2])
+	if !strings.HasPrefix(path, ".") { // Path must start with . like {{ .foo }}
+		return nil
+	}
+
+	path = path[1:] // Remove leading dot
+	parts := strings.Split(path, ".")
+
+	var currentAny any = data
+	for _, part := range parts {
+		var currentMap map[string]any
+		var traversable bool
+
+		switch c := currentAny.(type) {
+		case map[string]any:
+			currentMap = c
+			traversable = true
+		case *map[string]any:
+			if c != nil {
+				currentMap = *c
+				traversable = true
+			}
+		case *core.Input: // core.Input is map[string]any
+			if c != nil {
+				currentMap = *c
+				traversable = true
+			}
+		case *core.Output: // core.Output is map[string]any
+			if c != nil {
+				currentMap = *c
+				traversable = true
+			}
+		}
+
+		if !traversable {
+			return nil // Cannot traverse
+		}
+
+		val, exists := currentMap[part]
+		if !exists {
+			return nil
+		}
+		currentAny = val
+	}
+	return currentAny
 }
 
 // AddGlobalValue adds a global value to the template engine
@@ -211,8 +313,8 @@ func (e *TemplateEngine) AddGlobalValue(name string, value any) {
 	e.globalValues[name] = value
 }
 
-// preprocessContext adds default fields to the context
-func preprocessContext(ctx map[string]any) map[string]any {
+// preprocessContext adds default fields to the context and ensures proper boolean handling
+func (e *TemplateEngine) preprocessContext(ctx map[string]any) map[string]any {
 	if ctx == nil {
 		ctx = make(map[string]any)
 	}

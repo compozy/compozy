@@ -26,7 +26,7 @@ type Config struct {
 	Type         Type                     `json:"type,omitempty"       yaml:"type,omitempty"`
 	OnSuccess    *SuccessTransitionConfig `json:"on_success,omitempty" yaml:"on_success,omitempty"`
 	OnError      *ErrorTransitionConfig   `json:"on_error,omitempty"   yaml:"on_error,omitempty"`
-	Final        bool                     `json:"final,omitempty"      yaml:"final,omitempty"`
+	Final        bool                     `json:"final"      yaml:"final,omitempty"`
 	InputSchema  *schema.Schema           `json:"input,omitempty"      yaml:"input,omitempty"`
 	OutputSchema *schema.Schema           `json:"output,omitempty"     yaml:"output,omitempty"`
 	With         *core.Input              `json:"with,omitempty"       yaml:"with,omitempty"`

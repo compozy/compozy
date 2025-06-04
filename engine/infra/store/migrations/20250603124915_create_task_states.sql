@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS task_states (
     workflow_id      text NOT NULL,
     agent_id         text,
     tool_id          text,
+    action_id        text,
     input            jsonb,
     output           jsonb,
     error            jsonb,
@@ -29,6 +30,7 @@ CREATE INDEX IF NOT EXISTS idx_task_states_task_id ON task_states (task_id);
 CREATE INDEX IF NOT EXISTS idx_task_states_component ON task_states (component);
 CREATE INDEX IF NOT EXISTS idx_task_states_agent_id ON task_states (agent_id);
 CREATE INDEX IF NOT EXISTS idx_task_states_tool_id ON task_states (tool_id);
+CREATE INDEX IF NOT EXISTS idx_task_states_action_id ON task_states (action_id);
 CREATE INDEX IF NOT EXISTS idx_task_states_created_at ON task_states (created_at);
 CREATE INDEX IF NOT EXISTS idx_task_states_updated_at ON task_states (updated_at);
 
@@ -38,6 +40,7 @@ CREATE INDEX IF NOT EXISTS idx_task_states_workflow_exec_id_tool_id ON task_stat
 CREATE INDEX IF NOT EXISTS idx_task_states_workflow_id_task_id ON task_states (workflow_id, task_id);
 CREATE INDEX IF NOT EXISTS idx_task_states_workflow_id_agent_id ON task_states (workflow_id, agent_id);
 CREATE INDEX IF NOT EXISTS idx_task_states_workflow_id_tool_id ON task_states (workflow_id, tool_id);
+CREATE INDEX IF NOT EXISTS idx_task_states_workflow_id_action_id ON task_states (workflow_id, action_id);
 
 -- +goose StatementEnd
 

@@ -6,6 +6,9 @@ import (
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
+	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/task"
+	tkacts "github.com/compozy/compozy/engine/task/activities"
 	wf "github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 )
@@ -23,15 +26,7 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) error {
 
 	// Execute main trigger activity
 	logger.Info("Executing main trigger activity...")
-	var wfState *wf.State
-	triggerLabel := wfacts.TriggerLabel
-	triggerInput := &wfacts.TriggerInput{
-		WorkflowID:     input.WorkflowID,
-		WorkflowExecID: input.WorkflowExecID,
-		Input:          input.Input,
-		InitialTaskID:  input.InitialTaskID,
-	}
-	err := workflow.ExecuteActivity(ctx, triggerLabel, triggerInput).Get(ctx, &wfState)
+	wState, err := triggerWorkflow(ctx, &input)
 	if err != nil {
 		logger.Error("Failed to execute trigger activity", "error", err)
 		return err
@@ -45,10 +40,15 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) error {
 		return errorHandler(err)
 	}
 
-	if err := SleepWithPause(ctx, 5*time.Minute, pauseGate); err != nil {
+	_, err = executeFirstTask(ctx, pauseGate, wState, &input)
+	if err != nil {
 		return errorHandler(err)
 	}
 
+	err = completeWorkflow(ctx, pauseGate, wState)
+	if err != nil {
+		return errorHandler(err)
+	}
 	logger.Info("Workflow completed",
 		"workflow_id", input.WorkflowID,
 		"exec_id", input.WorkflowExecID,
@@ -71,4 +71,71 @@ func initialContext(ctx workflow.Context) workflow.Context {
 		},
 	})
 	return ctx
+}
+
+// -----------------------------------------------------------------------------
+// Activities
+// -----------------------------------------------------------------------------
+
+func triggerWorkflow(
+	ctx workflow.Context,
+	input *wfacts.TriggerInput,
+) (*wf.State, error) {
+	var state *wf.State
+	actLabel := wfacts.TriggerLabel
+	actInput := &wfacts.TriggerInput{
+		WorkflowID:     input.WorkflowID,
+		WorkflowExecID: input.WorkflowExecID,
+		Input:          input.Input,
+		InitialTaskID:  input.InitialTaskID,
+	}
+	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &state)
+	if err != nil {
+		return nil, err
+	}
+	return state, nil
+}
+
+func executeFirstTask(
+	ctx workflow.Context,
+	pauseGate *PauseGate,
+	wState *wf.State,
+	input *wfacts.TriggerInput,
+) (*task.State, error) {
+	if err := pauseGate.Await(); err != nil {
+		return nil, err
+	}
+	var state *task.State
+	actLabel := tkacts.ExecuteLabel
+	actInput := &tkacts.ExecuteInput{
+		WorkflowID:     wState.WorkflowID,
+		WorkflowExecID: wState.WorkflowExecID,
+		TaskID:         input.InitialTaskID,
+	}
+	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &state)
+	if err != nil {
+		return nil, err
+	}
+	return state, nil
+}
+
+func completeWorkflow(
+	ctx workflow.Context,
+	pauseGate *PauseGate,
+	wState *wf.State,
+) error {
+	if err := pauseGate.Await(); err != nil {
+		return err
+	}
+	actLabel := wfacts.UpdateStateLabel
+	actInput := &wfacts.UpdateStateInput{
+		WorkflowID:     wState.WorkflowID,
+		WorkflowExecID: wState.WorkflowExecID,
+		Status:         core.StatusSuccess,
+	}
+	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, nil)
+	if err != nil {
+		return err
+	}
+	return nil
 }

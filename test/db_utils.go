@@ -100,7 +100,7 @@ func (m *MockSetup) NewTaskStateRowBuilder() *TaskStateRowBuilder {
 func (t *TaskStateRowBuilder) CreateEmptyTaskStateRows() *pgxmock.Rows {
 	return t.mock.NewRows([]string{
 		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-		"status", "agent_id", "tool_id", "input", "output", "error",
+		"component", "status", "agent_id", "action_id", "tool_id", "input", "output", "error",
 	})
 }
 
@@ -108,15 +108,31 @@ func (t *TaskStateRowBuilder) CreateEmptyTaskStateRows() *pgxmock.Rows {
 func (t *TaskStateRowBuilder) CreateTaskStateRows(
 	taskExecID, taskID, workflowExecID, workflowID string,
 	status core.StatusType,
-	agentID, toolID interface{},
+	agentID, toolID any,
 	inputData []byte,
 ) *pgxmock.Rows {
+	// Determine component type and action_id based on provided IDs
+	var component core.ComponentType
+	var actionID any
+
+	switch {
+	case agentID != nil:
+		component = core.ComponentAgent
+		actionID = "default_action" // Required for agent components
+	case toolID != nil:
+		component = core.ComponentTool
+		actionID = nil // Not required for tool components
+	default:
+		component = core.ComponentTask
+		actionID = "default_action" // Task components may have actions
+	}
+
 	return t.mock.NewRows([]string{
 		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-		"status", "agent_id", "tool_id", "input", "output", "error",
+		"component", "status", "agent_id", "action_id", "tool_id", "input", "output", "error",
 	}).AddRow(
 		taskExecID, taskID, workflowExecID, workflowID,
-		status, agentID, toolID, inputData, nil, nil,
+		component, status, agentID, actionID, toolID, inputData, nil, nil,
 	)
 }
 
@@ -145,7 +161,7 @@ func (q *QueryExpectations) ExpectTaskStateQuery(
 	workflowExecID core.ID,
 	rows *pgxmock.Rows,
 ) *QueryExpectations {
-	q.mock.ExpectQuery("SELECT task_exec_id, task_id, workflow_exec_id, workflow_id").
+	q.mock.ExpectQuery("SELECT \\*").
 		WithArgs(workflowExecID).
 		WillReturnRows(rows)
 	return q

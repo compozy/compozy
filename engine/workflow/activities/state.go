@@ -11,10 +11,11 @@ import (
 const UpdateStateLabel = "UpdateWorkflowState"
 
 type UpdateStateInput struct {
-	StateID workflow.StateID `json:"state_id"`
-	Status  core.StatusType  `json:"status"`
-	Error   *core.Error      `json:"error"`
-	Output  *core.Output     `json:"output"`
+	WorkflowID     string          `json:"workflow_id"`
+	WorkflowExecID core.ID         `json:"workflow_exec_id"`
+	Status         core.StatusType `json:"status"`
+	Error          *core.Error     `json:"error"`
+	Output         *core.Output    `json:"output"`
 }
 
 type UpdateState struct {
@@ -28,10 +29,10 @@ func NewUpdateState(workflowRepo workflow.Repository) *UpdateState {
 }
 
 func (a *UpdateState) Run(ctx context.Context, input *UpdateStateInput) error {
-	workflowExecID := input.StateID.WorkflowExecID
+	workflowExecID := input.WorkflowExecID
 	state, err := a.workflowRepo.GetState(ctx, workflowExecID)
 	if err != nil {
-		return fmt.Errorf("failed to get workflow %s: %w", input.StateID, err)
+		return fmt.Errorf("failed to get workflow %s: %w", input.WorkflowExecID, err)
 	}
 	state.WithStatus(input.Status)
 	if input.Error != nil {
@@ -41,7 +42,7 @@ func (a *UpdateState) Run(ctx context.Context, input *UpdateStateInput) error {
 		state.WithOutput(input.Output)
 	}
 	if err := a.workflowRepo.UpsertState(ctx, state); err != nil {
-		return fmt.Errorf("failed to update workflow %s: %w", input.StateID, err)
+		return fmt.Errorf("failed to update workflow %s: %w", input.WorkflowExecID, err)
 	}
 	return nil
 }

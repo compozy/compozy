@@ -5,16 +5,16 @@ import (
 
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
+	tkfacts "github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 )
 
 type Activities struct {
-	projectConfig                *project.Config
-	workflows                    []*workflow.Config
-	workflowRepo                 workflow.Repository
-	taskRepo                     task.Repository
-	updateWorkflowStatusActivity *wfacts.UpdateState
+	projectConfig *project.Config
+	workflows     []*workflow.Config
+	workflowRepo  workflow.Repository
+	taskRepo      task.Repository
 }
 
 func NewActivities(
@@ -24,11 +24,10 @@ func NewActivities(
 	taskRepo task.Repository,
 ) *Activities {
 	return &Activities{
-		projectConfig:                projectConfig,
-		workflows:                    workflows,
-		workflowRepo:                 workflowRepo,
-		taskRepo:                     taskRepo,
-		updateWorkflowStatusActivity: wfacts.NewUpdateState(workflowRepo),
+		projectConfig: projectConfig,
+		workflows:     workflows,
+		workflowRepo:  workflowRepo,
+		taskRepo:      taskRepo,
 	}
 }
 
@@ -47,5 +46,13 @@ func (a *Activities) UpdateWorkflowState(ctx context.Context, input *wfacts.Upda
 		return err
 	}
 	act := wfacts.NewUpdateState(a.workflowRepo)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) ExecuteTask(ctx context.Context, input *tkfacts.ExecuteInput) (*task.State, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewExecute(a.workflows, a.workflowRepo, a.taskRepo)
 	return act.Run(ctx, input)
 }

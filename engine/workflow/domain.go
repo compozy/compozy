@@ -3,7 +3,7 @@ package workflow
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -15,79 +15,35 @@ const StateKey = "workflowState"
 // State
 // -----------------------------------------------------------------------------
 
-type StateID struct {
-	WorkflowID     string  `json:"workflow_id" db:"workflow_id"`
-	WorkflowExecID core.ID `json:"workflow_exec" db:"workflow_exec_id"`
-}
-
-func NewStateID(workflowID string, workflowExec core.ID) StateID {
-	return StateID{
-		WorkflowID:     workflowID,
-		WorkflowExecID: workflowExec,
-	}
-}
-
-func StateIDFromString(s string) (*StateID, error) {
-	parts := strings.Split(s, "_")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid state ID: %s", s)
-	}
-	return &StateID{WorkflowID: parts[0], WorkflowExecID: core.ID(parts[1])}, nil
-}
-
-func (e *StateID) GetComponentID() string {
-	return e.WorkflowID
-}
-
-func (e *StateID) GetExecID() core.ID {
-	return e.WorkflowExecID
-}
-
-func (e *StateID) String() string {
-	return fmt.Sprintf("%s_%s", e.WorkflowID, e.WorkflowExecID)
-}
-
-func (e *StateID) MarshalJSON() ([]byte, error) {
-	return json.Marshal(e.String())
-}
-
-func (e *StateID) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-	parts := strings.Split(s, "_")
-	if len(parts) != 2 {
-		return fmt.Errorf("invalid state ID format after unmarshal: %s", s)
-	}
-	e.WorkflowID, e.WorkflowExecID = parts[0], core.ID(parts[1])
-	return nil
-}
-
 type State struct {
-	StateID
-	Status core.StatusType        `json:"status" db:"status"`
-	Input  *core.Input            `json:"input" db:"input"`
-	Output *core.Output           `json:"output" db:"output"`
-	Error  *core.Error            `json:"error" db:"error"`
-	Tasks  map[string]*task.State `json:"tasks"`
+	WorkflowID     string                 `json:"workflow_id" db:"workflow_id"`
+	WorkflowExecID core.ID                `json:"workflow_exec_id" db:"workflow_exec_id"`
+	Status         core.StatusType        `json:"status" db:"status"`
+	Input          *core.Input            `json:"input" db:"input"`
+	Output         *core.Output           `json:"output" db:"output"`
+	Error          *core.Error            `json:"error" db:"error"`
+	Tasks          map[string]*task.State `json:"tasks"`
 }
 
 // StateDB is used for database scanning with JSONB fields as []byte
 type StateDB struct {
-	StateID
-	Status    core.StatusType `db:"status"`
-	InputRaw  []byte          `db:"input"`
-	OutputRaw []byte          `db:"output"`
-	ErrorRaw  []byte          `db:"error"`
+	WorkflowID     string          `db:"workflow_id"`
+	WorkflowExecID core.ID         `db:"workflow_exec_id"`
+	Status         core.StatusType `db:"status"`
+	InputRaw       []byte          `db:"input"`
+	OutputRaw      []byte          `db:"output"`
+	ErrorRaw       []byte          `db:"error"`
+	CreatedAt      time.Time       `db:"created_at"`
+	UpdatedAt      time.Time       `db:"updated_at"`
 }
 
 // ToState converts StateDB to State with proper JSON unmarshaling
 func (sdb *StateDB) ToState() (*State, error) {
 	state := &State{
-		StateID: sdb.StateID,
-		Status:  sdb.Status,
-		Tasks:   make(map[string]*task.State),
+		WorkflowID:     sdb.WorkflowID,
+		WorkflowExecID: sdb.WorkflowExecID,
+		Status:         sdb.Status,
+		Tasks:          make(map[string]*task.State),
 	}
 
 	// Unmarshal input
@@ -121,17 +77,14 @@ func (sdb *StateDB) ToState() (*State, error) {
 }
 
 func NewState(workflowID string, workflowExecID core.ID, input *core.Input) *State {
-	stateID := StateID{
+	return &State{
+		Status:         core.StatusRunning,
 		WorkflowID:     workflowID,
 		WorkflowExecID: workflowExecID,
-	}
-	return &State{
-		Status:  core.StatusRunning,
-		StateID: stateID,
-		Input:   input,
-		Tasks:   make(map[string]*task.State),
-		Output:  nil,
-		Error:   nil,
+		Input:          input,
+		Tasks:          make(map[string]*task.State),
+		Output:         nil,
+		Error:          nil,
 	}
 }
 
@@ -164,11 +117,11 @@ func (e *State) WithOutput(output *core.Output) *State {
 }
 
 func (e *State) AddTask(task *task.State) {
-	e.Tasks[task.String()] = task
+	e.Tasks[task.TaskExecID.String()] = task
 }
 
-func (e *State) GetTask(taskID task.StateID) *task.State {
-	return e.Tasks[taskID.String()]
+func (e *State) GetTask(taskExecID core.ID) *task.State {
+	return e.Tasks[taskExecID.String()]
 }
 
 func (e *State) GetTaskByID(taskID string) *task.State {

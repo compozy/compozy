@@ -179,11 +179,12 @@ age: {{ .user.age }}
 }
 
 func TestPreprocessContext(t *testing.T) {
+	engine := NewEngine(FormatYAML)
 	ctx := map[string]any{
 		"name": "John",
 	}
 
-	processed := preprocessContext(ctx)
+	processed := engine.preprocessContext(ctx)
 
 	// Check that original data is preserved
 	assert.Equal(t, "John", processed["name"])
@@ -221,4 +222,75 @@ func TestSprigFunctions(t *testing.T) {
 	result, err = engine.RenderString("{{ regexMatch \"[a-z]+\" \"hello\" }}", nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "true", result)
+}
+
+func TestMissingKeyError(t *testing.T) {
+	engine := NewEngine(FormatYAML)
+
+	t.Run("Should return error for missing key", func(t *testing.T) {
+		// This should now fail instead of rendering "<no value>"
+		_, err := engine.RenderString("{{ .nonexistent.field }}", map[string]any{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "nonexistent")
+	})
+
+	t.Run("Should return error for misspelled key", func(t *testing.T) {
+		context := map[string]any{
+			"user": map[string]any{
+				"name": "John",
+			},
+		}
+		// Common typo: "usr" instead of "user"
+		_, err := engine.RenderString("{{ .usr.name }}", context)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "usr")
+	})
+
+	t.Run("Should return error for accessing field on non-existent object", func(t *testing.T) {
+		context := map[string]any{
+			"user": map[string]any{
+				"name": "John",
+			},
+		}
+		// "profile" doesn't exist on user
+		_, err := engine.RenderString("{{ .user.profile.age }}", context)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "profile")
+	})
+
+	t.Run("Should work with default filter for missing keys", func(t *testing.T) {
+		context := map[string]any{
+			"user": map[string]any{
+				"name": "John",
+			},
+		}
+		// With missingkey=error, even default filter won't work for missing keys
+		// This is the expected behavior - you need to provide the key or handle it differently
+		_, err := engine.RenderString("{{ .user.age | default \"25\" }}", context)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "age")
+	})
+
+	t.Run("Should work with default filter when root key is missing", func(t *testing.T) {
+		context := map[string]any{
+			"config": map[string]any{
+				"timeout": 30,
+			},
+		}
+		// This approach works - use hasKey to check safely
+		result, err := engine.RenderString("{{ if hasKey .config \"missing\" }}{{ .config.missing }}{{ else }}default-value{{ end }}", context)
+		assert.NoError(t, err)
+		assert.Equal(t, "default-value", result)
+	})
+
+	t.Run("Should work when key exists", func(t *testing.T) {
+		context := map[string]any{
+			"user": map[string]any{
+				"name": "John",
+			},
+		}
+		result, err := engine.RenderString("{{ .user.name }}", context)
+		assert.NoError(t, err)
+		assert.Equal(t, "John", result)
+	})
 }

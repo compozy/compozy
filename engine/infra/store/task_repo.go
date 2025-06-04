@@ -26,10 +26,7 @@ func NewTaskRepo(db DBInterface) *TaskRepo {
 
 // ListStates retrieves task states based on the provided filter.
 func (r *TaskRepo) ListStates(ctx context.Context, filter *task.StateFilter) ([]*task.State, error) {
-	sb := squirrel.Select(
-		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-		"component", "status", "agent_id", "tool_id", "input", "output", "error",
-	).
+	sb := squirrel.Select("*").
 		From("task_states").
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -51,6 +48,9 @@ func (r *TaskRepo) ListStates(ctx context.Context, filter *task.StateFilter) ([]
 		}
 		if filter.AgentID != nil {
 			sb = sb.Where("agent_id = ?", *filter.AgentID)
+		}
+		if filter.ActionID != nil {
+			sb = sb.Where("action_id = ?", *filter.ActionID)
 		}
 		if filter.ToolID != nil {
 			sb = sb.Where("tool_id = ?", *filter.ToolID)
@@ -100,8 +100,8 @@ func (r *TaskRepo) UpsertState(
 	query := `
 		INSERT INTO task_states (
 			task_exec_id, task_id, workflow_exec_id, workflow_id, component, status,
-			agent_id, tool_id, input, output, error
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			agent_id, action_id, tool_id, input, output, error
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		ON CONFLICT (task_exec_id) DO UPDATE SET
 			task_id = $2,
 			workflow_exec_id = $3,
@@ -109,16 +109,17 @@ func (r *TaskRepo) UpsertState(
 			component = $5,
 			status = $6,
 			agent_id = $7,
-			tool_id = $8,
-			input = $9,
-			output = $10,
-			error = $11,
+			action_id = $8,
+			tool_id = $9,
+			input = $10,
+			output = $11,
+			error = $12,
 			updated_at = now()
 	`
 
 	_, err = r.db.Exec(ctx, query,
 		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, state.Component, state.Status,
-		state.AgentID, state.ToolID, input, output, errJSON,
+		state.AgentID, state.ActionID, state.ToolID, input, output, errJSON,
 	)
 	if err != nil {
 		return fmt.Errorf("executing upsert: %w", err)
@@ -133,8 +134,7 @@ func (r *TaskRepo) GetState(
 	taskExecID core.ID,
 ) (*task.State, error) {
 	query := `
-		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id,
-		       component, status, agent_id, tool_id, input, output, error
+		SELECT *
 		FROM task_states
 		WHERE task_exec_id = $1
 	`
@@ -157,8 +157,7 @@ func (r *TaskRepo) ListTasksInWorkflow(
 	workflowExecID core.ID,
 ) (map[string]*task.State, error) {
 	query := `
-		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id,
-		       component, status, agent_id, tool_id, input, output, error
+		SELECT *
 		FROM task_states
 		WHERE workflow_exec_id = $1
 	`
@@ -187,8 +186,7 @@ func (r *TaskRepo) ListTasksByStatus(
 	status core.StatusType,
 ) ([]*task.State, error) {
 	query := `
-		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id,
-		       component, status, agent_id, tool_id, input, output, error
+		SELECT *
 		FROM task_states
 		WHERE workflow_exec_id = $1 AND status = $2
 	`
@@ -217,8 +215,7 @@ func (r *TaskRepo) ListTasksByAgent(
 	agentID string,
 ) ([]*task.State, error) {
 	query := `
-		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id,
-		       component, status, agent_id, tool_id, input, output, error
+		SELECT *
 		FROM task_states
 		WHERE workflow_exec_id = $1 AND agent_id = $2
 	`
@@ -247,8 +244,7 @@ func (r *TaskRepo) ListTasksByTool(
 	toolID string,
 ) ([]*task.State, error) {
 	query := `
-		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id,
-		       component, status, agent_id, tool_id, input, output, error
+		SELECT *
 		FROM task_states
 		WHERE workflow_exec_id = $1 AND tool_id = $2
 	`

@@ -32,6 +32,13 @@ func (a *ActionConfig) GetCWD() *core.CWD {
 	return a.cwd
 }
 
+func (a *ActionConfig) GetInput() *core.Input {
+	if a.With == nil {
+		return &core.Input{}
+	}
+	return a.With
+}
+
 func (a *ActionConfig) Validate() error {
 	v := schema.NewCompositeValidator(
 		schema.NewCWDValidator(a.cwd, a.ID),

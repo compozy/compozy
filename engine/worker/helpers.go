@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
-	wf "github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.temporal.io/sdk/temporal"
@@ -27,13 +26,13 @@ func BuildErrorHandler(ctx workflow.Context, input *WorkflowInput) func(err erro
 			logger.Info("Workflow canceled during sleep")
 			return nil
 		}
-		logger.Info("Updating workflow status to Failed due to error")
+		logger.Info("Updating workflow status to Failed due to error", "error", err)
 		label := wfacts.UpdateStateLabel
-		stateID := wf.NewStateID(input.WorkflowID, input.WorkflowExecID)
 		statusInput := &wfacts.UpdateStateInput{
-			StateID: stateID,
-			Status:  core.StatusFailed,
-			Error:   core.NewError(err, "workflow_execution_error", nil),
+			WorkflowID:     input.WorkflowID,
+			WorkflowExecID: input.WorkflowExecID,
+			Status:         core.StatusFailed,
+			Error:          core.NewError(err, "workflow_execution_error", nil),
 		}
 		future := workflow.ExecuteActivity(ctx, label, statusInput)
 		if err := future.Get(ctx, nil); err != nil {

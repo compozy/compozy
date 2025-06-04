@@ -81,8 +81,7 @@ func (r *WorkflowRepo) listTasksInWorkflowWithTx(
 	workflowExecID core.ID,
 ) (map[string]*task.State, error) {
 	query := `
-		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id,
-		       status, agent_id, tool_id, input, output, error
+		SELECT *
 		FROM task_states
 		WHERE workflow_exec_id = $1
 	`

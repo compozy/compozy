@@ -33,11 +33,16 @@ func NewInput(m map[string]any) Input {
 	return Input(m)
 }
 
-func (i *Input) Merge(other Input) (Input, error) {
+func (i *Input) Merge(other *Input) (*Input, error) {
 	if i == nil {
 		return other, nil
 	}
-	return merge(*i, other, "input")
+	result, err := merge(*i, *other, "input")
+	if err != nil {
+		return nil, err
+	}
+	newInput := Input(result)
+	return &newInput, nil
 }
 
 func (i *Input) Prop(key string) any {

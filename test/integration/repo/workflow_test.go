@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/logger"
 	testutils "github.com/compozy/compozy/test"
 	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v4"
@@ -21,10 +22,11 @@ func TestWorkflowRepo_UpsertState(t *testing.T) {
 	repo := store.NewWorkflowRepo(mockSetup.Mock)
 	ctx := context.Background()
 	state := &workflow.State{
-		StateID: workflow.StateID{WorkflowID: "wf1", WorkflowExecID: core.ID("exec1")},
-		Status:  core.StatusPending,
-		Input:   &core.Input{"key": "value"},
-		Tasks:   make(map[string]*task.State),
+		WorkflowID:     "wf1",
+		WorkflowExecID: core.ID("exec1"),
+		Status:         core.StatusPending,
+		Input:          &core.Input{"key": "value"},
+		Tasks:          make(map[string]*task.State),
 	}
 
 	dataBuilder := testutils.NewDataBuilder()
@@ -46,6 +48,9 @@ func TestWorkflowRepo_UpsertState(t *testing.T) {
 }
 
 func TestWorkflowRepo_GetState(t *testing.T) {
+	// Initialize logger to prevent nil pointer dereference
+	logger.Init(logger.DefaultConfig())
+
 	mockSetup := testutils.NewMockSetup(t)
 	defer mockSetup.Close()
 
@@ -167,7 +172,7 @@ func TestWorkflowRepo_GetState_NotFound(t *testing.T) {
 }
 
 // Helper function for simpler Get tests
-func testSimpleWorkflowGet(t *testing.T, testName string, setupAndRun func(*testutils.MockSetup, store.WorkflowRepo, context.Context)) {
+func testSimpleWorkflowGet(t *testing.T, testName string, setupAndRun func(*testutils.MockSetup, *store.WorkflowRepo, context.Context)) {
 	mockSetup := testutils.NewMockSetup(t)
 	defer mockSetup.Close()
 
@@ -175,13 +180,13 @@ func testSimpleWorkflowGet(t *testing.T, testName string, setupAndRun func(*test
 	ctx := context.Background()
 
 	t.Run(testName, func(_ *testing.T) {
-		setupAndRun(mockSetup, *repo, ctx)
+		setupAndRun(mockSetup, repo, ctx)
 		mockSetup.ExpectationsWereMet()
 	})
 }
 
 func TestWorkflowRepo_GetStateByID(t *testing.T) {
-	testSimpleWorkflowGet(t, "should get state by ID", func(mockSetup *testutils.MockSetup, repo store.WorkflowRepo, ctx context.Context) {
+	testSimpleWorkflowGet(t, "should get state by ID", func(mockSetup *testutils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
 		workflowID := "wf1"
 
 		tx := mockSetup.NewTransactionExpectations()
@@ -212,7 +217,7 @@ func TestWorkflowRepo_GetStateByID(t *testing.T) {
 
 // Continue with similar simplified patterns for other tests...
 func TestWorkflowRepo_GetStateByTaskID(t *testing.T) {
-	testSimpleWorkflowGet(t, "should get state by task ID", func(mockSetup *testutils.MockSetup, repo store.WorkflowRepo, ctx context.Context) {
+	testSimpleWorkflowGet(t, "should get state by task ID", func(mockSetup *testutils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
 		workflowID := "wf1"
 		taskID := "task1"
 
@@ -243,7 +248,7 @@ func TestWorkflowRepo_GetStateByTaskID(t *testing.T) {
 }
 
 func TestWorkflowRepo_GetStateByAgentID(t *testing.T) {
-	testSimpleWorkflowGet(t, "should get state by agent ID", func(mockSetup *testutils.MockSetup, repo store.WorkflowRepo, ctx context.Context) {
+	testSimpleWorkflowGet(t, "should get state by agent ID", func(mockSetup *testutils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
 		workflowID := "wf1"
 		agentID := "agent1"
 
@@ -274,7 +279,7 @@ func TestWorkflowRepo_GetStateByAgentID(t *testing.T) {
 }
 
 func TestWorkflowRepo_GetStateByToolID(t *testing.T) {
-	testSimpleWorkflowGet(t, "should get state by tool ID", func(mockSetup *testutils.MockSetup, repo store.WorkflowRepo, ctx context.Context) {
+	testSimpleWorkflowGet(t, "should get state by tool ID", func(mockSetup *testutils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
 		workflowID := "wf1"
 		toolID := "tool1"
 
