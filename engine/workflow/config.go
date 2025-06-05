@@ -146,6 +146,27 @@ func (w *Config) GetTasks() []task.Config {
 	return w.Tasks
 }
 
+func (w *Config) DetermineNextTask(
+	taskConfig *task.Config,
+	success bool,
+) *task.Config {
+	var nextTaskID string
+	if success && taskConfig.OnSuccess != nil && taskConfig.OnSuccess.Next != nil {
+		nextTaskID = *taskConfig.OnSuccess.Next
+	} else if !success && taskConfig.OnError != nil && taskConfig.OnError.Next != nil {
+		nextTaskID = *taskConfig.OnError.Next
+	}
+	if nextTaskID == "" {
+		return nil
+	}
+	// Find the next task config
+	nextTask, err := task.FindConfig(w.Tasks, nextTaskID)
+	if err != nil {
+		return nil
+	}
+	return nextTask
+}
+
 func WorkflowsFromProject(projectConfig *project.Config, ev *ref.Evaluator) ([]*Config, error) {
 	cwd := projectConfig.GetCWD()
 	projectEnv := projectConfig.GetEnv()

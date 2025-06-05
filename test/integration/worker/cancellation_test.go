@@ -7,9 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/worker"
-	"github.com/compozy/compozy/engine/workflow"
 	"github.com/stretchr/testify/assert"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
@@ -28,20 +26,7 @@ func TestWorkflowCancellation(t *testing.T) {
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	env.RegisterWorkflow(worker.CompozyWorkflow)
-	llmService := llm.NewLLMService()
-	activities := worker.NewActivities(
-		config.ProjectConfig,
-		[]*workflow.Config{config.WorkflowConfig},
-		config.WorkflowRepo,
-		config.TaskRepo,
-		llmService,
-	)
-	env.RegisterActivity(activities.TriggerWorkflow)
-	env.RegisterActivity(activities.UpdateWorkflowState)
-	env.RegisterActivity(activities.DispatchTask)
-	env.RegisterActivity(activities.ExecuteBasicTask)
-
+	SetupWorkflowEnvironment(env, config)
 	signalHelper := NewSignalHelper(env, t)
 
 	// Create workflow input
@@ -123,19 +108,7 @@ func TestWorkflowWithLongRunningTask(t *testing.T) {
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	env.RegisterWorkflow(worker.CompozyWorkflow)
-	llmService := llm.NewLLMService()
-	activities := worker.NewActivities(
-		config.ProjectConfig,
-		[]*workflow.Config{config.WorkflowConfig},
-		config.WorkflowRepo,
-		config.TaskRepo,
-		llmService,
-	)
-	env.RegisterActivity(activities.TriggerWorkflow)
-	env.RegisterActivity(activities.UpdateWorkflowState)
-	env.RegisterActivity(activities.DispatchTask)
-	env.RegisterActivity(activities.ExecuteBasicTask)
+	SetupWorkflowEnvironment(env, config)
 
 	signalHelper := NewSignalHelper(env, t)
 
@@ -211,19 +184,7 @@ func TestCancellationDuringTaskTransition(t *testing.T) {
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	env.RegisterWorkflow(worker.CompozyWorkflow)
-	llmService := llm.NewLLMService()
-	activities := worker.NewActivities(
-		config.ProjectConfig,
-		[]*workflow.Config{config.WorkflowConfig},
-		config.WorkflowRepo,
-		config.TaskRepo,
-		llmService,
-	)
-	env.RegisterActivity(activities.TriggerWorkflow)
-	env.RegisterActivity(activities.UpdateWorkflowState)
-	env.RegisterActivity(activities.DispatchTask)
-	env.RegisterActivity(activities.ExecuteBasicTask)
+	SetupWorkflowEnvironment(env, config)
 
 	signalHelper := NewSignalHelper(env, t)
 
@@ -318,20 +279,7 @@ func TestEarlyCancellation(t *testing.T) {
 	config := CreateContainerTestConfigForCancellation(t, workflowConfig)
 	config.Cleanup(t)
 
-	// Register workflow and activities
-	env.RegisterWorkflow(worker.CompozyWorkflow)
-	llmService := llm.NewLLMService()
-	activities := worker.NewActivities(
-		config.ProjectConfig,
-		[]*workflow.Config{config.WorkflowConfig},
-		config.WorkflowRepo,
-		config.TaskRepo,
-		llmService,
-	)
-	env.RegisterActivity(activities.TriggerWorkflow)
-	env.RegisterActivity(activities.UpdateWorkflowState)
-	env.RegisterActivity(activities.DispatchTask)
-	env.RegisterActivity(activities.ExecuteBasicTask)
+	SetupWorkflowEnvironment(env, config)
 
 	signalHelper := NewSignalHelper(env, t)
 

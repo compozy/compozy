@@ -216,10 +216,11 @@ func executeTasks(
 	ctx workflow.Context,
 	data *WorkflowData,
 	pauseGate *PauseGate,
-	output *tkacts.DispatchOutput,
+	dispatchOutput *tkacts.DispatchOutput,
 ) error {
 	logger := workflow.GetLogger(ctx)
-	currentTask := output.State
+	currentTask := dispatchOutput.State
+	currentOutput := dispatchOutput
 	for currentTask != nil {
 		// Check pause state before each task
 		if err := pauseGate.Await(); err != nil {
@@ -230,7 +231,7 @@ func executeTasks(
 		taskExecID := currentTask.TaskExecID
 		logger.Info("Executing task", "task_id", taskID, "task_exec_id", taskExecID)
 		ctx = activityContextForTask(ctx, data.ProjectConfig, data.WorkflowConfig, taskID)
-		response, err := executeBasicTask(ctx, pauseGate, output)
+		response, err := executeBasicTask(ctx, pauseGate, currentOutput)
 		if err != nil {
 			if err := checkCancellation(ctx, err, "Task execution canceled"); err != nil {
 				return err
@@ -245,21 +246,30 @@ func executeTasks(
 		)
 
 		// Dispatch next task if there is one
-		nextTaskID := response.NextTaskID()
-		if nextTaskID != "" {
-			currentTaskState := response.State
-			nextTaskState, err := dispatchTask(ctx, pauseGate, currentTaskState, nextTaskID)
-			if err != nil {
-				if err := checkCancellation(ctx, err, "Task dispatch canceled"); err != nil {
-					return err
-				}
-				logger.Error("Failed to dispatch next task", "next_task", nextTaskID, "error", err)
+		if response.NextTask == nil {
+			// No more tasks to execute
+			logger.Info("No more tasks to execute", "current_task", currentTask.TaskID)
+			break
+		}
+
+		// Ensure NextTask has a valid ID
+		nextTaskID := response.NextTask.ID
+		if nextTaskID == "" {
+			logger.Error("NextTask has empty ID", "current_task", currentTask.TaskID)
+			return fmt.Errorf("next task has empty ID for current task: %s", currentTask.TaskID)
+		}
+
+		currentTaskState := response.State
+		nextTaskOutput, err := dispatchTask(ctx, pauseGate, currentTaskState, nextTaskID)
+		if err != nil {
+			if err := checkCancellation(ctx, err, "Task dispatch canceled"); err != nil {
 				return err
 			}
-			currentTask = nextTaskState
-		} else {
-			currentTask = nil
+			logger.Error("Failed to dispatch next task", "next_task", nextTaskID, "error", err)
+			return err
 		}
+		currentTask = nextTaskOutput.State
+		currentOutput = nextTaskOutput
 	}
 
 	return nil
@@ -314,20 +324,20 @@ func dispatchTask(
 	pauseGate *PauseGate,
 	currentTaskState *task.State,
 	nextTaskID string,
-) (*task.State, error) {
+) (*tkacts.DispatchOutput, error) {
 	if err := pauseGate.Await(); err != nil {
 		return nil, err
 	}
-	var state *task.State
+	var output *tkacts.DispatchOutput
 	actLabel := tkacts.DispatchLabel
 	actInput := &tkacts.DispatchInput{
 		WorkflowID:     currentTaskState.WorkflowID,
 		WorkflowExecID: currentTaskState.WorkflowExecID,
 		TaskID:         nextTaskID,
 	}
-	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &state)
+	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &output)
 	if err != nil {
 		return nil, err
 	}
-	return state, nil
+	return output, nil
 }

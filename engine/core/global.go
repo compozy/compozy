@@ -188,7 +188,7 @@ func (r *ResolvedActivityOptions) setTimeouts(opts *workflow.ActivityOptions) {
 // setDefaultTimeouts ensures at least one required timeout is set
 func (r *ResolvedActivityOptions) setDefaultTimeouts(opts *workflow.ActivityOptions) {
 	if opts.StartToCloseTimeout == 0 && opts.ScheduleToCloseTimeout == 0 {
-		opts.StartToCloseTimeout = 30 * time.Minute
+		opts.StartToCloseTimeout = 5 * time.Minute
 	}
 }
 
@@ -231,9 +231,9 @@ func setTimeoutIfValid(durationStr string, target *time.Duration) {
 // -----------------------------------------------------------------------------
 
 func applyDefaultTimeouts(resolved *ResolvedActivityOptions) {
-	resolved.StartToCloseTimeout = "30 minutes"
+	resolved.StartToCloseTimeout = "5 minutes"
 	resolved.ScheduleToStartTimeout = "1 minute"
-	resolved.ScheduleToCloseTimeout = "35 minutes"
+	resolved.ScheduleToCloseTimeout = "6 minutes"
 }
 
 func applyDefaultRetryPolicy(policy *RetryPolicyConfig) {

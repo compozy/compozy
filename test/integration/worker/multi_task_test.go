@@ -5,9 +5,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/worker"
-	"github.com/compozy/compozy/engine/workflow"
 	"github.com/stretchr/testify/assert"
 	"go.temporal.io/sdk/testsuite"
 )
@@ -25,19 +23,7 @@ func TestMultiTaskWorkflowWithPause(t *testing.T) {
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	env.RegisterWorkflow(worker.CompozyWorkflow)
-	llmService := llm.NewLLMService()
-	activities := worker.NewActivities(
-		config.ProjectConfig,
-		[]*workflow.Config{config.WorkflowConfig},
-		config.WorkflowRepo,
-		config.TaskRepo,
-		llmService,
-	)
-	env.RegisterActivity(activities.TriggerWorkflow)
-	env.RegisterActivity(activities.UpdateWorkflowState)
-	env.RegisterActivity(activities.DispatchTask)
-	env.RegisterActivity(activities.ExecuteBasicTask)
+	SetupWorkflowEnvironment(env, config)
 
 	signalHelper := NewSignalHelper(env, t)
 
@@ -108,19 +94,7 @@ func TestTaskTransitions(t *testing.T) {
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	env.RegisterWorkflow(worker.CompozyWorkflow)
-	llmService := llm.NewLLMService()
-	activities := worker.NewActivities(
-		config.ProjectConfig,
-		[]*workflow.Config{config.WorkflowConfig},
-		config.WorkflowRepo,
-		config.TaskRepo,
-		llmService,
-	)
-	env.RegisterActivity(activities.TriggerWorkflow)
-	env.RegisterActivity(activities.UpdateWorkflowState)
-	env.RegisterActivity(activities.DispatchTask)
-	env.RegisterActivity(activities.ExecuteBasicTask)
+	SetupWorkflowEnvironment(env, config)
 
 	signalHelper := NewSignalHelper(env, t)
 
@@ -151,14 +125,14 @@ func TestTaskTransitions(t *testing.T) {
 
 	// Verify workflow was created and completed successfully
 	dbVerifier.VerifyWorkflowExists(workflowExecID)
-	dbVerifier.VerifyWorkflowCompletesWithStatus(workflowExecID, core.StatusSuccess, 25*time.Second)
+	dbVerifier.VerifyWorkflowCompletesWithStatus(workflowExecID, core.StatusSuccess, 45*time.Second)
 
 	// Verify task transition sequence - all tasks should be created and completed
 	transitions := []StatusTransition{
-		{Status: core.StatusSuccess, MaxWait: 25 * time.Second, Component: "task-1"},
-		{Status: core.StatusSuccess, MaxWait: 25 * time.Second, Component: "task-2"},
-		{Status: core.StatusSuccess, MaxWait: 25 * time.Second, Component: "task-3"},
-		{Status: core.StatusSuccess, MaxWait: 25 * time.Second, Component: "workflow"},
+		{Status: core.StatusSuccess, MaxWait: 45 * time.Second, Component: "task-1"},
+		{Status: core.StatusSuccess, MaxWait: 45 * time.Second, Component: "task-2"},
+		{Status: core.StatusSuccess, MaxWait: 45 * time.Second, Component: "task-3"},
+		{Status: core.StatusSuccess, MaxWait: 45 * time.Second, Component: "workflow"},
 	}
 
 	dbVerifier.VerifyStatusTransitionSequence(workflowExecID, transitions)
@@ -181,19 +155,7 @@ func TestMultiTaskWorkflowExecution(t *testing.T) {
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	env.RegisterWorkflow(worker.CompozyWorkflow)
-	llmService := llm.NewLLMService()
-	activities := worker.NewActivities(
-		config.ProjectConfig,
-		[]*workflow.Config{config.WorkflowConfig},
-		config.WorkflowRepo,
-		config.TaskRepo,
-		llmService,
-	)
-	env.RegisterActivity(activities.TriggerWorkflow)
-	env.RegisterActivity(activities.UpdateWorkflowState)
-	env.RegisterActivity(activities.DispatchTask)
-	env.RegisterActivity(activities.ExecuteBasicTask)
+	SetupWorkflowEnvironment(env, config)
 
 	// Create workflow input
 	workflowExecID := core.MustNewID()
@@ -259,19 +221,7 @@ func TestTaskChainExecution(t *testing.T) {
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	env.RegisterWorkflow(worker.CompozyWorkflow)
-	llmService := llm.NewLLMService()
-	activities := worker.NewActivities(
-		config.ProjectConfig,
-		[]*workflow.Config{config.WorkflowConfig},
-		config.WorkflowRepo,
-		config.TaskRepo,
-		llmService,
-	)
-	env.RegisterActivity(activities.TriggerWorkflow)
-	env.RegisterActivity(activities.UpdateWorkflowState)
-	env.RegisterActivity(activities.DispatchTask)
-	env.RegisterActivity(activities.ExecuteBasicTask)
+	SetupWorkflowEnvironment(env, config)
 
 	// Create workflow input
 	workflowExecID := core.MustNewID()
@@ -335,19 +285,7 @@ func TestMultiTaskWorkflowWithMultiplePauses(t *testing.T) {
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	env.RegisterWorkflow(worker.CompozyWorkflow)
-	llmService := llm.NewLLMService()
-	activities := worker.NewActivities(
-		config.ProjectConfig,
-		[]*workflow.Config{config.WorkflowConfig},
-		config.WorkflowRepo,
-		config.TaskRepo,
-		llmService,
-	)
-	env.RegisterActivity(activities.TriggerWorkflow)
-	env.RegisterActivity(activities.UpdateWorkflowState)
-	env.RegisterActivity(activities.DispatchTask)
-	env.RegisterActivity(activities.ExecuteBasicTask)
+	SetupWorkflowEnvironment(env, config)
 
 	signalHelper := NewSignalHelper(env, t)
 

@@ -1,9 +1,0 @@
----
-description:
-globs:
-alwaysApply: true
----
-## Always do this before delivery what you did
-
-- Run tests using `make test-go`
-- Run lint using `make lint`

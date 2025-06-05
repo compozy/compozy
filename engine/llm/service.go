@@ -15,7 +15,8 @@ type ModelConfig struct {
 }
 
 type PromptConfig struct {
-	BasePrompt string // Base prompt template
+	Prompt string // Base prompt template
+	Input  *core.Input
 }
 
 type Service interface {
@@ -27,8 +28,7 @@ type Service interface {
 		prompt string,
 	) (core.Output, error)
 	BuildPrompt(
-		promptConfig *PromptConfig,
-		input *core.Input,
+		config *PromptConfig,
 	) string
 }
 
@@ -78,10 +78,10 @@ func (p *MultiProvider) GenerateContent(
 }
 
 func (p *MultiProvider) BuildPrompt(
-	promptConfig *PromptConfig,
-	input *core.Input,
+	config *PromptConfig,
 ) string {
-	prompt := promptConfig.BasePrompt
+	prompt := config.Prompt
+	input := config.Input
 	if input != nil {
 		for key, value := range *input {
 			prompt = fmt.Sprintf("%s\n\n%s: %v", prompt, key, value)

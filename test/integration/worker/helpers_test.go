@@ -3,7 +3,10 @@ package worker
 import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/llm"
+	"github.com/compozy/compozy/engine/worker"
+	"github.com/compozy/compozy/engine/workflow"
 	utils "github.com/compozy/compozy/test/integration/helper"
+	"go.temporal.io/sdk/testsuite"
 )
 
 // CreateTestAgentProviderConfig creates an agent.ProviderConfig for tests
@@ -59,4 +62,21 @@ func CreateTestAgentConfigWithActions(id, instructions string, actions map[strin
 		Config:       CreateTestAgentProviderConfig(),
 		Actions:      actionConfigs,
 	}
+}
+
+func SetupWorkflowEnvironment(env *testsuite.TestWorkflowEnvironment, config *ContainerTestConfig) {
+	llmService := llm.NewLLMService()
+	activities := worker.NewActivities(
+		config.ProjectConfig,
+		[]*workflow.Config{config.WorkflowConfig},
+		config.WorkflowRepo,
+		config.TaskRepo,
+		llmService,
+	)
+	env.RegisterWorkflow(worker.CompozyWorkflow)
+	env.RegisterActivity(activities.GetWorkflowData)
+	env.RegisterActivity(activities.TriggerWorkflow)
+	env.RegisterActivity(activities.UpdateWorkflowState)
+	env.RegisterActivity(activities.DispatchTask)
+	env.RegisterActivity(activities.ExecuteBasicTask)
 }

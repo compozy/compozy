@@ -81,12 +81,10 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 		return nil, fmt.Errorf("failed to create LLM: %w", err)
 	}
 	instructions := agentConfig.Instructions
-	prompt := a.llmService.BuildPrompt(
-		&llm.PromptConfig{
-			BasePrompt: actionConfig.Prompt,
-		},
-		state.Input,
-	)
+	prompt := a.llmService.BuildPrompt(&llm.PromptConfig{
+		Prompt: actionConfig.Prompt,
+		Input:  state.Input,
+	})
 	result, err := a.llmService.GenerateContent(ctx, model, instructions, prompt)
 	if err != nil {
 		return a.responseOnError(ctx, execData, state, err)
@@ -102,9 +100,11 @@ func (a *ExecuteBasic) loadData(state *task.State, input *ExecuteBasicInput) (*E
 		return nil, fmt.Errorf("failed to find workflow config: %w", err)
 	}
 	agentConfig := input.Config.Agent
-	actionConfig, err := a.findActionConfig(agentConfig, *state.ActionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find action config: %w", err)
+
+	actions := agentConfig.Actions
+	actionConfig := agent.FindActionConfig(actions, *state.ActionID)
+	if actionConfig == nil {
+		return nil, fmt.Errorf("action config not found: %s", *state.ActionID)
 	}
 	return &ExecuteBasicData{
 		WorkflowConfig: workflowConfig,
@@ -112,37 +112,6 @@ func (a *ExecuteBasic) loadData(state *task.State, input *ExecuteBasicInput) (*E
 		AgentConfig:    agentConfig,
 		ActionConfig:   actionConfig,
 	}, nil
-}
-
-func (a *ExecuteBasic) determineNextTask(
-	workflowConfig *workflow.Config,
-	taskConfig *task.Config,
-	success bool,
-) *task.Config {
-	var nextTaskID string
-	if success && taskConfig.OnSuccess != nil && taskConfig.OnSuccess.Next != nil {
-		nextTaskID = *taskConfig.OnSuccess.Next
-	} else if !success && taskConfig.OnError != nil && taskConfig.OnError.Next != nil {
-		nextTaskID = *taskConfig.OnError.Next
-	}
-	if nextTaskID == "" {
-		return nil
-	}
-	// Find the next task config
-	nextTask, err := task.FindConfig(workflowConfig.Tasks, nextTaskID)
-	if err != nil {
-		return nil
-	}
-	return nextTask
-}
-
-func (a *ExecuteBasic) findActionConfig(agentConfig *agent.Config, actionID string) (*agent.ActionConfig, error) {
-	for _, action := range agentConfig.Actions {
-		if action.ID == actionID {
-			return action, nil
-		}
-	}
-	return nil, fmt.Errorf("action not found: %s", actionID)
 }
 
 func (a *ExecuteBasic) normalizeTransitions(
@@ -262,33 +231,27 @@ func (a *ExecuteBasic) responseOnSuccess(
 	if err := a.taskRepo.UpsertState(ctx, state); err != nil {
 		// If context is canceled, return basic response
 		if ctx.Err() != nil {
-			return &task.Response{
-				State: state,
-			}, nil
+			return &task.Response{State: state}, nil
 		}
 		return nil, fmt.Errorf("failed to update task state: %w", err)
 	}
 
 	// Skip normalization if context is canceled
 	if ctx.Err() != nil {
-		return &task.Response{
-			State: state,
-		}, nil
+		return &task.Response{State: state}, nil
 	}
 
-	workflowConfig := execData.WorkflowConfig
-	taskConfig := execData.TaskConfig
+	wConfig := execData.WorkflowConfig
+	tConfig := execData.TaskConfig
 	onSuccess, onError, err := a.normalizeTransitions(ctx, execData, state)
 	if err != nil {
 		// If normalization fails due to cancellation, return basic response
 		if ctx.Err() != nil {
-			return &task.Response{
-				State: state,
-			}, nil
+			return &task.Response{State: state}, nil
 		}
 		return nil, fmt.Errorf("failed to normalize transitions: %w", err)
 	}
-	nextTask := a.determineNextTask(workflowConfig, taskConfig, true)
+	nextTask := wConfig.DetermineNextTask(tConfig, true)
 	return &task.Response{
 		OnSuccess: onSuccess,
 		OnError:   onError,
@@ -312,25 +275,21 @@ func (a *ExecuteBasic) responseOnError(
 		// If context is canceled, log but don't fail the response
 		if ctx.Err() != nil {
 			// Still return a valid response even if we couldn't update the database
-			return &task.Response{
-				State: state,
-			}, nil
+			return &task.Response{State: state}, nil
 		}
 		return nil, fmt.Errorf("failed to update task state after error: %w", updateErr)
 	}
 
 	// Skip normalization if context is canceled
 	if ctx.Err() != nil {
-		return &task.Response{
-			State: state,
-		}, nil
+		return &task.Response{State: state}, nil
 	}
 
-	workflowConfig := execData.WorkflowConfig
-	taskConfig := execData.TaskConfig
+	wConfig := execData.WorkflowConfig
+	tConfig := execData.TaskConfig
 
 	// Check if there's an error transition defined
-	if taskConfig.OnError == nil || taskConfig.OnError.Next == nil {
+	if tConfig.OnError == nil || tConfig.OnError.Next == nil {
 		// No error transition defined, fail the workflow
 		return nil, fmt.Errorf("task failed with no error transition defined: %w", executionErr)
 	}
@@ -339,13 +298,11 @@ func (a *ExecuteBasic) responseOnError(
 	if err != nil {
 		// If normalization fails due to cancellation, return basic response
 		if ctx.Err() != nil {
-			return &task.Response{
-				State: state,
-			}, nil
+			return &task.Response{State: state}, nil
 		}
 		return nil, fmt.Errorf("failed to normalize transitions: %w", err)
 	}
-	nextTask := a.determineNextTask(workflowConfig, taskConfig, false)
+	nextTask := wConfig.DetermineNextTask(tConfig, false)
 	return &task.Response{
 		OnSuccess: onSuccess,
 		OnError:   onError,
