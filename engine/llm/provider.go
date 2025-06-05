@@ -1,4 +1,4 @@
-package agent
+package llm
 
 import (
 	"encoding/json"
@@ -37,7 +37,7 @@ type ProviderConfig struct {
 }
 
 // AsJSON converts the provider configuration to a JSON value
-func (p *Config) AsJSON() (json.RawMessage, error) {
+func (p *ProviderConfig) AsJSON() (json.RawMessage, error) {
 	return json.Marshal(p)
 }
 

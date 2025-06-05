@@ -2,13 +2,14 @@ package worker
 
 import (
 	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/llm"
 	utils "github.com/compozy/compozy/test/integration/helper"
 )
 
 // CreateTestAgentProviderConfig creates an agent.ProviderConfig for tests
-func CreateTestAgentProviderConfig() agent.ProviderConfig {
+func CreateTestAgentProviderConfig() llm.ProviderConfig {
 	raw := utils.GetTestProviderConfig()
-	return agent.ProviderConfig{
+	return llm.ProviderConfig{
 		Provider:    raw.Provider,
 		Model:       raw.Model,
 		APIKey:      raw.APIKey,

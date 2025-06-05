@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/stretchr/testify/assert"
@@ -22,11 +23,13 @@ func TestWorkflowPauseAndResume(t *testing.T) {
 
 	// Register workflow and activities
 	env.RegisterWorkflow(worker.CompozyWorkflow)
+	llmService := llm.NewLLMService()
 	activities := worker.NewActivities(
 		config.ProjectConfig,
 		[]*workflow.Config{config.WorkflowConfig},
 		config.WorkflowRepo,
 		config.TaskRepo,
+		llmService,
 	)
 	env.RegisterActivity(activities.TriggerWorkflow)
 	env.RegisterActivity(activities.UpdateWorkflowState)
@@ -109,11 +112,13 @@ func TestSignalHandlingOrder(t *testing.T) {
 
 	// Register workflow and activities
 	env.RegisterWorkflow(worker.CompozyWorkflow)
+	llmService := llm.NewLLMService()
 	activities := worker.NewActivities(
 		config.ProjectConfig,
 		[]*workflow.Config{config.WorkflowConfig},
 		config.WorkflowRepo,
 		config.TaskRepo,
+		llmService,
 	)
 	env.RegisterActivity(activities.TriggerWorkflow)
 	env.RegisterActivity(activities.UpdateWorkflowState)
@@ -180,11 +185,13 @@ func TestSignalDuringTaskExecution(t *testing.T) {
 
 	// Register workflow and activities
 	env.RegisterWorkflow(worker.CompozyWorkflow)
+	llmService := llm.NewLLMService()
 	activities := worker.NewActivities(
 		config.ProjectConfig,
 		[]*workflow.Config{config.WorkflowConfig},
 		config.WorkflowRepo,
 		config.TaskRepo,
+		llmService,
 	)
 	env.RegisterActivity(activities.TriggerWorkflow)
 	env.RegisterActivity(activities.UpdateWorkflowState)
@@ -251,11 +258,13 @@ func TestWorkflowPauseStateUpdate(t *testing.T) {
 
 	// Register workflow and activities
 	env.RegisterWorkflow(worker.CompozyWorkflow)
+	llmService := llm.NewLLMService()
 	activities := worker.NewActivities(
 		config.ProjectConfig,
 		[]*workflow.Config{config.WorkflowConfig},
 		config.WorkflowRepo,
 		config.TaskRepo,
+		llmService,
 	)
 	env.RegisterActivity(activities.TriggerWorkflow)
 	env.RegisterActivity(activities.UpdateWorkflowState)

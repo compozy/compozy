@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	wf "github.com/compozy/compozy/engine/workflow"
@@ -41,11 +42,13 @@ func NewWorker(
 		return nil, fmt.Errorf("failed to create worker client: %w", err)
 	}
 	worker := client.NewWorker(client.Config().TaskQueue)
+	llmService := llm.NewLLMService()
 	activities := NewActivities(
 		projectConfig,
 		workflows,
 		config.WorkflowRepo(),
 		config.TaskRepo(),
+		llmService,
 	)
 	return &Worker{
 		client:        client,

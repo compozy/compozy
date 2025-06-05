@@ -1,21 +1,27 @@
 {
-  "nodeModulesDir": "auto",
-  "workspace": [
-    "pkg/**"
-  ],
-  "tasks": {
-    "prettier:fix": "prettier --write \"**/*.@(json|md|sh)\"",
-    "prettier:validate": "prettier --check \"**/*.@(json|md|sh)\"",
-    "test:all": "deno test"
-  },
-  "compilerOptions": {
-    "strict": true
-  },
-  "lint": {
-    "rules": {
-      "exclude": [
-        "no-explicit-any"
-      ]
+    "nodeModulesDir": "auto",
+    "workspace": [
+        "pkg/**"
+    ],
+    "tasks": {
+        "prettier:fix": "prettier --write \"**/*.@(js|ts|json|md|sh|yml|yaml)\"",
+        "prettier:validate": "prettier --check \"**/*.@(js|ts|json|md|sh|yml|yaml)\"",
+        "test:all": "deno test"
+    },
+    "fmt": {
+        "indentWidth": 4,
+        "useTabs": false,
+        "lineWidth": 100,
+        "singleQuote": false
+    },
+    "compilerOptions": {
+        "strict": true
+    },
+    "lint": {
+        "rules": {
+            "exclude": [
+                "no-explicit-any"
+            ]
+        }
     }
-  }
 }

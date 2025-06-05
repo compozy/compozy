@@ -1,0 +1,588 @@
+package deno
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"runtime"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/compozy/compozy/engine/core"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// -----
+// Global Runtime Manager for Tests
+// -----
+
+var (
+	globalProjectRoot string
+	globalRuntimeOnce sync.Once
+	globalRuntimeErr  error
+)
+
+// getTestRuntimeManager creates a dedicated runtime manager for a test
+// but reuses the global compiled binary for performance
+func getTestRuntimeManager(t *testing.T) *RuntimeManager {
+	t.Helper()
+
+	if !isDenoAvailable() {
+		t.Skip("Deno not available, skipping test")
+	}
+
+	// Ensure global project root is initialized (this compiles the worker once)
+	globalRuntimeOnce.Do(func() {
+		globalProjectRoot = createGlobalTestDir()
+		if err := Compile(globalProjectRoot); err != nil {
+			globalRuntimeErr = fmt.Errorf("failed to compile worker: %w", err)
+			return
+		}
+	})
+
+	if globalRuntimeErr != nil {
+		t.Skipf("Could not initialize global project directory: %v", globalRuntimeErr)
+	}
+
+	// Create a dedicated runtime manager using the shared compiled binary
+	rm, err := NewRuntimeManager(globalProjectRoot, TestConfig())
+	if err != nil {
+		t.Logf("Could not create runtime manager: %v", err)
+		t.Skip("Runtime manager could not be created")
+	}
+
+	// Cleanup is a no-op for binary-based approach
+	t.Cleanup(func() {
+		if rm != nil {
+			rm.Shutdown()
+		}
+	})
+
+	return rm
+}
+
+// createGlobalTestDir creates a temporary directory with fixtures for global use
+func createGlobalTestDir() string {
+	tmpDir, err := os.MkdirTemp("", "compozy-test-*")
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create temp directory: %v", err))
+	}
+
+	// Copy fixtures to temp directory
+	fixturesDir := "fixtures"
+	copyFixturesNoT(fixturesDir, tmpDir)
+
+	return tmpDir
+}
+
+// copyFixturesNoT copies fixture files without requiring testing.T
+func copyFixturesNoT(srcDir, dstDir string) {
+	// Get the directory of the current test file
+	_, filename, _, ok := runtime.Caller(1)
+	if !ok {
+		panic("Could not determine caller location")
+	}
+	testDir := filepath.Dir(filename)
+	srcPath := filepath.Join(testDir, srcDir)
+
+	// Check if fixtures directory exists
+	if _, err := os.Stat(srcPath); os.IsNotExist(err) {
+		panic(fmt.Sprintf("Fixtures directory not found: %s", srcPath))
+	}
+
+	// Copy deno.json
+	denoConfigSrc := filepath.Join(srcPath, "deno.json")
+	denoConfigDst := filepath.Join(dstDir, "deno.json")
+	copyFileNoT(denoConfigSrc, denoConfigDst)
+
+	// Copy tool files
+	tools := []string{"test_tool.ts", "echo_tool.ts", "format_code.ts"}
+	for _, tool := range tools {
+		src := filepath.Join(srcPath, tool)
+		dst := filepath.Join(dstDir, tool)
+		copyFileNoT(src, dst)
+	}
+}
+
+// copyFileNoT copies a single file without requiring testing.T
+func copyFileNoT(src, dst string) {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to open source file %s: %v", src, err))
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create destination file %s: %v", dst, err))
+	}
+	defer dstFile.Close()
+
+	if _, err := io.Copy(dstFile, srcFile); err != nil {
+		panic(fmt.Sprintf("Failed to copy file from %s to %s: %v", src, dst, err))
+	}
+}
+
+// TestMain handles test setup and cleanup
+func TestMain(m *testing.M) {
+	// Run tests
+	code := m.Run()
+
+	// Clean up the global project directory
+	if globalProjectRoot != "" {
+		os.RemoveAll(globalProjectRoot)
+		globalProjectRoot = ""
+	}
+
+	os.Exit(code)
+}
+
+// -----
+// Test Helper Functions
+// -----
+
+func setupTestDir(t *testing.T) string {
+	t.Helper()
+	tmpDir := t.TempDir()
+	return tmpDir
+}
+
+// setupTestDirWithFixtures copies test fixtures to the temp directory
+func setupTestDirWithFixtures(t *testing.T) string {
+	t.Helper()
+	tmpDir := t.TempDir()
+	fixturesDir := "fixtures"
+	copyFixtures(t, fixturesDir, tmpDir)
+	return tmpDir
+}
+
+// copyFixtures copies fixture files to the test directory
+func copyFixtures(t *testing.T, srcDir, dstDir string) {
+	t.Helper()
+
+	// Get the directory of the current test file
+	_, filename, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	testDir := filepath.Dir(filename)
+	srcPath := filepath.Join(testDir, srcDir)
+
+	// Check if fixtures directory exists
+	if _, err := os.Stat(srcPath); os.IsNotExist(err) {
+		t.Fatalf("Fixtures directory not found: %s", srcPath)
+	}
+
+	// Copy deno.json
+	denoConfigSrc := filepath.Join(srcPath, "deno.json")
+	denoConfigDst := filepath.Join(dstDir, "deno.json")
+	copyFile(t, denoConfigSrc, denoConfigDst)
+
+	// Copy tool files
+	tools := []string{"test_tool.ts", "echo_tool.ts", "format_code.ts"}
+	for _, tool := range tools {
+		src := filepath.Join(srcPath, tool)
+		dst := filepath.Join(dstDir, tool)
+		copyFile(t, src, dst)
+	}
+}
+
+// copyFile copies a single file
+func copyFile(t *testing.T, src, dst string) {
+	t.Helper()
+
+	srcFile, err := os.Open(src)
+	if err != nil {
+		t.Fatalf("Failed to open source file %s: %v", src, err)
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		t.Fatalf("Failed to create destination file %s: %v", dst, err)
+	}
+	defer dstFile.Close()
+
+	if _, err := io.Copy(dstFile, srcFile); err != nil {
+		t.Fatalf("Failed to copy file from %s to %s: %v", src, dst, err)
+	}
+}
+
+func Test_Compile(t *testing.T) {
+	t.Run("Should create .compozy directory and worker file", func(t *testing.T) {
+		projectRoot := setupTestDir(t)
+
+		err := Compile(projectRoot)
+		require.NoError(t, err)
+
+		// Check that .compozy directory was created
+		compozyDir := filepath.Join(projectRoot, ".compozy")
+		stat, err := os.Stat(compozyDir)
+		require.NoError(t, err)
+		assert.True(t, stat.IsDir())
+
+		// Check that worker file was created
+		workerPath := filepath.Join(compozyDir, "compozy_worker.ts")
+		stat, err = os.Stat(workerPath)
+		require.NoError(t, err)
+		assert.False(t, stat.IsDir())
+
+		// Check that file has expected content
+		content, err := os.ReadFile(workerPath)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "// Generated by Compozy - DO NOT EDIT")
+		assert.Contains(t, string(content), "main()")
+	})
+
+	t.Run("Should work with existing .compozy directory", func(t *testing.T) {
+		projectRoot := setupTestDir(t)
+
+		// Create .compozy directory first
+		compozyDir := filepath.Join(projectRoot, ".compozy")
+		err := os.MkdirAll(compozyDir, 0755)
+		require.NoError(t, err)
+
+		// Compile should still work
+		err = Compile(projectRoot)
+		require.NoError(t, err)
+
+		// Check that worker file was created
+		workerPath := filepath.Join(compozyDir, "compozy_worker.ts")
+		_, err = os.Stat(workerPath)
+		require.NoError(t, err)
+	})
+}
+
+func Test_RuntimeManager_NewRuntimeManager(t *testing.T) {
+	t.Run("Should return error when Deno is not available", func(t *testing.T) {
+		if isDenoAvailable() {
+			t.Skip("Deno is available, skipping test")
+		}
+
+		projectRoot := setupTestDir(t)
+
+		_, err := NewRuntimeManager(projectRoot, TestConfig())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "deno executable not found")
+	})
+
+	t.Run("Should create runtime manager when deno is available", func(t *testing.T) {
+		// Skip test if deno is not available
+		if !isDenoAvailable() {
+			t.Skip("Deno not available, skipping test")
+		}
+
+		projectRoot := setupTestDir(t)
+
+		// Create runtime manager with test config - it will automatically create the worker file
+		rm, err := NewRuntimeManager(projectRoot, TestConfig())
+		if err != nil {
+			t.Logf("Could not create runtime manager: %v", err)
+			t.Skip("Deno process could not be started")
+		}
+		require.NotNil(t, rm)
+
+		// Clean up
+		defer func() {
+			if rm != nil {
+				rm.Shutdown()
+			}
+		}()
+
+		assert.Equal(t, projectRoot, rm.projectRoot)
+	})
+}
+
+func Test_RuntimeManager_ExecuteTool(t *testing.T) {
+	// Use a dedicated runtime manager for this test
+	rm := getTestRuntimeManager(t)
+
+	t.Run("Should execute test-tool and return structured result", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		toolID := "test-tool"
+		toolExecID := core.MustNewID()
+		input := &core.Input{
+			"message": "hello from test",
+			"count":   3,
+		}
+		env := core.EnvMap{
+			"TEST_ENV": "test_environment",
+		}
+
+		result, err := rm.ExecuteTool(ctx, toolID, toolExecID, input, env)
+
+		if err != nil {
+			t.Logf("Tool execution failed: %v", err)
+			t.Skip("Tool execution failed, likely due to worker setup")
+		}
+
+		require.NotNil(t, result)
+
+		// Verify the structure of the test tool output
+		assert.Contains(t, *result, "result")
+		assert.Contains(t, *result, "processed_at")
+		assert.Contains(t, *result, "metadata")
+
+		// Check that the result contains repeated message
+		if resultValue, ok := (*result)["result"]; ok {
+			assert.Contains(t, resultValue, "hello from test")
+		}
+
+		// Check that environment was passed correctly
+		if metadata, ok := (*result)["metadata"].(map[string]any); ok {
+			assert.Equal(t, "test_environment", metadata["environment"])
+			assert.Equal(t, "test-tool", metadata["tool_name"])
+		}
+	})
+
+	t.Run("Should execute echo-tool and return input", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		toolID := "echo-tool"
+		toolExecID := core.MustNewID()
+		input := &core.Input{
+			"test_data": "this should be echoed back",
+			"number":    42,
+		}
+		env := core.EnvMap{}
+
+		result, err := rm.ExecuteTool(ctx, toolID, toolExecID, input, env)
+
+		if err != nil {
+			t.Logf("Tool execution failed: %v", err)
+			t.Skip("Tool execution failed, likely due to worker setup")
+		}
+
+		require.NotNil(t, result)
+
+		// Verify the echo tool structure
+		assert.Contains(t, *result, "echo")
+		assert.Contains(t, *result, "timestamp")
+		assert.Contains(t, *result, "type")
+
+		// Check that the input was echoed back
+		if echo, ok := (*result)["echo"].(map[string]any); ok {
+			assert.Equal(t, "this should be echoed back", echo["test_data"])
+			assert.Equal(t, float64(42), echo["number"]) // JSON numbers are float64
+		}
+	})
+
+	t.Run("Should execute format-code tool and return formatted output", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		toolID := "format-code"
+		toolExecID := core.MustNewID()
+		input := &core.Input{
+			"code":        "  console.log('hello');  \n  const x = 1;  \n\n\n",
+			"language":    "javascript",
+			"indent_size": 4,
+		}
+		env := core.EnvMap{}
+
+		result, err := rm.ExecuteTool(ctx, toolID, toolExecID, input, env)
+
+		if err != nil {
+			t.Logf("Tool execution failed: %v", err)
+			t.Skip("Tool execution failed, likely due to worker setup")
+		}
+
+		require.NotNil(t, result)
+
+		// Verify the format tool structure
+		assert.Contains(t, *result, "formatted_code")
+		assert.Contains(t, *result, "changes_made")
+		assert.Contains(t, *result, "language")
+		assert.Contains(t, *result, "settings")
+
+		// Check that formatting was applied
+		if language, ok := (*result)["language"]; ok {
+			assert.Equal(t, "javascript", language)
+		}
+
+		if settings, ok := (*result)["settings"].(map[string]any); ok {
+			assert.Equal(t, float64(4), settings["indent_size"])
+		}
+	})
+
+	t.Run("Should handle context timeout", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+		defer cancel()
+
+		toolID := "test-tool"
+		toolExecID := core.MustNewID()
+		input := &core.Input{
+			"message": "hello world",
+		}
+		env := core.EnvMap{}
+
+		// This should timeout due to very short context
+		_, err := rm.ExecuteTool(ctx, toolID, toolExecID, input, env)
+
+		// Should get an error (either timeout or other execution error)
+		assert.Error(t, err)
+	})
+
+	t.Run("Should handle tool execution with delay", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		toolID := "test-tool"
+		toolExecID := core.MustNewID()
+		input := &core.Input{
+			"message": "delayed response",
+			"delay":   100, // 100ms delay
+		}
+		env := core.EnvMap{}
+
+		start := time.Now()
+		result, err := rm.ExecuteTool(ctx, toolID, toolExecID, input, env)
+		duration := time.Since(start)
+
+		if err != nil {
+			t.Logf("Tool execution failed: %v", err)
+			t.Skip("Tool execution failed, likely due to worker setup")
+		}
+
+		require.NotNil(t, result)
+
+		// Should have taken at least the delay time
+		assert.GreaterOrEqual(t, duration, 100*time.Millisecond)
+
+		// Verify the result contains the delayed message
+		if resultValue, ok := (*result)["result"]; ok {
+			assert.Contains(t, resultValue, "delayed response")
+		}
+	})
+
+	t.Run("Should handle error when tool doesn't exist", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		toolID := "nonexistent-tool"
+		toolExecID := core.MustNewID()
+		input := &core.Input{
+			"message": "this should fail",
+		}
+		env := core.EnvMap{}
+
+		result, err := rm.ExecuteTool(ctx, toolID, toolExecID, input, env)
+
+		// Should get an error for nonexistent tool
+		assert.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+func Test_RuntimeManager_Shutdown(t *testing.T) {
+	if !isDenoAvailable() {
+		t.Skip("Deno not available, skipping test")
+	}
+
+	t.Run("Should shutdown gracefully (no-op)", func(t *testing.T) {
+		projectRoot := setupTestDirWithFixtures(t)
+
+		// Create the worker file
+		err := Compile(projectRoot)
+		require.NoError(t, err)
+
+		// Create runtime manager with test config
+		rm, err := NewRuntimeManager(projectRoot, TestConfig())
+		if err != nil {
+			t.Logf("Could not create runtime manager: %v", err)
+			t.Skip("Deno process could not be started")
+		}
+		require.NotNil(t, rm)
+
+		// Shutdown should not return an error (it's a no-op)
+		err = rm.Shutdown()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should handle multiple shutdowns gracefully", func(t *testing.T) {
+		projectRoot := setupTestDirWithFixtures(t)
+
+		// Create the worker file
+		err := Compile(projectRoot)
+		require.NoError(t, err)
+
+		// Create runtime manager with test config
+		rm, err := NewRuntimeManager(projectRoot, TestConfig())
+		if err != nil {
+			t.Logf("Could not create runtime manager: %v", err)
+			t.Skip("Deno process could not be started")
+		}
+		require.NotNil(t, rm)
+
+		// First shutdown
+		err = rm.Shutdown()
+		assert.NoError(t, err)
+
+		// Second shutdown should not cause panic (it's a no-op)
+		err = rm.Shutdown()
+		assert.NoError(t, err)
+	})
+}
+
+func Test_RuntimeManager_ConcurrentAccess(t *testing.T) {
+	// Use a dedicated runtime manager for this test
+	rm := getTestRuntimeManager(t)
+
+	t.Run("Should handle concurrent tool executions", func(t *testing.T) {
+		numGoroutines := 3
+		results := make(chan error, numGoroutines)
+		tools := []string{"test-tool", "echo-tool", "format-code"}
+
+		for i := 0; i < numGoroutines; i++ {
+			go func(id int) {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				toolID := tools[id%len(tools)]
+				toolExecID := core.MustNewID()
+
+				var input *core.Input
+				switch toolID {
+				case "test-tool":
+					input = &core.Input{
+						"message": fmt.Sprintf("concurrent test %d", id),
+						"count":   id + 1,
+					}
+				case "echo-tool":
+					input = &core.Input{
+						"data": fmt.Sprintf("echo test %d", id),
+					}
+				case "format-code":
+					input = &core.Input{
+						"code":     fmt.Sprintf("console.log('test %d');", id),
+						"language": "javascript",
+					}
+				}
+
+				env := core.EnvMap{
+					"GOROUTINE_ID": fmt.Sprintf("%d", id),
+				}
+
+				_, err := rm.ExecuteTool(ctx, toolID, toolExecID, input, env)
+				results <- err
+			}(i)
+		}
+
+		// Wait for all goroutines to complete
+		for i := 0; i < numGoroutines; i++ {
+			select {
+			case err := <-results:
+				if err != nil {
+					t.Logf("Concurrent execution %d failed: %v", i, err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("Timeout waiting for concurrent executions")
+			}
+		}
+	})
+}

@@ -1,4 +1,4 @@
-package agent
+package llm
 
 // Name represents the name of a provider
 type ProviderName string
@@ -75,68 +75,68 @@ const (
 	ModelMockTest ModelName = "mock-test"
 )
 
-// Provider defines an interface for retrieving the API URL of a provider
-type Provider interface {
+// ProviderURL defines an interface for retrieving the API URL of a provider
+type ProviderURL interface {
 	GetAPIURL() string
 }
 
-// OpenAIProvider implements the Provider interface for OpenAI
+// OpenAIProvider implements the ProviderURL interface for OpenAI
 type OpenAIProvider struct{}
 
 func (p *OpenAIProvider) GetAPIURL() string {
 	return "https://api.openai.com/v1"
 }
 
-// GroqProvider implements the Provider interface for Groq
+// GroqProvider implements the ProviderURL interface for Groq
 type GroqProvider struct{}
 
 func (p *GroqProvider) GetAPIURL() string {
 	return "https://api.groq.com/openai/v1"
 }
 
-// AnthropicProvider implements the Provider interface for Anthropic
+// AnthropicProvider implements the ProviderURL interface for Anthropic
 type AnthropicProvider struct{}
 
 func (p *AnthropicProvider) GetAPIURL() string {
 	return "https://api.anthropic.com/v1"
 }
 
-// MistralProvider implements the Provider interface for Mistral
+// MistralProvider implements the ProviderURL interface for Mistral
 type MistralProvider struct{}
 
 func (p *MistralProvider) GetAPIURL() string {
 	return "https://api.mixtral.ai/v1"
 }
 
-// CohereProvider implements the Provider interface for Cohere
+// CohereProvider implements the ProviderURL interface for Cohere
 type CohereProvider struct{}
 
 func (p *CohereProvider) GetAPIURL() string {
 	return "https://api.cohere.ai/v1"
 }
 
-// PerplexityProvider implements the Provider interface for Perplexity
+// PerplexityProvider implements the ProviderURL interface for Perplexity
 type PerplexityProvider struct{}
 
 func (p *PerplexityProvider) GetAPIURL() string {
 	return "https://api.perplexity.ai/v1"
 }
 
-// XAIProvider implements the Provider interface for xAI
+// XAIProvider implements the ProviderURL interface for xAI
 type XAIProvider struct{}
 
 func (p *XAIProvider) GetAPIURL() string {
 	return "https://api.x.ai/v1"
 }
 
-// GoogleProvider implements the Provider interface for Google
+// GoogleProvider implements the ProviderURL interface for Google
 type GoogleProvider struct{}
 
 func (p *GoogleProvider) GetAPIURL() string {
 	return "https://generativelanguage.googleapis.com/v1"
 }
 
-func GetProvider(name ProviderName) Provider {
+func GetProvider(name ProviderName) ProviderURL {
 	switch name {
 	case ProviderOpenAI:
 		return &OpenAIProvider{}

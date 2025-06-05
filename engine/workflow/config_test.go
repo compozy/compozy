@@ -5,8 +5,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/pkg/ref"
 	"github.com/compozy/compozy/pkg/utils"
 	"github.com/stretchr/testify/assert"
@@ -73,8 +73,8 @@ func Test_LoadWorkflow(t *testing.T) {
 		agentConfig := config.Agents[0]
 		assert.Equal(t, "code-assistant", agentConfig.ID)
 		require.NotNil(t, agentConfig.Config)
-		assert.Equal(t, agent.ProviderName("openai"), agentConfig.Config.Provider)
-		assert.Equal(t, agent.ModelName("gpt-4o"), agentConfig.Config.Model)
+		assert.Equal(t, llm.ProviderName("openai"), agentConfig.Config.Provider)
+		assert.Equal(t, llm.ModelName("gpt-4o"), agentConfig.Config.Model)
 		assert.InDelta(t, float32(0.7), agentConfig.Config.Temperature, 0.0001)
 		assert.Equal(t, int32(4000), agentConfig.Config.MaxTokens)
 

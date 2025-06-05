@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/llm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,8 +14,8 @@ func TestGetTestProviderConfig(t *testing.T) {
 		config := GetTestProviderConfig()
 		require.NotNil(t, config)
 
-		assert.Equal(t, agent.ProviderMock, config.Provider)
-		assert.Equal(t, agent.ModelMockTest, config.Model)
+		assert.Equal(t, llm.ProviderMock, config.Provider)
+		assert.Equal(t, llm.ModelMockTest, config.Model)
 		assert.Equal(t, "http://localhost", config.APIURL)
 		assert.Equal(t, float32(0.0), config.Temperature)
 		assert.Equal(t, int32(50), config.MaxTokens)
@@ -26,8 +27,8 @@ func TestCreateTestAgentProviderConfig(t *testing.T) {
 	t.Run("Should create valid agent provider config", func(t *testing.T) {
 		config := CreateTestAgentProviderConfig()
 
-		assert.Equal(t, agent.ProviderMock, config.Provider)
-		assert.Equal(t, agent.ModelMockTest, config.Model)
+		assert.Equal(t, llm.ProviderMock, config.Provider)
+		assert.Equal(t, llm.ModelMockTest, config.Model)
 		assert.Equal(t, "http://localhost", config.APIURL)
 		assert.Equal(t, float32(0.0), config.Temperature)
 		assert.Equal(t, int32(50), config.MaxTokens)
@@ -45,8 +46,8 @@ func TestCreateTestAgentConfig(t *testing.T) {
 
 		assert.Equal(t, id, config.ID)
 		assert.Equal(t, instructions, config.Instructions)
-		assert.Equal(t, agent.ProviderMock, config.Config.Provider)
-		assert.Equal(t, agent.ModelMockTest, config.Config.Model)
+		assert.Equal(t, llm.ProviderMock, config.Config.Provider)
+		assert.Equal(t, llm.ModelMockTest, config.Config.Model)
 	})
 }
 

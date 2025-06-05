@@ -1,0 +1,33 @@
+{
+  "imports": {
+    "test-tool": "./test_tool.ts",
+    "echo-tool": "./echo_tool.ts",
+    "format-code": "./format_code.ts"
+  },
+  "tasks": {
+    "test": "deno test --allow-all",
+    "dev": "deno run --allow-all --watch"
+  },
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": [
+      "deno.window"
+    ],
+    "strict": true
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": false,
+    "proseWrap": "preserve"
+  },
+  "lint": {
+    "rules": {
+      "tags": [
+        "recommended"
+      ]
+    }
+  }
+}

@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"dario.cat/mergo"
-	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/schema"
 )
 
@@ -25,7 +25,7 @@ type Config struct {
 	Description string                  `json:"description" yaml:"description" mapstructure:"description"`
 	Author      core.Author             `json:"author"      yaml:"author"      mapstructure:"author"`
 	Workflows   []*WorkflowSourceConfig `json:"workflows"   yaml:"workflows"   mapstructure:"workflows"`
-	Models      []*agent.ProviderConfig `json:"models"      yaml:"models"      mapstructure:"models"`
+	Models      []*llm.ProviderConfig   `json:"models"      yaml:"models"      mapstructure:"models"`
 	Schemas     []schema.Schema         `json:"schemas"     yaml:"schemas"     mapstructure:"schemas"`
 	Opts        Opts                    `json:"config"      yaml:"config"      mapstructure:"config"`
 

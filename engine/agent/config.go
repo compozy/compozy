@@ -7,21 +7,22 @@ import (
 	"dario.cat/mergo"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/ref"
 )
 
 type Config struct {
-	ID           string          `json:"id"                yaml:"id"                mapstructure:"id"                validate:"required"`
-	Config       ProviderConfig  `json:"config"            yaml:"config"            mapstructure:"config"            validate:"required"`
-	Instructions string          `json:"instructions"      yaml:"instructions"      mapstructure:"instructions"      validate:"required"`
-	Tools        []tool.Config   `json:"tools,omitempty"   yaml:"tools,omitempty"   mapstructure:"tools,omitempty"`
-	Actions      []*ActionConfig `json:"actions,omitempty" yaml:"actions,omitempty" mapstructure:"actions,omitempty"`
-	InputSchema  *schema.Schema  `json:"input,omitempty"   yaml:"input,omitempty"   mapstructure:"input,omitempty"`
-	OutputSchema *schema.Schema  `json:"output,omitempty"  yaml:"output,omitempty"  mapstructure:"output,omitempty"`
-	With         *core.Input     `json:"with,omitempty"    yaml:"with,omitempty"    mapstructure:"with,omitempty"`
-	Env          *core.EnvMap    `json:"env,omitempty"     yaml:"env,omitempty"     mapstructure:"env,omitempty"`
+	ID           string             `json:"id"                yaml:"id"                mapstructure:"id"                validate:"required"`
+	Config       llm.ProviderConfig `json:"config"            yaml:"config"            mapstructure:"config"            validate:"required"`
+	Instructions string             `json:"instructions"      yaml:"instructions"      mapstructure:"instructions"      validate:"required"`
+	Tools        []tool.Config      `json:"tools,omitempty"   yaml:"tools,omitempty"   mapstructure:"tools,omitempty"`
+	Actions      []*ActionConfig    `json:"actions,omitempty" yaml:"actions,omitempty" mapstructure:"actions,omitempty"`
+	InputSchema  *schema.Schema     `json:"input,omitempty"   yaml:"input,omitempty"   mapstructure:"input,omitempty"`
+	OutputSchema *schema.Schema     `json:"output,omitempty"  yaml:"output,omitempty"  mapstructure:"output,omitempty"`
+	With         *core.Input        `json:"with,omitempty"    yaml:"with,omitempty"    mapstructure:"with,omitempty"`
+	Env          *core.EnvMap       `json:"env,omitempty"     yaml:"env,omitempty"     mapstructure:"env,omitempty"`
 
 	filePath string
 	cwd      *core.CWD

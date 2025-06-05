@@ -8,12 +8,10 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/normalizer"
-	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/anthropic"
-	"github.com/tmc/langchaingo/llms/openai"
 )
 
 const ExecuteBasicLabel = "ExecuteBasicTask"
@@ -32,6 +30,7 @@ type ExecuteBasic struct {
 	workflowRepo workflow.Repository
 	taskRepo     task.Repository
 	normalizer   *normalizer.ConfigNormalizer
+	llmService   llm.Service
 }
 
 // NewExecuteBasic creates a new ExecuteBasic activity
@@ -39,12 +38,14 @@ func NewExecuteBasic(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
+	llmService llm.Service,
 ) *ExecuteBasic {
 	return &ExecuteBasic{
 		workflows:    workflows,
 		workflowRepo: workflowRepo,
 		taskRepo:     taskRepo,
 		normalizer:   normalizer.NewConfigNormalizer(),
+		llmService:   llmService,
 	}
 }
 
@@ -75,11 +76,18 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 	agentConfig := execData.AgentConfig
 	actionConfig := execData.ActionConfig
 	providerConfig := agentConfig.Config
-	llm, err := a.createLLM(&providerConfig)
+	model, err := a.llmService.CreateLLM(&providerConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM: %w", err)
 	}
-	result, err := a.executeAgent(ctx, llm, agentConfig, actionConfig, state.Input)
+	instructions := agentConfig.Instructions
+	prompt := a.llmService.BuildPrompt(
+		&llm.PromptConfig{
+			BasePrompt: actionConfig.Prompt,
+		},
+		state.Input,
+	)
+	result, err := a.llmService.GenerateContent(ctx, model, instructions, prompt)
 	if err != nil {
 		return a.responseOnError(ctx, execData, state, err)
 	}
@@ -135,98 +143,6 @@ func (a *ExecuteBasic) findActionConfig(agentConfig *agent.Config, actionID stri
 		}
 	}
 	return nil, fmt.Errorf("action not found: %s", actionID)
-}
-
-func (a *ExecuteBasic) createLLM(config *agent.ProviderConfig) (llms.Model, error) {
-	switch config.Provider {
-	case agent.ProviderOpenAI:
-		return a.createOpenAILLM(config)
-	case agent.ProviderAnthropic:
-		return a.createAnthropicLLM(config)
-	case agent.ProviderGroq:
-		return a.createGroqLLM(config)
-	case agent.ProviderMock:
-		return a.createMockLLM(config)
-	default:
-		return nil, fmt.Errorf("unsupported provider: %s", config.Provider)
-	}
-}
-
-func (a *ExecuteBasic) createOpenAILLM(config *agent.ProviderConfig) (llms.Model, error) {
-	opts := []openai.Option{
-		openai.WithModel(string(config.Model)),
-	}
-	if config.APIKey != "" {
-		opts = append(opts, openai.WithToken(config.APIKey))
-	}
-	if config.APIURL != "" {
-		opts = append(opts, openai.WithBaseURL(config.APIURL))
-	}
-	return openai.New(opts...)
-}
-
-func (a *ExecuteBasic) createAnthropicLLM(config *agent.ProviderConfig) (llms.Model, error) {
-	opts := []anthropic.Option{
-		anthropic.WithModel(string(config.Model)),
-	}
-	if config.APIKey != "" {
-		opts = append(opts, anthropic.WithToken(config.APIKey))
-	}
-	return anthropic.New(opts...)
-}
-
-func (a *ExecuteBasic) createGroqLLM(config *agent.ProviderConfig) (llms.Model, error) {
-	opts := []openai.Option{
-		openai.WithModel(string(config.Model)),
-		openai.WithBaseURL("https://api.groq.com/openai/v1"),
-	}
-	if config.APIKey != "" {
-		opts = append(opts, openai.WithToken(config.APIKey))
-	}
-	return openai.New(opts...)
-}
-
-func (a *ExecuteBasic) createMockLLM(config *agent.ProviderConfig) (llms.Model, error) {
-	return NewMockLLM(string(config.Model)), nil
-}
-
-func (a *ExecuteBasic) executeAgent(
-	ctx context.Context,
-	llm llms.Model,
-	agentConfig *agent.Config,
-	actionConfig *agent.ActionConfig,
-	input *core.Input,
-) (core.Output, error) {
-	prompt := a.buildPrompt(actionConfig, input)
-	content := []llms.MessageContent{
-		llms.TextParts(llms.ChatMessageTypeSystem, agentConfig.Instructions),
-		llms.TextParts(llms.ChatMessageTypeHuman, prompt),
-	}
-	response, err := llm.GenerateContent(ctx, content)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate content: %w", err)
-	}
-	if len(response.Choices) == 0 {
-		return nil, fmt.Errorf("no response choices generated")
-	}
-	responseText := response.Choices[0].Content
-	result := core.Output{
-		"response": responseText,
-	}
-	return result, nil
-}
-
-func (a *ExecuteBasic) buildPrompt(
-	actionConfig *agent.ActionConfig,
-	input *core.Input,
-) string {
-	prompt := actionConfig.Prompt
-	if input != nil {
-		for key, value := range *input {
-			prompt = fmt.Sprintf("%s\n\n%s: %v", prompt, key, value)
-		}
-	}
-	return prompt
 }
 
 func (a *ExecuteBasic) normalizeTransitions(

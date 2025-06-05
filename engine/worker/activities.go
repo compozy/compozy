@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 
+	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	tkfacts "github.com/compozy/compozy/engine/task/activities"
@@ -15,6 +16,7 @@ type Activities struct {
 	workflows     []*workflow.Config
 	workflowRepo  workflow.Repository
 	taskRepo      task.Repository
+	llmService    llm.Service
 }
 
 func NewActivities(
@@ -22,12 +24,14 @@ func NewActivities(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
+	llmService llm.Service,
 ) *Activities {
 	return &Activities{
 		projectConfig: projectConfig,
 		workflows:     workflows,
 		workflowRepo:  workflowRepo,
 		taskRepo:      taskRepo,
+		llmService:    llmService,
 	}
 }
 
@@ -72,6 +76,6 @@ func (a *Activities) ExecuteBasicTask(ctx context.Context, input *tkfacts.Execut
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewExecuteBasic(a.workflows, a.workflowRepo, a.taskRepo)
+	act := tkfacts.NewExecuteBasic(a.workflows, a.workflowRepo, a.taskRepo, a.llmService)
 	return act.Run(ctx, input)
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
@@ -178,8 +179,8 @@ func TestConfigNormalizer_NormalizeAgentComponent(t *testing.T) {
 	t.Run("Should normalize agent with complete parent context and environment merging", func(t *testing.T) {
 		agentConfig := &agent.Config{
 			ID: "data-processor",
-			Config: agent.ProviderConfig{
-				Model: agent.ModelGPT4o,
+			Config: llm.ProviderConfig{
+				Model: llm.ModelGPT4o,
 			},
 			Instructions: `You are processing data for the {{ .parent.id }} task.
 The task type is {{ .parent.type }}.
@@ -287,8 +288,8 @@ Data to process: fetched-dataset`
 	t.Run("Should normalize agent actions with parent agent context", func(t *testing.T) {
 		agentConfig := &agent.Config{
 			ID: "analyzer-agent",
-			Config: agent.ProviderConfig{
-				Model: agent.ModelGPT4oMini,
+			Config: llm.ProviderConfig{
+				Model: llm.ModelGPT4oMini,
 			},
 			Instructions: "Analyze data for tasks",
 			With: &core.Input{
@@ -691,9 +692,9 @@ func TestConfigNormalizer_ProviderConfigNormalization(t *testing.T) {
 	t.Run("Should normalize ProviderConfig templates including APIKey", func(t *testing.T) {
 		agentConfig := &agent.Config{
 			ID: "test-agent",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderGroq,
-				Model:    agent.ModelLLama3370bVersatile,
+			Config: llm.ProviderConfig{
+				Provider: llm.ProviderGroq,
+				Model:    llm.ModelLLama3370bVersatile,
 				APIKey:   "{{ .env.OPENAI_API_KEY }}",
 				APIURL:   "{{ .env.BASE_URL }}/v1",
 			},
@@ -780,9 +781,9 @@ func TestConfigNormalizer_MapstructureCompatibility(t *testing.T) {
 		// Test agent config with config field (ProviderConfig)
 		agentConfig := &agent.Config{
 			ID: "test-agent",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderOpenAI,
-				Model:    agent.ModelGPT4o,
+			Config: llm.ProviderConfig{
+				Provider: llm.ProviderOpenAI,
+				Model:    llm.ModelGPT4o,
 				APIKey:   "{{ .env.API_KEY }}",
 				APIURL:   "{{ .env.API_URL }}",
 			},

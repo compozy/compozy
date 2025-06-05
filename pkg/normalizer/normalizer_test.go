@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
@@ -261,7 +262,7 @@ Parent task: {{ .parent.id }}`,
 			Env: &core.EnvMap{
 				"AGENT_MODE": "{{ .env.MODE | default \"production\" }}",
 			},
-			Config: agent.ProviderConfig{Model: agent.ModelGPT4oMini},
+			Config: llm.ProviderConfig{Model: llm.ModelGPT4oMini},
 		}
 
 		ctx := &NormalizationContext{
@@ -302,8 +303,8 @@ Parent task: caller-task`
 	t.Run("Should normalize agent actions and access parent agent config", func(t *testing.T) {
 		agentConfig := &agent.Config{
 			ID: "test-agent-for-actions",
-			Config: agent.ProviderConfig{
-				Model: agent.ModelGPT4o,
+			Config: llm.ProviderConfig{
+				Model: llm.ModelGPT4o,
 			},
 			With: &core.Input{
 				"data":      "test-data-for-action",

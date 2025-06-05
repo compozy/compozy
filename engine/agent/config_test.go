@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/pkg/utils"
 	"github.com/stretchr/testify/assert"
@@ -34,8 +35,8 @@ func Test_LoadAgent(t *testing.T) {
 		require.NotNil(t, config.Config.MaxTokens)
 
 		assert.Equal(t, "code-assistant", config.ID)
-		assert.Equal(t, ProviderAnthropic, config.Config.Provider)
-		assert.Equal(t, ModelClaude3Opus, config.Config.Model)
+		assert.Equal(t, llm.ProviderAnthropic, config.Config.Provider)
+		assert.Equal(t, llm.ModelClaude3Opus, config.Config.Model)
 		assert.InDelta(t, float32(0.7), config.Config.Temperature, 0.0001)
 		assert.Equal(t, int32(4000), config.Config.MaxTokens)
 
@@ -181,7 +182,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 	t.Run("Should validate config with all required fields", func(t *testing.T) {
 		config := &Config{
 			ID:           agentID,
-			Config:       ProviderConfig{},
+			Config:       llm.ProviderConfig{},
 			Instructions: "test instructions",
 			cwd:          agentCWD,
 		}
@@ -192,7 +193,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 	t.Run("Should return error when CWD is missing", func(t *testing.T) {
 		config := &Config{
 			ID:           agentID,
-			Config:       ProviderConfig{},
+			Config:       llm.ProviderConfig{},
 			Instructions: "test instructions",
 		}
 		err := config.Validate()
@@ -203,7 +204,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 	t.Run("Should return error when parameters are invalid", func(t *testing.T) {
 		config := &Config{
 			ID:           agentID,
-			Config:       ProviderConfig{},
+			Config:       llm.ProviderConfig{},
 			Instructions: "test instructions",
 			InputSchema: &schema.Schema{
 				"type": "object",

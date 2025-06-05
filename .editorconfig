@@ -50,3 +50,15 @@ indent_size = 4
 [Dockerfile]
 indent_style = space
 indent_size = 4
+
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.{ts,tsx,js,jsx,json,css,scss,html,md,sh}]
+indent_style = space
+indent_size = 4
+
+[*.{go,proto,make}]
+indent_style = tab
+indent_size = 4
