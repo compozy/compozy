@@ -22,141 +22,140 @@
 # TEMPORAL_PORT=7233
 # TEMPORAL_UI_PORT=8080
 # TEMPORAL_NAMESPACE=default
-# TEMPORAL_TASK_QUEUE=compozy-task-queue
 
 services:
-  # PostgreSQL for Temporal
-  temporal-postgresql:
-    container_name: temporal-postgresql
-    image: postgres:${TEMPORAL_POSTGRESQL_VERSION:-15-alpine}
-    environment:
-      POSTGRES_USER: ${TEMPORAL_DB_USER:-temporal}
-      POSTGRES_PASSWORD: ${TEMPORAL_DB_PASSWORD:-temporal}
-      POSTGRES_DB: ${TEMPORAL_DB_NAME:-temporal}
-    networks:
-      - temporal-network
-    ports:
-      - "${TEMPORAL_DB_PORT:-5433}:5432"  # Different port to avoid conflicts
-    volumes:
-      - temporal_postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${TEMPORAL_DB_USER:-temporal}"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+    # PostgreSQL for Temporal
+    temporal-postgresql:
+        container_name: temporal-postgresql
+        image: postgres:${TEMPORAL_POSTGRESQL_VERSION:-15-alpine}
+        environment:
+            POSTGRES_USER: ${TEMPORAL_DB_USER:-temporal}
+            POSTGRES_PASSWORD: ${TEMPORAL_DB_PASSWORD:-temporal}
+            POSTGRES_DB: ${TEMPORAL_DB_NAME:-temporal}
+        networks:
+            - temporal-network
+        ports:
+            - "${TEMPORAL_DB_PORT:-5433}:5432" # Different port to avoid conflicts
+        volumes:
+            - temporal_postgres_data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U ${TEMPORAL_DB_USER:-temporal}"]
+            interval: 5s
+            timeout: 3s
+            retries: 5
 
-  # PostgreSQL for the application
-  app-postgresql:
-    container_name: app-postgresql
-    image: postgres:${TEMPORAL_POSTGRESQL_VERSION:-15-alpine}
-    environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_NAME:-compozy}
-    networks:
-      - temporal-network
-    ports:
-      - "${DB_PORT:-5432}:5432"
-    volumes:
-      - app_postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+    # PostgreSQL for the application
+    app-postgresql:
+        container_name: app-postgresql
+        image: postgres:${TEMPORAL_POSTGRESQL_VERSION:-15-alpine}
+        environment:
+            POSTGRES_USER: ${DB_USER:-postgres}
+            POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+            POSTGRES_DB: ${DB_NAME:-compozy}
+        networks:
+            - temporal-network
+        ports:
+            - "${DB_PORT:-5432}:5432"
+        volumes:
+            - app_postgres_data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+            interval: 5s
+            timeout: 3s
+            retries: 5
 
-  # PostgreSQL dedicated for testing (no cleanup needed!)
-  test-postgresql:
-    container_name: test-postgresql
-    image: postgres:${TEMPORAL_POSTGRESQL_VERSION:-15-alpine}
-    environment:
-      POSTGRES_USER: ${TEST_DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${TEST_DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${TEST_DB_NAME:-compozy_test}
-    networks:
-      - temporal-network
-    ports:
-      - "${TEST_DB_PORT:-5434}:5432"  # Different port for test database
-    volumes:
-      - test_postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${TEST_DB_USER:-postgres}"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+    # PostgreSQL dedicated for testing (no cleanup needed!)
+    test-postgresql:
+        container_name: test-postgresql
+        image: postgres:${TEMPORAL_POSTGRESQL_VERSION:-15-alpine}
+        environment:
+            POSTGRES_USER: ${TEST_DB_USER:-postgres}
+            POSTGRES_PASSWORD: ${TEST_DB_PASSWORD:-postgres}
+            POSTGRES_DB: ${TEST_DB_NAME:-compozy_test}
+        networks:
+            - temporal-network
+        ports:
+            - "${TEST_DB_PORT:-5434}:5432" # Different port for test database
+        volumes:
+            - test_postgres_data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U ${TEST_DB_USER:-postgres}"]
+            interval: 5s
+            timeout: 3s
+            retries: 5
 
-  temporal:
-    container_name: temporal
-    image: temporalio/auto-setup:${TEMPORAL_VERSION:-latest}
-    depends_on:
-      - temporal-postgresql
-    environment:
-      - DB=postgres12
-      - DB_PORT=${TEMPORAL_DB_PORT:-5432}
-      - POSTGRES_USER=${TEMPORAL_DB_USER:-temporal}
-      - POSTGRES_PWD=${TEMPORAL_DB_PASSWORD:-temporal}
-      - POSTGRES_SEEDS=temporal-postgresql
-      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
-      - TEMPORAL_HOST=${TEMPORAL_HOST:-temporal}:${TEMPORAL_PORT:-7233}
-      - TEMPORAL_CLI_HOST=${TEMPORAL_HOST:-temporal}:${TEMPORAL_PORT:-7233}
-      - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
-    networks:
-      - temporal-network
-    ports:
-      - "${TEMPORAL_PORT:-7233}:7233"  # Temporal gRPC endpoint
-    volumes:
-      - ./temporal-dev.yaml:/etc/temporal/config/dynamicconfig/development-sql.yaml
-    healthcheck:
-      test:
-        - "CMD"
-        - "temporal"
-        - "workflow"
-        - "list"
-        - "--namespace"
-        - "${TEMPORAL_NAMESPACE:-default}"
-        - "--address"
-        - "${TEMPORAL_HOST:-temporal}:${TEMPORAL_PORT:-7233}"
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    temporal:
+        container_name: temporal
+        image: temporalio/auto-setup:${TEMPORAL_VERSION:-latest}
+        depends_on:
+            - temporal-postgresql
+        environment:
+            - DB=postgres12
+            - DB_PORT=${TEMPORAL_DB_PORT:-5432}
+            - POSTGRES_USER=${TEMPORAL_DB_USER:-temporal}
+            - POSTGRES_PWD=${TEMPORAL_DB_PASSWORD:-temporal}
+            - POSTGRES_SEEDS=temporal-postgresql
+            - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+            - TEMPORAL_HOST=${TEMPORAL_HOST:-temporal}:${TEMPORAL_PORT:-7233}
+            - TEMPORAL_CLI_HOST=${TEMPORAL_HOST:-temporal}:${TEMPORAL_PORT:-7233}
+            - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+        networks:
+            - temporal-network
+        ports:
+            - "${TEMPORAL_PORT:-7233}:7233" # Temporal gRPC endpoint
+        volumes:
+            - ./temporal-dev.yaml:/etc/temporal/config/dynamicconfig/development-sql.yaml
+        healthcheck:
+            test:
+                - "CMD"
+                - "temporal"
+                - "workflow"
+                - "list"
+                - "--namespace"
+                - "${TEMPORAL_NAMESPACE:-default}"
+                - "--address"
+                - "${TEMPORAL_HOST:-temporal}:${TEMPORAL_PORT:-7233}"
+            interval: 10s
+            timeout: 5s
+            retries: 5
 
-  temporal-admin-tools:
-    container_name: temporal-admin-tools
-    image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION:-latest}
-    depends_on:
-      - temporal
-    environment:
-      - TEMPORAL_HOST=${TEMPORAL_HOST:-temporal}:${TEMPORAL_PORT:-7233}
-      - TEMPORAL_CLI_HOST=${TEMPORAL_HOST:-temporal}:${TEMPORAL_PORT:-7233}
-      - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
-    networks:
-      - temporal-network
-    stdin_open: true
-    tty: true
+    temporal-admin-tools:
+        container_name: temporal-admin-tools
+        image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION:-latest}
+        depends_on:
+            - temporal
+        environment:
+            - TEMPORAL_HOST=${TEMPORAL_HOST:-temporal}:${TEMPORAL_PORT:-7233}
+            - TEMPORAL_CLI_HOST=${TEMPORAL_HOST:-temporal}:${TEMPORAL_PORT:-7233}
+            - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+        networks:
+            - temporal-network
+        stdin_open: true
+        tty: true
 
-  temporal-ui:
-    container_name: temporal-ui
-    image: temporalio/ui:${TEMPORAL_UI_VERSION:-latest}
-    depends_on:
-      - temporal
-    environment:
-      - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CORS_ORIGINS=http://localhost:3000,http://localhost:8080
-      - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
-    networks:
-      - temporal-network
-    ports:
-      - "${TEMPORAL_UI_PORT:-8080}:8080"  # Temporal Web UI
+    temporal-ui:
+        container_name: temporal-ui
+        image: temporalio/ui:${TEMPORAL_UI_VERSION:-latest}
+        depends_on:
+            - temporal
+        environment:
+            - TEMPORAL_ADDRESS=temporal:7233
+            - TEMPORAL_CORS_ORIGINS=http://localhost:3000,http://localhost:8080
+            - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+        networks:
+            - temporal-network
+        ports:
+            - "${TEMPORAL_UI_PORT:-8080}:8080" # Temporal Web UI
 
 networks:
-  temporal-network:
-    driver: bridge
-    name: temporal-network
+    temporal-network:
+        driver: bridge
+        name: temporal-network
 
 volumes:
-  temporal_postgres_data:
-    driver: local
-  app_postgres_data:
-    driver: local
-  test_postgres_data:
-    driver: local
+    temporal_postgres_data:
+        driver: local
+    app_postgres_data:
+        driver: local
+    test_postgres_data:
+        driver: local

@@ -3,14 +3,14 @@ version: "1.0.0"
 description: "Invalid workflow for testing"
 
 tasks:
-  - id: invalid-basic-task
-    type: basic
-    # Missing action field
+    - id: invalid-basic-task
+      type: basic
+      # Missing action field
 
-  - id: invalid-decision-task
-    type: decision
-    # Missing routes field
+    - id: invalid-decision-task
+      type: decision
+      # Missing routes field
 
-  - id: invalid-task-type
-    type: invalid
-    action: test
+    - id: invalid-task-type
+      type: invalid
+      action: test

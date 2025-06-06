@@ -13,3 +13,14 @@ models:
   - provider: groq
     model: llama-3.3-70b-versatile
     api_key: "{{ .env.GROQ_API_KEY }}"
+  - provider: ollama
+    model: llama4:16x17b
+    api_url: "http://localhost:11434"
+
+runtime:
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-env
+    - --allow-sys
+    - --allow-write

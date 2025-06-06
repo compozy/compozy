@@ -2,7 +2,7 @@
 export default async function run(input: any): Promise<Record<string, any>> {
   // Simulate some processing delay if requested
   if (input.delay && input.delay > 0) {
-    await new Promise(resolve => setTimeout(resolve, input.delay));
+    await new Promise((resolve) => setTimeout(resolve, input.delay));
   }
 
   const message = input.message || "Hello from test tool";
@@ -24,7 +24,7 @@ export default async function run(input: any): Promise<Record<string, any>> {
     metadata: {
       environment: environment,
       tool_name: "test-tool",
-      version: "1.0.0"
-    }
+      version: "1.0.0",
+    },
   };
 }

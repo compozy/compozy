@@ -9,7 +9,7 @@ export default function run(input: any): Record<string, any> {
   const useTabs = input.use_tabs || false;
   const maxLineLength = input.max_line_length || 80;
 
-  const originalLines = input.code.split('\n');
+  const originalLines = input.code.split("\n");
   const changesMade: string[] = [];
 
   // Simple formatting logic for demo purposes
@@ -27,8 +27,8 @@ export default function run(input: any): Record<string, any> {
     if (language === "javascript" || language === "typescript") {
       // Simple indentation for JS/TS (very basic)
       const openBraces = (formatted.match(/{/g) || []).length;
-      if (openBraces > 0 && !formatted.endsWith('{')) {
-        const indent = useTabs ? '\t' : ' '.repeat(indentSize);
+      if (openBraces > 0 && !formatted.endsWith("{")) {
+        const indent = useTabs ? "\t" : " ".repeat(indentSize);
         formatted = indent + formatted;
         changesMade.push(`Line ${index + 1}: Added indentation`);
       }
@@ -36,19 +36,21 @@ export default function run(input: any): Record<string, any> {
 
     // Check line length
     if (formatted.length > maxLineLength) {
-      changesMade.push(`Line ${index + 1}: Exceeds max line length (${formatted.length}/${maxLineLength})`);
+      changesMade.push(
+        `Line ${index + 1}: Exceeds max line length (${formatted.length}/${maxLineLength})`,
+      );
     }
 
     return formatted;
   });
 
   // Remove empty lines at the end
-  while (formattedLines.length > 0 && formattedLines[formattedLines.length - 1].trim() === '') {
+  while (formattedLines.length > 0 && formattedLines[formattedLines.length - 1].trim() === "") {
     formattedLines.pop();
     changesMade.push("Removed trailing empty lines");
   }
 
-  const formattedCode = formattedLines.join('\n');
+  const formattedCode = formattedLines.join("\n");
 
   // Return structure matching test expectations
   return {
@@ -58,8 +60,8 @@ export default function run(input: any): Record<string, any> {
     settings: {
       indent_size: indentSize,
       use_tabs: useTabs,
-      max_line_length: maxLineLength
+      max_line_length: maxLineLength,
     },
-    tool_name: "format-code"
+    tool_name: "format-code",
   };
 }

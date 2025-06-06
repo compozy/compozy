@@ -63,18 +63,21 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 	}
 
 	// TODO: We will deal just with agent component for now
-	if state.Component != core.ComponentAgent {
+	if input.Config.Agent == nil && input.Config.Tool == nil {
 		return nil, fmt.Errorf("unsupported component type: %s", state.Component)
 	}
-	if state.AgentID == nil {
-		return nil, fmt.Errorf("agent ID is required for agent execution")
+	var result *core.Output
+	if input.Config.Agent != nil {
+		result, err = a.executeAgent(ctx, execData)
+		if err != nil {
+			return a.responseOnError(ctx, execData, state, err)
+		}
 	}
-	if state.ActionID == nil {
-		return nil, fmt.Errorf("action ID is required for agent execution")
-	}
-	result, err := a.executeAgent(ctx, execData)
-	if err != nil {
-		return a.responseOnError(ctx, execData, state, err)
+	if input.Config.Tool != nil {
+		result, err = a.executeTool(ctx, execData)
+		if err != nil {
+			return a.responseOnError(ctx, execData, state, err)
+		}
 	}
 	return a.responseOnSuccess(ctx, execData, state, result)
 }
@@ -86,21 +89,24 @@ func (a *ExecuteBasic) loadData(state *task.State, input *ExecuteBasicInput) (*E
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workflow config: %w", err)
 	}
-	agentConfig := input.Config.Agent
-	actions := agentConfig.Actions
-	if state.ActionID == nil {
-		return nil, fmt.Errorf("action ID is required for agent execution")
-	}
-	actionConfig := agent.FindActionConfig(actions, *state.ActionID)
-	if actionConfig == nil {
-		return nil, fmt.Errorf("action config not found: %s", *state.ActionID)
-	}
-	return &ExecuteBasicData{
+	result := &ExecuteBasicData{
 		WorkflowConfig: workflowConfig,
 		TaskConfig:     input.Config,
-		AgentConfig:    agentConfig,
-		ActionConfig:   actionConfig,
-	}, nil
+	}
+	if input.Config.Agent != nil {
+		agentConfig := input.Config.Agent
+		actions := agentConfig.Actions
+		if state.ActionID == nil {
+			return nil, fmt.Errorf("action ID is required for agent execution")
+		}
+		actionConfig := agent.FindActionConfig(actions, *state.ActionID)
+		if actionConfig == nil {
+			return nil, fmt.Errorf("action config not found: %s", *state.ActionID)
+		}
+		result.AgentConfig = agentConfig
+		result.ActionConfig = actionConfig
+	}
+	return result, nil
 }
 
 func (a *ExecuteBasic) executeAgent(ctx context.Context, execData *ExecuteBasicData) (*core.Output, error) {
@@ -112,6 +118,16 @@ func (a *ExecuteBasic) executeAgent(ctx context.Context, execData *ExecuteBasicD
 		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}
 	return result, nil
+}
+
+func (a *ExecuteBasic) executeTool(ctx context.Context, execData *ExecuteBasicData) (*core.Output, error) {
+	tConfig := execData.TaskConfig
+	tool := llm.NewTool(tConfig.Tool, tConfig.Tool.Env, a.runtime)
+	output, err := tool.Call(ctx, tConfig.With)
+	if err != nil {
+		return nil, fmt.Errorf("tool execution failed: %w", err)
+	}
+	return output, nil
 }
 
 func (a *ExecuteBasic) normalizeTransitions(

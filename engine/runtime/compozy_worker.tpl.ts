@@ -6,130 +6,149 @@ const encoder = new TextEncoder();
 
 // Utility function to validate tool IDs
 function isValidToolId(toolId: string): boolean {
-  const validPattern = /^[a-zA-Z0-9_\/.-]+$/;
-  if (!validPattern.test(toolId)) return false;
-  if (toolId.includes('..') || toolId.startsWith('/')) return false;
-  return true;
+    const validPattern = /^[a-zA-Z0-9_\/.-]+$/;
+    if (!validPattern.test(toolId)) return false;
+    if (toolId.includes("..") || toolId.startsWith("/")) return false;
+    return true;
 }
 
 // Utility function to execute tool with timeout
 // deno-lint-ignore require-await
-async function executeWithTimeout(fn: (input: any) => Promise<any>, input: any, timeoutMs: number): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(() => reject(new Error(`Tool execution timed out after ${timeoutMs}ms`)), timeoutMs);
-    Promise.resolve(fn(input))
-      .then(result => {
-        clearTimeout(timeoutId);
-        resolve(result);
-      })
-      .catch(err => {
-        clearTimeout(timeoutId);
-        reject(err);
-      });
-  });
+async function executeWithTimeout(
+    fn: (input: any) => Promise<any>,
+    input: any,
+    timeoutMs: number,
+): Promise<any> {
+    return new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(
+            () => reject(new Error(`Tool execution timed out after ${timeoutMs}ms`)),
+            timeoutMs,
+        );
+        Promise.resolve(fn(input))
+            .then((result) => {
+                clearTimeout(timeoutId);
+                resolve(result);
+            })
+            .catch((err) => {
+                clearTimeout(timeoutId);
+                reject(err);
+            });
+    });
 }
 
 // Main execution logic
 async function main() {
-  const decoder = new TextDecoder();
-  let inputText = '';
+    const decoder = new TextDecoder();
+    let inputText = "";
 
-  // Read input from stdin
-  for await (const chunk of Deno.stdin.readable) {
-    inputText += decoder.decode(chunk);
-  }
-
-  let req;
-  try {
-    req = JSON.parse(inputText.trim());
-  } catch (err) {
-    console.error('Failed to parse JSON input:', err);
-    Deno.stdout.write(encoder.encode(JSON.stringify({
-      error: { message: 'Invalid JSON input', name: 'ParseError', timestamp: new Date().toISOString() }
-    })));
-    Deno.exit(1);
-  }
-
-  const { tool_id, tool_exec_id, input, env } = req;
-
-  // Validate tool_id
-  if (!tool_id || typeof tool_id !== 'string' || !isValidToolId(tool_id)) {
-    const errorResponse = {
-      error: {
-        message: 'Invalid tool_id: must be a non-empty string without directory traversal',
-        name: 'ValidationError',
-        tool_id,
-        tool_exec_id,
-        timestamp: new Date().toISOString()
-      }
-    };
-    Deno.stdout.write(encoder.encode(JSON.stringify(errorResponse)));
-    Deno.exit(1);
-  }
-
-  // Store and set environment variables
-  const originalEnv = { ...Deno.env.toObject() };
-  const addedEnvKeys = new Set<string>();
-  if (env && typeof env === 'object') {
-    for (const [key, value] of Object.entries(env)) {
-      if (typeof key === 'string' && typeof value === 'string') {
-        if (!(key in originalEnv)) addedEnvKeys.add(key);
-        Deno.env.set(key, value);
-      }
+    // Read input from stdin
+    for await (const chunk of Deno.stdin.readable) {
+        inputText += decoder.decode(chunk);
     }
-  }
 
-  try {
-    // Import tool module
-    let toolModule;
+    let req;
     try {
-      toolModule = await import(tool_id);
+        req = JSON.parse(inputText.trim());
     } catch (err) {
-      throw new Error(`Failed to import tool ${tool_id}: ${err instanceof Error ? err.message : String(err)}`);
+        console.error("Failed to parse JSON input:", err);
+        Deno.stdout.write(encoder.encode(JSON.stringify({
+            error: {
+                message: "Invalid JSON input",
+                name: "ParseError",
+                timestamp: new Date().toISOString(),
+            },
+        })));
+        Deno.exit(1);
     }
 
-    // Get tool function
-    const toolFn = toolModule.default || toolModule.run;
-    if (typeof toolFn !== 'function') {
-      throw new Error(`Tool ${tool_id} does not export a default or run function. Available exports: ${Object.keys(toolModule).join(', ')}`);
+    const { tool_id, tool_exec_id, input, env } = req;
+
+    // Validate tool_id
+    if (!tool_id || typeof tool_id !== "string" || !isValidToolId(tool_id)) {
+        const errorResponse = {
+            error: {
+                message: "Invalid tool_id: must be a non-empty string without directory traversal",
+                name: "ValidationError",
+                tool_id,
+                tool_exec_id,
+                timestamp: new Date().toISOString(),
+            },
+        };
+        Deno.stdout.write(encoder.encode(JSON.stringify(errorResponse)));
+        Deno.exit(1);
     }
 
-    // Execute tool
-    const result = await executeWithTimeout(toolFn, input, 60000);
-
-    // Write output
-    Deno.stdout.write(encoder.encode(JSON.stringify({
-      result,
-      error: null,
-      metadata: { tool_id, tool_exec_id, execution_time: Date.now() }
-    })));
-  } catch (err) {
-    const errorInfo = {
-      message: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-      name: err instanceof Error ? err.name : 'UnknownError',
-      tool_id,
-      tool_exec_id,
-      timestamp: new Date().toISOString()
-    };
-    Deno.stdout.write(encoder.encode(JSON.stringify({ result: null, error: errorInfo })));
-  } finally {
-    // Clean up environment variables
-    try {
-      for (const key of addedEnvKeys) Deno.env.delete(key);
-      for (const [key, value] of Object.entries(originalEnv)) {
-        if (!addedEnvKeys.has(key) && Deno.env.get(key) !== value) {
-          Deno.env.set(key, value);
+    // Store and set environment variables
+    const originalEnv = { ...Deno.env.toObject() };
+    const addedEnvKeys = new Set<string>();
+    if (env && typeof env === "object") {
+        for (const [key, value] of Object.entries(env)) {
+            if (typeof key === "string" && typeof value === "string") {
+                if (!(key in originalEnv)) addedEnvKeys.add(key);
+                Deno.env.set(key, value);
+            }
         }
-      }
-    } catch (cleanupErr) {
-      console.error('Error during environment cleanup:', cleanupErr);
     }
-  }
+
+    try {
+        // Import tool module
+        let toolModule;
+        try {
+            toolModule = await import(tool_id);
+        } catch (err) {
+            throw new Error(
+                `Failed to import tool ${tool_id}: ${
+                    err instanceof Error ? err.message : String(err)
+                }`,
+            );
+        }
+
+        // Get tool function
+        const toolFn = toolModule.default || toolModule.run;
+        if (typeof toolFn !== "function") {
+            throw new Error(
+                `Tool ${tool_id} does not export a default or run function. Available exports: ${
+                    Object.keys(toolModule).join(", ")
+                }`,
+            );
+        }
+
+        // Execute tool
+        const result = await executeWithTimeout(toolFn, input, 60000);
+
+        // Write output
+        Deno.stdout.write(encoder.encode(JSON.stringify({
+            result,
+            error: null,
+            metadata: { tool_id, tool_exec_id, execution_time: Date.now() },
+        })));
+    } catch (err) {
+        const errorInfo = {
+            message: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined,
+            name: err instanceof Error ? err.name : "UnknownError",
+            tool_id,
+            tool_exec_id,
+            timestamp: new Date().toISOString(),
+        };
+        Deno.stdout.write(encoder.encode(JSON.stringify({ result: null, error: errorInfo })));
+    } finally {
+        // Clean up environment variables
+        try {
+            for (const key of addedEnvKeys) Deno.env.delete(key);
+            for (const [key, value] of Object.entries(originalEnv)) {
+                if (!addedEnvKeys.has(key) && Deno.env.get(key) !== value) {
+                    Deno.env.set(key, value);
+                }
+            }
+        } catch (cleanupErr) {
+            console.error("Error during environment cleanup:", cleanupErr);
+        }
+    }
 }
 
 // Run main
-main().catch(err => {
-  console.error('Fatal error:', err);
-  Deno.exit(1);
+main().catch((err) => {
+    console.error("Fatal error:", err);
+    Deno.exit(1);
 });

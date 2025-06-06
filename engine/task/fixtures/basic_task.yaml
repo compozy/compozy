@@ -2,33 +2,33 @@ id: code-format
 $use: agent(local::agents.#(id=="code-assistant"))
 action: format
 input:
-  type: object
-  properties:
-    code:
-      type: string
-    language:
-      type: string
-    indent_size:
-      type: integer
-    use_tabs:
-      type: boolean
-  required:
-    - code
+    type: object
+    properties:
+        code:
+            type: string
+        language:
+            type: string
+        indent_size:
+            type: integer
+        use_tabs:
+            type: boolean
+    required:
+        - code
 output:
-  type: object
-  properties:
-    formatted_code:
-      type: string
-  required:
-    - formatted_code
+    type: object
+    properties:
+        formatted_code:
+            type: string
+    required:
+        - formatted_code
 env:
-  FORMATTER_VERSION: "1.0.0"
+    FORMATTER_VERSION: "1.0.0"
 with:
-  code: "console.log('hello')"
-  language: "javascript"
-  indent_size: 2
-  use_tabs: false
+    code: "console.log('hello')"
+    language: "javascript"
+    indent_size: 2
+    use_tabs: false
 on_success:
-  next: next-task
+    next: next-task
 on_error:
-  next: retry-task
+    next: retry-task

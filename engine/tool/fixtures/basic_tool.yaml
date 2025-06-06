@@ -2,32 +2,32 @@ id: code-formatter
 description: A tool for formatting code
 execute: ./format.ts
 input:
-  type: object
-  properties:
-    code:
-      type: string
-      description: The code to format
-    language:
-      type: string
-      description: The programming language
-    indent_size:
-      type: integer
-      description: The number of spaces for indentation
-    use_tabs:
-      type: boolean
-      description: Whether to use tabs instead of spaces
-  required: [code]
+    type: object
+    properties:
+        code:
+            type: string
+            description: The code to format
+        language:
+            type: string
+            description: The programming language
+        indent_size:
+            type: integer
+            description: The number of spaces for indentation
+        use_tabs:
+            type: boolean
+            description: Whether to use tabs instead of spaces
+    required: [code]
 output:
-  type: object
-  properties:
-    formatted_code:
-      type: string
-      description: The formatted code
-  required: [formatted_code]
+    type: object
+    properties:
+        formatted_code:
+            type: string
+            description: The formatted code
+    required: [formatted_code]
 env:
-  FORMATTER_VERSION: "1.0.0"
+    FORMATTER_VERSION: "1.0.0"
 with:
-  code: "console.log('hello')"
-  language: "javascript"
-  indent_size: 2
-  use_tabs: false
+    code: "console.log('hello')"
+    language: "javascript"
+    indent_size: 2
+    use_tabs: false

@@ -92,17 +92,15 @@ tasks:
     type: basic
     $use: agent(local::agents.#(id="tourist_guide"))
     action: suggest_clothing
-    final: true
-    # on_success:
-    #   next: save_weather_data
+    on_success:
+      next: save_result
 
-  # - id: save_weather_data
-  #   type: basic
-  #   $use: tool(local::tools.#(id="save_data"))
-  #   final: true
-  #   with:
-  #     city: "{{ .workflow.input.city }}"
-  #     temperature: "{{ .tasks.get_weather.output.temperature }}"
-  #     weather: "{{ .tasks.get_weather.output.weather }}"
-  #     clothing: "{{ .tasks.suggest_clothing.output.clothing }}"
-  #     activities: "{{ .tasks.suggest_activities.output.activities }}"
+  - id: save_result
+    type: basic
+    $use: tool(local::tools.#(id="save_data"))
+    final: true
+    with:
+      city: "{{ .workflow.input.city }}"
+      weather: "{{ .tasks.weather.output }}"
+      clothing: "{{ .tasks.clothing.output.clothings }}"
+      activities: "{{ .tasks.activities.output.activities }}"

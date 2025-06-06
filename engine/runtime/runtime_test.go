@@ -49,7 +49,7 @@ func getTestRuntimeManager(t *testing.T) *Manager {
 	}
 
 	// Create a dedicated runtime manager using the shared compiled binary
-	rm, err := NewRuntimeManager(globalProjectRoot, TestConfig())
+	rm, err := NewRuntimeManager(globalProjectRoot, WithTestConfig())
 	if err != nil {
 		t.Logf("Could not create runtime manager: %v", err)
 		t.Skip("Runtime manager could not be created")
@@ -197,7 +197,7 @@ func Test_RuntimeManager_NewRuntimeManager(t *testing.T) {
 
 		projectRoot := setupTestDir(t)
 
-		_, err := NewRuntimeManager(projectRoot, TestConfig())
+		_, err := NewRuntimeManager(projectRoot, WithTestConfig())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "deno executable not found")
 	})
@@ -211,7 +211,7 @@ func Test_RuntimeManager_NewRuntimeManager(t *testing.T) {
 		projectRoot := setupTestDir(t)
 
 		// Create runtime manager with test config - it will automatically create the worker file
-		rm, err := NewRuntimeManager(projectRoot, TestConfig())
+		rm, err := NewRuntimeManager(projectRoot, WithTestConfig())
 		if err != nil {
 			t.Logf("Could not create runtime manager: %v", err)
 			t.Skip("Deno process could not be started")
