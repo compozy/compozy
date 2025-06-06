@@ -1,11 +1,14 @@
 # Template Engine Package
 
-The `tplengine` package provides a powerful template processing engine for Compozy that uses Go templates with enhanced functionality. It's designed to safely process dynamic configuration values with strict error handling and comprehensive template features.
+The `tplengine` package provides a powerful template processing engine for Compozy that uses Go
+templates with enhanced functionality. It's designed to safely process dynamic configuration values
+with strict error handling and comprehensive template features.
 
 ## Features
 
 - **Go Template Processing**: Full Go template syntax support with `text/template`
-- **Sprig Functions**: Complete integration with [Sprig template functions](https://masterminds.github.io/sprig/)
+- **Sprig Functions**: Complete integration with
+  [Sprig template functions](https://masterminds.github.io/sprig/)
 - **Strict Error Handling**: `missingkey=error` prevents silent failures and catches typos early
 - **Multiple Output Formats**: Support for YAML, JSON, and plain text output
 - **Value Conversion**: Seamless conversion between YAML and JSON formats
@@ -16,7 +19,9 @@ The `tplengine` package provides a powerful template processing engine for Compo
 
 ### Strict Error Handling with `missingkey=error`
 
-The template engine is configured with `missingkey=error`, which means **any attempt to access a non-existent key will immediately fail** rather than silently rendering `<no value>`. This helps catch configuration errors early.
+The template engine is configured with `missingkey=error`, which means **any attempt to access a
+non-existent key will immediately fail** rather than silently rendering `<no value>`. This helps
+catch configuration errors early.
 
 ```go
 // ❌ This will FAIL if .user.age doesn't exist
@@ -41,7 +46,8 @@ This strict behavior helps you catch:
 2. **Missing configuration**: `{{ .tasks.nonexistent.output }}`
 3. **Schema mismatches**: `{{ .user.invalid_field }}`
 
-The trade-off is that you must be explicit about handling missing data, but this prevents bugs from silently slipping into production.
+The trade-off is that you must be explicit about handling missing data, but this prevents bugs from
+silently slipping into production.
 
 ## Basic Usage
 
@@ -431,29 +437,33 @@ The template engine is used throughout Compozy for:
 - **Cross-component communication**: Allowing components to reference each other's outputs
 - **Environment variable substitution**: Processing environment-specific configurations
 
-See the [normalizer package](../normalizer/README.md) for detailed examples of how templates are used in Compozy configurations.
+See the [normalizer package](../normalizer/README.md) for detailed examples of how templates are
+used in Compozy configurations.
 
 ## Migration from `<no value>` Behavior
 
 If you're migrating from a system that allowed `<no value>` fallbacks:
 
 ### Before (with silent failures)
+
 ```yaml
 config:
-  host: "{{ .database.host | default \"localhost\" }}"  # Silent if .database missing
-  port: "{{ .database.port | default \"5432\" }}"       # Silent if .database missing
+    host: "{{ .database.host | default \"localhost\" }}" # Silent if .database missing
+    port: "{{ .database.port | default \"5432\" }}" # Silent if .database missing
 ```
 
 ### After (with missingkey=error)
+
 ```yaml
 config:
-  # Option 1: Ensure keys exist in context
-  host: "{{ .database.host | default \"localhost\" }}"  # Requires .database to exist
-  port: "{{ .database.port | default \"5432\" }}"       # Requires .database to exist
+    # Option 1: Ensure keys exist in context
+    host: "{{ .database.host | default \"localhost\" }}" # Requires .database to exist
+    port: "{{ .database.port | default \"5432\" }}" # Requires .database to exist
 
-  # Option 2: Use conditional checks
-  host: "{{ if hasKey . \"database\" }}{{ .database.host | default \"localhost\" }}{{ else }}localhost{{ end }}"
-  port: "{{ if hasKey . \"database\" }}{{ .database.port | default \"5432\" }}{{ else }}5432{{ end }}"
+    # Option 2: Use conditional checks
+    host: "{{ if hasKey . \"database\" }}{{ .database.host | default \"localhost\" }}{{ else }}localhost{{ end }}"
+    port: "{{ if hasKey . \"database\" }}{{ .database.port | default \"5432\" }}{{ else }}5432{{ end }}"
 ```
 
-The `missingkey=error` behavior encourages better configuration practices by making missing data explicit rather than silently failing. 
+The `missingkey=error` behavior encourages better configuration practices by making missing data
+explicit rather than silently failing.

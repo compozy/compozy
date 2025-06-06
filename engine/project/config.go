@@ -14,6 +14,10 @@ type WorkflowSourceConfig struct {
 	Source string `json:"source" yaml:"source" mapstructure:"source"`
 }
 
+type RuntimeConfig struct {
+	Permissions []string `json:"permissions,omitempty" yaml:"permissions,omitempty" mapstructure:"permissions"`
+}
+
 type Opts struct {
 	core.GlobalOpts `json:",inline" yaml:",inline" mapstructure:",squash"`
 }
@@ -27,6 +31,7 @@ type Config struct {
 	Models      []*core.ProviderConfig  `json:"models"      yaml:"models"      mapstructure:"models"`
 	Schemas     []schema.Schema         `json:"schemas"     yaml:"schemas"     mapstructure:"schemas"`
 	Opts        Opts                    `json:"config"      yaml:"config"      mapstructure:"config"`
+	Runtime     RuntimeConfig           `json:"runtime"     yaml:"runtime"     mapstructure:"runtime"`
 
 	filePath string
 	cwd      *core.CWD

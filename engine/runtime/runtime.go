@@ -16,7 +16,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
@@ -32,124 +31,11 @@ var bufferPool = sync.Pool{
 	},
 }
 
-// -----
-// Configuration
-// -----
-
-// Config holds configuration for the RuntimeManager
-type Config struct {
-	BackoffInitialInterval time.Duration
-	BackoffMaxInterval     time.Duration
-	BackoffMaxElapsedTime  time.Duration
-	WorkerFilePerm         os.FileMode
-	DenoPermissions        []string
-	StderrBufferSize       int
-	JSONBufferSize         int
-}
-
-// DefaultConfig returns a sensible default configuration
-func DefaultConfig() *Config {
-	return &Config{
-		BackoffInitialInterval: 100 * time.Millisecond,
-		BackoffMaxInterval:     5 * time.Second,
-		BackoffMaxElapsedTime:  30 * time.Second,
-		WorkerFilePerm:         0600,
-		DenoPermissions: []string{
-			"--allow-read",
-			"--allow-net",
-			"--allow-env",
-			"--quiet",
-			"--no-check",
-		},
-		StderrBufferSize: 8192,
-		JSONBufferSize:   1024,
-	}
-}
-
-func TestConfig() *Config {
-	return &Config{
-		BackoffInitialInterval: 10 * time.Millisecond,
-		BackoffMaxInterval:     100 * time.Millisecond,
-		BackoffMaxElapsedTime:  1 * time.Second, // Much shorter for tests
-		WorkerFilePerm:         0600,
-		DenoPermissions: []string{
-			"--allow-read",
-			"--allow-net",
-			"--allow-env",
-			"--quiet",
-			"--no-check",
-		},
-		StderrBufferSize: 1024,
-		JSONBufferSize:   512,
-	}
-}
-
-// -----
-// Structured Errors
-// -----
-
-// ToolExecutionError provides structured error information with context
-type ToolExecutionError struct {
-	ToolID     string
-	ToolExecID string
-	Operation  string
-	Err        error
-}
-
-func (e *ToolExecutionError) Error() string {
-	return fmt.Sprintf("tool execution failed for tool %s (exec %s) during %s: %v",
-		e.ToolID, e.ToolExecID, e.Operation, e.Err)
-}
-
-func (e *ToolExecutionError) Unwrap() error {
-	return e.Err
-}
-
-// ProcessError provides structured error information for Deno process issues
-type ProcessError struct {
-	Operation string
-	Err       error
-}
-
-func (e *ProcessError) Error() string {
-	return fmt.Sprintf("deno process %s failed: %v", e.Operation, e.Err)
-}
-
-func (e *ProcessError) Unwrap() error {
-	return e.Err
-}
-
-// -----
-// Types
-// -----
-
-// ToolExecuteParams represents the parameters for Tool.Execute method
-type ToolExecuteParams struct {
-	ToolID     string      `json:"tool_id"`
-	ToolExecID string      `json:"tool_exec_id"`
-	Input      *core.Input `json:"input"`
-	Env        core.EnvMap `json:"env"`
-}
-
-// ToolExecuteResult represents the result of Tool.Execute method
-// The tool output is returned directly as core.Output (map[string]any)
-type ToolExecuteResult = core.Output
-
-// Manager manages Deno tool executions via a compiled binary
-type Manager struct {
-	config      *Config
-	projectRoot string
-	logger      logger.Logger
-}
-
-// -----
-// Constructor
-// -----
-
 // NewRuntimeManager initializes a RuntimeManager
-func NewRuntimeManager(projectRoot string, config *Config) (*Manager, error) {
-	if config == nil {
-		config = DefaultConfig()
+func NewRuntimeManager(projectRoot string, options ...Option) (*Manager, error) {
+	config := DefaultConfig()
+	for _, option := range options {
+		option(config)
 	}
 
 	// Pre-check Deno availability
@@ -302,6 +188,7 @@ func (rm *Manager) setupCommand(
 ) (*exec.Cmd, *cmdPipes, error) {
 	// Create deno run command with configurable permissions
 	args := append([]string{"run"}, rm.config.DenoPermissions...)
+	args = append(args, []string{"--quiet", "--no-check"}...)
 	args = append(args, workerPath)
 
 	rm.logger.Debug("Setting up Deno command",

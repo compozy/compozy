@@ -68,8 +68,7 @@ func CreateTestAgentConfigWithActions(id, instructions string, actions map[strin
 }
 
 func SetupWorkflowEnvironment(env *testsuite.TestWorkflowEnvironment, config *ContainerTestConfig) {
-	runtimeConfig := runtime.TestConfig()
-	runtime, err := runtime.NewRuntimeManager(config.ProjectConfig.GetCWD().PathStr(), runtimeConfig)
+	runtime, err := runtime.NewRuntimeManager(config.ProjectConfig.GetCWD().PathStr(), runtime.WithTestConfig())
 	if err != nil {
 		panic(err)
 	}

@@ -4,7 +4,7 @@ export default function run(input: any): Record<string, any> {
     echo: input, // Return the input object directly, not as a string
     timestamp: new Date().toISOString(),
     type: typeof input,
-    tool_name: "echo-tool"
+    tool_name: "echo-tool",
   };
 }
 

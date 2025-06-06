@@ -46,8 +46,13 @@ func NewWorker(
 	taskQueue := slug.Make(projectConfig.Name)
 	worker := client.NewWorker(taskQueue)
 	projectRoot := projectConfig.GetCWD().PathStr()
-	runtimeConfig := runtime.DefaultConfig()
-	runtime, err := runtime.NewRuntimeManager(projectRoot, runtimeConfig)
+
+	// Build runtime options from project config
+	var rtOpts []runtime.Option
+	if len(projectConfig.Runtime.Permissions) > 0 {
+		rtOpts = append(rtOpts, runtime.WithDenoPermissions(projectConfig.Runtime.Permissions))
+	}
+	runtime, err := runtime.NewRuntimeManager(projectRoot, rtOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to created execution manager: %w", err)
 	}
