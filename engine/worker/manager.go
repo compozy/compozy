@@ -1,0 +1,127 @@
+package worker
+
+import (
+	"time"
+
+	"go.temporal.io/sdk/temporal"
+	"go.temporal.io/sdk/workflow"
+
+	"github.com/compozy/compozy/engine/core"
+	wfacts "github.com/compozy/compozy/engine/workflow/activities"
+	"github.com/compozy/compozy/pkg/logger"
+)
+
+// -----------------------------------------------------------------------------
+// Workflow Orchestrator
+// -----------------------------------------------------------------------------
+
+type Manager struct {
+	*ContextBuilder
+	*WorkflowExecutor
+	*TaskExecutor
+}
+
+func NewManager(contextBuilder *ContextBuilder) *Manager {
+	workflowExecutor := NewWorkflowExecutor(contextBuilder)
+	taskExecutor := NewTaskExecutor(contextBuilder)
+	return &Manager{
+		ContextBuilder:   contextBuilder,
+		WorkflowExecutor: workflowExecutor,
+		TaskExecutor:     taskExecutor,
+	}
+}
+
+func (m *Manager) BuildErrHandler(ctx workflow.Context) func(err error) error {
+	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+		StartToCloseTimeout: 30 * time.Second,
+		RetryPolicy: &temporal.RetryPolicy{
+			MaximumAttempts: 3,
+		},
+	})
+	return func(err error) error {
+		if temporal.IsCanceledError(err) || err == workflow.ErrCanceled {
+			logger.Info("Workflow canceled")
+			return err
+		}
+
+		// For non-cancellation errors, update status to failed in a disconnected context
+		// to ensure the status update happens even if workflow is being terminated
+		logger.Info("Updating workflow status to Failed due to error", "error", err)
+		cleanupCtx, _ := workflow.NewDisconnectedContext(ctx)
+		cleanupCtx = workflow.WithActivityOptions(cleanupCtx, workflow.ActivityOptions{
+			StartToCloseTimeout: 30 * time.Second,
+			RetryPolicy: &temporal.RetryPolicy{
+				MaximumAttempts: 3,
+			},
+		})
+
+		label := wfacts.UpdateStateLabel
+		statusInput := &wfacts.UpdateStateInput{
+			WorkflowID:     m.WorkflowID,
+			WorkflowExecID: m.WorkflowExecID,
+			Status:         core.StatusFailed,
+			Error:          core.NewError(err, "workflow_execution_error", nil),
+		}
+		future := workflow.ExecuteActivity(cleanupCtx, label, statusInput)
+		if updateErr := future.Get(cleanupCtx, nil); updateErr != nil {
+			logger.Error("Failed to update workflow status to Failed", "error", updateErr)
+		} else {
+			logger.Info("Successfully updated workflow status to Failed")
+		}
+		return err
+	}
+}
+
+// CancelCleanup - Cleanup function for canceled workflows
+func (m *Manager) CancelCleanup(ctx workflow.Context) {
+	if ctx.Err() != workflow.ErrCanceled {
+		return
+	}
+	logger.Info("Workflow canceled, performing cleanup...")
+	cleanupCtx, _ := workflow.NewDisconnectedContext(ctx)
+	cleanupCtx = workflow.WithActivityOptions(cleanupCtx, workflow.ActivityOptions{
+		StartToCloseTimeout: 30 * time.Second,
+	})
+
+	// Update workflow status to canceled
+	statusInput := &wfacts.UpdateStateInput{
+		WorkflowID:     m.WorkflowID,
+		WorkflowExecID: m.WorkflowExecID,
+		Status:         core.StatusCanceled,
+	}
+	if err := workflow.ExecuteActivity(
+		cleanupCtx,
+		wfacts.UpdateStateLabel,
+		statusInput,
+	).Get(cleanupCtx, nil); err != nil {
+		logger.Error("Failed to update workflow status to Canceled during cleanup", "error", err)
+	} else {
+		logger.Info("Successfully updated workflow status to Canceled")
+	}
+}
+
+// -----------------------------------------------------------------------------
+// Manager Factory
+// -----------------------------------------------------------------------------
+
+func InitManager(ctx workflow.Context, input WorkflowInput) (*Manager, error) {
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Starting workflow", "workflow_id", input.WorkflowID, "exec_id", input.WorkflowExecID)
+	ctx = workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
+		StartToCloseTimeout: 10 * time.Second,
+	})
+	actLabel := wfacts.GetDataLabel
+	actInput := &wfacts.GetDataInput{WorkflowID: input.WorkflowID}
+	var data *wfacts.GetData
+	err := workflow.ExecuteLocalActivity(ctx, actLabel, actInput).Get(ctx, &data)
+	if err != nil {
+		return nil, err
+	}
+	contextBuilder := NewContextBuilder(
+		data.Workflows,
+		data.ProjectConfig,
+		data.WorkflowConfig,
+		&input,
+	)
+	return NewManager(contextBuilder), nil
+}
