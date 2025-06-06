@@ -57,7 +57,7 @@ dev:
 	$(GOCMD) run . dev
 
 dev-weather:
-	wgo run . dev --cwd examples/weather-agent --env-file .env --debug
+	wgo run . dev --cwd examples/weather-agent --env-file .env --debug --watch
 
 tidy:
 	@echo "Tidying modules..."

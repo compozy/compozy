@@ -29,6 +29,8 @@ type Server struct {
 	router         *gin.Engine
 	ctx            context.Context
 	cancel         context.CancelFunc
+	httpServer     *http.Server
+	shutdownChan   chan struct{}
 }
 
 func NewServer(config Config, tConfig *worker.TemporalConfig, sConfig *store.Config) *Server {
@@ -39,6 +41,7 @@ func NewServer(config Config, tConfig *worker.TemporalConfig, sConfig *store.Con
 		StoreConfig:    sConfig,
 		ctx:            ctx,
 		cancel:         cancel,
+		shutdownChan:   make(chan struct{}, 1),
 	}
 }
 
@@ -64,15 +67,14 @@ func (s *Server) Run() error {
 	if err != nil {
 		return err
 	}
-	defer s.cleanup(cleanupFuncs)
-
 	// Build server routes
 	if err := s.buildRouter(state); err != nil {
+		s.cleanup(cleanupFuncs)
 		return fmt.Errorf("failed to build router: %w", err)
 	}
 
 	// Start and run the HTTP server
-	return s.startAndRunServer()
+	return s.startAndRunServer(cleanupFuncs)
 }
 
 func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
@@ -180,14 +182,15 @@ func (s *Server) cleanup(cleanupFuncs []func()) {
 	}
 }
 
-func (s *Server) startAndRunServer() error {
+func (s *Server) startAndRunServer(cleanupFuncs []func()) error {
 	srv := s.createHTTPServer()
+	s.httpServer = srv
 
 	// Start server in goroutine
 	go s.startServer(srv)
 
 	// Wait for shutdown signal and handle graceful shutdown
-	return s.handleGracefulShutdown(srv)
+	return s.handleGracefulShutdown(srv, cleanupFuncs)
 }
 
 func (s *Server) createHTTPServer() *http.Server {
@@ -213,12 +216,19 @@ func (s *Server) startServer(srv *http.Server) {
 	}
 }
 
-func (s *Server) handleGracefulShutdown(srv *http.Server) error {
+func (s *Server) handleGracefulShutdown(srv *http.Server, cleanupFuncs []func()) error {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-	logger.Debug("Received shutdown signal, initiating graceful shutdown")
 
+	select {
+	case <-quit:
+		logger.Debug("Received shutdown signal, initiating graceful shutdown")
+	case <-s.shutdownChan:
+		logger.Debug("Received programmatic shutdown signal, initiating graceful shutdown")
+	}
+
+	// Clean up dependencies first
+	s.cleanup(cleanupFuncs)
 	s.cancel()
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -230,4 +240,8 @@ func (s *Server) handleGracefulShutdown(srv *http.Server) error {
 
 	logger.Info("Server shutdown completed successfully")
 	return nil
+}
+
+func (s *Server) Shutdown() {
+	s.shutdownChan <- struct{}{}
 }

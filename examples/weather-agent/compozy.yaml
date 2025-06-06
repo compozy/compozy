@@ -1,6 +1,6 @@
 name: weather-agent
 version: 0.1.0
-description: A simple weather agent that provides weather information based on location
+description: Agent that provides weather information based on location
 
 author:
   name: Pedro Nauck

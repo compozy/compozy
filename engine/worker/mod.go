@@ -86,8 +86,8 @@ func (o *Worker) Setup(_ context.Context) error {
 }
 
 func (o *Worker) Stop() {
-	o.client.Close()
 	o.worker.Stop()
+	o.client.Close()
 }
 
 func (o *Worker) WorkflowRepo() wf.Repository {

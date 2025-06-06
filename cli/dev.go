@@ -3,12 +3,14 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/compozy/compozy/engine/infra/server"
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/utils"
+	"github.com/fsnotify/fsnotify"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
@@ -186,6 +188,7 @@ func DevCmd() *cobra.Command {
 	cmd.Flags().Bool("log-json", false, "Output logs in JSON format")
 	cmd.Flags().Bool("log-source", false, "Include source file and line in logs")
 	cmd.Flags().Bool("debug", false, "Enable debug mode (sets log level to debug)")
+	cmd.Flags().Bool("watch", false, "Enable file watcher to restart server on change")
 
 	// Set debug flag to override log level
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
@@ -275,7 +278,97 @@ func handleDevCmd(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	// Create and run server with database configuration
+	watch, err := cmd.Flags().GetBool("watch")
+	if err != nil {
+		return fmt.Errorf("failed to get watch flag: %w", err)
+	}
+	if watch {
+		watcher, err := setupWatcher(scfg.CWD)
+		if err != nil {
+			return err
+		}
+		defer watcher.Close()
+		restartChan := make(chan bool)
+		go startWatcher(watcher, restartChan)
+		return runAndWatchServer(scfg, tcfg, dbCfg, restartChan)
+	}
+
 	srv := server.NewServer(*scfg, tcfg, dbCfg)
 	return srv.Run()
+}
+
+func setupWatcher(cwd string) (*fsnotify.Watcher, error) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create file watcher: %w", err)
+	}
+	if err := filepath.Walk(cwd, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && (filepath.Ext(path) == ".yaml" || filepath.Ext(path) == ".yml") {
+			if err := watcher.Add(path); err != nil {
+				logger.Warn("Failed to watch file", "path", path, "error", err)
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("failed to walk project directory: %w", err)
+	}
+	return watcher, nil
+}
+
+func startWatcher(watcher *fsnotify.Watcher, restartChan chan bool) {
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+			if event.Has(fsnotify.Write) {
+				logger.Info("Detected file change, sending restart signal...", "file", event.Name)
+				restartChan <- true
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			logger.Error("Watcher error", "error", err)
+		}
+	}
+}
+
+func runAndWatchServer(
+	scfg *server.Config,
+	tcfg *worker.TemporalConfig,
+	dbCfg *store.Config,
+	restartChan chan bool,
+) error {
+	for {
+		srv := server.NewServer(*scfg, tcfg, dbCfg)
+		serverErrChan := make(chan error, 1)
+		go func() {
+			serverErrChan <- srv.Run()
+		}()
+		logger.Info("Server started. Watching for file changes.")
+		select {
+		case <-restartChan:
+			logger.Info("Restart signal received. Shutting down server...")
+			srv.Shutdown()
+			<-serverErrChan // Wait for shutdown to complete
+			logger.Info("Server shut down. Restarting...")
+			// Drain the channel in case of multiple file change events
+			for len(restartChan) > 0 {
+				<-restartChan
+			}
+			continue // Restart the loop
+		case err := <-serverErrChan:
+			if err != nil {
+				logger.Error("Server stopped with error", "error", err)
+				return err
+			}
+			logger.Info("Server stopped.")
+			return nil
+		}
+	}
 }
