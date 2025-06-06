@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/llm"
+	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/normalizer"
@@ -30,7 +31,7 @@ type ExecuteBasic struct {
 	workflowRepo workflow.Repository
 	taskRepo     task.Repository
 	normalizer   *normalizer.ConfigNormalizer
-	llmService   llm.Service
+	runtime      *runtime.Manager
 }
 
 // NewExecuteBasic creates a new ExecuteBasic activity
@@ -38,14 +39,14 @@ func NewExecuteBasic(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
-	llmService llm.Service,
+	runtime *runtime.Manager,
 ) *ExecuteBasic {
 	return &ExecuteBasic{
 		workflows:    workflows,
 		workflowRepo: workflowRepo,
 		taskRepo:     taskRepo,
 		normalizer:   normalizer.NewConfigNormalizer(),
-		llmService:   llmService,
+		runtime:      runtime,
 	}
 }
 
@@ -71,21 +72,7 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 	if state.ActionID == nil {
 		return nil, fmt.Errorf("action ID is required for agent execution")
 	}
-
-	// Create LLM and execute agent
-	agentConfig := execData.AgentConfig
-	actionConfig := execData.ActionConfig
-	providerConfig := agentConfig.Config
-	model, err := a.llmService.CreateLLM(&providerConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create LLM: %w", err)
-	}
-	instructions := agentConfig.Instructions
-	prompt := a.llmService.BuildPrompt(&llm.PromptConfig{
-		Prompt: actionConfig.Prompt,
-		Input:  state.Input,
-	})
-	result, err := a.llmService.GenerateContent(ctx, model, instructions, prompt)
+	result, err := a.executeAgent(ctx, execData)
 	if err != nil {
 		return a.responseOnError(ctx, execData, state, err)
 	}
@@ -100,8 +87,10 @@ func (a *ExecuteBasic) loadData(state *task.State, input *ExecuteBasicInput) (*E
 		return nil, fmt.Errorf("failed to find workflow config: %w", err)
 	}
 	agentConfig := input.Config.Agent
-
 	actions := agentConfig.Actions
+	if state.ActionID == nil {
+		return nil, fmt.Errorf("action ID is required for agent execution")
+	}
 	actionConfig := agent.FindActionConfig(actions, *state.ActionID)
 	if actionConfig == nil {
 		return nil, fmt.Errorf("action config not found: %s", *state.ActionID)
@@ -112,6 +101,17 @@ func (a *ExecuteBasic) loadData(state *task.State, input *ExecuteBasicInput) (*E
 		AgentConfig:    agentConfig,
 		ActionConfig:   actionConfig,
 	}, nil
+}
+
+func (a *ExecuteBasic) executeAgent(ctx context.Context, execData *ExecuteBasicData) (*core.Output, error) {
+	agentConfig := execData.AgentConfig
+	actionConfig := execData.ActionConfig
+	llmService := llm.NewService(a.runtime, agentConfig, actionConfig)
+	result, err := llmService.GenerateContent(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate content: %w", err)
+	}
+	return result, nil
 }
 
 func (a *ExecuteBasic) normalizeTransitions(
@@ -221,11 +221,11 @@ func (a *ExecuteBasic) responseOnSuccess(
 	ctx context.Context,
 	execData *ExecuteBasicData,
 	state *task.State,
-	result core.Output,
+	result *core.Output,
 ) (*task.Response, error) {
 	// Always update status first
 	state.UpdateStatus(core.StatusSuccess)
-	state.Output = &result
+	state.Output = result
 
 	// Try to update task state, but don't fail if context is canceled
 	if err := a.taskRepo.UpsertState(ctx, state); err != nil {

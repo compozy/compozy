@@ -17,7 +17,9 @@ type Config interface {
 	GetEnv() EnvMap
 	GetInput() *Input
 	Validate() error
-	ValidateParams(ctx context.Context, input *Input) error
+	ValidateInput(ctx context.Context, input *Input) error
+	ValidateOutput(ctx context.Context, output *Output) error
+	HasSchema() bool
 	Merge(other any) error
 	AsMap() (map[string]any, error)
 	FromMap(any) error

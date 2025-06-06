@@ -222,6 +222,24 @@ func TestSprigFunctions(t *testing.T) {
 	result, err = engine.RenderString("{{ regexMatch \"[a-z]+\" \"hello\" }}", nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "true", result)
+
+	// Test toString function with a map
+	ctx := map[string]any{
+		"myMap": map[string]any{
+			"key":    "value",
+			"number": 123,
+		},
+	}
+	result, err = engine.RenderString("{{ .myMap | toString }}", ctx)
+	assert.NoError(t, err)
+	assert.Contains(t, result, "key:value")
+	assert.Contains(t, result, "number:123")
+
+	// Test toJson function with a map
+	result, err = engine.RenderString("{{ .myMap | toJson }}", ctx)
+	assert.NoError(t, err)
+	expectedJSON := `{"key":"value","number":123}`
+	assert.JSONEq(t, expectedJSON, result)
 }
 
 func TestMissingKeyError(t *testing.T) {

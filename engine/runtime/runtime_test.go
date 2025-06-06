@@ -1,4 +1,4 @@
-package deno
+package runtime
 
 import (
 	"context"
@@ -28,7 +28,7 @@ var (
 
 // getTestRuntimeManager creates a dedicated runtime manager for a test
 // but reuses the global compiled binary for performance
-func getTestRuntimeManager(t *testing.T) *RuntimeManager {
+func getTestRuntimeManager(t *testing.T) *Manager {
 	t.Helper()
 
 	if !isDenoAvailable() {
@@ -54,13 +54,6 @@ func getTestRuntimeManager(t *testing.T) *RuntimeManager {
 		t.Logf("Could not create runtime manager: %v", err)
 		t.Skip("Runtime manager could not be created")
 	}
-
-	// Cleanup is a no-op for binary-based approach
-	t.Cleanup(func() {
-		if rm != nil {
-			rm.Shutdown()
-		}
-	})
 
 	return rm
 }
@@ -151,65 +144,6 @@ func setupTestDir(t *testing.T) string {
 	return tmpDir
 }
 
-// setupTestDirWithFixtures copies test fixtures to the temp directory
-func setupTestDirWithFixtures(t *testing.T) string {
-	t.Helper()
-	tmpDir := t.TempDir()
-	fixturesDir := "fixtures"
-	copyFixtures(t, fixturesDir, tmpDir)
-	return tmpDir
-}
-
-// copyFixtures copies fixture files to the test directory
-func copyFixtures(t *testing.T, srcDir, dstDir string) {
-	t.Helper()
-
-	// Get the directory of the current test file
-	_, filename, _, ok := runtime.Caller(0)
-	require.True(t, ok)
-	testDir := filepath.Dir(filename)
-	srcPath := filepath.Join(testDir, srcDir)
-
-	// Check if fixtures directory exists
-	if _, err := os.Stat(srcPath); os.IsNotExist(err) {
-		t.Fatalf("Fixtures directory not found: %s", srcPath)
-	}
-
-	// Copy deno.json
-	denoConfigSrc := filepath.Join(srcPath, "deno.json")
-	denoConfigDst := filepath.Join(dstDir, "deno.json")
-	copyFile(t, denoConfigSrc, denoConfigDst)
-
-	// Copy tool files
-	tools := []string{"test_tool.ts", "echo_tool.ts", "format_code.ts"}
-	for _, tool := range tools {
-		src := filepath.Join(srcPath, tool)
-		dst := filepath.Join(dstDir, tool)
-		copyFile(t, src, dst)
-	}
-}
-
-// copyFile copies a single file
-func copyFile(t *testing.T, src, dst string) {
-	t.Helper()
-
-	srcFile, err := os.Open(src)
-	if err != nil {
-		t.Fatalf("Failed to open source file %s: %v", src, err)
-	}
-	defer srcFile.Close()
-
-	dstFile, err := os.Create(dst)
-	if err != nil {
-		t.Fatalf("Failed to create destination file %s: %v", dst, err)
-	}
-	defer dstFile.Close()
-
-	if _, err := io.Copy(dstFile, srcFile); err != nil {
-		t.Fatalf("Failed to copy file from %s to %s: %v", src, dst, err)
-	}
-}
-
 func Test_Compile(t *testing.T) {
 	t.Run("Should create .compozy directory and worker file", func(t *testing.T) {
 		projectRoot := setupTestDir(t)
@@ -283,13 +217,6 @@ func Test_RuntimeManager_NewRuntimeManager(t *testing.T) {
 			t.Skip("Deno process could not be started")
 		}
 		require.NotNil(t, rm)
-
-		// Clean up
-		defer func() {
-			if rm != nil {
-				rm.Shutdown()
-			}
-		}()
 
 		assert.Equal(t, projectRoot, rm.projectRoot)
 	})
@@ -476,56 +403,6 @@ func Test_RuntimeManager_ExecuteTool(t *testing.T) {
 		// Should get an error for nonexistent tool
 		assert.Error(t, err)
 		assert.Nil(t, result)
-	})
-}
-
-func Test_RuntimeManager_Shutdown(t *testing.T) {
-	if !isDenoAvailable() {
-		t.Skip("Deno not available, skipping test")
-	}
-
-	t.Run("Should shutdown gracefully (no-op)", func(t *testing.T) {
-		projectRoot := setupTestDirWithFixtures(t)
-
-		// Create the worker file
-		err := Compile(projectRoot)
-		require.NoError(t, err)
-
-		// Create runtime manager with test config
-		rm, err := NewRuntimeManager(projectRoot, TestConfig())
-		if err != nil {
-			t.Logf("Could not create runtime manager: %v", err)
-			t.Skip("Deno process could not be started")
-		}
-		require.NotNil(t, rm)
-
-		// Shutdown should not return an error (it's a no-op)
-		err = rm.Shutdown()
-		assert.NoError(t, err)
-	})
-
-	t.Run("Should handle multiple shutdowns gracefully", func(t *testing.T) {
-		projectRoot := setupTestDirWithFixtures(t)
-
-		// Create the worker file
-		err := Compile(projectRoot)
-		require.NoError(t, err)
-
-		// Create runtime manager with test config
-		rm, err := NewRuntimeManager(projectRoot, TestConfig())
-		if err != nil {
-			t.Logf("Could not create runtime manager: %v", err)
-			t.Skip("Deno process could not be started")
-		}
-		require.NotNil(t, rm)
-
-		// First shutdown
-		err = rm.Shutdown()
-		assert.NoError(t, err)
-
-		// Second shutdown should not cause panic (it's a no-op)
-		err = rm.Shutdown()
-		assert.NoError(t, err)
 	})
 }
 

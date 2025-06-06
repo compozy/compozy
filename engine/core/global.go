@@ -230,17 +230,27 @@ func setTimeoutIfValid(durationStr string, target *time.Duration) {
 // Helper Functions
 // -----------------------------------------------------------------------------
 
+var (
+	defaultStartToCloseTimeout           = "5 minutes"
+	defaultScheduleToStartTimeout        = "1 minute"
+	defaultScheduleToCloseTimeout        = "6 minutes"
+	defaultRetryPolicyInitialInterval    = "1 second"
+	defaultRetryPolicyBackoffCoefficient = 2.0
+	defaultRetryPolicyMaximumInterval    = "1 minute"
+	defaultRetryPolicyMaximumAttempts    = int32(3)
+)
+
 func applyDefaultTimeouts(resolved *ResolvedActivityOptions) {
-	resolved.StartToCloseTimeout = "5 minutes"
-	resolved.ScheduleToStartTimeout = "1 minute"
-	resolved.ScheduleToCloseTimeout = "6 minutes"
+	resolved.StartToCloseTimeout = defaultStartToCloseTimeout
+	resolved.ScheduleToStartTimeout = defaultScheduleToStartTimeout
+	resolved.ScheduleToCloseTimeout = defaultScheduleToCloseTimeout
 }
 
 func applyDefaultRetryPolicy(policy *RetryPolicyConfig) {
-	policy.InitialInterval = "1 second"
-	policy.BackoffCoefficient = 2.0
-	policy.MaximumInterval = "1 minute"
-	policy.MaximumAttempts = 3
+	policy.InitialInterval = defaultRetryPolicyInitialInterval
+	policy.BackoffCoefficient = defaultRetryPolicyBackoffCoefficient
+	policy.MaximumInterval = defaultRetryPolicyMaximumInterval
+	policy.MaximumAttempts = defaultRetryPolicyMaximumAttempts
 }
 
 func mergeTimeouts(target *ResolvedActivityOptions, source *GlobalOpts) {

@@ -9,20 +9,8 @@ schemas:
       city:
         type: string
         description: The city to get weather information for
-    required: [city]
-
-  - id: weather_output
-    type: object
-    properties:
-      temperature:
-        type: number
-        description: Current temperature
-      humidity:
-        type: number
-        description: Current humidity percentage
-      weather:
-        type: string
-        description: Weather condition description
+    required:
+      - city
 
 config:
   input:
@@ -34,8 +22,6 @@ tools:
     execute: ./weather_tool.ts
     input:
       $ref: local::schemas.#(id=="city_input")
-    output:
-      $ref: local::schemas.#(id=="weather_output")
 
   - id: save_data
     description: Save the weather data to a file
@@ -48,98 +34,75 @@ tools:
           description: Whether the weather data was saved successfully
 
 agents:
-  - id: inline_agent
+  - id: tourist_guide
     config:
       $ref: global::models.#(provider=="groq")
     instructions: |
-      You are a helpful weather assistant that provides accurate weather information.
-      Your primary function is to help users get weather details for specific locations.
-      When responding:
-        - Keep responses concise but informative
-        - Format temperature according in Celsius
-        - Provide weather information and clothing suggestions based on conditions
-      Use the weather_tool to fetch current weather data.
-    tools:
-      - $use: tool(local::tools.#(id=="weather_tool"))
+      You are a helpful tourist guide assistant specialized in the city {{ .workflow.input.city }}
+      That's is your capabilities:
+      - You can use the `weather_tool` to fetch weather data (just when necessary and asked about it)
+      - You can provide thoughtful recommendations for activities based on some weather data.
+      - You can suggest clothing to use for specific activities and weather
+      Always respond in valid JSON format.
     actions:
-      - id: get_current_weather
-        prompt: What is the weather in {{ .parent.input.city }}?
-        output:
-          type: object
-          properties:
-            $merge:
-              - $ref: local::schemas.#(id=="city_input")
-              - $ref: local::schemas.#(id=="weather_output")
-
-      - id: suggest_activities
+      - id: get_weather
         prompt: |
-          Given the current conditions in {{ .parent.input.city }}:
-          - Weather: {{ .parent.input.weather }}
-          - Temperature: {{ .parent.input.temperature }}°C
-          Suggest appropriate activities specifically from {{ .parent.input.city }} for these weather conditions
-        output:
-          type: object
-          properties:
-            activities:
-              type: array
-              items:
-                type: string
-              description: List of suggested activities based on the weather conditions
-
+          What is the current weather in {{ .workflow.input.city }}?
+        tools:
+          - $ref: local::tools.#(id=="weather_tool")
+      - id: suggest_activities
+        json_mode: true
+        prompt: |
+          Given the current conditions in {{ .workflow.input.city }}: {{ .tasks.weather.output | toJson }}
+          Suggest appropriate activities specifically from {{ .workflow.input.city }} for these weather conditions
+          Return a list of activities as an array of strings in JSON format.
       - id: suggest_clothing
         prompt: |
-          Given the current conditions in {{ .parent.input.city }}:
-          - Weather: {{ .parent.input.weather }} at {{ .parent.input.temperature }}°C
-          - Planned activities: {{ .parent.input.activities }}
+          Given the current in {{ .workflow.input.city }}:
+          - Weather: {{ .tasks.weather.output | toJson }}
+          - Activities: {{ .tasks.activities.output | toJson }}
+          Suggest appropriate clothing items based on the information above.
         output:
           type: object
           properties:
-            clothing:
+            clothings:
               type: array
               items:
                 type: string
-              description: List of recommended clothing items
+              description: List of recommending clothings items
+          required:
+            - clothings
 
 tasks:
-  - id: get_current_weather
+  - id: weather
     type: basic
-    $use: agent(local::agents.#(id="inline_agent"))
-    action: get_current_weather
-    with:
-      city: "{{ .workflow.input.city }}"
+    $use: agent(local::agents.#(id="tourist_guide"))
+    action: get_weather
     on_success:
-      next: suggest_activities
+      next: activities
 
-  - id: suggest_activities
+  - id: activities
     type: basic
-    $use: agent(local::agents.#(id="inline_agent"))
+    $use: agent(local::agents.#(id="tourist_guide"))
     action: suggest_activities
-    with:
-      city: "{{ .workflow.input.city }}"
-      temperature: "{{ .tasks.get_current_weather.output.temperature }}"
-      weather: "{{ .tasks.get_current_weather.output.weather }}"
     on_success:
-      next: suggest_clothing
+      next: clothing
 
-  - id: suggest_clothing
+  - id: clothing
     type: basic
-    $use: agent(local::agents.#(id="inline_agent"))
+    $use: agent(local::agents.#(id="tourist_guide"))
     action: suggest_clothing
-    with:
-      city: "{{ .workflow.input.city }}"
-      temperature: "{{ .tasks.get_current_weather.output.temperature }}"
-      weather: "{{ .tasks.get_current_weather.output.weather }}"
-      activities: "{{ .tasks.suggest_activities.output.activities }}"
-    on_success:
-      next: save_weather_data
-
-  - id: save_weather_data
-    type: basic
-    $use: tool(local::tools.#(id="save_data"))
     final: true
-    with:
-      city: "{{ .workflow.input.city }}"
-      temperature: "{{ .tasks.get_current_weather.output.temperature }}"
-      weather: "{{ .tasks.get_current_weather.output.weather }}"
-      clothing: "{{ .tasks.suggest_clothing.output.clothing }}"
-      activities: "{{ .tasks.suggest_activities.output.activities }}"
+    # on_success:
+    #   next: save_weather_data
+
+  # - id: save_weather_data
+  #   type: basic
+  #   $use: tool(local::tools.#(id="save_data"))
+  #   final: true
+  #   with:
+  #     city: "{{ .workflow.input.city }}"
+  #     temperature: "{{ .tasks.get_weather.output.temperature }}"
+  #     weather: "{{ .tasks.get_weather.output.weather }}"
+  #     clothing: "{{ .tasks.suggest_clothing.output.clothing }}"
+  #     activities: "{{ .tasks.suggest_activities.output.activities }}"

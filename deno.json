@@ -1,7 +1,9 @@
 {
     "nodeModulesDir": "auto",
     "workspace": [
-        "pkg/**"
+        "pkg/**",
+        "engine/**",
+        "examples/**"
     ],
     "tasks": {
         "prettier:fix": "prettier --write \"**/*.@(js|ts|json|md|sh|yml|yaml)\"",

@@ -15,6 +15,14 @@ import (
 type Schema map[string]any
 type Result = jsonschema.EvaluationResult
 
+func (s *Schema) String() string {
+	bytes, err := json.Marshal(s)
+	if err != nil {
+		return ""
+	}
+	return string(bytes)
+}
+
 func (s *Schema) Compile() (*jsonschema.Schema, error) {
 	if s == nil {
 		return nil, nil

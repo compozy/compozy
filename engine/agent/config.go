@@ -7,22 +7,22 @@ import (
 	"dario.cat/mergo"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/ref"
 )
 
 type Config struct {
-	ID           string             `json:"id"                yaml:"id"                mapstructure:"id"                validate:"required"`
-	Config       llm.ProviderConfig `json:"config"            yaml:"config"            mapstructure:"config"            validate:"required"`
-	Instructions string             `json:"instructions"      yaml:"instructions"      mapstructure:"instructions"      validate:"required"`
-	Tools        []tool.Config      `json:"tools,omitempty"   yaml:"tools,omitempty"   mapstructure:"tools,omitempty"`
-	Actions      []*ActionConfig    `json:"actions,omitempty" yaml:"actions,omitempty" mapstructure:"actions,omitempty"`
-	InputSchema  *schema.Schema     `json:"input,omitempty"   yaml:"input,omitempty"   mapstructure:"input,omitempty"`
-	OutputSchema *schema.Schema     `json:"output,omitempty"  yaml:"output,omitempty"  mapstructure:"output,omitempty"`
-	With         *core.Input        `json:"with,omitempty"    yaml:"with,omitempty"    mapstructure:"with,omitempty"`
-	Env          *core.EnvMap       `json:"env,omitempty"     yaml:"env,omitempty"     mapstructure:"env,omitempty"`
+	ID           string              `json:"id"                       yaml:"id"                       mapstructure:"id"                       validate:"required"`
+	Config       core.ProviderConfig `json:"config"                   yaml:"config"                   mapstructure:"config"                   validate:"required"`
+	Instructions string              `json:"instructions"             yaml:"instructions"             mapstructure:"instructions"             validate:"required"`
+	Actions      []*ActionConfig     `json:"actions,omitempty"        yaml:"actions,omitempty"        mapstructure:"actions,omitempty"`
+	With         *core.Input         `json:"with,omitempty"           yaml:"with,omitempty"           mapstructure:"with,omitempty"`
+	Env          *core.EnvMap        `json:"env,omitempty"            yaml:"env,omitempty"            mapstructure:"env,omitempty"`
+	// When defined here, the agent will have toolChoice defined as "auto"
+	Tools         []tool.Config `json:"tools,omitempty"          yaml:"tools,omitempty"          mapstructure:"tools,omitempty"`
+	MaxIterations int           `json:"max_iterations,omitempty" yaml:"max_iterations,omitempty" mapstructure:"max_iterations,omitempty"`
+	JSONMode      bool          `json:"json_mode"                yaml:"json_mode"                mapstructure:"json_mode"`
 
 	filePath string
 	cwd      *core.CWD
@@ -73,6 +73,17 @@ func (a *Config) GetEnv() core.EnvMap {
 	return *a.Env
 }
 
+func (a *Config) HasSchema() bool {
+	return false
+}
+
+func (a *Config) GetMaxIterations() int {
+	if a.MaxIterations == 0 {
+		return 5
+	}
+	return a.MaxIterations
+}
+
 func (a *Config) Validate() error {
 	v := schema.NewCompositeValidator(
 		schema.NewCWDValidator(a.cwd, a.ID),
@@ -82,11 +93,14 @@ func (a *Config) Validate() error {
 	return v.Validate()
 }
 
-func (a *Config) ValidateParams(ctx context.Context, input *core.Input) error {
-	if a.InputSchema == nil || input == nil {
-		return nil
-	}
-	return schema.NewParamsValidator(input, a.InputSchema, a.ID).Validate(ctx)
+func (a *Config) ValidateInput(_ context.Context, _ *core.Input) error {
+	// Does not make sense the agent having a schema
+	return nil
+}
+
+func (a *Config) ValidateOutput(_ context.Context, _ *core.Output) error {
+	// Does not make sense the agent having a schema
+	return nil
 }
 
 func (a *Config) Merge(other any) error {

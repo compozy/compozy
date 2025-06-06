@@ -8,7 +8,6 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
@@ -179,8 +178,8 @@ func TestConfigNormalizer_NormalizeAgentComponent(t *testing.T) {
 	t.Run("Should normalize agent with complete parent context and environment merging", func(t *testing.T) {
 		agentConfig := &agent.Config{
 			ID: "data-processor",
-			Config: llm.ProviderConfig{
-				Model: llm.ModelGPT4o,
+			Config: core.ProviderConfig{
+				Model: "gpt-4o",
 			},
 			Instructions: `You are processing data for the {{ .parent.id }} task.
 The task type is {{ .parent.type }}.
@@ -288,8 +287,8 @@ Data to process: fetched-dataset`
 	t.Run("Should normalize agent actions with parent agent context", func(t *testing.T) {
 		agentConfig := &agent.Config{
 			ID: "analyzer-agent",
-			Config: llm.ProviderConfig{
-				Model: llm.ModelGPT4oMini,
+			Config: core.ProviderConfig{
+				Model: "gpt-4o-mini",
 			},
 			Instructions: "Analyze data for tasks",
 			With: &core.Input{
@@ -692,9 +691,9 @@ func TestConfigNormalizer_ProviderConfigNormalization(t *testing.T) {
 	t.Run("Should normalize ProviderConfig templates including APIKey", func(t *testing.T) {
 		agentConfig := &agent.Config{
 			ID: "test-agent",
-			Config: llm.ProviderConfig{
-				Provider: llm.ProviderGroq,
-				Model:    llm.ModelLLama3370bVersatile,
+			Config: core.ProviderConfig{
+				Provider: core.ProviderGroq,
+				Model:    "llama-3.3-70b-versatile",
 				APIKey:   "{{ .env.OPENAI_API_KEY }}",
 				APIURL:   "{{ .env.BASE_URL }}/v1",
 			},
@@ -781,9 +780,9 @@ func TestConfigNormalizer_MapstructureCompatibility(t *testing.T) {
 		// Test agent config with config field (ProviderConfig)
 		agentConfig := &agent.Config{
 			ID: "test-agent",
-			Config: llm.ProviderConfig{
-				Provider: llm.ProviderOpenAI,
-				Model:    llm.ModelGPT4o,
+			Config: core.ProviderConfig{
+				Provider: core.ProviderOpenAI,
+				Model:    "gpt-4o",
 				APIKey:   "{{ .env.API_KEY }}",
 				APIURL:   "{{ .env.API_URL }}",
 			},

@@ -114,11 +114,18 @@ func (t *Config) Validate() error {
 	return v.Validate()
 }
 
-func (t *Config) ValidateParams(ctx context.Context, input *core.Input) error {
+func (t *Config) ValidateInput(ctx context.Context, input *core.Input) error {
 	if t.InputSchema == nil || input == nil {
 		return nil
 	}
 	return schema.NewParamsValidator(input, t.InputSchema, t.ID).Validate(ctx)
+}
+
+func (t *Config) ValidateOutput(ctx context.Context, output *core.Output) error {
+	if t.OutputSchema == nil || output == nil {
+		return nil
+	}
+	return schema.NewParamsValidator(output, t.OutputSchema, t.ID).Validate(ctx)
 }
 
 func (t *Config) Merge(other any) error {
@@ -140,6 +147,10 @@ func (t *Config) FromMap(data any) error {
 		return err
 	}
 	return t.Merge(config)
+}
+
+func (t *Config) HasSchema() bool {
+	return t.InputSchema != nil || t.OutputSchema != nil
 }
 
 func FindConfig(tasks []Config, taskID string) (*Config, error) {

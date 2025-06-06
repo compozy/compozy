@@ -77,6 +77,10 @@ func (w *Config) SetFilePath(path string) {
 	w.filePath = path
 }
 
+func (w *Config) HasSchema() bool {
+	return w.Opts.InputSchema != nil
+}
+
 func (w *Config) Validate() error {
 	v := schema.NewCompositeValidator(
 		schema.NewCWDValidator(w.cwd, w.ID),
@@ -109,12 +113,17 @@ func (w *Config) Validate() error {
 	return nil
 }
 
-func (w *Config) ValidateParams(ctx context.Context, input *core.Input) error {
+func (w *Config) ValidateInput(ctx context.Context, input *core.Input) error {
 	if input == nil {
 		return nil
 	}
 	inputSchema := w.Opts.InputSchema
 	return schema.NewParamsValidator(input, inputSchema, w.ID).Validate(ctx)
+}
+
+func (w *Config) ValidateOutput(_ context.Context, _ *core.Output) error {
+	// Does not make sense the workflow having a schema
+	return nil
 }
 
 func (w *Config) Merge(other any) error {
