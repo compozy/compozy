@@ -118,10 +118,6 @@ func getTemporalConfig(cmd *cobra.Command) (*worker.TemporalConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get temporal-namespace flag: %w", err)
 	}
-	taskQueue, err := cmd.Flags().GetString("temporal-task-queue")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get temporal-task-queue flag: %w", err)
-	}
 
 	// Use env vars as fallback if flags are empty
 	if hostPort == "" {
@@ -132,14 +128,9 @@ func getTemporalConfig(cmd *cobra.Command) (*worker.TemporalConfig, error) {
 	if namespace == "" {
 		namespace = getEnvOrDefault("TEMPORAL_NAMESPACE", "default")
 	}
-	if taskQueue == "" {
-		taskQueue = getEnvOrDefault("TEMPORAL_TASK_QUEUE", "compozy-task-queue")
-	}
-
 	return &worker.TemporalConfig{
 		HostPort:  hostPort,
 		Namespace: namespace,
-		TaskQueue: taskQueue,
 	}, nil
 }
 

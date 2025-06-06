@@ -17,14 +17,14 @@ import (
 type WorkflowInput = wfacts.TriggerInput
 type WorkflowData = wfacts.GetData
 
-func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) error {
+func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) (*wf.State, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Starting workflow", "workflow_id", input.WorkflowID, "exec_id", input.WorkflowExecID)
 
 	// Get workflow data
 	data, err := getWorkflowData(ctx, input)
 	if err != nil {
-		return fmt.Errorf("failed to get workflow data: %w", err)
+		return nil, fmt.Errorf("failed to get workflow data: %w", err)
 	}
 
 	// Initial context
@@ -32,7 +32,7 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) error {
 	workflowConfig, err := wf.FindConfig(data.Workflows, input.WorkflowID)
 	data.WorkflowConfig = workflowConfig
 	if err != nil {
-		return fmt.Errorf("failed to find workflow config: %w", err)
+		return nil, fmt.Errorf("failed to find workflow config: %w", err)
 	}
 	ctx = activityContext(ctx, projectConfig, workflowConfig)
 
@@ -41,7 +41,7 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) error {
 	wState, err := triggerWorkflow(ctx, data, &input)
 	if err != nil {
 		logger.Error("Failed to execute trigger activity", "error", err)
-		return err
+		return nil, err
 	}
 
 	// Setup signals for PAUSE/RESUME/CANCEL
@@ -49,31 +49,31 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) error {
 	errorHandler := BuildErrorHandler(ctx, &input)
 	pauseGate, err := RegisterSignals(ctx, cancel, &input)
 	if err != nil {
-		return errorHandler(err)
+		return nil, errorHandler(err)
 	}
 
 	// Dispatch and execute first task
 	output, err := dispatchFirstTask(ctx, data, pauseGate, wState, &input)
 	if err != nil {
-		return errorHandler(err)
+		return nil, errorHandler(err)
 	}
 
 	// Execute tasks
 	err = executeTasks(ctx, data, pauseGate, output)
 	if err != nil {
-		return errorHandler(err)
+		return nil, errorHandler(err)
 	}
 
 	// Complete workflow
-	err = completeWorkflow(ctx, pauseGate, wState)
+	wState, err = completeWorkflow(ctx, pauseGate, wState)
 	if err != nil {
-		return errorHandler(err)
+		return nil, errorHandler(err)
 	}
 	logger.Info("Workflow completed",
 		"workflow_id", input.WorkflowID,
 		"exec_id", input.WorkflowExecID,
 	)
-	return nil
+	return wState, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -161,21 +161,20 @@ func completeWorkflow(
 	ctx workflow.Context,
 	pauseGate *PauseGate,
 	wState *wf.State,
-) error {
+) (*wf.State, error) {
 	if err := pauseGate.Await(); err != nil {
-		return err
+		return nil, err
 	}
-	actLabel := wfacts.UpdateStateLabel
-	actInput := &wfacts.UpdateStateInput{
-		WorkflowID:     wState.WorkflowID,
+	actLabel := wfacts.CompleteWorkflowLabel
+	actInput := &wfacts.CompleteWorkflowInput{
 		WorkflowExecID: wState.WorkflowExecID,
-		Status:         core.StatusSuccess,
 	}
-	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, nil)
+	var output *wf.State
+	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &output)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return output, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -229,7 +228,7 @@ func executeTasks(
 
 		taskID := currentTask.TaskID
 		taskExecID := currentTask.TaskExecID
-		logger.Info("Executing task", "task_id", taskID, "task_exec_id", taskExecID)
+		logger.Info(fmt.Sprintf("Executing Task: %s", taskID), "task_exec_id", taskExecID)
 		ctx = activityContextForTask(ctx, data.ProjectConfig, data.WorkflowConfig, taskID)
 		response, err := executeBasicTask(ctx, pauseGate, currentOutput)
 		if err != nil {
@@ -239,26 +238,22 @@ func executeTasks(
 			logger.Error("Failed to execute task", "task_id", currentTask.TaskID, "error", err)
 			return err
 		}
-
 		logger.Info("Task executed successfully",
 			"status", response.State.Status,
 			"task_id", currentTask.TaskID,
 		)
-
 		// Dispatch next task if there is one
 		if response.NextTask == nil {
 			// No more tasks to execute
 			logger.Info("No more tasks to execute", "current_task", currentTask.TaskID)
 			break
 		}
-
 		// Ensure NextTask has a valid ID
 		nextTaskID := response.NextTask.ID
 		if nextTaskID == "" {
 			logger.Error("NextTask has empty ID", "current_task", currentTask.TaskID)
 			return fmt.Errorf("next task has empty ID for current task: %s", currentTask.TaskID)
 		}
-
 		currentTaskState := response.State
 		nextTaskOutput, err := dispatchTask(ctx, pauseGate, currentTaskState, nextTaskID)
 		if err != nil {

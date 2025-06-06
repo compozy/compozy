@@ -22,7 +22,6 @@
 # TEMPORAL_PORT=7233
 # TEMPORAL_UI_PORT=8080
 # TEMPORAL_NAMESPACE=default
-# TEMPORAL_TASK_QUEUE=compozy-task-queue
 
 services:
   # PostgreSQL for Temporal

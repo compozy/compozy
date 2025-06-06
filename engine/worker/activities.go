@@ -61,6 +61,18 @@ func (a *Activities) UpdateWorkflowState(ctx context.Context, input *wfacts.Upda
 	return act.Run(ctx, input)
 }
 
+// CompleteWorkflow executes the activity to complete workflow with task outputs
+func (a *Activities) CompleteWorkflow(
+	ctx context.Context,
+	input *wfacts.CompleteWorkflowInput,
+) (*workflow.State, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := wfacts.NewCompleteWorkflow(a.workflowRepo)
+	return act.Run(ctx, input)
+}
+
 func (a *Activities) DispatchTask(
 	ctx context.Context,
 	input *tkfacts.DispatchInput,

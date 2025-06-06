@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
 	wf "github.com/compozy/compozy/engine/workflow"
+	"github.com/gosimple/slug"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 )
@@ -29,6 +30,7 @@ type Worker struct {
 	worker        worker.Worker
 	projectConfig *project.Config
 	workflows     []*wf.Config
+	taskQueue     string
 }
 
 func NewWorker(
@@ -41,7 +43,8 @@ func NewWorker(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create worker client: %w", err)
 	}
-	worker := client.NewWorker(client.Config().TaskQueue)
+	taskQueue := slug.Make(projectConfig.Name)
+	worker := client.NewWorker(taskQueue)
 	projectRoot := projectConfig.GetCWD().PathStr()
 	runtimeConfig := runtime.DefaultConfig()
 	runtime, err := runtime.NewRuntimeManager(projectRoot, runtimeConfig)
@@ -62,6 +65,7 @@ func NewWorker(
 		projectConfig: projectConfig,
 		workflows:     workflows,
 		activities:    activities,
+		taskQueue:     taskQueue,
 	}, nil
 }
 
@@ -72,6 +76,7 @@ func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterActivity(o.activities.UpdateWorkflowState)
 	o.worker.RegisterActivity(o.activities.DispatchTask)
 	o.worker.RegisterActivity(o.activities.ExecuteBasicTask)
+	o.worker.RegisterActivity(o.activities.CompleteWorkflow)
 	return o.worker.Start()
 }
 
@@ -109,7 +114,7 @@ func (o *Worker) TriggerWorkflow(
 
 	options := client.StartWorkflowOptions{
 		ID:        workflowExecID.String(),
-		TaskQueue: o.client.Config().TaskQueue,
+		TaskQueue: o.taskQueue,
 	}
 	workflowConfig, err := wf.FindConfig(o.workflows, workflowID)
 	if err != nil {

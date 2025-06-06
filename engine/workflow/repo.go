@@ -21,4 +21,5 @@ type Repository interface {
 	GetStateByTaskID(ctx context.Context, workflowID, taskID string) (*State, error)
 	GetStateByAgentID(ctx context.Context, workflowID, agentID string) (*State, error)
 	GetStateByToolID(ctx context.Context, workflowID, toolID string) (*State, error)
+	CompleteWorkflow(ctx context.Context, workflowExecID core.ID) (*State, error)
 }
