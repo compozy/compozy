@@ -261,7 +261,7 @@ Parent task: {{ .parent.id }}`,
 			Env: &core.EnvMap{
 				"AGENT_MODE": "{{ .env.MODE | default \"production\" }}",
 			},
-			Config: agent.ProviderConfig{Model: agent.ModelGPT4oMini},
+			Config: core.ProviderConfig{Model: "gpt-4o-mini"},
 		}
 
 		ctx := &NormalizationContext{
@@ -302,8 +302,8 @@ Parent task: caller-task`
 	t.Run("Should normalize agent actions and access parent agent config", func(t *testing.T) {
 		agentConfig := &agent.Config{
 			ID: "test-agent-for-actions",
-			Config: agent.ProviderConfig{
-				Model: agent.ModelGPT4o,
+			Config: core.ProviderConfig{
+				Model: "gpt-4o",
 			},
 			With: &core.Input{
 				"data":      "test-data-for-action",

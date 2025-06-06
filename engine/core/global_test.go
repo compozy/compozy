@@ -90,16 +90,16 @@ func TestResolveActivityOptions(t *testing.T) {
 	t.Run("Should apply default options when no global options provided", func(t *testing.T) {
 		resolved := ResolveActivityOptions(nil, nil, nil)
 
-		assert.Equal(t, "1 minute", resolved.ScheduleToStartTimeout)
-		assert.Equal(t, "30 minutes", resolved.StartToCloseTimeout)
-		assert.Equal(t, "35 minutes", resolved.ScheduleToCloseTimeout)
+		assert.Equal(t, defaultStartToCloseTimeout, resolved.StartToCloseTimeout)
+		assert.Equal(t, defaultScheduleToStartTimeout, resolved.ScheduleToStartTimeout)
+		assert.Equal(t, defaultScheduleToCloseTimeout, resolved.ScheduleToCloseTimeout)
 		assert.Equal(t, "", resolved.HeartbeatTimeout)
 
 		require.NotNil(t, resolved.RetryPolicy)
-		assert.Equal(t, "1 second", resolved.RetryPolicy.InitialInterval)
-		assert.Equal(t, float64(2.0), resolved.RetryPolicy.BackoffCoefficient)
-		assert.Equal(t, "1 minute", resolved.RetryPolicy.MaximumInterval)
-		assert.Equal(t, int32(3), resolved.RetryPolicy.MaximumAttempts)
+		assert.Equal(t, defaultRetryPolicyInitialInterval, resolved.RetryPolicy.InitialInterval)
+		assert.Equal(t, defaultRetryPolicyBackoffCoefficient, resolved.RetryPolicy.BackoffCoefficient)
+		assert.Equal(t, defaultRetryPolicyMaximumInterval, resolved.RetryPolicy.MaximumInterval)
+		assert.Equal(t, defaultRetryPolicyMaximumAttempts, resolved.RetryPolicy.MaximumAttempts)
 	})
 
 	t.Run("Should override with project options", func(t *testing.T) {
@@ -113,9 +113,9 @@ func TestResolveActivityOptions(t *testing.T) {
 		resolved := ResolveActivityOptions(projectOpts, nil, nil)
 
 		assert.Equal(t, "1 hour", resolved.StartToCloseTimeout)
-		assert.Equal(t, "1 minute", resolved.ScheduleToStartTimeout) // default
+		assert.Equal(t, defaultScheduleToStartTimeout, resolved.ScheduleToStartTimeout)
 		assert.Equal(t, int32(5), resolved.RetryPolicy.MaximumAttempts)
-		assert.Equal(t, "1 second", resolved.RetryPolicy.InitialInterval) // default
+		assert.Equal(t, defaultRetryPolicyInitialInterval, resolved.RetryPolicy.InitialInterval)
 	})
 
 	t.Run("Should override with workflow options", func(t *testing.T) {
@@ -127,8 +127,7 @@ func TestResolveActivityOptions(t *testing.T) {
 		}
 
 		resolved := ResolveActivityOptions(projectOpts, workflowOpts, nil)
-
-		assert.Equal(t, "2 hours", resolved.StartToCloseTimeout) // workflow overrides project
+		assert.Equal(t, "2 hours", resolved.StartToCloseTimeout)
 	})
 
 	t.Run("Should override with task options", func(t *testing.T) {
@@ -156,7 +155,7 @@ func TestToTemporalActivityOptions(t *testing.T) {
 
 		// Verify it matches the expected default structure exactly
 		expected := workflow.ActivityOptions{
-			StartToCloseTimeout: 30 * time.Minute,
+			StartToCloseTimeout: 5 * time.Minute, // Updated to match actual default
 			RetryPolicy: &temporal.RetryPolicy{
 				InitialInterval:    time.Second,
 				BackoffCoefficient: 2.0,
@@ -174,9 +173,9 @@ func TestToTemporalActivityOptions(t *testing.T) {
 		assert.Equal(t, expected.RetryPolicy.MaximumAttempts, opts.RetryPolicy.MaximumAttempts)
 
 		// Additional timeouts that should be set by defaults but not in the minimal expected structure
-		assert.Equal(t, time.Minute, opts.ScheduleToStartTimeout)    // from "1 minute" default
-		assert.Equal(t, 35*time.Minute, opts.ScheduleToCloseTimeout) // from "35 minutes" default
-		assert.Equal(t, time.Duration(0), opts.HeartbeatTimeout)     // should be 0 when not set
+		assert.Equal(t, time.Minute, opts.ScheduleToStartTimeout)   // from "1 minute" default
+		assert.Equal(t, 6*time.Minute, opts.ScheduleToCloseTimeout) // from "6 minutes" default
+		assert.Equal(t, time.Duration(0), opts.HeartbeatTimeout)    // should be 0 when not set
 		assert.Empty(t, opts.RetryPolicy.NonRetryableErrorTypes)
 	})
 
@@ -186,8 +185,8 @@ func TestToTemporalActivityOptions(t *testing.T) {
 
 		// Check timeouts
 		assert.Equal(t, time.Minute, opts.ScheduleToStartTimeout)
-		assert.Equal(t, 30*time.Minute, opts.StartToCloseTimeout)
-		assert.Equal(t, 35*time.Minute, opts.ScheduleToCloseTimeout)
+		assert.Equal(t, 5*time.Minute, opts.StartToCloseTimeout)
+		assert.Equal(t, 6*time.Minute, opts.ScheduleToCloseTimeout)
 		assert.Equal(t, time.Duration(0), opts.HeartbeatTimeout) // should be 0 when not set
 
 		// Check retry policy
@@ -216,7 +215,7 @@ func TestToTemporalActivityOptions(t *testing.T) {
 		opts := resolved.ToTemporalActivityOptions()
 
 		// Should set default StartToCloseTimeout when no timeouts are provided
-		assert.Equal(t, 30*time.Minute, opts.StartToCloseTimeout)
+		assert.Equal(t, 5*time.Minute, opts.StartToCloseTimeout)
 		assert.Equal(t, time.Duration(0), opts.ScheduleToStartTimeout)
 		assert.Equal(t, time.Duration(0), opts.ScheduleToCloseTimeout)
 	})
@@ -267,7 +266,7 @@ func TestToTemporalActivityOptions(t *testing.T) {
 
 		// Should fallback to defaults when parsing fails
 		assert.Equal(t, time.Duration(0), opts.ScheduleToStartTimeout)
-		assert.Equal(t, 30*time.Minute, opts.StartToCloseTimeout) // default fallback
+		assert.Equal(t, 5*time.Minute, opts.StartToCloseTimeout) // default fallback
 		assert.Equal(t, time.Duration(0), opts.ScheduleToCloseTimeout)
 
 		require.NotNil(t, opts.RetryPolicy)

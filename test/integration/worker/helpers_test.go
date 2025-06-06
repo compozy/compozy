@@ -2,19 +2,26 @@ package worker
 
 import (
 	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/runtime"
+	"github.com/compozy/compozy/engine/worker"
+	"github.com/compozy/compozy/engine/workflow"
 	utils "github.com/compozy/compozy/test/integration/helper"
+	"go.temporal.io/sdk/testsuite"
 )
 
 // CreateTestAgentProviderConfig creates an agent.ProviderConfig for tests
-func CreateTestAgentProviderConfig() agent.ProviderConfig {
+func CreateTestAgentProviderConfig() core.ProviderConfig {
 	raw := utils.GetTestProviderConfig()
-	return agent.ProviderConfig{
-		Provider:    raw.Provider,
-		Model:       raw.Model,
-		APIKey:      raw.APIKey,
-		APIURL:      raw.APIURL,
-		Temperature: raw.Temperature,
-		MaxTokens:   raw.MaxTokens,
+	return core.ProviderConfig{
+		Provider: raw.Provider,
+		Model:    raw.Model,
+		APIKey:   raw.APIKey,
+		APIURL:   raw.APIURL,
+		Params: core.PromptParams{
+			Temperature: float64(raw.Temperature),
+			MaxTokens:   raw.MaxTokens,
+		},
 	}
 }
 
@@ -58,4 +65,25 @@ func CreateTestAgentConfigWithActions(id, instructions string, actions map[strin
 		Config:       CreateTestAgentProviderConfig(),
 		Actions:      actionConfigs,
 	}
+}
+
+func SetupWorkflowEnvironment(env *testsuite.TestWorkflowEnvironment, config *ContainerTestConfig) {
+	runtimeConfig := runtime.TestConfig()
+	runtime, err := runtime.NewRuntimeManager(config.ProjectConfig.GetCWD().PathStr(), runtimeConfig)
+	if err != nil {
+		panic(err)
+	}
+	activities := worker.NewActivities(
+		config.ProjectConfig,
+		[]*workflow.Config{config.WorkflowConfig},
+		config.WorkflowRepo,
+		config.TaskRepo,
+		runtime,
+	)
+	env.RegisterWorkflow(worker.CompozyWorkflow)
+	env.RegisterActivity(activities.GetWorkflowData)
+	env.RegisterActivity(activities.TriggerWorkflow)
+	env.RegisterActivity(activities.UpdateWorkflowState)
+	env.RegisterActivity(activities.DispatchTask)
+	env.RegisterActivity(activities.ExecuteBasicTask)
 }

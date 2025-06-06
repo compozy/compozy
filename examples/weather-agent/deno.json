@@ -1,0 +1,5 @@
+{
+    "imports": {
+        "weather_tool": "./weather_tool.ts"
+    }
+}

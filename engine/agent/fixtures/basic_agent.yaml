@@ -2,8 +2,9 @@ id: code-assistant
 config:
   provider: anthropic
   model: claude-3-opus-20240229
-  temperature: 0.7
-  max_tokens: 4000
+  params:
+    temperature: 0.7
+    max_tokens: 4000
 instructions: |
   You are a powerful AI coding assistant. Your main goal is to help users write, review, and debug code.
   Always provide clear explanations and follow best practices.

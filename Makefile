@@ -98,33 +98,18 @@ schemagen:
 # -----------------------------------------------------------------------------
 # Testing
 # -----------------------------------------------------------------------------
-integration-test:
-	gotestsum -f testdox -- ./test/integration/...
-
 # Fast tests for daily development (excludes slow integration/worker tests)
-test-go:
+test:
 	gotestsum --format testdox -- -parallel=8 $(shell go list ./... | grep -v '/test/integration/worker')
 
-# Complete test suite including slow integration/worker tests
+test-nocache:
+	gotestsum --format testdox -- -count=1 -parallel=8 ./...
+
 test-all:
 	gotestsum --format testdox -- -parallel=8 ./...
 
-test-go-fast:
-	gotestsum --format testdox -- -parallel=16 -short ./...
-
-test-go-nocache:
-	gotestsum --format testdox -- -count=1 -parallel=8 ./...
-
-test-integration-only:
-	gotestsum --format testdox -- -parallel=4 ./test/integration/...
-
-test-unit-only:
-	gotestsum --format testdox -- -parallel=16 ./... -skip="./test/integration/..."
-
-test:
-	make start-docker
-	make test-all
-	make stop-docker
+test-worker:
+	gotestsum --format testdox -- -parallel=16 ./test/integration/worker/...
 
 # -----------------------------------------------------------------------------
 # Docker & Database Management

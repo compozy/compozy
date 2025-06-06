@@ -5,7 +5,6 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/ref"
 	"github.com/compozy/compozy/pkg/utils"
@@ -24,11 +23,13 @@ func setupTest(t *testing.T, workflowFile string) (cwd *core.CWD, dstPath string
 var globalScope = map[string]any{
 	"models": []any{
 		map[string]any{
-			"id":          "gpt-4o",
-			"provider":    "openai",
-			"model":       "gpt-4o",
-			"temperature": 0.7,
-			"max_tokens":  4000,
+			"id":       "gpt-4o",
+			"provider": "openai",
+			"model":    "gpt-4o",
+			"params": map[string]any{
+				"temperature": 0.7,
+				"max_tokens":  4000,
+			},
 		},
 	},
 }
@@ -73,10 +74,10 @@ func Test_LoadWorkflow(t *testing.T) {
 		agentConfig := config.Agents[0]
 		assert.Equal(t, "code-assistant", agentConfig.ID)
 		require.NotNil(t, agentConfig.Config)
-		assert.Equal(t, agent.ProviderName("openai"), agentConfig.Config.Provider)
-		assert.Equal(t, agent.ModelName("gpt-4o"), agentConfig.Config.Model)
-		assert.InDelta(t, float32(0.7), agentConfig.Config.Temperature, 0.0001)
-		assert.Equal(t, int32(4000), agentConfig.Config.MaxTokens)
+		assert.Equal(t, core.ProviderName("openai"), agentConfig.Config.Provider)
+		assert.Equal(t, "gpt-4o", agentConfig.Config.Model)
+		assert.InDelta(t, float64(0.7), agentConfig.Config.Params.Temperature, 0.0001)
+		assert.Equal(t, int32(4000), agentConfig.Config.Params.MaxTokens)
 
 		// Validate env
 		assert.Equal(t, "1.0.0", config.GetEnv().Prop("WORKFLOW_VERSION"))

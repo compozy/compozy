@@ -1,9 +1,0 @@
-plugins = ["prettier-plugin-sh"]
-printWidth = 100
-singleQuote = false
-
-[[overrides]]
-files = ["**/*.md"]
-
-[overrides.options]
-proseWrap = "preserve"

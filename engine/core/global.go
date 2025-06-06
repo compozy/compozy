@@ -188,7 +188,7 @@ func (r *ResolvedActivityOptions) setTimeouts(opts *workflow.ActivityOptions) {
 // setDefaultTimeouts ensures at least one required timeout is set
 func (r *ResolvedActivityOptions) setDefaultTimeouts(opts *workflow.ActivityOptions) {
 	if opts.StartToCloseTimeout == 0 && opts.ScheduleToCloseTimeout == 0 {
-		opts.StartToCloseTimeout = 30 * time.Minute
+		opts.StartToCloseTimeout = 5 * time.Minute
 	}
 }
 
@@ -230,17 +230,27 @@ func setTimeoutIfValid(durationStr string, target *time.Duration) {
 // Helper Functions
 // -----------------------------------------------------------------------------
 
+var (
+	defaultStartToCloseTimeout           = "5 minutes"
+	defaultScheduleToStartTimeout        = "1 minute"
+	defaultScheduleToCloseTimeout        = "6 minutes"
+	defaultRetryPolicyInitialInterval    = "1 second"
+	defaultRetryPolicyBackoffCoefficient = 2.0
+	defaultRetryPolicyMaximumInterval    = "1 minute"
+	defaultRetryPolicyMaximumAttempts    = int32(3)
+)
+
 func applyDefaultTimeouts(resolved *ResolvedActivityOptions) {
-	resolved.StartToCloseTimeout = "30 minutes"
-	resolved.ScheduleToStartTimeout = "1 minute"
-	resolved.ScheduleToCloseTimeout = "35 minutes"
+	resolved.StartToCloseTimeout = defaultStartToCloseTimeout
+	resolved.ScheduleToStartTimeout = defaultScheduleToStartTimeout
+	resolved.ScheduleToCloseTimeout = defaultScheduleToCloseTimeout
 }
 
 func applyDefaultRetryPolicy(policy *RetryPolicyConfig) {
-	policy.InitialInterval = "1 second"
-	policy.BackoffCoefficient = 2.0
-	policy.MaximumInterval = "1 minute"
-	policy.MaximumAttempts = 3
+	policy.InitialInterval = defaultRetryPolicyInitialInterval
+	policy.BackoffCoefficient = defaultRetryPolicyBackoffCoefficient
+	policy.MaximumInterval = defaultRetryPolicyMaximumInterval
+	policy.MaximumAttempts = defaultRetryPolicyMaximumAttempts
 }
 
 func mergeTimeouts(target *ResolvedActivityOptions, source *GlobalOpts) {

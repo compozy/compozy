@@ -196,7 +196,7 @@ func (n *Normalizer) NormalizeAgentActions(config *agent.Config, ctx *Normalizat
 		if aConfig == nil {
 			return fmt.Errorf("agent action %s not found in agent config %s", actionID, config.ID)
 		}
-		mergedInput, err := ctx.CurrentInput.Merge(aConfig.GetInput())
+		mergedInput, err := config.GetInput().Merge(aConfig.GetInput())
 		if err != nil {
 			return fmt.Errorf("failed to merge input for agent action %s: %w", aConfig.ID, err)
 		}

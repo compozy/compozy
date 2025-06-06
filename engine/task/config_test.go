@@ -251,7 +251,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.ValidateParams(context.Background(), config.With)
+		err := config.ValidateInput(context.Background(), config.With)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "Required property 'name' is missing")
 	})
@@ -352,9 +352,9 @@ func Test_TaskReference(t *testing.T) {
 		assert.Equal(t, "code-assistant", agent.ID)
 		require.NotNil(t, agent.Config)
 		assert.Equal(t, "anthropic", string(agent.Config.Provider))
-		assert.Equal(t, "claude-3-opus-20240229", string(agent.Config.Model))
-		assert.Equal(t, float32(0.7), agent.Config.Temperature)
-		assert.Equal(t, int32(4000), agent.Config.MaxTokens)
+		assert.Equal(t, "claude-3-opus-20240229", agent.Config.Model)
+		assert.Equal(t, float64(0.7), agent.Config.Params.Temperature)
+		assert.Equal(t, int32(4000), agent.Config.Params.MaxTokens)
 		assert.Equal(t, "You are a powerful AI coding assistant.", agent.Instructions)
 	})
 }

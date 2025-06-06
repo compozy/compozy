@@ -7,7 +7,9 @@
     "jsr:@std/internal@^1.0.6": "1.0.7",
     "jsr:@std/internal@^1.0.7": "1.0.7",
     "jsr:@std/testing@*": "1.0.12",
-    "npm:nats@2.17.0": "2.17.0"
+    "npm:nats@2.17.0": "2.17.0",
+    "npm:openmeteo@*": "1.2.0",
+    "npm:prettier@*": "3.5.3"
   },
   "jsr": {
     "@std/assert@1.0.13": {
@@ -80,6 +82,15 @@
       "os": ["win32"],
       "cpu": ["x64"]
     },
+    "@openmeteo/sdk@1.20.0": {
+      "integrity": "sha512-v+mKaJUvJEZEGnritK2NwdIKTuHDFzf30yp8+8/71z8oXtwOsvcvlE8kKsVPjKLjRrU2/hJN8lBkR5m+wGKQXw==",
+      "dependencies": [
+        "flatbuffers"
+      ]
+    },
+    "flatbuffers@25.2.10": {
+      "integrity": "sha512-7JlN9ZvLDG1McO3kbX0k4v+SUAg48L1rIwEvN6ZQl/eCtgJz9UylTMzE9wrmYrcorgxm3CX/3T/w5VAub99UUw=="
+    },
     "nats@2.17.0": {
       "integrity": "sha512-749TtweWL6bc9R9yNra4a+tuk8J0bqurxcPV/9R2D+WPTplY4PPde/LPSXspqR/eCCTxiM80/AjVlfboEafRxA==",
       "dependencies": [
@@ -91,6 +102,17 @@
       "dependencies": [
         "tweetnacl"
       ]
+    },
+    "openmeteo@1.2.0": {
+      "integrity": "sha512-YinFo02TM4wXdm9o2FBAO2u1ka3drNdnFsGNskiO8aCWvZa6nljh3ioH79ipwPdFhCrIiq/LCfpjDGXqH2RBFw==",
+      "dependencies": [
+        "@openmeteo/sdk",
+        "flatbuffers"
+      ]
+    },
+    "prettier@3.5.3": {
+      "integrity": "sha512-QQtaxnoDJeAkDvDKWCLiwIXkTgRhwYDEQCghU9Z6q03iyek/rxRh/2lC3HB7P8sWT2xC/y5JDctPLBIGzHKbhw==",
+      "bin": true
     },
     "tweetnacl@1.0.3": {
       "integrity": "sha512-6rt+RN7aOi1nGMyC4Xa5DdYiukl2UWCbcJft7YhxReBGQD7OAM8Pbxw6YMo4r2diNEA8FEmu32YOn9rhaiE5yw=="

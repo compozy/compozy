@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/pkg/ref"
+	"github.com/tmc/langchaingo/llms"
 )
 
 // Config represents a tool configuration
@@ -70,6 +71,10 @@ func (t *Config) GetInput() *core.Input {
 	return t.With
 }
 
+func (t *Config) HasSchema() bool {
+	return t.InputSchema != nil || t.OutputSchema != nil
+}
+
 // Validate validates the tool configuration
 func (t *Config) Validate() error {
 	v := schema.NewCompositeValidator(
@@ -79,11 +84,18 @@ func (t *Config) Validate() error {
 	return v.Validate()
 }
 
-func (t *Config) ValidateParams(ctx context.Context, input *core.Input) error {
+func (t *Config) ValidateInput(ctx context.Context, input *core.Input) error {
 	if t.InputSchema == nil || input == nil {
 		return nil
 	}
 	return schema.NewParamsValidator(input, t.InputSchema, t.ID).Validate(ctx)
+}
+
+func (t *Config) ValidateOutput(ctx context.Context, output *core.Output) error {
+	if t.OutputSchema == nil || output == nil {
+		return nil
+	}
+	return schema.NewParamsValidator(output, t.OutputSchema, t.ID).Validate(ctx)
 }
 
 // Merge merges another tool configuration into this one
@@ -105,6 +117,17 @@ func (t *Config) FromMap(data any) error {
 		return err
 	}
 	return t.Merge(config)
+}
+
+func (t *Config) GetLLMDefinition() llms.Tool {
+	return llms.Tool{
+		Type: "function",
+		Function: &llms.FunctionDefinition{
+			Name:        t.ID,
+			Description: t.Description,
+			Parameters:  t.InputSchema,
+		},
+	}
 }
 
 func IsTypeScript(path string) bool {

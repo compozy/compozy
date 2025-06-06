@@ -44,6 +44,12 @@ func CreateContainerTestConfig(t *testing.T) *ContainerTestConfig {
 
 	// Create test workflow configuration with unique ID
 	workflowID := fmt.Sprintf("%s-workflow", testID)
+	agentConfig := utils.CreateTestAgentConfigWithAction(
+		"test-agent",
+		"You are a test assistant. Respond with the message provided.",
+		"test-action",
+		"Process this message: {{.parent.input.message}}",
+	)
 	workflowConfig := &wf.Config{
 		ID:          workflowID,
 		Version:     "1.0.0",
@@ -53,22 +59,13 @@ func CreateContainerTestConfig(t *testing.T) *ContainerTestConfig {
 				ID:     "test-task",
 				Type:   task.TaskTypeBasic,
 				Action: "test-action",
-				Agent: &agent.Config{
-					ID: "test-agent",
-				},
+				Agent:  agentConfig,
 				With: &core.Input{
 					"message": "Hello, World!",
 				},
 			},
 		},
-		Agents: []agent.Config{
-			*utils.CreateTestAgentConfigWithAction(
-				"test-agent",
-				"You are a test assistant. Respond with the message provided.",
-				"test-action",
-				"Process this message: {{.message}}",
-			),
-		},
+		Agents: []agent.Config{*agentConfig},
 		Opts: wf.Opts{
 			Env: &core.EnvMap{
 				"TEST_MODE": "true",
@@ -212,6 +209,17 @@ func stringPtr(s string) *string {
 // CreatePauseableWorkflowConfig creates a workflow config with multiple tasks for pause/resume testing
 func CreatePauseableWorkflowConfig() *wf.Config {
 	testID := GenerateUniqueTestID("pauseable")
+	actions := map[string]string{
+		"action-1": "Process step 1: {{.parent.input.step}}",
+		"action-2": "Process step 2: {{.parent.input.step}}",
+		"action-3": "Process step 3: {{.parent.input.step}}",
+	}
+	agentConfig := utils.CreateTestAgentConfigWithActions(
+		"test-agent",
+		"You are a test assistant. Respond with the message provided.",
+		actions,
+	)
+
 	return &wf.Config{
 		ID:          testID,
 		Version:     "1.0.0",
@@ -221,9 +229,7 @@ func CreatePauseableWorkflowConfig() *wf.Config {
 				ID:     "task-1",
 				Type:   task.TaskTypeBasic,
 				Action: "action-1",
-				Agent: &agent.Config{
-					ID: "test-agent",
-				},
+				Agent:  agentConfig,
 				With: &core.Input{
 					"step": "1",
 				},
@@ -235,9 +241,7 @@ func CreatePauseableWorkflowConfig() *wf.Config {
 				ID:     "task-2",
 				Type:   task.TaskTypeBasic,
 				Action: "action-2",
-				Agent: &agent.Config{
-					ID: "test-agent",
-				},
+				Agent:  agentConfig,
 				With: &core.Input{
 					"step": "2",
 				},
@@ -249,35 +253,13 @@ func CreatePauseableWorkflowConfig() *wf.Config {
 				ID:     "task-3",
 				Type:   task.TaskTypeBasic,
 				Action: "action-3",
-				Agent: &agent.Config{
-					ID: "test-agent",
-				},
+				Agent:  agentConfig,
 				With: &core.Input{
 					"step": "3",
 				},
 			},
 		},
-		Agents: []agent.Config{
-			{
-				ID:           "test-agent",
-				Instructions: "You are a test assistant. Process each step.",
-				Config:       utils.CreateTestAgentProviderConfig(),
-				Actions: []*agent.ActionConfig{
-					{
-						ID:     "action-1",
-						Prompt: "Processing step {{.step}}",
-					},
-					{
-						ID:     "action-2",
-						Prompt: "Processing step {{.step}}",
-					},
-					{
-						ID:     "action-3",
-						Prompt: "Processing step {{.step}}",
-					},
-				},
-			},
-		},
+		Agents: []agent.Config{*agentConfig},
 		Opts: wf.Opts{
 			Env: &core.EnvMap{
 				"TEST_MODE": "true",
@@ -289,6 +271,12 @@ func CreatePauseableWorkflowConfig() *wf.Config {
 // CreateCancellableWorkflowConfig creates a workflow that can be canceled during execution
 func CreateCancellableWorkflowConfig() *wf.Config {
 	testID := GenerateUniqueTestID("cancellable")
+	agentConfig := utils.CreateTestAgentConfigWithAction(
+		"slow-agent",
+		"You are a slow test assistant. Take your time to process.",
+		"long-action",
+		"Process for duration: {{.parent.input.duration}}. Think deeply.",
+	)
 	return &wf.Config{
 		ID:          testID,
 		Version:     "1.0.0",
@@ -298,22 +286,13 @@ func CreateCancellableWorkflowConfig() *wf.Config {
 				ID:     "long-task",
 				Type:   task.TaskTypeBasic,
 				Action: "long-action",
-				Agent: &agent.Config{
-					ID: "slow-agent",
-				},
+				Agent:  agentConfig,
 				With: &core.Input{
 					"duration": "10s",
 				},
 			},
 		},
-		Agents: []agent.Config{
-			*utils.CreateTestAgentConfigWithAction(
-				"slow-agent",
-				"You are a slow test assistant. Take your time to process.",
-				"long-action",
-				"Process for duration: {{.duration}}. Think deeply.",
-			),
-		},
+		Agents: []agent.Config{*agentConfig},
 		Opts: wf.Opts{
 			Env: &core.EnvMap{
 				"TEST_MODE": "true",

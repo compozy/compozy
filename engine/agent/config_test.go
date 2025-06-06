@@ -30,14 +30,14 @@ func Test_LoadAgent(t *testing.T) {
 
 		require.NotNil(t, config.ID)
 		require.NotNil(t, config.Config)
-		require.NotNil(t, config.Config.Temperature)
-		require.NotNil(t, config.Config.MaxTokens)
+		require.NotNil(t, config.Config.Params.Temperature)
+		require.NotNil(t, config.Config.Params.MaxTokens)
 
 		assert.Equal(t, "code-assistant", config.ID)
-		assert.Equal(t, ProviderAnthropic, config.Config.Provider)
-		assert.Equal(t, ModelClaude3Opus, config.Config.Model)
-		assert.InDelta(t, float32(0.7), config.Config.Temperature, 0.0001)
-		assert.Equal(t, int32(4000), config.Config.MaxTokens)
+		assert.Equal(t, core.ProviderAnthropic, config.Config.Provider)
+		assert.Equal(t, "claude-3-opus-20240229", config.Config.Model)
+		assert.InDelta(t, float32(0.7), config.Config.Params.Temperature, 0.0001)
+		assert.Equal(t, int32(4000), config.Config.Params.MaxTokens)
 
 		require.Len(t, config.Actions, 1)
 		action := config.Actions[0]
@@ -123,7 +123,7 @@ func Test_AgentActionConfigValidation(t *testing.T) {
 				"age": 42,
 			},
 		}
-		err := config.ValidateParams(context.Background(), config.With)
+		err := config.ValidateInput(context.Background(), config.With)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "Required property 'name' is missing")
 	})
@@ -181,7 +181,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 	t.Run("Should validate config with all required fields", func(t *testing.T) {
 		config := &Config{
 			ID:           agentID,
-			Config:       ProviderConfig{},
+			Config:       core.ProviderConfig{},
 			Instructions: "test instructions",
 			cwd:          agentCWD,
 		}
@@ -192,35 +192,11 @@ func Test_AgentConfigValidation(t *testing.T) {
 	t.Run("Should return error when CWD is missing", func(t *testing.T) {
 		config := &Config{
 			ID:           agentID,
-			Config:       ProviderConfig{},
+			Config:       core.ProviderConfig{},
 			Instructions: "test instructions",
 		}
 		err := config.Validate()
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "current working directory is required for test-agent")
-	})
-
-	t.Run("Should return error when parameters are invalid", func(t *testing.T) {
-		config := &Config{
-			ID:           agentID,
-			Config:       ProviderConfig{},
-			Instructions: "test instructions",
-			InputSchema: &schema.Schema{
-				"type": "object",
-				"properties": map[string]any{
-					"name": map[string]any{
-						"type": "string",
-					},
-				},
-				"required": []string{"name"},
-			},
-			With: &core.Input{
-				"age": 42,
-			},
-			cwd: agentCWD,
-		}
-		err := config.ValidateParams(context.Background(), config.With)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Required property 'name' is missing")
 	})
 }

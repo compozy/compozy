@@ -13,7 +13,7 @@ func Test_ParamsValidator_Validate_NilParamsWithSchema(t *testing.T) {
 			"type": "object",
 		}
 
-		v := NewParamsValidator(nil, s, "testID")
+		v := NewParamsValidator[any](nil, s, "testID")
 		err := v.Validate(context.Background())
 		assert.Error(t, err)
 		if err != nil {

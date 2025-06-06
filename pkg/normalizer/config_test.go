@@ -178,8 +178,8 @@ func TestConfigNormalizer_NormalizeAgentComponent(t *testing.T) {
 	t.Run("Should normalize agent with complete parent context and environment merging", func(t *testing.T) {
 		agentConfig := &agent.Config{
 			ID: "data-processor",
-			Config: agent.ProviderConfig{
-				Model: agent.ModelGPT4o,
+			Config: core.ProviderConfig{
+				Model: "gpt-4o",
 			},
 			Instructions: `You are processing data for the {{ .parent.id }} task.
 The task type is {{ .parent.type }}.
@@ -287,8 +287,8 @@ Data to process: fetched-dataset`
 	t.Run("Should normalize agent actions with parent agent context", func(t *testing.T) {
 		agentConfig := &agent.Config{
 			ID: "analyzer-agent",
-			Config: agent.ProviderConfig{
-				Model: agent.ModelGPT4oMini,
+			Config: core.ProviderConfig{
+				Model: "gpt-4o-mini",
 			},
 			Instructions: "Analyze data for tasks",
 			With: &core.Input{
@@ -691,9 +691,9 @@ func TestConfigNormalizer_ProviderConfigNormalization(t *testing.T) {
 	t.Run("Should normalize ProviderConfig templates including APIKey", func(t *testing.T) {
 		agentConfig := &agent.Config{
 			ID: "test-agent",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderGroq,
-				Model:    agent.ModelLLama3370bVersatile,
+			Config: core.ProviderConfig{
+				Provider: core.ProviderGroq,
+				Model:    "llama-3.3-70b-versatile",
 				APIKey:   "{{ .env.OPENAI_API_KEY }}",
 				APIURL:   "{{ .env.BASE_URL }}/v1",
 			},
@@ -780,9 +780,9 @@ func TestConfigNormalizer_MapstructureCompatibility(t *testing.T) {
 		// Test agent config with config field (ProviderConfig)
 		agentConfig := &agent.Config{
 			ID: "test-agent",
-			Config: agent.ProviderConfig{
-				Provider: agent.ProviderOpenAI,
-				Model:    agent.ModelGPT4o,
+			Config: core.ProviderConfig{
+				Provider: core.ProviderOpenAI,
+				Model:    "gpt-4o",
 				APIKey:   "{{ .env.API_KEY }}",
 				APIURL:   "{{ .env.API_URL }}",
 			},

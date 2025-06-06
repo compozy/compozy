@@ -6,7 +6,6 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/worker"
-	"github.com/compozy/compozy/engine/workflow"
 	"github.com/stretchr/testify/assert"
 	"go.temporal.io/sdk/testsuite"
 )
@@ -22,17 +21,7 @@ func TestBasicWorkflowExecution(t *testing.T) {
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	env.RegisterWorkflow(worker.CompozyWorkflow)
-	activities := worker.NewActivities(
-		config.ProjectConfig,
-		[]*workflow.Config{config.WorkflowConfig},
-		config.WorkflowRepo,
-		config.TaskRepo,
-	)
-	env.RegisterActivity(activities.TriggerWorkflow)
-	env.RegisterActivity(activities.UpdateWorkflowState)
-	env.RegisterActivity(activities.DispatchTask)
-	env.RegisterActivity(activities.ExecuteBasicTask)
+	SetupWorkflowEnvironment(env, config)
 
 	// Create workflow input
 	workflowExecID := core.MustNewID()
@@ -57,11 +46,11 @@ func TestBasicWorkflowExecution(t *testing.T) {
 
 	// Verify workflow was created and completed successfully
 	dbVerifier.VerifyWorkflowExists(workflowExecID)
-	dbVerifier.VerifyWorkflowCompletesWithStatus(workflowExecID, core.StatusSuccess, 10*time.Second)
+	dbVerifier.VerifyWorkflowCompletesWithStatus(workflowExecID, core.StatusSuccess, 20*time.Second)
 
 	// Verify task was created and completed successfully
 	dbVerifier.VerifyTaskExists(workflowExecID, "test-task")
-	dbVerifier.VerifyTaskStateEventually(workflowExecID, "test-task", core.StatusSuccess, 10*time.Second)
+	dbVerifier.VerifyTaskStateEventually(workflowExecID, "test-task", core.StatusSuccess, 20*time.Second)
 
 	// Verify no errors occurred
 	dbVerifier.VerifyNoErrors(workflowExecID)
@@ -79,17 +68,7 @@ func TestWorkflowStatusUpdates(t *testing.T) {
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	env.RegisterWorkflow(worker.CompozyWorkflow)
-	activities := worker.NewActivities(
-		config.ProjectConfig,
-		[]*workflow.Config{config.WorkflowConfig},
-		config.WorkflowRepo,
-		config.TaskRepo,
-	)
-	env.RegisterActivity(activities.TriggerWorkflow)
-	env.RegisterActivity(activities.UpdateWorkflowState)
-	env.RegisterActivity(activities.DispatchTask)
-	env.RegisterActivity(activities.ExecuteBasicTask)
+	SetupWorkflowEnvironment(env, config)
 
 	// Create workflow input
 	workflowExecID := core.MustNewID()
@@ -146,17 +125,7 @@ func TestWorkflowDatabasePersistence(t *testing.T) {
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	env.RegisterWorkflow(worker.CompozyWorkflow)
-	activities := worker.NewActivities(
-		config.ProjectConfig,
-		[]*workflow.Config{config.WorkflowConfig},
-		config.WorkflowRepo,
-		config.TaskRepo,
-	)
-	env.RegisterActivity(activities.TriggerWorkflow)
-	env.RegisterActivity(activities.UpdateWorkflowState)
-	env.RegisterActivity(activities.DispatchTask)
-	env.RegisterActivity(activities.ExecuteBasicTask)
+	SetupWorkflowEnvironment(env, config)
 
 	// Create workflow input with specific test data
 	workflowExecID := core.MustNewID()

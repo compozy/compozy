@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"dario.cat/mergo"
-	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
 )
@@ -25,7 +24,7 @@ type Config struct {
 	Description string                  `json:"description" yaml:"description" mapstructure:"description"`
 	Author      core.Author             `json:"author"      yaml:"author"      mapstructure:"author"`
 	Workflows   []*WorkflowSourceConfig `json:"workflows"   yaml:"workflows"   mapstructure:"workflows"`
-	Models      []*agent.ProviderConfig `json:"models"      yaml:"models"      mapstructure:"models"`
+	Models      []*core.ProviderConfig  `json:"models"      yaml:"models"      mapstructure:"models"`
 	Schemas     []schema.Schema         `json:"schemas"     yaml:"schemas"     mapstructure:"schemas"`
 	Opts        Opts                    `json:"config"      yaml:"config"      mapstructure:"config"`
 
@@ -59,6 +58,10 @@ func (p *Config) GetCWD() *core.CWD {
 	return p.cwd
 }
 
+func (p *Config) HasSchema() bool {
+	return false
+}
+
 func (p *Config) Validate() error {
 	validator := schema.NewCompositeValidator(
 		schema.NewCWDValidator(p.cwd, p.Name),
@@ -66,7 +69,12 @@ func (p *Config) Validate() error {
 	return validator.Validate()
 }
 
-func (p *Config) ValidateParams(_ context.Context, _ *core.Input) error {
+func (p *Config) ValidateInput(_ context.Context, _ *core.Input) error {
+	return nil
+}
+
+func (p *Config) ValidateOutput(_ context.Context, _ *core.Output) error {
+	// Does not make sense the project having a schema
 	return nil
 }
 

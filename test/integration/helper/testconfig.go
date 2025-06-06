@@ -2,15 +2,16 @@ package utils
 
 import (
 	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/core"
 )
 
 // TestProviderConfig holds the standardized test provider configuration
 type TestProviderConfig struct {
-	Provider    agent.ProviderName
-	Model       agent.ModelName
+	Provider    core.ProviderName
+	Model       string
 	APIKey      string
 	APIURL      string
-	Temperature float32
+	Temperature float64
 	MaxTokens   int32
 }
 
@@ -18,25 +19,27 @@ type TestProviderConfig struct {
 // Uses Mock provider for deterministic testing without API calls
 func GetTestProviderConfig() *TestProviderConfig {
 	return &TestProviderConfig{
-		Provider:    agent.ProviderMock,
-		Model:       agent.ModelMockTest, // Mock model for testing
-		APIKey:      "test-api-key",      // Not used by mock provider
-		APIURL:      "http://localhost",  // Not used by mock provider
-		Temperature: 0.0,                 // Deterministic for testing
-		MaxTokens:   50,                  // Small tokens for fast tests
+		Provider:    core.ProviderMock,
+		Model:       "mock-test",        // Mock model for testing
+		APIKey:      "test-api-key",     // Not used by mock provider
+		APIURL:      "http://localhost", // Not used by mock provider
+		Temperature: 0.0,                // Deterministic for testing
+		MaxTokens:   50,                 // Small tokens for fast tests
 	}
 }
 
 // CreateTestAgentProviderConfig creates an agent.ProviderConfig for tests
-func CreateTestAgentProviderConfig() agent.ProviderConfig {
+func CreateTestAgentProviderConfig() core.ProviderConfig {
 	testConfig := GetTestProviderConfig()
-	return agent.ProviderConfig{
-		Provider:    testConfig.Provider,
-		Model:       testConfig.Model,
-		APIKey:      testConfig.APIKey,
-		APIURL:      testConfig.APIURL,
-		Temperature: testConfig.Temperature,
-		MaxTokens:   testConfig.MaxTokens,
+	return core.ProviderConfig{
+		Provider: testConfig.Provider,
+		Model:    testConfig.Model,
+		APIKey:   testConfig.APIKey,
+		APIURL:   testConfig.APIURL,
+		Params: core.PromptParams{
+			Temperature: testConfig.Temperature,
+			MaxTokens:   testConfig.MaxTokens,
+		},
 	}
 }
 

@@ -4,17 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"github.com/compozy/compozy/engine/core"
 )
 
 type ParamsValidator struct {
 	id     string
-	params *core.Input
+	params any
 	schema *Schema
 }
 
-func NewParamsValidator(with *core.Input, schema *Schema, id string) *ParamsValidator {
+func NewParamsValidator[T any](with T, schema *Schema, id string) *ParamsValidator {
 	return &ParamsValidator{
 		id:     id,
 		params: with,

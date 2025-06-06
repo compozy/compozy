@@ -109,7 +109,7 @@ func (a *Dispatch) createState(
 	if err != nil {
 		return nil, err
 	}
-	if err := execData.TaskConfig.ValidateParams(ctx, taskState.Input); err != nil {
+	if err := execData.TaskConfig.ValidateInput(ctx, taskState.Input); err != nil {
 		return nil, fmt.Errorf("failed to validate task params: %w", err)
 	}
 	return taskState, nil

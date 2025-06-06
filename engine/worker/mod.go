@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
 	wf "github.com/compozy/compozy/engine/workflow"
 	"go.temporal.io/sdk/client"
@@ -41,11 +42,18 @@ func NewWorker(
 		return nil, fmt.Errorf("failed to create worker client: %w", err)
 	}
 	worker := client.NewWorker(client.Config().TaskQueue)
+	projectRoot := projectConfig.GetCWD().PathStr()
+	runtimeConfig := runtime.DefaultConfig()
+	runtime, err := runtime.NewRuntimeManager(projectRoot, runtimeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to created execution manager: %w", err)
+	}
 	activities := NewActivities(
 		projectConfig,
 		workflows,
 		config.WorkflowRepo(),
 		config.TaskRepo(),
+		runtime,
 	)
 	return &Worker{
 		client:        client,
@@ -107,7 +115,7 @@ func (o *Worker) TriggerWorkflow(
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workflow config: %w", err)
 	}
-	if err := workflowConfig.ValidateParams(ctx, input); err != nil {
+	if err := workflowConfig.ValidateInput(ctx, input); err != nil {
 		return nil, fmt.Errorf("failed to validate workflow params: %w", err)
 	}
 
