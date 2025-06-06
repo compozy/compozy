@@ -20,6 +20,8 @@ type WorkflowData = wfacts.GetData
 func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) (*wf.State, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Starting workflow", "workflow_id", input.WorkflowID, "exec_id", input.WorkflowExecID)
+	var wState *wf.State
+	defer cancelCleanup(ctx, &input)
 
 	// Get workflow data
 	data, err := getWorkflowData(ctx, input)
@@ -35,39 +37,42 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) (*wf.State, erro
 		return nil, fmt.Errorf("failed to find workflow config: %w", err)
 	}
 	ctx = activityContext(ctx, projectConfig, workflowConfig)
+	errHandler := BuildErrHandler(ctx, input)
 
 	// Execute main trigger activity
 	logger.Info("Executing main trigger activity...")
-	wState, err := triggerWorkflow(ctx, data, &input)
+	triggerFn := triggerWorkflow(ctx, data, &input)
+	wState, err = handleAct(ctx, errHandler, triggerFn)()
 	if err != nil {
-		logger.Error("Failed to execute trigger activity", "error", err)
 		return nil, err
 	}
 
-	// Setup signals for PAUSE/RESUME/CANCEL
-	ctx, cancel := workflow.WithCancel(ctx)
-	errorHandler := BuildErrorHandler(ctx, &input)
-	pauseGate, err := RegisterSignals(ctx, cancel, &input)
+	// Dispatch first task
+	dispatchFn := dispatchFirstTask(ctx, data, wState, &input)
+	output, err := handleAct(ctx, errHandler, dispatchFn)()
 	if err != nil {
-		return nil, errorHandler(err)
+		return nil, err
 	}
 
-	// Dispatch and execute first task
-	output, err := dispatchFirstTask(ctx, data, pauseGate, wState, &input)
-	if err != nil {
-		return nil, errorHandler(err)
-	}
-
-	// Execute tasks
-	err = executeTasks(ctx, data, pauseGate, output)
-	if err != nil {
-		return nil, errorHandler(err)
+	// Iterate over tasks until get the final one
+	currentTask := output.State
+	taskFn := executeTask(ctx, currentTask, data, output)
+	for currentTask != nil {
+		nextTask, err := handleAct(ctx, errHandler, taskFn)()
+		if err != nil {
+			return nil, err
+		}
+		if nextTask == nil {
+			break
+		}
+		currentTask = nextTask
 	}
 
 	// Complete workflow
-	wState, err = completeWorkflow(ctx, pauseGate, wState)
+	completeFn := completeWorkflow(ctx, wState)
+	wState, err = handleAct(ctx, errHandler, completeFn)()
 	if err != nil {
-		return nil, errorHandler(err)
+		return nil, err
 	}
 	logger.Info("Workflow completed",
 		"workflow_id", input.WorkflowID,
@@ -91,6 +96,7 @@ func activityContext(
 		nil,
 	)
 	activityOptions := resolved.ToTemporalActivityOptions()
+	activityOptions.WaitForCancellation = true
 	return workflow.WithActivityOptions(ctx, activityOptions)
 }
 
@@ -110,6 +116,9 @@ func activityContextForTask(
 		&taskConfig.Opts.GlobalOpts,
 	)
 	activityOptions := resolved.ToTemporalActivityOptions()
+	// Set WaitForCancellation to true to have the Workflow wait to return
+	// until all in progress Activities have completed, failed, or accepted the Cancellation.
+	activityOptions.WaitForCancellation = true
 	return workflow.WithActivityOptions(ctx, activityOptions)
 }
 
@@ -135,46 +144,43 @@ func triggerWorkflow(
 	ctx workflow.Context,
 	data *WorkflowData,
 	input *wfacts.TriggerInput,
-) (*wf.State, error) {
-	var state *wf.State
-	actLabel := wfacts.TriggerLabel
-	actInput := &wfacts.TriggerInput{
-		WorkflowID:     input.WorkflowID,
-		WorkflowExecID: input.WorkflowExecID,
-		Input:          input.Input,
-		InitialTaskID:  input.InitialTaskID,
+) func() (*wf.State, error) {
+	return func() (*wf.State, error) {
+		var state *wf.State
+		actLabel := wfacts.TriggerLabel
+		actInput := &wfacts.TriggerInput{
+			WorkflowID:     input.WorkflowID,
+			WorkflowExecID: input.WorkflowExecID,
+			Input:          input.Input,
+			InitialTaskID:  input.InitialTaskID,
+		}
+		ctx = activityContextForTask(
+			ctx,
+			data.ProjectConfig,
+			data.WorkflowConfig,
+			input.InitialTaskID,
+		)
+		err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &state)
+		if err != nil {
+			return nil, err
+		}
+		return state, nil
 	}
-	ctx = activityContextForTask(
-		ctx,
-		data.ProjectConfig,
-		data.WorkflowConfig,
-		input.InitialTaskID,
-	)
-	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &state)
-	if err != nil {
-		return nil, err
-	}
-	return state, nil
 }
 
-func completeWorkflow(
-	ctx workflow.Context,
-	pauseGate *PauseGate,
-	wState *wf.State,
-) (*wf.State, error) {
-	if err := pauseGate.Await(); err != nil {
-		return nil, err
+func completeWorkflow(ctx workflow.Context, wState *wf.State) func() (*wf.State, error) {
+	return func() (*wf.State, error) {
+		actLabel := wfacts.CompleteWorkflowLabel
+		actInput := &wfacts.CompleteWorkflowInput{
+			WorkflowExecID: wState.WorkflowExecID,
+		}
+		var output *wf.State
+		err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &output)
+		if err != nil {
+			return nil, err
+		}
+		return output, nil
 	}
-	actLabel := wfacts.CompleteWorkflowLabel
-	actInput := &wfacts.CompleteWorkflowInput{
-		WorkflowExecID: wState.WorkflowExecID,
-	}
-	var output *wf.State
-	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &output)
-	if err != nil {
-		return nil, err
-	}
-	return output, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -184,155 +190,127 @@ func completeWorkflow(
 func dispatchFirstTask(
 	ctx workflow.Context,
 	data *WorkflowData,
-	pauseGate *PauseGate,
 	wState *wf.State,
 	input *wfacts.TriggerInput,
-) (*tkacts.DispatchOutput, error) {
-	if err := pauseGate.Await(); err != nil {
-		return nil, err
+) func() (*tkacts.DispatchOutput, error) {
+	return func() (*tkacts.DispatchOutput, error) {
+		var output *tkacts.DispatchOutput
+		actLabel := tkacts.DispatchLabel
+		actInput := &tkacts.DispatchInput{
+			WorkflowID:     wState.WorkflowID,
+			WorkflowExecID: wState.WorkflowExecID,
+			TaskID:         input.InitialTaskID,
+		}
+		ctx = activityContextForTask(
+			ctx,
+			data.ProjectConfig,
+			data.WorkflowConfig,
+			input.InitialTaskID,
+		)
+		err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &output)
+		if err != nil {
+			return nil, err
+		}
+		return output, nil
 	}
-	var output *tkacts.DispatchOutput
-	actLabel := tkacts.DispatchLabel
-	actInput := &tkacts.DispatchInput{
-		WorkflowID:     wState.WorkflowID,
-		WorkflowExecID: wState.WorkflowExecID,
-		TaskID:         input.InitialTaskID,
-	}
-	ctx = activityContextForTask(
-		ctx,
-		data.ProjectConfig,
-		data.WorkflowConfig,
-		input.InitialTaskID,
-	)
-	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &output)
-	if err != nil {
-		return nil, err
-	}
-	return output, nil
 }
 
-func executeTasks(
+func executeTask(
 	ctx workflow.Context,
+	currentTask *task.State,
 	data *WorkflowData,
-	pauseGate *PauseGate,
-	dispatchOutput *tkacts.DispatchOutput,
-) error {
+	output *tkacts.DispatchOutput,
+) func() (*task.State, error) {
 	logger := workflow.GetLogger(ctx)
-	currentTask := dispatchOutput.State
-	currentOutput := dispatchOutput
-	for currentTask != nil {
-		// Check pause state before each task
-		if err := pauseGate.Await(); err != nil {
-			return err
-		}
-
+	return func() (*task.State, error) {
 		taskID := currentTask.TaskID
 		taskExecID := currentTask.TaskExecID
 		logger.Info(fmt.Sprintf("Executing Task: %s", taskID), "task_exec_id", taskExecID)
 		ctx = activityContextForTask(ctx, data.ProjectConfig, data.WorkflowConfig, taskID)
-		response, err := executeBasicTask(ctx, pauseGate, currentOutput)
+
+		// Check if task has sleep configuration
+		sleepDuration, err := output.Config.GetSleepDuration()
 		if err != nil {
-			if err := checkCancellation(ctx, err, "Task execution canceled"); err != nil {
-				return err
+			logger.Error("Invalid sleep duration format", "task_id", taskID, "sleep", output.Config.Sleep, "error", err)
+			return nil, err
+		}
+		if sleepDuration != 0 {
+			if err := SleepWithPause(ctx, sleepDuration); err != nil {
+				if err == workflow.ErrCanceled {
+					return nil, nil
+				}
+				logger.Error("Error during task sleep", "task_id", taskID, "error", err)
+				return nil, err
 			}
+			logger.Info("Task sleep completed", "task_id", taskID)
+		}
+
+		// Execute the task
+		executeFn := executeBasicTask(ctx, output)
+		response, err := executeFn()
+		if err != nil {
 			logger.Error("Failed to execute task", "task_id", currentTask.TaskID, "error", err)
-			return err
+			return nil, err
 		}
 		logger.Info("Task executed successfully",
 			"status", response.State.Status,
 			"task_id", currentTask.TaskID,
 		)
+
 		// Dispatch next task if there is one
 		if response.NextTask == nil {
 			// No more tasks to execute
 			logger.Info("No more tasks to execute", "current_task", currentTask.TaskID)
-			break
+			return nil, nil
 		}
 		// Ensure NextTask has a valid ID
 		nextTaskID := response.NextTask.ID
 		if nextTaskID == "" {
 			logger.Error("NextTask has empty ID", "current_task", currentTask.TaskID)
-			return fmt.Errorf("next task has empty ID for current task: %s", currentTask.TaskID)
+			return nil, fmt.Errorf("next task has empty ID for current task: %s", currentTask.TaskID)
 		}
 		currentTaskState := response.State
-		nextTaskOutput, err := dispatchTask(ctx, pauseGate, currentTaskState, nextTaskID)
+		dispatchFn := dispatchTask(ctx, currentTaskState, nextTaskID)
+		nextTaskOutput, err := dispatchFn()
 		if err != nil {
-			if err := checkCancellation(ctx, err, "Task dispatch canceled"); err != nil {
-				return err
-			}
 			logger.Error("Failed to dispatch next task", "next_task", nextTaskID, "error", err)
-			return err
+			return nil, err
 		}
 		currentTask = nextTaskOutput.State
-		currentOutput = nextTaskOutput
+		output = nextTaskOutput
+		return currentTask, nil
 	}
-
-	return nil
 }
 
-func executeBasicTask(
-	ctx workflow.Context,
-	pauseGate *PauseGate,
-	output *tkacts.DispatchOutput,
-) (*task.Response, error) {
-	// Check pause state before starting execution
-	if err := pauseGate.Await(); err != nil {
-		return nil, err
-	}
-
-	var response *task.Response
-	actLabel := tkacts.ExecuteBasicLabel
-	// Use a selector to handle both task completion and cancellation
-	future := workflow.ExecuteActivity(ctx, actLabel, output)
-	selector := workflow.NewSelector(ctx)
-
-	taskCompleted := false
-	var taskError error
-
-	selector.AddFuture(future, func(f workflow.Future) {
-		taskError = f.Get(ctx, &response)
-		taskCompleted = true
-	})
-
-	// Run the selector until task completes or context is canceled
-	for !taskCompleted {
-		selector.Select(ctx)
-		if ctx.Err() == workflow.ErrCanceled {
-			return nil, workflow.ErrCanceled
+func executeBasicTask(ctx workflow.Context, output *tkacts.DispatchOutput) func() (*task.Response, error) {
+	return func() (*task.Response, error) {
+		var response *task.Response
+		actLabel := tkacts.ExecuteBasicLabel
+		err := workflow.ExecuteActivity(ctx, actLabel, output).Get(ctx, &response)
+		if err != nil {
+			return nil, err
 		}
-
-		// Check if paused (this will block until resumed)
-		if pauseGate.IsPaused() {
-			if err := pauseGate.Await(); err != nil {
-				return nil, err
-			}
-		}
+		return response, nil
 	}
-	if taskError != nil {
-		return nil, taskError
-	}
-	return response, nil
 }
 
 func dispatchTask(
 	ctx workflow.Context,
-	pauseGate *PauseGate,
 	currentTaskState *task.State,
 	nextTaskID string,
-) (*tkacts.DispatchOutput, error) {
-	if err := pauseGate.Await(); err != nil {
-		return nil, err
+) func() (*tkacts.DispatchOutput, error) {
+	return func() (*tkacts.DispatchOutput, error) {
+		var output *tkacts.DispatchOutput
+		actLabel := tkacts.DispatchLabel
+		actInput := &tkacts.DispatchInput{
+			WorkflowID:     currentTaskState.WorkflowID,
+			WorkflowExecID: currentTaskState.WorkflowExecID,
+			TaskID:         nextTaskID,
+		}
+		err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &output)
+		if err != nil {
+			return nil, err
+		}
+		return output, nil
 	}
-	var output *tkacts.DispatchOutput
-	actLabel := tkacts.DispatchLabel
-	actInput := &tkacts.DispatchInput{
-		WorkflowID:     currentTaskState.WorkflowID,
-		WorkflowExecID: currentTaskState.WorkflowExecID,
-		TaskID:         nextTaskID,
-	}
-	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &output)
-	if err != nil {
-		return nil, err
-	}
-	return output, nil
 }

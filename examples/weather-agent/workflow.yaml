@@ -74,6 +74,12 @@ agents:
             - clothings
 
 tasks:
+  - id: sleep
+    type: basic
+    sleep: 1m
+    on_success:
+      next: weather
+
   - id: weather
     type: basic
     $use: agent(local::agents.#(id="tourist_guide"))

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"dario.cat/mergo"
 
@@ -151,6 +152,13 @@ func (t *Config) FromMap(data any) error {
 
 func (t *Config) HasSchema() bool {
 	return t.InputSchema != nil || t.OutputSchema != nil
+}
+
+func (t *Config) GetSleepDuration() (time.Duration, error) {
+	if t.Sleep == "" {
+		return 0, nil
+	}
+	return core.ParseHumanDuration(t.Sleep)
 }
 
 func FindConfig(tasks []Config, taskID string) (*Config, error) {

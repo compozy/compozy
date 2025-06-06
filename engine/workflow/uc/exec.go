@@ -2,6 +2,7 @@ package uc
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/worker"
@@ -43,8 +44,8 @@ func NewPauseExecution(worker *worker.Worker, workflowExecID core.ID) *PauseExec
 	}
 }
 
-func (uc *PauseExecution) Execute(ctx context.Context) error {
-	return uc.worker.PauseWorkflow(ctx, uc.workflowExecID)
+func (uc *PauseExecution) Execute(_ context.Context) error {
+	return fmt.Errorf("not implemented")
 }
 
 // -----------------------------------------------------------------------------
@@ -63,6 +64,6 @@ func NewResumeExecution(worker *worker.Worker, workflowExecID core.ID) *ResumeEx
 	}
 }
 
-func (uc *ResumeExecution) Execute(ctx context.Context) error {
-	return uc.worker.ResumeWorkflow(ctx, uc.workflowExecID)
+func (uc *ResumeExecution) Execute(_ context.Context) error {
+	return fmt.Errorf("not implemented")
 }

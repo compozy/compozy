@@ -1,4 +1,4 @@
-package worker
+package utils
 
 import (
 	"context"
@@ -11,9 +11,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/compozy/compozy/engine/worker"
 	wf "github.com/compozy/compozy/engine/workflow"
-	utils "github.com/compozy/compozy/test/integration/helper"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.temporal.io/sdk/testsuite"
 )
@@ -44,7 +42,7 @@ func CreateContainerTestConfig(t *testing.T) *ContainerTestConfig {
 
 	// Create test workflow configuration with unique ID
 	workflowID := fmt.Sprintf("%s-workflow", testID)
-	agentConfig := utils.CreateTestAgentConfigWithAction(
+	agentConfig := CreateTestAgentConfigWithAction(
 		"test-agent",
 		"You are a test assistant. Respond with the message provided.",
 		"test-action",
@@ -78,7 +76,7 @@ func CreateContainerTestConfig(t *testing.T) *ContainerTestConfig {
 		Name:    "test-project",
 		Version: "1.0.0",
 	}
-	if err := projectConfig.SetCWD("/test/path"); err != nil {
+	if err := projectConfig.SetCWD(t.TempDir()); err != nil {
 		t.Fatalf("Failed to set project CWD: %v", err)
 	}
 
@@ -214,7 +212,7 @@ func CreatePauseableWorkflowConfig() *wf.Config {
 		"action-2": "Process step 2: {{.parent.input.step}}",
 		"action-3": "Process step 3: {{.parent.input.step}}",
 	}
-	agentConfig := utils.CreateTestAgentConfigWithActions(
+	agentConfig := CreateTestAgentConfigWithActions(
 		"test-agent",
 		"You are a test assistant. Respond with the message provided.",
 		actions,
@@ -271,7 +269,7 @@ func CreatePauseableWorkflowConfig() *wf.Config {
 // CreateCancellableWorkflowConfig creates a workflow that can be canceled during execution
 func CreateCancellableWorkflowConfig() *wf.Config {
 	testID := GenerateUniqueTestID("cancellable")
-	agentConfig := utils.CreateTestAgentConfigWithAction(
+	agentConfig := CreateTestAgentConfigWithAction(
 		"slow-agent",
 		"You are a slow test assistant. Take your time to process.",
 		"long-action",
@@ -290,6 +288,7 @@ func CreateCancellableWorkflowConfig() *wf.Config {
 				With: &core.Input{
 					"duration": "10s",
 				},
+				Sleep: "2s", // Add sleep to simulate long-running task that can be canceled
 			},
 		},
 		Agents: []agent.Config{*agentConfig},
@@ -313,21 +312,6 @@ func NewSignalHelper(env *testsuite.TestWorkflowEnvironment, t *testing.T) *Sign
 		env: env,
 		t:   t,
 	}
-}
-
-// SendPauseSignal sends a pause signal to the workflow
-func (sh *SignalHelper) SendPauseSignal() {
-	sh.env.SignalWorkflow(worker.SignalPause, nil)
-}
-
-// SendResumeSignal sends a resume signal to the workflow
-func (sh *SignalHelper) SendResumeSignal() {
-	sh.env.SignalWorkflow(worker.SignalResume, nil)
-}
-
-// SendCancelSignal sends a cancel signal to the workflow
-func (sh *SignalHelper) SendCancelSignal() {
-	sh.env.SignalWorkflow(worker.SignalCancel, nil)
 }
 
 // WaitAndSendSignal waits for a duration then sends a signal

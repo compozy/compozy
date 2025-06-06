@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/worker"
+	utils "github.com/compozy/compozy/test/integration/helper"
 	"github.com/stretchr/testify/assert"
 	"go.temporal.io/sdk/testsuite"
 )
@@ -17,11 +18,11 @@ func TestBasicWorkflowExecution(t *testing.T) {
 	var s testsuite.WorkflowTestSuite
 	env := s.NewTestWorkflowEnvironment()
 
-	config := CreateContainerTestConfig(t)
+	config := utils.CreateContainerTestConfig(t)
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	SetupWorkflowEnvironment(env, config)
+	utils.SetupWorkflowEnvironment(env, config)
 
 	// Create workflow input
 	workflowExecID := core.MustNewID()
@@ -42,7 +43,7 @@ func TestBasicWorkflowExecution(t *testing.T) {
 	assert.NoError(t, env.GetWorkflowError())
 
 	// Verify database states
-	dbVerifier := NewDatabaseStateVerifier(t, config)
+	dbVerifier := utils.NewDatabaseStateVerifier(t, config)
 
 	// Verify workflow was created and completed successfully
 	dbVerifier.VerifyWorkflowExists(workflowExecID)
@@ -64,11 +65,11 @@ func TestWorkflowStatusUpdates(t *testing.T) {
 	var s testsuite.WorkflowTestSuite
 	env := s.NewTestWorkflowEnvironment()
 
-	config := CreateContainerTestConfig(t)
+	config := utils.CreateContainerTestConfig(t)
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	SetupWorkflowEnvironment(env, config)
+	utils.SetupWorkflowEnvironment(env, config)
 
 	// Create workflow input
 	workflowExecID := core.MustNewID()
@@ -89,7 +90,7 @@ func TestWorkflowStatusUpdates(t *testing.T) {
 	assert.NoError(t, env.GetWorkflowError())
 
 	// Verify database state updates throughout the workflow lifecycle
-	dbVerifier := NewDatabaseStateVerifier(t, config)
+	dbVerifier := utils.NewDatabaseStateVerifier(t, config)
 
 	// Verify workflow was persisted and completed
 	dbVerifier.VerifyWorkflowExists(workflowExecID)
@@ -121,11 +122,11 @@ func TestWorkflowDatabasePersistence(t *testing.T) {
 	var s testsuite.WorkflowTestSuite
 	env := s.NewTestWorkflowEnvironment()
 
-	config := CreateContainerTestConfig(t)
+	config := utils.CreateContainerTestConfig(t)
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	SetupWorkflowEnvironment(env, config)
+	utils.SetupWorkflowEnvironment(env, config)
 
 	// Create workflow input with specific test data
 	workflowExecID := core.MustNewID()
@@ -147,7 +148,7 @@ func TestWorkflowDatabasePersistence(t *testing.T) {
 	assert.NoError(t, env.GetWorkflowError())
 
 	// Verify detailed database persistence
-	dbVerifier := NewDatabaseStateVerifier(t, config)
+	dbVerifier := utils.NewDatabaseStateVerifier(t, config)
 
 	// Verify workflow data persistence
 	workflowState := dbVerifier.GetWorkflowState(workflowExecID)

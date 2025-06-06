@@ -63,7 +63,7 @@ func GetWorkflowID(c *gin.Context) string {
 }
 
 func GetWorkflowExecID(c *gin.Context) core.ID {
-	return core.ID(GetURLParam(c, "workflow_exec_id"))
+	return core.ID(GetURLParam(c, "exec_id"))
 }
 
 func GetWorkflowStateID(c *gin.Context) string {

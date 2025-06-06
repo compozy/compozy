@@ -141,17 +141,7 @@ func (o *Worker) TriggerWorkflow(
 	return &workflowInput, nil
 }
 
-func (o *Worker) PauseWorkflow(ctx context.Context, workflowExecID core.ID) error {
-	id := workflowExecID.String()
-	return o.client.SignalWorkflow(ctx, id, "", SignalPause, nil)
-}
-
-func (o *Worker) ResumeWorkflow(ctx context.Context, workflowExecID core.ID) error {
-	id := workflowExecID.String()
-	return o.client.SignalWorkflow(ctx, id, "", SignalResume, nil)
-}
-
 func (o *Worker) CancelWorkflow(ctx context.Context, workflowExecID core.ID) error {
 	id := workflowExecID.String()
-	return o.client.SignalWorkflow(ctx, id, "", SignalCancel, nil)
+	return o.client.CancelWorkflow(ctx, id, "")
 }

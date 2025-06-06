@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/worker"
+	utils "github.com/compozy/compozy/test/integration/helper"
 	"github.com/stretchr/testify/assert"
 	"go.temporal.io/sdk/testsuite"
 )
@@ -15,11 +16,11 @@ func TestWorkflowStatusTransitions(t *testing.T) {
 	var s testsuite.WorkflowTestSuite
 	env := s.NewTestWorkflowEnvironment()
 
-	config := CreateContainerTestConfig(t)
+	config := utils.CreateContainerTestConfig(t)
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	SetupWorkflowEnvironment(env, config)
+	utils.SetupWorkflowEnvironment(env, config)
 
 	// Create workflow input
 	workflowExecID := core.MustNewID()
@@ -40,7 +41,7 @@ func TestWorkflowStatusTransitions(t *testing.T) {
 	assert.NoError(t, env.GetWorkflowError())
 
 	// Verify complete status transition lifecycle
-	dbVerifier := NewDatabaseStateVerifier(t, config)
+	dbVerifier := utils.NewDatabaseStateVerifier(t, config)
 
 	// Verify workflow was created and completed
 	dbVerifier.VerifyWorkflowExists(workflowExecID)
@@ -72,78 +73,16 @@ func TestWorkflowStatusTransitions(t *testing.T) {
 	t.Log("Workflow and task status transitions completed successfully")
 }
 
-// TestPauseResumeStatusTransitions tests status transitions during pause/resume
-func TestPauseResumeStatusTransitions(t *testing.T) {
-	var s testsuite.WorkflowTestSuite
-	env := s.NewTestWorkflowEnvironment()
-
-	// Use multi-task workflow for better pause/resume testing
-	workflowConfig := CreatePauseableWorkflowConfig()
-	config := CreateContainerTestConfigForMultiTask(t, workflowConfig)
-	config.Cleanup(t)
-
-	// Register workflow and activities
-	SetupWorkflowEnvironment(env, config)
-
-	signalHelper := NewSignalHelper(env, t)
-
-	// Create workflow input
-	workflowExecID := core.MustNewID()
-	workflowInput := worker.WorkflowInput{
-		WorkflowID:     config.WorkflowConfig.ID,
-		WorkflowExecID: workflowExecID,
-		Input: &core.Input{
-			"message": "Pause/resume status test",
-		},
-		InitialTaskID: "task-1",
-	}
-
-	// Set up pause/resume signals
-	signalHelper.WaitAndSendSignal(80*time.Millisecond, signalHelper.SendPauseSignal)
-	signalHelper.WaitAndSendSignal(200*time.Millisecond, signalHelper.SendResumeSignal)
-
-	// Execute workflow
-	env.ExecuteWorkflow(worker.CompozyWorkflow, workflowInput)
-
-	// Assert workflow completed successfully
-	assert.True(t, env.IsWorkflowCompleted())
-	assert.NoError(t, env.GetWorkflowError())
-
-	// Verify status transitions during pause/resume cycle
-	dbVerifier := NewDatabaseStateVerifier(t, config)
-
-	// Verify workflow eventually completes successfully after pause/resume
-	dbVerifier.VerifyWorkflowExists(workflowExecID)
-	dbVerifier.VerifyWorkflowCompletesWithStatus(workflowExecID, core.StatusSuccess, 25*time.Second)
-
-	// Verify all tasks complete successfully despite pause/resume
-	expectedTasks := []string{"task-1", "task-2", "task-3"}
-	for _, taskID := range expectedTasks {
-		dbVerifier.VerifyTaskExists(workflowExecID, taskID)
-		dbVerifier.VerifyTaskStateEventually(workflowExecID, taskID, core.StatusSuccess, 25*time.Second)
-	}
-
-	// Verify final state integrity after pause/resume cycle
-	workflowState := dbVerifier.GetWorkflowState(workflowExecID)
-	assert.Equal(t, core.StatusSuccess, workflowState.Status, "Workflow should be successful after pause/resume")
-	assert.Nil(t, workflowState.Error, "Workflow should not have errors after pause/resume")
-
-	// Verify no errors occurred during pause/resume transitions
-	dbVerifier.VerifyNoErrors(workflowExecID)
-
-	t.Log("Pause/resume status transitions completed successfully")
-}
-
 // TestTaskStatusProgression tests individual task status progression
 func TestTaskStatusProgression(t *testing.T) {
 	var s testsuite.WorkflowTestSuite
 	env := s.NewTestWorkflowEnvironment()
 
-	config := CreateContainerTestConfig(t)
+	config := utils.CreateContainerTestConfig(t)
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	SetupWorkflowEnvironment(env, config)
+	utils.SetupWorkflowEnvironment(env, config)
 
 	// Create workflow input
 	workflowExecID := core.MustNewID()
@@ -164,7 +103,7 @@ func TestTaskStatusProgression(t *testing.T) {
 	assert.NoError(t, env.GetWorkflowError())
 
 	// Verify task status progression through its lifecycle
-	dbVerifier := NewDatabaseStateVerifier(t, config)
+	dbVerifier := utils.NewDatabaseStateVerifier(t, config)
 
 	// Verify task was created and progressed through states
 	dbVerifier.VerifyTaskExists(workflowExecID, "test-task")
@@ -193,12 +132,12 @@ func TestMultiTaskStatusProgression(t *testing.T) {
 	env := s.NewTestWorkflowEnvironment()
 
 	// Use multi-task workflow
-	workflowConfig := CreatePauseableWorkflowConfig()
-	config := CreateContainerTestConfigForMultiTask(t, workflowConfig)
+	workflowConfig := utils.CreatePauseableWorkflowConfig()
+	config := utils.CreateContainerTestConfigForMultiTask(t, workflowConfig)
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	SetupWorkflowEnvironment(env, config)
+	utils.SetupWorkflowEnvironment(env, config)
 
 	// Create workflow input
 	workflowExecID := core.MustNewID()
@@ -219,7 +158,7 @@ func TestMultiTaskStatusProgression(t *testing.T) {
 	assert.NoError(t, env.GetWorkflowError())
 
 	// Verify status progression across all tasks
-	dbVerifier := NewDatabaseStateVerifier(t, config)
+	dbVerifier := utils.NewDatabaseStateVerifier(t, config)
 
 	// Verify workflow progression
 	dbVerifier.VerifyWorkflowExists(workflowExecID)
@@ -259,11 +198,11 @@ func TestStatusPersistenceAfterCompletion(t *testing.T) {
 	var s testsuite.WorkflowTestSuite
 	env := s.NewTestWorkflowEnvironment()
 
-	config := CreateContainerTestConfig(t)
+	config := utils.CreateContainerTestConfig(t)
 	config.Cleanup(t)
 
 	// Register workflow and activities
-	SetupWorkflowEnvironment(env, config)
+	utils.SetupWorkflowEnvironment(env, config)
 
 	// Create workflow input
 	workflowExecID := core.MustNewID()
@@ -284,7 +223,7 @@ func TestStatusPersistenceAfterCompletion(t *testing.T) {
 	assert.NoError(t, env.GetWorkflowError())
 
 	// Verify status persistence after completion
-	dbVerifier := NewDatabaseStateVerifier(t, config)
+	dbVerifier := utils.NewDatabaseStateVerifier(t, config)
 
 	// Verify workflow completed successfully
 	dbVerifier.VerifyWorkflowCompletesWithStatus(workflowExecID, core.StatusSuccess, 15*time.Second)

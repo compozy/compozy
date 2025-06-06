@@ -14,7 +14,7 @@ import (
 // Error Handler
 // -----------------------------------------------------------------------------
 
-func BuildErrorHandler(ctx workflow.Context, input *WorkflowInput) func(err error) error {
+func BuildErrHandler(ctx workflow.Context, input WorkflowInput) func(err error) error {
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 30 * time.Second,
 		RetryPolicy: &temporal.RetryPolicy{
@@ -26,7 +26,18 @@ func BuildErrorHandler(ctx workflow.Context, input *WorkflowInput) func(err erro
 			logger.Info("Workflow canceled")
 			return err
 		}
+
+		// For non-cancellation errors, update status to failed in a disconnected context
+		// to ensure the status update happens even if workflow is being terminated
 		logger.Info("Updating workflow status to Failed due to error", "error", err)
+		cleanupCtx, _ := workflow.NewDisconnectedContext(ctx)
+		cleanupCtx = workflow.WithActivityOptions(cleanupCtx, workflow.ActivityOptions{
+			StartToCloseTimeout: 30 * time.Second,
+			RetryPolicy: &temporal.RetryPolicy{
+				MaximumAttempts: 3,
+			},
+		})
+
 		label := wfacts.UpdateStateLabel
 		statusInput := &wfacts.UpdateStateInput{
 			WorkflowID:     input.WorkflowID,
@@ -34,13 +45,9 @@ func BuildErrorHandler(ctx workflow.Context, input *WorkflowInput) func(err erro
 			Status:         core.StatusFailed,
 			Error:          core.NewError(err, "workflow_execution_error", nil),
 		}
-		future := workflow.ExecuteActivity(ctx, label, statusInput)
-		if updateErr := future.Get(ctx, nil); updateErr != nil {
-			if temporal.IsCanceledError(updateErr) {
-				logger.Info("Status update canceled")
-			} else {
-				logger.Error("Failed to update workflow status to Failed", "error", updateErr)
-			}
+		future := workflow.ExecuteActivity(cleanupCtx, label, statusInput)
+		if updateErr := future.Get(cleanupCtx, nil); updateErr != nil {
+			logger.Error("Failed to update workflow status to Failed", "error", updateErr)
 		} else {
 			logger.Info("Successfully updated workflow status to Failed")
 		}
@@ -52,57 +59,75 @@ func BuildErrorHandler(ctx workflow.Context, input *WorkflowInput) func(err erro
 // Sleep
 // -----------------------------------------------------------------------------
 
-func SleepWithPause(ctx workflow.Context, dur time.Duration, g *PauseGate) error {
-	// Check if context is already canceled
+func SleepWithPause(ctx workflow.Context, dur time.Duration) error {
 	if ctx.Err() == workflow.ErrCanceled {
 		logger.Info("Sleep skipped due to cancellation")
 		return workflow.ErrCanceled
 	}
-
 	timerDone := false
 	timer := workflow.NewTimer(ctx, dur)
-
 	for !timerDone {
 		// Check cancellation before each iteration
 		if ctx.Err() == workflow.ErrCanceled {
 			logger.Info("Sleep interrupted by cancellation")
 			return workflow.ErrCanceled
 		}
-
 		sel := workflow.NewSelector(ctx)
 		sel.AddFuture(timer, func(workflow.Future) { timerDone = true })
-		sel.AddReceive(g.pause, func(workflow.ReceiveChannel, bool) {
-			if ctx.Err() != workflow.ErrCanceled {
-				g.paused = true
-			}
-		})
-		sel.AddReceive(g.resume, func(workflow.ReceiveChannel, bool) {
-			if ctx.Err() != workflow.ErrCanceled {
-				g.paused = false
-			}
-		})
 		sel.Select(ctx)
-
 		// Check again after select
 		if ctx.Err() == workflow.ErrCanceled {
 			logger.Info("Sleep interrupted by cancellation")
 			return workflow.ErrCanceled
 		}
-
-		if g.paused {
-			if err := g.Await(); err != nil { // propagates cancel too
-				return err
-			}
-		}
 	}
 	return nil
 }
 
-func checkCancellation(ctx workflow.Context, err error, msg string) error {
-	logger := workflow.GetLogger(ctx)
-	if err == workflow.ErrCanceled || temporal.IsCanceledError(err) {
-		logger.Info(msg)
-		return err
+// -----------------------------------------------------------------------------
+// handleAct - Curry function for cancellation and pause checks
+// -----------------------------------------------------------------------------
+
+func handleAct[T any](ctx workflow.Context, errHandler func(err error) error, fn func() (T, error)) func() (T, error) {
+	return func() (T, error) {
+		var zero T
+		if ctx.Err() == workflow.ErrCanceled {
+			return zero, errHandler(workflow.ErrCanceled)
+		}
+		result, err := fn()
+		if err != nil {
+			if err == workflow.ErrCanceled || temporal.IsCanceledError(err) {
+				return zero, err
+			}
+			return zero, errHandler(err)
+		}
+		return result, nil
 	}
-	return nil
+}
+
+func cancelCleanup(ctx workflow.Context, input *WorkflowInput) {
+	if ctx.Err() != workflow.ErrCanceled {
+		return
+	}
+	logger.Info("Workflow canceled, performing cleanup...")
+	cleanupCtx, _ := workflow.NewDisconnectedContext(ctx)
+	cleanupCtx = workflow.WithActivityOptions(cleanupCtx, workflow.ActivityOptions{
+		StartToCloseTimeout: 30 * time.Second,
+	})
+
+	// Update workflow status to canceled
+	statusInput := &wfacts.UpdateStateInput{
+		WorkflowID:     input.WorkflowID,
+		WorkflowExecID: input.WorkflowExecID,
+		Status:         core.StatusCanceled,
+	}
+	if err := workflow.ExecuteActivity(
+		cleanupCtx,
+		wfacts.UpdateStateLabel,
+		statusInput,
+	).Get(cleanupCtx, nil); err != nil {
+		logger.Error("Failed to update workflow status to Canceled during cleanup", "error", err)
+	} else {
+		logger.Info("Successfully updated workflow status to Canceled")
+	}
 }
