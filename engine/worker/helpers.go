@@ -38,13 +38,16 @@ func SleepWithPause(ctx workflow.Context, dur time.Duration) error {
 }
 
 // actHandler - Curry function for cancellation and pause checks
-func actHandler[T any](ctx workflow.Context, errHandler func(err error) error, fn func() (T, error)) func() (T, error) {
-	return func() (T, error) {
+func actHandler[T any](
+	errHandler func(err error) error,
+	fn func(ctx workflow.Context) (T, error),
+) func(ctx workflow.Context) (T, error) {
+	return func(ctx workflow.Context) (T, error) {
 		var zero T
 		if ctx.Err() == workflow.ErrCanceled {
 			return zero, errHandler(workflow.ErrCanceled)
 		}
-		result, err := fn()
+		result, err := fn(ctx)
 		if err != nil {
 			if err == workflow.ErrCanceled || temporal.IsCanceledError(err) {
 				return zero, err

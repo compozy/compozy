@@ -1,0 +1,46 @@
+id: circular_parent
+type: parallel
+strategy: wait_all
+
+tasks:
+  - id: task_a
+    type: parallel
+    strategy: wait_all
+    tasks:
+      - id: task_b
+        type: basic
+        agent:
+          id: test_agent
+          config:
+            provider: anthropic
+            model: claude-3-haiku
+        action: test
+
+      # This creates a circular reference back to parent
+      - id: circular_parent
+        type: basic
+        agent:
+          id: test_agent2
+          config:
+            provider: anthropic
+            model: claude-3-haiku
+        action: test2
+
+input:
+  type: object
+  properties:
+    data:
+      type: string
+  required:
+    - data
+
+output:
+  type: object
+  properties:
+    result:
+      type: string
+  required:
+    - result
+
+with:
+  data: "test"

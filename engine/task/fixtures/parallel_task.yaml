@@ -1,0 +1,130 @@
+id: process_data_parallel
+type: parallel
+strategy: wait_all
+max_workers: 4
+timeout: 5m
+
+# Example of using task reference with $use
+task:
+  $use: task(local::tasks_definitions.#(id=="validation_task"))
+
+tasks:
+  - id: sentiment_analysis
+    type: basic
+    agent:
+      id: text_analyzer
+      config:
+        provider: anthropic
+        model: claude-3-haiku
+        params:
+          temperature: 0.3
+          max_tokens: 1000
+      instructions: Analyze the sentiment of the given text.
+    action: analyze_sentiment
+    with:
+      text: "{{ .workflow.input.content }}"
+
+  - id: extract_keywords
+    type: basic
+    tool:
+      id: nlp_processor
+      config:
+        provider: deno
+        script: nlp_processor.ts
+      env:
+        MAX_KEYWORDS: "10"
+    with:
+      text: "{{ .workflow.input.content }}"
+      max_keywords: 10
+
+  # Example of inline task that references another task config
+  - $ref: local::tasks_definitions.#(id=="backup_task")
+    with:
+      content: "{{ .workflow.input.raw_data }}"
+      backup_location: "/tmp/backups"
+
+# Define some local tasks that can be referenced
+tasks_definitions:
+  - id: validation_task
+    type: basic
+    agent:
+      id: validation_agent
+      config:
+        provider: anthropic
+        model: claude-3-haiku
+        params:
+          temperature: 0.1
+          max_tokens: 500
+      instructions: Validate the input data structure and format.
+    action: validate
+    input:
+      type: object
+      properties:
+        data:
+          type: string
+      required:
+        - data
+
+  - id: backup_task
+    type: basic
+    tool:
+      id: backup_service
+      config:
+        provider: deno
+        script: backup.ts
+    input:
+      type: object
+      properties:
+        content:
+          type: string
+        backup_location:
+          type: string
+      required:
+        - content
+        - backup_location
+
+input:
+  type: object
+  properties:
+    raw_data:
+      type: string
+    content:
+      type: string
+  required:
+    - raw_data
+    - content
+
+output:
+  type: object
+  properties:
+    validation_task:
+      type: object
+    sentiment_analysis:
+      type: object
+    extract_keywords:
+      type: array
+    backup_task:
+      type: object
+  required:
+    - validation_task
+    - sentiment_analysis
+    - extract_keywords
+    - backup_task
+
+env:
+  PARALLEL_TIMEOUT: "5m"
+
+with:
+  raw_data: "sample data"
+  content: "This is a great product! I love it."
+
+on_success:
+  next: merge_results
+  with:
+    validation: "{{ .tasks.process_data_parallel.output.validation_task }}"
+    sentiment: "{{ .tasks.process_data_parallel.output.sentiment_analysis }}"
+    keywords: "{{ .tasks.process_data_parallel.output.extract_keywords }}"
+    backup_id: "{{ .tasks.process_data_parallel.output.backup_task.id }}"
+
+on_error:
+  next: handle_error

@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 )
 
+// StateFilter updated to include execution type filtering
 type StateFilter struct {
 	Status         *core.StatusType `json:"status,omitempty"`
 	WorkflowID     *string          `json:"workflow_id,omitempty"`
@@ -16,12 +17,17 @@ type StateFilter struct {
 	AgentID        *string          `json:"agent_id,omitempty"`
 	ActionID       *string          `json:"action_id,omitempty"`
 	ToolID         *string          `json:"tool_id,omitempty"`
+	ExecutionType  *ExecutionType   `json:"execution_type,omitempty"`
 }
 
+// Repository interface updated with parallel execution methods
 type Repository interface {
+	// Basic CRUD operations
 	ListStates(ctx context.Context, filter *StateFilter) ([]*State, error)
 	UpsertState(ctx context.Context, state *State) error
 	GetState(ctx context.Context, taskExecID core.ID) (*State, error)
+
+	// Workflow-level operations
 	ListTasksInWorkflow(ctx context.Context, workflowExecID core.ID) (map[string]*State, error)
 	ListTasksByStatus(ctx context.Context, workflowExecID core.ID, status core.StatusType) ([]*State, error)
 	ListTasksByAgent(ctx context.Context, workflowExecID core.ID, agentID string) ([]*State, error)
@@ -29,44 +35,32 @@ type Repository interface {
 }
 
 // -----------------------------------------------------------------------------
-// Initial State
+// Enhanced State Creation Functions
 // -----------------------------------------------------------------------------
 
-type PartialState struct {
-	Component core.ComponentType `json:"component"`
-	AgentID   *string            `json:"agent_id,omitempty"`
-	ActionID  *string            `json:"action_id,omitempty"`
-	ToolID    *string            `json:"tool_id,omitempty"`
-	Input     *core.Input        `json:"input,omitempty"`
-	MergedEnv core.EnvMap        `json:"merged_env"`
-}
-
-type StateInput struct {
+// CreateStateInput remains the same
+type CreateStateInput struct {
 	WorkflowID     string  `json:"workflow_id"`
 	WorkflowExecID core.ID `json:"workflow_exec_id"`
 	TaskID         string  `json:"task_id"`
 	TaskExecID     core.ID `json:"task_exec_id"`
 }
 
+// Enhanced CreateAndPersistState function (already defined in the domain, but including here for completeness)
 func CreateAndPersistState(
 	ctx context.Context,
 	repo Repository,
-	input *StateInput,
+	input *CreateStateInput,
 	result *PartialState,
 ) (*State, error) {
-	state := &State{
-		TaskID:         input.TaskID,
-		TaskExecID:     input.TaskExecID,
-		Component:      result.Component,
-		Status:         core.StatusPending,
-		WorkflowID:     input.WorkflowID,
-		WorkflowExecID: input.WorkflowExecID,
-		AgentID:        result.AgentID,
-		ActionID:       result.ActionID,
-		ToolID:         result.ToolID,
-		Input:          result.Input,
-		Output:         nil,
-		Error:          nil,
+	var state *State
+	switch result.ExecutionType {
+	case ExecutionBasic:
+		state = CreateBasicState(input, result)
+	case ExecutionParallel:
+		state = CreateParallelState(input, result)
+	default:
+		return nil, fmt.Errorf("unsupported execution type: %s", result.ExecutionType)
 	}
 	if err := repo.UpsertState(ctx, state); err != nil {
 		return nil, fmt.Errorf("failed to upsert task state: %w", err)

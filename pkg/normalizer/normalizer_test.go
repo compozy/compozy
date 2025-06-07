@@ -30,7 +30,7 @@ func TestNormalizer_BuildContext(t *testing.T) {
 			},
 		}
 
-		result := n.buildContext(ctx)
+		result := n.BuildContext(ctx)
 
 		assert.Equal(t, "test-workflow", result["workflow"].(map[string]any)["id"])
 		input := result["workflow"].(map[string]any)["input"].(*core.Input)
@@ -53,7 +53,7 @@ func TestNormalizer_BuildContext(t *testing.T) {
 			},
 		}
 
-		result := n.buildContext(ctx)
+		result := n.BuildContext(ctx)
 		wf := result["workflow"].(map[string]any)
 
 		assert.Equal(t, "test-workflow", wf["id"])
@@ -79,22 +79,26 @@ func TestNormalizer_BuildContext(t *testing.T) {
 			},
 			TaskConfigs: map[string]*task.Config{
 				"task1": {
-					ID:     "task1",
-					Type:   task.TaskTypeBasic,
-					Action: "process",
+					BaseConfig: task.BaseConfig{
+						ID:   "task1",
+						Type: task.TaskTypeBasic,
+					},
+					BasicTask: task.BasicTask{
+						Action: "process",
+					},
 				},
 			},
 		}
 
-		result := n.buildContext(ctx)
+		result := n.BuildContext(ctx)
 		tasks := result["tasks"].(map[string]any)
 		task1 := tasks["task1"].(map[string]any)
 
 		assert.Equal(t, "task1", task1["id"])
 		input := task1["input"].(*core.Input)
 		assert.Equal(t, "test-data", (*input)["data"])
-		output := task1["output"].(*core.Output)
-		assert.Equal(t, "processed", (*output)["result"])
+		output := task1["output"].(core.Output)
+		assert.Equal(t, "processed", output["result"])
 		assert.Equal(t, string(task.TaskTypeBasic), task1["type"])
 		assert.Equal(t, "process", task1["action"])
 	})
@@ -112,7 +116,7 @@ func TestNormalizer_BuildContext(t *testing.T) {
 			},
 		}
 
-		result := n.buildContext(ctx)
+		result := n.BuildContext(ctx)
 
 		assert.Equal(t, "parent-task", result["parent"].(map[string]any)["id"])
 		assert.Equal(t, "basic", result["parent"].(map[string]any)["type"])
@@ -136,17 +140,21 @@ func TestNormalizer_BuildContext(t *testing.T) {
 				},
 			},
 			ParentTaskConfig: &task.Config{
-				ID:     "parent-task",
-				Type:   task.TaskTypeDecision,
-				Action: "decide",
+				BaseConfig: task.BaseConfig{
+					ID:   "parent-task",
+					Type: task.TaskTypeBasic,
+				},
+				BasicTask: task.BasicTask{
+					Action: "decide",
+				},
 			},
 		}
 
-		result := n.buildContext(ctx)
+		result := n.BuildContext(ctx)
 		parent := result["parent"].(map[string]any)
 
 		assert.Equal(t, "parent-task", parent["id"])
-		assert.Equal(t, string(task.TaskTypeDecision), parent["type"])
+		assert.Equal(t, string(task.TaskTypeBasic), parent["type"])
 		assert.Equal(t, "decide", parent["action"])
 		input := parent["input"].(*core.Input)
 		assert.Equal(t, "Boston", (*input)["city"])
@@ -163,16 +171,16 @@ func TestNormalizer_BuildContext(t *testing.T) {
 			CurrentInput: &core.Input{
 				"param": "value",
 			},
-			MergedEnv: core.EnvMap{
+			MergedEnv: &core.EnvMap{
 				"API_KEY": "secret",
 			},
 		}
 
-		result := n.buildContext(ctx)
+		result := n.BuildContext(ctx)
 
 		input := result["input"].(*core.Input)
 		assert.Equal(t, "value", (*input)["param"])
-		assert.Equal(t, "secret", result["env"].(core.EnvMap)["API_KEY"])
+		assert.Equal(t, "secret", (*result["env"].(*core.EnvMap))["API_KEY"])
 	})
 }
 
@@ -181,14 +189,19 @@ func TestNormalizer_NormalizeTaskConfig(t *testing.T) {
 
 	t.Run("Should normalize task config with templates", func(t *testing.T) {
 		taskConfig := &task.Config{
-			ID:     "test-task",
-			Action: "process_{{ .workflow.input.city }}",
-			With: &core.Input{
-				"data":     "{{ .tasks.fetcher.output.data }}",
-				"workflow": "{{ .workflow.id }}",
+			BaseConfig: task.BaseConfig{
+				ID:   "test-task",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					"data":     "{{ .tasks.fetcher.output.data }}",
+					"workflow": "{{ .workflow.id }}",
+				},
+				Env: &core.EnvMap{
+					"CITY": "{{ .workflow.input.city | upper }}",
+				},
 			},
-			Env: &core.EnvMap{
-				"CITY": "{{ .workflow.input.city | upper }}",
+			BasicTask: task.BasicTask{
+				Action: "process_{{ .workflow.input.city }}",
 			},
 		}
 
@@ -220,9 +233,13 @@ func TestNormalizer_NormalizeTaskConfig(t *testing.T) {
 
 	t.Run("Should handle condition field normalization", func(t *testing.T) {
 		taskConfig := &task.Config{
-			ID:        "decision-task",
-			Type:      task.TaskTypeDecision,
-			Condition: `{{ eq .tasks.validator.output.status "valid" }}`,
+			BaseConfig: task.BaseConfig{
+				ID:   "decision-task",
+				Type: task.TaskTypeDecision,
+			},
+			DecisionTask: task.DecisionTask{
+				Condition: `{{ eq .tasks.validator.output.status "valid" }}`,
+			},
 		}
 
 		ctx := &NormalizationContext{
@@ -282,7 +299,7 @@ Parent task: {{ .parent.id }}`,
 					"city": "Portland",
 				},
 			},
-			MergedEnv: core.EnvMap{
+			MergedEnv: &core.EnvMap{
 				"MODE": "debug",
 			},
 		}
@@ -367,7 +384,7 @@ func TestNormalizer_NormalizeToolConfig(t *testing.T) {
 					"city": "Chicago",
 				},
 			},
-			MergedEnv: core.EnvMap{
+			MergedEnv: &core.EnvMap{
 				"SCRIPTS_PATH": "/scripts",
 				"API_URL":      "https://api.example.com",
 			},
@@ -389,11 +406,13 @@ func TestNormalizer_ComplexTemplates(t *testing.T) {
 
 	t.Run("Should handle complex template expressions", func(t *testing.T) {
 		taskConfig := &task.Config{
-			ID: "complex-task",
-			With: &core.Input{
-				"mode":      `{{ if eq .workflow.input.env "prod" }}production{{ else }}development{{ end }}`,
-				"uppercase": "{{ .workflow.input.name | upper }}",
-				"length":    "{{ .workflow.input.items | len }}",
+			BaseConfig: task.BaseConfig{
+				ID: "complex-task",
+				With: &core.Input{
+					"mode":      `{{ if eq .workflow.input.env "prod" }}production{{ else }}development{{ end }}`,
+					"uppercase": "{{ .workflow.input.name | upper }}",
+					"length":    "{{ .workflow.input.items | len }}",
+				},
 			},
 		}
 
@@ -419,10 +438,12 @@ func TestNormalizer_ComplexTemplates(t *testing.T) {
 
 	t.Run("Should handle missing key with error", func(t *testing.T) {
 		taskConfig := &task.Config{
-			ID: "missing-key-task",
-			With: &core.Input{
-				// This should now fail instead of using default
-				"default": "{{ .workflow.input.missing | default \"fallback\" }}",
+			BaseConfig: task.BaseConfig{
+				ID: "missing-key-task",
+				With: &core.Input{
+					// This should now fail instead of using default
+					"default": "{{ .workflow.input.missing | default \"fallback\" }}",
+				},
 			},
 		}
 
@@ -445,10 +466,12 @@ func TestNormalizer_ComplexTemplates(t *testing.T) {
 
 	t.Run("Should handle nested object access", func(t *testing.T) {
 		taskConfig := &task.Config{
-			ID: "nested-task",
-			With: &core.Input{
-				"author_name":  "{{ .workflow.author.name }}",
-				"nested_value": "{{ .tasks.processor.output.data.value }}",
+			BaseConfig: task.BaseConfig{
+				ID: "nested-task",
+				With: &core.Input{
+					"author_name":  "{{ .workflow.author.name }}",
+					"nested_value": "{{ .tasks.processor.output.data.value }}",
+				},
 			},
 		}
 
@@ -486,9 +509,11 @@ func TestNormalizer_ErrorHandling(t *testing.T) {
 
 	t.Run("Should return error for invalid template", func(t *testing.T) {
 		taskConfig := &task.Config{
-			ID: "error-task",
-			With: &core.Input{
-				"invalid": "{{ .workflow.input.city | nonexistentfunction }}",
+			BaseConfig: task.BaseConfig{
+				ID: "error-task",
+				With: &core.Input{
+					"invalid": "{{ .workflow.input.city | nonexistentfunction }}",
+				},
 			},
 		}
 
@@ -509,10 +534,12 @@ func TestNormalizer_ErrorHandling(t *testing.T) {
 
 	t.Run("Should handle missing context gracefully", func(t *testing.T) {
 		taskConfig := &task.Config{
-			ID: "missing-context-task",
-			With: &core.Input{
-				// This should now fail with missingkey=error
-				"value": "{{ .tasks.nonexistent.output.data | default \"not-found\" }}",
+			BaseConfig: task.BaseConfig{
+				ID: "missing-context-task",
+				With: &core.Input{
+					// This should now fail with missingkey=error
+					"value": "{{ .tasks.nonexistent.output.data | default \"not-found\" }}",
+				},
 			},
 		}
 
@@ -530,10 +557,12 @@ func TestNormalizer_ErrorHandling(t *testing.T) {
 
 	t.Run("Should fail fast on typo that was previously silent", func(t *testing.T) {
 		taskConfig := &task.Config{
-			ID: "typo-task",
-			With: &core.Input{
-				// This is a common typo: "worklow" instead of "workflow"
-				"typo_value": "{{ .worklow.id }}",
+			BaseConfig: task.BaseConfig{
+				ID: "typo-task",
+				With: &core.Input{
+					// This is a common typo: "worklow" instead of "workflow"
+					"typo_value": "{{ .worklow.id }}",
+				},
 			},
 		}
 
@@ -552,10 +581,12 @@ func TestNormalizer_ErrorHandling(t *testing.T) {
 
 	t.Run("Should fail on misspelled field access", func(t *testing.T) {
 		taskConfig := &task.Config{
-			ID: "misspelled-task",
-			With: &core.Input{
-				// This is a common typo: "outpu" instead of "output" (missing 't')
-				"result": "{{ .tasks.processor.outpu.data }}",
+			BaseConfig: task.BaseConfig{
+				ID: "misspelled-task",
+				With: &core.Input{
+					// This is a common typo: "outpu" instead of "output" (missing 't')
+					"result": "{{ .tasks.processor.outpu.data }}",
+				},
 			},
 		}
 

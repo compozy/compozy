@@ -9,6 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const defaultActionID = "default_action"
+
+// StringPtr returns a pointer to the string value
+func StringPtr(s string) *string {
+	return &s
+}
+
 // MockSetup holds common mock database setup
 type MockSetup struct {
 	Mock pgxmock.PgxPoolIface
@@ -100,7 +107,8 @@ func (m *MockSetup) NewTaskStateRowBuilder() *TaskStateRowBuilder {
 func (t *TaskStateRowBuilder) CreateEmptyTaskStateRows() *pgxmock.Rows {
 	return t.mock.NewRows([]string{
 		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-		"component", "status", "agent_id", "action_id", "tool_id", "input", "output", "error",
+		"component", "status", "execution_type", "agent_id", "action_id", "tool_id",
+		"input", "output", "error", "parallel_state", "created_at", "updated_at",
 	})
 }
 
@@ -114,25 +122,78 @@ func (t *TaskStateRowBuilder) CreateTaskStateRows(
 	// Determine component type and action_id based on provided IDs
 	var component core.ComponentType
 	var actionID any
+	var executionType = "basic"
 
 	switch {
 	case agentID != nil:
 		component = core.ComponentAgent
-		actionID = "default_action" // Required for agent components
+		actionID = defaultActionID // Required for agent components
 	case toolID != nil:
 		component = core.ComponentTool
 		actionID = nil // Not required for tool components
 	default:
 		component = core.ComponentTask
-		actionID = "default_action" // Task components may have actions
+		actionID = defaultActionID // Task components may have actions
 	}
 
 	return t.mock.NewRows([]string{
 		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-		"component", "status", "agent_id", "action_id", "tool_id", "input", "output", "error",
+		"component", "status", "execution_type", "agent_id", "action_id", "tool_id",
+		"input", "output", "error", "parallel_state", "created_at", "updated_at",
 	}).AddRow(
 		taskExecID, taskID, workflowExecID, workflowID,
-		component, status, agentID, actionID, toolID, inputData, nil, nil,
+		component, status, executionType, agentID, actionID, toolID, inputData, nil, nil, nil, nil, nil,
+	)
+}
+
+// CreateParallelTaskStateRows creates mock rows for parallel task states
+func (t *TaskStateRowBuilder) CreateParallelTaskStateRows(
+	taskExecID, taskID, workflowExecID, workflowID string,
+	status core.StatusType,
+	executionType any,
+	parallelStateData []byte,
+) *pgxmock.Rows {
+	return t.mock.NewRows([]string{
+		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
+		"component", "status", "execution_type", "agent_id", "action_id", "tool_id",
+		"input", "output", "error", "parallel_state", "created_at", "updated_at",
+	}).AddRow(
+		taskExecID, taskID, workflowExecID, workflowID,
+		core.ComponentTask, status, executionType, nil, nil, nil, nil, nil, nil, parallelStateData, nil, nil,
+	)
+}
+
+// CreateTaskStateRowsWithExecution creates mock rows for task states with explicit execution type
+func (t *TaskStateRowBuilder) CreateTaskStateRowsWithExecution(
+	taskExecID, taskID, workflowExecID, workflowID string,
+	status core.StatusType,
+	executionType any,
+	agentID, toolID any,
+	inputData []byte,
+) *pgxmock.Rows {
+	// Determine component type and action_id based on provided IDs
+	var component core.ComponentType
+	var actionID any
+
+	switch {
+	case agentID != nil:
+		component = core.ComponentAgent
+		actionID = defaultActionID // Required for agent components
+	case toolID != nil:
+		component = core.ComponentTool
+		actionID = nil // Not required for tool components
+	default:
+		component = core.ComponentTask
+		actionID = defaultActionID // Task components may have actions
+	}
+
+	return t.mock.NewRows([]string{
+		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
+		"component", "status", "execution_type", "agent_id", "action_id", "tool_id",
+		"input", "output", "error", "parallel_state", "created_at", "updated_at",
+	}).AddRow(
+		taskExecID, taskID, workflowExecID, workflowID,
+		component, status, executionType, agentID, actionID, toolID, inputData, nil, nil, nil, nil, nil,
 	)
 }
 
@@ -208,6 +269,15 @@ func (td *DataBuilder) MustCreateInputData(data map[string]any) []byte {
 // MustCreateNilJSONB creates nil JSONB data
 func (td *DataBuilder) MustCreateNilJSONB() []byte {
 	data, err := store.ToJSONB(nil)
+	if err != nil {
+		panic(err)
+	}
+	return data
+}
+
+// MustCreateParallelStateData creates test parallel state data as JSONB
+func (td *DataBuilder) MustCreateParallelStateData(parallelState any) []byte {
+	data, err := store.ToJSONB(parallelState)
 	if err != nil {
 		panic(err)
 	}

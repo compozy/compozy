@@ -29,6 +29,7 @@ func TestTaskRepo_UpsertState(t *testing.T) {
 		Status:         core.StatusPending,
 		WorkflowID:     workflowID,
 		WorkflowExecID: workflowExecID,
+		ExecutionType:  task.ExecutionBasic,
 		AgentID:        &agentID,
 		ActionID:       &actionID,
 		Input:          &core.Input{"key": "value"},
@@ -38,13 +39,78 @@ func TestTaskRepo_UpsertState(t *testing.T) {
 	inputJSON := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
 	expectedOutputJSON := dataBuilder.MustCreateNilJSONB()
 	expectedErrorJSON := dataBuilder.MustCreateNilJSONB()
+	expectedParallelStateJSON := dataBuilder.MustCreateNilJSONB()
 
 	queries := mockSetup.NewQueryExpectations()
 	queries.ExpectTaskStateQueryForUpsert([]any{
 		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, state.Component, state.Status,
-		state.AgentID, state.ActionID, state.ToolID, inputJSON, // Use actual input data
+		state.ExecutionType, state.AgentID, state.ActionID, state.ToolID, inputJSON,
 		expectedOutputJSON,
 		expectedErrorJSON,
+		expectedParallelStateJSON,
+	})
+
+	err := repo.UpsertState(ctx, state)
+	assert.NoError(t, err)
+	mockSetup.ExpectationsWereMet()
+}
+
+func TestTaskRepo_UpsertParallelState(t *testing.T) {
+	mockSetup := testutils.NewMockSetup(t)
+	defer mockSetup.Close()
+
+	repo := store.NewTaskRepo(mockSetup.Mock)
+	ctx := context.Background()
+	workflowID := "wf1"
+	workflowExecID := core.ID("exec1")
+
+	// Create a parallel state
+	parallelState := &task.ParallelState{
+		Strategy:   task.StrategyWaitAll,
+		MaxWorkers: 3,
+		Timeout:    "5m",
+		SubTasks: map[string]*task.State{
+			"subtask1": {
+				TaskID:         "subtask1",
+				TaskExecID:     core.MustNewID(),
+				WorkflowID:     workflowID,
+				WorkflowExecID: workflowExecID,
+				Component:      core.ComponentAgent,
+				Status:         core.StatusPending,
+				ExecutionType:  task.ExecutionBasic,
+				AgentID:        testutils.StringPtr("agent1"),
+				ActionID:       testutils.StringPtr("action1"),
+				Input:          &core.Input{"param": "value1"},
+			},
+		},
+		CompletedTasks: make([]string, 0),
+		FailedTasks:    make([]string, 0),
+	}
+
+	state := &task.State{
+		TaskExecID:     core.ID("task_exec1"),
+		TaskID:         "parallel_task1",
+		Component:      core.ComponentTask,
+		Status:         core.StatusRunning,
+		WorkflowID:     workflowID,
+		WorkflowExecID: workflowExecID,
+		ExecutionType:  task.ExecutionParallel,
+		ParallelState:  parallelState,
+	}
+
+	dataBuilder := testutils.NewDataBuilder()
+	expectedInputJSON := dataBuilder.MustCreateNilJSONB()
+	expectedOutputJSON := dataBuilder.MustCreateNilJSONB()
+	expectedErrorJSON := dataBuilder.MustCreateNilJSONB()
+	parallelStateJSON := dataBuilder.MustCreateParallelStateData(parallelState)
+
+	queries := mockSetup.NewQueryExpectations()
+	queries.ExpectTaskStateQueryForUpsert([]any{
+		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, state.Component, state.Status,
+		state.ExecutionType, state.AgentID, state.ActionID, state.ToolID, expectedInputJSON,
+		expectedOutputJSON,
+		expectedErrorJSON,
+		parallelStateJSON,
 	})
 
 	err := repo.UpsertState(ctx, state)
@@ -73,7 +139,7 @@ func testTaskGet(
 func TestTaskRepo_GetState(t *testing.T) {
 	testTaskGet(
 		t,
-		"should get task state",
+		"should get basic task state",
 		func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
 			taskExecID := core.ID("task_exec1")
 
@@ -81,9 +147,9 @@ func TestTaskRepo_GetState(t *testing.T) {
 			inputData := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
 
 			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-			taskRows := taskRowBuilder.CreateTaskStateRows(
+			taskRows := taskRowBuilder.CreateTaskStateRowsWithExecution(
 				"task_exec1", "task1", "exec1", "wf1",
-				core.StatusPending, "agent1", nil, inputData,
+				core.StatusPending, task.ExecutionBasic, "agent1", nil, inputData,
 			)
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
@@ -94,8 +160,64 @@ func TestTaskRepo_GetState(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, taskExecID, state.TaskExecID)
 			assert.Equal(t, core.StatusPending, state.Status)
+			assert.Equal(t, task.ExecutionBasic, state.ExecutionType)
 			assert.NotNil(t, state.Input)
 			assert.Equal(t, "agent1", *state.AgentID)
+		},
+	)
+}
+
+func TestTaskRepo_GetParallelState(t *testing.T) {
+	testTaskGet(
+		t,
+		"should get parallel task state",
+		func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+			taskExecID := core.ID("task_exec1")
+
+			// Create parallel state data
+			parallelState := &task.ParallelState{
+				Strategy:   task.StrategyWaitAll,
+				MaxWorkers: 2,
+				SubTasks: map[string]*task.State{
+					"subtask1": {
+						TaskID:         "subtask1",
+						TaskExecID:     core.MustNewID(),
+						WorkflowID:     "wf1",
+						WorkflowExecID: core.ID("exec1"),
+						Component:      core.ComponentAgent,
+						Status:         core.StatusSuccess,
+						ExecutionType:  task.ExecutionBasic,
+						Output:         &core.Output{"result": "success"},
+					},
+				},
+				CompletedTasks: []string{"subtask1"},
+				FailedTasks:    make([]string, 0),
+			}
+
+			dataBuilder := testutils.NewDataBuilder()
+			parallelStateData := dataBuilder.MustCreateParallelStateData(parallelState)
+
+			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
+			taskRows := taskRowBuilder.CreateParallelTaskStateRows(
+				"task_exec1", "parallel_task1", "exec1", "wf1",
+				core.StatusSuccess, task.ExecutionParallel, parallelStateData,
+			)
+
+			mockSetup.Mock.ExpectQuery("SELECT \\*").
+				WithArgs(taskExecID).
+				WillReturnRows(taskRows)
+
+			state, err := repo.GetState(ctx, taskExecID)
+			assert.NoError(t, err)
+			assert.Equal(t, taskExecID, state.TaskExecID)
+			assert.Equal(t, core.StatusSuccess, state.Status)
+			assert.Equal(t, task.ExecutionParallel, state.ExecutionType)
+			assert.True(t, state.IsParallel())
+			assert.NotNil(t, state.ParallelState)
+			assert.Equal(t, task.StrategyWaitAll, state.Strategy)
+			assert.Equal(t, 2, state.MaxWorkers)
+			assert.Len(t, state.SubTasks, 1)
+			assert.Contains(t, state.SubTasks, "subtask1")
 		},
 	)
 }
@@ -146,8 +268,10 @@ func TestTaskRepo_ListTasksInWorkflow(t *testing.T) {
 
 			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 			taskRows := taskRowBuilder.CreateEmptyTaskStateRows().
-				AddRow("task_exec1", "task1", "exec1", "wf1", core.ComponentAgent, core.StatusPending, agentID, "default_action", nil, nil, nil, nil).
-				AddRow("task_exec2", "task2", "exec1", "wf1", core.ComponentTool, core.StatusRunning, nil, nil, toolID, nil, nil, nil)
+				AddRow("task_exec1", "task1", "exec1", "wf1", core.ComponentAgent, core.StatusPending,
+					task.ExecutionBasic, agentID, "default_action", nil, nil, nil, nil, nil, nil, nil).
+				AddRow("task_exec2", "task2", "exec1", "wf1", core.ComponentTool, core.StatusRunning,
+					task.ExecutionBasic, nil, nil, toolID, nil, nil, nil, nil, nil, nil)
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
 				WithArgs(workflowExecID).
@@ -160,6 +284,8 @@ func TestTaskRepo_ListTasksInWorkflow(t *testing.T) {
 			assert.Contains(t, states, "task2")
 			assert.Equal(t, "agent1", *states["task1"].AgentID)
 			assert.Equal(t, "tool1", *states["task2"].ToolID)
+			assert.Equal(t, task.ExecutionBasic, states["task1"].ExecutionType)
+			assert.Equal(t, task.ExecutionBasic, states["task2"].ExecutionType)
 		},
 	)
 }
@@ -173,9 +299,9 @@ func TestTaskRepo_ListTasksByStatus(t *testing.T) {
 			status := core.StatusPending
 
 			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-			taskRows := taskRowBuilder.CreateTaskStateRows(
+			taskRows := taskRowBuilder.CreateTaskStateRowsWithExecution(
 				"task_exec1", "task1", "exec1", "wf1",
-				core.StatusPending, nil, nil, nil,
+				core.StatusPending, task.ExecutionBasic, nil, nil, nil,
 			)
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
@@ -186,6 +312,7 @@ func TestTaskRepo_ListTasksByStatus(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, states, 1)
 			assert.Equal(t, core.StatusPending, states[0].Status)
+			assert.Equal(t, task.ExecutionBasic, states[0].ExecutionType)
 		},
 	)
 }
@@ -199,9 +326,9 @@ func TestTaskRepo_ListTasksByAgent(t *testing.T) {
 			agentID := "agent1"
 
 			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-			taskRows := taskRowBuilder.CreateTaskStateRows(
+			taskRows := taskRowBuilder.CreateTaskStateRowsWithExecution(
 				"task_exec1", "task1", "exec1", "wf1",
-				core.StatusPending, agentID, nil, nil,
+				core.StatusPending, task.ExecutionBasic, agentID, nil, nil,
 			)
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
@@ -212,6 +339,7 @@ func TestTaskRepo_ListTasksByAgent(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, states, 1)
 			assert.Equal(t, "agent1", *states[0].AgentID)
+			assert.Equal(t, task.ExecutionBasic, states[0].ExecutionType)
 		},
 	)
 }
@@ -225,9 +353,9 @@ func TestTaskRepo_ListTasksByTool(t *testing.T) {
 			toolID := "tool1"
 
 			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-			taskRows := taskRowBuilder.CreateTaskStateRows(
+			taskRows := taskRowBuilder.CreateTaskStateRowsWithExecution(
 				"task_exec1", "task1", "exec1", "wf1",
-				core.StatusPending, nil, toolID, nil,
+				core.StatusPending, task.ExecutionBasic, nil, toolID, nil,
 			)
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
@@ -238,6 +366,7 @@ func TestTaskRepo_ListTasksByTool(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, states, 1)
 			assert.Equal(t, "tool1", *states[0].ToolID)
+			assert.Equal(t, task.ExecutionBasic, states[0].ExecutionType)
 		},
 	)
 }
@@ -253,9 +382,9 @@ func TestTaskRepo_ListStates(t *testing.T) {
 			}
 
 			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-			taskRows := taskRowBuilder.CreateTaskStateRows(
+			taskRows := taskRowBuilder.CreateTaskStateRowsWithExecution(
 				"task_exec1", "task1", "exec1", "wf1",
-				core.StatusPending, nil, nil, nil,
+				core.StatusPending, task.ExecutionBasic, nil, nil, nil,
 			)
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
@@ -266,6 +395,44 @@ func TestTaskRepo_ListStates(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, states, 1)
 			assert.Equal(t, core.StatusPending, states[0].Status)
+			assert.Equal(t, task.ExecutionBasic, states[0].ExecutionType)
+		},
+	)
+}
+
+func TestTaskRepo_ListStatesWithExecutionTypeFilter(t *testing.T) {
+	testTaskList(
+		t,
+		"should filter states by execution type",
+		func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+			// Create parallel state data
+			parallelState := &task.ParallelState{
+				Strategy:       task.StrategyWaitAll,
+				MaxWorkers:     2,
+				SubTasks:       make(map[string]*task.State),
+				CompletedTasks: make([]string, 0),
+				FailedTasks:    make([]string, 0),
+			}
+
+			dataBuilder := testutils.NewDataBuilder()
+			parallelStateData := dataBuilder.MustCreateParallelStateData(parallelState)
+
+			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
+			taskRows := taskRowBuilder.CreateParallelTaskStateRows(
+				"task_exec1", "parallel_task1", "exec1", "wf1",
+				core.StatusRunning, task.ExecutionParallel, parallelStateData,
+			)
+
+			mockSetup.Mock.ExpectQuery("SELECT \\*").
+				WithArgs(task.ExecutionParallel).
+				WillReturnRows(taskRows)
+
+			executionType := task.ExecutionParallel
+			filter := &task.StateFilter{ExecutionType: &executionType}
+			states, err := repo.ListStates(ctx, filter)
+			assert.NoError(t, err)
+			assert.Len(t, states, 1)
+			assert.Equal(t, task.ExecutionParallel, states[0].ExecutionType)
 		},
 	)
 }

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 
 	"dario.cat/mergo"
 	"github.com/compozy/compozy/engine/core"
@@ -79,11 +80,11 @@ func (a *ActionConfig) ShouldUseJSONOutput() bool {
 	return a.JSONMode || a.OutputSchema != nil
 }
 
-func FindActionConfig(actions []*ActionConfig, id string) *ActionConfig {
+func FindActionConfig(actions []*ActionConfig, id string) (*ActionConfig, error) {
 	for _, action := range actions {
 		if action.ID == id {
-			return action
+			return action, nil
 		}
 	}
-	return nil
+	return nil, fmt.Errorf("action config not found: %s", id)
 }

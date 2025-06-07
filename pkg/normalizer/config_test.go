@@ -19,17 +19,21 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 
 	t.Run("Should normalize task with workflow context and environment merging", func(t *testing.T) {
 		taskConfig := &task.Config{
-			ID:     "notification-task",
-			Type:   task.TaskTypeBasic,
-			Action: "notify_user",
-			With: &core.Input{
-				"recipient":        "{{ .workflow.input.email }}",
-				"subject":          "Processing completed for {{ .workflow.input.request_id }}",
-				"workflow_version": "{{ .workflow.version }}",
-				"workflow_author":  "{{ .workflow.author.name }}",
+			BaseConfig: task.BaseConfig{
+				ID:   "notification-task",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					"recipient":        "{{ .workflow.input.email }}",
+					"subject":          "Processing completed for {{ .workflow.input.request_id }}",
+					"workflow_version": "{{ .workflow.version }}",
+					"workflow_author":  "{{ .workflow.author.name }}",
+				},
+				Env: &core.EnvMap{
+					"TASK_ENV": "task-value",
+				},
 			},
-			Env: &core.EnvMap{
-				"TASK_ENV": "task-value",
+			BasicTask: task.BasicTask{
+				Action: "notify_user",
 			},
 		}
 
@@ -58,7 +62,7 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 			Tasks: []task.Config{*taskConfig},
 		}
 
-		mergedEnv, err := normalizer.NormalizeTask(workflowState, workflowConfig, taskConfig)
+		err := normalizer.NormalizeTask(workflowState, workflowConfig, taskConfig)
 		require.NoError(t, err)
 
 		// Check template resolution
@@ -68,20 +72,22 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 		assert.Equal(t, "John Doe", (*taskConfig.With)["workflow_author"])
 
 		// Check environment merging (workflow env should be merged with task env)
-		assert.Equal(t, "workflow-value", mergedEnv["WORKFLOW_ENV"])
-		assert.Equal(t, "task-value", mergedEnv["TASK_ENV"])
+		assert.Equal(t, "workflow-value", taskConfig.GetEnv().Prop("WORKFLOW_ENV"))
+		assert.Equal(t, "task-value", taskConfig.GetEnv().Prop("TASK_ENV"))
 	})
 
 	t.Run("Should normalize task referencing other tasks", func(t *testing.T) {
 		analysisTask := &task.Config{
-			ID:   "analysis-task",
-			Type: task.TaskTypeBasic,
-			With: &core.Input{
-				"data":            "{{ .tasks.data_collector.output.dataset }}",
-				"previous_action": "{{ .tasks.data_collector.action }}",
-				"analyzer_type":   "{{ .tasks.config_loader.type }}",
-				"threshold":       "{{ .tasks.config_loader.output.settings.threshold }}",
-				"collector_final": "{{ .tasks.data_collector.final }}",
+			BaseConfig: task.BaseConfig{
+				ID:   "analysis-task",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					"data":            "{{ .tasks.data_collector.output.dataset }}",
+					"previous_action": "{{ .tasks.data_collector.action }}",
+					"analyzer_type":   "{{ .tasks.config_loader.type }}",
+					"threshold":       "{{ .tasks.config_loader.output.settings.threshold }}",
+					"collector_final": "{{ .tasks.data_collector.final }}",
+				},
 			},
 		}
 
@@ -114,20 +120,27 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 			ID: "analysis-workflow",
 			Tasks: []task.Config{
 				{
-					ID:     "data_collector",
-					Type:   task.TaskTypeBasic,
-					Action: "collect_data",
-					Final:  true,
+					BaseConfig: task.BaseConfig{
+						ID:    "data_collector",
+						Type:  task.TaskTypeBasic,
+						Final: true,
+					},
+					BasicTask: task.BasicTask{
+						Action: "collect_data",
+					},
 				},
 				{
-					ID:   "config_loader",
-					Type: task.TaskTypeBasic,
+					BaseConfig: task.BaseConfig{
+						ID:    "config_loader",
+						Type:  task.TaskTypeBasic,
+						Final: true,
+					},
 				},
 				*analysisTask,
 			},
 		}
 
-		_, err := normalizer.NormalizeTask(workflowState, workflowConfig, analysisTask)
+		err := normalizer.NormalizeTask(workflowState, workflowConfig, analysisTask)
 		require.NoError(t, err)
 
 		// Check access to task outputs and config properties
@@ -140,9 +153,13 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 
 	t.Run("Should handle decision task condition normalization", func(t *testing.T) {
 		decisionTask := &task.Config{
-			ID:        "validation-task",
-			Type:      task.TaskTypeDecision,
-			Condition: `{{ eq .tasks.validator.output.status "valid" }}`,
+			BaseConfig: task.BaseConfig{
+				ID:   "validation-task",
+				Type: task.TaskTypeDecision,
+			},
+			DecisionTask: task.DecisionTask{
+				Condition: `{{ eq .tasks.validator.output.status "valid" }}`,
+			},
 		}
 
 		workflowState := &workflow.State{
@@ -160,12 +177,17 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 		workflowConfig := &workflow.Config{
 			ID: "validation-workflow",
 			Tasks: []task.Config{
-				{ID: "validator"},
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "validator",
+						Type: task.TaskTypeBasic,
+					},
+				},
 				*decisionTask,
 			},
 		}
 
-		_, err := normalizer.NormalizeTask(workflowState, workflowConfig, decisionTask)
+		err := normalizer.NormalizeTask(workflowState, workflowConfig, decisionTask)
 		require.NoError(t, err)
 
 		assert.Equal(t, "true", decisionTask.Condition)
@@ -202,15 +224,19 @@ Data to process: {{ .tasks.data_fetcher.output.raw_data }}`,
 		}
 
 		taskConfig := &task.Config{
-			ID:     "processing-task",
-			Type:   task.TaskTypeBasic,
-			Action: "process_data",
-			Final:  true,
-			With: &core.Input{
-				"city": "Seattle",
+			BaseConfig: task.BaseConfig{
+				ID:    "processing-task",
+				Type:  task.TaskTypeBasic,
+				Final: true,
+				With: &core.Input{
+					"city": "Seattle",
+				},
+				Env: &core.EnvMap{
+					"TASK_ENV": "task-value",
+				},
 			},
-			Env: &core.EnvMap{
-				"TASK_ENV": "task-value",
+			BasicTask: task.BasicTask{
+				Action: "process_data",
 			},
 		}
 
@@ -252,7 +278,7 @@ Data to process: {{ .tasks.data_fetcher.output.raw_data }}`,
 
 		allTaskConfigs := BuildTaskConfigsMap(workflowConfig.Tasks)
 
-		mergedEnv, err := normalizer.NormalizeAgentComponent(
+		err := normalizer.NormalizeAgentComponent(
 			workflowState,
 			workflowConfig,
 			taskConfig,
@@ -279,9 +305,9 @@ Data to process: fetched-dataset`
 		assert.Equal(t, "true", (*agentConfig.With)["task_final"])
 
 		// Check environment merging (workflow -> task -> agent)
-		assert.Equal(t, "workflow-value", mergedEnv["WORKFLOW_ENV"])
-		assert.Equal(t, "task-value", mergedEnv["TASK_ENV"])
-		assert.Equal(t, "agent-value", mergedEnv["AGENT_ENV"])
+		assert.Equal(t, "workflow-value", agentConfig.GetEnv().Prop("WORKFLOW_ENV"))
+		assert.Equal(t, "task-value", agentConfig.GetEnv().Prop("TASK_ENV"))
+		assert.Equal(t, "agent-value", agentConfig.GetEnv().Prop("AGENT_ENV"))
 	})
 
 	t.Run("Should normalize agent actions with parent agent context", func(t *testing.T) {
@@ -318,8 +344,13 @@ Previous results: {{ .tasks.preprocessing.output.summary }}`,
 		}
 
 		taskConfig := &task.Config{
-			ID:     "analysis-task",
-			Action: "analyze-data",
+			BaseConfig: task.BaseConfig{
+				ID:   "analysis-task",
+				Type: task.TaskTypeBasic,
+			},
+			BasicTask: task.BasicTask{
+				Action: "analyze-data",
+			},
 		}
 
 		workflowState := &workflow.State{
@@ -341,7 +372,7 @@ Previous results: {{ .tasks.preprocessing.output.summary }}`,
 
 		allTaskConfigs := BuildTaskConfigsMap(workflowConfig.Tasks)
 
-		_, err := normalizer.NormalizeAgentComponent(
+		err := normalizer.NormalizeAgentComponent(
 			workflowState,
 			workflowConfig,
 			taskConfig,
@@ -394,15 +425,19 @@ func TestConfigNormalizer_NormalizeToolComponent(t *testing.T) {
 		}
 
 		taskConfig := &task.Config{
-			ID:     "api-task",
-			Type:   task.TaskTypeBasic,
-			Action: "fetch_data",
-			Final:  false,
-			With: &core.Input{
-				"token": "secret-token",
+			BaseConfig: task.BaseConfig{
+				ID:    "api-task",
+				Type:  task.TaskTypeBasic,
+				Final: false,
+				With: &core.Input{
+					"token": "secret-token",
+				},
+				Env: &core.EnvMap{
+					"TASK_ENV": "task-value",
+				},
 			},
-			Env: &core.EnvMap{
-				"TASK_ENV": "task-value",
+			BasicTask: task.BasicTask{
+				Action: "fetch_data",
 			},
 		}
 
@@ -435,7 +470,7 @@ func TestConfigNormalizer_NormalizeToolComponent(t *testing.T) {
 
 		allTaskConfigs := BuildTaskConfigsMap(workflowConfig.Tasks)
 
-		mergedEnv, err := normalizer.NormalizeToolComponent(
+		err := normalizer.NormalizeToolComponent(
 			workflowState,
 			workflowConfig,
 			taskConfig,
@@ -459,11 +494,11 @@ func TestConfigNormalizer_NormalizeToolComponent(t *testing.T) {
 		assert.Equal(t, "api-task", headers["x-task-id"])
 
 		// Check environment merging (workflow -> task -> tool)
-		assert.Equal(t, "workflow-value", mergedEnv["WORKFLOW_ENV"])
-		assert.Equal(t, "/app/scripts", mergedEnv["SCRIPTS_PATH"])
-		assert.Equal(t, "https://api.example.com", mergedEnv["API_BASE_URL"])
-		assert.Equal(t, "task-value", mergedEnv["TASK_ENV"])
-		assert.Equal(t, "tool-value", mergedEnv["TOOL_ENV"])
+		assert.Equal(t, "workflow-value", toolConfig.GetEnv().Prop("WORKFLOW_ENV"))
+		assert.Equal(t, "/app/scripts", toolConfig.GetEnv().Prop("SCRIPTS_PATH"))
+		assert.Equal(t, "https://api.example.com", toolConfig.GetEnv().Prop("API_BASE_URL"))
+		assert.Equal(t, "task-value", toolConfig.GetEnv().Prop("TASK_ENV"))
+		assert.Equal(t, "tool-value", toolConfig.GetEnv().Prop("TOOL_ENV"))
 	})
 }
 
@@ -474,30 +509,38 @@ func TestConfigNormalizer_TaskCallingSubTask(t *testing.T) {
 		// This simulates the case where a parent task calls a subtask
 		// The subtask should have access to parent task properties
 		subtaskConfig := &task.Config{
-			ID:     "process-item",
-			Type:   task.TaskTypeBasic,
-			Action: "process",
-			With: &core.Input{
-				"item":          "{{ .parent.input.current_item }}",
-				"batch_id":      "{{ .parent.id }}",
-				"parent_action": "{{ .parent.action }}",
-				"parent_type":   "{{ .parent.type }}",
-				"workflow_id":   "{{ .workflow.id }}",
-				"config":        "{{ .tasks.config_loader.output.settings }}",
+			BaseConfig: task.BaseConfig{
+				ID:   "process-item",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					"item":          "{{ .parent.input.current_item }}",
+					"batch_id":      "{{ .parent.id }}",
+					"parent_action": "{{ .parent.action }}",
+					"parent_type":   "{{ .parent.type }}",
+					"workflow_id":   "{{ .workflow.id }}",
+					"config":        "{{ .tasks.config_loader.output.settings }}",
+				},
+				Env: &core.EnvMap{
+					"PARENT_TASK": "{{ .parent.id }}",
+					"PARENT_TYPE": "{{ .parent.type }}",
+				},
 			},
-			Env: &core.EnvMap{
-				"PARENT_TASK": "{{ .parent.id }}",
-				"PARENT_TYPE": "{{ .parent.type }}",
+			BasicTask: task.BasicTask{
+				Action: "process",
 			},
 		}
 
 		parentTaskConfig := &task.Config{
-			ID:     "batch-processor",
-			Type:   task.TaskTypeBasic,
-			Action: "batch_process",
-			With: &core.Input{
-				"current_item": "item-123",
-				"batch_size":   "10",
+			BaseConfig: task.BaseConfig{
+				ID:   "batch-processor",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					"current_item": "item-123",
+					"batch_size":   "10",
+				},
+			},
+			BasicTask: task.BasicTask{
+				Action: "batch_process",
 			},
 		}
 
@@ -528,7 +571,12 @@ func TestConfigNormalizer_TaskCallingSubTask(t *testing.T) {
 			ID: "batch-workflow",
 			Tasks: []task.Config{
 				*parentTaskConfig,
-				{ID: "config_loader"},
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "config_loader",
+						Type: task.TaskTypeBasic,
+					},
+				},
 				*subtaskConfig,
 			},
 		}
@@ -540,7 +588,7 @@ func TestConfigNormalizer_TaskCallingSubTask(t *testing.T) {
 			WorkflowConfig:   workflowConfig,
 			TaskConfigs:      allTaskConfigsMap,
 			ParentTaskConfig: parentTaskConfig, // This indicates parent is a task
-			MergedEnv:        core.EnvMap{},
+			MergedEnv:        &core.EnvMap{},
 		}
 
 		err := normalizer.normalizer.NormalizeTaskConfig(subtaskConfig, normCtx)
@@ -568,9 +616,11 @@ func TestConfigNormalizer_ErrorHandling(t *testing.T) {
 
 	t.Run("Should return error for missing template key in environment", func(t *testing.T) {
 		taskConfig := &task.Config{
-			ID: "error-task",
-			Env: &core.EnvMap{
-				"INVALID": "{{ .invalid.template }}",
+			BaseConfig: task.BaseConfig{
+				ID: "error-task",
+				Env: &core.EnvMap{
+					"INVALID": "{{ .invalid.template }}",
+				},
 			},
 		}
 
@@ -584,7 +634,7 @@ func TestConfigNormalizer_ErrorHandling(t *testing.T) {
 			Tasks: []task.Config{*taskConfig},
 		}
 
-		_, err := normalizer.NormalizeTask(workflowState, workflowConfig, taskConfig)
+		err := normalizer.NormalizeTask(workflowState, workflowConfig, taskConfig)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid")
 	})
@@ -596,7 +646,9 @@ func TestConfigNormalizer_ErrorHandling(t *testing.T) {
 		}
 
 		taskConfig := &task.Config{
-			ID: "parent-task",
+			BaseConfig: task.BaseConfig{
+				ID: "parent-task",
+			},
 		}
 
 		workflowState := &workflow.State{
@@ -611,7 +663,7 @@ func TestConfigNormalizer_ErrorHandling(t *testing.T) {
 
 		allTaskConfigs := BuildTaskConfigsMap(workflowConfig.Tasks)
 
-		_, err := normalizer.NormalizeAgentComponent(
+		err := normalizer.NormalizeAgentComponent(
 			workflowState,
 			workflowConfig,
 			taskConfig,
@@ -629,7 +681,9 @@ func TestConfigNormalizer_ErrorHandling(t *testing.T) {
 		}
 
 		taskConfig := &task.Config{
-			ID: "parent-task",
+			BaseConfig: task.BaseConfig{
+				ID: "parent-task",
+			},
 		}
 
 		workflowState := &workflow.State{
@@ -644,7 +698,7 @@ func TestConfigNormalizer_ErrorHandling(t *testing.T) {
 
 		allTaskConfigs := BuildTaskConfigsMap(workflowConfig.Tasks)
 
-		_, err := normalizer.NormalizeToolComponent(
+		err := normalizer.NormalizeToolComponent(
 			workflowState,
 			workflowConfig,
 			taskConfig,
@@ -660,12 +714,16 @@ func TestConfigNormalizer_BuildTaskConfigsMap(t *testing.T) {
 	t.Run("Should convert task config slice to map", func(t *testing.T) {
 		taskConfigs := []task.Config{
 			{
-				ID:   "task1",
-				Type: task.TaskTypeBasic,
+				BaseConfig: task.BaseConfig{
+					ID:   "task1",
+					Type: task.TaskTypeBasic,
+				},
 			},
 			{
-				ID:   "task2",
-				Type: task.TaskTypeDecision,
+				BaseConfig: task.BaseConfig{
+					ID:   "task2",
+					Type: task.TaskTypeDecision,
+				},
 			},
 		}
 
@@ -704,9 +762,13 @@ func TestConfigNormalizer_ProviderConfigNormalization(t *testing.T) {
 		}
 
 		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   task.TaskTypeBasic,
-			Action: "test",
+			BaseConfig: task.BaseConfig{
+				ID:   "test-task",
+				Type: task.TaskTypeBasic,
+			},
+			BasicTask: task.BasicTask{
+				Action: "test",
+			},
 		}
 
 		workflowState := &workflow.State{
@@ -730,7 +792,7 @@ func TestConfigNormalizer_ProviderConfigNormalization(t *testing.T) {
 				"id": "test-task",
 			},
 			CurrentInput: agentConfig.With,
-			MergedEnv: core.EnvMap{
+			MergedEnv: &core.EnvMap{
 				"OPENAI_API_KEY": "sk-test-api-key-12345",
 				"BASE_URL":       "https://api.test.com",
 			},
@@ -751,10 +813,10 @@ func TestConfigNormalizer_MapstructureCompatibility(t *testing.T) {
 	t.Run("Should handle all mapstructure field mappings correctly", func(t *testing.T) {
 		// Test task config with on_success, on_error, and config fields
 		taskConfig := &task.Config{
-			ID:   "test-task",
-			Type: task.TaskTypeBasic,
-			Opts: task.Opts{
-				GlobalOpts: core.GlobalOpts{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-task",
+				Type: task.TaskTypeBasic,
+				Config: core.GlobalOpts{
 					ScheduleToStartTimeout: "{{ .env.SCHEDULE_TIMEOUT }}",
 					StartToCloseTimeout:    "{{ .env.START_TIMEOUT }}",
 					RetryPolicy: &core.RetryPolicyConfig{
@@ -762,17 +824,17 @@ func TestConfigNormalizer_MapstructureCompatibility(t *testing.T) {
 						MaximumAttempts: 5,
 					},
 				},
-			},
-			OnSuccess: &core.SuccessTransition{
-				Next: &[]string{"next-task"}[0],
-				With: &core.Input{
-					"message": "{{ .env.SUCCESS_MSG }}",
+				OnSuccess: &core.SuccessTransition{
+					Next: &[]string{"next-task"}[0],
+					With: &core.Input{
+						"message": "{{ .env.SUCCESS_MSG }}",
+					},
 				},
-			},
-			OnError: &core.ErrorTransition{
-				Next: &[]string{"error-handler"}[0],
-				With: &core.Input{
-					"error": "{{ .env.ERROR_MSG }}",
+				OnError: &core.ErrorTransition{
+					Next: &[]string{"error-handler"}[0],
+					With: &core.Input{
+						"error": "{{ .env.ERROR_MSG }}",
+					},
 				},
 			},
 		}
@@ -863,17 +925,17 @@ func TestConfigNormalizer_MapstructureCompatibility(t *testing.T) {
 			WorkflowState:  workflowState,
 			WorkflowConfig: workflowConfig,
 			TaskConfigs:    allTaskConfigs,
-			MergedEnv:      testEnv,
+			MergedEnv:      &testEnv,
 		}
 
 		err := normalizer.normalizer.NormalizeTaskConfig(taskConfig, normCtx)
 		require.NoError(t, err)
 
 		// Verify task config templates were resolved (including nested structures)
-		assert.Equal(t, "2m", taskConfig.Opts.ScheduleToStartTimeout)
-		assert.Equal(t, "5m", taskConfig.Opts.StartToCloseTimeout)
-		assert.Equal(t, "1s", taskConfig.Opts.RetryPolicy.InitialInterval)
-		assert.Equal(t, int32(5), taskConfig.Opts.RetryPolicy.MaximumAttempts)
+		assert.Equal(t, "2m", taskConfig.Config.ScheduleToStartTimeout)
+		assert.Equal(t, "5m", taskConfig.Config.StartToCloseTimeout)
+		assert.Equal(t, "1s", taskConfig.Config.RetryPolicy.InitialInterval)
+		assert.Equal(t, int32(5), taskConfig.Config.RetryPolicy.MaximumAttempts)
 		assert.Equal(t, "Task completed successfully", (*taskConfig.OnSuccess.With)["message"])
 		assert.Equal(t, "Task failed", (*taskConfig.OnError.With)["error"])
 
@@ -909,5 +971,691 @@ func TestConfigNormalizer_MapstructureCompatibility(t *testing.T) {
 		assert.Equal(t, "jane@example.com", newProjectConfig.Author.Email)
 		assert.Equal(t, "15m", newProjectConfig.Opts.StartToCloseTimeout)
 		assert.Equal(t, "./workflows/main.yaml", newProjectConfig.Workflows[0].Source)
+	})
+}
+
+func TestConfigNormalizer_NormalizeParallelTask(t *testing.T) {
+	normalizer := NewConfigNormalizer()
+
+	t.Run("Should normalize parallel task with sub-tasks containing templates", func(t *testing.T) {
+		parallelTaskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "process_data_parallel",
+				Type: task.TaskTypeParallel,
+				With: &core.Input{
+					"raw_data": "sample data",
+					"content":  "This is a great product! I love it.",
+				},
+				Env: &core.EnvMap{
+					"PARALLEL_TIMEOUT": "5m",
+				},
+			},
+			ParallelTask: task.ParallelTask{
+				Strategy:   task.StrategyWaitAll,
+				MaxWorkers: 4,
+				Timeout:    "5m",
+				Tasks: []task.Config{
+					{
+						BaseConfig: task.BaseConfig{
+							ID:   "sentiment_analysis",
+							Type: task.TaskTypeBasic,
+							With: &core.Input{
+								"text": "{{ .workflow.input.content }}",
+							},
+						},
+						BasicTask: task.BasicTask{
+							Action: "analyze_sentiment",
+						},
+					},
+					{
+						BaseConfig: task.BaseConfig{
+							ID:   "extract_keywords",
+							Type: task.TaskTypeBasic,
+							With: &core.Input{
+								"text":         "{{ .workflow.input.content }}",
+								"max_keywords": 10,
+							},
+						},
+						BasicTask: task.BasicTask{
+							Action: "extract",
+						},
+					},
+				},
+			},
+		}
+
+		workflowState := &workflow.State{
+			WorkflowID:     "test-workflow",
+			WorkflowExecID: "exec-123",
+			Input: &core.Input{
+				"content":  "This is great!",
+				"raw_data": "sample",
+			},
+		}
+
+		workflowConfig := &workflow.Config{
+			ID:    "test-workflow",
+			Tasks: []task.Config{*parallelTaskConfig},
+		}
+
+		// Check what templates look like before normalization
+		t.Logf("Before normalization - subTask1 text: %v", (*parallelTaskConfig.Tasks[0].With)["text"])
+		t.Logf("Before normalization - subTask2 text: %v", (*parallelTaskConfig.Tasks[1].With)["text"])
+
+		// Normalize the parallel task
+		err := normalizer.NormalizeTask(workflowState, workflowConfig, parallelTaskConfig)
+		require.NoError(t, err)
+
+		// Check what templates look like after normalization
+		t.Logf("After normalization - subTask1 text: %v", (*parallelTaskConfig.Tasks[0].With)["text"])
+		t.Logf("After normalization - subTask2 text: %v", (*parallelTaskConfig.Tasks[1].With)["text"])
+
+		// Check that sub-task templates were resolved
+		subTask1 := parallelTaskConfig.Tasks[0]
+		assert.Equal(t, "This is great!", (*subTask1.With)["text"])
+
+		subTask2 := parallelTaskConfig.Tasks[1]
+		assert.Equal(t, "This is great!", (*subTask2.With)["text"])
+		// Fix type assertion for max_keywords - it might be converted to float64 by JSON unmarshaling
+		maxKeywords := (*subTask2.With)["max_keywords"]
+		switch v := maxKeywords.(type) {
+		case int:
+			assert.Equal(t, 10, v)
+		case float64:
+			assert.Equal(t, float64(10), v)
+		default:
+			t.Errorf("max_keywords has unexpected type: %T", maxKeywords)
+		}
+	})
+
+	t.Run("Should handle sub-task normalization that references parent parallel task context", func(t *testing.T) {
+		// Test what happens when we try to normalize individual sub-tasks
+		// that might need parent parallel task context
+		parallelTaskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "batch_processor",
+				Type: task.TaskTypeParallel,
+				With: &core.Input{
+					"batch_id":   "batch-123",
+					"batch_size": 10,
+				},
+			},
+			ParallelTask: task.ParallelTask{
+				Strategy: task.StrategyWaitAll,
+				Tasks: []task.Config{
+					{
+						BaseConfig: task.BaseConfig{
+							ID:   "process_item_1",
+							Type: task.TaskTypeBasic,
+							With: &core.Input{
+								"item_id":   "item-1",
+								"parent_id": "{{ .parent.id }}",             // Should reference parallel task
+								"batch_id":  "{{ .parent.input.batch_id }}", // Should reference parent input
+							},
+						},
+						BasicTask: task.BasicTask{
+							Action: "process",
+						},
+					},
+				},
+			},
+		}
+
+		workflowState := &workflow.State{
+			WorkflowID:     "test-workflow",
+			WorkflowExecID: "exec-123",
+		}
+
+		workflowConfig := &workflow.Config{
+			ID:    "test-workflow",
+			Tasks: []task.Config{*parallelTaskConfig},
+		}
+
+		// This tests the current behavior - parallel task normalization should work
+		err := normalizer.NormalizeTask(workflowState, workflowConfig, parallelTaskConfig)
+		require.NoError(t, err)
+
+		// Check that basic fields are handled correctly
+		subTask := parallelTaskConfig.Tasks[0]
+		assert.Equal(t, "item-1", (*subTask.With)["item_id"])
+
+		// These templates should remain unresolved since there's no parent context
+		// established for sub-tasks yet (this is what we need to potentially fix)
+		t.Logf("parent_id after normalization: %v", (*subTask.With)["parent_id"])
+		t.Logf("batch_id after normalization: %v", (*subTask.With)["batch_id"])
+	})
+
+	t.Run("Should support nested output access for parallel tasks", func(t *testing.T) {
+		// Test task that references nested parallel task outputs
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "aggregator_task",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					// Access nested sub-task outputs using tasks.parallel_task.output.subtask_id.output format
+					"sentiment_result": "{{ .tasks.process_data_parallel.output.sentiment_analysis.output.sentiment }}",
+					"keywords_result":  "{{ .tasks.process_data_parallel.output.extract_keywords.output.keywords }}",
+					"analysis_score":   "{{ .tasks.process_data_parallel.output.sentiment_analysis.output.confidence }}",
+				},
+			},
+			BasicTask: task.BasicTask{
+				Action: "aggregate",
+			},
+		}
+
+		// Mock parallel task state with aggregated sub-task outputs
+		parallelState := &task.ParallelState{
+			SubTasks: map[string]*task.State{
+				"sentiment_analysis": {
+					Output: &core.Output{
+						"sentiment":  "positive",
+						"confidence": 0.95,
+					},
+				},
+				"extract_keywords": {
+					Output: &core.Output{
+						"keywords": []string{"great", "product", "love"},
+						"count":    3,
+					},
+				},
+			},
+		}
+
+		workflowState := &workflow.State{
+			WorkflowID:     "test-workflow",
+			WorkflowExecID: "exec-123",
+			Tasks: map[string]*task.State{
+				"process_data_parallel": {
+					TaskID:        "process_data_parallel",
+					ExecutionType: task.ExecutionParallel,
+					ParallelState: parallelState,
+				},
+			},
+		}
+
+		workflowConfig := &workflow.Config{
+			ID: "test-workflow",
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "process_data_parallel",
+						Type: task.TaskTypeParallel,
+					},
+				},
+				*taskConfig,
+			},
+		}
+
+		err := normalizer.NormalizeTask(workflowState, workflowConfig, taskConfig)
+		require.NoError(t, err)
+
+		// Verify nested output access works
+		assert.Equal(t, "positive", (*taskConfig.With)["sentiment_result"])
+		assert.Equal(t, []string{"great", "product", "love"}, (*taskConfig.With)["keywords_result"])
+		assert.Equal(t, "0.95", (*taskConfig.With)["analysis_score"])
+	})
+
+	t.Run("Should demonstrate complete parallel task workflow with nested access", func(t *testing.T) {
+		// This test demonstrates a complete workflow:
+		// 1. A parallel task that processes data in sub-tasks
+		// 2. An aggregator task that accesses the nested outputs
+		// 3. A final task that uses the aggregated results
+
+		// Define the parallel task configuration (would contain sub-tasks)
+		parallelTaskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "parallel_processor",
+				Type: task.TaskTypeParallel,
+			},
+			ParallelTask: task.ParallelTask{
+				Strategy: task.StrategyWaitAll,
+				Tasks: []task.Config{
+					{
+						BaseConfig: task.BaseConfig{
+							ID:   "sentiment_analysis",
+							Type: task.TaskTypeBasic,
+						},
+					},
+					{
+						BaseConfig: task.BaseConfig{
+							ID:   "keyword_extraction",
+							Type: task.TaskTypeBasic,
+						},
+					},
+					{
+						BaseConfig: task.BaseConfig{
+							ID:   "performance_monitor",
+							Type: task.TaskTypeBasic,
+						},
+					},
+				},
+			},
+		}
+
+		// Define an aggregator task that uses nested output access
+		aggregatorConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "aggregate_results",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					"sentiment":   "{{ .tasks.parallel_processor.output.sentiment_analysis.output.sentiment }}",
+					"keywords":    "{{ .tasks.parallel_processor.output.keyword_extraction.output.keywords }}",
+					"confidence":  "{{ .tasks.parallel_processor.output.sentiment_analysis.output.confidence }}",
+					"duration":    "{{ .tasks.parallel_processor.output.performance_monitor.output.duration }}",
+					"full_result": "{{ .tasks.parallel_processor.output.sentiment_analysis.output }}",
+				},
+			},
+			BasicTask: task.BasicTask{
+				Action: "aggregate",
+			},
+		}
+
+		// Define a final task that uses the aggregated results
+		finalTaskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "generate_report",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					"aggregated_data": "{{ .tasks.aggregate_results.output.summary }}",
+					"total_keywords":  "{{ len .tasks.parallel_processor.output.keyword_extraction.output.keywords }}",
+				},
+			},
+			BasicTask: task.BasicTask{
+				Action: "generate_report",
+			},
+		}
+
+		// Mock the workflow state with parallel task outputs
+		parallelState := &task.ParallelState{
+			SubTasks: map[string]*task.State{
+				"sentiment_analysis": {
+					Output: &core.Output{
+						"sentiment":  "positive",
+						"confidence": 0.92,
+						"details":    "High confidence positive sentiment detected",
+					},
+				},
+				"keyword_extraction": {
+					Output: &core.Output{
+						"keywords": []string{"excellent", "quality", "recommend", "satisfied"},
+						"count":    4,
+					},
+				},
+				"performance_monitor": {
+					Output: &core.Output{
+						"duration":    "2.3s",
+						"memory_used": "45MB",
+					},
+				},
+			},
+		}
+
+		workflowState := &workflow.State{
+			WorkflowID:     "analysis-workflow",
+			WorkflowExecID: "exec-analysis",
+			Tasks: map[string]*task.State{
+				"parallel_processor": {
+					TaskID:        "parallel_processor",
+					ExecutionType: task.ExecutionParallel,
+					ParallelState: parallelState,
+				},
+				"aggregate_results": {
+					TaskID: "aggregate_results",
+					Output: &core.Output{
+						"summary": map[string]any{
+							"sentiment":       "positive",
+							"keyword_count":   4,
+							"confidence":      0.92,
+							"processing_time": "2.3s",
+						},
+					},
+				},
+			},
+		}
+
+		workflowConfig := &workflow.Config{
+			ID: "analysis-workflow",
+			Tasks: []task.Config{
+				*parallelTaskConfig,
+				*aggregatorConfig,
+				*finalTaskConfig,
+			},
+		}
+
+		// Test normalization of the aggregator task (accessing nested outputs)
+		err := normalizer.NormalizeTask(workflowState, workflowConfig, aggregatorConfig)
+		require.NoError(t, err)
+
+		// Verify the aggregator task can access nested outputs
+		assert.Equal(t, "positive", (*aggregatorConfig.With)["sentiment"])
+		assert.Equal(
+			t,
+			[]string{"excellent", "quality", "recommend", "satisfied"},
+			(*aggregatorConfig.With)["keywords"],
+		)
+		assert.Equal(t, "0.92", (*aggregatorConfig.With)["confidence"])
+		assert.Equal(t, "2.3s", (*aggregatorConfig.With)["duration"])
+
+		// Verify it can access the full output object
+		fullResult := (*aggregatorConfig.With)["full_result"].(map[string]any)
+		assert.Equal(t, "positive", fullResult["sentiment"])
+		assert.Equal(t, "High confidence positive sentiment detected", fullResult["details"])
+
+		// Test normalization of the final task (accessing both nested and regular outputs)
+		err = normalizer.NormalizeTask(workflowState, workflowConfig, finalTaskConfig)
+		require.NoError(t, err)
+
+		// Verify the final task can access both aggregated and nested outputs
+		expectedSummary := map[string]any{
+			"sentiment":       "positive",
+			"keyword_count":   4, // Keep original type from the mock data
+			"confidence":      0.92,
+			"processing_time": "2.3s",
+		}
+		assert.Equal(t, expectedSummary, (*finalTaskConfig.With)["aggregated_data"])
+		assert.Equal(t, "4", (*finalTaskConfig.With)["total_keywords"]) // len() function results are now strings
+	})
+}
+
+func TestConfigNormalizer_NestedParallelTasks(t *testing.T) {
+	normalizer := NewConfigNormalizer()
+
+	t.Run("Should normalize two levels of nested parallel tasks with templates", func(t *testing.T) {
+		// Create a deeply nested structure:
+		// batch_processor (parallel)
+		//   ├── data_processor (parallel)
+		//   │   ├── sentiment_analysis (basic)
+		//   │   └── keyword_extraction (basic)
+		//   └── metadata_processor (basic)
+
+		nestedParallelTaskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "batch_processor",
+				Type: task.TaskTypeParallel,
+				With: &core.Input{
+					"batch_id":   "batch-456",
+					"batch_size": 100,
+					"priority":   "high",
+				},
+			},
+			ParallelTask: task.ParallelTask{
+				Strategy:   task.StrategyWaitAll,
+				MaxWorkers: 2,
+				Tasks: []task.Config{
+					// First sub-task: another parallel task
+					{
+						BaseConfig: task.BaseConfig{
+							ID:   "data_processor",
+							Type: task.TaskTypeParallel,
+							With: &core.Input{
+								"processor_id":    "dp-{{ .parent.input.batch_id }}",
+								"parent_batch":    "{{ .parent.id }}",
+								"parent_priority": "{{ .parent.input.priority }}",
+								"workflow_id":     "{{ .workflow.id }}",
+							},
+						},
+						ParallelTask: task.ParallelTask{
+							Strategy: task.StrategyWaitAll,
+							Tasks: []task.Config{
+								// Deeply nested basic task 1
+								{
+									BaseConfig: task.BaseConfig{
+										ID:   "sentiment_analysis",
+										Type: task.TaskTypeBasic,
+										With: &core.Input{
+											"text":              "{{ .workflow.input.content }}",
+											"processor_parent":  "{{ .parent.id }}",
+											"batch_parent":      "{{ .parent.input.parent_batch }}",
+											"original_priority": "{{ .parent.input.parent_priority }}",
+											"task_chain":        "{{ .workflow.id }}.{{ .parent.input.parent_batch }}.{{ .parent.id }}.sentiment_analysis",
+										},
+									},
+									BasicTask: task.BasicTask{
+										Action: "analyze_sentiment",
+									},
+								},
+								// Deeply nested basic task 2
+								{
+									BaseConfig: task.BaseConfig{
+										ID:   "keyword_extraction",
+										Type: task.TaskTypeBasic,
+										With: &core.Input{
+											"text":              "{{ .workflow.input.content }}",
+											"processor_parent":  "{{ .parent.id }}",
+											"batch_parent":      "{{ .parent.input.parent_batch }}",
+											"original_priority": "{{ .parent.input.parent_priority }}",
+											"max_keywords":      "{{ .parent.input.parent_batch | len }}",
+										},
+									},
+									BasicTask: task.BasicTask{
+										Action: "extract_keywords",
+									},
+								},
+							},
+						},
+					},
+					// Second sub-task: basic task at first nesting level
+					{
+						BaseConfig: task.BaseConfig{
+							ID:   "metadata_processor",
+							Type: task.TaskTypeBasic,
+							With: &core.Input{
+								"batch_info":     "{{ .parent.input.batch_id }}",
+								"batch_priority": "{{ .parent.input.priority }}",
+								"parent_task":    "{{ .parent.id }}",
+								"workflow_ref":   "{{ .workflow.id }}",
+							},
+						},
+						BasicTask: task.BasicTask{
+							Action: "process_metadata",
+						},
+					},
+				},
+			},
+		}
+
+		workflowState := &workflow.State{
+			WorkflowID:     "nested-workflow",
+			WorkflowExecID: "exec-nested-123",
+			Input: &core.Input{
+				"content": "This is amazing content to analyze!",
+			},
+		}
+
+		workflowConfig := &workflow.Config{
+			ID:    "nested-workflow",
+			Tasks: []task.Config{*nestedParallelTaskConfig},
+		}
+
+		// Normalize the nested parallel task structure
+		err := normalizer.NormalizeTask(workflowState, workflowConfig, nestedParallelTaskConfig)
+		require.NoError(t, err)
+
+		// Verify normalization of the outer parallel task
+		assert.Equal(t, "batch-456", (*nestedParallelTaskConfig.With)["batch_id"])
+		assert.Equal(
+			t,
+			float64(100),
+			(*nestedParallelTaskConfig.With)["batch_size"],
+		) // JSON unmarshaling converts to float64
+
+		// Verify normalization of the first sub-task (nested parallel task)
+		dataProcessor := &nestedParallelTaskConfig.Tasks[0]
+		assert.Equal(t, "dp-batch-456", (*dataProcessor.With)["processor_id"])
+		assert.Equal(t, "batch_processor", (*dataProcessor.With)["parent_batch"])
+		assert.Equal(t, "high", (*dataProcessor.With)["parent_priority"])
+		assert.Equal(t, "nested-workflow", (*dataProcessor.With)["workflow_id"])
+
+		// Verify normalization of deeply nested basic tasks
+		sentimentTask := &dataProcessor.Tasks[0]
+		assert.Equal(t, "This is amazing content to analyze!", (*sentimentTask.With)["text"])
+		assert.Equal(t, "data_processor", (*sentimentTask.With)["processor_parent"])
+		assert.Equal(t, "batch_processor", (*sentimentTask.With)["batch_parent"])
+		assert.Equal(t, "high", (*sentimentTask.With)["original_priority"])
+		assert.Equal(
+			t,
+			"nested-workflow.batch_processor.data_processor.sentiment_analysis",
+			(*sentimentTask.With)["task_chain"],
+		)
+
+		keywordTask := &dataProcessor.Tasks[1]
+		assert.Equal(t, "This is amazing content to analyze!", (*keywordTask.With)["text"])
+		assert.Equal(t, "data_processor", (*keywordTask.With)["processor_parent"])
+		assert.Equal(t, "batch_processor", (*keywordTask.With)["batch_parent"])
+		assert.Equal(t, "high", (*keywordTask.With)["original_priority"])
+		assert.Equal(t, "15", (*keywordTask.With)["max_keywords"])
+
+		// Verify normalization of the second sub-task (basic task)
+		metadataProcessor := &nestedParallelTaskConfig.Tasks[1]
+		assert.Equal(t, "batch-456", (*metadataProcessor.With)["batch_info"])
+		assert.Equal(t, "high", (*metadataProcessor.With)["batch_priority"])
+		assert.Equal(t, "batch_processor", (*metadataProcessor.With)["parent_task"])
+		assert.Equal(t, "nested-workflow", (*metadataProcessor.With)["workflow_ref"])
+	})
+
+	t.Run("Should handle nested parallel task output access correctly", func(t *testing.T) {
+		// Test accessing outputs from deeply nested parallel structures
+		aggregatorTaskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "nested_aggregator",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					// Access nested outputs: batch_processor.data_processor.sentiment_analysis
+					"deep_sentiment": "{{ .tasks.batch_processor.output.data_processor.output.sentiment_analysis.output.sentiment }}",
+					"deep_keywords":  "{{ .tasks.batch_processor.output.data_processor.output.keyword_extraction.output.keywords }}",
+					// Access first-level output: batch_processor.metadata_processor
+					"metadata": "{{ .tasks.batch_processor.output.metadata_processor.output.metadata }}",
+					// Count nested results
+					"keyword_count": "{{ len .tasks.batch_processor.output.data_processor.output.keyword_extraction.output.keywords }}",
+				},
+			},
+			BasicTask: task.BasicTask{
+				Action: "aggregate_nested",
+			},
+		}
+
+		// Mock nested parallel task state with deeply nested outputs
+		// For deeply nested parallel tasks, the structure should be:
+		// batch_processor.output.data_processor.output.sentiment_analysis.output.field
+		batchProcessorOutput := map[string]*task.State{
+			"data_processor": {
+				ExecutionType: task.ExecutionParallel,
+				// This simulates how buildParallelTaskOutput would structure nested parallel output
+				ParallelState: &task.ParallelState{
+					SubTasks: map[string]*task.State{
+						"sentiment_analysis": {
+							ExecutionType: task.ExecutionBasic,
+							Output: &core.Output{
+								"sentiment":  "very_positive",
+								"confidence": 0.98,
+							},
+						},
+						"keyword_extraction": {
+							ExecutionType: task.ExecutionBasic,
+							Output: &core.Output{
+								"keywords": []string{"amazing", "content", "analyze", "great"},
+								"count":    4,
+							},
+						},
+					},
+				},
+			},
+			"metadata_processor": {
+				ExecutionType: task.ExecutionBasic,
+				Output: &core.Output{
+					"metadata":     "processed_metadata",
+					"process_time": "1.2s",
+				},
+			},
+		}
+
+		workflowState := &workflow.State{
+			WorkflowID:     "nested-output-workflow",
+			WorkflowExecID: "exec-nested-output",
+			Tasks: map[string]*task.State{
+				"batch_processor": {
+					TaskID:        "batch_processor",
+					ExecutionType: task.ExecutionParallel,
+					ParallelState: &task.ParallelState{
+						SubTasks: batchProcessorOutput,
+					},
+				},
+			},
+		}
+
+		workflowConfig := &workflow.Config{
+			ID: "nested-output-workflow",
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "batch_processor",
+						Type: task.TaskTypeParallel,
+					},
+				},
+				*aggregatorTaskConfig,
+			},
+		}
+
+		err := normalizer.NormalizeTask(workflowState, workflowConfig, aggregatorTaskConfig)
+		require.NoError(t, err)
+
+		// Verify deeply nested output access
+		assert.Equal(t, "very_positive", (*aggregatorTaskConfig.With)["deep_sentiment"])
+		assert.Equal(
+			t,
+			[]string{"amazing", "content", "analyze", "great"},
+			(*aggregatorTaskConfig.With)["deep_keywords"],
+		)
+		assert.Equal(t, "processed_metadata", (*aggregatorTaskConfig.With)["metadata"])
+		assert.Equal(t, "4", (*aggregatorTaskConfig.With)["keyword_count"])
+	})
+
+	t.Run("Should handle template errors in deeply nested structures gracefully", func(t *testing.T) {
+		// Test error handling when templates in deeply nested tasks have issues
+		nestedTaskWithError := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "error_batch_processor",
+				Type: task.TaskTypeParallel,
+			},
+			ParallelTask: task.ParallelTask{
+				Tasks: []task.Config{
+					{
+						BaseConfig: task.BaseConfig{
+							ID:   "error_data_processor",
+							Type: task.TaskTypeParallel,
+						},
+						ParallelTask: task.ParallelTask{
+							Tasks: []task.Config{
+								{
+									BaseConfig: task.BaseConfig{
+										ID:   "error_task",
+										Type: task.TaskTypeBasic,
+										With: &core.Input{
+											// This should cause an error due to invalid template
+											"invalid": "{{ .nonexistent.field.value }}",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		workflowState := &workflow.State{
+			WorkflowID:     "error-workflow",
+			WorkflowExecID: "exec-error",
+		}
+
+		workflowConfig := &workflow.Config{
+			ID:    "error-workflow",
+			Tasks: []task.Config{*nestedTaskWithError},
+		}
+
+		err := normalizer.NormalizeTask(workflowState, workflowConfig, nestedTaskWithError)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "nonexistent")
+		assert.Contains(t, err.Error(), "failed to normalize sub-task error_task")
 	})
 }

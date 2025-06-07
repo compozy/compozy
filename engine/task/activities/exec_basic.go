@@ -4,34 +4,26 @@ import (
 	"context"
 	"fmt"
 
-	"maps"
-
-	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task/uc"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/normalizer"
 )
 
 const ExecuteBasicLabel = "ExecuteBasicTask"
 
-type ExecuteBasicInput = DispatchOutput
-
-type ExecuteBasicData struct {
-	WorkflowConfig *workflow.Config
-	TaskConfig     *task.Config
-	AgentConfig    *agent.Config
-	ActionConfig   *agent.ActionConfig
+type ExecuteBasicInput struct {
+	WorkflowID     string       `json:"workflow_id"`
+	WorkflowExecID core.ID      `json:"workflow_exec_id"`
+	TaskConfig     *task.Config `json:"task_config"`
 }
 
 type ExecuteBasic struct {
-	workflows    []*workflow.Config
-	workflowRepo workflow.Repository
-	taskRepo     task.Repository
-	normalizer   *normalizer.ConfigNormalizer
-	runtime      *runtime.Manager
+	loadWorkflowUC   *uc.LoadWorkflow
+	createStateUC    *uc.CreateState
+	executeUC        *uc.ExecuteTask
+	handleResponseUC *uc.HandleResponse
 }
 
 // NewExecuteBasic creates a new ExecuteBasic activity
@@ -42,287 +34,97 @@ func NewExecuteBasic(
 	runtime *runtime.Manager,
 ) *ExecuteBasic {
 	return &ExecuteBasic{
-		workflows:    workflows,
-		workflowRepo: workflowRepo,
-		taskRepo:     taskRepo,
-		normalizer:   normalizer.NewConfigNormalizer(),
-		runtime:      runtime,
+		loadWorkflowUC:   uc.NewLoadWorkflow(workflows, workflowRepo),
+		createStateUC:    uc.NewCreateState(taskRepo),
+		executeUC:        uc.NewExecuteTask(runtime),
+		handleResponseUC: uc.NewHandleResponse(workflowRepo, taskRepo),
 	}
 }
 
 func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task.Response, error) {
-	state := input.State
-	// Load execution data
-	execData, err := a.loadData(state, input)
+	// Load workflow state and config
+	workflowState, workflowConfig, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
+		WorkflowID:     input.WorkflowID,
+		WorkflowExecID: input.WorkflowExecID,
+	})
 	if err != nil {
 		return nil, err
 	}
-	taskType := execData.TaskConfig.Type
+	// Normalize task config
+	normalizer := uc.NewNormalizeConfig()
+	normalizeInput := &uc.NormalizeConfigInput{
+		WorkflowState:  workflowState,
+		WorkflowConfig: workflowConfig,
+		TaskConfig:     input.TaskConfig,
+	}
+	err = normalizer.Execute(ctx, normalizeInput)
+	if err != nil {
+		return nil, err
+	}
+	// Validate task
+	taskConfig := input.TaskConfig
+	taskType := taskConfig.Type
 	if taskType != task.TaskTypeBasic {
 		return nil, fmt.Errorf("unsupported task type: %s", taskType)
 	}
-
-	// TODO: We will deal just with agent component for now
-	if input.Config.Agent == nil && input.Config.Tool == nil {
-		return nil, fmt.Errorf("unsupported component type: %s", state.Component)
-	}
-	var result *core.Output
-	if input.Config.Agent != nil {
-		result, err = a.executeAgent(ctx, execData)
-		if err != nil {
-			return a.responseOnError(ctx, execData, state, err)
-		}
-	}
-	if input.Config.Tool != nil {
-		result, err = a.executeTool(ctx, execData)
-		if err != nil {
-			return a.responseOnError(ctx, execData, state, err)
-		}
-	}
-	return a.responseOnSuccess(ctx, execData, state, result)
-}
-
-func (a *ExecuteBasic) loadData(state *task.State, input *ExecuteBasicInput) (*ExecuteBasicData, error) {
-	// Find workflow config
-	workflowID := state.WorkflowID
-	workflowConfig, err := workflow.FindConfig(a.workflows, workflowID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find workflow config: %w", err)
-	}
-	result := &ExecuteBasicData{
+	// Create task state
+	taskState, err := a.createStateUC.Execute(ctx, &uc.CreateStateInput{
+		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
-		TaskConfig:     input.Config,
-	}
-	if input.Config.Agent != nil {
-		agentConfig := input.Config.Agent
-		actions := agentConfig.Actions
-		if state.ActionID == nil {
-			return nil, fmt.Errorf("action ID is required for agent execution")
-		}
-		actionConfig := agent.FindActionConfig(actions, *state.ActionID)
-		if actionConfig == nil {
-			return nil, fmt.Errorf("action config not found: %s", *state.ActionID)
-		}
-		result.AgentConfig = agentConfig
-		result.ActionConfig = actionConfig
-	}
-	return result, nil
-}
-
-func (a *ExecuteBasic) executeAgent(ctx context.Context, execData *ExecuteBasicData) (*core.Output, error) {
-	agentConfig := execData.AgentConfig
-	actionConfig := execData.ActionConfig
-	llmService := llm.NewService(a.runtime, agentConfig, actionConfig)
-	result, err := llmService.GenerateContent(ctx)
+		TaskConfig:     taskConfig,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate content: %w", err)
-	}
-	return result, nil
-}
-
-func (a *ExecuteBasic) executeTool(ctx context.Context, execData *ExecuteBasicData) (*core.Output, error) {
-	tConfig := execData.TaskConfig
-	tool := llm.NewTool(tConfig.Tool, tConfig.Tool.Env, a.runtime)
-	output, err := tool.Call(ctx, tConfig.With)
-	if err != nil {
-		return nil, fmt.Errorf("tool execution failed: %w", err)
-	}
-	return output, nil
-}
-
-func (a *ExecuteBasic) normalizeTransitions(
-	ctx context.Context,
-	execData *ExecuteBasicData,
-	state *task.State,
-) (*core.SuccessTransition, *core.ErrorTransition, error) {
-	workflowExecID := state.WorkflowExecID
-	workflowConfig := execData.WorkflowConfig
-	taskConfig := execData.TaskConfig
-	tasks := workflowConfig.Tasks
-	allTaskConfigs := normalizer.BuildTaskConfigsMap(tasks)
-	workflowState, err := a.workflowRepo.GetState(ctx, workflowExecID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get workflow state: %w", err)
-	}
-	baseEnv, err := a.normalizer.NormalizeTask(workflowState, workflowConfig, taskConfig)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to normalize base environment: %w", err)
-	}
-	normalizedOnSuccess, err := a.normalizeSuccessTransition(
-		taskConfig.OnSuccess,
-		workflowState,
-		workflowConfig,
-		allTaskConfigs,
-		baseEnv,
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to normalize success transition: %w", err)
-	}
-	normalizedOnError, err := a.normalizeErrorTransition(
-		taskConfig.OnError,
-		workflowState,
-		workflowConfig,
-		allTaskConfigs,
-		baseEnv,
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to normalize error transition: %w", err)
-	}
-	return normalizedOnSuccess, normalizedOnError, nil
-}
-
-func (a *ExecuteBasic) normalizeSuccessTransition(
-	transition *core.SuccessTransition,
-	workflowState *workflow.State,
-	workflowConfig *workflow.Config,
-	allTaskConfigs map[string]*task.Config,
-	baseEnv core.EnvMap,
-) (*core.SuccessTransition, error) {
-	if transition == nil {
-		return nil, nil
-	}
-	normalizedTransition := &core.SuccessTransition{
-		Next: transition.Next,
-		With: transition.With,
-	}
-	if transition.With != nil {
-		withCopy := make(core.Input)
-		maps.Copy(withCopy, *transition.With)
-		normalizedTransition.With = &withCopy
-	}
-	if err := a.normalizer.NormalizeSuccessTransition(
-		normalizedTransition,
-		workflowState,
-		workflowConfig,
-		allTaskConfigs,
-		baseEnv,
-	); err != nil {
 		return nil, err
 	}
-	return normalizedTransition, nil
-}
-
-func (a *ExecuteBasic) normalizeErrorTransition(
-	transition *core.ErrorTransition,
-	workflowState *workflow.State,
-	workflowConfig *workflow.Config,
-	allTaskConfigs map[string]*task.Config,
-	baseEnv core.EnvMap,
-) (*core.ErrorTransition, error) {
-	if transition == nil {
-		return nil, nil
-	}
-	normalizedTransition := &core.ErrorTransition{
-		Next: transition.Next,
-		With: transition.With,
-	}
-	if transition.With != nil {
-		withCopy := make(core.Input)
-		maps.Copy(withCopy, *transition.With)
-		normalizedTransition.With = &withCopy
-	}
-	if err := a.normalizer.NormalizeErrorTransition(
-		normalizedTransition,
-		workflowState,
+	// Execute component
+	output, err := a.executeUC.Execute(ctx, &uc.ExecuteTaskInput{
+		TaskConfig: taskConfig,
+	})
+	handleError := HandleError(
+		a.handleResponseUC,
+		output,
 		workflowConfig,
-		allTaskConfigs,
-		baseEnv,
-	); err != nil {
-		return nil, err
+		taskConfig,
+	)
+	if err != nil {
+		return handleError(ctx, taskState, err)
 	}
-	return normalizedTransition, nil
+	// Update state with result
+	taskState.Output = output
+	response, err := a.handleResponseUC.Execute(ctx, &uc.HandleResponseInput{
+		TaskState:      taskState,
+		WorkflowConfig: workflowConfig,
+		TaskConfig:     taskConfig,
+		ExecutionError: nil,
+	})
+	if err != nil {
+		return handleError(ctx, taskState, err)
+	}
+	return response, nil
 }
 
-func (a *ExecuteBasic) responseOnSuccess(
-	ctx context.Context,
-	execData *ExecuteBasicData,
-	state *task.State,
-	result *core.Output,
-) (*task.Response, error) {
-	// Always update status first
-	state.UpdateStatus(core.StatusSuccess)
-	state.Output = result
-
-	// Try to update task state, but don't fail if context is canceled
-	if err := a.taskRepo.UpsertState(ctx, state); err != nil {
-		// If context is canceled, return basic response
-		if ctx.Err() != nil {
-			return &task.Response{State: state}, nil
+func HandleError(
+	handleResponseUC *uc.HandleResponse,
+	output *core.Output,
+	workflowConfig *workflow.Config,
+	taskConfig *task.Config,
+) func(ctx context.Context, taskState *task.State, err error) (*task.Response, error) {
+	return func(ctx context.Context, taskState *task.State, err error) (*task.Response, error) {
+		if output == nil {
+			taskState.UpdateStatus(core.StatusFailed)
+			taskState.Error = core.NewError(err, "execution_error", nil)
+			return &task.Response{State: taskState}, nil
 		}
-		return nil, fmt.Errorf("failed to update task state: %w", err)
-	}
-
-	// Skip normalization if context is canceled
-	if ctx.Err() != nil {
-		return &task.Response{State: state}, nil
-	}
-
-	wConfig := execData.WorkflowConfig
-	tConfig := execData.TaskConfig
-	onSuccess, onError, err := a.normalizeTransitions(ctx, execData, state)
-	if err != nil {
-		// If normalization fails due to cancellation, return basic response
-		if ctx.Err() != nil {
-			return &task.Response{State: state}, nil
+		transitInput := &uc.HandleResponseInput{
+			TaskState:      taskState,
+			WorkflowConfig: workflowConfig,
+			TaskConfig:     taskConfig,
+			ExecutionError: err,
 		}
-		return nil, fmt.Errorf("failed to normalize transitions: %w", err)
-	}
-	nextTask := wConfig.DetermineNextTask(tConfig, true)
-	return &task.Response{
-		OnSuccess: onSuccess,
-		OnError:   onError,
-		State:     state,
-		NextTask:  nextTask,
-	}, nil
-}
-
-func (a *ExecuteBasic) responseOnError(
-	ctx context.Context,
-	execData *ExecuteBasicData,
-	state *task.State,
-	executionErr error,
-) (*task.Response, error) {
-	// Always update status first
-	state.UpdateStatus(core.StatusFailed)
-	state.Error = core.NewError(executionErr, "agent_execution_error", nil)
-
-	// Try to update task state, but don't fail if context is canceled
-	if updateErr := a.taskRepo.UpsertState(ctx, state); updateErr != nil {
-		// If context is canceled, log but don't fail the response
-		if ctx.Err() != nil {
-			// Still return a valid response even if we couldn't update the database
-			return &task.Response{State: state}, nil
+		response, err := handleResponseUC.Execute(ctx, transitInput)
+		if err != nil {
+			return nil, err
 		}
-		return nil, fmt.Errorf("failed to update task state after error: %w", updateErr)
+		return response, nil
 	}
-
-	// Skip normalization if context is canceled
-	if ctx.Err() != nil {
-		return &task.Response{State: state}, nil
-	}
-
-	wConfig := execData.WorkflowConfig
-	tConfig := execData.TaskConfig
-
-	// Check if there's an error transition defined
-	if tConfig.OnError == nil || tConfig.OnError.Next == nil {
-		// No error transition defined, fail the workflow
-		return nil, fmt.Errorf("task failed with no error transition defined: %w", executionErr)
-	}
-
-	onSuccess, onError, err := a.normalizeTransitions(ctx, execData, state)
-	if err != nil {
-		// If normalization fails due to cancellation, return basic response
-		if ctx.Err() != nil {
-			return &task.Response{State: state}, nil
-		}
-		return nil, fmt.Errorf("failed to normalize transitions: %w", err)
-	}
-	nextTask := wConfig.DetermineNextTask(tConfig, false)
-	return &task.Response{
-		OnSuccess: onSuccess,
-		OnError:   onError,
-		State:     state,
-		NextTask:  nextTask,
-	}, nil
 }

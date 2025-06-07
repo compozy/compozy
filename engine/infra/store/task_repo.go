@@ -55,6 +55,9 @@ func (r *TaskRepo) ListStates(ctx context.Context, filter *task.StateFilter) ([]
 		if filter.ToolID != nil {
 			sb = sb.Where("tool_id = ?", *filter.ToolID)
 		}
+		if filter.ExecutionType != nil {
+			sb = sb.Where("execution_type = ?", *filter.ExecutionType)
+		}
 	}
 
 	sql, args, err := sb.ToSql()
@@ -79,11 +82,9 @@ func (r *TaskRepo) ListStates(ctx context.Context, filter *task.StateFilter) ([]
 	return states, nil
 }
 
-// UpsertState inserts or updates a task state.
-func (r *TaskRepo) UpsertState(
-	ctx context.Context,
-	state *task.State,
-) error {
+// UpsertState inserts or updates a task state (supports both basic and parallel execution).
+func (r *TaskRepo) UpsertState(ctx context.Context, state *task.State) error {
+	// Marshal common fields
 	input, err := ToJSONB(state.Input)
 	if err != nil {
 		return fmt.Errorf("marshaling input: %w", err)
@@ -97,29 +98,42 @@ func (r *TaskRepo) UpsertState(
 		return fmt.Errorf("marshaling error: %w", err)
 	}
 
+	// Handle execution type specific fields
+	var parallelStateJSON []byte
+	if state.IsParallel() {
+		parallelStateJSON, err = ToJSONB(state.ParallelState)
+		if err != nil {
+			return fmt.Errorf("marshaling parallel state: %w", err)
+		}
+	}
+
 	query := `
 		INSERT INTO task_states (
 			task_exec_id, task_id, workflow_exec_id, workflow_id, component, status,
-			agent_id, action_id, tool_id, input, output, error
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			execution_type, agent_id, action_id, tool_id, input, output, error, parallel_state
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		ON CONFLICT (task_exec_id) DO UPDATE SET
 			task_id = $2,
 			workflow_exec_id = $3,
 			workflow_id = $4,
 			component = $5,
 			status = $6,
-			agent_id = $7,
-			action_id = $8,
-			tool_id = $9,
-			input = $10,
-			output = $11,
-			error = $12,
+			execution_type = $7,
+			agent_id = $8,
+			action_id = $9,
+			tool_id = $10,
+			input = $11,
+			output = $12,
+			error = $13,
+			parallel_state = $14,
 			updated_at = now()
 	`
 
 	_, err = r.db.Exec(ctx, query,
-		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, state.Component, state.Status,
-		state.AgentID, state.ActionID, state.ToolID, input, output, errJSON,
+		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID,
+		state.Component, state.Status, state.ExecutionType,
+		state.AgentID, state.ActionID, state.ToolID,
+		input, output, errJSON, parallelStateJSON,
 	)
 	if err != nil {
 		return fmt.Errorf("executing upsert: %w", err)
@@ -129,10 +143,7 @@ func (r *TaskRepo) UpsertState(
 }
 
 // GetState retrieves a task state by its task execution ID.
-func (r *TaskRepo) GetState(
-	ctx context.Context,
-	taskExecID core.ID,
-) (*task.State, error) {
+func (r *TaskRepo) GetState(ctx context.Context, taskExecID core.ID) (*task.State, error) {
 	query := `
 		SELECT *
 		FROM task_states
@@ -152,10 +163,7 @@ func (r *TaskRepo) GetState(
 }
 
 // ListTasksInWorkflow retrieves all task states for a workflow execution.
-func (r *TaskRepo) ListTasksInWorkflow(
-	ctx context.Context,
-	workflowExecID core.ID,
-) (map[string]*task.State, error) {
+func (r *TaskRepo) ListTasksInWorkflow(ctx context.Context, workflowExecID core.ID) (map[string]*task.State, error) {
 	query := `
 		SELECT *
 		FROM task_states
@@ -238,11 +246,7 @@ func (r *TaskRepo) ListTasksByAgent(
 }
 
 // ListTasksByTool retrieves task states by tool ID.
-func (r *TaskRepo) ListTasksByTool(
-	ctx context.Context,
-	workflowExecID core.ID,
-	toolID string,
-) ([]*task.State, error) {
+func (r *TaskRepo) ListTasksByTool(ctx context.Context, workflowExecID core.ID, toolID string) ([]*task.State, error) {
 	query := `
 		SELECT *
 		FROM task_states

@@ -256,24 +256,55 @@ func (e *TemplateEngine) parseStringValue(v string, data map[string]any) (any, e
 	if !HasTemplate(v) {
 		return v, nil
 	}
+
 	// Handle simple object references to preserve object types
 	if e.isSimpleObjectReference(v) {
 		if obj := e.extractObjectFromContext(v, data); obj != nil {
-			// Convert boolean values to strings when returning objects
-			if boolVal, ok := obj.(bool); ok {
-				return fmt.Sprintf("%t", boolVal), nil
-			}
-			return obj, nil
+			return e.convertObjectToString(obj)
 		}
 	}
+
+	return e.renderAndProcessTemplate(v, data)
+}
+
+func (e *TemplateEngine) convertObjectToString(obj any) (any, error) {
+	// Convert values to strings for configuration processing
+	switch val := obj.(type) {
+	case bool:
+		return fmt.Sprintf("%t", val), nil
+	case int:
+		return fmt.Sprintf("%d", val), nil
+	case int64:
+		return fmt.Sprintf("%d", val), nil
+	case float64:
+		return fmt.Sprintf("%g", val), nil
+	case float32:
+		return fmt.Sprintf("%g", val), nil
+	case *core.Output:
+		// Dereference core.Output to map[string]any for template processing
+		if val != nil {
+			return *val, nil
+		}
+		return nil, nil
+	case core.Output:
+		// Return core.Output as map[string]any for template processing
+		return map[string]any(val), nil
+	default:
+		return obj, nil
+	}
+}
+
+func (e *TemplateEngine) renderAndProcessTemplate(v string, data map[string]any) (any, error) {
 	parsed, err := e.RenderString(v, data)
 	if err != nil {
 		return nil, err
 	}
+
 	// Convert boolean results from template rendering to strings
 	if parsed == "true" || parsed == "false" {
 		return parsed, nil
 	}
+
 	// Check if the parsed result is a JSON-like string and try to parse it
 	if strings.HasPrefix(parsed, "{") || strings.HasPrefix(parsed, "[") {
 		var jsonObj any
@@ -292,55 +323,55 @@ func (e *TemplateEngine) isSimpleObjectReference(template string) bool {
 		strings.HasSuffix(trimmed, "}}") &&
 		strings.Count(trimmed, "{{") == 1 &&
 		strings.Count(trimmed, "}}") == 1
-	hasNoFilters := !strings.Contains(trimmed, "|")
-	hasObjectPath := strings.Contains(trimmed, ".output.") ||
-		strings.Contains(trimmed, ".input.") ||
-		strings.Contains(trimmed, ".tasks.")
-	return hasTemplateMarkers && hasNoFilters && hasObjectPath
+
+	if !hasTemplateMarkers {
+		return false
+	}
+
+	// Extract the content between {{ and }}
+	content := strings.TrimSpace(trimmed[2 : len(trimmed)-2])
+
+	// Must start with a dot and have no spaces or special template functions
+	hasNoFilters := !strings.Contains(content, "|") && !strings.Contains(content, " ")
+	hasObjectPath := strings.HasPrefix(content, ".") && strings.Contains(content, ".")
+
+	return hasNoFilters && hasObjectPath
 }
 
 // extractObjectFromContext tries to extract an object directly from the context
 func (e *TemplateEngine) extractObjectFromContext(template string, data map[string]any) any {
+	path := e.extractPathFromTemplate(template)
+	if path == "" {
+		return nil
+	}
+
+	parts := strings.Split(path, ".")
+	return e.traverseObjectPath(data, parts)
+}
+
+func (e *TemplateEngine) extractPathFromTemplate(template string) string {
 	// Extract the path from the template
 	template = strings.TrimSpace(template)
 	if !strings.HasPrefix(template, "{{") || !strings.HasSuffix(template, "}}") {
-		return nil
+		return ""
 	}
 
 	path := strings.TrimSpace(template[2 : len(template)-2])
 	if !strings.HasPrefix(path, ".") { // Path must start with . like {{ .foo }}
-		return nil
+		return ""
 	}
 
-	path = path[1:] // Remove leading dot
-	parts := strings.Split(path, ".")
+	return path[1:] // Remove leading dot
+}
 
+func (e *TemplateEngine) traverseObjectPath(data map[string]any, parts []string) any {
 	var currentAny any = data
 	for _, part := range parts {
-		var currentMap map[string]any
-		var traversable bool
-
-		switch c := currentAny.(type) {
-		case map[string]any:
-			currentMap = c
-			traversable = true
-		case *map[string]any:
-			if c != nil {
-				currentMap = *c
-				traversable = true
-			}
-		case *core.Input: // core.Input is map[string]any
-			if c != nil {
-				currentMap = *c
-				traversable = true
-			}
-		case *core.Output: // core.Output is map[string]any
-			if c != nil {
-				currentMap = *c
-				traversable = true
-			}
+		if part == "" {
+			continue // Skip empty parts from double dots
 		}
 
+		currentMap, traversable := e.extractTraversableMap(currentAny)
 		if !traversable {
 			return nil // Cannot traverse
 		}
@@ -351,7 +382,33 @@ func (e *TemplateEngine) extractObjectFromContext(template string, data map[stri
 		}
 		currentAny = val
 	}
+
+	// Return the final value preserving its original type
 	return currentAny
+}
+
+func (e *TemplateEngine) extractTraversableMap(currentAny any) (map[string]any, bool) {
+	switch c := currentAny.(type) {
+	case map[string]any:
+		return c, true
+	case *map[string]any:
+		if c != nil {
+			return *c, true
+		}
+	case *core.Input: // core.Input is map[string]any
+		if c != nil {
+			return *c, true
+		}
+	case *core.Output: // core.Output is map[string]any
+		if c != nil {
+			return *c, true
+		}
+	case core.Input: // Direct core.Input (not pointer)
+		return c, true
+	case core.Output: // Direct core.Output (not pointer)
+		return c, true
+	}
+	return nil, false
 }
 
 // AddGlobalValue adds a global value to the template engine

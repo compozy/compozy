@@ -7,8 +7,14 @@ type Error struct {
 }
 
 func NewError(err error, code string, details map[string]any) *Error {
+	var message string
+	if err != nil {
+		message = err.Error()
+	} else {
+		message = "unknown error"
+	}
 	return &Error{
-		Message: err.Error(),
+		Message: message,
 		Code:    code,
 		Details: details,
 	}
