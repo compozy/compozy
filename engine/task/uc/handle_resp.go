@@ -2,6 +2,7 @@ package uc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"maps"
@@ -17,14 +18,10 @@ import (
 // -----------------------------------------------------------------------------
 
 type HandleResponseInput struct {
-	State          *task.State
-	WorkflowConfig *workflow.Config
-	TaskConfig     *task.Config
-	ExecutionError error
-}
-
-type HandleResponseOutput struct {
-	Response *task.Response
+	WorkflowConfig *workflow.Config `json:"workflow_config"`
+	TaskState      *task.State      `json:"task_state"`
+	TaskConfig     *task.Config     `json:"task_config"`
+	ExecutionError error            `json:"execution_error"`
 }
 
 type HandleResponse struct {
@@ -41,8 +38,11 @@ func NewHandleResponse(workflowRepo workflow.Repository, taskRepo task.Repositor
 	}
 }
 
-func (uc *HandleResponse) Execute(ctx context.Context, input *HandleResponseInput) (*HandleResponseOutput, error) {
-	if input.ExecutionError != nil {
+func (uc *HandleResponse) Execute(ctx context.Context, input *HandleResponseInput) (*task.Response, error) {
+	// Check if there's an execution error OR if the task state indicates failure
+	hasExecutionError := input.ExecutionError != nil
+	hasTaskFailure := input.TaskState.Status == core.StatusFailed
+	if hasExecutionError || hasTaskFailure {
 		return uc.handleErrorFlow(ctx, input)
 	}
 	return uc.handleSuccessFlow(ctx, input)
@@ -51,83 +51,84 @@ func (uc *HandleResponse) Execute(ctx context.Context, input *HandleResponseInpu
 func (uc *HandleResponse) handleSuccessFlow(
 	ctx context.Context,
 	input *HandleResponseInput,
-) (*HandleResponseOutput, error) {
-	state := input.State
+) (*task.Response, error) {
+	state := input.TaskState
 	state.UpdateStatus(core.StatusSuccess)
 	if err := uc.taskRepo.UpsertState(ctx, state); err != nil {
 		if ctx.Err() != nil {
-			return &HandleResponseOutput{
-				Response: &task.Response{State: state},
-			}, nil
+			return &task.Response{State: state}, nil
 		}
 		return nil, fmt.Errorf("failed to update task state: %w", err)
 	}
 	if ctx.Err() != nil {
-		return &HandleResponseOutput{
-			Response: &task.Response{State: state},
-		}, nil
+		return &task.Response{State: state}, nil
 	}
 	onSuccess, onError, err := uc.normalizeTransitions(ctx, input)
 	if err != nil {
 		if ctx.Err() != nil {
-			return &HandleResponseOutput{
-				Response: &task.Response{State: state},
-			}, nil
+			return &task.Response{State: state}, nil
 		}
 		return nil, fmt.Errorf("failed to normalize transitions: %w", err)
 	}
 	nextTask := input.WorkflowConfig.DetermineNextTask(input.TaskConfig, true)
-	return &HandleResponseOutput{
-		Response: &task.Response{
-			OnSuccess: onSuccess,
-			OnError:   onError,
-			State:     state,
-			NextTask:  nextTask,
-		},
+	return &task.Response{
+		OnSuccess: onSuccess,
+		OnError:   onError,
+		State:     state,
+		NextTask:  nextTask,
 	}, nil
 }
 
 func (uc *HandleResponse) handleErrorFlow(
 	ctx context.Context,
 	input *HandleResponseInput,
-) (*HandleResponseOutput, error) {
-	state := input.State
+) (*task.Response, error) {
+	state := input.TaskState
 	executionErr := input.ExecutionError
 	state.UpdateStatus(core.StatusFailed)
-	state.Error = core.NewError(executionErr, "execution_error", nil)
+
+	// Handle case where task failed but there's no execution error (e.g., parallel task with failed subtasks)
+	if executionErr == nil {
+		var errorMessage string
+		if state.IsParallel() {
+			errorMessage = "parallel task execution failed due to subtask failures"
+		} else {
+			errorMessage = "task execution failed"
+		}
+		state.Error = core.NewError(errors.New(errorMessage), "execution_error", nil)
+	} else {
+		state.Error = core.NewError(executionErr, "execution_error", nil)
+	}
+
 	if updateErr := uc.taskRepo.UpsertState(ctx, state); updateErr != nil {
 		if ctx.Err() != nil {
-			return &HandleResponseOutput{
-				Response: &task.Response{State: state},
-			}, nil
+			return &task.Response{State: state}, nil
 		}
 		return nil, fmt.Errorf("failed to update task state after error: %w", updateErr)
 	}
 	if ctx.Err() != nil {
-		return &HandleResponseOutput{
-			Response: &task.Response{State: state},
-		}, nil
+		return &task.Response{State: state}, nil
 	}
 	if input.TaskConfig.OnError == nil || input.TaskConfig.OnError.Next == nil {
-		return nil, fmt.Errorf("task failed with no error transition defined: %w", executionErr)
+		// For cases where execution error is nil, we shouldn't propagate it
+		if executionErr != nil {
+			return nil, fmt.Errorf("task failed with no error transition defined: %w", executionErr)
+		}
+		return nil, fmt.Errorf("task failed with no error transition defined")
 	}
 	onSuccess, onError, err := uc.normalizeTransitions(ctx, input)
 	if err != nil {
 		if ctx.Err() != nil {
-			return &HandleResponseOutput{
-				Response: &task.Response{State: state},
-			}, nil
+			return &task.Response{State: state}, nil
 		}
 		return nil, fmt.Errorf("failed to normalize transitions: %w", err)
 	}
 	nextTask := input.WorkflowConfig.DetermineNextTask(input.TaskConfig, false)
-	return &HandleResponseOutput{
-		Response: &task.Response{
-			OnSuccess: onSuccess,
-			OnError:   onError,
-			State:     state,
-			NextTask:  nextTask,
-		},
+	return &task.Response{
+		OnSuccess: onSuccess,
+		OnError:   onError,
+		State:     state,
+		NextTask:  nextTask,
 	}, nil
 }
 
@@ -135,7 +136,7 @@ func (uc *HandleResponse) normalizeTransitions(
 	ctx context.Context,
 	input *HandleResponseInput,
 ) (*core.SuccessTransition, *core.ErrorTransition, error) {
-	workflowExecID := input.State.WorkflowExecID
+	workflowExecID := input.TaskState.WorkflowExecID
 	workflowConfig := input.WorkflowConfig
 	taskConfig := input.TaskConfig
 	tasks := workflowConfig.Tasks
@@ -144,7 +145,7 @@ func (uc *HandleResponse) normalizeTransitions(
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get workflow state: %w", err)
 	}
-	baseEnv, err := uc.normalizer.NormalizeTask(workflowState, workflowConfig, taskConfig)
+	err = uc.normalizer.NormalizeTask(workflowState, workflowConfig, taskConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to normalize base environment: %w", err)
 	}
@@ -153,7 +154,7 @@ func (uc *HandleResponse) normalizeTransitions(
 		workflowState,
 		workflowConfig,
 		allTaskConfigs,
-		baseEnv,
+		taskConfig.Env,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to normalize success transition: %w", err)
@@ -163,7 +164,7 @@ func (uc *HandleResponse) normalizeTransitions(
 		workflowState,
 		workflowConfig,
 		allTaskConfigs,
-		baseEnv,
+		taskConfig.Env,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to normalize error transition: %w", err)
@@ -176,7 +177,7 @@ func (uc *HandleResponse) normalizeSuccessTransition(
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	allTaskConfigs map[string]*task.Config,
-	baseEnv core.EnvMap,
+	baseEnv *core.EnvMap,
 ) (*core.SuccessTransition, error) {
 	if transition == nil {
 		return nil, nil
@@ -207,7 +208,7 @@ func (uc *HandleResponse) normalizeErrorTransition(
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	allTaskConfigs map[string]*task.Config,
-	baseEnv core.EnvMap,
+	baseEnv *core.EnvMap,
 ) (*core.ErrorTransition, error) {
 	if transition == nil {
 		return nil, nil

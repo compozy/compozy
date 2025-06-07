@@ -40,13 +40,13 @@ func (n *ConfigNormalizer) NormalizeTask(
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
-) (core.EnvMap, error) {
+) error {
 	baseEnv, err := n.envMerger.MergeWithDefaults(
 		workflowConfig.GetEnv(),
 		taskConfig.GetEnv(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to merge base environments for task %s: %w", taskConfig.ID, err)
+		return fmt.Errorf("failed to merge base environments for task %s: %w", taskConfig.ID, err)
 	}
 
 	allTaskConfigsMap := BuildTaskConfigsMap(workflowConfig.Tasks)
@@ -59,13 +59,13 @@ func (n *ConfigNormalizer) NormalizeTask(
 			"input":  workflowState.Input,
 			"output": workflowState.Output,
 		},
-		MergedEnv: baseEnv,
+		MergedEnv: &baseEnv,
 	}
 	taskConfig.Env = &baseEnv
 	if err := n.normalizer.NormalizeTaskConfig(taskConfig, normCtx); err != nil {
-		return baseEnv, fmt.Errorf("failed to normalize task config for %s: %w", taskConfig.ID, err)
+		return fmt.Errorf("failed to normalize task config for %s: %w", taskConfig.ID, err)
 	}
-	return baseEnv, nil
+	return nil
 }
 
 // NormalizeAgentComponent normalizes an agent component configuration after
@@ -77,14 +77,14 @@ func (n *ConfigNormalizer) NormalizeAgentComponent(
 	taskConfig *task.Config,
 	agentConfig *agent.Config,
 	allTaskConfigs map[string]*task.Config,
-) (core.EnvMap, error) {
+) error {
 	mergedEnv, err := n.envMerger.MergeWithDefaults(
 		workflowConfig.GetEnv(),
 		taskConfig.GetEnv(),
 		agentConfig.GetEnv(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf(
+		return fmt.Errorf(
 			"failed to merge environments for agent %s in task %s: %w",
 			agentConfig.ID,
 			taskConfig.ID,
@@ -95,7 +95,7 @@ func (n *ConfigNormalizer) NormalizeAgentComponent(
 	// Build complete parent context with all task config properties
 	parentConfig, err := core.AsMapDefault(taskConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert task config to map: %w", err)
+		return fmt.Errorf("failed to convert task config to map: %w", err)
 	}
 
 	// Add runtime state if available
@@ -108,7 +108,7 @@ func (n *ConfigNormalizer) NormalizeAgentComponent(
 
 	mergedInput, err := taskConfig.GetInput().Merge(agentConfig.GetInput())
 	if err != nil {
-		return nil, fmt.Errorf("failed to merge input for agent %s in task %s: %w", agentConfig.ID, taskConfig.ID, err)
+		return fmt.Errorf("failed to merge input for agent %s in task %s: %w", agentConfig.ID, taskConfig.ID, err)
 	}
 	agentConfig.With = mergedInput
 	agentConfig.Env = &mergedEnv
@@ -118,12 +118,12 @@ func (n *ConfigNormalizer) NormalizeAgentComponent(
 		TaskConfigs:    allTaskConfigs,
 		ParentConfig:   parentConfig,
 		CurrentInput:   agentConfig.With,
-		MergedEnv:      mergedEnv,
+		MergedEnv:      &mergedEnv,
 	}
 	if err := n.normalizer.NormalizeAgentConfig(agentConfig, normCtx, taskConfig.Action); err != nil {
-		return mergedEnv, fmt.Errorf("failed to normalize agent config for %s: %w", agentConfig.ID, err)
+		return fmt.Errorf("failed to normalize agent config for %s: %w", agentConfig.ID, err)
 	}
-	return mergedEnv, nil
+	return nil
 }
 
 // NormalizeToolComponent normalizes a tool component configuration after
@@ -135,14 +135,14 @@ func (n *ConfigNormalizer) NormalizeToolComponent(
 	taskConfig *task.Config,
 	toolConfig *tool.Config,
 	allTaskConfigs map[string]*task.Config,
-) (core.EnvMap, error) {
+) error {
 	mergedEnv, err := n.envMerger.MergeWithDefaults(
 		workflowConfig.GetEnv(),
 		taskConfig.GetEnv(),
 		toolConfig.GetEnv(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf(
+		return fmt.Errorf(
 			"failed to merge environments for tool %s in task %s: %w",
 			toolConfig.ID,
 			taskConfig.ID,
@@ -151,7 +151,7 @@ func (n *ConfigNormalizer) NormalizeToolComponent(
 	}
 	parentConfig, err := core.AsMapDefault(taskConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert task config to map: %w", err)
+		return fmt.Errorf("failed to convert task config to map: %w", err)
 	}
 	if workflowState.Tasks != nil {
 		if taskState, exists := workflowState.Tasks[taskConfig.ID]; exists {
@@ -162,7 +162,7 @@ func (n *ConfigNormalizer) NormalizeToolComponent(
 
 	mergedInput, err := taskConfig.GetInput().Merge(toolConfig.GetInput())
 	if err != nil {
-		return nil, fmt.Errorf("failed to merge input for tool %s in task %s: %w", toolConfig.ID, taskConfig.ID, err)
+		return fmt.Errorf("failed to merge input for tool %s in task %s: %w", toolConfig.ID, taskConfig.ID, err)
 	}
 	toolConfig.With = mergedInput
 	toolConfig.Env = &mergedEnv
@@ -172,12 +172,12 @@ func (n *ConfigNormalizer) NormalizeToolComponent(
 		TaskConfigs:    allTaskConfigs,
 		ParentConfig:   parentConfig,
 		CurrentInput:   toolConfig.With,
-		MergedEnv:      mergedEnv,
+		MergedEnv:      &mergedEnv,
 	}
 	if err := n.normalizer.NormalizeToolConfig(toolConfig, normCtx); err != nil {
-		return mergedEnv, fmt.Errorf("failed to normalize tool config for %s: %w", toolConfig.ID, err)
+		return fmt.Errorf("failed to normalize tool config for %s: %w", toolConfig.ID, err)
 	}
-	return mergedEnv, nil
+	return nil
 }
 
 // NormalizeSuccessTransition normalizes a success transition configuration.
@@ -186,7 +186,7 @@ func (n *ConfigNormalizer) NormalizeSuccessTransition(
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	allTaskConfigs map[string]*task.Config,
-	mergedEnv core.EnvMap,
+	mergedEnv *core.EnvMap,
 ) error {
 	if transition == nil {
 		return nil
@@ -223,7 +223,7 @@ func (n *ConfigNormalizer) NormalizeErrorTransition(
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	allTaskConfigs map[string]*task.Config,
-	mergedEnv core.EnvMap,
+	mergedEnv *core.EnvMap,
 ) error {
 	if transition == nil {
 		return nil

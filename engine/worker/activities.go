@@ -35,6 +35,10 @@ func NewActivities(
 	}
 }
 
+// -----------------------------------------------------------------------------
+// Workflow
+// -----------------------------------------------------------------------------
+
 func (a *Activities) GetWorkflowData(ctx context.Context, input *wfacts.GetDataInput) (*wfacts.GetData, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -73,18 +77,14 @@ func (a *Activities) CompleteWorkflow(
 	return act.Run(ctx, input)
 }
 
-func (a *Activities) DispatchTask(
-	ctx context.Context,
-	input *tkfacts.DispatchInput,
-) (*tkfacts.DispatchOutput, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	act := tkfacts.NewDispatch(a.workflows, a.workflowRepo, a.taskRepo)
-	return act.Run(ctx, input)
-}
+// -----------------------------------------------------------------------------
+// Task
+// -----------------------------------------------------------------------------
 
-func (a *Activities) ExecuteBasicTask(ctx context.Context, input *tkfacts.ExecuteBasicInput) (*task.Response, error) {
+func (a *Activities) ExecuteBasicTask(
+	ctx context.Context,
+	input *tkfacts.ExecuteBasicInput,
+) (*task.Response, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -94,5 +94,47 @@ func (a *Activities) ExecuteBasicTask(ctx context.Context, input *tkfacts.Execut
 		a.taskRepo,
 		a.runtime,
 	)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) CreateParallelState(
+	ctx context.Context,
+	input *tkfacts.CreateParallelStateInput,
+) (*task.State, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewCreateParallelState(
+		a.workflows,
+		a.workflowRepo,
+		a.taskRepo,
+	)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) ExecuteParallelTask(
+	ctx context.Context,
+	input *tkfacts.ExecuteParallelTaskInput,
+) (*task.SubtaskResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewExecuteParallelTask(
+		a.workflows,
+		a.workflowRepo,
+		a.taskRepo,
+		a.runtime,
+	)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) GetParallelResponse(
+	ctx context.Context,
+	input *tkfacts.GetParallelResponseInput,
+) (*task.Response, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewGetParallelResponse(a.workflowRepo, a.taskRepo)
 	return act.Run(ctx, input)
 }

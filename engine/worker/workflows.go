@@ -22,36 +22,36 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) (*wf.State, erro
 	errHandler := manager.BuildErrHandler(ctx)
 
 	// Execute main trigger activity
-	triggerFn := manager.TriggerWorkflow(ctx)
-	_, err = actHandler(ctx, errHandler, triggerFn)()
+	triggerFn := manager.TriggerWorkflow()
+	_, err = actHandler(errHandler, triggerFn)(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Dispatch first task
-	dispatchFn := manager.DispatchFirstTask(ctx)
-	output, err := actHandler(ctx, errHandler, dispatchFn)()
+	execFn := manager.ExecuteFirstTask()
+	output, err := actHandler(errHandler, execFn)(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Iterate over tasks until get the final one
-	currentTask := output.TaskState
-	taskFn := manager.ExecuteTaskLoop(ctx, currentTask, output)
-	for currentTask != nil {
-		nextTask, err := actHandler(ctx, errHandler, taskFn)()
+	for output.NextTask != nil {
+		// Create a new task execution function for each iteration
+		taskFn := manager.ExecuteTasks(output)
+		nextTask, err := actHandler(errHandler, taskFn)(ctx)
 		if err != nil {
 			return nil, err
 		}
 		if nextTask == nil {
 			break
 		}
-		currentTask = nextTask
+		output = nextTask
 	}
 
 	// Complete workflow
-	completeFn := manager.CompleteWorkflow(ctx)
-	wState, err := actHandler(ctx, errHandler, completeFn)()
+	completeFn := manager.CompleteWorkflow()
+	wState, err := actHandler(errHandler, completeFn)(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -243,6 +243,21 @@ func (t *Config) GetSleepDuration() (time.Duration, error) {
 	return core.ParseHumanDuration(t.Sleep)
 }
 
+func (t *Config) GetExecType() ExecutionType {
+	taskType := t.Type
+	if taskType == "" {
+		taskType = TaskTypeBasic
+	}
+	var executionType ExecutionType
+	switch taskType {
+	case TaskTypeParallel:
+		executionType = ExecutionParallel
+	default:
+		executionType = ExecutionBasic
+	}
+	return executionType
+}
+
 func FindConfig(tasks []Config, taskID string) (*Config, error) {
 	for i := range tasks {
 		if tasks[i].ID == taskID {

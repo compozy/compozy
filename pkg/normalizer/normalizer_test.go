@@ -171,7 +171,7 @@ func TestNormalizer_BuildContext(t *testing.T) {
 			CurrentInput: &core.Input{
 				"param": "value",
 			},
-			MergedEnv: core.EnvMap{
+			MergedEnv: &core.EnvMap{
 				"API_KEY": "secret",
 			},
 		}
@@ -180,7 +180,7 @@ func TestNormalizer_BuildContext(t *testing.T) {
 
 		input := result["input"].(*core.Input)
 		assert.Equal(t, "value", (*input)["param"])
-		assert.Equal(t, "secret", result["env"].(core.EnvMap)["API_KEY"])
+		assert.Equal(t, "secret", (*result["env"].(*core.EnvMap))["API_KEY"])
 	})
 }
 
@@ -299,7 +299,7 @@ Parent task: {{ .parent.id }}`,
 					"city": "Portland",
 				},
 			},
-			MergedEnv: core.EnvMap{
+			MergedEnv: &core.EnvMap{
 				"MODE": "debug",
 			},
 		}
@@ -384,7 +384,7 @@ func TestNormalizer_NormalizeToolConfig(t *testing.T) {
 					"city": "Chicago",
 				},
 			},
-			MergedEnv: core.EnvMap{
+			MergedEnv: &core.EnvMap{
 				"SCRIPTS_PATH": "/scripts",
 				"API_URL":      "https://api.example.com",
 			},

@@ -65,24 +65,26 @@ func TestTaskRepo_UpsertParallelState(t *testing.T) {
 	workflowExecID := core.ID("exec1")
 
 	// Create a parallel state
-	parallelState := &task.ParallelExecutionState{
+	parallelState := &task.ParallelState{
 		Strategy:   task.StrategyWaitAll,
 		MaxWorkers: 3,
 		Timeout:    "5m",
-		SubTasks: map[string]*task.SubTaskState{
+		SubTasks: map[string]*task.State{
 			"subtask1": {
-				TaskID:     "subtask1",
-				TaskExecID: core.MustNewID(),
-				Component:  core.ComponentAgent,
-				Status:     core.StatusPending,
-				AgentID:    testutils.StringPtr("agent1"),
-				ActionID:   testutils.StringPtr("action1"),
-				Input:      &core.Input{"param": "value1"},
+				TaskID:         "subtask1",
+				TaskExecID:     core.MustNewID(),
+				WorkflowID:     workflowID,
+				WorkflowExecID: workflowExecID,
+				Component:      core.ComponentAgent,
+				Status:         core.StatusPending,
+				ExecutionType:  task.ExecutionBasic,
+				AgentID:        testutils.StringPtr("agent1"),
+				ActionID:       testutils.StringPtr("action1"),
+				Input:          &core.Input{"param": "value1"},
 			},
 		},
-		CompletedTasks:   make([]string, 0),
-		FailedTasks:      make([]string, 0),
-		AggregatedOutput: make(map[string]*core.Output),
+		CompletedTasks: make([]string, 0),
+		FailedTasks:    make([]string, 0),
 	}
 
 	state := &task.State{
@@ -173,23 +175,23 @@ func TestTaskRepo_GetParallelState(t *testing.T) {
 			taskExecID := core.ID("task_exec1")
 
 			// Create parallel state data
-			parallelState := &task.ParallelExecutionState{
+			parallelState := &task.ParallelState{
 				Strategy:   task.StrategyWaitAll,
 				MaxWorkers: 2,
-				SubTasks: map[string]*task.SubTaskState{
+				SubTasks: map[string]*task.State{
 					"subtask1": {
-						TaskID:     "subtask1",
-						TaskExecID: core.MustNewID(),
-						Component:  core.ComponentAgent,
-						Status:     core.StatusSuccess,
-						Output:     &core.Output{"result": "success"},
+						TaskID:         "subtask1",
+						TaskExecID:     core.MustNewID(),
+						WorkflowID:     "wf1",
+						WorkflowExecID: core.ID("exec1"),
+						Component:      core.ComponentAgent,
+						Status:         core.StatusSuccess,
+						ExecutionType:  task.ExecutionBasic,
+						Output:         &core.Output{"result": "success"},
 					},
 				},
 				CompletedTasks: []string{"subtask1"},
 				FailedTasks:    make([]string, 0),
-				AggregatedOutput: map[string]*core.Output{
-					"subtask1": {"result": "success"},
-				},
 			}
 
 			dataBuilder := testutils.NewDataBuilder()
@@ -212,10 +214,10 @@ func TestTaskRepo_GetParallelState(t *testing.T) {
 			assert.Equal(t, task.ExecutionParallel, state.ExecutionType)
 			assert.True(t, state.IsParallel())
 			assert.NotNil(t, state.ParallelState)
-			assert.Equal(t, task.StrategyWaitAll, state.ParallelState.Strategy)
-			assert.Equal(t, 2, state.ParallelState.MaxWorkers)
-			assert.Len(t, state.ParallelState.SubTasks, 1)
-			assert.Contains(t, state.ParallelState.SubTasks, "subtask1")
+			assert.Equal(t, task.StrategyWaitAll, state.Strategy)
+			assert.Equal(t, 2, state.MaxWorkers)
+			assert.Len(t, state.SubTasks, 1)
+			assert.Contains(t, state.SubTasks, "subtask1")
 		},
 	)
 }
@@ -398,63 +400,18 @@ func TestTaskRepo_ListStates(t *testing.T) {
 	)
 }
 
-func TestTaskRepo_ListParallelTasks(t *testing.T) {
-	testTaskList(
-		t,
-		"should list parallel tasks",
-		func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			workflowExecID := core.ID("exec1")
-
-			parallelState := &task.ParallelExecutionState{
-				Strategy:         task.StrategyWaitAll,
-				MaxWorkers:       2,
-				SubTasks:         make(map[string]*task.SubTaskState),
-				CompletedTasks:   make([]string, 0),
-				FailedTasks:      make([]string, 0),
-				AggregatedOutput: make(map[string]*core.Output),
-			}
-
-			dataBuilder := testutils.NewDataBuilder()
-			parallelStateData := dataBuilder.MustCreateParallelStateData(parallelState)
-
-			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-			taskRows := taskRowBuilder.CreateParallelTaskStateRows(
-				"task_exec1", "parallel_task1", "exec1", "wf1",
-				core.StatusRunning, task.ExecutionParallel, parallelStateData,
-			)
-
-			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(workflowExecID).
-				WillReturnRows(taskRows)
-
-			states, err := repo.ListParallelTasks(ctx, workflowExecID)
-			assert.NoError(t, err)
-			assert.Len(t, states, 1)
-			assert.Equal(t, task.ExecutionParallel, states[0].ExecutionType)
-			assert.True(t, states[0].IsParallel())
-			assert.NotNil(t, states[0].ParallelState)
-		},
-	)
-}
-
 func TestTaskRepo_ListStatesWithExecutionTypeFilter(t *testing.T) {
 	testTaskList(
 		t,
-		"should list states filtered by execution type",
+		"should filter states by execution type",
 		func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			executionType := task.ExecutionParallel
-			filter := &task.StateFilter{
-				WorkflowExecID: &[]core.ID{core.ID("exec1")}[0],
-				ExecutionType:  &executionType,
-			}
-
-			parallelState := &task.ParallelExecutionState{
-				Strategy:         task.StrategyFailFast,
-				MaxWorkers:       3,
-				SubTasks:         make(map[string]*task.SubTaskState),
-				CompletedTasks:   make([]string, 0),
-				FailedTasks:      make([]string, 0),
-				AggregatedOutput: make(map[string]*core.Output),
+			// Create parallel state data
+			parallelState := &task.ParallelState{
+				Strategy:       task.StrategyWaitAll,
+				MaxWorkers:     2,
+				SubTasks:       make(map[string]*task.State),
+				CompletedTasks: make([]string, 0),
+				FailedTasks:    make([]string, 0),
 			}
 
 			dataBuilder := testutils.NewDataBuilder()
@@ -467,14 +424,15 @@ func TestTaskRepo_ListStatesWithExecutionTypeFilter(t *testing.T) {
 			)
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(core.ID("exec1"), task.ExecutionParallel).
+				WithArgs(task.ExecutionParallel).
 				WillReturnRows(taskRows)
 
+			executionType := task.ExecutionParallel
+			filter := &task.StateFilter{ExecutionType: &executionType}
 			states, err := repo.ListStates(ctx, filter)
 			assert.NoError(t, err)
 			assert.Len(t, states, 1)
 			assert.Equal(t, task.ExecutionParallel, states[0].ExecutionType)
-			assert.True(t, states[0].IsParallel())
 		},
 	)
 }

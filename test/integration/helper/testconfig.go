@@ -105,7 +105,6 @@ func SetupWorkflowEnvironment(env *testsuite.TestWorkflowEnvironment, config *Co
 	env.RegisterActivity(activities.GetWorkflowData)
 	env.RegisterActivity(activities.TriggerWorkflow)
 	env.RegisterActivity(activities.UpdateWorkflowState)
-	env.RegisterActivity(activities.DispatchTask)
 	env.RegisterActivity(activities.ExecuteBasicTask)
 	env.RegisterActivity(activities.CompleteWorkflow)
 }

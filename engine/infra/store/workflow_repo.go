@@ -448,7 +448,14 @@ func (r *WorkflowRepo) CompleteWorkflow(ctx context.Context, workflowExecID core
 		if err != nil {
 			return fmt.Errorf("failed to get task states: %w", err)
 		}
-
+		// Determine final workflow status based on task states
+		finalStatus := core.StatusSuccess
+		for _, taskState := range tasks {
+			if taskState.Status == core.StatusFailed {
+				finalStatus = core.StatusFailed
+				break
+			}
+		}
 		// Create output map: task_id -> Output
 		outputMap := make(map[string]any)
 		for taskID, taskState := range tasks {
@@ -458,36 +465,30 @@ func (r *WorkflowRepo) CompleteWorkflow(ctx context.Context, workflowExecID core
 				}
 			}
 		}
-
 		// Convert output map to JSONB
 		outputJSON, err := ToJSONB(outputMap)
 		if err != nil {
 			return fmt.Errorf("marshaling workflow output: %w", err)
 		}
-
-		// Update the workflow state with the collected outputs and success status
+		// Update the workflow state with the collected outputs and determined status
 		query := `
 			UPDATE workflow_states
 			SET output = $1, status = $2, updated_at = now()
 			WHERE workflow_exec_id = $3
 		`
-
-		cmdTag, err := tx.Exec(ctx, query, outputJSON, core.StatusSuccess, workflowExecID)
+		cmdTag, err := tx.Exec(ctx, query, outputJSON, finalStatus, workflowExecID)
 		if err != nil {
 			return fmt.Errorf("updating workflow output: %w", err)
 		}
-
 		if cmdTag.RowsAffected() == 0 {
 			return ErrWorkflowNotFound
 		}
-
 		// Get the updated workflow state
 		getQuery := `
 			SELECT workflow_exec_id, workflow_id, status, input, output, error
 			FROM workflow_states
 			WHERE workflow_exec_id = $1
 		`
-
 		stateDB, err := r.getStateDBWithTx(ctx, tx, getQuery, workflowExecID)
 		if err != nil {
 			return fmt.Errorf("fetching updated workflow state: %w", err)

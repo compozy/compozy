@@ -15,9 +15,9 @@ func NewWorkflowExecutor(contextBuilder *ContextBuilder) *WorkflowExecutor {
 	return &WorkflowExecutor{ContextBuilder: contextBuilder}
 }
 
-func (e *WorkflowExecutor) TriggerWorkflow(ctx workflow.Context) func() (*wf.State, error) {
-	logger := workflow.GetLogger(ctx)
-	return func() (*wf.State, error) {
+func (e *WorkflowExecutor) TriggerWorkflow() func(ctx workflow.Context) (*wf.State, error) {
+	return func(ctx workflow.Context) (*wf.State, error) {
+		logger := workflow.GetLogger(ctx)
 		var state *wf.State
 		actLabel := wfacts.TriggerLabel
 		actInput := &wfacts.TriggerInput{
@@ -39,9 +39,9 @@ func (e *WorkflowExecutor) TriggerWorkflow(ctx workflow.Context) func() (*wf.Sta
 	}
 }
 
-func (e *WorkflowExecutor) CompleteWorkflow(ctx workflow.Context) func() (*wf.State, error) {
-	logger := workflow.GetLogger(ctx)
-	return func() (*wf.State, error) {
+func (e *WorkflowExecutor) CompleteWorkflow() func(ctx workflow.Context) (*wf.State, error) {
+	return func(ctx workflow.Context) (*wf.State, error) {
+		logger := workflow.GetLogger(ctx)
 		actLabel := wfacts.CompleteWorkflowLabel
 		actInput := &wfacts.CompleteWorkflowInput{
 			WorkflowExecID: e.WorkflowExecID,

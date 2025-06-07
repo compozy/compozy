@@ -13,11 +13,16 @@ import (
 
 const ExecuteBasicLabel = "ExecuteBasicTask"
 
-type ExecuteBasicInput = DispatchOutput
+type ExecuteBasicInput struct {
+	WorkflowID     string       `json:"workflow_id"`
+	WorkflowExecID core.ID      `json:"workflow_exec_id"`
+	TaskConfig     *task.Config `json:"task_config"`
+}
 
 type ExecuteBasic struct {
-	loadDataUC       *uc.LoadExecData
-	executeUC        *uc.ExecComponent
+	loadWorkflowUC   *uc.LoadWorkflow
+	createStateUC    *uc.CreateState
+	executeUC        *uc.ExecuteTask
 	handleResponseUC *uc.HandleResponse
 }
 
@@ -29,72 +34,97 @@ func NewExecuteBasic(
 	runtime *runtime.Manager,
 ) *ExecuteBasic {
 	return &ExecuteBasic{
-		loadDataUC:       uc.NewLoadExecData(workflows, workflowRepo),
-		executeUC:        uc.NewExecComponent(runtime),
+		loadWorkflowUC:   uc.NewLoadWorkflow(workflows, workflowRepo),
+		createStateUC:    uc.NewCreateState(taskRepo),
+		executeUC:        uc.NewExecuteTask(runtime),
 		handleResponseUC: uc.NewHandleResponse(workflowRepo, taskRepo),
 	}
 }
 
 func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task.Response, error) {
-	state := input.TaskState
-	taskType := input.TaskConfig.Type
+	// Load workflow state and config
+	workflowState, workflowConfig, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
+		WorkflowID:     input.WorkflowID,
+		WorkflowExecID: input.WorkflowExecID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// Normalize task config
+	normalizer := uc.NewNormalizeConfig()
+	normalizeInput := &uc.NormalizeConfigInput{
+		WorkflowState:  workflowState,
+		WorkflowConfig: workflowConfig,
+		TaskConfig:     input.TaskConfig,
+	}
+	err = normalizer.Execute(ctx, normalizeInput)
+	if err != nil {
+		return nil, err
+	}
+	// Validate task
+	taskConfig := input.TaskConfig
+	taskType := taskConfig.Type
 	if taskType != task.TaskTypeBasic {
 		return nil, fmt.Errorf("unsupported task type: %s", taskType)
 	}
-	if input.TaskConfig.Agent == nil && input.TaskConfig.Tool == nil {
-		return nil, fmt.Errorf("unsupported component type: %s", state.Component)
-	}
-	// Load execution data with action ID from state
-	execData, err := a.loadDataUC.Execute(ctx, &uc.LoadExecDataInput{
-		WorkflowID:     state.WorkflowID,
-		WorkflowExecID: state.WorkflowExecID,
-		TaskID:         state.TaskID,
-		ActionID:       state.ActionID,
+	// Create task state
+	taskState, err := a.createStateUC.Execute(ctx, &uc.CreateStateInput{
+		WorkflowState:  workflowState,
+		WorkflowConfig: workflowConfig,
+		TaskConfig:     taskConfig,
 	})
 	if err != nil {
-		return a.handleError(ctx, execData, state, err)
+		return nil, err
 	}
 	// Execute component
-	output, err := a.executeUC.Execute(ctx, &uc.ExecComponentInput{
-		TaskConfig: execData.TaskConfig,
+	output, err := a.executeUC.Execute(ctx, &uc.ExecuteTaskInput{
+		TaskConfig: taskConfig,
 	})
+	handleError := HandleError(
+		a.handleResponseUC,
+		output,
+		workflowConfig,
+		taskConfig,
+	)
 	if err != nil {
-		return a.handleError(ctx, execData, state, err)
+		return handleError(ctx, taskState, err)
 	}
 	// Update state with result
-	state.Output = output.Result
-	transitOutput, err := a.handleResponseUC.Execute(ctx, &uc.HandleResponseInput{
-		State:          state,
-		WorkflowConfig: execData.WorkflowConfig,
-		TaskConfig:     execData.TaskConfig,
+	taskState.Output = output
+	response, err := a.handleResponseUC.Execute(ctx, &uc.HandleResponseInput{
+		TaskState:      taskState,
+		WorkflowConfig: workflowConfig,
+		TaskConfig:     taskConfig,
 		ExecutionError: nil,
 	})
 	if err != nil {
-		return nil, err
+		return handleError(ctx, taskState, err)
 	}
-	return transitOutput.Response, nil
+	return response, nil
 }
 
-func (a *ExecuteBasic) handleError(
-	ctx context.Context,
-	loadOutput *uc.LoadExecDataOutput,
-	state *task.State,
-	executionErr error,
-) (*task.Response, error) {
-	if loadOutput == nil {
-		state.UpdateStatus(core.StatusFailed)
-		state.Error = core.NewError(executionErr, "execution_error", nil)
-		return &task.Response{State: state}, nil
+func HandleError(
+	handleResponseUC *uc.HandleResponse,
+	output *core.Output,
+	workflowConfig *workflow.Config,
+	taskConfig *task.Config,
+) func(ctx context.Context, taskState *task.State, err error) (*task.Response, error) {
+	return func(ctx context.Context, taskState *task.State, err error) (*task.Response, error) {
+		if output == nil {
+			taskState.UpdateStatus(core.StatusFailed)
+			taskState.Error = core.NewError(err, "execution_error", nil)
+			return &task.Response{State: taskState}, nil
+		}
+		transitInput := &uc.HandleResponseInput{
+			TaskState:      taskState,
+			WorkflowConfig: workflowConfig,
+			TaskConfig:     taskConfig,
+			ExecutionError: err,
+		}
+		response, err := handleResponseUC.Execute(ctx, transitInput)
+		if err != nil {
+			return nil, err
+		}
+		return response, nil
 	}
-	transitInput := &uc.HandleResponseInput{
-		State:          state,
-		WorkflowConfig: loadOutput.WorkflowConfig,
-		TaskConfig:     loadOutput.TaskConfig,
-		ExecutionError: executionErr,
-	}
-	transitOutput, err := a.handleResponseUC.Execute(ctx, transitInput)
-	if err != nil {
-		return nil, err
-	}
-	return transitOutput.Response, nil
 }

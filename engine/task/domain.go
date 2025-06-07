@@ -24,32 +24,16 @@ const (
 )
 
 // -----------------------------------------------------------------------------
-// Parallel Execution State - New structure for parallel task state
+// Parallel Execution State - Updated to use regular State for sub-tasks
 // -----------------------------------------------------------------------------
 
-type ParallelExecutionState struct {
-	Strategy         ParallelStrategy         `json:"strategy"`
-	MaxWorkers       int                      `json:"max_workers"`
-	Timeout          string                   `json:"timeout,omitempty"`
-	SubTasks         map[string]*SubTaskState `json:"sub_tasks"`         // Map of sub-task ID to state
-	CompletedTasks   []string                 `json:"completed_tasks"`   // List of completed sub-task IDs
-	FailedTasks      []string                 `json:"failed_tasks"`      // List of failed sub-task IDs
-	AggregatedOutput map[string]*core.Output  `json:"aggregated_output"` // Combined outputs from sub-tasks
-}
-
-type SubTaskState struct {
-	TaskID      string             `json:"task_id"`
-	TaskExecID  core.ID            `json:"task_exec_id"`
-	Component   core.ComponentType `json:"component"`
-	Status      core.StatusType    `json:"status"`
-	AgentID     *string            `json:"agent_id,omitempty"`
-	ActionID    *string            `json:"action_id,omitempty"`
-	ToolID      *string            `json:"tool_id,omitempty"`
-	Input       *core.Input        `json:"input,omitempty"`
-	Output      *core.Output       `json:"output,omitempty"`
-	Error       *core.Error        `json:"error,omitempty"`
-	StartedAt   *time.Time         `json:"started_at,omitempty"`
-	CompletedAt *time.Time         `json:"completed_at,omitempty"`
+type ParallelState struct {
+	Strategy       ParallelStrategy  `json:"strategy"`
+	MaxWorkers     int               `json:"max_workers"`
+	Timeout        string            `json:"timeout,omitempty"`
+	SubTasks       map[string]*State `json:"sub_tasks"`       // Map of sub-task ID to State
+	CompletedTasks []string          `json:"completed_tasks"` // List of completed sub-task IDs
+	FailedTasks    []string          `json:"failed_tasks"`    // List of failed sub-task IDs
 }
 
 // -----------------------------------------------------------------------------
@@ -76,8 +60,8 @@ type State struct {
 	Output   *core.Output `json:"output,omitempty"    db:"output"`
 	Error    *core.Error  `json:"error,omitempty"     db:"error"`
 
-	// Parallel execution fields
-	ParallelState *ParallelExecutionState `json:"parallel_state,omitempty" db:"parallel_state"`
+	// Parallel execution fields (embedded inline for JSON, separate column for DB)
+	*ParallelState `json:",inline" db:"parallel_state"`
 }
 
 // -----------------------------------------------------------------------------
@@ -131,7 +115,7 @@ func (sdb *StateDB) ToState() (*State, error) {
 
 func convertParallel(sdb *StateDB, state *State) error {
 	if sdb.ParallelStateRaw != nil {
-		var parallelState ParallelExecutionState
+		var parallelState ParallelState
 		if err := json.Unmarshal(sdb.ParallelStateRaw, &parallelState); err != nil {
 			return fmt.Errorf("unmarshaling parallel state: %w", err)
 		}
@@ -200,8 +184,6 @@ func convertBasic(sdb *StateDB, state *State) error {
 	return nil
 }
 
-func convertBasicTask() {}
-
 // -----------------------------------------------------------------------------
 // State methods for parallel execution
 // -----------------------------------------------------------------------------
@@ -217,62 +199,56 @@ func (s *State) IsBasic() bool {
 }
 
 // GetSubTaskState returns the state of a specific sub-task
-func (s *State) GetSubTaskState(taskID string) (*SubTaskState, bool) {
+func (s *State) GetSubTaskState(taskID string) (*State, bool) {
 	if !s.IsParallel() || s.ParallelState == nil {
 		return nil, false
 	}
-	subTask, exists := s.ParallelState.SubTasks[taskID]
+	subTask, exists := s.SubTasks[taskID]
 	return subTask, exists
 }
 
 // AddSubTask adds a new sub-task to parallel execution
-func (s *State) AddSubTask(subTask *SubTaskState) error {
+func (s *State) AddSubTask(subTask *State) error {
 	if !s.IsParallel() {
 		return fmt.Errorf("cannot add sub-task to non-parallel execution")
 	}
 	if s.ParallelState == nil {
-		s.ParallelState = &ParallelExecutionState{
-			SubTasks:         make(map[string]*SubTaskState),
-			CompletedTasks:   make([]string, 0),
-			FailedTasks:      make([]string, 0),
-			AggregatedOutput: make(map[string]*core.Output),
+		s.ParallelState = &ParallelState{
+			SubTasks:       make(map[string]*State),
+			CompletedTasks: make([]string, 0),
+			FailedTasks:    make([]string, 0),
 		}
 	}
-	s.ParallelState.SubTasks[subTask.TaskID] = subTask
+	s.SubTasks[subTask.TaskID] = subTask
 	return nil
 }
 
-// UpdateSubTaskStatus updates the status of a sub-task
-func (s *State) UpdateSubTaskStatus(taskID string, status core.StatusType, output *core.Output, err *core.Error) error {
+// UpdateSubtaskState updates the status of a sub-task
+func (s *State) UpdateSubtaskState(
+	taskID string,
+	status core.StatusType,
+	output *core.Output,
+	err *core.Error,
+) (*State, error) {
 	if !s.IsParallel() || s.ParallelState == nil {
-		return fmt.Errorf("cannot update sub-task in non-parallel execution")
+		return nil, fmt.Errorf("cannot update sub-task in non-parallel execution")
 	}
-
-	subTask, exists := s.ParallelState.SubTasks[taskID]
+	subTask, exists := s.SubTasks[taskID]
 	if !exists {
-		return fmt.Errorf("sub-task %s not found", taskID)
+		return nil, fmt.Errorf("sub-task %s not found", taskID)
 	}
-
+	// Update the sub-task
 	subTask.Status = status
 	subTask.Output = output
 	subTask.Error = err
-	now := time.Now()
-	subTask.CompletedAt = &now
-
-	// Update tracking lists
 	switch status {
 	case core.StatusSuccess:
-		s.ParallelState.CompletedTasks = append(s.ParallelState.CompletedTasks, taskID)
-		if output != nil {
-			s.ParallelState.AggregatedOutput[taskID] = output
-		}
+		s.CompletedTasks = append(s.CompletedTasks, taskID)
 	case core.StatusFailed:
-		s.ParallelState.FailedTasks = append(s.ParallelState.FailedTasks, taskID)
+		s.FailedTasks = append(s.FailedTasks, taskID)
 	}
-
-	// Update overall status based on strategy
 	s.updateOverallStatus()
-	return nil
+	return subTask, nil
 }
 
 // updateOverallStatus determines the overall parallel task status based on strategy
@@ -280,12 +256,10 @@ func (s *State) updateOverallStatus() {
 	if !s.IsParallel() || s.ParallelState == nil {
 		return
 	}
-
-	totalTasks := len(s.ParallelState.SubTasks)
-	completedCount := len(s.ParallelState.CompletedTasks)
-	failedCount := len(s.ParallelState.FailedTasks)
-
-	switch s.ParallelState.Strategy {
+	totalTasks := len(s.SubTasks)
+	completedCount := len(s.CompletedTasks)
+	failedCount := len(s.FailedTasks)
+	switch s.Strategy {
 	case StrategyWaitAll:
 		s.updateStatusForWaitAll(completedCount, failedCount, totalTasks)
 	case StrategyFailFast:
@@ -298,10 +272,11 @@ func (s *State) updateOverallStatus() {
 }
 
 func (s *State) updateStatusForWaitAll(completedCount, failedCount, totalTasks int) {
-	if completedCount == totalTasks {
-		s.Status = core.StatusSuccess
-	} else if failedCount > 0 && (completedCount+failedCount) == totalTasks {
+	if failedCount > 0 {
+		// For wait_all strategy, any failure should cause the entire parallel execution to fail
 		s.Status = core.StatusFailed
+	} else if completedCount == totalTasks {
+		s.Status = core.StatusSuccess
 	}
 }
 
@@ -331,22 +306,14 @@ func (s *State) updateStatusForRace(completedCount, failedCount, totalTasks int)
 	}
 }
 
-// GetAggregatedOutput returns the combined output from all completed sub-tasks
-func (s *State) GetAggregatedOutput() map[string]*core.Output {
-	if !s.IsParallel() || s.ParallelState == nil {
-		return nil
-	}
-	return s.ParallelState.AggregatedOutput
-}
-
 // GetParallelProgress returns progress information for parallel execution
 func (s *State) GetParallelProgress() (completed, failed, total int) {
 	if !s.IsParallel() || s.ParallelState == nil {
 		return 0, 0, 0
 	}
-	return len(s.ParallelState.CompletedTasks),
-		len(s.ParallelState.FailedTasks),
-		len(s.ParallelState.SubTasks)
+	return len(s.CompletedTasks),
+		len(s.FailedTasks),
+		len(s.SubTasks)
 }
 
 // Rest of the existing methods remain the same...
@@ -367,26 +334,56 @@ func (s *State) UpdateStatus(status core.StatusType) {
 	s.Status = status
 }
 
+func (s *State) IsParallelFailed() error {
+	var executionError error
+	strategy := s.Strategy
+	completed, failed, total := s.GetParallelProgress()
+
+	switch strategy {
+	case StrategyWaitAll:
+		// wait_all: fail if ANY subtask failed
+		if failed > 0 {
+			executionError = fmt.Errorf("parallel execution failed: %d out of %d subtasks failed", failed, total)
+		}
+	case StrategyFailFast:
+		// fail_fast: fail if ANY subtask failed
+		if failed > 0 {
+			executionError = fmt.Errorf("parallel execution failed fast: %d out of %d subtasks failed", failed, total)
+		}
+	case StrategyBestEffort:
+		// best_effort: only fail if ALL subtasks failed
+		if failed == total && total > 0 {
+			executionError = fmt.Errorf("parallel execution failed: all %d subtasks failed", total)
+		}
+	case StrategyRace:
+		// race: fail if all subtasks failed and none completed
+		if failed == total && completed == 0 && total > 0 {
+			executionError = fmt.Errorf("parallel execution failed: all %d subtasks failed in race", total)
+		}
+	}
+	return executionError
+}
+
 // -----------------------------------------------------------------------------
 // Enhanced PartialState for creation
 // -----------------------------------------------------------------------------
 
 type PartialState struct {
-	Component     core.ComponentType      `json:"component"`
-	ExecutionType ExecutionType           `json:"execution_type"`
-	AgentID       *string                 `json:"agent_id,omitempty"`
-	ActionID      *string                 `json:"action_id,omitempty"`
-	ToolID        *string                 `json:"tool_id,omitempty"`
-	Input         *core.Input             `json:"input,omitempty"`
-	MergedEnv     core.EnvMap             `json:"merged_env"`
-	ParallelState *ParallelExecutionState `json:"parallel_state,omitempty"`
+	Component     core.ComponentType `json:"component"`
+	ExecutionType ExecutionType      `json:"execution_type"`
+	AgentID       *string            `json:"agent_id,omitempty"`
+	ActionID      *string            `json:"action_id,omitempty"`
+	ToolID        *string            `json:"tool_id,omitempty"`
+	Input         *core.Input        `json:"input,omitempty"`
+	MergedEnv     *core.EnvMap       `json:"merged_env"`
+	ParallelState *ParallelState     `json:"parallel_state,omitempty"`
 }
 
 // CreateBasicPartialState creates a partial state for basic execution
 func CreateBasicPartialState(
 	component core.ComponentType,
 	input *core.Input,
-	env core.EnvMap,
+	env *core.EnvMap,
 	executionType ExecutionType,
 ) *PartialState {
 	return &PartialState{
@@ -401,7 +398,7 @@ func CreateBasicPartialState(
 func CreateAgentPartialState(
 	agentID, actionID string,
 	input *core.Input,
-	env core.EnvMap,
+	env *core.EnvMap,
 	executionType ExecutionType,
 ) *PartialState {
 	return &PartialState{
@@ -418,7 +415,7 @@ func CreateAgentPartialState(
 func CreateToolPartialState(
 	toolID string,
 	input *core.Input,
-	env core.EnvMap,
+	env *core.EnvMap,
 	executionType ExecutionType,
 ) *PartialState {
 	return &PartialState{
@@ -435,41 +432,43 @@ func CreateParallelPartialState(
 	strategy ParallelStrategy,
 	maxWorkers int,
 	timeout string,
-	subTasks map[string]*SubTaskState,
-	env core.EnvMap,
+	subTasks map[string]*State,
+	env *core.EnvMap,
 ) *PartialState {
-	parallelState := &ParallelExecutionState{
-		Strategy:         strategy,
-		MaxWorkers:       maxWorkers,
-		Timeout:          timeout,
-		SubTasks:         subTasks,
-		CompletedTasks:   make([]string, 0),
-		FailedTasks:      make([]string, 0),
-		AggregatedOutput: make(map[string]*core.Output),
-	}
 	return &PartialState{
 		Component:     core.ComponentTask,
 		ExecutionType: ExecutionParallel,
-		ParallelState: parallelState,
 		MergedEnv:     env,
+		ParallelState: &ParallelState{
+			Strategy:       strategy,
+			MaxWorkers:     maxWorkers,
+			Timeout:        timeout,
+			SubTasks:       subTasks,
+			CompletedTasks: make([]string, 0),
+			FailedTasks:    make([]string, 0),
+		},
 	}
 }
 
-// CreateSubTaskState creates a new sub-task state
+// CreateSubTaskState creates a new sub-task state using regular State
 func CreateSubTaskState(
 	taskID string,
 	taskExecID core.ID,
+	workflowID string,
+	workflowExecID core.ID,
+	execType ExecutionType,
 	component core.ComponentType,
 	input *core.Input,
-) *SubTaskState {
-	now := time.Now()
-	return &SubTaskState{
-		TaskID:     taskID,
-		TaskExecID: taskExecID,
-		Component:  component,
-		Status:     core.StatusPending,
-		Input:      input,
-		StartedAt:  &now,
+) *State {
+	return &State{
+		TaskID:         taskID,
+		TaskExecID:     taskExecID,
+		WorkflowID:     workflowID,
+		WorkflowExecID: workflowExecID,
+		Component:      component,
+		Status:         core.StatusPending,
+		ExecutionType:  execType,
+		Input:          input,
 	}
 }
 
@@ -477,10 +476,20 @@ func CreateSubTaskState(
 func CreateAgentSubTaskState(
 	taskID string,
 	taskExecID core.ID,
+	workflowID string,
+	workflowExecID core.ID,
 	agentID, actionID string,
 	input *core.Input,
-) *SubTaskState {
-	subTask := CreateSubTaskState(taskID, taskExecID, core.ComponentAgent, input)
+) *State {
+	subTask := CreateSubTaskState(
+		taskID,
+		taskExecID,
+		workflowID,
+		workflowExecID,
+		ExecutionBasic,
+		core.ComponentAgent,
+		input,
+	)
 	subTask.AgentID = &agentID
 	subTask.ActionID = &actionID
 	return subTask
@@ -490,10 +499,20 @@ func CreateAgentSubTaskState(
 func CreateToolSubTaskState(
 	taskID string,
 	taskExecID core.ID,
+	workflowID string,
+	workflowExecID core.ID,
 	toolID string,
 	input *core.Input,
-) *SubTaskState {
-	subTask := CreateSubTaskState(taskID, taskExecID, core.ComponentTool, input)
+) *State {
+	subTask := CreateSubTaskState(
+		taskID,
+		taskExecID,
+		workflowID,
+		workflowExecID,
+		ExecutionBasic,
+		core.ComponentTool,
+		input,
+	)
 	subTask.ToolID = &toolID
 	return subTask
 }
@@ -503,7 +522,7 @@ func CreateToolSubTaskState(
 // -----------------------------------------------------------------------------
 
 // CreateBasicState creates a basic execution state
-func CreateBasicState(input *StateInput, result *PartialState) *State {
+func CreateBasicState(input *CreateStateInput, result *PartialState) *State {
 	return &State{
 		TaskID:         input.TaskID,
 		TaskExecID:     input.TaskExecID,
@@ -522,7 +541,7 @@ func CreateBasicState(input *StateInput, result *PartialState) *State {
 }
 
 // CreateParallelState creates a parallel execution state
-func CreateParallelState(input *StateInput, result *PartialState) *State {
+func CreateParallelState(input *CreateStateInput, result *PartialState) *State {
 	return &State{
 		TaskID:         input.TaskID,
 		TaskExecID:     input.TaskExecID,
@@ -532,70 +551,10 @@ func CreateParallelState(input *StateInput, result *PartialState) *State {
 		WorkflowExecID: input.WorkflowExecID,
 		ExecutionType:  ExecutionParallel,
 		ParallelState:  result.ParallelState,
+		Input:          result.Input,
+		Output:         nil,
+		Error:          nil,
 	}
-}
-
-// DispatchOutput represents a dispatched task state and configuration
-type DispatchOutput struct {
-	State  *State
-	Config *Config
-}
-
-// CreateDispatchOutput creates a DispatchOutput for reusing existing sub-task state
-func CreateDispatchOutput(parentState *State, subTaskConfig *Config) *DispatchOutput {
-	if parentState.ParallelState == nil {
-		return nil
-	}
-	subTaskState, exists := parentState.ParallelState.SubTasks[subTaskConfig.ID]
-	if !exists {
-		return nil
-	}
-	taskState := &State{
-		TaskID:         subTaskState.TaskID,
-		TaskExecID:     subTaskState.TaskExecID,
-		WorkflowID:     parentState.WorkflowID,
-		WorkflowExecID: parentState.WorkflowExecID,
-		Status:         subTaskState.Status,
-		Component:      subTaskState.Component,
-		ExecutionType:  ExecutionBasic,
-		AgentID:        subTaskState.AgentID,
-		ActionID:       subTaskState.ActionID,
-		ToolID:         subTaskState.ToolID,
-		Input:          subTaskState.Input,
-		Output:         subTaskState.Output,
-		Error:          subTaskState.Error,
-	}
-	return &DispatchOutput{
-		State:  taskState,
-		Config: subTaskConfig,
-	}
-}
-
-// CreateNewSubTaskDispatchOutput creates a DispatchOutput for a new sub-task
-func CreateNewSubTaskDispatchOutput(parentState *State, subTaskConfig *Config) *DispatchOutput {
-	subTaskExecID := core.MustNewID()
-	dispatchOutput := &DispatchOutput{
-		State: &State{
-			TaskID:         subTaskConfig.ID,
-			TaskExecID:     subTaskExecID,
-			WorkflowID:     parentState.WorkflowID,
-			WorkflowExecID: parentState.WorkflowExecID,
-			Status:         core.StatusPending,
-			Component:      core.ComponentTask,
-			ExecutionType:  ExecutionBasic,
-			Input:          subTaskConfig.With,
-		},
-		Config: subTaskConfig,
-	}
-	if subTaskConfig.Agent != nil {
-		dispatchOutput.State.Component = core.ComponentAgent
-		dispatchOutput.State.AgentID = &subTaskConfig.Agent.ID
-		dispatchOutput.State.ActionID = &subTaskConfig.Action
-	} else if subTaskConfig.Tool != nil {
-		dispatchOutput.State.Component = core.ComponentTool
-		dispatchOutput.State.ToolID = &subTaskConfig.Tool.ID
-	}
-	return dispatchOutput
 }
 
 // -----------------------------------------------------------------------------
@@ -633,25 +592,9 @@ func (r *Response) NextTaskID() string {
 	return nextTaskID
 }
 
-// IsParallelExecution returns true if this response is for a parallel task
-func (r *Response) IsParallelExecution() bool {
-	return r.State != nil && r.State.IsParallel()
-}
-
-// GetParallelProgress returns progress information if this is a parallel task
-func (r *Response) GetParallelProgress() (completed, failed, total int) {
-	if r.State != nil && r.State.IsParallel() {
-		return r.State.GetParallelProgress()
-	}
-	return 0, 0, 0
-}
-
-// ShouldContinueParallel returns true if the parallel execution should continue
-func (r *Response) ShouldContinueParallel() bool {
-	if !r.IsParallelExecution() {
-		return false
-	}
-
-	// Continue if the task is still running or pending
-	return r.State.Status == core.StatusRunning || r.State.Status == core.StatusPending
+type SubtaskResponse struct {
+	TaskID string          `json:"task_id"`
+	Output *core.Output    `json:"output"`
+	Error  *core.Error     `json:"error"`
+	Status core.StatusType `json:"status"`
 }

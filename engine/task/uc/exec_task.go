@@ -12,27 +12,19 @@ import (
 	"github.com/compozy/compozy/engine/tool"
 )
 
-// -----------------------------------------------------------------------------
-// ExecComponent
-// -----------------------------------------------------------------------------
-
-type ExecComponentInput struct {
-	TaskConfig *task.Config
+type ExecuteTaskInput struct {
+	TaskConfig *task.Config `json:"task_config"`
 }
 
-type ExecComponentOutput struct {
-	Result *core.Output
-}
-
-type ExecComponent struct {
+type ExecuteTask struct {
 	runtime *runtime.Manager
 }
 
-func NewExecComponent(runtime *runtime.Manager) *ExecComponent {
-	return &ExecComponent{runtime: runtime}
+func NewExecuteTask(runtime *runtime.Manager) *ExecuteTask {
+	return &ExecuteTask{runtime: runtime}
 }
 
-func (uc *ExecComponent) Execute(ctx context.Context, input *ExecComponentInput) (*ExecComponentOutput, error) {
+func (uc *ExecuteTask) Execute(ctx context.Context, input *ExecuteTaskInput) (*core.Output, error) {
 	agentConfig := input.TaskConfig.Agent
 	toolConfig := input.TaskConfig.Tool
 	var result *core.Output
@@ -48,23 +40,19 @@ func (uc *ExecComponent) Execute(ctx context.Context, input *ExecComponentInput)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute agent: %w", err)
 		}
-		return &ExecComponentOutput{
-			Result: result,
-		}, nil
+		return result, nil
 	case toolConfig != nil:
 		result, err = uc.executeTool(ctx, input.TaskConfig, toolConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute tool: %w", err)
 		}
-		return &ExecComponentOutput{
-			Result: result,
-		}, nil
+		return result, nil
 	default:
 		return nil, fmt.Errorf("no component specified for execution")
 	}
 }
 
-func (uc *ExecComponent) executeAgent(
+func (uc *ExecuteTask) executeAgent(
 	ctx context.Context,
 	agentConfig *agent.Config,
 	actionID string,
@@ -82,7 +70,7 @@ func (uc *ExecComponent) executeAgent(
 	return result, nil
 }
 
-func (uc *ExecComponent) executeTool(
+func (uc *ExecuteTask) executeTool(
 	ctx context.Context,
 	taskConfig *task.Config,
 	toolConfig *tool.Config,

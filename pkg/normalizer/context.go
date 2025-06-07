@@ -24,7 +24,7 @@ type NormalizationContext struct {
 	ParentTaskConfig *task.Config            // Parent task config when a task calls another task
 	TaskConfigs      map[string]*task.Config // Task configurations by ID
 	CurrentInput     *core.Input
-	MergedEnv        core.EnvMap
+	MergedEnv        *core.EnvMap
 }
 
 func (cb *ContextBuilder) BuildContext(ctx *NormalizationContext) map[string]any {
@@ -91,30 +91,20 @@ func (cb *ContextBuilder) buildSingleTaskContext(
 
 func (cb *ContextBuilder) buildTaskOutput(taskState *task.State) any {
 	if taskState.IsParallel() && taskState.ParallelState != nil {
-		return cb.buildParallelTaskOutput(taskState.ParallelState)
-	}
-	return cb.buildRegularTaskOutput(taskState.Output)
-}
-
-func (cb *ContextBuilder) buildParallelTaskOutput(parallelState *task.ParallelExecutionState) map[string]any {
-	// For parallel tasks, structure output as nested objects for sub-task access
-	// The expected structure is: .tasks.parallel_task.output.sub_task_id.output.field
-	nestedOutput := make(map[string]any)
-	for subTaskID, subTaskOutput := range parallelState.AggregatedOutput {
-		if subTaskOutput != nil {
-			// Create the expected nested structure with an additional "output" level
-			nestedOutput[subTaskID] = map[string]any{
-				"output": *subTaskOutput, // Dereference *core.Output to map[string]any
+		nestedOutput := make(map[string]any)
+		subtasks := taskState.SubTasks
+		for subTaskID, subTaskState := range subtasks {
+			subTaskOutput := cb.buildTaskOutput(subTaskState)
+			if subTaskOutput != nil {
+				nestedOutput[subTaskID] = map[string]any{
+					"output": subTaskOutput,
+				}
 			}
 		}
+		return nestedOutput
 	}
-	return nestedOutput
-}
-
-func (cb *ContextBuilder) buildRegularTaskOutput(output *core.Output) any {
-	// For regular tasks, use output directly
-	if output != nil {
-		return *output // Dereference *core.Output to map[string]any
+	if taskState.Output != nil {
+		return *taskState.Output
 	}
 	return nil
 }
