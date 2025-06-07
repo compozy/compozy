@@ -1,8 +1,9 @@
 package utils
 
 import (
-	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	wf "github.com/compozy/compozy/engine/workflow"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 	"go.temporal.io/sdk/testsuite"
 )
 
@@ -120,86 +123,45 @@ func (c *ContainerTestConfig) Cleanup(t *testing.T) {
 	})
 }
 
-// ensureTablesExist creates the required tables if they don't exist
-func ensureTablesExist(ctx context.Context, db *pgxpool.Pool) error {
-	// Create workflow_states table (from migration)
-	_, err := db.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS workflow_states (
-			workflow_exec_id text NOT NULL PRIMARY KEY,
-			workflow_id      text NOT NULL,
-			status           text NOT NULL,
-			input            jsonb,
-			output           jsonb,
-			error            jsonb,
-			created_at       timestamptz NOT NULL DEFAULT now(),
-			updated_at       timestamptz NOT NULL DEFAULT now()
-		);
-	`)
+// ensureTablesExist runs goose migrations to create the required tables
+func ensureTablesExist(db *pgxpool.Pool) error {
+	// Convert pgxpool to standard sql.DB for goose
+	sqlDB := stdlib.OpenDBFromPool(db)
+	defer sqlDB.Close()
+
+	// Set the PostgreSQL dialect for goose
+	if err := goose.SetDialect("postgres"); err != nil {
+		return fmt.Errorf("failed to set goose dialect: %w", err)
+	}
+
+	// Find the project root by looking for go.mod file
+	wd, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("failed to create workflow_states table: %w", err)
+		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 
-	// Create task_states table (from migration)
-	_, err = db.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS task_states (
-			component        text NOT NULL,
-			status           text NOT NULL,
-			task_exec_id     text NOT NULL PRIMARY KEY,
-			task_id          text NOT NULL,
-			workflow_exec_id text NOT NULL,
-			workflow_id      text NOT NULL,
-			execution_type   text NOT NULL DEFAULT 'basic',
-			agent_id         text,
-			tool_id          text,
-			action_id        text,
-			input            jsonb,
-			output           jsonb,
-			error            jsonb,
-			parallel_state   jsonb,
-			created_at       timestamptz NOT NULL DEFAULT now(),
-			updated_at       timestamptz NOT NULL DEFAULT now(),
-
-			-- parent linkage
-			CONSTRAINT fk_workflow
-			  FOREIGN KEY (workflow_exec_id)
-			  REFERENCES workflow_states (workflow_exec_id)
-			  ON DELETE CASCADE
-		);
-	`)
-	if err != nil {
-		return fmt.Errorf("failed to create task_states table: %w", err)
-	}
-
-	// Create indexes for performance (these are expensive, so we only create them once)
-	indexes := []string{
-		"CREATE INDEX IF NOT EXISTS idx_workflow_states_status ON workflow_states (status)",
-		"CREATE INDEX IF NOT EXISTS idx_workflow_states_workflow_id ON workflow_states (workflow_id)",
-		"CREATE INDEX IF NOT EXISTS idx_workflow_states_workflow_status ON workflow_states (workflow_id, status)",
-		"CREATE INDEX IF NOT EXISTS idx_workflow_states_created_at ON workflow_states (created_at)",
-		"CREATE INDEX IF NOT EXISTS idx_workflow_states_updated_at ON workflow_states (updated_at)",
-		"CREATE INDEX IF NOT EXISTS idx_task_states_status ON task_states (status)",
-		"CREATE INDEX IF NOT EXISTS idx_task_states_workflow_id ON task_states (workflow_id)",
-		"CREATE INDEX IF NOT EXISTS idx_task_states_workflow_exec_id ON task_states (workflow_exec_id)",
-		"CREATE INDEX IF NOT EXISTS idx_task_states_task_id ON task_states (task_id)",
-		"CREATE INDEX IF NOT EXISTS idx_task_states_component ON task_states (component)",
-		"CREATE INDEX IF NOT EXISTS idx_task_states_agent_id ON task_states (agent_id)",
-		"CREATE INDEX IF NOT EXISTS idx_task_states_tool_id ON task_states (tool_id)",
-		"CREATE INDEX IF NOT EXISTS idx_task_states_action_id ON task_states (action_id)",
-		"CREATE INDEX IF NOT EXISTS idx_task_states_created_at ON task_states (created_at)",
-		"CREATE INDEX IF NOT EXISTS idx_task_states_updated_at ON task_states (updated_at)",
-		"CREATE INDEX IF NOT EXISTS idx_task_states_workflow_exec_id_task_id ON task_states (workflow_exec_id, task_id)",
-		"CREATE INDEX IF NOT EXISTS idx_task_states_workflow_exec_id_agent_id ON task_states (workflow_exec_id, agent_id)",
-		"CREATE INDEX IF NOT EXISTS idx_task_states_workflow_exec_id_tool_id ON task_states (workflow_exec_id, tool_id)",
-		"CREATE INDEX IF NOT EXISTS idx_task_states_workflow_id_task_id ON task_states (workflow_id, task_id)",
-		"CREATE INDEX IF NOT EXISTS idx_task_states_workflow_id_agent_id ON task_states (workflow_id, agent_id)",
-		"CREATE INDEX IF NOT EXISTS idx_task_states_workflow_id_tool_id ON task_states (workflow_id, tool_id)",
-		"CREATE INDEX IF NOT EXISTS idx_task_states_workflow_id_action_id ON task_states (workflow_id, action_id)",
-	}
-
-	for _, index := range indexes {
-		if _, err := db.Exec(ctx, index); err != nil {
-			return fmt.Errorf("failed to create index: %w", err)
+	projectRoot := wd
+	for {
+		if _, err := os.Stat(filepath.Join(projectRoot, "go.mod")); err == nil {
+			break
 		}
+		parent := filepath.Dir(projectRoot)
+		if parent == projectRoot {
+			return fmt.Errorf("could not find project root (go.mod not found)")
+		}
+		projectRoot = parent
+	}
+
+	migrationDir := filepath.Join(projectRoot, "engine", "infra", "store", "migrations")
+
+	// Reset migrations to clean state - this drops all tables and resets goose tracking
+	if err := goose.Reset(sqlDB, migrationDir); err != nil {
+		return fmt.Errorf("failed to reset goose migrations: %w", err)
+	}
+
+	// Run migrations up to the latest version
+	if err := goose.Up(sqlDB, migrationDir); err != nil {
+		return fmt.Errorf("failed to run goose migrations: %w", err)
 	}
 
 	return nil

@@ -149,20 +149,35 @@ func (a *Dispatch) processComponent(
 	execData *DispatchData,
 	baseEnv core.EnvMap,
 ) (*task.PartialState, error) {
+	taskType := execData.TaskConfig.Type
+	if taskType == "" {
+		taskType = task.TaskTypeBasic // Default to basic if not specified
+	}
+
+	// Determine execution type based on task type
+	var executionType task.ExecutionType
+	switch taskType {
+	case task.TaskTypeParallel:
+		executionType = task.ExecutionParallel
+	default:
+		executionType = task.ExecutionBasic
+	}
+
 	agentConfig := execData.TaskConfig.GetAgent()
 	toolConfig := execData.TaskConfig.GetTool()
 
 	switch {
 	case agentConfig != nil:
-		return a.processAgent(execData, agentConfig)
+		return a.processAgent(execData, agentConfig, executionType)
 	case toolConfig != nil:
-		return a.processTool(execData, toolConfig)
+		return a.processTool(execData, toolConfig, executionType)
 	default:
 		return &task.PartialState{
-			Component: core.ComponentTask,
-			Input:     execData.TaskConfig.With,
-			ActionID:  &execData.TaskConfig.Action,
-			MergedEnv: baseEnv,
+			Component:     core.ComponentTask,
+			ExecutionType: executionType,
+			Input:         execData.TaskConfig.With,
+			ActionID:      &execData.TaskConfig.Action,
+			MergedEnv:     baseEnv,
 		}, nil
 	}
 }
@@ -171,6 +186,7 @@ func (a *Dispatch) processComponent(
 func (a *Dispatch) processAgent(
 	execData *DispatchData,
 	agentConfig *agent.Config,
+	executionType task.ExecutionType,
 ) (*task.PartialState, error) {
 	// Normalize agent configuration and get merged environment
 	mergedEnv, err := a.normalizer.NormalizeAgentComponent(
@@ -186,11 +202,12 @@ func (a *Dispatch) processAgent(
 
 	agentID := agentConfig.ID
 	return &task.PartialState{
-		Component: core.ComponentAgent,
-		AgentID:   &agentID,
-		ActionID:  &execData.TaskConfig.Action,
-		Input:     agentConfig.With,
-		MergedEnv: mergedEnv,
+		Component:     core.ComponentAgent,
+		ExecutionType: executionType,
+		AgentID:       &agentID,
+		ActionID:      &execData.TaskConfig.Action,
+		Input:         agentConfig.With,
+		MergedEnv:     mergedEnv,
 	}, nil
 }
 
@@ -198,6 +215,7 @@ func (a *Dispatch) processAgent(
 func (a *Dispatch) processTool(
 	execData *DispatchData,
 	toolConfig *tool.Config,
+	executionType task.ExecutionType,
 ) (*task.PartialState, error) {
 	// Normalize tool configuration and get merged environment
 	mergedEnv, err := a.normalizer.NormalizeToolComponent(
@@ -213,9 +231,10 @@ func (a *Dispatch) processTool(
 
 	toolID := toolConfig.ID
 	return &task.PartialState{
-		Component: core.ComponentTool,
-		ToolID:    &toolID,
-		Input:     toolConfig.With,
-		MergedEnv: mergedEnv,
+		Component:     core.ComponentTool,
+		ExecutionType: executionType,
+		ToolID:        &toolID,
+		Input:         toolConfig.With,
+		MergedEnv:     mergedEnv,
 	}, nil
 }

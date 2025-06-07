@@ -61,7 +61,7 @@ func GetSharedTestDB(t *testing.T) *pgxpool.Pool {
 		}
 
 		// Ensure tables exist once (this is expensive, so we only do it once)
-		if err = ensureTablesExist(ctx, sharedTestDB); err != nil {
+		if err = ensureTablesExist(sharedTestDB); err != nil {
 			testDBSetupError = fmt.Errorf("failed to ensure tables exist in test database: %w", err)
 			return
 		}
@@ -88,31 +88,4 @@ func getTestEnvOrDefault(key, defaultValue string) string {
 // Since we're using a dedicated test database, we don't need cleanup!
 func GenerateUniqueTestID(testName string) string {
 	return fmt.Sprintf("test-%s-%d", testName, time.Now().UnixNano())
-}
-
-// ResetTestDatabase completely resets the test database (alternative to cleanup)
-// This can be called between test runs if needed, but usually not necessary
-func ResetTestDatabase(t *testing.T) error {
-	db := GetSharedTestDB(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// Drop and recreate tables - much faster than selective cleanup
-	_, err := db.Exec(ctx, "DROP TABLE IF EXISTS task_states CASCADE")
-	if err != nil {
-		return fmt.Errorf("failed to drop task_states table: %w", err)
-	}
-
-	_, err = db.Exec(ctx, "DROP TABLE IF EXISTS workflow_states CASCADE")
-	if err != nil {
-		return fmt.Errorf("failed to drop workflow_states table: %w", err)
-	}
-
-	// Recreate tables
-	if err = ensureTablesExist(ctx, db); err != nil {
-		return fmt.Errorf("failed to recreate tables: %w", err)
-	}
-
-	t.Logf("Test database reset completed successfully")
-	return nil
 }
