@@ -92,7 +92,7 @@ func Test_LoadWorkflow(t *testing.T) {
 
 		err = config.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "condition is required for decision tasks")
+		assert.Contains(t, err.Error(), "condition is required for router tasks")
 	})
 }
 

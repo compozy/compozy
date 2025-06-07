@@ -78,8 +78,8 @@ func Test_LoadTask(t *testing.T) {
 		assert.Equal(t, "retry-task", *config.OnError.Next)
 	})
 
-	t.Run("Should load decision task configuration correctly", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "decision_task.yaml")
+	t.Run("Should load router task configuration correctly", func(t *testing.T) {
+		cwd, dstPath := setupTest(t, "router_task.yaml")
 
 		// Run the test
 		config, err := Load(cwd, dstPath)
@@ -100,15 +100,16 @@ func Test_LoadTask(t *testing.T) {
 		require.NotNil(t, config.With)
 		require.NotNil(t, config.OnError)
 
-		assert.Equal(t, "code-review", config.ID)
-		assert.Equal(t, TaskTypeDecision, config.Type)
-		assert.Equal(t, "review_score", config.Condition)
-		assert.Equal(t, 3, len(config.Routes))
+		assert.Equal(t, "document-classifier", config.ID)
+		assert.Equal(t, TaskTypeRouter, config.Type)
+		assert.Equal(t, "{{ .tasks.analyze.output.type }}", config.Condition)
+		assert.Equal(t, 4, len(config.Routes))
 
 		// Validate routes
-		assert.Equal(t, "deploy", config.Routes["approved"])
-		assert.Equal(t, "update-code", config.Routes["needs_changes"])
-		assert.Equal(t, "notify-team", config.Routes["rejected"])
+		assert.Equal(t, "process-invoice", config.Routes["invoice"])
+		assert.Equal(t, "process-contract", config.Routes["contract"])
+		assert.Equal(t, "process-receipt", config.Routes["receipt"])
+		assert.Equal(t, "manual-review", config.Routes["unknown"])
 
 		// Validate input schema
 		schema := config.InputSchema
@@ -116,10 +117,9 @@ func Test_LoadTask(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []string{"object"}, []string(compiledSchema2.Type))
 		require.NotNil(t, compiledSchema2.Properties)
-		assert.Contains(t, (*compiledSchema2.Properties), "code")
-		assert.Contains(t, (*compiledSchema2.Properties), "review_score")
-		assert.Contains(t, compiledSchema2.Required, "code")
-		assert.Contains(t, compiledSchema2.Required, "review_score")
+		assert.Contains(t, (*compiledSchema2.Properties), "document")
+		assert.Contains(t, (*compiledSchema2.Properties), "confidence_threshold")
+		assert.Contains(t, compiledSchema2.Required, "document")
 
 		// Validate output schema
 		outSchema := config.OutputSchema
@@ -127,17 +127,19 @@ func Test_LoadTask(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []string{"object"}, []string(compiledOutSchema2.Type))
 		require.NotNil(t, compiledOutSchema2.Properties)
-		assert.Contains(t, (*compiledOutSchema2.Properties), "status")
-		assert.Contains(t, (*compiledOutSchema2.Properties), "comments")
-		assert.Contains(t, compiledOutSchema2.Required, "status")
+		assert.Contains(t, (*compiledOutSchema2.Properties), "classification")
+		assert.Contains(t, (*compiledOutSchema2.Properties), "route_taken")
+		assert.Contains(t, (*compiledOutSchema2.Properties), "confidence")
+		assert.Contains(t, compiledOutSchema2.Required, "classification")
+		assert.Contains(t, compiledOutSchema2.Required, "route_taken")
 
 		// Validate env and with
-		assert.Equal(t, "0.8", config.GetEnv().Prop("REVIEW_THRESHOLD"))
-		assert.Equal(t, 0.7, (*config.With)["min_score"])
-		assert.Equal(t, 10, (*config.With)["max_comments"])
+		assert.Equal(t, "0.8", config.GetEnv().Prop("CONFIDENCE_THRESHOLD"))
+		assert.Equal(t, "{{ .workflow.input.document }}", (*config.With)["document"])
+		assert.Equal(t, 0.8, (*config.With)["confidence_threshold"])
 
 		// Validate error transition
-		assert.Equal(t, "retry-task", *config.OnError.Next)
+		assert.Equal(t, "retry-classification", *config.OnError.Next)
 	})
 
 	t.Run("Should load parallel task configuration correctly", func(t *testing.T) {
@@ -265,17 +267,19 @@ func Test_TaskConfigValidation(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("Should validate valid decision task", func(t *testing.T) {
+	t.Run("Should validate valid router task", func(t *testing.T) {
 		config := &Config{
 			BaseConfig: BaseConfig{
 				ID:   taskID,
-				Type: TaskTypeDecision,
+				Type: TaskTypeRouter,
 				cwd:  taskCWD,
 			},
-			DecisionTask: DecisionTask{
+			RouterTask: RouterTask{
 				Condition: "test-condition",
-				Routes: map[string]string{
-					"route1": "next1",
+				Routes: map[string]any{
+					"route1": map[string]any{
+						"id": "next1",
+					},
 				},
 			},
 		}
@@ -340,32 +344,32 @@ func Test_TaskConfigValidation(t *testing.T) {
 		assert.Contains(t, err.Error(), "invalid task type: invalid")
 	})
 
-	t.Run("Should return error for decision task missing configuration", func(t *testing.T) {
+	t.Run("Should return error for router task missing configuration", func(t *testing.T) {
 		config := &Config{
 			BaseConfig: BaseConfig{
 				ID:   taskID,
-				Type: TaskTypeDecision,
+				Type: TaskTypeRouter,
 				cwd:  taskCWD,
 			},
 		}
 
 		err := config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "condition is required for decision tasks")
+		assert.Contains(t, err.Error(), "condition is required for router tasks")
 	})
 
-	t.Run("Should return error for decision task missing routes", func(t *testing.T) {
+	t.Run("Should return error for router task missing routes", func(t *testing.T) {
 		config := &Config{
 			BaseConfig: BaseConfig{
 				ID:   "test-task",
-				Type: TaskTypeDecision,
+				Type: TaskTypeRouter,
 				cwd:  taskCWD,
 			},
 		}
 
 		err := config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "condition is required for decision tasks")
+		assert.Contains(t, err.Error(), "condition is required for router tasks")
 	})
 
 	t.Run("Should return error for task with invalid parameters", func(t *testing.T) {

@@ -97,6 +97,21 @@ func (a *Activities) ExecuteBasicTask(
 	return act.Run(ctx, input)
 }
 
+func (a *Activities) ExecuteRouterTask(
+	ctx context.Context,
+	input *tkfacts.ExecuteRouterInput,
+) (*task.Response, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewExecuteRouter(
+		a.workflows,
+		a.workflowRepo,
+		a.taskRepo,
+	)
+	return act.Run(ctx, input)
+}
+
 func (a *Activities) CreateParallelState(
 	ctx context.Context,
 	input *tkfacts.CreateParallelStateInput,

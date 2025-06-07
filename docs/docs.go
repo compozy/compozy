@@ -1467,7 +1467,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/agent.Config"
                 },
                 "condition": {
-                    "description": "Decision task properties",
+                    "description": "Router task properties",
                     "type": "string"
                 },
                 "env": {
@@ -1598,11 +1598,11 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "basic",
-                "decision"
+                "router"
             ],
             "x-enum-varnames": [
                 "TaskTypeBasic",
-                "TaskTypeDecision"
+                "TaskTypeRouter"
             ]
         },
         "tool.Config": {

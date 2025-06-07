@@ -84,14 +84,14 @@ func (v *TypeValidator) Validate() error {
 	if v.config.Type == "" {
 		return nil
 	}
-	if v.config.Type != TaskTypeBasic && v.config.Type != TaskTypeDecision && v.config.Type != TaskTypeParallel {
+	if v.config.Type != TaskTypeBasic && v.config.Type != TaskTypeRouter && v.config.Type != TaskTypeParallel {
 		return fmt.Errorf("invalid task type: %s", v.config.Type)
 	}
 	if err := v.validateBasicTaskWithRef(); err != nil {
 		return err
 	}
-	if v.config.Type == TaskTypeDecision {
-		if err := v.validateDecisionTask(); err != nil {
+	if v.config.Type == TaskTypeRouter {
+		if err := v.validateRouterTask(); err != nil {
 			return err
 		}
 	}
@@ -116,12 +116,12 @@ func (v *TypeValidator) validateBasicTaskWithRef() error {
 	return nil
 }
 
-func (v *TypeValidator) validateDecisionTask() error {
+func (v *TypeValidator) validateRouterTask() error {
 	if v.config.Condition == "" {
-		return fmt.Errorf("condition is required for decision tasks")
+		return fmt.Errorf("condition is required for router tasks")
 	}
 	if len(v.config.Routes) == 0 {
-		return fmt.Errorf("routes are required for decision tasks")
+		return fmt.Errorf("routes are required for router tasks")
 	}
 	return nil
 }

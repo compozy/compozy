@@ -1,0 +1,36 @@
+id: document-classifier
+type: router
+condition: "{{ .tasks.analyze.output.type }}"
+routes:
+    invoice: process-invoice
+    contract: process-contract
+    receipt: process-receipt
+    unknown: manual-review
+input:
+    type: object
+    properties:
+        document:
+            type: string
+        confidence_threshold:
+            type: number
+    required:
+        - document
+output:
+    type: object
+    properties:
+        classification:
+            type: string
+        route_taken:
+            type: string
+        confidence:
+            type: number
+    required:
+        - classification
+        - route_taken
+env:
+    CONFIDENCE_THRESHOLD: "0.8"
+with:
+    document: "{{ .workflow.input.document }}"
+    confidence_threshold: 0.8
+on_error:
+    next: retry-classification

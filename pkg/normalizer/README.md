@@ -191,7 +191,7 @@ instructions: |
     "id":           string,        // Parent ID
     "type":         string,        // Parent type (for tasks)
     "action":       string,        // Parent action (for basic tasks)
-    "condition":    string,        // Parent condition (for decision tasks)
+    "condition":    string,        // Parent condition (for router tasks)
     "instructions": string,        // Parent instructions (for agents)
     "execute":      string,        // Parent execute path (for tools)
     // ... other parent config properties
@@ -208,7 +208,7 @@ instructions: |
       
       // Configuration properties
       "id":     string,            // Task ID
-      "type":   string,            // Task type (basic/decision)
+      "type":   string,            // Task type (basic/router)
       "action": string,            // Task action (for basic tasks)
       "final":  bool,              // Whether task is final
       // ... other task config properties
@@ -438,7 +438,7 @@ input:
 ```yaml
 input:
     # If-else based on parent type
-    mode: "{{ if eq .parent.type \"decision\" }}branching{{ else }}linear{{ end }}"
+    mode: "{{ if eq .parent.type \"router\" }}branching{{ else }}linear{{ end }}"
 
     # Default values
     timeout: "{{ .workflow.input.timeout | default \"30\" }}"

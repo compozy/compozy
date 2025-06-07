@@ -234,10 +234,10 @@ func TestNormalizer_NormalizeTaskConfig(t *testing.T) {
 	t.Run("Should handle condition field normalization", func(t *testing.T) {
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
-				ID:   "decision-task",
-				Type: task.TaskTypeDecision,
+				ID:   "router-task",
+				Type: task.TaskTypeRouter,
 			},
-			DecisionTask: task.DecisionTask{
+			RouterTask: task.RouterTask{
 				Condition: `{{ eq .tasks.validator.output.status "valid" }}`,
 			},
 		}

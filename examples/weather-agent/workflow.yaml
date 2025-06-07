@@ -128,9 +128,29 @@ tasks:
     $use: agent(local::agents.#(id="tourist_guide"))
     action: suggest_clothing
     on_success:
-      next: save_results_parallel
+      next: clothing_check
 
-  - id: save_results_parallel
+  - id: clothing_check
+    type: router
+    condition: '{{ .tasks.clothing.output.clothings | empty | ternary "no_clothes" "has_clothes" }}'
+    routes:
+      has_clothes:
+        $ref: local::tasks.#(id="save_results")
+      no_clothes:
+        $ref: local::tasks.#(id="no_results")
+
+  - id: no_results
+    type: basic
+    $use: tool(local::tools.#(id="save_data"))
+    final: true
+    with:
+      city: "{{ .workflow.input.city }}"
+      weather: "{{ .tasks.weather.output }}"
+      clothing: "[]"
+      activities: "{{ .tasks.activities.output }}"
+      format: "json"
+
+  - id: save_results
     type: parallel
     strategy: wait_all
     max_workers: 2

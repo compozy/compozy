@@ -276,7 +276,7 @@ definitions:
             agent:
                 $ref: "#/definitions/agent.Config"
             condition:
-                description: Decision task properties
+                description: Router task properties
                 type: string
             env:
                 $ref: "#/definitions/core.EnvMap"
@@ -363,11 +363,11 @@ definitions:
     task.Type:
         enum:
             - basic
-            - decision
+            - router
         type: string
         x-enum-varnames:
             - TaskTypeBasic
-            - TaskTypeDecision
+            - TaskTypeRouter
     tool.Config:
         properties:
             description:
@@ -464,7 +464,8 @@ info:
         email: support@compozy.dev
         name: Compozy Support
         url: https://github.com/compozy/compozy
-    description: Compozy is a workflow orchestration engine for AI agents, tasks, and
+    description:
+        Compozy is a workflow orchestration engine for AI agents, tasks, and
         tools
     license:
         name: MIT

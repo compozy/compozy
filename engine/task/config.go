@@ -47,7 +47,7 @@ type Type string
 
 const (
 	TaskTypeBasic    Type = "basic"
-	TaskTypeDecision Type = "decision"
+	TaskTypeRouter   Type = "router"
 	TaskTypeParallel Type = "parallel"
 )
 
@@ -60,12 +60,12 @@ type BasicTask struct {
 }
 
 // -----------------------------------------------------------------------------
-// Decision Task
+// Router Task
 // -----------------------------------------------------------------------------
 
-type DecisionTask struct {
-	Condition string            `json:"condition,omitempty" yaml:"condition,omitempty" mapstructure:"condition,omitempty"`
-	Routes    map[string]string `json:"routes,omitempty"    yaml:"routes,omitempty"    mapstructure:"routes,omitempty"`
+type RouterTask struct {
+	Condition string         `json:"condition,omitempty" yaml:"condition,omitempty" mapstructure:"condition,omitempty"`
+	Routes    map[string]any `json:"routes,omitempty"    yaml:"routes,omitempty"    mapstructure:"routes,omitempty"`
 }
 
 // -----------------------------------------------------------------------------
@@ -121,7 +121,7 @@ func (pt *ParallelTask) GetMaxWorkers() int {
 
 type Config struct {
 	BasicTask    `json:",inline" yaml:",inline" mapstructure:",squash"`
-	DecisionTask `json:",inline" yaml:",inline" mapstructure:",squash"`
+	RouterTask   `json:",inline" yaml:",inline" mapstructure:",squash"`
 	ParallelTask `json:",inline" yaml:",inline" mapstructure:",squash"`
 	BaseConfig   `json:",inline" yaml:",inline" mapstructure:",squash"`
 }
@@ -250,6 +250,8 @@ func (t *Config) GetExecType() ExecutionType {
 	}
 	var executionType ExecutionType
 	switch taskType {
+	case TaskTypeRouter:
+		executionType = ExecutionRouter
 	case TaskTypeParallel:
 		executionType = ExecutionParallel
 	default:

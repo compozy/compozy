@@ -67,11 +67,15 @@ func (uc *CreateState) processComponent(
 	case toolConfig != nil:
 		return uc.processTool(toolConfig, executionType)
 	default:
+		var actionID *string
+		if input.TaskConfig.Action != "" {
+			actionID = &input.TaskConfig.Action
+		}
 		return &task.PartialState{
 			Component:     core.ComponentTask,
 			ExecutionType: executionType,
 			Input:         input.TaskConfig.With,
-			ActionID:      &input.TaskConfig.Action,
+			ActionID:      actionID,
 			MergedEnv:     baseEnv,
 		}, nil
 	}

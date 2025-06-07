@@ -1,5 +1,3 @@
-// Enhanced domain.go with parallel task support
-
 package task
 
 import (
@@ -19,8 +17,9 @@ import (
 type ExecutionType string
 
 const (
-	ExecutionBasic    ExecutionType = "basic"    // Single task execution
-	ExecutionParallel ExecutionType = "parallel" // Parallel task execution
+	ExecutionBasic    ExecutionType = "basic"
+	ExecutionRouter   ExecutionType = "router"
+	ExecutionParallel ExecutionType = "parallel"
 )
 
 // -----------------------------------------------------------------------------
@@ -98,7 +97,7 @@ func (sdb *StateDB) ToState() (*State, error) {
 		Component:      sdb.Component,
 		ExecutionType:  sdb.ExecutionType,
 	}
-	if sdb.ExecutionType == ExecutionBasic {
+	if sdb.ExecutionType == ExecutionBasic || sdb.ExecutionType == ExecutionRouter {
 		err := convertBasic(sdb, state)
 		if err != nil {
 			return nil, err
@@ -530,7 +529,7 @@ func CreateBasicState(input *CreateStateInput, result *PartialState) *State {
 		Status:         core.StatusPending,
 		WorkflowID:     input.WorkflowID,
 		WorkflowExecID: input.WorkflowExecID,
-		ExecutionType:  ExecutionBasic,
+		ExecutionType:  result.ExecutionType,
 		AgentID:        result.AgentID,
 		ActionID:       result.ActionID,
 		ToolID:         result.ToolID,

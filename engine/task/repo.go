@@ -55,7 +55,7 @@ func CreateAndPersistState(
 ) (*State, error) {
 	var state *State
 	switch result.ExecutionType {
-	case ExecutionBasic:
+	case ExecutionBasic, ExecutionRouter:
 		state = CreateBasicState(input, result)
 	case ExecutionParallel:
 		state = CreateParallelState(input, result)

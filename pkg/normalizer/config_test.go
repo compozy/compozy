@@ -151,13 +151,13 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 		assert.Equal(t, "true", (*analysisTask.With)["collector_final"])
 	})
 
-	t.Run("Should handle decision task condition normalization", func(t *testing.T) {
-		decisionTask := &task.Config{
+	t.Run("Should handle router task condition normalization", func(t *testing.T) {
+		routerTask := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "validation-task",
-				Type: task.TaskTypeDecision,
+				Type: task.TaskTypeRouter,
 			},
-			DecisionTask: task.DecisionTask{
+			RouterTask: task.RouterTask{
 				Condition: `{{ eq .tasks.validator.output.status "valid" }}`,
 			},
 		}
@@ -183,14 +183,14 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 						Type: task.TaskTypeBasic,
 					},
 				},
-				*decisionTask,
+				*routerTask,
 			},
 		}
 
-		err := normalizer.NormalizeTask(workflowState, workflowConfig, decisionTask)
+		err := normalizer.NormalizeTask(workflowState, workflowConfig, routerTask)
 		require.NoError(t, err)
 
-		assert.Equal(t, "true", decisionTask.Condition)
+		assert.Equal(t, "true", routerTask.Condition)
 	})
 }
 
@@ -722,7 +722,7 @@ func TestConfigNormalizer_BuildTaskConfigsMap(t *testing.T) {
 			{
 				BaseConfig: task.BaseConfig{
 					ID:   "task2",
-					Type: task.TaskTypeDecision,
+					Type: task.TaskTypeRouter,
 				},
 			},
 		}
@@ -733,7 +733,7 @@ func TestConfigNormalizer_BuildTaskConfigsMap(t *testing.T) {
 		assert.Equal(t, "task1", configMap["task1"].ID)
 		assert.Equal(t, task.TaskTypeBasic, configMap["task1"].Type)
 		assert.Equal(t, "task2", configMap["task2"].ID)
-		assert.Equal(t, task.TaskTypeDecision, configMap["task2"].Type)
+		assert.Equal(t, task.TaskTypeRouter, configMap["task2"].Type)
 	})
 
 	t.Run("Should handle empty task config slice", func(t *testing.T) {

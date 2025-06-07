@@ -18,10 +18,11 @@ import (
 // -----------------------------------------------------------------------------
 
 type HandleResponseInput struct {
-	WorkflowConfig *workflow.Config `json:"workflow_config"`
-	TaskState      *task.State      `json:"task_state"`
-	TaskConfig     *task.Config     `json:"task_config"`
-	ExecutionError error            `json:"execution_error"`
+	WorkflowConfig   *workflow.Config `json:"workflow_config"`
+	TaskState        *task.State      `json:"task_state"`
+	TaskConfig       *task.Config     `json:"task_config"`
+	ExecutionError   error            `json:"execution_error"`
+	NextTaskOverride *task.Config     `json:"next_task_override,omitempty"`
 }
 
 type HandleResponse struct {
@@ -70,7 +71,12 @@ func (uc *HandleResponse) handleSuccessFlow(
 		}
 		return nil, fmt.Errorf("failed to normalize transitions: %w", err)
 	}
-	nextTask := input.WorkflowConfig.DetermineNextTask(input.TaskConfig, true)
+	var nextTask *task.Config
+	if input.NextTaskOverride != nil {
+		nextTask = input.NextTaskOverride
+	} else {
+		nextTask = input.WorkflowConfig.DetermineNextTask(input.TaskConfig, true)
+	}
 	return &task.Response{
 		OnSuccess: onSuccess,
 		OnError:   onError,
