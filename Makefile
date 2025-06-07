@@ -111,6 +111,9 @@ test-all:
 test-worker:
 	gotestsum --format testdox -- -parallel=16 ./test/integration/worker/...
 
+test-no-worker:
+	gotestsum --format testdox -- -parallel=16 $(shell go list ./... | grep -v '/test/integration/worker')
+
 # -----------------------------------------------------------------------------
 # Docker & Database Management
 # -----------------------------------------------------------------------------

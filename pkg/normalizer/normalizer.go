@@ -7,122 +7,19 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
-	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
-)
-
-const (
-	inputKey  = "input"
-	outputKey = "output"
 )
 
 type Normalizer struct {
 	engine *tplengine.TemplateEngine
+	*ContextBuilder
 }
 
 func New() *Normalizer {
 	return &Normalizer{
-		engine: tplengine.NewEngine(tplengine.FormatJSON),
+		engine:         tplengine.NewEngine(tplengine.FormatJSON),
+		ContextBuilder: NewContextBuilder(),
 	}
-}
-
-type NormalizationContext struct {
-	WorkflowState    *workflow.State
-	WorkflowConfig   *workflow.Config
-	ParentConfig     map[string]any          // Parent configuration properties
-	ParentTaskConfig *task.Config            // Parent task config when a task calls another task
-	TaskConfigs      map[string]*task.Config // Task configurations by ID
-	CurrentInput     *core.Input
-	MergedEnv        core.EnvMap
-}
-
-func (n *Normalizer) buildContext(ctx *NormalizationContext) map[string]any {
-	context := map[string]any{
-		"workflow": n.buildWorkflowContext(ctx),
-		"tasks":    n.buildTasksContext(ctx),
-	}
-	if parent := n.buildParentContext(ctx); parent != nil {
-		context["parent"] = parent
-	}
-	if ctx.CurrentInput != nil {
-		context[inputKey] = ctx.CurrentInput
-	}
-	if ctx.MergedEnv != nil {
-		context["env"] = ctx.MergedEnv
-	}
-	return context
-}
-
-func (n *Normalizer) buildWorkflowContext(ctx *NormalizationContext) map[string]any {
-	workflowContext := map[string]any{
-		"id":      ctx.WorkflowState.WorkflowID,
-		inputKey:  ctx.WorkflowState.Input,
-		outputKey: ctx.WorkflowState.Output,
-	}
-	if ctx.WorkflowConfig != nil {
-		wfMap, err := core.AsMapDefault(ctx.WorkflowConfig)
-		if err == nil {
-			for k, v := range wfMap {
-				if k != inputKey && k != outputKey { // Don't override runtime state
-					workflowContext[k] = v
-				}
-			}
-		}
-	}
-	return workflowContext
-}
-
-func (n *Normalizer) buildTasksContext(ctx *NormalizationContext) map[string]any {
-	tasksMap := make(map[string]any)
-	if ctx.WorkflowState.Tasks == nil {
-		return tasksMap
-	}
-	for taskID, taskState := range ctx.WorkflowState.Tasks {
-		taskContext := map[string]any{
-			"id":      taskID,
-			inputKey:  taskState.Input,
-			outputKey: taskState.Output,
-		}
-		if ctx.TaskConfigs != nil {
-			if taskConfig, exists := ctx.TaskConfigs[taskID]; exists {
-				n.mergeTaskConfig(taskContext, taskConfig)
-			}
-		}
-		tasksMap[taskID] = taskContext
-	}
-	return tasksMap
-}
-
-func (n *Normalizer) mergeTaskConfig(taskContext map[string]any, taskConfig *task.Config) {
-	taskConfigMap, err := taskConfig.AsMap()
-	if err != nil {
-		return
-	}
-	for k, v := range taskConfigMap {
-		if k != inputKey && k != outputKey { // Don't override runtime state
-			taskContext[k] = v
-		}
-	}
-}
-
-func (n *Normalizer) buildParentContext(ctx *NormalizationContext) map[string]any {
-	if ctx.ParentConfig != nil {
-		return ctx.ParentConfig
-	}
-	if ctx.ParentTaskConfig != nil {
-		parentMap, err := ctx.ParentTaskConfig.AsMap()
-		if err != nil {
-			return nil
-		}
-		if ctx.WorkflowState.Tasks != nil {
-			if parentTaskState, exists := ctx.WorkflowState.Tasks[ctx.ParentTaskConfig.ID]; exists {
-				parentMap[inputKey] = parentTaskState.Input
-				parentMap[outputKey] = parentTaskState.Output
-			}
-		}
-		return parentMap
-	}
-	return nil
 }
 
 // -----------------------------------------------------------------------------
@@ -136,7 +33,37 @@ func (n *Normalizer) NormalizeTaskConfig(config *task.Config, ctx *Normalization
 	if ctx.CurrentInput == nil && config.With != nil {
 		ctx.CurrentInput = config.With
 	}
-	context := n.buildContext(ctx)
+	if config.Type == task.TaskTypeParallel {
+		return n.normalizeParallelTaskConfig(config, ctx)
+	}
+	return n.normalizeRegularTaskConfig(config, ctx)
+}
+
+func (n *Normalizer) normalizeParallelTaskConfig(config *task.Config, ctx *NormalizationContext) error {
+	context := n.BuildContext(ctx)
+	configMap, err := config.AsMap()
+	if err != nil {
+		return fmt.Errorf("failed to convert task config to map: %w", err)
+	}
+	// First normalize the parallel task itself (excluding the tasks field)
+	parsed, err := n.engine.ParseMapWithFilter(configMap, context, func(k string) bool {
+		return k == "agent" || k == "tool" || k == "tasks" || k == inputKey || k == outputKey
+	})
+	if err != nil {
+		return fmt.Errorf("failed to normalize parallel task config: %w", err)
+	}
+	if err := config.FromMap(parsed); err != nil {
+		return fmt.Errorf("failed to update parallel task config from normalized map: %w", err)
+	}
+	// Now normalize each sub-task with the parallel task as parent
+	if err := n.NormalizeParallelSubTasks(config, ctx); err != nil {
+		return fmt.Errorf("failed to normalize parallel sub-tasks: %w", err)
+	}
+	return nil
+}
+
+func (n *Normalizer) normalizeRegularTaskConfig(config *task.Config, ctx *NormalizationContext) error {
+	context := n.BuildContext(ctx)
 	configMap, err := config.AsMap()
 	if err != nil {
 		return fmt.Errorf("failed to convert task config to map: %w", err)
@@ -153,6 +80,61 @@ func (n *Normalizer) NormalizeTaskConfig(config *task.Config, ctx *Normalization
 	return nil
 }
 
+// NormalizeParallelSubTasks normalizes sub-tasks within a parallel task with proper parent context
+func (n *Normalizer) NormalizeParallelSubTasks(parallelConfig *task.Config, ctx *NormalizationContext) error {
+	if parallelConfig.Type != task.TaskTypeParallel {
+		return nil
+	}
+	// Build parent context from the parallel task configuration
+	parentConfigMap, err := parallelConfig.AsMap()
+	if err != nil {
+		return fmt.Errorf("failed to convert parallel task config to map: %w", err)
+	}
+	// Add runtime state for the parallel task if available
+	if ctx.WorkflowState.Tasks != nil {
+		if taskState, exists := ctx.WorkflowState.Tasks[parallelConfig.ID]; exists {
+			parentConfigMap[inputKey] = taskState.Input
+			parentConfigMap[outputKey] = taskState.Output
+		}
+	}
+	// If no runtime state exists, use the parallel task's config input as fallback
+	if parentConfigMap[inputKey] == nil && parallelConfig.With != nil {
+		parentConfigMap[inputKey] = parallelConfig.With
+	}
+	// Normalize each sub-task with the parallel task as parent
+	for i := range parallelConfig.Tasks {
+		subTask := &parallelConfig.Tasks[i]
+		// Create context for sub-task with parallel task as parent
+		subTaskCtx := &NormalizationContext{
+			WorkflowState:  ctx.WorkflowState,
+			WorkflowConfig: ctx.WorkflowConfig,
+			TaskConfigs:    ctx.TaskConfigs,
+			ParentConfig:   parentConfigMap,
+			CurrentInput:   subTask.With,
+			MergedEnv:      ctx.MergedEnv,
+		}
+		// Recursively normalize the sub-task (this handles nested parallel tasks too)
+		if err := n.NormalizeTaskConfig(subTask, subTaskCtx); err != nil {
+			return fmt.Errorf("failed to normalize sub-task %s: %w", subTask.ID, err)
+		}
+	}
+	// Also normalize the task reference if present
+	if parallelConfig.Task != nil {
+		subTaskCtx := &NormalizationContext{
+			WorkflowState:  ctx.WorkflowState,
+			WorkflowConfig: ctx.WorkflowConfig,
+			TaskConfigs:    ctx.TaskConfigs,
+			ParentConfig:   parentConfigMap,
+			CurrentInput:   parallelConfig.Task.With,
+			MergedEnv:      ctx.MergedEnv,
+		}
+		if err := n.NormalizeTaskConfig(parallelConfig.Task, subTaskCtx); err != nil {
+			return fmt.Errorf("failed to normalize task reference: %w", err)
+		}
+	}
+	return nil
+}
+
 func (n *Normalizer) NormalizeAgentConfig(
 	config *agent.Config,
 	ctx *NormalizationContext,
@@ -164,7 +146,7 @@ func (n *Normalizer) NormalizeAgentConfig(
 	if ctx.CurrentInput == nil && config.With != nil {
 		ctx.CurrentInput = config.With
 	}
-	context := n.buildContext(ctx)
+	context := n.BuildContext(ctx)
 	configMap, err := config.AsMap()
 	if err != nil {
 		return fmt.Errorf("failed to convert task config to map: %w", err)
@@ -228,7 +210,7 @@ func (n *Normalizer) NormalizeAgentActionConfig(config *agent.ActionConfig, ctx 
 	if ctx.CurrentInput == nil && config.With != nil {
 		ctx.CurrentInput = config.With
 	}
-	context := n.buildContext(ctx)
+	context := n.BuildContext(ctx)
 	configMap, err := config.AsMap()
 	if err != nil {
 		return fmt.Errorf("failed to convert task config to map: %w", err)
@@ -252,7 +234,7 @@ func (n *Normalizer) NormalizeToolConfig(config *tool.Config, ctx *Normalization
 	if ctx.CurrentInput == nil && config.With != nil {
 		ctx.CurrentInput = config.With
 	}
-	context := n.buildContext(ctx)
+	context := n.BuildContext(ctx)
 	configMap, err := config.AsMap()
 	if err != nil {
 		return fmt.Errorf("failed to convert task config to map: %w", err)
@@ -277,7 +259,7 @@ func (n *Normalizer) NormalizeTransition(transition *core.SuccessTransition, ctx
 	if ctx.CurrentInput == nil && transition.With != nil {
 		ctx.CurrentInput = transition.With
 	}
-	context := n.buildContext(ctx)
+	context := n.BuildContext(ctx)
 	configMap, err := transition.AsMap()
 	if err != nil {
 		return fmt.Errorf("failed to convert transition to map: %w", err)
@@ -299,7 +281,7 @@ func (n *Normalizer) NormalizeErrorTransition(transition *core.ErrorTransition, 
 	if ctx.CurrentInput == nil && transition.With != nil {
 		ctx.CurrentInput = transition.With
 	}
-	context := n.buildContext(ctx)
+	context := n.BuildContext(ctx)
 	configMap, err := transition.AsMap()
 	if err != nil {
 		return fmt.Errorf("failed to convert transition to map: %w", err)

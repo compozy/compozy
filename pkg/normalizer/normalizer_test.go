@@ -30,7 +30,7 @@ func TestNormalizer_BuildContext(t *testing.T) {
 			},
 		}
 
-		result := n.buildContext(ctx)
+		result := n.BuildContext(ctx)
 
 		assert.Equal(t, "test-workflow", result["workflow"].(map[string]any)["id"])
 		input := result["workflow"].(map[string]any)["input"].(*core.Input)
@@ -53,7 +53,7 @@ func TestNormalizer_BuildContext(t *testing.T) {
 			},
 		}
 
-		result := n.buildContext(ctx)
+		result := n.BuildContext(ctx)
 		wf := result["workflow"].(map[string]any)
 
 		assert.Equal(t, "test-workflow", wf["id"])
@@ -90,15 +90,15 @@ func TestNormalizer_BuildContext(t *testing.T) {
 			},
 		}
 
-		result := n.buildContext(ctx)
+		result := n.BuildContext(ctx)
 		tasks := result["tasks"].(map[string]any)
 		task1 := tasks["task1"].(map[string]any)
 
 		assert.Equal(t, "task1", task1["id"])
 		input := task1["input"].(*core.Input)
 		assert.Equal(t, "test-data", (*input)["data"])
-		output := task1["output"].(*core.Output)
-		assert.Equal(t, "processed", (*output)["result"])
+		output := task1["output"].(core.Output)
+		assert.Equal(t, "processed", output["result"])
 		assert.Equal(t, string(task.TaskTypeBasic), task1["type"])
 		assert.Equal(t, "process", task1["action"])
 	})
@@ -116,7 +116,7 @@ func TestNormalizer_BuildContext(t *testing.T) {
 			},
 		}
 
-		result := n.buildContext(ctx)
+		result := n.BuildContext(ctx)
 
 		assert.Equal(t, "parent-task", result["parent"].(map[string]any)["id"])
 		assert.Equal(t, "basic", result["parent"].(map[string]any)["type"])
@@ -150,7 +150,7 @@ func TestNormalizer_BuildContext(t *testing.T) {
 			},
 		}
 
-		result := n.buildContext(ctx)
+		result := n.BuildContext(ctx)
 		parent := result["parent"].(map[string]any)
 
 		assert.Equal(t, "parent-task", parent["id"])
@@ -176,7 +176,7 @@ func TestNormalizer_BuildContext(t *testing.T) {
 			},
 		}
 
-		result := n.buildContext(ctx)
+		result := n.BuildContext(ctx)
 
 		input := result["input"].(*core.Input)
 		assert.Equal(t, "value", (*input)["param"])

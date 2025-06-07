@@ -120,6 +120,27 @@ input:
 condition: "{{ eq .tasks.analyzer.input.mode \"advanced\" }}"
 ```
 
+### Parallel Task Output Access
+
+For parallel tasks, sub-task outputs are accessible using a nested structure:
+
+```yaml
+# Access sub-task outputs from parallel tasks
+input:
+    # Format: .tasks.<parallel_task_id>.output.<sub_task_id>.output.<field>
+    sentiment_result: "{{ .tasks.process_data_parallel.output.sentiment_analysis.output.sentiment }}"
+    keywords_list: "{{ .tasks.process_data_parallel.output.extract_keywords.output.keywords }}"
+    confidence_score: "{{ .tasks.process_data_parallel.output.sentiment_analysis.output.confidence }}"
+
+# You can also access entire sub-task outputs
+full_sentiment_output: "{{ .tasks.process_data_parallel.output.sentiment_analysis.output }}"
+```
+
+This structure allows you to:
+- Access individual fields from specific sub-tasks
+- Get complete output objects from sub-tasks
+- Reference multiple sub-task results in a single configuration
+
 ### Current Input Context
 
 Access the current component's input parameters:
@@ -226,6 +247,29 @@ with:
     previous_action: "{{ .tasks.data_collector.action }}"
     analyzer_type: "{{ .tasks.config_loader.type }}"
     threshold: "{{ .tasks.config_loader.output.settings.threshold }}"
+```
+
+### Parallel Task Results Aggregation
+
+```yaml
+# aggregator_task.yaml
+id: aggregate_analysis_results
+type: basic
+action: aggregate
+with:
+    # Access individual sub-task outputs from parallel execution
+    sentiment: "{{ .tasks.parallel_processor.output.sentiment_analysis.output.sentiment }}"
+    keywords: "{{ .tasks.parallel_processor.output.keyword_extraction.output.keywords }}"
+    confidence: "{{ .tasks.parallel_processor.output.sentiment_analysis.output.confidence }}"
+    
+    # Access entire sub-task output objects
+    full_sentiment_data: "{{ .tasks.parallel_processor.output.sentiment_analysis.output }}"
+    
+    # Combine results from multiple sub-tasks
+    summary:
+        sentiment: "{{ .tasks.parallel_processor.output.sentiment_analysis.output.sentiment }}"
+        keyword_count: "{{ len .tasks.parallel_processor.output.keyword_extraction.output.keywords }}"
+        processing_time: "{{ .tasks.parallel_processor.output.performance_monitor.output.duration }}"
 ```
 
 ### Task Calling Another Task

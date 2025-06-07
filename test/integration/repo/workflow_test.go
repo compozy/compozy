@@ -129,9 +129,9 @@ func TestWorkflowRepo_GetState_WithTasks(t *testing.T) {
 	)
 
 	// Create task rows with data - use string directly instead of pointer
-	taskRows := taskRowBuilder.CreateTaskStateRows(
+	taskRows := taskRowBuilder.CreateTaskStateRowsWithExecution(
 		"task_exec1", "task1", "exec1", "wf1",
-		core.StatusPending, "agent1", nil, taskInputData,
+		core.StatusPending, task.ExecutionBasic, "agent1", nil, taskInputData,
 	)
 	queries.ExpectTaskStateQuery(workflowExecID, taskRows)
 

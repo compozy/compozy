@@ -45,8 +45,8 @@ func (v *CycleValidator) detectCycle(config *Config, visited map[string]bool, vi
 
 	// Check parallel task dependencies
 	if config.Type == TaskTypeParallel {
-		for _, subTask := range config.Tasks {
-			if err := v.detectCycle(&subTask, visited, visiting); err != nil {
+		for i := range config.Tasks {
+			if err := v.detectCycle(&config.Tasks[i], visited, visiting); err != nil {
 				return err
 			}
 		}
@@ -133,7 +133,8 @@ func (v *TypeValidator) validateParallelTask() error {
 
 	// Check for duplicate IDs first before validating individual items
 	seen := make(map[string]bool)
-	for _, task := range v.config.Tasks {
+	for i := range v.config.Tasks {
+		task := &v.config.Tasks[i]
 		if seen[task.ID] {
 			return fmt.Errorf("duplicate task ID in parallel execution: %s", task.ID)
 		}
@@ -141,8 +142,9 @@ func (v *TypeValidator) validateParallelTask() error {
 	}
 
 	// Then validate each individual task
-	for _, task := range v.config.Tasks {
-		if err := v.validateParallelTaskItem(&task); err != nil {
+	for i := range v.config.Tasks {
+		task := &v.config.Tasks[i]
+		if err := v.validateParallelTaskItem(task); err != nil {
 			return fmt.Errorf("invalid parallel task item %s: %w", task.ID, err)
 		}
 	}
