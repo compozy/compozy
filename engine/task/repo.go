@@ -3,7 +3,6 @@ package task
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/compozy/compozy/engine/core"
 )
@@ -66,65 +65,6 @@ type StateInput struct {
 	TaskExecID     core.ID `json:"task_exec_id"`
 }
 
-// CreateBasicPartialState creates a partial state for basic execution
-func CreateBasicPartialState(component core.ComponentType, input *core.Input, env core.EnvMap) *PartialState {
-	return &PartialState{
-		Component:     component,
-		ExecutionType: ExecutionBasic,
-		Input:         input,
-		MergedEnv:     env,
-	}
-}
-
-// CreateAgentPartialState creates a partial state for agent execution
-func CreateAgentPartialState(agentID, actionID string, input *core.Input, env core.EnvMap) *PartialState {
-	return &PartialState{
-		Component:     core.ComponentAgent,
-		ExecutionType: ExecutionBasic,
-		AgentID:       &agentID,
-		ActionID:      &actionID,
-		Input:         input,
-		MergedEnv:     env,
-	}
-}
-
-// CreateToolPartialState creates a partial state for tool execution
-func CreateToolPartialState(toolID string, input *core.Input, env core.EnvMap) *PartialState {
-	return &PartialState{
-		Component:     core.ComponentTool,
-		ExecutionType: ExecutionBasic,
-		ToolID:        &toolID,
-		Input:         input,
-		MergedEnv:     env,
-	}
-}
-
-// CreateParallelPartialState creates a partial state for parallel execution
-func CreateParallelPartialState(
-	strategy ParallelStrategy,
-	maxWorkers int,
-	timeout string,
-	subTasks map[string]*SubTaskState,
-	env core.EnvMap,
-) *PartialState {
-	parallelState := &ParallelExecutionState{
-		Strategy:         strategy,
-		MaxWorkers:       maxWorkers,
-		Timeout:          timeout,
-		SubTasks:         subTasks,
-		CompletedTasks:   make([]string, 0),
-		FailedTasks:      make([]string, 0),
-		AggregatedOutput: make(map[string]*core.Output),
-	}
-
-	return &PartialState{
-		Component:     core.ComponentTask,
-		ExecutionType: ExecutionParallel,
-		ParallelState: parallelState,
-		MergedEnv:     env,
-	}
-}
-
 // Enhanced CreateAndPersistState function (already defined in the domain, but including here for completeness)
 func CreateAndPersistState(
 	ctx context.Context,
@@ -150,84 +90,29 @@ func CreateAndPersistState(
 }
 
 // -----------------------------------------------------------------------------
-// Helper functions for working with parallel states
-// -----------------------------------------------------------------------------
-
-// CreateSubTaskState creates a new sub-task state
-func CreateSubTaskState(
-	taskID string,
-	taskExecID core.ID,
-	component core.ComponentType,
-	input *core.Input,
-) *SubTaskState {
-	now := time.Now()
-	return &SubTaskState{
-		TaskID:     taskID,
-		TaskExecID: taskExecID,
-		Component:  component,
-		Status:     core.StatusPending,
-		Input:      input,
-		StartedAt:  &now,
-	}
-}
-
-// CreateAgentSubTaskState creates a sub-task state for agent execution
-func CreateAgentSubTaskState(
-	taskID string,
-	taskExecID core.ID,
-	agentID, actionID string,
-	input *core.Input,
-) *SubTaskState {
-	subTask := CreateSubTaskState(taskID, taskExecID, core.ComponentAgent, input)
-	subTask.AgentID = &agentID
-	subTask.ActionID = &actionID
-	return subTask
-}
-
-// CreateToolSubTaskState creates a sub-task state for tool execution
-func CreateToolSubTaskState(
-	taskID string,
-	taskExecID core.ID,
-	toolID string,
-	input *core.Input,
-) *SubTaskState {
-	subTask := CreateSubTaskState(taskID, taskExecID, core.ComponentTool, input)
-	subTask.ToolID = &toolID
-	return subTask
-}
-
-// -----------------------------------------------------------------------------
 // Utility functions for state filtering
 // -----------------------------------------------------------------------------
 
 // NewBasicTaskFilter creates a filter for basic execution tasks
 func NewBasicTaskFilter() *StateFilter {
 	execType := ExecutionBasic
-	return &StateFilter{
-		ExecutionType: &execType,
-	}
+	return &StateFilter{ExecutionType: &execType}
 }
 
 // NewParallelTaskFilter creates a filter for parallel execution tasks
 func NewParallelTaskFilter() *StateFilter {
 	execType := ExecutionParallel
-	return &StateFilter{
-		ExecutionType: &execType,
-	}
+	return &StateFilter{ExecutionType: &execType}
 }
 
 // NewWorkflowTaskFilter creates a filter for tasks in a specific workflow execution
 func NewWorkflowTaskFilter(workflowExecID core.ID) *StateFilter {
-	return &StateFilter{
-		WorkflowExecID: &workflowExecID,
-	}
+	return &StateFilter{WorkflowExecID: &workflowExecID}
 }
 
 // NewStatusTaskFilter creates a filter for tasks with a specific status
 func NewStatusTaskFilter(status core.StatusType) *StateFilter {
-	return &StateFilter{
-		Status: &status,
-	}
+	return &StateFilter{Status: &status}
 }
 
 // CombineFilters combines multiple filters into one (AND operation)
@@ -235,13 +120,11 @@ func CombineFilters(filters ...*StateFilter) *StateFilter {
 	if len(filters) == 0 {
 		return &StateFilter{}
 	}
-
 	combined := &StateFilter{}
 	for _, filter := range filters {
 		if filter == nil {
 			continue
 		}
-
 		if filter.Status != nil {
 			combined.Status = filter.Status
 		}
@@ -270,6 +153,5 @@ func CombineFilters(filters ...*StateFilter) *StateFilter {
 			combined.ExecutionType = filter.ExecutionType
 		}
 	}
-
 	return combined
 }

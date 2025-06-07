@@ -36,7 +36,7 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) (*wf.State, erro
 	}
 
 	// Iterate over tasks until get the final one
-	currentTask := output.State
+	currentTask := output.TaskState
 	taskFn := manager.ExecuteTaskLoop(ctx, currentTask, output)
 	for currentTask != nil {
 		nextTask, err := actHandler(ctx, errHandler, taskFn)()

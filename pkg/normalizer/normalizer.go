@@ -174,7 +174,10 @@ func (n *Normalizer) NormalizeAgentConfig(
 func (n *Normalizer) NormalizeAgentActions(config *agent.Config, ctx *NormalizationContext, actionID string) error {
 	// Normalize agent actions (only if actionID is provided and actions exist)
 	if actionID != "" && len(config.Actions) > 0 {
-		aConfig := agent.FindActionConfig(config.Actions, actionID)
+		aConfig, err := agent.FindActionConfig(config.Actions, actionID)
+		if err != nil {
+			return fmt.Errorf("failed to find action config: %w", err)
+		}
 		if aConfig == nil {
 			return fmt.Errorf("agent action %s not found in agent config %s", actionID, config.ID)
 		}

@@ -83,9 +83,9 @@ func (e *TaskExecutor) ExecuteTaskLoop(
 		ctx = e.BuildTaskContext(ctx, taskID)
 
 		// Check if task has sleep configuration
-		sleepDuration, err := output.Config.GetSleepDuration()
+		sleepDuration, err := output.TaskConfig.GetSleepDuration()
 		if err != nil {
-			logger.Error("Invalid sleep duration format", "task_id", taskID, "sleep", output.Config.Sleep, "error", err)
+			logger.Error("Invalid sleep duration format", "task_id", taskID, "sleep", output.TaskConfig.Sleep, "error", err)
 			return nil, err
 		}
 		if sleepDuration != 0 {
@@ -130,7 +130,7 @@ func (e *TaskExecutor) ExecuteTaskLoop(
 			logger.Error("Failed to dispatch next task", "next_task", nextTaskID, "error", err)
 			return nil, err
 		}
-		currentTask = nextTaskOutput.State
+		currentTask = nextTaskOutput.TaskState
 		output = nextTaskOutput
 		return currentTask, nil
 	}

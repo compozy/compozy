@@ -114,66 +114,93 @@ func (sdb *StateDB) ToState() (*State, error) {
 		Component:      sdb.Component,
 		ExecutionType:  sdb.ExecutionType,
 	}
-
-	// Handle basic execution fields
 	if sdb.ExecutionType == ExecutionBasic {
-		// Handle nullable AgentID
-		if sdb.AgentIDRaw.Valid {
-			agentID := sdb.AgentIDRaw.String
-			state.AgentID = &agentID
-			state.Component = core.ComponentAgent
-
-			// Handle nullable ActionID
-			if sdb.ActionIDRaw.Valid {
-				state.ActionID = &sdb.ActionIDRaw.String
-			} else {
-				return nil, fmt.Errorf("action_id is required for agent")
-			}
-		}
-
-		// Handle nullable ToolID
-		if sdb.ToolIDRaw.Valid {
-			state.ToolID = &sdb.ToolIDRaw.String
-			state.Component = core.ComponentTool
-		}
-
-		// Unmarshal basic execution input/output/error
-		if sdb.InputRaw != nil {
-			var input core.Input
-			if err := json.Unmarshal(sdb.InputRaw, &input); err != nil {
-				return nil, fmt.Errorf("unmarshaling input: %w", err)
-			}
-			state.Input = &input
-		}
-
-		if sdb.OutputRaw != nil {
-			var output core.Output
-			if err := json.Unmarshal(sdb.OutputRaw, &output); err != nil {
-				return nil, fmt.Errorf("unmarshaling output: %w", err)
-			}
-			state.Output = &output
-		}
-
-		if sdb.ErrorRaw != nil {
-			var errorObj core.Error
-			if err := json.Unmarshal(sdb.ErrorRaw, &errorObj); err != nil {
-				return nil, fmt.Errorf("unmarshaling error: %w", err)
-			}
-			state.Error = &errorObj
+		err := convertBasic(sdb, state)
+		if err != nil {
+			return nil, err
 		}
 	}
+	if sdb.ExecutionType == ExecutionParallel {
+		err := convertParallel(sdb, state)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return state, nil
+}
 
-	// Handle parallel execution fields
-	if sdb.ExecutionType == ExecutionParallel && sdb.ParallelStateRaw != nil {
+func convertParallel(sdb *StateDB, state *State) error {
+	if sdb.ParallelStateRaw != nil {
 		var parallelState ParallelExecutionState
 		if err := json.Unmarshal(sdb.ParallelStateRaw, &parallelState); err != nil {
-			return nil, fmt.Errorf("unmarshaling parallel state: %w", err)
+			return fmt.Errorf("unmarshaling parallel state: %w", err)
 		}
 		state.ParallelState = &parallelState
 	}
-
-	return state, nil
+	if sdb.InputRaw != nil {
+		var input core.Input
+		if err := json.Unmarshal(sdb.InputRaw, &input); err != nil {
+			return fmt.Errorf("unmarshaling parallel task input: %w", err)
+		}
+		state.Input = &input
+	}
+	if sdb.OutputRaw != nil {
+		var output core.Output
+		if err := json.Unmarshal(sdb.OutputRaw, &output); err != nil {
+			return fmt.Errorf("unmarshaling parallel task output: %w", err)
+		}
+		state.Output = &output
+	}
+	if sdb.ErrorRaw != nil {
+		var errorObj core.Error
+		if err := json.Unmarshal(sdb.ErrorRaw, &errorObj); err != nil {
+			return fmt.Errorf("unmarshaling parallel task error: %w", err)
+		}
+		state.Error = &errorObj
+	}
+	return nil
 }
+
+func convertBasic(sdb *StateDB, state *State) error {
+	if sdb.AgentIDRaw.Valid {
+		agentID := sdb.AgentIDRaw.String
+		state.AgentID = &agentID
+		state.Component = core.ComponentAgent
+		if sdb.ActionIDRaw.Valid {
+			state.ActionID = &sdb.ActionIDRaw.String
+		} else {
+			return fmt.Errorf("action_id is required for agent")
+		}
+	}
+	if sdb.ToolIDRaw.Valid {
+		state.ToolID = &sdb.ToolIDRaw.String
+		state.Component = core.ComponentTool
+	}
+	if sdb.InputRaw != nil {
+		var input core.Input
+		if err := json.Unmarshal(sdb.InputRaw, &input); err != nil {
+			return fmt.Errorf("unmarshaling input: %w", err)
+		}
+		state.Input = &input
+	}
+	if sdb.OutputRaw != nil {
+		var output core.Output
+		if err := json.Unmarshal(sdb.OutputRaw, &output); err != nil {
+			return fmt.Errorf("unmarshaling output: %w", err)
+		}
+		state.Output = &output
+	}
+	if sdb.ErrorRaw != nil {
+		var errorObj core.Error
+		if err := json.Unmarshal(sdb.ErrorRaw, &errorObj); err != nil {
+			return fmt.Errorf("unmarshaling error: %w", err)
+		}
+		state.Error = &errorObj
+	}
+	return nil
+}
+
+func convertBasicTask() {}
 
 // -----------------------------------------------------------------------------
 // State methods for parallel execution
@@ -355,6 +382,122 @@ type PartialState struct {
 	ParallelState *ParallelExecutionState `json:"parallel_state,omitempty"`
 }
 
+// CreateBasicPartialState creates a partial state for basic execution
+func CreateBasicPartialState(
+	component core.ComponentType,
+	input *core.Input,
+	env core.EnvMap,
+	executionType ExecutionType,
+) *PartialState {
+	return &PartialState{
+		Component:     component,
+		ExecutionType: executionType,
+		Input:         input,
+		MergedEnv:     env,
+	}
+}
+
+// CreateAgentPartialState creates a partial state for agent execution
+func CreateAgentPartialState(
+	agentID, actionID string,
+	input *core.Input,
+	env core.EnvMap,
+	executionType ExecutionType,
+) *PartialState {
+	return &PartialState{
+		Component:     core.ComponentAgent,
+		ExecutionType: executionType,
+		AgentID:       &agentID,
+		ActionID:      &actionID,
+		Input:         input,
+		MergedEnv:     env,
+	}
+}
+
+// CreateToolPartialState creates a partial state for tool execution
+func CreateToolPartialState(
+	toolID string,
+	input *core.Input,
+	env core.EnvMap,
+	executionType ExecutionType,
+) *PartialState {
+	return &PartialState{
+		Component:     core.ComponentTool,
+		ExecutionType: executionType,
+		ToolID:        &toolID,
+		Input:         input,
+		MergedEnv:     env,
+	}
+}
+
+// CreateParallelPartialState creates a partial state for parallel execution
+func CreateParallelPartialState(
+	strategy ParallelStrategy,
+	maxWorkers int,
+	timeout string,
+	subTasks map[string]*SubTaskState,
+	env core.EnvMap,
+) *PartialState {
+	parallelState := &ParallelExecutionState{
+		Strategy:         strategy,
+		MaxWorkers:       maxWorkers,
+		Timeout:          timeout,
+		SubTasks:         subTasks,
+		CompletedTasks:   make([]string, 0),
+		FailedTasks:      make([]string, 0),
+		AggregatedOutput: make(map[string]*core.Output),
+	}
+	return &PartialState{
+		Component:     core.ComponentTask,
+		ExecutionType: ExecutionParallel,
+		ParallelState: parallelState,
+		MergedEnv:     env,
+	}
+}
+
+// CreateSubTaskState creates a new sub-task state
+func CreateSubTaskState(
+	taskID string,
+	taskExecID core.ID,
+	component core.ComponentType,
+	input *core.Input,
+) *SubTaskState {
+	now := time.Now()
+	return &SubTaskState{
+		TaskID:     taskID,
+		TaskExecID: taskExecID,
+		Component:  component,
+		Status:     core.StatusPending,
+		Input:      input,
+		StartedAt:  &now,
+	}
+}
+
+// CreateAgentSubTaskState creates a sub-task state for agent execution
+func CreateAgentSubTaskState(
+	taskID string,
+	taskExecID core.ID,
+	agentID, actionID string,
+	input *core.Input,
+) *SubTaskState {
+	subTask := CreateSubTaskState(taskID, taskExecID, core.ComponentAgent, input)
+	subTask.AgentID = &agentID
+	subTask.ActionID = &actionID
+	return subTask
+}
+
+// CreateToolSubTaskState creates a sub-task state for tool execution
+func CreateToolSubTaskState(
+	taskID string,
+	taskExecID core.ID,
+	toolID string,
+	input *core.Input,
+) *SubTaskState {
+	subTask := CreateSubTaskState(taskID, taskExecID, core.ComponentTool, input)
+	subTask.ToolID = &toolID
+	return subTask
+}
+
 // -----------------------------------------------------------------------------
 // Factory functions for creating states
 // -----------------------------------------------------------------------------
@@ -390,6 +533,69 @@ func CreateParallelState(input *StateInput, result *PartialState) *State {
 		ExecutionType:  ExecutionParallel,
 		ParallelState:  result.ParallelState,
 	}
+}
+
+// DispatchOutput represents a dispatched task state and configuration
+type DispatchOutput struct {
+	State  *State
+	Config *Config
+}
+
+// CreateDispatchOutput creates a DispatchOutput for reusing existing sub-task state
+func CreateDispatchOutput(parentState *State, subTaskConfig *Config) *DispatchOutput {
+	if parentState.ParallelState == nil {
+		return nil
+	}
+	subTaskState, exists := parentState.ParallelState.SubTasks[subTaskConfig.ID]
+	if !exists {
+		return nil
+	}
+	taskState := &State{
+		TaskID:         subTaskState.TaskID,
+		TaskExecID:     subTaskState.TaskExecID,
+		WorkflowID:     parentState.WorkflowID,
+		WorkflowExecID: parentState.WorkflowExecID,
+		Status:         subTaskState.Status,
+		Component:      subTaskState.Component,
+		ExecutionType:  ExecutionBasic,
+		AgentID:        subTaskState.AgentID,
+		ActionID:       subTaskState.ActionID,
+		ToolID:         subTaskState.ToolID,
+		Input:          subTaskState.Input,
+		Output:         subTaskState.Output,
+		Error:          subTaskState.Error,
+	}
+	return &DispatchOutput{
+		State:  taskState,
+		Config: subTaskConfig,
+	}
+}
+
+// CreateNewSubTaskDispatchOutput creates a DispatchOutput for a new sub-task
+func CreateNewSubTaskDispatchOutput(parentState *State, subTaskConfig *Config) *DispatchOutput {
+	subTaskExecID := core.MustNewID()
+	dispatchOutput := &DispatchOutput{
+		State: &State{
+			TaskID:         subTaskConfig.ID,
+			TaskExecID:     subTaskExecID,
+			WorkflowID:     parentState.WorkflowID,
+			WorkflowExecID: parentState.WorkflowExecID,
+			Status:         core.StatusPending,
+			Component:      core.ComponentTask,
+			ExecutionType:  ExecutionBasic,
+			Input:          subTaskConfig.With,
+		},
+		Config: subTaskConfig,
+	}
+	if subTaskConfig.Agent != nil {
+		dispatchOutput.State.Component = core.ComponentAgent
+		dispatchOutput.State.AgentID = &subTaskConfig.Agent.ID
+		dispatchOutput.State.ActionID = &subTaskConfig.Action
+	} else if subTaskConfig.Tool != nil {
+		dispatchOutput.State.Component = core.ComponentTool
+		dispatchOutput.State.ToolID = &subTaskConfig.Tool.ID
+	}
+	return dispatchOutput
 }
 
 // -----------------------------------------------------------------------------
