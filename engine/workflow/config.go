@@ -182,9 +182,11 @@ func WorkflowsFromProject(projectConfig *project.Config, ev *ref.Evaluator) ([]*
 	var ws []*Config
 	for _, wf := range projectConfig.Workflows {
 		config, err := LoadAndEval(cwd, wf.Source, ev)
-		config.Opts.Env = &projectEnv
 		if err != nil {
 			return nil, err
+		}
+		if config != nil {
+			config.Opts.Env = &projectEnv
 		}
 		ws = append(ws, config)
 	}

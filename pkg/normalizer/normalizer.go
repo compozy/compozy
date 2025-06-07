@@ -47,7 +47,7 @@ func (n *Normalizer) normalizeParallelTaskConfig(config *task.Config, ctx *Norma
 	}
 	// First normalize the parallel task itself (excluding the tasks field)
 	parsed, err := n.engine.ParseMapWithFilter(configMap, context, func(k string) bool {
-		return k == "agent" || k == "tool" || k == "tasks" || k == inputKey || k == outputKey
+		return k == "agent" || k == "tool" || k == "tasks" || k == "outputs" || k == inputKey || k == outputKey
 	})
 	if err != nil {
 		return fmt.Errorf("failed to normalize parallel task config: %w", err)
@@ -69,7 +69,7 @@ func (n *Normalizer) normalizeRegularTaskConfig(config *task.Config, ctx *Normal
 		return fmt.Errorf("failed to convert task config to map: %w", err)
 	}
 	parsed, err := n.engine.ParseMapWithFilter(configMap, context, func(k string) bool {
-		return k == "agent" || k == "tool" || k == inputKey || k == outputKey
+		return k == "agent" || k == "tool" || k == "outputs" || k == inputKey || k == outputKey
 	})
 	if err != nil {
 		return fmt.Errorf("failed to normalize task config: %w", err)

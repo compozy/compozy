@@ -261,6 +261,102 @@ func TestNormalizer_NormalizeTaskConfig(t *testing.T) {
 
 		assert.Equal(t, "true", taskConfig.Condition)
 	})
+
+	t.Run("Should not process outputs field during config normalization", func(t *testing.T) {
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "task-with-outputs",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					"city": "{{ .workflow.input.city }}",
+				},
+				// This should NOT be processed during config normalization since there's no output yet
+				Outputs: &core.Input{
+					"temperature": "{{ .output.temperature }}",
+					"humidity":    "{{ .output.humidity }}",
+				},
+			},
+			BasicTask: task.BasicTask{
+				Action: "get_weather",
+			},
+		}
+
+		ctx := &NormalizationContext{
+			WorkflowState: &workflow.State{
+				WorkflowID:     "weather-workflow",
+				WorkflowExecID: "exec-123",
+				Input: &core.Input{
+					"city": "Seattle",
+				},
+				// No task output yet - this is during config normalization
+			},
+		}
+
+		// This should succeed because outputs field is excluded from config normalization
+		err := n.NormalizeTaskConfig(taskConfig, ctx)
+		require.NoError(t, err)
+
+		// The outputs field should remain as template strings (not processed)
+		assert.Equal(t, "{{ .output.temperature }}", (*taskConfig.Outputs)["temperature"])
+		assert.Equal(t, "{{ .output.humidity }}", (*taskConfig.Outputs)["humidity"])
+
+		// The regular config fields should be processed normally
+		assert.Equal(t, "Seattle", (*taskConfig.With)["city"])
+	})
+
+	t.Run("Should not process outputs field in parallel tasks during config normalization", func(t *testing.T) {
+		parallelTaskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "parallel-with-outputs",
+				Type: task.TaskTypeParallel,
+				With: &core.Input{
+					"city": "{{ .workflow.input.city }}",
+				},
+				// This should NOT be processed during config normalization
+				Outputs: &core.Input{
+					"combined_result": "{{ .output.sentiment_analysis.output.sentiment }} + {{ .output.keyword_extraction.output.keywords }}",
+				},
+			},
+			ParallelTask: task.ParallelTask{
+				Strategy: task.StrategyWaitAll,
+				Tasks: []task.Config{
+					{
+						BaseConfig: task.BaseConfig{
+							ID:   "sentiment_analysis",
+							Type: task.TaskTypeBasic,
+						},
+						BasicTask: task.BasicTask{
+							Action: "analyze",
+						},
+					},
+				},
+			},
+		}
+
+		ctx := &NormalizationContext{
+			WorkflowState: &workflow.State{
+				WorkflowID:     "parallel-workflow",
+				WorkflowExecID: "exec-123",
+				Input: &core.Input{
+					"city": "Boston",
+				},
+			},
+		}
+
+		// This should succeed because outputs field is excluded from config normalization
+		err := n.NormalizeTaskConfig(parallelTaskConfig, ctx)
+		require.NoError(t, err)
+
+		// The outputs field should remain as template strings (not processed)
+		assert.Equal(
+			t,
+			"{{ .output.sentiment_analysis.output.sentiment }} + {{ .output.keyword_extraction.output.keywords }}",
+			(*parallelTaskConfig.Outputs)["combined_result"],
+		)
+
+		// The regular config fields should be processed normally
+		assert.Equal(t, "Boston", (*parallelTaskConfig.With)["city"])
+	})
 }
 
 func TestNormalizer_NormalizeAgentConfig(t *testing.T) {

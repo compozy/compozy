@@ -26,47 +26,6 @@ tools:
   - id: save_data
     description: Save the weather data to a file
     execute: ./save_tool.ts
-    input:
-      type: object
-      properties:
-        city:
-          type: string
-        weather:
-          type: object
-          description: Weather data object containing temperature, humidity, and weather description
-        clothing:
-          oneOf:
-            - type: string
-            - type: object
-            - type: array
-          description: Clothing recommendations - can be a string, object, or array
-        activities:
-          oneOf:
-            - type: string
-            - type: object
-            - type: array
-          description: Activity recommendations - can be a string, object, or array
-        format:
-          type: string
-          enum: ["json", "csv"]
-      required:
-        - city
-        - weather
-        - clothing
-        - activities
-        - format
-    output:
-      type: object
-      properties:
-        success:
-          type: boolean
-          description: Whether the weather data was saved successfully
-        format:
-          type: string
-          description: The format used for saving
-        filename:
-          type: string
-          description: The name of the saved file
 
 agents:
   - id: tourist_guide
@@ -113,6 +72,12 @@ tasks:
     type: basic
     $use: agent(local::agents.#(id="tourist_guide"))
     action: get_weather
+    outputs:
+      temperature: "{{ .output.temperature }}"
+      humidity: "{{ .output.humidity }}"
+      description: "{{ .output.weather }}"
+      city: "{{ .workflow.input.city }}"
+      timestamp: "{{ now }}"
     on_success:
       next: activities
 
@@ -120,6 +85,10 @@ tasks:
     type: basic
     $use: agent(local::agents.#(id="tourist_guide"))
     action: suggest_activities
+    outputs:
+      activities: "{{ .output }}"
+      count: "{{ .output | len }}"
+      city: "{{ .workflow.input.city }}"
     on_success:
       next: clothing
 
@@ -127,12 +96,18 @@ tasks:
     type: basic
     $use: agent(local::agents.#(id="tourist_guide"))
     action: suggest_clothing
+    outputs:
+      save_data:
+        city: "{{ .workflow.input.city }}"
+        weather: "{{ .tasks.weather.output }}"
+        clothing: "{{ .output.clothings }}"
+        activities: "{{ .tasks.activities.output }}"
     on_success:
       next: clothing_check
 
   - id: clothing_check
     type: router
-    condition: '{{ .tasks.clothing.output.clothings | empty | ternary "no_clothes" "has_clothes" }}'
+    condition: '{{ .tasks.clothing.output.save_data.clothing | empty | ternary "no_clothes" "has_clothes" }}'
     routes:
       has_clothes:
         $ref: local::tasks.#(id="save_results")
@@ -144,11 +119,12 @@ tasks:
     $use: tool(local::tools.#(id="save_data"))
     final: true
     with:
-      city: "{{ .workflow.input.city }}"
-      weather: "{{ .tasks.weather.output }}"
-      clothing: "[]"
-      activities: "{{ .tasks.activities.output }}"
-      format: "json"
+      payload:
+        city: "{{ .tasks.clothing.output.save_data.city }}"
+        weather: "{{ .tasks.clothing.output.save_data.weather }}"
+        clothing: "[]"
+        activities: "{{ .tasks.clothing.output.save_data.activities }}"
+        format: "json"
 
   - id: save_results
     type: parallel
@@ -161,18 +137,20 @@ tasks:
         type: basic
         $use: tool(local::tools.#(id="save_data"))
         with:
-          city: "{{ .workflow.input.city }}"
-          weather: "{{ .tasks.weather.output }}"
-          clothing: "{{ .tasks.clothing.output }}"
-          activities: "{{ .tasks.activities.output }}"
-          format: "json"
+          payload:
+            city: "{{ .tasks.clothing.output.save_data.city }}"
+            weather: "{{ .tasks.clothing.output.save_data.weather }}"
+            clothing: "{{ .tasks.clothing.output.save_data.clothing }}"
+            activities: "{{ .tasks.clothing.output.save_data.activities }}"
+            format: "json"
 
       - id: save_csv
         type: basic
         $use: tool(local::tools.#(id="save_data"))
         with:
-          city: "{{ .workflow.input.city }}"
-          weather: "{{ .tasks.weather.output }}"
-          clothing: "{{ .tasks.clothing.output }}"
-          activities: "{{ .tasks.activities.output }}"
-          format: "csv"
+          payload:
+            city: "{{ .tasks.clothing.output.save_data.city }}"
+            weather: "{{ .tasks.clothing.output.save_data.weather }}"
+            clothing: "{{ .tasks.clothing.output.save_data.clothing }}"
+            activities: "{{ .tasks.clothing.output.save_data.activities }}"
+            format: "csv"

@@ -55,6 +55,23 @@ func (uc *HandleResponse) handleSuccessFlow(
 ) (*task.Response, error) {
 	state := input.TaskState
 	state.UpdateStatus(core.StatusSuccess)
+	if input.TaskConfig.GetOutputs() != nil && state.Output != nil {
+		workflowState, err := uc.workflowRepo.GetState(ctx, input.TaskState.WorkflowExecID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get workflow state for output transformation: %w", err)
+		}
+		output, err := uc.normalizer.NormalizeTaskOutput(
+			state.Output,
+			input.TaskConfig.GetOutputs(),
+			workflowState,
+			input.WorkflowConfig,
+			input.TaskConfig,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply output transformation: %w", err)
+		}
+		state.Output = output
+	}
 	if err := uc.taskRepo.UpsertState(ctx, state); err != nil {
 		if ctx.Err() != nil {
 			return &task.Response{State: state}, nil
@@ -151,7 +168,7 @@ func (uc *HandleResponse) normalizeTransitions(
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get workflow state: %w", err)
 	}
-	err = uc.normalizer.NormalizeTask(workflowState, workflowConfig, taskConfig)
+	err = uc.normalizer.NormalizeTaskEnvironment(workflowConfig, taskConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to normalize base environment: %w", err)
 	}

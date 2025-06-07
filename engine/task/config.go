@@ -28,6 +28,7 @@ type BaseConfig struct {
 	InputSchema  *schema.Schema  `json:"input,omitempty"      yaml:"input,omitempty"      mapstructure:"input,omitempty"`
 	OutputSchema *schema.Schema  `json:"output,omitempty"     yaml:"output,omitempty"     mapstructure:"output,omitempty"`
 	With         *core.Input     `json:"with,omitempty"       yaml:"with,omitempty"       mapstructure:"with,omitempty"`
+	Outputs      *core.Input     `json:"outputs,omitempty"    yaml:"outputs,omitempty"    mapstructure:"outputs,omitempty"`
 	Env          *core.EnvMap    `json:"env,omitempty"        yaml:"env,omitempty"        mapstructure:"env,omitempty"`
 	// Task configuration
 	OnSuccess *core.SuccessTransition `json:"on_success,omitempty" yaml:"on_success,omitempty" mapstructure:"on_success,omitempty"`
@@ -147,6 +148,10 @@ func (t *Config) GetAgent() *agent.Config {
 
 func (t *Config) GetTool() *tool.Config {
 	return t.Tool
+}
+
+func (t *Config) GetOutputs() *core.Input {
+	return t.Outputs
 }
 
 func (t *Config) ValidateInput(ctx context.Context, input *core.Input) error {

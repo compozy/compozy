@@ -253,3 +253,61 @@ func (n *ConfigNormalizer) NormalizeErrorTransition(
 	}
 	return nil
 }
+
+// NormalizeTaskOutput applies output transformation to task output based on the outputs configuration.
+func (n *ConfigNormalizer) NormalizeTaskOutput(
+	taskOutput *core.Output,
+	outputsConfig *core.Input,
+	workflowState *workflow.State,
+	workflowConfig *workflow.Config,
+	taskConfig *task.Config,
+) (*core.Output, error) {
+	if outputsConfig == nil || taskOutput == nil {
+		return taskOutput, nil
+	}
+
+	// Build context for template evaluation
+	taskConfigs := BuildTaskConfigsMap(workflowConfig.Tasks)
+
+	// Build transformation context
+	normCtx := &NormalizationContext{
+		WorkflowState:  workflowState,
+		WorkflowConfig: workflowConfig,
+		TaskConfigs:    taskConfigs,
+		CurrentInput:   taskConfig.With,
+		MergedEnv:      taskConfig.Env,
+	}
+
+	// Create context with current output available
+	transformCtx := n.normalizer.BuildContext(normCtx)
+	transformCtx["output"] = taskOutput
+
+	// Apply output transformation using the normalizer's template engine
+	transformedOutput := make(core.Output)
+	for key, value := range *outputsConfig {
+		result, err := n.normalizer.engine.ParseMap(value, transformCtx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to transform output field %s: %w", key, err)
+		}
+		transformedOutput[key] = result
+	}
+
+	return &transformedOutput, nil
+}
+
+// NormalizeTaskEnvironment only merges environments without processing task config templates
+// This is used when we only need environment merging (e.g., for transition normalization)
+func (n *ConfigNormalizer) NormalizeTaskEnvironment(
+	workflowConfig *workflow.Config,
+	taskConfig *task.Config,
+) error {
+	baseEnv, err := n.envMerger.MergeWithDefaults(
+		workflowConfig.GetEnv(),
+		taskConfig.GetEnv(),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to merge base environments for task %s: %w", taskConfig.ID, err)
+	}
+	taskConfig.Env = &baseEnv
+	return nil
+}

@@ -6,12 +6,14 @@ type WeatherData = {
     weather: string;
 };
 
-type Result = {
-    city: string;
-    weather: WeatherData | any; // Can be the weather object or other format
-    clothing: string | object | any[]; // Can be string, object, or array
-    activities: string | object | any[]; // Can be string, object, or array
-    format: "json" | "csv";
+type Input = {
+    payload: {
+        city: string;
+        weather: WeatherData | any;
+        clothing: string | object | any[];
+        activities: string | object | any[];
+        format: "json" | "csv";
+    };
 };
 
 type Output = {
@@ -42,34 +44,36 @@ function normalizeToString(value: string | object | any[]): string {
     return String(value);
 }
 
-export async function run(input: Result): Promise<Output> {
+export async function run(input: Input): Promise<Output> {
+    const data = input.payload;
+
     // Extract temperature and weather from the weather object if it's structured
     let temperature: number;
     let weather: string;
 
-    if (typeof input.weather === 'object' && input.weather !== null) {
+    if (typeof data.weather === 'object' && data.weather !== null) {
         // If weather is an object, extract temperature and weather fields
-        temperature = input.weather.temperature || 0;
-        weather = input.weather.weather || 'Unknown';
+        temperature = data.weather.temperature || 0;
+        weather = data.weather.description || data.weather.weather || 'Unknown';
     } else {
         // Fallback for other formats
         temperature = 0;
-        weather = String(input.weather || 'Unknown');
+        weather = String(data.weather || 'Unknown');
     }
 
     // Normalize clothing and activities to strings for CSV
-    const clothingStr = normalizeToString(input.clothing);
-    const activitiesStr = normalizeToString(input.activities);
+    const clothingStr = normalizeToString(data.clothing);
+    const activitiesStr = normalizeToString(data.activities);
 
     const result = {
-        city: input.city,
+        city: data.city,
         temperature: temperature,
         weather: weather,
         clothing: clothingStr,
         activities: activitiesStr,
     };
 
-    if (input.format === "csv") {
+    if (data.format === "csv") {
         // Generate CSV content
         const headers = Object.keys(result).join(",");
         const values = Object.values(result).map(value => {
@@ -92,11 +96,11 @@ export async function run(input: Result): Promise<Output> {
     } else {
         // Generate JSON content (default) - preserve original data types
         const jsonResult = {
-            city: input.city,
+            city: data.city,
             temperature: temperature,
             weather: weather,
-            clothing: input.clothing, // Preserve original structure for JSON
-            activities: input.activities, // Preserve original structure for JSON
+            clothing: data.clothing, // Preserve original structure for JSON
+            activities: data.activities, // Preserve original structure for JSON
         };
 
         const formatted = await prettier.format(JSON.stringify(jsonResult), {

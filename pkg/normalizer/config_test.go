@@ -1191,7 +1191,11 @@ func TestConfigNormalizer_NormalizeParallelTask(t *testing.T) {
 
 		// Verify nested output access works
 		assert.Equal(t, "positive", (*taskConfig.With)["sentiment_result"])
-		assert.Equal(t, []string{"great", "product", "love"}, (*taskConfig.With)["keywords_result"])
+		assert.Equal(
+			t,
+			[]string{"great", "product", "love"},
+			(*taskConfig.With)["keywords_result"],
+		)
 		assert.Equal(t, "0.95", (*taskConfig.With)["analysis_score"])
 	})
 
@@ -1657,5 +1661,256 @@ func TestConfigNormalizer_NestedParallelTasks(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "nonexistent")
 		assert.Contains(t, err.Error(), "failed to normalize sub-task error_task")
+	})
+}
+
+func TestConfigNormalizer_NormalizeTaskOutput(t *testing.T) {
+	t.Run("Should transform task output using outputs configuration", func(t *testing.T) {
+		// Setup normalizer
+		normalizer := NewConfigNormalizer()
+
+		// Create mock task output
+		taskOutput := &core.Output{
+			"formatted_code": "console.log('hello world');",
+			"line_count":     5,
+			"language":       "javascript",
+		}
+
+		// Create outputs configuration with various transformation patterns
+		outputsConfig := &core.Input{
+			// Simple field mapping
+			"result": "{{ .output.formatted_code }}",
+
+			// Computed values combining multiple sources
+			"summary": "Formatted {{ .input.language }} code with {{ .input.indent_size }} spaces using {{ .env.FORMATTER_VERSION }}",
+
+			// Nested object creation
+			"metadata": map[string]any{
+				"language":          "{{ .input.language }}",
+				"indent_size":       "{{ .input.indent_size }}",
+				"formatter_version": "{{ .env.FORMATTER_VERSION }}",
+				"line_count":        "{{ .output.line_count }}",
+			},
+
+			// Conditional output
+			"has_tabs": "{{ eq .input.use_tabs true }}",
+
+			// Workflow context access
+			"workflow_info": map[string]any{
+				"id":      "{{ .workflow.id }}",
+				"version": "{{ .workflow.version }}",
+			},
+		}
+
+		// Create workflow state
+		workflowState := &workflow.State{
+			WorkflowID:     "test-workflow",
+			WorkflowExecID: core.MustNewID(),
+			Input: &core.Input{
+				"user_id": "123",
+			},
+			Output: &core.Output{
+				"status": "completed",
+			},
+		}
+
+		// Create workflow config
+		workflowConfig := &workflow.Config{
+			ID:      "test-workflow",
+			Version: "1.0.0",
+		}
+
+		// Create task config
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "format-task",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					"language":    "javascript",
+					"indent_size": 2,
+					"use_tabs":    false,
+				},
+				Env: &core.EnvMap{
+					"FORMATTER_VERSION": "2.1.0",
+				},
+			},
+		}
+
+		// Execute output transformation
+		result, err := normalizer.NormalizeTaskOutput(
+			taskOutput,
+			outputsConfig,
+			workflowState,
+			workflowConfig,
+			taskConfig,
+		)
+
+		// Assertions
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		// Verify simple field mapping
+		assert.Equal(t, "console.log('hello world');", (*result)["result"])
+
+		// Verify computed values
+		assert.Equal(t, "Formatted javascript code with 2 spaces using 2.1.0", (*result)["summary"])
+
+		// Verify nested object creation
+		metadata, ok := (*result)["metadata"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "javascript", metadata["language"])
+		assert.Equal(t, "2", metadata["indent_size"]) // Note: template engine converts to string
+		assert.Equal(t, "2.1.0", metadata["formatter_version"])
+		assert.Equal(t, "5", metadata["line_count"]) // Note: template engine converts to string
+
+		// Verify conditional output
+		assert.Equal(t, "false", (*result)["has_tabs"])
+
+		// Verify workflow context access
+		workflowInfo, ok := (*result)["workflow_info"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "test-workflow", workflowInfo["id"])
+		assert.Equal(t, "1.0.0", workflowInfo["version"])
+	})
+
+	t.Run("Should return original output when outputs config is nil", func(t *testing.T) {
+		normalizer := NewConfigNormalizer()
+
+		taskOutput := &core.Output{
+			"test": "value",
+		}
+
+		result, err := normalizer.NormalizeTaskOutput(
+			taskOutput,
+			nil, // No outputs config
+			nil,
+			nil,
+			nil,
+		)
+
+		require.NoError(t, err)
+		assert.Equal(t, taskOutput, result)
+	})
+
+	t.Run("Should return original output when task output is nil", func(t *testing.T) {
+		normalizer := NewConfigNormalizer()
+
+		outputsConfig := &core.Input{
+			"test": "{{ .output.value }}",
+		}
+
+		result, err := normalizer.NormalizeTaskOutput(
+			nil, // No task output
+			outputsConfig,
+			nil,
+			nil,
+			nil,
+		)
+
+		require.NoError(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("Should handle template errors gracefully", func(t *testing.T) {
+		normalizer := NewConfigNormalizer()
+
+		taskOutput := &core.Output{
+			"test": "value",
+		}
+
+		outputsConfig := &core.Input{
+			"invalid": "{{ .nonexistent.field }}", // This should cause an error
+		}
+
+		workflowState := &workflow.State{
+			WorkflowID:     "test-workflow",
+			WorkflowExecID: core.MustNewID(),
+		}
+
+		workflowConfig := &workflow.Config{
+			ID: "test-workflow",
+		}
+
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-task",
+				Type: task.TaskTypeBasic,
+			},
+		}
+
+		_, err := normalizer.NormalizeTaskOutput(
+			taskOutput,
+			outputsConfig,
+			workflowState,
+			workflowConfig,
+			taskConfig,
+		)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to transform output field invalid")
+	})
+
+	t.Run("Should access parallel task outputs correctly", func(t *testing.T) {
+		normalizer := NewConfigNormalizer()
+
+		// Simulate parallel task output structure
+		taskOutput := &core.Output{
+			"sentiment_analysis": map[string]any{
+				"output": map[string]any{
+					"sentiment":  "positive",
+					"confidence": 0.95,
+				},
+			},
+			"keyword_extraction": map[string]any{
+				"output": map[string]any{
+					"keywords": []string{"hello", "world"},
+				},
+			},
+		}
+
+		outputsConfig := &core.Input{
+			// Access nested parallel task outputs
+			"extracted_sentiment": "{{ .output.sentiment_analysis.output.sentiment }}",
+			"confidence_score":    "{{ .output.sentiment_analysis.output.confidence }}",
+			"extracted_keywords":  "{{ .output.keyword_extraction.output.keywords }}",
+		}
+
+		workflowState := &workflow.State{
+			WorkflowID:     "test-workflow",
+			WorkflowExecID: core.MustNewID(),
+		}
+
+		workflowConfig := &workflow.Config{
+			ID: "test-workflow",
+		}
+
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "parallel-task",
+				Type: task.TaskTypeParallel,
+			},
+		}
+
+		result, err := normalizer.NormalizeTaskOutput(
+			taskOutput,
+			outputsConfig,
+			workflowState,
+			workflowConfig,
+			taskConfig,
+		)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		assert.Equal(t, "positive", (*result)["extracted_sentiment"])
+		assert.Equal(t, "0.95", (*result)["confidence_score"]) // Template engine converts to string
+
+		// Keywords should be preserved as an array (template engine preserves original type)
+		extractedKeywords := (*result)["extracted_keywords"]
+		keywords, ok := extractedKeywords.([]string)
+		require.True(t, ok, "expected extracted_keywords to be []string, got %T", extractedKeywords)
+		assert.Equal(t, 2, len(keywords))
+		assert.Equal(t, "hello", keywords[0])
+		assert.Equal(t, "world", keywords[1])
 	})
 }
