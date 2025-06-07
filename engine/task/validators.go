@@ -5,6 +5,68 @@ import (
 )
 
 // -----------------------------------------------------------------------------
+// CycleValidator - Detects circular dependencies in task references
+// -----------------------------------------------------------------------------
+
+type CycleValidator struct {
+	visited  map[string]bool
+	visiting map[string]bool
+}
+
+func NewCycleValidator() *CycleValidator {
+	return &CycleValidator{
+		visited:  make(map[string]bool),
+		visiting: make(map[string]bool),
+	}
+}
+
+func (v *CycleValidator) Validate() error {
+	// This is a placeholder - actual validation happens in ValidateConfig
+	return nil
+}
+
+func (v *CycleValidator) ValidateConfig(config *Config) error {
+	if config.ID == "" {
+		return fmt.Errorf("task ID is required for cycle detection")
+	}
+	return v.detectCycle(config, make(map[string]bool), make(map[string]bool))
+}
+
+func (v *CycleValidator) detectCycle(config *Config, visited map[string]bool, visiting map[string]bool) error {
+	taskID := config.ID
+	if visiting[taskID] {
+		return fmt.Errorf("circular dependency detected involving task: %s", taskID)
+	}
+	if visited[taskID] {
+		return nil // Already processed this task
+	}
+
+	visiting[taskID] = true
+
+	// Check parallel task dependencies
+	if config.Type == TaskTypeParallel {
+		for _, subTask := range config.Tasks {
+			if err := v.detectCycle(&subTask, visited, visiting); err != nil {
+				return err
+			}
+		}
+
+		// Check task reference if present
+		if config.Task != nil {
+			if err := v.detectCycle(config.Task, visited, visiting); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Mark as visited and remove from visiting
+	visiting[taskID] = false
+	visited[taskID] = true
+
+	return nil
+}
+
+// -----------------------------------------------------------------------------
 // TaskTypeValidator
 // -----------------------------------------------------------------------------
 
@@ -22,7 +84,7 @@ func (v *TypeValidator) Validate() error {
 	if v.config.Type == "" {
 		return nil
 	}
-	if v.config.Type != TaskTypeBasic && v.config.Type != TaskTypeDecision {
+	if v.config.Type != TaskTypeBasic && v.config.Type != TaskTypeDecision && v.config.Type != TaskTypeParallel {
 		return fmt.Errorf("invalid task type: %s", v.config.Type)
 	}
 	if err := v.validateBasicTaskWithRef(); err != nil {
@@ -30,6 +92,11 @@ func (v *TypeValidator) Validate() error {
 	}
 	if v.config.Type == TaskTypeDecision {
 		if err := v.validateDecisionTask(); err != nil {
+			return err
+		}
+	}
+	if v.config.Type == TaskTypeParallel {
+		if err := v.validateParallelTask(); err != nil {
 			return err
 		}
 	}
@@ -55,6 +122,46 @@ func (v *TypeValidator) validateDecisionTask() error {
 	}
 	if len(v.config.Routes) == 0 {
 		return fmt.Errorf("routes are required for decision tasks")
+	}
+	return nil
+}
+
+func (v *TypeValidator) validateParallelTask() error {
+	if len(v.config.Tasks) == 0 {
+		return fmt.Errorf("parallel tasks must have at least one sub-task")
+	}
+
+	// Check for duplicate IDs first before validating individual items
+	seen := make(map[string]bool)
+	for _, task := range v.config.Tasks {
+		if seen[task.ID] {
+			return fmt.Errorf("duplicate task ID in parallel execution: %s", task.ID)
+		}
+		seen[task.ID] = true
+	}
+
+	// Then validate each individual task
+	for _, task := range v.config.Tasks {
+		if err := v.validateParallelTaskItem(&task); err != nil {
+			return fmt.Errorf("invalid parallel task item %s: %w", task.ID, err)
+		}
+	}
+
+	strategy := v.config.GetStrategy()
+	if strategy != StrategyWaitAll && strategy != StrategyFailFast && strategy != StrategyBestEffort &&
+		strategy != StrategyRace {
+		return fmt.Errorf("invalid parallel strategy: %s", strategy)
+	}
+	return nil
+}
+
+func (v *TypeValidator) validateParallelTaskItem(item *Config) error {
+	if item.ID == "" {
+		return fmt.Errorf("task item ID is required")
+	}
+	// Each task in parallel execution should be a valid task configuration
+	if err := item.Validate(); err != nil {
+		return fmt.Errorf("invalid task configuration: %w", err)
 	}
 	return nil
 }

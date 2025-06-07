@@ -53,7 +53,7 @@ func (b *ContextBuilder) BuildTaskContext(ctx workflow.Context, taskID string) w
 	resolved := core.ResolveActivityOptions(
 		&b.ProjectConfig.Opts.GlobalOpts,
 		&b.WorkflowConfig.Opts.GlobalOpts,
-		&taskConfig.Opts.GlobalOpts,
+		&taskConfig.Config,
 	)
 	activityOptions := resolved.ToTemporalActivityOptions()
 	activityOptions.WaitForCancellation = true

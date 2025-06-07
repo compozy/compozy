@@ -19,17 +19,21 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 
 	t.Run("Should normalize task with workflow context and environment merging", func(t *testing.T) {
 		taskConfig := &task.Config{
-			ID:     "notification-task",
-			Type:   task.TaskTypeBasic,
-			Action: "notify_user",
-			With: &core.Input{
-				"recipient":        "{{ .workflow.input.email }}",
-				"subject":          "Processing completed for {{ .workflow.input.request_id }}",
-				"workflow_version": "{{ .workflow.version }}",
-				"workflow_author":  "{{ .workflow.author.name }}",
+			BaseConfig: task.BaseConfig{
+				ID:   "notification-task",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					"recipient":        "{{ .workflow.input.email }}",
+					"subject":          "Processing completed for {{ .workflow.input.request_id }}",
+					"workflow_version": "{{ .workflow.version }}",
+					"workflow_author":  "{{ .workflow.author.name }}",
+				},
+				Env: &core.EnvMap{
+					"TASK_ENV": "task-value",
+				},
 			},
-			Env: &core.EnvMap{
-				"TASK_ENV": "task-value",
+			BasicTask: task.BasicTask{
+				Action: "notify_user",
 			},
 		}
 
@@ -74,14 +78,16 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 
 	t.Run("Should normalize task referencing other tasks", func(t *testing.T) {
 		analysisTask := &task.Config{
-			ID:   "analysis-task",
-			Type: task.TaskTypeBasic,
-			With: &core.Input{
-				"data":            "{{ .tasks.data_collector.output.dataset }}",
-				"previous_action": "{{ .tasks.data_collector.action }}",
-				"analyzer_type":   "{{ .tasks.config_loader.type }}",
-				"threshold":       "{{ .tasks.config_loader.output.settings.threshold }}",
-				"collector_final": "{{ .tasks.data_collector.final }}",
+			BaseConfig: task.BaseConfig{
+				ID:   "analysis-task",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					"data":            "{{ .tasks.data_collector.output.dataset }}",
+					"previous_action": "{{ .tasks.data_collector.action }}",
+					"analyzer_type":   "{{ .tasks.config_loader.type }}",
+					"threshold":       "{{ .tasks.config_loader.output.settings.threshold }}",
+					"collector_final": "{{ .tasks.data_collector.final }}",
+				},
 			},
 		}
 
@@ -114,14 +120,21 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 			ID: "analysis-workflow",
 			Tasks: []task.Config{
 				{
-					ID:     "data_collector",
-					Type:   task.TaskTypeBasic,
-					Action: "collect_data",
-					Final:  true,
+					BaseConfig: task.BaseConfig{
+						ID:    "data_collector",
+						Type:  task.TaskTypeBasic,
+						Final: true,
+					},
+					BasicTask: task.BasicTask{
+						Action: "collect_data",
+					},
 				},
 				{
-					ID:   "config_loader",
-					Type: task.TaskTypeBasic,
+					BaseConfig: task.BaseConfig{
+						ID:    "config_loader",
+						Type:  task.TaskTypeBasic,
+						Final: true,
+					},
 				},
 				*analysisTask,
 			},
@@ -140,9 +153,13 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 
 	t.Run("Should handle decision task condition normalization", func(t *testing.T) {
 		decisionTask := &task.Config{
-			ID:        "validation-task",
-			Type:      task.TaskTypeDecision,
-			Condition: `{{ eq .tasks.validator.output.status "valid" }}`,
+			BaseConfig: task.BaseConfig{
+				ID:   "validation-task",
+				Type: task.TaskTypeDecision,
+			},
+			DecisionTask: task.DecisionTask{
+				Condition: `{{ eq .tasks.validator.output.status "valid" }}`,
+			},
 		}
 
 		workflowState := &workflow.State{
@@ -160,7 +177,12 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 		workflowConfig := &workflow.Config{
 			ID: "validation-workflow",
 			Tasks: []task.Config{
-				{ID: "validator"},
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "validator",
+						Type: task.TaskTypeBasic,
+					},
+				},
 				*decisionTask,
 			},
 		}
@@ -202,15 +224,19 @@ Data to process: {{ .tasks.data_fetcher.output.raw_data }}`,
 		}
 
 		taskConfig := &task.Config{
-			ID:     "processing-task",
-			Type:   task.TaskTypeBasic,
-			Action: "process_data",
-			Final:  true,
-			With: &core.Input{
-				"city": "Seattle",
+			BaseConfig: task.BaseConfig{
+				ID:    "processing-task",
+				Type:  task.TaskTypeBasic,
+				Final: true,
+				With: &core.Input{
+					"city": "Seattle",
+				},
+				Env: &core.EnvMap{
+					"TASK_ENV": "task-value",
+				},
 			},
-			Env: &core.EnvMap{
-				"TASK_ENV": "task-value",
+			BasicTask: task.BasicTask{
+				Action: "process_data",
 			},
 		}
 
@@ -318,8 +344,13 @@ Previous results: {{ .tasks.preprocessing.output.summary }}`,
 		}
 
 		taskConfig := &task.Config{
-			ID:     "analysis-task",
-			Action: "analyze-data",
+			BaseConfig: task.BaseConfig{
+				ID:   "analysis-task",
+				Type: task.TaskTypeBasic,
+			},
+			BasicTask: task.BasicTask{
+				Action: "analyze-data",
+			},
 		}
 
 		workflowState := &workflow.State{
@@ -394,15 +425,19 @@ func TestConfigNormalizer_NormalizeToolComponent(t *testing.T) {
 		}
 
 		taskConfig := &task.Config{
-			ID:     "api-task",
-			Type:   task.TaskTypeBasic,
-			Action: "fetch_data",
-			Final:  false,
-			With: &core.Input{
-				"token": "secret-token",
+			BaseConfig: task.BaseConfig{
+				ID:    "api-task",
+				Type:  task.TaskTypeBasic,
+				Final: false,
+				With: &core.Input{
+					"token": "secret-token",
+				},
+				Env: &core.EnvMap{
+					"TASK_ENV": "task-value",
+				},
 			},
-			Env: &core.EnvMap{
-				"TASK_ENV": "task-value",
+			BasicTask: task.BasicTask{
+				Action: "fetch_data",
 			},
 		}
 
@@ -474,30 +509,38 @@ func TestConfigNormalizer_TaskCallingSubTask(t *testing.T) {
 		// This simulates the case where a parent task calls a subtask
 		// The subtask should have access to parent task properties
 		subtaskConfig := &task.Config{
-			ID:     "process-item",
-			Type:   task.TaskTypeBasic,
-			Action: "process",
-			With: &core.Input{
-				"item":          "{{ .parent.input.current_item }}",
-				"batch_id":      "{{ .parent.id }}",
-				"parent_action": "{{ .parent.action }}",
-				"parent_type":   "{{ .parent.type }}",
-				"workflow_id":   "{{ .workflow.id }}",
-				"config":        "{{ .tasks.config_loader.output.settings }}",
+			BaseConfig: task.BaseConfig{
+				ID:   "process-item",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					"item":          "{{ .parent.input.current_item }}",
+					"batch_id":      "{{ .parent.id }}",
+					"parent_action": "{{ .parent.action }}",
+					"parent_type":   "{{ .parent.type }}",
+					"workflow_id":   "{{ .workflow.id }}",
+					"config":        "{{ .tasks.config_loader.output.settings }}",
+				},
+				Env: &core.EnvMap{
+					"PARENT_TASK": "{{ .parent.id }}",
+					"PARENT_TYPE": "{{ .parent.type }}",
+				},
 			},
-			Env: &core.EnvMap{
-				"PARENT_TASK": "{{ .parent.id }}",
-				"PARENT_TYPE": "{{ .parent.type }}",
+			BasicTask: task.BasicTask{
+				Action: "process",
 			},
 		}
 
 		parentTaskConfig := &task.Config{
-			ID:     "batch-processor",
-			Type:   task.TaskTypeBasic,
-			Action: "batch_process",
-			With: &core.Input{
-				"current_item": "item-123",
-				"batch_size":   "10",
+			BaseConfig: task.BaseConfig{
+				ID:   "batch-processor",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					"current_item": "item-123",
+					"batch_size":   "10",
+				},
+			},
+			BasicTask: task.BasicTask{
+				Action: "batch_process",
 			},
 		}
 
@@ -528,7 +571,12 @@ func TestConfigNormalizer_TaskCallingSubTask(t *testing.T) {
 			ID: "batch-workflow",
 			Tasks: []task.Config{
 				*parentTaskConfig,
-				{ID: "config_loader"},
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "config_loader",
+						Type: task.TaskTypeBasic,
+					},
+				},
 				*subtaskConfig,
 			},
 		}
@@ -568,9 +616,11 @@ func TestConfigNormalizer_ErrorHandling(t *testing.T) {
 
 	t.Run("Should return error for missing template key in environment", func(t *testing.T) {
 		taskConfig := &task.Config{
-			ID: "error-task",
-			Env: &core.EnvMap{
-				"INVALID": "{{ .invalid.template }}",
+			BaseConfig: task.BaseConfig{
+				ID: "error-task",
+				Env: &core.EnvMap{
+					"INVALID": "{{ .invalid.template }}",
+				},
 			},
 		}
 
@@ -596,7 +646,9 @@ func TestConfigNormalizer_ErrorHandling(t *testing.T) {
 		}
 
 		taskConfig := &task.Config{
-			ID: "parent-task",
+			BaseConfig: task.BaseConfig{
+				ID: "parent-task",
+			},
 		}
 
 		workflowState := &workflow.State{
@@ -629,7 +681,9 @@ func TestConfigNormalizer_ErrorHandling(t *testing.T) {
 		}
 
 		taskConfig := &task.Config{
-			ID: "parent-task",
+			BaseConfig: task.BaseConfig{
+				ID: "parent-task",
+			},
 		}
 
 		workflowState := &workflow.State{
@@ -660,12 +714,16 @@ func TestConfigNormalizer_BuildTaskConfigsMap(t *testing.T) {
 	t.Run("Should convert task config slice to map", func(t *testing.T) {
 		taskConfigs := []task.Config{
 			{
-				ID:   "task1",
-				Type: task.TaskTypeBasic,
+				BaseConfig: task.BaseConfig{
+					ID:   "task1",
+					Type: task.TaskTypeBasic,
+				},
 			},
 			{
-				ID:   "task2",
-				Type: task.TaskTypeDecision,
+				BaseConfig: task.BaseConfig{
+					ID:   "task2",
+					Type: task.TaskTypeDecision,
+				},
 			},
 		}
 
@@ -704,9 +762,13 @@ func TestConfigNormalizer_ProviderConfigNormalization(t *testing.T) {
 		}
 
 		taskConfig := &task.Config{
-			ID:     "test-task",
-			Type:   task.TaskTypeBasic,
-			Action: "test",
+			BaseConfig: task.BaseConfig{
+				ID:   "test-task",
+				Type: task.TaskTypeBasic,
+			},
+			BasicTask: task.BasicTask{
+				Action: "test",
+			},
 		}
 
 		workflowState := &workflow.State{
@@ -751,10 +813,10 @@ func TestConfigNormalizer_MapstructureCompatibility(t *testing.T) {
 	t.Run("Should handle all mapstructure field mappings correctly", func(t *testing.T) {
 		// Test task config with on_success, on_error, and config fields
 		taskConfig := &task.Config{
-			ID:   "test-task",
-			Type: task.TaskTypeBasic,
-			Opts: task.Opts{
-				GlobalOpts: core.GlobalOpts{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-task",
+				Type: task.TaskTypeBasic,
+				Config: core.GlobalOpts{
 					ScheduleToStartTimeout: "{{ .env.SCHEDULE_TIMEOUT }}",
 					StartToCloseTimeout:    "{{ .env.START_TIMEOUT }}",
 					RetryPolicy: &core.RetryPolicyConfig{
@@ -762,17 +824,17 @@ func TestConfigNormalizer_MapstructureCompatibility(t *testing.T) {
 						MaximumAttempts: 5,
 					},
 				},
-			},
-			OnSuccess: &core.SuccessTransition{
-				Next: &[]string{"next-task"}[0],
-				With: &core.Input{
-					"message": "{{ .env.SUCCESS_MSG }}",
+				OnSuccess: &core.SuccessTransition{
+					Next: &[]string{"next-task"}[0],
+					With: &core.Input{
+						"message": "{{ .env.SUCCESS_MSG }}",
+					},
 				},
-			},
-			OnError: &core.ErrorTransition{
-				Next: &[]string{"error-handler"}[0],
-				With: &core.Input{
-					"error": "{{ .env.ERROR_MSG }}",
+				OnError: &core.ErrorTransition{
+					Next: &[]string{"error-handler"}[0],
+					With: &core.Input{
+						"error": "{{ .env.ERROR_MSG }}",
+					},
 				},
 			},
 		}
@@ -870,10 +932,10 @@ func TestConfigNormalizer_MapstructureCompatibility(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify task config templates were resolved (including nested structures)
-		assert.Equal(t, "2m", taskConfig.Opts.ScheduleToStartTimeout)
-		assert.Equal(t, "5m", taskConfig.Opts.StartToCloseTimeout)
-		assert.Equal(t, "1s", taskConfig.Opts.RetryPolicy.InitialInterval)
-		assert.Equal(t, int32(5), taskConfig.Opts.RetryPolicy.MaximumAttempts)
+		assert.Equal(t, "2m", taskConfig.Config.ScheduleToStartTimeout)
+		assert.Equal(t, "5m", taskConfig.Config.StartToCloseTimeout)
+		assert.Equal(t, "1s", taskConfig.Config.RetryPolicy.InitialInterval)
+		assert.Equal(t, int32(5), taskConfig.Config.RetryPolicy.MaximumAttempts)
 		assert.Equal(t, "Task completed successfully", (*taskConfig.OnSuccess.With)["message"])
 		assert.Equal(t, "Task failed", (*taskConfig.OnError.With)["error"])
 

@@ -54,12 +54,16 @@ func CreateContainerTestConfig(t *testing.T) *ContainerTestConfig {
 		Description: "Test workflow for integration testing",
 		Tasks: []task.Config{
 			{
-				ID:     "test-task",
-				Type:   task.TaskTypeBasic,
-				Action: "test-action",
-				Agent:  agentConfig,
-				With: &core.Input{
-					"message": "Hello, World!",
+				BaseConfig: task.BaseConfig{
+					ID:    "test-task",
+					Type:  task.TaskTypeBasic,
+					Agent: agentConfig,
+					With: &core.Input{
+						"message": "Hello, World!",
+					},
+				},
+				BasicTask: task.BasicTask{
+					Action: "test-action",
 				},
 			},
 		},
@@ -224,36 +228,48 @@ func CreatePauseableWorkflowConfig() *wf.Config {
 		Description: "Multi-task workflow for pause/resume testing",
 		Tasks: []task.Config{
 			{
-				ID:     "task-1",
-				Type:   task.TaskTypeBasic,
-				Action: "action-1",
-				Agent:  agentConfig,
-				With: &core.Input{
-					"step": "1",
+				BaseConfig: task.BaseConfig{
+					ID:    "task-1",
+					Type:  task.TaskTypeBasic,
+					Agent: agentConfig,
+					With: &core.Input{
+						"step": "1",
+					},
+					OnSuccess: &core.SuccessTransition{
+						Next: stringPtr("task-2"),
+					},
 				},
-				OnSuccess: &core.SuccessTransition{
-					Next: stringPtr("task-2"),
-				},
-			},
-			{
-				ID:     "task-2",
-				Type:   task.TaskTypeBasic,
-				Action: "action-2",
-				Agent:  agentConfig,
-				With: &core.Input{
-					"step": "2",
-				},
-				OnSuccess: &core.SuccessTransition{
-					Next: stringPtr("task-3"),
+				BasicTask: task.BasicTask{
+					Action: "action-1",
 				},
 			},
 			{
-				ID:     "task-3",
-				Type:   task.TaskTypeBasic,
-				Action: "action-3",
-				Agent:  agentConfig,
-				With: &core.Input{
-					"step": "3",
+				BaseConfig: task.BaseConfig{
+					ID:    "task-2",
+					Type:  task.TaskTypeBasic,
+					Agent: agentConfig,
+					With: &core.Input{
+						"step": "2",
+					},
+					OnSuccess: &core.SuccessTransition{
+						Next: stringPtr("task-3"),
+					},
+				},
+				BasicTask: task.BasicTask{
+					Action: "action-2",
+				},
+			},
+			{
+				BaseConfig: task.BaseConfig{
+					ID:    "task-3",
+					Type:  task.TaskTypeBasic,
+					Agent: agentConfig,
+					With: &core.Input{
+						"step": "3",
+					},
+				},
+				BasicTask: task.BasicTask{
+					Action: "action-3",
 				},
 			},
 		},
@@ -281,14 +297,18 @@ func CreateCancellableWorkflowConfig() *wf.Config {
 		Description: "Long-running workflow for cancellation testing",
 		Tasks: []task.Config{
 			{
-				ID:     "long-task",
-				Type:   task.TaskTypeBasic,
-				Action: "long-action",
-				Agent:  agentConfig,
-				With: &core.Input{
-					"duration": "10s",
+				BaseConfig: task.BaseConfig{
+					ID:    "long-task",
+					Type:  task.TaskTypeBasic,
+					Agent: agentConfig,
+					With: &core.Input{
+						"duration": "10s",
+					},
+					Sleep: "2s", // Add sleep to simulate long-running task that can be canceled
 				},
-				Sleep: "2s", // Add sleep to simulate long-running task that can be canceled
+				BasicTask: task.BasicTask{
+					Action: "long-action",
+				},
 			},
 		},
 		Agents: []agent.Config{*agentConfig},
