@@ -59,6 +59,16 @@ func (v *CycleValidator) detectCycle(config *Config, visited map[string]bool, vi
 		}
 	}
 
+	// Check collection task dependencies
+	if config.Type == TaskTypeCollection {
+		// Check task template
+		if config.Template != nil {
+			if err := v.detectCycle(config.Template, visited, visiting); err != nil {
+				return err
+			}
+		}
+	}
+
 	// Mark as visited and remove from visiting
 	visiting[taskID] = false
 	visited[taskID] = true
@@ -84,7 +94,8 @@ func (v *TypeValidator) Validate() error {
 	if v.config.Type == "" {
 		return nil
 	}
-	if v.config.Type != TaskTypeBasic && v.config.Type != TaskTypeRouter && v.config.Type != TaskTypeParallel {
+	if v.config.Type != TaskTypeBasic && v.config.Type != TaskTypeRouter &&
+		v.config.Type != TaskTypeParallel && v.config.Type != TaskTypeCollection {
 		return fmt.Errorf("invalid task type: %s", v.config.Type)
 	}
 	if err := v.validateBasicTaskWithRef(); err != nil {
@@ -97,6 +108,11 @@ func (v *TypeValidator) Validate() error {
 	}
 	if v.config.Type == TaskTypeParallel {
 		if err := v.validateParallelTask(); err != nil {
+			return err
+		}
+	}
+	if v.config.Type == TaskTypeCollection {
+		if err := v.validateCollectionTask(); err != nil {
 			return err
 		}
 	}
@@ -165,5 +181,45 @@ func (v *TypeValidator) validateParallelTaskItem(item *Config) error {
 	if err := item.Validate(); err != nil {
 		return fmt.Errorf("invalid task configuration: %w", err)
 	}
+	return nil
+}
+
+func (v *TypeValidator) validateCollectionTask() error {
+	config := v.config
+
+	// Validate required fields
+	if config.Items == "" {
+		return fmt.Errorf("items is required for collection tasks")
+	}
+
+	if config.Template == nil {
+		return fmt.Errorf("task template is required for collection tasks")
+	}
+
+	// Validate task template
+	if err := config.Template.Validate(); err != nil {
+		return fmt.Errorf("invalid task template: %w", err)
+	}
+
+	// Validate mode
+	mode := config.GetMode()
+	if mode != CollectionModeParallel && mode != CollectionModeSequential {
+		return fmt.Errorf("invalid collection mode: %s", mode)
+	}
+
+	// Validate batch size for sequential mode
+	if mode == CollectionModeSequential && config.Batch <= 0 {
+		return fmt.Errorf("batch size must be greater than 0 for sequential mode")
+	}
+
+	// Validate parallel strategy for parallel mode
+	if mode == CollectionModeParallel {
+		strategy := config.GetStrategy()
+		if strategy != StrategyWaitAll && strategy != StrategyFailFast &&
+			strategy != StrategyBestEffort && strategy != StrategyRace {
+			return fmt.Errorf("invalid parallel strategy: %s", strategy)
+		}
+	}
+
 	return nil
 }

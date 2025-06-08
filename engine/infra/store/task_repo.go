@@ -105,6 +105,12 @@ func (r *TaskRepo) UpsertState(ctx context.Context, state *task.State) error {
 		if err != nil {
 			return fmt.Errorf("marshaling parallel state: %w", err)
 		}
+	} else if state.IsCollection() {
+		// Store collection state in parallel_state column for DB efficiency
+		parallelStateJSON, err = ToJSONB(state.CollectionState)
+		if err != nil {
+			return fmt.Errorf("marshaling collection state: %w", err)
+		}
 	}
 
 	query := `

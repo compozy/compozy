@@ -17,9 +17,10 @@ import (
 type ExecutionType string
 
 const (
-	ExecutionBasic    ExecutionType = "basic"
-	ExecutionRouter   ExecutionType = "router"
-	ExecutionParallel ExecutionType = "parallel"
+	ExecutionBasic      ExecutionType = "basic"
+	ExecutionRouter     ExecutionType = "router"
+	ExecutionParallel   ExecutionType = "parallel"
+	ExecutionCollection ExecutionType = "collection"
 )
 
 // -----------------------------------------------------------------------------
@@ -33,6 +34,52 @@ type ParallelState struct {
 	SubTasks       map[string]*State `json:"sub_tasks"`       // Map of sub-task ID to State
 	CompletedTasks []string          `json:"completed_tasks"` // List of completed sub-task IDs
 	FailedTasks    []string          `json:"failed_tasks"`    // List of failed sub-task IDs
+}
+
+// -----------------------------------------------------------------------------
+// Collection Execution State - Stored in parallel_state JSONB column
+// -----------------------------------------------------------------------------
+
+type CollectionState struct {
+	// Collection configuration
+	Items           []any  `json:"items"`             // Filtered collection items
+	Filter          string `json:"filter,omitempty"`  // Filter expression used
+	Mode            string `json:"mode"`              // parallel | sequential
+	Batch           int    `json:"batch"`             // Batch size for sequential
+	ContinueOnError bool   `json:"continue_on_error"` // Error tolerance
+	ItemVar         string `json:"item_var"`          // Variable name for item
+	IndexVar        string `json:"index_var"`         // Variable name for index
+
+	// Dynamic evaluation support
+	ItemsExpression string `json:"items_expression,omitempty"` // Store unevaluated expression for dynamic items
+	ItemsEvaluated  bool   `json:"items_evaluated"`            // Track if dynamic evaluation is complete
+
+	// Progress tracking
+	ProcessedCount int `json:"processed_count"` // Items processed so far
+	CompletedCount int `json:"completed_count"` // Successfully completed
+	FailedCount    int `json:"failed_count"`    // Failed items
+
+	// Collection item results - stored as task_states with parent reference
+	ItemResults []string `json:"item_results"` // Array of child task_exec_ids
+
+	// Parallel execution settings (when mode=parallel, reuse existing ParallelState)
+	ParallelConfig *ParallelState `json:"parallel_config,omitempty"` // Parallel execution config when mode=parallel
+}
+
+// GetItemVar returns the item variable name, defaulting to "item" if empty
+func (cs *CollectionState) GetItemVar() string {
+	if cs.ItemVar == "" {
+		return "item"
+	}
+	return cs.ItemVar
+}
+
+// GetIndexVar returns the index variable name, defaulting to "index" if empty
+func (cs *CollectionState) GetIndexVar() string {
+	if cs.IndexVar == "" {
+		return "index"
+	}
+	return cs.IndexVar
 }
 
 // -----------------------------------------------------------------------------
@@ -60,7 +107,10 @@ type State struct {
 	Error    *core.Error  `json:"error,omitempty"     db:"error"`
 
 	// Parallel execution fields (embedded inline for JSON, separate column for DB)
-	*ParallelState `json:",inline" db:"parallel_state"`
+	*ParallelState `json:",inline,omitempty" db:"parallel_state"`
+
+	// Collection execution fields (stored in parallel_state JSONB column for DB efficiency)
+	*CollectionState `json:",inline,omitempty" db:"-"`
 }
 
 // -----------------------------------------------------------------------------
@@ -105,6 +155,12 @@ func (sdb *StateDB) ToState() (*State, error) {
 	}
 	if sdb.ExecutionType == ExecutionParallel {
 		err := convertParallel(sdb, state)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if sdb.ExecutionType == ExecutionCollection {
+		err := convertCollection(sdb, state)
 		if err != nil {
 			return nil, err
 		}
@@ -183,6 +239,41 @@ func convertBasic(sdb *StateDB, state *State) error {
 	return nil
 }
 
+func convertCollection(sdb *StateDB, state *State) error {
+	// Collection state is stored in the parallel_state JSONB column
+	if sdb.ParallelStateRaw != nil {
+		var collectionState CollectionState
+		if err := json.Unmarshal(sdb.ParallelStateRaw, &collectionState); err != nil {
+			return fmt.Errorf("unmarshaling collection state: %w", err)
+		}
+		state.CollectionState = &collectionState
+	}
+
+	// Handle common fields like input, output, error
+	if sdb.InputRaw != nil {
+		var input core.Input
+		if err := json.Unmarshal(sdb.InputRaw, &input); err != nil {
+			return fmt.Errorf("unmarshaling collection task input: %w", err)
+		}
+		state.Input = &input
+	}
+	if sdb.OutputRaw != nil {
+		var output core.Output
+		if err := json.Unmarshal(sdb.OutputRaw, &output); err != nil {
+			return fmt.Errorf("unmarshaling collection task output: %w", err)
+		}
+		state.Output = &output
+	}
+	if sdb.ErrorRaw != nil {
+		var errorObj core.Error
+		if err := json.Unmarshal(sdb.ErrorRaw, &errorObj); err != nil {
+			return fmt.Errorf("unmarshaling collection task error: %w", err)
+		}
+		state.Error = &errorObj
+	}
+	return nil
+}
+
 // -----------------------------------------------------------------------------
 // State methods for parallel execution
 // -----------------------------------------------------------------------------
@@ -195,6 +286,11 @@ func (s *State) IsParallel() bool {
 // IsBasic returns true if this is a basic execution
 func (s *State) IsBasic() bool {
 	return s.ExecutionType == ExecutionBasic
+}
+
+// IsCollection returns true if this is a collection execution
+func (s *State) IsCollection() bool {
+	return s.ExecutionType == ExecutionCollection
 }
 
 // GetSubTaskState returns the state of a specific sub-task
@@ -315,6 +411,48 @@ func (s *State) GetParallelProgress() (completed, failed, total int) {
 		len(s.SubTasks)
 }
 
+// GetCollectionProgress returns progress information for collection execution
+func (s *State) GetCollectionProgress() (processed, completed, failed, total int) {
+	if !s.IsCollection() || s.CollectionState == nil {
+		return 0, 0, 0, 0
+	}
+	return s.ProcessedCount,
+		s.CompletedCount,
+		s.FailedCount,
+		len(s.Items)
+}
+
+// UpdateCollectionItemResult updates the result for a collection item
+func (s *State) UpdateCollectionItemResult(
+	itemIndex int,
+	taskExecID string,
+	status core.StatusType,
+) error {
+	if !s.IsCollection() || s.CollectionState == nil {
+		return fmt.Errorf("cannot update collection item in non-collection execution")
+	}
+
+	// Add the task execution ID to results
+	if len(s.ItemResults) <= itemIndex {
+		// Extend the slice if needed
+		newResults := make([]string, itemIndex+1)
+		copy(newResults, s.ItemResults)
+		s.ItemResults = newResults
+	}
+	s.ItemResults[itemIndex] = taskExecID
+
+	// Update progress counters
+	switch status {
+	case core.StatusSuccess:
+		s.CompletedCount++
+	case core.StatusFailed:
+		s.FailedCount++
+	}
+	s.ProcessedCount++
+
+	return nil
+}
+
 // Rest of the existing methods remain the same...
 func (s *State) AsMap() (map[core.ID]any, error) {
 	val, err := json.Marshal(s)
@@ -368,14 +506,15 @@ func (s *State) IsParallelFailed() error {
 // -----------------------------------------------------------------------------
 
 type PartialState struct {
-	Component     core.ComponentType `json:"component"`
-	ExecutionType ExecutionType      `json:"execution_type"`
-	AgentID       *string            `json:"agent_id,omitempty"`
-	ActionID      *string            `json:"action_id,omitempty"`
-	ToolID        *string            `json:"tool_id,omitempty"`
-	Input         *core.Input        `json:"input,omitempty"`
-	MergedEnv     *core.EnvMap       `json:"merged_env"`
-	ParallelState *ParallelState     `json:"parallel_state,omitempty"`
+	Component       core.ComponentType `json:"component"`
+	ExecutionType   ExecutionType      `json:"execution_type"`
+	AgentID         *string            `json:"agent_id,omitempty"`
+	ActionID        *string            `json:"action_id,omitempty"`
+	ToolID          *string            `json:"tool_id,omitempty"`
+	Input           *core.Input        `json:"input,omitempty"`
+	MergedEnv       *core.EnvMap       `json:"merged_env"`
+	ParallelState   *ParallelState     `json:"parallel_state,omitempty"`
+	CollectionState *CollectionState   `json:"collection_state,omitempty"`
 }
 
 // CreateBasicPartialState creates a partial state for basic execution
@@ -445,6 +584,79 @@ func CreateParallelPartialState(
 			SubTasks:       subTasks,
 			CompletedTasks: make([]string, 0),
 			FailedTasks:    make([]string, 0),
+		},
+	}
+}
+
+// CreateCollectionPartialState creates a partial state for collection execution
+func CreateCollectionPartialState(
+	items []any,
+	filter string,
+	mode string,
+	batch int,
+	continueOnError bool,
+	itemVar string,
+	indexVar string,
+	parallelConfig *ParallelState,
+	env *core.EnvMap,
+) *PartialState {
+	return &PartialState{
+		Component:     core.ComponentTask,
+		ExecutionType: ExecutionCollection,
+		MergedEnv:     env,
+		// Store collection state in ParallelState field for DB efficiency
+		ParallelState: &ParallelState{}, // Will be replaced by collection state in marshaling
+		CollectionState: &CollectionState{
+			Items:           items,
+			Filter:          filter,
+			Mode:            mode,
+			Batch:           batch,
+			ContinueOnError: continueOnError,
+			ItemVar:         itemVar,
+			IndexVar:        indexVar,
+			ItemsEvaluated:  true, // Default to true for static items
+			ProcessedCount:  0,
+			CompletedCount:  0,
+			FailedCount:     0,
+			ItemResults:     make([]string, len(items)),
+			ParallelConfig:  parallelConfig,
+		},
+	}
+}
+
+// CreateDynamicCollectionPartialState creates a partial state for collection with dynamic items
+func CreateDynamicCollectionPartialState(
+	itemsExpression string,
+	filter string,
+	mode string,
+	batch int,
+	continueOnError bool,
+	itemVar string,
+	indexVar string,
+	parallelConfig *ParallelState,
+	env *core.EnvMap,
+) *PartialState {
+	return &PartialState{
+		Component:     core.ComponentTask,
+		ExecutionType: ExecutionCollection,
+		MergedEnv:     env,
+		// Store collection state in ParallelState field for DB efficiency
+		ParallelState: &ParallelState{}, // Will be replaced by collection state in marshaling
+		CollectionState: &CollectionState{
+			Items:           []any{}, // Empty until evaluation
+			Filter:          filter,
+			Mode:            mode,
+			Batch:           batch,
+			ContinueOnError: continueOnError,
+			ItemVar:         itemVar,
+			IndexVar:        indexVar,
+			ItemsExpression: itemsExpression,
+			ItemsEvaluated:  false, // Needs dynamic evaluation
+			ProcessedCount:  0,
+			CompletedCount:  0,
+			FailedCount:     0,
+			ItemResults:     []string{}, // Will be sized after evaluation
+			ParallelConfig:  parallelConfig,
 		},
 	}
 }
@@ -553,6 +765,23 @@ func CreateParallelState(input *CreateStateInput, result *PartialState) *State {
 		Input:          result.Input,
 		Output:         nil,
 		Error:          nil,
+	}
+}
+
+// CreateCollectionState creates a collection execution state
+func CreateCollectionState(input *CreateStateInput, result *PartialState) *State {
+	return &State{
+		TaskID:          input.TaskID,
+		TaskExecID:      input.TaskExecID,
+		Component:       core.ComponentTask,
+		Status:          core.StatusRunning,
+		WorkflowID:      input.WorkflowID,
+		WorkflowExecID:  input.WorkflowExecID,
+		ExecutionType:   ExecutionCollection,
+		CollectionState: result.CollectionState,
+		Input:           result.Input,
+		Output:          nil,
+		Error:           nil,
 	}
 }
 

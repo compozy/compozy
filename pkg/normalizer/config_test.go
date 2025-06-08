@@ -989,11 +989,11 @@ func TestConfigNormalizer_NormalizeParallelTask(t *testing.T) {
 				Env: &core.EnvMap{
 					"PARALLEL_TIMEOUT": "5m",
 				},
-			},
-			ParallelTask: task.ParallelTask{
 				Strategy:   task.StrategyWaitAll,
 				MaxWorkers: 4,
 				Timeout:    "5m",
+			},
+			ParallelTask: task.ParallelTask{
 				Tasks: []task.Config{
 					{
 						BaseConfig: task.BaseConfig{
@@ -1079,9 +1079,9 @@ func TestConfigNormalizer_NormalizeParallelTask(t *testing.T) {
 					"batch_id":   "batch-123",
 					"batch_size": 10,
 				},
+				Strategy: task.StrategyWaitAll,
 			},
 			ParallelTask: task.ParallelTask{
-				Strategy: task.StrategyWaitAll,
 				Tasks: []task.Config{
 					{
 						BaseConfig: task.BaseConfig{
@@ -1208,11 +1208,11 @@ func TestConfigNormalizer_NormalizeParallelTask(t *testing.T) {
 		// Define the parallel task configuration (would contain sub-tasks)
 		parallelTaskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
-				ID:   "parallel_processor",
-				Type: task.TaskTypeParallel,
+				ID:       "parallel_processor",
+				Type:     task.TaskTypeParallel,
+				Strategy: task.StrategyWaitAll,
 			},
 			ParallelTask: task.ParallelTask{
-				Strategy: task.StrategyWaitAll,
 				Tasks: []task.Config{
 					{
 						BaseConfig: task.BaseConfig{
@@ -1381,10 +1381,9 @@ func TestConfigNormalizer_NestedParallelTasks(t *testing.T) {
 					"batch_size": 100,
 					"priority":   "high",
 				},
+				Strategy: task.StrategyWaitAll,
 			},
 			ParallelTask: task.ParallelTask{
-				Strategy:   task.StrategyWaitAll,
-				MaxWorkers: 2,
 				Tasks: []task.Config{
 					// First sub-task: another parallel task
 					{
@@ -1397,9 +1396,9 @@ func TestConfigNormalizer_NestedParallelTasks(t *testing.T) {
 								"parent_priority": "{{ .parent.input.priority }}",
 								"workflow_id":     "{{ .workflow.id }}",
 							},
+							Strategy: task.StrategyWaitAll,
 						},
 						ParallelTask: task.ParallelTask{
-							Strategy: task.StrategyWaitAll,
 							Tasks: []task.Config{
 								// Deeply nested basic task 1
 								{

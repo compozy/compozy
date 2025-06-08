@@ -1,0 +1,107 @@
+id: process_user_notifications
+type: collection
+items: "{{ .workflow.input.users }}" # Source collection
+filter: "{{ and .item.active (not .item.notified) }}" # Filter active users who haven't been notified
+mode: parallel # Execute items in parallel
+strategy: wait_all # Wait for all items to complete
+max_workers: 10 # Maximum concurrent workers
+continue_on_error: true # Continue if individual items fail
+timeout: "5m" # Overall timeout
+
+# Variable names for template evaluation
+item_var: user # Variable name for current item
+index_var: user_index # Variable name for current index
+
+# Task template executed for each item
+template:
+  id: notify_user
+  type: basic
+  agent:
+    id: notification_agent
+    config:
+      provider: anthropic
+      model: claude-3-haiku
+      params:
+        temperature: 0.1
+        max_tokens: 500
+    instructions: Send a personalized notification to the user.
+  action: send_notification
+  with:
+    user_id: "{{ .user.id }}"
+    email: "{{ .user.email }}"
+    name: "{{ .user.name }}"
+    index: "{{ .user_index }}"
+    template: "welcome"
+
+# Input schema for the collection task
+input:
+  type: object
+  properties:
+    users:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+          email:
+            type: string
+          name:
+            type: string
+          active:
+            type: boolean
+          notified:
+            type: boolean
+        required:
+          - id
+          - email
+          - name
+          - active
+          - notified
+  required:
+    - users
+
+# Output schema
+output:
+  type: object
+  properties:
+    results:
+      type: array
+      items:
+        type: object
+        properties:
+          index:
+            type: number
+          item:
+            type: object
+          status:
+            type: string
+          output:
+            type: object
+          error:
+            type: object
+    summary:
+      type: object
+      properties:
+        total_items:
+          type: number
+        filtered_items:
+          type: number
+        completed:
+          type: number
+        failed:
+          type: number
+        skipped:
+          type: number
+        mode:
+          type: string
+  required:
+    - results
+    - summary
+
+# Standard task properties
+on_success:
+  next: finalize_notifications
+
+on_error:
+  next: handle_notification_errors

@@ -142,6 +142,79 @@ func Test_LoadTask(t *testing.T) {
 		assert.Equal(t, "retry-classification", *config.OnError.Next)
 	})
 
+	t.Run("Should load collection task configuration correctly", func(t *testing.T) {
+		cwd, dstPath := setupTest(t, "collection_task.yaml")
+
+		// Run the test
+		config, err := Load(cwd, dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
+
+		// Validate the config
+		err = config.Validate()
+		require.NoError(t, err)
+
+		require.NotNil(t, config.ID)
+		require.NotNil(t, config.Type)
+		require.NotNil(t, config.Items)
+		require.NotNil(t, config.Template)
+		require.NotNil(t, config.InputSchema)
+		require.NotNil(t, config.OutputSchema)
+		require.NotNil(t, config.OnSuccess)
+		require.NotNil(t, config.OnError)
+
+		assert.Equal(t, "process_user_notifications", config.ID)
+		assert.Equal(t, TaskTypeCollection, config.Type)
+		assert.Equal(t, "{{ .workflow.input.users }}", config.Items)
+		assert.Equal(t, "{{ and .item.active (not .item.notified) }}", config.Filter)
+		assert.Equal(t, CollectionModeParallel, config.Mode)
+		assert.Equal(t, StrategyWaitAll, config.GetStrategy())
+		assert.Equal(t, 10, config.MaxWorkers)
+		assert.Equal(t, true, config.ContinueOnError)
+		assert.Equal(t, "5m", config.Timeout)
+		assert.Equal(t, "user", config.ItemVar)
+		assert.Equal(t, "user_index", config.IndexVar)
+
+		// Validate template task
+		template := config.Template
+		require.NotNil(t, template)
+		assert.Equal(t, "notify_user", template.ID)
+		assert.Equal(t, TaskTypeBasic, template.Type)
+		assert.Equal(t, "send_notification", template.Action)
+		require.NotNil(t, template.Agent)
+		assert.Equal(t, "notification_agent", template.Agent.ID)
+		require.NotNil(t, template.With)
+		assert.Equal(t, "{{ .user.id }}", (*template.With)["user_id"])
+		assert.Equal(t, "{{ .user.email }}", (*template.With)["email"])
+		assert.Equal(t, "{{ .user.name }}", (*template.With)["name"])
+		assert.Equal(t, "{{ .user_index }}", (*template.With)["index"])
+		assert.Equal(t, "welcome", (*template.With)["template"])
+
+		// Validate input schema
+		schema := config.InputSchema
+		compiledSchema, err := schema.Compile()
+		require.NoError(t, err)
+		assert.Equal(t, []string{"object"}, []string(compiledSchema.Type))
+		require.NotNil(t, compiledSchema.Properties)
+		assert.Contains(t, (*compiledSchema.Properties), "users")
+		assert.Contains(t, compiledSchema.Required, "users")
+
+		// Validate output schema
+		outSchema := config.OutputSchema
+		compiledOutSchema, err := outSchema.Compile()
+		require.NoError(t, err)
+		assert.Equal(t, []string{"object"}, []string(compiledOutSchema.Type))
+		require.NotNil(t, compiledOutSchema.Properties)
+		assert.Contains(t, (*compiledOutSchema.Properties), "results")
+		assert.Contains(t, (*compiledOutSchema.Properties), "summary")
+		assert.Contains(t, compiledOutSchema.Required, "results")
+		assert.Contains(t, compiledOutSchema.Required, "summary")
+
+		// Validate transitions
+		assert.Equal(t, "finalize_notifications", *config.OnSuccess.Next)
+		assert.Equal(t, "handle_notification_errors", *config.OnError.Next)
+	})
+
 	t.Run("Should load parallel task configuration correctly", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "parallel_task.yaml")
 		ev := ref.NewEvaluator()
@@ -291,9 +364,10 @@ func Test_TaskConfigValidation(t *testing.T) {
 	t.Run("Should validate valid parallel task", func(t *testing.T) {
 		config := &Config{
 			BaseConfig: BaseConfig{
-				ID:   taskID,
-				Type: TaskTypeParallel,
-				cwd:  taskCWD,
+				ID:       taskID,
+				Type:     TaskTypeParallel,
+				cwd:      taskCWD,
+				Strategy: StrategyWaitAll,
 			},
 			ParallelTask: ParallelTask{
 				Tasks: []Config{
@@ -309,7 +383,6 @@ func Test_TaskConfigValidation(t *testing.T) {
 						},
 					},
 				},
-				Strategy: StrategyWaitAll,
 			},
 		}
 
@@ -570,6 +643,101 @@ func Test_TaskConfigValidation(t *testing.T) {
 
 		err := config.Validate()
 		assert.NoError(t, err)
+	})
+
+	t.Run("Should validate valid collection task", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:   taskID,
+				Type: TaskTypeCollection,
+				cwd:  taskCWD,
+			},
+			CollectionTask: CollectionTask{
+				Items:    "{{ .input.items }}",
+				ItemVar:  "item",
+				IndexVar: "index",
+				Template: &Config{
+					BaseConfig: BaseConfig{
+						ID:   "collection-item",
+						Type: TaskTypeBasic,
+						cwd:  taskCWD,
+					},
+					BasicTask: BasicTask{
+						Action: "process_item",
+					},
+				},
+			},
+		}
+
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should return error for collection task missing items", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:   taskID,
+				Type: TaskTypeCollection,
+				cwd:  taskCWD,
+			},
+			CollectionTask: CollectionTask{
+				Template: &Config{
+					BaseConfig: BaseConfig{
+						ID:   "collection-item",
+						Type: TaskTypeBasic,
+						cwd:  taskCWD,
+					},
+					BasicTask: BasicTask{
+						Action: "process_item",
+					},
+				},
+			},
+		}
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "items is required for collection tasks")
+	})
+
+	t.Run("Should return error for collection task missing template", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:   taskID,
+				Type: TaskTypeCollection,
+				cwd:  taskCWD,
+			},
+			CollectionTask: CollectionTask{
+				Items: "{{ .input.items }}",
+			},
+		}
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "task template is required for collection tasks")
+	})
+
+	t.Run("Should return error for collection task with invalid template", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:   taskID,
+				Type: TaskTypeCollection,
+				cwd:  taskCWD,
+			},
+			CollectionTask: CollectionTask{
+				Items: "{{ .input.items }}",
+				Template: &Config{
+					BaseConfig: BaseConfig{
+						ID:   "invalid-template",
+						Type: TaskTypeBasic,
+						// Missing cwd for validation
+					},
+				},
+			},
+		}
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid task template")
 	})
 }
 

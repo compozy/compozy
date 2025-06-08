@@ -153,3 +153,63 @@ func (a *Activities) GetParallelResponse(
 	act := tkfacts.NewGetParallelResponse(a.workflowRepo, a.taskRepo)
 	return act.Run(ctx, input)
 }
+
+// -----------------------------------------------------------------------------
+// Collection Task Activities
+// -----------------------------------------------------------------------------
+
+func (a *Activities) PrepareCollection(
+	ctx context.Context,
+	input *tkfacts.PrepareCollectionInput,
+) (*tkfacts.PrepareCollectionResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewPrepareCollection(
+		a.workflows,
+		a.workflowRepo,
+		a.taskRepo,
+	)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) ExecuteCollectionItem(
+	ctx context.Context,
+	input *tkfacts.ExecuteCollectionItemInput,
+) (*tkfacts.ExecuteCollectionItemResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewExecuteCollectionItem(
+		a.workflows,
+		a.workflowRepo,
+		a.taskRepo,
+		a.runtime,
+	)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) EvaluateDynamicItems(
+	ctx context.Context,
+	input *tkfacts.EvaluateDynamicItemsInput,
+) ([]any, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewEvaluateDynamicItems(
+		a.workflows,
+		a.workflowRepo,
+	)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) AggregateCollection(
+	ctx context.Context,
+	input *tkfacts.AggregateCollectionInput,
+) (*task.Response, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewAggregateCollection(a.workflows, a.workflowRepo, a.taskRepo)
+	return act.Run(ctx, input)
+}

@@ -80,6 +80,9 @@ func (e *TaskExecutor) HandleExecution(ctx workflow.Context, taskConfig *task.Co
 	case task.TaskTypeParallel:
 		executeFn := e.HandleParallelTask(taskConfig)
 		response, err = executeFn(ctx)
+	case task.TaskTypeCollection:
+		executeFn := e.HandleCollectionTask(taskConfig)
+		response, err = executeFn(ctx)
 	default:
 		return nil, fmt.Errorf("unsupported execution type: %s", taskType)
 	}
@@ -278,4 +281,265 @@ func (e *TaskExecutor) sleepTask(ctx workflow.Context, taskConfig *task.Config) 
 		logger.Info("Task sleep completed", "task_id", taskID)
 	}
 	return nil
+}
+
+func (e *TaskExecutor) HandleCollectionTask(cConfig *task.Config) func(ctx workflow.Context) (*task.Response, error) {
+	return func(ctx workflow.Context) (*task.Response, error) {
+		logger := workflow.GetLogger(ctx)
+
+		// Step 1: Prepare collection (atomic)
+		prepareResult, err := e.PrepareCollection(ctx, cConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to prepare collection: %w", err)
+		}
+
+		// Step 2: Process items based on mode
+		var itemResults []tkacts.ExecuteCollectionItemResult
+		mode := cConfig.GetMode()
+		if mode == task.CollectionModeParallel {
+			itemResults, err = e.processItemsParallel(ctx, prepareResult, cConfig)
+		} else {
+			itemResults, err = e.processItemsSequential(ctx, prepareResult, cConfig)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to process collection items: %w", err)
+		}
+
+		// Step 3: Aggregate results (atomic)
+		finalResponse, err := e.AggregateCollection(ctx, prepareResult, itemResults, cConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to aggregate collection results: %w", err)
+		}
+
+		logger.Info("Collection task execution completed",
+			"task_id", cConfig.ID,
+			"total_items", prepareResult.TotalCount,
+			"filtered_items", prepareResult.FilteredCount,
+			"final_status", finalResponse.State.Status)
+
+		return finalResponse, nil
+	}
+}
+
+// Collection task execution methods
+
+func (e *TaskExecutor) PrepareCollection(
+	ctx workflow.Context,
+	cConfig *task.Config,
+) (*tkacts.PrepareCollectionResult, error) {
+	var result *tkacts.PrepareCollectionResult
+	actLabel := tkacts.PrepareCollectionLabel
+	actInput := tkacts.PrepareCollectionInput{
+		WorkflowID:     e.WorkflowID,
+		WorkflowExecID: e.WorkflowExecID,
+		TaskConfig:     cConfig,
+	}
+	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (e *TaskExecutor) processItemsParallel(
+	ctx workflow.Context,
+	prepareResult *tkacts.PrepareCollectionResult,
+	cConfig *task.Config,
+) ([]tkacts.ExecuteCollectionItemResult, error) {
+	// Get collection state and evaluate items if needed
+	collectionState := prepareResult.CollectionState
+	if collectionState.CollectionState == nil {
+		return nil, fmt.Errorf("collection state is nil")
+	}
+
+	// Evaluate dynamic items if needed
+	items, err := e.evaluateCollectionItems(ctx, collectionState, cConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to evaluate collection items: %w", err)
+	}
+
+	itemCount := len(items)
+	if itemCount == 0 {
+		return []tkacts.ExecuteCollectionItemResult{}, nil
+	}
+
+	results := make([]tkacts.ExecuteCollectionItemResult, itemCount)
+	completed := 0
+	failed := 0
+
+	// Execute items in parallel
+	for i, item := range items {
+		itemIndex := i
+		itemValue := item
+		workflow.Go(ctx, func(gCtx workflow.Context) {
+			result, err := e.ExecuteCollectionItem(
+				gCtx,
+				prepareResult.TaskExecID,
+				itemIndex,
+				itemValue,
+				cConfig.Template,
+			)
+			if err != nil {
+				failed++
+				// Create a failed result
+				results[itemIndex] = tkacts.ExecuteCollectionItemResult{
+					ItemIndex:  itemIndex,
+					TaskExecID: core.MustNewID(),
+					Status:     core.StatusFailed,
+					Output:     nil,
+					Error:      core.NewError(err, "collection_item_execution_failed", nil),
+				}
+			} else {
+				completed++
+				results[itemIndex] = *result
+			}
+		})
+	}
+
+	// Wait for all items to complete
+	err = workflow.Await(ctx, func() bool {
+		return (completed + failed) >= itemCount
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to await collection items: %w", err)
+	}
+
+	return results, nil
+}
+
+func (e *TaskExecutor) processItemsSequential(
+	ctx workflow.Context,
+	prepareResult *tkacts.PrepareCollectionResult,
+	cConfig *task.Config,
+) ([]tkacts.ExecuteCollectionItemResult, error) {
+	// Get collection state and evaluate items if needed
+	collectionState := prepareResult.CollectionState
+	if collectionState.CollectionState == nil {
+		return nil, fmt.Errorf("collection state is nil")
+	}
+
+	// Evaluate dynamic items if needed
+	items, err := e.evaluateCollectionItems(ctx, collectionState, cConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to evaluate collection items: %w", err)
+	}
+
+	if len(items) == 0 {
+		return []tkacts.ExecuteCollectionItemResult{}, nil
+	}
+
+	batchSize := cConfig.GetBatch()
+	var results []tkacts.ExecuteCollectionItemResult
+
+	// Process items in batches
+	for i := 0; i < len(items); i += batchSize {
+		end := i + batchSize
+		if end > len(items) {
+			end = len(items)
+		}
+
+		// Process batch
+		for j := i; j < end; j++ {
+			result, err := e.ExecuteCollectionItem(
+				ctx,
+				prepareResult.TaskExecID,
+				j,
+				items[j],
+				cConfig.Template,
+			)
+			if err != nil {
+				if !cConfig.ContinueOnError {
+					return nil, fmt.Errorf("collection item %d failed: %w", j, err)
+				}
+				// Create a failed result
+				results = append(results, tkacts.ExecuteCollectionItemResult{
+					ItemIndex:  j,
+					TaskExecID: core.MustNewID(),
+					Status:     core.StatusFailed,
+					Output:     nil,
+					Error:      core.NewError(err, "collection_item_execution_failed", nil),
+				})
+			} else {
+				results = append(results, *result)
+			}
+		}
+	}
+
+	return results, nil
+}
+
+// evaluateCollectionItems handles dynamic item evaluation and filtering during execution
+func (e *TaskExecutor) evaluateCollectionItems(
+	ctx workflow.Context,
+	collectionState *task.State,
+	cConfig *task.Config,
+) ([]any, error) {
+	// Check if items are already evaluated and available
+	if collectionState.ItemsEvaluated && len(collectionState.Items) > 0 {
+		return collectionState.Items, nil
+	}
+
+	// If items are not evaluated and we have an expression, evaluate it now
+	if !collectionState.ItemsEvaluated && collectionState.ItemsExpression != "" {
+		// Execute an activity to evaluate the dynamic items with current workflow state
+		var evaluatedItems []any
+		actInput := tkacts.EvaluateDynamicItemsInput{
+			WorkflowID:       e.WorkflowID,
+			WorkflowExecID:   e.WorkflowExecID,
+			ItemsExpression:  collectionState.ItemsExpression,
+			FilterExpression: collectionState.Filter,
+			TaskConfig:       cConfig,
+		}
+		err := workflow.ExecuteActivity(ctx, tkacts.EvaluateDynamicItemsLabel, actInput).Get(ctx, &evaluatedItems)
+		if err != nil {
+			return nil, fmt.Errorf("failed to evaluate dynamic collection items: %w", err)
+		}
+
+		return evaluatedItems, nil
+	}
+
+	// Return existing items (static or already evaluated)
+	return collectionState.Items, nil
+}
+
+func (e *TaskExecutor) ExecuteCollectionItem(
+	ctx workflow.Context,
+	parentTaskExecID core.ID,
+	itemIndex int,
+	item any,
+	taskConfig *task.Config,
+) (*tkacts.ExecuteCollectionItemResult, error) {
+	var result *tkacts.ExecuteCollectionItemResult
+	actLabel := tkacts.ExecuteCollectionItemLabel
+	actInput := tkacts.ExecuteCollectionItemInput{
+		ParentTaskExecID: parentTaskExecID,
+		ItemIndex:        itemIndex,
+		Item:             item,
+		TaskConfig:       taskConfig,
+	}
+	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (e *TaskExecutor) AggregateCollection(
+	ctx workflow.Context,
+	prepareResult *tkacts.PrepareCollectionResult,
+	itemResults []tkacts.ExecuteCollectionItemResult,
+	cConfig *task.Config,
+) (*task.Response, error) {
+	var response *task.Response
+	actLabel := tkacts.AggregateCollectionLabel
+	actInput := tkacts.AggregateCollectionInput{
+		ParentTaskExecID: prepareResult.TaskExecID,
+		ItemResults:      itemResults,
+		TaskConfig:       cConfig,
+	}
+	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &response)
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
 }

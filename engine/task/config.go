@@ -20,16 +20,22 @@ import (
 // -----------------------------------------------------------------------------
 
 type BaseConfig struct {
-	ID           string          `json:"id,omitempty"         yaml:"id,omitempty"         mapstructure:"id,omitempty"`
-	Type         Type            `json:"type,omitempty"       yaml:"type,omitempty"       mapstructure:"type,omitempty"`
-	Config       core.GlobalOpts `json:"config"               yaml:"config"               mapstructure:"config"`
-	Agent        *agent.Config   `json:"agent,omitempty"      yaml:"agent,omitempty"      mapstructure:"agent,omitempty"`
-	Tool         *tool.Config    `json:"tool,omitempty"       yaml:"tool,omitempty"       mapstructure:"tool,omitempty"`
-	InputSchema  *schema.Schema  `json:"input,omitempty"      yaml:"input,omitempty"      mapstructure:"input,omitempty"`
-	OutputSchema *schema.Schema  `json:"output,omitempty"     yaml:"output,omitempty"     mapstructure:"output,omitempty"`
-	With         *core.Input     `json:"with,omitempty"       yaml:"with,omitempty"       mapstructure:"with,omitempty"`
-	Outputs      *core.Input     `json:"outputs,omitempty"    yaml:"outputs,omitempty"    mapstructure:"outputs,omitempty"`
-	Env          *core.EnvMap    `json:"env,omitempty"        yaml:"env,omitempty"        mapstructure:"env,omitempty"`
+	ID           string          `json:"id,omitempty"      yaml:"id,omitempty"      mapstructure:"id,omitempty"`
+	Type         Type            `json:"type,omitempty"    yaml:"type,omitempty"    mapstructure:"type,omitempty"`
+	Config       core.GlobalOpts `json:"config"            yaml:"config"            mapstructure:"config"`
+	Agent        *agent.Config   `json:"agent,omitempty"   yaml:"agent,omitempty"   mapstructure:"agent,omitempty"`
+	Tool         *tool.Config    `json:"tool,omitempty"    yaml:"tool,omitempty"    mapstructure:"tool,omitempty"`
+	InputSchema  *schema.Schema  `json:"input,omitempty"   yaml:"input,omitempty"   mapstructure:"input,omitempty"`
+	OutputSchema *schema.Schema  `json:"output,omitempty"  yaml:"output,omitempty"  mapstructure:"output,omitempty"`
+	With         *core.Input     `json:"with,omitempty"    yaml:"with,omitempty"    mapstructure:"with,omitempty"`
+	Outputs      *core.Input     `json:"outputs,omitempty" yaml:"outputs,omitempty" mapstructure:"outputs,omitempty"`
+	Env          *core.EnvMap    `json:"env,omitempty"     yaml:"env,omitempty"     mapstructure:"env,omitempty"`
+
+	// Shared parallel execution fields (used by both parallel and collection tasks)
+	Strategy   ParallelStrategy `json:"strategy,omitempty"    yaml:"strategy,omitempty"    mapstructure:"strategy,omitempty"`
+	MaxWorkers int              `json:"max_workers,omitempty" yaml:"max_workers,omitempty" mapstructure:"max_workers,omitempty"`
+	Timeout    string           `json:"timeout,omitempty"     yaml:"timeout,omitempty"     mapstructure:"timeout,omitempty"`
+
 	// Task configuration
 	OnSuccess *core.SuccessTransition `json:"on_success,omitempty" yaml:"on_success,omitempty" mapstructure:"on_success,omitempty"`
 	OnError   *core.ErrorTransition   `json:"on_error,omitempty"   yaml:"on_error,omitempty"   mapstructure:"on_error,omitempty"`
@@ -47,9 +53,10 @@ type BaseConfig struct {
 type Type string
 
 const (
-	TaskTypeBasic    Type = "basic"
-	TaskTypeRouter   Type = "router"
-	TaskTypeParallel Type = "parallel"
+	TaskTypeBasic      Type = "basic"
+	TaskTypeRouter     Type = "router"
+	TaskTypeParallel   Type = "parallel"
+	TaskTypeCollection Type = "collection"
 )
 
 // -----------------------------------------------------------------------------
@@ -83,37 +90,69 @@ const (
 )
 
 type ParallelTask struct {
-	Strategy   ParallelStrategy `json:"strategy,omitempty"    yaml:"strategy,omitempty"    mapstructure:"strategy,omitempty"`
-	MaxWorkers int              `json:"max_workers,omitempty" yaml:"max_workers,omitempty" mapstructure:"max_workers,omitempty"`
-	Timeout    string           `json:"timeout,omitempty"     yaml:"timeout,omitempty"     mapstructure:"timeout,omitempty"`
-	Retries    int              `json:"retries,omitempty"     yaml:"retries,omitempty"     mapstructure:"retries,omitempty"`
-	Tasks      []Config         `json:"tasks"                 yaml:"tasks"                 mapstructure:"tasks"`
-	Task       *Config          `json:"task,omitempty"        yaml:"task,omitempty"        mapstructure:"task,omitempty"`
+	Retries int      `json:"retries,omitempty" yaml:"retries,omitempty" mapstructure:"retries,omitempty"`
+	Tasks   []Config `json:"tasks"             yaml:"tasks"             mapstructure:"tasks"`
+	Task    *Config  `json:"task,omitempty"    yaml:"task,omitempty"    mapstructure:"task,omitempty"`
 }
 
 func (pt *ParallelTask) GetTasks() []Config {
 	return pt.Tasks
 }
 
-func (pt *ParallelTask) GetTimeout() (time.Duration, error) {
-	if pt.Timeout == "" {
-		return 0, nil
-	}
-	return core.ParseHumanDuration(pt.Timeout)
+// -----------------------------------------------------------------------------
+// Collection Task
+// -----------------------------------------------------------------------------
+
+type CollectionMode string
+
+const (
+	CollectionModeParallel   CollectionMode = "parallel"
+	CollectionModeSequential CollectionMode = "sequential"
+)
+
+type CollectionTask struct {
+	// Core collection fields
+	Items           string         `json:"items"                       yaml:"items"                       mapstructure:"items"`
+	Filter          string         `json:"filter,omitempty"            yaml:"filter,omitempty"            mapstructure:"filter,omitempty"`
+	Template        *Config        `json:"template"                    yaml:"template"                    mapstructure:"template"`
+	Mode            CollectionMode `json:"mode,omitempty"              yaml:"mode,omitempty"              mapstructure:"mode,omitempty"`
+	Batch           int            `json:"batch,omitempty"             yaml:"batch,omitempty"             mapstructure:"batch,omitempty"`
+	ContinueOnError bool           `json:"continue_on_error,omitempty" yaml:"continue_on_error,omitempty" mapstructure:"continue_on_error,omitempty"`
+
+	// Variable names for template evaluation
+	ItemVar  string `json:"item_var,omitempty"  yaml:"item_var,omitempty"  mapstructure:"item_var,omitempty"`
+	IndexVar string `json:"index_var,omitempty" yaml:"index_var,omitempty" mapstructure:"index_var,omitempty"`
+
+	// Optional early termination
+	StopCondition string `json:"stop_condition,omitempty" yaml:"stop_condition,omitempty" mapstructure:"stop_condition,omitempty"`
 }
 
-func (pt *ParallelTask) GetStrategy() ParallelStrategy {
-	if pt.Strategy == "" {
-		return StrategyWaitAll
+func (ct *CollectionTask) GetMode() CollectionMode {
+	if ct.Mode == "" {
+		return CollectionModeParallel
 	}
-	return pt.Strategy
+	return ct.Mode
 }
 
-func (pt *ParallelTask) GetMaxWorkers() int {
-	if pt.MaxWorkers <= 0 {
-		return len(pt.Tasks) // Default to number of tasks
+func (ct *CollectionTask) GetBatch() int {
+	if ct.Batch <= 0 {
+		return 1
 	}
-	return pt.MaxWorkers
+	return ct.Batch
+}
+
+func (ct *CollectionTask) GetItemVar() string {
+	if ct.ItemVar == "" {
+		return "item"
+	}
+	return ct.ItemVar
+}
+
+func (ct *CollectionTask) GetIndexVar() string {
+	if ct.IndexVar == "" {
+		return "index"
+	}
+	return ct.IndexVar
 }
 
 // -----------------------------------------------------------------------------
@@ -121,10 +160,11 @@ func (pt *ParallelTask) GetMaxWorkers() int {
 // -----------------------------------------------------------------------------
 
 type Config struct {
-	BasicTask    `json:",inline" yaml:",inline" mapstructure:",squash"`
-	RouterTask   `json:",inline" yaml:",inline" mapstructure:",squash"`
-	ParallelTask `json:",inline" yaml:",inline" mapstructure:",squash"`
-	BaseConfig   `json:",inline" yaml:",inline" mapstructure:",squash"`
+	BasicTask      `json:",inline" yaml:",inline" mapstructure:",squash"`
+	RouterTask     `json:",inline" yaml:",inline" mapstructure:",squash"`
+	ParallelTask   `json:",inline" yaml:",inline" mapstructure:",squash"`
+	CollectionTask `json:",inline" yaml:",inline" mapstructure:",squash"`
+	BaseConfig     `json:",inline" yaml:",inline" mapstructure:",squash"`
 }
 
 func (t *Config) GetEnv() core.EnvMap {
@@ -259,10 +299,37 @@ func (t *Config) GetExecType() ExecutionType {
 		executionType = ExecutionRouter
 	case TaskTypeParallel:
 		executionType = ExecutionParallel
+	case TaskTypeCollection:
+		executionType = ExecutionCollection
 	default:
 		executionType = ExecutionBasic
 	}
 	return executionType
+}
+
+// Shared parallel execution methods (used by both parallel and collection tasks)
+func (t *Config) GetStrategy() ParallelStrategy {
+	if t.Strategy == "" {
+		return StrategyWaitAll
+	}
+	return t.Strategy
+}
+
+func (t *Config) GetMaxWorkers() int {
+	if t.MaxWorkers <= 0 {
+		if t.Type == TaskTypeParallel {
+			return len(t.Tasks) // Default to number of tasks for parallel
+		}
+		return 10 // Default max workers for collection
+	}
+	return t.MaxWorkers
+}
+
+func (t *Config) GetTimeout() (time.Duration, error) {
+	if t.Timeout == "" {
+		return 0, nil
+	}
+	return core.ParseHumanDuration(t.Timeout)
 }
 
 func FindConfig(tasks []Config, taskID string) (*Config, error) {
@@ -286,6 +353,17 @@ func propagateCWDToSubTasks(config *Config) error {
 			if err := propagateCWDToSubTasks(&config.Tasks[i]); err != nil {
 				return err
 			}
+		}
+	}
+	if config.Type == TaskTypeCollection && config.Template != nil {
+		if config.Template.cwd == nil && config.cwd != nil {
+			if err := config.Template.SetCWD(config.cwd.PathStr()); err != nil {
+				return fmt.Errorf("failed to set CWD for collection template %s: %w", config.Template.ID, err)
+			}
+		}
+		// Recursively propagate CWD to nested tasks in the template
+		if err := propagateCWDToSubTasks(config.Template); err != nil {
+			return err
 		}
 	}
 	return nil

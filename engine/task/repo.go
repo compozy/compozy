@@ -59,6 +59,8 @@ func CreateAndPersistState(
 		state = CreateBasicState(input, result)
 	case ExecutionParallel:
 		state = CreateParallelState(input, result)
+	case ExecutionCollection:
+		state = CreateCollectionState(input, result)
 	default:
 		return nil, fmt.Errorf("unsupported execution type: %s", result.ExecutionType)
 	}
