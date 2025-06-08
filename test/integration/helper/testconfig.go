@@ -107,4 +107,18 @@ func SetupWorkflowEnvironment(env *testsuite.TestWorkflowEnvironment, config *Co
 	env.RegisterActivity(activities.UpdateWorkflowState)
 	env.RegisterActivity(activities.ExecuteBasicTask)
 	env.RegisterActivity(activities.CompleteWorkflow)
+	
+	// Register collection task activities
+	env.RegisterActivity(activities.PrepareCollection)
+	env.RegisterActivity(activities.ExecuteCollectionItem)
+	env.RegisterActivity(activities.EvaluateDynamicItems)
+	env.RegisterActivity(activities.AggregateCollection)
+	
+	// Register parallel task activities (used by collection tasks in parallel mode)
+	env.RegisterActivity(activities.CreateParallelState)
+	env.RegisterActivity(activities.ExecuteParallelTask)
+	env.RegisterActivity(activities.GetParallelResponse)
+	
+	// Register router task activities
+	env.RegisterActivity(activities.ExecuteRouterTask)
 }

@@ -37,11 +37,8 @@ type EvaluateDynamicItemsInput struct {
 }
 
 type PrepareCollection struct {
-	loadWorkflowUC      *uc.LoadWorkflow
-	createStateUC       *uc.CreateState
-	handleResponseUC    *uc.HandleResponse
-	taskRepo            task.Repository
-	collectionEvaluator *uc.CollectionEvaluator
+	loadWorkflowUC    *uc.LoadWorkflow
+	prepareCollectionUC *uc.PrepareCollection
 }
 
 type EvaluateDynamicItems struct {
@@ -56,11 +53,8 @@ func NewPrepareCollection(
 	taskRepo task.Repository,
 ) *PrepareCollection {
 	return &PrepareCollection{
-		loadWorkflowUC:      uc.NewLoadWorkflow(workflows, workflowRepo),
-		createStateUC:       uc.NewCreateState(taskRepo),
-		handleResponseUC:    uc.NewHandleResponse(workflowRepo, taskRepo),
-		taskRepo:            taskRepo,
-		collectionEvaluator: uc.NewCollectionEvaluator(),
+		loadWorkflowUC:    uc.NewLoadWorkflow(workflows, workflowRepo),
+		prepareCollectionUC: uc.NewPrepareCollection(taskRepo),
 	}
 }
 
@@ -82,27 +76,22 @@ func (a *PrepareCollection) Run(ctx context.Context, input *PrepareCollectionInp
 		return nil, err
 	}
 
-	// Evaluate collection items
-	result, err := a.evaluateCollectionItems(ctx, input.TaskConfig, workflowState, workflowConfig)
+	// Use the prepare collection use case
+	result, err := a.prepareCollectionUC.Execute(ctx, &uc.PrepareCollectionInput{
+		WorkflowState:  workflowState,
+		WorkflowConfig: workflowConfig,
+		TaskConfig:     input.TaskConfig,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	// Calculate batch information
-	batchCount := a.calculateBatchCount(result.FilteredCount, input.TaskConfig.GetBatch(), input.TaskConfig.GetMode())
-
-	// Create and persist collection state
-	collectionState, err := a.createCollectionState(workflowState, workflowConfig, input.TaskConfig, result.Items)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create collection state: %w", err)
-	}
-
 	return &PrepareCollectionResult{
-		TaskExecID:      collectionState.TaskExecID,
+		TaskExecID:      result.TaskExecID,
 		FilteredCount:   result.FilteredCount,
 		TotalCount:      result.TotalCount,
-		BatchCount:      batchCount,
-		CollectionState: collectionState,
+		BatchCount:      result.BatchCount,
+		CollectionState: result.CollectionState,
 	}, nil
 }
 
@@ -139,110 +128,7 @@ func (a *PrepareCollection) loadAndValidateWorkflow(
 	return workflowState, workflowConfig, nil
 }
 
-func (a *PrepareCollection) evaluateCollectionItems(
-	ctx context.Context,
-	taskConfig *task.Config,
-	workflowState *workflow.State,
-	workflowConfig *workflow.Config,
-) (*uc.EvaluationResult, error) {
-	// Build evaluation context
-	evaluationContext := a.buildEvaluationContext(taskConfig, workflowState, workflowConfig)
 
-	// Evaluate collection items using shared service
-	evalInput := &uc.EvaluationInput{
-		ItemsExpr:  taskConfig.Items,
-		FilterExpr: taskConfig.Filter,
-		Context:    evaluationContext,
-		ItemVar:    taskConfig.GetItemVar(),
-		IndexVar:   taskConfig.GetIndexVar(),
-	}
-
-	result, err := a.collectionEvaluator.EvaluateItems(ctx, evalInput)
-	if err != nil {
-		return nil, fmt.Errorf("failed to evaluate collection items: %w", err)
-	}
-
-	return result, nil
-}
-
-func (a *PrepareCollection) buildEvaluationContext(
-	taskConfig *task.Config,
-	workflowState *workflow.State,
-	workflowConfig *workflow.Config,
-) map[string]any {
-	// Use normalizer to build proper context structure
-	contextBuilder := normalizer.NewContextBuilder()
-	taskConfigs := normalizer.BuildTaskConfigsMap([]task.Config{*taskConfig})
-
-	// Merge environments: workflow -> task
-	envMerger := &core.EnvMerger{}
-	mergedEnv, err := envMerger.MergeWithDefaults(
-		workflowConfig.GetEnv(),
-		taskConfig.GetEnv(),
-	)
-	if err != nil {
-		// If merge fails, use task env only
-		mergedEnv = taskConfig.GetEnv()
-	}
-
-	normCtx := &normalizer.NormalizationContext{
-		WorkflowState:  workflowState,
-		WorkflowConfig: workflowConfig,
-		TaskConfigs:    taskConfigs,
-		ParentConfig:   nil,
-		CurrentInput:   taskConfig.With,
-		MergedEnv:      &mergedEnv,
-	}
-
-	return contextBuilder.BuildContext(normCtx)
-}
-
-func (a *PrepareCollection) calculateBatchCount(itemCount, batchSize int, mode task.CollectionMode) int {
-	if mode == task.CollectionModeSequential && batchSize > 0 {
-		return (itemCount + batchSize - 1) / batchSize // Ceiling division
-	}
-	return 1 // For parallel mode, treat as single batch
-}
-
-func (a *PrepareCollection) createCollectionState(
-	workflowState *workflow.State,
-	workflowConfig *workflow.Config,
-	taskConfig *task.Config,
-	filteredItems []any,
-) (*task.State, error) {
-	collectionTask := &taskConfig.CollectionTask
-
-	// Create collection state with evaluated items
-	partialState := task.CreateCollectionPartialState(
-		filteredItems,
-		collectionTask.Filter,
-		string(collectionTask.GetMode()),
-		collectionTask.GetBatch(),
-		collectionTask.ContinueOnError,
-		collectionTask.GetItemVar(),
-		collectionTask.GetIndexVar(),
-		nil, // ParallelConfig will be set if needed
-		taskConfig.Env,
-	)
-
-	// Create and persist the collection state
-	taskExecID := core.MustNewID()
-	stateInput := &task.CreateStateInput{
-		WorkflowID:     workflowConfig.ID,
-		WorkflowExecID: workflowState.WorkflowExecID,
-		TaskID:         taskConfig.ID,
-		TaskExecID:     taskExecID,
-	}
-
-	collectionState := task.CreateCollectionState(stateInput, partialState)
-
-	// Persist the collection state to the database
-	if err := a.taskRepo.UpsertState(context.Background(), collectionState); err != nil {
-		return nil, fmt.Errorf("failed to persist collection state: %w", err)
-	}
-
-	return collectionState, nil
-}
 
 func (a *EvaluateDynamicItems) Run(ctx context.Context, input *EvaluateDynamicItemsInput) ([]any, error) {
 	// Load current workflow state and config

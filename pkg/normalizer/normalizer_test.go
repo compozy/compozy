@@ -259,7 +259,7 @@ func TestNormalizer_NormalizeTaskConfig(t *testing.T) {
 		err := n.NormalizeTaskConfig(taskConfig, ctx)
 		require.NoError(t, err)
 
-		assert.Equal(t, "true", taskConfig.Condition)
+		assert.Equal(t, "1", taskConfig.Condition)
 	})
 
 	t.Run("Should not process outputs field during config normalization", func(t *testing.T) {

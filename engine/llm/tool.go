@@ -70,6 +70,10 @@ func (t *Tool) validateOutput(ctx context.Context, output *core.Output) error {
 
 // executeTool executes the tool with the runtime manager
 func (t *Tool) executeTool(ctx context.Context, input *core.Input) (*core.Output, error) {
+	if t.runtime == nil {
+		return nil, fmt.Errorf("runtime manager is nil")
+	}
+	
 	toolExecID := core.MustNewID()
 	env := core.EnvMap{}
 	if t.env != nil {

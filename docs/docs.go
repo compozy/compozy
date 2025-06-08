@@ -85,7 +85,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/executions/workflows/{workflow_exec_id}": {
+        "/executions/workflows/{exec_id}": {
             "get": {
                 "description": "Retrieve a specific workflow execution by its execution ID",
                 "consumes": [
@@ -95,7 +95,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "workflows"
+                    "executions"
                 ],
                 "summary": "Get workflow execution by ID",
                 "parameters": [
@@ -103,7 +103,7 @@ const docTemplate = `{
                         "type": "string",
                         "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
                         "description": "Workflow Execution ID",
-                        "name": "workflow_exec_id",
+                        "name": "exec_id",
                         "in": "path",
                         "required": true
                     }
@@ -147,6 +147,249 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Execution not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/executions/workflows/{exec_id}/cancel": {
+            "post": {
+                "description": "Cancel a specific workflow execution by its execution ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "executions"
+                ],
+                "summary": "Cancel workflow execution",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"workflowID_execID\"",
+                        "description": "Workflow Execution ID",
+                        "name": "exec_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Workflow execution canceled successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid execution ID",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/executions/workflows/{exec_id}/pause": {
+            "post": {
+                "description": "Pause a specific workflow execution by its execution ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "executions"
+                ],
+                "summary": "Pause workflow execution",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"workflowID_execID\"",
+                        "description": "Workflow Execution ID",
+                        "name": "exec_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Workflow execution paused successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid execution ID",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/executions/workflows/{exec_id}/resume": {
+            "post": {
+                "description": "Resume a specific workflow execution by its execution ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "executions"
+                ],
+                "summary": "Resume workflow execution",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"workflowID_execID\"",
+                        "description": "Workflow Execution ID",
+                        "name": "exec_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Workflow execution resumed successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid execution ID",
                         "schema": {
                             "allOf": [
                                 {
@@ -1113,24 +1356,27 @@ const docTemplate = `{
                 "prompt"
             ],
             "properties": {
-                "$merge": {},
-                "$ref": {
-                    "type": "string"
-                },
-                "$use": {
-                    "type": "string"
-                },
                 "id": {
                     "type": "string"
                 },
                 "input": {
                     "$ref": "#/definitions/schema.Schema"
                 },
+                "json_mode": {
+                    "type": "boolean"
+                },
                 "output": {
                     "$ref": "#/definitions/schema.Schema"
                 },
                 "prompt": {
                     "type": "string"
+                },
+                "tools": {
+                    "description": "Used to force a single tool call in the action",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tool.Config"
+                    }
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"
@@ -1152,7 +1398,7 @@ const docTemplate = `{
                     }
                 },
                 "config": {
-                    "$ref": "#/definitions/agent.ProviderConfig"
+                    "$ref": "#/definitions/core.ProviderConfig"
                 },
                 "env": {
                     "$ref": "#/definitions/core.EnvMap"
@@ -1160,16 +1406,17 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
-                "input": {
-                    "$ref": "#/definitions/schema.Schema"
-                },
                 "instructions": {
                     "type": "string"
                 },
-                "output": {
-                    "$ref": "#/definitions/schema.Schema"
+                "json_mode": {
+                    "type": "boolean"
+                },
+                "max_iterations": {
+                    "type": "integer"
                 },
                 "tools": {
+                    "description": "When defined here, the agent will have toolChoice defined as \"auto\"",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/tool.Config"
@@ -1179,140 +1426,6 @@ const docTemplate = `{
                     "$ref": "#/definitions/core.Input"
                 }
             }
-        },
-        "agent.ModelName": {
-            "type": "string",
-            "enum": [
-                "gpt-4o",
-                "gpt-4o-mini",
-                "gpt-4.1",
-                "gpt-4.1-mini",
-                "gpt-4.1-nano",
-                "gpt-4.5",
-                "o1",
-                "o3",
-                "o3-mini",
-                "o4-mini",
-                "llama2-70b-4096",
-                "llama2-13b-4096",
-                "mixtral-8x7b-32768",
-                "gemma-7b-it",
-                "llama-3.3-70b-versatile",
-                "llama-4-maverick-17b-instruct",
-                "llama-4-scout-17b-instruct",
-                "claude-3-opus-20240229",
-                "claude-3-sonnet-20240229",
-                "claude-3-haiku-20240307",
-                "mistral-large-latest",
-                "mistral-medium-latest",
-                "mistral-small-latest",
-                "command",
-                "command-light",
-                "command-nightly",
-                "pplx-7b-online",
-                "pplx-70b-online",
-                "pplx-7b",
-                "pplx-70b",
-                "grok-3",
-                "grok-3-mini",
-                "gemini-2.5-pro",
-                "gemini-2.0-flash",
-                "gemini-2.5-flash",
-                "gemma-3"
-            ],
-            "x-enum-varnames": [
-                "ModelGPT4o",
-                "ModelGPT4oMini",
-                "ModelGPT41",
-                "ModelGPT41Mini",
-                "ModelGPT41Nano",
-                "ModelGPT45",
-                "ModelO1",
-                "ModelO3",
-                "ModelO3Mini",
-                "ModelO4Mini",
-                "ModelLLama270b",
-                "ModelLLama213b",
-                "ModelMixtral8x7b",
-                "ModelGemma7b",
-                "ModelLLama3370bVersatile",
-                "ModelLLama4Maverick17b",
-                "ModelLLama4Scout17b",
-                "ModelClaude3Opus",
-                "ModelClaude3Sonnet",
-                "ModelClaude3Haiku",
-                "ModelMistralLarge",
-                "ModelMistralMedium",
-                "ModelMistralSmall",
-                "ModelCommand",
-                "ModelCommandLight",
-                "ModelCommandNightly",
-                "ModelPPLX7BOnline",
-                "ModelPPLX70BOnline",
-                "ModelPPLX7B",
-                "ModelPPLX70B",
-                "ModelGrok3",
-                "ModelGrok3Mini",
-                "ModelGemini25Pro",
-                "ModelGemini20Flash",
-                "ModelGemini25Flash",
-                "ModelGemma3"
-            ]
-        },
-        "agent.ProviderConfig": {
-            "type": "object",
-            "properties": {
-                "api_key": {
-                    "type": "string"
-                },
-                "api_url": {
-                    "type": "string"
-                },
-                "frequency_penalty": {
-                    "type": "number"
-                },
-                "max_tokens": {
-                    "type": "integer"
-                },
-                "model": {
-                    "$ref": "#/definitions/agent.ModelName"
-                },
-                "presence_penalty": {
-                    "type": "number"
-                },
-                "provider": {
-                    "$ref": "#/definitions/agent.ProviderName"
-                },
-                "temperature": {
-                    "type": "number"
-                },
-                "top_p": {
-                    "type": "number"
-                }
-            }
-        },
-        "agent.ProviderName": {
-            "type": "string",
-            "enum": [
-                "openai",
-                "groq",
-                "anthropic",
-                "mistral",
-                "cohere",
-                "perplexity",
-                "xai",
-                "google"
-            ],
-            "x-enum-varnames": [
-                "ProviderOpenAI",
-                "ProviderGroq",
-                "ProviderAnthropic",
-                "ProviderMistral",
-                "ProviderCohere",
-                "ProviderPerplexity",
-                "ProviderXAI",
-                "ProviderGoogle"
-            ]
         },
         "core.Author": {
             "type": "object",
@@ -1392,6 +1505,40 @@ const docTemplate = `{
                 }
             }
         },
+        "core.ErrorTransition": {
+            "type": "object",
+            "properties": {
+                "next": {
+                    "type": "string"
+                },
+                "with": {
+                    "$ref": "#/definitions/core.Input"
+                }
+            }
+        },
+        "core.GlobalOpts": {
+            "type": "object",
+            "properties": {
+                "heartbeat_timeout": {
+                    "type": "string"
+                },
+                "on_error": {
+                    "$ref": "#/definitions/core.ErrorTransition"
+                },
+                "retry_policy": {
+                    "$ref": "#/definitions/core.RetryPolicyConfig"
+                },
+                "schedule_to_close_timeout": {
+                    "type": "string"
+                },
+                "schedule_to_start_timeout": {
+                    "type": "string"
+                },
+                "start_to_close_timeout": {
+                    "type": "string"
+                }
+            }
+        },
         "core.Input": {
             "type": "object",
             "additionalProperties": {}
@@ -1399,6 +1546,113 @@ const docTemplate = `{
         "core.Output": {
             "type": "object",
             "additionalProperties": {}
+        },
+        "core.PromptParams": {
+            "type": "object",
+            "properties": {
+                "max_length": {
+                    "type": "integer"
+                },
+                "max_tokens": {
+                    "type": "integer"
+                },
+                "min_length": {
+                    "type": "integer"
+                },
+                "repetition_penalty": {
+                    "type": "number"
+                },
+                "seed": {
+                    "type": "integer"
+                },
+                "stop_words": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "temperature": {
+                    "type": "number"
+                },
+                "top_k": {
+                    "type": "integer"
+                },
+                "top_p": {
+                    "type": "number"
+                }
+            }
+        },
+        "core.ProviderConfig": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string"
+                },
+                "api_url": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "organization": {
+                    "type": "string"
+                },
+                "params": {
+                    "$ref": "#/definitions/core.PromptParams"
+                },
+                "provider": {
+                    "$ref": "#/definitions/core.ProviderName"
+                }
+            }
+        },
+        "core.ProviderName": {
+            "type": "string",
+            "enum": [
+                "openai",
+                "groq",
+                "anthropic",
+                "google",
+                "ollama",
+                "deepseek",
+                "xai",
+                "mock"
+            ],
+            "x-enum-comments": {
+                "ProviderMock": "Mock provider for testing"
+            },
+            "x-enum-varnames": [
+                "ProviderOpenAI",
+                "ProviderGroq",
+                "ProviderAnthropic",
+                "ProviderGoogle",
+                "ProviderOllama",
+                "ProviderDeepSeek",
+                "ProviderXAI",
+                "ProviderMock"
+            ]
+        },
+        "core.RetryPolicyConfig": {
+            "type": "object",
+            "properties": {
+                "backoff_coefficient": {
+                    "type": "number"
+                },
+                "initial_interval": {
+                    "type": "string"
+                },
+                "maximum_attempts": {
+                    "type": "integer"
+                },
+                "maximum_interval": {
+                    "type": "string"
+                },
+                "non_retryable_error_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
         },
         "core.StatusType": {
             "type": "string",
@@ -1422,6 +1676,17 @@ const docTemplate = `{
                 "StatusWaiting",
                 "StatusPaused"
             ]
+        },
+        "core.SuccessTransition": {
+            "type": "object",
+            "properties": {
+                "next": {
+                    "type": "string"
+                },
+                "with": {
+                    "$ref": "#/definitions/core.Input"
+                }
+            }
         },
         "router.ErrorInfo": {
             "type": "object",
@@ -1456,22 +1721,45 @@ const docTemplate = `{
             "type": "object",
             "additionalProperties": {}
         },
+        "task.CollectionMode": {
+            "type": "string",
+            "enum": [
+                "parallel",
+                "parallel",
+                "sequential"
+            ],
+            "x-enum-varnames": [
+                "DefaultCollectionMode",
+                "CollectionModeParallel",
+                "CollectionModeSequential"
+            ]
+        },
         "task.Config": {
             "type": "object",
             "properties": {
                 "action": {
-                    "description": "Basic task properties",
                     "type": "string"
                 },
                 "agent": {
                     "$ref": "#/definitions/agent.Config"
                 },
+                "batch": {
+                    "type": "integer"
+                },
                 "condition": {
-                    "description": "Router task properties",
                     "type": "string"
+                },
+                "config": {
+                    "$ref": "#/definitions/core.GlobalOpts"
+                },
+                "continue_on_error": {
+                    "type": "boolean"
                 },
                 "env": {
                     "$ref": "#/definitions/core.EnvMap"
+                },
+                "filter": {
+                    "type": "string"
                 },
                 "final": {
                     "type": "boolean"
@@ -1479,23 +1767,79 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "index_var": {
+                    "type": "string"
+                },
                 "input": {
                     "$ref": "#/definitions/schema.Schema"
                 },
+                "item_var": {
+                    "description": "Variable names for template evaluation",
+                    "type": "string"
+                },
+                "items": {
+                    "description": "Core collection fields",
+                    "type": "string"
+                },
+                "max_workers": {
+                    "type": "integer"
+                },
+                "mode": {
+                    "$ref": "#/definitions/task.CollectionMode"
+                },
                 "on_error": {
-                    "$ref": "#/definitions/task.ErrorTransitionConfig"
+                    "$ref": "#/definitions/core.ErrorTransition"
                 },
                 "on_success": {
-                    "$ref": "#/definitions/task.SuccessTransitionConfig"
+                    "description": "Task configuration",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.SuccessTransition"
+                        }
+                    ]
                 },
                 "output": {
                     "$ref": "#/definitions/schema.Schema"
                 },
+                "outputs": {
+                    "$ref": "#/definitions/core.Input"
+                },
+                "retries": {
+                    "type": "integer"
+                },
                 "routes": {
                     "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
+                    "additionalProperties": {}
+                },
+                "sleep": {
+                    "type": "string"
+                },
+                "stop_condition": {
+                    "description": "Optional early termination",
+                    "type": "string"
+                },
+                "strategy": {
+                    "description": "Shared parallel execution fields (used by both parallel and collection tasks)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.ParallelStrategy"
+                        }
+                    ]
+                },
+                "task": {
+                    "$ref": "#/definitions/task.Config"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/task.Config"
                     }
+                },
+                "template": {
+                    "$ref": "#/definitions/task.Config"
+                },
+                "timeout": {
+                    "type": "string"
                 },
                 "tool": {
                     "$ref": "#/definitions/tool.Config"
@@ -1508,89 +1852,223 @@ const docTemplate = `{
                 }
             }
         },
-        "task.ErrorTransitionConfig": {
+        "task.ExecutionType": {
+            "type": "string",
+            "enum": [
+                "basic",
+                "router",
+                "parallel",
+                "collection"
+            ],
+            "x-enum-varnames": [
+                "ExecutionBasic",
+                "ExecutionRouter",
+                "ExecutionParallel",
+                "ExecutionCollection"
+            ]
+        },
+        "task.ParallelState": {
             "type": "object",
             "properties": {
-                "next": {
+                "completed_tasks": {
+                    "description": "List of completed sub-task IDs",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "failed_tasks": {
+                    "description": "List of failed sub-task IDs",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "max_workers": {
+                    "type": "integer"
+                },
+                "strategy": {
+                    "$ref": "#/definitions/task.ParallelStrategy"
+                },
+                "sub_tasks": {
+                    "description": "Map of sub-task ID to State",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/task.State"
+                    }
+                },
+                "timeout": {
                     "type": "string"
-                },
-                "retry_policy": {
-                    "$ref": "#/definitions/task.RetryPolicyConfig"
-                },
-                "with": {
-                    "$ref": "#/definitions/core.Input"
                 }
             }
         },
-        "task.RetryPolicyConfig": {
-            "type": "object",
-            "properties": {
-                "backoff_factor": {
-                    "description": "Multiplicative factor for backoff duration (e.g., 2.0)",
-                    "type": "number"
-                },
-                "backoff_initial": {
-                    "description": "Initial backoff duration (e.g., \"1s\", \"500ms\")",
-                    "type": "string"
-                },
-                "backoff_max": {
-                    "description": "Maximum backoff duration (e.g., \"30s\", \"1m\")",
-                    "type": "string"
-                },
-                "max_attempts": {
-                    "description": "Maximum number of retry attempts",
-                    "type": "integer"
-                }
-            }
+        "task.ParallelStrategy": {
+            "type": "string",
+            "enum": [
+                "wait_all",
+                "fail_fast",
+                "best_effort",
+                "race"
+            ],
+            "x-enum-comments": {
+                "StrategyBestEffort": "Continue even if some tasks fail",
+                "StrategyFailFast": "Stop on first failure",
+                "StrategyRace": "Return when first task completes",
+                "StrategyWaitAll": "Default: wait for all tasks to complete"
+            },
+            "x-enum-varnames": [
+                "StrategyWaitAll",
+                "StrategyFailFast",
+                "StrategyBestEffort",
+                "StrategyRace"
+            ]
         },
         "task.State": {
             "type": "object",
             "properties": {
-                "agent_id": {
+                "action_id": {
                     "type": "string"
                 },
+                "agent_id": {
+                    "description": "Basic execution fields (for single tasks)",
+                    "type": "string"
+                },
+                "batch": {
+                    "description": "Batch size for sequential",
+                    "type": "integer"
+                },
+                "completed_count": {
+                    "description": "Successfully completed",
+                    "type": "integer"
+                },
+                "completed_tasks": {
+                    "description": "List of completed sub-task IDs",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "component": {
-                    "$ref": "#/definitions/core.ComponentType"
+                    "description": "Core identification",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.ComponentType"
+                        }
+                    ]
+                },
+                "continue_on_error": {
+                    "description": "Error tolerance",
+                    "type": "boolean"
                 },
                 "error": {
                     "$ref": "#/definitions/core.Error"
                 },
+                "execution_type": {
+                    "description": "Execution type and strategy",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.ExecutionType"
+                        }
+                    ]
+                },
+                "failed_count": {
+                    "description": "Failed items",
+                    "type": "integer"
+                },
+                "failed_tasks": {
+                    "description": "List of failed sub-task IDs",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "filter": {
+                    "description": "Filter expression used",
+                    "type": "string"
+                },
+                "index_var": {
+                    "description": "Variable name for index",
+                    "type": "string"
+                },
                 "input": {
                     "$ref": "#/definitions/core.Input"
+                },
+                "item_results": {
+                    "description": "Collection item results - stored as task_states with parent reference",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "item_var": {
+                    "description": "Variable name for item",
+                    "type": "string"
+                },
+                "items": {
+                    "description": "Collection configuration",
+                    "type": "array",
+                    "items": {}
+                },
+                "items_evaluated": {
+                    "description": "Track if dynamic evaluation is complete",
+                    "type": "boolean"
+                },
+                "items_expression": {
+                    "description": "Dynamic evaluation support",
+                    "type": "string"
+                },
+                "max_workers": {
+                    "type": "integer"
+                },
+                "mode": {
+                    "description": "parallel | sequential",
+                    "type": "string"
                 },
                 "output": {
                     "$ref": "#/definitions/core.Output"
                 },
-                "state_id": {
-                    "$ref": "#/definitions/task.StateID"
+                "parallel_config": {
+                    "description": "Parallel execution settings (when mode=parallel, reuse existing ParallelState)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.ParallelState"
+                        }
+                    ]
+                },
+                "processed_count": {
+                    "description": "Progress tracking",
+                    "type": "integer"
                 },
                 "status": {
                     "$ref": "#/definitions/core.StatusType"
                 },
+                "strategy": {
+                    "$ref": "#/definitions/task.ParallelStrategy"
+                },
+                "sub_tasks": {
+                    "description": "Map of sub-task ID to State",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/task.State"
+                    }
+                },
+                "task_exec_id": {
+                    "type": "string"
+                },
+                "task_id": {
+                    "type": "string"
+                },
+                "timeout": {
+                    "type": "string"
+                },
                 "tool_id": {
                     "type": "string"
-                }
-            }
-        },
-        "task.StateID": {
-            "type": "object",
-            "properties": {
-                "taskExecID": {
+                },
+                "workflow_exec_id": {
                     "type": "string"
                 },
-                "taskID": {
+                "workflow_id": {
                     "type": "string"
-                }
-            }
-        },
-        "task.SuccessTransitionConfig": {
-            "type": "object",
-            "properties": {
-                "next": {
-                    "type": "string"
-                },
-                "with": {
-                    "$ref": "#/definitions/core.Input"
                 }
             }
         },
@@ -1598,11 +2076,15 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "basic",
-                "router"
+                "router",
+                "parallel",
+                "collection"
             ],
             "x-enum-varnames": [
                 "TaskTypeBasic",
-                "TaskTypeRouter"
+                "TaskTypeRouter",
+                "TaskTypeParallel",
+                "TaskTypeCollection"
             ]
         },
         "tool.Config": {
@@ -1634,13 +2116,13 @@ const docTemplate = `{
         "wfrouter.ExecuteWorkflowResponse": {
             "type": "object",
             "properties": {
+                "exec_id": {
+                    "type": "string",
+                    "example": "2Z4PVTL6K27XVT4A3NPKMDD5BG"
+                },
                 "exec_url": {
                     "type": "string",
                     "example": "localhost:8080/api/workflows/executions/2Z4PVTL6K27XVT4A3NPKMDD5BG"
-                },
-                "workflow_exec_id": {
-                    "type": "string",
-                    "example": "2Z4PVTL6K27XVT4A3NPKMDD5BG"
                 },
                 "workflow_id": {
                     "type": "string",
@@ -1698,11 +2180,26 @@ const docTemplate = `{
                 "env": {
                     "$ref": "#/definitions/core.EnvMap"
                 },
+                "heartbeat_timeout": {
+                    "type": "string"
+                },
                 "input": {
                     "$ref": "#/definitions/schema.Schema"
                 },
                 "on_error": {
-                    "$ref": "#/definitions/task.ErrorTransitionConfig"
+                    "$ref": "#/definitions/core.ErrorTransition"
+                },
+                "retry_policy": {
+                    "$ref": "#/definitions/core.RetryPolicyConfig"
+                },
+                "schedule_to_close_timeout": {
+                    "type": "string"
+                },
+                "schedule_to_start_timeout": {
+                    "type": "string"
+                },
+                "start_to_close_timeout": {
+                    "type": "string"
                 }
             }
         },
@@ -1718,9 +2215,6 @@ const docTemplate = `{
                 "output": {
                     "$ref": "#/definitions/core.Output"
                 },
-                "state_id": {
-                    "$ref": "#/definitions/workflow.StateID"
-                },
                 "status": {
                     "$ref": "#/definitions/core.StatusType"
                 },
@@ -1729,16 +2223,11 @@ const docTemplate = `{
                     "additionalProperties": {
                         "$ref": "#/definitions/task.State"
                     }
-                }
-            }
-        },
-        "workflow.StateID": {
-            "type": "object",
-            "properties": {
-                "workflowExec": {
+                },
+                "workflow_exec_id": {
                     "type": "string"
                 },
-                "workflowID": {
+                "workflow_id": {
                     "type": "string"
                 }
             }

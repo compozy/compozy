@@ -99,7 +99,7 @@ func (cb *ContextBuilder) buildSingleTaskContext(
 func (cb *ContextBuilder) buildTaskOutput(taskState *task.State) any {
 	if taskState.IsParallel() && taskState.ParallelState != nil {
 		nestedOutput := make(map[string]any)
-		subtasks := taskState.SubTasks
+		subtasks := taskState.ParallelState.SubTasks
 		for subTaskID, subTaskState := range subtasks {
 			subTaskOutput := cb.buildTaskOutput(subTaskState)
 			if subTaskOutput != nil {

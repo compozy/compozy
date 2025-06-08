@@ -19,9 +19,10 @@ type AggregateCollectionInput struct {
 }
 
 type AggregateCollection struct {
-	handleResponseUC *uc.HandleResponse
-	taskRepo         task.Repository
-	loadWorkflowUC   *uc.LoadWorkflow
+	loadCollectionStateUC *uc.LoadCollectionState
+	aggregateCollectionUC *uc.AggregateCollection
+	handleResponseUC      *uc.HandleResponse
+	loadWorkflowUC        *uc.LoadWorkflow
 }
 
 // NewAggregateCollection creates a new AggregateCollection activity
@@ -31,68 +32,48 @@ func NewAggregateCollection(
 	taskRepo task.Repository,
 ) *AggregateCollection {
 	return &AggregateCollection{
-		handleResponseUC: uc.NewHandleResponse(workflowRepo, taskRepo),
-		taskRepo:         taskRepo,
-		loadWorkflowUC:   uc.NewLoadWorkflow(workflows, workflowRepo),
+		loadCollectionStateUC: uc.NewLoadCollectionState(taskRepo),
+		aggregateCollectionUC: uc.NewAggregateCollection(taskRepo),
+		handleResponseUC:      uc.NewHandleResponse(workflowRepo, taskRepo),
+		loadWorkflowUC:        uc.NewLoadWorkflow(workflows, workflowRepo),
 	}
 }
 
 func (a *AggregateCollection) Run(ctx context.Context, input *AggregateCollectionInput) (*task.Response, error) {
 	// Load and validate collection state
-	collectionState, err := a.loadCollectionState(ctx, input.ParentTaskExecID)
+	collectionState, err := a.loadCollectionStateUC.Execute(ctx, &uc.LoadCollectionStateInput{
+		TaskExecID: input.ParentTaskExecID,
+	})
 	if err != nil {
 		return nil, err
 	}
 
+	// Convert ExecuteCollectionItemResult to uc.CollectionItemResult
+	itemResults := make([]uc.CollectionItemResult, len(input.ItemResults))
+	for i, result := range input.ItemResults {
+		itemResults[i] = uc.CollectionItemResult{
+			ItemIndex:  result.ItemIndex,
+			TaskExecID: result.TaskExecID,
+			Status:     result.Status,
+			Output:     result.Output,
+			Error:      result.Error,
+		}
+	}
+
 	// Process and finalize collection results
-	finalStatus, err := a.processCollectionResults(ctx, collectionState, input.ItemResults)
+	aggregateResult, err := a.aggregateCollectionUC.Execute(ctx, &uc.AggregateCollectionInput{
+		CollectionState: collectionState,
+		ItemResults:     itemResults,
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	// Generate final response
-	return a.generateFinalResponse(ctx, collectionState, input.TaskConfig, finalStatus)
+	return a.generateFinalResponse(ctx, collectionState, input.TaskConfig, aggregateResult.FinalStatus)
 }
 
-func (a *AggregateCollection) loadCollectionState(ctx context.Context, taskExecID core.ID) (*task.State, error) {
-	collectionState, err := a.taskRepo.GetState(ctx, taskExecID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get collection state: %w", err)
-	}
 
-	if !collectionState.IsCollection() {
-		return nil, fmt.Errorf("task is not a collection task")
-	}
-
-	return collectionState, nil
-}
-
-func (a *AggregateCollection) processCollectionResults(
-	ctx context.Context,
-	collectionState *task.State,
-	itemResults []ExecuteCollectionItemResult,
-) (core.StatusType, error) {
-	// Update collection state with item results
-	err := a.updateCollectionState(collectionState, itemResults)
-	if err != nil {
-		return "", fmt.Errorf("failed to update collection state: %w", err)
-	}
-
-	// Create and set collection output
-	collectionOutput := a.createCollectionOutput(collectionState, itemResults)
-	collectionState.Output = collectionOutput
-
-	// Determine final status
-	finalStatus := a.determineFinalStatus(collectionState, itemResults)
-	collectionState.UpdateStatus(finalStatus)
-
-	// Persist updated collection state
-	if err := a.taskRepo.UpsertState(ctx, collectionState); err != nil {
-		return "", fmt.Errorf("failed to update collection state: %w", err)
-	}
-
-	return finalStatus, nil
-}
 
 func (a *AggregateCollection) generateFinalResponse(
 	ctx context.Context,
@@ -100,9 +81,12 @@ func (a *AggregateCollection) generateFinalResponse(
 	taskConfig *task.Config,
 	finalStatus core.StatusType,
 ) (*task.Response, error) {
-	workflowConfig, err := a.getWorkflowConfig(collectionState)
+	_, workflowConfig, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
+		WorkflowID:     collectionState.WorkflowID,
+		WorkflowExecID: collectionState.WorkflowExecID,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get workflow config: %w", err)
+		return nil, fmt.Errorf("failed to load workflow config: %w", err)
 	}
 
 	var executionError error
@@ -121,136 +105,4 @@ func (a *AggregateCollection) generateFinalResponse(
 	}
 
 	return response, nil
-}
-
-func (a *AggregateCollection) updateCollectionState(
-	collectionState *task.State,
-	itemResults []ExecuteCollectionItemResult,
-) error {
-	if collectionState.CollectionState == nil {
-		return fmt.Errorf("collection state is nil")
-	}
-
-	// Reset counters
-	collectionState.ProcessedCount = 0
-	collectionState.CompletedCount = 0
-	collectionState.FailedCount = 0
-
-	// Update item results and counters
-	for _, result := range itemResults {
-		collectionState.ProcessedCount++
-
-		// Ensure ItemResults slice is large enough
-		if len(collectionState.ItemResults) <= result.ItemIndex {
-			newResults := make([]string, result.ItemIndex+1)
-			copy(newResults, collectionState.ItemResults)
-			collectionState.ItemResults = newResults
-		}
-
-		// Store the task execution ID
-		collectionState.ItemResults[result.ItemIndex] = result.TaskExecID.String()
-
-		// Update status counters
-		switch result.Status {
-		case core.StatusSuccess:
-			collectionState.CompletedCount++
-		case core.StatusFailed:
-			collectionState.FailedCount++
-		}
-	}
-
-	return nil
-}
-
-func (a *AggregateCollection) createCollectionOutput(
-	collectionState *task.State,
-	itemResults []ExecuteCollectionItemResult,
-) *core.Output {
-	// Create results array with individual item outputs
-	results := make([]map[string]any, len(itemResults))
-	for i, result := range itemResults {
-		resultItem := map[string]any{
-			"index":  result.ItemIndex,
-			"status": result.Status,
-		}
-
-		// Add item data if available
-		if i < len(collectionState.Items) {
-			resultItem["item"] = collectionState.Items[result.ItemIndex]
-		}
-
-		// Add output if successful
-		if result.Output != nil {
-			resultItem["output"] = result.Output
-		}
-
-		// Add error if failed
-		if result.Error != nil {
-			resultItem["error"] = result.Error
-		}
-
-		results[i] = resultItem
-	}
-
-	// Create summary
-	summary := map[string]any{
-		"total_items":    len(collectionState.Items),
-		"filtered_items": len(itemResults),
-		"completed":      collectionState.CompletedCount,
-		"failed":         collectionState.FailedCount,
-		"skipped":        len(collectionState.Items) - len(itemResults),
-		"mode":           collectionState.Mode,
-	}
-
-	output := &core.Output{
-		"results": results,
-		"summary": summary,
-	}
-
-	return output
-}
-
-func (a *AggregateCollection) determineFinalStatus(
-	collectionState *task.State,
-	itemResults []ExecuteCollectionItemResult,
-) core.StatusType {
-	if collectionState.CollectionState == nil {
-		return core.StatusFailed
-	}
-
-	collectionConfig := collectionState.CollectionState
-	failedCount := collectionConfig.FailedCount
-	totalCount := len(itemResults)
-
-	// Handle edge case: no items to process
-	if totalCount == 0 {
-		return core.StatusSuccess // Empty collection is considered successful
-	}
-
-	// If continue_on_error is true, only fail if ALL items failed
-	if collectionConfig.ContinueOnError {
-		if failedCount == totalCount {
-			return core.StatusFailed
-		}
-		return core.StatusSuccess
-	}
-
-	// If continue_on_error is false, fail if ANY item failed
-	if failedCount > 0 {
-		return core.StatusFailed
-	}
-
-	return core.StatusSuccess
-}
-
-func (a *AggregateCollection) getWorkflowConfig(collectionState *task.State) (*workflow.Config, error) {
-	// Load workflow config using existing infrastructure
-	_, workflowConfig, err := a.loadWorkflowUC.Execute(context.Background(), &uc.LoadWorkflowInput{
-		WorkflowID:     collectionState.WorkflowID,
-		WorkflowExecID: collectionState.WorkflowExecID,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to load workflow config: %w", err)
-	}
-	return workflowConfig, nil
 }

@@ -190,7 +190,7 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 		err := normalizer.NormalizeTask(workflowState, workflowConfig, routerTask)
 		require.NoError(t, err)
 
-		assert.Equal(t, "true", routerTask.Condition)
+		assert.Equal(t, "1", routerTask.Condition)
 	})
 }
 
@@ -1763,7 +1763,7 @@ func TestConfigNormalizer_NormalizeTaskOutput(t *testing.T) {
 		assert.Equal(t, "5", metadata["line_count"]) // Note: template engine converts to string
 
 		// Verify conditional output
-		assert.Equal(t, "false", (*result)["has_tabs"])
+		assert.Equal(t, false, (*result)["has_tabs"])
 
 		// Verify workflow context access
 		workflowInfo, ok := (*result)["workflow_info"].(map[string]any)

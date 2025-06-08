@@ -3,7 +3,11 @@
     "allow": [
       "Bash(grep:*)",
       "Bash(make lint)",
-      "Bash(make test:*)"
+      "Bash(make test:*)",
+      "Bash(mkdir:*)",
+      "Bash(go test:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)"
     ],
     "deny": []
   }

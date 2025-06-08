@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"fmt"
 	"time"
 
 	"go.temporal.io/sdk/temporal"
@@ -117,6 +118,11 @@ func InitManager(ctx workflow.Context, input WorkflowInput) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
+	
+	if data == nil {
+		return nil, fmt.Errorf("workflow data is nil for workflow ID: %s", input.WorkflowID)
+	}
+	
 	contextBuilder := NewContextBuilder(
 		data.Workflows,
 		data.ProjectConfig,

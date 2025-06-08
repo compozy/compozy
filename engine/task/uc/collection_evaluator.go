@@ -328,28 +328,6 @@ func (tte *TaskTemplateEvaluator) EvaluateTaskTemplate(
 		return nil, fmt.Errorf("failed to convert template to map: %w", err)
 	}
 
-	// Pre-filter agent actions BEFORE template processing to avoid template errors
-	// Only keep the action that's actually being used
-	if agentData, hasAgent := templateMap["agent"]; hasAgent {
-		if agentMap, ok := agentData.(map[string]any); ok {
-			if actionsData, hasActions := agentMap["actions"]; hasActions {
-				if actionsList, ok := actionsData.([]any); ok && template.Action != "" {
-					// Find and keep only the specified action
-					filteredActions := make([]any, 0, 1)
-					for _, actionData := range actionsList {
-						if actionMap, ok := actionData.(map[string]any); ok {
-							if actionID, ok := actionMap["id"].(string); ok && actionID == template.Action {
-								filteredActions = append(filteredActions, actionData)
-								break
-							}
-						}
-					}
-					agentMap["actions"] = filteredActions
-				}
-			}
-		}
-	}
-
 	// Process template with evaluation context, excluding only the outputs field
 	// The outputs field should not be processed during template evaluation since the task hasn't executed
 	// Collection items should have full access to workflow state (tasks, workflow context, etc.)

@@ -35,9 +35,19 @@ func NewContextBuilder(
 }
 
 func (b *ContextBuilder) BuildBaseContext(ctx workflow.Context) workflow.Context {
+	var projectOpts *core.GlobalOpts
+	if b.ProjectConfig != nil {
+		projectOpts = &b.ProjectConfig.Opts.GlobalOpts
+	}
+	
+	var workflowOpts *core.GlobalOpts
+	if b.WorkflowConfig != nil {
+		workflowOpts = &b.WorkflowConfig.Opts.GlobalOpts
+	}
+	
 	resolved := core.ResolveActivityOptions(
-		&b.ProjectConfig.Opts.GlobalOpts,
-		&b.WorkflowConfig.Opts.GlobalOpts,
+		projectOpts,
+		workflowOpts,
 		nil,
 	)
 	activityOptions := resolved.ToTemporalActivityOptions()
@@ -46,13 +56,28 @@ func (b *ContextBuilder) BuildBaseContext(ctx workflow.Context) workflow.Context
 }
 
 func (b *ContextBuilder) BuildTaskContext(ctx workflow.Context, taskID string) workflow.Context {
+	if b.WorkflowConfig == nil {
+		return ctx
+	}
+	
 	taskConfig, err := task.FindConfig(b.WorkflowConfig.Tasks, taskID)
 	if err != nil {
 		return ctx
 	}
+	
+	var projectOpts *core.GlobalOpts
+	if b.ProjectConfig != nil {
+		projectOpts = &b.ProjectConfig.Opts.GlobalOpts
+	}
+	
+	var workflowOpts *core.GlobalOpts
+	if b.WorkflowConfig != nil {
+		workflowOpts = &b.WorkflowConfig.Opts.GlobalOpts
+	}
+	
 	resolved := core.ResolveActivityOptions(
-		&b.ProjectConfig.Opts.GlobalOpts,
-		&b.WorkflowConfig.Opts.GlobalOpts,
+		projectOpts,
+		workflowOpts,
 		&taskConfig.Config,
 	)
 	activityOptions := resolved.ToTemporalActivityOptions()

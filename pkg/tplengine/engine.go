@@ -254,6 +254,13 @@ func (e *TemplateEngine) ParseMapWithFilter(value any, data map[string]any, filt
 // parseStringValue handles parsing of string values that may contain templates
 func (e *TemplateEngine) parseStringValue(v string, data map[string]any) (any, error) {
 	if !HasTemplate(v) {
+		// Check if it's a JSON-like string and parse it when using JSON format
+		if e.format == FormatJSON && (strings.HasPrefix(v, "{") || strings.HasPrefix(v, "[")) {
+			var jsonObj any
+			if json.Unmarshal([]byte(v), &jsonObj) == nil {
+				return jsonObj, nil
+			}
+		}
 		return v, nil
 	}
 
@@ -300,9 +307,12 @@ func (e *TemplateEngine) renderAndProcessTemplate(v string, data map[string]any)
 		return nil, err
 	}
 
-	// Convert boolean results from template rendering to strings
-	if parsed == "true" || parsed == "false" {
-		return parsed, nil
+	// Convert boolean string results back to actual boolean values
+	if parsed == "true" {
+		return true, nil
+	}
+	if parsed == "false" {
+		return false, nil
 	}
 
 	// Check if the parsed result is a JSON-like string and try to parse it

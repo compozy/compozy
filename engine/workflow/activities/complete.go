@@ -25,6 +25,13 @@ func NewCompleteWorkflow(workflowRepo workflow.Repository) *CompleteWorkflow {
 }
 
 func (a *CompleteWorkflow) Run(ctx context.Context, input *CompleteWorkflowInput) (*workflow.State, error) {
+	if input == nil {
+		return nil, fmt.Errorf("input is nil")
+	}
+	if input.WorkflowExecID == "" {
+		return nil, fmt.Errorf("workflow execution ID is empty")
+	}
+	
 	state, err := a.workflowRepo.CompleteWorkflow(ctx, input.WorkflowExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to complete workflow %s: %w", input.WorkflowExecID, err)

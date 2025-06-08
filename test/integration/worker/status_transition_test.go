@@ -38,6 +38,9 @@ func TestWorkflowStatusTransitions(t *testing.T) {
 
 	// Assert workflow completed successfully
 	assert.True(t, env.IsWorkflowCompleted())
+	if err := env.GetWorkflowError(); err != nil {
+		t.Logf("Workflow error details: %+v", err)
+	}
 	assert.NoError(t, env.GetWorkflowError())
 
 	// Verify complete status transition lifecycle

@@ -109,11 +109,11 @@ type State struct {
 	Output   *core.Output `json:"output,omitempty"    db:"output"`
 	Error    *core.Error  `json:"error,omitempty"     db:"error"`
 
-	// Parallel execution fields (embedded inline for JSON, separate column for DB)
-	*ParallelState `json:",inline,omitempty" db:"parallel_state"`
+	// Parallel execution fields (as regular field, not embedded inline)
+	ParallelState *ParallelState `json:"parallel_state,omitempty" db:"parallel_state"`
 
 	// Collection execution fields (stored in parallel_state JSONB column for DB efficiency)
-	*CollectionState `json:",inline,omitempty" db:"-"`
+	CollectionState *CollectionState `json:"collection_state,omitempty" db:"-"`
 }
 
 // -----------------------------------------------------------------------------
@@ -301,7 +301,7 @@ func (s *State) GetSubTaskState(taskID string) (*State, bool) {
 	if !s.IsParallel() || s.ParallelState == nil {
 		return nil, false
 	}
-	subTask, exists := s.SubTasks[taskID]
+	subTask, exists := s.ParallelState.SubTasks[taskID]
 	return subTask, exists
 }
 
@@ -317,7 +317,7 @@ func (s *State) AddSubTask(subTask *State) error {
 			FailedTasks:    make([]string, 0),
 		}
 	}
-	s.SubTasks[subTask.TaskID] = subTask
+	s.ParallelState.SubTasks[subTask.TaskID] = subTask
 	return nil
 }
 
@@ -331,7 +331,7 @@ func (s *State) UpdateSubtaskState(
 	if !s.IsParallel() || s.ParallelState == nil {
 		return nil, fmt.Errorf("cannot update sub-task in non-parallel execution")
 	}
-	subTask, exists := s.SubTasks[taskID]
+	subTask, exists := s.ParallelState.SubTasks[taskID]
 	if !exists {
 		return nil, fmt.Errorf("sub-task %s not found", taskID)
 	}
@@ -341,9 +341,9 @@ func (s *State) UpdateSubtaskState(
 	subTask.Error = err
 	switch status {
 	case core.StatusSuccess:
-		s.CompletedTasks = append(s.CompletedTasks, taskID)
+		s.ParallelState.CompletedTasks = append(s.ParallelState.CompletedTasks, taskID)
 	case core.StatusFailed:
-		s.FailedTasks = append(s.FailedTasks, taskID)
+		s.ParallelState.FailedTasks = append(s.ParallelState.FailedTasks, taskID)
 	}
 	s.updateOverallStatus()
 	return subTask, nil
@@ -354,10 +354,10 @@ func (s *State) updateOverallStatus() {
 	if !s.IsParallel() || s.ParallelState == nil {
 		return
 	}
-	totalTasks := len(s.SubTasks)
-	completedCount := len(s.CompletedTasks)
-	failedCount := len(s.FailedTasks)
-	switch s.Strategy {
+	totalTasks := len(s.ParallelState.SubTasks)
+	completedCount := len(s.ParallelState.CompletedTasks)
+	failedCount := len(s.ParallelState.FailedTasks)
+	switch s.ParallelState.Strategy {
 	case StrategyWaitAll:
 		s.updateStatusForWaitAll(completedCount, failedCount, totalTasks)
 	case StrategyFailFast:
@@ -409,9 +409,9 @@ func (s *State) GetParallelProgress() (completed, failed, total int) {
 	if !s.IsParallel() || s.ParallelState == nil {
 		return 0, 0, 0
 	}
-	return len(s.CompletedTasks),
-		len(s.FailedTasks),
-		len(s.SubTasks)
+	return len(s.ParallelState.CompletedTasks),
+		len(s.ParallelState.FailedTasks),
+		len(s.ParallelState.SubTasks)
 }
 
 // GetCollectionProgress returns progress information for collection execution
@@ -419,10 +419,10 @@ func (s *State) GetCollectionProgress() (processed, completed, failed, total int
 	if !s.IsCollection() || s.CollectionState == nil {
 		return 0, 0, 0, 0
 	}
-	return s.ProcessedCount,
-		s.CompletedCount,
-		s.FailedCount,
-		len(s.Items)
+	return s.CollectionState.ProcessedCount,
+		s.CollectionState.CompletedCount,
+		s.CollectionState.FailedCount,
+		len(s.CollectionState.Items)
 }
 
 // UpdateCollectionItemResult updates the result for a collection item
@@ -436,22 +436,22 @@ func (s *State) UpdateCollectionItemResult(
 	}
 
 	// Add the task execution ID to results
-	if len(s.ItemResults) <= itemIndex {
+	if len(s.CollectionState.ItemResults) <= itemIndex {
 		// Extend the slice if needed
 		newResults := make([]string, itemIndex+1)
-		copy(newResults, s.ItemResults)
-		s.ItemResults = newResults
+		copy(newResults, s.CollectionState.ItemResults)
+		s.CollectionState.ItemResults = newResults
 	}
-	s.ItemResults[itemIndex] = taskExecID
+	s.CollectionState.ItemResults[itemIndex] = taskExecID
 
 	// Update progress counters
 	switch status {
 	case core.StatusSuccess:
-		s.CompletedCount++
+		s.CollectionState.CompletedCount++
 	case core.StatusFailed:
-		s.FailedCount++
+		s.CollectionState.FailedCount++
 	}
-	s.ProcessedCount++
+	s.CollectionState.ProcessedCount++
 
 	return nil
 }
@@ -476,7 +476,7 @@ func (s *State) UpdateStatus(status core.StatusType) {
 
 func (s *State) IsParallelFailed() error {
 	var executionError error
-	strategy := s.Strategy
+	strategy := s.ParallelState.Strategy
 	completed, failed, total := s.GetParallelProgress()
 
 	switch strategy {

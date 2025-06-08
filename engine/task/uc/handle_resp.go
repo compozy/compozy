@@ -40,6 +40,19 @@ func NewHandleResponse(workflowRepo workflow.Repository, taskRepo task.Repositor
 }
 
 func (uc *HandleResponse) Execute(ctx context.Context, input *HandleResponseInput) (*task.Response, error) {
+	if input == nil {
+		return nil, fmt.Errorf("input is nil")
+	}
+	if input.TaskState == nil {
+		return nil, fmt.Errorf("task state is nil")
+	}
+	if input.TaskConfig == nil {
+		return nil, fmt.Errorf("task config is nil")
+	}
+	if input.WorkflowConfig == nil {
+		return nil, fmt.Errorf("workflow config is nil")
+	}
+	
 	// Check if there's an execution error OR if the task state indicates failure
 	hasExecutionError := input.ExecutionError != nil
 	hasTaskFailure := input.TaskState.Status == core.StatusFailed

@@ -451,6 +451,9 @@ func (r *WorkflowRepo) CompleteWorkflow(ctx context.Context, workflowExecID core
 		// Determine final workflow status based on task states
 		finalStatus := core.StatusSuccess
 		for _, taskState := range tasks {
+			if taskState == nil {
+				continue
+			}
 			if taskState.Status == core.StatusFailed {
 				finalStatus = core.StatusFailed
 				break
@@ -459,6 +462,9 @@ func (r *WorkflowRepo) CompleteWorkflow(ctx context.Context, workflowExecID core
 		// Create output map: task_id -> Output
 		outputMap := make(map[string]any)
 		for taskID, taskState := range tasks {
+			if taskState == nil {
+				continue
+			}
 			if taskState.Output != nil {
 				outputMap[taskID] = map[string]any{
 					"output": taskState.Output,
