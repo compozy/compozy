@@ -45,11 +45,15 @@ func (cb *ContextBuilder) BuildContext(ctx *NormalizationContext) map[string]any
 }
 
 func (cb *ContextBuilder) buildWorkflowContext(ctx *NormalizationContext) map[string]any {
-	workflowContext := map[string]any{
-		"id":      ctx.WorkflowState.WorkflowID,
-		inputKey:  ctx.WorkflowState.Input,
-		outputKey: ctx.WorkflowState.Output,
+	workflowContext := map[string]any{}
+
+	// Handle case where WorkflowState might be nil (e.g., during agent action normalization)
+	if ctx.WorkflowState != nil {
+		workflowContext["id"] = ctx.WorkflowState.WorkflowID
+		workflowContext[inputKey] = ctx.WorkflowState.Input
+		workflowContext[outputKey] = ctx.WorkflowState.Output
 	}
+
 	if ctx.WorkflowConfig != nil {
 		wfMap, err := core.AsMapDefault(ctx.WorkflowConfig)
 		if err == nil {
@@ -65,9 +69,12 @@ func (cb *ContextBuilder) buildWorkflowContext(ctx *NormalizationContext) map[st
 
 func (cb *ContextBuilder) buildTasksContext(ctx *NormalizationContext) map[string]any {
 	tasksMap := make(map[string]any)
-	if ctx.WorkflowState.Tasks == nil {
+
+	// Handle case where WorkflowState might be nil or Tasks might be nil
+	if ctx.WorkflowState == nil || ctx.WorkflowState.Tasks == nil {
 		return tasksMap
 	}
+
 	for taskID, taskState := range ctx.WorkflowState.Tasks {
 		taskContext := cb.buildSingleTaskContext(taskID, taskState, ctx)
 		tasksMap[taskID] = taskContext
@@ -142,7 +149,8 @@ func (cb *ContextBuilder) buildParentContext(ctx *NormalizationContext) map[stri
 		if err != nil {
 			return nil
 		}
-		if ctx.WorkflowState.Tasks != nil {
+		// Handle case where WorkflowState might be nil
+		if ctx.WorkflowState != nil && ctx.WorkflowState.Tasks != nil {
 			if parentTaskState, exists := ctx.WorkflowState.Tasks[ctx.ParentTaskConfig.ID]; exists {
 				parentMap[inputKey] = parentTaskState.Input
 				parentMap[outputKey] = parentTaskState.Output

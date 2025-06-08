@@ -105,18 +105,21 @@ export async function run(input: { city: string }): Promise<WeatherData> {
     try {
         // Get coordinates for the city
         const coords = await getCoordinates(input.city);
+
         if (!coords) {
             return getDefaultWeather();
         }
 
         // Get weather data using coordinates
         const weather = await getWeatherData(coords.latitude, coords.longitude);
+
         if (!weather) {
             return getDefaultWeather();
         }
 
         return weather;
-    } catch (_err) {
+    } catch (error) {
+        console.error(`Error getting weather for ${input.city}:`, error);
         return getDefaultWeather();
     }
 }

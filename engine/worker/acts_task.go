@@ -363,45 +363,40 @@ func (e *TaskExecutor) processItemsParallel(
 		return []tkacts.ExecuteCollectionItemResult{}, nil
 	}
 
-	results := make([]tkacts.ExecuteCollectionItemResult, itemCount)
-	completed := 0
-	failed := 0
-
-	// Execute items in parallel
+	// Use futures for deterministic parallel execution
+	futures := make([]workflow.Future, itemCount)
 	for i, item := range items {
 		itemIndex := i
 		itemValue := item
-		workflow.Go(ctx, func(gCtx workflow.Context) {
-			result, err := e.ExecuteCollectionItem(
-				gCtx,
-				prepareResult.TaskExecID,
-				itemIndex,
-				itemValue,
-				cConfig.Template,
-			)
-			if err != nil {
-				failed++
-				// Create a failed result
-				results[itemIndex] = tkacts.ExecuteCollectionItemResult{
-					ItemIndex:  itemIndex,
-					TaskExecID: core.MustNewID(),
-					Status:     core.StatusFailed,
-					Output:     nil,
-					Error:      core.NewError(err, "collection_item_execution_failed", nil),
-				}
-			} else {
-				completed++
-				results[itemIndex] = *result
-			}
-		})
+		futures[i] = workflow.ExecuteActivity(
+			ctx,
+			tkacts.ExecuteCollectionItemLabel,
+			&tkacts.ExecuteCollectionItemInput{
+				ParentTaskExecID: prepareResult.TaskExecID,
+				ItemIndex:        itemIndex,
+				Item:             itemValue,
+				TaskConfig:       cConfig.Template,
+			},
+		)
 	}
 
-	// Wait for all items to complete
-	err = workflow.Await(ctx, func() bool {
-		return (completed + failed) >= itemCount
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to await collection items: %w", err)
+	// Wait for all futures and collect results
+	results := make([]tkacts.ExecuteCollectionItemResult, itemCount)
+	for i, future := range futures {
+		var result tkacts.ExecuteCollectionItemResult
+		err := future.Get(ctx, &result)
+		if err != nil {
+			// Create a failed result for activity execution errors
+			results[i] = tkacts.ExecuteCollectionItemResult{
+				ItemIndex:  i,
+				TaskExecID: core.MustNewID(),
+				Status:     core.StatusFailed,
+				Output:     nil,
+				Error:      core.NewError(err, "collection_item_activity_failed", nil),
+			}
+		} else {
+			results[i] = result
+		}
 	}
 
 	return results, nil

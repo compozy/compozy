@@ -2,6 +2,8 @@ package task
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 )
 
 // -----------------------------------------------------------------------------
@@ -187,7 +189,26 @@ func (v *TypeValidator) validateParallelTaskItem(item *Config) error {
 func (v *TypeValidator) validateCollectionTask() error {
 	config := v.config
 
-	// Validate required fields
+	// Validate required fields and basic structure
+	if err := v.validateCollectionRequiredFields(config); err != nil {
+		return err
+	}
+
+	// Validate security aspects
+	if err := v.validateCollectionSecurity(config); err != nil {
+		return err
+	}
+
+	// Validate task template
+	if err := config.Template.Validate(); err != nil {
+		return fmt.Errorf("invalid task template: %w", err)
+	}
+
+	// Validate execution mode and parameters
+	return v.validateCollectionExecution(config)
+}
+
+func (v *TypeValidator) validateCollectionRequiredFields(config *Config) error {
 	if config.Items == "" {
 		return fmt.Errorf("items is required for collection tasks")
 	}
@@ -196,28 +217,186 @@ func (v *TypeValidator) validateCollectionTask() error {
 		return fmt.Errorf("task template is required for collection tasks")
 	}
 
-	// Validate task template
-	if err := config.Template.Validate(); err != nil {
-		return fmt.Errorf("invalid task template: %w", err)
+	return nil
+}
+
+func (v *TypeValidator) validateCollectionSecurity(config *Config) error {
+	// Security validation for items expression
+	if err := v.validateTemplateExpression(config.Items, "items"); err != nil {
+		return err
 	}
 
+	// Security validation for filter expression if present
+	if config.Filter != "" {
+		if err := v.validateTemplateExpression(config.Filter, "filter"); err != nil {
+			return err
+		}
+	}
+
+	// Validate variable names for security
+	if config.ItemVar != "" {
+		if err := v.validateVariableName(config.ItemVar, "item_var"); err != nil {
+			return err
+		}
+	}
+	if config.IndexVar != "" {
+		if err := v.validateVariableName(config.IndexVar, "index_var"); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (v *TypeValidator) validateCollectionExecution(config *Config) error {
 	// Validate mode
 	mode := config.GetMode()
 	if mode != CollectionModeParallel && mode != CollectionModeSequential {
 		return fmt.Errorf("invalid collection mode: %s", mode)
 	}
 
-	// Validate batch size for sequential mode
-	if mode == CollectionModeSequential && config.Batch <= 0 {
-		return fmt.Errorf("batch size must be greater than 0 for sequential mode")
+	// Validate mode-specific parameters
+	if mode == CollectionModeSequential {
+		return v.validateSequentialMode(config)
 	}
 
-	// Validate parallel strategy for parallel mode
-	if mode == CollectionModeParallel {
-		strategy := config.GetStrategy()
-		if strategy != StrategyWaitAll && strategy != StrategyFailFast &&
-			strategy != StrategyBestEffort && strategy != StrategyRace {
-			return fmt.Errorf("invalid parallel strategy: %s", strategy)
+	return v.validateParallelMode(config)
+}
+
+func (v *TypeValidator) validateSequentialMode(config *Config) error {
+	batch := config.GetBatch()
+	if batch <= 0 {
+		return fmt.Errorf("batch size must be greater than 0 for sequential mode")
+	}
+	if batch > DefaultMaxBatchSize {
+		return fmt.Errorf("batch size %d exceeds maximum allowed size %d", batch, DefaultMaxBatchSize)
+	}
+	return nil
+}
+
+func (v *TypeValidator) validateParallelMode(config *Config) error {
+	maxWorkers := config.GetMaxWorkers()
+	if maxWorkers > DefaultMaxParallelWorkers {
+		return fmt.Errorf("max_workers %d exceeds maximum allowed %d", maxWorkers, DefaultMaxParallelWorkers)
+	}
+
+	strategy := config.GetStrategy()
+	if strategy != StrategyWaitAll && strategy != StrategyFailFast &&
+		strategy != StrategyBestEffort && strategy != StrategyRace {
+		return fmt.Errorf("invalid parallel strategy: %s", strategy)
+	}
+
+	return nil
+}
+
+// -----------------------------------------------------------------------------
+// Security Validation Methods
+// -----------------------------------------------------------------------------
+
+var (
+	// Regular expression for valid variable names (alphanumeric + underscore, starting with letter/underscore)
+	validVariableNameRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+
+	// Dangerous patterns to detect in template expressions
+	dangerousPatterns = []string{
+		"exec",
+		"system",
+		"eval",
+		"import",
+		"require",
+		"os.",
+		"fs.",
+		"path.",
+		"process.",
+		"child_process",
+		"execSync",
+		"spawn",
+		"shell",
+		"cmd",
+		"powershell",
+		"bash",
+		"sh",
+		"/bin/",
+		"/usr/bin/",
+		"rm -",
+		"del ",
+		"format ",
+		"mkfs",
+	}
+)
+
+// validateTemplateExpression checks template expressions for security issues
+func (v *TypeValidator) validateTemplateExpression(expr, fieldName string) error {
+	if expr == "" {
+		return nil
+	}
+
+	// Check for dangerous patterns
+	lowerExpr := strings.ToLower(expr)
+	for _, pattern := range dangerousPatterns {
+		if strings.Contains(lowerExpr, pattern) {
+			return fmt.Errorf("potentially dangerous pattern '%s' detected in %s expression", pattern, fieldName)
+		}
+	}
+
+	// Check for command injection patterns
+	if strings.Contains(expr, "$(") || strings.Contains(expr, "`") {
+		return fmt.Errorf("command substitution patterns detected in %s expression", fieldName)
+	}
+
+	// Check for path traversal
+	if strings.Contains(expr, "../") || strings.Contains(expr, "..\\") {
+		return fmt.Errorf("path traversal patterns detected in %s expression", fieldName)
+	}
+
+	// Check for excessively long expressions (possible DoS)
+	if len(expr) > 10000 {
+		return fmt.Errorf("%s expression is too long (max 10000 characters)", fieldName)
+	}
+
+	// Check for excessive nesting (possible DoS)
+	openBraces := strings.Count(expr, "{{")
+	closeBraces := strings.Count(expr, "}}")
+	if openBraces > 50 || closeBraces > 50 {
+		return fmt.Errorf("%s expression has excessive template nesting", fieldName)
+	}
+	if openBraces != closeBraces {
+		return fmt.Errorf("%s expression has mismatched template braces", fieldName)
+	}
+
+	return nil
+}
+
+// validateVariableName ensures variable names are safe and follow conventions
+func (v *TypeValidator) validateVariableName(varName, fieldName string) error {
+	if varName == "" {
+		return nil
+	}
+
+	// Check length
+	if len(varName) > 100 {
+		return fmt.Errorf("%s variable name is too long (max 100 characters)", fieldName)
+	}
+
+	// Check format
+	if !validVariableNameRegex.MatchString(varName) {
+		return fmt.Errorf(
+			"%s variable name '%s' is invalid (must start with letter/underscore, contain only alphanumeric/underscore)",
+			fieldName,
+			varName,
+		)
+	}
+
+	// Check for reserved words
+	reservedWords := []string{
+		"workflow", "task", "tasks", "output", "outputs", "input", "inputs",
+		"config", "state", "status", "error", "errors", "system", "admin",
+		"root", "sudo", "exec", "eval", "import", "require", "module",
+	}
+	lowerVarName := strings.ToLower(varName)
+	for _, reserved := range reservedWords {
+		if lowerVarName == reserved {
+			return fmt.Errorf("%s variable name '%s' conflicts with reserved word", fieldName, varName)
 		}
 	}
 

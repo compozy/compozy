@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "Bash(make lint)",
+      "Bash(make test:*)"
+    ],
+    "deny": []
+  }
+}

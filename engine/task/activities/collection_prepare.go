@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/engine/task/uc"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/normalizer"
-	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 const PrepareCollectionLabel = "PrepareCollection"
@@ -38,16 +37,16 @@ type EvaluateDynamicItemsInput struct {
 }
 
 type PrepareCollection struct {
-	loadWorkflowUC   *uc.LoadWorkflow
-	createStateUC    *uc.CreateState
-	handleResponseUC *uc.HandleResponse
-	taskRepo         task.Repository
-	normalizer       *normalizer.Normalizer
+	loadWorkflowUC      *uc.LoadWorkflow
+	createStateUC       *uc.CreateState
+	handleResponseUC    *uc.HandleResponse
+	taskRepo            task.Repository
+	collectionEvaluator *uc.CollectionEvaluator
 }
 
 type EvaluateDynamicItems struct {
-	loadWorkflowUC *uc.LoadWorkflow
-	normalizer     *normalizer.Normalizer
+	loadWorkflowUC      *uc.LoadWorkflow
+	collectionEvaluator *uc.CollectionEvaluator
 }
 
 // NewPrepareCollection creates a new PrepareCollection activity
@@ -57,11 +56,11 @@ func NewPrepareCollection(
 	taskRepo task.Repository,
 ) *PrepareCollection {
 	return &PrepareCollection{
-		loadWorkflowUC:   uc.NewLoadWorkflow(workflows, workflowRepo),
-		createStateUC:    uc.NewCreateState(taskRepo),
-		handleResponseUC: uc.NewHandleResponse(workflowRepo, taskRepo),
-		taskRepo:         taskRepo,
-		normalizer:       normalizer.New(),
+		loadWorkflowUC:      uc.NewLoadWorkflow(workflows, workflowRepo),
+		createStateUC:       uc.NewCreateState(taskRepo),
+		handleResponseUC:    uc.NewHandleResponse(workflowRepo, taskRepo),
+		taskRepo:            taskRepo,
+		collectionEvaluator: uc.NewCollectionEvaluator(),
 	}
 }
 
@@ -71,19 +70,53 @@ func NewEvaluateDynamicItems(
 	workflowRepo workflow.Repository,
 ) *EvaluateDynamicItems {
 	return &EvaluateDynamicItems{
-		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
-		normalizer:     normalizer.New(),
+		loadWorkflowUC:      uc.NewLoadWorkflow(workflows, workflowRepo),
+		collectionEvaluator: uc.NewCollectionEvaluator(),
 	}
 }
 
 func (a *PrepareCollection) Run(ctx context.Context, input *PrepareCollectionInput) (*PrepareCollectionResult, error) {
+	// Load and validate workflow context
+	workflowState, workflowConfig, err := a.loadAndValidateWorkflow(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+
+	// Evaluate collection items
+	result, err := a.evaluateCollectionItems(ctx, input.TaskConfig, workflowState, workflowConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate batch information
+	batchCount := a.calculateBatchCount(result.FilteredCount, input.TaskConfig.GetBatch(), input.TaskConfig.GetMode())
+
+	// Create and persist collection state
+	collectionState, err := a.createCollectionState(workflowState, workflowConfig, input.TaskConfig, result.Items)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create collection state: %w", err)
+	}
+
+	return &PrepareCollectionResult{
+		TaskExecID:      collectionState.TaskExecID,
+		FilteredCount:   result.FilteredCount,
+		TotalCount:      result.TotalCount,
+		BatchCount:      batchCount,
+		CollectionState: collectionState,
+	}, nil
+}
+
+func (a *PrepareCollection) loadAndValidateWorkflow(
+	ctx context.Context,
+	input *PrepareCollectionInput,
+) (*workflow.State, *workflow.Config, error) {
 	// Load workflow state and config
 	workflowState, workflowConfig, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
 		WorkflowID:     input.WorkflowID,
 		WorkflowExecID: input.WorkflowExecID,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Normalize task config
@@ -95,245 +128,73 @@ func (a *PrepareCollection) Run(ctx context.Context, input *PrepareCollectionInp
 	}
 	err = normalizer.Execute(ctx, normalizeInput)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Validate task type
-	taskConfig := input.TaskConfig
-	if taskConfig.Type != task.TaskTypeCollection {
-		return nil, fmt.Errorf("unsupported task type: %s", taskConfig.Type)
+	if input.TaskConfig.Type != task.TaskTypeCollection {
+		return nil, nil, fmt.Errorf("unsupported task type: %s", input.TaskConfig.Type)
 	}
 
-	// Evaluate collection items - now handles both static and dynamic
-	items, isDynamic, err := a.evaluateCollectionItemsWithDynamic(taskConfig, workflowState)
+	return workflowState, workflowConfig, nil
+}
+
+func (a *PrepareCollection) evaluateCollectionItems(
+	ctx context.Context,
+	taskConfig *task.Config,
+	workflowState *workflow.State,
+	workflowConfig *workflow.Config,
+) (*uc.EvaluationResult, error) {
+	// Build evaluation context
+	evaluationContext := a.buildEvaluationContext(taskConfig, workflowState, workflowConfig)
+
+	// Evaluate collection items using shared service
+	evalInput := &uc.EvaluationInput{
+		ItemsExpr:  taskConfig.Items,
+		FilterExpr: taskConfig.Filter,
+		Context:    evaluationContext,
+		ItemVar:    taskConfig.GetItemVar(),
+		IndexVar:   taskConfig.GetIndexVar(),
+	}
+
+	result, err := a.collectionEvaluator.EvaluateItems(ctx, evalInput)
 	if err != nil {
 		return nil, fmt.Errorf("failed to evaluate collection items: %w", err)
 	}
 
-	var filteredItems []any
-	var batchCount int
+	return result, nil
+}
 
-	if isDynamic && len(items) == 0 {
-		// Dynamic items couldn't be resolved yet - create placeholder
-		filteredItems = []any{}
-		batchCount = 1
-	} else {
-		// Apply filter if present (static items or resolved dynamic items)
-		filteredItems, err = a.applyFilter(items, taskConfig, workflowState)
-		if err != nil {
-			return nil, fmt.Errorf("failed to apply filter: %w", err)
-		}
+func (a *PrepareCollection) buildEvaluationContext(
+	taskConfig *task.Config,
+	workflowState *workflow.State,
+	workflowConfig *workflow.Config,
+) map[string]any {
+	// Use normalizer to build proper context structure
+	contextBuilder := normalizer.NewContextBuilder()
+	taskConfigs := normalizer.BuildTaskConfigsMap([]task.Config{*taskConfig})
 
-		// Calculate batch information
-		mode := taskConfig.GetMode()
-		batchSize := taskConfig.GetBatch()
-		batchCount = a.calculateBatchCount(len(filteredItems), batchSize, mode)
-	}
-
-	// Create collection state
-	collectionState, err := a.createCollectionState(
-		workflowState,
-		workflowConfig,
-		taskConfig,
-		filteredItems,
-		isDynamic && len(items) == 0,
+	// Merge environments: workflow -> task
+	envMerger := &core.EnvMerger{}
+	mergedEnv, err := envMerger.MergeWithDefaults(
+		workflowConfig.GetEnv(),
+		taskConfig.GetEnv(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create collection state: %w", err)
+		// If merge fails, use task env only
+		mergedEnv = taskConfig.GetEnv()
 	}
 
-	return &PrepareCollectionResult{
-		TaskExecID:      collectionState.TaskExecID,
-		FilteredCount:   len(filteredItems),
-		TotalCount:      len(items),
-		BatchCount:      batchCount,
-		CollectionState: collectionState,
-	}, nil
-}
-
-// evaluateCollectionItemsWithDynamic attempts to evaluate both static and dynamic items
-func (a *PrepareCollection) evaluateCollectionItemsWithDynamic(
-	taskConfig *task.Config,
-	workflowState *workflow.State,
-) ([]any, bool, error) {
-	itemsExpr := taskConfig.Items
-	if itemsExpr == "" {
-		return nil, false, fmt.Errorf("items expression is empty")
-	}
-
-	// Check if items expression references previous task outputs (dynamic items)
-	if a.isDynamicItemsExpression(itemsExpr) {
-		// Try to evaluate dynamic items first
-		items, err := a.evaluateDynamicItems(taskConfig, workflowState, itemsExpr)
-		if err != nil {
-			// If evaluation fails, return empty items with dynamic flag
-			// This will be resolved during execution
-			return []any{}, true, nil
-		}
-		return items, true, nil
-	}
-
-	// Static items - evaluate immediately using existing logic
-	items, err := a.evaluateStaticItems(taskConfig, workflowState, itemsExpr)
-	if err != nil {
-		return nil, false, err
-	}
-	return items, false, nil
-}
-
-// evaluateDynamicItems attempts to evaluate dynamic items expressions
-func (a *PrepareCollection) evaluateDynamicItems(
-	taskConfig *task.Config,
-	workflowState *workflow.State,
-	itemsExpr string,
-) ([]any, error) {
-	// Create template evaluation context using existing normalizer patterns
-	taskConfigs := normalizer.BuildTaskConfigsMap([]task.Config{*taskConfig})
-	ctx := &normalizer.NormalizationContext{
+	normCtx := &normalizer.NormalizationContext{
 		WorkflowState:  workflowState,
-		WorkflowConfig: nil, // Will be set by caller if needed
+		WorkflowConfig: workflowConfig,
 		TaskConfigs:    taskConfigs,
 		ParentConfig:   nil,
 		CurrentInput:   taskConfig.With,
-		MergedEnv:      taskConfig.Env,
+		MergedEnv:      &mergedEnv,
 	}
 
-	// Build template context
-	context := a.normalizer.BuildContext(ctx)
-
-	// Use template engine to evaluate the items expression
-	engine := tplengine.NewEngine(tplengine.FormatJSON)
-	result, err := engine.ParseMap(itemsExpr, context)
-	if err != nil {
-		return nil, fmt.Errorf("failed to evaluate dynamic items expression '%s': %w", itemsExpr, err)
-	}
-
-	// Convert result to []any
-	switch items := result.(type) {
-	case []any:
-		return items, nil
-	case string:
-		// If result is a string, try to parse it as JSON
-		if items == "" {
-			return []any{}, nil
-		}
-		return nil, fmt.Errorf("dynamic items expression evaluated to string instead of array: %s", items)
-	default:
-		return nil, fmt.Errorf("dynamic items expression must evaluate to an array, got %T", result)
-	}
-}
-
-// isDynamicItemsExpression checks if the items expression references previous task outputs
-func (a *PrepareCollection) isDynamicItemsExpression(itemsExpr string) bool {
-	// Check for patterns that reference previous task outputs
-	// This covers expressions like "{{ .tasks.some_task.output.results }}"
-	return len(itemsExpr) > 6 && itemsExpr[0:2] == "{{" &&
-		(itemsExpr[3:9] == ".tasks" || (len(itemsExpr) > 10 && itemsExpr[4:10] == ".tasks"))
-}
-
-// evaluateStaticItems evaluates static items expressions (non-dynamic)
-func (a *PrepareCollection) evaluateStaticItems(
-	taskConfig *task.Config,
-	workflowState *workflow.State,
-	itemsExpr string,
-) ([]any, error) {
-	// Create template evaluation context using existing normalizer patterns
-	taskConfigs := normalizer.BuildTaskConfigsMap([]task.Config{*taskConfig})
-	ctx := &normalizer.NormalizationContext{
-		WorkflowState:  workflowState,
-		WorkflowConfig: nil, // Will be set by caller if needed
-		TaskConfigs:    taskConfigs,
-		ParentConfig:   nil,
-		CurrentInput:   taskConfig.With,
-		MergedEnv:      taskConfig.Env,
-	}
-
-	// Build template context
-	context := a.normalizer.BuildContext(ctx)
-
-	// Use template engine to evaluate the items expression
-	engine := tplengine.NewEngine(tplengine.FormatJSON)
-	result, err := engine.ParseMap(itemsExpr, context)
-	if err != nil {
-		return nil, fmt.Errorf("failed to evaluate items expression '%s': %w", itemsExpr, err)
-	}
-
-	// Convert result to []any
-	switch items := result.(type) {
-	case []any:
-		return items, nil
-	case string:
-		// If result is a string, try to parse it as JSON
-		if items == "" {
-			return []any{}, nil
-		}
-		return nil, fmt.Errorf("items expression evaluated to string instead of array: %s", items)
-	default:
-		return nil, fmt.Errorf("items expression must evaluate to an array, got %T", result)
-	}
-}
-
-func (a *PrepareCollection) applyFilter(
-	items []any,
-	taskConfig *task.Config,
-	workflowState *workflow.State,
-) ([]any, error) {
-	filter := taskConfig.Filter
-	if filter == "" {
-		return items, nil // No filter, return all items
-	}
-
-	// Create template evaluation context
-	taskConfigs := normalizer.BuildTaskConfigsMap([]task.Config{*taskConfig})
-	engine := tplengine.NewEngine(tplengine.FormatJSON)
-
-	var filteredItems []any
-	itemVar := taskConfig.GetItemVar()
-	indexVar := taskConfig.GetIndexVar()
-
-	for i, item := range items {
-		// Create context for this specific item
-		ctx := &normalizer.NormalizationContext{
-			WorkflowState:  workflowState,
-			WorkflowConfig: nil,
-			TaskConfigs:    taskConfigs,
-			ParentConfig:   nil,
-			CurrentInput:   taskConfig.With,
-			MergedEnv:      taskConfig.Env,
-		}
-
-		// Build base context and add item-specific variables
-		context := a.normalizer.BuildContext(ctx)
-		context[itemVar] = item
-		context[indexVar] = i
-
-		// Evaluate filter expression for this item
-		result, err := engine.ParseMap(filter, context)
-		if err != nil {
-			return nil, fmt.Errorf("failed to evaluate filter expression for item %d: %w", i, err)
-		}
-
-		// Check if result is truthy
-		include := false
-		switch filterResult := result.(type) {
-		case bool:
-			include = filterResult
-		case string:
-			include = filterResult == "true"
-		case int:
-			include = filterResult != 0
-		case float64:
-			include = filterResult != 0
-		default:
-			include = filterResult != nil
-		}
-
-		if include {
-			filteredItems = append(filteredItems, item)
-		}
-	}
-
-	return filteredItems, nil
+	return contextBuilder.BuildContext(normCtx)
 }
 
 func (a *PrepareCollection) calculateBatchCount(itemCount, batchSize int, mode task.CollectionMode) int {
@@ -348,39 +209,21 @@ func (a *PrepareCollection) createCollectionState(
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 	filteredItems []any,
-	isDynamic bool,
 ) (*task.State, error) {
 	collectionTask := &taskConfig.CollectionTask
 
-	var partialState *task.PartialState
-
-	if isDynamic {
-		// Create dynamic collection state that will be evaluated at execution time
-		partialState = task.CreateDynamicCollectionPartialState(
-			taskConfig.Items, // Store the unevaluated expression
-			collectionTask.Filter,
-			string(collectionTask.GetMode()),
-			collectionTask.GetBatch(),
-			collectionTask.ContinueOnError,
-			collectionTask.GetItemVar(),
-			collectionTask.GetIndexVar(),
-			nil, // ParallelConfig will be set if needed
-			taskConfig.Env,
-		)
-	} else {
-		// Create static collection state with evaluated items
-		partialState = task.CreateCollectionPartialState(
-			filteredItems,
-			collectionTask.Filter,
-			string(collectionTask.GetMode()),
-			collectionTask.GetBatch(),
-			collectionTask.ContinueOnError,
-			collectionTask.GetItemVar(),
-			collectionTask.GetIndexVar(),
-			nil, // ParallelConfig will be set if needed
-			taskConfig.Env,
-		)
-	}
+	// Create collection state with evaluated items
+	partialState := task.CreateCollectionPartialState(
+		filteredItems,
+		collectionTask.Filter,
+		string(collectionTask.GetMode()),
+		collectionTask.GetBatch(),
+		collectionTask.ContinueOnError,
+		collectionTask.GetItemVar(),
+		collectionTask.GetIndexVar(),
+		nil, // ParallelConfig will be set if needed
+		taskConfig.Env,
+	)
 
 	// Create and persist the collection state
 	taskExecID := core.MustNewID()
@@ -402,8 +245,8 @@ func (a *PrepareCollection) createCollectionState(
 }
 
 func (a *EvaluateDynamicItems) Run(ctx context.Context, input *EvaluateDynamicItemsInput) ([]any, error) {
-	// Load current workflow state
-	workflowState, _, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
+	// Load current workflow state and config
+	workflowState, workflowConfig, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
 		WorkflowID:     input.WorkflowID,
 		WorkflowExecID: input.WorkflowExecID,
 	})
@@ -411,123 +254,45 @@ func (a *EvaluateDynamicItems) Run(ctx context.Context, input *EvaluateDynamicIt
 		return nil, fmt.Errorf("failed to load workflow state: %w", err)
 	}
 
-	// Evaluate the items expression with current workflow state
-	items, err := a.evaluateDynamicItems(input.TaskConfig, workflowState, input.ItemsExpression)
+	// Build evaluation context using normalizer
+	contextBuilder := normalizer.NewContextBuilder()
+	taskConfigs := normalizer.BuildTaskConfigsMap([]task.Config{*input.TaskConfig})
+
+	// Merge environments: workflow -> task
+	envMerger := &core.EnvMerger{}
+	mergedEnv, err := envMerger.MergeWithDefaults(
+		workflowConfig.GetEnv(),
+		input.TaskConfig.GetEnv(),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to evaluate items expression: %w", err)
+		// If merge fails, use task env only
+		mergedEnv = input.TaskConfig.GetEnv()
 	}
 
-	// Apply filter if present
-	if input.FilterExpression != "" {
-		filteredItems, err := a.applyFilter(items, input.TaskConfig, workflowState, input.FilterExpression)
-		if err != nil {
-			return nil, fmt.Errorf("failed to apply filter: %w", err)
-		}
-		return filteredItems, nil
-	}
-
-	return items, nil
-}
-
-func (a *EvaluateDynamicItems) evaluateDynamicItems(
-	taskConfig *task.Config,
-	workflowState *workflow.State,
-	itemsExpr string,
-) ([]any, error) {
-	// Create template evaluation context using existing normalizer patterns
-	taskConfigs := normalizer.BuildTaskConfigsMap([]task.Config{*taskConfig})
-	ctx := &normalizer.NormalizationContext{
+	normCtx := &normalizer.NormalizationContext{
 		WorkflowState:  workflowState,
-		WorkflowConfig: nil,
+		WorkflowConfig: workflowConfig,
 		TaskConfigs:    taskConfigs,
 		ParentConfig:   nil,
-		CurrentInput:   taskConfig.With,
-		MergedEnv:      taskConfig.Env,
+		CurrentInput:   input.TaskConfig.With,
+		MergedEnv:      &mergedEnv,
 	}
 
-	// Build template context
-	context := a.normalizer.BuildContext(ctx)
+	evaluationContext := contextBuilder.BuildContext(normCtx)
 
-	// Use template engine to evaluate the items expression
-	engine := tplengine.NewEngine(tplengine.FormatJSON)
-	result, err := engine.ParseMap(itemsExpr, context)
+	// Evaluate items using shared service
+	evalInput := &uc.EvaluationInput{
+		ItemsExpr:  input.ItemsExpression,
+		FilterExpr: input.FilterExpression,
+		Context:    evaluationContext,
+		ItemVar:    input.TaskConfig.GetItemVar(),
+		IndexVar:   input.TaskConfig.GetIndexVar(),
+	}
+
+	result, err := a.collectionEvaluator.EvaluateItems(ctx, evalInput)
 	if err != nil {
-		return nil, fmt.Errorf("failed to evaluate dynamic items expression '%s': %w", itemsExpr, err)
+		return nil, fmt.Errorf("failed to evaluate items: %w", err)
 	}
 
-	// Convert result to []any
-	switch items := result.(type) {
-	case []any:
-		return items, nil
-	case string:
-		if items == "" {
-			return []any{}, nil
-		}
-		return nil, fmt.Errorf("dynamic items expression evaluated to string instead of array: %s", items)
-	default:
-		return nil, fmt.Errorf("dynamic items expression must evaluate to an array, got %T", result)
-	}
-}
-
-func (a *EvaluateDynamicItems) applyFilter(
-	items []any,
-	taskConfig *task.Config,
-	workflowState *workflow.State,
-	filter string,
-) ([]any, error) {
-	if filter == "" {
-		return items, nil
-	}
-
-	// Create template evaluation context
-	taskConfigs := normalizer.BuildTaskConfigsMap([]task.Config{*taskConfig})
-	engine := tplengine.NewEngine(tplengine.FormatJSON)
-
-	var filteredItems []any
-	itemVar := taskConfig.GetItemVar()
-	indexVar := taskConfig.GetIndexVar()
-
-	for i, item := range items {
-		// Create context for this specific item
-		ctx := &normalizer.NormalizationContext{
-			WorkflowState:  workflowState,
-			WorkflowConfig: nil,
-			TaskConfigs:    taskConfigs,
-			ParentConfig:   nil,
-			CurrentInput:   taskConfig.With,
-			MergedEnv:      taskConfig.Env,
-		}
-
-		// Build base context and add item-specific variables
-		context := a.normalizer.BuildContext(ctx)
-		context[itemVar] = item
-		context[indexVar] = i
-
-		// Evaluate filter expression for this item
-		result, err := engine.ParseMap(filter, context)
-		if err != nil {
-			return nil, fmt.Errorf("failed to evaluate filter expression for item %d: %w", i, err)
-		}
-
-		// Check if result is truthy
-		include := false
-		switch filterResult := result.(type) {
-		case bool:
-			include = filterResult
-		case string:
-			include = filterResult == "true"
-		case int:
-			include = filterResult != 0
-		case float64:
-			include = filterResult != 0
-		default:
-			include = filterResult != nil
-		}
-
-		if include {
-			filteredItems = append(filteredItems, item)
-		}
-	}
-
-	return filteredItems, nil
+	return result.Items, nil
 }

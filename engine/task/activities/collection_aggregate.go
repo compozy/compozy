@@ -38,8 +38,24 @@ func NewAggregateCollection(
 }
 
 func (a *AggregateCollection) Run(ctx context.Context, input *AggregateCollectionInput) (*task.Response, error) {
-	// Get the collection task state
-	collectionState, err := a.taskRepo.GetState(ctx, input.ParentTaskExecID)
+	// Load and validate collection state
+	collectionState, err := a.loadCollectionState(ctx, input.ParentTaskExecID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Process and finalize collection results
+	finalStatus, err := a.processCollectionResults(ctx, collectionState, input.ItemResults)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate final response
+	return a.generateFinalResponse(ctx, collectionState, input.TaskConfig, finalStatus)
+}
+
+func (a *AggregateCollection) loadCollectionState(ctx context.Context, taskExecID core.ID) (*task.State, error) {
+	collectionState, err := a.taskRepo.GetState(ctx, taskExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get collection state: %w", err)
 	}
@@ -48,28 +64,42 @@ func (a *AggregateCollection) Run(ctx context.Context, input *AggregateCollectio
 		return nil, fmt.Errorf("task is not a collection task")
 	}
 
+	return collectionState, nil
+}
+
+func (a *AggregateCollection) processCollectionResults(
+	ctx context.Context,
+	collectionState *task.State,
+	itemResults []ExecuteCollectionItemResult,
+) (core.StatusType, error) {
 	// Update collection state with item results
-	err = a.updateCollectionState(collectionState, input.ItemResults)
+	err := a.updateCollectionState(collectionState, itemResults)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update collection state: %w", err)
+		return "", fmt.Errorf("failed to update collection state: %w", err)
 	}
 
-	// Create collection output
-	collectionOutput := a.createCollectionOutput(collectionState, input.ItemResults)
-
-	// Update collection state with final output
+	// Create and set collection output
+	collectionOutput := a.createCollectionOutput(collectionState, itemResults)
 	collectionState.Output = collectionOutput
 
-	// Determine final status based on results and strategy
-	finalStatus := a.determineFinalStatus(collectionState, input.ItemResults)
+	// Determine final status
+	finalStatus := a.determineFinalStatus(collectionState, itemResults)
 	collectionState.UpdateStatus(finalStatus)
 
 	// Persist updated collection state
 	if err := a.taskRepo.UpsertState(ctx, collectionState); err != nil {
-		return nil, fmt.Errorf("failed to update collection state: %w", err)
+		return "", fmt.Errorf("failed to update collection state: %w", err)
 	}
 
-	// Handle final response with transitions
+	return finalStatus, nil
+}
+
+func (a *AggregateCollection) generateFinalResponse(
+	ctx context.Context,
+	collectionState *task.State,
+	taskConfig *task.Config,
+	finalStatus core.StatusType,
+) (*task.Response, error) {
 	workflowConfig, err := a.getWorkflowConfig(collectionState)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workflow config: %w", err)
@@ -83,7 +113,7 @@ func (a *AggregateCollection) Run(ctx context.Context, input *AggregateCollectio
 	response, err := a.handleResponseUC.Execute(ctx, &uc.HandleResponseInput{
 		TaskState:      collectionState,
 		WorkflowConfig: workflowConfig,
-		TaskConfig:     input.TaskConfig,
+		TaskConfig:     taskConfig,
 		ExecutionError: executionError,
 	})
 	if err != nil {
@@ -192,9 +222,14 @@ func (a *AggregateCollection) determineFinalStatus(
 	failedCount := collectionConfig.FailedCount
 	totalCount := len(itemResults)
 
+	// Handle edge case: no items to process
+	if totalCount == 0 {
+		return core.StatusSuccess // Empty collection is considered successful
+	}
+
 	// If continue_on_error is true, only fail if ALL items failed
 	if collectionConfig.ContinueOnError {
-		if failedCount == totalCount && totalCount > 0 {
+		if failedCount == totalCount {
 			return core.StatusFailed
 		}
 		return core.StatusSuccess

@@ -9,7 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/uc"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/tplengine"
+	"github.com/compozy/compozy/pkg/normalizer"
 )
 
 const ExecuteCollectionItemLabel = "ExecuteCollectionItem"
@@ -30,11 +30,12 @@ type ExecuteCollectionItemResult struct {
 }
 
 type ExecuteCollectionItem struct {
-	loadWorkflowUC   *uc.LoadWorkflow
-	createStateUC    *uc.CreateState
-	executeTaskUC    *uc.ExecuteTask
-	handleResponseUC *uc.HandleResponse
-	taskRepo         task.Repository
+	loadWorkflowUC        *uc.LoadWorkflow
+	createStateUC         *uc.CreateState
+	executeTaskUC         *uc.ExecuteTask
+	handleResponseUC      *uc.HandleResponse
+	taskRepo              task.Repository
+	taskTemplateEvaluator *uc.TaskTemplateEvaluator
 }
 
 // NewExecuteCollectionItem creates a new ExecuteCollectionItem activity
@@ -45,11 +46,12 @@ func NewExecuteCollectionItem(
 	runtime *runtime.Manager,
 ) *ExecuteCollectionItem {
 	return &ExecuteCollectionItem{
-		loadWorkflowUC:   uc.NewLoadWorkflow(workflows, workflowRepo),
-		createStateUC:    uc.NewCreateState(taskRepo),
-		executeTaskUC:    uc.NewExecuteTask(runtime),
-		handleResponseUC: uc.NewHandleResponse(workflowRepo, taskRepo),
-		taskRepo:         taskRepo,
+		loadWorkflowUC:        uc.NewLoadWorkflow(workflows, workflowRepo),
+		createStateUC:         uc.NewCreateState(taskRepo),
+		executeTaskUC:         uc.NewExecuteTask(runtime),
+		handleResponseUC:      uc.NewHandleResponse(workflowRepo, taskRepo),
+		taskRepo:              taskRepo,
+		taskTemplateEvaluator: uc.NewTaskTemplateEvaluator(),
 	}
 }
 
@@ -77,19 +79,14 @@ func (a *ExecuteCollectionItem) Run(
 	}
 
 	// Create item-specific task config with injected variables
-	itemTaskConfig := a.createItemTaskConfig(input, parentState)
-
-	// Normalize the item task config
-	normalizer := uc.NewNormalizeConfig()
-	normalizeInput := &uc.NormalizeConfigInput{
-		WorkflowState:  workflowState,
-		WorkflowConfig: workflowConfig,
-		TaskConfig:     itemTaskConfig,
-	}
-	err = normalizer.Execute(ctx, normalizeInput)
+	itemTaskConfig, err := a.createItemTaskConfig(ctx, input, parentState, workflowState)
 	if err != nil {
-		return nil, fmt.Errorf("failed to normalize item task config: %w", err)
+		return nil, fmt.Errorf("failed to create item task config: %w", err)
 	}
+
+	// NOTE: Skip normalization for collection item task configs
+	// The task config has already been fully processed by the template evaluator
+	// Additional normalization would re-process agent actions without collection item context
 
 	// Create task state for this item
 	taskState, err := a.createStateUC.Execute(ctx, &uc.CreateStateInput{
@@ -144,105 +141,73 @@ func (a *ExecuteCollectionItem) Run(
 }
 
 func (a *ExecuteCollectionItem) createItemTaskConfig(
+	ctx context.Context,
 	input *ExecuteCollectionItemInput,
 	parentState *task.State,
-) *task.Config {
-	// Clone the task template
-	taskTemplate := input.TaskConfig
+	workflowState *workflow.State,
+) (*task.Config, error) {
 	collectionState := parentState.CollectionState
 
-	// Create a copy of the task config for this item
-	itemConfig := &task.Config{}
-	*itemConfig = *taskTemplate
+	// Load workflow config to get environment and other configuration
+	workflowState, workflowConfig, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
+		WorkflowID:     workflowState.WorkflowID,
+		WorkflowExecID: workflowState.WorkflowExecID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to load workflow config: %w", err)
+	}
+
+	// Build evaluation context using normalizer with proper environment merging
+	contextBuilder := normalizer.NewContextBuilder()
+	taskConfigs := normalizer.BuildTaskConfigsMap(workflowConfig.Tasks)
+
+	// Merge environments: workflow -> task -> collection item
+	envMerger := &core.EnvMerger{}
+	mergedEnv, err := envMerger.MergeWithDefaults(
+		workflowConfig.GetEnv(),
+		input.TaskConfig.GetEnv(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to merge environments: %w", err)
+	}
+
+	normCtx := &normalizer.NormalizationContext{
+		WorkflowState:  workflowState,
+		WorkflowConfig: workflowConfig,
+		TaskConfigs:    taskConfigs,
+		ParentConfig:   nil,
+		CurrentInput:   input.TaskConfig.With,
+		MergedEnv:      &mergedEnv,
+	}
+
+	evaluationContext := contextBuilder.BuildContext(normCtx)
+
+	// Use shared service to evaluate task template
+	itemTaskConfig, err := a.taskTemplateEvaluator.EvaluateTaskTemplate(
+		input.TaskConfig,
+		input.Item,
+		input.ItemIndex,
+		collectionState.GetItemVar(),
+		collectionState.GetIndexVar(),
+		evaluationContext,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to evaluate task template: %w", err)
+	}
 
 	// Generate unique ID for this item task
-	itemConfig.ID = fmt.Sprintf("%s.item[%d]", taskTemplate.ID, input.ItemIndex)
+	itemTaskConfig.ID = fmt.Sprintf("%s.item[%d]", input.TaskConfig.ID, input.ItemIndex)
 
-	// Pre-process the task template to resolve collection-specific variables
-	itemVar := collectionState.GetItemVar()
-	indexVar := collectionState.GetIndexVar()
-
-	// Create collection context for template processing
-	collectionContext := map[string]any{
-		itemVar:  input.Item,
-		indexVar: input.ItemIndex,
+	// Ensure the collection item data is available in the task config's 'with' field
+	// This is crucial for agent action normalization to work properly
+	if itemTaskConfig.With == nil {
+		itemTaskConfig.With = &core.Input{}
 	}
 
-	// Convert task config to map for template processing
-	configMap, err := itemConfig.AsMap()
-	if err != nil {
-		// If conversion fails, fall back to original behavior
-		return a.createItemTaskConfigFallback(input, parentState)
-	}
+	// Add the collection item variables to the task input
+	// This ensures they're available during normalization phase
+	(*itemTaskConfig.With)[collectionState.GetItemVar()] = input.Item
+	(*itemTaskConfig.With)[collectionState.GetIndexVar()] = input.ItemIndex
 
-	// Process templates in the config map with collection context
-	engine := tplengine.NewEngine(tplengine.FormatJSON)
-	processedConfigMap, err := engine.ParseMap(configMap, collectionContext)
-	if err != nil {
-		// If template processing fails, fall back to original behavior
-		return a.createItemTaskConfigFallback(input, parentState)
-	}
-
-	// Update config from processed map
-	if err := itemConfig.FromMap(processedConfigMap); err != nil {
-		// If update fails, fall back to original behavior
-		return a.createItemTaskConfigFallback(input, parentState)
-	}
-
-	// Now inject any remaining variables into the input (in case template used them)
-	if itemConfig.With == nil {
-		itemConfig.With = &core.Input{}
-	}
-
-	// Create a copy of the input
-	itemInput := make(core.Input)
-	if itemConfig.With != nil {
-		for k, v := range *itemConfig.With {
-			itemInput[k] = v
-		}
-	}
-
-	// Inject collection variables for any templates that might still need them
-	itemInput[itemVar] = input.Item
-	itemInput[indexVar] = input.ItemIndex
-
-	itemConfig.With = &itemInput
-
-	return itemConfig
-}
-
-// createItemTaskConfigFallback provides the original behavior as fallback
-func (a *ExecuteCollectionItem) createItemTaskConfigFallback(
-	input *ExecuteCollectionItemInput,
-	parentState *task.State,
-) *task.Config {
-	// Original implementation as fallback
-	taskTemplate := input.TaskConfig
-	collectionState := parentState.CollectionState
-
-	itemConfig := &task.Config{}
-	*itemConfig = *taskTemplate
-
-	itemConfig.ID = fmt.Sprintf("%s.item[%d]", taskTemplate.ID, input.ItemIndex)
-
-	if itemConfig.With == nil {
-		itemConfig.With = &core.Input{}
-	}
-
-	itemInput := make(core.Input)
-	if taskTemplate.With != nil {
-		for k, v := range *taskTemplate.With {
-			itemInput[k] = v
-		}
-	}
-
-	itemVar := collectionState.GetItemVar()
-	indexVar := collectionState.GetIndexVar()
-
-	itemInput[itemVar] = input.Item
-	itemInput[indexVar] = input.ItemIndex
-
-	itemConfig.With = &itemInput
-
-	return itemConfig
+	return itemTaskConfig, nil
 }

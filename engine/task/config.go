@@ -15,6 +15,18 @@ import (
 	"github.com/compozy/compozy/pkg/ref"
 )
 
+// Constants for configuration defaults
+const (
+	DefaultMaxWorkers         = 10
+	DefaultBatchSize          = 1
+	DefaultItemVariable       = "item"
+	DefaultIndexVariable      = "index"
+	DefaultCollectionMode     = CollectionModeParallel
+	DefaultMaxBatchSize       = 1000  // Prevent excessive batch sizes
+	DefaultMaxParallelWorkers = 100   // Prevent resource exhaustion
+	DefaultMaxCollectionItems = 10000 // Prevent memory issues
+)
+
 // -----------------------------------------------------------------------------
 // BaseConfig - Common fields shared between Config and ParallelTaskItem
 // -----------------------------------------------------------------------------
@@ -129,28 +141,28 @@ type CollectionTask struct {
 
 func (ct *CollectionTask) GetMode() CollectionMode {
 	if ct.Mode == "" {
-		return CollectionModeParallel
+		return DefaultCollectionMode
 	}
 	return ct.Mode
 }
 
 func (ct *CollectionTask) GetBatch() int {
 	if ct.Batch <= 0 {
-		return 1
+		return DefaultBatchSize
 	}
 	return ct.Batch
 }
 
 func (ct *CollectionTask) GetItemVar() string {
 	if ct.ItemVar == "" {
-		return "item"
+		return DefaultItemVariable
 	}
 	return ct.ItemVar
 }
 
 func (ct *CollectionTask) GetIndexVar() string {
 	if ct.IndexVar == "" {
-		return "index"
+		return DefaultIndexVariable
 	}
 	return ct.IndexVar
 }
@@ -320,7 +332,7 @@ func (t *Config) GetMaxWorkers() int {
 		if t.Type == TaskTypeParallel {
 			return len(t.Tasks) // Default to number of tasks for parallel
 		}
-		return 10 // Default max workers for collection
+		return DefaultMaxWorkers // Default max workers for collection
 	}
 	return t.MaxWorkers
 }

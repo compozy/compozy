@@ -102,10 +102,10 @@ tasks:
     on_error:
       next: save_error
 
-  # Simple collection task for activities (using simple city names from successful weather results)
+  # Simple collection task for activities (using weather results from previous task)
   - id: process_activities
     type: collection
-    items: "{{ .workflow.input.cities }}" # Use simple input cities instead of complex nested reference
+    items: "{{ .workflow.input.cities }}"
     mode: sequential
     batch: 2
     continue_on_error: true
@@ -119,10 +119,10 @@ tasks:
       action: suggest_activities
       with:
         city: "{{ .city }}"
-        # Use simple references to get weather data from previous task
-        temperature: "72" # Simplified - avoid complex template lookups for now
-        humidity: "65"
-        description: "Clear sky"
+        # Simplified for now - just use static data to test collection functionality
+        temperature: "20"
+        humidity: "50"
+        description: "Sunny"
       outputs:
         activities: "{{ .output.activities }}"
         city: "{{ .city }}"

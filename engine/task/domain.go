@@ -37,7 +37,10 @@ type ParallelState struct {
 }
 
 // -----------------------------------------------------------------------------
-// Collection Execution State - Stored in parallel_state JSONB column
+// Collection Execution State - Stored in parallel_state JSONB column for DB efficiency
+// Note: This reuses the parallel_state column to avoid schema changes while maintaining
+// clear separation of concerns in the application layer. The ExecutionType field
+// distinguishes between parallel and collection tasks at the database level.
 // -----------------------------------------------------------------------------
 
 type CollectionState struct {
@@ -66,18 +69,18 @@ type CollectionState struct {
 	ParallelConfig *ParallelState `json:"parallel_config,omitempty"` // Parallel execution config when mode=parallel
 }
 
-// GetItemVar returns the item variable name, defaulting to "item" if empty
+// GetItemVar returns the item variable name, defaulting to DefaultItemVariable if empty
 func (cs *CollectionState) GetItemVar() string {
 	if cs.ItemVar == "" {
-		return "item"
+		return DefaultItemVariable
 	}
 	return cs.ItemVar
 }
 
-// GetIndexVar returns the index variable name, defaulting to "index" if empty
+// GetIndexVar returns the index variable name, defaulting to DefaultIndexVariable if empty
 func (cs *CollectionState) GetIndexVar() string {
 	if cs.IndexVar == "" {
-		return "index"
+		return DefaultIndexVariable
 	}
 	return cs.IndexVar
 }
