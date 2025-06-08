@@ -62,6 +62,8 @@ func (uc *CreateState) processComponent(
 	switch {
 	case input.TaskConfig.Type == task.TaskTypeParallel:
 		return uc.processParallelTask(input, baseEnv, executionType)
+	case input.TaskConfig.Type == task.TaskTypeCollection:
+		return uc.processCollectionTask(input, baseEnv)
 	case agentConfig != nil:
 		return uc.processAgent(agentConfig, executionType, input.TaskConfig.Action)
 	case toolConfig != nil:
@@ -168,9 +170,9 @@ func (uc *CreateState) processParallelTask(
 		subTasks[subTaskConfig.ID] = subTask
 	}
 	return task.CreateParallelPartialState(
-		parallelConfig.GetStrategy(),
-		parallelConfig.GetMaxWorkers(),
-		parallelConfig.Timeout,
+		input.TaskConfig.Strategy,
+		input.TaskConfig.MaxWorkers,
+		input.TaskConfig.Timeout,
 		subTasks,
 		baseEnv,
 	), nil
@@ -216,4 +218,36 @@ func (uc *CreateState) createNestesParallelState(
 		subTaskConfig.With,
 	)
 	return subTask
+}
+
+func (uc *CreateState) processCollectionTask(
+	input *CreateStateInput,
+	baseEnv *core.EnvMap,
+) (*task.PartialState, error) {
+	collectionConfig := &input.TaskConfig.CollectionTask
+
+	// Validate collection task configuration
+	if collectionConfig.Items == "" {
+		return nil, fmt.Errorf("collection task must specify items expression")
+	}
+
+	if input.TaskConfig.Task == nil {
+		return nil, fmt.Errorf("collection task must specify task template")
+	}
+
+	// Create collection partial state with empty items (will be populated during execution)
+	return task.CreateCollectionPartialState(
+		[]any{}, // Empty items - will be populated during prepare phase
+		collectionConfig.Filter,
+		collectionConfig.GetMode(),
+		collectionConfig.GetBatch(),
+		collectionConfig.ContinueOnError,
+		collectionConfig.GetItemVar(),
+		collectionConfig.GetIndexVar(),
+		collectionConfig.StopCondition,
+		input.TaskConfig.GetStrategy(),
+		input.TaskConfig.GetMaxWorkers(),
+		input.TaskConfig.Timeout,
+		baseEnv,
+	), nil
 }

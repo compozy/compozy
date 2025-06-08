@@ -214,8 +214,8 @@ func TestTaskRepo_GetParallelState(t *testing.T) {
 			assert.Equal(t, task.ExecutionParallel, state.ExecutionType)
 			assert.True(t, state.IsParallel())
 			assert.NotNil(t, state.ParallelState)
-			assert.Equal(t, task.StrategyWaitAll, state.Strategy)
-			assert.Equal(t, 2, state.MaxWorkers)
+			assert.Equal(t, task.StrategyWaitAll, state.ParallelState.Strategy)
+			assert.Equal(t, 2, state.ParallelState.MaxWorkers)
 			assert.Len(t, state.SubTasks, 1)
 			assert.Contains(t, state.SubTasks, "subtask1")
 		},

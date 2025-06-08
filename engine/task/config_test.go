@@ -175,10 +175,10 @@ func Test_LoadTask(t *testing.T) {
 		require.NotNil(t, config.Task)
 
 		// Validate parallel tasks array
-		assert.Equal(t, 3, len(config.Tasks))
+		assert.Equal(t, 3, len(config.ParallelTask.Tasks))
 
 		// Validate first task (sentiment analysis)
-		task1 := config.Tasks[0]
+		task1 := config.ParallelTask.Tasks[0]
 		assert.Equal(t, "sentiment_analysis", task1.ID)
 		assert.Equal(t, TaskTypeBasic, task1.Type)
 		assert.Equal(t, "analyze_sentiment", task1.Action)
@@ -186,7 +186,7 @@ func Test_LoadTask(t *testing.T) {
 		assert.Equal(t, "text_analyzer", task1.Agent.ID)
 
 		// Validate second task (extract keywords)
-		task2 := config.Tasks[1]
+		task2 := config.ParallelTask.Tasks[1]
 		assert.Equal(t, "extract_keywords", task2.ID)
 		assert.Equal(t, TaskTypeBasic, task2.Type)
 		require.NotNil(t, task2.Tool)
@@ -291,9 +291,10 @@ func Test_TaskConfigValidation(t *testing.T) {
 	t.Run("Should validate valid parallel task", func(t *testing.T) {
 		config := &Config{
 			BaseConfig: BaseConfig{
-				ID:   taskID,
-				Type: TaskTypeParallel,
-				cwd:  taskCWD,
+				ID:       taskID,
+				Type:     TaskTypeParallel,
+				cwd:      taskCWD,
+				Strategy: StrategyWaitAll,
 			},
 			ParallelTask: ParallelTask{
 				Tasks: []Config{
@@ -309,7 +310,6 @@ func Test_TaskConfigValidation(t *testing.T) {
 						},
 					},
 				},
-				Strategy: StrategyWaitAll,
 			},
 		}
 

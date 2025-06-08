@@ -45,13 +45,23 @@ func (v *CycleValidator) detectCycle(config *Config, visited map[string]bool, vi
 
 	// Check parallel task dependencies
 	if config.Type == TaskTypeParallel {
-		for i := range config.Tasks {
-			if err := v.detectCycle(&config.Tasks[i], visited, visiting); err != nil {
+		for i := range config.ParallelTask.Tasks {
+			if err := v.detectCycle(&config.ParallelTask.Tasks[i], visited, visiting); err != nil {
 				return err
 			}
 		}
 
 		// Check task reference if present
+		if config.Task != nil {
+			if err := v.detectCycle(config.Task, visited, visiting); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Check collection task dependencies
+	if config.Type == TaskTypeCollection {
+		// Check task template reference
 		if config.Task != nil {
 			if err := v.detectCycle(config.Task, visited, visiting); err != nil {
 				return err
@@ -84,7 +94,7 @@ func (v *TypeValidator) Validate() error {
 	if v.config.Type == "" {
 		return nil
 	}
-	if v.config.Type != TaskTypeBasic && v.config.Type != TaskTypeRouter && v.config.Type != TaskTypeParallel {
+	if v.config.Type != TaskTypeBasic && v.config.Type != TaskTypeRouter && v.config.Type != TaskTypeParallel && v.config.Type != TaskTypeCollection {
 		return fmt.Errorf("invalid task type: %s", v.config.Type)
 	}
 	if err := v.validateBasicTaskWithRef(); err != nil {
@@ -97,6 +107,11 @@ func (v *TypeValidator) Validate() error {
 	}
 	if v.config.Type == TaskTypeParallel {
 		if err := v.validateParallelTask(); err != nil {
+			return err
+		}
+	}
+	if v.config.Type == TaskTypeCollection {
+		if err := v.validateCollectionTask(); err != nil {
 			return err
 		}
 	}
@@ -127,14 +142,14 @@ func (v *TypeValidator) validateRouterTask() error {
 }
 
 func (v *TypeValidator) validateParallelTask() error {
-	if len(v.config.Tasks) == 0 {
+	if len(v.config.ParallelTask.Tasks) == 0 {
 		return fmt.Errorf("parallel tasks must have at least one sub-task")
 	}
 
 	// Check for duplicate IDs first before validating individual items
 	seen := make(map[string]bool)
-	for i := range v.config.Tasks {
-		task := &v.config.Tasks[i]
+	for i := range v.config.ParallelTask.Tasks {
+		task := &v.config.ParallelTask.Tasks[i]
 		if seen[task.ID] {
 			return fmt.Errorf("duplicate task ID in parallel execution: %s", task.ID)
 		}
@@ -142,8 +157,8 @@ func (v *TypeValidator) validateParallelTask() error {
 	}
 
 	// Then validate each individual task
-	for i := range v.config.Tasks {
-		task := &v.config.Tasks[i]
+	for i := range v.config.ParallelTask.Tasks {
+		task := &v.config.ParallelTask.Tasks[i]
 		if err := v.validateParallelTaskItem(task); err != nil {
 			return fmt.Errorf("invalid parallel task item %s: %w", task.ID, err)
 		}
@@ -165,5 +180,78 @@ func (v *TypeValidator) validateParallelTaskItem(item *Config) error {
 	if err := item.Validate(); err != nil {
 		return fmt.Errorf("invalid task configuration: %w", err)
 	}
+	return nil
+}
+
+func (v *TypeValidator) validateCollectionTask() error {
+	// Validate required fields
+	if v.config.CollectionTask.Items == "" {
+		return fmt.Errorf("collection tasks must specify an items expression")
+	}
+	
+	if v.config.Task == nil {
+		return fmt.Errorf("collection tasks must specify a task template")
+	}
+	
+	// Validate task template
+	if v.config.Task.ID == "" {
+		return fmt.Errorf("collection task template must have an ID")
+	}
+	
+	// Validate task template configuration
+	if err := v.config.Task.Validate(); err != nil {
+		return fmt.Errorf("invalid collection task template: %w", err)
+	}
+	
+	// Validate mode
+	mode := v.config.CollectionTask.GetMode()
+	if mode != CollectionModeParallel && mode != CollectionModeSequential {
+		return fmt.Errorf("invalid collection mode: %s", mode)
+	}
+	
+	// Validate batch size for sequential mode
+	if mode == CollectionModeSequential {
+		batch := v.config.CollectionTask.GetBatch()
+		if batch <= 0 {
+			return fmt.Errorf("batch size must be positive for sequential mode, got: %d", batch)
+		}
+	}
+	
+	// Validate strategy for parallel mode
+	if mode == CollectionModeParallel {
+		strategy := v.config.GetStrategy()
+		if strategy != StrategyWaitAll && strategy != StrategyFailFast && 
+		   strategy != StrategyBestEffort && strategy != StrategyRace {
+			return fmt.Errorf("invalid collection strategy: %s", strategy)
+		}
+		
+		// Validate max workers
+		maxWorkers := v.config.GetMaxWorkers()
+		if maxWorkers <= 0 {
+			return fmt.Errorf("max_workers must be positive for parallel mode, got: %d", maxWorkers)
+		}
+	}
+	
+	// Validate variable names
+	itemVar := v.config.CollectionTask.GetItemVar()
+	indexVar := v.config.CollectionTask.GetIndexVar()
+	if itemVar == "" {
+		return fmt.Errorf("item_var cannot be empty")
+	}
+	if indexVar == "" {
+		return fmt.Errorf("index_var cannot be empty")
+	}
+	if itemVar == indexVar {
+		return fmt.Errorf("item_var and index_var cannot be the same: %s", itemVar)
+	}
+	
+	// Validate timeout format if provided
+	if v.config.Timeout != "" {
+		_, err := v.config.GetTimeout()
+		if err != nil {
+			return fmt.Errorf("invalid timeout format: %w", err)
+		}
+	}
+	
 	return nil
 }

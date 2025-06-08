@@ -1,0 +1,26 @@
+{
+  "cities": [
+    {
+      "name": "London",
+      "priority": "high"
+    },
+    {
+      "name": "Tokyo",
+      "priority": "medium"
+    },
+    {
+      "name": "New York",
+      "priority": "high"
+    },
+    {
+      "name": "Sydney",
+      "priority": "low"
+    },
+    {
+      "name": "Paris",
+      "priority": "medium"
+    }
+  ],
+  "max_parallel": 3,
+  "filter_priority": "all"
+}

@@ -316,9 +316,9 @@ func TestNormalizer_NormalizeTaskConfig(t *testing.T) {
 				Outputs: &core.Input{
 					"combined_result": "{{ .output.sentiment_analysis.output.sentiment }} + {{ .output.keyword_extraction.output.keywords }}",
 				},
+				Strategy: task.StrategyWaitAll,
 			},
 			ParallelTask: task.ParallelTask{
-				Strategy: task.StrategyWaitAll,
 				Tasks: []task.Config{
 					{
 						BaseConfig: task.BaseConfig{

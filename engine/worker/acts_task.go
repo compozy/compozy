@@ -80,6 +80,9 @@ func (e *TaskExecutor) HandleExecution(ctx workflow.Context, taskConfig *task.Co
 	case task.TaskTypeParallel:
 		executeFn := e.HandleParallelTask(taskConfig)
 		response, err = executeFn(ctx)
+	case task.TaskTypeCollection:
+		executeFn := e.HandleCollectionTask(taskConfig)
+		response, err = executeFn(ctx)
 	default:
 		return nil, fmt.Errorf("unsupported execution type: %s", taskType)
 	}
@@ -278,4 +281,273 @@ func (e *TaskExecutor) sleepTask(ctx workflow.Context, taskConfig *task.Config) 
 		logger.Info("Task sleep completed", "task_id", taskID)
 	}
 	return nil
+}
+
+func (e *TaskExecutor) HandleCollectionTask(taskConfig *task.Config) func(ctx workflow.Context) (*task.Response, error) {
+	return func(ctx workflow.Context) (*task.Response, error) {
+		logger := workflow.GetLogger(ctx)
+		
+		// Step 1: Prepare collection (atomic)
+		prepareResult, err := e.PrepareCollection(ctx, taskConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to prepare collection: %w", err)
+		}
+
+		logger.Info("Collection prepared",
+			"task_id", taskConfig.ID,
+			"total_items", prepareResult.TotalCount,
+			"filtered_items", prepareResult.FilteredCount,
+			"batch_count", prepareResult.BatchCount)
+
+		// Step 2: Process items based on mode
+		var itemResults []tkacts.ExecuteCollectionItemResult
+		if taskConfig.GetMode() == task.CollectionModeParallel {
+			itemResults, err = e.processItemsParallel(ctx, prepareResult, taskConfig)
+		} else {
+			itemResults, err = e.processItemsSequential(ctx, prepareResult, taskConfig)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to process collection items: %w", err)
+		}
+
+		// Step 3: Aggregate results (atomic)
+		response, err := e.AggregateCollection(ctx, prepareResult, itemResults, taskConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to aggregate collection results: %w", err)
+		}
+
+		logger.Info("Collection task completed",
+			"task_id", taskConfig.ID,
+			"mode", string(taskConfig.GetMode()),
+			"total_items", prepareResult.TotalCount,
+			"processed_items", len(itemResults),
+			"final_status", response.State.Status)
+
+		return response, nil
+	}
+}
+
+func (e *TaskExecutor) PrepareCollection(
+	ctx workflow.Context,
+	taskConfig *task.Config,
+) (*tkacts.PrepareCollectionResult, error) {
+	var result *tkacts.PrepareCollectionResult
+	actLabel := tkacts.PrepareCollectionLabel
+	actInput := tkacts.PrepareCollectionInput{
+		WorkflowID:     e.WorkflowID,
+		WorkflowExecID: e.WorkflowExecID,
+		TaskConfig:     taskConfig,
+	}
+	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (e *TaskExecutor) processItemsParallel(
+	ctx workflow.Context,
+	prepareResult *tkacts.PrepareCollectionResult,
+	taskConfig *task.Config,
+) ([]tkacts.ExecuteCollectionItemResult, error) {
+	logger := workflow.GetLogger(ctx)
+	
+	items := prepareResult.CollectionState.CollectionState.Items
+	numItems := len(items)
+	maxWorkers := taskConfig.GetMaxWorkers()
+	
+	// Limit concurrency
+	if maxWorkers > 0 && maxWorkers < numItems {
+		semaphore := workflow.NewSemaphore(ctx, int64(maxWorkers))
+		defer semaphore.Release(int64(maxWorkers))
+	}
+
+	results := make([]tkacts.ExecuteCollectionItemResult, numItems)
+	completed, failed := 0, 0
+
+	// Execute items in parallel
+	for i, item := range items {
+		index := i
+		itemData := item
+		workflow.Go(ctx, func(gCtx workflow.Context) {
+			result, err := e.ExecuteCollectionItem(gCtx, prepareResult, index, itemData, taskConfig)
+			if err != nil {
+				logger.Error("Failed to execute collection item",
+					"task_id", taskConfig.ID,
+					"item_index", index,
+					"error", err)
+				failed++
+				// Create error result
+				result = &tkacts.ExecuteCollectionItemResult{
+					ItemIndex:  index,
+					TaskExecID: "",
+					Status:     core.StatusFailed,
+					Error:      core.NewError(err, "item_execution_failed", nil),
+				}
+			} else {
+				if result.Status == core.StatusSuccess {
+					completed++
+				} else {
+					failed++
+				}
+			}
+			results[index] = *result
+		})
+	}
+
+	// Wait for items to complete based on strategy
+	strategy := taskConfig.GetStrategy()
+	err := workflow.Await(ctx, func() bool {
+		switch strategy {
+		case task.StrategyWaitAll:
+			return (completed + failed) >= numItems
+		case task.StrategyFailFast:
+			return failed > 0 || completed >= numItems
+		case task.StrategyBestEffort:
+			return (completed + failed) >= numItems
+		case task.StrategyRace:
+			return completed > 0 || failed >= numItems
+		default:
+			return (completed + failed) >= numItems
+		}
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to await collection items: %w", err)
+	}
+
+	// Filter out zero-value results in case some didn't complete
+	finalResults := make([]tkacts.ExecuteCollectionItemResult, 0, numItems)
+	for _, result := range results {
+		if result.ItemIndex >= 0 { // Valid result
+			finalResults = append(finalResults, result)
+		}
+	}
+
+	return finalResults, nil
+}
+
+func (e *TaskExecutor) processItemsSequential(
+	ctx workflow.Context,
+	prepareResult *tkacts.PrepareCollectionResult,
+	taskConfig *task.Config,
+) ([]tkacts.ExecuteCollectionItemResult, error) {
+	logger := workflow.GetLogger(ctx)
+	
+	items := prepareResult.CollectionState.CollectionState.Items
+	batchSize := taskConfig.GetBatch()
+	
+	var allResults []tkacts.ExecuteCollectionItemResult
+	
+	// Process items in batches
+	for i := 0; i < len(items); i += batchSize {
+		end := i + batchSize
+		if end > len(items) {
+			end = len(items)
+		}
+		
+		batchResults := make([]tkacts.ExecuteCollectionItemResult, end-i)
+		completed, failed := 0, 0
+		
+		// Process batch in parallel (but controlled batch size)
+		for j := i; j < end; j++ {
+			index := j
+			item := items[j]
+			batchIndex := j - i
+			
+			workflow.Go(ctx, func(gCtx workflow.Context) {
+				result, err := e.ExecuteCollectionItem(gCtx, prepareResult, index, item, taskConfig)
+				if err != nil {
+					logger.Error("Failed to execute collection item",
+						"task_id", taskConfig.ID,
+						"item_index", index,
+						"batch", i/batchSize,
+						"error", err)
+					failed++
+					result = &tkacts.ExecuteCollectionItemResult{
+						ItemIndex:  index,
+						TaskExecID: "",
+						Status:     core.StatusFailed,
+						Error:      core.NewError(err, "item_execution_failed", nil),
+					}
+				} else {
+					if result.Status == core.StatusSuccess {
+						completed++
+					} else {
+						failed++
+					}
+				}
+				batchResults[batchIndex] = *result
+			})
+		}
+		
+		// Wait for batch to complete
+		batchSize := end - i
+		err := workflow.Await(ctx, func() bool {
+			return (completed + failed) >= batchSize
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to await batch %d: %w", i/batchSize, err)
+		}
+		
+		allResults = append(allResults, batchResults...)
+		
+		// Check if we should stop due to error tolerance
+		if !taskConfig.ContinueOnError && failed > 0 {
+			break
+		}
+		
+		logger.Info("Batch completed",
+			"task_id", taskConfig.ID,
+			"batch", i/batchSize,
+			"completed", completed,
+			"failed", failed)
+	}
+	
+	return allResults, nil
+}
+
+func (e *TaskExecutor) ExecuteCollectionItem(
+	ctx workflow.Context,
+	prepareResult *tkacts.PrepareCollectionResult,
+	itemIndex int,
+	item any,
+	taskConfig *task.Config,
+) (*tkacts.ExecuteCollectionItemResult, error) {
+	var result *tkacts.ExecuteCollectionItemResult
+	actLabel := tkacts.ExecuteCollectionItemLabel
+	actInput := tkacts.ExecuteCollectionItemInput{
+		ParentTaskExecID: prepareResult.TaskExecID,
+		ItemIndex:        itemIndex,
+		Item:             item,
+		TaskConfig:       taskConfig.Task, // Use the task template
+		WorkflowID:       e.WorkflowID,
+		WorkflowExecID:   e.WorkflowExecID,
+	}
+	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (e *TaskExecutor) AggregateCollection(
+	ctx workflow.Context,
+	prepareResult *tkacts.PrepareCollectionResult,
+	itemResults []tkacts.ExecuteCollectionItemResult,
+	taskConfig *task.Config,
+) (*task.Response, error) {
+	var response *task.Response
+	actLabel := tkacts.AggregateCollectionLabel
+	actInput := tkacts.AggregateCollectionInput{
+		ParentTaskExecID: prepareResult.TaskExecID,
+		ItemResults:      itemResults,
+		TaskConfig:       taskConfig,
+		WorkflowID:       e.WorkflowID,
+		WorkflowExecID:   e.WorkflowExecID,
+	}
+	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &response)
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
 }

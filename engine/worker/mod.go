@@ -85,6 +85,9 @@ func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterActivity(o.activities.ExecuteParallelTask)
 	o.worker.RegisterActivity(o.activities.CreateParallelState)
 	o.worker.RegisterActivity(o.activities.GetParallelResponse)
+	o.worker.RegisterActivity(o.activities.PrepareCollection)
+	o.worker.RegisterActivity(o.activities.ExecuteCollectionItem)
+	o.worker.RegisterActivity(o.activities.AggregateCollection)
 	return o.worker.Start()
 }
 

@@ -1,0 +1,168 @@
+id: process_user_notifications
+type: collection
+items: "{{ .workflow.input.users }}"
+filter: "{{ and .user.active (not .user.notified) }}"
+mode: parallel
+batch: 5
+continue_on_error: true
+strategy: wait_all
+max_workers: 10
+timeout: "5m"
+item_var: user
+index_var: user_index
+stop_condition: "{{ gt .summary.failed 10 }}"
+
+# Task template executed for each item
+task:
+  id: notify_user
+  type: basic
+  agent:
+    id: notification_agent
+    config:
+      provider: anthropic
+      model: claude-3-haiku
+      params:
+        temperature: 0.1
+        max_tokens: 500
+    instructions: Send a notification to the user with their personalized message.
+  action: send_notification
+  input:
+    type: object
+    properties:
+      user_id:
+        type: string
+      email:
+        type: string
+      index:
+        type: integer
+    required:
+      - user_id
+      - email
+  with:
+    user_id: "{{ .user.id }}"
+    email: "{{ .user.email }}"
+    index: "{{ .user_index }}"
+    message: "Hello {{ .user.name }}, you have {{ .user.unread_count }} unread messages."
+
+# Schema for workflow input
+input:
+  type: object
+  properties:
+    users:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+          name:
+            type: string
+          email:
+            type: string
+          active:
+            type: boolean
+          notified:
+            type: boolean
+          unread_count:
+            type: integer
+        required:
+          - id
+          - name
+          - email
+          - active
+          - notified
+  required:
+    - users
+
+# Expected output structure
+output:
+  type: object
+  properties:
+    results:
+      type: array
+      items:
+        type: object
+        properties:
+          index:
+            type: integer
+          item:
+            type: object
+          status:
+            type: string
+          output:
+            type: object
+          error:
+            type: string
+    summary:
+      type: object
+      properties:
+        total_items:
+          type: integer
+        filtered_items:
+          type: integer
+        completed:
+          type: integer
+        failed:
+          type: integer
+        skipped:
+          type: integer
+        mode:
+          type: string
+        strategy:
+          type: string
+        execution_time:
+          type: string
+  required:
+    - results
+    - summary
+
+env:
+  NOTIFICATION_SERVICE: "email"
+  BATCH_SIZE: "5"
+
+# Test data
+with:
+  users:
+    - id: "user1"
+      name: "Alice"
+      email: "alice@example.com"
+      active: true
+      notified: false
+      unread_count: 3
+    - id: "user2"  
+      name: "Bob"
+      email: "bob@example.com"
+      active: true
+      notified: true
+      unread_count: 0
+    - id: "user3"
+      name: "Charlie"
+      email: "charlie@example.com"
+      active: false
+      notified: false
+      unread_count: 5
+    - id: "user4"
+      name: "Diana"
+      email: "diana@example.com"  
+      active: true
+      notified: false
+      unread_count: 1
+
+# Outputs mapping
+outputs:
+  notification_results: "{{ .output.results }}"
+  total_processed: "{{ .output.summary.completed }}"
+  failed_count: "{{ .output.summary.failed }}"
+  success_rate: "{{ div .output.summary.completed .output.summary.filtered_items }}"
+
+on_success:
+  next: send_summary_report
+  with:
+    results: "{{ .output.results }}"
+    summary: "{{ .output.summary }}"
+
+on_error:
+  next: handle_notification_failure
+  with:
+    error_details: "{{ .error }}"
+    partial_results: "{{ .output.results }}"
