@@ -175,3 +175,18 @@ func (a *Activities) UpdateParentStatus(
 	act := tkfacts.NewUpdateParentStatus(a.taskRepo)
 	return act.Run(ctx, input)
 }
+
+func (a *Activities) ExecuteCollectionTask(
+	ctx context.Context,
+	input *tkfacts.ExecuteCollectionInput,
+) (*tkfacts.CollectionResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewExecuteCollection(
+		a.workflows,
+		a.workflowRepo,
+		a.taskRepo,
+	)
+	return act.Run(ctx, input)
+}

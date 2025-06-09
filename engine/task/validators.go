@@ -1,7 +1,9 @@
 package task
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 )
 
 // -----------------------------------------------------------------------------
@@ -84,7 +86,8 @@ func (v *TypeValidator) Validate() error {
 	if v.config.Type == "" {
 		return nil
 	}
-	if v.config.Type != TaskTypeBasic && v.config.Type != TaskTypeRouter && v.config.Type != TaskTypeParallel {
+	if v.config.Type != TaskTypeBasic && v.config.Type != TaskTypeRouter && v.config.Type != TaskTypeParallel &&
+		v.config.Type != TaskTypeCollection {
 		return fmt.Errorf("invalid task type: %s", v.config.Type)
 	}
 	if err := v.validateBasicTaskWithRef(); err != nil {
@@ -97,6 +100,11 @@ func (v *TypeValidator) Validate() error {
 	}
 	if v.config.Type == TaskTypeParallel {
 		if err := v.validateParallelTask(); err != nil {
+			return err
+		}
+	}
+	if v.config.Type == TaskTypeCollection {
+		if err := v.validateCollectionTask(); err != nil {
 			return err
 		}
 	}
@@ -165,5 +173,92 @@ func (v *TypeValidator) validateParallelTaskItem(item *Config) error {
 	if err := item.Validate(); err != nil {
 		return fmt.Errorf("invalid task configuration: %w", err)
 	}
+	return nil
+}
+
+func (v *TypeValidator) validateCollectionTask() error {
+	validator := NewCollectionValidator(v.config)
+	return validator.Validate()
+}
+
+// -----------------------------------------------------------------------------
+// CollectionValidator - Validates collection task configuration
+// -----------------------------------------------------------------------------
+
+type CollectionValidator struct {
+	config *Config
+}
+
+func NewCollectionValidator(config *Config) *CollectionValidator {
+	return &CollectionValidator{config: config}
+}
+
+func (v *CollectionValidator) Validate() error {
+	if err := v.validateStructure(); err != nil {
+		return err
+	}
+	if err := v.validateConfig(); err != nil {
+		return err
+	}
+	if err := v.validateTaskTemplate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateStructure ensures that collection tasks have exactly one of 'task' or 'tasks' configured
+func (v *CollectionValidator) validateStructure() error {
+	hasTask := v.config.Task != nil
+	hasTasks := len(v.config.Tasks) > 0
+
+	// Ensure exactly one is provided
+	if !hasTask && !hasTasks {
+		return errors.New("collection tasks must have either a 'task' template or 'tasks' array configured")
+	}
+
+	if hasTask && hasTasks {
+		return errors.New(
+			"collection tasks cannot have both 'task' template and 'tasks' array configured - use only one",
+		)
+	}
+
+	return nil
+}
+
+// validateConfig validates collection configuration details
+func (v *CollectionValidator) validateConfig() error {
+	cc := &v.config.CollectionConfig
+
+	if strings.TrimSpace(cc.Items) == "" {
+		return errors.New("collection config: items field is required")
+	}
+
+	if cc.Mode != "" && !ValidateCollectionMode(string(cc.Mode)) {
+		return fmt.Errorf("collection config: invalid mode '%s', must be 'parallel' or 'sequential'", cc.Mode)
+	}
+
+	if cc.Batch < 0 {
+		return errors.New("collection config: batch size cannot be negative")
+	}
+
+	// Validate batch and mode compatibility
+	if cc.Batch > 0 && cc.Mode == CollectionModeParallel {
+		return errors.New(
+			"collection config: batch size cannot be combined with parallel mode – " +
+				"switch to sequential or remove batch",
+		)
+	}
+
+	return nil
+}
+
+// validateTaskTemplate validates the task template if provided
+func (v *CollectionValidator) validateTaskTemplate() error {
+	if v.config.Task != nil {
+		if err := v.config.Task.Validate(); err != nil {
+			return fmt.Errorf("invalid collection task template: %w", err)
+		}
+	}
+
 	return nil
 }

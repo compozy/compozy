@@ -1,0 +1,191 @@
+# Overview
+The **Collection Task** feature introduces a new task type in Compozy that iterates over a dynamic collection of items and executes a task template for each item. It **directly leverages the existing parallel execution infrastructure** with minimal new code, adding only collection-specific item expansion and filtering capabilities.
+
+# Alignment with Existing Architecture
+**Compozy already implements 95% of the required functionality** through its robust parallel task infrastructure. The Collection Task is essentially a **thin wrapper** that generates dynamic child tasks and delegates to existing systems:
+
+## Existing Infrastructure to Leverage
+
+### Execution Types & State Management
+- **ExecutionType enum**: `ExecutionBasic`, `ExecutionRouter`, `ExecutionParallel` (may add `ExecutionCollection` for clarity)
+- **State struct**: Already has `ParentStateID` field for hierarchical relationships
+- **PartialState**: Existing pattern for state creation with parent-child relationships
+- **Cycle detection**: Existing validation prevents infinite parent-child loops
+
+### Database Schema (No Changes Required)
+- **task_states table**: Existing `parent_state_id` foreign key supports hierarchy
+- **CreateChildStatesInTransaction**: Atomic child state creation already implemented
+- **SQL-based aggregation**: `GetProgressInfo` already aggregates child task progress
+
+### Parallel Execution Infrastructure (Direct Reuse)
+- **Strategies**: `StrategyWaitAll`, `StrategyFailFast`, `StrategyBestEffort`, `StrategyRace`
+- **Activities**: `CreateParallelState`, `ExecuteParallelTask`, `GetParallelResponse`
+- **ParentStatusUpdater**: Recursive status updates with cycle protection
+- **ProgressInfo**: Comprehensive progress tracking with completion/failure rates
+
+### Configuration (Extend Existing)
+- **ParallelTask struct**: Strategy, max_workers, timeout, retries already defined
+- **TaskConfigDTO**: Lightweight child task configuration system exists
+- **Template system**: Variable injection infrastructure already operational
+
+### Error Handling & Monitoring (Built-in)
+- **Comprehensive error propagation**: Status roll-up through parent-child hierarchy
+- **Early termination**: Based on parallel strategies (fail_fast, etc.)
+- **Progress aggregation**: Repository-based SQL queries with real-time metrics
+
+## Collection-Specific Additions (Minimal New Code)
+- **Item expansion logic**: Generate child tasks from template expressions
+- **Filter evaluation**: Skip items based on boolean expressions
+- **Variable injection**: Inject `item` and `index` into existing template system
+- **ExecuteCollection activity**: Thin wrapper that expands items then delegates to existing parallel activities
+
+# Core Features
+
+## Dynamic Item Generation (New)
+- Items produced by evaluating template expressions (e.g., `{{ .workflow.input.users }}`)
+- **Leverages existing template system** for variable resolution
+- Generates `PartialState` objects using **existing `CreateChildStatesInTransaction`**
+
+## Filtering (New)
+- Optional `filter` expression evaluated per item using **existing template engine**
+- Early skip reduces load on **existing parallel execution infrastructure**
+
+## Execution Modes (Existing - Direct Reuse)
+- **parallel**: Uses existing `ParallelTask` configuration with strategies
+- **sequential**: Achieved via `max_workers: 1` in existing parallel infrastructure
+- **Batching**: Implemented through existing parallel worker management
+
+## Variable Injection (Existing + Extension)
+- **Existing template system** handles variable resolution
+- Add `item_var`/`index_var` to existing variable context
+- **TaskConfigDTO** already supports dynamic configuration injection
+
+## Error Tolerance & Early Termination (Existing)
+- **continue_on_error**: Maps directly to existing parallel strategies (`StrategyBestEffort`)
+- **stop_condition**: Can be implemented via existing strategy evaluation hooks
+- **ParentStatusUpdater** handles all error propagation
+
+## Task Template Execution (Existing)
+- **Existing ExecuteTask activities** handle all task types (basic, router, etc.)
+- **No changes required** to existing task execution logic
+
+# Technical Architecture
+
+## System Components (Minimal Changes)
+
+### Configuration
+```go
+// Extends existing ParallelTask struct
+type CollectionConfig struct {
+    ParallelTask                    // Inherit all existing parallel config
+    Items        string            `json:"items"`         // Template expression
+    Filter       string            `json:"filter"`        // Optional boolean template
+    ItemVar      string            `json:"item_var"`      // Default: "item"
+    IndexVar     string            `json:"index_var"`     // Default: "index"
+    Mode         string            `json:"mode"`          // "parallel" | "sequential"
+    Batch        int               `json:"batch"`         // For sequential batching
+}
+```
+
+### Activities (Single New Activity)
+- **ExecuteCollection**:
+  1. Expand items using existing template engine
+  2. Apply filters using existing template evaluation
+  3. Generate child `PartialState` objects using existing patterns
+  4. Delegate to existing `CreateParallelState` → `ExecuteParallelTask` → `GetParallelResponse`
+- **All other activities unchanged**: Complete reuse of parallel execution infrastructure
+
+### Use Cases (Minimal Extensions)
+- **CreateState**: Parse `CollectionConfig`, generate children via existing `CreateChildStatesInTransaction`
+- **HandleResponse**: **No changes** - existing `ParentStatusUpdater` handles all aggregation
+
+### Data Models (No Schema Changes)
+- **task_states table**: Complete reuse with existing `parent_state_id` relationships
+- **ProgressInfo**: Direct reuse for aggregated metrics in parent `output` field
+- **State/PartialState**: No changes to existing structures
+
+# Development Roadmap
+
+## Phase 1 – MVP (Leverage Existing Infrastructure)
+1. **CollectionConfig struct**: Extend existing `ParallelTask` configuration
+2. **ExecuteCollection activity**: Thin wrapper around existing parallel activities
+3. **Item expansion**: Use existing template engine for item generation
+4. **Variable injection**: Extend existing template context with item/index
+5. **Integration**: Wire into existing `CreateState` and parallel execution flow
+
+## Phase 2 – Advanced Features (Existing Infrastructure)
+1. **Filter expressions**: Use existing template boolean evaluation
+2. **Sequential mode**: Configure existing parallel infrastructure with `max_workers: 1`
+3. **Multiple strategies**: Direct use of existing `StrategyFailFast`, `StrategyBestEffort`, etc.
+
+## Phase 3 – Enhanced Monitoring (Existing Infrastructure)
+1. **Progress tracking**: Leverage existing `ProgressInfo` SQL aggregation
+2. **Early termination**: Use existing strategy evaluation hooks for `stop_condition`
+3. **UI integration**: Existing parent-child task visualization supports collection expansion
+
+# Implementation Effort Reduction
+
+**Original Estimate**: 3-4 weeks full implementation
+**Revised Estimate**: 1-1.5 weeks leveraging existing infrastructure
+
+**Code Reduction**:
+- **State management**: 100% reuse (no new database schema/models)
+- **Parallel execution**: 100% reuse (activities, strategies, error handling)
+- **Progress tracking**: 100% reuse (SQL aggregation, status roll-up)
+- **Template system**: 95% reuse (add item/index variables only)
+- **Configuration**: 80% reuse (extend existing `ParallelTask`)
+
+**New Code Required**:
+- `CollectionConfig` struct (≈50 lines)
+- `ExecuteCollection` activity (≈200 lines wrapper logic)
+- Item expansion/filtering logic (≈150 lines)
+- Template variable injection (≈100 lines)
+- Integration wiring (≈100 lines)
+
+**Total**: ≈600 lines of new code vs. estimated 2000+ lines for greenfield implementation
+
+# Risk Mitigation Through Existing Infrastructure
+
+- **Resource exhaustion**: Existing `max_workers` and back-pressure handling
+- **Error accumulation**: Existing `ParentStatusUpdater` with comprehensive error propagation
+- **Long-running tasks**: Existing timeout handling and Temporal patterns
+- **Template complexity**: Existing template validation and error reporting
+- **Status tracking**: Existing `ProgressInfo` aggregation with real-time metrics
+
+# Appendix
+
+## Collection Task Configuration (Updated)
+```yaml
+# Leverages existing ParallelTask configuration
+id: process_user_notifications
+type: collection
+items: "{{ .workflow.input.users }}"
+filter: "{{ and .item.active (not .item.notified) }}"
+mode: parallel
+strategy: wait_all              # Existing: wait_all, fail_fast, best_effort, race
+max_workers: 10                 # Existing parallel infrastructure
+timeout: "5m"                   # Existing timeout handling
+retries: 3                      # Existing retry logic
+item_var: user                  # New: inject as template variable
+index_var: user_index           # New: inject as template variable
+task:                          # Existing: any valid task type
+  id: notify_user
+  type: basic
+  agent:
+    id: notification_agent
+  action: send_notification
+  with:
+    user_id: "{{ .user.id }}"
+    email: "{{ .user.email }}"
+    index: "{{ .user_index }}"
+continue_on_error: true         # Maps to existing StrategyBestEffort
+stop_condition: "{{ gt .summary.failed 10 }}"  # Existing strategy evaluation hooks
+```
+
+## Existing Infrastructure Integration Points
+- **Database**: Complete reuse of `task_states` with `parent_state_id`
+- **Activities**: `CreateParallelState`, `ExecuteParallelTask`, `GetParallelResponse`
+- **Services**: `ParentStatusUpdater` for status roll-up
+- **Configuration**: `ParallelTask` struct with strategy/timeout/retry logic
+- **Progress**: `ProgressInfo` struct with SQL-based aggregation
+- **Templates**: Existing template engine with variable context extension

@@ -1,6 +1,8 @@
 package normalizer
 
 import (
+	"maps"
+
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
@@ -95,12 +97,10 @@ func (cb *ContextBuilder) buildTaskOutput(taskState *task.State, ctx *Normalizat
 	if taskState.IsParallelExecution() {
 		// For parent tasks, build nested output structure with child task outputs
 		nestedOutput := make(map[string]any)
-
 		// Include the parent’s own output first (if any)
 		if taskState.Output != nil {
 			nestedOutput["output"] = *taskState.Output
 		}
-
 		// Use pre-built children index for O(1) lookup instead of O(n) scan
 		if ctx != nil && ctx.ChildrenIndex != nil {
 			parentTaskExecID := string(taskState.TaskExecID)
@@ -115,7 +115,6 @@ func (cb *ContextBuilder) buildTaskOutput(taskState *task.State, ctx *Normalizat
 				}
 			}
 		}
-
 		return nestedOutput
 	}
 	if taskState.Output != nil {
@@ -153,7 +152,6 @@ func (cb *ContextBuilder) buildChildrenIndex(ctx *NormalizationContext) {
 		ctx.ChildrenIndex = make(map[string][]string)
 		return
 	}
-
 	ctx.ChildrenIndex = make(map[string][]string)
 	for taskID, taskState := range ctx.WorkflowState.Tasks {
 		if taskState.ParentStateID != nil {
@@ -181,4 +179,40 @@ func (cb *ContextBuilder) buildParentContext(ctx *NormalizationContext) map[stri
 		return parentMap
 	}
 	return nil
+}
+
+// BuildCollectionContext builds template context specifically for collection task processing
+func (cb *ContextBuilder) BuildCollectionContext(
+	workflowState *workflow.State,
+	taskConfig *task.Config,
+) map[string]any {
+	// Defensive null checks to prevent null pointer dereferences
+	if workflowState == nil || taskConfig == nil {
+		return make(map[string]any)
+	}
+
+	// Build full context similar to BuildContext but for collection tasks
+	ctx := &NormalizationContext{
+		WorkflowState: workflowState,
+		TaskConfigs:   make(map[string]*task.Config),
+	}
+	cb.buildChildrenIndex(ctx)
+
+	templateContext := map[string]any{
+		"workflow": cb.buildWorkflowContext(ctx),
+		"tasks":    cb.buildTasksContext(ctx),
+	}
+
+	// Add workflow input/output if available
+	if workflowState.Input != nil {
+		templateContext[inputKey] = *workflowState.Input
+	}
+	if workflowState.Output != nil {
+		templateContext[outputKey] = *workflowState.Output
+	}
+	// Add task-specific context from 'with' parameter
+	if taskConfig.With != nil {
+		maps.Copy(templateContext, *taskConfig.With)
+	}
+	return templateContext
 }

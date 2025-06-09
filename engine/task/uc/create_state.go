@@ -14,8 +14,9 @@ import (
 
 // Constants for metadata keys
 const (
-	ParallelConfigKey = "_parallel_config"
-	ChildConfigsKey   = "child_configs"
+	ParallelConfigKey   = "_parallel_config"
+	CollectionConfigKey = "_collection_config"
+	ChildConfigsKey     = "child_configs"
 )
 
 // TaskConfigDTO is a lightweight DTO for storing essential task configuration data
@@ -80,6 +81,8 @@ func (uc *CreateState) processComponent(
 	switch {
 	case input.TaskConfig.Type == task.TaskTypeParallel:
 		return uc.processParallelTask(input, baseEnv)
+	case input.TaskConfig.Type == task.TaskTypeCollection:
+		return uc.processCollectionTask(input, baseEnv)
 	case agentConfig != nil:
 		return uc.processAgent(agentConfig, executionType, input.TaskConfig.Action)
 	case toolConfig != nil:
@@ -182,6 +185,37 @@ func (uc *CreateState) processParallelTask(
 	return task.CreateParentPartialState(
 		parentInput,
 		baseEnv,
+	), nil
+}
+
+func (uc *CreateState) processCollectionTask(
+	input *CreateStateInput,
+	baseEnv *core.EnvMap,
+) (*task.PartialState, error) {
+	// Collection tasks are essentially parallel tasks with item expansion
+	// Store collection-specific configuration alongside parallel configuration
+	collectionConfig := input.TaskConfig.CollectionConfig
+
+	// Create enriched input that includes collection metadata
+	parentInput := input.TaskConfig.With
+	if parentInput == nil {
+		parentInput = &core.Input{}
+	}
+
+	// Store collection configuration metadata for the ExecuteCollection activity
+	(*parentInput)[CollectionConfigKey] = map[string]any{
+		"items":     collectionConfig.Items,
+		"filter":    collectionConfig.Filter,
+		"item_var":  collectionConfig.GetItemVar(),
+		"index_var": collectionConfig.GetIndexVar(),
+		"mode":      collectionConfig.GetMode(),
+		"batch":     collectionConfig.Batch,
+	}
+
+	return task.CreateParentPartialStateWithExecType(
+		parentInput,
+		baseEnv,
+		task.ExecutionCollection,
 	), nil
 }
 

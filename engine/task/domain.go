@@ -17,9 +17,10 @@ import (
 type ExecutionType string
 
 const (
-	ExecutionBasic    ExecutionType = "basic"
-	ExecutionRouter   ExecutionType = "router"
-	ExecutionParallel ExecutionType = "parallel"
+	ExecutionBasic      ExecutionType = "basic"
+	ExecutionRouter     ExecutionType = "router"
+	ExecutionParallel   ExecutionType = "parallel"
+	ExecutionCollection ExecutionType = "collection"
 )
 
 // -----------------------------------------------------------------------------
@@ -278,9 +279,18 @@ func CreateParentPartialState(
 	input *core.Input,
 	env *core.EnvMap,
 ) *PartialState {
+	return CreateParentPartialStateWithExecType(input, env, ExecutionParallel)
+}
+
+// CreateParentPartialStateWithExecType creates a partial state for parent task execution with custom execution type
+func CreateParentPartialStateWithExecType(
+	input *core.Input,
+	env *core.EnvMap,
+	executionType ExecutionType,
+) *PartialState {
 	return &PartialState{
 		Component:     core.ComponentTask,
-		ExecutionType: ExecutionParallel,
+		ExecutionType: executionType,
 		Input:         input,
 		MergedEnv:     env,
 	}

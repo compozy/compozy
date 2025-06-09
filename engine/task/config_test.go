@@ -244,6 +244,88 @@ func Test_LoadTask(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "circular dependency detected involving task: circular_parent")
 	})
+
+	t.Run("Should load collection task configuration correctly", func(t *testing.T) {
+		cwd, dstPath := setupTest(t, "collection_task.yaml")
+
+		// Run the test
+		config, err := Load(cwd, dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
+
+		// Validate the config
+		err = config.Validate()
+		require.NoError(t, err)
+
+		// Validate basic task properties
+		assert.Equal(t, "process-user-data", config.ID)
+		assert.Equal(t, TaskTypeCollection, config.Type)
+
+		// Validate collection-specific configuration
+		assert.Equal(t, "{{ .workflow.input.users }}", config.Items)
+		assert.Equal(t, "{{ ne .item.status 'inactive' }}", config.Filter)
+		assert.Equal(t, "user", config.GetItemVar())
+		assert.Equal(t, "idx", config.GetIndexVar())
+		assert.Equal(t, CollectionModeSequential, config.GetMode())
+		assert.Equal(t, 5, config.Batch)
+
+		// Validate task template
+		require.NotNil(t, config.Task)
+		assert.Equal(t, "process-user-{{ .idx }}", config.Task.ID)
+		assert.Equal(t, TaskTypeBasic, config.Task.Type)
+		assert.Equal(t, "process_user_data", config.Task.Action)
+
+		// Validate task template agent
+		require.NotNil(t, config.Task.Agent)
+		assert.Equal(t, "user-processor", config.Task.Agent.ID)
+
+		// Validate task template with parameters
+		require.NotNil(t, config.Task.With)
+		assert.Equal(t, "{{ .user.id }}", (*config.Task.With)["user_id"])
+		assert.Equal(t, "{{ .user.name }}", (*config.Task.With)["user_name"])
+		assert.Equal(t, "{{ .user.email }}", (*config.Task.With)["user_email"])
+		assert.Equal(t, "{{ .input.mode }}", (*config.Task.With)["processing_mode"])
+
+		// Validate parallel task properties
+		assert.Equal(t, StrategyBestEffort, config.GetStrategy())
+		assert.Equal(t, 10, config.MaxWorkers)
+		assert.Equal(t, "5m", config.Timeout)
+		assert.Equal(t, 2, config.Retries)
+
+		// Validate input schema
+		require.NotNil(t, config.InputSchema)
+		schema := config.InputSchema
+		compiledSchema, err := schema.Compile()
+		require.NoError(t, err)
+		assert.Equal(t, []string{"object"}, []string(compiledSchema.Type))
+		require.NotNil(t, compiledSchema.Properties)
+		assert.Contains(t, (*compiledSchema.Properties), "users")
+		assert.Contains(t, (*compiledSchema.Properties), "mode")
+		assert.Contains(t, compiledSchema.Required, "users")
+
+		// Validate environment variables
+		assert.Equal(t, "10m", config.GetEnv().Prop("COLLECTION_TIMEOUT"))
+		assert.Equal(t, "5", config.GetEnv().Prop("PARALLEL_WORKERS"))
+		assert.Equal(t, "https://api.example.com/users", config.GetEnv().Prop("USER_SERVICE_URL"))
+
+		// Validate with parameters
+		require.NotNil(t, config.With)
+		assert.Equal(t, "batch", (*config.With)["mode"])
+
+		// Validate outputs
+		require.NotNil(t, config.Outputs)
+		assert.Equal(
+			t,
+			"Processed {{ .output.processed_count }} users, {{ .output.failed_count }} failed",
+			(*config.Outputs)["summary"],
+		)
+
+		// Validate transitions
+		require.NotNil(t, config.OnSuccess)
+		assert.Equal(t, "notify-completion", *config.OnSuccess.Next)
+		require.NotNil(t, config.OnError)
+		assert.Equal(t, "handle-batch-error", *config.OnError.Next)
+	})
 }
 
 func Test_TaskConfigValidation(t *testing.T) {
@@ -570,6 +652,147 @@ func Test_TaskConfigValidation(t *testing.T) {
 
 		err := config.Validate()
 		assert.NoError(t, err)
+	})
+
+	t.Run("Should validate valid collection task", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:   taskID,
+				Type: TaskTypeCollection,
+				cwd:  taskCWD,
+			},
+			CollectionConfig: CollectionConfig{
+				Items: `["item1", "item2", "item3"]`,
+			},
+			ParallelTask: ParallelTask{
+				Task: &Config{
+					BaseConfig: BaseConfig{
+						ID:   "template-task",
+						Type: TaskTypeBasic,
+						cwd:  taskCWD,
+					},
+					BasicTask: BasicTask{
+						Action: "process {{ .item }}",
+					},
+				},
+			},
+		}
+
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should return error for collection task missing items", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:   taskID,
+				Type: TaskTypeCollection,
+				cwd:  taskCWD,
+			},
+			CollectionConfig: CollectionConfig{
+				Items: "", // Missing items
+			},
+			ParallelTask: ParallelTask{
+				Task: &Config{
+					BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, cwd: taskCWD},
+				},
+			},
+		}
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "items field is required")
+	})
+
+	t.Run("Should return error for collection task with invalid mode", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:   taskID,
+				Type: TaskTypeCollection,
+				cwd:  taskCWD,
+			},
+			CollectionConfig: CollectionConfig{
+				Items: `["item1", "item2"]`,
+				Mode:  "invalid-mode",
+			},
+			ParallelTask: ParallelTask{
+				Task: &Config{
+					BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, cwd: taskCWD},
+				},
+			},
+		}
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid mode 'invalid-mode'")
+	})
+
+	t.Run("Should return error for collection task with negative batch", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:   taskID,
+				Type: TaskTypeCollection,
+				cwd:  taskCWD,
+			},
+			CollectionConfig: CollectionConfig{
+				Items: `["item1", "item2"]`,
+				Batch: -1,
+			},
+			ParallelTask: ParallelTask{
+				Task: &Config{
+					BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, cwd: taskCWD},
+				},
+			},
+		}
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "batch size cannot be negative")
+	})
+
+	t.Run("Should return error for collection task with both task and tasks", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:   taskID,
+				Type: TaskTypeCollection,
+				cwd:  taskCWD,
+			},
+			CollectionConfig: CollectionConfig{
+				Items: `["item1", "item2"]`,
+			},
+			ParallelTask: ParallelTask{
+				Task: &Config{
+					BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, cwd: taskCWD},
+				},
+				Tasks: []Config{
+					{BaseConfig: BaseConfig{ID: "task1", Type: TaskTypeBasic, cwd: taskCWD}},
+				},
+			},
+		}
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot have both 'task' template and 'tasks' array configured")
+	})
+
+	t.Run("Should return error for collection task with neither task nor tasks", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:   taskID,
+				Type: TaskTypeCollection,
+				cwd:  taskCWD,
+			},
+			CollectionConfig: CollectionConfig{
+				Items: `["item1", "item2"]`,
+			},
+			ParallelTask: ParallelTask{
+				// No Task or Tasks
+			},
+		}
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "must have either a 'task' template or 'tasks' array configured")
 	})
 }
 
