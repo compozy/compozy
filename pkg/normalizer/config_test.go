@@ -1143,23 +1143,8 @@ func TestConfigNormalizer_NormalizeParallelTask(t *testing.T) {
 			},
 		}
 
-		// Mock parallel task state with aggregated sub-task outputs
-		parallelState := &task.ParallelState{
-			SubTasks: map[string]*task.State{
-				"sentiment_analysis": {
-					Output: &core.Output{
-						"sentiment":  "positive",
-						"confidence": 0.95,
-					},
-				},
-				"extract_keywords": {
-					Output: &core.Output{
-						"keywords": []string{"great", "product", "love"},
-						"count":    3,
-					},
-				},
-			},
-		}
+		// Create parent task exec ID for reference
+		parentExecID := core.ID("process_data_parallel_exec")
 
 		workflowState := &workflow.State{
 			WorkflowID:     "test-workflow",
@@ -1167,8 +1152,28 @@ func TestConfigNormalizer_NormalizeParallelTask(t *testing.T) {
 			Tasks: map[string]*task.State{
 				"process_data_parallel": {
 					TaskID:        "process_data_parallel",
+					TaskExecID:    parentExecID,
 					ExecutionType: task.ExecutionParallel,
-					ParallelState: parallelState,
+				},
+				"sentiment_analysis": {
+					TaskID:        "sentiment_analysis",
+					TaskExecID:    core.ID("sentiment_analysis_exec"),
+					ExecutionType: task.ExecutionBasic,
+					ParentStateID: &parentExecID,
+					Output: &core.Output{
+						"sentiment":  "positive",
+						"confidence": 0.95,
+					},
+				},
+				"extract_keywords": {
+					TaskID:        "extract_keywords",
+					TaskExecID:    core.ID("extract_keywords_exec"),
+					ExecutionType: task.ExecutionBasic,
+					ParentStateID: &parentExecID,
+					Output: &core.Output{
+						"keywords": []string{"great", "product", "love"},
+						"count":    3,
+					},
 				},
 			},
 		}
@@ -1269,30 +1274,8 @@ func TestConfigNormalizer_NormalizeParallelTask(t *testing.T) {
 			},
 		}
 
-		// Mock the workflow state with parallel task outputs
-		parallelState := &task.ParallelState{
-			SubTasks: map[string]*task.State{
-				"sentiment_analysis": {
-					Output: &core.Output{
-						"sentiment":  "positive",
-						"confidence": 0.92,
-						"details":    "High confidence positive sentiment detected",
-					},
-				},
-				"keyword_extraction": {
-					Output: &core.Output{
-						"keywords": []string{"excellent", "quality", "recommend", "satisfied"},
-						"count":    4,
-					},
-				},
-				"performance_monitor": {
-					Output: &core.Output{
-						"duration":    "2.3s",
-						"memory_used": "45MB",
-					},
-				},
-			},
-		}
+		// Create parent task exec ID for parallel processor
+		parallelProcessorExecID := core.ID("parallel_processor_exec")
 
 		workflowState := &workflow.State{
 			WorkflowID:     "analysis-workflow",
@@ -1300,11 +1283,43 @@ func TestConfigNormalizer_NormalizeParallelTask(t *testing.T) {
 			Tasks: map[string]*task.State{
 				"parallel_processor": {
 					TaskID:        "parallel_processor",
+					TaskExecID:    parallelProcessorExecID,
 					ExecutionType: task.ExecutionParallel,
-					ParallelState: parallelState,
+				},
+				"sentiment_analysis": {
+					TaskID:        "sentiment_analysis",
+					TaskExecID:    core.ID("sentiment_analysis_exec"),
+					ExecutionType: task.ExecutionBasic,
+					ParentStateID: &parallelProcessorExecID,
+					Output: &core.Output{
+						"sentiment":  "positive",
+						"confidence": 0.92,
+						"details":    "High confidence positive sentiment detected",
+					},
+				},
+				"keyword_extraction": {
+					TaskID:        "keyword_extraction",
+					TaskExecID:    core.ID("keyword_extraction_exec"),
+					ExecutionType: task.ExecutionBasic,
+					ParentStateID: &parallelProcessorExecID,
+					Output: &core.Output{
+						"keywords": []string{"excellent", "quality", "recommend", "satisfied"},
+						"count":    4,
+					},
+				},
+				"performance_monitor": {
+					TaskID:        "performance_monitor",
+					TaskExecID:    core.ID("performance_monitor_exec"),
+					ExecutionType: task.ExecutionBasic,
+					ParentStateID: &parallelProcessorExecID,
+					Output: &core.Output{
+						"duration":    "2.3s",
+						"memory_used": "45MB",
+					},
 				},
 				"aggregate_results": {
-					TaskID: "aggregate_results",
+					TaskID:     "aggregate_results",
+					TaskExecID: core.ID("aggregate_results_exec"),
 					Output: &core.Output{
 						"summary": map[string]any{
 							"sentiment":       "positive",
@@ -1538,40 +1553,9 @@ func TestConfigNormalizer_NestedParallelTasks(t *testing.T) {
 			},
 		}
 
-		// Mock nested parallel task state with deeply nested outputs
-		// For deeply nested parallel tasks, the structure should be:
-		// batch_processor.output.data_processor.output.sentiment_analysis.output.field
-		batchProcessorOutput := map[string]*task.State{
-			"data_processor": {
-				ExecutionType: task.ExecutionParallel,
-				// This simulates how buildParallelTaskOutput would structure nested parallel output
-				ParallelState: &task.ParallelState{
-					SubTasks: map[string]*task.State{
-						"sentiment_analysis": {
-							ExecutionType: task.ExecutionBasic,
-							Output: &core.Output{
-								"sentiment":  "very_positive",
-								"confidence": 0.98,
-							},
-						},
-						"keyword_extraction": {
-							ExecutionType: task.ExecutionBasic,
-							Output: &core.Output{
-								"keywords": []string{"amazing", "content", "analyze", "great"},
-								"count":    4,
-							},
-						},
-					},
-				},
-			},
-			"metadata_processor": {
-				ExecutionType: task.ExecutionBasic,
-				Output: &core.Output{
-					"metadata":     "processed_metadata",
-					"process_time": "1.2s",
-				},
-			},
-		}
+		// Create task exec IDs for nested hierarchy
+		batchProcessorExecID := core.ID("batch_processor_exec")
+		dataProcessorExecID := core.ID("data_processor_exec")
 
 		workflowState := &workflow.State{
 			WorkflowID:     "nested-output-workflow",
@@ -1579,9 +1563,43 @@ func TestConfigNormalizer_NestedParallelTasks(t *testing.T) {
 			Tasks: map[string]*task.State{
 				"batch_processor": {
 					TaskID:        "batch_processor",
+					TaskExecID:    batchProcessorExecID,
 					ExecutionType: task.ExecutionParallel,
-					ParallelState: &task.ParallelState{
-						SubTasks: batchProcessorOutput,
+				},
+				"data_processor": {
+					TaskID:        "data_processor",
+					TaskExecID:    dataProcessorExecID,
+					ExecutionType: task.ExecutionParallel,
+					ParentStateID: &batchProcessorExecID,
+				},
+				"sentiment_analysis": {
+					TaskID:        "sentiment_analysis",
+					TaskExecID:    core.ID("sentiment_analysis_exec"),
+					ExecutionType: task.ExecutionBasic,
+					ParentStateID: &dataProcessorExecID,
+					Output: &core.Output{
+						"sentiment":  "very_positive",
+						"confidence": 0.98,
+					},
+				},
+				"keyword_extraction": {
+					TaskID:        "keyword_extraction",
+					TaskExecID:    core.ID("keyword_extraction_exec"),
+					ExecutionType: task.ExecutionBasic,
+					ParentStateID: &dataProcessorExecID,
+					Output: &core.Output{
+						"keywords": []string{"amazing", "content", "analyze", "great"},
+						"count":    4,
+					},
+				},
+				"metadata_processor": {
+					TaskID:        "metadata_processor",
+					TaskExecID:    core.ID("metadata_processor_exec"),
+					ExecutionType: task.ExecutionBasic,
+					ParentStateID: &batchProcessorExecID,
+					Output: &core.Output{
+						"metadata":     "processed_metadata",
+						"process_time": "1.2s",
 					},
 				},
 			},

@@ -11,6 +11,12 @@ import (
 	"github.com/compozy/compozy/engine/workflow"
 )
 
+// Constants for metadata keys
+const (
+	ParallelConfigKey = "_parallel_config"
+	ChildConfigsKey   = "child_configs"
+)
+
 // -----------------------------------------------------------------------------
 // CreateTaskState
 // -----------------------------------------------------------------------------
@@ -61,7 +67,7 @@ func (uc *CreateState) processComponent(
 	toolConfig := input.TaskConfig.GetTool()
 	switch {
 	case input.TaskConfig.Type == task.TaskTypeParallel:
-		return uc.processParallelTask(input, baseEnv, executionType)
+		return uc.processParallelTask(input, baseEnv)
 	case agentConfig != nil:
 		return uc.processAgent(agentConfig, executionType, input.TaskConfig.Action)
 	case toolConfig != nil:
@@ -114,106 +120,142 @@ func (uc *CreateState) processTool(
 func (uc *CreateState) processParallelTask(
 	input *CreateStateInput,
 	baseEnv *core.EnvMap,
-	execType task.ExecutionType,
 ) (*task.PartialState, error) {
-	parallelConfig := &input.TaskConfig.ParallelTask
-	subTasks := make(map[string]*task.State)
-	for i := range parallelConfig.Tasks {
-		subTaskConfig := &parallelConfig.Tasks[i]
-		subTaskExecID := core.MustNewID()
-		var subTask *task.State
-		switch {
-		case subTaskConfig.Agent != nil:
-			subTask = task.CreateAgentSubTaskState(
-				subTaskConfig.ID,
-				subTaskExecID,
-				input.WorkflowConfig.ID,
-				input.WorkflowState.WorkflowExecID,
-				subTaskConfig.Agent.ID,
-				subTaskConfig.Action,
-				subTaskConfig.With,
-			)
-		case subTaskConfig.Tool != nil:
-			subTask = task.CreateToolSubTaskState(
-				subTaskConfig.ID,
-				subTaskExecID,
-				input.WorkflowConfig.ID,
-				input.WorkflowState.WorkflowExecID,
-				subTaskConfig.Tool.ID,
-				subTaskConfig.With,
-			)
-		case subTaskConfig.Type == task.TaskTypeParallel:
-			// Nested parallel task - recursively process its sub-tasks
-			subTask = uc.createNestesParallelState(
-				subTaskConfig,
-				subTaskExecID,
-				input,
-				baseEnv,
-			)
-		default:
-			// Default to basic task component
-			subTask = task.CreateSubTaskState(
-				subTaskConfig.ID,
-				subTaskExecID,
-				input.WorkflowConfig.ID,
-				input.WorkflowState.WorkflowExecID,
-				execType,
-				core.ComponentTask,
-				subTaskConfig.With,
-			)
-		}
-		if subTask == nil {
-			return nil, fmt.Errorf("failed to create sub-task state for %s", subTaskConfig.ID)
-		}
-		subTasks[subTaskConfig.ID] = subTask
+	// Store parallel configuration in the parent task's input for child task creation
+	parallelConfig := input.TaskConfig.ParallelTask
+	// Create enriched input that includes parallel metadata
+	parentInput := input.TaskConfig.With
+	if parentInput == nil {
+		parentInput = &core.Input{}
 	}
-	return task.CreateParallelPartialState(
-		parallelConfig.GetStrategy(),
-		parallelConfig.GetMaxWorkers(),
-		parallelConfig.Timeout,
-		subTasks,
+	// Store parallel configuration and child task configs as metadata
+	(*parentInput)[ParallelConfigKey] = map[string]any{
+		"strategy":      parallelConfig.GetStrategy(),
+		"max_workers":   parallelConfig.GetMaxWorkers(),
+		"timeout":       parallelConfig.Timeout,
+		ChildConfigsKey: parallelConfig.Tasks, // Store child task configurations
+	}
+	return task.CreateParentPartialState(
+		parentInput,
 		baseEnv,
 	), nil
 }
 
-// createNestesParallelState handles recursive creation of nested parallel sub-task states
-func (uc *CreateState) createNestesParallelState(
-	subTaskConfig *task.Config,
-	subTaskExecID core.ID,
-	input *CreateStateInput,
-	baseEnv *core.EnvMap,
-) *task.State {
-	// Create a nested ExecData for the parallel sub-task
-	nestedInput := &CreateStateInput{
-		WorkflowState:  input.WorkflowState,
-		WorkflowConfig: input.WorkflowConfig,
-		TaskConfig:     subTaskConfig,
-	}
-	execType := subTaskConfig.GetExecType()
-	// Recursively validate the nested parallel task structure
-	_, err := uc.processParallelTask(nestedInput, baseEnv, execType)
+// CreateChildTasksInput follows Temporal best practices by passing minimal data
+type CreateChildTasksInput struct {
+	ParentStateID  core.ID `json:"parent_state_id"`
+	WorkflowExecID core.ID `json:"workflow_exec_id"`
+	WorkflowID     string  `json:"workflow_id"`
+}
+
+// CreateChildTasks creates child tasks for a parallel parent using lightweight input
+func (uc *CreateState) CreateChildTasks(ctx context.Context, input *CreateChildTasksInput) error {
+	// Retrieve parent state from database (Temporal best practice)
+	parentState, err := uc.taskRepo.GetState(ctx, input.ParentStateID)
 	if err != nil {
-		// Log error but return a basic sub-task state to maintain execution
-		// The error will be caught during execution phase
-		return task.CreateSubTaskState(
-			subTaskConfig.ID,
-			subTaskExecID,
-			input.WorkflowConfig.ID,
-			input.WorkflowState.WorkflowExecID,
-			execType,
-			core.ComponentTask,
-			subTaskConfig.With,
-		)
+		return fmt.Errorf("failed to retrieve parent state: %w", err)
 	}
-	// Create a nested parallel sub-task state with the processed parallel state
-	subTask := task.CreateSubTaskState(
-		subTaskConfig.ID,
-		subTaskExecID,
-		input.WorkflowConfig.ID,
-		input.WorkflowState.WorkflowExecID,
-		execType,
-		core.ComponentTask,
-		subTaskConfig.With,
-	)
-	return subTask
+
+	// Validate parent is a parallel task
+	if !parentState.IsParallelExecution() {
+		return fmt.Errorf("state %s is not a parent task", input.ParentStateID)
+	}
+
+	// Extract parallel configuration from parent's input metadata
+	parallelMetaRaw, exists := (*parentState.Input)[ParallelConfigKey]
+	if !exists {
+		return fmt.Errorf("parent state missing parallel configuration metadata")
+	}
+
+	parallelMeta, ok := parallelMetaRaw.(map[string]any)
+	if !ok {
+		return fmt.Errorf("invalid parallel configuration metadata format")
+	}
+
+	// Extract child task configurations
+	childConfigsRaw, ok := parallelMeta[ChildConfigsKey]
+	if !ok {
+		return fmt.Errorf("parent state missing child configurations")
+	}
+
+	// Convert to task.Config slice (this handles the interface{} conversion)
+	childConfigs, ok := childConfigsRaw.([]task.Config)
+	if !ok {
+		return fmt.Errorf("invalid child configurations format: expected []task.Config, got %T", childConfigsRaw)
+	}
+
+	// Validate each child config has required fields
+	for i := range childConfigs {
+		if childConfigs[i].ID == "" {
+			return fmt.Errorf("child config at index %d missing required ID field", i)
+		}
+	}
+
+	// Create child tasks atomically using transaction
+	return uc.createChildTasksInTransaction(ctx, parentState, childConfigs)
+}
+
+// createChildTasksInTransaction creates all child tasks atomically
+func (uc *CreateState) createChildTasksInTransaction(
+	ctx context.Context,
+	parentState *task.State,
+	childConfigs []task.Config,
+) error {
+	// Prepare all child states first
+	var childStates []*task.State
+	for i := range childConfigs {
+		childConfig := &childConfigs[i]
+		childTaskExecID := core.MustNewID()
+		// Create child partial state by recursively processing the child config
+		childPartialState, err := uc.processChildConfig(childConfig)
+		if err != nil {
+			return fmt.Errorf("failed to process child config %s: %w", childConfig.ID, err)
+		}
+		// Create child state input with parent reference
+		childStateInput := &task.CreateStateInput{
+			WorkflowID:     parentState.WorkflowID,
+			WorkflowExecID: parentState.WorkflowExecID,
+			TaskID:         childConfig.ID,
+			TaskExecID:     childTaskExecID,
+		}
+		// Set parent relationship in partial state
+		childPartialState.ParentStateID = &parentState.TaskExecID
+		// Create child state (without persisting yet)
+		childState := task.CreateBasicState(childStateInput, childPartialState)
+		childStates = append(childStates, childState)
+	}
+
+	// Create all child states atomically in a single transaction
+	return uc.taskRepo.CreateChildStatesInTransaction(ctx, parentState.TaskExecID, childStates)
+}
+
+// processChildConfig processes a child task config to create its partial state
+func (uc *CreateState) processChildConfig(childConfig *task.Config) (*task.PartialState, error) {
+	// Use the existing processComponent logic but for child config
+	baseEnv := childConfig.Env
+	executionType := childConfig.GetExecType()
+	agentConfig := childConfig.GetAgent()
+	toolConfig := childConfig.GetTool()
+
+	switch {
+	case childConfig.Type == task.TaskTypeParallel:
+		// Nested parallel task - not yet supported in new architecture
+		return nil, fmt.Errorf("nested parallel tasks not yet supported")
+	case agentConfig != nil:
+		return uc.processAgent(agentConfig, executionType, childConfig.Action)
+	case toolConfig != nil:
+		return uc.processTool(toolConfig, executionType)
+	default:
+		var actionID *string
+		if childConfig.Action != "" {
+			actionID = &childConfig.Action
+		}
+		return &task.PartialState{
+			Component:     core.ComponentTask,
+			ExecutionType: executionType,
+			Input:         childConfig.With,
+			ActionID:      actionID,
+			MergedEnv:     baseEnv,
+		}, nil
+	}
 }

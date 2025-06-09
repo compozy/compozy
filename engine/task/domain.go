@@ -23,17 +23,8 @@ const (
 )
 
 // -----------------------------------------------------------------------------
-// Parallel Execution State - Updated to use regular State for sub-tasks
+// Parallel Execution State - REMOVED: Now using parent-child relationships
 // -----------------------------------------------------------------------------
-
-type ParallelState struct {
-	Strategy       ParallelStrategy  `json:"strategy"`
-	MaxWorkers     int               `json:"max_workers"`
-	Timeout        string            `json:"timeout,omitempty"`
-	SubTasks       map[string]*State `json:"sub_tasks"`       // Map of sub-task ID to State
-	CompletedTasks []string          `json:"completed_tasks"` // List of completed sub-task IDs
-	FailedTasks    []string          `json:"failed_tasks"`    // List of failed sub-task IDs
-}
 
 // -----------------------------------------------------------------------------
 // Enhanced State - Updated to support both basic and parallel execution
@@ -48,6 +39,9 @@ type State struct {
 	WorkflowID     string             `json:"workflow_id"      db:"workflow_id"`
 	WorkflowExecID core.ID            `json:"workflow_exec_id" db:"workflow_exec_id"`
 
+	// Parent-child relationship for hierarchical tasks
+	ParentStateID *core.ID `json:"parent_state_id,omitempty" db:"parent_state_id"`
+
 	// Execution type and strategy
 	ExecutionType ExecutionType `json:"execution_type" db:"execution_type"`
 
@@ -59,8 +53,9 @@ type State struct {
 	Output   *core.Output `json:"output,omitempty"    db:"output"`
 	Error    *core.Error  `json:"error,omitempty"     db:"error"`
 
-	// Parallel execution fields (embedded inline for JSON, separate column for DB)
-	*ParallelState `json:",inline" db:"parallel_state"`
+	// Timestamps for audit trails and progress tracking
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // -----------------------------------------------------------------------------
@@ -68,22 +63,22 @@ type State struct {
 // -----------------------------------------------------------------------------
 
 type StateDB struct {
-	Component        core.ComponentType `db:"component"`
-	Status           core.StatusType    `db:"status"`
-	TaskID           string             `db:"task_id"`
-	TaskExecID       core.ID            `db:"task_exec_id"`
-	WorkflowID       string             `db:"workflow_id"`
-	WorkflowExecID   core.ID            `db:"workflow_exec_id"`
-	ExecutionType    ExecutionType      `db:"execution_type"`
-	AgentIDRaw       sql.NullString     `db:"agent_id"`
-	ActionIDRaw      sql.NullString     `db:"action_id"`
-	ToolIDRaw        sql.NullString     `db:"tool_id"`
-	InputRaw         []byte             `db:"input"`
-	OutputRaw        []byte             `db:"output"`
-	ErrorRaw         []byte             `db:"error"`
-	ParallelStateRaw []byte             `db:"parallel_state"`
-	CreatedAt        time.Time          `db:"created_at"`
-	UpdatedAt        time.Time          `db:"updated_at"`
+	Component      core.ComponentType `db:"component"`
+	Status         core.StatusType    `db:"status"`
+	TaskID         string             `db:"task_id"`
+	TaskExecID     core.ID            `db:"task_exec_id"`
+	WorkflowID     string             `db:"workflow_id"`
+	WorkflowExecID core.ID            `db:"workflow_exec_id"`
+	ParentStateID  sql.NullString     `db:"parent_state_id"`
+	ExecutionType  ExecutionType      `db:"execution_type"`
+	AgentIDRaw     sql.NullString     `db:"agent_id"`
+	ActionIDRaw    sql.NullString     `db:"action_id"`
+	ToolIDRaw      sql.NullString     `db:"tool_id"`
+	InputRaw       []byte             `db:"input"`
+	OutputRaw      []byte             `db:"output"`
+	ErrorRaw       []byte             `db:"error"`
+	CreatedAt      time.Time          `db:"created_at"`
+	UpdatedAt      time.Time          `db:"updated_at"`
 }
 
 // ToState converts StateDB to State with proper JSON unmarshaling
@@ -96,52 +91,23 @@ func (sdb *StateDB) ToState() (*State, error) {
 		Status:         sdb.Status,
 		Component:      sdb.Component,
 		ExecutionType:  sdb.ExecutionType,
+		CreatedAt:      sdb.CreatedAt,
+		UpdatedAt:      sdb.UpdatedAt,
 	}
-	if sdb.ExecutionType == ExecutionBasic || sdb.ExecutionType == ExecutionRouter {
-		err := convertBasic(sdb, state)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if sdb.ExecutionType == ExecutionParallel {
-		err := convertParallel(sdb, state)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return state, nil
-}
 
-func convertParallel(sdb *StateDB, state *State) error {
-	if sdb.ParallelStateRaw != nil {
-		var parallelState ParallelState
-		if err := json.Unmarshal(sdb.ParallelStateRaw, &parallelState); err != nil {
-			return fmt.Errorf("unmarshaling parallel state: %w", err)
-		}
-		state.ParallelState = &parallelState
+	// Handle parent-child relationship
+	if sdb.ParentStateID.Valid {
+		parentID := core.ID(sdb.ParentStateID.String)
+		state.ParentStateID = &parentID
 	}
-	if sdb.InputRaw != nil {
-		var input core.Input
-		if err := json.Unmarshal(sdb.InputRaw, &input); err != nil {
-			return fmt.Errorf("unmarshaling parallel task input: %w", err)
-		}
-		state.Input = &input
+
+	// Convert basic fields for all execution types
+	err := convertBasic(sdb, state)
+	if err != nil {
+		return nil, err
 	}
-	if sdb.OutputRaw != nil {
-		var output core.Output
-		if err := json.Unmarshal(sdb.OutputRaw, &output); err != nil {
-			return fmt.Errorf("unmarshaling parallel task output: %w", err)
-		}
-		state.Output = &output
-	}
-	if sdb.ErrorRaw != nil {
-		var errorObj core.Error
-		if err := json.Unmarshal(sdb.ErrorRaw, &errorObj); err != nil {
-			return fmt.Errorf("unmarshaling parallel task error: %w", err)
-		}
-		state.Error = &errorObj
-	}
-	return nil
+
+	return state, nil
 }
 
 func convertBasic(sdb *StateDB, state *State) error {
@@ -184,12 +150,17 @@ func convertBasic(sdb *StateDB, state *State) error {
 }
 
 // -----------------------------------------------------------------------------
-// State methods for parallel execution
+// State methods for hierarchical task management
 // -----------------------------------------------------------------------------
 
-// IsParallel returns true if this is a parallel execution
-func (s *State) IsParallel() bool {
+// IsParallelExecution returns true if this task has parallel execution type (can have child tasks)
+func (s *State) IsParallelExecution() bool {
 	return s.ExecutionType == ExecutionParallel
+}
+
+// IsChildTask returns true if this task is a child task (has a parent)
+func (s *State) IsChildTask() bool {
+	return s.ParentStateID != nil
 }
 
 // IsBasic returns true if this is a basic execution
@@ -197,122 +168,20 @@ func (s *State) IsBasic() bool {
 	return s.ExecutionType == ExecutionBasic
 }
 
-// GetSubTaskState returns the state of a specific sub-task
-func (s *State) GetSubTaskState(taskID string) (*State, bool) {
-	if !s.IsParallel() || s.ParallelState == nil {
-		return nil, false
-	}
-	subTask, exists := s.SubTasks[taskID]
-	return subTask, exists
+// IsParallelRoot returns true if this is a parallel root task
+// (has ExecutionParallel type and no parent, meaning it's the top-level parallel task)
+func (s *State) IsParallelRoot() bool {
+	return s.ParentStateID == nil && s.ExecutionType == ExecutionParallel
 }
 
-// AddSubTask adds a new sub-task to parallel execution
-func (s *State) AddSubTask(subTask *State) error {
-	if !s.IsParallel() {
-		return fmt.Errorf("cannot add sub-task to non-parallel execution")
-	}
-	if s.ParallelState == nil {
-		s.ParallelState = &ParallelState{
-			SubTasks:       make(map[string]*State),
-			CompletedTasks: make([]string, 0),
-			FailedTasks:    make([]string, 0),
-		}
-	}
-	s.SubTasks[subTask.TaskID] = subTask
-	return nil
+// HasParent returns true if this task has a parent (same as IsChildTask)
+func (s *State) HasParent() bool {
+	return s.ParentStateID != nil
 }
 
-// UpdateSubtaskState updates the status of a sub-task
-func (s *State) UpdateSubtaskState(
-	taskID string,
-	status core.StatusType,
-	output *core.Output,
-	err *core.Error,
-) (*State, error) {
-	if !s.IsParallel() || s.ParallelState == nil {
-		return nil, fmt.Errorf("cannot update sub-task in non-parallel execution")
-	}
-	subTask, exists := s.SubTasks[taskID]
-	if !exists {
-		return nil, fmt.Errorf("sub-task %s not found", taskID)
-	}
-	// Update the sub-task
-	subTask.Status = status
-	subTask.Output = output
-	subTask.Error = err
-	switch status {
-	case core.StatusSuccess:
-		s.CompletedTasks = append(s.CompletedTasks, taskID)
-	case core.StatusFailed:
-		s.FailedTasks = append(s.FailedTasks, taskID)
-	}
-	s.updateOverallStatus()
-	return subTask, nil
-}
-
-// updateOverallStatus determines the overall parallel task status based on strategy
-func (s *State) updateOverallStatus() {
-	if !s.IsParallel() || s.ParallelState == nil {
-		return
-	}
-	totalTasks := len(s.SubTasks)
-	completedCount := len(s.CompletedTasks)
-	failedCount := len(s.FailedTasks)
-	switch s.Strategy {
-	case StrategyWaitAll:
-		s.updateStatusForWaitAll(completedCount, failedCount, totalTasks)
-	case StrategyFailFast:
-		s.updateStatusForFailFast(completedCount, failedCount, totalTasks)
-	case StrategyBestEffort:
-		s.updateStatusForBestEffort(completedCount, failedCount, totalTasks)
-	case StrategyRace:
-		s.updateStatusForRace(completedCount, failedCount, totalTasks)
-	}
-}
-
-func (s *State) updateStatusForWaitAll(completedCount, failedCount, totalTasks int) {
-	if failedCount > 0 {
-		// For wait_all strategy, any failure should cause the entire parallel execution to fail
-		s.Status = core.StatusFailed
-	} else if completedCount == totalTasks {
-		s.Status = core.StatusSuccess
-	}
-}
-
-func (s *State) updateStatusForFailFast(completedCount, failedCount, totalTasks int) {
-	if failedCount > 0 {
-		s.Status = core.StatusFailed
-	} else if completedCount == totalTasks {
-		s.Status = core.StatusSuccess
-	}
-}
-
-func (s *State) updateStatusForBestEffort(completedCount, failedCount, totalTasks int) {
-	if (completedCount + failedCount) == totalTasks {
-		if completedCount > 0 {
-			s.Status = core.StatusSuccess
-		} else {
-			s.Status = core.StatusFailed
-		}
-	}
-}
-
-func (s *State) updateStatusForRace(completedCount, failedCount, totalTasks int) {
-	if completedCount > 0 {
-		s.Status = core.StatusSuccess
-	} else if failedCount == totalTasks {
-		s.Status = core.StatusFailed
-	}
-}
-
-// GetParallelProgress returns progress information for parallel execution
-func (s *State) GetParallelProgress() (completed, failed, total int) {
-	if !s.IsParallel() || s.ParallelState == nil {
-		return 0, 0, 0
-	}
-	return len(s.CompletedTasks),
-		len(s.FailedTasks),
-		len(s.SubTasks)
+// GetParentID returns the parent state ID if this task has a parent
+func (s *State) GetParentID() *core.ID {
+	return s.ParentStateID
 }
 
 // Rest of the existing methods remain the same...
@@ -333,36 +202,6 @@ func (s *State) UpdateStatus(status core.StatusType) {
 	s.Status = status
 }
 
-func (s *State) IsParallelFailed() error {
-	var executionError error
-	strategy := s.Strategy
-	completed, failed, total := s.GetParallelProgress()
-
-	switch strategy {
-	case StrategyWaitAll:
-		// wait_all: fail if ANY subtask failed
-		if failed > 0 {
-			executionError = fmt.Errorf("parallel execution failed: %d out of %d subtasks failed", failed, total)
-		}
-	case StrategyFailFast:
-		// fail_fast: fail if ANY subtask failed
-		if failed > 0 {
-			executionError = fmt.Errorf("parallel execution failed fast: %d out of %d subtasks failed", failed, total)
-		}
-	case StrategyBestEffort:
-		// best_effort: only fail if ALL subtasks failed
-		if failed == total && total > 0 {
-			executionError = fmt.Errorf("parallel execution failed: all %d subtasks failed", total)
-		}
-	case StrategyRace:
-		// race: fail if all subtasks failed and none completed
-		if failed == total && completed == 0 && total > 0 {
-			executionError = fmt.Errorf("parallel execution failed: all %d subtasks failed in race", total)
-		}
-	}
-	return executionError
-}
-
 // -----------------------------------------------------------------------------
 // Enhanced PartialState for creation
 // -----------------------------------------------------------------------------
@@ -375,7 +214,7 @@ type PartialState struct {
 	ToolID        *string            `json:"tool_id,omitempty"`
 	Input         *core.Input        `json:"input,omitempty"`
 	MergedEnv     *core.EnvMap       `json:"merged_env"`
-	ParallelState *ParallelState     `json:"parallel_state,omitempty"`
+	ParentStateID *core.ID           `json:"parent_state_id,omitempty"`
 }
 
 // CreateBasicPartialState creates a partial state for basic execution
@@ -426,26 +265,33 @@ func CreateToolPartialState(
 	}
 }
 
-// CreateParallelPartialState creates a partial state for parallel execution
-func CreateParallelPartialState(
-	strategy ParallelStrategy,
-	maxWorkers int,
-	timeout string,
-	subTasks map[string]*State,
+// CreateParentPartialState creates a partial state for parent task execution
+func CreateParentPartialState(
+	input *core.Input,
 	env *core.EnvMap,
 ) *PartialState {
 	return &PartialState{
 		Component:     core.ComponentTask,
 		ExecutionType: ExecutionParallel,
+		Input:         input,
 		MergedEnv:     env,
-		ParallelState: &ParallelState{
-			Strategy:       strategy,
-			MaxWorkers:     maxWorkers,
-			Timeout:        timeout,
-			SubTasks:       subTasks,
-			CompletedTasks: make([]string, 0),
-			FailedTasks:    make([]string, 0),
-		},
+	}
+}
+
+// CreateChildPartialState creates a partial state for child task execution
+func CreateChildPartialState(
+	component core.ComponentType,
+	parentStateID core.ID,
+	input *core.Input,
+	env *core.EnvMap,
+	executionType ExecutionType,
+) *PartialState {
+	return &PartialState{
+		Component:     component,
+		ExecutionType: executionType,
+		ParentStateID: &parentStateID,
+		Input:         input,
+		MergedEnv:     env,
 	}
 }
 
@@ -455,6 +301,7 @@ func CreateSubTaskState(
 	taskExecID core.ID,
 	workflowID string,
 	workflowExecID core.ID,
+	parentStateID *core.ID,
 	execType ExecutionType,
 	component core.ComponentType,
 	input *core.Input,
@@ -464,6 +311,7 @@ func CreateSubTaskState(
 		TaskExecID:     taskExecID,
 		WorkflowID:     workflowID,
 		WorkflowExecID: workflowExecID,
+		ParentStateID:  parentStateID,
 		Component:      component,
 		Status:         core.StatusPending,
 		ExecutionType:  execType,
@@ -477,6 +325,7 @@ func CreateAgentSubTaskState(
 	taskExecID core.ID,
 	workflowID string,
 	workflowExecID core.ID,
+	parentStateID *core.ID,
 	agentID, actionID string,
 	input *core.Input,
 ) *State {
@@ -485,6 +334,7 @@ func CreateAgentSubTaskState(
 		taskExecID,
 		workflowID,
 		workflowExecID,
+		parentStateID,
 		ExecutionBasic,
 		core.ComponentAgent,
 		input,
@@ -500,6 +350,7 @@ func CreateToolSubTaskState(
 	taskExecID core.ID,
 	workflowID string,
 	workflowExecID core.ID,
+	parentStateID *core.ID,
 	toolID string,
 	input *core.Input,
 ) *State {
@@ -508,6 +359,7 @@ func CreateToolSubTaskState(
 		taskExecID,
 		workflowID,
 		workflowExecID,
+		parentStateID,
 		ExecutionBasic,
 		core.ComponentTool,
 		input,
@@ -529,6 +381,7 @@ func CreateBasicState(input *CreateStateInput, result *PartialState) *State {
 		Status:         core.StatusPending,
 		WorkflowID:     input.WorkflowID,
 		WorkflowExecID: input.WorkflowExecID,
+		ParentStateID:  result.ParentStateID,
 		ExecutionType:  result.ExecutionType,
 		AgentID:        result.AgentID,
 		ActionID:       result.ActionID,
@@ -539,17 +392,17 @@ func CreateBasicState(input *CreateStateInput, result *PartialState) *State {
 	}
 }
 
-// CreateParallelState creates a parallel execution state
-func CreateParallelState(input *CreateStateInput, result *PartialState) *State {
+// CreateParentState creates a parent task state
+func CreateParentState(input *CreateStateInput, result *PartialState) *State {
 	return &State{
 		TaskID:         input.TaskID,
 		TaskExecID:     input.TaskExecID,
 		Component:      core.ComponentTask,
-		Status:         core.StatusRunning,
+		Status:         core.StatusPending,
 		WorkflowID:     input.WorkflowID,
 		WorkflowExecID: input.WorkflowExecID,
+		ParentStateID:  result.ParentStateID,
 		ExecutionType:  ExecutionParallel,
-		ParallelState:  result.ParallelState,
 		Input:          result.Input,
 		Output:         nil,
 		Error:          nil,

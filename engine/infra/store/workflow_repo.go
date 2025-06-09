@@ -448,22 +448,38 @@ func (r *WorkflowRepo) CompleteWorkflow(ctx context.Context, workflowExecID core
 		if err != nil {
 			return fmt.Errorf("failed to get task states: %w", err)
 		}
-		// Determine final workflow status based on task states
+		// Determine final workflow status based on top-level task states only
+		// In the new parent-child architecture, only top-level tasks (without parents)
+		// should determine workflow completion status
 		finalStatus := core.StatusSuccess
 		for _, taskState := range tasks {
+			// Skip child tasks - only consider top-level tasks for workflow status
+			if taskState.ParentStateID != nil {
+				continue
+			}
+
 			if taskState.Status == core.StatusFailed {
 				finalStatus = core.StatusFailed
 				break
 			}
 		}
-		// Create output map: task_id -> Output
+		// Create output map: task_id -> Output (include all tasks for output collection)
 		outputMap := make(map[string]any)
 		for taskID, taskState := range tasks {
-			if taskState.Output != nil {
-				outputMap[taskID] = map[string]any{
-					"output": taskState.Output,
-				}
+			// Include progress_info for parent tasks to show completion details
+			outputData := map[string]any{
+				"output": taskState.Output,
 			}
+
+			// Add parent-child relationship info for debugging
+			if taskState.ParentStateID != nil {
+				outputData["parent_state_id"] = taskState.ParentStateID.String()
+			}
+			if taskState.ExecutionType == task.ExecutionParallel {
+				outputData["execution_type"] = "parallel"
+			}
+
+			outputMap[taskID] = outputData
 		}
 		// Convert output map to JSONB
 		outputJSON, err := ToJSONB(outputMap)
