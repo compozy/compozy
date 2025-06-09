@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -14,6 +15,17 @@ import (
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestMain(m *testing.M) {
+	// Initialize logger once for all tests in this package
+	logger.Init(logger.DefaultConfig())
+
+	// Run tests
+	exitCode := m.Run()
+
+	// Cleanup if needed
+	os.Exit(exitCode)
+}
 
 func TestTaskRepo_UpsertState(t *testing.T) {
 	mockSetup := testutils.NewMockSetup(t)
@@ -57,9 +69,6 @@ func TestTaskRepo_UpsertState(t *testing.T) {
 }
 
 func TestTaskRepo_CreateChildStatesInTransaction(t *testing.T) {
-	// Initialize logger to prevent nil pointer dereference
-	logger.Init(logger.DefaultConfig())
-
 	testTaskList(
 		t,
 		"should create multiple child states atomically",
@@ -608,6 +617,7 @@ func TestTaskRepo_ListStatesWithExecutionTypeFilter(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, states, 1)
 			assert.Equal(t, task.ExecutionBasic, states[0].ExecutionType)
+			assert.NotEqual(t, task.ExecutionParallel, states[0].ExecutionType)
 			assert.True(t, states[0].IsBasic())
 		},
 	)
@@ -765,16 +775,7 @@ func TestTaskRepo_GetProgressInfo(t *testing.T) {
 		func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
 			parentStateID := core.ID("parent-exec-123")
 
-			// Mock first query for aggregate counts
-			aggregateRows := mockSetup.Mock.NewRows([]string{
-				"total_children", "completed", "failed", "running", "pending",
-			}).AddRow(3, 1, 1, 1, 0)
-
-			mockSetup.Mock.ExpectQuery("SELECT").
-				WithArgs(parentStateID).
-				WillReturnRows(aggregateRows)
-
-			// Mock second query for detailed status counts
+			// Mock single query for status counts
 			statusRows := mockSetup.Mock.NewRows([]string{
 				"status", "status_count",
 			}).AddRow(string(core.StatusSuccess), 1).
@@ -813,15 +814,6 @@ func TestTaskRepo_GetProgressInfo(t *testing.T) {
 		func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
 			parentStateID := core.ID("parent-with-no-children")
 
-			// Mock aggregate query with zero results
-			emptyAggregateRows := mockSetup.Mock.NewRows([]string{
-				"total_children", "completed", "failed", "running", "pending",
-			}).AddRow(0, 0, 0, 0, 0)
-
-			mockSetup.Mock.ExpectQuery("SELECT").
-				WithArgs(parentStateID).
-				WillReturnRows(emptyAggregateRows)
-
 			// Mock empty status query
 			emptyStatusRows := mockSetup.Mock.NewRows([]string{
 				"status", "status_count",
@@ -847,15 +839,6 @@ func TestTaskRepo_GetProgressInfo(t *testing.T) {
 		"should calculate progress for wait_all strategy correctly",
 		func(mockSetup *testutils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
 			parentStateID := core.ID("wait-all-parent")
-
-			// Mock aggregate query for all completed tasks
-			allCompletedAggregateRows := mockSetup.Mock.NewRows([]string{
-				"total_children", "completed", "failed", "running", "pending",
-			}).AddRow(2, 2, 0, 0, 0)
-
-			mockSetup.Mock.ExpectQuery("SELECT").
-				WithArgs(parentStateID).
-				WillReturnRows(allCompletedAggregateRows)
 
 			// Mock status query for all completed tasks
 			allCompletedStatusRows := mockSetup.Mock.NewRows([]string{

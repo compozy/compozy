@@ -82,6 +82,16 @@ const (
 	StrategyRace       ParallelStrategy = "race"        // Return when first task completes
 )
 
+// ValidateStrategy checks if the given string is a valid ParallelStrategy
+func ValidateStrategy(strategy string) bool {
+	switch ParallelStrategy(strategy) {
+	case StrategyWaitAll, StrategyFailFast, StrategyBestEffort, StrategyRace:
+		return true
+	default:
+		return false
+	}
+}
+
 type ParallelTask struct {
 	Strategy   ParallelStrategy `json:"strategy,omitempty"    yaml:"strategy,omitempty"    mapstructure:"strategy,omitempty"`
 	MaxWorkers int              `json:"max_workers,omitempty" yaml:"max_workers,omitempty" mapstructure:"max_workers,omitempty"`

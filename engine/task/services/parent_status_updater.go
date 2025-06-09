@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/jackc/pgx/v5"
 )
 
 // ParentStatusUpdater handles updating parent task status based on child task progress
@@ -51,7 +52,7 @@ func (s *ParentStatusUpdater) validateRecursionSafety(input *UpdateParentStatusI
 	}
 
 	// Check recursion depth
-	if input.depth > MaxRecursionDepth {
+	if input.depth >= MaxRecursionDepth {
 		return fmt.Errorf(
 			"maximum recursion depth (%d) exceeded for parent state %s",
 			MaxRecursionDepth,
@@ -117,15 +118,33 @@ func (s *ParentStatusUpdater) UpdateParentStatus(
 	ctx context.Context,
 	input *UpdateParentStatusInput,
 ) (*task.State, error) {
+	var result *task.State
+
+	// Execute within a transaction to ensure atomicity and proper locking
+	err := s.taskRepo.WithTx(ctx, func(tx pgx.Tx) error {
+		var txErr error
+		result, txErr = s.UpdateParentStatusWithTx(ctx, tx, input)
+		return txErr
+	})
+
+	return result, err
+}
+
+// UpdateParentStatusWithTx updates a parent task's status within a transaction with proper locking
+func (s *ParentStatusUpdater) UpdateParentStatusWithTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	input *UpdateParentStatusInput,
+) (*task.State, error) {
 	if err := s.validateRecursionSafety(input); err != nil {
 		return nil, err
 	}
 	defer delete(input.visited, input.ParentStateID) // Clean up on exit
 
-	// Get current parent state
-	parentState, err := s.taskRepo.GetState(ctx, input.ParentStateID)
+	// Get current parent state with row-level lock to prevent concurrent updates
+	parentState, err := s.taskRepo.GetStateForUpdate(ctx, tx, input.ParentStateID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get parent state %s: %w", input.ParentStateID, err)
+		return nil, fmt.Errorf("failed to get parent state %s with lock: %w", input.ParentStateID, err)
 	}
 
 	// Get progress information from child tasks
@@ -150,12 +169,12 @@ func (s *ParentStatusUpdater) UpdateParentStatus(
 	statusChanged := s.updateParentStateStatus(parentState, newStatus, progressInfo, input)
 
 	// Update parent state in database (always update to refresh progress metadata)
-	if err := s.taskRepo.UpsertState(ctx, parentState); err != nil {
+	if err := s.taskRepo.UpsertStateWithTx(ctx, tx, parentState); err != nil {
 		return nil, fmt.Errorf("failed to update parent state %s: %w", input.ParentStateID, err)
 	}
 
-	// Handle recursive updates
-	if err := s.handleRecursiveUpdate(ctx, input, parentState, statusChanged); err != nil {
+	// Handle recursive updates within the same transaction
+	if err := s.handleRecursiveUpdateWithTx(ctx, tx, input, parentState, statusChanged); err != nil {
 		return nil, err
 	}
 
@@ -182,9 +201,10 @@ func (s *ParentStatusUpdater) updateParentStateStatus(
 	return false
 }
 
-// handleRecursiveUpdate handles recursive parent status updates
-func (s *ParentStatusUpdater) handleRecursiveUpdate(
+// handleRecursiveUpdateWithTx handles recursive parent status updates within a transaction
+func (s *ParentStatusUpdater) handleRecursiveUpdateWithTx(
 	ctx context.Context,
+	tx pgx.Tx,
 	input *UpdateParentStatusInput,
 	parentState *task.State,
 	statusChanged bool,
@@ -193,7 +213,7 @@ func (s *ParentStatusUpdater) handleRecursiveUpdate(
 		return nil
 	}
 
-	_, err := s.UpdateParentStatus(ctx, &UpdateParentStatusInput{
+	_, err := s.UpdateParentStatusWithTx(ctx, tx, &UpdateParentStatusInput{
 		ParentStateID: *parentState.ParentStateID,
 		Strategy:      input.Strategy,
 		Recursive:     true,
@@ -220,9 +240,15 @@ func (s *ParentStatusUpdater) ShouldUpdateParentStatus(currentStatus, newStatus 
 		return true
 	}
 
-	// Allow transitions from pending/running to other active states
-	if currentStatus == core.StatusPending || currentStatus == core.StatusRunning {
+	// Allow forward-only transitions within active states
+	if currentStatus == core.StatusPending && newStatus == core.StatusRunning {
 		return true
+	}
+	if currentStatus == core.StatusRunning && newStatus == core.StatusPending {
+		return false
+	}
+	if currentStatus == core.StatusRunning && newStatus == core.StatusRunning {
+		return false
 	}
 
 	// Don't update from terminal states unless moving to another terminal state

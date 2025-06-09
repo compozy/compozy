@@ -18,11 +18,17 @@ var ErrTaskNotFound = fmt.Errorf("task state not found")
 
 // TaskRepo implements the task.Repository interface.
 type TaskRepo struct {
-	db DBInterface
+	db    DBInterface
+	dbPtr *DB // Keep reference to concrete DB for transaction operations
 }
 
 func NewTaskRepo(db DBInterface) *TaskRepo {
-	return &TaskRepo{db: db}
+	// Try to get concrete DB for transaction support
+	dbPtr, _ := db.(*DB) //nolint:errcheck // intentionally ignored for test compatibility
+	return &TaskRepo{
+		db:    db,
+		dbPtr: dbPtr,
+	}
 }
 
 // ListStates retrieves task states based on the provided filter.
@@ -62,53 +68,53 @@ func (r *TaskRepo) applyStateFilter(sb squirrel.SelectBuilder, filter *task.Stat
 	}
 
 	if filter.Status != nil {
-		sb = sb.Where("status = ?", *filter.Status)
+		sb = sb.Where(squirrel.Eq{"status": *filter.Status})
 	}
 	if filter.WorkflowID != nil {
-		sb = sb.Where("workflow_id = ?", *filter.WorkflowID)
+		sb = sb.Where(squirrel.Eq{"workflow_id": *filter.WorkflowID})
 	}
 	if filter.WorkflowExecID != nil {
-		sb = sb.Where("workflow_exec_id = ?", *filter.WorkflowExecID)
+		sb = sb.Where(squirrel.Eq{"workflow_exec_id": *filter.WorkflowExecID})
 	}
 	if filter.TaskID != nil {
-		sb = sb.Where("task_id = ?", *filter.TaskID)
+		sb = sb.Where(squirrel.Eq{"task_id": *filter.TaskID})
 	}
 	if filter.TaskExecID != nil {
-		sb = sb.Where("task_exec_id = ?", *filter.TaskExecID)
+		sb = sb.Where(squirrel.Eq{"task_exec_id": *filter.TaskExecID})
 	}
 	if filter.ParentStateID != nil {
-		sb = sb.Where("parent_state_id = ?", *filter.ParentStateID)
+		sb = sb.Where(squirrel.Eq{"parent_state_id": *filter.ParentStateID})
 	}
 	if filter.AgentID != nil {
-		sb = sb.Where("agent_id = ?", *filter.AgentID)
+		sb = sb.Where(squirrel.Eq{"agent_id": *filter.AgentID})
 	}
 	if filter.ActionID != nil {
-		sb = sb.Where("action_id = ?", *filter.ActionID)
+		sb = sb.Where(squirrel.Eq{"action_id": *filter.ActionID})
 	}
 	if filter.ToolID != nil {
-		sb = sb.Where("tool_id = ?", *filter.ToolID)
+		sb = sb.Where(squirrel.Eq{"tool_id": *filter.ToolID})
 	}
 	if filter.ExecutionType != nil {
-		sb = sb.Where("execution_type = ?", *filter.ExecutionType)
+		sb = sb.Where(squirrel.Eq{"execution_type": *filter.ExecutionType})
 	}
 
 	return sb
 }
 
-// UpsertState inserts or updates a task state (supports both basic and parallel execution).
-func (r *TaskRepo) UpsertState(ctx context.Context, state *task.State) error {
+// buildUpsertArgs prepares the SQL query and arguments for upserting a task state
+func (r *TaskRepo) buildUpsertArgs(state *task.State) (string, []any, error) {
 	// Marshal common fields
 	input, err := ToJSONB(state.Input)
 	if err != nil {
-		return fmt.Errorf("marshaling input: %w", err)
+		return "", nil, fmt.Errorf("marshaling input: %w", err)
 	}
 	output, err := ToJSONB(state.Output)
 	if err != nil {
-		return fmt.Errorf("marshaling output: %w", err)
+		return "", nil, fmt.Errorf("marshaling output: %w", err)
 	}
 	errJSON, err := ToJSONB(state.Error)
 	if err != nil {
-		return fmt.Errorf("marshaling error: %w", err)
+		return "", nil, fmt.Errorf("marshaling error: %w", err)
 	}
 
 	// Handle parent-child relationship
@@ -140,12 +146,24 @@ func (r *TaskRepo) UpsertState(ctx context.Context, state *task.State) error {
 			updated_at = now()
 	`
 
-	_, err = r.db.Exec(ctx, query,
+	args := []any{
 		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID,
 		state.Component, state.Status, state.ExecutionType, parentStateID,
 		state.AgentID, state.ActionID, state.ToolID,
 		input, output, errJSON,
-	)
+	}
+
+	return query, args, nil
+}
+
+// UpsertState inserts or updates a task state (supports both basic and parallel execution).
+func (r *TaskRepo) UpsertState(ctx context.Context, state *task.State) error {
+	query, args, err := r.buildUpsertArgs(state)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("executing upsert: %w", err)
 	}
@@ -171,6 +189,55 @@ func (r *TaskRepo) GetState(ctx context.Context, taskExecID core.ID) (*task.Stat
 	}
 
 	return stateDB.ToState()
+}
+
+// GetStateForUpdate retrieves a task state by its task execution ID with row-level locking.
+// This method should be used within a transaction when concurrent updates are expected.
+func (r *TaskRepo) GetStateForUpdate(ctx context.Context, tx pgx.Tx, taskExecID core.ID) (*task.State, error) {
+	query := `
+		SELECT *
+		FROM task_states
+		WHERE task_exec_id = $1
+		FOR UPDATE
+	`
+
+	var stateDB task.StateDB
+	err := pgxscan.Get(ctx, tx, &stateDB, query, taskExecID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrTaskNotFound
+		}
+		return nil, fmt.Errorf("scanning state with lock: %w", err)
+	}
+
+	return stateDB.ToState()
+}
+
+// WithTx executes a function within a transaction
+func (r *TaskRepo) WithTx(ctx context.Context, fn func(pgx.Tx) error) error {
+	if r.dbPtr != nil {
+		return r.dbPtr.WithTx(ctx, fn)
+	}
+
+	// Fallback for tests - use the db interface directly to begin transaction
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback(ctx) //nolint:errcheck // rollback errors cannot be handled in panic recovery
+			panic(p)
+		} else if err != nil {
+			tx.Rollback(ctx) //nolint:errcheck // rollback errors cannot be handled in defer
+		} else {
+			err = tx.Commit(ctx)
+		}
+	}()
+
+	err = fn(tx)
+	return err
 }
 
 // ListTasksInWorkflow retrieves all task states for a workflow execution.
@@ -354,36 +421,6 @@ func (r *TaskRepo) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*tas
 
 // GetProgressInfo aggregates progress information for a parent task using SQL
 func (r *TaskRepo) GetProgressInfo(ctx context.Context, parentStateID core.ID) (*task.ProgressInfo, error) {
-	// First query to get aggregate counts
-	aggregateQuery := `
-		SELECT
-			COUNT(*) as total_children,
-			COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) as completed,
-			COUNT(CASE WHEN status = 'FAILED' THEN 1 END) as failed,
-			COUNT(CASE WHEN status = 'RUNNING' THEN 1 END) as running,
-			COUNT(CASE WHEN status = 'PENDING' THEN 1 END) as pending
-		FROM task_states
-		WHERE parent_state_id = $1
-	`
-
-	progressInfo := &task.ProgressInfo{
-		StatusCounts: make(map[core.StatusType]int),
-	}
-
-	var totalChildren, completed, failed, running, pending int
-	err := r.db.QueryRow(ctx, aggregateQuery, parentStateID).Scan(
-		&totalChildren, &completed, &failed, &running, &pending)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query aggregate progress info: %w", err)
-	}
-
-	progressInfo.TotalChildren = totalChildren
-	progressInfo.CompletedCount = completed
-	progressInfo.FailedCount = failed
-	progressInfo.RunningCount = running
-	progressInfo.PendingCount = pending
-
-	// Second query to get detailed status counts
 	statusQuery := `
 		SELECT status, COUNT(*) as status_count
 		FROM task_states
@@ -391,12 +428,17 @@ func (r *TaskRepo) GetProgressInfo(ctx context.Context, parentStateID core.ID) (
 		GROUP BY status
 	`
 
+	progressInfo := &task.ProgressInfo{
+		StatusCounts: make(map[core.StatusType]int),
+	}
+
 	statusRows, err := r.db.Query(ctx, statusQuery, parentStateID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query status counts: %w", err)
 	}
 	defer statusRows.Close()
 
+	var totalChildren int
 	for statusRows.Next() {
 		var status string
 		var count int
@@ -404,12 +446,23 @@ func (r *TaskRepo) GetProgressInfo(ctx context.Context, parentStateID core.ID) (
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan status row: %w", err)
 		}
-		progressInfo.StatusCounts[core.StatusType(status)] = count
+
+		statusType := core.StatusType(status)
+		progressInfo.StatusCounts[statusType] = count
+		totalChildren += count
 	}
 
 	if err := statusRows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating status rows: %w", err)
 	}
+
+	progressInfo.TotalChildren = totalChildren
+
+	// Derive specific counters from status counts dynamically
+	progressInfo.CompletedCount = progressInfo.StatusCounts["SUCCESS"]
+	progressInfo.FailedCount = progressInfo.StatusCounts["FAILED"]
+	progressInfo.RunningCount = progressInfo.StatusCounts["RUNNING"]
+	progressInfo.PendingCount = progressInfo.StatusCounts["PENDING"]
 
 	// Calculate rates
 	if progressInfo.TotalChildren > 0 {
@@ -453,7 +506,7 @@ func (r *TaskRepo) CreateChildStatesInTransaction(
 
 	// Insert all child states within the transaction
 	for _, childState := range childStates {
-		err = r.upsertStateWithTx(ctx, tx, childState)
+		err = r.UpsertStateWithTx(ctx, tx, childState)
 		if err != nil {
 			return fmt.Errorf("failed to create child state %s: %w", childState.TaskID, err)
 		}
@@ -467,56 +520,14 @@ func (r *TaskRepo) CreateChildStatesInTransaction(
 	return nil
 }
 
-// upsertStateWithTx inserts/updates a state within an existing transaction
-func (r *TaskRepo) upsertStateWithTx(ctx context.Context, tx pgx.Tx, state *task.State) error {
-	inputJSON, err := ToJSONB(state.Input)
+// UpsertStateWithTx inserts/updates a state within an existing transaction
+func (r *TaskRepo) UpsertStateWithTx(ctx context.Context, tx pgx.Tx, state *task.State) error {
+	query, args, err := r.buildUpsertArgs(state)
 	if err != nil {
-		return fmt.Errorf("marshaling input: %w", err)
-	}
-	outputJSON, err := ToJSONB(state.Output)
-	if err != nil {
-		return fmt.Errorf("marshaling output: %w", err)
-	}
-	errJSON, err := ToJSONB(state.Error)
-	if err != nil {
-		return fmt.Errorf("marshaling error: %w", err)
+		return err
 	}
 
-	// Handle parent-child relationship
-	var parentStateID *string
-	if state.ParentStateID != nil {
-		parentIDStr := string(*state.ParentStateID)
-		parentStateID = &parentIDStr
-	}
-
-	query := `
-		INSERT INTO task_states (
-			task_exec_id, task_id, workflow_exec_id, workflow_id, component, status,
-			execution_type, parent_state_id, agent_id, action_id, tool_id, input, output, error
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-		ON CONFLICT (task_exec_id) DO UPDATE SET
-			task_id = $2,
-			workflow_exec_id = $3,
-			workflow_id = $4,
-			component = $5,
-			status = $6,
-			execution_type = $7,
-			parent_state_id = $8,
-			agent_id = $9,
-			action_id = $10,
-			tool_id = $11,
-			input = $12,
-			output = $13,
-			error = $14,
-			updated_at = now()
-	`
-
-	_, err = tx.Exec(ctx, query,
-		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID,
-		state.Component, state.Status, state.ExecutionType, parentStateID,
-		state.AgentID, state.ActionID, state.ToolID,
-		inputJSON, outputJSON, errJSON,
-	)
+	_, err = tx.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("executing upsert: %w", err)
 	}

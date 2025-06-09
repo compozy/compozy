@@ -438,6 +438,78 @@ func (r *WorkflowRepo) GetStateByToolID(
 	return result, err
 }
 
+// determineFinalWorkflowStatus calculates the final workflow status based on top-level task states
+func (r *WorkflowRepo) determineFinalWorkflowStatus(tasks map[string]*task.State) core.StatusType {
+	finalStatus := core.StatusSuccess
+	for _, taskState := range tasks {
+		// Skip child tasks - only consider top-level tasks for workflow status
+		if taskState.ParentStateID != nil {
+			continue
+		}
+
+		switch taskState.Status {
+		case core.StatusFailed:
+			finalStatus = core.StatusFailed
+		case core.StatusRunning, core.StatusPending:
+			// At least one top-level task still active → workflow is not done yet.
+			finalStatus = core.StatusRunning
+		}
+	}
+	return finalStatus
+}
+
+// createWorkflowOutputMap builds the output map from all task states
+func (r *WorkflowRepo) createWorkflowOutputMap(tasks map[string]*task.State) map[string]any {
+	outputMap := make(map[string]any)
+	for taskID, taskState := range tasks {
+		// Include progress_info for parent tasks to show completion details
+		outputData := map[string]any{
+			"output": taskState.Output,
+		}
+
+		// Add parent-child relationship info for debugging
+		if taskState.ParentStateID != nil {
+			outputData["parent_state_id"] = taskState.ParentStateID.String()
+		}
+		if taskState.ExecutionType == task.ExecutionParallel {
+			outputData["execution_type"] = "parallel"
+		}
+
+		outputMap[taskID] = outputData
+	}
+	return outputMap
+}
+
+// updateWorkflowStateWithTx updates the workflow state with output and status within a transaction
+func (r *WorkflowRepo) updateWorkflowStateWithTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	workflowExecID core.ID,
+	outputMap map[string]any,
+	finalStatus core.StatusType,
+) error {
+	// Convert output map to JSONB
+	outputJSON, err := ToJSONB(outputMap)
+	if err != nil {
+		return fmt.Errorf("marshaling workflow output: %w", err)
+	}
+
+	// Update the workflow state with the collected outputs and determined status
+	query := `
+		UPDATE workflow_states
+		SET output = $1, status = $2, updated_at = now()
+		WHERE workflow_exec_id = $3
+	`
+	cmdTag, err := tx.Exec(ctx, query, outputJSON, finalStatus, workflowExecID)
+	if err != nil {
+		return fmt.Errorf("updating workflow output: %w", err)
+	}
+	if cmdTag.RowsAffected() == 0 {
+		return ErrWorkflowNotFound
+	}
+	return nil
+}
+
 // CompleteWorkflow collects all task outputs and saves them as workflow output
 func (r *WorkflowRepo) CompleteWorkflow(ctx context.Context, workflowExecID core.ID) (*workflow.State, error) {
 	var result *workflow.State
@@ -448,57 +520,22 @@ func (r *WorkflowRepo) CompleteWorkflow(ctx context.Context, workflowExecID core
 		if err != nil {
 			return fmt.Errorf("failed to get task states: %w", err)
 		}
+
 		// Determine final workflow status based on top-level task states only
-		// In the new parent-child architecture, only top-level tasks (without parents)
-		// should determine workflow completion status
-		finalStatus := core.StatusSuccess
-		for _, taskState := range tasks {
-			// Skip child tasks - only consider top-level tasks for workflow status
-			if taskState.ParentStateID != nil {
-				continue
-			}
-
-			if taskState.Status == core.StatusFailed {
-				finalStatus = core.StatusFailed
-				break
-			}
-		}
-		// Create output map: task_id -> Output (include all tasks for output collection)
-		outputMap := make(map[string]any)
-		for taskID, taskState := range tasks {
-			// Include progress_info for parent tasks to show completion details
-			outputData := map[string]any{
-				"output": taskState.Output,
-			}
-
-			// Add parent-child relationship info for debugging
-			if taskState.ParentStateID != nil {
-				outputData["parent_state_id"] = taskState.ParentStateID.String()
-			}
-			if taskState.ExecutionType == task.ExecutionParallel {
-				outputData["execution_type"] = "parallel"
-			}
-
-			outputMap[taskID] = outputData
-		}
-		// Convert output map to JSONB
-		outputJSON, err := ToJSONB(outputMap)
-		if err != nil {
-			return fmt.Errorf("marshaling workflow output: %w", err)
-		}
-		// Update the workflow state with the collected outputs and determined status
-		query := `
-			UPDATE workflow_states
-			SET output = $1, status = $2, updated_at = now()
-			WHERE workflow_exec_id = $3
-		`
-		cmdTag, err := tx.Exec(ctx, query, outputJSON, finalStatus, workflowExecID)
-		if err != nil {
-			return fmt.Errorf("updating workflow output: %w", err)
-		}
-		if cmdTag.RowsAffected() == 0 {
+		finalStatus := r.determineFinalWorkflowStatus(tasks)
+		if finalStatus == core.StatusRunning {
+			// Defer completion until every top-level task finishes.
 			return ErrWorkflowNotFound
 		}
+
+		// Create output map from all task states
+		outputMap := r.createWorkflowOutputMap(tasks)
+
+		// Update the workflow state with the collected outputs and determined status
+		if err := r.updateWorkflowStateWithTx(ctx, tx, workflowExecID, outputMap, finalStatus); err != nil {
+			return err
+		}
+
 		// Get the updated workflow state
 		getQuery := `
 			SELECT workflow_exec_id, workflow_id, status, input, output, error

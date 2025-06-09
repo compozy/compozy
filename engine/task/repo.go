@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/jackc/pgx/v5"
 )
 
 // StateFilter updated to include execution type filtering
@@ -27,6 +28,11 @@ type Repository interface {
 	ListStates(ctx context.Context, filter *StateFilter) ([]*State, error)
 	UpsertState(ctx context.Context, state *State) error
 	GetState(ctx context.Context, taskExecID core.ID) (*State, error)
+
+	// Transaction operations
+	WithTx(ctx context.Context, fn func(pgx.Tx) error) error
+	GetStateForUpdate(ctx context.Context, tx pgx.Tx, taskExecID core.ID) (*State, error)
+	UpsertStateWithTx(ctx context.Context, tx pgx.Tx, state *State) error
 
 	// Workflow-level operations
 	ListTasksInWorkflow(ctx context.Context, workflowExecID core.ID) (map[string]*State, error)

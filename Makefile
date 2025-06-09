@@ -68,6 +68,7 @@ deps: swagger-deps
 	$(GOCMD) install gotest.tools/gotestsum@latest
 	$(GOCMD) install github.com/bokwoon95/wgo@latest
 	$(GOCMD) install github.com/pressly/goose/v3/cmd/goose@latest
+	$(GOCMD) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
 
 swagger-deps:
 	@echo "Installing Swagger dependencies..."

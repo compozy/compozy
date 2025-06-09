@@ -176,7 +176,7 @@ func (s *State) IsParallelRoot() bool {
 
 // HasParent returns true if this task has a parent (same as IsChildTask)
 func (s *State) HasParent() bool {
-	return s.ParentStateID != nil
+	return s.IsChildTask()
 }
 
 // GetParentID returns the parent state ID if this task has a parent

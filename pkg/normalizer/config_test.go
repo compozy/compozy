@@ -1063,6 +1063,8 @@ func TestConfigNormalizer_NormalizeParallelTask(t *testing.T) {
 			assert.Equal(t, 10, v)
 		case float64:
 			assert.Equal(t, float64(10), v)
+		case string:
+			assert.Equal(t, "10", v)
 		default:
 			t.Errorf("max_keywords has unexpected type: %T", maxKeywords)
 		}
@@ -1144,7 +1146,7 @@ func TestConfigNormalizer_NormalizeParallelTask(t *testing.T) {
 		}
 
 		// Create parent task exec ID for reference
-		parentExecID := core.ID("process_data_parallel_exec")
+		parentExecID := core.MustNewID() // guarantees uniqueness for every test run
 
 		workflowState := &workflow.State{
 			WorkflowID:     "test-workflow",

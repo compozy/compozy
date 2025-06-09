@@ -25,9 +25,11 @@ type NormalizationContext struct {
 	TaskConfigs      map[string]*task.Config // Task configurations by ID
 	CurrentInput     *core.Input
 	MergedEnv        *core.EnvMap
+	ChildrenIndex    map[string][]string // Maps parent task exec ID to child task IDs
 }
 
 func (cb *ContextBuilder) BuildContext(ctx *NormalizationContext) map[string]any {
+	cb.buildChildrenIndex(ctx)
 	context := map[string]any{
 		"workflow": cb.buildWorkflowContext(ctx),
 		"tasks":    cb.buildTasksContext(ctx),
@@ -99,16 +101,17 @@ func (cb *ContextBuilder) buildTaskOutput(taskState *task.State, ctx *Normalizat
 			nestedOutput["output"] = *taskState.Output
 		}
 
-		// Find child tasks in the workflow state that have this task as parent
-		if ctx != nil && ctx.WorkflowState != nil && ctx.WorkflowState.Tasks != nil {
-			parentTaskExecID := taskState.TaskExecID
-			for childTaskID, childTaskState := range ctx.WorkflowState.Tasks {
-				// Check if this task is a child of the current parent task
-				if childTaskState.ParentStateID != nil && *childTaskState.ParentStateID == parentTaskExecID {
-					// Add child task output to nested structure
-					childOutput := make(map[string]any)
-					childOutput["output"] = cb.buildTaskOutput(childTaskState, ctx) // Recursive call for child
-					nestedOutput[childTaskID] = childOutput
+		// Use pre-built children index for O(1) lookup instead of O(n) scan
+		if ctx != nil && ctx.ChildrenIndex != nil {
+			parentTaskExecID := string(taskState.TaskExecID)
+			if childTaskIDs, exists := ctx.ChildrenIndex[parentTaskExecID]; exists {
+				for _, childTaskID := range childTaskIDs {
+					if childTaskState, exists := ctx.WorkflowState.Tasks[childTaskID]; exists {
+						// Add child task output to nested structure
+						childOutput := make(map[string]any)
+						childOutput["output"] = cb.buildTaskOutput(childTaskState, ctx) // Recursive call for child
+						nestedOutput[childTaskID] = childOutput
+					}
 				}
 			}
 		}
@@ -141,6 +144,21 @@ func (cb *ContextBuilder) mergeTaskConfig(taskContext map[string]any, taskConfig
 	for k, v := range taskConfigMap {
 		if k != inputKey && k != outputKey { // Don't override runtime state
 			taskContext[k] = v
+		}
+	}
+}
+
+func (cb *ContextBuilder) buildChildrenIndex(ctx *NormalizationContext) {
+	if ctx.WorkflowState == nil || ctx.WorkflowState.Tasks == nil {
+		ctx.ChildrenIndex = make(map[string][]string)
+		return
+	}
+
+	ctx.ChildrenIndex = make(map[string][]string)
+	for taskID, taskState := range ctx.WorkflowState.Tasks {
+		if taskState.ParentStateID != nil {
+			parentExecID := string(*taskState.ParentStateID)
+			ctx.ChildrenIndex[parentExecID] = append(ctx.ChildrenIndex[parentExecID], taskID)
 		}
 	}
 }

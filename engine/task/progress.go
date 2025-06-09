@@ -24,22 +24,27 @@ type ProgressInfo struct {
 // CalculateOverallStatus determines the parent task status based on strategy and child statuses
 func (p *ProgressInfo) CalculateOverallStatus(strategy ParallelStrategy) core.StatusType {
 	if p.TotalChildren == 0 {
+		p.OverallStatus = core.StatusPending
 		return core.StatusPending
 	}
 
+	var status core.StatusType
 	switch strategy {
 	case StrategyWaitAll:
-		return p.calculateWaitAllStatus()
+		status = p.calculateWaitAllStatus()
 	case StrategyFailFast:
-		return p.calculateFailFastStatus()
+		status = p.calculateFailFastStatus()
 	case StrategyBestEffort:
-		return p.calculateBestEffortStatus()
+		status = p.calculateBestEffortStatus()
 	case StrategyRace:
-		return p.calculateRaceStatus()
+		status = p.calculateRaceStatus()
 	default:
 		// Default to wait_all strategy
-		return p.calculateWaitAllStatus()
+		status = p.calculateWaitAllStatus()
 	}
+
+	p.OverallStatus = status
+	return status
 }
 
 // calculateWaitAllStatus implements wait_all strategy - all tasks must complete successfully
@@ -47,11 +52,11 @@ func (p *ProgressInfo) calculateWaitAllStatus() core.StatusType {
 	if p.CompletedCount == p.TotalChildren {
 		return core.StatusSuccess
 	}
-	if p.FailedCount > 0 {
-		return core.StatusFailed
-	}
 	if p.RunningCount > 0 {
 		return core.StatusRunning
+	}
+	if p.FailedCount > 0 {
+		return core.StatusFailed
 	}
 	return core.StatusPending
 }

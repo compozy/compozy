@@ -8,7 +8,6 @@ import (
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/logger"
 	testutils "github.com/compozy/compozy/test"
 	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v4"
@@ -48,9 +47,6 @@ func TestWorkflowRepo_UpsertState(t *testing.T) {
 }
 
 func TestWorkflowRepo_GetState(t *testing.T) {
-	// Initialize logger to prevent nil pointer dereference
-	logger.Init(logger.DefaultConfig())
-
 	mockSetup := testutils.NewMockSetup(t)
 	defer mockSetup.Close()
 

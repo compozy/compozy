@@ -35,15 +35,16 @@ func NewGetParallelResponse(
 }
 
 func (a *GetParallelResponse) Run(ctx context.Context, input *GetParallelResponseInput) (*task.Response, error) {
-	// Get progress information for the parent task using repository-based aggregation
-	progressInfo, err := a.taskRepo.GetProgressInfo(ctx, input.ParentState.TaskExecID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get progress info: %w", err)
-	}
-
 	// Determine execution error based on parallel strategy and child task statuses
 	var executionError error
+	var progressInfo *task.ProgressInfo
 	if input.TaskConfig.Type == task.TaskTypeParallel {
+		// Get progress information for the parent task using repository-based aggregation
+		var err error
+		progressInfo, err = a.taskRepo.GetProgressInfo(ctx, input.ParentState.TaskExecID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get progress info: %w", err)
+		}
 		strategy := input.TaskConfig.GetStrategy()
 
 		// Calculate overall status using new progress aggregation
@@ -51,8 +52,10 @@ func (a *GetParallelResponse) Run(ctx context.Context, input *GetParallelRespons
 
 		// Set execution error if parent task should fail
 		if overallStatus == core.StatusFailed {
-			executionError = fmt.Errorf("parallel task failed: completed=%d, failed=%d, total=%d",
-				progressInfo.CompletedCount, progressInfo.FailedCount, progressInfo.TotalChildren)
+			executionError = fmt.Errorf(
+				"parallel task failed: completed=%d, failed=%d, total=%d, status_counts=%v",
+				progressInfo.CompletedCount, progressInfo.FailedCount,
+				progressInfo.TotalChildren, progressInfo.StatusCounts)
 		}
 
 		// Update parent state with aggregated information

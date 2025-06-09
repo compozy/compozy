@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -70,6 +71,12 @@ func TestHandleResponse_ShouldUpdateParentStatus(t *testing.T) {
 	}
 }
 
+// idPtr creates a pointer to a core.ID for test convenience
+func idPtr(id string) *core.ID {
+	coreID := core.ID(id)
+	return &coreID
+}
+
 func TestHandleResponse_UpdateParentStatusIfNeeded(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -95,7 +102,7 @@ func TestHandleResponse_UpdateParentStatusIfNeeded(t *testing.T) {
 				TaskExecID:    core.ID("child-123"),
 				TaskID:        "child-task",
 				Status:        core.StatusSuccess,
-				ParentStateID: &[]core.ID{core.ID("parent-456")}[0],
+				ParentStateID: idPtr("parent-456"),
 			},
 			parentState: &task.State{
 				TaskExecID:    core.ID("parent-456"),
@@ -111,7 +118,7 @@ func TestHandleResponse_UpdateParentStatusIfNeeded(t *testing.T) {
 				TaskExecID:    core.ID("child-123"),
 				TaskID:        "child-task",
 				Status:        core.StatusSuccess,
-				ParentStateID: &[]core.ID{core.ID("parent-456")}[0],
+				ParentStateID: idPtr("parent-456"),
 			},
 			parentState: &task.State{
 				TaskExecID:    core.ID("parent-456"),
@@ -140,7 +147,7 @@ func TestHandleResponse_UpdateParentStatusIfNeeded(t *testing.T) {
 				TaskExecID:    core.ID("child-123"),
 				TaskID:        "child-task",
 				Status:        core.StatusFailed,
-				ParentStateID: &[]core.ID{core.ID("parent-456")}[0],
+				ParentStateID: idPtr("parent-456"),
 			},
 			parentState: &task.State{
 				TaskExecID:    core.ID("parent-456"),
@@ -272,6 +279,21 @@ func (m *mockTaskRepo) CreateChildStatesInTransaction(
 
 func (m *mockTaskRepo) GetTaskTree(_ context.Context, _ core.ID) ([]*task.State, error) {
 	return nil, nil
+}
+
+func (m *mockTaskRepo) WithTx(_ context.Context, fn func(pgx.Tx) error) error {
+	// For testing, just execute the function with a nil transaction
+	return fn(nil)
+}
+
+func (m *mockTaskRepo) GetStateForUpdate(ctx context.Context, _ pgx.Tx, taskExecID core.ID) (*task.State, error) {
+	// Delegate to regular GetState for testing
+	return m.GetState(ctx, taskExecID)
+}
+
+func (m *mockTaskRepo) UpsertStateWithTx(ctx context.Context, _ pgx.Tx, state *task.State) error {
+	// Delegate to regular UpsertState for testing
+	return m.UpsertState(ctx, state)
 }
 
 func (m *mockTaskRepo) GetProgressInfo(ctx context.Context, parentStateID core.ID) (*task.ProgressInfo, error) {
