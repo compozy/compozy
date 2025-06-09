@@ -220,24 +220,25 @@ func (r *TaskRepo) WithTx(ctx context.Context, fn func(pgx.Tx) error) error {
 	}
 
 	// Fallback for tests - use the db interface directly to begin transaction
-	tx, err := r.db.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("beginning transaction: %w", err)
+	tx, beginErr := r.db.Begin(ctx)
+	if beginErr != nil {
+		return fmt.Errorf("beginning transaction: %w", beginErr)
 	}
 
+	var cbErr error
 	defer func() {
 		if p := recover(); p != nil {
 			tx.Rollback(ctx) //nolint:errcheck // rollback errors cannot be handled in panic recovery
 			panic(p)
-		} else if err != nil {
+		} else if cbErr != nil {
 			tx.Rollback(ctx) //nolint:errcheck // rollback errors cannot be handled in defer
 		} else {
-			err = tx.Commit(ctx)
+			cbErr = tx.Commit(ctx)
 		}
 	}()
 
-	err = fn(tx)
-	return err
+	cbErr = fn(tx)
+	return cbErr
 }
 
 // ListTasksInWorkflow retrieves all task states for a workflow execution.
@@ -458,11 +459,17 @@ func (r *TaskRepo) GetProgressInfo(ctx context.Context, parentStateID core.ID) (
 
 	progressInfo.TotalChildren = totalChildren
 
-	// Derive specific counters from status counts dynamically
-	progressInfo.CompletedCount = progressInfo.StatusCounts["SUCCESS"]
-	progressInfo.FailedCount = progressInfo.StatusCounts["FAILED"]
-	progressInfo.RunningCount = progressInfo.StatusCounts["RUNNING"]
-	progressInfo.PendingCount = progressInfo.StatusCounts["PENDING"]
+	// Derive specific counters from status counts using constants
+	progressInfo.CompletedCount = progressInfo.StatusCounts[core.StatusSuccess]
+	progressInfo.FailedCount = progressInfo.StatusCounts[core.StatusFailed]
+	progressInfo.RunningCount = progressInfo.StatusCounts[core.StatusRunning]
+	progressInfo.PendingCount = progressInfo.StatusCounts[core.StatusPending]
+
+	// Include counts for other terminal and non-terminal statuses
+	progressInfo.CompletedCount += progressInfo.StatusCounts[core.StatusCanceled] // Canceled is considered terminal
+	progressInfo.FailedCount += progressInfo.StatusCounts[core.StatusTimedOut]    // Timed out is considered failed
+	progressInfo.RunningCount += progressInfo.StatusCounts[core.StatusWaiting]    // Waiting is considered running
+	progressInfo.RunningCount += progressInfo.StatusCounts[core.StatusPaused]     // Paused is considered running
 
 	// Calculate rates
 	if progressInfo.TotalChildren > 0 {

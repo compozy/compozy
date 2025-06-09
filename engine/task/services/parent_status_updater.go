@@ -82,9 +82,7 @@ func (s *ParentStatusUpdater) buildProgressOutput(
 	}
 
 	// Add last_updated timestamp for handle_resp.go compatibility
-	if input.ChildState != nil {
-		progressOutput["last_updated"] = time.Now().Format(time.RFC3339)
-	}
+	progressOutput["last_updated"] = time.Now().Format(time.RFC3339)
 
 	return progressOutput
 }
@@ -195,6 +193,9 @@ func (s *ParentStatusUpdater) updateParentStateStatus(
 		// Set error if parent task failed due to child failures
 		if newStatus == core.StatusFailed && progressInfo.HasFailures() {
 			parentState.Error = s.createFailureError(progressInfo, input)
+		} else {
+			// Clear previous failure metadata on recovery
+			parentState.Error = nil
 		}
 		return true
 	}

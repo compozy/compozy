@@ -184,6 +184,14 @@ func (s *State) GetParentID() *core.ID {
 	return s.ParentStateID
 }
 
+// ValidateParentChild ensures no circular references
+func (s *State) ValidateParentChild(parentID core.ID) error {
+	if s.TaskExecID == parentID {
+		return fmt.Errorf("task cannot be its own parent")
+	}
+	return nil
+}
+
 // Rest of the existing methods remain the same...
 func (s *State) AsMap() (map[core.ID]any, error) {
 	val, err := json.Marshal(s)
@@ -372,9 +380,9 @@ func CreateToolSubTaskState(
 // Factory functions for creating states
 // -----------------------------------------------------------------------------
 
-// CreateBasicState creates a basic execution state
-func CreateBasicState(input *CreateStateInput, result *PartialState) *State {
-	return &State{
+// CreateState creates a state with appropriate component-specific fields
+func CreateState(input *CreateStateInput, result *PartialState) *State {
+	state := &State{
 		TaskID:         input.TaskID,
 		TaskExecID:     input.TaskExecID,
 		Component:      result.Component,
@@ -383,30 +391,34 @@ func CreateBasicState(input *CreateStateInput, result *PartialState) *State {
 		WorkflowExecID: input.WorkflowExecID,
 		ParentStateID:  result.ParentStateID,
 		ExecutionType:  result.ExecutionType,
-		AgentID:        result.AgentID,
-		ActionID:       result.ActionID,
-		ToolID:         result.ToolID,
 		Input:          result.Input,
 		Output:         nil,
 		Error:          nil,
 	}
+
+	// Set component-specific fields
+	if result.AgentID != nil {
+		state.AgentID = result.AgentID
+		state.ActionID = result.ActionID
+	}
+	if result.ToolID != nil {
+		state.ToolID = result.ToolID
+	}
+
+	return state
 }
 
-// CreateParentState creates a parent task state
+// CreateBasicState creates a basic execution state (kept for backward compatibility)
+func CreateBasicState(input *CreateStateInput, result *PartialState) *State {
+	return CreateState(input, result)
+}
+
+// CreateParentState creates a parent task state (kept for backward compatibility)
 func CreateParentState(input *CreateStateInput, result *PartialState) *State {
-	return &State{
-		TaskID:         input.TaskID,
-		TaskExecID:     input.TaskExecID,
-		Component:      core.ComponentTask,
-		Status:         core.StatusPending,
-		WorkflowID:     input.WorkflowID,
-		WorkflowExecID: input.WorkflowExecID,
-		ParentStateID:  result.ParentStateID,
-		ExecutionType:  ExecutionParallel,
-		Input:          result.Input,
-		Output:         nil,
-		Error:          nil,
-	}
+	// Ensure parent state has correct component and execution type
+	result.Component = core.ComponentTask
+	result.ExecutionType = ExecutionParallel
+	return CreateState(input, result)
 }
 
 // -----------------------------------------------------------------------------
