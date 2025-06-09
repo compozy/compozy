@@ -3,13 +3,18 @@ package uc
 import (
 	"context"
 	"fmt"
-	"reflect"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
+)
+
+// Constants for metadata keys
+const (
+	ParallelConfigKey = "_parallel_config"
+	ChildConfigsKey   = "child_configs"
 )
 
 // -----------------------------------------------------------------------------
@@ -124,11 +129,11 @@ func (uc *CreateState) processParallelTask(
 		parentInput = &core.Input{}
 	}
 	// Store parallel configuration and child task configs as metadata
-	(*parentInput)["_parallel_config"] = map[string]any{
+	(*parentInput)[ParallelConfigKey] = map[string]any{
 		"strategy":      parallelConfig.GetStrategy(),
 		"max_workers":   parallelConfig.GetMaxWorkers(),
 		"timeout":       parallelConfig.Timeout,
-		"child_configs": parallelConfig.Tasks, // Store child task configurations
+		ChildConfigsKey: parallelConfig.Tasks, // Store child task configurations
 	}
 	return task.CreateParentPartialState(
 		parentInput,
@@ -157,13 +162,18 @@ func (uc *CreateState) CreateChildTasks(ctx context.Context, input *CreateChildT
 	}
 
 	// Extract parallel configuration from parent's input metadata
-	parallelMeta, ok := (*parentState.Input)["_parallel_config"].(map[string]any)
-	if !ok {
+	parallelMetaRaw, exists := (*parentState.Input)[ParallelConfigKey]
+	if !exists {
 		return fmt.Errorf("parent state missing parallel configuration metadata")
 	}
 
+	parallelMeta, ok := parallelMetaRaw.(map[string]any)
+	if !ok {
+		return fmt.Errorf("invalid parallel configuration metadata format")
+	}
+
 	// Extract child task configurations
-	childConfigsRaw, ok := parallelMeta["child_configs"]
+	childConfigsRaw, ok := parallelMeta[ChildConfigsKey]
 	if !ok {
 		return fmt.Errorf("parent state missing child configurations")
 	}
@@ -171,8 +181,7 @@ func (uc *CreateState) CreateChildTasks(ctx context.Context, input *CreateChildT
 	// Convert to task.Config slice (this handles the interface{} conversion)
 	childConfigs, ok := childConfigsRaw.([]task.Config)
 	if !ok {
-		actualType := reflect.TypeOf(childConfigsRaw)
-		return fmt.Errorf("invalid child configurations format: expected []task.Config, got %v", actualType)
+		return fmt.Errorf("invalid child configurations format: expected []task.Config, got %T", childConfigsRaw)
 	}
 
 	// Create child tasks atomically using transaction

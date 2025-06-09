@@ -357,10 +357,10 @@ func (r *TaskRepo) GetProgressInfo(ctx context.Context, parentStateID core.ID) (
 	aggregateQuery := `
 		SELECT
 			COUNT(*) as total_children,
-			COUNT(CASE WHEN status = 'success' THEN 1 END) as completed,
-			COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed,
-			COUNT(CASE WHEN status = 'running' THEN 1 END) as running,
-			COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending
+			COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) as completed,
+			COUNT(CASE WHEN status = 'FAILED' THEN 1 END) as failed,
+			COUNT(CASE WHEN status = 'RUNNING' THEN 1 END) as running,
+			COUNT(CASE WHEN status = 'PENDING' THEN 1 END) as pending
 		FROM task_states
 		WHERE parent_state_id = $1
 	`
@@ -440,8 +440,6 @@ func (r *TaskRepo) CreateChildStatesInTransaction(
 			if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
 				logger.Error("Failed to rollback transaction", "error", rollbackErr)
 			}
-		} else {
-			err = tx.Commit(ctx)
 		}
 	}()
 
@@ -458,6 +456,11 @@ func (r *TaskRepo) CreateChildStatesInTransaction(
 		if err != nil {
 			return fmt.Errorf("failed to create child state %s: %w", childState.TaskID, err)
 		}
+	}
+
+	// Commit the transaction and return any commit error
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("committing transaction: %w", err)
 	}
 
 	return nil
