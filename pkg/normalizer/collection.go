@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sort"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -297,11 +298,18 @@ func (cn *CollectionNormalizer) convertFloatSlice(v []float64) []any {
 
 // convertMapToSlice converts map to slice of key-value pairs
 func (cn *CollectionNormalizer) convertMapToSlice(v map[string]any) []any {
+	// Sort keys for deterministic ordering
+	keys := make([]string, 0, len(v))
+	for key := range v {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
 	result := make([]any, 0, len(v))
-	for key, val := range v {
+	for _, key := range keys {
 		result = append(result, map[string]any{
 			"key":   key,
-			"value": val,
+			"value": v[key],
 		})
 	}
 	return result

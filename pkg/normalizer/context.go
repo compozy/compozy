@@ -191,7 +191,18 @@ func (cb *ContextBuilder) BuildCollectionContext(
 		return make(map[string]any)
 	}
 
-	templateContext := make(map[string]any)
+	// Build full context similar to BuildContext but for collection tasks
+	ctx := &NormalizationContext{
+		WorkflowState: workflowState,
+		TaskConfigs:   make(map[string]*task.Config),
+	}
+	cb.buildChildrenIndex(ctx)
+
+	templateContext := map[string]any{
+		"workflow": cb.buildWorkflowContext(ctx),
+		"tasks":    cb.buildTasksContext(ctx),
+	}
+
 	// Add workflow input/output if available
 	if workflowState.Input != nil {
 		templateContext[inputKey] = *workflowState.Input
