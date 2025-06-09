@@ -3,6 +3,7 @@ package uc
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -170,7 +171,8 @@ func (uc *CreateState) CreateChildTasks(ctx context.Context, input *CreateChildT
 	// Convert to task.Config slice (this handles the interface{} conversion)
 	childConfigs, ok := childConfigsRaw.([]task.Config)
 	if !ok {
-		return fmt.Errorf("invalid child configurations format")
+		actualType := reflect.TypeOf(childConfigsRaw)
+		return fmt.Errorf("invalid child configurations format: expected []task.Config, got %v", actualType)
 	}
 
 	// Create child tasks atomically using transaction

@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"maps"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/normalizer"
 )
 
@@ -27,16 +28,18 @@ type HandleResponseInput struct {
 }
 
 type HandleResponse struct {
-	workflowRepo workflow.Repository
-	taskRepo     task.Repository
-	normalizer   *normalizer.ConfigNormalizer
+	workflowRepo        workflow.Repository
+	taskRepo            task.Repository
+	normalizer          *normalizer.ConfigNormalizer
+	parentStatusUpdater *services.ParentStatusUpdater
 }
 
 func NewHandleResponse(workflowRepo workflow.Repository, taskRepo task.Repository) *HandleResponse {
 	return &HandleResponse{
-		workflowRepo: workflowRepo,
-		taskRepo:     taskRepo,
-		normalizer:   normalizer.NewConfigNormalizer(),
+		workflowRepo:        workflowRepo,
+		taskRepo:            taskRepo,
+		normalizer:          normalizer.NewConfigNormalizer(),
+		parentStatusUpdater: services.NewParentStatusUpdater(taskRepo),
 	}
 }
 
@@ -82,11 +85,10 @@ func (uc *HandleResponse) handleSuccessFlow(
 
 	// Update parent task status if this is a child task
 	// Parent status updates are non-critical, so we ignore errors to avoid failing task completion
+	// Update parent task status if this is a child task (non-critical operation)
 	if err := uc.updateParentStatusIfNeeded(ctx, state); err != nil {
-		if ctx.Err() != nil {
-			return &task.Response{State: state}, nil
-		}
-		return nil, fmt.Errorf("failed to update parent status: %w", err)
+		// Log error but don't fail the task completion
+		logger.Error("failed to update parent status", "error", err)
 	}
 	if ctx.Err() != nil {
 		return &task.Response{State: state}, nil
@@ -307,87 +309,13 @@ func (uc *HandleResponse) updateParentStatusIfNeeded(ctx context.Context, childS
 		}
 	}
 
-	// Get progress information from child tasks
-	progressInfo, err := uc.taskRepo.GetProgressInfo(ctx, parentStateID)
-	if err != nil {
-		return fmt.Errorf("failed to get progress info for parent %s: %w", parentStateID, err)
-	}
+	// Use the shared service to update parent status
+	_, err = uc.parentStatusUpdater.UpdateParentStatus(ctx, &services.UpdateParentStatusInput{
+		ParentStateID: parentStateID,
+		Strategy:      strategy,
+		Recursive:     true,
+		ChildState:    childState,
+	})
 
-	// Calculate new status based on strategy and child progress
-	newStatus := progressInfo.CalculateOverallStatus(strategy)
-
-	// Only update if status has changed and should be updated
-	if parentState.Status != newStatus && uc.shouldUpdateParentStatus(parentState.Status, newStatus) {
-		parentState.Status = newStatus
-
-		// Add progress metadata to parent task output
-		if parentState.Output == nil {
-			parentState.Output = &core.Output{}
-		}
-
-		progressOutput := map[string]any{
-			"completion_rate": progressInfo.CompletionRate,
-			"failure_rate":    progressInfo.FailureRate,
-			"total_children":  progressInfo.TotalChildren,
-			"completed_count": progressInfo.CompletedCount,
-			"failed_count":    progressInfo.FailedCount,
-			"running_count":   progressInfo.RunningCount,
-			"pending_count":   progressInfo.PendingCount,
-			"strategy":        string(strategy),
-			"last_updated":    fmt.Sprintf("%d", time.Now().Unix()),
-		}
-		(*parentState.Output)["progress_info"] = progressOutput
-
-		// Set error if parent task failed due to child failures
-		if newStatus == core.StatusFailed && progressInfo.HasFailures() {
-			parentState.Error = core.NewError(
-				fmt.Errorf("parent task failed due to child task failures"),
-				"child_task_failure",
-				map[string]any{
-					"failed_count":    progressInfo.FailedCount,
-					"completed_count": progressInfo.CompletedCount,
-					"total_children":  progressInfo.TotalChildren,
-					"child_task_id":   childState.TaskID,
-					"child_status":    string(childState.Status),
-				},
-			)
-		}
-
-		// Update parent state in database
-		if err := uc.taskRepo.UpsertState(ctx, parentState); err != nil {
-			return fmt.Errorf("failed to update parent state %s: %w", parentStateID, err)
-		}
-
-		// Recursively update grandparent if needed
-		if parentState.ParentStateID != nil {
-			return uc.updateParentStatusIfNeeded(ctx, parentState)
-		}
-	}
-
-	return nil
-}
-
-// shouldUpdateParentStatus determines if parent status should be updated
-func (uc *HandleResponse) shouldUpdateParentStatus(currentStatus, newStatus core.StatusType) bool {
-	// Don't update if status hasn't changed
-	if currentStatus == newStatus {
-		return false
-	}
-
-	// Allow transitions to terminal states
-	if newStatus == core.StatusSuccess || newStatus == core.StatusFailed {
-		return true
-	}
-
-	// Allow transitions from pending/running to other active states
-	if currentStatus == core.StatusPending || currentStatus == core.StatusRunning {
-		return true
-	}
-
-	// Don't update from terminal states unless moving to another terminal state
-	if currentStatus == core.StatusSuccess || currentStatus == core.StatusFailed {
-		return newStatus == core.StatusSuccess || newStatus == core.StatusFailed
-	}
-
-	return false
+	return err
 }

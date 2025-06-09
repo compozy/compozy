@@ -13,10 +13,9 @@ import (
 const GetParallelResponseLabel = "GetParallelResponse"
 
 type GetParallelResponseInput struct {
-	ParentState    *task.State             `json:"parent_state"`
-	Results        []*task.SubtaskResponse `json:"results"`
-	WorkflowConfig *workflow.Config        `json:"workflow_config"`
-	TaskConfig     *task.Config            `json:"task_config"`
+	ParentState    *task.State      `json:"parent_state"`
+	WorkflowConfig *workflow.Config `json:"workflow_config"`
+	TaskConfig     *task.Config     `json:"task_config"`
 }
 
 type GetParallelResponse struct {

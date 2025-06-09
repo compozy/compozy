@@ -64,7 +64,7 @@ func TestHandleResponse_ShouldUpdateParentStatus(t *testing.T) {
 
 			handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
 
-			result := handleResponse.shouldUpdateParentStatus(tt.currentStatus, tt.newStatus)
+			result := handleResponse.parentStatusUpdater.ShouldUpdateParentStatus(tt.currentStatus, tt.newStatus)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

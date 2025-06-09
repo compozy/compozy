@@ -180,7 +180,7 @@ func (e *TaskExecutor) HandleParallelTask(pConfig *task.Config) func(ctx workflo
 			return nil, fmt.Errorf("failed to await parallel task: %w", err)
 		}
 		// Process parallel response with proper transitions
-		finalResponse, err := e.GetParallelResponse(ctx, pState, results, pConfig)
+		finalResponse, err := e.GetParallelResponse(ctx, pState, pConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -241,14 +241,12 @@ func (e *TaskExecutor) ExecuteParallelTask(
 func (e *TaskExecutor) GetParallelResponse(
 	ctx workflow.Context,
 	pState *task.State,
-	results []*task.SubtaskResponse,
 	pConfig *task.Config,
 ) (*task.Response, error) {
 	var response *task.Response
 	actLabel := tkacts.GetParallelResponseLabel
 	actInput := tkacts.GetParallelResponseInput{
 		ParentState:    pState,
-		Results:        results,
 		WorkflowConfig: e.WorkflowConfig,
 		TaskConfig:     pConfig,
 	}

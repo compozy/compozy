@@ -424,7 +424,7 @@ func (r *TaskRepo) CreateChildStatesInTransaction(
 	ctx context.Context,
 	parentStateID core.ID,
 	childStates []*task.State,
-) error {
+) (err error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)

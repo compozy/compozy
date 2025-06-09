@@ -466,22 +466,20 @@ func (r *WorkflowRepo) CompleteWorkflow(ctx context.Context, workflowExecID core
 		// Create output map: task_id -> Output (include all tasks for output collection)
 		outputMap := make(map[string]any)
 		for taskID, taskState := range tasks {
-			if taskState.Output != nil {
-				// Include progress_info for parent tasks to show completion details
-				outputData := map[string]any{
-					"output": taskState.Output,
-				}
-
-				// Add parent-child relationship info for debugging
-				if taskState.ParentStateID != nil {
-					outputData["parent_state_id"] = string(*taskState.ParentStateID)
-				}
-				if taskState.ExecutionType == task.ExecutionParallel {
-					outputData["execution_type"] = "parallel"
-				}
-
-				outputMap[taskID] = outputData
+			// Include progress_info for parent tasks to show completion details
+			outputData := map[string]any{
+				"output": taskState.Output,
 			}
+
+			// Add parent-child relationship info for debugging
+			if taskState.ParentStateID != nil {
+				outputData["parent_state_id"] = taskState.ParentStateID.String()
+			}
+			if taskState.ExecutionType == task.ExecutionParallel {
+				outputData["execution_type"] = "parallel"
+			}
+
+			outputMap[taskID] = outputData
 		}
 		// Convert output map to JSONB
 		outputJSON, err := ToJSONB(outputMap)

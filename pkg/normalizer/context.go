@@ -94,6 +94,11 @@ func (cb *ContextBuilder) buildTaskOutput(taskState *task.State, ctx *Normalizat
 		// For parent tasks, build nested output structure with child task outputs
 		nestedOutput := make(map[string]any)
 
+		// Include the parent’s own output first (if any)
+		if taskState.Output != nil {
+			nestedOutput["output"] = *taskState.Output
+		}
+
 		// Find child tasks in the workflow state that have this task as parent
 		if ctx != nil && ctx.WorkflowState != nil && ctx.WorkflowState.Tasks != nil {
 			parentTaskExecID := taskState.TaskExecID
