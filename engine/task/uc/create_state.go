@@ -80,6 +80,8 @@ func (uc *CreateState) processComponent(
 	switch {
 	case input.TaskConfig.Type == task.TaskTypeParallel:
 		return uc.processParallelTask(input, baseEnv)
+	case input.TaskConfig.Type == task.TaskTypeCollection:
+		return uc.processCollectionTask(input, baseEnv)
 	case agentConfig != nil:
 		return uc.processAgent(agentConfig, executionType, input.TaskConfig.Action)
 	case toolConfig != nil:
@@ -183,6 +185,38 @@ func (uc *CreateState) processParallelTask(
 		parentInput,
 		baseEnv,
 	), nil
+}
+
+func (uc *CreateState) processCollectionTask(
+	input *CreateStateInput,
+	baseEnv *core.EnvMap,
+) (*task.PartialState, error) {
+	// Collection tasks are essentially parallel tasks with item expansion
+	// Store collection-specific configuration alongside parallel configuration
+	collectionConfig := input.TaskConfig.CollectionConfig
+
+	// Create enriched input that includes collection metadata
+	parentInput := input.TaskConfig.With
+	if parentInput == nil {
+		parentInput = &core.Input{}
+	}
+
+	// Store collection configuration metadata for the ExecuteCollection activity
+	(*parentInput)["_collection_config"] = map[string]any{
+		"items":     collectionConfig.Items,
+		"filter":    collectionConfig.Filter,
+		"item_var":  collectionConfig.GetItemVar(),
+		"index_var": collectionConfig.GetIndexVar(),
+		"mode":      collectionConfig.GetMode(),
+		"batch":     collectionConfig.Batch,
+	}
+
+	return &task.PartialState{
+		Component:     core.ComponentTask,
+		ExecutionType: task.ExecutionCollection,
+		Input:         parentInput,
+		MergedEnv:     baseEnv,
+	}, nil
 }
 
 // CreateChildTasksInput follows Temporal best practices by passing minimal data

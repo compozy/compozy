@@ -1,0 +1,124 @@
+id: process-user-data
+type: collection
+
+# Collection-specific configuration
+items: "{{ .workflow.input.users }}"
+filter: "{{ ne .item.status 'inactive' }}"
+item_var: user
+index_var: idx
+mode: sequential
+batch: 5
+
+# Task template - this will be replicated for each item
+task:
+  id: "process-user-{{ .idx }}"
+  type: basic
+  action: process_user_data
+
+  agent:
+    id: user-processor
+    provider: anthropic
+    model: claude-3-haiku-20240307
+
+  with:
+    user_id: "{{ .user.id }}"
+    user_name: "{{ .user.name }}"
+    user_email: "{{ .user.email }}"
+    processing_mode: "{{ .input.mode }}"
+
+  env:
+    PROCESSING_TIMEOUT: "30s"
+    USER_API_ENDPOINT: "{{ .env.USER_SERVICE_URL }}"
+
+# Parallel task configuration (inherited)
+strategy: best_effort
+max_workers: 10
+timeout: "5m"
+retries: 2
+
+# Input schema
+input:
+  type: object
+  properties:
+    users:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+          name:
+            type: string
+          email:
+            type: string
+          status:
+            type: string
+            enum:
+              - active
+              - inactive
+              - pending
+        required:
+          - id
+          - name
+          - email
+          - status
+    mode:
+      type: string
+      enum:
+        - batch
+        - realtime
+      default: batch
+  required:
+    - users
+
+# Output schema
+output:
+  type: object
+  properties:
+    processed_count:
+      type: integer
+    failed_count:
+      type: integer
+    results:
+      type: array
+      items:
+        type: object
+        properties:
+          user_id:
+            type: string
+          status:
+            type: string
+          result:
+            type: object
+  required:
+    - processed_count
+    - failed_count
+    - results
+
+# Environment variables
+env:
+  COLLECTION_TIMEOUT: "10m"
+  PARALLEL_WORKERS: "5"
+  USER_SERVICE_URL: "https://api.example.com/users"
+
+# Input parameters
+with:
+  users: []
+  mode: "batch"
+
+# Outputs mapping
+outputs:
+  summary: "Processed {{ .output.processed_count }} users, {{ .output.failed_count }} failed"
+  success_rate: "{{ div .output.processed_count (add .output.processed_count .output.failed_count) }}"
+  processing_metadata:
+    total_items: "{{ len .with.users }}"
+    processed: "{{ .output.processed_count }}"
+    failed: "{{ .output.failed_count }}"
+    mode: "{{ .with.mode }}"
+
+# Success/error transitions
+on_success:
+  next: notify-completion
+
+on_error:
+  next: handle-batch-error

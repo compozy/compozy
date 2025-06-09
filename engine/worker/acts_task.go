@@ -82,6 +82,9 @@ func (e *TaskExecutor) HandleExecution(ctx workflow.Context, taskConfig *task.Co
 	case task.TaskTypeParallel:
 		executeFn := e.HandleParallelTask(taskConfig)
 		response, err = executeFn(ctx)
+	case task.TaskTypeCollection:
+		executeFn := e.ExecuteCollectionTask(taskConfig)
+		response, err = executeFn(ctx)
 	default:
 		return nil, fmt.Errorf("unsupported execution type: %s", taskType)
 	}
@@ -127,6 +130,25 @@ func (e *TaskExecutor) ExecuteRouterTask(taskConfig *task.Config) func(ctx workf
 			return nil, err
 		}
 		return response, nil
+	}
+}
+
+func (e *TaskExecutor) ExecuteCollectionTask(
+	taskConfig *task.Config,
+) func(ctx workflow.Context) (*task.Response, error) {
+	return func(ctx workflow.Context) (*task.Response, error) {
+		var response *tkacts.CollectionResponse
+		actLabel := tkacts.ExecuteCollectionLabel
+		actInput := tkacts.ExecuteCollectionInput{
+			WorkflowID:     e.WorkflowID,
+			WorkflowExecID: e.WorkflowExecID,
+			TaskConfig:     taskConfig,
+		}
+		err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &response)
+		if err != nil {
+			return nil, err
+		}
+		return response.Response, nil
 	}
 }
 

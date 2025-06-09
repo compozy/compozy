@@ -47,9 +47,10 @@ type BaseConfig struct {
 type Type string
 
 const (
-	TaskTypeBasic    Type = "basic"
-	TaskTypeRouter   Type = "router"
-	TaskTypeParallel Type = "parallel"
+	TaskTypeBasic      Type = "basic"
+	TaskTypeRouter     Type = "router"
+	TaskTypeParallel   Type = "parallel"
+	TaskTypeCollection Type = "collection"
 )
 
 // -----------------------------------------------------------------------------
@@ -101,6 +102,67 @@ type ParallelTask struct {
 	Task       *Config          `json:"task,omitempty"        yaml:"task,omitempty"        mapstructure:"task,omitempty"`
 }
 
+// -----------------------------------------------------------------------------
+// Collection Task
+// -----------------------------------------------------------------------------
+
+type CollectionMode string
+
+const (
+	CollectionModeParallel   CollectionMode = "parallel"
+	CollectionModeSequential CollectionMode = "sequential"
+)
+
+// ValidateCollectionMode checks if the given string is a valid CollectionMode
+func ValidateCollectionMode(mode string) bool {
+	switch CollectionMode(mode) {
+	case CollectionModeParallel, CollectionModeSequential:
+		return true
+	default:
+		return false
+	}
+}
+
+type CollectionConfig struct {
+	Items    string         `json:"items"               yaml:"items"               mapstructure:"items"`
+	Filter   string         `json:"filter,omitempty"    yaml:"filter,omitempty"    mapstructure:"filter,omitempty"`
+	ItemVar  string         `json:"item_var,omitempty"  yaml:"item_var,omitempty"  mapstructure:"item_var,omitempty"`
+	IndexVar string         `json:"index_var,omitempty" yaml:"index_var,omitempty" mapstructure:"index_var,omitempty"`
+	Mode     CollectionMode `json:"mode,omitempty"      yaml:"mode,omitempty"      mapstructure:"mode,omitempty"`
+	Batch    int            `json:"batch,omitempty"     yaml:"batch,omitempty"     mapstructure:"batch,omitempty"`
+}
+
+// Default sets sensible defaults for collection configuration
+func (cc *CollectionConfig) Default() {
+	if cc.Mode == "" {
+		cc.Mode = CollectionModeParallel
+	}
+	if cc.ItemVar == "" {
+		cc.ItemVar = "item"
+	}
+	if cc.IndexVar == "" {
+		cc.IndexVar = "index"
+	}
+	if cc.Batch == 0 {
+		cc.Batch = 0 // Keep 0 as default (no batching)
+	}
+}
+
+// GetItemVar returns the item variable name
+func (cc *CollectionConfig) GetItemVar() string {
+	return cc.ItemVar
+}
+
+// GetIndexVar returns the index variable name
+func (cc *CollectionConfig) GetIndexVar() string {
+	return cc.IndexVar
+}
+
+// GetMode returns the collection mode
+func (cc *CollectionConfig) GetMode() CollectionMode {
+	return cc.Mode
+}
+
 func (pt *ParallelTask) GetTasks() []Config {
 	return pt.Tasks
 }
@@ -131,10 +193,11 @@ func (pt *ParallelTask) GetMaxWorkers() int {
 // -----------------------------------------------------------------------------
 
 type Config struct {
-	BasicTask    `json:",inline" yaml:",inline" mapstructure:",squash"`
-	RouterTask   `json:",inline" yaml:",inline" mapstructure:",squash"`
-	ParallelTask `json:",inline" yaml:",inline" mapstructure:",squash"`
-	BaseConfig   `json:",inline" yaml:",inline" mapstructure:",squash"`
+	BasicTask        `json:",inline" yaml:",inline" mapstructure:",squash"`
+	RouterTask       `json:",inline" yaml:",inline" mapstructure:",squash"`
+	ParallelTask     `json:",inline" yaml:",inline" mapstructure:",squash"`
+	CollectionConfig `json:",inline" yaml:",inline" mapstructure:",squash"`
+	BaseConfig       `json:",inline" yaml:",inline" mapstructure:",squash"`
 }
 
 func (t *Config) GetEnv() core.EnvMap {
@@ -269,6 +332,8 @@ func (t *Config) GetExecType() ExecutionType {
 		executionType = ExecutionRouter
 	case TaskTypeParallel:
 		executionType = ExecutionParallel
+	case TaskTypeCollection:
+		executionType = ExecutionCollection
 	default:
 		executionType = ExecutionBasic
 	}
@@ -284,18 +349,72 @@ func FindConfig(tasks []Config, taskID string) (*Config, error) {
 	return nil, fmt.Errorf("task not found")
 }
 
-func propagateCWDToSubTasks(config *Config) error {
+func applyDefaults(config *Config) {
+	// Apply defaults for collection tasks
+	if config.Type == TaskTypeCollection {
+		config.Default()
+	}
+
+	// Recursively apply defaults to sub-tasks
 	if config.Type == TaskTypeParallel && len(config.Tasks) > 0 {
 		for i := range config.Tasks {
-			if config.Tasks[i].cwd == nil && config.cwd != nil {
-				if err := config.Tasks[i].SetCWD(config.cwd.PathStr()); err != nil {
-					return fmt.Errorf("failed to set CWD for sub-task %s: %w", config.Tasks[i].ID, err)
-				}
-			}
-			// Recursively propagate CWD to nested parallel tasks
-			if err := propagateCWDToSubTasks(&config.Tasks[i]); err != nil {
+			applyDefaults(&config.Tasks[i])
+		}
+	}
+
+	// Handle collection tasks with task template
+	if config.Type == TaskTypeCollection && config.Task != nil {
+		applyDefaults(config.Task)
+	}
+}
+
+// setCWDForTask sets the CWD for a single task if needed
+func setCWDForTask(task *Config, parentCWD *core.CWD, taskType string) error {
+	if task.cwd != nil || parentCWD == nil {
+		return nil
+	}
+
+	if err := task.SetCWD(parentCWD.PathStr()); err != nil {
+		return fmt.Errorf("failed to set CWD for %s %s: %w", taskType, task.ID, err)
+	}
+	return nil
+}
+
+// propagateCWDToTaskList propagates CWD to a list of tasks
+func propagateCWDToTaskList(tasks []Config, parentCWD *core.CWD, taskType string) error {
+	for i := range tasks {
+		if err := setCWDForTask(&tasks[i], parentCWD, taskType); err != nil {
+			return err
+		}
+		if err := propagateCWDToSubTasks(&tasks[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// propagateCWDToSingleTask propagates CWD to a single task
+func propagateCWDToSingleTask(task *Config, parentCWD *core.CWD, taskType string) error {
+	if err := setCWDForTask(task, parentCWD, taskType); err != nil {
+		return err
+	}
+	return propagateCWDToSubTasks(task)
+}
+
+func propagateCWDToSubTasks(config *Config) error {
+	switch config.Type {
+	case TaskTypeParallel:
+		if len(config.Tasks) > 0 {
+			return propagateCWDToTaskList(config.Tasks, config.cwd, "sub-task")
+		}
+	case TaskTypeCollection:
+		if config.Task != nil {
+			if err := propagateCWDToSingleTask(config.Task, config.cwd, "collection task template"); err != nil {
 				return err
 			}
+		}
+		if len(config.Tasks) > 0 {
+			return propagateCWDToTaskList(config.Tasks, config.cwd, "collection task")
 		}
 	}
 	return nil
@@ -313,6 +432,7 @@ func Load(cwd *core.CWD, path string) (*Config, error) {
 	if string(config.Type) == "" {
 		config.Type = TaskTypeBasic
 	}
+	applyDefaults(config)
 	if err := propagateCWDToSubTasks(config); err != nil {
 		return nil, err
 	}
@@ -336,6 +456,7 @@ func LoadAndEval(cwd *core.CWD, path string, ev *ref.Evaluator) (*Config, error)
 	if string(config.Type) == "" {
 		config.Type = TaskTypeBasic
 	}
+	applyDefaults(config)
 	if err := propagateCWDToSubTasks(config); err != nil {
 		return nil, err
 	}

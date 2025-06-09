@@ -17,9 +17,10 @@ import (
 type ExecutionType string
 
 const (
-	ExecutionBasic    ExecutionType = "basic"
-	ExecutionRouter   ExecutionType = "router"
-	ExecutionParallel ExecutionType = "parallel"
+	ExecutionBasic      ExecutionType = "basic"
+	ExecutionRouter     ExecutionType = "router"
+	ExecutionParallel   ExecutionType = "parallel"
+	ExecutionCollection ExecutionType = "collection"
 )
 
 // -----------------------------------------------------------------------------
