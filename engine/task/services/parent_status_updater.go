@@ -49,32 +49,36 @@ func (s *ParentStatusUpdater) UpdateParentStatus(
 	// Calculate new status based on strategy and child progress
 	newStatus := progressInfo.CalculateOverallStatus(input.Strategy)
 
-	// Only update if status has changed and task should be updated
+	// Always update progress metadata to keep it fresh
+	if parentState.Output == nil {
+		parentState.Output = &core.Output{}
+	}
+
+	progressOutput := map[string]any{
+		"completion_rate": progressInfo.CompletionRate,
+		"failure_rate":    progressInfo.FailureRate,
+		"total_children":  progressInfo.TotalChildren,
+		"completed_count": progressInfo.CompletedCount,
+		"failed_count":    progressInfo.FailedCount,
+		"running_count":   progressInfo.RunningCount,
+		"pending_count":   progressInfo.PendingCount,
+		"strategy":        string(input.Strategy),
+	}
+
+	// Add last_updated timestamp for handle_resp.go compatibility
+	if input.ChildState != nil {
+		progressOutput["last_updated"] = fmt.Sprintf("%d", time.Now().Unix())
+	}
+
+	(*parentState.Output)["progress_info"] = progressOutput
+
+	// Track if we need to update the database
+	statusChanged := false
+
+	// Only update status if it has changed and task should be updated
 	if parentState.Status != newStatus && s.ShouldUpdateParentStatus(parentState.Status, newStatus) {
 		parentState.Status = newStatus
-
-		// Add progress metadata to parent task output
-		if parentState.Output == nil {
-			parentState.Output = &core.Output{}
-		}
-
-		progressOutput := map[string]any{
-			"completion_rate": progressInfo.CompletionRate,
-			"failure_rate":    progressInfo.FailureRate,
-			"total_children":  progressInfo.TotalChildren,
-			"completed_count": progressInfo.CompletedCount,
-			"failed_count":    progressInfo.FailedCount,
-			"running_count":   progressInfo.RunningCount,
-			"pending_count":   progressInfo.PendingCount,
-			"strategy":        string(input.Strategy),
-		}
-
-		// Add last_updated timestamp for handle_resp.go compatibility
-		if input.ChildState != nil {
-			progressOutput["last_updated"] = fmt.Sprintf("%d", time.Now().Unix())
-		}
-
-		(*parentState.Output)["progress_info"] = progressOutput
+		statusChanged = true
 
 		// Set error if parent task failed due to child failures
 		if newStatus == core.StatusFailed && progressInfo.HasFailures() {
@@ -96,23 +100,23 @@ func (s *ParentStatusUpdater) UpdateParentStatus(
 				errorMetadata,
 			)
 		}
+	}
 
-		// Update parent state in database
-		if err := s.taskRepo.UpsertState(ctx, parentState); err != nil {
-			return nil, fmt.Errorf("failed to update parent state %s: %w", input.ParentStateID, err)
-		}
+	// Update parent state in database (always update to refresh progress metadata)
+	if err := s.taskRepo.UpsertState(ctx, parentState); err != nil {
+		return nil, fmt.Errorf("failed to update parent state %s: %w", input.ParentStateID, err)
+	}
 
-		// Recursively update grandparent if needed
-		if input.Recursive && parentState.ParentStateID != nil {
-			_, err := s.UpdateParentStatus(ctx, &UpdateParentStatusInput{
-				ParentStateID: *parentState.ParentStateID,
-				Strategy:      input.Strategy,
-				Recursive:     true,
-				ChildState:    parentState,
-			})
-			if err != nil {
-				return nil, fmt.Errorf("failed to recursively update parent status: %w", err)
-			}
+	// Recursively update grandparent if needed and status changed
+	if input.Recursive && statusChanged && parentState.ParentStateID != nil {
+		_, err := s.UpdateParentStatus(ctx, &UpdateParentStatusInput{
+			ParentStateID: *parentState.ParentStateID,
+			Strategy:      input.Strategy,
+			Recursive:     true,
+			ChildState:    parentState,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to recursively update parent status: %w", err)
 		}
 	}
 

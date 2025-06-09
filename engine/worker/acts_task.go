@@ -133,7 +133,6 @@ func (e *TaskExecutor) HandleParallelTask(pConfig *task.Config) func(ctx workflo
 		logger := workflow.GetLogger(ctx)
 		tasks := pConfig.Tasks
 		numTasks := len(tasks)
-		results := make([]*task.SubtaskResponse, numTasks)
 		completed, failed := 0, 0
 		pState, err := e.CreateParallelState(ctx, pConfig)
 		if err != nil {
@@ -143,7 +142,7 @@ func (e *TaskExecutor) HandleParallelTask(pConfig *task.Config) func(ctx workflo
 		for i := range tasks {
 			taskConfig := tasks[i]
 			workflow.Go(ctx, func(gCtx workflow.Context) {
-				response, err := e.ExecuteParallelTask(gCtx, pState, &taskConfig)
+				_, err := e.ExecuteParallelTask(gCtx, pState, &taskConfig)
 				if err != nil {
 					logger.Error("Failed to execute sub task",
 						"parent_task_id", pConfig.ID,
@@ -156,7 +155,6 @@ func (e *TaskExecutor) HandleParallelTask(pConfig *task.Config) func(ctx workflo
 						"parent_task_id", pConfig.ID,
 						"sub_task_id", taskConfig.ID)
 				}
-				results[i] = response
 			})
 		}
 
