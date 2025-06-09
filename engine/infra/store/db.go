@@ -91,6 +91,26 @@ func (db *DB) Pool() *pgxpool.Pool {
 	return db.pool
 }
 
+// Exec delegates to the pool's Exec method
+func (db *DB) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
+	return db.pool.Exec(ctx, sql, arguments...)
+}
+
+// Query delegates to the pool's Query method
+func (db *DB) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	return db.pool.Query(ctx, sql, args...)
+}
+
+// QueryRow delegates to the pool's QueryRow method
+func (db *DB) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	return db.pool.QueryRow(ctx, sql, args...)
+}
+
+// Begin delegates to the pool's Begin method
+func (db *DB) Begin(ctx context.Context) (pgx.Tx, error) {
+	return db.pool.Begin(ctx)
+}
+
 // WithTx executes a function within a transaction.
 func (db *DB) WithTx(ctx context.Context, fn func(pgx.Tx) error) error {
 	tx, err := db.pool.Begin(ctx)

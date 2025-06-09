@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/jackc/pgx/v5"
 )
 
 // StateFilter updated to include execution type filtering
@@ -14,6 +15,7 @@ type StateFilter struct {
 	WorkflowExecID *core.ID         `json:"workflow_exec_id,omitempty"`
 	TaskID         *string          `json:"task_id,omitempty"`
 	TaskExecID     *core.ID         `json:"task_exec_id,omitempty"`
+	ParentStateID  *core.ID         `json:"parent_state_id,omitempty"`
 	AgentID        *string          `json:"agent_id,omitempty"`
 	ActionID       *string          `json:"action_id,omitempty"`
 	ToolID         *string          `json:"tool_id,omitempty"`
@@ -27,11 +29,24 @@ type Repository interface {
 	UpsertState(ctx context.Context, state *State) error
 	GetState(ctx context.Context, taskExecID core.ID) (*State, error)
 
+	// Transaction operations
+	WithTx(ctx context.Context, fn func(pgx.Tx) error) error
+	GetStateForUpdate(ctx context.Context, tx pgx.Tx, taskExecID core.ID) (*State, error)
+	UpsertStateWithTx(ctx context.Context, tx pgx.Tx, state *State) error
+
 	// Workflow-level operations
 	ListTasksInWorkflow(ctx context.Context, workflowExecID core.ID) (map[string]*State, error)
 	ListTasksByStatus(ctx context.Context, workflowExecID core.ID, status core.StatusType) ([]*State, error)
 	ListTasksByAgent(ctx context.Context, workflowExecID core.ID, agentID string) ([]*State, error)
 	ListTasksByTool(ctx context.Context, workflowExecID core.ID, toolID string) ([]*State, error)
+
+	// Parent-child relationship operations
+	ListChildren(ctx context.Context, parentStateID core.ID) ([]*State, error)
+	CreateChildStatesInTransaction(ctx context.Context, parentStateID core.ID, childStates []*State) error
+	GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*State, error)
+
+	// Progress aggregation operations
+	GetProgressInfo(ctx context.Context, parentStateID core.ID) (*ProgressInfo, error)
 }
 
 // -----------------------------------------------------------------------------
@@ -58,7 +73,7 @@ func CreateAndPersistState(
 	case ExecutionBasic, ExecutionRouter:
 		state = CreateBasicState(input, result)
 	case ExecutionParallel:
-		state = CreateParallelState(input, result)
+		state = CreateParentState(input, result)
 	default:
 		return nil, fmt.Errorf("unsupported execution type: %s", result.ExecutionType)
 	}

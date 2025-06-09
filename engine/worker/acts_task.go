@@ -2,6 +2,8 @@ package worker
 
 import (
 	"fmt"
+	"math"
+	"sync/atomic"
 
 	"go.temporal.io/sdk/workflow"
 
@@ -132,9 +134,12 @@ func (e *TaskExecutor) HandleParallelTask(pConfig *task.Config) func(ctx workflo
 	return func(ctx workflow.Context) (*task.Response, error) {
 		logger := workflow.GetLogger(ctx)
 		tasks := pConfig.Tasks
-		numTasks := len(tasks)
-		results := make([]*task.SubtaskResponse, numTasks)
-		completed, failed := 0, 0
+		tasksLen := len(tasks)
+		if tasksLen > math.MaxInt32 {
+			return nil, fmt.Errorf("too many tasks: %d exceeds maximum of %d", tasksLen, math.MaxInt32)
+		}
+		numTasks := int32(tasksLen)
+		var completed, failed int32
 		pState, err := e.CreateParallelState(ctx, pConfig)
 		if err != nil {
 			return nil, err
@@ -143,51 +148,54 @@ func (e *TaskExecutor) HandleParallelTask(pConfig *task.Config) func(ctx workflo
 		for i := range tasks {
 			taskConfig := tasks[i]
 			workflow.Go(ctx, func(gCtx workflow.Context) {
-				response, err := e.ExecuteParallelTask(gCtx, pState, &taskConfig)
+				_, err := e.ExecuteParallelTask(gCtx, pState, &taskConfig)
 				if err != nil {
 					logger.Error("Failed to execute sub task",
 						"parent_task_id", pConfig.ID,
 						"sub_task_id", taskConfig.ID,
 						"error", err)
-					failed++
+					atomic.AddInt32(&failed, 1)
 				} else {
-					completed++
+					atomic.AddInt32(&completed, 1)
 					logger.Info("Subtask completed successfully",
 						"parent_task_id", pConfig.ID,
 						"sub_task_id", taskConfig.ID)
 				}
-				results[i] = response
 			})
 		}
 
 		// Wait for tasks to complete based on strategy
 		err = workflow.Await(ctx, func() bool {
+			completedCount := atomic.LoadInt32(&completed)
+			failedCount := atomic.LoadInt32(&failed)
 			strategy := pConfig.GetStrategy()
 			switch strategy {
 			case task.StrategyWaitAll:
-				return (completed + failed) >= numTasks
+				return (completedCount + failedCount) >= numTasks
 			case task.StrategyFailFast:
-				return failed > 0 || completed >= numTasks
+				return failedCount > 0 || completedCount >= numTasks
 			case task.StrategyBestEffort:
-				return (completed + failed) >= numTasks
+				return (completedCount + failedCount) >= numTasks
 			case task.StrategyRace:
-				return completed > 0 || failed >= numTasks
+				return completedCount > 0 || failedCount >= numTasks
 			default:
-				return (completed + failed) >= numTasks
+				return (completedCount + failedCount) >= numTasks
 			}
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to await parallel task: %w", err)
 		}
 		// Process parallel response with proper transitions
-		finalResponse, err := e.GetParallelResponse(ctx, pState, results, pConfig)
+		finalResponse, err := e.GetParallelResponse(ctx, pState, pConfig)
 		if err != nil {
 			return nil, err
 		}
+		completedCount := atomic.LoadInt32(&completed)
+		failedCount := atomic.LoadInt32(&failed)
 		logger.Info("Parallel task execution completed",
 			"task_id", pConfig.ID,
-			"completed", completed,
-			"failed", failed,
+			"completed", completedCount,
+			"failed", failedCount,
 			"total", numTasks,
 			"final_status", finalResponse.State.Status)
 		return finalResponse, nil
@@ -241,14 +249,12 @@ func (e *TaskExecutor) ExecuteParallelTask(
 func (e *TaskExecutor) GetParallelResponse(
 	ctx workflow.Context,
 	pState *task.State,
-	results []*task.SubtaskResponse,
 	pConfig *task.Config,
 ) (*task.Response, error) {
 	var response *task.Response
 	actLabel := tkacts.GetParallelResponseLabel
 	actInput := tkacts.GetParallelResponseInput{
 		ParentState:    pState,
-		Results:        results,
 		WorkflowConfig: e.WorkflowConfig,
 		TaskConfig:     pConfig,
 	}

@@ -107,8 +107,8 @@ func (m *MockSetup) NewTaskStateRowBuilder() *TaskStateRowBuilder {
 func (t *TaskStateRowBuilder) CreateEmptyTaskStateRows() *pgxmock.Rows {
 	return t.mock.NewRows([]string{
 		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-		"component", "status", "execution_type", "agent_id", "action_id", "tool_id",
-		"input", "output", "error", "parallel_state", "created_at", "updated_at",
+		"component", "status", "execution_type", "parent_state_id", "agent_id", "action_id", "tool_id",
+		"input", "output", "error", "created_at", "updated_at",
 	})
 }
 
@@ -138,28 +138,11 @@ func (t *TaskStateRowBuilder) CreateTaskStateRows(
 
 	return t.mock.NewRows([]string{
 		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-		"component", "status", "execution_type", "agent_id", "action_id", "tool_id",
-		"input", "output", "error", "parallel_state", "created_at", "updated_at",
+		"component", "status", "execution_type", "parent_state_id", "agent_id", "action_id", "tool_id",
+		"input", "output", "error", "created_at", "updated_at",
 	}).AddRow(
 		taskExecID, taskID, workflowExecID, workflowID,
-		component, status, executionType, agentID, actionID, toolID, inputData, nil, nil, nil, nil, nil,
-	)
-}
-
-// CreateParallelTaskStateRows creates mock rows for parallel task states
-func (t *TaskStateRowBuilder) CreateParallelTaskStateRows(
-	taskExecID, taskID, workflowExecID, workflowID string,
-	status core.StatusType,
-	executionType any,
-	parallelStateData []byte,
-) *pgxmock.Rows {
-	return t.mock.NewRows([]string{
-		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-		"component", "status", "execution_type", "agent_id", "action_id", "tool_id",
-		"input", "output", "error", "parallel_state", "created_at", "updated_at",
-	}).AddRow(
-		taskExecID, taskID, workflowExecID, workflowID,
-		core.ComponentTask, status, executionType, nil, nil, nil, nil, nil, nil, parallelStateData, nil, nil,
+		component, status, executionType, nil, agentID, actionID, toolID, inputData, nil, nil, nil, nil,
 	)
 }
 
@@ -189,11 +172,11 @@ func (t *TaskStateRowBuilder) CreateTaskStateRowsWithExecution(
 
 	return t.mock.NewRows([]string{
 		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-		"component", "status", "execution_type", "agent_id", "action_id", "tool_id",
-		"input", "output", "error", "parallel_state", "created_at", "updated_at",
+		"component", "status", "execution_type", "parent_state_id", "agent_id", "action_id", "tool_id",
+		"input", "output", "error", "created_at", "updated_at",
 	}).AddRow(
 		taskExecID, taskID, workflowExecID, workflowID,
-		component, status, executionType, agentID, actionID, toolID, inputData, nil, nil, nil, nil, nil,
+		component, status, executionType, nil, agentID, actionID, toolID, inputData, nil, nil, nil, nil,
 	)
 }
 
@@ -269,15 +252,6 @@ func (td *DataBuilder) MustCreateInputData(data map[string]any) []byte {
 // MustCreateNilJSONB creates nil JSONB data
 func (td *DataBuilder) MustCreateNilJSONB() []byte {
 	data, err := store.ToJSONB(nil)
-	if err != nil {
-		panic(err)
-	}
-	return data
-}
-
-// MustCreateParallelStateData creates test parallel state data as JSONB
-func (td *DataBuilder) MustCreateParallelStateData(parallelState any) []byte {
-	data, err := store.ToJSONB(parallelState)
 	if err != nil {
 		panic(err)
 	}
