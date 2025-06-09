@@ -3,6 +3,7 @@ package task
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // -----------------------------------------------------------------------------
@@ -228,7 +229,7 @@ func (v *CollectionValidator) validateStructure() error {
 func (v *CollectionValidator) validateConfig() error {
 	cc := &v.config.CollectionConfig
 
-	if cc.Items == "" {
+	if strings.TrimSpace(cc.Items) == "" {
 		return errors.New("collection config: items field is required")
 	}
 
@@ -242,7 +243,10 @@ func (v *CollectionValidator) validateConfig() error {
 
 	// Validate batch and mode compatibility
 	if cc.Batch > 0 && cc.Mode == CollectionModeParallel {
-		return errors.New("collection config: batch size is ignored in parallel mode, use sequential mode for batching")
+		return errors.New(
+			"collection config: batch size cannot be combined with parallel mode – " +
+				"switch to sequential or remove batch",
+		)
 	}
 
 	return nil

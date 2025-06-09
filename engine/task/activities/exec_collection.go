@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/workflow"
 )
 
-const ExecuteCollectionLabel = "ExecuteCollection"
+const ExecuteCollectionLabel = "ExecuteCollectionTask"
 
 type ExecuteCollectionInput struct {
 	WorkflowID     string       `json:"workflow_id"`

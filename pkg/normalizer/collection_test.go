@@ -339,10 +339,10 @@ func TestCollectionNormalizer_ApplyTemplateToConfig(t *testing.T) {
 			"index": 0,
 		}
 
-		err := normalizer.ApplyTemplateToConfig(config, itemContext)
+		processedConfig, err := normalizer.ApplyTemplateToConfig(config, itemContext)
 
 		require.NoError(t, err)
-		assert.Equal(t, "process test-data", config.Action)
+		assert.Equal(t, "process test-data", processedConfig.Action)
 	})
 
 	t.Run("Should apply template to with parameters", func(t *testing.T) {
@@ -359,10 +359,10 @@ func TestCollectionNormalizer_ApplyTemplateToConfig(t *testing.T) {
 			"index": 5,
 		}
 
-		err := normalizer.ApplyTemplateToConfig(config, itemContext)
+		processedConfig, err := normalizer.ApplyTemplateToConfig(config, itemContext)
 
 		require.NoError(t, err)
-		require.NotNil(t, config.With)
+		require.NotNil(t, processedConfig.With)
 
 		expected := map[string]any{
 			"message": "Processing item hello at index 5",
@@ -370,7 +370,7 @@ func TestCollectionNormalizer_ApplyTemplateToConfig(t *testing.T) {
 		}
 
 		for k, expectedV := range expected {
-			actualV, exists := (*config.With)[k]
+			actualV, exists := (*processedConfig.With)[k]
 			assert.True(t, exists, "key %s should exist", k)
 			assert.Equal(t, expectedV, actualV, "value for key %s", k)
 		}
@@ -386,9 +386,36 @@ func TestCollectionNormalizer_ApplyTemplateToConfig(t *testing.T) {
 			"item": "test",
 		}
 
-		err := normalizer.ApplyTemplateToConfig(config, itemContext)
+		processedConfig, err := normalizer.ApplyTemplateToConfig(config, itemContext)
 
 		require.NoError(t, err)
-		assert.Equal(t, "static-action", config.Action)
+		assert.Equal(t, "static-action", processedConfig.Action)
+	})
+
+	t.Run("Should not mutate original config", func(t *testing.T) {
+		originalConfig := &task.Config{
+			BasicTask: task.BasicTask{
+				Action: "process {{ .item }}",
+			},
+		}
+		originalWith := core.Input{"template": "{{ .item }}-value"}
+		originalConfig.With = &originalWith
+
+		itemContext := map[string]any{
+			"item": "test-data",
+		}
+
+		// Apply template
+		processedConfig, err := normalizer.ApplyTemplateToConfig(originalConfig, itemContext)
+
+		require.NoError(t, err)
+
+		// Verify original config is unchanged
+		assert.Equal(t, "process {{ .item }}", originalConfig.Action)
+		assert.Equal(t, "{{ .item }}-value", (*originalConfig.With)["template"])
+
+		// Verify processed config has templated values
+		assert.Equal(t, "process test-data", processedConfig.Action)
+		assert.Equal(t, "test-data-value", (*processedConfig.With)["template"])
 	})
 }

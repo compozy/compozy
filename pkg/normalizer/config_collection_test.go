@@ -15,6 +15,7 @@ func TestCollectionConfigBuilder_CreateChildConfigs(t *testing.T) {
 	builder := NewCollectionConfigBuilder()
 
 	t.Run("Should create configs from task template", func(t *testing.T) {
+		t.Parallel()
 		templateConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID: "template-task",
@@ -66,6 +67,7 @@ func TestCollectionConfigBuilder_CreateChildConfigs(t *testing.T) {
 	})
 
 	t.Run("Should create configs from tasks array", func(t *testing.T) {
+		t.Parallel()
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID: "collection-task",
@@ -118,6 +120,7 @@ func TestCollectionConfigBuilder_CreateChildConfigs(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid task config", func(t *testing.T) {
+		t.Parallel()
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID: "invalid-task",
@@ -137,6 +140,7 @@ func TestCollectionConfigBuilder_CreateChildConfigs(t *testing.T) {
 
 func TestCollectionConfigBuilder_DeepCopyConfig(t *testing.T) {
 	t.Run("Should create independent copies", func(t *testing.T) {
+		t.Parallel()
 		original := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID: "original",
@@ -184,6 +188,7 @@ func TestCollectionConfigBuilder_DeepCopyConfig(t *testing.T) {
 	})
 
 	t.Run("Should handle nil With field", func(t *testing.T) {
+		t.Parallel()
 		original := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "original",
@@ -211,6 +216,7 @@ func TestCollectionConfigBuilder_Integration(t *testing.T) {
 	builder := NewCollectionConfigBuilder()
 
 	t.Run("Should handle complex template scenarios", func(t *testing.T) {
+		t.Parallel()
 		templateConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID: "template",

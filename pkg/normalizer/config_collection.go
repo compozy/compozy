@@ -57,10 +57,11 @@ func (ccb *CollectionConfigBuilder) createConfigsFromTaskTemplate(
 		}
 		childConfig := *childConfigPtr
 		childConfig.ID = fmt.Sprintf("%s_item_%d", taskConfig.ID, i)
-		if err := ccb.collectionNormalizer.ApplyTemplateToConfig(&childConfig, itemContext); err != nil {
+		processedConfig, err := ccb.collectionNormalizer.ApplyTemplateToConfig(&childConfig, itemContext)
+		if err != nil {
 			return nil, fmt.Errorf("failed to apply template to task config for item %d: %w", i, err)
 		}
-		childConfigs = append(childConfigs, childConfig)
+		childConfigs = append(childConfigs, *processedConfig)
 	}
 	return childConfigs, nil
 }
@@ -86,10 +87,11 @@ func (ccb *CollectionConfigBuilder) createConfigsFromTasksArray(
 			}
 			childConfig := *childConfigPtr
 			childConfig.ID = fmt.Sprintf("%s_item_%d_task_%d", taskConfig.ID, i, j)
-			if err := ccb.collectionNormalizer.ApplyTemplateToConfig(&childConfig, itemContext); err != nil {
+			processedConfig, err := ccb.collectionNormalizer.ApplyTemplateToConfig(&childConfig, itemContext)
+			if err != nil {
 				return nil, fmt.Errorf("failed to apply template to task config for item %d, task %d: %w", i, j, err)
 			}
-			childConfigs = append(childConfigs, childConfig)
+			childConfigs = append(childConfigs, *processedConfig)
 		}
 	}
 	return childConfigs, nil
@@ -98,7 +100,7 @@ func (ccb *CollectionConfigBuilder) createConfigsFromTasksArray(
 // deepCopyConfig creates a deep copy of a task.Config using mergo to ensure isolation between iterations
 func deepCopyConfig(original *task.Config) (*task.Config, error) {
 	copied := task.Config{}
-	if err := mergo.Merge(&copied, original, mergo.WithAppendSlice, mergo.WithOverride); err != nil {
+	if err := mergo.Merge(&copied, original, mergo.WithOverride); err != nil {
 		return nil, fmt.Errorf("failed to deep copy config: %w", err)
 	}
 	// Manually deep copy map pointers to ensure true isolation
@@ -117,5 +119,26 @@ func deepCopyConfig(original *task.Config) (*task.Config, error) {
 		maps.Copy(outputsCopy, *original.Outputs)
 		copied.Outputs = &outputsCopy
 	}
+
+	// --- recursively copy nested task(s) ----------------------------------
+	if original.Task != nil {
+		taskCopy, err := deepCopyConfig(original.Task)
+		if err != nil {
+			return nil, err
+		}
+		copied.Task = taskCopy
+	}
+
+	if len(original.Tasks) > 0 {
+		copied.Tasks = make([]task.Config, len(original.Tasks))
+		for i := range original.Tasks {
+			tk, err := deepCopyConfig(&original.Tasks[i])
+			if err != nil {
+				return nil, err
+			}
+			copied.Tasks[i] = *tk
+		}
+	}
+
 	return &copied, nil
 }

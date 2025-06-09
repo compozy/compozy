@@ -12,13 +12,15 @@ import (
 
 // CollectionNormalizer handles template evaluation and parsing for collection tasks
 type CollectionNormalizer struct {
-	engine *tplengine.TemplateEngine
+	engine     *tplengine.TemplateEngine
+	textEngine *tplengine.TemplateEngine
 }
 
 // NewCollectionNormalizer creates a new collection normalizer
 func NewCollectionNormalizer() *CollectionNormalizer {
 	return &CollectionNormalizer{
-		engine: tplengine.NewEngine(tplengine.FormatJSON),
+		engine:     tplengine.NewEngine(tplengine.FormatJSON),
+		textEngine: tplengine.NewEngine(tplengine.FormatText),
 	}
 }
 
@@ -76,7 +78,6 @@ func (cn *CollectionNormalizer) FilterCollectionItems(
 		return items, nil
 	}
 
-	engine := tplengine.NewEngine(tplengine.FormatText)
 	var filteredItems []any
 
 	for i, item := range items {
@@ -84,7 +85,7 @@ func (cn *CollectionNormalizer) FilterCollectionItems(
 		filterContext := cn.CreateItemContext(templateContext, config, item, i)
 
 		// Evaluate filter expression using RenderString to properly handle template functions
-		filterResult, err := engine.RenderString(config.Filter, filterContext)
+		filterResult, err := cn.textEngine.RenderString(config.Filter, filterContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate filter expression for item %d: %w", i, err)
 		}
@@ -152,48 +153,54 @@ func (cn *CollectionNormalizer) CreateProgressContext(
 	return contextWithProgress
 }
 
-// ApplyTemplateToConfig applies item-specific context to a task configuration
-func (cn *CollectionNormalizer) ApplyTemplateToConfig(config *task.Config, itemContext map[string]any) error {
+// ApplyTemplateToConfig applies item-specific context to a task configuration and returns a new config
+func (cn *CollectionNormalizer) ApplyTemplateToConfig(
+	config *task.Config,
+	itemContext map[string]any,
+) (*task.Config, error) {
+	// Create a deep copy to avoid mutating the original config
+	newConfig := cn.deepCopyConfig(config)
+
 	// Use the template engine to process the configuration
 	engine := tplengine.NewEngine(tplengine.FormatText)
 
 	// Apply template to action field
-	if config.Action != "" {
-		processedAction, err := engine.RenderString(config.Action, itemContext)
+	if newConfig.Action != "" {
+		processedAction, err := engine.RenderString(newConfig.Action, itemContext)
 		if err != nil {
-			return fmt.Errorf("failed to apply template to action: %w", err)
+			return nil, fmt.Errorf("failed to apply template to action: %w", err)
 		}
-		config.Action = processedAction
+		newConfig.Action = processedAction
 	}
 
 	// Apply templates to the 'with' input parameters
-	if config.With != nil {
+	if newConfig.With != nil {
 		processedWith := make(map[string]any)
-		for k, v := range *config.With {
+		for k, v := range *newConfig.With {
 			if strVal, ok := v.(string); ok {
 				// Apply template to string values
 				renderedVal, err := engine.RenderString(strVal, itemContext)
 				if err != nil {
-					return fmt.Errorf("failed to apply template to with parameter '%s': %w", k, err)
+					return nil, fmt.Errorf("failed to apply template to with parameter '%s': %w", k, err)
 				}
 				processedWith[k] = renderedVal
 			} else {
 				// For non-string values, use ParseMap to handle nested structures
 				processedVal, err := engine.ParseMap(v, itemContext)
 				if err != nil {
-					return fmt.Errorf("failed to apply template to with parameter '%s': %w", k, err)
+					return nil, fmt.Errorf("failed to apply template to with parameter '%s': %w", k, err)
 				}
 				processedWith[k] = processedVal
 			}
 		}
-		*config.With = processedWith
+		*newConfig.With = processedWith
 	}
 
 	// Apply templates to environment variables
-	if config.Env != nil {
-		processedEnv, err := engine.ParseMap(*config.Env, itemContext)
+	if newConfig.Env != nil {
+		processedEnv, err := engine.ParseMap(*newConfig.Env, itemContext)
 		if err != nil {
-			return fmt.Errorf("failed to apply template to env variables: %w", err)
+			return nil, fmt.Errorf("failed to apply template to env variables: %w", err)
 		}
 		if envMap, ok := processedEnv.(map[string]any); ok {
 			envStrMap := make(map[string]string)
@@ -205,11 +212,36 @@ func (cn *CollectionNormalizer) ApplyTemplateToConfig(config *task.Config, itemC
 				}
 			}
 			envMapPtr := core.EnvMap(envStrMap)
-			config.Env = &envMapPtr
+			newConfig.Env = &envMapPtr
 		}
 	}
 
-	return nil
+	return newConfig, nil
+}
+
+// deepCopyConfig creates a deep copy of a task configuration
+func (cn *CollectionNormalizer) deepCopyConfig(config *task.Config) *task.Config {
+	newConfig := *config // shallow copy
+
+	// Deep copy With map if it exists
+	if config.With != nil {
+		withCopy := make(core.Input)
+		for k, v := range *config.With {
+			withCopy[k] = v
+		}
+		newConfig.With = &withCopy
+	}
+
+	// Deep copy Env map if it exists
+	if config.Env != nil {
+		envCopy := make(core.EnvMap)
+		for k, v := range *config.Env {
+			envCopy[k] = v
+		}
+		newConfig.Env = &envCopy
+	}
+
+	return &newConfig
 }
 
 // convertToSlice converts various types to a slice of interfaces
@@ -300,7 +332,7 @@ func (cn *CollectionNormalizer) isTruthy(value any) bool {
 		return v
 	case string:
 		return cn.isStringTruthy(v)
-	case int, int32, int64:
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
 		return v != 0
 	case float32, float64:
 		return v != 0.0

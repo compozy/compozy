@@ -366,6 +366,13 @@ func applyDefaults(config *Config) {
 	if config.Type == TaskTypeCollection && config.Task != nil {
 		applyDefaults(config.Task)
 	}
+
+	// Handle collection tasks with tasks array
+	if config.Type == TaskTypeCollection && len(config.Tasks) > 0 {
+		for i := range config.Tasks {
+			applyDefaults(&config.Tasks[i])
+		}
+	}
 }
 
 // setCWDForTask sets the CWD for a single task if needed

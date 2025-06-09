@@ -14,8 +14,9 @@ import (
 
 // Constants for metadata keys
 const (
-	ParallelConfigKey = "_parallel_config"
-	ChildConfigsKey   = "child_configs"
+	ParallelConfigKey   = "_parallel_config"
+	CollectionConfigKey = "_collection_config"
+	ChildConfigsKey     = "child_configs"
 )
 
 // TaskConfigDTO is a lightweight DTO for storing essential task configuration data
@@ -202,7 +203,7 @@ func (uc *CreateState) processCollectionTask(
 	}
 
 	// Store collection configuration metadata for the ExecuteCollection activity
-	(*parentInput)["_collection_config"] = map[string]any{
+	(*parentInput)[CollectionConfigKey] = map[string]any{
 		"items":     collectionConfig.Items,
 		"filter":    collectionConfig.Filter,
 		"item_var":  collectionConfig.GetItemVar(),
@@ -211,12 +212,11 @@ func (uc *CreateState) processCollectionTask(
 		"batch":     collectionConfig.Batch,
 	}
 
-	return &task.PartialState{
-		Component:     core.ComponentTask,
-		ExecutionType: task.ExecutionCollection,
-		Input:         parentInput,
-		MergedEnv:     baseEnv,
-	}, nil
+	return task.CreateParentPartialStateWithExecType(
+		parentInput,
+		baseEnv,
+		task.ExecutionCollection,
+	), nil
 }
 
 // CreateChildTasksInput follows Temporal best practices by passing minimal data

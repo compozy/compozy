@@ -1,6 +1,8 @@
 package normalizer
 
 import (
+	"maps"
+
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
@@ -184,8 +186,12 @@ func (cb *ContextBuilder) BuildCollectionContext(
 	workflowState *workflow.State,
 	taskConfig *task.Config,
 ) map[string]any {
-	templateContext := make(map[string]any)
+	// Defensive null checks to prevent null pointer dereferences
+	if workflowState == nil || taskConfig == nil {
+		return make(map[string]any)
+	}
 
+	templateContext := make(map[string]any)
 	// Add workflow input/output if available
 	if workflowState.Input != nil {
 		templateContext[inputKey] = *workflowState.Input
@@ -193,13 +199,9 @@ func (cb *ContextBuilder) BuildCollectionContext(
 	if workflowState.Output != nil {
 		templateContext[outputKey] = *workflowState.Output
 	}
-
 	// Add task-specific context from 'with' parameter
 	if taskConfig.With != nil {
-		for k, v := range *taskConfig.With {
-			templateContext[k] = v
-		}
+		maps.Copy(templateContext, *taskConfig.With)
 	}
-
 	return templateContext
 }
