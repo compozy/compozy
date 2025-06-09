@@ -1,0 +1,16 @@
+# Task ID: 2
+# Title: Remove ParallelState Struct from Domain Model
+# Status: done
+# Dependencies: 1
+# Priority: high
+# Description: Eliminate the ParallelState struct entirely from the Go codebase and clean up related imports
+# Details:
+1. Locate and remove the ParallelState struct definition from domain models
+2. Remove all imports and references to ParallelState throughout the codebase
+3. Clean up any unused JSONB marshaling/unmarshaling methods specific to ParallelState
+4. Update any type definitions or interfaces that referenced ParallelState
+5. Use `grep -r "ParallelState" .` to find all occurrences and ensure complete removal
+6. Update package documentation to reflect the removal
+
+# Test Strategy:
+Compile the project to ensure no compilation errors, run `go mod tidy` to clean dependencies, use static analysis tools like `go vet` to catch any remaining references

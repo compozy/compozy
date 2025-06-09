@@ -1,0 +1,26 @@
+# Task ID: 10
+# Title: Update Progress Aggregation Logic
+# Status: done
+# Dependencies: 7, 9
+# Priority: high
+# Description: Replace JSONB parsing with SQL queries for calculating parallel task progress and status
+# Details:
+Implement new progress aggregation using SQL queries:
+```go
+func (r *Repository) GetParallelProgress(ctx context.Context, parentID core.ID) (*ProgressInfo, error) {
+    query := `
+        SELECT
+            COUNT(*) as total_children,
+            COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+            COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed,
+            COUNT(CASE WHEN status = 'running' THEN 1 END) as running
+        FROM task_states
+        WHERE parent_state_id = $1
+    `
+    // Execute query and calculate percentages
+}
+```
+Replace any JSONB-based progress calculation with these SQL aggregations. Update workflow engine to use these new methods.
+
+# Test Strategy:
+Unit tests for progress calculation logic, test with various child task statuses, verify percentage calculations, test with zero children edge case

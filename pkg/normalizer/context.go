@@ -84,23 +84,30 @@ func (cb *ContextBuilder) buildSingleTaskContext(
 		"id":     taskID,
 		inputKey: taskState.Input,
 	}
-	taskContext[outputKey] = cb.buildTaskOutput(taskState)
+	taskContext[outputKey] = cb.buildTaskOutput(taskState, ctx)
 	cb.mergeTaskConfigIfExists(taskContext, taskID, ctx)
 	return taskContext
 }
 
-func (cb *ContextBuilder) buildTaskOutput(taskState *task.State) any {
-	if taskState.IsParallel() && taskState.ParallelState != nil {
+func (cb *ContextBuilder) buildTaskOutput(taskState *task.State, ctx *NormalizationContext) any {
+	if taskState.IsParentTask() {
+		// For parent tasks, build nested output structure with child task outputs
 		nestedOutput := make(map[string]any)
-		subtasks := taskState.SubTasks
-		for subTaskID, subTaskState := range subtasks {
-			subTaskOutput := cb.buildTaskOutput(subTaskState)
-			if subTaskOutput != nil {
-				nestedOutput[subTaskID] = map[string]any{
-					"output": subTaskOutput,
+
+		// Find child tasks in the workflow state that have this task as parent
+		if ctx != nil && ctx.WorkflowState != nil && ctx.WorkflowState.Tasks != nil {
+			parentTaskExecID := taskState.TaskExecID
+			for childTaskID, childTaskState := range ctx.WorkflowState.Tasks {
+				// Check if this task is a child of the current parent task
+				if childTaskState.ParentStateID != nil && *childTaskState.ParentStateID == parentTaskExecID {
+					// Add child task output to nested structure
+					childOutput := make(map[string]any)
+					childOutput["output"] = cb.buildTaskOutput(childTaskState, ctx) // Recursive call for child
+					nestedOutput[childTaskID] = childOutput
 				}
 			}
 		}
+
 		return nestedOutput
 	}
 	if taskState.Output != nil {

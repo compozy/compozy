@@ -1,0 +1,26 @@
+# Task ID: 12
+# Title: Comprehensive Testing and Performance Validation
+# Status: pending
+# Dependencies: 11
+# Priority: medium
+# Description: Create comprehensive test suite and performance benchmarks for the new parent-child architecture
+# Details:
+Implement comprehensive testing:
+1. Unit tests for all new repository methods (ListChildren, GetTaskTree)
+2. Integration tests for parent-child relationship workflows
+3. Performance benchmarks comparing old JSONB vs new relational approach
+4. Load testing with large numbers of parallel tasks
+5. Test recursive query performance with deep task trees
+6. Memory usage comparison between old and new approaches
+7. Test database constraint enforcement (foreign keys, cascading deletes)
+8. End-to-end workflow tests to ensure feature parity
+Use Go's testing package with benchmarks:
+```go
+func BenchmarkGetTaskTree(b *testing.B) {
+    // Benchmark recursive queries
+}
+```
+Use tools like `go test -bench=.` and `go test -race` for comprehensive validation.
+
+# Test Strategy:
+Run full test suite with coverage reporting, performance regression testing against baseline, stress testing with concurrent operations, validate memory usage patterns, test database performance under load

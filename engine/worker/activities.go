@@ -153,3 +153,25 @@ func (a *Activities) GetParallelResponse(
 	act := tkfacts.NewGetParallelResponse(a.workflowRepo, a.taskRepo)
 	return act.Run(ctx, input)
 }
+
+func (a *Activities) GetProgress(
+	ctx context.Context,
+	input *tkfacts.GetProgressInput,
+) (*task.ProgressInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewGetProgress(a.taskRepo)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) UpdateParentStatus(
+	ctx context.Context,
+	input *tkfacts.UpdateParentStatusInput,
+) (*task.State, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewUpdateParentStatus(a.taskRepo)
+	return act.Run(ctx, input)
+}

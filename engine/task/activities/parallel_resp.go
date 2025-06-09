@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/uc"
 	"github.com/compozy/compozy/engine/workflow"
@@ -35,26 +36,42 @@ func NewGetParallelResponse(
 }
 
 func (a *GetParallelResponse) Run(ctx context.Context, input *GetParallelResponseInput) (*task.Response, error) {
-	// Update all subtask states in memory first
-	for i := range input.Results {
-		result := input.Results[i]
-		// Skip nil results (defensive programming)
-		if result == nil {
-			continue
-		}
-		taskID := result.TaskID
-		status := result.Status
-		output := result.Output
-		coreError := result.Error
-		// Update the subtask state in the parent parallel state
-		_, err := input.ParentState.UpdateSubtaskState(taskID, status, output, coreError)
-		if err != nil {
-			return nil, fmt.Errorf("failed to update subtask state: %w", err)
-		}
+	// Get progress information for the parent task using repository-based aggregation
+	progressInfo, err := a.taskRepo.GetProgressInfo(ctx, input.ParentState.TaskExecID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get progress info: %w", err)
 	}
 
-	// Check if the parallel task should fail according to strategy
-	executionError := input.ParentState.IsParallelFailed()
+	// Determine execution error based on parallel strategy and child task statuses
+	var executionError error
+	if input.TaskConfig.Type == task.TaskTypeParallel {
+		strategy := input.TaskConfig.GetStrategy()
+
+		// Calculate overall status using new progress aggregation
+		overallStatus := progressInfo.CalculateOverallStatus(strategy)
+
+		// Set execution error if parent task should fail
+		if overallStatus == core.StatusFailed {
+			executionError = fmt.Errorf("parallel task failed: completed=%d, failed=%d, total=%d",
+				progressInfo.CompletedCount, progressInfo.FailedCount, progressInfo.TotalChildren)
+		}
+
+		// Update parent state with aggregated information
+		input.ParentState.Status = overallStatus
+
+		// Store progress information in task metadata (optional - could be useful for monitoring)
+		if input.ParentState.Output == nil {
+			input.ParentState.Output = &core.Output{}
+		}
+		progressOutput := map[string]any{
+			"completion_rate": progressInfo.CompletionRate,
+			"failure_rate":    progressInfo.FailureRate,
+			"total_children":  progressInfo.TotalChildren,
+			"status_counts":   progressInfo.StatusCounts,
+		}
+		(*input.ParentState.Output)["progress_info"] = progressOutput
+	}
+
 	response, err := a.handleResponseUC.Execute(ctx, &uc.HandleResponseInput{
 		TaskState:      input.ParentState,
 		WorkflowConfig: input.WorkflowConfig,

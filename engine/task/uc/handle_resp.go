@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"maps"
 
@@ -78,6 +79,15 @@ func (uc *HandleResponse) handleSuccessFlow(
 		}
 		return nil, fmt.Errorf("failed to update task state: %w", err)
 	}
+
+	// Update parent task status if this is a child task
+	// Parent status updates are non-critical, so we ignore errors to avoid failing task completion
+	if err := uc.updateParentStatusIfNeeded(ctx, state); err != nil {
+		if ctx.Err() != nil {
+			return &task.Response{State: state}, nil
+		}
+		return nil, fmt.Errorf("failed to update parent status: %w", err)
+	}
 	if ctx.Err() != nil {
 		return &task.Response{State: state}, nil
 	}
@@ -110,11 +120,11 @@ func (uc *HandleResponse) handleErrorFlow(
 	executionErr := input.ExecutionError
 	state.UpdateStatus(core.StatusFailed)
 
-	// Handle case where task failed but there's no execution error (e.g., parallel task with failed subtasks)
+	// Handle case where task failed but there's no execution error (e.g., parent task with failed child tasks)
 	if executionErr == nil {
 		var errorMessage string
-		if state.IsParallel() {
-			errorMessage = "parallel task execution failed due to subtask failures"
+		if state.IsParentTask() {
+			errorMessage = "parent task execution failed due to child task failures"
 		} else {
 			errorMessage = "task execution failed"
 		}
@@ -128,6 +138,15 @@ func (uc *HandleResponse) handleErrorFlow(
 			return &task.Response{State: state}, nil
 		}
 		return nil, fmt.Errorf("failed to update task state after error: %w", updateErr)
+	}
+
+	// Update parent task status if this is a child task (for error case)
+	// Parent status updates are non-critical, so we ignore errors to avoid failing task completion
+	if err := uc.updateParentStatusIfNeeded(ctx, state); err != nil {
+		if ctx.Err() != nil {
+			return &task.Response{State: state}, nil
+		}
+		return nil, fmt.Errorf("failed to update parent status: %w", err)
 	}
 	if ctx.Err() != nil {
 		return &task.Response{State: state}, nil
@@ -255,4 +274,120 @@ func (uc *HandleResponse) normalizeErrorTransition(
 		return nil, err
 	}
 	return normalizedTransition, nil
+}
+
+// updateParentStatusIfNeeded updates the parent task status when a child task completes
+func (uc *HandleResponse) updateParentStatusIfNeeded(ctx context.Context, childState *task.State) error {
+	// Only proceed if this is a child task (has a parent)
+	if childState.ParentStateID == nil {
+		return nil
+	}
+
+	parentStateID := *childState.ParentStateID
+
+	// Get the parent task to determine the parallel strategy
+	parentState, err := uc.taskRepo.GetState(ctx, parentStateID)
+	if err != nil {
+		return fmt.Errorf("failed to get parent state %s: %w", parentStateID, err)
+	}
+
+	// Only update parent status for parallel tasks
+	if parentState.ExecutionType != task.ExecutionParallel {
+		return nil
+	}
+
+	// Get the parallel configuration to determine strategy
+	// The parallel strategy should be stored in the parent task's input metadata
+	strategy := task.StrategyWaitAll // Default strategy
+	if parentState.Input != nil {
+		if parallelConfig, ok := (*parentState.Input)["_parallel_config"].(map[string]any); ok {
+			if strategyStr, ok := parallelConfig["strategy"].(string); ok {
+				strategy = task.ParallelStrategy(strategyStr)
+			}
+		}
+	}
+
+	// Get progress information from child tasks
+	progressInfo, err := uc.taskRepo.GetProgressInfo(ctx, parentStateID)
+	if err != nil {
+		return fmt.Errorf("failed to get progress info for parent %s: %w", parentStateID, err)
+	}
+
+	// Calculate new status based on strategy and child progress
+	newStatus := progressInfo.CalculateOverallStatus(strategy)
+
+	// Only update if status has changed and should be updated
+	if parentState.Status != newStatus && uc.shouldUpdateParentStatus(parentState.Status, newStatus) {
+		parentState.Status = newStatus
+
+		// Add progress metadata to parent task output
+		if parentState.Output == nil {
+			parentState.Output = &core.Output{}
+		}
+
+		progressOutput := map[string]any{
+			"completion_rate": progressInfo.CompletionRate,
+			"failure_rate":    progressInfo.FailureRate,
+			"total_children":  progressInfo.TotalChildren,
+			"completed_count": progressInfo.CompletedCount,
+			"failed_count":    progressInfo.FailedCount,
+			"running_count":   progressInfo.RunningCount,
+			"pending_count":   progressInfo.PendingCount,
+			"strategy":        string(strategy),
+			"last_updated":    fmt.Sprintf("%d", time.Now().Unix()),
+		}
+		(*parentState.Output)["progress_info"] = progressOutput
+
+		// Set error if parent task failed due to child failures
+		if newStatus == core.StatusFailed && progressInfo.HasFailures() {
+			parentState.Error = core.NewError(
+				fmt.Errorf("parent task failed due to child task failures"),
+				"child_task_failure",
+				map[string]any{
+					"failed_count":    progressInfo.FailedCount,
+					"completed_count": progressInfo.CompletedCount,
+					"total_children":  progressInfo.TotalChildren,
+					"child_task_id":   childState.TaskID,
+					"child_status":    string(childState.Status),
+				},
+			)
+		}
+
+		// Update parent state in database
+		if err := uc.taskRepo.UpsertState(ctx, parentState); err != nil {
+			return fmt.Errorf("failed to update parent state %s: %w", parentStateID, err)
+		}
+
+		// Recursively update grandparent if needed
+		if parentState.ParentStateID != nil {
+			return uc.updateParentStatusIfNeeded(ctx, parentState)
+		}
+	}
+
+	return nil
+}
+
+// shouldUpdateParentStatus determines if parent status should be updated
+func (uc *HandleResponse) shouldUpdateParentStatus(currentStatus, newStatus core.StatusType) bool {
+	// Don't update if status hasn't changed
+	if currentStatus == newStatus {
+		return false
+	}
+
+	// Allow transitions to terminal states
+	if newStatus == core.StatusSuccess || newStatus == core.StatusFailed {
+		return true
+	}
+
+	// Allow transitions from pending/running to other active states
+	if currentStatus == core.StatusPending || currentStatus == core.StatusRunning {
+		return true
+	}
+
+	// Don't update from terminal states unless moving to another terminal state
+	if currentStatus == core.StatusSuccess || currentStatus == core.StatusFailed {
+		return newStatus == core.StatusSuccess || newStatus == core.StatusFailed
+	}
+
+	return false
 }
