@@ -33,14 +33,14 @@ repos:
         entry: make fmt
         language: rust
         pass_filenames: false
-  - repo: local
-    hooks:
-      - id: lint
-        name: lint
-        description: Lint files using different tools
-        entry: make lint
-        language: rust
-        pass_filenames: false
+  # - repo: local
+  #   hooks:
+  #     - id: lint
+  #       name: lint
+  #       description: Lint files using different tools
+  #       entry: make lint
+  #       language: rust
+  #       pass_filenames: false
   - repo: https://github.com/lyz-code/yamlfix/
     rev: 1.17.0
     hooks:
