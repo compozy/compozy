@@ -28,7 +28,6 @@ type UpdateParentStatusInput struct {
 	Strategy      task.ParallelStrategy
 	Recursive     bool
 	ChildState    *task.State // Optional: used for recursive updates and error metadata
-
 	// Cycle detection and depth protection
 	visited map[core.ID]bool // Track visited parent IDs to prevent cycles
 	depth   int              // Current recursion depth
@@ -80,10 +79,7 @@ func (s *ParentStatusUpdater) buildProgressOutput(
 		"pending_count":   progressInfo.PendingCount,
 		"strategy":        string(input.Strategy),
 	}
-
-	// Add last_updated timestamp for handle_resp.go compatibility
 	progressOutput["last_updated"] = time.Now().Format(time.RFC3339)
-
 	return progressOutput
 }
 
@@ -97,13 +93,10 @@ func (s *ParentStatusUpdater) createFailureError(
 		"completed_count": progressInfo.CompletedCount,
 		"total_children":  progressInfo.TotalChildren,
 	}
-
-	// Add child-specific metadata if available
 	if input.ChildState != nil {
 		errorMetadata["child_task_id"] = input.ChildState.TaskID
 		errorMetadata["child_status"] = string(input.ChildState.Status)
 	}
-
 	return core.NewError(
 		fmt.Errorf("parent task failed due to child task failures"),
 		"child_task_failure",
@@ -117,14 +110,11 @@ func (s *ParentStatusUpdater) UpdateParentStatus(
 	input *UpdateParentStatusInput,
 ) (*task.State, error) {
 	var result *task.State
-
-	// Execute within a transaction to ensure atomicity and proper locking
 	err := s.taskRepo.WithTx(ctx, func(tx pgx.Tx) error {
 		var txErr error
 		result, txErr = s.UpdateParentStatusWithTx(ctx, tx, input)
 		return txErr
 	})
-
 	return result, err
 }
 
@@ -153,29 +143,24 @@ func (s *ParentStatusUpdater) UpdateParentStatusWithTx(
 
 	// Calculate new status based on strategy and child progress
 	newStatus := progressInfo.CalculateOverallStatus(input.Strategy)
-
 	// Always update progress metadata to keep it fresh
 	if parentState.Output == nil {
 		output := make(core.Output)
 		parentState.Output = &output
 	}
-
 	progressOutput := s.buildProgressOutput(progressInfo, input)
 	(*parentState.Output)["progress_info"] = progressOutput
 
 	// Track if we need to update the database
 	statusChanged := s.updateParentStateStatus(parentState, newStatus, progressInfo, input)
-
 	// Update parent state in database (always update to refresh progress metadata)
 	if err := s.taskRepo.UpsertStateWithTx(ctx, tx, parentState); err != nil {
 		return nil, fmt.Errorf("failed to update parent state %s: %w", input.ParentStateID, err)
 	}
-
 	// Handle recursive updates within the same transaction
 	if err := s.handleRecursiveUpdateWithTx(ctx, tx, input, parentState, statusChanged); err != nil {
 		return nil, err
 	}
-
 	return parentState, nil
 }
 
@@ -188,13 +173,17 @@ func (s *ParentStatusUpdater) updateParentStateStatus(
 ) bool {
 	// Only update status if it has changed and task should be updated
 	if parentState.Status != newStatus && s.ShouldUpdateParentStatus(parentState.Status, newStatus) {
+		oldStatus := parentState.Status
 		parentState.Status = newStatus
-
 		// Set error if parent task failed due to child failures
 		if newStatus == core.StatusFailed && progressInfo.HasFailures() {
 			parentState.Error = s.createFailureError(progressInfo, input)
 		} else {
-			// Clear previous failure metadata on recovery
+			// Clear previous failure metadata on recovery or success
+			parentState.Error = nil
+		}
+		// Explicitly clear error when transitioning from FAILED to SUCCESS
+		if oldStatus == core.StatusFailed && newStatus == core.StatusSuccess {
 			parentState.Error = nil
 		}
 		return true
@@ -213,7 +202,6 @@ func (s *ParentStatusUpdater) handleRecursiveUpdateWithTx(
 	if !input.Recursive || !statusChanged || parentState.ParentStateID == nil {
 		return nil
 	}
-
 	_, err := s.UpdateParentStatusWithTx(ctx, tx, &UpdateParentStatusInput{
 		ParentStateID: *parentState.ParentStateID,
 		Strategy:      input.Strategy,
@@ -235,12 +223,6 @@ func (s *ParentStatusUpdater) ShouldUpdateParentStatus(currentStatus, newStatus 
 	if currentStatus == newStatus {
 		return false
 	}
-
-	// Allow transitions to terminal states
-	if newStatus == core.StatusSuccess || newStatus == core.StatusFailed {
-		return true
-	}
-
 	// Allow forward-only transitions within active states
 	if currentStatus == core.StatusPending && newStatus == core.StatusRunning {
 		return true
@@ -248,14 +230,13 @@ func (s *ParentStatusUpdater) ShouldUpdateParentStatus(currentStatus, newStatus 
 	if currentStatus == core.StatusRunning && newStatus == core.StatusPending {
 		return false
 	}
-	if currentStatus == core.StatusRunning && newStatus == core.StatusRunning {
-		return false
+	// Allow transitions to terminal states
+	if newStatus == core.StatusSuccess || newStatus == core.StatusFailed {
+		return true
 	}
-
 	// Don't update from terminal states unless moving to another terminal state
 	if currentStatus == core.StatusSuccess || currentStatus == core.StatusFailed {
 		return newStatus == core.StatusSuccess || newStatus == core.StatusFailed
 	}
-
 	return false
 }
