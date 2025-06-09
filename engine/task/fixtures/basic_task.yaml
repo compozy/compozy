@@ -1,6 +1,7 @@
 id: code-format
 $use: agent(local::agents.#(id=="code-assistant"))
 action: format
+
 input:
   type: object
   properties:
@@ -14,6 +15,7 @@ input:
       type: boolean
   required:
     - code
+
 output:
   type: object
   properties:
@@ -21,13 +23,16 @@ output:
       type: string
   required:
     - formatted_code
+
 env:
   FORMATTER_VERSION: "1.0.0"
+
 with:
   code: "console.log('hello')"
   language: "javascript"
   indent_size: 2
   use_tabs: false
+
 outputs:
   # Simple field mapping
   formatted_result: "{{ .output.formatted_code }}"
@@ -41,7 +46,9 @@ outputs:
     timestamp: "{{ now }}"
   # Conditional output based on input
   has_tabs: "{{ eq .with.use_tabs true }}"
+
 on_success:
   next: next-task
+
 on_error:
   next: retry-task

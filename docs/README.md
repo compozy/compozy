@@ -171,8 +171,8 @@ server port if different.
 ```bash
 # Default dev server (port 3001)
 curl -X POST "http://localhost:3001/api/v0/workflows/data-processing/executions" \
-  -H "Content-Type: application/json" \
-  -d '{
+    -H "Content-Type: application/json" \
+    -d '{
     "input": {
       "data": "example input data",
       "config": {
@@ -183,8 +183,8 @@ curl -X POST "http://localhost:3001/api/v0/workflows/data-processing/executions"
 
 # Custom port example
 curl -X POST "http://localhost:8080/api/v0/workflows/data-processing/executions" \
-  -H "Content-Type: application/json" \
-  -d '{
+    -H "Content-Type: application/json" \
+    -d '{
     "input": {
       "data": "example input data"
     }

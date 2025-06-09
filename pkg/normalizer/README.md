@@ -137,6 +137,7 @@ full_sentiment_output: "{{ .tasks.process_data_parallel.output.sentiment_analysi
 ```
 
 This structure allows you to:
+
 - Access individual fields from specific sub-tasks
 - Get complete output objects from sub-tasks
 - Reference multiple sub-task results in a single configuration
@@ -162,7 +163,7 @@ Access merged environment variables from all levels (workflow + parent + current
 # Environment variables
 env:
     API_URL: "{{ .env.BASE_URL }}/api/v1"
-    DEBUG_MODE: "{{ .env.DEBUG | default \"false\" }}"
+    DEBUG_MODE: '{{ .env.DEBUG | default "false" }}'
 
 # Use in other fields
 instructions: |
@@ -178,7 +179,7 @@ instructions: |
     // Runtime data
     "input":  map[string]any,      // Workflow input parameters
     "output": map[string]any,      // Workflow output (if available)
-    
+
     // Configuration properties
     "id":          string,         // Workflow ID
     "version":     string,         // Workflow version
@@ -195,7 +196,7 @@ instructions: |
     "instructions": string,        // Parent instructions (for agents)
     "execute":      string,        // Parent execute path (for tools)
     // ... other parent config properties
-    
+
     // Runtime data
     "input":  map[string]any,      // Parent input parameters
     "output": map[string]any,      // Parent output (if available)
@@ -205,7 +206,7 @@ instructions: |
       // Runtime data
       "input":  map[string]any,    // Task input parameters
       "output": map[string]any,    // Task output results
-      
+
       // Configuration properties
       "id":     string,            // Task ID
       "type":   string,            // Task type (basic/router)
@@ -261,10 +262,10 @@ with:
     sentiment: "{{ .tasks.parallel_processor.output.sentiment_analysis.output.sentiment }}"
     keywords: "{{ .tasks.parallel_processor.output.keyword_extraction.output.keywords }}"
     confidence: "{{ .tasks.parallel_processor.output.sentiment_analysis.output.confidence }}"
-    
+
     # Access entire sub-task output objects
     full_sentiment_data: "{{ .tasks.parallel_processor.output.sentiment_analysis.output }}"
-    
+
     # Combine results from multiple sub-tasks
     summary:
         sentiment: "{{ .tasks.parallel_processor.output.sentiment_analysis.output.sentiment }}"
@@ -368,7 +369,7 @@ actions:
           Previous results: {{ .tasks.preprocessing.output.summary }}
       with:
           context: "{{ .parent.input.context }}"
-          threshold: "{{ .parent.input.threshold | default \"0.8\" }}"
+          threshold: '{{ .parent.input.threshold | default "0.8" }}'
 ```
 
 ## Common Patterns
@@ -427,7 +428,7 @@ input:
     name: "{{ .workflow.input.name | upper }}"
 
     # String replacement
-    cleaned_id: "{{ .parent.id | replace \"-\" \"_\" }}"
+    cleaned_id: '{{ .parent.id | replace "-" "_" }}'
 
     # Trimming
     trimmed: "{{ .workflow.description | trim }}"
@@ -438,10 +439,10 @@ input:
 ```yaml
 input:
     # If-else based on parent type
-    mode: "{{ if eq .parent.type \"router\" }}branching{{ else }}linear{{ end }}"
+    mode: '{{ if eq .parent.type "router" }}branching{{ else }}linear{{ end }}'
 
     # Default values
-    timeout: "{{ .workflow.input.timeout | default \"30\" }}"
+    timeout: '{{ .workflow.input.timeout | default "30" }}'
 
     # Check parent properties
     is_final_task: "{{ .parent.final }}"
@@ -458,7 +459,7 @@ input:
     first_item: "{{ index .tasks.list_processor.output.items 0 }}"
 
     # Access nested properties safely
-    nested_value: "{{ .workflow.author.email | default \"no-reply@example.com\" }}"
+    nested_value: '{{ .workflow.author.email | default "no-reply@example.com" }}'
 ```
 
 ## Best Practices
@@ -495,8 +496,8 @@ prompt: |
 ```yaml
 # Always provide defaults for optional values
 env:
-    DEBUG: "{{ .workflow.input.debug | default \"false\" }}"
-    VERSION: "{{ .workflow.version | default \"1.0.0\" }}"
+    DEBUG: '{{ .workflow.input.debug | default "false" }}'
+    VERSION: '{{ .workflow.version | default "1.0.0" }}'
 ```
 
 ### 4. Use Descriptive Property Access
@@ -523,8 +524,8 @@ The normalizer will return detailed error messages for:
 Example error:
 
 ```
-failed to normalize task config input: failed to parse template in input[data]: 
-template: :1:2: executing "" at <.parent.nonexistent>: 
+failed to normalize task config input: failed to parse template in input[data]:
+template: :1:2: executing "" at <.parent.nonexistent>:
 map has no entry for key "nonexistent"
 ```
 

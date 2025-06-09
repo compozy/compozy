@@ -7,44 +7,44 @@ reduce duplication and enable reusable, composable configurations while keeping 
 ## Table of Contents
 
 - [Ref Package](#ref-package)
-  - [Table of Contents](#table-of-contents)
-  - [Features](#features)
-  - [Installation](#installation)
-  - [Quick Start](#quick-start)
-  - [Core Directives](#core-directives)
-    - [`$ref` - Direct Value Injection](#ref---direct-value-injection)
-    - [`$use` - Component Transformation](#use---component-transformation)
-    - [`$merge` - Declarative Merging](#merge---declarative-merging)
-  - [Inline Merge](#inline-merge)
-    - [Syntax](#syntax)
-    - [Default Behavior](#default-behavior)
-    - [Merge Options](#merge-options)
-    - [Examples](#examples)
-      - [Basic Inline Merge](#basic-inline-merge)
-      - [Explicit Merge Options](#explicit-merge-options)
-      - [Key Conflict Handling](#key-conflict-handling)
-      - [Inline Merge with $use](#inline-merge-with-use)
-      - [Complex Nested Scenarios](#complex-nested-scenarios)
-  - [API Reference](#api-reference)
-    - [Basic Usage](#basic-usage)
-    - [Configuration Options](#configuration-options)
-    - [Advanced Features](#advanced-features)
-      - [Custom Directives](#custom-directives)
-      - [Pre-Evaluation Hooks](#pre-evaluation-hooks)
-      - [Direct Evaluator Usage](#direct-evaluator-usage)
-      - [Caching](#caching)
-  - [Performance](#performance)
-    - [Benchmarks](#benchmarks)
-  - [Best Practices](#best-practices)
-    - [1. Scope Organization](#1-scope-organization)
-    - [2. Avoid Deep Nesting](#2-avoid-deep-nesting)
-    - [3. Use Appropriate Directives](#3-use-appropriate-directives)
-    - [4. Handle Errors Properly](#4-handle-errors-properly)
-  - [Examples](#examples-1)
-    - [Complete Application Configuration](#complete-application-configuration)
-    - [Working with Arrays](#working-with-arrays)
-    - [Error Handling Examples](#error-handling-examples)
-  - [License](#license)
+    - [Table of Contents](#table-of-contents)
+    - [Features](#features)
+    - [Installation](#installation)
+    - [Quick Start](#quick-start)
+    - [Core Directives](#core-directives)
+        - [`$ref` - Direct Value Injection](#ref---direct-value-injection)
+        - [`$use` - Component Transformation](#use---component-transformation)
+        - [`$merge` - Declarative Merging](#merge---declarative-merging)
+    - [Inline Merge](#inline-merge)
+        - [Syntax](#syntax)
+        - [Default Behavior](#default-behavior)
+        - [Merge Options](#merge-options)
+        - [Examples](#examples)
+            - [Basic Inline Merge](#basic-inline-merge)
+            - [Explicit Merge Options](#explicit-merge-options)
+            - [Key Conflict Handling](#key-conflict-handling)
+            - [Inline Merge with $use](#inline-merge-with-use)
+            - [Complex Nested Scenarios](#complex-nested-scenarios)
+    - [API Reference](#api-reference)
+        - [Basic Usage](#basic-usage)
+        - [Configuration Options](#configuration-options)
+        - [Advanced Features](#advanced-features)
+            - [Custom Directives](#custom-directives)
+            - [Pre-Evaluation Hooks](#pre-evaluation-hooks)
+            - [Direct Evaluator Usage](#direct-evaluator-usage)
+            - [Caching](#caching)
+    - [Performance](#performance)
+        - [Benchmarks](#benchmarks)
+    - [Best Practices](#best-practices)
+        - [1. Scope Organization](#1-scope-organization)
+        - [2. Avoid Deep Nesting](#2-avoid-deep-nesting)
+        - [3. Use Appropriate Directives](#3-use-appropriate-directives)
+        - [4. Handle Errors Properly](#4-handle-errors-properly)
+    - [Examples](#examples-1)
+        - [Complete Application Configuration](#complete-application-configuration)
+        - [Working with Arrays](#working-with-arrays)
+        - [Error Handling Examples](#error-handling-examples)
+    - [License](#license)
 
 ## Features
 
@@ -72,7 +72,7 @@ package main
 import (
     "fmt"
     "log"
-    
+
     "github.com/compozy/compozy/pkg/ref"
 )
 
@@ -84,20 +84,20 @@ func main() {
             "port": 5432,
         },
     }
-    
+
     // YAML with directives
     yamlDoc := `
 app:
   name: my-service
   db:
     $ref: "local::database"`
-    
+
     // Process the document
     result, err := ref.ProcessBytes([]byte(yamlDoc), ref.WithLocalScope(localScope))
     if err != nil {
         log.Fatal(err)
     }
-    
+
     fmt.Printf("%+v\n", result)
     // Output: map[app:map[db:map[host:localhost port:5432] name:my-service]]
 }
@@ -212,7 +212,7 @@ transform := func(component string, config ref.Node) (string, ref.Node, error) {
     return component + "_wrapped", wrapped, nil
 }
 
-result, err := ref.ProcessBytes(data, 
+result, err := ref.ProcessBytes(data,
     ref.WithLocalScope(scope),
     ref.WithTransformUse(transform),
 )
@@ -408,7 +408,6 @@ config:
               pool:
                   timeout: 30
         - $ref: "local::overrides"
-
 # The $ref with inline merge is evaluated first, then becomes a source for $merge
 ```
 
@@ -550,7 +549,7 @@ significantly improves performance when the same paths are referenced multiple t
 ```go
 // ❌ BAD: Creating new evaluator with cache for each operation (slower!)
 for _, doc := range documents {
-    result, err := ref.ProcessBytes(doc, 
+    result, err := ref.ProcessBytes(doc,
         ref.WithLocalScope(scope),
         ref.WithCacheEnabled(), // Cache is created and destroyed each time
     )
@@ -570,7 +569,7 @@ for _, doc := range documents {
 
 ```go
 // For one-off processing, use the standard API
-result, err := ref.ProcessFile("config.yaml", 
+result, err := ref.ProcessFile("config.yaml",
     ref.WithLocalScope(localScope),
     // No cache needed for single operations
 )

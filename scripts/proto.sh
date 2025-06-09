@@ -25,7 +25,7 @@ echo "Working Directory:      $(pwd)"
 echo "================================="
 
 # Ensure protoc is installed
-if ! command -v protoc &>/dev/null; then
+if ! command -v protoc &> /dev/null; then
     echo "Error: protoc not found. Please install Protocol Buffers compiler." >&2
     exit 1
 fi

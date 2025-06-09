@@ -100,7 +100,7 @@ The engine supports three output formats:
 ```go
 const (
     FormatYAML EngineFormat = "yaml"  // Parse as YAML
-    FormatJSON EngineFormat = "json"  // Parse as JSON  
+    FormatJSON EngineFormat = "json"  // Parse as JSON
     FormatText EngineFormat = "text"  // Plain text only
 )
 ```
@@ -332,7 +332,7 @@ func safeRender(templateStr string, context map[string]any) (string, error) {
     if _, ok := context["user"]; !ok {
         return "", fmt.Errorf("required key 'user' missing from context")
     }
-    
+
     return engine.RenderString(templateStr, context)
 }
 
@@ -407,7 +407,7 @@ if err != nil {
 // Test templates with sample data
 func TestTemplates(t *testing.T) {
     engine := tplengine.NewEngine(tplengine.FormatText)
-    
+
     testCases := []struct {
         template string
         context  map[string]any
@@ -419,7 +419,7 @@ func TestTemplates(t *testing.T) {
             expected: "Hello World!",
         },
     }
-    
+
     for _, tc := range testCases {
         result, err := engine.RenderString(tc.template, tc.context)
         assert.NoError(t, err)
@@ -448,8 +448,8 @@ If you're migrating from a system that allowed `<no value>` fallbacks:
 
 ```yaml
 config:
-    host: "{{ .database.host | default \"localhost\" }}" # Silent if .database missing
-    port: "{{ .database.port | default \"5432\" }}" # Silent if .database missing
+    host: '{{ .database.host | default "localhost" }}' # Silent if .database missing
+    port: '{{ .database.port | default "5432" }}' # Silent if .database missing
 ```
 
 ### After (with missingkey=error)

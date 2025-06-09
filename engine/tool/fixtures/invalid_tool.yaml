@@ -1,17 +1,21 @@
 id: invalid-tool
 description: An invalid tool configuration
 execute: ./nonexistent.ts
+
 input:
-    type: object
-    properties:
-        code:
-            type: string
-            description: The code to process
-    required: [code]
+  type: object
+  properties:
+    code:
+      type: string
+      description: The code to process
+  required:
+    - code
+
 output:
-    type: object
-    properties:
-        result:
-            type: string
-            description: The processing result
-    required: [result]
+  type: object
+  properties:
+    result:
+      type: string
+      description: The processing result
+  required:
+    - result

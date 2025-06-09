@@ -1,13 +1,9 @@
 {
     "nodeModulesDir": "auto",
-    "workspace": [
-        "pkg/**",
-        "engine/**",
-        "examples/**"
-    ],
+    "workspace": ["pkg/**", "engine/**", "examples/**"],
     "tasks": {
-        "prettier:fix": "prettier --write \"**/*.@(js|ts|json|md|sh|yml|yaml)\"",
-        "prettier:validate": "prettier --check \"**/*.@(js|ts|json|md|sh|yml|yaml)\"",
+        "prettier:fix": "prettier --write \"**/*.@(json|md|sh)\"",
+        "prettier:validate": "prettier --check \"**/*.@(json|md|sh)\"",
         "test:all": "deno test"
     },
     "fmt": {
@@ -21,9 +17,11 @@
     },
     "lint": {
         "rules": {
-            "exclude": [
-                "no-explicit-any"
-            ]
+            "exclude": ["no-explicit-any"]
         }
+    },
+    "imports": {
+        "prettier": "npm:prettier@^3.5.3",
+        "prettier-plugin-sh": "npm:prettier-plugin-sh@^0.17.4"
     }
 }

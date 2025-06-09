@@ -20,15 +20,9 @@
         "/executions/workflows": {
             "get": {
                 "description": "Retrieve a list of all workflow executions across all workflows",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "workflows"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["workflows"],
                 "summary": "List all workflow executions",
                 "responses": {
                     "200": {
@@ -81,15 +75,9 @@
         "/executions/workflows/{workflow_exec_id}": {
             "get": {
                 "description": "Retrieve a specific workflow execution by its execution ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "workflows"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["workflows"],
                 "summary": "Get workflow execution by ID",
                 "parameters": [
                     {
@@ -180,15 +168,9 @@
         "/workflows": {
             "get": {
                 "description": "Retrieve a list of all available workflow configurations",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "workflows"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["workflows"],
                 "summary": "List all workflows",
                 "responses": {
                     "200": {
@@ -241,15 +223,9 @@
         "/workflows/{workflow_id}": {
             "get": {
                 "description": "Retrieve a specific workflow configuration by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "workflows"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["workflows"],
                 "summary": "Get workflow by ID",
                 "parameters": [
                     {
@@ -340,15 +316,9 @@
         "/workflows/{workflow_id}/agents": {
             "get": {
                 "description": "Retrieve a list of all available agent configurations",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "agents"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["agents"],
                 "summary": "List all agents",
                 "parameters": [
                     {
@@ -410,15 +380,9 @@
         "/workflows/{workflow_id}/agents/{agent_id}": {
             "get": {
                 "description": "Retrieve a specific agent configuration by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "agents"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["agents"],
                 "summary": "Get agent by ID",
                 "parameters": [
                     {
@@ -516,15 +480,9 @@
         "/workflows/{workflow_id}/executions": {
             "get": {
                 "description": "Retrieve all executions for a specific workflow",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "workflows"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["workflows"],
                 "summary": "List executions by workflow ID",
                 "parameters": [
                     {
@@ -603,15 +561,9 @@
             },
             "post": {
                 "description": "Trigger the execution of a workflow with provided input data",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "workflows"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["workflows"],
                 "summary": "Execute workflow",
                 "parameters": [
                     {
@@ -711,15 +663,9 @@
         "/workflows/{workflow_id}/tasks": {
             "get": {
                 "description": "Retrieve a list of all tasks within a specific workflow",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tasks"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["tasks"],
                 "summary": "List tasks for a workflow",
                 "parameters": [
                     {
@@ -818,15 +764,9 @@
         "/workflows/{workflow_id}/tasks/{task_id}": {
             "get": {
                 "description": "Retrieve a specific task configuration by its ID within a workflow",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tasks"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["tasks"],
                 "summary": "Get task by ID",
                 "parameters": [
                     {
@@ -925,15 +865,9 @@
         "/workflows/{workflow_id}/tools": {
             "get": {
                 "description": "Retrieve a list of all available tool configurations",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tools"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["tools"],
                 "summary": "List all tools",
                 "parameters": [
                     {
@@ -995,15 +929,9 @@
         "/workflows/{workflow_id}/tools/{tool_id}": {
             "get": {
                 "description": "Retrieve a specific tool configuration by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tools"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["tools"],
                 "summary": "Get tool by ID",
                 "parameters": [
                     {
@@ -1102,9 +1030,7 @@
     "definitions": {
         "agent.ActionConfig": {
             "type": "object",
-            "required": [
-                "prompt"
-            ],
+            "required": ["prompt"],
             "properties": {
                 "$merge": {},
                 "$ref": {
@@ -1132,11 +1058,7 @@
         },
         "agent.Config": {
             "type": "object",
-            "required": [
-                "config",
-                "id",
-                "instructions"
-            ],
+            "required": ["config", "id", "instructions"],
             "properties": {
                 "actions": {
                     "type": "array",
@@ -1332,13 +1254,7 @@
         },
         "core.ComponentType": {
             "type": "string",
-            "enum": [
-                "workflow",
-                "task",
-                "agent",
-                "tool",
-                "log"
-            ],
+            "enum": ["workflow", "task", "agent", "tool", "log"],
             "x-enum-varnames": [
                 "ComponentWorkflow",
                 "ComponentTask",
@@ -1589,14 +1505,8 @@
         },
         "task.Type": {
             "type": "string",
-            "enum": [
-                "basic",
-                "router"
-            ],
-            "x-enum-varnames": [
-                "TaskTypeBasic",
-                "TaskTypeRouter"
-            ]
+            "enum": ["basic", "router"],
+            "x-enum-varnames": ["TaskTypeBasic", "TaskTypeRouter"]
         },
         "tool.Config": {
             "type": "object",

@@ -48,6 +48,7 @@ lint:
 fmt:
 	@echo "Formatting code..."
 	$(LINTCMD) fmt
+	@deno task prettier:fix
 	@echo "Formatting completed successfully"
 
 # -----------------------------------------------------------------------------
