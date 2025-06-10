@@ -61,5 +61,13 @@ func (a *CreateParallelState) Run(ctx context.Context, input *CreateParallelStat
 	if err != nil {
 		return nil, err
 	}
+
+	// Create child tasks for parallel execution
+	if err := a.createStateUC.CreateChildTasks(ctx, &uc.CreateChildTasksInput{
+		ParentStateID: state.TaskExecID,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to create child tasks: %w", err)
+	}
+
 	return state, nil
 }

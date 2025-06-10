@@ -78,25 +78,20 @@ func (cn *CollectionNormalizer) FilterCollectionItems(
 		// No filter, return all items
 		return items, nil
 	}
-
 	var filteredItems []any
-
 	for i, item := range items {
 		// Create context with item and index variables
 		filterContext := cn.CreateItemContext(templateContext, config, item, i)
-
 		// Evaluate filter expression using RenderString to properly handle template functions
 		filterResult, err := cn.textEngine.RenderString(config.Filter, filterContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate filter expression for item %d: %w", i, err)
 		}
-
 		// Check if result is truthy
 		if cn.isTruthy(filterResult) {
 			filteredItems = append(filteredItems, item)
 		}
 	}
-
 	return filteredItems, nil
 }
 

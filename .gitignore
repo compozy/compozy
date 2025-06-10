@@ -1,8 +1,7 @@
 file_contents.txt
 **/file_contents.txt
 .env
-results.json
-results.csv
+examples/**/results.*
 .compozy
 node_modules
 bin
