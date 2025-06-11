@@ -160,6 +160,7 @@ func setupWorker(ctx context.Context, deps appstate.BaseDeps) (*worker.Worker, e
 		},
 	}
 	worker, err := worker.NewWorker(
+		ctx,
 		workerConfig,
 		deps.ClientConfig,
 		deps.ProjectConfig,

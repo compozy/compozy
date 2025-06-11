@@ -34,12 +34,12 @@ func NewWorkerTestHelper(t *testing.T, config *WorkerTestConfig) *WorkerTestHelp
 }
 
 // SetupWorkflowEnvironment sets up the Temporal workflow environment for testing
-func (h *WorkerTestHelper) SetupWorkflowEnvironment() {
+func (h *WorkerTestHelper) SetupWorkflowEnvironment(t *testing.T) {
 	env := h.config.TemporalTestEnv
 	config := h.config.ContainerTestConfig
 
 	// Use the existing SetupWorkflowEnvironment function with our config
-	testhelpers.SetupWorkflowEnvironment(env, config)
+	testhelpers.SetupWorkflowEnvironment(t, env, config)
 }
 
 // RegisterWorkflows registers workflows for testing
@@ -139,7 +139,7 @@ func (h *WorkerTestHelper) ExecuteBasicWorkflow(
 	input *core.Input,
 ) core.ID {
 	// Setup environment
-	h.SetupWorkflowEnvironment()
+	h.SetupWorkflowEnvironment(h.t)
 
 	// Generate unique workflow execution ID
 	workflowExecID := core.MustNewID()

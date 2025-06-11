@@ -1,0 +1,115 @@
+# Product Requirements Document (PRD)
+
+# Redis Integration & BadgerDB Replacement for Compozy
+
+## 1. Overview
+
+Compozy currently relies on BadgerDB to persist **normalized task and workflow configurations** during runtime execution. While BadgerDB provides an embedded KV store, it does **not scale horizontally** and lacks native sharding capabilities required for large-scale, distributed deployments.
+
+To resolve these scalability constraints and unlock additional real-time capabilities, we will **replace BadgerDB with Redis**. Redis will not only become the primary storage for temporary task configurations but will also serve as a high-performance cache, pub/sub message broker, and distributed locking mechanism alongside our existing **PostgreSQL** database.
+
+## 2. Goals & Success Criteria
+
+1. **Scalability:** Eliminate the sharding limitations of BadgerDB by leveraging Redis clustering/replication.
+2. **Performance:** Achieve sub-millisecond read/write latency for hot workflow/task data, reducing average task execution latency by **>20 %**.
+3. **Reliability:** Maintain strong consistency for long-lived data in PostgreSQL while using Redis for ephemeral and cached state.
+4. **Operational Simplicity:** Provide automated TTL-based cleanup of temporary data (24 h default) – no manual GC jobs.
+5. **Real-time UX:** Enable live CLI/UI updates via Redis pub/sub with latency <200 ms.
+6. **Observability:** Expose metrics (cache hit rate, lock contention, pub/sub throughput) through existing monitoring stack (Prometheus).
+
+## 3. In-Scope Requirements
+
+### 3.1 Data Responsibilities
+
+| Layer          | Responsibilities                   |
+| -------------- | ---------------------------------- |
+| **PostgreSQL** | • Persistent workflow & task state |
+
+• Parent-child relationships (FK)
+• ACID transactions, audit trail
+• Complex queries, analytics |
+| **Redis** | • Normalized task/workflow **config** KV
+• Runtime **cache** for hot task/workflow states
+• **Distributed locks** for concurrency control
+• **Pub/Sub** channels for real-time notifications
+• Volatile **session/context** data
+• Counters & gauges for metrics |
+
+### 3.2 Functional Requirements
+
+1. **BadgerDB Deprecation**
+   • Remove BadgerDB dependency, code, and migration scripts.
+2. **Redis Client Integration**
+   • Use `go-redis/v9` (cluster-aware) with connection pool & TLS support.
+   • Configurable via env: `REDIS_URL`, `REDIS_PASSWORD`, `REDIS_TLS=true`.
+3. **Config Storage API**
+   • Implement `ConfigStore` interface backed by Redis (get, set, delete, scan).
+   • TTL default **24 h** (configurable).
+4. **Cache Layer**
+   • Cache hot workflow/task state objects with `SETEX` & JSON serialization.
+   • Cache invalidation on state updates (pub/sub or explicit delete).
+5. **Distributed Locks**
+   • Provide `LockManager` abstraction using Redlock algorithm with 10 s renewal.
+6. **Pub/Sub Notifications**
+   • Publish task/event updates on `workflow:{id}` channels.
+   • CLI/Browser UI subscribe for near real-time status refresh.
+7. **Metrics**
+   • Expose Prometheus counters: `redis_cache_hits`, `redis_lock_contention_total`, `redis_pubsub_msgs_total`.
+8. **Migrations & Fallback**
+   • Provide one-way migration script from Badger snapshot → Redis for existing configs.
+   • Fallback strategy: if Redis unavailable, log error & retry/backoff; execution pauses gracefully.
+
+### 3.3 Non-Functional Requirements
+
+- **Security:** TLS & optional ACL authentication.
+- **High Availability:** Support Redis Sentinel _or_ Cluster in production.
+- **Observability:** Structured logging around Redis ops (>100 ms warn).
+- **Testing:** Unit tests with `miniredis` + integration tests in CI using containerized Redis.
+
+## 4. Out-of-Scope
+
+- Replacing PostgreSQL for persistent data.
+- Implementing Redis Streams or Lua scripting beyond pub/sub & KV.
+- Front-end UI changes (only backend notifications exposed).
+
+## 5. Stakeholders
+
+- **Engineering:** Backend team (responsible for implementation & migration).
+- **DevOps:** Provision Redis cluster & monitoring.
+- **Product:** Ensure performance/SLA improvements align with roadmap.
+
+## 6. Milestones
+
+| Phase | Description                                    | Target Date |
+| ----- | ---------------------------------------------- | ----------- |
+| 1     | PRD approval & architecture design             | T+0 weeks   |
+| 2     | Redis infrastructure provisioned (Dev/CI/Prod) | T+2 weeks   |
+| 3     | ConfigStore & LockManager implemented          | T+4 weeks   |
+| 4     | Cache & Pub/Sub integration                    | T+6 weeks   |
+| 5     | Migration script & deprecation of BadgerDB     | T+7 weeks   |
+| 6     | Load/chaos testing & performance benchmarks    | T+8 weeks   |
+| 7     | Production rollout & monitoring validation     | T+9 weeks   |
+
+## 7. Acceptance Criteria
+
+- ✅ All BadgerDB code paths removed.
+- ✅ Unit + integration tests passing with Redis backend.
+- ✅ Cache hit rate >70 % on representative workload.
+- ✅ End-to-end latency improvement ≥20 % vs. baseline.
+- ✅ Dashboard shows pub/sub message latency <200 ms.
+- ✅ Redis metrics exported to Prometheus & alerts configured.
+
+## 8. Risks & Mitigations
+
+| Risk                           | Likelihood | Impact | Mitigation                                                            |
+| ------------------------------ | ---------- | ------ | --------------------------------------------------------------------- |
+| Redis outage halts executions  | Medium     | High   | Multi-AZ cluster, exponential backoff & pause workflows gracefully    |
+| Data loss of ephemeral configs | Low        | Medium | PostgreSQL remains single source of truth; configs can be regenerated |
+| Lock contention hot-spot       | Low        | Medium | Use per-workflow keys, tune TTL & backoff                             |
+
+## 9. References
+
+- User story & use-case description in issue #1234
+- Redis docs: <https://redis.io/docs/>
+- go-redis client: <https://github.com/redis/go-redis>
+- Redlock algorithm: <https://redis.io/docs/interact/locks/>

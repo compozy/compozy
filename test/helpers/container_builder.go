@@ -1,13 +1,15 @@
 package utils
 
 import (
+	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
@@ -318,19 +320,31 @@ func CreateCancellableWorkflowConfig(t *testing.T) *wf.Config {
 }
 
 // SetupWorkflowEnvironment sets up the Temporal workflow environment for testing
-func SetupWorkflowEnvironment(env *testsuite.TestWorkflowEnvironment, config *ContainerTestConfig) {
+func SetupWorkflowEnvironment(t *testing.T, env *testsuite.TestWorkflowEnvironment, config *ContainerTestConfig) {
 	// Configure test environment for deterministic testing
 	ConfigureTemporalTestEnvironment(env)
 
-	tmpDir, err := os.MkdirTemp("", "compozy-test-config-store")
-	if err != nil {
-		panic(err)
-	}
-	configStore, err := services.NewBadgerConfigStore(tmpDir)
-	if err != nil {
-		panic(err)
+	// Setup in-memory Redis cache for testing
+	mr := miniredis.RunT(t)
+	cacheConfig := &cache.Config{
+		Host:     mr.Host(),
+		Port:     mr.Port(),
+		Password: "redis_secret",
+		DB:       5, // Use a different DB for tests
 	}
 
+	ctx := context.Background()
+	redisCache, err := cache.SetupCache(ctx, cacheConfig)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to setup Redis cache for tests: %v", err))
+	}
+
+	// Ensure Redis cache is properly closed when test finishes
+	t.Cleanup(func() {
+		redisCache.Close()
+	})
+
+	configStore := services.NewRedisConfigStore(redisCache.Redis, 1*time.Hour)
 	runtime, err := runtime.NewRuntimeManager(config.ProjectConfig.GetCWD().PathStr(), runtime.WithTestConfig())
 	if err != nil {
 		panic(err)
@@ -397,8 +411,8 @@ func SetupTemporalTestEnvironmentWithTimeout(timeout time.Duration) *testsuite.T
 }
 
 // SetupDeterministicTestEnvironment creates a test environment optimized for deterministic testing
-func SetupDeterministicTestEnvironment(config *ContainerTestConfig) *testsuite.TestWorkflowEnvironment {
+func SetupDeterministicTestEnvironment(t *testing.T, config *ContainerTestConfig) *testsuite.TestWorkflowEnvironment {
 	env := SetupTemporalTestEnvironmentWithTimeout(DefaultTestTimeout)
-	SetupWorkflowEnvironment(env, config)
+	SetupWorkflowEnvironment(t, env, config)
 	return env
 }
