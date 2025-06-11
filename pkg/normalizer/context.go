@@ -41,6 +41,13 @@ func (cb *ContextBuilder) BuildContext(ctx *NormalizationContext) map[string]any
 	}
 	if ctx.CurrentInput != nil {
 		context[inputKey] = ctx.CurrentInput
+		// Also add item and index at top level for collection tasks
+		if item, exists := (*ctx.CurrentInput)["item"]; exists {
+			context["item"] = item
+		}
+		if index, exists := (*ctx.CurrentInput)["index"]; exists {
+			context["index"] = index
+		}
 	}
 	if ctx.MergedEnv != nil {
 		context["env"] = ctx.MergedEnv
@@ -94,10 +101,10 @@ func (cb *ContextBuilder) buildSingleTaskContext(
 }
 
 func (cb *ContextBuilder) buildTaskOutput(taskState *task.State, ctx *NormalizationContext) any {
-	if taskState.IsParallelExecution() {
-		// For parent tasks, build nested output structure with child task outputs
+	if taskState.CanHaveChildren() {
+		// For parent tasks (parallel or collection), build nested output structure with child task outputs
 		nestedOutput := make(map[string]any)
-		// Include the parent’s own output first (if any)
+		// Include the parent's own output first (if any)
 		if taskState.Output != nil {
 			nestedOutput["output"] = *taskState.Output
 		}

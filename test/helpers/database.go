@@ -3,14 +3,20 @@ package utils
 import (
 	"context"
 	"fmt"
-	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/require"
 )
+
+// -----
+// Shared Database Setup
+// -----
 
 var (
 	sharedTestDB     *pgxpool.Pool
@@ -25,11 +31,11 @@ func GetSharedTestDB(t *testing.T) *pgxpool.Pool {
 		ctx := context.Background()
 
 		// Get test database configuration from environment or use test defaults
-		dbHost := getTestEnvOrDefault("TEST_DB_HOST", "localhost")
-		dbPort := getTestEnvOrDefault("TEST_DB_PORT", "5434") // Different port for test DB
-		dbUser := getTestEnvOrDefault("TEST_DB_USER", "postgres")
-		dbPassword := getTestEnvOrDefault("TEST_DB_PASSWORD", "postgres")
-		dbName := getTestEnvOrDefault("TEST_DB_NAME", "compozy_test") // Dedicated test database
+		dbHost := GetTestEnvOrDefault("TEST_DB_HOST", "localhost")
+		dbPort := GetTestEnvOrDefault("TEST_DB_PORT", "5434") // Different port for test DB
+		dbUser := GetTestEnvOrDefault("TEST_DB_USER", "postgres")
+		dbPassword := GetTestEnvOrDefault("TEST_DB_PASSWORD", "postgres")
+		dbName := GetTestEnvOrDefault("TEST_DB_NAME", "compozy_test") // Dedicated test database
 
 		// Create connection string for test database
 		connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable&pool_max_conns=20",
@@ -76,16 +82,34 @@ func GetSharedTestDB(t *testing.T) *pgxpool.Pool {
 	return sharedTestDB
 }
 
-// getTestEnvOrDefault returns the test environment variable value or a default value
-func getTestEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
+// ensureTablesExist runs goose migrations to create the required tables
+func ensureTablesExist(db *pgxpool.Pool) error {
+	// Convert pgxpool to standard sql.DB for goose
+	sqlDB := stdlib.OpenDBFromPool(db)
+	defer sqlDB.Close()
 
-// GenerateUniqueTestID creates a unique test identifier for data isolation
-// Since we're using a dedicated test database, we don't need cleanup!
-func GenerateUniqueTestID(testName string) string {
-	return fmt.Sprintf("test-%s-%d", testName, time.Now().UnixNano())
+	// Set the PostgreSQL dialect for goose
+	if err := goose.SetDialect("postgres"); err != nil {
+		return fmt.Errorf("failed to set goose dialect: %w", err)
+	}
+
+	// Find the project root using common utility
+	projectRoot, err := FindProjectRoot()
+	if err != nil {
+		return err
+	}
+
+	migrationDir := filepath.Join(projectRoot, "engine", "infra", "store", "migrations")
+
+	// Reset migrations to clean state - this drops all tables and resets goose tracking
+	if err := goose.Reset(sqlDB, migrationDir); err != nil {
+		return fmt.Errorf("failed to reset goose migrations: %w", err)
+	}
+
+	// Run migrations up to the latest version
+	if err := goose.Up(sqlDB, migrationDir); err != nil {
+		return fmt.Errorf("failed to run goose migrations: %w", err)
+	}
+
+	return nil
 }

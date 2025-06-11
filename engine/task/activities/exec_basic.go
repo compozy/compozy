@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
 	"github.com/compozy/compozy/engine/workflow"
 )
@@ -20,10 +21,10 @@ type ExecuteBasicInput struct {
 }
 
 type ExecuteBasic struct {
-	loadWorkflowUC   *uc.LoadWorkflow
-	createStateUC    *uc.CreateState
-	executeUC        *uc.ExecuteTask
-	handleResponseUC *uc.HandleResponse
+	loadWorkflowUC *uc.LoadWorkflow
+	createStateUC  *uc.CreateState
+	executeUC      *uc.ExecuteTask
+	taskResponder  *services.TaskResponder
 }
 
 // NewExecuteBasic creates a new ExecuteBasic activity
@@ -32,16 +33,18 @@ func NewExecuteBasic(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	runtime *runtime.Manager,
+	configStore services.ConfigStore,
 ) *ExecuteBasic {
+	configManager := services.NewConfigManager(configStore)
 	return &ExecuteBasic{
-		loadWorkflowUC:   uc.NewLoadWorkflow(workflows, workflowRepo),
-		createStateUC:    uc.NewCreateState(taskRepo),
-		executeUC:        uc.NewExecuteTask(runtime),
-		handleResponseUC: uc.NewHandleResponse(workflowRepo, taskRepo),
+		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
+		createStateUC:  uc.NewCreateState(taskRepo, configManager),
+		executeUC:      uc.NewExecuteTask(runtime),
+		taskResponder:  services.NewTaskResponder(workflowRepo, taskRepo),
 	}
 }
 
-func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task.Response, error) {
+func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task.MainTaskResponse, error) {
 	// Load workflow state and config
 	workflowState, workflowConfig, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
 		WorkflowID:     input.WorkflowID,
@@ -77,54 +80,15 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 		return nil, err
 	}
 	// Execute component
-	output, err := a.executeUC.Execute(ctx, &uc.ExecuteTaskInput{
+	output, executionError := a.executeUC.Execute(ctx, &uc.ExecuteTaskInput{
 		TaskConfig: taskConfig,
 	})
-	handleError := HandleError(
-		a.handleResponseUC,
-		output,
-		workflowConfig,
-		taskConfig,
-	)
-	if err != nil {
-		return handleError(ctx, taskState, err)
-	}
-	// Update state with result
-	taskState.Output = output
-	response, err := a.handleResponseUC.Execute(ctx, &uc.HandleResponseInput{
-		TaskState:      taskState,
-		WorkflowConfig: workflowConfig,
-		TaskConfig:     taskConfig,
-		ExecutionError: nil,
-	})
-	if err != nil {
-		return handleError(ctx, taskState, err)
-	}
-	return response, nil
-}
 
-func HandleError(
-	handleResponseUC *uc.HandleResponse,
-	output *core.Output,
-	workflowConfig *workflow.Config,
-	taskConfig *task.Config,
-) func(ctx context.Context, taskState *task.State, err error) (*task.Response, error) {
-	return func(ctx context.Context, taskState *task.State, err error) (*task.Response, error) {
-		if output == nil {
-			taskState.UpdateStatus(core.StatusFailed)
-			taskState.Error = core.NewError(err, "execution_error", nil)
-			return &task.Response{State: taskState}, nil
-		}
-		transitInput := &uc.HandleResponseInput{
-			TaskState:      taskState,
-			WorkflowConfig: workflowConfig,
-			TaskConfig:     taskConfig,
-			ExecutionError: err,
-		}
-		response, err := handleResponseUC.Execute(ctx, transitInput)
-		if err != nil {
-			return nil, err
-		}
-		return response, nil
-	}
+	taskState.Output = output
+	return a.taskResponder.HandleMainTask(ctx, &services.MainTaskResponseInput{
+		WorkflowConfig: workflowConfig,
+		TaskState:      taskState,
+		TaskConfig:     taskConfig,
+		ExecutionError: executionError,
+	})
 }

@@ -39,6 +39,7 @@ func (m *Manager) BuildErrHandler(ctx workflow.Context) func(err error) error {
 		},
 	})
 	return func(err error) error {
+		logger := workflow.GetLogger(ctx)
 		if temporal.IsCanceledError(err) || err == workflow.ErrCanceled {
 			logger.Info("Workflow canceled")
 			return err
@@ -48,13 +49,6 @@ func (m *Manager) BuildErrHandler(ctx workflow.Context) func(err error) error {
 		// to ensure the status update happens even if workflow is being terminated
 		logger.Info("Updating workflow status to Failed due to error", "error", err)
 		cleanupCtx, _ := workflow.NewDisconnectedContext(ctx)
-		cleanupCtx = workflow.WithActivityOptions(cleanupCtx, workflow.ActivityOptions{
-			StartToCloseTimeout: 30 * time.Second,
-			RetryPolicy: &temporal.RetryPolicy{
-				MaximumAttempts: 3,
-			},
-		})
-
 		label := wfacts.UpdateStateLabel
 		statusInput := &wfacts.UpdateStateInput{
 			WorkflowID:     m.WorkflowID,
@@ -62,8 +56,12 @@ func (m *Manager) BuildErrHandler(ctx workflow.Context) func(err error) error {
 			Status:         core.StatusFailed,
 			Error:          core.NewError(err, "workflow_execution_error", nil),
 		}
-		future := workflow.ExecuteActivity(cleanupCtx, label, statusInput)
-		if updateErr := future.Get(cleanupCtx, nil); updateErr != nil {
+
+		if updateErr := workflow.ExecuteActivity(
+			cleanupCtx,
+			label,
+			statusInput,
+		).Get(cleanupCtx, nil); updateErr != nil {
 			logger.Error("Failed to update workflow status to Failed", "error", updateErr)
 		} else {
 			logger.Info("Successfully updated workflow status to Failed")

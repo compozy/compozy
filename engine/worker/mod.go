@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task/services"
 	wf "github.com/compozy/compozy/engine/workflow"
 	"github.com/gosimple/slug"
 	"go.temporal.io/sdk/client"
@@ -31,6 +32,7 @@ type Worker struct {
 	projectConfig *project.Config
 	workflows     []*wf.Config
 	taskQueue     string
+	configStore   services.ConfigStore
 }
 
 func NewWorker(
@@ -56,12 +58,20 @@ func NewWorker(
 	if err != nil {
 		return nil, fmt.Errorf("failed to created execution manager: %w", err)
 	}
+
+	// Initialize ConfigStore
+	configStore, err := services.NewBadgerConfigStore("")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config store: %w", err)
+	}
+
 	activities := NewActivities(
 		projectConfig,
 		workflows,
 		config.WorkflowRepo(),
 		config.TaskRepo(),
 		runtime,
+		configStore,
 	)
 	return &Worker{
 		client:        client,
@@ -71,6 +81,7 @@ func NewWorker(
 		workflows:     workflows,
 		activities:    activities,
 		taskQueue:     taskQueue,
+		configStore:   configStore,
 	}, nil
 }
 
@@ -82,18 +93,23 @@ func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterActivity(o.activities.CompleteWorkflow)
 	o.worker.RegisterActivity(o.activities.ExecuteBasicTask)
 	o.worker.RegisterActivity(o.activities.ExecuteRouterTask)
-	o.worker.RegisterActivity(o.activities.ExecuteCollectionTask)
 	o.worker.RegisterActivity(o.activities.ExecuteParallelTask)
 	o.worker.RegisterActivity(o.activities.CreateParallelState)
 	o.worker.RegisterActivity(o.activities.GetParallelResponse)
+	o.worker.RegisterActivity(o.activities.CreateCollectionState)
+	o.worker.RegisterActivity(o.activities.GetCollectionResponse)
 	o.worker.RegisterActivity(o.activities.GetProgress)
 	o.worker.RegisterActivity(o.activities.UpdateParentStatus)
+	o.worker.RegisterActivity(o.activities.ListChildStates)
 	return o.worker.Start()
 }
 
 func (o *Worker) Stop() {
 	o.worker.Stop()
 	o.client.Close()
+	if o.configStore != nil {
+		o.configStore.Close()
+	}
 }
 
 func (o *Worker) WorkflowRepo() wf.Repository {

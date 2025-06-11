@@ -12,6 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// -----
+// Database State Verification
+// -----
+
 // DatabaseStateVerifier helps verify workflow and task states in the database
 type DatabaseStateVerifier struct {
 	t            *testing.T
@@ -36,7 +40,7 @@ func (v *DatabaseStateVerifier) VerifyWorkflowState(
 	expectedStatus core.StatusType,
 	timeoutDuration ...time.Duration,
 ) {
-	timeout := 5 * time.Second
+	timeout := DefaultTestTimeout
 	if len(timeoutDuration) > 0 {
 		timeout = timeoutDuration[0]
 	}
@@ -45,7 +49,7 @@ func (v *DatabaseStateVerifier) VerifyWorkflowState(
 	defer cancel()
 
 	// Poll for the expected status with backoff
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(DefaultPollInterval)
 	defer ticker.Stop()
 
 	for {
@@ -86,7 +90,7 @@ func (v *DatabaseStateVerifier) VerifyWorkflowStateEventually(
 			return state.Status == expectedStatus
 		},
 		maxWait,
-		100*time.Millisecond,
+		DefaultPollInterval,
 		"Expected workflow %s to reach status %s within %v",
 		workflowExecID,
 		expectedStatus,
@@ -101,7 +105,7 @@ func (v *DatabaseStateVerifier) VerifyTaskState(
 	expectedStatus core.StatusType,
 	timeoutDuration ...time.Duration,
 ) {
-	timeout := 5 * time.Second
+	timeout := DefaultTestTimeout
 	if len(timeoutDuration) > 0 {
 		timeout = timeoutDuration[0]
 	}
@@ -109,7 +113,7 @@ func (v *DatabaseStateVerifier) VerifyTaskState(
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(DefaultPollInterval)
 	defer ticker.Stop()
 
 	for {
@@ -161,7 +165,7 @@ func (v *DatabaseStateVerifier) VerifyTaskStateEventually(
 			}
 		}
 		return false
-	}, maxWait, 100*time.Millisecond, "Expected task %s to reach status %s within %v", taskID, expectedStatus, maxWait)
+	}, maxWait, DefaultPollInterval, "Expected task %s to reach status %s within %v", taskID, expectedStatus, maxWait)
 }
 
 // VerifyWorkflowExists checks that a workflow state exists in the database
@@ -218,13 +222,14 @@ func (v *DatabaseStateVerifier) VerifyWorkflowCompletesWithStatus(
 	}
 }
 
-// VerifyStatusTransitionSequence verifies that status transitions happen in the expected order
+// StatusTransition represents a status transition with timing
 type StatusTransition struct {
 	Status    core.StatusType
 	MaxWait   time.Duration
 	Component string // "workflow" or task ID
 }
 
+// VerifyStatusTransitionSequence verifies that status transitions happen in the expected order
 func (v *DatabaseStateVerifier) VerifyStatusTransitionSequence(workflowExecID core.ID, transitions []StatusTransition) {
 	for i, transition := range transitions {
 		v.t.Logf("Verifying transition %d: %s -> %s", i+1, transition.Component, transition.Status)
@@ -322,7 +327,7 @@ func (v *DatabaseStateVerifier) VerifyTaskStatusCascade(
 		}
 
 		return true
-	}, maxWait, 100*time.Millisecond,
+	}, maxWait, DefaultPollInterval,
 		"Expected workflow %s to reach status %s with task states cascaded within %v",
 		workflowExecID, expectedWorkflowStatus, maxWait)
 }

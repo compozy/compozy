@@ -315,3 +315,256 @@ func TestMissingKeyError(t *testing.T) {
 		assert.Equal(t, "John", result)
 	})
 }
+
+// TestHyphenHandling tests the preprocessing of templates with hyphens in field names
+func TestHyphenHandling(t *testing.T) {
+	engine := NewEngine(FormatText)
+
+	t.Run("Should handle simple hyphenated field names", func(t *testing.T) {
+		context := map[string]any{
+			"tasks": map[string]any{
+				"task-one": map[string]any{
+					"output": map[string]any{
+						"result": "success",
+					},
+				},
+			},
+		}
+
+		result, err := engine.RenderString("{{ .tasks.task-one.output.result }}", context)
+		assert.NoError(t, err)
+		assert.Equal(t, "success", result)
+	})
+
+	t.Run("Should handle multiple hyphenated field names", func(t *testing.T) {
+		context := map[string]any{
+			"tasks": map[string]any{
+				"first-task": map[string]any{
+					"output": map[string]any{
+						"result": "first-result",
+					},
+				},
+				"second-task": map[string]any{
+					"output": map[string]any{
+						"result": "second-result",
+					},
+				},
+			},
+		}
+
+		result, err := engine.RenderString("{{ .tasks.first-task.output.result }}", context)
+		assert.NoError(t, err)
+		assert.Equal(t, "first-result", result)
+
+		result, err = engine.RenderString("{{ .tasks.second-task.output.result }}", context)
+		assert.NoError(t, err)
+		assert.Equal(t, "second-result", result)
+	})
+
+	t.Run("Should handle hyphenated fields with filters", func(t *testing.T) {
+		context := map[string]any{
+			"tasks": map[string]any{
+				"format-task": map[string]any{
+					"output": map[string]any{
+						"code": "hello world",
+					},
+				},
+			},
+		}
+
+		result, err := engine.RenderString("{{ .tasks.format-task.output.code | upper }}", context)
+		assert.NoError(t, err)
+		assert.Equal(t, "HELLO WORLD", result)
+	})
+
+	t.Run("Should handle hyphenated fields with toJson filter", func(t *testing.T) {
+		context := map[string]any{
+			"tasks": map[string]any{
+				"data-task": map[string]any{
+					"output": map[string]any{
+						"items": []string{"a", "b", "c"},
+						"count": 3,
+					},
+				},
+			},
+		}
+
+		result, err := engine.RenderString("{{ .tasks.data-task.output | toJson }}", context)
+		assert.NoError(t, err)
+		expected := `{"count":3,"items":["a","b","c"]}`
+		assert.JSONEq(t, expected, result)
+	})
+
+	t.Run("Should handle mixed hyphenated and non-hyphenated fields", func(t *testing.T) {
+		context := map[string]any{
+			"workflow": map[string]any{
+				"input": map[string]any{
+					"name": "test-workflow",
+				},
+			},
+			"tasks": map[string]any{
+				"setup-task": map[string]any{
+					"output": map[string]any{
+						"config": map[string]any{
+							"timeout": 30,
+						},
+					},
+				},
+				"process": map[string]any{
+					"output": map[string]any{
+						"result": "processed",
+					},
+				},
+			},
+		}
+
+		// Mix of hyphenated and non-hyphenated
+		result, err := engine.RenderString(
+			"{{ .workflow.input.name }}-{{ .tasks.setup-task.output.config.timeout }}",
+			context,
+		)
+		assert.NoError(t, err)
+		assert.Equal(t, "test-workflow-30", result)
+
+		// Non-hyphenated task reference
+		result, err = engine.RenderString("{{ .tasks.process.output.result }}", context)
+		assert.NoError(t, err)
+		assert.Equal(t, "processed", result)
+	})
+
+	t.Run("Should handle deeply nested hyphenated fields", func(t *testing.T) {
+		context := map[string]any{
+			"tasks": map[string]any{
+				"complex-task": map[string]any{
+					"output": map[string]any{
+						"nested-data": map[string]any{
+							"sub-field": map[string]any{
+								"final-value": "deep-success",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		result, err := engine.RenderString(
+			"{{ .tasks.complex-task.output.nested-data.sub-field.final-value }}",
+			context,
+		)
+		assert.NoError(t, err)
+		assert.Equal(t, "deep-success", result)
+	})
+
+	t.Run("Should handle hyphens at different levels", func(t *testing.T) {
+		context := map[string]any{
+			"my-workflow": map[string]any{
+				"tasks": map[string]any{
+					"task-one": map[string]any{
+						"output": "result1",
+					},
+				},
+			},
+		}
+
+		result, err := engine.RenderString("{{ .my-workflow.tasks.task-one.output }}", context)
+		assert.NoError(t, err)
+		assert.Equal(t, "result1", result)
+	})
+
+	t.Run("Should preserve non-hyphenated templates unchanged", func(t *testing.T) {
+		context := map[string]any{
+			"user": map[string]any{
+				"profile": map[string]any{
+					"name": "John",
+				},
+			},
+		}
+
+		result, err := engine.RenderString("{{ .user.profile.name }}", context)
+		assert.NoError(t, err)
+		assert.Equal(t, "John", result)
+	})
+
+	t.Run("Should handle conditional expressions with hyphens", func(t *testing.T) {
+		context := map[string]any{
+			"tasks": map[string]any{
+				"check-task": map[string]any{
+					"output": map[string]any{
+						"status": "success",
+					},
+				},
+			},
+		}
+
+		result, err := engine.RenderString(
+			"{{ if eq .tasks.check-task.output.status \"success\" }}PASS{{ else }}FAIL{{ end }}",
+			context,
+		)
+		assert.NoError(t, err)
+		assert.Equal(t, "PASS", result)
+	})
+}
+
+// TestPreprocessTemplateForHyphens tests the preprocessing function directly
+func TestPreprocessTemplateForHyphens(t *testing.T) {
+	engine := NewEngine(FormatText)
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Simple hyphenated field",
+			input:    "{{ .tasks.task-one.output }}",
+			expected: "{{ (index . \"tasks\" \"task-one\" \"output\") }}",
+		},
+		{
+			name:     "No hyphens should remain unchanged",
+			input:    "{{ .user.profile.name }}",
+			expected: "{{ .user.profile.name }}",
+		},
+		{
+			name:     "Multiple hyphens in path",
+			input:    "{{ .tasks.complex-task-name.output.sub-field }}",
+			expected: "{{ (index . \"tasks\" \"complex-task-name\" \"output\" \"sub-field\") }}",
+		},
+		{
+			name:     "With filter",
+			input:    "{{ .tasks.data-task.output | toJson }}",
+			expected: "{{ (index . \"tasks\" \"data-task\" \"output\") | toJson }}",
+		},
+		{
+			name:     "With complex filter",
+			input:    "{{ .tasks.format-task.output.code | upper | trim }}",
+			expected: "{{ (index . \"tasks\" \"format-task\" \"output\" \"code\") | upper | trim }}",
+		},
+		{
+			name:     "Hyphen at root level",
+			input:    "{{ .my-workflow.tasks.output }}",
+			expected: "{{ (index . \"my-workflow\" \"tasks\" \"output\") }}",
+		},
+		{
+			name:     "Mixed with conditional",
+			input:    "{{ if .tasks.check-task.output.status }}true{{ end }}",
+			expected: "{{ if (index . \"tasks\" \"check-task\" \"output\" \"status\") }}true{{ end }}",
+		},
+		{
+			name:     "Non-template text should remain unchanged",
+			input:    "This is just text with task-name hyphens",
+			expected: "This is just text with task-name hyphens",
+		},
+		{
+			name:     "Multiple templates in same string",
+			input:    "First: {{ .tasks.task-one.output }}, Second: {{ .tasks.task-two.result }}",
+			expected: "First: {{ (index . \"tasks\" \"task-one\" \"output\") }}, Second: {{ (index . \"tasks\" \"task-two\" \"result\") }}",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := engine.preprocessTemplateForHyphens(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}

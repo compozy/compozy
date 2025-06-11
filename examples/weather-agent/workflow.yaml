@@ -81,13 +81,11 @@ agents:
         prompt: |
           Analyze the activity "{{ .item }}" in {{ .workflow.input.city }} given the current weather conditions:
           - Weather: {{ .tasks.weather.output | toJson }}
-
           Provide detailed recommendations including:
           - Best time of day for this activity
           - Weather-specific tips
           - Required equipment or preparation
           - Safety considerations
-
           Return your analysis in JSON format with the fields: best_time, tips, equipment, safety_notes.
 
 tasks:
@@ -114,7 +112,7 @@ tasks:
   - id: activity_analysis
     type: collection
     items: "{{ .tasks.activities.output.activities }}"
-    mode: sequential
+    mode: parallel
     task:
       id: "analyze-activity-{{ .index }}"
       type: basic
@@ -123,7 +121,6 @@ tasks:
       outputs:
         activity: "{{ .item }}"
         analysis: "{{ .output }}"
-        city: "{{ .workflow.input.city }}"
     outputs:
       detailed_recommendations: "{{ .output }}"
       analyzed_count: "{{ len .output }}"
@@ -158,13 +155,8 @@ tasks:
     $use: tool(local::tools.#(id="save_data"))
     final: true
     with:
-      payload:
-        city: "{{ .tasks.clothing.output.save_data.city }}"
-        weather: "{{ .tasks.clothing.output.save_data.weather }}"
-        clothing: "[]"
-        activities: "{{ .tasks.clothing.output.save_data.activities }}"
-        detailed_analysis: "{{ .tasks.clothing.output.save_data.detailed_analysis }}"
-        format: "json"
+      payload: "{{ .tasks.clothing.output.save_data }}"
+      format: "txt"
 
   - id: save_results
     type: parallel
@@ -177,22 +169,12 @@ tasks:
         type: basic
         $use: tool(local::tools.#(id="save_data"))
         with:
-          payload:
-            city: "{{ .tasks.clothing.output.save_data.city }}"
-            weather: "{{ .tasks.clothing.output.save_data.weather }}"
-            clothing: "{{ .tasks.clothing.output.save_data.clothing }}"
-            activities: "{{ .tasks.clothing.output.save_data.activities }}"
-            detailed_analysis: "{{ .tasks.clothing.output.save_data.detailed_analysis }}"
-            format: "json"
+          payload: "{{ .tasks.clothing.output.save_data }}"
+          format: "json"
 
-      - id: save_csv
+      - id: save_txt
         type: basic
         $use: tool(local::tools.#(id="save_data"))
         with:
-          payload:
-            city: "{{ .tasks.clothing.output.save_data.city }}"
-            weather: "{{ .tasks.clothing.output.save_data.weather }}"
-            clothing: "{{ .tasks.clothing.output.save_data.clothing }}"
-            activities: "{{ .tasks.clothing.output.save_data.activities }}"
-            detailed_analysis: "{{ .tasks.clothing.output.save_data.detailed_analysis }}"
-            format: "csv"
+          payload: "{{ .tasks.clothing.output.save_data }}"
+          format: "txt"

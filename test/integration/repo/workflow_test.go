@@ -8,14 +8,14 @@ import (
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
-	testutils "github.com/compozy/compozy/test"
+	utils "github.com/compozy/compozy/test/helpers"
 	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestWorkflowRepo_UpsertState(t *testing.T) {
-	mockSetup := testutils.NewMockSetup(t)
+	mockSetup := utils.NewMockSetup(t)
 	defer mockSetup.Close()
 
 	repo := store.NewWorkflowRepo(mockSetup.Mock)
@@ -28,7 +28,7 @@ func TestWorkflowRepo_UpsertState(t *testing.T) {
 		Tasks:          make(map[string]*task.State),
 	}
 
-	dataBuilder := testutils.NewDataBuilder()
+	dataBuilder := utils.NewDataBuilder()
 	inputJSON := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
 	expectedOutputJSON := dataBuilder.MustCreateNilJSONB()
 	expectedErrorJSON := dataBuilder.MustCreateNilJSONB()
@@ -47,14 +47,14 @@ func TestWorkflowRepo_UpsertState(t *testing.T) {
 }
 
 func TestWorkflowRepo_GetState(t *testing.T) {
-	mockSetup := testutils.NewMockSetup(t)
+	mockSetup := utils.NewMockSetup(t)
 	defer mockSetup.Close()
 
 	repo := store.NewWorkflowRepo(mockSetup.Mock)
 	ctx := context.Background()
 	workflowExecID := core.ID("exec1")
 
-	dataBuilder := testutils.NewDataBuilder()
+	dataBuilder := utils.NewDataBuilder()
 	inputData := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
 
 	// Use utility functions to set up the test
@@ -94,14 +94,14 @@ func TestWorkflowRepo_GetState(t *testing.T) {
 }
 
 func TestWorkflowRepo_GetState_WithTasks(t *testing.T) {
-	mockSetup := testutils.NewMockSetup(t)
+	mockSetup := utils.NewMockSetup(t)
 	defer mockSetup.Close()
 
 	repo := store.NewWorkflowRepo(mockSetup.Mock)
 	ctx := context.Background()
 	workflowExecID := core.ID("exec1")
 
-	dataBuilder := testutils.NewDataBuilder()
+	dataBuilder := utils.NewDataBuilder()
 	inputData := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
 	taskInputData := dataBuilder.MustCreateInputData(map[string]any{"task_key": "task_value"})
 
@@ -146,7 +146,7 @@ func TestWorkflowRepo_GetState_WithTasks(t *testing.T) {
 }
 
 func TestWorkflowRepo_GetState_NotFound(t *testing.T) {
-	mockSetup := testutils.NewMockSetup(t)
+	mockSetup := utils.NewMockSetup(t)
 	defer mockSetup.Close()
 
 	repo := store.NewWorkflowRepo(mockSetup.Mock)
@@ -171,9 +171,9 @@ func TestWorkflowRepo_GetState_NotFound(t *testing.T) {
 func testSimpleWorkflowGet(
 	t *testing.T,
 	testName string,
-	setupAndRun func(*testutils.MockSetup, *store.WorkflowRepo, context.Context),
+	setupAndRun func(*utils.MockSetup, *store.WorkflowRepo, context.Context),
 ) {
-	mockSetup := testutils.NewMockSetup(t)
+	mockSetup := utils.NewMockSetup(t)
 	defer mockSetup.Close()
 
 	repo := store.NewWorkflowRepo(mockSetup.Mock)
@@ -189,7 +189,7 @@ func TestWorkflowRepo_GetStateByID(t *testing.T) {
 	testSimpleWorkflowGet(
 		t,
 		"should get state by ID",
-		func(mockSetup *testutils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
 			workflowID := "wf1"
 
 			tx := mockSetup.NewTransactionExpectations()
@@ -224,7 +224,7 @@ func TestWorkflowRepo_GetStateByTaskID(t *testing.T) {
 	testSimpleWorkflowGet(
 		t,
 		"should get state by task ID",
-		func(mockSetup *testutils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
 			workflowID := "wf1"
 			taskID := "task1"
 
@@ -259,7 +259,7 @@ func TestWorkflowRepo_GetStateByAgentID(t *testing.T) {
 	testSimpleWorkflowGet(
 		t,
 		"should get state by agent ID",
-		func(mockSetup *testutils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
 			workflowID := "wf1"
 			agentID := "agent1"
 
@@ -294,7 +294,7 @@ func TestWorkflowRepo_GetStateByToolID(t *testing.T) {
 	testSimpleWorkflowGet(
 		t,
 		"should get state by tool ID",
-		func(mockSetup *testutils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
 			workflowID := "wf1"
 			toolID := "tool1"
 
@@ -326,7 +326,7 @@ func TestWorkflowRepo_GetStateByToolID(t *testing.T) {
 }
 
 func TestWorkflowRepo_UpdateStatus(t *testing.T) {
-	mockSetup := testutils.NewMockSetup(t)
+	mockSetup := utils.NewMockSetup(t)
 	defer mockSetup.Close()
 
 	repo := store.NewWorkflowRepo(mockSetup.Mock)
@@ -345,7 +345,7 @@ func TestWorkflowRepo_UpdateStatus(t *testing.T) {
 }
 
 func TestWorkflowRepo_UpdateStatus_NotFound(t *testing.T) {
-	mockSetup := testutils.NewMockSetup(t)
+	mockSetup := utils.NewMockSetup(t)
 	defer mockSetup.Close()
 
 	repo := store.NewWorkflowRepo(mockSetup.Mock)

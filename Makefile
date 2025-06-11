@@ -100,9 +100,11 @@ schemagen:
 # -----------------------------------------------------------------------------
 # Testing
 # -----------------------------------------------------------------------------
-# Fast tests for daily development (excludes slow integration/worker tests)
+
+E2E_TESTS=./test/e2e/...
+
 test:
-	gotestsum --format testdox -- -parallel=8 $(shell go list ./... | grep -v '/test/integration/worker')
+	gotestsum --format testdox -- -parallel=8 $(shell go list ./... | grep -v '$(E2E_TESTS)')
 
 test-nocache:
 	gotestsum --format testdox -- -count=1 -parallel=8 ./...
@@ -111,10 +113,10 @@ test-all:
 	gotestsum --format testdox -- -parallel=8 ./...
 
 test-worker:
-	gotestsum --format testdox -- -parallel=16 ./test/integration/worker/...
+	gotestsum --format testdox -- -parallel=16 $(shell go list ./... | grep -v '$(E2E_TESTS)')
 
 test-no-worker:
-	gotestsum --format testdox -- -parallel=16 $(shell go list ./... | grep -v '/test/integration/worker')
+	gotestsum --format testdox -- -parallel=16 $(shell go list ./... | grep -v '$(E2E_TESTS)')
 
 # -----------------------------------------------------------------------------
 # Docker & Database Management

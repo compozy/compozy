@@ -1,7 +1,8 @@
-package test
+package utils
 
 import (
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
@@ -9,12 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const defaultActionID = "default_action"
-
-// StringPtr returns a pointer to the string value
-func StringPtr(s string) *string {
-	return &s
-}
+// -----
+// Mock Database Utilities
+// -----
 
 // MockSetup holds common mock database setup
 type MockSetup struct {
@@ -41,6 +39,10 @@ func (m *MockSetup) Close() {
 func (m *MockSetup) ExpectationsWereMet() {
 	assert.NoError(m.T, m.Mock.ExpectationsWereMet())
 }
+
+// -----
+// Transaction Expectations
+// -----
 
 // TransactionExpectations handles common transaction expectations
 type TransactionExpectations struct {
@@ -69,6 +71,10 @@ func (te *TransactionExpectations) ExpectRollback() *TransactionExpectations {
 	te.mock.ExpectRollback()
 	return te
 }
+
+// -----
+// Row Builders
+// -----
 
 // WorkflowStateRowBuilder helps build workflow state rows
 type WorkflowStateRowBuilder struct {
@@ -127,22 +133,24 @@ func (t *TaskStateRowBuilder) CreateTaskStateRows(
 	switch {
 	case agentID != nil:
 		component = core.ComponentAgent
-		actionID = defaultActionID // Required for agent components
+		actionID = DefaultActionID // Required for agent components
 	case toolID != nil:
 		component = core.ComponentTool
 		actionID = nil // Not required for tool components
 	default:
 		component = core.ComponentTask
-		actionID = defaultActionID // Task components may have actions
+		actionID = DefaultActionID // Task components may have actions
 	}
 
+	now := time.Now()
 	return t.mock.NewRows([]string{
 		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
 		"component", "status", "execution_type", "parent_state_id", "agent_id", "action_id", "tool_id",
 		"input", "output", "error", "created_at", "updated_at",
 	}).AddRow(
 		taskExecID, taskID, workflowExecID, workflowID,
-		component, status, executionType, nil, agentID, actionID, toolID, inputData, nil, nil, nil, nil,
+		component, status, executionType, nil, agentID, actionID, toolID, inputData,
+		nil, nil, now, now,
 	)
 }
 
@@ -161,24 +169,35 @@ func (t *TaskStateRowBuilder) CreateTaskStateRowsWithExecution(
 	switch {
 	case agentID != nil:
 		component = core.ComponentAgent
-		actionID = defaultActionID // Required for agent components
+		actionID = DefaultActionID // Required for agent components
 	case toolID != nil:
 		component = core.ComponentTool
 		actionID = nil // Not required for tool components
 	default:
 		component = core.ComponentTask
-		actionID = defaultActionID // Task components may have actions
+		actionID = DefaultActionID // Task components may have actions
+	}
+	columns := []string{
+		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
+		"component", "status", "execution_type", "parent_state_id",
+		"agent_id", "action_id", "tool_id", "input", "output",
+		"error", "created_at", "updated_at",
 	}
 
-	return t.mock.NewRows([]string{
-		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-		"component", "status", "execution_type", "parent_state_id", "agent_id", "action_id", "tool_id",
-		"input", "output", "error", "created_at", "updated_at",
-	}).AddRow(
+	now := time.Now()
+	values := []any{
 		taskExecID, taskID, workflowExecID, workflowID,
-		component, status, executionType, nil, agentID, actionID, toolID, inputData, nil, nil, nil, nil,
-	)
+		component, status, executionType, nil,
+		agentID, actionID, toolID, inputData, nil,
+		nil, now, now,
+	}
+
+	return t.mock.NewRows(columns).AddRow(values...)
 }
+
+// -----
+// Query Expectations
+// -----
 
 // QueryExpectations handles common query expectations
 type QueryExpectations struct {
@@ -231,6 +250,10 @@ func (q *QueryExpectations) ExpectWorkflowStateQueryForUpsert(
 	return q
 }
 
+// -----
+// Data Builders
+// -----
+
 // DataBuilder helps create test data
 type DataBuilder struct{}
 
@@ -257,6 +280,10 @@ func (td *DataBuilder) MustCreateNilJSONB() []byte {
 	}
 	return data
 }
+
+// -----
+// Test Helpers
+// -----
 
 // SimpleWorkflowTest runs a simple workflow state test with task population
 func (m *MockSetup) SimpleWorkflowTest(

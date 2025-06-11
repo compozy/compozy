@@ -36,7 +36,7 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) (*wf.State, erro
 	}
 
 	// Iterate over tasks until get the final one
-	for output.NextTask != nil {
+	for output.GetNextTask() != nil {
 		// Create a new task execution function for each iteration
 		taskFn := manager.ExecuteTasks(output)
 		nextTask, err := actHandler(errHandler, taskFn)(ctx)

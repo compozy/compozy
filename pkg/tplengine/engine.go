@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
@@ -59,7 +60,10 @@ func (e *TemplateEngine) WithFormat(format EngineFormat) *TemplateEngine {
 
 // AddTemplate adds a template to the engine
 func (e *TemplateEngine) AddTemplate(name, templateStr string) error {
-	tmpl, err := template.New(name).Option("missingkey=error").Funcs(sprig.FuncMap()).Parse(templateStr)
+	// Preprocess template to handle hyphens in field names
+	processedTemplate := e.preprocessTemplateForHyphens(templateStr)
+
+	tmpl, err := template.New(name).Option("missingkey=error").Funcs(sprig.FuncMap()).Parse(processedTemplate)
 	if err != nil {
 		return fmt.Errorf("failed to parse template: %w", err)
 	}
@@ -89,8 +93,11 @@ func (e *TemplateEngine) RenderString(templateStr string, context map[string]any
 		return templateStr, nil
 	}
 
+	// Preprocess template to handle hyphens in field names
+	processedTemplate := e.preprocessTemplateForHyphens(templateStr)
+
 	// Create a new template and parse the string
-	tmpl, err := template.New("inline").Option("missingkey=error").Funcs(sprig.FuncMap()).Parse(templateStr)
+	tmpl, err := template.New("inline").Option("missingkey=error").Funcs(sprig.FuncMap()).Parse(processedTemplate)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse template: %w", err)
 	}
@@ -449,4 +456,83 @@ func (e *TemplateEngine) preprocessContext(ctx map[string]any) map[string]any {
 	}
 
 	return result
+}
+
+// preprocessTemplateForHyphens converts template expressions with hyphens to use index syntax
+func (e *TemplateEngine) preprocessTemplateForHyphens(templateStr string) string {
+	// More comprehensive regex to match templates inside {{ }} including conditionals
+	re := regexp.MustCompile(`{{[^}]*}}`)
+
+	return re.ReplaceAllStringFunc(templateStr, func(match string) string {
+		// Extract the content between {{ and }}
+		content := strings.TrimSpace(match[2 : len(match)-2])
+
+		// Find all dot-path patterns that might contain hyphens
+		pathPattern := regexp.MustCompile(`(\.[a-zA-Z_][a-zA-Z0-9_-]*(?:\.[a-zA-Z_][a-zA-Z0-9_-]*)*)`)
+
+		processedContent := pathPattern.ReplaceAllStringFunc(content, func(pathMatch string) string {
+			// Only process if it starts with a dot (field reference)
+			if !strings.HasPrefix(pathMatch, ".") {
+				return pathMatch
+			}
+
+			// Split the path into segments
+			pathSegments := strings.Split(pathMatch[1:], ".") // Remove leading dot
+
+			// Check if any segment contains a hyphen
+			hasHyphen := false
+			for _, segment := range pathSegments {
+				if strings.Contains(segment, "-") {
+					hasHyphen = true
+					break
+				}
+			}
+
+			// If no hyphens, return as is
+			if !hasHyphen {
+				return pathMatch
+			}
+
+			// Convert to index syntax: .tasks.task-name.output becomes (index .tasks "task-name" "output")
+			// Find the first segment with a hyphen and convert everything from there to index syntax
+			indexStart := -1
+			for i, segment := range pathSegments {
+				if strings.Contains(segment, "-") {
+					indexStart = i - 1 // Include the parent segment
+					if indexStart < 0 {
+						indexStart = 0
+					}
+					break
+				}
+			}
+
+			if indexStart == -1 {
+				// This shouldn't happen since we checked for hyphens, but just in case
+				return pathMatch
+			}
+
+			// Build the result
+			var result string
+			if indexStart == 0 {
+				// Convert the entire path to index syntax
+				result = "index ."
+				for _, segment := range pathSegments {
+					result += fmt.Sprintf(` %q`, segment)
+				}
+				result = "(" + result + ")"
+			} else {
+				// Keep the first part as dot notation, convert the rest to index
+				result = "." + strings.Join(pathSegments[:indexStart], ".")
+				indexPart := "index " + result
+				for _, segment := range pathSegments[indexStart:] {
+					indexPart += fmt.Sprintf(` %q`, segment)
+				}
+				result = "(" + indexPart + ")"
+			}
+
+			return result
+		})
+
+		return "{{ " + processedContent + " }}"
+	})
 }

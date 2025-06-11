@@ -1,191 +1,295 @@
 # Overview
-The **Collection Task** feature introduces a new task type in Compozy that iterates over a dynamic collection of items and executes a task template for each item. It **directly leverages the existing parallel execution infrastructure** with minimal new code, adding only collection-specific item expansion and filtering capabilities.
 
-# Alignment with Existing Architecture
-**Compozy already implements 95% of the required functionality** through its robust parallel task infrastructure. The Collection Task is essentially a **thin wrapper** that generates dynamic child tasks and delegates to existing systems:
+The Compozy Worker E2E Test Suite addresses a critical gap in the current testing infrastructure. While the Compozy platform has robust unit tests for individual components, there's no comprehensive end-to-end validation of complete worker execution flows. This creates risks of integration failures, undetected workflow orchestration issues, and reduced confidence in production deployments.
 
-## Existing Infrastructure to Leverage
+**Problem**: Current worker flows have reported errors and lack integrated testing that validates complete execution paths through Temporal workflows, worker activities, state management, and database persistence.
 
-### Execution Types & State Management
-- **ExecutionType enum**: `ExecutionBasic`, `ExecutionRouter`, `ExecutionParallel` (may add `ExecutionCollection` for clarity)
-- **State struct**: Already has `ParentStateID` field for hierarchical relationships
-- **PartialState**: Existing pattern for state creation with parent-child relationships
-- **Cycle detection**: Existing validation prevents infinite parent-child loops
+**Solution**: A comprehensive e2e test suite that validates all worker execution types (basic, parallel, collection, router) through complete workflow lifecycles, leveraging existing test infrastructure and following established patterns.
 
-### Database Schema (No Changes Required)
-- **task_states table**: Existing `parent_state_id` foreign key supports hierarchy
-- **CreateChildStatesInTransaction**: Atomic child state creation already implemented
-- **SQL-based aggregation**: `GetProgressInfo` already aggregates child task progress
+**Value**: Increased confidence in worker reliability, faster issue detection, prevention of production failures, and a foundation for ongoing quality assurance as the platform evolves.
 
-### Parallel Execution Infrastructure (Direct Reuse)
-- **Strategies**: `StrategyWaitAll`, `StrategyFailFast`, `StrategyBestEffort`, `StrategyRace`
-- **Activities**: `CreateParallelState`, `ExecuteParallelTask`, `GetParallelResponse`
-- **ParentStatusUpdater**: Recursive status updates with cycle protection
-- **ProgressInfo**: Comprehensive progress tracking with completion/failure rates
-
-### Configuration (Extend Existing)
-- **ParallelTask struct**: Strategy, max_workers, timeout, retries already defined
-- **TaskConfigDTO**: Lightweight child task configuration system exists
-- **Template system**: Variable injection infrastructure already operational
-
-### Error Handling & Monitoring (Built-in)
-- **Comprehensive error propagation**: Status roll-up through parent-child hierarchy
-- **Early termination**: Based on parallel strategies (fail_fast, etc.)
-- **Progress aggregation**: Repository-based SQL queries with real-time metrics
-
-## Collection-Specific Additions (Minimal New Code)
-- **Item expansion logic**: Generate child tasks from template expressions
-- **Filter evaluation**: Skip items based on boolean expressions
-- **Variable injection**: Inject `item` and `index` into existing template system
-- **ExecuteCollection activity**: Thin wrapper that expands items then delegates to existing parallel activities
+**Target Users**: Compozy development team, QA engineers, DevOps team responsible for deployment validation and CI/CD pipeline reliability.
 
 # Core Features
 
-## Dynamic Item Generation (New)
-- Items produced by evaluating template expressions (e.g., `{{ .workflow.input.users }}`)
-- **Leverages existing template system** for variable resolution
-- Generates `PartialState` objects using **existing `CreateChildStatesInTransaction`**
+## Comprehensive Execution Type Testing
+**What**: Complete test coverage for all four worker execution types - basic tasks, router tasks, parallel tasks, and collection tasks.
+**Why**: Each execution type has unique orchestration patterns, state management requirements, and failure modes that need validation.
+**How**: Dedicated test suites for each type with positive scenarios, edge cases, and error conditions using real Temporal workflows and database persistence.
 
-## Filtering (New)
-- Optional `filter` expression evaluated per item using **existing template engine**
-- Early skip reduces load on **existing parallel execution infrastructure**
+## Multi-Task Workflow Validation
+**What**: End-to-end testing of complex workflows that combine multiple execution types, task chaining, and conditional branching.
+**Why**: Production workflows rarely use single execution types in isolation - they combine patterns in complex ways that need integration testing.
+**How**: Workflow scenarios that mix execution types, test task dependencies, validate output templating, and verify state transitions across the complete lifecycle.
 
-## Execution Modes (Existing - Direct Reuse)
-- **parallel**: Uses existing `ParallelTask` configuration with strategies
-- **sequential**: Achieved via `max_workers: 1` in existing parallel infrastructure
-- **Batching**: Implemented through existing parallel worker management
+## Error Scenario and Edge Case Coverage
+**What**: Comprehensive testing of failure modes, cancellation scenarios, timeout handling, and resource exhaustion conditions.
+**Why**: Production reliability depends on graceful handling of failures, proper cleanup, and predictable error propagation.
+**How**: Controlled failure injection, cancellation testing, timeout validation, and verification of cleanup procedures using Temporal test utilities.
 
-## Variable Injection (Existing + Extension)
-- **Existing template system** handles variable resolution
-- Add `item_var`/`index_var` to existing variable context
-- **TaskConfigDTO** already supports dynamic configuration injection
+## Worker Flow Validation
+**What**: Testing of worker orchestration, activity execution, and state management throughout complete workflow execution cycles.
+**Why**: Worker flows are the core execution engine and need comprehensive validation to ensure reliability and correctness.
+**How**: Direct testing of worker activities, use cases, and workflow orchestration without involving API routes or server components.
 
-## Error Tolerance & Early Termination (Existing)
-- **continue_on_error**: Maps directly to existing parallel strategies (`StrategyBestEffort`)
-- **stop_condition**: Can be implemented via existing strategy evaluation hooks
-- **ParentStatusUpdater** handles all error propagation
+# User Experience
 
-## Task Template Execution (Existing)
-- **Existing ExecuteTask activities** handle all task types (basic, router, etc.)
-- **No changes required** to existing task execution logic
+## Primary User Personas
+
+**Development Team Members**
+- Need confidence that worker changes don't break existing functionality
+- Require fast feedback on integration issues during development
+- Want clear test failure diagnostics to quickly identify problems
+
+**QA Engineers**
+- Need comprehensive test coverage to validate releases
+- Require deterministic, repeatable tests for reliable validation
+- Want detailed test scenarios that match production use cases
+
+**DevOps/Platform Team**
+- Need automated tests that integrate with CI/CD pipelines
+- Require validation of deployment readiness
+- Want monitoring of test execution outcomes and failure patterns
+
+## Key User Flows
+
+**Developer Workflow**
+1. Make changes to worker code or activities
+2. Run relevant e2e test subset locally
+3. Get immediate feedback on integration issues
+4. Debug failures using detailed test output and state verification
+5. Commit with confidence after tests pass
+
+**Release Validation Flow**
+1. Trigger full e2e test suite in CI/CD pipeline
+2. Validate all execution types and complex scenarios
+3. Review test outcomes and failure reports
+4. Get deployment approval based on comprehensive test results
+
+**Issue Investigation Flow**
+1. Production issue reported related to worker execution
+2. Reference e2e test scenarios to reproduce issue
+3. Add new test case to cover the specific failure mode
+4. Validate fix using enhanced test coverage
 
 # Technical Architecture
 
-## System Components (Minimal Changes)
+## System Components
 
-### Configuration
-```go
-// Extends existing ParallelTask struct
-type CollectionConfig struct {
-    ParallelTask                    // Inherit all existing parallel config
-    Items        string            `json:"items"`         // Template expression
-    Filter       string            `json:"filter"`        // Optional boolean template
-    ItemVar      string            `json:"item_var"`      // Default: "item"
-    IndexVar     string            `json:"index_var"`     // Default: "index"
-    Mode         string            `json:"mode"`          // "parallel" | "sequential"
-    Batch        int               `json:"batch"`         // For sequential batching
-}
-```
+**Test Execution Framework**
+- Go testing framework with testify assertions for reliable test outcomes
+- Temporal testsuite.TestWorkflowEnvironment for workflow orchestration testing
+- PostgreSQL test database with automatic isolation for state persistence validation
+- Mock providers for deterministic agent/tool responses without external dependencies
 
-### Activities (Single New Activity)
-- **ExecuteCollection**:
-  1. Expand items using existing template engine
-  2. Apply filters using existing template evaluation
-  3. Generate child `PartialState` objects using existing patterns
-  4. Delegate to existing `CreateParallelState` → `ExecuteParallelTask` → `GetParallelResponse`
-- **All other activities unchanged**: Complete reuse of parallel execution infrastructure
+**Existing Test Infrastructure Reuse**
+- Leverage existing `test/helpers` package components
+- Reuse `ContainerTestConfig` for database integration and resource management
+- Extend `DatabaseStateVerifier` for workflow and task state validation
+- Utilize `TestProviderConfig` with mock agents/tools for consistent test execution
+- Reuse `SetupWorkflowEnvironment` patterns for Temporal test configuration
 
-### Use Cases (Minimal Extensions)
-- **CreateState**: Parse `CollectionConfig`, generate children via existing `CreateChildStatesInTransaction`
-- **HandleResponse**: **No changes** - existing `ParentStatusUpdater` handles all aggregation
+**Worker Component Coverage (Scope Focus)**
+- All worker activities from `engine/worker/activities.go`
+- Use case implementations from `engine/*/uc/` packages
+- Workflow orchestration logic from `engine/worker/workflows.go`
+- State management and persistence layers
+- **Explicitly excludes**: API routes, server components, HTTP handlers
 
-### Data Models (No Schema Changes)
-- **task_states table**: Complete reuse with existing `parent_state_id` relationships
-- **ProgressInfo**: Direct reuse for aggregated metrics in parent `output` field
-- **State/PartialState**: No changes to existing structures
+## Data Models
+
+**Test Configuration Models**
+- WorkflowTestConfig: Encapsulates workflow definitions, expected outcomes, and validation criteria
+- ExecutionScenario: Defines specific test scenarios with inputs, expected outputs, and assertion rules
+- StateValidation: Structures for verifying database state, task progression, and output correctness
+
+**Test Result Models**
+- ExecutionResult: Captures test outcomes and failure diagnostics
+- StateSnapshot: Database and workflow state at key execution points for debugging
+
+## APIs and Integrations
+
+**Temporal Integration**
+- Direct integration with Temporal test suite for workflow execution
+- Activity registration and execution within test environment
+- Workflow state management and progression validation
+
+**Database Integration**
+- PostgreSQL test database with shared connection pooling
+- Automatic test isolation using unique test identifiers
+- State persistence validation across workflow execution
+
+**Runtime Integration**
+- Deno runtime manager for tool execution testing
+- Mock runtime responses for deterministic test outcomes
+- Resource cleanup and process management validation
 
 # Development Roadmap
 
-## Phase 1 – MVP (Leverage Existing Infrastructure)
-1. **CollectionConfig struct**: Extend existing `ParallelTask` configuration
-2. **ExecuteCollection activity**: Thin wrapper around existing parallel activities
-3. **Item expansion**: Use existing template engine for item generation
-4. **Variable injection**: Extend existing template context with item/index
-5. **Integration**: Wire into existing `CreateState` and parallel execution flow
+## MVP Phase: Foundation and Basic Testing
+**Scope**: Establish test infrastructure and validate basic execution flows
+- Set up test directory structure following existing `test/integration` patterns
+- Extend existing test helpers from `test/helpers` package
+- Create workflow configuration builders reusing established patterns
+- Implement basic task execution e2e tests with agent and tool variations
+- Validate state persistence and retrieval mechanisms using existing `DatabaseStateVerifier`
+- Basic error handling and timeout functionality testing
+- **Milestone**: Complete functional tests that can be run and demonstrate basic worker flow validation
 
-## Phase 2 – Advanced Features (Existing Infrastructure)
-1. **Filter expressions**: Use existing template boolean evaluation
-2. **Sequential mode**: Configure existing parallel infrastructure with `max_workers: 1`
-3. **Multiple strategies**: Direct use of existing `StrategyFailFast`, `StrategyBestEffort`, etc.
+## Phase 2: Advanced Execution Types
+**Scope**: Complete coverage of all worker execution patterns
+- Router task execution with conditional branching logic
+- Parallel task execution with all strategy types (wait_all, best_effort, fail_fast)
+- Collection task processing with filtering, batching, and templating
+- Complex templating and context building validation
+- **Milestone**: All execution types have comprehensive test coverage with passing test suites
 
-## Phase 3 – Enhanced Monitoring (Existing Infrastructure)
-1. **Progress tracking**: Leverage existing `ProgressInfo` SQL aggregation
-2. **Early termination**: Use existing strategy evaluation hooks for `stop_condition`
-3. **UI integration**: Existing parent-child task visualization supports collection expansion
+## Phase 3: Complex Workflow Integration
+**Scope**: Multi-task workflows and advanced orchestration patterns
+- Multi-task workflows combining different execution types
+- Task dependency chains and conditional workflow branching
+- Output transformation and templating across task boundaries
+- Workflow state management throughout complete execution cycles
+- Integration testing with real database persistence and state recovery
+- **Milestone**: Complex workflow scenarios validated with end-to-end test execution
 
-# Implementation Effort Reduction
+## Phase 4: Error Scenarios and Edge Cases
+**Scope**: Comprehensive failure mode testing and reliability validation
+- Workflow cancellation during different execution phases
+- Task timeout and retry logic validation
+- Resource exhaustion and cleanup verification
+- Invalid configuration handling and error propagation
+- Database connection failure recovery and state consistency
+- **Milestone**: Robust error handling validated across all failure scenarios
 
-**Original Estimate**: 3-4 weeks full implementation
-**Revised Estimate**: 1-1.5 weeks leveraging existing infrastructure
+## Phase 5: Integration and Documentation
+**Scope**: CI/CD integration and maintenance procedures
+- CI/CD pipeline integration with automated test execution
+- Test maintenance documentation and debugging guides
+- Production issue correlation with test scenario coverage
+- Test execution optimization and reliability improvements
+- **Milestone**: Production-ready test suite integrated with development workflow
 
-**Code Reduction**:
-- **State management**: 100% reuse (no new database schema/models)
-- **Parallel execution**: 100% reuse (activities, strategies, error handling)
-- **Progress tracking**: 100% reuse (SQL aggregation, status roll-up)
-- **Template system**: 95% reuse (add item/index variables only)
-- **Configuration**: 80% reuse (extend existing `ParallelTask`)
+# Logical Dependency Chain
 
-**New Code Required**:
-- `CollectionConfig` struct (≈50 lines)
-- `ExecuteCollection` activity (≈200 lines wrapper logic)
-- Item expansion/filtering logic (≈150 lines)
-- Template variable injection (≈100 lines)
-- Integration wiring (≈100 lines)
+## Foundation First: Test Infrastructure
+**Why First**: All subsequent testing depends on reliable test infrastructure and integration with existing patterns.
+**Components**: Test directory structure, extend existing helpers from `test/helpers`, database integration, mock providers
+**Deliverable**: Working test framework that can execute simple workflow scenarios
+**Validation**: Run basic workflow test to confirm infrastructure works
 
-**Total**: ≈600 lines of new code vs. estimated 2000+ lines for greenfield implementation
+## Quick Validation: Basic Task Execution
+**Why Next**: Provides immediate value and validates the testing approach with the simplest execution type.
+**Components**: Basic task tests with agents and tools, state persistence validation using existing helpers
+**Deliverable**: Functional e2e tests for basic execution that developers can run locally
+**Validation**: Execute complete basic task test suite to demonstrate functionality
 
-# Risk Mitigation Through Existing Infrastructure
+## Building Complexity: Advanced Execution Types
+**Why Sequential**: Each execution type builds on patterns established in basic testing, with increasing complexity.
+**Components**: Router → Parallel → Collection, each adding orchestration complexity
+**Deliverable**: Complete execution type coverage
+**Validation**: Run all execution type tests to ensure comprehensive coverage
 
-- **Resource exhaustion**: Existing `max_workers` and back-pressure handling
-- **Error accumulation**: Existing `ParentStatusUpdater` with comprehensive error propagation
-- **Long-running tasks**: Existing timeout handling and Temporal patterns
-- **Template complexity**: Existing template validation and error reporting
-- **Status tracking**: Existing `ProgressInfo` aggregation with real-time metrics
+## Integration Validation: Complex Workflows
+**Why After Individual Types**: Requires all execution types working individually before combining them.
+**Components**: Multi-task workflows, dependency chains, mixed execution patterns
+**Deliverable**: Production-like workflow testing that validates real usage patterns
+**Validation**: Execute complex workflow scenarios to validate integration patterns
+
+## Reliability Assurance: Error Scenarios
+**Why Last in Core Development**: Requires stable happy-path functionality before testing failure modes.
+**Components**: Cancellation, timeouts, failures, edge cases, cleanup validation
+**Deliverable**: Comprehensive failure mode coverage and reliability validation
+**Validation**: Run error scenario test suite to ensure robust failure handling
+
+## Production Readiness: Integration and Documentation
+**Why Final**: Requires complete functionality before integrating with deployment pipeline.
+**Components**: CI/CD integration, monitoring, documentation
+**Deliverable**: Production-ready test suite integrated with development workflow
+**Validation**: Execute full test suite in CI/CD environment to confirm production readiness
+
+# Risks and Mitigations
+
+## Technical Challenges
+
+**Risk**: Temporal test environment differences from production behavior
+**Mitigation**: Use existing shared test database for state persistence validation, leverage proven `DatabaseStateVerifier` patterns, test with realistic timing and concurrency patterns
+
+**Risk**: Test flakiness due to timing, concurrency, or resource dependencies
+**Mitigation**: Use deterministic mock providers, leverage existing test isolation patterns with unique identifiers, extend existing retry logic from `test/helpers`
+
+**Risk**: Complex test scenarios becoming difficult to maintain and debug
+**Mitigation**: Follow established test patterns from existing codebase, extend proven test builders, implement clear failure diagnostics using existing state verification helpers
+
+## MVP Strategy and Scope Management
+
+**Risk**: Trying to cover too many scenarios initially, delaying valuable feedback
+**Mitigation**: Start with basic task execution to validate approach, ensure tests run after each phase completion, build incrementally with each execution type, prioritize common production patterns over edge cases
+
+**Risk**: Test infrastructure becoming too complex for team adoption
+**Mitigation**: Leverage existing `test/helpers` patterns extensively, provide clear documentation based on existing examples, ensure tests can be run locally with simple commands
+
+**Risk**: Scope creep into server/API testing delaying worker focus
+**Mitigation**: Explicitly limit scope to worker/ and below components, avoid API route testing, focus on workflow orchestration and activity execution only
+
+## Resource and Integration Constraints
+
+**Risk**: Database test isolation failures causing test interference
+**Mitigation**: Use existing shared test database with proven isolation patterns, leverage existing unique test identifier systems, verify cleanup procedures using established helpers
+
+**Risk**: CI/CD integration complexity affecting deployment pipeline
+**Mitigation**: Design tests to integrate with existing infrastructure, implement proper timeout handling based on existing patterns, provide clear success/failure criteria
+
+**Risk**: Team knowledge gaps affecting test maintenance
+**Mitigation**: Comprehensive documentation following existing patterns, reuse familiar test helpers and structures, implement self-explanatory test names and failure messages
 
 # Appendix
 
-## Collection Task Configuration (Updated)
-```yaml
-# Leverages existing ParallelTask configuration
-id: process_user_notifications
-type: collection
-items: "{{ .workflow.input.users }}"
-filter: "{{ and .item.active (not .item.notified) }}"
-mode: parallel
-strategy: wait_all              # Existing: wait_all, fail_fast, best_effort, race
-max_workers: 10                 # Existing parallel infrastructure
-timeout: "5m"                   # Existing timeout handling
-retries: 3                      # Existing retry logic
-item_var: user                  # New: inject as template variable
-index_var: user_index           # New: inject as template variable
-task:                          # Existing: any valid task type
-  id: notify_user
-  type: basic
-  agent:
-    id: notification_agent
-  action: send_notification
-  with:
-    user_id: "{{ .user.id }}"
-    email: "{{ .user.email }}"
-    index: "{{ .user_index }}"
-continue_on_error: true         # Maps to existing StrategyBestEffort
-stop_condition: "{{ gt .summary.failed 10 }}"  # Existing strategy evaluation hooks
-```
+## Research Findings
 
-## Existing Infrastructure Integration Points
-- **Database**: Complete reuse of `task_states` with `parent_state_id`
-- **Activities**: `CreateParallelState`, `ExecuteParallelTask`, `GetParallelResponse`
-- **Services**: `ParentStatusUpdater` for status roll-up
-- **Configuration**: `ParallelTask` struct with strategy/timeout/retry logic
-- **Progress**: `ProgressInfo` struct with SQL-based aggregation
-- **Templates**: Existing template engine with variable context extension
+**Current Test Infrastructure Analysis**
+- Existing `test/helpers` package provides robust database integration via `ContainerTestConfig`
+- Mock provider patterns are well-established and reliable in `TestProviderConfig`
+- Temporal testsuite integration is proven in existing codebase with `SetupWorkflowEnvironment`
+- `DatabaseStateVerifier` provides comprehensive state validation capabilities that can be extended
+
+**Worker Flow Analysis**
+- Four distinct execution types each require specialized testing approaches
+- State management complexity increases significantly with parallel and collection execution
+- Error propagation and cleanup procedures are critical for reliability
+- Worker activities in `engine/worker/activities.go` are the primary integration points
+
+**Production Usage Patterns**
+- Most workflows combine multiple execution types in complex patterns
+- Collection processing is critical for batch operations
+- Router tasks enable complex conditional logic and branching
+- Parallel execution provides significant benefits when properly configured
+
+**Existing Helper Reuse Opportunities**
+- `ContainerTestConfig` for database integration
+- `DatabaseStateVerifier` for state validation
+- `CreateTestAgentConfig*` helpers for agent configurations
+- `SetupWorkflowEnvironment` for Temporal integration
+- Shared test database patterns for isolation
+
+## Technical Specifications
+
+**Test Execution Requirements**
+- Individual test scenarios: Complete within reasonable timeframes
+- Full test suite: Suitable for CI/CD integration
+- Memory usage: Bounded within test environment constraints
+- Database connections: Efficient connection pooling and cleanup using existing patterns
+
+**Test Coverage Requirements**
+- 100% worker activity function coverage from `engine/worker/activities.go`
+- All execution type positive and negative scenarios
+- Complex workflow patterns validation
+- Error scenario and edge case coverage
+- **Explicitly excludes**: API routes, HTTP handlers, server components
+
+**Integration Requirements**
+- Seamless integration with existing `test/integration` infrastructure
+- Consistent with project coding and testing standards
+- Automated CI/CD pipeline integration
+- Clear test failure reporting and debugging information
+- Extensive reuse of existing test helpers and patterns
