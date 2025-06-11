@@ -2,6 +2,7 @@ package utils
 
 import (
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -97,5 +98,45 @@ func TestCreateTestAgentConfigWithActions(t *testing.T) {
 		assert.Contains(t, actionMap, "action-2")
 		assert.Equal(t, "Do task 1: {{.input1}}", actionMap["action-1"].Prompt)
 		assert.Equal(t, "Do task 2: {{.input2}}", actionMap["action-2"].Prompt)
+	})
+}
+
+func TestCommonUtilities(t *testing.T) {
+	t.Run("Should create string pointer", func(t *testing.T) {
+		value := "test"
+		ptr := StringPtr(value)
+		require.NotNil(t, ptr)
+		assert.Equal(t, value, *ptr)
+	})
+
+	t.Run("Should create ID pointer", func(t *testing.T) {
+		value := "test-id"
+		ptr := IDPtr(value)
+		require.NotNil(t, ptr)
+		assert.Equal(t, core.ID(value), *ptr)
+	})
+
+	t.Run("Should generate unique test ID", func(t *testing.T) {
+		id1 := GenerateUniqueTestID("test")
+
+		// Add a small delay to ensure different timestamps
+		time.Sleep(1 * time.Millisecond)
+
+		id2 := GenerateUniqueTestID("test")
+
+		assert.NotEqual(t, id1, id2)
+		assert.Contains(t, id1, "test-test-")
+		assert.Contains(t, id2, "test-test-")
+	})
+
+	t.Run("Should get environment variable or default", func(t *testing.T) {
+		// Test with non-existent variable
+		result := GetTestEnvOrDefault("NON_EXISTENT_VAR", "default")
+		assert.Equal(t, "default", result)
+
+		// Set an environment variable for testing
+		t.Setenv("TEST_VAR", "custom_value")
+		result = GetTestEnvOrDefault("TEST_VAR", "default")
+		assert.Equal(t, "custom_value", result)
 	})
 }

@@ -1,0 +1,14 @@
+{
+    "permissions": {
+        "allow": [
+            "mcp__taskmaster__get_tasks",
+            "mcp__taskmaster__next_task",
+            "mcp__taskmaster__set_task_status",
+            "mcp__taskmaster__get_task",
+            "Bash(go test:*)",
+            "Bash(find:*)",
+            "mcp__taskmaster__update_subtask"
+        ],
+        "deny": []
+    }
+}

@@ -43,81 +43,129 @@ func NewHandleResponse(workflowRepo workflow.Repository, taskRepo task.Repositor
 	}
 }
 
-func (uc *HandleResponse) Execute(ctx context.Context, input *HandleResponseInput) (*task.Response, error) {
-	// Check if there's an execution error OR if the task state indicates failure
-	hasExecutionError := input.ExecutionError != nil
-	hasTaskFailure := input.TaskState.Status == core.StatusFailed
-	if hasExecutionError || hasTaskFailure {
-		return uc.handleErrorFlow(ctx, input)
-	}
-	return uc.handleSuccessFlow(ctx, input)
-}
+func (uc *HandleResponse) Execute(ctx context.Context, input *HandleResponseInput) (task.Response, error) {
+	// Process task execution result and determine success status
+	isSuccess, executionErr := uc.processTaskResult(ctx, input)
 
-func (uc *HandleResponse) handleSuccessFlow(
-	ctx context.Context,
-	input *HandleResponseInput,
-) (*task.Response, error) {
-	state := input.TaskState
-	state.UpdateStatus(core.StatusSuccess)
-	if input.TaskConfig.GetOutputs() != nil && state.Output != nil {
-		workflowState, err := uc.workflowRepo.GetState(ctx, input.TaskState.WorkflowExecID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get workflow state for output transformation: %w", err)
-		}
-		output, err := uc.normalizer.NormalizeTaskOutput(
-			state.Output,
-			input.TaskConfig.GetOutputs(),
-			workflowState,
-			input.WorkflowConfig,
-			input.TaskConfig,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to apply output transformation: %w", err)
-		}
-		state.Output = output
-	}
-	if err := uc.taskRepo.UpsertState(ctx, state); err != nil {
+	// Save state with context handling
+	if err := uc.saveStateWithContextHandling(ctx, input.TaskState); err != nil {
 		if ctx.Err() != nil {
-			return &task.Response{State: state}, nil
+			return &task.MainTaskResponse{State: input.TaskState}, nil
 		}
-		return nil, fmt.Errorf("failed to update task state: %w", err)
+		return nil, err
 	}
 
-	// Update parent task status if this is a child task (non-critical operation)
-	uc.logParentStatusUpdateError(ctx, state)
+	// Update parent status and handle context cancellation
+	uc.logParentStatusUpdateError(ctx, input.TaskState)
 	if ctx.Err() != nil {
-		return &task.Response{State: state}, nil
+		return &task.MainTaskResponse{State: input.TaskState}, nil
 	}
-	onSuccess, onError, err := uc.normalizeTransitions(ctx, input)
+
+	// Process transitions and validate error handling
+	onSuccess, onError, err := uc.processTransitionsWithValidation(ctx, input, isSuccess, executionErr)
 	if err != nil {
 		if ctx.Err() != nil {
-			return &task.Response{State: state}, nil
+			return &task.MainTaskResponse{State: input.TaskState}, nil
 		}
-		return nil, fmt.Errorf("failed to normalize transitions: %w", err)
+		return nil, err
 	}
-	var nextTask *task.Config
-	if input.NextTaskOverride != nil {
-		nextTask = input.NextTaskOverride
-	} else {
-		nextTask = input.WorkflowConfig.DetermineNextTask(input.TaskConfig, true)
-	}
-	return &task.Response{
+
+	// Determine next task
+	nextTask := uc.selectNextTask(input, isSuccess)
+
+	return &task.MainTaskResponse{
 		OnSuccess: onSuccess,
 		OnError:   onError,
-		State:     state,
+		State:     input.TaskState,
 		NextTask:  nextTask,
 	}, nil
 }
 
-func (uc *HandleResponse) handleErrorFlow(
-	ctx context.Context,
-	input *HandleResponseInput,
-) (*task.Response, error) {
+// processTaskResult handles output transformation and determines final success status
+func (uc *HandleResponse) processTaskResult(ctx context.Context, input *HandleResponseInput) (bool, error) {
 	state := input.TaskState
 	executionErr := input.ExecutionError
-	state.UpdateStatus(core.StatusFailed)
 
-	// Handle case where task failed but there's no execution error (e.g., parent task with failed child tasks)
+	// If successful so far, try to apply output transformation.
+	// If transformation fails, it becomes a task failure.
+	isSuccess := executionErr == nil && state.Status != core.StatusFailed
+	if isSuccess {
+		state.UpdateStatus(core.StatusSuccess)
+		if input.TaskConfig.GetOutputs() != nil && state.Output != nil {
+			if err := uc.applyOutputTransformation(ctx, input); err != nil {
+				executionErr = err // Transition to failure
+				isSuccess = false
+			}
+		}
+	}
+
+	// Handle final state (success or failure)
+	if !isSuccess {
+		state.UpdateStatus(core.StatusFailed)
+		uc.setErrorState(state, executionErr)
+	}
+
+	return isSuccess, executionErr
+}
+
+// saveStateWithContextHandling saves state and handles context cancellation
+func (uc *HandleResponse) saveStateWithContextHandling(ctx context.Context, state *task.State) error {
+	if err := uc.taskRepo.UpsertState(ctx, state); err != nil {
+		return fmt.Errorf("failed to update task state: %w", err)
+	}
+	return nil
+}
+
+// processTransitionsWithValidation normalizes transitions and validates error handling
+func (uc *HandleResponse) processTransitionsWithValidation(
+	ctx context.Context,
+	input *HandleResponseInput,
+	isSuccess bool,
+	executionErr error,
+) (*core.SuccessTransition, *core.ErrorTransition, error) {
+	onSuccess, onError, err := uc.normalizeTransitions(ctx, input)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to normalize transitions: %w", err)
+	}
+
+	if !isSuccess && (onError == nil || onError.Next == nil) {
+		if executionErr != nil {
+			return nil, nil, fmt.Errorf("task failed with no error transition defined: %w", executionErr)
+		}
+		return nil, nil, errors.New("task failed with no error transition defined")
+	}
+
+	return onSuccess, onError, nil
+}
+
+// selectNextTask determines the next task based on override or workflow configuration
+func (uc *HandleResponse) selectNextTask(input *HandleResponseInput, isSuccess bool) *task.Config {
+	if input.NextTaskOverride != nil {
+		return input.NextTaskOverride
+	}
+	return input.WorkflowConfig.DetermineNextTask(input.TaskConfig, isSuccess)
+}
+
+func (uc *HandleResponse) applyOutputTransformation(ctx context.Context, input *HandleResponseInput) error {
+	workflowState, err := uc.workflowRepo.GetState(ctx, input.TaskState.WorkflowExecID)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow state for output transformation: %w", err)
+	}
+	output, err := uc.normalizer.NormalizeTaskOutput(
+		input.TaskState.Output,
+		input.TaskConfig.GetOutputs(),
+		workflowState,
+		input.WorkflowConfig,
+		input.TaskConfig,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to apply output transformation: %w", err)
+	}
+	input.TaskState.Output = output
+	return nil
+}
+
+func (uc *HandleResponse) setErrorState(state *task.State, executionErr error) {
 	if executionErr == nil {
 		var errorMessage string
 		if state.IsParallelExecution() {
@@ -129,40 +177,6 @@ func (uc *HandleResponse) handleErrorFlow(
 	} else {
 		state.Error = core.NewError(executionErr, "execution_error", nil)
 	}
-
-	if updateErr := uc.taskRepo.UpsertState(ctx, state); updateErr != nil {
-		if ctx.Err() != nil {
-			return &task.Response{State: state}, nil
-		}
-		return nil, fmt.Errorf("failed to update task state after error: %w", updateErr)
-	}
-
-	// Update parent task status if this is a child task (non-critical operation)
-	uc.logParentStatusUpdateError(ctx, state)
-	if ctx.Err() != nil {
-		return &task.Response{State: state}, nil
-	}
-	if input.TaskConfig.OnError == nil || input.TaskConfig.OnError.Next == nil {
-		// For cases where execution error is nil, we shouldn't propagate it
-		if executionErr != nil {
-			return nil, fmt.Errorf("task failed with no error transition defined: %w", executionErr)
-		}
-		return nil, fmt.Errorf("task failed with no error transition defined")
-	}
-	onSuccess, onError, err := uc.normalizeTransitions(ctx, input)
-	if err != nil {
-		if ctx.Err() != nil {
-			return &task.Response{State: state}, nil
-		}
-		return nil, fmt.Errorf("failed to normalize transitions: %w", err)
-	}
-	nextTask := input.WorkflowConfig.DetermineNextTask(input.TaskConfig, false)
-	return &task.Response{
-		OnSuccess: onSuccess,
-		OnError:   onError,
-		State:     state,
-		NextTask:  nextTask,
-	}, nil
 }
 
 func (uc *HandleResponse) normalizeTransitions(

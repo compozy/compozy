@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
 	tkfacts "github.com/compozy/compozy/engine/task/activities"
+	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 )
@@ -17,6 +18,7 @@ type Activities struct {
 	workflowRepo  workflow.Repository
 	taskRepo      task.Repository
 	runtime       *runtime.Manager
+	configStore   services.ConfigStore
 }
 
 func NewActivities(
@@ -25,6 +27,7 @@ func NewActivities(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	runtime *runtime.Manager,
+	configStore services.ConfigStore,
 ) *Activities {
 	return &Activities{
 		projectConfig: projectConfig,
@@ -32,6 +35,7 @@ func NewActivities(
 		workflowRepo:  workflowRepo,
 		taskRepo:      taskRepo,
 		runtime:       runtime,
+		configStore:   configStore,
 	}
 }
 
@@ -84,7 +88,7 @@ func (a *Activities) CompleteWorkflow(
 func (a *Activities) ExecuteBasicTask(
 	ctx context.Context,
 	input *tkfacts.ExecuteBasicInput,
-) (*task.Response, error) {
+) (*task.MainTaskResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -93,6 +97,7 @@ func (a *Activities) ExecuteBasicTask(
 		a.workflowRepo,
 		a.taskRepo,
 		a.runtime,
+		a.configStore,
 	)
 	return act.Run(ctx, input)
 }
@@ -100,7 +105,7 @@ func (a *Activities) ExecuteBasicTask(
 func (a *Activities) ExecuteRouterTask(
 	ctx context.Context,
 	input *tkfacts.ExecuteRouterInput,
-) (*task.Response, error) {
+) (*task.MainTaskResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -108,6 +113,7 @@ func (a *Activities) ExecuteRouterTask(
 		a.workflows,
 		a.workflowRepo,
 		a.taskRepo,
+		a.configStore,
 	)
 	return act.Run(ctx, input)
 }
@@ -123,6 +129,7 @@ func (a *Activities) CreateParallelState(
 		a.workflows,
 		a.workflowRepo,
 		a.taskRepo,
+		a.configStore,
 	)
 	return act.Run(ctx, input)
 }
@@ -139,6 +146,7 @@ func (a *Activities) ExecuteParallelTask(
 		a.workflowRepo,
 		a.taskRepo,
 		a.runtime,
+		a.configStore,
 	)
 	return act.Run(ctx, input)
 }
@@ -146,7 +154,7 @@ func (a *Activities) ExecuteParallelTask(
 func (a *Activities) GetParallelResponse(
 	ctx context.Context,
 	input *tkfacts.GetParallelResponseInput,
-) (*task.Response, error) {
+) (*task.MainTaskResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -176,17 +184,40 @@ func (a *Activities) UpdateParentStatus(
 	return act.Run(ctx, input)
 }
 
-func (a *Activities) ExecuteCollectionTask(
+func (a *Activities) CreateCollectionState(
 	ctx context.Context,
-	input *tkfacts.ExecuteCollectionInput,
-) (*tkfacts.CollectionResponse, error) {
+	input *tkfacts.CreateCollectionStateInput,
+) (*task.State, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewExecuteCollection(
+	act := tkfacts.NewCreateCollectionState(
 		a.workflows,
 		a.workflowRepo,
 		a.taskRepo,
+		a.configStore,
 	)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) GetCollectionResponse(
+	ctx context.Context,
+	input *tkfacts.GetCollectionResponseInput,
+) (*task.CollectionResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewGetCollectionResponse(a.workflowRepo, a.taskRepo)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) ListChildStates(
+	ctx context.Context,
+	input *tkfacts.ListChildStatesInput,
+) ([]*task.State, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewListChildStates(a.taskRepo)
 	return act.Run(ctx, input)
 }

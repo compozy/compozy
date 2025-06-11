@@ -38,7 +38,15 @@ func (uc *LoadWorkflow) Execute(
 	}
 	workflowConfig, err := wf.FindConfig(uc.workflows, input.WorkflowID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to find workflow config: %w", err)
+		// Additional debugging: list available workflow IDs
+		var availableIDs []string
+		for _, wf := range uc.workflows {
+			if wf != nil {
+				availableIDs = append(availableIDs, wf.ID)
+			}
+		}
+		return nil, nil, fmt.Errorf("failed to find workflow config for ID '%s': %w (available workflows: %v)",
+			input.WorkflowID, err, availableIDs)
 	}
 	return workflowState, workflowConfig, nil
 }

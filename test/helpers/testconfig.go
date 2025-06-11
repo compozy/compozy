@@ -3,11 +3,11 @@ package utils
 import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/runtime"
-	"github.com/compozy/compozy/engine/worker"
-	"github.com/compozy/compozy/engine/workflow"
-	"go.temporal.io/sdk/testsuite"
 )
+
+// -----
+// Test Provider Configuration
+// -----
 
 // TestProviderConfig holds the standardized test provider configuration
 type TestProviderConfig struct {
@@ -46,6 +46,10 @@ func CreateTestAgentProviderConfig() core.ProviderConfig {
 		},
 	}
 }
+
+// -----
+// Agent Configuration Helpers
+// -----
 
 // CreateTestAgentConfig creates a complete agent config for testing
 func CreateTestAgentConfig(id, instructions string) *agent.Config {
@@ -87,24 +91,4 @@ func CreateTestAgentConfigWithActions(id, instructions string, actions map[strin
 		Config:       CreateTestAgentProviderConfig(),
 		Actions:      actionConfigs,
 	}
-}
-
-func SetupWorkflowEnvironment(env *testsuite.TestWorkflowEnvironment, config *ContainerTestConfig) {
-	runtime, err := runtime.NewRuntimeManager(config.ProjectConfig.GetCWD().PathStr(), runtime.WithTestConfig())
-	if err != nil {
-		panic(err)
-	}
-	activities := worker.NewActivities(
-		config.ProjectConfig,
-		[]*workflow.Config{config.WorkflowConfig},
-		config.WorkflowRepo,
-		config.TaskRepo,
-		runtime,
-	)
-	env.RegisterWorkflow(worker.CompozyWorkflow)
-	env.RegisterActivity(activities.GetWorkflowData)
-	env.RegisterActivity(activities.TriggerWorkflow)
-	env.RegisterActivity(activities.UpdateWorkflowState)
-	env.RegisterActivity(activities.ExecuteBasicTask)
-	env.RegisterActivity(activities.CompleteWorkflow)
 }

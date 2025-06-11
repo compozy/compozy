@@ -3,11 +3,12 @@ package normalizer
 import (
 	"context"
 	"fmt"
-	"reflect"
-	"sort"
+	"maps"
 
+	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
@@ -15,6 +16,8 @@ import (
 type CollectionNormalizer struct {
 	engine     *tplengine.TemplateEngine
 	textEngine *tplengine.TemplateEngine
+	converter  *TypeConverter
+	filterEval *FilterEvaluator
 }
 
 // NewCollectionNormalizer creates a new collection normalizer
@@ -22,6 +25,8 @@ func NewCollectionNormalizer() *CollectionNormalizer {
 	return &CollectionNormalizer{
 		engine:     tplengine.NewEngine(tplengine.FormatJSON),
 		textEngine: tplengine.NewEngine(tplengine.FormatText),
+		converter:  NewTypeConverter(),
+		filterEval: NewFilterEvaluator(),
 	}
 }
 
@@ -44,7 +49,7 @@ func (cn *CollectionNormalizer) ExpandCollectionItems(
 		}
 
 		// Convert to a slice of items
-		items := cn.convertToSlice(itemsValue)
+		items := cn.converter.ConvertToSlice(itemsValue)
 		return items, nil
 	}
 
@@ -63,7 +68,7 @@ func (cn *CollectionNormalizer) ExpandCollectionItems(
 	}
 
 	// Convert to a slice of items
-	items := cn.convertToSlice(itemsValue)
+	items := cn.converter.ConvertToSlice(itemsValue)
 	return items, nil
 }
 
@@ -82,13 +87,12 @@ func (cn *CollectionNormalizer) FilterCollectionItems(
 	for i, item := range items {
 		// Create context with item and index variables
 		filterContext := cn.CreateItemContext(templateContext, config, item, i)
-		// Evaluate filter expression using RenderString to properly handle template functions
-		filterResult, err := cn.textEngine.RenderString(config.Filter, filterContext)
+		// Evaluate filter expression
+		include, err := cn.filterEval.EvaluateFilter(config.Filter, filterContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate filter expression for item %d: %w", i, err)
 		}
-		// Check if result is truthy
-		if cn.isTruthy(filterResult) {
+		if include {
 			filteredItems = append(filteredItems, item)
 		}
 	}
@@ -110,8 +114,17 @@ func (cn *CollectionNormalizer) CreateItemContext(
 	}
 
 	// Add item-specific variables
-	itemContext[config.GetItemVar()] = item
-	itemContext[config.GetIndexVar()] = index
+	itemVar := config.GetItemVar()
+	if itemVar == "" {
+		itemVar = "item" // Default fallback
+	}
+	indexVar := config.GetIndexVar()
+	if indexVar == "" {
+		indexVar = "index" // Default fallback
+	}
+
+	itemContext[itemVar] = item
+	itemContext[indexVar] = index
 
 	return itemContext
 }
@@ -124,9 +137,7 @@ func (cn *CollectionNormalizer) CreateProgressContext(
 	contextWithProgress := make(map[string]any)
 
 	// Copy base context
-	for k, v := range baseContext {
-		contextWithProgress[k] = v
-	}
+	maps.Copy(contextWithProgress, baseContext)
 
 	// Add progress info
 	contextWithProgress["progress"] = map[string]any{
@@ -160,59 +171,434 @@ func (cn *CollectionNormalizer) ApplyTemplateToConfig(
 	// Use the template engine to process the configuration
 	engine := tplengine.NewEngine(tplengine.FormatText)
 
-	// Apply template to action field
-	if newConfig.Action != "" {
-		processedAction, err := engine.RenderString(newConfig.Action, itemContext)
-		if err != nil {
-			return nil, fmt.Errorf("failed to apply template to action: %w", err)
-		}
-		newConfig.Action = processedAction
+	// Apply templates to different parts of the configuration
+	if err := cn.applyActionTemplate(newConfig, itemContext, engine); err != nil {
+		return nil, err
 	}
 
-	// Apply templates to the 'with' input parameters
-	if newConfig.With != nil {
-		processedWith := make(map[string]any)
-		for k, v := range *newConfig.With {
-			if strVal, ok := v.(string); ok {
-				// Apply template to string values
-				renderedVal, err := engine.RenderString(strVal, itemContext)
-				if err != nil {
-					return nil, fmt.Errorf("failed to apply template to with parameter '%s': %w", k, err)
-				}
-				processedWith[k] = renderedVal
-			} else {
-				// For non-string values, use ParseMap to handle nested structures
-				processedVal, err := engine.ParseMap(v, itemContext)
-				if err != nil {
-					return nil, fmt.Errorf("failed to apply template to with parameter '%s': %w", k, err)
-				}
-				processedWith[k] = processedVal
-			}
-		}
-		*newConfig.With = processedWith
+	if err := cn.applyWithTemplate(newConfig, itemContext, engine); err != nil {
+		return nil, err
 	}
 
-	// Apply templates to environment variables
-	if newConfig.Env != nil {
-		processedEnv, err := engine.ParseMap(*newConfig.Env, itemContext)
-		if err != nil {
-			return nil, fmt.Errorf("failed to apply template to env variables: %w", err)
-		}
-		if envMap, ok := processedEnv.(map[string]any); ok {
-			envStrMap := make(map[string]string)
-			for k, v := range envMap {
-				if strVal, ok := v.(string); ok {
-					envStrMap[k] = strVal
-				} else {
-					envStrMap[k] = fmt.Sprintf("%v", v)
-				}
-			}
-			envMapPtr := core.EnvMap(envStrMap)
-			newConfig.Env = &envMapPtr
-		}
+	if err := cn.applyEnvTemplate(newConfig, itemContext, engine); err != nil {
+		return nil, err
+	}
+
+	if err := cn.applyAgentTemplate(newConfig, itemContext, engine); err != nil {
+		return nil, err
+	}
+
+	if err := cn.applyToolTemplate(newConfig, itemContext, engine); err != nil {
+		return nil, err
 	}
 
 	return newConfig, nil
+}
+
+// applyActionTemplate applies template to the action field
+func (cn *CollectionNormalizer) applyActionTemplate(
+	config *task.Config,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+) error {
+	if config.Action != "" {
+		processedAction, err := engine.RenderString(config.Action, itemContext)
+		if err != nil {
+			return fmt.Errorf("failed to apply template to action: %w", err)
+		}
+		config.Action = processedAction
+	}
+	return nil
+}
+
+// applyWithTemplate applies templates to the 'with' input parameters
+func (cn *CollectionNormalizer) applyWithTemplate(
+	config *task.Config,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+) error {
+	if config.With == nil {
+		return nil
+	}
+
+	processedWith := make(map[string]any)
+	for k, v := range *config.With {
+		if strVal, ok := v.(string); ok {
+			// Apply template to string values
+			renderedVal, err := engine.RenderString(strVal, itemContext)
+			if err != nil {
+				return fmt.Errorf("failed to apply template to with parameter '%s': %w", k, err)
+			}
+			processedWith[k] = renderedVal
+		} else {
+			// For non-string values, use ParseMap to handle nested structures
+			processedVal, err := engine.ParseMap(v, itemContext)
+			if err != nil {
+				return fmt.Errorf("failed to apply template to with parameter '%s': %w", k, err)
+			}
+			processedWith[k] = processedVal
+		}
+	}
+	*config.With = processedWith
+	return nil
+}
+
+// applyEnvTemplate applies templates to environment variables
+func (cn *CollectionNormalizer) applyEnvTemplate(
+	config *task.Config,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+) error {
+	if config.Env == nil {
+		return nil
+	}
+
+	processedEnv, err := engine.ParseMap(*config.Env, itemContext)
+	if err != nil {
+		return fmt.Errorf("failed to apply template to env variables: %w", err)
+	}
+
+	if envMap, ok := processedEnv.(map[string]any); ok {
+		envStrMap := make(map[string]string)
+		for k, v := range envMap {
+			if strVal, ok := v.(string); ok {
+				envStrMap[k] = strVal
+			} else {
+				envStrMap[k] = fmt.Sprintf("%v", v)
+			}
+		}
+		envMapPtr := core.EnvMap(envStrMap)
+		config.Env = &envMapPtr
+	}
+	return nil
+}
+
+// applyAgentTemplate applies templates to agent configuration
+func (cn *CollectionNormalizer) applyAgentTemplate(
+	config *task.Config,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+) error {
+	if config.Agent != nil {
+		err := cn.applyTemplateToAgent(config.Agent, itemContext, engine)
+		if err != nil {
+			return fmt.Errorf("failed to apply template to agent: %w", err)
+		}
+	}
+	return nil
+}
+
+// applyToolTemplate applies templates to tool configuration
+func (cn *CollectionNormalizer) applyToolTemplate(
+	config *task.Config,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+) error {
+	if config.Tool != nil {
+		err := cn.applyTemplateToTool(config.Tool, itemContext, engine)
+		if err != nil {
+			return fmt.Errorf("failed to apply template to tool: %w", err)
+		}
+	}
+	return nil
+}
+
+// applyTemplateToAgent applies templates to agent configuration
+func (cn *CollectionNormalizer) applyTemplateToAgent(
+	agentConfig any,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+) error {
+	// Handle agent config through reflection since it could be a pointer or embedded
+	agentPtr, ok := agentConfig.(*agent.Config)
+	if !ok {
+		return fmt.Errorf("agent config is not of expected type")
+	}
+
+	// Apply templates to different parts of agent configuration
+	if err := cn.applyAgentInstructionsTemplate(agentPtr, itemContext, engine); err != nil {
+		return err
+	}
+
+	if err := cn.applyAgentActionsTemplate(agentPtr, itemContext, engine); err != nil {
+		return err
+	}
+
+	if err := cn.applyAgentWithTemplate(agentPtr, itemContext, engine); err != nil {
+		return err
+	}
+
+	if err := cn.applyAgentEnvTemplate(agentPtr, itemContext, engine); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// applyAgentInstructionsTemplate applies template to agent instructions
+func (cn *CollectionNormalizer) applyAgentInstructionsTemplate(
+	agentPtr *agent.Config,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+) error {
+	if agentPtr.Instructions != "" {
+		processedInstructions, err := engine.RenderString(agentPtr.Instructions, itemContext)
+		if err != nil {
+			return fmt.Errorf("failed to apply template to agent instructions: %w", err)
+		}
+		agentPtr.Instructions = processedInstructions
+	}
+	return nil
+}
+
+// applyAgentActionsTemplate applies templates to agent actions
+func (cn *CollectionNormalizer) applyAgentActionsTemplate(
+	agentPtr *agent.Config,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+) error {
+	for i, action := range agentPtr.Actions {
+		if err := cn.applyActionPromptTemplate(action, itemContext, engine, i); err != nil {
+			return err
+		}
+
+		if err := cn.applyActionWithTemplate(action, itemContext, engine, i); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// applyActionPromptTemplate applies template to action prompt
+func (cn *CollectionNormalizer) applyActionPromptTemplate(
+	action *agent.ActionConfig,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+	actionIndex int,
+) error {
+	if action.Prompt != "" {
+		processedPrompt, err := engine.RenderString(action.Prompt, itemContext)
+		if err != nil {
+			return fmt.Errorf("failed to apply template to action %d prompt: %w", actionIndex, err)
+		}
+		action.Prompt = processedPrompt
+	}
+	return nil
+}
+
+// applyActionWithTemplate applies templates to action's 'with' parameters
+func (cn *CollectionNormalizer) applyActionWithTemplate(
+	action *agent.ActionConfig,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+	actionIndex int,
+) error {
+	if action.With == nil {
+		return nil
+	}
+
+	processedWith := make(map[string]any)
+	for k, v := range *action.With {
+		if strVal, ok := v.(string); ok {
+			renderedVal, err := engine.RenderString(strVal, itemContext)
+			if err != nil {
+				return fmt.Errorf("failed to apply template to action %d with parameter '%s': %w", actionIndex, k, err)
+			}
+			processedWith[k] = renderedVal
+		} else {
+			processedVal, err := engine.ParseMap(v, itemContext)
+			if err != nil {
+				return fmt.Errorf("failed to apply template to action %d with parameter '%s': %w", actionIndex, k, err)
+			}
+			processedWith[k] = processedVal
+		}
+	}
+	*action.With = processedWith
+	return nil
+}
+
+// applyAgentWithTemplate applies templates to agent's 'with' parameters
+func (cn *CollectionNormalizer) applyAgentWithTemplate(
+	agentPtr *agent.Config,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+) error {
+	if agentPtr.With == nil {
+		return nil
+	}
+
+	processedWith := make(map[string]any)
+	for k, v := range *agentPtr.With {
+		if strVal, ok := v.(string); ok {
+			renderedVal, err := engine.RenderString(strVal, itemContext)
+			if err != nil {
+				return fmt.Errorf("failed to apply template to agent with parameter '%s': %w", k, err)
+			}
+			processedWith[k] = renderedVal
+		} else {
+			processedVal, err := engine.ParseMap(v, itemContext)
+			if err != nil {
+				return fmt.Errorf("failed to apply template to agent with parameter '%s': %w", k, err)
+			}
+			processedWith[k] = processedVal
+		}
+	}
+	*agentPtr.With = processedWith
+	return nil
+}
+
+// applyAgentEnvTemplate applies templates to agent's environment variables
+func (cn *CollectionNormalizer) applyAgentEnvTemplate(
+	agentPtr *agent.Config,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+) error {
+	if agentPtr.Env == nil {
+		return nil
+	}
+
+	processedEnv, err := engine.ParseMap(*agentPtr.Env, itemContext)
+	if err != nil {
+		return fmt.Errorf("failed to apply template to agent env variables: %w", err)
+	}
+
+	if envMap, ok := processedEnv.(map[string]any); ok {
+		envStrMap := make(map[string]string)
+		for k, v := range envMap {
+			if strVal, ok := v.(string); ok {
+				envStrMap[k] = strVal
+			} else {
+				envStrMap[k] = fmt.Sprintf("%v", v)
+			}
+		}
+		envMapPtr := core.EnvMap(envStrMap)
+		agentPtr.Env = &envMapPtr
+	}
+	return nil
+}
+
+// applyTemplateToTool applies templates to tool configuration
+func (cn *CollectionNormalizer) applyTemplateToTool(
+	toolConfig any,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+) error {
+	// Handle tool config through reflection since it could be a pointer or embedded
+	toolPtr, ok := toolConfig.(*tool.Config)
+	if !ok {
+		return fmt.Errorf("tool config is not of expected type")
+	}
+
+	// Apply templates to different parts of tool configuration
+	if err := cn.applyToolDescriptionTemplate(toolPtr, itemContext, engine); err != nil {
+		return err
+	}
+
+	if err := cn.applyToolExecuteTemplate(toolPtr, itemContext, engine); err != nil {
+		return err
+	}
+
+	if err := cn.applyToolWithTemplate(toolPtr, itemContext, engine); err != nil {
+		return err
+	}
+
+	if err := cn.applyToolEnvTemplate(toolPtr, itemContext, engine); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// applyToolDescriptionTemplate applies template to tool description
+func (cn *CollectionNormalizer) applyToolDescriptionTemplate(
+	toolPtr *tool.Config,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+) error {
+	if toolPtr.Description != "" {
+		processedDescription, err := engine.RenderString(toolPtr.Description, itemContext)
+		if err != nil {
+			return fmt.Errorf("failed to apply template to tool description: %w", err)
+		}
+		toolPtr.Description = processedDescription
+	}
+	return nil
+}
+
+// applyToolExecuteTemplate applies template to tool execute command
+func (cn *CollectionNormalizer) applyToolExecuteTemplate(
+	toolPtr *tool.Config,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+) error {
+	if toolPtr.Execute != "" {
+		processedExecute, err := engine.RenderString(toolPtr.Execute, itemContext)
+		if err != nil {
+			return fmt.Errorf("failed to apply template to tool execute: %w", err)
+		}
+		toolPtr.Execute = processedExecute
+	}
+	return nil
+}
+
+// applyToolWithTemplate applies templates to tool's 'with' parameters
+func (cn *CollectionNormalizer) applyToolWithTemplate(
+	toolPtr *tool.Config,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+) error {
+	if toolPtr.With == nil {
+		return nil
+	}
+
+	processedWith := make(map[string]any)
+	for k, v := range *toolPtr.With {
+		if strVal, ok := v.(string); ok {
+			renderedVal, err := engine.RenderString(strVal, itemContext)
+			if err != nil {
+				return fmt.Errorf("failed to apply template to tool with parameter '%s': %w", k, err)
+			}
+			processedWith[k] = renderedVal
+		} else {
+			processedVal, err := engine.ParseMap(v, itemContext)
+			if err != nil {
+				return fmt.Errorf("failed to apply template to tool with parameter '%s': %w", k, err)
+			}
+			processedWith[k] = processedVal
+		}
+	}
+	*toolPtr.With = processedWith
+	return nil
+}
+
+// applyToolEnvTemplate applies templates to tool's environment variables
+func (cn *CollectionNormalizer) applyToolEnvTemplate(
+	toolPtr *tool.Config,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+) error {
+	if toolPtr.Env == nil {
+		return nil
+	}
+
+	processedEnv, err := engine.ParseMap(*toolPtr.Env, itemContext)
+	if err != nil {
+		return fmt.Errorf("failed to apply template to tool env variables: %w", err)
+	}
+
+	if envMap, ok := processedEnv.(map[string]any); ok {
+		envStrMap := make(map[string]string)
+		for k, v := range envMap {
+			if strVal, ok := v.(string); ok {
+				envStrMap[k] = strVal
+			} else {
+				envStrMap[k] = fmt.Sprintf("%v", v)
+			}
+		}
+		envMapPtr := core.EnvMap(envStrMap)
+		toolPtr.Env = &envMapPtr
+	}
+	return nil
 }
 
 // deepCopyConfig creates a deep copy of a task configuration
@@ -238,136 +624,4 @@ func (cn *CollectionNormalizer) deepCopyConfig(config *task.Config) *task.Config
 	}
 
 	return &newConfig
-}
-
-// convertToSlice converts various types to a slice of interfaces
-func (cn *CollectionNormalizer) convertToSlice(value any) []any {
-	if value == nil {
-		return []any{}
-	}
-
-	switch v := value.(type) {
-	case []any:
-		return v
-	case []string:
-		return cn.convertStringSlice(v)
-	case []int:
-		return cn.convertIntSlice(v)
-	case []float64:
-		return cn.convertFloatSlice(v)
-	case map[string]any:
-		return cn.convertMapToSlice(v)
-	case string, int, int32, int64, float32, float64, bool:
-		return []any{v}
-	default:
-		return cn.convertReflectionSlice(value)
-	}
-}
-
-// convertStringSlice converts []string to []any
-func (cn *CollectionNormalizer) convertStringSlice(v []string) []any {
-	result := make([]any, len(v))
-	for i, item := range v {
-		result[i] = item
-	}
-	return result
-}
-
-// convertIntSlice converts []int to []any
-func (cn *CollectionNormalizer) convertIntSlice(v []int) []any {
-	result := make([]any, len(v))
-	for i, item := range v {
-		result[i] = item
-	}
-	return result
-}
-
-// convertFloatSlice converts []float64 to []any
-func (cn *CollectionNormalizer) convertFloatSlice(v []float64) []any {
-	result := make([]any, len(v))
-	for i, item := range v {
-		result[i] = item
-	}
-	return result
-}
-
-// convertMapToSlice converts map to slice of key-value pairs
-func (cn *CollectionNormalizer) convertMapToSlice(v map[string]any) []any {
-	// Sort keys for deterministic ordering
-	keys := make([]string, 0, len(v))
-	for key := range v {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	result := make([]any, 0, len(v))
-	for _, key := range keys {
-		result = append(result, map[string]any{
-			"key":   key,
-			"value": v[key],
-		})
-	}
-	return result
-}
-
-// convertReflectionSlice handles any slice/array type using reflection
-func (cn *CollectionNormalizer) convertReflectionSlice(value any) []any {
-	rv := reflect.ValueOf(value)
-	if rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
-		result := make([]any, rv.Len())
-		for i := 0; i < rv.Len(); i++ {
-			result[i] = rv.Index(i).Interface()
-		}
-		return result
-	}
-	// If it's not a slice/array/map, treat as single item
-	return []any{value}
-}
-
-// isTruthy checks if a value is considered truthy for filtering
-func (cn *CollectionNormalizer) isTruthy(value any) bool {
-	if value == nil {
-		return false
-	}
-
-	switch v := value.(type) {
-	case bool:
-		return v
-	case string:
-		return cn.isStringTruthy(v)
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-		return v != 0
-	case float32, float64:
-		return v != 0.0
-	case []any:
-		return len(v) > 0
-	case map[string]any:
-		return len(v) > 0
-	default:
-		return cn.isDefaultTruthy(v)
-	}
-}
-
-// isStringTruthy checks if a string value is truthy
-func (cn *CollectionNormalizer) isStringTruthy(v string) bool {
-	if v == "true" || v == `"true"` {
-		return true
-	}
-	if v == "false" || v == `"false"` || v == "" {
-		return false
-	}
-	// Any other non-empty string is truthy
-	return v != ""
-}
-
-// isDefaultTruthy handles default case for truthy evaluation
-func (cn *CollectionNormalizer) isDefaultTruthy(v any) bool {
-	str := fmt.Sprintf("%v", v)
-	if str == "true" || str == `"true"` {
-		return true
-	}
-	if str == "false" || str == `"false"` || str == "0" || str == "" {
-		return false
-	}
-	return true
 }

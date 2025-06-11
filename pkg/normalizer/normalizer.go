@@ -68,8 +68,12 @@ func (n *Normalizer) normalizeRegularTaskConfig(config *task.Config, ctx *Normal
 	if err != nil {
 		return fmt.Errorf("failed to convert task config to map: %w", err)
 	}
+
+	// Preserve existing With values before normalization
+	existingWith := config.With
+
 	parsed, err := n.engine.ParseMapWithFilter(configMap, context, func(k string) bool {
-		return k == "agent" || k == "tool" || k == "outputs" || k == inputKey || k == outputKey
+		return k == "agent" || k == "tool" || k == "outputs" || k == outputKey
 	})
 	if err != nil {
 		return fmt.Errorf("failed to normalize task config: %w", err)
@@ -77,6 +81,18 @@ func (n *Normalizer) normalizeRegularTaskConfig(config *task.Config, ctx *Normal
 	if err := config.FromMap(parsed); err != nil {
 		return fmt.Errorf("failed to update task config from normalized map: %w", err)
 	}
+
+	// Merge existing With values back into the normalized config
+	if existingWith != nil && config.With != nil {
+		// Merge existing values into normalized values (existing takes precedence)
+		for key, value := range *existingWith {
+			(*config.With)[key] = value
+		}
+	} else if existingWith != nil {
+		// If normalization cleared With but we had existing values, restore them
+		config.With = existingWith
+	}
+
 	return nil
 }
 

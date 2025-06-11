@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 // -----------------------------------------------------------------------------
@@ -22,10 +21,6 @@ const (
 	ExecutionParallel   ExecutionType = "parallel"
 	ExecutionCollection ExecutionType = "collection"
 )
-
-// -----------------------------------------------------------------------------
-// Parallel Execution State - REMOVED: Now using parent-child relationships
-// -----------------------------------------------------------------------------
 
 // -----------------------------------------------------------------------------
 // Enhanced State - Updated to support both basic and parallel execution
@@ -157,6 +152,11 @@ func convertBasic(sdb *StateDB, state *State) error {
 // IsParallelExecution returns true if this task has parallel execution type (can have child tasks)
 func (s *State) IsParallelExecution() bool {
 	return s.ExecutionType == ExecutionParallel
+}
+
+// CanHaveChildren returns true if this task can have child tasks (parallel or collection)
+func (s *State) CanHaveChildren() bool {
+	return s.ExecutionType == ExecutionParallel || s.ExecutionType == ExecutionCollection
 }
 
 // IsChildTask returns true if this task is a child task (has a parent)
@@ -425,50 +425,11 @@ func CreateBasicState(input *CreateStateInput, result *PartialState) *State {
 
 // CreateParentState creates a parent task state (kept for backward compatibility)
 func CreateParentState(input *CreateStateInput, result *PartialState) *State {
-	// Ensure parent state has correct component and execution type
+	// Ensure parent state has correct component
 	result.Component = core.ComponentTask
-	result.ExecutionType = ExecutionParallel
-	return CreateState(input, result)
-}
-
-// -----------------------------------------------------------------------------
-// Response - Enhanced to handle both basic and parallel execution
-// -----------------------------------------------------------------------------
-
-type Response struct {
-	OnSuccess *core.SuccessTransition `json:"on_success"`
-	OnError   *core.ErrorTransition   `json:"on_error"`
-	State     *State                  `json:"state"`
-	NextTask  *Config                 `json:"next_task"`
-}
-
-func (r *Response) NextTaskID() string {
-	state := r.State
-	taskID := state.TaskID
-	var nextTaskID string
-
-	switch {
-	case state.Status == core.StatusSuccess && r.OnSuccess != nil && r.OnSuccess.Next != nil:
-		nextTaskID = *r.OnSuccess.Next
-		logger.Info("Task succeeded, transitioning to next task",
-			"current_task", taskID,
-			"next_task", nextTaskID,
-		)
-	case state.Status == core.StatusFailed && r.OnError != nil && r.OnError.Next != nil:
-		nextTaskID = *r.OnError.Next
-		logger.Info("Task failed, transitioning to error task",
-			"current_task", taskID,
-			"next_task", nextTaskID,
-		)
-	default:
-		logger.Info("No more tasks to execute", "current_task", taskID)
+	// Only set ExecutionParallel if the execution type is not already a valid parent type
+	if result.ExecutionType != ExecutionParallel && result.ExecutionType != ExecutionCollection {
+		result.ExecutionType = ExecutionParallel
 	}
-	return nextTaskID
-}
-
-type SubtaskResponse struct {
-	TaskID string          `json:"task_id"`
-	Output *core.Output    `json:"output"`
-	Error  *core.Error     `json:"error"`
-	Status core.StatusType `json:"status"`
+	return CreateState(input, result)
 }

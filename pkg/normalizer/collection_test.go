@@ -125,7 +125,7 @@ func TestCollectionNormalizer_ConvertToSlice(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := normalizer.convertToSlice(tt.input)
+			result := normalizer.converter.ConvertToSlice(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -133,7 +133,7 @@ func TestCollectionNormalizer_ConvertToSlice(t *testing.T) {
 	t.Run("Should convert map to key-value pairs", func(t *testing.T) {
 		input := map[string]any{"x": 10, "y": 20}
 
-		result := normalizer.convertToSlice(input)
+		result := normalizer.converter.ConvertToSlice(input)
 
 		require.Len(t, result, 2)
 
@@ -233,7 +233,7 @@ func TestCollectionNormalizer_IsTruthy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := normalizer.isTruthy(tt.input)
+			result := normalizer.filterEval.IsTruthy(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

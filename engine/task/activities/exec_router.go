@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
 	"github.com/compozy/compozy/engine/workflow"
 )
@@ -20,9 +21,9 @@ type ExecuteRouterInput struct {
 }
 
 type ExecuteRouter struct {
-	loadWorkflowUC   *uc.LoadWorkflow
-	createStateUC    *uc.CreateState
-	handleResponseUC *uc.HandleResponse
+	loadWorkflowUC *uc.LoadWorkflow
+	createStateUC  *uc.CreateState
+	taskResponder  *services.TaskResponder
 }
 
 // NewExecuteRouter creates a new ExecuteRouter activity
@@ -30,15 +31,23 @@ func NewExecuteRouter(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
+	configStore services.ConfigStore,
 ) *ExecuteRouter {
+	configManager := services.NewConfigManager(configStore)
 	return &ExecuteRouter{
-		loadWorkflowUC:   uc.NewLoadWorkflow(workflows, workflowRepo),
-		createStateUC:    uc.NewCreateState(taskRepo),
-		handleResponseUC: uc.NewHandleResponse(workflowRepo, taskRepo),
+		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
+		createStateUC:  uc.NewCreateState(taskRepo, configManager),
+		taskResponder:  services.NewTaskResponder(workflowRepo, taskRepo),
 	}
 }
 
-func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*task.Response, error) {
+func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*task.MainTaskResponse, error) {
+	// Validate task type early
+	taskConfig := input.TaskConfig
+	taskType := taskConfig.Type
+	if taskType != task.TaskTypeRouter {
+		return nil, fmt.Errorf("unsupported task type: %s", taskType)
+	}
 	// Load workflow state and config
 	workflowState, workflowConfig, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
 		WorkflowID:     input.WorkflowID,
@@ -58,12 +67,6 @@ func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*ta
 	if err != nil {
 		return nil, err
 	}
-	// Validate task
-	taskConfig := input.TaskConfig
-	taskType := taskConfig.Type
-	if taskType != task.TaskTypeRouter {
-		return nil, fmt.Errorf("unsupported task type: %s", taskType)
-	}
 	// Create task state
 	taskState, err := a.createStateUC.Execute(ctx, &uc.CreateStateInput{
 		WorkflowState:  workflowState,
@@ -73,35 +76,20 @@ func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*ta
 	if err != nil {
 		return nil, err
 	}
-	// Evaluate condition and determine route
-	output, routeResult, err := a.evaluateRouter(taskConfig, workflowConfig)
-	if err != nil {
-		// Router evaluation failed - handle as execution error
-		return a.handleResponseUC.Execute(ctx, &uc.HandleResponseInput{
-			TaskState:      taskState,
-			WorkflowConfig: workflowConfig,
-			TaskConfig:     taskConfig,
-			ExecutionError: err,
-		})
-	}
-	// Update state with result
+	output, routeResult, executionError := a.evaluateRouter(taskConfig, workflowConfig)
 	taskState.Output = output
 	// Use the NextTaskOverride to specify the router route directly
 	var nextTaskOverride *task.Config
 	if routeResult != nil {
 		nextTaskOverride = routeResult
 	}
-	response, err := a.handleResponseUC.Execute(ctx, &uc.HandleResponseInput{
+	return a.taskResponder.HandleMainTask(ctx, &services.MainTaskResponseInput{
 		TaskState:        taskState,
 		WorkflowConfig:   workflowConfig,
 		TaskConfig:       taskConfig,
-		ExecutionError:   nil,
+		ExecutionError:   executionError,
 		NextTaskOverride: nextTaskOverride,
 	})
-	if err != nil {
-		return nil, err
-	}
-	return response, nil
 }
 
 func (a *ExecuteRouter) evaluateRouter(

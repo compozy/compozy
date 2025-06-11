@@ -1,6 +1,9 @@
 package worker
 
 import (
+	"time"
+
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
 	wf "github.com/compozy/compozy/engine/workflow"
@@ -42,6 +45,22 @@ func (e *WorkflowExecutor) TriggerWorkflow() func(ctx workflow.Context) (*wf.Sta
 func (e *WorkflowExecutor) CompleteWorkflow() func(ctx workflow.Context) (*wf.State, error) {
 	return func(ctx workflow.Context) (*wf.State, error) {
 		logger := workflow.GetLogger(ctx)
+
+		// Configure specific activity options for CompleteWorkflow to handle race conditions
+		activityOptions := workflow.ActivityOptions{
+			StartToCloseTimeout: 2 * time.Minute,
+			HeartbeatTimeout:    10 * time.Second,
+			RetryPolicy: &temporal.RetryPolicy{
+				InitialInterval:    500 * time.Millisecond, // Start retrying quickly
+				BackoffCoefficient: 1.5,                    // Moderate backoff
+				MaximumInterval:    5 * time.Second,        // Cap retry interval
+				MaximumAttempts:    20,                     // Allow many retries for race condition
+			},
+		}
+
+		// Override the context with specific options for CompleteWorkflow
+		ctx = workflow.WithActivityOptions(ctx, activityOptions)
+
 		actLabel := wfacts.CompleteWorkflowLabel
 		actInput := &wfacts.CompleteWorkflowInput{
 			WorkflowExecID: e.WorkflowExecID,

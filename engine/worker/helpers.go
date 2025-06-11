@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
-	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -47,11 +46,13 @@ func actHandler[T any](
 		if ctx.Err() == workflow.ErrCanceled {
 			return zero, errHandler(workflow.ErrCanceled)
 		}
+
 		result, err := fn(ctx)
 		if err != nil {
-			if err == workflow.ErrCanceled || temporal.IsCanceledError(err) {
-				return zero, err
+			if err == workflow.ErrCanceled {
+				return zero, errHandler(err)
 			}
+			// Handle other errors through error handler
 			return zero, errHandler(err)
 		}
 		return result, nil
