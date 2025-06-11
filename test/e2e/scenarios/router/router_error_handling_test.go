@@ -79,7 +79,7 @@ func TestRouterErrorHandling(t *testing.T) {
 			"Start analysis",
 		)
 		routerWorkflow.Tasks[0].OnSuccess = &core.SuccessTransition{
-			Next: stringPtr("router-task"),
+			Next: testhelpers.StringPtr("router-task"),
 		}
 
 		baseConfig.WorkflowConfig = routerWorkflow
@@ -168,7 +168,7 @@ func TestRouterErrorHandling(t *testing.T) {
 			"Start analysis",
 		)
 		routerWorkflow.Tasks[0].OnSuccess = &core.SuccessTransition{
-			Next: stringPtr("router-task"),
+			Next: testhelpers.StringPtr("router-task"),
 		}
 
 		baseConfig.WorkflowConfig = routerWorkflow
@@ -260,7 +260,7 @@ func TestRouterErrorHandling(t *testing.T) {
 			"Start analysis",
 		)
 		routerWorkflow.Tasks[0].OnSuccess = &core.SuccessTransition{
-			Next: stringPtr("router-task"),
+			Next: testhelpers.StringPtr("router-task"),
 		}
 
 		baseConfig.WorkflowConfig = routerWorkflow
@@ -332,7 +332,7 @@ func TestRouterErrorHandling(t *testing.T) {
 			"Start analysis",
 		)
 		routerWorkflow.Tasks[0].OnSuccess = &core.SuccessTransition{
-			Next: stringPtr("router-task"),
+			Next: testhelpers.StringPtr("router-task"),
 		}
 
 		baseConfig.WorkflowConfig = routerWorkflow
@@ -363,9 +363,4 @@ func TestRouterErrorHandling(t *testing.T) {
 			testhelpers.DefaultTestTimeout,
 		)
 	})
-}
-
-// stringPtr is a helper function for creating string pointers
-func stringPtr(s string) *string {
-	return &s
 }

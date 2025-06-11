@@ -21,6 +21,15 @@ type ConfigStore interface {
 	// This can be called when a task reaches terminal status to save space
 	Delete(ctx context.Context, taskExecID string) error
 
+	// SaveMetadata persists arbitrary metadata with the given key
+	SaveMetadata(ctx context.Context, key string, data []byte) error
+
+	// GetMetadata retrieves metadata by key
+	GetMetadata(ctx context.Context, key string) ([]byte, error)
+
+	// DeleteMetadata removes metadata by key
+	DeleteMetadata(ctx context.Context, key string) error
+
 	// Close closes the underlying storage and releases resources
 	Close() error
 }

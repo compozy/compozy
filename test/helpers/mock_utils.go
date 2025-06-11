@@ -147,7 +147,8 @@ func (t *TaskStateRowBuilder) CreateTaskStateRows(
 		"input", "output", "error", "created_at", "updated_at",
 	}).AddRow(
 		taskExecID, taskID, workflowExecID, workflowID,
-		component, status, executionType, nil, agentID, actionID, toolID, inputData, nil, nil, nil, nil,
+		component, status, executionType, nil, agentID, actionID, toolID, inputData,
+		nil, nil, pgxmock.AnyArg(), pgxmock.AnyArg(),
 	)
 }
 
@@ -174,15 +175,21 @@ func (t *TaskStateRowBuilder) CreateTaskStateRowsWithExecution(
 		component = core.ComponentTask
 		actionID = DefaultActionID // Task components may have actions
 	}
-
-	return t.mock.NewRows([]string{
+	columns := []string{
 		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-		"component", "status", "execution_type", "parent_state_id", "agent_id", "action_id", "tool_id",
-		"input", "output", "error", "created_at", "updated_at",
-	}).AddRow(
+		"component", "status", "execution_type", "parent_state_id",
+		"agent_id", "action_id", "tool_id", "input", "output",
+		"error", "created_at", "updated_at",
+	}
+
+	values := []any{
 		taskExecID, taskID, workflowExecID, workflowID,
-		component, status, executionType, nil, agentID, actionID, toolID, inputData, nil, nil, nil, nil,
-	)
+		component, status, executionType, nil,
+		agentID, actionID, toolID, inputData, nil,
+		nil, pgxmock.AnyArg(), pgxmock.AnyArg(),
+	}
+
+	return t.mock.NewRows(columns).AddRow(values...)
 }
 
 // -----

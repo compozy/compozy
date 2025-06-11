@@ -46,7 +46,7 @@ func TestBasicRoutingFunctionality(t *testing.T) {
 						ID:   "router-task",
 						Type: task.TaskTypeRouter,
 						OnSuccess: &core.SuccessTransition{
-							Next: StringPtr("admin-task"), // Set next task based on routing
+							Next: testhelpers.StringPtr("admin-task"), // Set next task based on routing
 						},
 					},
 					RouterTask: task.RouterTask{
@@ -117,7 +117,7 @@ func TestBasicRoutingFunctionality(t *testing.T) {
 		}
 		// Add transition from start task to router task
 		routerWorkflow.Tasks[0].OnSuccess = &core.SuccessTransition{
-			Next: StringPtr("router-task"),
+			Next: testhelpers.StringPtr("router-task"),
 		}
 
 		// Replace base workflow config
@@ -190,7 +190,7 @@ func TestBasicRoutingFunctionality(t *testing.T) {
 						ID:   "router-task",
 						Type: task.TaskTypeRouter,
 						OnSuccess: &core.SuccessTransition{
-							Next: StringPtr("user-task"), // Set next task based on routing
+							Next: testhelpers.StringPtr("user-task"), // Set next task based on routing
 						},
 					},
 					RouterTask: task.RouterTask{
@@ -256,7 +256,7 @@ func TestBasicRoutingFunctionality(t *testing.T) {
 		}
 		// Add transition from start task to router task
 		routerWorkflow.Tasks[0].OnSuccess = &core.SuccessTransition{
-			Next: StringPtr("router-task"),
+			Next: testhelpers.StringPtr("router-task"),
 		}
 
 		baseConfig.WorkflowConfig = routerWorkflow
@@ -301,9 +301,4 @@ func TestBasicRoutingFunctionality(t *testing.T) {
 			assert.NotEqual(t, core.StatusSuccess, adminState.Status, "Admin task should not be completed")
 		}
 	})
-}
-
-// StringPtr helper function for creating string pointers
-func StringPtr(s string) *string {
-	return &s
 }

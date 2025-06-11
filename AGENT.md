@@ -182,7 +182,7 @@ runtime:
 make dev
 
 # Development with specific example
-make dev-weather
+make dev-weather (should be run in a no block-way)
 
 # Build production binary
 make build

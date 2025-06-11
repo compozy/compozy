@@ -17,6 +17,9 @@ import (
 // ErrWorkflowNotFound is returned when a workflow state is not found.
 var ErrWorkflowNotFound = fmt.Errorf("workflow state not found")
 
+// ErrWorkflowNotReady is returned when top-level tasks are still running.
+var ErrWorkflowNotReady = fmt.Errorf("workflow not ready for completion")
+
 // WorkflowRepo implements the workflow.Repository interface.
 type WorkflowRepo struct {
 	db       DBInterface
@@ -525,7 +528,7 @@ func (r *WorkflowRepo) CompleteWorkflow(ctx context.Context, workflowExecID core
 		finalStatus := r.determineFinalWorkflowStatus(tasks)
 		if finalStatus == core.StatusRunning {
 			// Defer completion until every top-level task finishes.
-			return ErrWorkflowNotFound
+			return ErrWorkflowNotReady
 		}
 
 		// Create output map from all task states

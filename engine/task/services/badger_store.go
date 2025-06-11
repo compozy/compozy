@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/dgraph-io/badger/v4"
 
@@ -25,7 +26,14 @@ type badgerConfigStore struct {
 // NewBadgerConfigStore creates a new BadgerDB-backed config store
 func NewBadgerConfigStore(dir string) (ConfigStore, error) {
 	if dir == "" {
-		dir = DefaultConfigStoreDir
+		// Try XDG_CACHE_HOME first, then user home directory, fallback to CWD
+		if cacheHome := os.Getenv("XDG_CACHE_HOME"); cacheHome != "" {
+			dir = filepath.Join(cacheHome, "compozy", "task_configs")
+		} else if home, err := os.UserHomeDir(); err == nil {
+			dir = filepath.Join(home, DefaultConfigStoreDir)
+		} else {
+			dir = DefaultConfigStoreDir
+		}
 	}
 
 	// Create directory if it doesn't exist
@@ -50,7 +58,11 @@ func NewBadgerConfigStore(dir string) (ConfigStore, error) {
 }
 
 // Save persists a task configuration with the given taskExecID as key
-func (s *badgerConfigStore) Save(_ context.Context, taskExecID string, config *task.Config) error {
+func (s *badgerConfigStore) Save(ctx context.Context, taskExecID string, config *task.Config) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("context canceled: %w", err)
+	}
+
 	if taskExecID == "" {
 		return fmt.Errorf("taskExecID cannot be empty")
 	}
@@ -78,7 +90,11 @@ func (s *badgerConfigStore) Save(_ context.Context, taskExecID string, config *t
 }
 
 // Get retrieves a task configuration by taskExecID
-func (s *badgerConfigStore) Get(_ context.Context, taskExecID string) (*task.Config, error) {
+func (s *badgerConfigStore) Get(ctx context.Context, taskExecID string) (*task.Config, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context canceled: %w", err)
+	}
+
 	if taskExecID == "" {
 		return nil, fmt.Errorf("taskExecID cannot be empty")
 	}
@@ -108,7 +124,11 @@ func (s *badgerConfigStore) Get(_ context.Context, taskExecID string) (*task.Con
 }
 
 // Delete removes a task configuration by taskExecID
-func (s *badgerConfigStore) Delete(_ context.Context, taskExecID string) error {
+func (s *badgerConfigStore) Delete(ctx context.Context, taskExecID string) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("context canceled: %w", err)
+	}
+
 	if taskExecID == "" {
 		return fmt.Errorf("taskExecID cannot be empty")
 	}
@@ -120,6 +140,89 @@ func (s *badgerConfigStore) Delete(_ context.Context, taskExecID string) error {
 
 	if err != nil && err != badger.ErrKeyNotFound {
 		return fmt.Errorf("failed to delete config for taskExecID %s: %w", taskExecID, err)
+	}
+
+	return nil
+}
+
+// SaveMetadata persists arbitrary metadata with the given key
+func (s *badgerConfigStore) SaveMetadata(ctx context.Context, key string, data []byte) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("context canceled: %w", err)
+	}
+
+	if key == "" {
+		return fmt.Errorf("key cannot be empty")
+	}
+	if data == nil {
+		return fmt.Errorf("data cannot be nil")
+	}
+
+	// Save to BadgerDB with metadata prefix to avoid collisions
+	err := s.db.Update(func(txn *badger.Txn) error {
+		prefixedKey := []byte("metadata:" + key)
+		return txn.Set(prefixedKey, data)
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to save metadata for key %s: %w", key, err)
+	}
+
+	return nil
+}
+
+// GetMetadata retrieves metadata by key
+func (s *badgerConfigStore) GetMetadata(ctx context.Context, key string) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context canceled: %w", err)
+	}
+
+	if key == "" {
+		return nil, fmt.Errorf("key cannot be empty")
+	}
+
+	var data []byte
+	err := s.db.View(func(txn *badger.Txn) error {
+		prefixedKey := []byte("metadata:" + key)
+		item, err := txn.Get(prefixedKey)
+		if err != nil {
+			return err
+		}
+
+		return item.Value(func(val []byte) error {
+			data = make([]byte, len(val))
+			copy(data, val)
+			return nil
+		})
+	})
+
+	if err != nil {
+		if err == badger.ErrKeyNotFound {
+			return nil, fmt.Errorf("metadata not found for key %s", key)
+		}
+		return nil, fmt.Errorf("failed to get metadata for key %s: %w", key, err)
+	}
+
+	return data, nil
+}
+
+// DeleteMetadata removes metadata by key
+func (s *badgerConfigStore) DeleteMetadata(ctx context.Context, key string) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("context canceled: %w", err)
+	}
+
+	if key == "" {
+		return fmt.Errorf("key cannot be empty")
+	}
+
+	err := s.db.Update(func(txn *badger.Txn) error {
+		prefixedKey := []byte("metadata:" + key)
+		return txn.Delete(prefixedKey)
+	})
+
+	if err != nil && err != badger.ErrKeyNotFound {
+		return fmt.Errorf("failed to delete metadata for key %s: %w", key, err)
 	}
 
 	return nil

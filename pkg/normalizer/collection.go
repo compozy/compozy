@@ -211,6 +211,46 @@ func (cn *CollectionNormalizer) applyActionTemplate(
 	return nil
 }
 
+// applyTemplateGeneric applies templates to any value, handling both strings and complex structures
+func (cn *CollectionNormalizer) applyTemplateGeneric(
+	value any,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+	fieldName string,
+) (any, error) {
+	if strVal, ok := value.(string); ok {
+		renderedVal, err := engine.RenderString(strVal, itemContext)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply template to %s: %w", fieldName, err)
+		}
+		return renderedVal, nil
+	}
+	processedVal, err := engine.ParseMap(value, itemContext)
+	if err != nil {
+		return nil, fmt.Errorf("failed to apply template to %s: %w", fieldName, err)
+	}
+	return processedVal, nil
+}
+
+// applyTemplateToMap applies templates to a map of values using the generic processor
+func (cn *CollectionNormalizer) applyTemplateToMap(
+	inputMap map[string]any,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+	fieldPrefix string,
+) (map[string]any, error) {
+	processedMap := make(map[string]any)
+	for k, v := range inputMap {
+		fieldName := fmt.Sprintf("%s '%s'", fieldPrefix, k)
+		processed, err := cn.applyTemplateGeneric(v, itemContext, engine, fieldName)
+		if err != nil {
+			return nil, err
+		}
+		processedMap[k] = processed
+	}
+	return processedMap, nil
+}
+
 // applyWithTemplate applies templates to the 'with' input parameters
 func (cn *CollectionNormalizer) applyWithTemplate(
 	config *task.Config,
@@ -221,23 +261,9 @@ func (cn *CollectionNormalizer) applyWithTemplate(
 		return nil
 	}
 
-	processedWith := make(map[string]any)
-	for k, v := range *config.With {
-		if strVal, ok := v.(string); ok {
-			// Apply template to string values
-			renderedVal, err := engine.RenderString(strVal, itemContext)
-			if err != nil {
-				return fmt.Errorf("failed to apply template to with parameter '%s': %w", k, err)
-			}
-			processedWith[k] = renderedVal
-		} else {
-			// For non-string values, use ParseMap to handle nested structures
-			processedVal, err := engine.ParseMap(v, itemContext)
-			if err != nil {
-				return fmt.Errorf("failed to apply template to with parameter '%s': %w", k, err)
-			}
-			processedWith[k] = processedVal
-		}
+	processedWith, err := cn.applyTemplateToMap(*config.With, itemContext, engine, "with parameter")
+	if err != nil {
+		return err
 	}
 	*config.With = processedWith
 	return nil
@@ -397,21 +423,10 @@ func (cn *CollectionNormalizer) applyActionWithTemplate(
 		return nil
 	}
 
-	processedWith := make(map[string]any)
-	for k, v := range *action.With {
-		if strVal, ok := v.(string); ok {
-			renderedVal, err := engine.RenderString(strVal, itemContext)
-			if err != nil {
-				return fmt.Errorf("failed to apply template to action %d with parameter '%s': %w", actionIndex, k, err)
-			}
-			processedWith[k] = renderedVal
-		} else {
-			processedVal, err := engine.ParseMap(v, itemContext)
-			if err != nil {
-				return fmt.Errorf("failed to apply template to action %d with parameter '%s': %w", actionIndex, k, err)
-			}
-			processedWith[k] = processedVal
-		}
+	fieldPrefix := fmt.Sprintf("action %d with parameter", actionIndex)
+	processedWith, err := cn.applyTemplateToMap(*action.With, itemContext, engine, fieldPrefix)
+	if err != nil {
+		return err
 	}
 	*action.With = processedWith
 	return nil
@@ -427,21 +442,9 @@ func (cn *CollectionNormalizer) applyAgentWithTemplate(
 		return nil
 	}
 
-	processedWith := make(map[string]any)
-	for k, v := range *agentPtr.With {
-		if strVal, ok := v.(string); ok {
-			renderedVal, err := engine.RenderString(strVal, itemContext)
-			if err != nil {
-				return fmt.Errorf("failed to apply template to agent with parameter '%s': %w", k, err)
-			}
-			processedWith[k] = renderedVal
-		} else {
-			processedVal, err := engine.ParseMap(v, itemContext)
-			if err != nil {
-				return fmt.Errorf("failed to apply template to agent with parameter '%s': %w", k, err)
-			}
-			processedWith[k] = processedVal
-		}
+	processedWith, err := cn.applyTemplateToMap(*agentPtr.With, itemContext, engine, "agent with parameter")
+	if err != nil {
+		return err
 	}
 	*agentPtr.With = processedWith
 	return nil
@@ -551,21 +554,9 @@ func (cn *CollectionNormalizer) applyToolWithTemplate(
 		return nil
 	}
 
-	processedWith := make(map[string]any)
-	for k, v := range *toolPtr.With {
-		if strVal, ok := v.(string); ok {
-			renderedVal, err := engine.RenderString(strVal, itemContext)
-			if err != nil {
-				return fmt.Errorf("failed to apply template to tool with parameter '%s': %w", k, err)
-			}
-			processedWith[k] = renderedVal
-		} else {
-			processedVal, err := engine.ParseMap(v, itemContext)
-			if err != nil {
-				return fmt.Errorf("failed to apply template to tool with parameter '%s': %w", k, err)
-			}
-			processedWith[k] = processedVal
-		}
+	processedWith, err := cn.applyTemplateToMap(*toolPtr.With, itemContext, engine, "tool with parameter")
+	if err != nil {
+		return err
 	}
 	*toolPtr.With = processedWith
 	return nil

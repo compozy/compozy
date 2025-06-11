@@ -45,6 +45,10 @@ func (r *MainTaskResponse) GetNextTask() *Config {
 }
 
 func (r *MainTaskResponse) NextTaskID() string {
+	if r.State == nil {
+		return ""
+	}
+
 	state := r.State
 	taskID := state.TaskID
 	var nextTaskID string

@@ -302,19 +302,14 @@ func CreateContainerTestConfigForCancellation(t *testing.T, workflowConfig *wf.C
 }
 
 // CreatePauseableWorkflowConfig creates a workflow config with multiple tasks for pause/resume testing
-func CreatePauseableWorkflowConfig() *wf.Config {
-	// Create a temporary testing.T for builder usage
-	t := &testing.T{}
+func CreatePauseableWorkflowConfig(t *testing.T) *wf.Config {
 	return NewTestConfigBuilder(t).
 		WithTestID(GenerateUniqueTestID("pauseable")).
 		WithMultiStepTasks(3).
 		Build(t).WorkflowConfig
 }
 
-// CreateCancellableWorkflowConfig creates a workflow that can be canceled during execution
-func CreateCancellableWorkflowConfig() *wf.Config {
-	// Create a temporary testing.T for builder usage
-	t := &testing.T{}
+func CreateCancellableWorkflowConfig(t *testing.T) *wf.Config {
 	return NewTestConfigBuilder(t).
 		WithTestID(GenerateUniqueTestID("cancellable")).
 		WithLongRunningTask("10s").

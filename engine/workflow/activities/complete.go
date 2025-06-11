@@ -33,7 +33,7 @@ func (a *CompleteWorkflow) Run(ctx context.Context, input *CompleteWorkflowInput
 	state, err := a.workflowRepo.CompleteWorkflow(ctx, input.WorkflowExecID)
 	if err != nil {
 		// Check if this is the specific error indicating tasks are not ready for completion
-		if err == store.ErrWorkflowNotFound {
+		if err == store.ErrWorkflowNotReady {
 			// Create a retryable application error to trigger Temporal's retry mechanism
 			return nil, temporal.NewApplicationError(
 				fmt.Sprintf("workflow %s not ready for completion, tasks still running", input.WorkflowExecID),

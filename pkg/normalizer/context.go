@@ -104,7 +104,7 @@ func (cb *ContextBuilder) buildTaskOutput(taskState *task.State, ctx *Normalizat
 	if taskState.CanHaveChildren() {
 		// For parent tasks (parallel or collection), build nested output structure with child task outputs
 		nestedOutput := make(map[string]any)
-		// Include the parent’s own output first (if any)
+		// Include the parent's own output first (if any)
 		if taskState.Output != nil {
 			nestedOutput["output"] = *taskState.Output
 		}

@@ -84,9 +84,12 @@ func (n *Normalizer) normalizeRegularTaskConfig(config *task.Config, ctx *Normal
 
 	// Merge existing With values back into the normalized config
 	if existingWith != nil && config.With != nil {
-		// Merge existing values into normalized values (existing takes precedence)
-		for key, value := range *existingWith {
-			(*config.With)[key] = value
+		// Check for aliasing to prevent concurrent map iteration and write panic
+		if existingWith != config.With {
+			// Merge existing values into normalized values (existing takes precedence)
+			for key, value := range *existingWith {
+				(*config.With)[key] = value
+			}
 		}
 	} else if existingWith != nil {
 		// If normalization cleared With but we had existing values, restore them

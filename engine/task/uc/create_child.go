@@ -152,10 +152,10 @@ func (uc *CreateChildTasks) processChildConfig(childConfig *task.Config) (*task.
 
 	switch {
 	case childConfig.Type == task.TaskTypeParallel:
-		// Nested parallel task - not yet supported in new architecture
+		// TODO: Add support for nested parallel tasks
 		return nil, fmt.Errorf("nested parallel tasks not yet supported")
 	case childConfig.Type == task.TaskTypeCollection:
-		// Nested collection task - not yet supported
+		// TODO: Add support for nested collection tasks
 		return nil, fmt.Errorf("nested collection tasks not yet supported")
 	case agentConfig != nil:
 		return uc.processAgent(agentConfig, executionType, childConfig.Action)

@@ -90,20 +90,12 @@ func (cm *ConfigManager) PrepareParallelConfigs(
 	}
 
 	key := cm.buildParallelMetadataKey(parentStateID)
-	// Store metadata as a special task config with metadata in the With field
 	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {
 		return fmt.Errorf("failed to marshal parallel metadata for parent %s: %w", parentStateID, err)
 	}
 
-	metadataConfig := &task.Config{}
-	metadataConfig.ID = "parallel_metadata"
-	metadataConfig.Type = "metadata"
-	metadataConfig.With = &core.Input{
-		"metadata": string(metadataBytes),
-	}
-
-	if err := cm.configStore.Save(ctx, key, metadataConfig); err != nil {
+	if err := cm.configStore.SaveMetadata(ctx, key, metadataBytes); err != nil {
 		return fmt.Errorf("failed to save parallel metadata for parent %s: %w", parentStateID, err)
 	}
 
@@ -166,20 +158,13 @@ func (cm *ConfigManager) PrepareCollectionConfigs(
 	}
 
 	key := cm.buildCollectionMetadataKey(parentStateID)
-	// Store metadata as a special task config with metadata in the With field
 	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal collection metadata: %w", err)
 	}
 
-	metadataConfig := &task.Config{}
-	metadataConfig.ID = "collection_metadata"
-	metadataConfig.Type = "metadata"
-	metadataConfig.With = &core.Input{
-		"metadata": string(metadataBytes),
-	}
-	if err := cm.configStore.Save(ctx, key, metadataConfig); err != nil {
-		return nil, err
+	if err := cm.configStore.SaveMetadata(ctx, key, metadataBytes); err != nil {
+		return nil, fmt.Errorf("failed to save collection metadata for parent %s: %w", parentStateID, err)
 	}
 
 	return &CollectionMetadata{
@@ -196,18 +181,13 @@ func (cm *ConfigManager) LoadParallelTaskMetadata(
 	parentStateID core.ID,
 ) (*ParallelTaskMetadata, error) {
 	key := cm.buildParallelMetadataKey(parentStateID)
-	config, err := cm.configStore.Get(ctx, key)
+	metadataBytes, err := cm.configStore.GetMetadata(ctx, key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get parallel task metadata: %w", err)
 	}
 
-	metadataStr, ok := (*config.With)["metadata"].(string)
-	if !ok {
-		return nil, fmt.Errorf("invalid metadata format in stored config")
-	}
-
 	var metadata ParallelTaskMetadata
-	if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
+	if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal parallel task metadata: %w", err)
 	}
 	return &metadata, nil
@@ -219,18 +199,13 @@ func (cm *ConfigManager) LoadCollectionTaskMetadata(
 	parentStateID core.ID,
 ) (*CollectionTaskMetadata, error) {
 	key := cm.buildCollectionMetadataKey(parentStateID)
-	config, err := cm.configStore.Get(ctx, key)
+	metadataBytes, err := cm.configStore.GetMetadata(ctx, key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get collection task metadata: %w", err)
 	}
 
-	metadataStr, ok := (*config.With)["metadata"].(string)
-	if !ok {
-		return nil, fmt.Errorf("invalid metadata format in stored config")
-	}
-
 	var metadata CollectionTaskMetadata
-	if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
+	if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal collection task metadata: %w", err)
 	}
 	return &metadata, nil

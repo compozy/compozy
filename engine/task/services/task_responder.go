@@ -262,42 +262,36 @@ func (s *TaskResponder) HandleCollection(
 // Helper Methods
 // -----------------------------------------------------------------------------
 
-func (s *TaskResponder) applyOutputTransformation(ctx context.Context, input *MainTaskResponseInput) error {
-	workflowState, err := s.workflowRepo.GetState(ctx, input.TaskState.WorkflowExecID)
+func (s *TaskResponder) applyOutputTransformationCommon(
+	ctx context.Context,
+	state *task.State,
+	taskConfig *task.Config,
+	workflowConfig *workflow.Config,
+) error {
+	workflowState, err := s.workflowRepo.GetState(ctx, state.WorkflowExecID)
 	if err != nil {
 		return fmt.Errorf("failed to get workflow state for output transformation: %w", err)
 	}
 	output, err := s.normalizer.NormalizeTaskOutput(
-		input.TaskState.Output,
-		input.TaskConfig.GetOutputs(),
+		state.Output,
+		taskConfig.GetOutputs(),
 		workflowState,
-		input.WorkflowConfig,
-		input.TaskConfig,
+		workflowConfig,
+		taskConfig,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to apply output transformation: %w", err)
 	}
-	input.TaskState.Output = output
+	state.Output = output
 	return nil
 }
 
+func (s *TaskResponder) applyOutputTransformation(ctx context.Context, input *MainTaskResponseInput) error {
+	return s.applyOutputTransformationCommon(ctx, input.TaskState, input.TaskConfig, input.WorkflowConfig)
+}
+
 func (s *TaskResponder) applySubtaskOutputTransformation(ctx context.Context, input *SubtaskResponseInput) error {
-	workflowState, err := s.workflowRepo.GetState(ctx, input.TaskState.WorkflowExecID)
-	if err != nil {
-		return fmt.Errorf("failed to get workflow state for output transformation: %w", err)
-	}
-	output, err := s.normalizer.NormalizeTaskOutput(
-		input.TaskState.Output,
-		input.TaskConfig.GetOutputs(),
-		workflowState,
-		input.WorkflowConfig,
-		input.TaskConfig,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to apply output transformation: %w", err)
-	}
-	input.TaskState.Output = output
-	return nil
+	return s.applyOutputTransformationCommon(ctx, input.TaskState, input.TaskConfig, input.WorkflowConfig)
 }
 
 func (s *TaskResponder) setErrorState(state *task.State, executionErr error) {

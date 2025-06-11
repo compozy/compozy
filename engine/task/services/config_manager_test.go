@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -46,11 +47,15 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 
 		// Verify metadata was stored
 		key := cm.buildParallelMetadataKey(parentStateID)
-		storedConfig, err := configStore.Get(context.Background(), key)
+		storedMetadata, err := configStore.GetMetadata(context.Background(), key)
 		require.NoError(t, err)
-		assert.Equal(t, "parallel_metadata", storedConfig.ID)
-		assert.Equal(t, "metadata", string(storedConfig.Type))
-		assert.Contains(t, *storedConfig.With, "metadata")
+
+		// Verify metadata content
+		var metadata ParallelTaskMetadata
+		err = json.Unmarshal(storedMetadata, &metadata)
+		require.NoError(t, err)
+		assert.Equal(t, parentStateID, metadata.ParentStateID)
+		assert.Len(t, metadata.ChildConfigs, 2)
 	})
 
 	t.Run("Should fail with empty parent state ID", func(t *testing.T) {
@@ -188,9 +193,15 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 
 		// Verify metadata was stored
 		key := cm.buildCollectionMetadataKey(parentStateID)
-		storedConfig, err := configStore.Get(context.Background(), key)
+		storedMetadata, err := configStore.GetMetadata(context.Background(), key)
 		require.NoError(t, err)
-		assert.Equal(t, "collection_metadata", storedConfig.ID)
+
+		// Verify metadata content
+		var storedCollectionMetadata CollectionTaskMetadata
+		err = json.Unmarshal(storedMetadata, &storedCollectionMetadata)
+		require.NoError(t, err)
+		assert.Equal(t, parentStateID, storedCollectionMetadata.ParentStateID)
+		assert.Equal(t, 3, storedCollectionMetadata.ItemCount)
 	})
 
 	t.Run("Should fail with empty parent state ID", func(t *testing.T) {
@@ -464,7 +475,8 @@ func NewMockConfigStore() *MockConfigStore {
 }
 
 type MockConfigStore struct {
-	store map[string]*task.Config
+	store    map[string]*task.Config
+	metadata map[string][]byte
 }
 
 func (m *MockConfigStore) Save(_ context.Context, taskExecID string, config *task.Config) error {
@@ -482,6 +494,27 @@ func (m *MockConfigStore) Get(_ context.Context, taskExecID string) (*task.Confi
 
 func (m *MockConfigStore) Delete(_ context.Context, taskExecID string) error {
 	delete(m.store, taskExecID)
+	return nil
+}
+
+func (m *MockConfigStore) SaveMetadata(_ context.Context, key string, data []byte) error {
+	if m.metadata == nil {
+		m.metadata = make(map[string][]byte)
+	}
+	m.metadata[key] = data
+	return nil
+}
+
+func (m *MockConfigStore) GetMetadata(_ context.Context, key string) ([]byte, error) {
+	data, exists := m.metadata[key]
+	if !exists {
+		return nil, fmt.Errorf("metadata not found for key: %s", key)
+	}
+	return data, nil
+}
+
+func (m *MockConfigStore) DeleteMetadata(_ context.Context, key string) error {
+	delete(m.metadata, key)
 	return nil
 }
 

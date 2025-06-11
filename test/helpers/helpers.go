@@ -59,6 +59,7 @@ func (sv *StatusValidator) ValidateStatusTransition(actualStatus core.StatusType
 	expected := sv.expectedStates[sv.currentIndex]
 	if expected != actualStatus {
 		sv.t.Errorf("Status transition %d: expected %s, got %s", sv.currentIndex, expected, actualStatus)
+		return
 	}
 
 	sv.currentIndex++

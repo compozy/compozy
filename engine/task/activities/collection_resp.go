@@ -20,8 +20,10 @@ type GetCollectionResponseInput struct {
 }
 
 type GetCollectionResponse struct {
-	taskRepo      task.Repository
-	taskResponder *services.TaskResponder
+	taskRepo          task.Repository
+	taskResponder     *services.TaskResponder
+	maxRetries        int
+	initialRetryDelay time.Duration
 }
 
 // NewGetCollectionResponse creates a new GetCollectionResponse activity
@@ -30,8 +32,25 @@ func NewGetCollectionResponse(
 	taskRepo task.Repository,
 ) *GetCollectionResponse {
 	return &GetCollectionResponse{
-		taskRepo:      taskRepo,
-		taskResponder: services.NewTaskResponder(workflowRepo, taskRepo),
+		taskRepo:          taskRepo,
+		taskResponder:     services.NewTaskResponder(workflowRepo, taskRepo),
+		maxRetries:        3,
+		initialRetryDelay: 200 * time.Millisecond,
+	}
+}
+
+// NewGetCollectionResponseWithRetryConfig creates a new GetCollectionResponse activity with custom retry configuration
+func NewGetCollectionResponseWithRetryConfig(
+	workflowRepo workflow.Repository,
+	taskRepo task.Repository,
+	maxRetries int,
+	initialRetryDelay time.Duration,
+) *GetCollectionResponse {
+	return &GetCollectionResponse{
+		taskRepo:          taskRepo,
+		taskResponder:     services.NewTaskResponder(workflowRepo, taskRepo),
+		maxRetries:        maxRetries,
+		initialRetryDelay: initialRetryDelay,
 	}
 }
 
@@ -76,18 +95,17 @@ func (a *GetCollectionResponse) processCollectionTask(ctx context.Context, input
 	// Retry mechanism to handle potential race conditions with database commits
 	var progressInfo *task.ProgressInfo
 	var err error
-	maxRetries := 3
-	retryDelay := 100 * time.Millisecond
+	retryDelay := a.initialRetryDelay
 
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	for attempt := 0; attempt < a.maxRetries; attempt++ {
 		progressInfo, err = a.taskRepo.GetProgressInfo(ctx, input.ParentState.TaskExecID)
 		if err != nil {
 			return fmt.Errorf("failed to get progress info: %w", err)
 		}
 
-		// If we have at least some completed tasks, break out of retry loop
+		// If we have meaningful progress (completed or failed tasks) or reached max attempts, break out of retry loop
 		// This handles the race condition where parallel tasks haven't committed yet
-		if progressInfo.CompletedCount > 0 || attempt == maxRetries-1 {
+		if progressInfo.CompletedCount > 0 || progressInfo.FailedCount > 0 || attempt == a.maxRetries-1 {
 			break
 		}
 

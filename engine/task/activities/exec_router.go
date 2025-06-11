@@ -44,6 +44,9 @@ func NewExecuteRouter(
 func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*task.MainTaskResponse, error) {
 	// Validate task type early
 	taskConfig := input.TaskConfig
+	if taskConfig == nil {
+		return nil, fmt.Errorf("task config is required")
+	}
 	taskType := taskConfig.Type
 	if taskType != task.TaskTypeRouter {
 		return nil, fmt.Errorf("unsupported task type: %s", taskType)
@@ -76,13 +79,17 @@ func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*ta
 	if err != nil {
 		return nil, err
 	}
-	output, routeResult, executionError := a.evaluateRouter(taskConfig, workflowConfig)
+	output, routeResult, err := a.evaluateRouter(taskConfig, workflowConfig)
+	if err != nil {
+		return nil, err
+	}
 	taskState.Output = output
 	// Use the NextTaskOverride to specify the router route directly
 	var nextTaskOverride *task.Config
 	if routeResult != nil {
 		nextTaskOverride = routeResult
 	}
+	var executionError error // keep the variable for the responder signature
 	return a.taskResponder.HandleMainTask(ctx, &services.MainTaskResponseInput{
 		TaskState:        taskState,
 		WorkflowConfig:   workflowConfig,

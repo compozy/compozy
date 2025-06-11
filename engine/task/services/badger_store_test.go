@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -209,28 +208,168 @@ func TestBadgerConfigStore_Persistence(t *testing.T) {
 
 func TestBadgerConfigStore_DefaultDirectory(t *testing.T) {
 	t.Run("Should use default directory when empty string provided", func(t *testing.T) {
-		// This test verifies the store can be created with default directory
-		// We won't actually create the store to avoid side effects in real directories
-		// But we can test that the directory creation logic works
-
-		// Create a temporary directory that we'll use as the base
-		tempDir := t.TempDir()
-
-		// Change to temp directory temporarily
-		originalWd, err := os.Getwd()
-		require.NoError(t, err)
-		defer os.Chdir(originalWd)
-
-		err = os.Chdir(tempDir)
-		require.NoError(t, err)
-
-		// Create store with empty directory (should use default)
+		// Create store with empty directory (should use default location)
 		store, err := NewBadgerConfigStore("")
 		require.NoError(t, err)
 		defer store.Close()
 
-		// Verify it created the default directory structure
-		_, err = os.Stat(DefaultConfigStoreDir)
-		assert.NoError(t, err, "Default directory should be created")
+		// The store should be created successfully without errors
+		// which means the directory resolution and creation worked
+		assert.NotNil(t, store, "Store should be created successfully")
+
+		// Test that we can save and retrieve a config to verify the store works
+		testConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-id",
+				Type: task.TaskTypeBasic,
+			},
+		}
+
+		err = store.Save(context.Background(), "test-exec-id", testConfig)
+		assert.NoError(t, err, "Should be able to save config")
+
+		retrievedConfig, err := store.Get(context.Background(), "test-exec-id")
+		assert.NoError(t, err, "Should be able to retrieve config")
+		assert.Equal(t, testConfig.ID, retrievedConfig.ID)
+	})
+}
+
+func TestBadgerConfigStore_MetadataOperations(t *testing.T) {
+	t.Run("Should save and retrieve metadata successfully", func(t *testing.T) {
+		// Create temporary directory for test store
+		tempDir := t.TempDir()
+		storeDir := filepath.Join(tempDir, "test_store")
+
+		// Create store
+		store, err := NewBadgerConfigStore(storeDir)
+		require.NoError(t, err)
+		defer store.Close()
+
+		key := "test-metadata-key"
+		data := []byte(`{"test": "data", "count": 42}`)
+
+		// Act - Save metadata
+		err = store.SaveMetadata(context.Background(), key, data)
+		require.NoError(t, err)
+
+		// Act - Retrieve metadata
+		retrievedData, err := store.GetMetadata(context.Background(), key)
+		require.NoError(t, err)
+
+		// Assert
+		assert.Equal(t, data, retrievedData)
+	})
+
+	t.Run("Should return error for non-existent metadata", func(t *testing.T) {
+		// Create temporary directory for test store
+		tempDir := t.TempDir()
+		storeDir := filepath.Join(tempDir, "test_store")
+
+		// Create store
+		store, err := NewBadgerConfigStore(storeDir)
+		require.NoError(t, err)
+		defer store.Close()
+
+		// Act
+		_, err = store.GetMetadata(context.Background(), "non-existent-key")
+
+		// Assert
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "metadata not found")
+	})
+
+	t.Run("Should delete metadata successfully", func(t *testing.T) {
+		// Create temporary directory for test store
+		tempDir := t.TempDir()
+		storeDir := filepath.Join(tempDir, "test_store")
+
+		// Create store
+		store, err := NewBadgerConfigStore(storeDir)
+		require.NoError(t, err)
+		defer store.Close()
+
+		key := "test-metadata-key"
+		data := []byte(`{"test": "data"}`)
+
+		// Save metadata first
+		err = store.SaveMetadata(context.Background(), key, data)
+		require.NoError(t, err)
+
+		// Act - Delete metadata
+		err = store.DeleteMetadata(context.Background(), key)
+		require.NoError(t, err)
+
+		// Assert - Metadata should no longer exist
+		_, err = store.GetMetadata(context.Background(), key)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "metadata not found")
+	})
+
+	t.Run("Should not interfere with task config storage", func(t *testing.T) {
+		// Create temporary directory for test store
+		tempDir := t.TempDir()
+		storeDir := filepath.Join(tempDir, "test_store")
+
+		// Create store
+		store, err := NewBadgerConfigStore(storeDir)
+		require.NoError(t, err)
+		defer store.Close()
+
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-task",
+				Type: task.TaskTypeBasic,
+			},
+		}
+		metadata := []byte(`{"type": "metadata"}`)
+
+		// Act - Store both task config and metadata with similar keys
+		err = store.Save(context.Background(), "test-key", taskConfig)
+		require.NoError(t, err)
+
+		err = store.SaveMetadata(context.Background(), "test-key", metadata)
+		require.NoError(t, err)
+
+		// Assert - Both should be retrievable independently
+		retrievedConfig, err := store.Get(context.Background(), "test-key")
+		require.NoError(t, err)
+		assert.Equal(t, "test-task", retrievedConfig.ID)
+
+		retrievedMetadata, err := store.GetMetadata(context.Background(), "test-key")
+		require.NoError(t, err)
+		assert.Equal(t, metadata, retrievedMetadata)
+	})
+
+	t.Run("Should validate metadata input parameters", func(t *testing.T) {
+		// Create temporary directory for test store
+		tempDir := t.TempDir()
+		storeDir := filepath.Join(tempDir, "test_store")
+
+		// Create store
+		store, err := NewBadgerConfigStore(storeDir)
+		require.NoError(t, err)
+		defer store.Close()
+
+		data := []byte(`{"test": "data"}`)
+
+		// Act & Assert - Empty key
+		err = store.SaveMetadata(context.Background(), "", data)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "key cannot be empty")
+
+		// Act & Assert - Nil data
+		err = store.SaveMetadata(context.Background(), "test-key", nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "data cannot be nil")
+
+		// Act & Assert - Empty key for get
+		_, err = store.GetMetadata(context.Background(), "")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "key cannot be empty")
+
+		// Act & Assert - Empty key for delete
+		err = store.DeleteMetadata(context.Background(), "")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "key cannot be empty")
 	})
 }

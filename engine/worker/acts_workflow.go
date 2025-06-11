@@ -54,7 +54,7 @@ func (e *WorkflowExecutor) CompleteWorkflow() func(ctx workflow.Context) (*wf.St
 				InitialInterval:    500 * time.Millisecond, // Start retrying quickly
 				BackoffCoefficient: 1.5,                    // Moderate backoff
 				MaximumInterval:    5 * time.Second,        // Cap retry interval
-				MaximumAttempts:    20,                     // Allow many retries for race condition
+				MaximumAttempts:    10,                     // Fit within StartToCloseTimeout window
 			},
 		}
 

@@ -50,7 +50,7 @@ func (a *GetParallelResponse) Run(
 // processParallelTask handles parallel task processing logic and returns execution error if any
 func (a *GetParallelResponse) processParallelTask(ctx context.Context, input *GetParallelResponseInput) error {
 	if input.TaskConfig.Type != task.TaskTypeParallel {
-		return nil
+		return fmt.Errorf("expected parallel task type, got: %s", input.TaskConfig.Type)
 	}
 	progressInfo, err := a.taskRepo.GetProgressInfo(ctx, input.ParentState.TaskExecID)
 	if err != nil {

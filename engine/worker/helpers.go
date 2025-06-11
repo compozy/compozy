@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -12,7 +13,7 @@ import (
 // -----------------------------------------------------------------------------
 
 func SleepWithPause(ctx workflow.Context, dur time.Duration) error {
-	if ctx.Err() == workflow.ErrCanceled {
+	if temporal.IsCanceledError(ctx.Err()) {
 		logger.Info("Sleep skipped due to cancellation")
 		return workflow.ErrCanceled
 	}
@@ -20,7 +21,7 @@ func SleepWithPause(ctx workflow.Context, dur time.Duration) error {
 	timer := workflow.NewTimer(ctx, dur)
 	for !timerDone {
 		// Check cancellation before each iteration
-		if ctx.Err() == workflow.ErrCanceled {
+		if temporal.IsCanceledError(ctx.Err()) {
 			logger.Info("Sleep interrupted by cancellation")
 			return workflow.ErrCanceled
 		}
@@ -28,7 +29,7 @@ func SleepWithPause(ctx workflow.Context, dur time.Duration) error {
 		sel.AddFuture(timer, func(workflow.Future) { timerDone = true })
 		sel.Select(ctx)
 		// Check again after select
-		if ctx.Err() == workflow.ErrCanceled {
+		if temporal.IsCanceledError(ctx.Err()) {
 			logger.Info("Sleep interrupted by cancellation")
 			return workflow.ErrCanceled
 		}
@@ -43,13 +44,13 @@ func actHandler[T any](
 ) func(ctx workflow.Context) (T, error) {
 	return func(ctx workflow.Context) (T, error) {
 		var zero T
-		if ctx.Err() == workflow.ErrCanceled {
+		if temporal.IsCanceledError(ctx.Err()) {
 			return zero, errHandler(workflow.ErrCanceled)
 		}
 
 		result, err := fn(ctx)
 		if err != nil {
-			if err == workflow.ErrCanceled {
+			if temporal.IsCanceledError(err) {
 				return zero, errHandler(err)
 			}
 			// Handle other errors through error handler
