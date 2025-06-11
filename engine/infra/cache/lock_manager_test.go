@@ -16,7 +16,8 @@ import (
 func TestRedisLockManager_Acquire(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	manager := NewRedisLockManager(client)
+	manager, err := NewRedisLockManager(client)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	resource := "test-resource"
@@ -68,7 +69,8 @@ func TestRedisLockManager_Acquire(t *testing.T) {
 func TestRedisLock_Release(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	manager := NewRedisLockManager(client)
+	manager, err := NewRedisLockManager(client)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	resource := "test-resource"
@@ -114,7 +116,8 @@ func TestRedisLock_Release(t *testing.T) {
 func TestRedisLock_Refresh(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	manager := NewRedisLockManager(client)
+	manager, err := NewRedisLockManager(client)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	resource := "test-resource"
@@ -166,7 +169,8 @@ func TestRedisLock_Refresh(t *testing.T) {
 func TestRedisLock_AutoRenewal(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	manager := NewRedisLockManager(client)
+	manager, err := NewRedisLockManager(client)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	resource := "test-resource"
@@ -205,7 +209,8 @@ func TestRedisLock_AutoRenewal(t *testing.T) {
 func TestRedisLockManager_ConcurrentAccess(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	manager := NewRedisLockManager(client)
+	manager, err := NewRedisLockManager(client)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	resource := "concurrent-test"
@@ -253,7 +258,8 @@ func TestRedisLockManager_ConcurrentAccess(t *testing.T) {
 func TestRedisLockManager_Metrics(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	manager := NewRedisLockManager(client)
+	manager, err := NewRedisLockManager(client)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	resource := "metrics-test"
@@ -294,7 +300,8 @@ func TestRedisLockManager_Metrics(t *testing.T) {
 func TestRedisLock_EdgeCases(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	manager := NewRedisLockManager(client)
+	manager, err := NewRedisLockManager(client)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	resource := "edge-case-test"
@@ -332,7 +339,8 @@ func TestRedisLock_EdgeCases(t *testing.T) {
 func BenchmarkRedisLockManager_Acquire(b *testing.B) {
 	s := miniredis.RunT(b)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	manager := NewRedisLockManager(client)
+	manager, err := NewRedisLockManager(client)
+	require.NoError(b, err)
 
 	ctx := context.Background()
 	ttl := time.Second * 10
@@ -351,7 +359,8 @@ func BenchmarkRedisLockManager_Acquire(b *testing.B) {
 func BenchmarkRedisLockManager_ConcurrentAcquire(b *testing.B) {
 	s := miniredis.RunT(b)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	manager := NewRedisLockManager(client)
+	manager, err := NewRedisLockManager(client)
+	require.NoError(b, err)
 
 	ctx := context.Background()
 	resource := "concurrent-bench"

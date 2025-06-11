@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -13,10 +14,60 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// -----
+// Test Helper Functions
+// -----
+
+// waitForSubscriptionReady waits for a subscription to be ready using a ping/pong mechanism
+func waitForSubscriptionReady(
+	ctx context.Context,
+	t testing.TB,
+	publisher interface {
+		Publish(ctx context.Context, channel string, message any) error
+	},
+	channel string,
+	msgChan <-chan Message,
+) {
+	// Create a timeout context for the wait operation
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	// Create a unique ping message to avoid interference with other tests
+	pingMsg := map[string]string{"test_ping": time.Now().Format("20060102150405.000000")}
+
+	// Retry mechanism with exponential backoff
+	for attempt := range 10 {
+		select {
+		case <-waitCtx.Done():
+			t.Fatalf("Subscription did not become ready within timeout: %v", waitCtx.Err())
+		default:
+			// Try to publish the ping message
+			if err := publisher.Publish(waitCtx, channel, pingMsg); err != nil {
+				// If publish fails, wait a bit and retry
+				time.Sleep(time.Millisecond * time.Duration(1<<attempt)) // exponential backoff
+				continue
+			}
+
+			// Try to receive the ping message with a short timeout
+			select {
+			case <-msgChan:
+				// Successfully received a message, subscription is ready
+				return
+			case <-time.After(100 * time.Millisecond): // Default poll interval
+				// No message received yet, retry
+				continue
+			}
+		}
+	}
+
+	t.Fatal("Subscription readiness could not be confirmed after 10 attempts")
+}
+
 func TestRedisNotificationSystem_Publish(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	ns := NewRedisNotificationSystem(client)
+	ns, err := NewRedisNotificationSystem(client, nil)
+	require.NoError(t, err)
 	defer ns.Close()
 
 	ctx := context.Background()
@@ -50,7 +101,8 @@ func TestRedisNotificationSystem_Publish(t *testing.T) {
 func TestRedisNotificationSystem_Subscribe(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	ns := NewRedisNotificationSystem(client)
+	ns, err := NewRedisNotificationSystem(client, nil)
+	require.NoError(t, err)
 	defer ns.Close()
 
 	ctx := context.Background()
@@ -61,8 +113,8 @@ func TestRedisNotificationSystem_Subscribe(t *testing.T) {
 		msgChan, err := ns.Subscribe(ctx, channel)
 		require.NoError(t, err)
 
-		// Give subscription time to establish
-		time.Sleep(10 * time.Millisecond)
+		// Wait for subscription to be ready
+		waitForSubscriptionReady(ctx, t, ns, channel, msgChan)
 
 		// Publish a test message
 		testMessage := map[string]string{"test": "message"}
@@ -96,7 +148,8 @@ func TestRedisNotificationSystem_Subscribe(t *testing.T) {
 func TestRedisNotificationSystem_SubscribePattern(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	ns := NewRedisNotificationSystem(client)
+	ns, err := NewRedisNotificationSystem(client, nil)
+	require.NoError(t, err)
 	defer ns.Close()
 
 	ctx := context.Background()
@@ -107,8 +160,8 @@ func TestRedisNotificationSystem_SubscribePattern(t *testing.T) {
 		msgChan, err := ns.SubscribePattern(ctx, pattern)
 		require.NoError(t, err)
 
-		// Give subscription time to establish
-		time.Sleep(10 * time.Millisecond)
+		// Wait for subscription to be ready using a specific channel that matches the pattern
+		waitForSubscriptionReady(ctx, t, ns, "test:readiness", msgChan)
 
 		// Publish messages to matching channels
 		channels := []string{"test:channel1", "test:channel2", "other:channel"}
@@ -152,7 +205,8 @@ func TestRedisNotificationSystem_SubscribePattern(t *testing.T) {
 func TestRedisNotificationSystem_WorkflowEvents(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	ns := NewRedisNotificationSystem(client)
+	ns, err := NewRedisNotificationSystem(client, nil)
+	require.NoError(t, err)
 	defer ns.Close()
 
 	ctx := context.Background()
@@ -163,8 +217,8 @@ func TestRedisNotificationSystem_WorkflowEvents(t *testing.T) {
 		msgChan, err := ns.SubscribeToWorkflow(ctx, workflowID)
 		require.NoError(t, err)
 
-		// Give subscription time to establish
-		time.Sleep(10 * time.Millisecond)
+		// Wait for subscription to be ready
+		waitForSubscriptionReady(ctx, t, ns, fmt.Sprintf("workflow:%s", workflowID), msgChan)
 
 		// Publish a workflow event
 		data := map[string]any{"step": "validation"}
@@ -191,7 +245,8 @@ func TestRedisNotificationSystem_WorkflowEvents(t *testing.T) {
 func TestRedisNotificationSystem_TaskEvents(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	ns := NewRedisNotificationSystem(client)
+	ns, err := NewRedisNotificationSystem(client, nil)
+	require.NoError(t, err)
 	defer ns.Close()
 
 	ctx := context.Background()
@@ -206,8 +261,9 @@ func TestRedisNotificationSystem_TaskEvents(t *testing.T) {
 		workflowMsgChan, err := ns.SubscribeToWorkflow(ctx, workflowID)
 		require.NoError(t, err)
 
-		// Give subscriptions time to establish
-		time.Sleep(10 * time.Millisecond)
+		// Wait for subscriptions to be ready
+		waitForSubscriptionReady(ctx, t, ns, fmt.Sprintf("task:%s", taskID), taskMsgChan)
+		waitForSubscriptionReady(ctx, t, ns, fmt.Sprintf("workflow:%s", workflowID), workflowMsgChan)
 
 		// Publish a task event
 		data := map[string]any{"result": "success"}
@@ -247,7 +303,8 @@ func TestRedisNotificationSystem_TaskEvents(t *testing.T) {
 func TestRedisNotificationSystem_PatternSubscriptions(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	ns := NewRedisNotificationSystem(client)
+	ns, err := NewRedisNotificationSystem(client, nil)
+	require.NoError(t, err)
 	defer ns.Close()
 
 	ctx := context.Background()
@@ -257,8 +314,8 @@ func TestRedisNotificationSystem_PatternSubscriptions(t *testing.T) {
 		msgChan, err := ns.SubscribeToAllWorkflows(ctx)
 		require.NoError(t, err)
 
-		// Give subscription time to establish
-		time.Sleep(10 * time.Millisecond)
+		// Wait for subscription to be ready using a channel that matches the workflow:* pattern
+		waitForSubscriptionReady(ctx, t, ns, "workflow:readiness", msgChan)
 
 		// Publish events for multiple workflows
 		workflows := []string{"workflow-1", "workflow-2", "workflow-3"}
@@ -271,7 +328,7 @@ func TestRedisNotificationSystem_PatternSubscriptions(t *testing.T) {
 		receivedWorkflows := make(map[string]bool)
 		timeout := time.After(time.Second)
 
-		for i := 0; i < len(workflows); i++ {
+		for range len(workflows) {
 			select {
 			case msg := <-msgChan:
 				var event WorkflowEvent
@@ -295,8 +352,8 @@ func TestRedisNotificationSystem_PatternSubscriptions(t *testing.T) {
 		msgChan, err := ns.SubscribeToAllTasks(ctx)
 		require.NoError(t, err)
 
-		// Give subscription time to establish
-		time.Sleep(10 * time.Millisecond)
+		// Wait for subscription to be ready using a channel that matches the task:* pattern
+		waitForSubscriptionReady(ctx, t, ns, "task:readiness", msgChan)
 
 		// Publish events for multiple tasks
 		tasks := []string{"task-1", "task-2", "task-3"}
@@ -309,7 +366,7 @@ func TestRedisNotificationSystem_PatternSubscriptions(t *testing.T) {
 		receivedTasks := make(map[string]bool)
 		timeout := time.After(time.Second)
 
-		for i := 0; i < len(tasks); i++ {
+		for range len(tasks) {
 			select {
 			case msg := <-msgChan:
 				var event TaskEvent
@@ -332,7 +389,8 @@ func TestRedisNotificationSystem_PatternSubscriptions(t *testing.T) {
 func TestRedisNotificationSystem_ConcurrentOperations(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	ns := NewRedisNotificationSystem(client)
+	ns, err := NewRedisNotificationSystem(client, nil)
+	require.NoError(t, err)
 	defer ns.Close()
 
 	ctx := context.Background()
@@ -348,7 +406,7 @@ func TestRedisNotificationSystem_ConcurrentOperations(t *testing.T) {
 		var receivedCount int64
 		var receivedMu sync.Mutex
 
-		for i := 0; i < numSubscribers; i++ {
+		for i := range numSubscribers {
 			subscriberWg.Add(1)
 			go func(_ int) {
 				defer subscriberWg.Done()
@@ -375,12 +433,12 @@ func TestRedisNotificationSystem_ConcurrentOperations(t *testing.T) {
 
 		// Start publishers
 		var publisherWg sync.WaitGroup
-		for i := 0; i < numPublishers; i++ {
+		for i := range numPublishers {
 			publisherWg.Add(1)
 			go func(pubID int) {
 				defer publisherWg.Done()
 
-				for j := 0; j < messagesPerPublisher; j++ {
+				for j := range messagesPerPublisher {
 					message := map[string]any{
 						"publisher": pubID,
 						"message":   j,
@@ -394,8 +452,26 @@ func TestRedisNotificationSystem_ConcurrentOperations(t *testing.T) {
 		// Wait for all publishers to finish
 		publisherWg.Wait()
 
-		// Give time for messages to be received
-		time.Sleep(100 * time.Millisecond)
+		// Wait for all messages to be received with timeout
+		expectedMessages := int64(numPublishers * messagesPerPublisher * numSubscribers)
+		timeout := time.After(2 * time.Second)
+
+	waitLoop:
+		for {
+			select {
+			case <-timeout:
+				t.Fatal("Timeout waiting for all messages to be received")
+			default:
+				receivedMu.Lock()
+				current := receivedCount
+				receivedMu.Unlock()
+
+				if current >= expectedMessages {
+					break waitLoop
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
 
 		// Close notification system to stop subscribers
 		ns.Close()
@@ -403,11 +479,11 @@ func TestRedisNotificationSystem_ConcurrentOperations(t *testing.T) {
 
 		// Verify metrics
 		metrics := ns.GetMetrics()
-		expectedMessages := int64(numPublishers * messagesPerPublisher)
-		assert.Equal(t, expectedMessages, metrics.MessagesPublished)
+		expectedPublished := int64(numPublishers * messagesPerPublisher)
+		assert.Equal(t, expectedPublished, metrics.MessagesPublished)
 
 		// Each subscriber should receive all messages
-		expectedReceived := expectedMessages * int64(numSubscribers)
+		expectedReceived := expectedPublished * int64(numSubscribers)
 		receivedMu.Lock()
 		assert.Equal(t, expectedReceived, receivedCount)
 		receivedMu.Unlock()
@@ -417,7 +493,8 @@ func TestRedisNotificationSystem_ConcurrentOperations(t *testing.T) {
 func TestRedisNotificationSystem_Metrics(t *testing.T) {
 	s := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	ns := NewRedisNotificationSystem(client)
+	ns, err := NewRedisNotificationSystem(client, nil)
+	require.NoError(t, err)
 	defer ns.Close()
 
 	ctx := context.Background()
@@ -428,17 +505,17 @@ func TestRedisNotificationSystem_Metrics(t *testing.T) {
 		msgChan, err := ns.Subscribe(ctx, channel)
 		require.NoError(t, err)
 
-		// Give subscription time to establish
-		time.Sleep(10 * time.Millisecond)
+		// Wait for subscription to be ready
+		waitForSubscriptionReady(ctx, t, ns, channel, msgChan)
 
 		// Publish messages
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			err = ns.Publish(ctx, channel, map[string]int{"count": i})
 			require.NoError(t, err)
 		}
 
 		// Receive messages
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			select {
 			case <-msgChan:
 			case <-time.After(time.Second):
@@ -448,8 +525,8 @@ func TestRedisNotificationSystem_Metrics(t *testing.T) {
 
 		// Check metrics
 		metrics := ns.GetMetrics()
-		assert.Equal(t, int64(5), metrics.MessagesPublished)
-		assert.Equal(t, int64(5), metrics.MessagesReceived)
+		assert.Equal(t, int64(6), metrics.MessagesPublished)
+		assert.Equal(t, int64(6), metrics.MessagesReceived)
 		assert.Equal(t, int64(0), metrics.PublishErrors)
 		assert.Equal(t, int64(0), metrics.SubscribeErrors)
 		assert.Greater(t, metrics.ActiveChannels, 0)

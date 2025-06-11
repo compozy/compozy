@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 )
@@ -69,11 +70,15 @@ else
 end`
 
 // NewRedisLockManager creates a new Redis-based distributed lock manager
-func NewRedisLockManager(client RedisInterface) *RedisLockManager {
+func NewRedisLockManager(client RedisInterface) (*RedisLockManager, error) {
+	if client == nil {
+		return nil, fmt.Errorf("redis client cannot be nil")
+	}
+
 	return &RedisLockManager{
 		client:  client,
 		metrics: &LockMetrics{},
-	}
+	}, nil
 }
 
 // Acquire attempts to acquire a distributed lock on the given resource
@@ -253,8 +258,10 @@ func generateLockValue() string {
 	bytes := make([]byte, 16)
 	_, err := rand.Read(bytes)
 	if err != nil {
-		// Fallback to timestamp-based value if crypto/rand fails
-		return fmt.Sprintf("lock_%d", time.Now().UnixNano())
+		// Enhanced fallback with timestamp and PID to reduce collision risk
+		pid := os.Getpid()
+		timestamp := time.Now().UnixNano()
+		return fmt.Sprintf("lock_%d_%d", timestamp, pid)
 	}
 	return hex.EncodeToString(bytes)
 }

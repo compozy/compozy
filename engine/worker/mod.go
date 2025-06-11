@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	wf "github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gosimple/slug"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
@@ -35,10 +36,11 @@ type Worker struct {
 	workflows     []*wf.Config
 	taskQueue     string
 	configStore   services.ConfigStore
-	cache         *cache.Cache
+	redisCache    *cache.Cache
 }
 
 func NewWorker(
+	ctx context.Context,
 	config *Config,
 	clientConfig *TemporalConfig,
 	projectConfig *project.Config,
@@ -62,8 +64,7 @@ func NewWorker(
 		return nil, fmt.Errorf("failed to created execution manager: %w", err)
 	}
 
-	cacheCtx := context.Background()
-	redisCache, err := cache.SetupCache(cacheCtx, projectConfig.Cache)
+	redisCache, err := cache.SetupCache(ctx, projectConfig.CacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup Redis cache: %w", err)
 	}
@@ -87,7 +88,7 @@ func NewWorker(
 		activities:    activities,
 		taskQueue:     taskQueue,
 		configStore:   configStore,
-		cache:         redisCache,
+		redisCache:    redisCache,
 	}, nil
 }
 
@@ -114,10 +115,14 @@ func (o *Worker) Stop() {
 	o.worker.Stop()
 	o.client.Close()
 	if o.configStore != nil {
-		o.configStore.Close()
+		if err := o.configStore.Close(); err != nil {
+			logger.Error("failed to close config store", "error", err)
+		}
 	}
-	if o.cache != nil {
-		o.cache.Close()
+	if o.redisCache != nil {
+		if err := o.redisCache.Close(); err != nil {
+			logger.Error("failed to close Redis cache", "error", err)
+		}
 	}
 }
 
@@ -132,8 +137,8 @@ func (o *Worker) TaskRepo() task.Repository {
 // HealthCheck performs a comprehensive health check including cache connectivity
 func (o *Worker) HealthCheck(ctx context.Context) error {
 	// Check Redis cache health
-	if o.cache != nil {
-		if err := o.cache.HealthCheck(ctx); err != nil {
+	if o.redisCache != nil {
+		if err := o.redisCache.HealthCheck(ctx); err != nil {
 			return fmt.Errorf("redis cache health check failed: %w", err)
 		}
 	}

@@ -133,14 +133,7 @@ func NewEvaluator(options ...EvalConfigOption) *Evaluator {
 			NumCounters: ev.cacheConfig.NumCounters,
 			MaxCost:     ev.cacheConfig.MaxCost,
 			BufferItems: ev.cacheConfig.BufferItems,
-			Cost: func(value Node) int64 {
-				// Estimate cost based on the serialized size
-				if data, err := json.Marshal(value); err == nil {
-					return int64(len(data))
-				}
-				// Default cost if marshaling fails
-				return 100
-			},
+			Cost:        estimateNodeCost,
 		})
 		if err == nil {
 			ev.cache = cache
@@ -208,6 +201,35 @@ func parseJSON(raw string) (Node, error) {
 		return nil, err
 	}
 	return node, nil
+}
+
+// estimateNodeCost provides a safe cost estimation without risk of panics from circular references
+func estimateNodeCost(value Node) int64 {
+	if value == nil {
+		return 1
+	}
+	switch v := value.(type) {
+	case map[string]any:
+		// Base cost for map + estimated cost per key-value pair
+		return int64(50 + len(v)*20)
+	case []any:
+		// Base cost for slice + estimated cost per element
+		return int64(30 + len(v)*15)
+	case string:
+		// Cost based on string length
+		return int64(10 + len(v))
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		return 8
+	case float32:
+		return 4
+	case float64:
+		return 8
+	case bool:
+		return 1
+	default:
+		// Default cost for unknown types
+		return 100
+	}
 }
 
 // GetTransformUse returns the TransformUse function

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/cache"
@@ -319,14 +320,15 @@ func CreateCancellableWorkflowConfig(t *testing.T) *wf.Config {
 }
 
 // SetupWorkflowEnvironment sets up the Temporal workflow environment for testing
-func SetupWorkflowEnvironment(env *testsuite.TestWorkflowEnvironment, config *ContainerTestConfig) {
+func SetupWorkflowEnvironment(t *testing.T, env *testsuite.TestWorkflowEnvironment, config *ContainerTestConfig) {
 	// Configure test environment for deterministic testing
 	ConfigureTemporalTestEnvironment(env)
 
-	// Setup Redis cache for testing
+	// Setup in-memory Redis cache for testing
+	mr := miniredis.RunT(t)
 	cacheConfig := &cache.Config{
-		Host:     "localhost",
-		Port:     "6379",
+		Host:     mr.Host(),
+		Port:     mr.Port(),
 		Password: "redis_secret",
 		DB:       5, // Use a different DB for tests
 	}
@@ -336,6 +338,11 @@ func SetupWorkflowEnvironment(env *testsuite.TestWorkflowEnvironment, config *Co
 	if err != nil {
 		panic(fmt.Sprintf("Failed to setup Redis cache for tests: %v", err))
 	}
+
+	// Ensure Redis cache is properly closed when test finishes
+	t.Cleanup(func() {
+		redisCache.Close()
+	})
 
 	configStore := services.NewRedisConfigStore(redisCache.Redis, 1*time.Hour)
 	runtime, err := runtime.NewRuntimeManager(config.ProjectConfig.GetCWD().PathStr(), runtime.WithTestConfig())
@@ -404,8 +411,8 @@ func SetupTemporalTestEnvironmentWithTimeout(timeout time.Duration) *testsuite.T
 }
 
 // SetupDeterministicTestEnvironment creates a test environment optimized for deterministic testing
-func SetupDeterministicTestEnvironment(config *ContainerTestConfig) *testsuite.TestWorkflowEnvironment {
+func SetupDeterministicTestEnvironment(t *testing.T, config *ContainerTestConfig) *testsuite.TestWorkflowEnvironment {
 	env := SetupTemporalTestEnvironmentWithTimeout(DefaultTestTimeout)
-	SetupWorkflowEnvironment(env, config)
+	SetupWorkflowEnvironment(t, env, config)
 	return env
 }

@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -25,10 +26,16 @@ func SetupCache(ctx context.Context, config *Config) (*Cache, error) {
 	}
 
 	// Create lock manager for distributed locking
-	lockManager := NewRedisLockManager(redis)
+	lockManager, err := NewRedisLockManager(redis)
+	if err != nil {
+		return nil, err
+	}
 
 	// Create notification system for pub/sub
-	notification := NewRedisNotificationSystem(redis)
+	notification, err := NewRedisNotificationSystem(redis, config)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Cache{
 		Redis:        redis,
@@ -92,12 +99,16 @@ func buildConfigFromEnv() *Config {
 func (c *Cache) Close() error {
 	// Close notification system first to stop subscriptions
 	if c.Notification != nil {
-		c.Notification.Close()
+		if err := c.Notification.Close(); err != nil {
+			return fmt.Errorf("failed to close notification system: %w", err)
+		}
 	}
 
 	// Close Redis connection
 	if c.Redis != nil {
-		return c.Redis.Close()
+		if err := c.Redis.Close(); err != nil {
+			return fmt.Errorf("failed to close Redis: %w", err)
+		}
 	}
 	return nil
 }

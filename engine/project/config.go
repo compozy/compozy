@@ -33,7 +33,7 @@ type Config struct {
 	Schemas     []schema.Schema         `json:"schemas"         yaml:"schemas"         mapstructure:"schemas"`
 	Opts        Opts                    `json:"config"          yaml:"config"          mapstructure:"config"`
 	Runtime     RuntimeConfig           `json:"runtime"         yaml:"runtime"         mapstructure:"runtime"`
-	Cache       *cache.Config           `json:"cache,omitempty" yaml:"cache,omitempty" mapstructure:"cache"`
+	CacheConfig *cache.Config           `json:"cache,omitempty" yaml:"cache,omitempty" mapstructure:"cache"`
 
 	filePath string
 	cwd      *core.CWD
@@ -73,7 +73,18 @@ func (p *Config) Validate() error {
 	validator := schema.NewCompositeValidator(
 		schema.NewCWDValidator(p.cwd, p.Name),
 	)
-	return validator.Validate()
+	if err := validator.Validate(); err != nil {
+		return err
+	}
+
+	// Validate cache configuration if present
+	if p.CacheConfig != nil {
+		if err := p.CacheConfig.Validate(); err != nil {
+			return fmt.Errorf("cache configuration validation failed: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (p *Config) ValidateInput(_ context.Context, _ *core.Input) error {

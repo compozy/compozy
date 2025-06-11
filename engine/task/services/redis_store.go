@@ -29,10 +29,9 @@ type redisConfigStore struct {
 
 // NewRedisConfigStore creates a new Redis-backed config store
 func NewRedisConfigStore(redis *cache.Redis, ttl time.Duration) ConfigStore {
-	if ttl == 0 {
+	if ttl <= 0 {
 		ttl = DefaultTTL
 	}
-
 	return &redisConfigStore{
 		redis: redis,
 		ttl:   ttl,
@@ -208,9 +207,18 @@ func (s *redisConfigStore) HealthCheck(ctx context.Context) error {
 
 // GetKeys returns all keys matching the pattern (useful for debugging and migration)
 func (s *redisConfigStore) GetKeys(ctx context.Context, pattern string) ([]string, error) {
-	keys, err := s.redis.Keys(ctx, pattern).Result()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get keys with pattern %s: %w", pattern, err)
+	var keys []string
+	var cursor uint64
+	for {
+		batch, nextCursor, err := s.redis.Scan(ctx, cursor, pattern, 100).Result()
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan keys with pattern %s: %w", pattern, err)
+		}
+		keys = append(keys, batch...)
+		cursor = nextCursor
+		if cursor == 0 {
+			break
+		}
 	}
 	return keys, nil
 }

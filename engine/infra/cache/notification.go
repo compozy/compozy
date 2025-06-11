@@ -54,25 +54,39 @@ type NotificationMetrics struct {
 	SubscribeErrors   int64         `json:"subscribe_errors"`
 	ActiveChannels    int           `json:"active_channels"`
 	AverageLatency    time.Duration `json:"average_latency"`
+	DroppedMessages   int64         `json:"dropped_messages"`
 }
 
 // RedisNotificationSystem implements the NotificationSystem interface using Redis pub/sub
 type RedisNotificationSystem struct {
-	client  RedisInterface
-	metrics *NotificationMetrics
-	closeCh chan struct{}
-	wg      sync.WaitGroup
-	closed  bool
-	mu      sync.Mutex
+	client     RedisInterface
+	metrics    *NotificationMetrics
+	closeCh    chan struct{}
+	wg         sync.WaitGroup
+	closed     bool
+	mu         sync.Mutex
+	bufferSize int
 }
 
+const DefaultNotificationBufferSize = 100
+
 // NewRedisNotificationSystem creates a new Redis-backed notification system
-func NewRedisNotificationSystem(client RedisInterface) *RedisNotificationSystem {
-	return &RedisNotificationSystem{
-		client:  client,
-		metrics: &NotificationMetrics{},
-		closeCh: make(chan struct{}),
+func NewRedisNotificationSystem(client RedisInterface, config *Config) (*RedisNotificationSystem, error) {
+	if client == nil {
+		return nil, fmt.Errorf("redis client cannot be nil")
 	}
+
+	bufferSize := DefaultNotificationBufferSize
+	if config != nil && config.NotificationBufferSize > 0 {
+		bufferSize = config.NotificationBufferSize
+	}
+
+	return &RedisNotificationSystem{
+		client:     client,
+		metrics:    &NotificationMetrics{},
+		closeCh:    make(chan struct{}),
+		bufferSize: bufferSize,
+	}, nil
 }
 
 // Publish sends a message to the specified channel
@@ -134,7 +148,7 @@ func (ns *RedisNotificationSystem) Subscribe(ctx context.Context, channels ...st
 	}
 
 	// Create message channel
-	msgChan := make(chan Message, 100) // Buffered to prevent blocking
+	msgChan := make(chan Message, ns.bufferSize) // Buffered to prevent blocking
 
 	// Update metrics
 	ns.metrics.mu.Lock()
@@ -170,7 +184,7 @@ func (ns *RedisNotificationSystem) SubscribePattern(ctx context.Context, pattern
 	}
 
 	// Create message channel
-	msgChan := make(chan Message, 100) // Buffered to prevent blocking
+	msgChan := make(chan Message, ns.bufferSize) // Buffered to prevent blocking
 
 	// Update metrics
 	ns.metrics.mu.Lock()
@@ -216,6 +230,7 @@ func (ns *RedisNotificationSystem) GetMetrics() NotificationMetrics {
 		SubscribeErrors:   ns.metrics.SubscribeErrors,
 		ActiveChannels:    ns.metrics.ActiveChannels,
 		AverageLatency:    ns.metrics.AverageLatency,
+		DroppedMessages:   ns.metrics.DroppedMessages,
 	}
 }
 
@@ -267,6 +282,9 @@ func (ns *RedisNotificationSystem) receiveMessages(
 				ns.metrics.mu.Unlock()
 				// Note: Message received and processed
 			default:
+				ns.metrics.mu.Lock()
+				ns.metrics.DroppedMessages++
+				ns.metrics.mu.Unlock()
 				// Note: Message channel full, dropping message
 			}
 		}
