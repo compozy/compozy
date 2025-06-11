@@ -110,7 +110,7 @@ type Evaluator struct {
 	Directives   map[string]Directive
 	TransformUse TransformUseFunc
 	PreEval      PreEvalFunc
-	cache        *ristretto.Cache // Path resolution cache
+	cache        *ristretto.Cache[string, Node] // Path resolution cache
 	cacheConfig  *CacheConfig
 }
 
@@ -129,11 +129,11 @@ func NewEvaluator(options ...EvalConfigOption) *Evaluator {
 	}
 	// Initialize cache if configured
 	if ev.cacheConfig != nil {
-		cache, err := ristretto.NewCache(&ristretto.Config{
+		cache, err := ristretto.NewCache(&ristretto.Config[string, Node]{
 			NumCounters: ev.cacheConfig.NumCounters,
 			MaxCost:     ev.cacheConfig.MaxCost,
 			BufferItems: ev.cacheConfig.BufferItems,
-			Cost: func(value any) int64 {
+			Cost: func(value Node) int64 {
 				// Estimate cost based on the serialized size
 				if data, err := json.Marshal(value); err == nil {
 					return int64(len(data))
@@ -156,11 +156,7 @@ func (ev *Evaluator) ResolvePath(scope, path string) (Node, error) {
 	cacheKey := scope + "::" + path
 	if ev.cache != nil {
 		if value, found := ev.cache.Get(cacheKey); found {
-			// Cache hit - return the cached value
-			if node, ok := value.(Node); ok {
-				return node, nil
-			}
-			// Cache corruption - ignore and continue with normal resolution
+			return value, nil
 		}
 	}
 

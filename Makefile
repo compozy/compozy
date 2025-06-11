@@ -104,19 +104,19 @@ schemagen:
 E2E_TESTS=./test/e2e/...
 
 test:
-	gotestsum --format testdox -- -parallel=8 $(shell go list ./... | grep -v '$(E2E_TESTS)')
+	gotestsum --format pkgname -- -parallel=8 $(shell go list ./... | grep -v '$(E2E_TESTS)')
 
 test-nocache:
-	gotestsum --format testdox -- -count=1 -parallel=8 ./...
+	gotestsum --format pkgname -- -count=1 -parallel=8 ./...
 
 test-all:
-	gotestsum --format testdox -- -parallel=8 ./...
+	gotestsum --format pkgname -- -parallel=8 ./...
 
 test-worker:
-	gotestsum --format testdox -- -parallel=16 $(shell go list ./... | grep -v '$(E2E_TESTS)')
+	gotestsum --format pkgname -- -parallel=16 $(shell go list ./... | grep -v '$(E2E_TESTS)')
 
 test-no-worker:
-	gotestsum --format testdox -- -parallel=16 $(shell go list ./... | grep -v '$(E2E_TESTS)')
+	gotestsum --format pkgname -- -parallel=16 $(shell go list ./... | grep -v '$(E2E_TESTS)')
 
 # -----------------------------------------------------------------------------
 # Docker & Database Management
@@ -168,3 +168,26 @@ reset-db:
 	@make reset-docker
 	@make migrate-reset
 	@make migrate-up
+
+# -----------------------------------------------------------------------------
+# Redis
+# -----------------------------------------------------------------------------
+REDIS_PASSWORD ?= redis_secret
+REDIS_HOST ?= localhost
+REDIS_PORT ?= 6379
+
+redis-cli:
+	docker exec -it redis redis-cli -a ${REDIS_PASSWORD}
+
+redis-info:
+	docker exec redis redis-cli -a ${REDIS_PASSWORD} info
+
+redis-monitor:
+	docker exec -it redis redis-cli -a ${REDIS_PASSWORD} monitor
+
+redis-flush:
+	docker exec redis redis-cli -a ${REDIS_PASSWORD} flushall
+
+test-redis:
+	@echo "Testing Redis connection..."
+	@docker exec redis redis-cli -a ${REDIS_PASSWORD} ping

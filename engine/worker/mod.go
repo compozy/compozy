@@ -3,8 +3,10 @@ package worker
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
@@ -33,6 +35,7 @@ type Worker struct {
 	workflows     []*wf.Config
 	taskQueue     string
 	configStore   services.ConfigStore
+	cache         *cache.Cache
 }
 
 func NewWorker(
@@ -59,12 +62,14 @@ func NewWorker(
 		return nil, fmt.Errorf("failed to created execution manager: %w", err)
 	}
 
-	// Initialize ConfigStore
-	configStore, err := services.NewBadgerConfigStore("")
+	cacheCtx := context.Background()
+	redisCache, err := cache.SetupCache(cacheCtx, projectConfig.Cache)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create config store: %w", err)
+		return nil, fmt.Errorf("failed to setup Redis cache: %w", err)
 	}
 
+	// Create Redis-backed ConfigStore with 24h TTL as per PRD
+	configStore := services.NewRedisConfigStore(redisCache.Redis, 24*time.Hour)
 	activities := NewActivities(
 		projectConfig,
 		workflows,
@@ -82,6 +87,7 @@ func NewWorker(
 		activities:    activities,
 		taskQueue:     taskQueue,
 		configStore:   configStore,
+		cache:         redisCache,
 	}, nil
 }
 
@@ -110,6 +116,9 @@ func (o *Worker) Stop() {
 	if o.configStore != nil {
 		o.configStore.Close()
 	}
+	if o.cache != nil {
+		o.cache.Close()
+	}
 }
 
 func (o *Worker) WorkflowRepo() wf.Repository {
@@ -118,6 +127,18 @@ func (o *Worker) WorkflowRepo() wf.Repository {
 
 func (o *Worker) TaskRepo() task.Repository {
 	return o.config.TaskRepo()
+}
+
+// HealthCheck performs a comprehensive health check including cache connectivity
+func (o *Worker) HealthCheck(ctx context.Context) error {
+	// Check Redis cache health
+	if o.cache != nil {
+		if err := o.cache.HealthCheck(ctx); err != nil {
+			return fmt.Errorf("redis cache health check failed: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // -----------------------------------------------------------------------------

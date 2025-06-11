@@ -1,13 +1,14 @@
 package utils
 
 import (
+	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
@@ -322,15 +323,21 @@ func SetupWorkflowEnvironment(env *testsuite.TestWorkflowEnvironment, config *Co
 	// Configure test environment for deterministic testing
 	ConfigureTemporalTestEnvironment(env)
 
-	tmpDir, err := os.MkdirTemp("", "compozy-test-config-store")
-	if err != nil {
-		panic(err)
-	}
-	configStore, err := services.NewBadgerConfigStore(tmpDir)
-	if err != nil {
-		panic(err)
+	// Setup Redis cache for testing
+	cacheConfig := &cache.Config{
+		Host:     "localhost",
+		Port:     "6379",
+		Password: "redis_secret",
+		DB:       5, // Use a different DB for tests
 	}
 
+	ctx := context.Background()
+	redisCache, err := cache.SetupCache(ctx, cacheConfig)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to setup Redis cache for tests: %v", err))
+	}
+
+	configStore := services.NewRedisConfigStore(redisCache.Redis, 1*time.Hour)
 	runtime, err := runtime.NewRuntimeManager(config.ProjectConfig.GetCWD().PathStr(), runtime.WithTestConfig())
 	if err != nil {
 		panic(err)
