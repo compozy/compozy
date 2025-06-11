@@ -2,6 +2,7 @@ package utils
 
 import (
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
@@ -141,6 +142,7 @@ func (t *TaskStateRowBuilder) CreateTaskStateRows(
 		actionID = DefaultActionID // Task components may have actions
 	}
 
+	now := time.Now()
 	return t.mock.NewRows([]string{
 		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
 		"component", "status", "execution_type", "parent_state_id", "agent_id", "action_id", "tool_id",
@@ -148,7 +150,7 @@ func (t *TaskStateRowBuilder) CreateTaskStateRows(
 	}).AddRow(
 		taskExecID, taskID, workflowExecID, workflowID,
 		component, status, executionType, nil, agentID, actionID, toolID, inputData,
-		nil, nil, pgxmock.AnyArg(), pgxmock.AnyArg(),
+		nil, nil, now, now,
 	)
 }
 
@@ -182,11 +184,12 @@ func (t *TaskStateRowBuilder) CreateTaskStateRowsWithExecution(
 		"error", "created_at", "updated_at",
 	}
 
+	now := time.Now()
 	values := []any{
 		taskExecID, taskID, workflowExecID, workflowID,
 		component, status, executionType, nil,
 		agentID, actionID, toolID, inputData, nil,
-		nil, pgxmock.AnyArg(), pgxmock.AnyArg(),
+		nil, now, now,
 	}
 
 	return t.mock.NewRows(columns).AddRow(values...)

@@ -2,6 +2,7 @@ package normalizer
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
 
@@ -592,26 +593,23 @@ func (cn *CollectionNormalizer) applyToolEnvTemplate(
 	return nil
 }
 
-// deepCopyConfig creates a deep copy of a task configuration
+// deepCopyConfig creates a deep copy of a task configuration using JSON serialization
 func (cn *CollectionNormalizer) deepCopyConfig(config *task.Config) *task.Config {
-	newConfig := *config // shallow copy
-
-	// Deep copy With map if it exists
-	if config.With != nil {
-		withCopy := make(core.Input)
-		for k, v := range *config.With {
-			withCopy[k] = v
-		}
-		newConfig.With = &withCopy
+	// Serialize the original config to JSON
+	data, err := json.Marshal(config)
+	if err != nil {
+		// Fallback to shallow copy if JSON serialization fails
+		// This shouldn't happen with well-formed task configs
+		newConfig := *config
+		return &newConfig
 	}
 
-	// Deep copy Env map if it exists
-	if config.Env != nil {
-		envCopy := make(core.EnvMap)
-		for k, v := range *config.Env {
-			envCopy[k] = v
-		}
-		newConfig.Env = &envCopy
+	// Deserialize into a new config instance
+	var newConfig task.Config
+	if err := json.Unmarshal(data, &newConfig); err != nil {
+		// Fallback to shallow copy if JSON deserialization fails
+		newConfig := *config
+		return &newConfig
 	}
 
 	return &newConfig

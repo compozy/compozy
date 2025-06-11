@@ -236,10 +236,11 @@ func (b *TestConfigBuilder) Build(t *testing.T) *ContainerTestConfig {
 	}
 
 	// Build environment variables
-	env := &core.EnvMap{}
+	envMap := make(core.EnvMap)
 	for k, v := range b.envVars {
-		(*env)[k] = v
+		envMap[k] = v
 	}
+	env := &envMap
 
 	// Create workflow configuration
 	workflowConfig := &wf.Config{
