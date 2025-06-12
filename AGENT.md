@@ -1,6 +1,6 @@
 # Compozy Development Guide
 
-Compozy is a **workflow orchestration engine for AI agents** that enables building AI-powered applications through declarative YAML configuration and a robust Go backend.
+Compozy is a **workflow orchestration engine for AI agents** that enables building AI-powered applications through declarative YAML configuration and a robust Go backend. It integrates with various LLM providers and supports the Model Context Protocol (MCP) for extending AI capabilities.
 
 ## Quick Start
 
@@ -11,8 +11,11 @@ make deps && make start-docker && make migrate-up
 # Development
 make dev              # Start development server
 make test             # Run tests (excludes slow tests)
-make test-all         # Full test suite
+make test-all         # Full test suite including E2E
 make fmt && make lint # Format and lint code
+
+# Run specific test
+go test -v ./engine/task -run TestExecutor_Execute
 ```
 
 ## Architecture
@@ -21,17 +24,28 @@ make fmt && make lint # Format and lint code
 compozy/
 ├── engine/           # Core domain logic
 │   ├── agent/        # AI agent management
-│   ├── task/         # Task orchestration
-│   ├── tool/         # Tool execution
-│   ├── workflow/     # Workflow definition
-│   ├── runtime/      # Deno runtime integration
+│   ├── task/         # Task orchestration (basic, parallel, collection, router types)
+│   ├── tool/         # Tool execution framework (TypeScript/Deno-based)
+│   ├── workflow/     # Workflow definition and execution
+│   ├── mcp/          # Model Context Protocol integration for external tool servers
+│   ├── llm/          # LLM service integration (OpenAI, Groq, Ollama)
+│   ├── runtime/      # Deno runtime for executing TypeScript tools
+│   ├── worker/       # Temporal-based workflow execution
 │   └── infra/        # Infrastructure (server, db, messaging)
 ├── cli/              # Command-line interface
-├── pkg/              # Reusable packages
+├── pkg/              # Reusable packages (mcp-proxy, utils, logger, tplengine)
 └── test/             # Test suite
 ```
 
-**Tech Stack:** Go 1.24+, PostgreSQL, Temporal, NATS, Gin, Deno
+**Tech Stack:**
+
+- **Go 1.24+**: Core language
+- **PostgreSQL**: Main database (5432) + Temporal database (5433)
+- **Redis**: Caching, config storage, and pub/sub (6379)
+- **Temporal**: Workflow orchestration (7233, UI: 8080)
+- **MCP Proxy**: HTTP proxy for MCP servers (8081)
+- **NATS**: Messaging system
+- **Deno**: Runtime for TypeScript tools
 
 ## 🚨 CRITICAL: Testing Standards
 
@@ -153,6 +167,8 @@ func NewStorage(config *StorageConfig) (Storage, error) {
         return NewRedisStorage(config.Redis)
     case StorageTypeMemory:
         return NewMemoryStorage(), nil
+    default:
+        return nil, fmt.Errorf("unsupported storage type: %s", config.Type)
     }
 }
 ```
@@ -164,6 +180,7 @@ func NewService(config *Config) *Service {
     if config == nil {
         config = DefaultConfig() // Always provide defaults
     }
+    return &Service{config: config}
 }
 ```
 
@@ -207,6 +224,9 @@ if len(m.clients) >= m.config.MaxConnections {
 defer func() {
     m.cancel()
     m.wg.Wait()
+    if closeErr := m.conn.Close(); closeErr != nil {
+        logger.Error("failed to close connection", "error", closeErr)
+    }
 }()
 ```
 
@@ -223,10 +243,16 @@ defer func() {
 ### Project Utilities
 
 - **Logger:** Use `pkg/logger` for structured logging
+
     ```go
     logger.Info("task executed", "task_id", id, "duration", time.Since(start))
     logger.Error("execution failed", "error", err, "task_id", id)
+
+    // NEVER log sensitive data
+    logger.Info("user authenticated", "user_id", userID) // ✅ Good
+    logger.Info("user authenticated", "password", pass) // ❌ Never do this
     ```
+
 - **Core types:** `core.ID` (UUIDs), `core.Ref` (polymorphic refs)
 - **Test helpers:** `utils.SetupTest()`, `utils.SetupFixture()`
 - **Template engine:** `pkg/tplengine` for dynamic configs
@@ -247,6 +273,11 @@ models:
       model: model-name
       api_key: "{{ .env.API_KEY }}"
 
+mcps:
+    - id: my-mcp-server
+      url: http://localhost:3000/mcp
+      transport: sse
+
 runtime:
     permissions:
         - --allow-read
@@ -257,7 +288,7 @@ runtime:
 
 - Development: Use `.env` files
 - Production: Environment-based configuration
-- **NEVER** commit API keys or secrets
+- **CRITICAL:** Never commit API keys or secrets
 
 ## API Development
 
@@ -265,6 +296,25 @@ runtime:
 - API versioned at `/api/v0/`
 - Swagger docs at `/swagger/index.html`
 - Update annotations for API changes
+
+## MCP Integration
+
+The MCP (Model Context Protocol) integration enables external tool servers to be used with Compozy:
+
+- **engine/mcp/**: MCP client implementation
+- **pkg/mcp-proxy/**: HTTP proxy for MCP servers (runs on port 8081)
+- **engine/llm/proxy_tool.go**: Tool for proxying MCP calls
+
+MCP servers are configured in YAML under the `mcps` section:
+
+```yaml
+mcps:
+    - id: search-mcp
+      url: http://localhost:3000
+      transport: sse
+      env:
+          API_KEY: "{{ .env.SEARCH_API_KEY }}"
+```
 
 ## Workflow & Runtime
 
@@ -284,12 +334,12 @@ runtime:
 
 1. **Before commits:** Run `make fmt && make lint && make test`
 2. **API changes:** Update Swagger annotations
-3. **Schema changes:** Create database migrations
-4. **New features:** Include comprehensive tests
+3. **Schema changes:** Create migrations with `make migrate-create name=<name>`
+4. **New features:** Include comprehensive tests following the mandatory pattern
 
 ## Debugging
 
 - Use `--debug` flag for verbose logging
-- Temporal Web UI for workflow inspection
+- Temporal Web UI for workflow inspection (port 8080)
 - Check logs for Deno runtime errors
 - Verify PostgreSQL connectivity
