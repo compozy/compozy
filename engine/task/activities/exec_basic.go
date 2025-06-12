@@ -81,7 +81,8 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 	}
 	// Execute component
 	output, executionError := a.executeUC.Execute(ctx, &uc.ExecuteTaskInput{
-		TaskConfig: taskConfig,
+		TaskConfig:   taskConfig,
+		WorkflowMCPs: workflowConfig.MCPs,
 	})
 
 	taskState.Output = output

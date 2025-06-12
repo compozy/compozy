@@ -1,0 +1,85 @@
+id: mcp-test-workflow
+version: "1.0.0"
+description: "Test workflow with MCP server integration"
+
+config:
+  input:
+    $ref: local::schemas.#(id=="search_input")
+  env:
+    WORKFLOW_VERSION: "1.0.0"
+    MAX_RETRIES: "3"
+
+schemas:
+  - id: search_input
+    type: object
+    properties:
+      query:
+        type: string
+        description: Search query string
+      limit:
+        type: integer
+        description: Maximum number of results
+        default: 10
+    required:
+      - query
+  - id: search_output
+    type: object
+    properties:
+      results:
+        type: array
+        items:
+          type: object
+          properties:
+            title:
+              type: string
+            url:
+              type: string
+            snippet:
+              type: string
+        description: Search results
+    required:
+      - results
+
+mcps:
+  - id: primary-mcp-server
+    url: http://localhost:4000/mcp
+    env:
+      API_KEY: "{{ .env.MCP_API_KEY }}"
+    proto: "2025-03-26"
+    start_timeout: 15s
+    max_sessions: 10
+
+  - id: secondary-mcp-server
+    url: https://api.example.com/mcp
+    env:
+      AUTH_TOKEN: "{{ .env.EXTERNAL_MCP_TOKEN }}"
+    proto: "2025-03-26"
+    start_timeout: 30s
+
+agents:
+  - id: search-assistant
+    config:
+      $ref: global::models.#(id=="gpt-4o")
+    instructions: |
+      You are a search assistant that helps users find relevant information.
+      Use the available MCP tools to perform searches and retrieve data.
+      Always provide clear, helpful responses based on the search results.
+    actions:
+      - id: perform-search
+        prompt: |
+          Search for information about: {{ .input.query }}
+          Limit results to: {{ .input.limit }}
+        input:
+          $ref: local::schemas.#(id=="search_input")
+        output:
+          $ref: local::schemas.#(id=="search_output")
+
+tasks:
+  - id: search-task
+    type: basic
+    $use: agent(local::agents.#(id=="search-assistant"))
+    action: perform-search
+    with:
+      query: "{{ .trigger.input.query }}"
+      limit: "{{ .trigger.input.limit }}"
+    final: true

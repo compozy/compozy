@@ -4,25 +4,39 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/tools"
 )
 
 type Service struct {
-	runtime *runtime.Manager
-	agent   *agent.Config
-	action  *agent.ActionConfig
+	runtime     *runtime.Manager
+	agent       *agent.Config
+	action      *agent.ActionConfig
+	mcps        []mcp.Config
+	mcpTools    []tools.Tool
+	connections map[string]*mcp.Connection
 }
 
-func NewService(runtime *runtime.Manager, agent *agent.Config, action *agent.ActionConfig) *Service {
+// NewService creates a new service with MCP configuration
+func NewService(
+	runtime *runtime.Manager,
+	agent *agent.Config,
+	action *agent.ActionConfig,
+	mcps []mcp.Config,
+) *Service {
 	return &Service{
 		runtime: runtime,
 		agent:   agent,
 		action:  action,
+		mcps:    mcps,
 	}
 }
 
@@ -35,7 +49,9 @@ func (s *Service) GenerateContent(ctx context.Context) (*core.Output, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM: %w", err)
 	}
-
+	if err := s.initMCP(); err != nil {
+		return nil, fmt.Errorf("failed to initialize MCP: %w", err)
+	}
 	// Validate input parameters if schema is defined
 	if err := s.validateInput(ctx); err != nil {
 		return nil, fmt.Errorf("input validation failed: %w", err)
@@ -69,17 +85,55 @@ func (s *Service) validateInput(ctx context.Context) error {
 	return s.action.ValidateInput(ctx, s.action.GetInput())
 }
 
-// getTools returns properly configured tool definitions
-func (s *Service) getTools() []llms.Tool {
-	var tools []llms.Tool
-	// Use actions tools if they are defined
-	if len(s.action.Tools) > 0 {
-		for _, toolConfig := range s.action.Tools {
-			tools = append(tools, toolConfig.GetLLMDefinition())
-		}
-		return tools
+func (s *Service) initMCP() error {
+	agentMCPs := make([]mcp.Config, 0, len(s.agent.MCPs))
+	// Prefer agent MCPs over workflow MCPs
+	if len(s.agent.MCPs) > 0 {
+		agentMCPs = append(agentMCPs, s.agent.MCPs...)
 	}
-	// Otherwise agent tools are used
+	// Add workflow MCPs if no agent MCPs are defined
+	if len(agentMCPs) == 0 && len(s.mcps) > 0 {
+		agentMCPs = append(agentMCPs, s.mcps...)
+	}
+
+	// Skip MCP initialization if no configurations exist
+	if len(agentMCPs) == 0 {
+		s.connections = make(map[string]*mcp.Connection)
+		return nil
+	}
+
+	// Use background context for MCP connections to avoid premature cancellation
+	// The connections will be explicitly closed when the service is done
+	bgCtx := context.Background()
+	connections, err := mcp.InitConnections(bgCtx, agentMCPs)
+	if err != nil {
+		return fmt.Errorf("failed to create MCP connections: %w", err)
+	}
+	s.connections = connections
+
+	// Log available tools for debugging
+	for connID, connection := range connections {
+		tools := connection.GetTools()
+		fmt.Printf("MCP connection %s has %d tools available\n", connID, len(tools))
+		for toolName := range tools {
+			fmt.Printf("  - %s\n", toolName)
+		}
+	}
+
+	return nil
+}
+
+// getLLMCallTools returns properly configured tool definitions including MCP tools
+func (s *Service) getLLMCallTools() []llms.Tool {
+	var tools []llms.Tool
+	if len(s.mcps) > 0 {
+		for _, connection := range s.connections {
+			for _, tool := range connection.GetTools() {
+				tools = append(tools, connection.ConvertoToLLMTool(tool))
+				s.mcpTools = append(s.mcpTools, tool)
+			}
+		}
+	}
 	for _, toolConfig := range s.agent.Tools {
 		tools = append(tools, toolConfig.GetLLMDefinition())
 	}
@@ -90,7 +144,7 @@ func (s *Service) getTools() []llms.Tool {
 func (s *Service) buildCallOptions() []llms.CallOption {
 	var options []llms.CallOption
 	// Add tools if available
-	tools := s.getTools()
+	tools := s.getLLMCallTools()
 	if len(tools) > 0 {
 		options = append(options, llms.WithTools(tools), llms.WithToolChoice("auto"))
 		return options
@@ -110,9 +164,8 @@ func (s *Service) shouldUseStructuredOutput() bool {
 	if s.action.ShouldUseJSONOutput() {
 		return true
 	}
-	tools := make([]tool.Config, 0, len(s.agent.Tools)+len(s.action.Tools))
+	tools := make([]tool.Config, 0, len(s.agent.Tools))
 	tools = append(tools, s.agent.Tools...)
-	tools = append(tools, s.action.Tools...)
 	for _, t := range tools {
 		if t.HasSchema() {
 			return true
@@ -147,20 +200,40 @@ func (s *Service) executeToolCall(ctx context.Context, toolCall llms.ToolCall) (
 	}
 	toolName := toolCall.FunctionCall.Name
 	arguments := toolCall.FunctionCall.Arguments
-	toolConfig, err := s.findTool(toolName)
-	if err != nil {
-		return nil, err
+	// Try to find and execute an agent tool first
+	agentTool := s.findTool(toolName)
+	if agentTool != nil {
+		input, err := s.parseArgs(arguments)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
+		}
+		tool := NewTool(agentTool, s.agent.Env, s.runtime)
+		output, err := tool.Call(ctx, input)
+		if err != nil {
+			return nil, fmt.Errorf("tool execution failed: %w", err)
+		}
+		return output, nil
 	}
-	input, err := s.parseArgs(arguments)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
+	// Try to execute an MCP tool
+	mcpTool := s.findMCPTool(toolName)
+	if mcpTool != nil {
+		result, err := mcpTool.Call(ctx, arguments)
+		if err != nil {
+			return nil, fmt.Errorf("tool execution failed: %w", err)
+		}
+		if strings.Contains(strings.ToLower(result), "error") {
+			return nil, fmt.Errorf("tool execution failed: %s", result)
+		}
+		// Try to parse as JSON first, fall back to text response
+		var output core.Output
+		if err := json.Unmarshal([]byte(result), &output); err != nil {
+			logger.Error("failed to unmarshal tool result", "error", err, "result", result)
+			// If JSON parsing fails, wrap the result as a text response
+			output = core.Output{"response": result}
+		}
+		return &output, nil
 	}
-	tool := NewTool(toolConfig, s.agent.Env, s.runtime)
-	output, err := tool.Call(ctx, input)
-	if err != nil {
-		return nil, fmt.Errorf("tool execution failed: %w", err)
-	}
-	return output, nil
+	return nil, fmt.Errorf("tool not found: %s", toolName)
 }
 
 func (s *Service) parseArgs(arguments string) (*core.Input, error) {
@@ -177,7 +250,15 @@ func (s *Service) parseContent(content string) (core.Output, error) {
 	if s.action.ShouldUseJSONOutput() {
 		var structuredOutput map[string]any
 		if err := json.Unmarshal([]byte(content), &structuredOutput); err != nil {
-			return nil, fmt.Errorf("expected structured output but received invalid JSON: %w", err)
+			// Try to clean up common JSON syntax issues and retry
+			cleanedContent := s.cleanupJSON(content)
+			if err := json.Unmarshal([]byte(cleanedContent), &structuredOutput); err != nil {
+				return nil, fmt.Errorf(
+					"expected structured output but received invalid JSON: %w. Content: %s",
+					err,
+					content,
+				)
+			}
 		}
 		return core.Output(structuredOutput), nil
 	}
@@ -199,16 +280,33 @@ func (s *Service) validateOutput(ctx context.Context, output *core.Output) error
 }
 
 // findTool locates the tool configuration by name
-func (s *Service) findTool(toolName string) (*tool.Config, error) {
-	tools := make([]tool.Config, 0, len(s.agent.Tools)+len(s.action.Tools))
+func (s *Service) findTool(toolName string) *tool.Config {
+	tools := make([]tool.Config, 0, len(s.agent.Tools))
 	tools = append(tools, s.agent.Tools...)
-	tools = append(tools, s.action.Tools...)
 	for _, tc := range tools {
 		if tc.ID == toolName {
-			return &tc, nil
+			return &tc
 		}
 	}
-	return nil, fmt.Errorf("tool not found: %s", toolName)
+	return nil
+}
+
+func (s *Service) findMCPTool(toolName string) tools.Tool {
+	for _, tool := range s.mcpTools {
+		if tool.Name() == toolName {
+			return tool
+		}
+	}
+	return nil
+}
+
+// Close cleans up MCP connections and other resources
+func (s *Service) Close() error {
+	if s.connections != nil {
+		mcp.CloseConnections(s.connections)
+		s.connections = nil
+	}
+	return nil
 }
 
 // supportsStructuredOutput checks if the current provider supports structured outputs
@@ -220,6 +318,23 @@ func (s *Service) supportsStructuredOutput() bool {
 	default:
 		return false
 	}
+}
+
+// cleanupJSON attempts to fix common JSON syntax issues
+func (s *Service) cleanupJSON(content string) string {
+	content = strings.TrimSpace(content)
+	// Remove any markdown code blocks
+	content = strings.TrimPrefix(content, "```json")
+	content = strings.TrimPrefix(content, "```")
+	content = strings.TrimSuffix(content, "```")
+	content = strings.TrimSpace(content)
+	// Fix trailing commas in arrays and objects using regex
+	// This is a simple approach - for more complex cases, a proper JSON parser would be needed
+	content = strings.ReplaceAll(content, ",]", "]")
+	content = strings.ReplaceAll(content, ",}", "}")
+	content = strings.ReplaceAll(content, ", ]", "]")
+	content = strings.ReplaceAll(content, ", }", "}")
+	return content
 }
 
 // enhancePromptForStructuredOutput adds JSON instruction if structured output is needed but not mentioned

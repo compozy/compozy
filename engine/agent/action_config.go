@@ -7,7 +7,6 @@ import (
 	"dario.cat/mergo"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
-	"github.com/compozy/compozy/engine/tool"
 )
 
 type ActionConfig struct {
@@ -17,9 +16,7 @@ type ActionConfig struct {
 	OutputSchema *schema.Schema `json:"output,omitempty" yaml:"output,omitempty" mapstructure:"output,omitempty"`
 	With         *core.Input    `json:"with,omitempty"   yaml:"with,omitempty"   mapstructure:"with,omitempty"`
 	JSONMode     bool           `json:"json_mode"        yaml:"json_mode"        mapstructure:"json_mode"`
-	// Used to force a single tool call in the action
-	Tools []tool.Config `json:"tools,omitempty"  yaml:"tools,omitempty"  mapstructure:"tools,omitempty"`
-	cwd   *core.CWD
+	cwd          *core.CWD
 }
 
 func (a *ActionConfig) SetCWD(path string) error {
