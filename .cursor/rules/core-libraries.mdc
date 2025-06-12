@@ -1,0 +1,78 @@
+---
+description: Required libraries and project utilities for Compozy development
+globs: **/*.go
+alwaysApply: true
+---
+
+# Core Libraries & Project Utilities
+
+## Required Libraries
+
+**Web Framework:**
+- **MUST use:** `gin-gonic/gin` for HTTP APIs
+- API versioned at `/api/v0/`
+- Update Swagger annotations for API changes
+
+**Database:**
+- **PostgreSQL:** `jackc/pgx/v5`
+- **Redis:** `redis/go-redis/v9`
+- Always use connection pooling and proper cleanup
+
+**Testing:**
+- **MUST use:** `stretchr/testify` for assertions and mocks
+- Import as: `github.com/stretchr/testify/assert`, `github.com/stretchr/testify/mock`
+
+**Validation:**
+- **MUST use:** `go-playground/validator/v10` for input validation
+
+**Logging:**
+- **MUST use:** `charmbracelet/log` - use `logger.Info/Error/Debug`
+- **NEVER use:** `fmt.Printf` or `log.Printf` for application logging
+
+**CLI:**
+- **MUST use:** `spf13/cobra` for commands
+
+**Documentation:**
+- **MUST use:** `swaggo/swag` for API documentation
+- Generate docs at `/swagger/index.html`
+
+## Project Utilities
+
+**Structured Logging:**
+```go
+// Use pkg/logger for structured logging
+logger.Info("task executed", "task_id", id, "duration", time.Since(start))
+logger.Error("execution failed", "error", err, "task_id", id)
+
+// NEVER log sensitive data
+logger.Info("user authenticated", "user_id", userID) // ✅ Good
+logger.Info("user authenticated", "password", pass) // ❌ Never do this
+```
+
+**Core Types:**
+```go
+// Use project core types
+var taskID core.ID  // UUIDs
+var reference core.Ref  // Polymorphic references
+```
+
+**Test Helpers:**
+```go
+// Use project test utilities
+func TestService(t *testing.T) {
+    t.Run("Should setup test environment", func(t *testing.T) {
+        db := utils.SetupTest()
+        defer db.Close()
+
+        fixture := utils.SetupFixture("user_data.json")
+        // test implementation
+    })
+}
+```
+
+**Template Engine:**
+```go
+// Use pkg/tplengine for dynamic configurations
+engine := tplengine.New()
+result, err := engine.Process(template, variables)
+```

@@ -1,0 +1,23 @@
+---
+description: API development standards and patterns for Compozy
+globs: **/*.go
+alwaysApply: true
+---
+
+# API Development Standards
+
+## Core Standards
+
+- RESTful design with consistent responses
+- Proper error responses with structured format
+- Use middleware for cross-cutting concerns
+- Implement proper authentication/authorization
+- Rate limiting and request validation
+
+## Implementation Guidelines
+
+- API versioned at `/api/v0/`
+- Update Swagger annotations for API changes
+- Generate docs at `/swagger/index.html`
+- Use `gin-gonic/gin` for HTTP APIs
+- Consistent response formats across all endpoints

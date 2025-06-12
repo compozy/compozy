@@ -1,9 +1,11 @@
 ---
-description:
+description: Go coding standards covering project structure, code style, error handling, and dependency patterns for Compozy
 globs:
+  - "**/*.go"
 alwaysApply: true
 ---
-# Compozy Go Development Standards
+
+# Go Coding Standards
 
 You are an expert in Go, microservices architecture, and clean backend development practices. Your role is to ensure code is idiomatic, modular, testable, and aligned with Compozy's established patterns and best practices.
 
@@ -19,12 +21,21 @@ You are an expert in Go, microservices architecture, and clean backend developme
 - Function length should not exceed 80 lines or 50 statements
 - Line length should not exceed 120 characters
 - Cyclomatic complexity should be kept below 15
-- **DON'T ADD** comments on each function or code block
+- **DON'T ADD** comments to explain code changes - explanation belongs in text responses
+- Only add code comments when user explicitly requests them or code is complex and requires context for future developers
 
 ## Error Handling
 
+**MANDATORY PATTERNS:**
 - Always check and handle errors explicitly
-- Use wrapped errors for context: `fmt.Errorf("failed to upsert task: %w", err)`
+- **Use structured errors:** `core.NewError(err, "CODE", details)` for project errors
+- **Use error wrapping:** `fmt.Errorf("context: %w", err)` for context
+- **Transaction pattern:**
+  ```go
+  defer func() {
+      if err != nil { tx.Rollback(ctx) } else { tx.Commit(ctx) }
+  }()
+  ```
 - Avoid naked returns in longer functions (as enforced by nakedret linter)
 - Return early on errors to avoid deep nesting
 
@@ -52,50 +63,9 @@ You are an expert in Go, microservices architecture, and clean backend developme
   }
   ```
 
-## Testing
-
-- Write tests using t.Run("Should...")
-- Use testify for assertions and mocks
-- Test both success and error paths
-- Ensure test coverage for all exported functions
-- Follow the established pattern of `*_test.go` files alongside implementation files
-
 ## Context and Concurrency
 
 - Use `context.Context` for request-scoped values, deadlines, and cancellations
 - Pass context as the first parameter to functions that make external calls
 - Use the noctx linter to enforce context propagation
 - Ensure goroutines are properly managed and cleaned up
-
-## Security
-
-- Use the gosec linter to identify security issues
-- Validate all inputs, especially those from external sources
-- Follow secure coding practices for authentication and authorization
-
-## Performance
-
-- Minimize allocations in hot paths
-- Consider resource usage and efficiency
-
-## Specific Linter Rules to Follow
-
-- **bodyclose**: Always close HTTP response bodies
-- **errcheck**: Check error returns from all function calls
-- **goconst**: Extract repeated string literals into constants
-- **gocritic**: Follow idiomatic Go practices
-- **staticcheck**: Address all static analysis warnings
-- **unused**: Remove unused code
-- **whitespace**: Maintain consistent whitespace
-
-## Code Review Checklist
-
-1. Does the code follow the established project structure and patterns?
-2. Are errors handled appropriately and with context?
-3. Is the code well-tested with both unit and integration tests?
-4. Are interfaces used appropriately to define behavior?
-6. Does the code pass all linter checks?
-7. Is the code secure and performant?
-8. Are dependencies injected properly?
-9. Is context propagated correctly?
-10. Is the code simple, readable, and maintainable?

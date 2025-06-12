@@ -1,0 +1,54 @@
+---
+description: Comprehensive testing standards and patterns for Compozy Go development
+globs:
+  - "**/*_test.go"
+  - "**/*.go"
+alwaysApply: true
+---
+
+# Testing Standards
+
+## Testing Requirements
+
+**MANDATORY REQUIREMENTS:**
+- **ALL tests MUST use `t.Run("Should...")` pattern** - no direct test implementation without t.Run wrapper
+- Test function names: `func TestModuleName_MethodName(t *testing.T)`
+- Each test case within t.Run with descriptive "Should..." names
+- MUST use `stretchr/testify` for assertions and mocks
+
+## Table-Driven Tests
+
+- AVOID table-driven tests for 2-3 cases
+- ONLY use when 5+ similar variations exist
+- Each table test case must still use "Should..." naming
+
+## Test Organization
+
+- Place `*_test.go` files alongside implementation files
+- Each test MUST be independent and repeatable
+- Mock all external dependencies
+- Use project test helpers: `utils.SetupTest()`, `utils.SetupFixture()`
+- Test both success and error paths
+- Ensure test coverage for all exported functions
+
+## Example Structure
+
+```go
+func TestService_Method(t *testing.T) {
+    t.Run("Should succeed with valid input", func(t *testing.T) {
+        // arrange, act, assert
+    })
+
+    t.Run("Should handle error cases", func(t *testing.T) {
+        // test implementation
+    })
+}
+```
+
+## Test Patterns
+
+- **Arrange-Act-Assert:** Structure all tests with clear setup, execution, and verification phases
+- **Independent Tests:** Each test should be able to run in isolation
+- **Descriptive Names:** Use "Should..." pattern to describe expected behavior
+- **Mock External Dependencies:** Use testify/mock for external service dependencies
+- **Context Propagation:** Pass context to functions that require it, even in tests
