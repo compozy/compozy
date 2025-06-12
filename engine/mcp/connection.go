@@ -3,7 +3,6 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -24,6 +23,7 @@ type Connection struct {
 
 // NewConnection creates a new MCP connection based on the configuration
 func NewConnection(config *Config) (*Connection, error) {
+	config.SetDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
@@ -41,9 +41,15 @@ func (c *Connection) initHTTP() (*Connection, error) {
 	// Choose transport based on configuration
 	switch c.config.Transport {
 	case TransportSSE:
-		mcpClient = createSSEHttpClient(c.config.URL)
+		mcpClient, err = createSSEHttpClient(c.config.URL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create SSE client: %w", err)
+		}
 	case TransportStreamableHTTP:
-		mcpClient = createStreamableHTTPClient(c.config.URL)
+		mcpClient, err = createStreamableHTTPClient(c.config.URL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create StreamableHTTP client: %w", err)
+		}
 	default:
 		return nil, fmt.Errorf("unsupported transport type: %s", c.config.Transport)
 	}
@@ -127,7 +133,7 @@ func (c *Connection) ConvertoToLLMTool(tool tools.Tool) llms.Tool {
 	return llmTool
 }
 
-func createSSEHttpClient(url string) *client.Client {
+func createSSEHttpClient(url string) (*client.Client, error) {
 	httpTransport, err := transport.NewSSE(url,
 		transport.WithHeaders(map[string]string{
 			"User-Agent":   "MyApp/1.0",
@@ -136,13 +142,12 @@ func createSSEHttpClient(url string) *client.Client {
 		}),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create SSE transport: %v", err)
+		return nil, fmt.Errorf("failed to create SSE transport: %w", err)
 	}
-	c := client.NewClient(httpTransport)
-	return c
+	return client.NewClient(httpTransport), nil
 }
 
-func createStreamableHTTPClient(url string) *client.Client {
+func createStreamableHTTPClient(url string) (*client.Client, error) {
 	// Basic StreamableHTTP client
 	httpTransport, err := transport.NewStreamableHTTP(url,
 		// Set timeout
@@ -159,10 +164,9 @@ func createStreamableHTTPClient(url string) *client.Client {
 		transport.WithHTTPBasicClient(&http.Client{}),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create StreamableHTTP transport: %v", err)
+		return nil, fmt.Errorf("failed to create StreamableHTTP transport: %w", err)
 	}
-	c := client.NewClient(httpTransport)
-	return c
+	return client.NewClient(httpTransport), nil
 }
 
 func InitConnections(_ context.Context, configs []Config) (map[string]*Connection, error) {

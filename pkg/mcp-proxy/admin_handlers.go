@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
@@ -37,15 +38,20 @@ func NewAdminHandlers(storage Storage, clientManager ClientManager, proxyHandler
 	}
 }
 
-// AddMCPHandler handles POST /admin/mcps - adds a new MCP definition
-func (h *AdminHandlers) AddMCPHandler(c *gin.Context) {
+// isNotFoundError checks if an error is a "not found" error
+func isNotFoundError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "not found")
+}
+
+// validateAndPrepareMCP validates the incoming MCP definition and checks for conflicts
+func (h *AdminHandlers) validateAndPrepareMCP(c *gin.Context) (*MCPDefinition, bool) {
 	var mcpDef MCPDefinition
 	if err := c.ShouldBindJSON(&mcpDef); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid JSON payload",
 			"details": err.Error(),
 		})
-		return
+		return nil, false
 	}
 
 	// Validate the MCP definition
@@ -54,17 +60,24 @@ func (h *AdminHandlers) AddMCPHandler(c *gin.Context) {
 			"error":   "Invalid MCP definition",
 			"details": err.Error(),
 		})
-		return
+		return nil, false
 	}
 
 	// Check if MCP with same name already exists
-	existing, err := h.storage.LoadMCP(context.Background(), mcpDef.Name)
-	if err == nil && existing != nil {
+	existing, err := h.storage.LoadMCP(c.Request.Context(), mcpDef.Name)
+	if err != nil && !isNotFoundError(err) {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Storage error",
+			"details": err.Error(),
+		})
+		return nil, false
+	}
+	if existing != nil {
 		c.JSON(http.StatusConflict, gin.H{
 			"error": "MCP with this name already exists",
 			"name":  mcpDef.Name,
 		})
-		return
+		return nil, false
 	}
 
 	// Set timestamps
@@ -72,8 +85,80 @@ func (h *AdminHandlers) AddMCPHandler(c *gin.Context) {
 	mcpDef.CreatedAt = now
 	mcpDef.UpdatedAt = now
 
+	return &mcpDef, true
+}
+
+// connectMCPWithFallback attempts immediate connection with async fallback
+func (h *AdminHandlers) connectMCPWithFallback(c *gin.Context, mcpDef *MCPDefinition) bool {
+	// Try immediate connection first, fall back to async on timeout
+	connectCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	immediateErr := h.clientManager.AddClient(connectCtx, mcpDef)
+	if immediateErr != nil {
+		// Check if it was a timeout - if so, proceed async
+		if connectCtx.Err() == context.DeadlineExceeded {
+			// Background connection attempt
+			go func() {
+				h.handleAsyncConnection(mcpDef)
+			}()
+			return true
+		}
+		// Immediate failure - return error to user
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":   "Failed to connect to MCP server",
+			"details": immediateErr.Error(),
+		})
+		return false
+	}
+
+	// Immediate success - register proxy synchronously
+	if h.proxyHandlers != nil {
+		if err := h.proxyHandlers.RegisterMCPProxy(context.Background(), mcpDef.Name, mcpDef); err != nil {
+			logger.Warn("Proxy registration failed but client is connected", "name", mcpDef.Name, "error", err)
+		}
+	}
+	return true
+}
+
+// handleAsyncConnection handles background MCP connection and proxy registration
+func (h *AdminHandlers) handleAsyncConnection(mcpDef *MCPDefinition) {
+	if err := h.clientManager.AddClient(context.Background(), mcpDef); err != nil {
+		status := &MCPStatus{
+			Name:      mcpDef.Name,
+			Status:    StatusError,
+			LastError: err.Error(),
+		}
+		if saveErr := h.storage.SaveStatus(context.Background(), status); saveErr != nil {
+			logger.Error("Failed to save error status", "name", mcpDef.Name, "error", saveErr)
+		}
+		return
+	}
+
+	if h.proxyHandlers != nil {
+		// Register the MCP as a proxy endpoint
+		if err := h.proxyHandlers.RegisterMCPProxy(context.Background(), mcpDef.Name, mcpDef); err != nil {
+			status := &MCPStatus{
+				Name:      mcpDef.Name,
+				Status:    StatusError,
+				LastError: fmt.Sprintf("proxy registration failed: %v", err),
+			}
+			if saveErr := h.storage.SaveStatus(context.Background(), status); saveErr != nil {
+				logger.Error("Failed to save proxy registration error status", "name", mcpDef.Name, "error", saveErr)
+			}
+		}
+	}
+}
+
+// AddMCPHandler handles POST /admin/mcps - adds a new MCP definition
+func (h *AdminHandlers) AddMCPHandler(c *gin.Context) {
+	mcpDef, valid := h.validateAndPrepareMCP(c)
+	if !valid {
+		return
+	}
+
 	// Save MCP definition to storage
-	if err := h.storage.SaveMCP(context.Background(), &mcpDef); err != nil {
+	if err := h.storage.SaveMCP(c.Request.Context(), mcpDef); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to save MCP definition",
 			"details": err.Error(),
@@ -81,34 +166,10 @@ func (h *AdminHandlers) AddMCPHandler(c *gin.Context) {
 		return
 	}
 
-	// Add MCP client asynchronously
-	go func() {
-		if err := h.clientManager.AddClient(context.Background(), &mcpDef); err != nil {
-			// Update status to reflect connection error
-			status := &MCPStatus{
-				Name:      mcpDef.Name,
-				Status:    StatusError,
-				LastError: err.Error(),
-			}
-			if saveErr := h.storage.SaveStatus(context.Background(), status); saveErr != nil {
-				logger.Error("Failed to save error status", "name", mcpDef.Name, "error", saveErr)
-			}
-		} else if h.proxyHandlers != nil {
-			// Register the MCP as a proxy endpoint
-			if err := h.proxyHandlers.RegisterMCPProxy(context.Background(), mcpDef.Name, &mcpDef); err != nil {
-				// Log error but don't fail the operation
-				// The client is connected but proxy registration failed
-				status := &MCPStatus{
-					Name:      mcpDef.Name,
-					Status:    StatusError,
-					LastError: fmt.Sprintf("proxy registration failed: %v", err),
-				}
-				if saveErr := h.storage.SaveStatus(context.Background(), status); saveErr != nil {
-					logger.Error("Failed to save proxy registration error status", "name", mcpDef.Name, "error", saveErr)
-				}
-			}
-		}
-	}()
+	// Attempt connection with fallback strategy
+	if !h.connectMCPWithFallback(c, mcpDef) {
+		return
+	}
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "MCP definition added successfully",
@@ -149,19 +210,26 @@ func (h *AdminHandlers) validateUpdateRequest(c *gin.Context) (*MCPDefinition, *
 
 	// Check if MCP exists
 	existing, err := h.storage.LoadMCP(context.Background(), name)
-	if err != nil || existing == nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "MCP not found",
-			"name":  name,
-		})
+	if err != nil {
+		if isNotFoundError(err) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "MCP not found",
+				"name":  name,
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Storage error",
+				"details": err.Error(),
+			})
+		}
 		return nil, nil, false
 	}
 
 	return &mcpDef, existing, true
 }
 
-// performHotReload removes old client and adds updated client asynchronously
-func (h *AdminHandlers) performHotReload(name string, mcpDef *MCPDefinition) {
+// performHotReload removes old client and adds updated client with proper error handling
+func (h *AdminHandlers) performHotReload(name string, mcpDef *MCPDefinition) error {
 	// Remove old client and unregister proxy
 	if err := h.clientManager.RemoveClient(context.Background(), name); err != nil {
 		logger.Error("Failed to remove client during update", "name", name, "error", err)
@@ -172,33 +240,60 @@ func (h *AdminHandlers) performHotReload(name string, mcpDef *MCPDefinition) {
 		}
 	}
 
-	// Add updated MCP client asynchronously (hot reload)
-	go func() {
-		if err := h.clientManager.AddClient(context.Background(), mcpDef); err != nil {
-			// Update status to reflect connection error
-			status := &MCPStatus{
-				Name:      mcpDef.Name,
-				Status:    StatusError,
-				LastError: err.Error(),
-			}
-			if saveErr := h.storage.SaveStatus(context.Background(), status); saveErr != nil {
-				logger.Error("Failed to save error status during update", "name", mcpDef.Name, "error", saveErr)
-			}
-		} else if h.proxyHandlers != nil {
-			// Register the updated MCP as a proxy endpoint
-			if err := h.proxyHandlers.RegisterMCPProxy(context.Background(), mcpDef.Name, mcpDef); err != nil {
-				status := &MCPStatus{
-					Name:      mcpDef.Name,
-					Status:    StatusError,
-					LastError: fmt.Sprintf("proxy registration failed: %v", err),
+	// Try immediate connection first with timeout
+	connectCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	immediateErr := h.clientManager.AddClient(connectCtx, mcpDef)
+	if immediateErr != nil {
+		// Check if it was a timeout - if so, proceed async
+		if connectCtx.Err() == context.DeadlineExceeded {
+			// Background connection attempt for timeout case
+			go func() {
+				if err := h.clientManager.AddClient(context.Background(), mcpDef); err != nil {
+					status := &MCPStatus{
+						Name:      mcpDef.Name,
+						Status:    StatusError,
+						LastError: err.Error(),
+					}
+					if saveErr := h.storage.SaveStatus(context.Background(), status); saveErr != nil {
+						logger.Error("Failed to save error status during update", "name", mcpDef.Name, "error", saveErr)
+					}
+				} else if h.proxyHandlers != nil {
+					// Register the updated MCP as a proxy endpoint
+					if err := h.proxyHandlers.RegisterMCPProxy(context.Background(), mcpDef.Name, mcpDef); err != nil {
+						status := &MCPStatus{
+							Name:      mcpDef.Name,
+							Status:    StatusError,
+							LastError: fmt.Sprintf("proxy registration failed: %v", err),
+						}
+						if saveErr := h.storage.SaveStatus(context.Background(), status); saveErr != nil {
+							logger.Error("Failed to save proxy registration error status during update",
+								"name", mcpDef.Name, "error", saveErr)
+						}
+					}
 				}
-				if saveErr := h.storage.SaveStatus(context.Background(), status); saveErr != nil {
-					logger.Error("Failed to save proxy registration error status during update",
-						"name", mcpDef.Name, "error", saveErr)
-				}
-			}
+			}()
+			return nil // Async connection in progress
 		}
-	}()
+		// Immediate failure
+		return fmt.Errorf("failed to reconnect: %w", immediateErr)
+	}
+
+	if h.proxyHandlers != nil {
+		// Register the updated MCP as a proxy endpoint (synchronous since connection succeeded)
+		if err := h.proxyHandlers.RegisterMCPProxy(context.Background(), mcpDef.Name, mcpDef); err != nil {
+			logger.Warn(
+				"Proxy registration failed but client is connected during update",
+				"name",
+				mcpDef.Name,
+				"error",
+				err,
+			)
+		}
+	}
+
+	return nil
 }
 
 // UpdateMCPHandler handles PUT /admin/mcps/{name} - updates an existing MCP definition
@@ -221,8 +316,16 @@ func (h *AdminHandlers) UpdateMCPHandler(c *gin.Context) {
 		return
 	}
 
-	// Now perform the hot reload operations atomically
-	h.performHotReload(mcpDef.Name, mcpDef)
+	// Now perform the hot reload operations
+	if err := h.performHotReload(mcpDef.Name, mcpDef); err != nil {
+		// Hot reload failed, but definition was saved - return partial success
+		c.JSON(http.StatusAccepted, gin.H{
+			"message": "MCP definition updated but connection failed",
+			"name":    mcpDef.Name,
+			"warning": err.Error(),
+		})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "MCP definition updated successfully",
@@ -241,12 +344,19 @@ func (h *AdminHandlers) RemoveMCPHandler(c *gin.Context) {
 	}
 
 	// Check if MCP exists
-	existing, err := h.storage.LoadMCP(context.Background(), name)
-	if err != nil || existing == nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "MCP not found",
-			"name":  name,
-		})
+	_, err := h.storage.LoadMCP(context.Background(), name)
+	if err != nil {
+		if isNotFoundError(err) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "MCP not found",
+				"name":  name,
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Storage error",
+				"details": err.Error(),
+			})
+		}
 		return
 	}
 
@@ -318,11 +428,18 @@ func (h *AdminHandlers) GetMCPHandler(c *gin.Context) {
 	}
 
 	mcp, err := h.storage.LoadMCP(context.Background(), name)
-	if err != nil || mcp == nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "MCP not found",
-			"name":  name,
-		})
+	if err != nil {
+		if isNotFoundError(err) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "MCP not found",
+				"name":  name,
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Storage error",
+				"details": err.Error(),
+			})
+		}
 		return
 	}
 

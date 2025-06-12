@@ -141,7 +141,7 @@ func createStdioMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, er
 func createSSEMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, error) {
 	var options []transport.ClientOption
 	if len(def.Headers) > 0 {
-		options = append(options, mcpclient.WithHeaders(def.Headers))
+		options = append(options, transport.WithHeaders(def.Headers))
 	}
 
 	client, err := mcpclient.NewSSEMCPClient(def.URL, options...)
@@ -226,6 +226,11 @@ func (c *MCPClient) Disconnect(_ context.Context) error {
 		return nil
 	}
 
+	// Mark as disconnected first so the ping routine can exit
+	c.mu.Lock()
+	c.connected = false
+	c.mu.Unlock()
+
 	// Wait for ping routine to finish if it was started
 	if c.needPing {
 		select {
@@ -241,10 +246,9 @@ func (c *MCPClient) Disconnect(_ context.Context) error {
 		logger.Error("Error closing MCP client", "error", err)
 	}
 
-	// Update state under lock
+	// Update remaining state under lock
 	c.mu.Lock()
 	c.initialized = false
-	c.connected = false
 	c.status.UpdateStatus(StatusDisconnected, "")
 	c.mu.Unlock()
 

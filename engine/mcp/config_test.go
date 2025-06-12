@@ -117,6 +117,11 @@ func TestConfig_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			originalProto := tt.config.Proto
 
+			// Call SetDefaults before Validate for cases that have valid ID and URL
+			if tt.config.ID != "" && tt.config.URL != "" {
+				tt.config.SetDefaults()
+			}
+
 			err := tt.config.Validate()
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -130,6 +135,51 @@ func TestConfig_Validate(t *testing.T) {
 					assert.Equal(t, "2025-03-26", tt.config.Proto)
 				}
 			}
+		})
+	}
+}
+
+func TestConfig_SetDefaults(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   Config
+		expected Config
+	}{
+		{
+			name: "sets default proto and transport",
+			config: Config{
+				ID:  "test-server",
+				URL: "http://localhost:3000/mcp",
+			},
+			expected: Config{
+				ID:        "test-server",
+				URL:       "http://localhost:3000/mcp",
+				Proto:     DefaultProtocolVersion,
+				Transport: DefaultTransport,
+			},
+		},
+		{
+			name: "preserves existing proto and transport",
+			config: Config{
+				ID:        "test-server",
+				URL:       "http://localhost:3000/mcp",
+				Proto:     "2024-01-01",
+				Transport: TransportStreamableHTTP,
+			},
+			expected: Config{
+				ID:        "test-server",
+				URL:       "http://localhost:3000/mcp",
+				Proto:     "2024-01-01",
+				Transport: TransportStreamableHTTP,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.config.SetDefaults()
+			assert.Equal(t, tt.expected.Proto, tt.config.Proto)
+			assert.Equal(t, tt.expected.Transport, tt.config.Transport)
 		})
 	}
 }

@@ -26,7 +26,8 @@ func setupTestRedis(t *testing.T) (*RedisStorage, func()) {
 		WriteTimeout: 1 * time.Second,
 	}
 
-	storage := NewRedisStorage(config)
+	storage, err := NewRedisStorage(config)
+	require.NoError(t, err)
 
 	cleanup := func() {
 		storage.Close()
@@ -40,20 +41,37 @@ func setupTestRedis(t *testing.T) (*RedisStorage, func()) {
 
 func TestNewRedisStorage(t *testing.T) {
 	t.Run("With config", func(t *testing.T) {
+		// Create miniredis instance for testing
+		mr := miniredis.RunT(t)
+		defer mr.Close()
+
 		config := &RedisConfig{
-			Addr:     "localhost:6379",
-			Password: "test",
-			DB:       1,
+			Addr:     mr.Addr(),
+			Password: "",
+			DB:       0,
 		}
 
-		storage := NewRedisStorage(config)
+		storage, err := NewRedisStorage(config)
+		require.NoError(t, err)
 		assert.NotNil(t, storage)
 		assert.Equal(t, "mcp_proxy", storage.prefix)
 		defer storage.Close()
 	})
 
 	t.Run("With nil config", func(t *testing.T) {
-		storage := NewRedisStorage(nil)
+		// Create miniredis instance for testing
+		mr := miniredis.RunT(t)
+		defer mr.Close()
+
+		// Override the default config to use miniredis
+		config := &RedisConfig{
+			Addr:     mr.Addr(),
+			Password: "",
+			DB:       0,
+		}
+
+		storage, err := NewRedisStorage(config)
+		require.NoError(t, err)
 		assert.NotNil(t, storage)
 		assert.Equal(t, "mcp_proxy", storage.prefix)
 		defer storage.Close()
@@ -301,7 +319,19 @@ func TestRedisStorage_LoadStatus(t *testing.T) {
 }
 
 func TestRedisStorage_KeyMethods(t *testing.T) {
-	storage := NewRedisStorage(nil)
+	// Create miniredis instance for testing
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	config := &RedisConfig{
+		Addr:     mr.Addr(),
+		Password: "",
+		DB:       0,
+	}
+
+	storage, err := NewRedisStorage(config)
+	require.NoError(t, err)
+	defer storage.Close()
 
 	t.Run("getMCPKey", func(t *testing.T) {
 		key := storage.getMCPKey("test-server")

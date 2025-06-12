@@ -2,6 +2,7 @@ package mcpproxy
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -10,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"golang.org/x/sync/errgroup"
 )
 
 // ProxyHandlers handles MCP protocol proxy requests
@@ -85,18 +87,23 @@ func (p *ProxyHandlers) RegisterMCPProxy(ctx context.Context, name string, def *
 		client:    client,
 	}
 
-	// Initialize the client connection and add its capabilities to the server
-	err = p.initializeClientConnection(ctx, client, mcpServer, name)
-	if err != nil {
-		logger.Error("Failed to initialize MCP client connection", "name", name, "error", err)
-		// For now, still register but the proxy will fail at runtime
-		// TODO: Consider implementing a health check mechanism
-	}
-
-	// Store the proxy server (only after initialization attempt)
+	// Store the proxy server BEFORE initialization to avoid race condition
+	// This allows requests to find the server, even if initialization is still in progress
 	p.serversMu.Lock()
 	p.servers[name] = proxyServer
 	p.serversMu.Unlock()
+
+	// Initialize the client connection and add its capabilities to the server
+	// This runs in background after the server is registered
+	go func() {
+		if err := p.initializeClientConnection(ctx, client, mcpServer, name); err != nil {
+			logger.Error("Failed to initialize MCP client connection", "name", name, "error", err)
+			// Update client status to reflect initialization failure
+			if status := client.GetStatus(); status != nil {
+				status.UpdateStatus(StatusError, fmt.Sprintf("initialization failed: %v", err))
+			}
+		}
+	}()
 
 	logger.Info("Successfully registered MCP proxy", "name", name)
 	return nil
@@ -211,28 +218,49 @@ func (p *ProxyHandlers) initializeClientConnection(
 
 	logger.Info("Successfully initialized MCP client", "name", name)
 
-	// Add tools to server
-	err = p.addToolsToServer(ctx, client, mcpServer, name)
-	if err != nil {
+	// Run network operations concurrently to reduce initialization time
+	// Tools are critical (fail fast), while other capabilities can be added optimistically
+
+	// First: Add tools to server (critical operation - must succeed)
+	toolsGroup, toolsCtx := errgroup.WithContext(ctx)
+	toolsGroup.Go(func() error {
+		return p.addToolsToServer(toolsCtx, client, mcpServer, name)
+	})
+
+	// Wait for critical tools operation to complete
+	if err := toolsGroup.Wait(); err != nil {
 		return err
 	}
 
-	// Add prompts to server
-	err = p.addPromptsToServer(ctx, client, mcpServer, name)
-	if err != nil {
-		logger.Warn("Failed to add prompts to server", "name", name, "error", err)
-	}
+	// Second: Add optional capabilities concurrently (non-critical operations)
+	// These operations are independent and can run in parallel
+	optionalGroup, optionalCtx := errgroup.WithContext(ctx)
 
-	// Add resources to server
-	err = p.addResourcesToServer(ctx, client, mcpServer, name)
-	if err != nil {
-		logger.Warn("Failed to add resources to server", "name", name, "error", err)
-	}
+	optionalGroup.Go(func() error {
+		if err := p.addPromptsToServer(optionalCtx, client, mcpServer, name); err != nil {
+			logger.Warn("Failed to add prompts to server", "name", name, "error", err)
+		}
+		return nil // Don't propagate errors for optional capabilities
+	})
 
-	// Add resource templates to server
-	err = p.addResourceTemplatesToServer(ctx, client, mcpServer, name)
-	if err != nil {
-		logger.Warn("Failed to add resource templates to server", "name", name, "error", err)
+	optionalGroup.Go(func() error {
+		if err := p.addResourcesToServer(optionalCtx, client, mcpServer, name); err != nil {
+			logger.Warn("Failed to add resources to server", "name", name, "error", err)
+		}
+		return nil // Don't propagate errors for optional capabilities
+	})
+
+	optionalGroup.Go(func() error {
+		if err := p.addResourceTemplatesToServer(optionalCtx, client, mcpServer, name); err != nil {
+			logger.Warn("Failed to add resource templates to server", "name", name, "error", err)
+		}
+		return nil // Don't propagate errors for optional capabilities
+	})
+
+	// Wait for all optional operations to complete
+	// Since we don't propagate errors from optional operations, this should never fail
+	if err := optionalGroup.Wait(); err != nil {
+		logger.Warn("Unexpected error from optional operations", "name", name, "error", err)
 	}
 
 	return nil
@@ -271,6 +299,7 @@ func (p *ProxyHandlers) addToolsToServer(
 }
 
 // addPromptsToServer adds MCP client prompts to the proxy server with pagination support
+// Uses concurrent processing within each batch for improved performance
 func (p *ProxyHandlers) addPromptsToServer(
 	ctx context.Context,
 	client *MCPClient,
@@ -279,6 +308,10 @@ func (p *ProxyHandlers) addPromptsToServer(
 ) error {
 	var cursor string
 	totalCount := 0
+
+	// Create a semaphore to limit concurrent prompt additions per batch
+	const maxConcurrentAdds = 5
+	sem := make(chan struct{}, maxConcurrentAdds)
 
 	for {
 		prompts, nextCursor, err := client.ListPromptsWithCursor(ctx, cursor)
@@ -293,9 +326,30 @@ func (p *ProxyHandlers) addPromptsToServer(
 		totalCount += len(prompts)
 		logger.Debug("Listed prompts batch", "name", name, "count", len(prompts), "cursor", cursor)
 
+		// Process prompts in this batch concurrently
+		g, gCtx := errgroup.WithContext(ctx)
+
 		for _, prompt := range prompts {
-			logger.Debug("Adding prompt to proxy server", "name", name, "prompt", prompt.Name)
-			mcpServer.AddPrompt(prompt, client.GetPrompt)
+			prompt := prompt // capture loop variable
+
+			g.Go(func() error {
+				// Acquire semaphore to limit concurrency
+				select {
+				case sem <- struct{}{}:
+					defer func() { <-sem }()
+				case <-gCtx.Done():
+					return gCtx.Err()
+				}
+
+				logger.Debug("Adding prompt to proxy server", "name", name, "prompt", prompt.Name)
+				mcpServer.AddPrompt(prompt, client.GetPrompt)
+				return nil
+			})
+		}
+
+		// Wait for all prompts in this batch to be processed
+		if err := g.Wait(); err != nil {
+			return err
 		}
 
 		if nextCursor == "" {
@@ -309,6 +363,7 @@ func (p *ProxyHandlers) addPromptsToServer(
 }
 
 // addResourcesToServer adds MCP client resources to the proxy server with pagination support
+// Uses concurrent processing within each batch for improved performance
 func (p *ProxyHandlers) addResourcesToServer(
 	ctx context.Context,
 	client *MCPClient,
@@ -317,6 +372,10 @@ func (p *ProxyHandlers) addResourcesToServer(
 ) error {
 	var cursor string
 	totalCount := 0
+
+	// Create a semaphore to limit concurrent resource additions per batch
+	const maxConcurrentAdds = 5
+	sem := make(chan struct{}, maxConcurrentAdds)
 
 	for {
 		resources, nextCursor, err := client.ListResourcesWithCursor(ctx, cursor)
@@ -331,18 +390,39 @@ func (p *ProxyHandlers) addResourcesToServer(
 		totalCount += len(resources)
 		logger.Debug("Listed resources batch", "name", name, "count", len(resources), "cursor", cursor)
 
+		// Process resources in this batch concurrently
+		g, gCtx := errgroup.WithContext(ctx)
+
 		for _, resource := range resources {
-			logger.Debug("Adding resource to proxy server", "name", name, "resource", resource.URI)
-			mcpServer.AddResource(
-				resource,
-				func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-					result, err := client.ReadResource(ctx, request)
-					if err != nil {
-						return nil, err
-					}
-					return result.Contents, nil
-				},
-			)
+			resource := resource // capture loop variable
+
+			g.Go(func() error {
+				// Acquire semaphore to limit concurrency
+				select {
+				case sem <- struct{}{}:
+					defer func() { <-sem }()
+				case <-gCtx.Done():
+					return gCtx.Err()
+				}
+
+				logger.Debug("Adding resource to proxy server", "name", name, "resource", resource.URI)
+				mcpServer.AddResource(
+					resource,
+					func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+						result, err := client.ReadResource(ctx, request)
+						if err != nil {
+							return nil, err
+						}
+						return result.Contents, nil
+					},
+				)
+				return nil
+			})
+		}
+
+		// Wait for all resources in this batch to be processed
+		if err := g.Wait(); err != nil {
+			return err
 		}
 
 		if nextCursor == "" {
@@ -356,6 +436,7 @@ func (p *ProxyHandlers) addResourcesToServer(
 }
 
 // addResourceTemplatesToServer adds MCP client resource templates to the proxy server with pagination support
+// Uses concurrent processing within each batch for improved performance
 func (p *ProxyHandlers) addResourceTemplatesToServer(
 	ctx context.Context,
 	client *MCPClient,
@@ -364,6 +445,10 @@ func (p *ProxyHandlers) addResourceTemplatesToServer(
 ) error {
 	var cursor string
 	totalCount := 0
+
+	// Create a semaphore to limit concurrent resource template additions per batch
+	const maxConcurrentAdds = 5
+	sem := make(chan struct{}, maxConcurrentAdds)
 
 	for {
 		templates, nextCursor, err := client.ListResourceTemplatesWithCursor(ctx, cursor)
@@ -378,18 +463,39 @@ func (p *ProxyHandlers) addResourceTemplatesToServer(
 		totalCount += len(templates)
 		logger.Debug("Listed resource templates batch", "name", name, "count", len(templates), "cursor", cursor)
 
+		// Process resource templates in this batch concurrently
+		g, gCtx := errgroup.WithContext(ctx)
+
 		for _, template := range templates {
-			logger.Debug("Adding resource template to proxy server", "name", name, "template", template.Name)
-			mcpServer.AddResourceTemplate(
-				template,
-				func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-					result, err := client.ReadResource(ctx, request)
-					if err != nil {
-						return nil, err
-					}
-					return result.Contents, nil
-				},
-			)
+			template := template // capture loop variable
+
+			g.Go(func() error {
+				// Acquire semaphore to limit concurrency
+				select {
+				case sem <- struct{}{}:
+					defer func() { <-sem }()
+				case <-gCtx.Done():
+					return gCtx.Err()
+				}
+
+				logger.Debug("Adding resource template to proxy server", "name", name, "template", template.Name)
+				mcpServer.AddResourceTemplate(
+					template,
+					func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+						result, err := client.ReadResource(ctx, request)
+						if err != nil {
+							return nil, err
+						}
+						return result.Contents, nil
+					},
+				)
+				return nil
+			})
+		}
+
+		// Wait for all resource templates in this batch to be processed
+		if err := g.Wait(); err != nil {
+			return err
 		}
 
 		if nextCursor == "" {

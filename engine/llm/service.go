@@ -126,7 +126,7 @@ func (s *Service) initMCP() error {
 // getLLMCallTools returns properly configured tool definitions including MCP tools
 func (s *Service) getLLMCallTools() []llms.Tool {
 	var tools []llms.Tool
-	if len(s.mcps) > 0 {
+	if len(s.connections) > 0 {
 		for _, connection := range s.connections {
 			for _, tool := range connection.GetTools() {
 				tools = append(tools, connection.ConvertoToLLMTool(tool))
@@ -283,9 +283,9 @@ func (s *Service) validateOutput(ctx context.Context, output *core.Output) error
 func (s *Service) findTool(toolName string) *tool.Config {
 	tools := make([]tool.Config, 0, len(s.agent.Tools))
 	tools = append(tools, s.agent.Tools...)
-	for _, tc := range tools {
-		if tc.ID == toolName {
-			return &tc
+	for i := range tools {
+		if tools[i].ID == toolName {
+			return &tools[i]
 		}
 	}
 	return nil

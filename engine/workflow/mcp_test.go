@@ -50,6 +50,7 @@ func TestMCPWorkflowValidation(t *testing.T) {
 
 	// Test that MCP configs are validated
 	for i := range config.MCPs {
+		config.MCPs[i].SetDefaults()
 		err := config.MCPs[i].Validate()
 		assert.NoError(t, err)
 	}

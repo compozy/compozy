@@ -31,7 +31,10 @@ func NewWithConfig(config *Config) (*Server, error) {
 
 // NewWithRedis creates a new MCP proxy server with Redis storage
 func NewWithRedis(config *Config, redisConfig *RedisConfig) (*Server, error) {
-	storage := NewRedisStorage(redisConfig)
+	storage, err := NewRedisStorage(redisConfig)
+	if err != nil {
+		return nil, err
+	}
 	clientManager := NewMCPClientManager(storage, nil)
 	return NewServer(config, storage, clientManager), nil
 }

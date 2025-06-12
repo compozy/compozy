@@ -92,7 +92,15 @@ func (a *Config) Validate() error {
 		NewActionsValidator(a.Actions),
 		schema.NewStructValidator(a),
 	)
-	return v.Validate()
+	if err := v.Validate(); err != nil {
+		return err
+	}
+	for i := range a.MCPs {
+		if err := a.MCPs[i].Validate(); err != nil {
+			return fmt.Errorf("mcp validation error: %w", err)
+		}
+	}
+	return nil
 }
 
 func (a *Config) ValidateInput(_ context.Context, _ *core.Input) error {

@@ -37,6 +37,9 @@ type Config struct {
 	AdminTokens   []string // List of valid admin tokens
 	AdminAllowIPs []string // List of allowed IP addresses/CIDR blocks for admin API
 
+	// Trusted proxies for X-Forwarded-For header validation
+	TrustedProxies []string // List of trusted proxy IP addresses/CIDR blocks
+
 	// Global auth tokens that apply to all MCP clients
 	// These tokens are automatically inherited by all MCP clients in addition to their specific auth tokens.
 	// Global tokens are checked first, then client-specific tokens.
@@ -262,25 +265,30 @@ func (s *Server) adminSecurityMiddleware() gin.HandlerFunc {
 
 // getClientIP extracts the real client IP from the request
 func (s *Server) getClientIP(c *gin.Context) string {
-	// Check X-Forwarded-For header first (for reverse proxies)
-	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
-		ips := strings.Split(xff, ",")
-		if len(ips) > 0 {
-			return strings.TrimSpace(ips[0])
+	// Extract the direct connection IP first
+	directIP, _, err := net.SplitHostPort(c.Request.RemoteAddr)
+	if err != nil {
+		directIP = c.Request.RemoteAddr
+	}
+
+	// Only trust X-Forwarded-For and X-Real-IP headers if the request comes from a trusted proxy
+	if s.isTrustedProxy(directIP) {
+		// Check X-Forwarded-For header first (for reverse proxies)
+		if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
+			ips := strings.Split(xff, ",")
+			if len(ips) > 0 {
+				return strings.TrimSpace(ips[0])
+			}
+		}
+
+		// Check X-Real-IP header
+		if xri := c.GetHeader("X-Real-IP"); xri != "" {
+			return strings.TrimSpace(xri)
 		}
 	}
 
-	// Check X-Real-IP header
-	if xri := c.GetHeader("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
-	}
-
-	// Fall back to RemoteAddr
-	ip, _, err := net.SplitHostPort(c.Request.RemoteAddr)
-	if err != nil {
-		return c.Request.RemoteAddr
-	}
-	return ip
+	// Fall back to direct connection IP
+	return directIP
 }
 
 // isIPAllowed checks if an IP is allowed based on the allow list
@@ -309,6 +317,40 @@ func (s *Server) isIPAllowed(clientIP string, allowList []string) bool {
 			// Direct IP comparison
 			allowedIP := net.ParseIP(allowed)
 			if allowedIP != nil && ip.Equal(allowedIP) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// isTrustedProxy checks if an IP is in the trusted proxy list
+func (s *Server) isTrustedProxy(clientIP string) bool {
+	if len(s.config.TrustedProxies) == 0 {
+		return false
+	}
+
+	// Parse client IP
+	ip := net.ParseIP(clientIP)
+	if ip == nil {
+		return false
+	}
+
+	for _, trusted := range s.config.TrustedProxies {
+		// Check if it's a CIDR block
+		if strings.Contains(trusted, "/") {
+			_, cidr, err := net.ParseCIDR(trusted)
+			if err != nil {
+				continue
+			}
+			if cidr.Contains(ip) {
+				return true
+			}
+		} else {
+			// Direct IP comparison
+			trustedIP := net.ParseIP(trusted)
+			if trustedIP != nil && ip.Equal(trustedIP) {
 				return true
 			}
 		}

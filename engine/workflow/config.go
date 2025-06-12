@@ -114,6 +114,7 @@ func (w *Config) Validate() error {
 
 	for i := range w.MCPs {
 		mc := &w.MCPs[i]
+		mc.SetDefaults()
 		if err := mc.Validate(); err != nil {
 			return fmt.Errorf("mcp validation error: %s", err)
 		}

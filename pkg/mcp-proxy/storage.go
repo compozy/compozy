@@ -57,7 +57,7 @@ func DefaultRedisConfig() *RedisConfig {
 }
 
 // NewRedisStorage creates a new Redis-based storage instance
-func NewRedisStorage(config *RedisConfig) *RedisStorage {
+func NewRedisStorage(config *RedisConfig) (*RedisStorage, error) {
 	if config == nil {
 		config = DefaultRedisConfig()
 	}
@@ -74,10 +74,18 @@ func NewRedisStorage(config *RedisConfig) *RedisStorage {
 		WriteTimeout: config.WriteTimeout,
 	})
 
+	// Test the connection to ensure Redis is accessible
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := client.Ping(ctx).Err(); err != nil {
+		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
+	}
+
 	return &RedisStorage{
 		client: client,
 		prefix: "mcp_proxy",
-	}
+	}, nil
 }
 
 // Ping tests the Redis connection
@@ -205,7 +213,9 @@ func (r *RedisStorage) ListMCPs(ctx context.Context) ([]*MCPDefinition, error) {
 				}
 
 				def.SetDefaults()
-				definitions = append(definitions, &def)
+				// create a copy to preserve unique address per iteration
+				defCopy := def
+				definitions = append(definitions, &defCopy)
 			}
 		}
 

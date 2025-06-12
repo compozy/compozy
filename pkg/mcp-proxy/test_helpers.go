@@ -102,3 +102,35 @@ func (m *MockClientManager) GetMetrics() map[string]any {
 		"total_requests": 0,
 	}
 }
+
+// MockClientManagerWithClient is a mock that returns a working mock client
+type MockClientManagerWithClient struct {
+	*MockClientManager
+}
+
+func NewMockClientManagerWithClient() *MockClientManagerWithClient {
+	return &MockClientManagerWithClient{
+		MockClientManager: NewMockClientManager(),
+	}
+}
+
+func (m *MockClientManagerWithClient) GetClient(name string) (*MCPClient, error) {
+	// Return a simplified mock client with minimal required fields
+	definition := &MCPDefinition{
+		Name:        name,
+		Description: "Mock MCP client",
+		Transport:   TransportStdio,
+		Command:     "echo",
+		Args:        []string{"hello"},
+	}
+
+	// Create a minimal MCPClient that won't cause initialization errors
+	client := &MCPClient{
+		definition:  definition,
+		status:      &MCPStatus{Name: name, Status: StatusConnected},
+		initialized: true,
+		connected:   true,
+	}
+
+	return client, nil
+}

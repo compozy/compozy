@@ -36,7 +36,7 @@ func NewStorage(config *StorageConfig) (Storage, error) {
 
 	switch config.Type {
 	case StorageTypeRedis:
-		return NewRedisStorage(config.Redis), nil
+		return NewRedisStorage(config.Redis)
 	case StorageTypeMemory:
 		return NewMemoryStorage(), nil
 	default:
@@ -79,7 +79,7 @@ func (m *MemoryStorage) SaveMCP(_ context.Context, def *MCPDefinition) error {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.mcps[def.Name] = clone
+	m.mcps[clone.Name] = clone
 	return nil
 }
 

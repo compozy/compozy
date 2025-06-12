@@ -76,6 +76,53 @@ func TestProxyHandlers(t *testing.T) {
 		// Should get 404 because proxy not registered (mock client fails)
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
+
+	t.Run("Direct Proxy Server Access - Success Path", func(t *testing.T) {
+		// Test successful access when proxy server is already registered
+		mockClientManager := NewMockClientManagerWithClient()
+		proxyHandlers := NewProxyHandlers(storage, mockClientManager, "http://localhost:8080", nil)
+
+		// Create a new router for this test
+		successRouter := gin.New()
+		successRouter.Any("/:name/sse", proxyHandlers.SSEProxyHandler)
+		successRouter.Any("/:name/stream", proxyHandlers.StreamableHTTPProxyHandler)
+
+		// Manually add a mock proxy server to simulate successful registration
+		// This tests the routing logic without the complex MCP initialization
+		mockProxyServer := &ProxyServer{
+			mcpServer: nil, // Can be nil for this routing test
+			sseServer: nil, // Will be checked but routing will work
+			client:    nil,
+		}
+
+		proxyHandlers.serversMu.Lock()
+		proxyHandlers.servers["registered-mcp"] = mockProxyServer
+		proxyHandlers.serversMu.Unlock()
+
+		// Test SSE endpoint access
+		req, err := http.NewRequestWithContext(context.Background(), "GET", "/registered-mcp/sse", http.NoBody)
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		successRouter.ServeHTTP(w, req)
+
+		// Should not get 404 since proxy is registered
+		// May get other errors due to nil server components, but routing works
+		assert.NotEqual(t, http.StatusNotFound, w.Code)
+
+		// Verify server can be retrieved
+		server := proxyHandlers.GetProxyServer("registered-mcp")
+		assert.NotNil(t, server)
+
+		// Test cleanup
+		err = proxyHandlers.UnregisterMCPProxy("registered-mcp")
+		assert.NoError(t, err)
+
+		// After unregistration, should get 404 again
+		w2 := httptest.NewRecorder()
+		successRouter.ServeHTTP(w2, req)
+		assert.Equal(t, http.StatusNotFound, w2.Code)
+	})
 }
 
 func TestProxyServerManagement(t *testing.T) {

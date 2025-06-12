@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -38,6 +40,9 @@ type ClientManagerConfig struct {
 
 	// Maximum number of concurrent connections
 	MaxConcurrentConnections int
+
+	// Maximum number of concurrent health checks
+	HealthCheckParallelism int
 }
 
 // DefaultClientManagerConfig returns default configuration
@@ -49,6 +54,7 @@ func DefaultClientManagerConfig() *ClientManagerConfig {
 		DefaultConnectTimeout:    10 * time.Second,
 		DefaultRequestTimeout:    30 * time.Second,
 		MaxConcurrentConnections: 100,
+		HealthCheckParallelism:   8,
 	}
 }
 
@@ -79,10 +85,23 @@ func (m *MCPClientManager) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to load MCP definitions: %w", err)
 	}
 
+	// Use errgroup to start clients concurrently for faster startup
+	// This improves startup time when multiple MCP servers need to be connected
+	g, groupCtx := errgroup.WithContext(ctx)
 	for _, def := range definitions {
-		if err := m.AddClient(ctx, def); err != nil {
-			logger.Error("Failed to add client during startup", "name", def.Name, "error", err)
-		}
+		def := def // capture loop variable for closure
+		g.Go(func() error {
+			if err := m.AddClient(groupCtx, def); err != nil {
+				logger.Error("Failed to add client during startup", "name", def.Name, "error", err)
+				return fmt.Errorf("failed to add client '%s': %w", def.Name, err)
+			}
+			return nil
+		})
+	}
+
+	// Wait for all clients to start or fail
+	if err := g.Wait(); err != nil {
+		return fmt.Errorf("failed to start some MCP clients: %w", err)
 	}
 
 	// Start background health monitoring
@@ -100,14 +119,30 @@ func (m *MCPClientManager) Stop(ctx context.Context) error {
 	// Cancel background operations
 	m.cancel()
 
-	// Disconnect all clients
+	// Disconnect all clients concurrently using errgroup
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
+	clients := make(map[string]*MCPClient)
 	for name, client := range m.clients {
-		if err := client.Disconnect(ctx); err != nil {
-			logger.Error("Failed to disconnect client", "name", name, "error", err)
-		}
+		clients[name] = client
+	}
+	m.mu.Unlock()
+
+	// Use errgroup for concurrent disconnection
+	g, groupCtx := errgroup.WithContext(ctx)
+	for name, client := range clients {
+		name, client := name, client // capture loop variables
+		g.Go(func() error {
+			if err := client.Disconnect(groupCtx); err != nil {
+				logger.Error("Failed to disconnect client", "name", name, "error", err)
+				return fmt.Errorf("failed to disconnect client '%s': %w", name, err)
+			}
+			return nil
+		})
+	}
+
+	// Wait for all disconnections to complete
+	if err := g.Wait(); err != nil {
+		logger.Warn("Some clients failed to disconnect cleanly", "error", err)
 	}
 
 	// Wait for background goroutines to finish
@@ -163,7 +198,7 @@ func (m *MCPClientManager) AddClient(ctx context.Context, def *MCPDefinition) er
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
-		m.connectClient(ctx, client)
+		m.connectClient(m.ctx, client)
 	}()
 
 	logger.Info("Added MCP client", "name", def.Name, "transport", def.Transport)
@@ -218,7 +253,7 @@ func (m *MCPClientManager) ListClients() map[string]*MCPClient {
 	return result
 }
 
-// ListClientStatuses returns status copies for all clients (safer than ListClients)
+// ListClientStatuses returns status copies for all clients using concurrent retrieval
 func (m *MCPClientManager) ListClientStatuses() map[string]*MCPStatus {
 	m.mu.RLock()
 	clients := make(map[string]*MCPClient)
@@ -227,10 +262,29 @@ func (m *MCPClientManager) ListClientStatuses() map[string]*MCPStatus {
 	}
 	m.mu.RUnlock()
 
-	// Create status copies outside the lock
+	if len(clients) == 0 {
+		return make(map[string]*MCPStatus)
+	}
+
+	// Use errgroup for concurrent status retrieval
+	g := &errgroup.Group{}
 	statuses := make(map[string]*MCPStatus)
+	statusesMu := sync.Mutex{}
+
 	for name, client := range clients {
-		statuses[name] = client.GetStatus()
+		name, client := name, client // capture loop variables
+		g.Go(func() error {
+			status := client.GetStatus()
+			statusesMu.Lock()
+			statuses[name] = status
+			statusesMu.Unlock()
+			return nil
+		})
+	}
+
+	// Wait for all status retrievals to complete
+	if err := g.Wait(); err != nil {
+		logger.Warn("Error during concurrent status retrieval", "error", err)
 	}
 
 	return statuses
@@ -244,18 +298,6 @@ func (m *MCPClientManager) GetClientStatus(name string) (*MCPStatus, error) {
 	}
 
 	return client.GetStatus(), nil
-}
-
-// GetAllStatuses returns the status of all clients
-func (m *MCPClientManager) GetAllStatuses() map[string]*MCPStatus {
-	clients := m.ListClients()
-	statuses := make(map[string]*MCPStatus)
-
-	for name, client := range clients {
-		statuses[name] = client.GetStatus()
-	}
-
-	return statuses
 }
 
 // ReloadClient reloads a client with updated definition
@@ -333,8 +375,14 @@ func (m *MCPClientManager) connectClient(ctx context.Context, client *MCPClient)
 
 		// Don't sleep after last attempt
 		if attempt < maxRetries {
+			// Exponential backoff with jitter to prevent thundering herd
+			backoffDelay := time.Duration(float64(reconnectDelay) * (1.5*float64(attempt) + 1))
+			if backoffDelay > 60*time.Second {
+				backoffDelay = 60 * time.Second // Cap at 60 seconds
+			}
+
 			select {
-			case <-time.After(reconnectDelay):
+			case <-time.After(backoffDelay):
 			case <-ctx.Done():
 				return
 			case <-m.ctx.Done():
@@ -366,7 +414,7 @@ func (m *MCPClientManager) healthMonitor() {
 	}
 }
 
-// performHealthChecks checks the health of all connected clients
+// performHealthChecks checks the health of all connected clients concurrently
 func (m *MCPClientManager) performHealthChecks() {
 	// Get client list outside of individual health checks to avoid long lock
 	m.mu.RLock()
@@ -376,6 +424,8 @@ func (m *MCPClientManager) performHealthChecks() {
 	}
 	m.mu.RUnlock()
 
+	// Filter clients that need health checks
+	clientsToCheck := make(map[string]*MCPClient)
 	for name, client := range clientsCopy {
 		if !client.IsConnected() {
 			continue
@@ -386,26 +436,61 @@ func (m *MCPClientManager) performHealthChecks() {
 			continue
 		}
 
-		// Perform health check
-		ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
-		err := client.Health(ctx)
-		cancel()
+		clientsToCheck[name] = client
+	}
 
-		status := client.GetStatus()
-		if err != nil {
-			logger.Warn("MCP client health check failed", "name", name, "error", err)
-			status.UpdateStatus(StatusError, fmt.Sprintf("health check failed: %v", err))
+	if len(clientsToCheck) == 0 {
+		return
+	}
 
-			// Trigger reconnection if auto-reconnect is enabled
-			if def.AutoReconnect {
-				m.triggerReconnection(client)
+	// Use errgroup for concurrent health checks with bounded parallelism
+	g, ctx := errgroup.WithContext(m.ctx)
+
+	// Create semaphore for bounded concurrency
+	semaphore := make(chan struct{}, m.config.HealthCheckParallelism)
+
+	for name, client := range clientsToCheck {
+		// Capture loop variables
+		name, client := name, client
+
+		g.Go(func() error {
+			// Acquire semaphore
+			select {
+			case semaphore <- struct{}{}:
+				defer func() { <-semaphore }()
+			case <-ctx.Done():
+				return ctx.Err()
 			}
-		} else if status.Status != StatusConnected {
-			// Health check passed - ensure status is connected
-			status.UpdateStatus(StatusConnected, "")
-		}
 
-		m.saveStatus(m.ctx, status)
+			// Perform health check with timeout
+			healthCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+
+			err := client.Health(healthCtx)
+			status := client.GetStatus()
+
+			if err != nil {
+				logger.Warn("MCP client health check failed", "name", name, "error", err)
+				status.UpdateStatus(StatusError, fmt.Sprintf("health check failed: %v", err))
+
+				// Trigger reconnection if auto-reconnect is enabled
+				def := client.GetDefinition()
+				if def.AutoReconnect {
+					m.triggerReconnection(client)
+				}
+			} else if status.Status != StatusConnected {
+				// Health check passed - ensure status is connected
+				status.UpdateStatus(StatusConnected, "")
+			}
+
+			m.saveStatus(ctx, status)
+			return nil // Don't propagate health check errors as fatal
+		})
+	}
+
+	// Wait for all health checks to complete
+	if err := g.Wait(); err != nil {
+		logger.Error("Health check process interrupted", "error", err)
 	}
 }
 

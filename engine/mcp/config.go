@@ -13,7 +13,7 @@ const (
 	DefaultProtocolVersion = "2025-03-26"
 	// Transport types
 	TransportSSE            = "sse"
-	TransportStreamableHTTP = "streamable_http"
+	TransportStreamableHTTP = "streamable-http"
 	DefaultTransport        = TransportSSE
 )
 
@@ -26,6 +26,19 @@ type Config struct {
 	Transport    string            `yaml:"transport,omitempty"     json:"transport,omitempty"`
 	StartTimeout time.Duration     `yaml:"start_timeout,omitempty" json:"start_timeout,omitempty"`
 	MaxSessions  int               `yaml:"max_sessions,omitempty"  json:"max_sessions,omitempty"`
+}
+
+// SetDefaults sets default values for optional configuration fields
+func (c *Config) SetDefaults() {
+	// Set default protocol version if not specified
+	if c.Proto == "" {
+		c.Proto = DefaultProtocolVersion
+	}
+
+	// Set default transport if not specified
+	if c.Transport == "" {
+		c.Transport = DefaultTransport
+	}
 }
 
 // Validate validates the MCP configuration
@@ -52,24 +65,14 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("mcp url must include a host")
 	}
 
-	// Set default protocol version if not specified
-	if c.Proto == "" {
-		c.Proto = DefaultProtocolVersion
-	}
-
 	// Validate protocol version format
 	if !isValidProtoVersion(c.Proto) {
 		return fmt.Errorf("invalid protocol version: %s", c.Proto)
 	}
 
-	// Set default transport if not specified
-	if c.Transport == "" {
-		c.Transport = DefaultTransport
-	}
-
 	// Validate transport type
 	if !isValidTransport(c.Transport) {
-		return fmt.Errorf("invalid transport type: %s (must be 'sse' or 'streamable_http')", c.Transport)
+		return fmt.Errorf("invalid transport type: %s (must be 'sse' or 'streamable-http')", c.Transport)
 	}
 
 	// Validate timeout and session limits
