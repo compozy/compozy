@@ -11,16 +11,17 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
+	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 )
 
 // Definition represents the structure for registering an MCP with the proxy
 type Definition struct {
-	Name        string            `json:"name"`
-	Command     []string          `json:"command,omitempty"`
-	Env         map[string]string `json:"env,omitempty"`
-	URL         string            `json:"url,omitempty"`
-	Transport   string            `json:"transport"`
-	StartupArgs []string          `json:"startup_args,omitempty"`
+	Name      string                 `json:"name"`
+	Env       map[string]string      `json:"env,omitempty"`
+	URL       string                 `json:"url,omitempty"`
+	Transport mcpproxy.TransportType `json:"transport"`
+	Command   string                 `json:"command,omitempty"`
+	Args      []string               `json:"args,omitempty"`
 }
 
 // Client provides HTTP communication with the MCP proxy service
@@ -70,22 +71,16 @@ func NewProxyClient(baseURL, adminToken string, timeout time.Duration) *Client {
 
 // Health checks if the proxy service is healthy and accessible
 func (c *Client) Health(ctx context.Context) error {
-	start := time.Now()
-	defer TimeOperation("proxy_health_check", start)
-	IncrementProxyHealthCheck()
-
-	err := c.withRetry(ctx, "health check", func() error {
+	return c.withRetry(ctx, "health check", func() error {
 		req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/healthz", http.NoBody)
 		if err != nil {
 			return fmt.Errorf("failed to create health check request: %w", err)
 		}
-
 		resp, err := c.http.Do(req)
 		if err != nil {
 			return fmt.Errorf("health check request failed: %w", err)
 		}
 		defer resp.Body.Close()
-
 		if resp.StatusCode != http.StatusOK {
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
@@ -93,47 +88,36 @@ func (c *Client) Health(ctx context.Context) error {
 			}
 			return fmt.Errorf("proxy service unhealthy (status %d): %s", resp.StatusCode, string(body))
 		}
-
 		logger.Debug("Proxy health check successful", "proxy_url", c.baseURL)
 		return nil
 	})
-
-	if err != nil {
-		IncrementProxyHealthFailure()
-	}
-
-	return err
 }
 
 // Register registers an MCP definition with the proxy service
 func (c *Client) Register(ctx context.Context, def *Definition) error {
 	return c.withRetry(ctx, "register MCP", func() error {
 		payload, err := json.Marshal(def)
+
 		if err != nil {
 			return fmt.Errorf("failed to marshal MCP definition: %w", err)
 		}
-
 		req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/admin/mcps", bytes.NewReader(payload))
 		if err != nil {
 			return fmt.Errorf("failed to create register request: %w", err)
 		}
-
 		req.Header.Set("Content-Type", "application/json")
 		if c.adminTok != "" {
 			req.Header.Set("Authorization", "Bearer "+c.adminTok)
 		}
-
 		resp, err := c.http.Do(req)
 		if err != nil {
 			return fmt.Errorf("register request failed: %w", err)
 		}
 		defer resp.Body.Close()
-
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return fmt.Errorf("failed to read response body: %w", err)
 		}
-
 		// Handle different status codes
 		switch resp.StatusCode {
 		case http.StatusCreated:
@@ -162,24 +146,20 @@ func (c *Client) Deregister(ctx context.Context, name string) error {
 		if err != nil {
 			return fmt.Errorf("failed to create deregister request: %w", err)
 		}
-
 		if c.adminTok != "" {
 			req.Header.Set("Authorization", "Bearer "+c.adminTok)
 		}
-
 		resp, err := c.http.Do(req)
 		if err != nil {
 			return fmt.Errorf("deregister request failed: %w", err)
 		}
 		defer resp.Body.Close()
-
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return fmt.Errorf("failed to read response body: %w", err)
 		}
-
 		switch resp.StatusCode {
-		case http.StatusOK:
+		case http.StatusOK, http.StatusNoContent:
 			logger.Info("Successfully deregistered MCP from proxy",
 				"mcp_name", name, "proxy_url", c.baseURL)
 			return nil
@@ -198,48 +178,38 @@ func (c *Client) Deregister(ctx context.Context, name string) error {
 // ListMCPs retrieves all registered MCPs from the proxy
 func (c *Client) ListMCPs(ctx context.Context) ([]Definition, error) {
 	var mcps []Definition
-
 	err := c.withRetry(ctx, "list MCPs", func() error {
 		req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/admin/mcps", http.NoBody)
 		if err != nil {
 			return fmt.Errorf("failed to create list request: %w", err)
 		}
-
 		if c.adminTok != "" {
 			req.Header.Set("Authorization", "Bearer "+c.adminTok)
 		}
-
 		resp, err := c.http.Do(req)
 		if err != nil {
 			return fmt.Errorf("list request failed: %w", err)
 		}
 		defer resp.Body.Close()
-
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return fmt.Errorf("failed to read response: %w", err)
 		}
-
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("list failed (status %d): %s", resp.StatusCode, string(body))
 		}
-
 		var response struct {
 			MCPs []Definition `json:"mcps"`
 		}
-
 		if err := json.Unmarshal(body, &response); err != nil {
 			return fmt.Errorf("failed to unmarshal response: %w", err)
 		}
-
 		mcps = response.MCPs
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}
-
 	return mcps, nil
 }
 
@@ -259,20 +229,77 @@ type ToolsResponse struct {
 // ListTools retrieves all available tools from registered MCPs via the proxy
 func (c *Client) ListTools(ctx context.Context) ([]ToolDefinition, error) {
 	var tools []ToolDefinition
-
 	err := c.withRetry(ctx, "list tools", func() error {
 		req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/admin/tools", http.NoBody)
 		if err != nil {
 			return fmt.Errorf("failed to create tools request: %w", err)
 		}
+		if c.adminTok != "" {
+			req.Header.Set("Authorization", "Bearer "+c.adminTok)
+		}
+		resp, err := c.http.Do(req)
+		if err != nil {
+			return fmt.Errorf("tools request failed: %w", err)
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read response: %w", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("tools request failed (status %d): %s", resp.StatusCode, string(body))
+		}
+		var response ToolsResponse
+		if err := json.Unmarshal(body, &response); err != nil {
+			return fmt.Errorf("failed to unmarshal tools response: %w", err)
+		}
+		tools = response.Tools
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return tools, nil
+}
 
+// ToolCallRequest represents a request to call a tool
+type ToolCallRequest struct {
+	MCPName   string         `json:"mcpName"`
+	ToolName  string         `json:"toolName"`
+	Arguments map[string]any `json:"arguments"`
+}
+
+// ToolCallResponse represents the response from a tool call
+type ToolCallResponse struct {
+	Result any    `json:"result"`
+	Error  string `json:"error,omitempty"`
+}
+
+// CallTool executes a tool via the proxy
+func (c *Client) CallTool(ctx context.Context, mcpName, toolName string, arguments map[string]any) (any, error) {
+	var response ToolCallResponse
+	err := c.withRetry(ctx, "call tool", func() error {
+		payload, err := json.Marshal(ToolCallRequest{
+			MCPName:   mcpName,
+			ToolName:  toolName,
+			Arguments: arguments,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to marshal tool call request: %w", err)
+		}
+
+		req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/admin/tools/call", bytes.NewReader(payload))
+		if err != nil {
+			return fmt.Errorf("failed to create tool call request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
 		if c.adminTok != "" {
 			req.Header.Set("Authorization", "Bearer "+c.adminTok)
 		}
 
 		resp, err := c.http.Do(req)
 		if err != nil {
-			return fmt.Errorf("tools request failed: %w", err)
+			return fmt.Errorf("tool call request failed: %w", err)
 		}
 		defer resp.Body.Close()
 
@@ -282,23 +309,23 @@ func (c *Client) ListTools(ctx context.Context) ([]ToolDefinition, error) {
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("tools request failed (status %d): %s", resp.StatusCode, string(body))
+			return fmt.Errorf("tool call failed (status %d): %s", resp.StatusCode, string(body))
 		}
 
-		var response ToolsResponse
 		if err := json.Unmarshal(body, &response); err != nil {
-			return fmt.Errorf("failed to unmarshal tools response: %w", err)
+			return fmt.Errorf("failed to unmarshal tool response: %w", err)
 		}
 
-		tools = response.Tools
+		if response.Error != "" {
+			return fmt.Errorf("tool execution error: %s", response.Error)
+		}
+
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}
-
-	return tools, nil
+	return response.Result, nil
 }
 
 // Close cleans up the HTTP client resources
@@ -311,26 +338,18 @@ func (c *Client) Close() error {
 // withRetry executes the provided function with exponential backoff retry logic
 func (c *Client) withRetry(ctx context.Context, operation string, fn func() error) error {
 	var lastErr error
-
 	for attempt := 1; attempt <= c.retryConf.MaxAttempts; attempt++ {
 		err := fn()
 		if err == nil {
 			return nil
 		}
-
 		lastErr = err
-
 		// Don't retry on the last attempt or for certain errors
 		if attempt == c.retryConf.MaxAttempts || !isRetryableError(err) {
 			break
 		}
-
 		// Calculate exponential backoff delay
-		delay := time.Duration(attempt-1) * c.retryConf.BaseDelay
-		if delay > c.retryConf.MaxDelay {
-			delay = c.retryConf.MaxDelay
-		}
-
+		delay := min(time.Duration(attempt-1)*c.retryConf.BaseDelay, c.retryConf.MaxDelay)
 		logger.Warn("Proxy operation failed, retrying",
 			"operation", operation,
 			"attempt", attempt,

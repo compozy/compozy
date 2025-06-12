@@ -1,4 +1,4 @@
-package schemagen
+package main
 
 import (
 	"encoding/json"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
@@ -61,6 +62,7 @@ func GenerateParserSchemas(outDir string) error {
 	}{
 		{"agent", &agent.Config{}},
 		{"project", &project.Config{}},
+		{"mcp", &mcp.Config{}},
 		{"task", &task.Config{}},
 		{"tool", &tool.Config{}},
 		{"workflow", &workflow.Config{}},
@@ -98,8 +100,17 @@ func GenerateParserSchemas(outDir string) error {
 }
 
 func main() {
-	// Example usage
+	// Parse command line arguments
 	outDir := "./schemas"
+
+	// Check for -out flag
+	for i, arg := range os.Args {
+		if arg == "-out" && i+1 < len(os.Args) {
+			outDir = os.Args[i+1]
+			break
+		}
+	}
+
 	if err := GenerateParserSchemas(outDir); err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating schemas: %v\n", err)
 		os.Exit(1)

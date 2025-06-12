@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
+	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -228,7 +229,7 @@ func TestRegisterService_HealthCheck(t *testing.T) {
 }
 
 func TestRegisterService_ConvertToDefinition(t *testing.T) {
-	t.Run("Should convert valid MCP config to proxy definition", func(t *testing.T) {
+	t.Run("Should convert valid remote MCP config to proxy definition", func(t *testing.T) {
 		client := NewProxyClient("http://localhost:7077", "", 5*time.Second)
 		service := NewRegisterService(client)
 
@@ -244,23 +245,44 @@ func TestRegisterService_ConvertToDefinition(t *testing.T) {
 
 		assert.Equal(t, "test-mcp", def.Name)
 		assert.Equal(t, "http://example.com/mcp", def.URL)
-		assert.Equal(t, "sse", def.Transport)
+		assert.Equal(t, mcpproxy.TransportSSE, def.Transport)
 		assert.Equal(t, "secret", def.Env["API_KEY"])
 	})
 
-	t.Run("Should return error for stdio MCP (not yet supported)", func(t *testing.T) {
+	t.Run("Should convert valid stdio MCP config to proxy definition", func(t *testing.T) {
+		client := NewProxyClient("http://localhost:7077", "", 5*time.Second)
+		service := NewRegisterService(client)
+
+		config := Config{
+			ID:        "test-stdio-mcp",
+			Command:   "node server.js --port 3000",
+			Transport: "stdio",
+			Env:       map[string]string{"NODE_ENV": "production"},
+		}
+
+		def, err := service.convertToDefinition(&config)
+		require.NoError(t, err)
+
+		assert.Equal(t, "test-stdio-mcp", def.Name)
+		assert.Equal(t, "node", def.Command)
+		assert.Equal(t, []string{"server.js", "--port", "3000"}, def.Args)
+		assert.Equal(t, mcpproxy.TransportStdio, def.Transport)
+		assert.Equal(t, "production", def.Env["NODE_ENV"])
+	})
+
+	t.Run("Should return error when neither URL nor Command is provided", func(t *testing.T) {
 		client := NewProxyClient("http://localhost:7077", "", 5*time.Second)
 		service := NewRegisterService(client)
 
 		config := Config{
 			ID:        "test-mcp",
 			Transport: "stdio",
-			// No URL provided for stdio
+			// Neither URL nor Command provided
 		}
 
 		_, err := service.convertToDefinition(&config)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "stdio MCP configuration not yet supported")
+		assert.Contains(t, err.Error(), "MCP configuration must specify either URL (for remote) or Command (for stdio)")
 	})
 
 	t.Run("Should return error for missing required fields", func(t *testing.T) {

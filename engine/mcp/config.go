@@ -6,31 +6,27 @@ import (
 	"maps"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
+
+	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 )
 
 const (
-	// DefaultProtocolVersion is the default MCP protocol version
 	DefaultProtocolVersion = "2025-03-26"
-	// Transport types
-	TransportSSE            = "sse"
-	TransportStreamableHTTP = "streamable-http"
-	DefaultTransport        = TransportSSE
+	DefaultTransport       = mcpproxy.TransportSSE
 )
 
 // Config represents a remote MCP (Model Context Protocol) server configuration
 type Config struct {
-	ID           string            `yaml:"id"                      json:"id"`
-	URL          string            `yaml:"url"                     json:"url"`
-	Env          map[string]string `yaml:"env,omitempty"           json:"env,omitempty"`
-	Proto        string            `yaml:"proto,omitempty"         json:"proto,omitempty"`
-	Transport    string            `yaml:"transport,omitempty"     json:"transport,omitempty"`
-	StartTimeout time.Duration     `yaml:"start_timeout,omitempty" json:"start_timeout,omitempty"`
-	MaxSessions  int               `yaml:"max_sessions,omitempty"  json:"max_sessions,omitempty"`
-	ProxyURL     string            `yaml:"proxy_url,omitempty"     json:"proxy_url,omitempty"`
-	UseProxy     bool              `yaml:"use_proxy,omitempty"     json:"use_proxy,omitempty"`
+	ID           string                 `yaml:"id"                      json:"id"`
+	URL          string                 `yaml:"url"                     json:"url"`
+	Command      string                 `yaml:"command,omitempty"       json:"command,omitempty"`
+	Env          map[string]string      `yaml:"env,omitempty"           json:"env,omitempty"`
+	Proto        string                 `yaml:"proto,omitempty"         json:"proto,omitempty"`
+	Transport    mcpproxy.TransportType `yaml:"transport,omitempty"     json:"transport,omitempty"`
+	StartTimeout time.Duration          `yaml:"start_timeout,omitempty" json:"start_timeout,omitempty"`
+	MaxSessions  int                    `yaml:"max_sessions,omitempty"  json:"max_sessions,omitempty"`
 }
 
 // SetDefaults sets default values for optional configuration fields
@@ -44,25 +40,6 @@ func (c *Config) SetDefaults() {
 	if c.Transport == "" {
 		c.Transport = DefaultTransport
 	}
-
-	// Track if UseProxy was explicitly set in YAML config
-	yamlUseProxySet := c.UseProxy
-
-	// Set proxy URL from environment if not specified in YAML
-	if c.ProxyURL == "" {
-		c.ProxyURL = os.Getenv("MCP_PROXY_URL")
-	}
-
-	// Only set UseProxy from environment if it wasn't explicitly set in YAML
-	envUseProxy := os.Getenv("MCP_USE_PROXY")
-	if !yamlUseProxySet && envUseProxy != "" {
-		if useProxy, err := strconv.ParseBool(envUseProxy); err == nil {
-			c.UseProxy = useProxy
-		}
-	}
-
-	// Do NOT automatically enable proxy just because ProxyURL exists
-	// The user must explicitly opt-in via YAML or MCP_USE_PROXY env var
 }
 
 // Validate validates the MCP configuration
@@ -97,10 +74,6 @@ func (c *Config) validateID() error {
 }
 
 func (c *Config) validateURL() error {
-	if c.UseProxy {
-		return nil // URL is ignored when using proxy
-	}
-
 	if c.URL == "" {
 		return errors.New("mcp url is required when not using proxy")
 	}
@@ -122,15 +95,12 @@ func (c *Config) validateURL() error {
 }
 
 func (c *Config) validateProxy() error {
-	if !c.UseProxy {
-		return nil // No proxy validation needed
+	proxyURL := os.Getenv("MCP_PROXY_URL")
+	if proxyURL == "" {
+		return errors.New("MCP_PROXY_URL environment variable is required for MCP server configuration")
 	}
 
-	if c.ProxyURL == "" {
-		return errors.New("proxy_url is required when use_proxy is true")
-	}
-
-	parsedProxyURL, err := url.Parse(c.ProxyURL)
+	parsedProxyURL, err := url.Parse(proxyURL)
 	if err != nil {
 		return fmt.Errorf("invalid proxy url format: %w", err)
 	}
@@ -180,10 +150,7 @@ func (c *Config) Clone() *Config {
 		Transport:    c.Transport,
 		StartTimeout: c.StartTimeout,
 		MaxSessions:  c.MaxSessions,
-		ProxyURL:     c.ProxyURL,
-		UseProxy:     c.UseProxy,
 	}
-
 	maps.Copy(clone.Env, c.Env)
 	return clone
 }
@@ -194,13 +161,11 @@ func isValidProtoVersion(version string) bool {
 	if len(parts) != 3 {
 		return false
 	}
-
 	// Basic format validation - should be YYYY-MM-DD
 	year, month, day := parts[0], parts[1], parts[2]
 	if len(year) != 4 || len(month) != 2 || len(day) != 2 {
 		return false
 	}
-
 	// All parts should be numeric
 	for _, part := range parts {
 		for _, char := range part {
@@ -209,11 +174,12 @@ func isValidProtoVersion(version string) bool {
 			}
 		}
 	}
-
 	return true
 }
 
 // isValidTransport validates the transport type
-func isValidTransport(transport string) bool {
-	return transport == TransportSSE || transport == TransportStreamableHTTP
+func isValidTransport(transport mcpproxy.TransportType) bool {
+	return transport == mcpproxy.TransportSSE ||
+		transport == mcpproxy.TransportStreamableHTTP ||
+		transport == mcpproxy.TransportStdio
 }

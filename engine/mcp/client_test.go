@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -157,6 +158,24 @@ func TestClient_Deregister_NotFound(t *testing.T) {
 
 		// Should treat not found as success (idempotent)
 		err := client.Deregister(context.Background(), "nonexistent-mcp")
+		assert.NoError(t, err)
+	})
+}
+
+func TestClient_Deregister_NoContent(t *testing.T) {
+	t.Run("Should successfully deregister MCP when server responds with No Content", func(t *testing.T) {
+		// Create test server
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/admin/mcps/test-mcp", r.URL.Path)
+			assert.Equal(t, "DELETE", r.Method)
+			w.WriteHeader(http.StatusNoContent) // 204 response
+		}))
+		defer server.Close()
+
+		client := NewProxyClient(server.URL, "", 5*time.Second)
+		defer client.Close()
+
+		err := client.Deregister(context.Background(), "test-mcp")
 		assert.NoError(t, err)
 	})
 }
@@ -336,4 +355,86 @@ func TestNewProxyClient(t *testing.T) {
 			client.Close()
 		})
 	}
+}
+
+func TestClient_CallTool(t *testing.T) {
+	t.Run("Should successfully call tool", func(t *testing.T) {
+		// Create test server
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/admin/tools/call", r.URL.Path)
+			assert.Equal(t, "POST", r.Method)
+			assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
+
+			// Verify request body
+			var req ToolCallRequest
+			err := json.NewDecoder(r.Body).Decode(&req)
+			require.NoError(t, err)
+			assert.Equal(t, "test-mcp", req.MCPName)
+			assert.Equal(t, "test-tool", req.ToolName)
+			assert.Equal(t, "test query", req.Arguments["query"])
+
+			// Send response
+			resp := ToolCallResponse{
+				Result: map[string]any{
+					"data":  "test result",
+					"count": 42,
+				},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+		}))
+		defer server.Close()
+
+		client := NewProxyClient(server.URL, "test-token", 5*time.Second)
+		defer client.Close()
+
+		result, err := client.CallTool(context.Background(), "test-mcp", "test-tool", map[string]any{
+			"query": "test query",
+		})
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+
+		resultMap, ok := result.(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "test result", resultMap["data"])
+		assert.Equal(t, float64(42), resultMap["count"])
+	})
+
+	t.Run("Should handle tool execution error", func(t *testing.T) {
+		// Create test server that returns an error
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			resp := ToolCallResponse{
+				Error: "Tool not found",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+		}))
+		defer server.Close()
+
+		client := NewProxyClient(server.URL, "", 5*time.Second)
+		defer client.Close()
+
+		_, err := client.CallTool(context.Background(), "test-mcp", "unknown-tool", nil)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Tool not found")
+	})
+
+	t.Run("Should handle HTTP error", func(t *testing.T) {
+		// Create test server that returns HTTP error
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("MCP not found"))
+		}))
+		defer server.Close()
+
+		client := NewProxyClient(server.URL, "", 5*time.Second)
+		defer client.Close()
+
+		_, err := client.CallTool(context.Background(), "unknown-mcp", "test-tool", nil)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "tool call failed (status 404)")
+	})
 }

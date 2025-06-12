@@ -2,7 +2,11 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/pkg/logger"
@@ -44,14 +48,37 @@ func TestNewProxyTool(t *testing.T) {
 }
 
 func TestProxyTool_Call(t *testing.T) {
-	t.Run("Should parse input arguments and return placeholder result", func(t *testing.T) {
+	t.Run("Should execute tool via proxy and return result", func(t *testing.T) {
+		// Create test server to mock the proxy
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/admin/tools/call", r.URL.Path)
+
+			// Verify request
+			var req map[string]any
+			err := json.NewDecoder(r.Body).Decode(&req)
+			require.NoError(t, err)
+			assert.Equal(t, "search-mcp", req["mcpName"])
+			assert.Equal(t, "search-tool", req["toolName"])
+
+			// Send successful response
+			resp := map[string]any{
+				"result": map[string]any{
+					"results": []string{"result1", "result2"},
+					"count":   2,
+				},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+		}))
+		defer server.Close()
+
 		toolDef := mcp.ToolDefinition{
 			Name:        "search-tool",
 			Description: "Search for information",
 			MCPName:     "search-mcp",
 		}
 
-		proxyClient := mcp.NewProxyClient("http://localhost:7077", "", 0)
+		proxyClient := mcp.NewProxyClient(server.URL, "", 5*time.Second)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
@@ -60,9 +87,15 @@ func TestProxyTool_Call(t *testing.T) {
 		result, err := tool.Call(context.Background(), input)
 
 		require.NoError(t, err)
-		assert.Contains(t, result, "Executed tool 'search-tool'")
-		assert.Contains(t, result, "search-mcp")
-		assert.Contains(t, result, input)
+
+		// Verify the result is valid JSON
+		var resultData map[string]any
+		err = json.Unmarshal([]byte(result), &resultData)
+		require.NoError(t, err)
+
+		// Check the structure
+		assert.NotNil(t, resultData["results"])
+		assert.Equal(t, float64(2), resultData["count"])
 	})
 
 	t.Run("Should return error for invalid JSON input", func(t *testing.T) {

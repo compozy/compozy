@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -33,7 +34,7 @@ type WorkerTestConfig struct {
 func (w *WorkerTestConfig) Cleanup(t *testing.T) {
 	t.Cleanup(func() {
 		if w.Worker != nil {
-			w.Worker.Stop()
+			w.Worker.Stop(context.Background())
 		}
 		if w.TemporalTestEnv != nil {
 			w.TemporalTestEnv.AssertExpectations(t)

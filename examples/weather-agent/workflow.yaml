@@ -18,7 +18,12 @@ config:
 
 mcps:
   - id: file_server
-    url: http://127.0.0.1:4004/sse
+    transport: stdio
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - "/Users/pedronauck/Dev/compozy/compozy/examples/weather-agent"
     proto: "2025-03-26"
     start_timeout: 15s
 
@@ -106,12 +111,12 @@ agents:
     actions:
       - id: list_saved_files
         prompt: |
-          Use MCP tools to list the files in the directory "./examples/weather-agent" and find any files that were saved by the previous tasks.
+          Use MCP tools to list the files in the current directory and find any files that were saved by the previous tasks.
           Look specifically for:
           - results.json files (weather data in JSON format)
           - results.txt files (weather data in text format)
-          IMPORTANT: Use the list_directory MCP tool with path="./examples/weather-agent" to list the directory contents.
-          Do not try to access parent directories or absolute paths.
+          IMPORTANT: Use the read_directory MCP tool to list the directory contents.
+          The MCP server is configured to access the weather-agent directory.
           Then return the file paths found in the directory.
 
 tasks:

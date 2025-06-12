@@ -65,7 +65,10 @@ func (uc *ExecuteTask) executeAgent(
 		return nil, fmt.Errorf("failed to find action config: %w", err)
 	}
 
-	llmService := llm.NewService(uc.runtime, agentConfig, actionConfig, workflowMCPs)
+	llmService, err := llm.NewService(uc.runtime, agentConfig, actionConfig, workflowMCPs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create LLM service: %w", err)
+	}
 	// Ensure MCP connections are properly closed when agent execution completes
 	defer func() {
 		if closeErr := llmService.Close(); closeErr != nil {

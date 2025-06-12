@@ -20,12 +20,11 @@ import (
 )
 
 type Service struct {
-	runtime     *runtime.Manager
-	agent       *agent.Config
-	action      *agent.ActionConfig
-	mcps        []mcp.Config
-	mcpTools    []tools.Tool
-	connections map[string]*mcp.Connection
+	runtime  *runtime.Manager
+	agent    *agent.Config
+	action   *agent.ActionConfig
+	mcps     []mcp.Config
+	mcpTools []tools.Tool
 
 	// Dynamic tool management
 	proxyClient  *mcp.Client
@@ -41,19 +40,19 @@ func NewService(
 	agent *agent.Config,
 	action *agent.ActionConfig,
 	mcps []mcp.Config,
-) *Service {
-	service := &Service{
-		runtime:  runtime,
-		agent:    agent,
-		action:   action,
-		mcps:     mcps,
-		cacheTTL: 5 * time.Minute, // Cache tools for 5 minutes
+) (*Service, error) {
+	client, err := initProxyClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize proxy client: %w", err)
 	}
-
-	// Initialize proxy client if proxy is configured
-	service.initProxyClient()
-
-	return service
+	return &Service{
+		runtime:     runtime,
+		agent:       agent,
+		action:      action,
+		mcps:        mcps,
+		cacheTTL:    5 * time.Minute, // Cache tools for 5 minutes
+		proxyClient: client,
+	}, nil
 }
 
 func (s *Service) CreateLLM() (llms.Model, error) {
@@ -65,9 +64,7 @@ func (s *Service) GenerateContent(ctx context.Context) (*core.Output, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM: %w", err)
 	}
-	if err := s.initMCP(); err != nil {
-		return nil, fmt.Errorf("failed to initialize MCP: %w", err)
-	}
+	s.initMCP(ctx)
 	// Validate input parameters if schema is defined
 	if err := s.validateInput(ctx); err != nil {
 		return nil, fmt.Errorf("input validation failed: %w", err)
@@ -80,7 +77,7 @@ func (s *Service) GenerateContent(ctx context.Context) (*core.Output, error) {
 	}
 
 	// Configure call options based on available tools and schemas
-	callOptions := s.buildCallOptions()
+	callOptions := s.buildCallOptions(ctx)
 	result, err := model.GenerateContent(ctx, messages, callOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute agent: %w", err)
@@ -101,110 +98,70 @@ func (s *Service) validateInput(ctx context.Context) error {
 	return s.action.ValidateInput(ctx, s.action.GetInput())
 }
 
-func (s *Service) initMCP() error {
-	agentMCPs := make([]mcp.Config, 0, len(s.agent.MCPs))
+func (s *Service) initMCP(ctx context.Context) {
+	mcps := make([]mcp.Config, 0, len(s.agent.MCPs))
 	// Prefer agent MCPs over workflow MCPs
 	if len(s.agent.MCPs) > 0 {
-		agentMCPs = append(agentMCPs, s.agent.MCPs...)
+		mcps = append(mcps, s.agent.MCPs...)
 	}
 	// Add workflow MCPs if no agent MCPs are defined
-	if len(agentMCPs) == 0 && len(s.mcps) > 0 {
-		agentMCPs = append(agentMCPs, s.mcps...)
+	if len(mcps) == 0 && len(s.mcps) > 0 {
+		mcps = append(mcps, s.mcps...)
 	}
-
 	// Skip MCP initialization if no configurations exist
-	if len(agentMCPs) == 0 {
-		s.connections = make(map[string]*mcp.Connection)
-		return nil
+	if len(mcps) == 0 {
+		return
 	}
-
-	// Check if any MCP uses proxy mode
-	useProxy := s.shouldUseProxy(agentMCPs)
-
-	if useProxy {
-		// Initialize tools via proxy discovery
-		return s.initMCPViaProxy(agentMCPs)
+	var allTools []tools.Tool
+	for _, mcpConfig := range mcps {
+		tools := s.getToolsFromProxy(ctx)
+		allTools = append(allTools, tools...)
+		logger.Info("Discovered tools via proxy", "mcp_id", mcpConfig.ID, "tool_count", len(tools))
 	}
-
-	// Use direct connections (existing behavior)
-	bgCtx := context.Background()
-	connections, err := mcp.InitConnections(bgCtx, agentMCPs)
-	if err != nil {
-		return fmt.Errorf("failed to create MCP connections: %w", err)
-	}
-	s.connections = connections
-
-	// Log available tools for debugging
-	for connID, connection := range connections {
-		tools := connection.GetTools()
-		logger.Debug("MCP connection tools available", "connection_id", connID, "tool_count", len(tools))
-		for toolName := range tools {
-			logger.Debug("  Tool available", "connection_id", connID, "tool_name", toolName)
-		}
-	}
-
-	return nil
+	// Store tools for later use
+	s.mcpTools = allTools
+	logger.Info("MCP proxy initialization completed", "total_tools", len(allTools))
 }
 
 // getLLMCallTools returns properly configured tool definitions including MCP tools
-func (s *Service) getLLMCallTools() []llms.Tool {
+func (s *Service) getLLMCallTools(ctx context.Context) []llms.Tool {
 	var tools []llms.Tool
-
-	// Add tools from direct connections (existing behavior)
-	if len(s.connections) > 0 {
-		for _, connection := range s.connections {
-			for _, tool := range connection.GetTools() {
-				tools = append(tools, connection.ConvertoToLLMTool(tool))
-				s.mcpTools = append(s.mcpTools, tool)
+	proxyTools := s.getToolsFromProxy(ctx)
+	for _, proxyTool := range proxyTools {
+		var parameters map[string]any
+		if pTool, ok := proxyTool.(*ProxyTool); ok {
+			parameters = map[string]any{
+				"type":       "object",
+				"properties": pTool.inputSchema,
+			}
+		} else {
+			parameters = map[string]any{
+				"type": "object",
 			}
 		}
-	}
-
-	// Add tools from proxy if available
-	if s.proxyClient != nil {
-		bgCtx := context.Background()
-		proxyTools := s.getToolsFromProxy(bgCtx)
-		for _, proxyTool := range proxyTools {
-			// Convert proxy tool to LLM tool format
-			// For proxy tools, we need to cast to our custom type to get schema
-			var parameters map[string]any
-			if pTool, ok := proxyTool.(*ProxyTool); ok {
-				parameters = map[string]any{
-					"type":       "object",
-					"properties": pTool.inputSchema,
-				}
-			} else {
-				parameters = map[string]any{
-					"type": "object",
-				}
-			}
-
-			llmTool := llms.Tool{
-				Type: "function",
-				Function: &llms.FunctionDefinition{
-					Name:        proxyTool.Name(),
-					Description: proxyTool.Description(),
-					Parameters:  parameters,
-				},
-			}
-			tools = append(tools, llmTool)
-			s.mcpTools = append(s.mcpTools, proxyTool)
+		llmTool := llms.Tool{
+			Type: "function",
+			Function: &llms.FunctionDefinition{
+				Name:        proxyTool.Name(),
+				Description: proxyTool.Description(),
+				Parameters:  parameters,
+			},
 		}
+		tools = append(tools, llmTool)
+		s.mcpTools = append(s.mcpTools, proxyTool)
 	}
-
 	// Add agent-specific tools
 	for _, toolConfig := range s.agent.Tools {
 		tools = append(tools, toolConfig.GetLLMDefinition())
 	}
-
 	return tools
 }
 
 // buildCallOptions constructs the appropriate call options based on tools and schemas
-func (s *Service) buildCallOptions() []llms.CallOption {
+func (s *Service) buildCallOptions(ctx context.Context) []llms.CallOption {
 	var options []llms.CallOption
 	// Add tools if available
-	tools := s.getLLMCallTools()
+	tools := s.getLLMCallTools(ctx)
 	if len(tools) > 0 {
 		options = append(options, llms.WithTools(tools), llms.WithToolChoice("auto"))
 		return options
@@ -362,10 +319,6 @@ func (s *Service) findMCPTool(toolName string) tools.Tool {
 
 // Close cleans up MCP connections and other resources
 func (s *Service) Close() error {
-	if s.connections != nil {
-		mcp.CloseConnections(s.connections)
-		s.connections = nil
-	}
 	return nil
 }
 
@@ -397,93 +350,12 @@ func (s *Service) cleanupJSON(content string) string {
 	return content
 }
 
-// shouldUseProxy determines if any MCP configuration uses proxy mode
-func (s *Service) shouldUseProxy(mcps []mcp.Config) bool {
-	for _, mcpConfig := range mcps {
-		if mcpConfig.UseProxy {
-			return true
-		}
-	}
-	return false
-}
-
-// initMCPViaProxy initializes MCP tools via proxy discovery instead of direct connections
-func (s *Service) initMCPViaProxy(mcps []mcp.Config) error {
-	logger.Info("Initializing MCP tools via proxy mode", "mcp_count", len(mcps))
-
-	// Initialize empty connections map since we're not using direct connections
-	s.connections = make(map[string]*mcp.Connection)
-
-	// For proxy mode, we discover tools by temporarily connecting through the proxy
-	var allTools []tools.Tool
-
-	for _, mcpConfig := range mcps {
-		if !mcpConfig.UseProxy || mcpConfig.ProxyURL == "" {
-			logger.Warn("Skipping MCP in proxy mode: not configured for proxy", "mcp_id", mcpConfig.ID)
-			continue
-		}
-
-		tools, err := s.discoverToolsViaProxy(&mcpConfig)
-		if err != nil {
-			logger.Error("Failed to discover tools for MCP via proxy", "mcp_id", mcpConfig.ID, "error", err)
-			continue
-		}
-
-		allTools = append(allTools, tools...)
-		logger.Info("Discovered tools via proxy", "mcp_id", mcpConfig.ID, "tool_count", len(tools))
-	}
-
-	// Store tools for later use
-	s.mcpTools = allTools
-
-	logger.Info("MCP proxy initialization completed", "total_tools", len(allTools))
-	return nil
-}
-
-// discoverToolsViaProxy discovers available tools for an MCP via proxy connection
-func (s *Service) discoverToolsViaProxy(mcpConfig *mcp.Config) ([]tools.Tool, error) {
-	// Build the proxy endpoint URL for this MCP
-	proxyEndpoint := fmt.Sprintf("%s/%s/%s", mcpConfig.ProxyURL, mcpConfig.ID, mcpConfig.Transport)
-
-	// Create a temporary configuration for proxy connection
-	tempConfig := mcpConfig.Clone()
-	tempConfig.URL = proxyEndpoint
-	tempConfig.UseProxy = false // Don't use proxy for the actual connection since we're connecting to proxy
-
-	// Create temporary connection to discover tools
-	connection, err := mcp.NewConnection(tempConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create proxy connection: %w", err)
-	}
-	defer connection.Close()
-
-	// Get tools from the connection
-	toolsMap := connection.GetTools()
-	if toolsMap == nil {
-		return nil, fmt.Errorf("no tools discovered")
-	}
-
-	// Convert map to slice
-	var tools []tools.Tool
-	for _, tool := range toolsMap {
-		tools = append(tools, tool)
-	}
-
-	return tools, nil
-}
-
 // executeMCPTool executes an MCP tool, handling both direct and proxy modes
 func (s *Service) executeMCPTool(ctx context.Context, tool tools.Tool, arguments string) (string, error) {
-	start := time.Now()
-	defer mcp.TimeOperation("mcp_tool_execution", start)
-	mcp.IncrementToolExecution()
-
 	result, err := tool.Call(ctx, arguments)
 	if err != nil {
-		mcp.IncrementToolExecutionFailure()
 		return "", err
 	}
-
 	return result, nil
 }
 
@@ -505,24 +377,17 @@ func (s *Service) enhancePromptForStructuredOutput() string {
 }
 
 // initProxyClient initializes the proxy client if proxy configuration is available
-func (s *Service) initProxyClient() {
-	// Check if any MCP uses proxy mode
-	for _, mcpConfig := range s.mcps {
-		if mcpConfig.UseProxy && mcpConfig.ProxyURL != "" {
-			timeout := 30 * time.Second
-			s.proxyClient = mcp.NewProxyClient(mcpConfig.ProxyURL, "", timeout)
-			logger.Info("Initialized proxy client for dynamic tool discovery", "proxy_url", mcpConfig.ProxyURL)
-			return
-		}
+func initProxyClient() (*mcp.Client, error) {
+	timeout := 30 * time.Second
+	proxyURL := os.Getenv("MCP_PROXY_URL")
+	adminToken := os.Getenv("MCP_PROXY_ADMIN_TOKEN")
+	if proxyURL == "" {
+		return nil, fmt.Errorf("MCP_PROXY_URL is not set")
 	}
-
-	// Also check environment variables as fallback
-	if proxyURL := os.Getenv("MCP_PROXY_URL"); proxyURL != "" {
-		adminToken := os.Getenv("MCP_PROXY_ADMIN_TOKEN")
-		timeout := 30 * time.Second
-		s.proxyClient = mcp.NewProxyClient(proxyURL, adminToken, timeout)
-		logger.Info("Initialized proxy client from environment", "proxy_url", proxyURL)
+	if adminToken == "" {
+		return mcp.NewProxyClient(proxyURL, "", timeout), nil
 	}
+	return mcp.NewProxyClient(proxyURL, adminToken, timeout), nil
 }
 
 // refreshToolsFromProxy refreshes the tools cache by fetching from the proxy
@@ -530,12 +395,10 @@ func (s *Service) refreshToolsFromProxy(ctx context.Context) error {
 	if s.proxyClient == nil {
 		return fmt.Errorf("proxy client not available")
 	}
-
 	toolDefs, err := s.proxyClient.ListTools(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list tools from proxy: %w", err)
 	}
-
 	// Convert tool definitions to langchain tools
 	var newTools []tools.Tool
 	for _, toolDef := range toolDefs {
@@ -543,13 +406,11 @@ func (s *Service) refreshToolsFromProxy(ctx context.Context) error {
 		proxyTool := NewProxyTool(toolDef, s.proxyClient)
 		newTools = append(newTools, proxyTool)
 	}
-
 	// Update cache with write lock
 	s.toolsMu.Lock()
 	s.toolsCache = newTools
 	s.toolsCacheTs = time.Now()
 	s.toolsMu.Unlock()
-
 	logger.Info("Refreshed tools cache from proxy", "tool_count", len(newTools))
 	return nil
 }
@@ -561,7 +422,6 @@ func (s *Service) getToolsFromProxy(ctx context.Context) []tools.Tool {
 	needsRefresh := s.proxyClient != nil && (s.toolsCache == nil || time.Since(s.toolsCacheTs) > s.cacheTTL)
 	cachedTools := s.toolsCache
 	s.toolsMu.RUnlock()
-
 	// If cache needs refresh, do it outside the read lock
 	if needsRefresh {
 		if err := s.refreshToolsFromProxy(ctx); err != nil {
@@ -573,7 +433,6 @@ func (s *Service) getToolsFromProxy(ctx context.Context) []tools.Tool {
 		cachedTools = s.toolsCache
 		s.toolsMu.RUnlock()
 	}
-
 	return cachedTools
 }
 

@@ -39,7 +39,7 @@ type Worker struct {
 	taskQueue     string
 	configStore   services.ConfigStore
 	redisCache    *cache.Cache
-	mcpRegistrar  *mcp.RegisterService
+	mcpRegister   *mcp.RegisterService
 }
 
 func NewWorker(
@@ -75,13 +75,25 @@ func NewWorker(
 	// Create Redis-backed ConfigStore with 24h TTL as per PRD
 	configStore := services.NewRedisConfigStore(redisCache.Redis, 24*time.Hour)
 
-	// Initialize MCP registrar if proxy configuration is available
-	var mcpRegistrar *mcp.RegisterService
+	// Initialize MCP register and register all MCPs from all workflows
+	var mcpRegister *mcp.RegisterService
 	if proxyURL := os.Getenv("MCP_PROXY_URL"); proxyURL != "" {
 		adminToken := os.Getenv("MCP_PROXY_ADMIN_TOKEN")
 		timeout := 30 * time.Second
-		mcpRegistrar = mcp.NewWithTimeout(proxyURL, adminToken, timeout)
-		logger.Info("Initialized MCP registrar with proxy", "proxy_url", proxyURL)
+		mcpRegister = mcp.NewWithTimeout(proxyURL, adminToken, timeout)
+		logger.Info("Initialized MCP register with proxy", "proxy_url", proxyURL)
+
+		// Collect all MCPs from all workflows and register them at startup
+		allMCPs := collectAllMCPs(workflows)
+		if len(allMCPs) > 0 {
+			logger.Info("Registering MCPs at server startup", "mcp_count", len(allMCPs))
+			if err := mcpRegister.EnsureMultiple(ctx, allMCPs); err != nil {
+				logger.Error("Failed to register some MCPs with proxy at startup", "error", err)
+				// Don't fail server startup if MCP registration fails
+			} else {
+				logger.Info("Successfully registered all MCPs at server startup", "count", len(allMCPs))
+			}
+		}
 	}
 
 	activities := NewActivities(
@@ -102,8 +114,27 @@ func NewWorker(
 		taskQueue:     taskQueue,
 		configStore:   configStore,
 		redisCache:    redisCache,
-		mcpRegistrar:  mcpRegistrar,
+		mcpRegister:   mcpRegister,
 	}, nil
+}
+
+// collectAllMCPs collects all unique MCP configurations from all workflows
+func collectAllMCPs(workflows []*wf.Config) []mcp.Config {
+	seen := make(map[string]bool)
+	var allMCPs []mcp.Config
+
+	for _, workflow := range workflows {
+		for _, mcpConfig := range workflow.MCPs {
+			mcpConfig.SetDefaults() // Ensure defaults are applied
+			// Use ID to deduplicate MCPs across workflows
+			if !seen[mcpConfig.ID] {
+				seen[mcpConfig.ID] = true
+				allMCPs = append(allMCPs, mcpConfig)
+			}
+		}
+	}
+
+	return allMCPs
 }
 
 func (o *Worker) Setup(_ context.Context) error {
@@ -125,16 +156,16 @@ func (o *Worker) Setup(_ context.Context) error {
 	return o.worker.Start()
 }
 
-func (o *Worker) Stop() {
+func (o *Worker) Stop(ctx context.Context) {
 	o.worker.Stop()
 	o.client.Close()
 
 	// Deregister all MCPs from proxy on shutdown
-	if o.mcpRegistrar != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if o.mcpRegister != nil {
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
-		if err := o.mcpRegistrar.Shutdown(ctx); err != nil {
-			logger.Error("failed to shutdown MCP registrar", "error", err)
+		if err := o.mcpRegister.Shutdown(ctx); err != nil {
+			logger.Error("failed to shutdown MCP register", "error", err)
 		}
 	}
 
@@ -166,7 +197,6 @@ func (o *Worker) HealthCheck(ctx context.Context) error {
 			return fmt.Errorf("redis cache health check failed: %w", err)
 		}
 	}
-
 	// Check MCP proxy health if configured
 	if err := o.checkMCPProxyHealth(ctx); err != nil {
 		// Log error but don't fail health check since MCP proxy is optional
@@ -182,7 +212,6 @@ func (o *Worker) checkMCPProxyHealth(ctx context.Context) error {
 	if proxyURL == "" {
 		return nil // No proxy configured
 	}
-
 	adminToken := os.Getenv("MCP_PROXY_ADMIN_TOKEN")
 	client := mcp.NewProxyClient(proxyURL, adminToken, 10*time.Second)
 	defer client.Close()
@@ -221,17 +250,7 @@ func (o *Worker) TriggerWorkflow(
 		return nil, fmt.Errorf("failed to validate workflow params: %w", err)
 	}
 
-	// Register MCPs with proxy if registrar is available
-	if o.mcpRegistrar != nil && len(workflowConfig.MCPs) > 0 {
-		if err := o.mcpRegistrar.EnsureMultiple(ctx, workflowConfig.MCPs); err != nil {
-			logger.Warn("Failed to register some MCPs with proxy, continuing workflow execution",
-				"workflow_id", workflowID, "error", err)
-			// Don't fail the workflow if MCP registration fails, just log the warning
-		} else {
-			logger.Info("Successfully registered MCPs for workflow",
-				"workflow_id", workflowID, "mcp_count", len(workflowConfig.MCPs))
-		}
-	}
+	// MCPs are already registered at server startup, no need to register per workflow
 
 	_, err = o.client.ExecuteWorkflow(
 		ctx,

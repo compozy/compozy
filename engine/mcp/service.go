@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -32,10 +33,6 @@ func NewWithTimeout(proxyURL, adminToken string, timeout time.Duration) *Registe
 
 // Ensure registers an MCP with the proxy if not already registered (idempotent)
 func (s *RegisterService) Ensure(ctx context.Context, config *Config) error {
-	start := time.Now()
-	defer TimeOperation("mcp_registration", start)
-	IncrementRegistrationAttempt()
-
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
@@ -48,25 +45,16 @@ func (s *RegisterService) Ensure(ctx context.Context, config *Config) error {
 	// Convert MCP config to proxy definition
 	def, err := s.convertToDefinition(config)
 	if err != nil {
-		IncrementRegistrationFailure()
 		return fmt.Errorf("failed to convert MCP config to definition: %w", err)
 	}
 
 	// Register with proxy
 	if err := s.proxy.Register(ctx, &def); err != nil {
-		IncrementRegistrationFailure()
 		return fmt.Errorf("failed to register MCP with proxy: %w", err)
 	}
 
 	// Mark as registered
 	s.regs[config.ID] = true
-	IncrementRegistrationSuccess()
-
-	logger.Info("Successfully registered MCP with proxy",
-		"component", "proxy_registrar",
-		"mcp_id", config.ID,
-		"transport", config.Transport)
-
 	return nil
 }
 
@@ -117,7 +105,7 @@ func (s *RegisterService) Shutdown(ctx context.Context) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
-	logger.Info("Shutting down MCP registrar, deregistering all MCPs",
+	logger.Info("Shutting down MCP register, deregistering all MCPs",
 		"count", len(s.regs))
 
 	var errs []error
@@ -139,7 +127,7 @@ func (s *RegisterService) Shutdown(ctx context.Context) error {
 		return fmt.Errorf("shutdown failed for %d MCPs: %v", len(errs), errs)
 	}
 
-	logger.Info("MCP registrar shutdown completed successfully")
+	logger.Info("MCP register shutdown completed successfully")
 	return nil
 }
 
@@ -154,7 +142,7 @@ func (s *RegisterService) HealthCheck(ctx context.Context) error {
 	registeredCount := len(s.regs)
 	s.mux.RUnlock()
 
-	logger.Debug("MCP registrar health check passed",
+	logger.Debug("MCP register health check passed",
 		"registered_mcps", registeredCount)
 
 	return nil
@@ -230,13 +218,20 @@ func (s *RegisterService) convertToDefinition(config *Config) (Definition, error
 	}
 
 	// Handle different MCP types based on available fields
-	if config.URL != "" {
+	switch {
+	case config.URL != "":
 		// Remote MCP (SSE or streamable-http)
 		def.URL = config.URL
-	} else {
-		// For stdio MCPs, we would need command information
-		// This might need to be extended based on how stdio MCPs are configured
-		return def, fmt.Errorf("stdio MCP configuration not yet supported for proxy registration")
+	case config.Command != "":
+		commandParts := strings.Split(config.Command, " ")
+		def.Command = commandParts[0]
+		if len(commandParts) > 1 {
+			def.Args = commandParts[1:]
+		} else {
+			def.Args = []string{}
+		}
+	default:
+		return def, fmt.Errorf("MCP configuration must specify either URL (for remote) or Command (for stdio)")
 	}
 
 	// Validate the definition
@@ -246,7 +241,7 @@ func (s *RegisterService) convertToDefinition(config *Config) (Definition, error
 	if def.Transport == "" {
 		return def, fmt.Errorf("MCP transport is required")
 	}
-	if def.URL == "" && len(def.Command) == 0 {
+	if def.URL == "" && def.Command == "" {
 		return def, fmt.Errorf("MCP must have either URL or command specified")
 	}
 

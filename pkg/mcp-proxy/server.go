@@ -107,6 +107,9 @@ func (s *Server) setupRoutes() {
 		// Tools discovery endpoint
 		admin.GET("/tools", s.adminHandlers.ListToolsHandler)
 
+		// Tool execution endpoint
+		admin.POST("/tools/call", s.adminHandlers.CallToolHandler)
+
 		// Metrics endpoint
 		admin.GET("/metrics", s.metricsHandler)
 	}

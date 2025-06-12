@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // ClientManager defines the interface for managing MCP clients
@@ -597,5 +598,160 @@ func (h *AdminHandlers) ListToolsHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"tools": allTools,
+	})
+}
+
+// CallToolRequest represents a request to call a tool
+type CallToolRequest struct {
+	MCPName   string         `json:"mcpName"`
+	ToolName  string         `json:"toolName"`
+	Arguments map[string]any `json:"arguments"`
+}
+
+// validateCallToolRequest validates the incoming tool call request
+func (h *AdminHandlers) validateCallToolRequest(c *gin.Context) (*CallToolRequest, bool) {
+	var request CallToolRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid JSON payload",
+			"details": err.Error(),
+		})
+		return nil, false
+	}
+
+	if request.MCPName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "MCP name is required",
+		})
+		return nil, false
+	}
+	if request.ToolName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Tool name is required",
+		})
+		return nil, false
+	}
+
+	return &request, true
+}
+
+// extractToolResult extracts and formats the result from MCP tool execution
+func (h *AdminHandlers) extractToolResult(result *mcp.CallToolResult) any {
+	if len(result.Content) == 0 {
+		return nil
+	}
+
+	// Handle different content types
+	switch content := result.Content[0].(type) {
+	case mcp.TextContent:
+		// Try to parse as JSON if it's text content
+		var jsonResult map[string]any
+		if err := json.Unmarshal([]byte(content.Text), &jsonResult); err == nil {
+			return jsonResult
+		}
+		// Return as plain text if not JSON
+		return content.Text
+	case mcp.ImageContent:
+		// Return image content as-is
+		return map[string]any{
+			"type":     "image",
+			"data":     content.Data,
+			"mimeType": content.MIMEType,
+		}
+	default:
+		// For unknown types, return the content array
+		return result.Content
+	}
+}
+
+// handleToolError processes tool execution errors and sends appropriate response
+func (h *AdminHandlers) handleToolError(c *gin.Context, result *mcp.CallToolResult) {
+	var errorMsg string
+	if len(result.Content) > 0 {
+		// Extract text from first content item
+		if textContent, ok := result.Content[0].(mcp.TextContent); ok {
+			errorMsg = textContent.Text
+		} else {
+			errorMsg = "Tool returned an error without text details"
+		}
+	} else {
+		errorMsg = "Tool returned an error without details"
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"result": nil,
+		"error":  errorMsg,
+	})
+}
+
+// CallToolHandler executes a tool on a specific MCP server
+// @Summary Call a tool on an MCP server
+// @Description Execute a specific tool on a registered MCP server
+// @Tags MCP Tools
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "Admin authorization token"
+// @Param request body CallToolRequest true "Tool call request"
+// @Success 200 {object} map[string]interface{} "Tool execution result"
+// @Failure 400 {object} map[string]interface{} "Invalid request"
+// @Failure 401 {object} map[string]interface{} "Unauthorized"
+// @Failure 404 {object} map[string]interface{} "MCP or tool not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /admin/tools/call [post]
+func (h *AdminHandlers) CallToolHandler(c *gin.Context) {
+	request, valid := h.validateCallToolRequest(c)
+	if !valid {
+		return
+	}
+
+	// Get the MCP client
+	client, err := h.clientManager.GetClient(request.MCPName)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "MCP not found or not connected",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Create the MCP tool call request
+	toolCallReq := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name:      request.ToolName,
+			Arguments: request.Arguments,
+		},
+	}
+
+	// Execute the tool with timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+
+	result, err := client.CallTool(ctx, toolCallReq)
+	if err != nil {
+		logger.Error("Failed to call tool",
+			"mcp_name", request.MCPName,
+			"tool_name", request.ToolName,
+			"error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Tool execution failed",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Check if tool returned an error
+	if result.IsError {
+		h.handleToolError(c, result)
+		return
+	}
+
+	// Extract the result content
+	resultData := h.extractToolResult(result)
+
+	logger.Info("Tool executed successfully",
+		"mcp_name", request.MCPName,
+		"tool_name", request.ToolName)
+
+	c.JSON(http.StatusOK, gin.H{
+		"result": resultData,
 	})
 }

@@ -1,16 +1,12 @@
 package worker
 
 import (
-	"context"
-	"os"
 	"time"
 
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/mcp"
-	wf "github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -103,60 +99,6 @@ func (m *Manager) CancelCleanup(ctx workflow.Context) {
 }
 
 // -----------------------------------------------------------------------------
-// MCP Registration
-// -----------------------------------------------------------------------------
-
-// initMCPRegistrar initializes MCP registration with proxy if any MCPs use proxy mode
-func initMCPRegistrar(ctx workflow.Context, workflowConfig *wf.Config) {
-	logger := workflow.GetLogger(ctx)
-
-	if workflowConfig == nil || len(workflowConfig.MCPs) == 0 {
-		return
-	}
-
-	// Check if any MCPs use proxy mode
-	var proxyMCPs []mcp.Config
-	for _, mcpConfig := range workflowConfig.MCPs {
-		mcpConfig.SetDefaults() // Ensure defaults are applied
-		if mcpConfig.UseProxy {
-			proxyMCPs = append(proxyMCPs, mcpConfig)
-		}
-	}
-
-	if len(proxyMCPs) == 0 {
-		return // No proxy MCPs found
-	}
-
-	logger.Info("Initializing MCP registrar for proxy mode", "proxy_mcps_count", len(proxyMCPs))
-
-	// Get proxy configuration from environment or first proxy MCP
-	proxyURL := os.Getenv("MCP_PROXY_URL")
-	adminToken := os.Getenv("MCP_PROXY_ADMIN_TOKEN")
-
-	if proxyURL == "" && len(proxyMCPs) > 0 {
-		proxyURL = proxyMCPs[0].ProxyURL
-	}
-
-	if proxyURL == "" {
-		logger.Error("No proxy URL configured for MCP proxy mode")
-		return // Don't fail, just skip proxy registration
-	}
-
-	// Create registrar service with a reasonable timeout
-	registrar := mcp.NewWithTimeout(proxyURL, adminToken, 30*time.Second)
-
-	// Ensure all proxy MCPs are registered
-	// Note: This runs in background context to avoid cancellation during workflow execution
-	bgCtx := context.Background()
-	if err := registrar.EnsureMultiple(bgCtx, proxyMCPs); err != nil {
-		logger.Error("Failed to register some MCPs with proxy", "error", err)
-		// Don't return error, just log it
-	} else {
-		logger.Info("Successfully registered MCPs with proxy", "count", len(proxyMCPs))
-	}
-}
-
-// -----------------------------------------------------------------------------
 // Manager Factory
 // -----------------------------------------------------------------------------
 
@@ -174,9 +116,7 @@ func InitManager(ctx workflow.Context, input WorkflowInput) (*Manager, error) {
 		return nil, err
 	}
 
-	// Initialize MCP registrar if proxy mode is enabled
-	initMCPRegistrar(ctx, data.WorkflowConfig)
-
+	// MCP servers are initialized at server startup, not during workflow execution
 	contextBuilder := NewContextBuilder(
 		data.Workflows,
 		data.ProjectConfig,

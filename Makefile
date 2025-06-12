@@ -20,7 +20,7 @@ SWAGGER_DIR=./docs
 SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
 
 .PHONY: all test lint fmt clean build dev dev-weather deps schemagen help integration-test
-.PHONY: tidy test-go start-docker stop-docker clean-docker reset-docker
+.PHONY: tidy test-go start-docker stop-docker clean-docker reset-docker mcp-proxy rebuild-mcp-proxy
 .PHONY: swagger swagger-deps swagger-gen swagger-serve
 
 # -----------------------------------------------------------------------------
@@ -60,6 +60,9 @@ dev:
 dev-weather:
 	wgo run . dev --cwd examples/weather-agent --env-file .env --debug --watch
 
+mcp-proxy:
+	$(GOCMD) run . mcp-proxy
+
 tidy:
 	@echo "Tidying modules..."
 	$(GOCMD) mod tidy
@@ -95,7 +98,7 @@ swagger-validate:
 # Schema Generation
 # -----------------------------------------------------------------------------
 schemagen:
-	$(GOCMD) run pkg/schemagen/generate.go -out=./schemas
+	$(GOCMD) run pkg/schemagen/main.go -out=./schemas
 
 # -----------------------------------------------------------------------------
 # Testing
@@ -133,6 +136,10 @@ clean-docker:
 reset-docker:
 	make stop-docker
 	make start-docker
+
+rebuild-mcp-proxy:
+	docker compose -f ./cluster/docker-compose.yml build mcp-proxy
+	docker compose -f ./cluster/docker-compose.yml up -d mcp-proxy
 
 # -----------------------------------------------------------------------------
 # Database

@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"os"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -47,6 +48,10 @@ func TestLoadMCPWorkflow(t *testing.T) {
 	})
 
 	t.Run("Should pass validation for valid MCP configuration", func(t *testing.T) {
+		// Set required environment variable for MCP validation
+		os.Setenv("MCP_PROXY_URL", "http://localhost:8081")
+		defer os.Unsetenv("MCP_PROXY_URL")
+
 		cwd, err := core.CWDFromPath("./fixtures")
 		require.NoError(t, err)
 
@@ -60,6 +65,10 @@ func TestLoadMCPWorkflow(t *testing.T) {
 
 func TestMCPWorkflowValidation(t *testing.T) {
 	t.Run("Should validate individual MCP configurations", func(t *testing.T) {
+		// Set required environment variable for MCP validation
+		os.Setenv("MCP_PROXY_URL", "http://localhost:8081")
+		defer os.Unsetenv("MCP_PROXY_URL")
+
 		cwd, err := core.CWDFromPath("./fixtures")
 		require.NoError(t, err)
 
