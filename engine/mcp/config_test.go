@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -111,14 +112,51 @@ func TestConfig_Validate(t *testing.T) {
 			wantErr: true,
 			errMsg:  "max_sessions cannot be negative",
 		},
+		{
+			name: "valid proxy config",
+			config: Config{
+				ID:       "test-server",
+				ProxyURL: "http://localhost:7077",
+				UseProxy: true,
+			},
+			wantErr: false,
+		},
+		{
+			name: "proxy enabled but no proxy url",
+			config: Config{
+				ID:       "test-server",
+				UseProxy: true,
+			},
+			wantErr: true,
+			errMsg:  "proxy_url is required when use_proxy is true",
+		},
+		{
+			name: "invalid proxy url format",
+			config: Config{
+				ID:       "test-server",
+				ProxyURL: "not-a-url",
+				UseProxy: true,
+			},
+			wantErr: true,
+			errMsg:  "proxy url must use http or https scheme",
+		},
+		{
+			name: "proxy with https",
+			config: Config{
+				ID:       "test-server",
+				ProxyURL: "https://proxy.example.com:7077",
+				UseProxy: true,
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			originalProto := tt.config.Proto
 
-			// Call SetDefaults before Validate for cases that have valid ID and URL
-			if tt.config.ID != "" && tt.config.URL != "" {
+			// Call SetDefaults before Validate for cases that have valid ID and (URL or proxy config)
+			if tt.config.ID != "" && (tt.config.URL != "" || tt.config.UseProxy || tt.config.ProxyURL != "") {
 				tt.config.SetDefaults()
 			}
 
@@ -173,6 +211,20 @@ func TestConfig_SetDefaults(t *testing.T) {
 				Transport: TransportStreamableHTTP,
 			},
 		},
+		{
+			name: "does not auto-enable proxy from proxy url",
+			config: Config{
+				ID:       "test-server",
+				ProxyURL: "http://localhost:7077",
+			},
+			expected: Config{
+				ID:        "test-server",
+				ProxyURL:  "http://localhost:7077",
+				UseProxy:  false, // Should NOT auto-enable
+				Proto:     DefaultProtocolVersion,
+				Transport: DefaultTransport,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -180,6 +232,8 @@ func TestConfig_SetDefaults(t *testing.T) {
 			tt.config.SetDefaults()
 			assert.Equal(t, tt.expected.Proto, tt.config.Proto)
 			assert.Equal(t, tt.expected.Transport, tt.config.Transport)
+			assert.Equal(t, tt.expected.UseProxy, tt.config.UseProxy)
+			assert.Equal(t, tt.expected.ProxyURL, tt.config.ProxyURL)
 		})
 	}
 }
@@ -195,6 +249,8 @@ func TestConfig_Clone(t *testing.T) {
 		Proto:        "2025-03-26",
 		StartTimeout: 30 * time.Second,
 		MaxSessions:  10,
+		ProxyURL:     "http://localhost:7077",
+		UseProxy:     true,
 	}
 
 	clone := original.Clone()
@@ -206,6 +262,8 @@ func TestConfig_Clone(t *testing.T) {
 	assert.Equal(t, original.Proto, clone.Proto)
 	assert.Equal(t, original.StartTimeout, clone.StartTimeout)
 	assert.Equal(t, original.MaxSessions, clone.MaxSessions)
+	assert.Equal(t, original.ProxyURL, clone.ProxyURL)
+	assert.Equal(t, original.UseProxy, clone.UseProxy)
 
 	// Check that maps are deep copied
 	clone.Env["NODE_ENV"] = "development"
@@ -235,6 +293,73 @@ func TestIsValidProtoVersion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := isValidProtoVersion(tt.version)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestConfig_EnvironmentVariables(t *testing.T) {
+	// Save original environment
+	originalProxyURL := os.Getenv("MCP_PROXY_URL")
+	originalUseProxy := os.Getenv("MCP_USE_PROXY")
+
+	// Clean up after test
+	defer func() {
+		os.Setenv("MCP_PROXY_URL", originalProxyURL)
+		os.Setenv("MCP_USE_PROXY", originalUseProxy)
+	}()
+
+	tests := []struct {
+		name        string
+		envProxyURL string
+		envUseProxy string
+		config      Config
+		expectedURL string
+		expectedUse bool
+	}{
+		{
+			name:        "proxy url from environment without explicit use proxy",
+			envProxyURL: "http://localhost:7077",
+			envUseProxy: "",
+			config:      Config{ID: "test"},
+			expectedURL: "http://localhost:7077",
+			expectedUse: false, // Should NOT auto-enable proxy
+		},
+		{
+			name:        "use proxy from environment",
+			envProxyURL: "",
+			envUseProxy: "true",
+			config:      Config{ID: "test"},
+			expectedURL: "",
+			expectedUse: true,
+		},
+		{
+			name:        "proxy url from env but use proxy disabled",
+			envProxyURL: "http://localhost:7077",
+			envUseProxy: "false",
+			config:      Config{ID: "test"},
+			expectedURL: "http://localhost:7077",
+			expectedUse: false,
+		},
+		{
+			name:        "config overrides environment",
+			envProxyURL: "http://localhost:7077",
+			envUseProxy: "false",
+			config:      Config{ID: "test", ProxyURL: "http://custom:8080", UseProxy: true},
+			expectedURL: "http://custom:8080",
+			expectedUse: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set environment variables
+			os.Setenv("MCP_PROXY_URL", tt.envProxyURL)
+			os.Setenv("MCP_USE_PROXY", tt.envUseProxy)
+
+			tt.config.SetDefaults()
+
+			assert.Equal(t, tt.expectedURL, tt.config.ProxyURL)
+			assert.Equal(t, tt.expectedUse, tt.config.UseProxy)
 		})
 	}
 }

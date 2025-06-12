@@ -137,6 +137,16 @@ func (p *ProxyHandlers) UnregisterMCPProxy(name string) error {
 }
 
 // SSEProxyHandler handles SSE proxy requests for MCP servers
+// @Summary Proxy SSE requests to MCP server
+// @Description Proxy Server-Sent Events requests to a specific MCP server
+// @Tags MCP Proxy
+// @Param name path string true "MCP name"
+// @Param path path string false "Additional path"
+// @Success 200 {string} string "SSE stream"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 404 {object} map[string]interface{} "MCP not found"
+// @Router /{name}/sse [get]
+// @Router /{name}/sse/{path} [get]
 func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 	name := c.Param("name")
 	if name == "" {
@@ -187,6 +197,16 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 }
 
 // StreamableHTTPProxyHandler handles streamable HTTP proxy requests
+// @Summary Proxy streamable HTTP requests to MCP server
+// @Description Proxy streamable HTTP requests to a specific MCP server
+// @Tags MCP Proxy
+// @Param name path string true "MCP name"
+// @Param path path string false "Additional path"
+// @Success 200 {string} string "HTTP stream"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 404 {object} map[string]interface{} "MCP not found"
+// @Router /{name}/stream [any]
+// @Router /{name}/stream/{path} [any]
 func (p *ProxyHandlers) StreamableHTTPProxyHandler(c *gin.Context) {
 	name := c.Param("name")
 	if name == "" {
@@ -218,52 +238,70 @@ func (p *ProxyHandlers) initializeClientConnection(
 
 	logger.Info("Successfully initialized MCP client", "name", name)
 
-	// Run network operations concurrently to reduce initialization time
-	// Tools are critical (fail fast), while other capabilities can be added optimistically
+	// Load critical capabilities first (tools)
+	if err := p.loadCriticalCapabilities(ctx, client, mcpServer, name); err != nil {
+		return err
+	}
 
-	// First: Add tools to server (critical operation - must succeed)
+	// Load optional capabilities concurrently
+	p.loadOptionalCapabilities(ctx, client, mcpServer, name)
+
+	return nil
+}
+
+// loadCriticalCapabilities loads tools which are required for the proxy to function
+func (p *ProxyHandlers) loadCriticalCapabilities(
+	ctx context.Context,
+	client *MCPClient,
+	mcpServer *server.MCPServer,
+	name string,
+) error {
+	// Tools are critical - must succeed
 	toolsGroup, toolsCtx := errgroup.WithContext(ctx)
 	toolsGroup.Go(func() error {
 		return p.addToolsToServer(toolsCtx, client, mcpServer, name)
 	})
 
-	// Wait for critical tools operation to complete
-	if err := toolsGroup.Wait(); err != nil {
-		return err
-	}
+	return toolsGroup.Wait()
+}
 
-	// Second: Add optional capabilities concurrently (non-critical operations)
-	// These operations are independent and can run in parallel
+// loadOptionalCapabilities loads non-critical capabilities in parallel
+func (p *ProxyHandlers) loadOptionalCapabilities(
+	ctx context.Context,
+	client *MCPClient,
+	mcpServer *server.MCPServer,
+	name string,
+) {
 	optionalGroup, optionalCtx := errgroup.WithContext(ctx)
 
-	optionalGroup.Go(func() error {
-		if err := p.addPromptsToServer(optionalCtx, client, mcpServer, name); err != nil {
-			logger.Warn("Failed to add prompts to server", "name", name, "error", err)
-		}
-		return nil // Don't propagate errors for optional capabilities
-	})
+	// Define optional capability loaders
+	capabilities := []struct {
+		name   string
+		loader func(context.Context, *MCPClient, *server.MCPServer, string) error
+	}{
+		{"prompts", p.addPromptsToServer},
+		{"resources", p.addResourcesToServer},
+		{"resource_templates", p.addResourceTemplatesToServer},
+	}
 
-	optionalGroup.Go(func() error {
-		if err := p.addResourcesToServer(optionalCtx, client, mcpServer, name); err != nil {
-			logger.Warn("Failed to add resources to server", "name", name, "error", err)
-		}
-		return nil // Don't propagate errors for optional capabilities
-	})
-
-	optionalGroup.Go(func() error {
-		if err := p.addResourceTemplatesToServer(optionalCtx, client, mcpServer, name); err != nil {
-			logger.Warn("Failed to add resource templates to server", "name", name, "error", err)
-		}
-		return nil // Don't propagate errors for optional capabilities
-	})
+	// Load each capability concurrently
+	for _, cap := range capabilities {
+		capability := cap // capture loop variable
+		optionalGroup.Go(func() error {
+			if err := capability.loader(optionalCtx, client, mcpServer, name); err != nil {
+				logger.Warn("Failed to add capability",
+					"name", name,
+					"capability", capability.name,
+					"error", err)
+			}
+			return nil // Don't propagate errors for optional capabilities
+		})
+	}
 
 	// Wait for all optional operations to complete
-	// Since we don't propagate errors from optional operations, this should never fail
 	if err := optionalGroup.Wait(); err != nil {
 		logger.Warn("Unexpected error from optional operations", "name", name, "error", err)
 	}
-
-	return nil
 }
 
 // addToolsToServer adds MCP client tools to the proxy server

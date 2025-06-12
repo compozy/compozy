@@ -175,6 +175,27 @@ services:
     ports:
       - "${TEMPORAL_UI_PORT:-8080}:8080" # Temporal Web UI
 
+  # MCP Proxy for development
+  mcp-proxy:
+    container_name: mcp-proxy
+    build:
+      context: ..
+      dockerfile: Dockerfile.mcp-proxy
+    environment:
+      - MCP_PROXY_HOST=0.0.0.0
+      - MCP_PROXY_PORT=8081
+      - MCP_PROXY_BASE_URL=http://localhost:8081
+    networks:
+      - temporal-network
+    ports:
+      - "${MCP_PROXY_PORT:-8081}:8081" # MCP Proxy HTTP API
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
 networks:
   temporal-network:
     driver: bridge

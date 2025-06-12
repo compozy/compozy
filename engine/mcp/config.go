@@ -3,7 +3,10 @@ package mcp
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -26,6 +29,8 @@ type Config struct {
 	Transport    string            `yaml:"transport,omitempty"     json:"transport,omitempty"`
 	StartTimeout time.Duration     `yaml:"start_timeout,omitempty" json:"start_timeout,omitempty"`
 	MaxSessions  int               `yaml:"max_sessions,omitempty"  json:"max_sessions,omitempty"`
+	ProxyURL     string            `yaml:"proxy_url,omitempty"     json:"proxy_url,omitempty"`
+	UseProxy     bool              `yaml:"use_proxy,omitempty"     json:"use_proxy,omitempty"`
 }
 
 // SetDefaults sets default values for optional configuration fields
@@ -39,19 +44,67 @@ func (c *Config) SetDefaults() {
 	if c.Transport == "" {
 		c.Transport = DefaultTransport
 	}
+
+	// Track if UseProxy was explicitly set in YAML config
+	yamlUseProxySet := c.UseProxy
+
+	// Set proxy URL from environment if not specified in YAML
+	if c.ProxyURL == "" {
+		c.ProxyURL = os.Getenv("MCP_PROXY_URL")
+	}
+
+	// Only set UseProxy from environment if it wasn't explicitly set in YAML
+	envUseProxy := os.Getenv("MCP_USE_PROXY")
+	if !yamlUseProxySet && envUseProxy != "" {
+		if useProxy, err := strconv.ParseBool(envUseProxy); err == nil {
+			c.UseProxy = useProxy
+		}
+	}
+
+	// Do NOT automatically enable proxy just because ProxyURL exists
+	// The user must explicitly opt-in via YAML or MCP_USE_PROXY env var
 }
 
 // Validate validates the MCP configuration
 func (c *Config) Validate() error {
+	if err := c.validateID(); err != nil {
+		return err
+	}
+	if err := c.validateURL(); err != nil {
+		return err
+	}
+	if err := c.validateProxy(); err != nil {
+		return err
+	}
+	if err := c.validateProto(); err != nil {
+		return err
+	}
+	if err := c.validateTransport(); err != nil {
+		return err
+	}
+	if err := c.validateLimits(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Config) validateID() error {
 	if c.ID == "" {
 		return errors.New("mcp id is required")
 	}
+	return nil
+}
 
-	if c.URL == "" {
-		return errors.New("mcp url is required")
+func (c *Config) validateURL() error {
+	if c.UseProxy {
+		return nil // URL is ignored when using proxy
 	}
 
-	// Validate HTTP URL format
+	if c.URL == "" {
+		return errors.New("mcp url is required when not using proxy")
+	}
+
 	parsedURL, err := url.Parse(c.URL)
 	if err != nil {
 		return fmt.Errorf("invalid mcp url format: %w", err)
@@ -65,24 +118,55 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("mcp url must include a host")
 	}
 
-	// Validate protocol version format
+	return nil
+}
+
+func (c *Config) validateProxy() error {
+	if !c.UseProxy {
+		return nil // No proxy validation needed
+	}
+
+	if c.ProxyURL == "" {
+		return errors.New("proxy_url is required when use_proxy is true")
+	}
+
+	parsedProxyURL, err := url.Parse(c.ProxyURL)
+	if err != nil {
+		return fmt.Errorf("invalid proxy url format: %w", err)
+	}
+
+	if parsedProxyURL.Scheme != "http" && parsedProxyURL.Scheme != "https" {
+		return fmt.Errorf("proxy url must use http or https scheme, got: %s", parsedProxyURL.Scheme)
+	}
+
+	if parsedProxyURL.Host == "" {
+		return fmt.Errorf("proxy url must include a host")
+	}
+
+	return nil
+}
+
+func (c *Config) validateProto() error {
 	if !isValidProtoVersion(c.Proto) {
 		return fmt.Errorf("invalid protocol version: %s", c.Proto)
 	}
+	return nil
+}
 
-	// Validate transport type
+func (c *Config) validateTransport() error {
 	if !isValidTransport(c.Transport) {
 		return fmt.Errorf("invalid transport type: %s (must be 'sse' or 'streamable-http')", c.Transport)
 	}
+	return nil
+}
 
-	// Validate timeout and session limits
+func (c *Config) validateLimits() error {
 	if c.StartTimeout < 0 {
 		return errors.New("start_timeout cannot be negative")
 	}
 	if c.MaxSessions < 0 {
 		return errors.New("max_sessions cannot be negative")
 	}
-
 	return nil
 }
 
@@ -96,12 +180,11 @@ func (c *Config) Clone() *Config {
 		Transport:    c.Transport,
 		StartTimeout: c.StartTimeout,
 		MaxSessions:  c.MaxSessions,
+		ProxyURL:     c.ProxyURL,
+		UseProxy:     c.UseProxy,
 	}
 
-	for k, v := range c.Env {
-		clone.Env[k] = v
-	}
-
+	maps.Copy(clone.Env, c.Env)
 	return clone
 }
 

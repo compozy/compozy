@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -23,6 +26,13 @@ type Service struct {
 	mcps        []mcp.Config
 	mcpTools    []tools.Tool
 	connections map[string]*mcp.Connection
+
+	// Dynamic tool management
+	proxyClient  *mcp.Client
+	toolsCache   []tools.Tool
+	toolsCacheTs time.Time
+	cacheTTL     time.Duration
+	toolsMu      sync.RWMutex // Protects toolsCache and toolsCacheTs
 }
 
 // NewService creates a new service with MCP configuration
@@ -32,12 +42,18 @@ func NewService(
 	action *agent.ActionConfig,
 	mcps []mcp.Config,
 ) *Service {
-	return &Service{
-		runtime: runtime,
-		agent:   agent,
-		action:  action,
-		mcps:    mcps,
+	service := &Service{
+		runtime:  runtime,
+		agent:    agent,
+		action:   action,
+		mcps:     mcps,
+		cacheTTL: 5 * time.Minute, // Cache tools for 5 minutes
 	}
+
+	// Initialize proxy client if proxy is configured
+	service.initProxyClient()
+
+	return service
 }
 
 func (s *Service) CreateLLM() (llms.Model, error) {
@@ -102,8 +118,15 @@ func (s *Service) initMCP() error {
 		return nil
 	}
 
-	// Use background context for MCP connections to avoid premature cancellation
-	// The connections will be explicitly closed when the service is done
+	// Check if any MCP uses proxy mode
+	useProxy := s.shouldUseProxy(agentMCPs)
+
+	if useProxy {
+		// Initialize tools via proxy discovery
+		return s.initMCPViaProxy(agentMCPs)
+	}
+
+	// Use direct connections (existing behavior)
 	bgCtx := context.Background()
 	connections, err := mcp.InitConnections(bgCtx, agentMCPs)
 	if err != nil {
@@ -114,9 +137,9 @@ func (s *Service) initMCP() error {
 	// Log available tools for debugging
 	for connID, connection := range connections {
 		tools := connection.GetTools()
-		fmt.Printf("MCP connection %s has %d tools available\n", connID, len(tools))
+		logger.Debug("MCP connection tools available", "connection_id", connID, "tool_count", len(tools))
 		for toolName := range tools {
-			fmt.Printf("  - %s\n", toolName)
+			logger.Debug("  Tool available", "connection_id", connID, "tool_name", toolName)
 		}
 	}
 
@@ -126,6 +149,8 @@ func (s *Service) initMCP() error {
 // getLLMCallTools returns properly configured tool definitions including MCP tools
 func (s *Service) getLLMCallTools() []llms.Tool {
 	var tools []llms.Tool
+
+	// Add tools from direct connections (existing behavior)
 	if len(s.connections) > 0 {
 		for _, connection := range s.connections {
 			for _, tool := range connection.GetTools() {
@@ -134,9 +159,44 @@ func (s *Service) getLLMCallTools() []llms.Tool {
 			}
 		}
 	}
+
+	// Add tools from proxy if available
+	if s.proxyClient != nil {
+		bgCtx := context.Background()
+		proxyTools := s.getToolsFromProxy(bgCtx)
+		for _, proxyTool := range proxyTools {
+			// Convert proxy tool to LLM tool format
+			// For proxy tools, we need to cast to our custom type to get schema
+			var parameters map[string]any
+			if pTool, ok := proxyTool.(*ProxyTool); ok {
+				parameters = map[string]any{
+					"type":       "object",
+					"properties": pTool.inputSchema,
+				}
+			} else {
+				parameters = map[string]any{
+					"type": "object",
+				}
+			}
+
+			llmTool := llms.Tool{
+				Type: "function",
+				Function: &llms.FunctionDefinition{
+					Name:        proxyTool.Name(),
+					Description: proxyTool.Description(),
+					Parameters:  parameters,
+				},
+			}
+			tools = append(tools, llmTool)
+			s.mcpTools = append(s.mcpTools, proxyTool)
+		}
+	}
+
+	// Add agent-specific tools
 	for _, toolConfig := range s.agent.Tools {
 		tools = append(tools, toolConfig.GetLLMDefinition())
 	}
+
 	return tools
 }
 
@@ -217,7 +277,7 @@ func (s *Service) executeToolCall(ctx context.Context, toolCall llms.ToolCall) (
 	// Try to execute an MCP tool
 	mcpTool := s.findMCPTool(toolName)
 	if mcpTool != nil {
-		result, err := mcpTool.Call(ctx, arguments)
+		result, err := s.executeMCPTool(ctx, mcpTool, arguments)
 		if err != nil {
 			return nil, fmt.Errorf("tool execution failed: %w", err)
 		}
@@ -337,6 +397,96 @@ func (s *Service) cleanupJSON(content string) string {
 	return content
 }
 
+// shouldUseProxy determines if any MCP configuration uses proxy mode
+func (s *Service) shouldUseProxy(mcps []mcp.Config) bool {
+	for _, mcpConfig := range mcps {
+		if mcpConfig.UseProxy {
+			return true
+		}
+	}
+	return false
+}
+
+// initMCPViaProxy initializes MCP tools via proxy discovery instead of direct connections
+func (s *Service) initMCPViaProxy(mcps []mcp.Config) error {
+	logger.Info("Initializing MCP tools via proxy mode", "mcp_count", len(mcps))
+
+	// Initialize empty connections map since we're not using direct connections
+	s.connections = make(map[string]*mcp.Connection)
+
+	// For proxy mode, we discover tools by temporarily connecting through the proxy
+	var allTools []tools.Tool
+
+	for _, mcpConfig := range mcps {
+		if !mcpConfig.UseProxy || mcpConfig.ProxyURL == "" {
+			logger.Warn("Skipping MCP in proxy mode: not configured for proxy", "mcp_id", mcpConfig.ID)
+			continue
+		}
+
+		tools, err := s.discoverToolsViaProxy(&mcpConfig)
+		if err != nil {
+			logger.Error("Failed to discover tools for MCP via proxy", "mcp_id", mcpConfig.ID, "error", err)
+			continue
+		}
+
+		allTools = append(allTools, tools...)
+		logger.Info("Discovered tools via proxy", "mcp_id", mcpConfig.ID, "tool_count", len(tools))
+	}
+
+	// Store tools for later use
+	s.mcpTools = allTools
+
+	logger.Info("MCP proxy initialization completed", "total_tools", len(allTools))
+	return nil
+}
+
+// discoverToolsViaProxy discovers available tools for an MCP via proxy connection
+func (s *Service) discoverToolsViaProxy(mcpConfig *mcp.Config) ([]tools.Tool, error) {
+	// Build the proxy endpoint URL for this MCP
+	proxyEndpoint := fmt.Sprintf("%s/%s/%s", mcpConfig.ProxyURL, mcpConfig.ID, mcpConfig.Transport)
+
+	// Create a temporary configuration for proxy connection
+	tempConfig := mcpConfig.Clone()
+	tempConfig.URL = proxyEndpoint
+	tempConfig.UseProxy = false // Don't use proxy for the actual connection since we're connecting to proxy
+
+	// Create temporary connection to discover tools
+	connection, err := mcp.NewConnection(tempConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create proxy connection: %w", err)
+	}
+	defer connection.Close()
+
+	// Get tools from the connection
+	toolsMap := connection.GetTools()
+	if toolsMap == nil {
+		return nil, fmt.Errorf("no tools discovered")
+	}
+
+	// Convert map to slice
+	var tools []tools.Tool
+	for _, tool := range toolsMap {
+		tools = append(tools, tool)
+	}
+
+	return tools, nil
+}
+
+// executeMCPTool executes an MCP tool, handling both direct and proxy modes
+func (s *Service) executeMCPTool(ctx context.Context, tool tools.Tool, arguments string) (string, error) {
+	start := time.Now()
+	defer mcp.TimeOperation("mcp_tool_execution", start)
+	mcp.IncrementToolExecution()
+
+	result, err := tool.Call(ctx, arguments)
+	if err != nil {
+		mcp.IncrementToolExecutionFailure()
+		return "", err
+	}
+
+	return result, nil
+}
+
 // enhancePromptForStructuredOutput adds JSON instruction if structured output is needed but not mentioned
 func (s *Service) enhancePromptForStructuredOutput() string {
 	prompt := s.action.Prompt
@@ -352,4 +502,85 @@ func (s *Service) enhancePromptForStructuredOutput() string {
 			"Just use a tool call if needed."
 	}
 	return prompt
+}
+
+// initProxyClient initializes the proxy client if proxy configuration is available
+func (s *Service) initProxyClient() {
+	// Check if any MCP uses proxy mode
+	for _, mcpConfig := range s.mcps {
+		if mcpConfig.UseProxy && mcpConfig.ProxyURL != "" {
+			timeout := 30 * time.Second
+			s.proxyClient = mcp.NewProxyClient(mcpConfig.ProxyURL, "", timeout)
+			logger.Info("Initialized proxy client for dynamic tool discovery", "proxy_url", mcpConfig.ProxyURL)
+			return
+		}
+	}
+
+	// Also check environment variables as fallback
+	if proxyURL := os.Getenv("MCP_PROXY_URL"); proxyURL != "" {
+		adminToken := os.Getenv("MCP_PROXY_ADMIN_TOKEN")
+		timeout := 30 * time.Second
+		s.proxyClient = mcp.NewProxyClient(proxyURL, adminToken, timeout)
+		logger.Info("Initialized proxy client from environment", "proxy_url", proxyURL)
+	}
+}
+
+// refreshToolsFromProxy refreshes the tools cache by fetching from the proxy
+func (s *Service) refreshToolsFromProxy(ctx context.Context) error {
+	if s.proxyClient == nil {
+		return fmt.Errorf("proxy client not available")
+	}
+
+	toolDefs, err := s.proxyClient.ListTools(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list tools from proxy: %w", err)
+	}
+
+	// Convert tool definitions to langchain tools
+	var newTools []tools.Tool
+	for _, toolDef := range toolDefs {
+		// Create a proxy tool that will execute via the proxy
+		proxyTool := NewProxyTool(toolDef, s.proxyClient)
+		newTools = append(newTools, proxyTool)
+	}
+
+	// Update cache with write lock
+	s.toolsMu.Lock()
+	s.toolsCache = newTools
+	s.toolsCacheTs = time.Now()
+	s.toolsMu.Unlock()
+
+	logger.Info("Refreshed tools cache from proxy", "tool_count", len(newTools))
+	return nil
+}
+
+// getToolsFromProxy returns tools from cache or refreshes if needed
+func (s *Service) getToolsFromProxy(ctx context.Context) []tools.Tool {
+	// First check with read lock if cache is valid
+	s.toolsMu.RLock()
+	needsRefresh := s.proxyClient != nil && (s.toolsCache == nil || time.Since(s.toolsCacheTs) > s.cacheTTL)
+	cachedTools := s.toolsCache
+	s.toolsMu.RUnlock()
+
+	// If cache needs refresh, do it outside the read lock
+	if needsRefresh {
+		if err := s.refreshToolsFromProxy(ctx); err != nil {
+			logger.Warn("Failed to refresh tools from proxy, using cached tools", "error", err)
+			// Continue with cached tools if refresh fails
+		}
+		// Get the updated cache
+		s.toolsMu.RLock()
+		cachedTools = s.toolsCache
+		s.toolsMu.RUnlock()
+	}
+
+	return cachedTools
+}
+
+// InvalidateToolsCache forces a refresh of the tools cache on next access
+func (s *Service) InvalidateToolsCache() {
+	s.toolsMu.Lock()
+	s.toolsCacheTs = time.Time{} // Set to zero time to force refresh
+	s.toolsMu.Unlock()
+	logger.Debug("Tools cache invalidated")
 }

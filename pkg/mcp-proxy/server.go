@@ -104,6 +104,9 @@ func (s *Server) setupRoutes() {
 		admin.GET("/mcps", s.adminHandlers.ListMCPsHandler)
 		admin.GET("/mcps/:name", s.adminHandlers.GetMCPHandler)
 
+		// Tools discovery endpoint
+		admin.GET("/tools", s.adminHandlers.ListToolsHandler)
+
 		// Metrics endpoint
 		admin.GET("/metrics", s.metricsHandler)
 	}
@@ -150,6 +153,11 @@ func (s *Server) metricsHandler(c *gin.Context) {
 // Start starts the HTTP server
 func (s *Server) Start(ctx context.Context) error {
 	logger.Info("Starting MCP proxy server", "port", s.config.Port, "host", s.config.Host)
+
+	// Security check: prevent default admin token in production
+	if err := s.validateSecurityConfig(); err != nil {
+		return fmt.Errorf("security configuration error: %w", err)
+	}
 
 	// Start client manager to restore existing MCP connections
 	if err := s.clientManager.Start(ctx); err != nil {
@@ -261,6 +269,38 @@ func (s *Server) adminSecurityMiddleware() gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+// validateSecurityConfig checks security configuration at startup
+func (s *Server) validateSecurityConfig() error {
+	// Check if we should disable default token in production
+	disableDefault := os.Getenv("MCP_PROXY_DISABLE_DEFAULT_TOKEN") == "true"
+	if !disableDefault {
+		// Not enforcing, just warn
+		for _, token := range s.config.AdminTokens {
+			if token == "CHANGE_ME_ADMIN_TOKEN" {
+				logger.Warn("SECURITY WARNING: Using default admin token. " +
+					"Set MCP_PROXY_DISABLE_DEFAULT_TOKEN=true to fail on startup with default token")
+			}
+		}
+		return nil
+	}
+
+	// Strict mode: fail if default token is found
+	for _, token := range s.config.AdminTokens {
+		if token == "CHANGE_ME_ADMIN_TOKEN" {
+			return fmt.Errorf("default admin token 'CHANGE_ME_ADMIN_TOKEN' is not allowed. " +
+				"Please set a secure admin token via MCP_PROXY_ADMIN_TOKEN environment variable")
+		}
+	}
+
+	// Ensure at least one admin token is configured
+	if len(s.config.AdminTokens) == 0 {
+		return fmt.Errorf("no admin tokens configured. " +
+			"Please set MCP_PROXY_ADMIN_TOKEN environment variable")
+	}
+
+	return nil
 }
 
 // getClientIP extracts the real client IP from the request

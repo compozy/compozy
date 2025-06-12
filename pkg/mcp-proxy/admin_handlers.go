@@ -2,6 +2,7 @@ package mcpproxy
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -151,6 +152,19 @@ func (h *AdminHandlers) handleAsyncConnection(mcpDef *MCPDefinition) {
 }
 
 // AddMCPHandler handles POST /admin/mcps - adds a new MCP definition
+// @Summary Add a new MCP definition
+// @Description Add a new Model Context Protocol server configuration
+// @Tags MCP Management
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "Admin authorization token"
+// @Param mcp body MCPDefinition true "MCP definition to add"
+// @Success 201 {object} map[string]interface{} "MCP added successfully"
+// @Failure 400 {object} map[string]interface{} "Invalid request"
+// @Failure 401 {object} map[string]interface{} "Unauthorized"
+// @Failure 409 {object} map[string]interface{} "MCP already exists"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /admin/mcps [post]
 func (h *AdminHandlers) AddMCPHandler(c *gin.Context) {
 	mcpDef, valid := h.validateAndPrepareMCP(c)
 	if !valid {
@@ -297,6 +311,20 @@ func (h *AdminHandlers) performHotReload(name string, mcpDef *MCPDefinition) err
 }
 
 // UpdateMCPHandler handles PUT /admin/mcps/{name} - updates an existing MCP definition
+// @Summary Update an MCP definition
+// @Description Update an existing Model Context Protocol server configuration
+// @Tags MCP Management
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "Admin authorization token"
+// @Param name path string true "MCP name"
+// @Param mcp body MCPDefinition true "Updated MCP definition"
+// @Success 200 {object} map[string]interface{} "MCP updated successfully"
+// @Failure 400 {object} map[string]interface{} "Invalid request"
+// @Failure 401 {object} map[string]interface{} "Unauthorized"
+// @Failure 404 {object} map[string]interface{} "MCP not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /admin/mcps/{name} [put]
 func (h *AdminHandlers) UpdateMCPHandler(c *gin.Context) {
 	mcpDef, existing, valid := h.validateUpdateRequest(c)
 	if !valid {
@@ -334,6 +362,17 @@ func (h *AdminHandlers) UpdateMCPHandler(c *gin.Context) {
 }
 
 // RemoveMCPHandler handles DELETE /admin/mcps/{name} - removes an MCP definition
+// @Summary Remove an MCP definition
+// @Description Remove a Model Context Protocol server configuration
+// @Tags MCP Management
+// @Produce json
+// @Param Authorization header string true "Admin authorization token"
+// @Param name path string true "MCP name"
+// @Success 200 {object} map[string]interface{} "MCP removed successfully"
+// @Failure 401 {object} map[string]interface{} "Unauthorized"
+// @Failure 404 {object} map[string]interface{} "MCP not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /admin/mcps/{name} [delete]
 func (h *AdminHandlers) RemoveMCPHandler(c *gin.Context) {
 	name := c.Param("name")
 	if name == "" {
@@ -383,6 +422,15 @@ func (h *AdminHandlers) RemoveMCPHandler(c *gin.Context) {
 }
 
 // ListMCPsHandler handles GET /admin/mcps - lists all MCP definitions with status
+// @Summary List all MCP definitions
+// @Description Get a list of all configured Model Context Protocol servers
+// @Tags MCP Management
+// @Produce json
+// @Param Authorization header string true "Admin authorization token"
+// @Success 200 {object} map[string]interface{} "List of MCPs with their status"
+// @Failure 401 {object} map[string]interface{} "Unauthorized"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /admin/mcps [get]
 func (h *AdminHandlers) ListMCPsHandler(c *gin.Context) {
 	mcps, err := h.storage.ListMCPs(context.Background())
 	if err != nil {
@@ -418,6 +466,17 @@ func (h *AdminHandlers) ListMCPsHandler(c *gin.Context) {
 }
 
 // GetMCPHandler handles GET /admin/mcps/{name} - gets a specific MCP definition
+// @Summary Get an MCP definition
+// @Description Get details of a specific Model Context Protocol server configuration
+// @Tags MCP Management
+// @Produce json
+// @Param Authorization header string true "Admin authorization token"
+// @Param name path string true "MCP name"
+// @Success 200 {object} map[string]interface{} "MCP details with status"
+// @Failure 401 {object} map[string]interface{} "Unauthorized"
+// @Failure 404 {object} map[string]interface{} "MCP not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /admin/mcps/{name} [get]
 func (h *AdminHandlers) GetMCPHandler(c *gin.Context) {
 	name := c.Param("name")
 	if name == "" {
@@ -456,5 +515,87 @@ func (h *AdminHandlers) GetMCPHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"definition": mcp,
 		"status":     status,
+	})
+}
+
+// MCPToolDefinition represents a tool definition for the API response
+type MCPToolDefinition struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	InputSchema map[string]any `json:"inputSchema"`
+	MCPName     string         `json:"mcpName"`
+}
+
+// ListToolsHandler returns all available tools from registered MCPs
+// @Summary List all available tools
+// @Description Get a list of all tools available from all connected MCP servers
+// @Tags MCP Tools
+// @Produce json
+// @Param Authorization header string true "Admin authorization token"
+// @Success 200 {object} map[string]interface{} "List of available tools"
+// @Failure 401 {object} map[string]interface{} "Unauthorized"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /admin/tools [get]
+func (h *AdminHandlers) ListToolsHandler(c *gin.Context) {
+	logger.Debug("Listing all available tools from registered MCPs")
+
+	// Get all registered MCPs
+	mcps, err := h.storage.ListMCPs(c.Request.Context())
+	if err != nil {
+		logger.Error("Failed to list MCPs for tools discovery", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to retrieve MCPs",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	var allTools []MCPToolDefinition
+
+	// Iterate through each MCP and get its tools
+	for _, mcpDef := range mcps {
+		client, err := h.clientManager.GetClient(mcpDef.Name)
+		if err != nil {
+			logger.Warn("Failed to get client for MCP, skipping", "mcp_name", mcpDef.Name, "error", err)
+			continue
+		}
+
+		// Get tools from this MCP client
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+		tools, err := client.ListTools(ctx)
+		if err != nil {
+			logger.Warn("Failed to list tools for MCP, skipping", "mcp_name", mcpDef.Name, "error", err)
+			cancel()
+			continue
+		}
+
+		// Convert tools to our API format
+		for i := range tools {
+			// Convert the tool's input schema to a generic map using JSON marshaling
+			tool := &tools[i]
+			var inputSchema map[string]any
+			if schemaBytes, err := json.Marshal(tool.InputSchema); err == nil {
+				if err := json.Unmarshal(schemaBytes, &inputSchema); err != nil {
+					logger.Warn("Failed to unmarshal tool input schema", "mcp_name", mcpDef.Name, "error", err)
+				}
+			}
+
+			toolDef := MCPToolDefinition{
+				Name:        tool.Name,
+				Description: tool.Description,
+				InputSchema: inputSchema,
+				MCPName:     mcpDef.Name,
+			}
+			allTools = append(allTools, toolDef)
+		}
+
+		logger.Debug("Listed tools for MCP", "mcp_name", mcpDef.Name, "tool_count", len(tools))
+		cancel()
+	}
+
+	logger.Info("Listed all available tools", "total_tools", len(allTools), "total_mcps", len(mcps))
+
+	c.JSON(http.StatusOK, gin.H{
+		"tools": allTools,
 	})
 }

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/compozy/compozy/pkg/logger"
 	adapter "github.com/i2y/langchaingo-mcp-adapter"
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
@@ -107,7 +108,7 @@ func (c *Connection) GetTools() map[string]tools.Tool {
 	tools, err := adapter.Tools()
 	if err != nil {
 		// Log error but continue with other connections
-		fmt.Printf("Warning: failed to get tools from MCP connection %s: %v\n", c.Config().ID, err)
+		logger.Warn("Failed to get tools from MCP connection", "connection_id", c.Config().ID, "error", err)
 		return nil
 	}
 	// Convert from langchaingo tools to llms.Tool structs
@@ -187,7 +188,7 @@ func CloseConnections(connections map[string]*Connection) {
 	for _, connection := range connections {
 		if connection != nil && !connection.IsClosed() {
 			if err := connection.Close(); err != nil {
-				fmt.Printf("Warning: failed to close MCP connection %s: %v\n", connection.Config().ID, err)
+				logger.Warn("Failed to close MCP connection", "connection_id", connection.Config().ID, "error", err)
 			}
 		}
 	}
