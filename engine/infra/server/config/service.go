@@ -1,0 +1,91 @@
+package config
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/compozy/compozy/engine/autoload"
+	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/pkg/ref"
+)
+
+// Service defines the contract for configuration loading and processing
+type Service interface {
+	LoadProject(cwd string, file string) (*project.Config, []*workflow.Config, error)
+}
+
+// service is the concrete implementation of the Service interface
+type service struct {
+	// Dependencies can be added here (logger, etc.)
+}
+
+// NewService creates and initializes a new config service
+func NewService() Service {
+	return &service{}
+}
+
+// LoadProject loads a project configuration and handles AutoLoad integration
+func (s *service) LoadProject(cwd string, file string) (*project.Config, []*workflow.Config, error) {
+	pCWD, err := core.CWDFromPath(cwd)
+	if err != nil {
+		return nil, nil, err
+	}
+	logger.Info("Starting compozy server")
+	logger.Debug("Loading config file", "config_file", file)
+
+	projectConfig, err := project.Load(pCWD, file)
+	if err != nil {
+		logger.Error("Failed to load project config", "error", err)
+		return nil, nil, err
+	}
+
+	if err := projectConfig.Validate(); err != nil {
+		logger.Error("Invalid project config", "error", err)
+		return nil, nil, err
+	}
+
+	// Create shared configuration registry
+	configRegistry := autoload.NewConfigRegistry()
+
+	// Run AutoLoad if enabled
+	if projectConfig.AutoLoad != nil && projectConfig.AutoLoad.Enabled {
+		logger.Info("AutoLoad enabled, discovering and loading configurations")
+		autoLoader := autoload.New(pCWD.PathStr(), projectConfig.AutoLoad, configRegistry)
+		if err := autoLoader.Load(context.Background()); err != nil {
+			logger.Error("AutoLoad failed", "error", err)
+			return nil, nil, fmt.Errorf("autoload failed: %w", err)
+		}
+	}
+
+	globalScope, err := projectConfig.AsMap()
+	if err != nil {
+		logger.Error("Failed to convert project config to map", "error", err)
+		return nil, nil, err
+	}
+
+	// Load workflows from sources with registry-aware evaluator
+	var evaluatorOptions []ref.EvalConfigOption
+	evaluatorOptions = append(evaluatorOptions,
+		ref.WithGlobalScope(globalScope),
+		ref.WithCacheEnabled(),
+	)
+
+	// Add resource resolver for auto-loaded configurations
+	if projectConfig.AutoLoad != nil && projectConfig.AutoLoad.Enabled {
+		resolver := &autoloadResourceResolver{registry: configRegistry}
+		evaluatorOptions = append(evaluatorOptions, ref.WithResourceResolver(resolver))
+	}
+
+	ev := ref.NewEvaluator(evaluatorOptions...)
+
+	workflows, err := workflow.WorkflowsFromProject(projectConfig, ev)
+	if err != nil {
+		logger.Error("Failed to load workflows", "error", err)
+		return nil, nil, err
+	}
+
+	return projectConfig, workflows, nil
+}
