@@ -10,7 +10,6 @@ import (
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 // -----------------------------------------------------------------------------
@@ -48,15 +47,9 @@ func (uc *CreateState) Execute(ctx context.Context, input *CreateStateInput) (*t
 	// Create the basic state with the pre-generated taskExecID
 	state, err := uc.createBasicState(ctx, input, taskExecID)
 	if err != nil {
-		// Compensating rollback: delete the saved config to prevent orphaned configs
 		if deleteErr := uc.configManager.DeleteTaskConfig(ctx, taskExecID); deleteErr != nil {
-			logger.Error("failed to delete task config during rollback",
-				"taskExecID", taskExecID,
-				"error", deleteErr)
+			return nil, fmt.Errorf("state create failed (%w) and rollback failed (%v)", err, deleteErr)
 		}
-		logger.Error("failed to create basic state",
-			"taskExecID", taskExecID,
-			"error", err)
 		return nil, err
 	}
 

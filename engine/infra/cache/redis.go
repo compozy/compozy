@@ -18,6 +18,7 @@ type RedisInterface interface {
 	Set(ctx context.Context, key string, value any, expiration time.Duration) *redis.StatusCmd
 	SetNX(ctx context.Context, key string, value any, expiration time.Duration) *redis.BoolCmd
 	Get(ctx context.Context, key string) *redis.StringCmd
+	GetEx(ctx context.Context, key string, expiration time.Duration) *redis.StringCmd
 	MGet(ctx context.Context, keys ...string) *redis.SliceCmd
 	Del(ctx context.Context, keys ...string) *redis.IntCmd
 	Exists(ctx context.Context, keys ...string) *redis.IntCmd
@@ -127,6 +128,11 @@ func (r *Redis) SetNX(ctx context.Context, key string, value any, expiration tim
 // Get retrieves a value by key
 func (r *Redis) Get(ctx context.Context, key string) *redis.StringCmd {
 	return r.client.Get(ctx, key)
+}
+
+// GetEx retrieves a value by key and atomically extends its TTL
+func (r *Redis) GetEx(ctx context.Context, key string, expiration time.Duration) *redis.StringCmd {
+	return r.client.GetEx(ctx, key, expiration)
 }
 
 // MGet retrieves multiple values by keys

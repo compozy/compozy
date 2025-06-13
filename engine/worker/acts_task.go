@@ -282,10 +282,14 @@ func (e *TaskExecutor) HandleCollectionTask(
 		"child_count", len(childStates),
 		"expected_count", childCount)
 
+	// Create cancellable context for subtasks
+	cctx, cancel := workflow.WithCancel(ctx)
+	defer cancel()
+
 	// Execute child tasks using their TaskExecIDs
 	for i := range childStates {
 		childState := childStates[i]
-		workflow.Go(ctx, func(gCtx workflow.Context) {
+		workflow.Go(cctx, func(gCtx workflow.Context) {
 			response, err := e.ExecuteSubtask(gCtx, cState, childState.TaskExecID.String())
 			switch {
 			case err != nil:
@@ -312,8 +316,9 @@ func (e *TaskExecutor) HandleCollectionTask(
 	}
 
 	// Wait for tasks to complete based on strategy
-	awaitErr := e.awaitSubtasks(ctx, taskConfig.GetStrategy(), childCount, &completed, &failed, taskConfig)
+	awaitErr := e.awaitSubtasks(ctx, taskConfig.GetStrategy(), childCount, &completed, &failed, taskConfig, cancel)
 	if awaitErr != nil {
+		cancel() // Ensure all subtasks are canceled on error
 		return fmt.Errorf("failed to await collection task: %w", awaitErr)
 	}
 
@@ -366,10 +371,14 @@ func (e *TaskExecutor) HandleParallelTask(pConfig *task.Config) func(ctx workflo
 		}
 		numTasks := int32(tasksLen)
 
+		// Create cancellable context for subtasks
+		cctx, cancel := workflow.WithCancel(ctx)
+		defer cancel()
+
 		// Execute subtasks in parallel using their TaskExecIDs
 		for i := range childStates {
 			childState := childStates[i]
-			workflow.Go(ctx, func(gCtx workflow.Context) {
+			workflow.Go(cctx, func(gCtx workflow.Context) {
 				response, err := e.ExecuteSubtask(gCtx, pState, childState.TaskExecID.String())
 				switch {
 				case err != nil:
@@ -396,8 +405,9 @@ func (e *TaskExecutor) HandleParallelTask(pConfig *task.Config) func(ctx workflo
 		}
 
 		// Wait for tasks to complete based on strategy
-		err = e.awaitSubtasks(ctx, pConfig.GetStrategy(), numTasks, &completed, &failed, pConfig)
+		err = e.awaitSubtasks(ctx, pConfig.GetStrategy(), numTasks, &completed, &failed, pConfig, cancel)
 		if err != nil {
+			cancel() // Ensure all subtasks are canceled on error
 			return nil, fmt.Errorf("failed to await parallel task: %w", err)
 		}
 		// Process parallel response with proper transitions
@@ -447,6 +457,7 @@ func (e *TaskExecutor) awaitSubtasks(
 	totalTasks int32,
 	completed, failed *int32,
 	taskConfig *task.Config,
+	cancel workflow.CancelFunc,
 ) error {
 	condition := func() bool {
 		completedCount := atomic.LoadInt32(completed)
@@ -474,6 +485,7 @@ func (e *TaskExecutor) awaitSubtasks(
 			return err
 		}
 		if timedOut {
+			cancel() // Cancel all running subtasks on timeout
 			completedCount := atomic.LoadInt32(completed)
 			failedCount := atomic.LoadInt32(failed)
 			return fmt.Errorf("timeout waiting for subtasks: completed=%d, failed=%d, total=%d, timeout=%v",

@@ -88,7 +88,9 @@ func (a *ExecuteSubtask) Run(ctx context.Context, input *ExecuteSubtaskInput) (*
 		WorkflowMCPs: uc.ProjectMCPConfigs(workflowConfig.MCPs),
 	})
 	taskState.Output = output
-
+	if err := a.taskRepo.UpsertState(ctx, taskState); err != nil {
+		return nil, fmt.Errorf("failed to persist task output: %w", err)
+	}
 	// Handle subtask response
 	response, err := a.taskResponder.HandleSubtask(ctx, &services.SubtaskResponseInput{
 		WorkflowConfig: workflowConfig,
