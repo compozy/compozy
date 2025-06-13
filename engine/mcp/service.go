@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
@@ -21,15 +20,12 @@ type WorkflowConfig interface {
 // RegisterService manages MCP registration lifecycle with the proxy
 type RegisterService struct {
 	proxy *Client
-	mux   sync.RWMutex
-	regs  map[string]bool // id → registered
 }
 
 // New creates a new MCP registration service
 func NewRegisterService(proxyClient *Client) *RegisterService {
 	return &RegisterService{
 		proxy: proxyClient,
-		regs:  make(map[string]bool),
 	}
 }
 
@@ -41,15 +37,6 @@ func NewWithTimeout(proxyURL, adminToken string, timeout time.Duration) *Registe
 
 // Ensure registers an MCP with the proxy if not already registered (idempotent)
 func (s *RegisterService) Ensure(ctx context.Context, config *Config) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
-	// Check if already registered
-	if s.regs[config.ID] {
-		logger.Debug("MCP already registered, skipping", "mcp_id", config.ID)
-		return nil
-	}
-
 	// Convert MCP config to proxy definition
 	def, err := s.convertToDefinition(config)
 	if err != nil {
@@ -61,74 +48,62 @@ func (s *RegisterService) Ensure(ctx context.Context, config *Config) error {
 		return fmt.Errorf("failed to register MCP with proxy: %w", err)
 	}
 
-	// Mark as registered
-	s.regs[config.ID] = true
 	return nil
 }
 
 // Deregister removes an MCP from the proxy
 func (s *RegisterService) Deregister(ctx context.Context, mcpID string) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
-	// Check if registered
-	if !s.regs[mcpID] {
-		logger.Debug("MCP not registered, skipping deregistration", "mcp_id", mcpID)
-		return nil
-	}
-
 	// Deregister from proxy
 	if err := s.proxy.Deregister(ctx, mcpID); err != nil {
 		return fmt.Errorf("failed to deregister MCP from proxy: %w", err)
 	}
 
-	// Remove from registry
-	delete(s.regs, mcpID)
-
 	logger.Info("Successfully deregistered MCP from proxy", "mcp_id", mcpID)
 	return nil
 }
 
-// IsRegistered checks if an MCP is currently registered
-func (s *RegisterService) IsRegistered(mcpID string) bool {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
-	return s.regs[mcpID]
+// IsRegistered checks if an MCP is currently registered with the proxy
+func (s *RegisterService) IsRegistered(ctx context.Context, mcpID string) (bool, error) {
+	mcps, err := s.proxy.ListMCPs(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to check registration status: %w", err)
+	}
+	for _, mcp := range mcps {
+		if mcp.Name == mcpID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
-// ListRegistered returns a list of all registered MCP IDs
-func (s *RegisterService) ListRegistered() []string {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
-
-	var registered []string
-	for mcpID := range s.regs {
-		registered = append(registered, mcpID)
+// ListRegistered returns a list of all registered MCP IDs from the proxy
+func (s *RegisterService) ListRegistered(ctx context.Context) ([]string, error) {
+	mcps, err := s.proxy.ListMCPs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list registered MCPs: %w", err)
 	}
-	return registered
+	var mcpIDs []string
+	for _, mcp := range mcps {
+		mcpIDs = append(mcpIDs, mcp.Name)
+	}
+	return mcpIDs, nil
 }
 
 // Shutdown deregisters all MCPs and cleans up resources
 func (s *RegisterService) Shutdown(ctx context.Context) error {
-	// Collect MCP IDs under lock
-	s.mux.Lock()
-	mcpIDs := make([]string, 0, len(s.regs))
-	for mcpID := range s.regs {
-		mcpIDs = append(mcpIDs, mcpID)
+	logger.Info("Shutting down MCP register, deregistering all MCPs")
+	mcpIDs, err := s.ListRegistered(ctx)
+	if err != nil {
+		logger.Error("Failed to get registered MCPs for shutdown", "error", err)
+		return fmt.Errorf("failed to get registered MCPs: %w", err)
 	}
-	s.mux.Unlock()
-
-	logger.Info("Shutting down MCP register, deregistering all MCPs",
-		"count", len(mcpIDs))
-
 	if len(mcpIDs) == 0 {
 		logger.Info("No MCPs to deregister during shutdown")
 		return nil
 	}
-
+	logger.Info("Found MCPs to deregister", "count", len(mcpIDs))
 	// Use errgroup for concurrent deregistration
 	g, gCtx := errgroup.WithContext(ctx)
-
 	for _, mcpID := range mcpIDs {
 		mcpID := mcpID // capture loop variable
 		g.Go(func() error {
@@ -141,98 +116,28 @@ func (s *RegisterService) Shutdown(ctx context.Context) error {
 			return nil
 		})
 	}
-
 	// Wait for all deregistrations to complete
-	err := g.Wait()
-
-	// Clear the registry
-	s.mux.Lock()
-	s.regs = make(map[string]bool)
-	s.mux.Unlock()
-
+	err = g.Wait()
 	if err != nil {
 		return fmt.Errorf("shutdown failed: %w", err)
 	}
-
 	logger.Info("MCP register shutdown completed successfully")
 	return nil
 }
 
-// HealthCheck verifies the proxy connection and registry state
+// HealthCheck verifies the proxy connection
 func (s *RegisterService) HealthCheck(ctx context.Context) error {
 	// Check proxy health
 	if err := s.proxy.Health(ctx); err != nil {
 		return fmt.Errorf("proxy health check failed: %w", err)
 	}
-
-	s.mux.RLock()
-	registeredCount := len(s.regs)
-	s.mux.RUnlock()
-
-	logger.Debug("MCP register health check passed",
-		"registered_mcps", registeredCount)
-
+	logger.Debug("MCP register health check passed")
 	return nil
 }
 
-// SyncWithProxy synchronizes the local registry with the proxy state
-func (s *RegisterService) SyncWithProxy(ctx context.Context) error {
-	// Get MCPs from proxy
-	proxyMCPs, err := s.proxy.ListMCPs(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to list MCPs from proxy: %w", err)
-	}
-
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
-	// Create map of proxy MCPs for comparison
-	proxyMap := make(map[string]bool)
-	for _, mcpDef := range proxyMCPs {
-		proxyMap[mcpDef.Name] = true
-	}
-
-	// Find discrepancies
-	var localOnly, proxyOnly []string
-
-	// Check for MCPs registered locally but not in proxy
-	for mcpID := range s.regs {
-		if !proxyMap[mcpID] {
-			localOnly = append(localOnly, mcpID)
-		}
-	}
-
-	// Check for MCPs in proxy but not registered locally
-	for mcpID := range proxyMap {
-		if !s.regs[mcpID] {
-			proxyOnly = append(proxyOnly, mcpID)
-		}
-	}
-
-	// Log discrepancies
-	if len(localOnly) > 0 {
-		logger.Warn("MCPs registered locally but missing from proxy",
-			"mcps", localOnly)
-		// Remove from local registry
-		for _, mcpID := range localOnly {
-			delete(s.regs, mcpID)
-		}
-	}
-
-	if len(proxyOnly) > 0 {
-		logger.Info("MCPs found in proxy but not in local registry",
-			"mcps", proxyOnly)
-		// Add to local registry (assuming they're valid)
-		for _, mcpID := range proxyOnly {
-			s.regs[mcpID] = true
-		}
-	}
-
-	logger.Debug("Registry synchronized with proxy",
-		"total_registered", len(s.regs),
-		"corrected_local_only", len(localOnly),
-		"added_from_proxy", len(proxyOnly))
-
+// SyncWithProxy is no longer needed since we always use proxy as source of truth
+func (s *RegisterService) SyncWithProxy(_ context.Context) error {
+	logger.Debug("Registry synchronized with proxy")
 	return nil
 }
 
@@ -317,37 +222,29 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 	if len(configs) == 0 {
 		return nil
 	}
-
 	logger.Info("Registering multiple MCPs with proxy", "count", len(configs))
-
 	// Use a goroutine pool for concurrent registration
 	type result struct {
 		mcpID string
 		err   error
 	}
-
 	results := make(chan result, len(configs))
-
 	// Limit concurrent registrations to avoid overwhelming the proxy
 	const maxConcurrent = 5
 	semaphore := make(chan struct{}, maxConcurrent)
-
 	// Start registration goroutines
 	for _, config := range configs {
 		go func(cfg Config) {
 			semaphore <- struct{}{}        // Acquire
 			defer func() { <-semaphore }() // Release
-
 			err := s.Ensure(ctx, &cfg)
 			results <- result{mcpID: cfg.ID, err: err}
 		}(config)
 	}
-
 	// Collect results
 	var errs []error
 	successCount := 0
-
-	for i := 0; i < len(configs); i++ {
+	for range configs {
 		select {
 		case res := <-results:
 			if res.err != nil {
@@ -360,17 +257,14 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 			return fmt.Errorf("registration canceled: %w", ctx.Err())
 		}
 	}
-
 	logger.Info("MCP registration completed",
 		"total", len(configs),
 		"successful", successCount,
 		"failed", len(errs))
-
 	// Return combined error if any registrations failed
 	if len(errs) > 0 {
 		return fmt.Errorf("failed to register %d MCPs: %v", len(errs), errs)
 	}
-
 	return nil
 }
 

@@ -2,9 +2,9 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
@@ -21,71 +21,39 @@ func init() {
 
 func TestRegisterService_Ensure(t *testing.T) {
 	t.Run("Should register MCP successfully when not already registered", func(t *testing.T) {
-		// Create mock proxy server
+		// Create test server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == "/admin/mcps" && r.Method == "POST" {
 				w.WriteHeader(http.StatusCreated)
 			}
 		}))
 		defer server.Close()
-
 		client := NewProxyClient(server.URL, "", 5*time.Second)
 		service := NewRegisterService(client)
-
 		config := Config{
 			ID:        "test-mcp",
 			URL:       "http://example.com/mcp",
 			Transport: "sse",
 		}
-
 		err := service.Ensure(context.Background(), &config)
 		assert.NoError(t, err)
-		assert.True(t, service.IsRegistered("test-mcp"))
 	})
-
-	t.Run("Should skip registration when MCP already registered", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
-			t.Error("Should not make any HTTP calls for already registered MCP")
-		}))
-		defer server.Close()
-
-		client := NewProxyClient(server.URL, "", 5*time.Second)
-		service := NewRegisterService(client)
-
-		// Pre-register the MCP
-		service.regs["test-mcp"] = true
-
-		config := Config{
-			ID:        "test-mcp",
-			URL:       "http://example.com/mcp",
-			Transport: "sse",
-		}
-
-		err := service.Ensure(context.Background(), &config)
-		assert.NoError(t, err)
-		assert.True(t, service.IsRegistered("test-mcp"))
-	})
-
 	t.Run("Should return error when proxy registration fails", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("Internal server error"))
 		}))
 		defer server.Close()
-
 		client := NewProxyClient(server.URL, "", 5*time.Second)
 		service := NewRegisterService(client)
-
 		config := Config{
 			ID:        "test-mcp",
 			URL:       "http://example.com/mcp",
 			Transport: "sse",
 		}
-
 		err := service.Ensure(context.Background(), &config)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to register MCP with proxy")
-		assert.False(t, service.IsRegistered("test-mcp"))
 	})
 }
 
@@ -97,30 +65,20 @@ func TestRegisterService_Deregister(t *testing.T) {
 			}
 		}))
 		defer server.Close()
-
 		client := NewProxyClient(server.URL, "", 5*time.Second)
 		service := NewRegisterService(client)
-
-		// Pre-register the MCP
-		service.regs["test-mcp"] = true
-
 		err := service.Deregister(context.Background(), "test-mcp")
 		assert.NoError(t, err)
-		assert.False(t, service.IsRegistered("test-mcp"))
 	})
-
-	t.Run("Should skip deregistration when MCP not registered", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
-			t.Error("Should not make any HTTP calls for unregistered MCP")
+	t.Run("Should handle deregistration when MCP not registered", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
 		}))
 		defer server.Close()
-
 		client := NewProxyClient(server.URL, "", 5*time.Second)
 		service := NewRegisterService(client)
-
 		err := service.Deregister(context.Background(), "test-mcp")
 		assert.NoError(t, err)
-		assert.False(t, service.IsRegistered("test-mcp"))
 	})
 }
 
@@ -132,36 +90,22 @@ func TestRegisterService_EnsureMultiple(t *testing.T) {
 			}
 		}))
 		defer server.Close()
-
 		client := NewProxyClient(server.URL, "", 5*time.Second)
 		service := NewRegisterService(client)
-
 		configs := []Config{
 			{ID: "mcp-1", URL: "http://example.com/mcp1", Transport: "sse"},
 			{ID: "mcp-2", URL: "http://example.com/mcp2", Transport: "streamable-http"},
 		}
-
 		err := service.EnsureMultiple(context.Background(), configs)
 		assert.NoError(t, err)
-
-		// Verify both MCPs are registered
-		assert.True(t, service.IsRegistered("mcp-1"))
-		assert.True(t, service.IsRegistered("mcp-2"))
-
-		// Verify we have correct count
-		registered := service.ListRegistered()
-		assert.Len(t, registered, 2)
 	})
-
 	t.Run("Should handle empty MCP list", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			t.Error("Should not make any HTTP calls for empty MCP list")
 		}))
 		defer server.Close()
-
 		client := NewProxyClient(server.URL, "", 5*time.Second)
 		service := NewRegisterService(client)
-
 		err := service.EnsureMultiple(context.Background(), []Config{})
 		assert.NoError(t, err)
 	})
@@ -169,37 +113,34 @@ func TestRegisterService_EnsureMultiple(t *testing.T) {
 
 func TestRegisterService_Shutdown(t *testing.T) {
 	t.Run("Should deregister all MCPs during shutdown", func(t *testing.T) {
-		var mu sync.Mutex
-		deregisteredMCPs := make(map[string]bool)
+		var deregisteredMCPs []string
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == "DELETE" {
+			if r.Method == "GET" && r.URL.Path == "/admin/mcps" {
+				// Return list of MCPs
+				response := struct {
+					MCPs []Definition `json:"mcps"`
+				}{
+					MCPs: []Definition{
+						{Name: "mcp-1", Transport: "sse"},
+						{Name: "mcp-2", Transport: "sse"},
+					},
+				}
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(response)
+			} else if r.Method == "DELETE" {
 				mcpID := r.URL.Path[len("/admin/mcps/"):]
-				mu.Lock()
-				deregisteredMCPs[mcpID] = true
-				mu.Unlock()
+				deregisteredMCPs = append(deregisteredMCPs, mcpID)
 				w.WriteHeader(http.StatusOK)
 			}
 		}))
 		defer server.Close()
-
 		client := NewProxyClient(server.URL, "", 5*time.Second)
 		service := NewRegisterService(client)
-
-		// Pre-register some MCPs
-		service.regs["mcp-1"] = true
-		service.regs["mcp-2"] = true
-
 		err := service.Shutdown(context.Background())
 		assert.NoError(t, err)
-
-		// Verify all MCPs were deregistered
-		mu.Lock()
-		assert.True(t, deregisteredMCPs["mcp-1"])
-		assert.True(t, deregisteredMCPs["mcp-2"])
-		mu.Unlock()
-
-		// Verify registry is cleared
-		assert.Len(t, service.ListRegistered(), 0)
+		// Verify both MCPs were deregistered
+		assert.Contains(t, deregisteredMCPs, "mcp-1")
+		assert.Contains(t, deregisteredMCPs, "mcp-2")
 	})
 }
 
