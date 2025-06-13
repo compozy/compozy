@@ -11,6 +11,27 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+// MCPClientInterface defines the interface for MCP client operations
+type MCPClientInterface interface {
+	GetDefinition() *MCPDefinition
+	GetStatus() *MCPStatus
+	IsConnected() bool
+	Connect(ctx context.Context) error
+	Disconnect(ctx context.Context) error
+	Health(ctx context.Context) error
+	WaitUntilConnected(ctx context.Context) error
+	ListTools(ctx context.Context) ([]mcp.Tool, error)
+	CallTool(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error)
+	ListPrompts(ctx context.Context) ([]mcp.Prompt, error)
+	GetPrompt(ctx context.Context, request mcp.GetPromptRequest) (*mcp.GetPromptResult, error)
+	ListResources(ctx context.Context) ([]mcp.Resource, error)
+	ReadResource(ctx context.Context, request mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error)
+	ListResourceTemplates(ctx context.Context) ([]mcp.ResourceTemplate, error)
+	ListPromptsWithCursor(ctx context.Context, cursor string) ([]mcp.Prompt, string, error)
+	ListResourcesWithCursor(ctx context.Context, cursor string) ([]mcp.Resource, string, error)
+	ListResourceTemplatesWithCursor(ctx context.Context, cursor string) ([]mcp.ResourceTemplate, string, error)
+}
+
 // ClientManager defines the interface for managing MCP clients
 type ClientManager interface {
 	Start(ctx context.Context) error
@@ -18,7 +39,7 @@ type ClientManager interface {
 	AddClient(ctx context.Context, def *MCPDefinition) error
 	RemoveClient(ctx context.Context, name string) error
 	GetClientStatus(name string) (*MCPStatus, error)
-	GetClient(name string) (*MCPClient, error)
+	GetClient(name string) (MCPClientInterface, error)
 	GetMetrics() map[string]any
 }
 

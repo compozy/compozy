@@ -223,7 +223,7 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 		return nil
 	}
 	logger.Info("Registering multiple MCPs with proxy", "count", len(configs))
-	// Use a goroutine pool for concurrent registration
+	// Use a worker pool for concurrent registration
 	type result struct {
 		mcpID string
 		err   error
@@ -231,16 +231,21 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 	results := make(chan result, len(configs))
 	// Limit concurrent registrations to avoid overwhelming the proxy
 	const maxConcurrent = 5
-	semaphore := make(chan struct{}, maxConcurrent)
-	// Start registration goroutines
-	for _, config := range configs {
-		go func(cfg Config) {
-			semaphore <- struct{}{}        // Acquire
-			defer func() { <-semaphore }() // Release
-			err := s.Ensure(ctx, &cfg)
-			results <- result{mcpID: cfg.ID, err: err}
-		}(config)
+	work := make(chan Config, len(configs))
+	// Start fixed number of workers
+	for i := 0; i < maxConcurrent; i++ {
+		go func() {
+			for cfg := range work {
+				err := s.Ensure(ctx, &cfg)
+				results <- result{mcpID: cfg.ID, err: err}
+			}
+		}()
 	}
+	// Send work to workers
+	for _, config := range configs {
+		work <- config
+	}
+	close(work)
 	// Collect results
 	var errs []error
 	successCount := 0

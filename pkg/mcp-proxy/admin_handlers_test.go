@@ -15,29 +15,27 @@ import (
 
 func TestAdminHandlers(t *testing.T) {
 	initLogger()
-	// Set gin to test mode
 	gin.SetMode(gin.TestMode)
 
-	// Create storage and mock client manager for testing
-	storage := NewMemoryStorage()
-	clientManager := NewMockClientManager()
-
-	// Create admin handlers (proxy handlers set to nil for testing)
-	service := NewMCPService(storage, clientManager, nil)
-	handlers := NewAdminHandlers(service)
-
-	// Create router
-	router := gin.New()
-	admin := router.Group("/admin")
-	{
-		admin.POST("/mcps", handlers.AddMCPHandler)
-		admin.PUT("/mcps/:name", handlers.UpdateMCPHandler)
-		admin.DELETE("/mcps/:name", handlers.RemoveMCPHandler)
-		admin.GET("/mcps", handlers.ListMCPsHandler)
-		admin.GET("/mcps/:name", handlers.GetMCPHandler)
+	setupTest := func() (*gin.Engine, *MCPService) {
+		storage := NewMemoryStorage()
+		clientManager := NewMockClientManager()
+		service := NewMCPService(storage, clientManager, nil)
+		handlers := NewAdminHandlers(service)
+		router := gin.New()
+		admin := router.Group("/admin")
+		{
+			admin.POST("/mcps", handlers.AddMCPHandler)
+			admin.PUT("/mcps/:name", handlers.UpdateMCPHandler)
+			admin.DELETE("/mcps/:name", handlers.RemoveMCPHandler)
+			admin.GET("/mcps", handlers.ListMCPsHandler)
+			admin.GET("/mcps/:name", handlers.GetMCPHandler)
+		}
+		return router, service
 	}
 
 	t.Run("Add MCP Definition", func(t *testing.T) {
+		router, _ := setupTest()
 		mcpDef := MCPDefinition{
 			Name:        "test-mcp",
 			Description: "Test MCP server",
@@ -45,14 +43,11 @@ func TestAdminHandlers(t *testing.T) {
 			Command:     "node",
 			Args:        []string{"test-server.js"},
 		}
-
 		jsonData, err := json.Marshal(mcpDef)
 		require.NoError(t, err)
-
 		req, err := http.NewRequestWithContext(context.Background(), "POST", "/admin/mcps", bytes.NewBuffer(jsonData))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
-
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -66,9 +61,17 @@ func TestAdminHandlers(t *testing.T) {
 	})
 
 	t.Run("List MCP Definitions", func(t *testing.T) {
+		router, service := setupTest()
+		mcpDef := MCPDefinition{
+			Name:        "test-mcp",
+			Description: "Test MCP server",
+			Transport:   TransportStdio,
+			Command:     "node",
+			Args:        []string{"test-server.js"},
+		}
+		_ = service.CreateMCP(context.Background(), &mcpDef)
 		req, err := http.NewRequestWithContext(context.Background(), "GET", "/admin/mcps", http.NoBody)
 		require.NoError(t, err)
-
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -84,9 +87,17 @@ func TestAdminHandlers(t *testing.T) {
 	})
 
 	t.Run("Get Specific MCP Definition", func(t *testing.T) {
+		router, service := setupTest()
+		mcpDef := MCPDefinition{
+			Name:        "test-mcp",
+			Description: "Test MCP server",
+			Transport:   TransportStdio,
+			Command:     "node",
+			Args:        []string{"test-server.js"},
+		}
+		_ = service.CreateMCP(context.Background(), &mcpDef)
 		req, err := http.NewRequestWithContext(context.Background(), "GET", "/admin/mcps/test-mcp", http.NoBody)
 		require.NoError(t, err)
-
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -102,6 +113,15 @@ func TestAdminHandlers(t *testing.T) {
 	})
 
 	t.Run("Update MCP Definition", func(t *testing.T) {
+		router, service := setupTest()
+		originalMCP := MCPDefinition{
+			Name:        "test-mcp",
+			Description: "Test MCP server",
+			Transport:   TransportStdio,
+			Command:     "node",
+			Args:        []string{"test-server.js"},
+		}
+		_ = service.CreateMCP(context.Background(), &originalMCP)
 		updatedMCP := MCPDefinition{
 			Name:        "test-mcp",
 			Description: "Updated test MCP server",
@@ -109,10 +129,8 @@ func TestAdminHandlers(t *testing.T) {
 			Command:     "node",
 			Args:        []string{"updated-server.js"},
 		}
-
 		jsonData, err := json.Marshal(updatedMCP)
 		require.NoError(t, err)
-
 		req, err := http.NewRequestWithContext(
 			context.Background(),
 			"PUT",
@@ -121,7 +139,6 @@ func TestAdminHandlers(t *testing.T) {
 		)
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
-
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -134,9 +151,17 @@ func TestAdminHandlers(t *testing.T) {
 	})
 
 	t.Run("Delete MCP Definition", func(t *testing.T) {
+		router, service := setupTest()
+		mcpDef := MCPDefinition{
+			Name:        "test-mcp",
+			Description: "Test MCP server",
+			Transport:   TransportStdio,
+			Command:     "node",
+			Args:        []string{"test-server.js"},
+		}
+		_ = service.CreateMCP(context.Background(), &mcpDef)
 		req, err := http.NewRequestWithContext(context.Background(), "DELETE", "/admin/mcps/test-mcp", http.NoBody)
 		require.NoError(t, err)
-
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -144,30 +169,24 @@ func TestAdminHandlers(t *testing.T) {
 	})
 
 	t.Run("Add Duplicate MCP", func(t *testing.T) {
-		// First add an MCP
+		router, _ := setupTest()
 		mcpDef := MCPDefinition{
 			Name:      "duplicate-test",
 			Transport: TransportStdio,
 			Command:   "node",
 			Args:      []string{"test.js"},
 		}
-
 		jsonData, err := json.Marshal(mcpDef)
 		require.NoError(t, err)
-
 		req, err := http.NewRequestWithContext(context.Background(), "POST", "/admin/mcps", bytes.NewBuffer(jsonData))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
-
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusCreated, w.Code)
-
-		// Try to add the same MCP again
 		req, err = http.NewRequestWithContext(context.Background(), "POST", "/admin/mcps", bytes.NewBuffer(jsonData))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
-
 		w = httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -180,18 +199,16 @@ func TestAdminHandlers(t *testing.T) {
 	})
 
 	t.Run("Invalid MCP Definition", func(t *testing.T) {
+		router, _ := setupTest()
 		invalidMCP := MCPDefinition{
-			Name:      "", // Invalid: empty name
+			Name:      "",
 			Transport: TransportStdio,
 		}
-
 		jsonData, err := json.Marshal(invalidMCP)
 		require.NoError(t, err)
-
 		req, err := http.NewRequestWithContext(context.Background(), "POST", "/admin/mcps", bytes.NewBuffer(jsonData))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
-
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -204,9 +221,9 @@ func TestAdminHandlers(t *testing.T) {
 	})
 
 	t.Run("Get Non-existent MCP", func(t *testing.T) {
+		router, _ := setupTest()
 		req, err := http.NewRequestWithContext(context.Background(), "GET", "/admin/mcps/non-existent", http.NoBody)
 		require.NoError(t, err)
-
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 

@@ -10,4 +10,5 @@ var (
 	ErrClientNotConnected = errors.New("MCP client not connected")
 	ErrInvalidDefinition  = errors.New("invalid MCP definition")
 	ErrStorageError       = errors.New("storage operation failed")
+	ErrProxyRegFailed     = errors.New("proxy registration failed")
 )

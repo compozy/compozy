@@ -195,8 +195,8 @@ func (s *Server) Start(ctx context.Context) error {
 
 	logger.Info("MCP proxy server started successfully")
 
-	// Wait for shutdown signal
-	return s.waitForShutdown(ctx)
+	// Wait for shutdown signal or HTTP server failure
+	return s.waitForShutdown(ctx, errChan)
 }
 
 // Stop gracefully stops the server
@@ -221,7 +221,7 @@ func (s *Server) Stop(ctx context.Context) error {
 }
 
 // waitForShutdown waits for shutdown signals and handles graceful shutdown
-func (s *Server) waitForShutdown(ctx context.Context) error {
+func (s *Server) waitForShutdown(ctx context.Context, errChan <-chan error) error {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(quit) // Clean up signal handler to prevent resource leak
@@ -232,6 +232,16 @@ func (s *Server) waitForShutdown(ctx context.Context) error {
 		return s.Stop(ctx)
 	case sig := <-quit:
 		logger.Info("Received shutdown signal", "signal", sig.String())
+		return s.Stop(ctx)
+	case err := <-errChan:
+		if err != nil {
+			logger.Error("HTTP server failed", "error", err)
+			if stopErr := s.Stop(ctx); stopErr != nil {
+				logger.Error("Failed to stop server after HTTP failure", "error", stopErr)
+			}
+			return err
+		}
+		logger.Info("HTTP server stopped gracefully")
 		return s.Stop(ctx)
 	}
 }

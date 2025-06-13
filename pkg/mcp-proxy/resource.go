@@ -14,16 +14,16 @@ import (
 // It provides concurrent loading with bounded parallelism using a semaphore to prevent resource exhaustion.
 // The loader supports pagination for large resource sets and includes proper error handling and logging.
 type ResourceLoader struct {
-	client    *MCPClient        // MCP client to load resources from
-	mcpServer *server.MCPServer // Proxy server to register resources to
-	name      string            // Client name for logging and identification
-	sem       chan struct{}     // Reusable semaphore to limit concurrent operations
+	client    MCPClientInterface // MCP client to load resources from
+	mcpServer *server.MCPServer  // Proxy server to register resources to
+	name      string             // Client name for logging and identification
+	sem       chan struct{}      // Reusable semaphore to limit concurrent operations
 }
 
 // NewResourceLoader creates a new resource loader for the given MCP client and proxy server.
 // The loader is configured with a bounded semaphore (maxConcurrentAdds=5) to limit concurrent
 // resource registration operations and prevent overwhelming the system.
-func NewResourceLoader(client *MCPClient, mcpServer *server.MCPServer, name string) *ResourceLoader {
+func NewResourceLoader(client MCPClientInterface, mcpServer *server.MCPServer, name string) *ResourceLoader {
 	const maxConcurrentAdds = MaxConcurrentResourceAdds
 	return &ResourceLoader{
 		client:    client,

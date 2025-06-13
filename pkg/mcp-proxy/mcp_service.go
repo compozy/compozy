@@ -68,10 +68,21 @@ func (s *MCPService) CreateMCP(ctx context.Context, def *MCPDefinition) error {
 	// Register the proxy. The proxy will wait for the client to connect.
 	if s.proxyHandlers != nil {
 		if err := s.proxyHandlers.RegisterMCPProxy(ctx, def.Name, def); err != nil {
-			// This is a tricky state. The client is being managed, but proxying will fail.
-			// Log a clear warning. The system can potentially recover if registration is retried.
-			logger.Error("Client added but proxy registration failed", "name", def.Name, "error", err)
-			// You might want to return a specific error here to indicate a partial success.
+			// Roll back client addition to maintain consistency
+			if removeErr := s.clientManager.RemoveClient(ctx, def.Name); removeErr != nil {
+				logger.Error(
+					"Failed to roll back client addition after proxy registration failure",
+					"name", def.Name, "remove_error", removeErr,
+				)
+			}
+			// Also roll back storage save
+			if delErr := s.storage.DeleteMCP(context.Background(), def.Name); delErr != nil {
+				logger.Error(
+					"Failed to roll back MCP storage after proxy registration failure",
+					"name", def.Name, "delete_error", delErr,
+				)
+			}
+			return fmt.Errorf("%w: %v", ErrProxyRegFailed, err)
 		}
 	}
 	return nil

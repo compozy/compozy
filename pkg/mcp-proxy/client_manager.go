@@ -228,7 +228,7 @@ func (m *MCPClientManager) RemoveClient(ctx context.Context, name string) error 
 }
 
 // GetClient returns an MCP client by name
-func (m *MCPClientManager) GetClient(name string) (*MCPClient, error) {
+func (m *MCPClientManager) GetClient(name string) (MCPClientInterface, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 

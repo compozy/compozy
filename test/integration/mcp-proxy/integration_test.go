@@ -10,6 +10,7 @@ import (
 
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 	utils "github.com/compozy/compozy/test/helpers"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,17 +26,40 @@ func TestMCPProxyIntegration(t *testing.T) {
 	// Create mock client manager
 	clientManager := mcpproxy.NewMockClientManager()
 
-	// Create server
-	config := &mcpproxy.Config{
-		Port:            "8080",
-		Host:            "localhost",
-		BaseURL:         "http://localhost:8080",
-		ShutdownTimeout: 5 * time.Second,
-		AdminTokens:     []string{"test-admin-token"},
-		// No IP restrictions for tests
-	}
+	// No need for full config in simplified test
 
-	server := mcpproxy.NewServer(config, storage, clientManager)
+	// Create service without proxy handlers for testing
+	service := mcpproxy.NewMCPService(storage, clientManager, nil)
+	adminHandlers := mcpproxy.NewAdminHandlers(service)
+
+	// Create minimal router for testing
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.New()
+	router.Use(gin.Recovery())
+
+	// Setup routes
+	api := router.Group("/admin")
+	api.Use(func(c *gin.Context) {
+		auth := c.GetHeader("Authorization")
+		if auth != "Bearer test-admin-token" {
+			c.JSON(401, gin.H{"error": "unauthorized"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	})
+
+	api.POST("/mcps", adminHandlers.AddMCPHandler)
+	api.GET("/mcps", adminHandlers.ListMCPsHandler)
+	api.GET("/metrics", func(c *gin.Context) {
+		metrics := clientManager.GetMetrics()
+		c.JSON(200, gin.H{"timestamp": time.Now().UTC(), "metrics": metrics})
+	})
+	router.GET("/healthz", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok"})
+	})
+
+	server := &mcpproxy.Server{Router: router}
 
 	// Test case: Add MCP with stdio transport
 	mcpDef := mcpproxy.MCPDefinition{

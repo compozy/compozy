@@ -26,7 +26,7 @@ type ProxyHandlers struct {
 type ProxyServer struct {
 	mcpServer *server.MCPServer
 	sseServer *server.SSEServer
-	client    *MCPClient
+	client    MCPClientInterface
 	def       *MCPDefinition // Cache definition to avoid repeated storage queries
 }
 
@@ -228,7 +228,7 @@ func (p *ProxyHandlers) StreamableHTTPProxyHandler(c *gin.Context) {
 // initializeClientConnection waits for the MCP client to be connected and then loads its capabilities to the server
 func (p *ProxyHandlers) initializeClientConnection(
 	ctx context.Context,
-	client *MCPClient,
+	client MCPClientInterface,
 	mcpServer *server.MCPServer,
 	name string,
 	def *MCPDefinition,

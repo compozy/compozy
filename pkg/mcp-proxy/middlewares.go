@@ -81,12 +81,12 @@ func newAuthMiddleware(tokens []string) MiddlewareFunc {
 				return
 			}
 
-			if !strings.HasPrefix(authHeader, bearerPrefix) {
+			if len(authHeader) < len(bearerPrefix) || !strings.EqualFold(authHeader[:len(bearerPrefix)], bearerPrefix) {
 				http.Error(w, "Invalid authorization format", http.StatusUnauthorized)
 				return
 			}
 
-			token := strings.TrimPrefix(authHeader, bearerPrefix)
+			token := strings.TrimSpace(authHeader[len(bearerPrefix):])
 			if _, valid := tokenSet[token]; !valid {
 				http.Error(w, "Invalid token", http.StatusUnauthorized)
 				return
