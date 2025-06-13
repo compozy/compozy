@@ -219,6 +219,218 @@ func TestAutoLoader_Discover(t *testing.T) {
 	})
 }
 
+func TestAutoLoader_LoadWithResult(t *testing.T) {
+	logger.InitForTests()
+	t.Run("Should return detailed results for successful loading", func(t *testing.T) {
+		tempDir := t.TempDir()
+		registry := NewConfigRegistry()
+		config := &Config{
+			Enabled: true,
+			Strict:  false,
+			Include: []string{"workflows/*.yaml"},
+		}
+		loader := New(tempDir, config, registry)
+		// Create multiple valid configuration files
+		workflowContent1 := `resource: workflow
+id: workflow-1
+version: "1.0"
+description: First workflow
+`
+		workflowContent2 := `resource: workflow
+id: workflow-2
+version: "1.0"
+description: Second workflow
+`
+		workflowsDir := filepath.Join(tempDir, "workflows")
+		err := os.MkdirAll(workflowsDir, 0755)
+		require.NoError(t, err)
+		err = os.WriteFile(filepath.Join(workflowsDir, "workflow1.yaml"), []byte(workflowContent1), 0644)
+		require.NoError(t, err)
+		err = os.WriteFile(filepath.Join(workflowsDir, "workflow2.yaml"), []byte(workflowContent2), 0644)
+		require.NoError(t, err)
+		result, err := loader.LoadWithResult(context.Background())
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 2, result.FilesProcessed)
+		assert.Equal(t, 2, result.ConfigsLoaded)
+		assert.Empty(t, result.Errors)
+	})
+
+	t.Run("Should aggregate errors in non-strict mode", func(t *testing.T) {
+		tempDir := t.TempDir()
+		registry := NewConfigRegistry()
+		config := &Config{
+			Enabled: true,
+			Strict:  false,
+			Include: []string{"**/*.yaml"},
+		}
+		loader := New(tempDir, config, registry)
+		// Create mixed valid and invalid files
+		validContent := `resource: workflow
+id: valid-workflow
+version: "1.0"
+`
+		invalidContent1 := `id: missing-resource
+version: "1.0"
+`
+		invalidContent2 := `resource: workflow
+version: "1.0"
+`
+		err := os.WriteFile(filepath.Join(tempDir, "valid.yaml"), []byte(validContent), 0644)
+		require.NoError(t, err)
+		err = os.WriteFile(filepath.Join(tempDir, "invalid1.yaml"), []byte(invalidContent1), 0644)
+		require.NoError(t, err)
+		err = os.WriteFile(filepath.Join(tempDir, "invalid2.yaml"), []byte(invalidContent2), 0644)
+		require.NoError(t, err)
+		result, err := loader.LoadWithResult(context.Background())
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 3, result.FilesProcessed)
+		assert.Equal(t, 1, result.ConfigsLoaded)
+		assert.Len(t, result.Errors, 2)
+		// Verify error details
+		errorFiles := make([]string, len(result.Errors))
+		for i, loadErr := range result.Errors {
+			errorFiles[i] = filepath.Base(loadErr.File)
+		}
+		assert.Contains(t, errorFiles, "invalid1.yaml")
+		assert.Contains(t, errorFiles, "invalid2.yaml")
+	})
+
+	t.Run("Should fail fast in strict mode with detailed error", func(t *testing.T) {
+		tempDir := t.TempDir()
+		registry := NewConfigRegistry()
+		config := &Config{
+			Enabled: true,
+			Strict:  true,
+			Include: []string{"**/*.yaml"},
+		}
+		loader := New(tempDir, config, registry)
+		invalidContent := `id: missing-resource
+version: "1.0"
+`
+		err := os.WriteFile(filepath.Join(tempDir, "invalid.yaml"), []byte(invalidContent), 0644)
+		require.NoError(t, err)
+		result, err := loader.LoadWithResult(context.Background())
+		assert.Error(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 1, result.FilesProcessed)
+		assert.Equal(t, 0, result.ConfigsLoaded)
+		assert.Len(t, result.Errors, 1)
+		coreErr, ok := err.(*core.Error)
+		require.True(t, ok)
+		assert.Equal(t, "AUTOLOAD_FILE_FAILED", coreErr.Code)
+	})
+
+	t.Run("Should handle no valid configs in strict mode", func(t *testing.T) {
+		tempDir := t.TempDir()
+		registry := NewConfigRegistry()
+		config := &Config{
+			Enabled: true,
+			Strict:  true,
+			Include: []string{"**/*.yaml"},
+		}
+		loader := New(tempDir, config, registry)
+		// Create only invalid files - in strict mode, it will fail on the first error
+		invalidContent1 := `id: missing-resource`
+		invalidContent2 := `resource: workflow`
+		err := os.WriteFile(filepath.Join(tempDir, "invalid1.yaml"), []byte(invalidContent1), 0644)
+		require.NoError(t, err)
+		err = os.WriteFile(filepath.Join(tempDir, "invalid2.yaml"), []byte(invalidContent2), 0644)
+		require.NoError(t, err)
+		result, err := loader.LoadWithResult(context.Background())
+		assert.Error(t, err)
+		assert.NotNil(t, result)
+		// In strict mode, it fails fast on first error, so FilesProcessed will be 1
+		assert.Equal(t, 1, result.FilesProcessed)
+		assert.Equal(t, 0, result.ConfigsLoaded)
+		assert.Len(t, result.Errors, 1)
+		coreErr, ok := err.(*core.Error)
+		require.True(t, ok)
+		assert.Equal(t, "AUTOLOAD_FILE_FAILED", coreErr.Code)
+	})
+}
+
+func TestAutoLoader_Stats(t *testing.T) {
+	logger.InitForTests()
+	t.Run("Should return correct statistics", func(t *testing.T) {
+		tempDir := t.TempDir()
+		registry := NewConfigRegistry()
+		config := &Config{Enabled: true, Include: []string{"**/*.yaml"}}
+		loader := New(tempDir, config, registry)
+		// Manually register some configurations for testing
+		workflowConfig := map[string]any{"resource": "workflow", "id": "test-workflow"}
+		agentConfig := map[string]any{"resource": "agent", "id": "test-agent"}
+		err := registry.Register(workflowConfig, "test")
+		require.NoError(t, err)
+		err = registry.Register(agentConfig, "test")
+		require.NoError(t, err)
+		stats := loader.Stats()
+		assert.Equal(t, 2, stats["total_configs"])
+		assert.Equal(t, 1, stats["workflows"])
+		assert.Equal(t, 1, stats["agents"])
+		assert.Equal(t, 0, stats["tools"])
+		assert.Equal(t, 0, stats["mcps"])
+	})
+}
+
+func TestAutoLoader_Validate(t *testing.T) {
+	logger.InitForTests()
+	t.Run("Should perform dry-run validation without affecting main registry", func(t *testing.T) {
+		tempDir := t.TempDir()
+		registry := NewConfigRegistry()
+		config := &Config{
+			Enabled: true,
+			Strict:  false,
+			Include: []string{"workflows/*.yaml"},
+		}
+		loader := New(tempDir, config, registry)
+		// Create test files
+		validContent := `resource: workflow
+id: test-workflow
+version: "1.0"
+`
+		invalidContent := `id: missing-resource
+version: "1.0"
+`
+		workflowsDir := filepath.Join(tempDir, "workflows")
+		err := os.MkdirAll(workflowsDir, 0755)
+		require.NoError(t, err)
+		err = os.WriteFile(filepath.Join(workflowsDir, "valid.yaml"), []byte(validContent), 0644)
+		require.NoError(t, err)
+		err = os.WriteFile(filepath.Join(workflowsDir, "invalid.yaml"), []byte(invalidContent), 0644)
+		require.NoError(t, err)
+		// Original registry should be empty
+		assert.Equal(t, 0, registry.Count())
+		// Run validation
+		result, err := loader.Validate(context.Background())
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 2, result.FilesProcessed)
+		assert.Equal(t, 1, result.ConfigsLoaded)
+		assert.Len(t, result.Errors, 1)
+		// Original registry should still be empty
+		assert.Equal(t, 0, registry.Count())
+	})
+}
+
+func TestAutoLoader_GetConfig(t *testing.T) {
+	t.Run("Should return the autoload configuration", func(t *testing.T) {
+		tempDir := t.TempDir()
+		config := &Config{
+			Enabled: true,
+			Strict:  false,
+			Include: []string{"**/*.yaml"},
+		}
+		loader := New(tempDir, config, nil)
+		returnedConfig := loader.GetConfig()
+		assert.Equal(t, config, returnedConfig)
+		assert.True(t, returnedConfig.Enabled)
+		assert.False(t, returnedConfig.Strict)
+		assert.Equal(t, []string{"**/*.yaml"}, returnedConfig.Include)
+	})
+}
+
 func TestAutoLoader_validateFilePath(t *testing.T) {
 	tempDir := t.TempDir()
 	loader := &AutoLoader{projectRoot: tempDir}

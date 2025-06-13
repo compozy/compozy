@@ -37,43 +37,94 @@ func New(projectRoot string, config *Config, registry *ConfigRegistry) *AutoLoad
 	}
 }
 
+// LoadResult contains the results of the loading operation
+type LoadResult struct {
+	FilesProcessed int
+	ConfigsLoaded  int
+	Errors         []LoadError
+}
+
+// LoadError represents an error that occurred during file loading
+type LoadError struct {
+	File  string
+	Error error
+}
+
 // Load discovers and loads all configuration files
 func (al *AutoLoader) Load(ctx context.Context) error {
+	result, err := al.LoadWithResult(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Log final summary
+	logger.Info("AutoLoad completed",
+		"files_processed", result.FilesProcessed,
+		"configs_loaded", result.ConfigsLoaded,
+		"errors", len(result.Errors))
+
+	return nil
+}
+
+// LoadWithResult discovers and loads all configuration files, returning detailed results
+func (al *AutoLoader) LoadWithResult(ctx context.Context) (*LoadResult, error) {
+	result := &LoadResult{
+		Errors: make([]LoadError, 0),
+	}
+
 	if !al.config.Enabled {
-		return nil
+		logger.Info("AutoLoad disabled, skipping")
+		return result, nil
 	}
 
 	// 1. Discover files
 	files, err := al.discoverer.Discover(al.config.Include, al.config.Exclude)
 	if err != nil {
-		return core.NewError(err, "AUTOLOAD_DISCOVERY_FAILED", nil)
+		logger.Error("File discovery failed", "error", err)
+		return result, core.NewError(err, "AUTOLOAD_DISCOVERY_FAILED", nil)
 	}
 
 	logger.Info("Discovered configuration files", "count", len(files))
 
-	// 2. Load each file
+	if len(files) == 0 {
+		logger.Info("No configuration files found matching patterns")
+		return result, nil
+	}
+
+	// 2. Load each file with error aggregation
 	for _, file := range files {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return result, ctx.Err()
 		default:
 			// Continue processing
 		}
+
+		result.FilesProcessed++
+
 		// Load and register the configuration file
 		if err := al.loadAndRegisterConfig(file); err != nil {
+			loadErr := LoadError{File: file, Error: err}
+			result.Errors = append(result.Errors, loadErr)
+
 			if al.config.Strict {
-				return core.NewError(err, "AUTOLOAD_FILE_FAILED", map[string]any{
-					"file": file,
+				return result, core.NewError(err, "AUTOLOAD_FILE_FAILED", map[string]any{
+					"file":             file,
+					"total_files":      len(files),
+					"processed_so_far": result.FilesProcessed,
 				})
 			}
 			logger.Warn("Skipping invalid config file", "file", file, "error", err)
+		} else {
+			result.ConfigsLoaded++
+			logger.Debug("Successfully loaded config file", "file", file)
 		}
 	}
 
 	// 3. Install lazy resolver for resource:: scope
 	// TODO: Implement in resource resolution task
 
-	return nil
+	return result, nil
 }
 
 // Discover returns the list of files that would be loaded
@@ -84,6 +135,37 @@ func (al *AutoLoader) Discover(_ context.Context) ([]string, error) {
 // GetRegistry returns the config registry
 func (al *AutoLoader) GetRegistry() *ConfigRegistry {
 	return al.registry
+}
+
+// GetConfig returns the autoload configuration
+func (al *AutoLoader) GetConfig() *Config {
+	return al.config
+}
+
+// Stats returns current statistics about loaded configurations
+func (al *AutoLoader) Stats() map[string]int {
+	return map[string]int{
+		"total_configs": al.registry.Count(),
+		"workflows":     al.registry.CountByType("workflow"),
+		"agents":        al.registry.CountByType("agent"),
+		"tools":         al.registry.CountByType("tool"),
+		"mcps":          al.registry.CountByType("mcp"),
+	}
+}
+
+// Validate performs a dry-run validation of all discoverable files
+func (al *AutoLoader) Validate(ctx context.Context) (*LoadResult, error) {
+	// Create a temporary registry for validation
+	tempRegistry := NewConfigRegistry()
+	tempLoader := &AutoLoader{
+		projectRoot: al.projectRoot,
+		config:      al.config,
+		registry:    tempRegistry,
+		discoverer:  al.discoverer,
+	}
+
+	// Run load with temporary registry
+	return tempLoader.LoadWithResult(ctx)
 }
 
 // loadAndRegisterConfig loads a configuration file and registers it in the registry
@@ -107,7 +189,7 @@ func (al *AutoLoader) validateFilePath(filePath string) error {
 	absFile, err := filepath.Abs(filePath)
 	if err != nil {
 		return core.NewError(
-			fmt.Errorf("failed to get absolute path for %s: %w", filePath, err),
+			err,
 			"PATH_RESOLUTION_FAILED",
 			map[string]any{"file": filePath},
 		)
@@ -115,20 +197,25 @@ func (al *AutoLoader) validateFilePath(filePath string) error {
 	absProject, err := filepath.Abs(al.projectRoot)
 	if err != nil {
 		return core.NewError(
-			fmt.Errorf("failed to get absolute project root: %w", err),
+			err,
 			"PATH_RESOLUTION_FAILED",
 			map[string]any{"projectRoot": al.projectRoot},
 		)
 	}
+
+	// Normalize case for case-insensitive filesystems (Windows)
+	absFileNorm := strings.ToLower(absFile)
+	absProjectNorm := strings.ToLower(absProject)
+
 	// Check if the file is within the project root using filepath.Rel
-	relPath, err := filepath.Rel(absProject, absFile)
+	relPath, err := filepath.Rel(absProjectNorm, absFileNorm)
 	if err != nil || strings.HasPrefix(relPath, "..") || filepath.IsAbs(relPath) {
 		return core.NewError(
 			errors.New("file path escapes project root"),
 			"PATH_TRAVERSAL_ATTEMPT",
 			map[string]any{
-				"file":        filePath,
-				"projectRoot": al.projectRoot,
+				"file":        absFileNorm,
+				"projectRoot": absProjectNorm,
 			},
 		)
 	}

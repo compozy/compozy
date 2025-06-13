@@ -217,6 +217,43 @@ func TestConfigRegistrySimple_Concurrency(t *testing.T) {
 	})
 }
 
+func TestConfigRegistrySimple_CountByType(t *testing.T) {
+	t.Run("Should count configurations by type", func(t *testing.T) {
+		registry := NewConfigRegistry()
+		// Register different types of configurations
+		workflow1 := &mockWorkflowConfig{Resource: "Workflow", ID: "workflow-1"}
+		workflow2 := &mockWorkflowConfig{Resource: "Workflow", ID: "workflow-2"}
+		agent := &mockAgentConfig{Resource: "Agent", ID: "agent-1"}
+		err := registry.Register(workflow1, "test")
+		require.NoError(t, err)
+		err = registry.Register(workflow2, "test")
+		require.NoError(t, err)
+		err = registry.Register(agent, "test")
+		require.NoError(t, err)
+		// Test counts
+		assert.Equal(t, 2, registry.CountByType("workflow"))
+		assert.Equal(t, 1, registry.CountByType("agent"))
+		assert.Equal(t, 0, registry.CountByType("tool"))
+		assert.Equal(t, 0, registry.CountByType("nonexistent"))
+	})
+
+	t.Run("Should handle case-insensitive type names", func(t *testing.T) {
+		registry := NewConfigRegistry()
+		workflow := &mockWorkflowConfig{Resource: "WORKFLOW", ID: "test-workflow"}
+		err := registry.Register(workflow, "test")
+		require.NoError(t, err)
+		assert.Equal(t, 1, registry.CountByType("workflow"))
+		assert.Equal(t, 1, registry.CountByType("WORKFLOW"))
+		assert.Equal(t, 1, registry.CountByType("Workflow"))
+	})
+
+	t.Run("Should return zero for empty registry", func(t *testing.T) {
+		registry := NewConfigRegistry()
+		assert.Equal(t, 0, registry.CountByType("workflow"))
+		assert.Equal(t, 0, registry.CountByType("agent"))
+	})
+}
+
 func TestExtractResourceInfoSimple(t *testing.T) {
 	t.Run("Should extract info from config with Resource field", func(t *testing.T) {
 		config := &mockWorkflowConfig{

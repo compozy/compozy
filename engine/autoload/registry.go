@@ -261,3 +261,16 @@ func extractResourceInfoFromMap(configMap map[string]any) (resourceType string, 
 	}
 	return resourceType, id, nil
 }
+
+// CountByType returns the number of configurations of a specific resource type
+func (r *ConfigRegistry) CountByType(resourceType string) int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	configs, exists := r.configs[strings.ToLower(resourceType)]
+	if !exists {
+		return 0
+	}
+
+	return len(configs)
+}
