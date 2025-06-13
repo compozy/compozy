@@ -28,7 +28,7 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 	t.Run("Should store parallel metadata successfully", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 
 		parentStateID := core.MustNewID()
 		child1 := createTaskConfig("child1", task.TaskTypeBasic)
@@ -69,7 +69,7 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 	t.Run("Should fail with empty parent state ID", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -89,7 +89,7 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 	t.Run("Should fail with nil task config", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 		parentStateID := core.MustNewID()
 
 		// Act
@@ -103,7 +103,7 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 	t.Run("Should fail with wrong task type", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 		parentStateID := core.MustNewID()
 		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
@@ -124,7 +124,7 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 	t.Run("Should fail with no child tasks", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 		parentStateID := core.MustNewID()
 		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
@@ -148,7 +148,7 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 	t.Run("Should fail with child config missing ID", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 		parentStateID := core.MustNewID()
 		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
@@ -177,7 +177,7 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 	t.Run("Should store collection metadata successfully", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 
 		parentStateID := core.MustNewID()
 		workflowState := &workflow.State{
@@ -232,7 +232,7 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 	t.Run("Should fail with empty parent state ID", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 		workflowState := &workflow.State{}
 		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
@@ -253,7 +253,7 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 	t.Run("Should fail with nil task config", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 		parentStateID := core.MustNewID()
 		workflowState := &workflow.State{}
 
@@ -268,7 +268,7 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 	t.Run("Should fail with wrong task type", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 		parentStateID := core.MustNewID()
 		workflowState := &workflow.State{}
 		CWD, _ := core.CWDFromPath("/tmp")
@@ -290,7 +290,7 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 	t.Run("Should fail with nil workflow state", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 		parentStateID := core.MustNewID()
 		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
@@ -313,7 +313,7 @@ func TestConfigManager_LoadParallelTaskMetadata(t *testing.T) {
 	t.Run("Should load parallel metadata successfully", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 
 		parentStateID := core.MustNewID()
 		CWD, _ := core.CWDFromPath("/tmp")
@@ -352,7 +352,7 @@ func TestConfigManager_LoadParallelTaskMetadata(t *testing.T) {
 	t.Run("Should fail when metadata not found", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 		parentStateID := core.MustNewID()
 
 		// Act
@@ -368,7 +368,7 @@ func TestConfigManager_LoadCollectionTaskMetadata(t *testing.T) {
 	t.Run("Should load collection metadata successfully", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 
 		parentStateID := core.MustNewID()
 		workflowState := &workflow.State{
@@ -417,7 +417,7 @@ func TestConfigManager_LoadCollectionTaskMetadata(t *testing.T) {
 	t.Run("Should fail when metadata not found", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 		parentStateID := core.MustNewID()
 
 		// Act
@@ -433,7 +433,7 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 	t.Run("Should handle collection with filter that removes all items", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 
 		parentStateID := core.MustNewID()
 		workflowState := &workflow.State{
@@ -474,7 +474,7 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 	t.Run("Should handle parallel task with batch size in collection mode", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 
 		parentStateID := core.MustNewID()
 		workflowState := &workflow.State{
@@ -521,7 +521,7 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 func TestConfigManager_TaskConfigOperations(t *testing.T) {
 	t.Run("Should save and delete task config successfully", func(t *testing.T) {
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore)
+		cm := NewConfigManager(configStore, nil)
 		ctx := context.Background()
 		taskExecID := core.MustNewID()
 		taskConfig := createTaskConfig("test-task", task.TaskTypeBasic)

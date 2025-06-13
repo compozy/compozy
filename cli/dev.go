@@ -162,7 +162,7 @@ func DevCmd() *cobra.Command {
 	cmd.Flags().Int("port", 3001, "Port to run the development server on")
 	cmd.Flags().String("host", "0.0.0.0", "Host to bind the server to")
 	cmd.Flags().Bool("cors", false, "Enable CORS")
-	cmd.Flags().String("CWD", "", "Working directory for the project")
+	cmd.Flags().String("cwd", "", "Working directory for the project")
 	cmd.Flags().String("config", "compozy.yaml", "Path to the project configuration file")
 	cmd.Flags().String("env-file", ".env", "Path to the environment variables file")
 

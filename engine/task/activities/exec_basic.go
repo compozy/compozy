@@ -34,8 +34,9 @@ func NewExecuteBasic(
 	taskRepo task.Repository,
 	runtime *runtime.Manager,
 	configStore services.ConfigStore,
+	cwd *core.PathCWD,
 ) *ExecuteBasic {
-	configManager := services.NewConfigManager(configStore)
+	configManager := services.NewConfigManager(configStore, cwd)
 	return &ExecuteBasic{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:  uc.NewCreateState(taskRepo, configManager),

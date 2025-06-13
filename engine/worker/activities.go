@@ -98,6 +98,7 @@ func (a *Activities) ExecuteBasicTask(
 		a.taskRepo,
 		a.runtime,
 		a.configStore,
+		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
 }
@@ -114,6 +115,7 @@ func (a *Activities) ExecuteRouterTask(
 		a.workflowRepo,
 		a.taskRepo,
 		a.configStore,
+		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
 }
@@ -130,6 +132,7 @@ func (a *Activities) CreateParallelState(
 		a.workflowRepo,
 		a.taskRepo,
 		a.configStore,
+		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
 }
@@ -196,6 +199,7 @@ func (a *Activities) CreateCollectionState(
 		a.workflowRepo,
 		a.taskRepo,
 		a.configStore,
+		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
 }

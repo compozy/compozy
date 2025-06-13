@@ -40,14 +40,16 @@ type CollectionMetadata struct {
 }
 
 type ConfigManager struct {
+	cwd                  *core.PathCWD
 	configStore          ConfigStore
 	collectionNormalizer *normalizer.CollectionNormalizer
 	configBuilder        *normalizer.CollectionConfigBuilder
 	contextBuilder       *normalizer.ContextBuilder
 }
 
-func NewConfigManager(configStore ConfigStore) *ConfigManager {
+func NewConfigManager(configStore ConfigStore, cwd *core.PathCWD) *ConfigManager {
 	return &ConfigManager{
+		cwd:                  cwd,
 		configStore:          configStore,
 		collectionNormalizer: normalizer.NewCollectionNormalizer(),
 		configBuilder:        normalizer.NewCollectionConfigBuilder(),
@@ -75,13 +77,22 @@ func (cm *ConfigManager) PrepareParallelConfigs(
 		return fmt.Errorf("parallel task must have at least one child task")
 	}
 
+	// Ensure child configs inherit CWD from parent before validation
+	if err := task.PropagateTaskListCWD(taskConfig.Tasks, taskConfig.CWD, "parallel child task"); err != nil {
+		return fmt.Errorf("failed to propagate CWD to child configs: %w", err)
+	}
+
 	// Validate child configs
 	for i := range taskConfig.Tasks {
-		if taskConfig.Tasks[i].ID == "" {
+		taskConfig := &taskConfig.Tasks[i]
+		if taskConfig.ID == "" {
 			return fmt.Errorf("child config at index %d missing required ID field", i)
 		}
+		if taskConfig.CWD == nil {
+			taskConfig.CWD = cm.cwd
+		}
 		// Perform full validation on each child config
-		if err := taskConfig.Tasks[i].Validate(); err != nil {
+		if err := taskConfig.Validate(); err != nil {
 			return fmt.Errorf("invalid child config at index %d: %w", i, err)
 		}
 	}
@@ -144,6 +155,12 @@ func (cm *ConfigManager) PrepareCollectionConfigs(
 	if len(childConfigs) == 0 {
 		return nil, fmt.Errorf("no child configs generated for collection task %s", parentStateID)
 	}
+
+	// Ensure child configs inherit CWD from parent before validation
+	if err := task.PropagateTaskListCWD(childConfigs, taskConfig.CWD, "collection child task"); err != nil {
+		return nil, fmt.Errorf("failed to propagate CWD to child configs: %w", err)
+	}
+
 	for i := range childConfigs {
 		if childConfigs[i].ID == "" {
 			return nil, fmt.Errorf("generated child config at index %d missing required ID field", i)

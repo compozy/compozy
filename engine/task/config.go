@@ -387,8 +387,8 @@ func setCWDForTask(task *Config, parentCWD *core.PathCWD, taskType string) error
 	return nil
 }
 
-// propagateCWDToTaskList propagates CWD to a list of tasks
-func propagateCWDToTaskList(tasks []Config, parentCWD *core.PathCWD, taskType string) error {
+// PropagateTaskListCWD propagates CWD to a list of tasks
+func PropagateTaskListCWD(tasks []Config, parentCWD *core.PathCWD, taskType string) error {
 	for i := range tasks {
 		if err := setCWDForTask(&tasks[i], parentCWD, taskType); err != nil {
 			return err
@@ -400,8 +400,8 @@ func propagateCWDToTaskList(tasks []Config, parentCWD *core.PathCWD, taskType st
 	return nil
 }
 
-// propagateCWDToSingleTask propagates CWD to a single task
-func propagateCWDToSingleTask(task *Config, parentCWD *core.PathCWD, taskType string) error {
+// PropagateSingleTaskCWD propagates CWD to a single task
+func PropagateSingleTaskCWD(task *Config, parentCWD *core.PathCWD, taskType string) error {
 	if err := setCWDForTask(task, parentCWD, taskType); err != nil {
 		return err
 	}
@@ -412,16 +412,16 @@ func propagateCWDToSubTasks(config *Config) error {
 	switch config.Type {
 	case TaskTypeParallel:
 		if len(config.Tasks) > 0 {
-			return propagateCWDToTaskList(config.Tasks, config.CWD, "sub-task")
+			return PropagateTaskListCWD(config.Tasks, config.CWD, "sub-task")
 		}
 	case TaskTypeCollection:
 		if config.Task != nil {
-			if err := propagateCWDToSingleTask(config.Task, config.CWD, "collection task template"); err != nil {
+			if err := PropagateSingleTaskCWD(config.Task, config.CWD, "collection task template"); err != nil {
 				return err
 			}
 		}
 		if len(config.Tasks) > 0 {
-			return propagateCWDToTaskList(config.Tasks, config.CWD, "collection task")
+			return PropagateTaskListCWD(config.Tasks, config.CWD, "collection task")
 		}
 	}
 	return nil

@@ -158,7 +158,12 @@ func deepCopyConfig(original *task.Config) (*task.Config, error) {
 		maps.Copy(outputsCopy, *original.Outputs)
 		copied.Outputs = &outputsCopy
 	}
-
+	// Copy CWD to ensure child configs have the working directory set
+	if original.CWD != nil {
+		copied.CWD = original.CWD
+	}
+	// Copy FilePath as well
+	copied.FilePath = original.FilePath
 	// --- recursively copy nested task(s) ----------------------------------
 	if original.Task != nil {
 		taskCopy, err := deepCopyConfig(original.Task)

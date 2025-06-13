@@ -32,8 +32,9 @@ func NewCreateCollectionState(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
+	cwd *core.PathCWD,
 ) *CreateCollectionState {
-	configManager := services.NewConfigManager(configStore)
+	configManager := services.NewConfigManager(configStore, cwd)
 	return &CreateCollectionState{
 		loadWorkflowUC:     uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:      uc.NewCreateState(taskRepo, configManager),

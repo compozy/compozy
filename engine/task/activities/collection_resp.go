@@ -49,8 +49,6 @@ func (a *GetCollectionResponse) Run(
 	}
 
 	executionError := a.processCollectionTask(ctx, input, taskConfig)
-
-	// Extract collection metadata from parent state
 	var itemCount, skippedCount int
 	if input.ParentState.Output != nil {
 		if metadata, exists := (*input.ParentState.Output)["collection_metadata"]; exists {
