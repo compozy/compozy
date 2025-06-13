@@ -7,13 +7,15 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/llm"
+	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 )
 
 type ExecuteTaskInput struct {
-	TaskConfig *task.Config `json:"task_config"`
+	TaskConfig   *task.Config `json:"task_config"`
+	WorkflowMCPs []mcp.Config `json:"workflow_mcps,omitempty"`
 }
 
 type ExecuteTask struct {
@@ -36,7 +38,7 @@ func (uc *ExecuteTask) Execute(ctx context.Context, input *ExecuteTaskInput) (*c
 		if actionID == "" {
 			return nil, fmt.Errorf("action ID is required for agent")
 		}
-		result, err = uc.executeAgent(ctx, agentConfig, actionID)
+		result, err = uc.executeAgent(ctx, agentConfig, actionID, input.WorkflowMCPs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute agent: %w", err)
 		}
@@ -56,13 +58,25 @@ func (uc *ExecuteTask) executeAgent(
 	ctx context.Context,
 	agentConfig *agent.Config,
 	actionID string,
+	workflowMCPs []mcp.Config,
 ) (*core.Output, error) {
 	actionConfig, err := agent.FindActionConfig(agentConfig.Actions, actionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find action config: %w", err)
 	}
 
-	llmService := llm.NewService(uc.runtime, agentConfig, actionConfig)
+	llmService, err := llm.NewService(uc.runtime, agentConfig, actionConfig, workflowMCPs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create LLM service: %w", err)
+	}
+	// Ensure MCP connections are properly closed when agent execution completes
+	defer func() {
+		if closeErr := llmService.Close(); closeErr != nil {
+			// Log error but don't fail the task
+			fmt.Printf("Warning: failed to close LLM service: %v\n", closeErr)
+		}
+	}()
+
 	result, err := llmService.GenerateContent(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate content: %w", err)

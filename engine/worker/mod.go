@@ -3,10 +3,12 @@ package worker
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/cache"
+	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
@@ -37,6 +39,7 @@ type Worker struct {
 	taskQueue     string
 	configStore   services.ConfigStore
 	redisCache    *cache.Cache
+	mcpRegister   *mcp.RegisterService
 }
 
 func NewWorker(
@@ -71,6 +74,17 @@ func NewWorker(
 
 	// Create Redis-backed ConfigStore with 24h TTL as per PRD
 	configStore := services.NewRedisConfigStore(redisCache.Redis, 24*time.Hour)
+
+	// Initialize MCP register and register all MCPs from all workflows
+	workflowConfigs := make([]mcp.WorkflowConfig, len(workflows))
+	for i, wf := range workflows {
+		workflowConfigs[i] = wf
+	}
+	mcpRegister, err := mcp.SetupForWorkflows(ctx, workflowConfigs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize MCP register: %w", err)
+	}
+
 	activities := NewActivities(
 		projectConfig,
 		workflows,
@@ -89,6 +103,7 @@ func NewWorker(
 		taskQueue:     taskQueue,
 		configStore:   configStore,
 		redisCache:    redisCache,
+		mcpRegister:   mcpRegister,
 	}, nil
 }
 
@@ -111,9 +126,19 @@ func (o *Worker) Setup(_ context.Context) error {
 	return o.worker.Start()
 }
 
-func (o *Worker) Stop() {
+func (o *Worker) Stop(ctx context.Context) {
 	o.worker.Stop()
 	o.client.Close()
+
+	// Deregister all MCPs from proxy on shutdown
+	if o.mcpRegister != nil {
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		if err := o.mcpRegister.Shutdown(ctx); err != nil {
+			logger.Error("failed to shutdown MCP register", "error", err)
+		}
+	}
+
 	if o.configStore != nil {
 		if err := o.configStore.Close(); err != nil {
 			logger.Error("failed to close config store", "error", err)
@@ -142,8 +167,26 @@ func (o *Worker) HealthCheck(ctx context.Context) error {
 			return fmt.Errorf("redis cache health check failed: %w", err)
 		}
 	}
+	// Check MCP proxy health if configured
+	if err := o.checkMCPProxyHealth(ctx); err != nil {
+		// Log error but don't fail health check since MCP proxy is optional
+		fmt.Printf("Warning: MCP proxy health check failed: %v\n", err)
+	}
 
 	return nil
+}
+
+// checkMCPProxyHealth checks if MCP proxy is healthy when configured
+func (o *Worker) checkMCPProxyHealth(ctx context.Context) error {
+	proxyURL := os.Getenv("MCP_PROXY_URL")
+	if proxyURL == "" {
+		return nil // No proxy configured
+	}
+	adminToken := os.Getenv("MCP_PROXY_ADMIN_TOKEN")
+	client := mcp.NewProxyClient(proxyURL, adminToken, 10*time.Second)
+	defer client.Close()
+
+	return client.Health(ctx)
 }
 
 // -----------------------------------------------------------------------------
@@ -176,6 +219,8 @@ func (o *Worker) TriggerWorkflow(
 	if err := workflowConfig.ValidateInput(ctx, input); err != nil {
 		return nil, fmt.Errorf("failed to validate workflow params: %w", err)
 	}
+
+	// MCPs are already registered at server startup, no need to register per workflow
 
 	_, err = o.client.ExecuteWorkflow(
 		ctx,

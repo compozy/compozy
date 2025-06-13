@@ -115,6 +115,8 @@ func InitManager(ctx workflow.Context, input WorkflowInput) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// MCP servers are initialized at server startup, not during workflow execution
 	contextBuilder := NewContextBuilder(
 		data.Workflows,
 		data.ProjectConfig,

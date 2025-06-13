@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -14,25 +15,32 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
-// createTestRedisStore creates a Redis store for testing
-// For proper integration tests, this should connect to a real Redis instance
-// For unit tests, you can use miniredis or mocks
+// createTestRedisStore creates a Redis store for testing using miniredis
 func createTestRedisStore(t *testing.T) ConfigStore {
 	// Initialize logger for tests
 	err := logger.Init(&logger.Config{Level: logger.InfoLevel})
 	require.NoError(t, err, "Failed to initialize logger")
 
+	// Create miniredis instance for testing
+	mr := miniredis.RunT(t)
+
 	// Create Redis configuration for testing
 	config := &cache.Config{
-		Host:     "localhost",
-		Port:     "6379",
-		Password: "redis_secret",
-		DB:       1, // Use a different DB for tests
+		Host:     mr.Host(),
+		Port:     mr.Port(),
+		Password: "", // miniredis doesn't use password
+		DB:       0,  // Use default DB for tests
 	}
 
 	ctx := context.Background()
 	redis, err := cache.NewRedis(ctx, config)
 	require.NoError(t, err, "Failed to connect to Redis for testing")
+
+	// Ensure cleanup when test finishes
+	t.Cleanup(func() {
+		redis.Close()
+		mr.Close()
+	})
 
 	// Use a short TTL for tests
 	return NewRedisConfigStore(redis, 10*time.Minute)
@@ -167,17 +175,26 @@ func TestRedisConfigStore_Delete(t *testing.T) {
 
 func TestRedisConfigStore_TTL(t *testing.T) {
 	t.Run("Should apply TTL to stored configs", func(t *testing.T) {
+		// Initialize logger for tests
+		err := logger.Init(&logger.Config{Level: logger.InfoLevel})
+		require.NoError(t, err, "Failed to initialize logger")
+
+		// Create miniredis instance for testing
+		mr := miniredis.RunT(t)
+		defer mr.Close()
+
 		// Create store with very short TTL for testing
 		config := &cache.Config{
-			Host:     "localhost",
-			Port:     "6379",
-			Password: "redis_secret",
-			DB:       1,
+			Host:     mr.Host(),
+			Port:     mr.Port(),
+			Password: "", // miniredis doesn't use password
+			DB:       0,  // Use default DB for tests
 		}
 
 		ctx := context.Background()
 		redis, err := cache.NewRedis(ctx, config)
 		require.NoError(t, err)
+		defer redis.Close()
 
 		store := NewRedisConfigStore(redis, 2*time.Second) // 2 second TTL
 		defer store.Close()
@@ -194,8 +211,8 @@ func TestRedisConfigStore_TTL(t *testing.T) {
 		_, err = store.Get(ctx, taskExecID)
 		require.NoError(t, err)
 
-		// Wait for TTL to expire
-		time.Sleep(3 * time.Second)
+		// Fast forward time in miniredis to simulate TTL expiration
+		mr.FastForward(3 * time.Second)
 
 		// Verify config has expired
 		_, err = store.Get(ctx, taskExecID)

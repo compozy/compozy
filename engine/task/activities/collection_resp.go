@@ -76,7 +76,7 @@ func (a *GetCollectionResponse) Run(
 	}
 
 	// Use TaskResponder to handle the collection response
-	return a.taskResponder.HandleCollection(ctx, &services.CollectionResponseInput{
+	response, err := a.taskResponder.HandleCollection(ctx, &services.CollectionResponseInput{
 		WorkflowConfig: input.WorkflowConfig,
 		TaskState:      input.ParentState,
 		TaskConfig:     input.TaskConfig,
@@ -84,6 +84,16 @@ func (a *GetCollectionResponse) Run(
 		ItemCount:      itemCount,
 		SkippedCount:   skippedCount,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	// If there was an execution error, the collection should be considered failed
+	if executionError != nil {
+		return response, executionError
+	}
+
+	return response, nil
 }
 
 // processCollectionTask handles collection task processing logic and returns execution error if any

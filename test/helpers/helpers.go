@@ -1,10 +1,12 @@
 package utils
 
 import (
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/logger"
 	"go.temporal.io/sdk/testsuite"
 )
 
@@ -68,4 +70,15 @@ func (sv *StatusValidator) ValidateStatusTransition(actualStatus core.StatusType
 // IsComplete returns true if all expected status transitions have been validated
 func (sv *StatusValidator) IsComplete() bool {
 	return sv.currentIndex >= len(sv.expectedStates)
+}
+
+var loggerOnce sync.Once
+
+func InitLogger(t *testing.T) {
+	loggerOnce.Do(func() {
+		if err := logger.InitForTests(); err != nil {
+			// Log the error but don't fail test initialization
+			t.Errorf("Warning: failed to initialize logger for tests: %v\n", err)
+		}
+	})
 }

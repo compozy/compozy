@@ -101,7 +101,9 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 		return nil, cleanupFuncs, err
 	}
 	cleanupFuncs = append(cleanupFuncs, func() {
-		worker.Stop()
+		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
+		defer cancel()
+		worker.Stop(ctx)
 	})
 
 	state, err := appstate.NewState(deps, worker)

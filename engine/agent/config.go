@@ -7,6 +7,7 @@ import (
 	"dario.cat/mergo"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/ref"
@@ -21,6 +22,7 @@ type Config struct {
 	Env          *core.EnvMap        `json:"env,omitempty"            yaml:"env,omitempty"            mapstructure:"env,omitempty"`
 	// When defined here, the agent will have toolChoice defined as "auto"
 	Tools         []tool.Config `json:"tools,omitempty"          yaml:"tools,omitempty"          mapstructure:"tools,omitempty"`
+	MCPs          []mcp.Config  `json:"mcps,omitempty"           yaml:"mcps,omitempty"           mapstructure:"mcps,omitempty"`
 	MaxIterations int           `json:"max_iterations,omitempty" yaml:"max_iterations,omitempty" mapstructure:"max_iterations,omitempty"`
 	JSONMode      bool          `json:"json_mode"                yaml:"json_mode"                mapstructure:"json_mode"`
 
@@ -90,7 +92,15 @@ func (a *Config) Validate() error {
 		NewActionsValidator(a.Actions),
 		schema.NewStructValidator(a),
 	)
-	return v.Validate()
+	if err := v.Validate(); err != nil {
+		return err
+	}
+	for i := range a.MCPs {
+		if err := a.MCPs[i].Validate(); err != nil {
+			return fmt.Errorf("mcp validation error: %w", err)
+		}
+	}
+	return nil
 }
 
 func (a *Config) ValidateInput(_ context.Context, _ *core.Input) error {

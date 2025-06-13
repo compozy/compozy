@@ -1,7 +1,8 @@
-package schemagen
+package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
@@ -61,6 +63,7 @@ func GenerateParserSchemas(outDir string) error {
 	}{
 		{"agent", &agent.Config{}},
 		{"project", &project.Config{}},
+		{"mcp", &mcp.Config{}},
 		{"task", &task.Config{}},
 		{"tool", &tool.Config{}},
 		{"workflow", &workflow.Config{}},
@@ -98,9 +101,18 @@ func GenerateParserSchemas(outDir string) error {
 }
 
 func main() {
-	// Example usage
-	outDir := "./schemas"
-	if err := GenerateParserSchemas(outDir); err != nil {
+	// Parse command line arguments
+	outDir := flag.String("out", "./schemas", "output directory for generated schemas")
+	flag.Parse()
+
+	// Convert to absolute path to avoid issues with relative paths
+	absOutDir, err := filepath.Abs(*outDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error converting path to absolute: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := GenerateParserSchemas(absOutDir); err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating schemas: %v\n", err)
 		os.Exit(1)
 	}

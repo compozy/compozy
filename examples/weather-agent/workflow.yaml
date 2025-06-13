@@ -16,13 +16,23 @@ config:
   input:
     $ref: local::schemas.#(id=="city_input")
 
+mcps:
+  - id: file_server
+    transport: stdio
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - "/Users/pedronauck/Dev/compozy/compozy/examples/weather-agent"
+    proto: "2025-03-26"
+    start_timeout: 15s
+
 tools:
   - id: weather_tool
     description: Get the current weather for a specific location
     execute: ./weather_tool.ts
     input:
       $ref: local::schemas.#(id=="city_input")
-
   - id: save_data
     description: Save the weather data to a file
     execute: ./save_tool.ts
@@ -34,16 +44,16 @@ agents:
     instructions: |
       You are a helpful tourist guide assistant specialized in the city {{ .workflow.input.city }}
       That's is your capabilities:
-      - You can use the `weather_tool` to fetch weather data (just when necessary and asked about it)
+      - You can use weather tools to fetch weather data (just when necessary and asked about it)
       - You can provide thoughtful recommendations for activities based on some weather data.
       - You can suggest clothing to use for specific activities and weather
       Always respond in valid JSON format.
+    tools:
+      - $ref: local::tools.#(id=="weather_tool")
     actions:
       - id: get_weather
         prompt: |
           What is the current weather in {{ .workflow.input.city }}?
-        tools:
-          - $ref: local::tools.#(id=="weather_tool")
       - id: suggest_activities
         json_mode: true
         prompt: |
@@ -87,6 +97,27 @@ agents:
           - Required equipment or preparation
           - Safety considerations
           Return your analysis in JSON format with the fields: best_time, tips, equipment, safety_notes.
+
+  - id: file_reader
+    config:
+      $ref: global::models.#(provider=="groq")
+    instructions: |
+      You are a file management assistant that uses MCP tools to read and list files.
+      Your responsibilities:
+      - Use MCP tools to check what files exist in the current directory
+      - Read file contents when needed
+    mcps:
+      - $ref: local::mcps.#(id=="file_server")
+    actions:
+      - id: list_saved_files
+        prompt: |
+          Use MCP tools to list the files in the current directory and find any files that were saved by the previous tasks.
+          Look specifically for:
+          - results.json files (weather data in JSON format)
+          - results.txt files (weather data in text format)
+          IMPORTANT: Use the read_directory MCP tool to list the directory contents.
+          The MCP server is configured to access the weather-agent directory.
+          Then return the file paths found in the directory.
 
 tasks:
   - id: weather
@@ -163,7 +194,6 @@ tasks:
     strategy: wait_all
     max_workers: 2
     timeout: 30s
-    final: true
     tasks:
       - id: save_json
         type: basic
@@ -171,10 +201,17 @@ tasks:
         with:
           payload: "{{ .tasks.clothing.output.save_data }}"
           format: "json"
-
       - id: save_txt
         type: basic
         $use: tool(local::tools.#(id="save_data"))
         with:
           payload: "{{ .tasks.clothing.output.save_data }}"
           format: "txt"
+    on_success:
+      next: verify_saved_files
+
+  - id: verify_saved_files
+    type: basic
+    $use: agent(local::agents.#(id="file_reader"))
+    action: list_saved_files
+    final: true

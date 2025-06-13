@@ -1,0 +1,123 @@
+---
+description: Core Go patterns and conventions required for Compozy development
+globs: **/*.go
+alwaysApply: true
+---
+
+# Core Go Patterns & Conventions
+
+## Concurrency Patterns
+
+**Thread-Safe Structures:**
+```go
+// Thread-safe structs with embedded mutex
+type Status struct {
+    Name   string
+    mu     sync.RWMutex // Protects all fields
+}
+```
+
+**Concurrent Operations:**
+```go
+// Concurrent operations with errgroup
+g, ctx := errgroup.WithContext(ctx)
+for _, item := range items {
+    item := item // capture loop variable
+    g.Go(func() error { return process(ctx, item) })
+}
+return g.Wait()
+```
+
+## Factory Pattern
+
+**MANDATORY for service creation:**
+```go
+func NewStorage(config *StorageConfig) (Storage, error) {
+    switch config.Type {
+    case StorageTypeRedis:
+        return NewRedisStorage(config.Redis)
+    case StorageTypeMemory:
+        return NewMemoryStorage(), nil
+    default:
+        return nil, fmt.Errorf("unsupported storage type: %s", config.Type)
+    }
+}
+```
+
+## Configuration with Defaults
+
+**Always provide defaults:**
+```go
+func NewService(config *Config) *Service {
+    if config == nil {
+        config = DefaultConfig() // Always provide defaults
+    }
+    return &Service{config: config}
+}
+```
+
+## Graceful Shutdown
+
+**REQUIRED for long-running services:**
+```go
+quit := make(chan os.Signal, 1)
+signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+select {
+case <-ctx.Done():
+    return shutdown(ctx)
+case <-quit:
+    return shutdown(ctx)
+}
+```
+
+## Middleware Pattern
+
+**For HTTP handlers:**
+```go
+func authMiddleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        if !isValidToken(c.GetHeader("Authorization")) {
+            c.JSON(401, gin.H{"error": "unauthorized"})
+            c.Abort()
+            return
+        }
+        c.Next()
+    }
+}
+```
+
+## Resource Management
+
+**Connection limits and cleanup:**
+```go
+// Connection limits
+if len(m.clients) >= m.config.MaxConnections {
+    return fmt.Errorf("max connections reached")
+}
+
+// Cleanup with defer
+defer func() {
+    m.cancel()
+    m.wg.Wait()
+    if closeErr := m.conn.Close(); closeErr != nil {
+        logger.Error("failed to close connection", "error", closeErr)
+    }
+}()
+```
+
+## Interface Design
+
+**Small, focused interfaces:**
+```go
+// Small, focused interfaces
+type Storage interface {
+    SaveMCP(ctx context.Context, def *MCPDefinition) error
+    LoadMCP(ctx context.Context, name string) (*MCPDefinition, error)
+    Close() error
+}
+```
+
+**Separate interfaces from implementations:**
+- Define interfaces in separate files when used across packages
+- Keep interfaces small and focused on specific behavior
+- Use interface composition for complex behavior

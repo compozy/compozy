@@ -1,0 +1,43 @@
+---
+description: Security, performance, and code quality standards for Compozy development
+globs:
+  - "**/*.go"
+alwaysApply: true
+---
+
+# Quality and Security Standards
+
+## Security
+
+**CRITICAL REQUIREMENTS:**
+- **NEVER commit API keys or secrets** - use environment variables
+- **NEVER expose secrets in logs** - use structured logging without sensitive data
+- **Handle redaction markers:** `[REDACTED:amp-token]` indicates removed secrets - do not overwrite with markers
+- Use the gosec linter to identify security issues
+- Validate all inputs, especially those from external sources
+- Follow secure coding practices for authentication and authorization
+
+## Performance
+
+- Minimize allocations in hot paths
+- Consider resource usage and efficiency
+
+## Specific Linter Rules to Follow
+
+- **bodyclose**: Always close HTTP response bodies
+- **errcheck**: Check error returns from all function calls
+- **goconst**: Extract repeated string literals into constants
+- **gocritic**: Follow idiomatic Go practices
+- **staticcheck**: Address all static analysis warnings
+- **unused**: Remove unused code
+- **whitespace**: Maintain consistent whitespace
+
+## Code Quality Guidelines
+
+- Follow Go's official style guide
+- Maintain consistent naming conventions
+- Keep functions focused and single-purpose
+- Use meaningful variable and function names
+- Avoid deep nesting and complex control structures
+- Apply the DRY principle appropriately
+- Ensure proper resource cleanup and error handling

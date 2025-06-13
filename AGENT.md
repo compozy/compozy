@@ -1,156 +1,318 @@
 # Compozy Development Guide
 
-Compozy is a **workflow orchestration engine for AI agents, tasks, and tools** that enables developers to build sophisticated AI-powered applications through declarative YAML configuration and a robust Go backend.
+Compozy is a **workflow orchestration engine for AI agents** that enables building AI-powered applications through declarative YAML configuration and a robust Go backend. It integrates with various LLM providers and supports the Model Context Protocol (MCP) for extending AI capabilities.
 
-## Project Vision & Goals
+## Quick Start
 
-### Core Mission
+```bash
+# Setup
+make deps && make start-docker && make migrate-up
 
-- **Simplify AI Workflow Orchestration**: Provide a declarative approach to building complex AI agent workflows
-- **Enable Multi-Agent Collaboration**: Support parallel and sequential task execution with proper dependency management
-- **Runtime Flexibility**: Execute tools and agents in secure, isolated Deno environments
-- **Developer Experience**: Offer comprehensive APIs, clear documentation, and robust development tools
-- **Production Ready**: Built for scalability with enterprise-grade infrastructure (PostgreSQL, Temporal, NATS)
+# Development
+make dev              # Start development server
+make test             # Run tests (excludes slow tests)
+make test-all         # Full test suite including E2E
+make fmt && make lint # Format and lint code
 
-### Key Features
+# Run specific test
+go test -v ./engine/task -run TestExecutor_Execute
+```
 
-- **Declarative Workflows**: Define complex AI workflows using YAML configuration
-- **Multi-Runtime Support**: Execute tools in Deno with configurable permissions
-- **Temporal Integration**: Reliable workflow orchestration with built-in retry and error handling
-- **RESTful API**: Comprehensive API for workflow management and monitoring
-- **Real-time Monitoring**: Event streaming and execution tracking via NATS
-- **Schema Validation**: Type-safe configurations with JSON Schema validation
-
-## Architecture Overview
-
-### Core Components
+## Architecture
 
 ```
 compozy/
-├── engine/           # Core domain logic and business rules
-│   ├── agent/        # AI agent management and execution
-│   ├── task/         # Task orchestration and lifecycle
-│   ├── tool/         # Tool execution and management
+├── engine/           # Core domain logic
+│   ├── agent/        # AI agent management
+│   ├── task/         # Task orchestration (basic, parallel, collection, router types)
+│   ├── tool/         # Tool execution framework (TypeScript/Deno-based)
 │   ├── workflow/     # Workflow definition and execution
-│   ├── runtime/      # Deno runtime integration for tool execution
-│   ├── core/         # Shared domain models and utilities
-│   ├── infra/        # Infrastructure layer (server, database, messaging)
-│   └── schema/       # Configuration schema validation
+│   ├── mcp/          # Model Context Protocol integration for external tool servers
+│   ├── llm/          # LLM service integration (OpenAI, Groq, Ollama)
+│   ├── runtime/      # Deno runtime for executing TypeScript tools
+│   ├── worker/       # Temporal-based workflow execution
+│   └── infra/        # Infrastructure (server, db, messaging)
 ├── cli/              # Command-line interface
-├── pkg/              # Reusable packages
-│   ├── logger/       # Structured logging
-│   ├── tplengine/    # Template engine for dynamic configuration
-│   ├── schemagen/    # JSON schema generation utilities
-│   └── utils/        # Common utilities
-└── test/             # Comprehensive test suite
-    ├── e2e/          # End-to-end tests
-    ├── integration/  # Integration tests
-    └── helpers/      # Test utilities and fixtures
+├── pkg/              # Reusable packages (mcp-proxy, utils, logger, tplengine)
+└── test/             # Test suite
 ```
 
-### Technology Stack
+**Tech Stack:**
 
-**Backend Infrastructure:**
+- **Go 1.24+**: Core language
+- **PostgreSQL**: Main database (5432) + Temporal database (5433)
+- **Redis**: Caching, config storage, and pub/sub (6379)
+- **Temporal**: Workflow orchestration (7233, UI: 8080)
+- **MCP Proxy**: HTTP proxy for MCP servers (8081)
+- **NATS**: Messaging system
+- **Deno**: Runtime for TypeScript tools
 
-- **Go 1.24+**: Primary language with focus on performance and reliability
-- **PostgreSQL**: Primary data store with migrations via Goose
-- **Temporal**: Workflow orchestration engine for reliable execution
-- **NATS**: Message streaming for real-time events and logging
-- **Gin**: HTTP router for RESTful API
+## 🚨 CRITICAL: Code Formatting Standards
 
-**Runtime Environment:**
+### ⚠️ MANDATORY LINE SPACING RULE - NEVER VIOLATE
 
-- **Deno**: Secure JavaScript/TypeScript runtime for tool execution
-- **Docker Compose**: Local development environment orchestration
+**ABSOLUTELY CRITICAL:** Never add blank lines inside function bodies, code blocks, or any enclosed scope.
 
-**Development Tools:**
+```go
+// ✅ CORRECT - No blank lines inside blocks
+t.Run("Should execute task successfully", func(t *testing.T) {
+    proxyHandlers := &ProxyHandlers{
+        globalAuthTokens: []string{},
+    }
+    result := combineAuthTokens(proxyHandlers.globalAuthTokens, []string{})
+    assert.Empty(t, result)
+})
 
-- **golangci-lint**: Comprehensive code quality enforcement
-- **Swagger/OpenAPI**: API documentation generation
-- **testify**: Testing framework with mocks and assertions
+func processWorkflow() error {
+    workflow := loadWorkflow()
+    validated := validate(workflow)
+    return execute(validated)
+}
 
-## Development Standards
+// ❌ WRONG - Never add blank lines inside blocks
+t.Run("Should handle errors", func(t *testing.T) {
+    proxyHandlers := &ProxyHandlers{
+        globalAuthTokens: nil,
+    }
 
-### Code Quality Standards
+    result := combineAuthTokens(proxyHandlers.globalAuthTokens, nil)
 
-#### Linting Rules (`.golangci.yml`)
-
-- **Function Length**: Maximum 80 lines or 50 statements
-- **Line Length**: Maximum 120 characters
-- **Cyclomatic Complexity**: Maximum 15
-- **Error Handling**: All errors must be checked (`errcheck`)
-- **Security**: Security analysis via `gosec`
-- **Performance**: Optimized imports and unused code removal
-
-#### Go Best Practices
-
-- **Error Wrapping**: Use `fmt.Errorf("context: %w", err)` for error context
-- **Dependency Injection**: Constructor functions with interface-based dependencies
-- **Naked Returns**: Prohibited in functions longer than a few lines
-- **Context Propagation**: Always pass `context.Context` as first parameter for external calls
-- **Interface Design**: Small, focused interfaces following the "accept interfaces, return structs" principle
-
-### Testing Strategy
-
-#### Test Organization
-
-```
-test/
-├── e2e/              # Full system integration tests
-│   └── worker/       # Worker execution scenarios
-├── integration/      # Database and external service tests
-│   └── repo/         # Repository layer tests
-└── helpers/          # Shared test utilities and fixtures
+    assert.Nil(t, result)
+})
 ```
 
-#### Testing Standards
+**Blank lines are ONLY allowed:**
 
-- **Test Naming**: Use `t.Run("Should...")` pattern for clear behavior description
-- **Test Isolation**: Each test should be independent and repeatable
-- **Mock Usage**: Use testify mocks for external dependencies
-- **Coverage**: Aim for comprehensive coverage of business logic
-- **Performance Tests**: Separate worker tests for performance validation
+- Between separate function definitions
+- Between separate `t.Run()` test cases
+- Between separate struct/interface definitions
+- Between separate const/var blocks
 
-#### Test Commands
+**Blank lines are FORBIDDEN:**
 
-```bash
-# Fast development tests (excludes slow integration/worker tests)
-make test
+- Inside function bodies (even with comments)
+- Inside test cases (`t.Run` blocks)
+- Inside struct definitions
+- Inside if/for/switch/select blocks
+- Inside method receivers
 
-# Full test suite including integration tests
-make test-all
+## 🚨 CRITICAL: Testing Standards
 
-# Worker-specific performance tests
-make test-worker
+### Test Pattern Requirements
 
-# Single package testing
-go test ./path/to/package
+**MANDATORY:** All tests MUST use the `t.Run("Should...")` pattern:
+
+```go
+// ✅ CORRECT - Always use this pattern
+func TestTaskExecutor_Execute(t *testing.T) {
+    t.Run("Should execute task successfully", func(t *testing.T) {
+        // test implementation
+    })
+
+    t.Run("Should handle execution errors", func(t *testing.T) {
+        // test implementation
+    })
+}
+
+// ❌ WRONG - Do not write tests like this
+func TestTaskExecutor_Execute(t *testing.T) {
+    // direct test implementation without t.Run
+}
 ```
 
-### File Organization Standards
+### Table-Driven Tests
 
-#### Package Structure
+**ONLY** use table-driven tests when you have **many similar test cases** (5+ variations):
 
-- **Domain-Driven Design**: Group by feature/domain (agent, task, tool, workflow)
-- **Layered Architecture**: Separate concerns (uc/, router/, services/, fixtures/)
-- **Interface Separation**: Define interfaces in separate files from implementations
-- **Test Collocation**: Place `*_test.go` files alongside implementation files
+```go
+// ✅ ACCEPTABLE - Only when truly necessary
+func TestValidateInput(t *testing.T) {
+    tests := []struct {
+        name     string
+        input    string
+        expected bool
+    }{
+        {"Should accept valid email", "user@example.com", true},
+        {"Should reject invalid email", "invalid", false},
+        // ... many more cases
+    }
 
-#### Naming Conventions
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            // test implementation
+        })
+    }
+}
 
-- **Packages**: Lowercase, descriptive names without underscores
-- **Files**: Lowercase with underscores for separation (e.g., `task_executor.go`)
-- **Interfaces**: Descriptive names ending in common patterns (Manager, Service, Repository)
-- **Constants**: CamelCase with descriptive prefixes
+// ❌ AVOID - Don't use tables for just 2-3 cases
+```
 
-### Configuration Management
+### Test Organization
 
-#### Project Configuration (`compozy.yaml`)
+- Place `*_test.go` files alongside implementation files
+- Use testify for assertions and mocks
+- Each test must be independent and repeatable
+- Mock external dependencies
+
+## Code Quality Standards
+
+### Linting Requirements (`.golangci.yml`)
+
+- **Function length:** Max 80 lines or 50 statements
+- **Line length:** Max 120 characters
+- **Cyclomatic complexity:** Max 15
+- **Error handling:** All errors must be checked
+
+### Go Best Practices
+
+#### Error Handling
+
+- **Custom errors:** Use `core.NewError(err, "CODE", details)` for structured errors
+- **Error wrapping:** `fmt.Errorf("context: %w", err)` for context
+- **Transaction pattern:**
+
+```go
+defer func() {
+    if err != nil { tx.Rollback(ctx) } else { tx.Commit(ctx) }
+}()
+```
+
+#### Core Patterns & Conventions
+
+**Interface Design:**
+
+```go
+// Small, focused interfaces
+type Storage interface {
+    SaveMCP(ctx context.Context, def *MCPDefinition) error
+    LoadMCP(ctx context.Context, name string) (*MCPDefinition, error)
+    Close() error
+}
+```
+
+**Concurrency Patterns:**
+
+```go
+// Thread-safe structs with embedded mutex
+type Status struct {
+    Name   string
+    mu     sync.RWMutex // Protects all fields
+}
+
+// Concurrent operations with errgroup
+g, ctx := errgroup.WithContext(ctx)
+for _, item := range items {
+    item := item // capture loop variable
+    g.Go(func() error { return process(ctx, item) })
+}
+```
+
+**Factory Pattern:**
+
+```go
+func NewStorage(config *StorageConfig) (Storage, error) {
+    switch config.Type {
+    case StorageTypeRedis:
+        return NewRedisStorage(config.Redis)
+    case StorageTypeMemory:
+        return NewMemoryStorage(), nil
+    default:
+        return nil, fmt.Errorf("unsupported storage type: %s", config.Type)
+    }
+}
+```
+
+**Configuration with Defaults:**
+
+```go
+func NewService(config *Config) *Service {
+    if config == nil {
+        config = DefaultConfig() // Always provide defaults
+    }
+    return &Service{config: config}
+}
+```
+
+**Graceful Shutdown:**
+
+```go
+quit := make(chan os.Signal, 1)
+signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+select {
+case <-ctx.Done():
+    return shutdown(ctx)
+case <-quit:
+    return shutdown(ctx)
+}
+```
+
+**Middleware Pattern:**
+
+```go
+func authMiddleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        if !isValidToken(c.GetHeader("Authorization")) {
+            c.JSON(401, gin.H{"error": "unauthorized"})
+            c.Abort()
+            return
+        }
+        c.Next()
+    }
+}
+```
+
+**Resource Management:**
+
+```go
+// Connection limits
+if len(m.clients) >= m.config.MaxConnections {
+    return fmt.Errorf("max connections reached")
+}
+
+// Cleanup with defer
+defer func() {
+    m.cancel()
+    m.wg.Wait()
+    if closeErr := m.conn.Close(); closeErr != nil {
+        logger.Error("failed to close connection", "error", closeErr)
+    }
+}()
+```
+
+#### Common Libraries
+
+- **Web:** `gin-gonic/gin` for HTTP APIs
+- **DB:** `jackc/pgx/v5` (PostgreSQL), `redis/go-redis/v9`
+- **Testing:** `stretchr/testify` for assertions/mocks
+- **Validation:** `go-playground/validator/v10`
+- **Logging:** `charmbracelet/log` - use `logger.Info/Error/Debug`
+- **CLI:** `spf13/cobra` for commands
+- **Docs:** `swaggo/swag` for API documentation
+
+### Project Utilities
+
+- **Logger:** Use `pkg/logger` for structured logging
+
+    ```go
+    logger.Info("task executed", "task_id", id, "duration", time.Since(start))
+    logger.Error("execution failed", "error", err, "task_id", id)
+
+    // NEVER log sensitive data
+    logger.Info("user authenticated", "user_id", userID) // ✅ Good
+    logger.Info("user authenticated", "password", pass) // ❌ Never do this
+    ```
+
+- **Core types:** `core.ID` (UUIDs), `core.Ref` (polymorphic refs)
+- **Test helpers:** `utils.SetupTest()`, `utils.SetupFixture()`
+- **Template engine:** `pkg/tplengine` for dynamic configs
+
+## Configuration
+
+### Project Configuration (`compozy.yaml`)
 
 ```yaml
 name: project-name
 version: 0.1.0
-description: Project description
 
 workflows:
     - source: ./workflow.yaml
@@ -160,209 +322,74 @@ models:
       model: model-name
       api_key: "{{ .env.API_KEY }}"
 
+mcps:
+    - id: my-mcp-server
+      url: http://localhost:3000/mcp
+      transport: sse
+
 runtime:
     permissions:
         - --allow-read
         - --allow-net
-        - --allow-env
 ```
 
-#### Environment Variables
+### Environment Variables
 
-- **Development**: Use `.env` files for local configuration
-- **Production**: Environment-based configuration for security
-- **Secrets**: Never commit API keys or sensitive data
+- Development: Use `.env` files
+- Production: Environment-based configuration
+- **CRITICAL:** Never commit API keys or secrets
 
-## Build & Development Workflow
+## API Development
 
-### Development Commands
+- RESTful design with consistent responses
+- API versioned at `/api/v0/`
+- Swagger docs at `/swagger/index.html`
+- Update annotations for API changes
 
-```bash
-# Development server with hot reload
-make dev
+## MCP Integration
 
-# Development with specific example
-make dev-weather (should be run in a no block-way)
+The MCP (Model Context Protocol) integration enables external tool servers to be used with Compozy:
 
-# Build production binary
-make build
+- **engine/mcp/**: MCP client implementation
+- **pkg/mcp-proxy/**: HTTP proxy for MCP servers (runs on port 8081)
+- **engine/llm/proxy_tool.go**: Tool for proxying MCP calls
 
-# Code formatting and linting
-make fmt
-make lint
+MCP servers are configured in YAML under the `mcps` section:
 
-# Database management
-make start-docker # Start PostgreSQL, Temporal, NATS
-make reset-db     # Reset database schema
-make migrate-up   # Apply pending migrations
+```yaml
+mcps:
+    - id: search-mcp
+      url: http://localhost:3000
+      transport: sse
+      env:
+          API_KEY: "{{ .env.SEARCH_API_KEY }}"
 ```
 
-### API Development
+## Workflow & Runtime
 
-#### Swagger Documentation
+### Temporal Integration
 
-- **Auto-generation**: Documentation generated from Go annotations
-- **Interactive UI**: Available at `/swagger/index.html` during development
-- **Validation**: Use `make swagger-validate` to ensure documentation accuracy
+- Automatic retry and error recovery
+- Distributed workflow execution
+- Built-in state tracking
 
-#### API Standards
+### Deno Tool Execution
 
-- **RESTful Design**: Follow REST principles for resource management
-- **Consistent Responses**: Standardized response format with status, message, data, error
-- **Error Handling**: Proper HTTP status codes with detailed error information
-- **Versioning**: API versioned at `/api/v0/`
+- Configurable permissions per project
+- JSON-based stdin/stdout communication
+- Process isolation with timeout handling
 
-### Database Standards
+## Development Workflow
 
-#### Migration Management
+1. **Before commits:** Run `make fmt && make lint && make test`
+2. **API changes:** Update Swagger annotations
+3. **Schema changes:** Create migrations with `make migrate-create name=<name>`
+4. **New features:** Include comprehensive tests following the mandatory pattern
+5. **Backwards Compatibility:** NOT REQUIRED - Compozy is in development/alpha phase. Make breaking changes freely to achieve best architecture and code quality.
 
-```bash
-# Create new migration
-make migrate-create name=migration_name
+## Debugging
 
-# Check migration status
-make migrate-status
-
-# Apply/rollback migrations
-make migrate-up
-make migrate-down
-```
-
-#### Schema Design
-
-- **Normalized Structure**: Proper foreign key relationships
-- **Indexing**: Strategic indexing for query performance
-- **Constraints**: Appropriate constraints for data integrity
-- **Audit Fields**: Created/updated timestamps where applicable
-
-## Runtime Architecture
-
-### Deno Integration
-
-#### Tool Execution
-
-- **Security**: Configurable Deno permissions per project
-- **Isolation**: Each tool execution runs in a separate process
-- **Communication**: JSON-based stdin/stdout communication
-- **Error Handling**: Comprehensive error reporting with stack traces
-
-#### Performance Considerations
-
-- **Process Reuse**: Binary compilation for faster startup
-- **Memory Management**: Buffer pooling for efficient memory usage
-- **Timeout Handling**: Configurable timeouts for tool execution
-- **Resource Limits**: Controlled resource allocation
-
-### Workflow Orchestration
-
-#### Temporal Integration
-
-- **Reliability**: Automatic retry and error recovery
-- **Scalability**: Distributed workflow execution
-- **Monitoring**: Built-in workflow state tracking
-- **Versioning**: Workflow version management for updates
-
-#### Event Streaming
-
-- **Real-time Updates**: NATS-based event streaming
-- **Structured Events**: Consistent event format for monitoring
-- **Debugging**: Comprehensive logging for troubleshooting
-
-## Performance & Monitoring
-
-### Logging Standards
-
-- **Structured Logging**: JSON-formatted logs for production
-- **Log Levels**: Appropriate use of debug, info, warn, error levels
-- **Context**: Include relevant context (IDs, operations) in log messages
-- **Performance**: Avoid excessive logging in hot paths
-
-### Metrics & Observability
-
-- **Health Checks**: `/health` endpoint for service monitoring
-- **Execution Tracking**: Detailed execution metrics via API
-- **Error Rates**: Monitor failure rates and error patterns
-- **Performance Metrics**: Track execution times and resource usage
-
-## Contributing Guidelines
-
-### Code Review Process
-
-1. **Pre-commit**: Run `make lint` and `make test` before submitting
-2. **Documentation**: Update Swagger annotations for API changes
-3. **Testing**: Include tests for new functionality
-4. **Migration**: Create database migrations for schema changes
-5. **Backward Compatibility**: Maintain API compatibility where possible
-
-### Development Environment Setup
-
-```bash
-# Install dependencies
-make deps
-
-# Start infrastructure
-make start-docker
-
-# Run migrations
-make migrate-up
-
-# Start development server
-make dev
-```
-
-### Best Practices
-
-- **Small Commits**: Atomic commits with clear messages
-- **Feature Branches**: Use feature branches for development
-- **Documentation**: Keep README and API docs updated
-- **Security**: Follow security best practices for external inputs
-- **Performance**: Consider performance implications of changes
-
-## Debugging & Troubleshooting
-
-### Common Issues
-
-- **Deno Runtime**: Ensure Deno is installed and accessible in PATH
-- **Database Connection**: Verify PostgreSQL is running and accessible
-- **Temporal Worker**: Check Temporal server connectivity
-- **Port Conflicts**: Ensure development ports (3001) are available
-
-### Debugging Tools
-
-- **Logs**: Use `--debug` flag for verbose logging
-- **Database**: Direct PostgreSQL access for data inspection
-- **API Testing**: Swagger UI for interactive API testing
-- **Workflow Monitoring**: Temporal Web UI for workflow state inspection
-
----
-
-## Quick Reference
-
-### Essential Commands
-
-```bash
-# Start development
-make dev
-
-# Run tests
-make test
-
-# Format code
-make fmt
-
-# Generate docs
-make swagger-gen
-
-# Reset environment
-make reset-docker && make migrate-up
-```
-
-### Key Directories
-
-- `engine/`: Core business logic
-- `cli/`: Command-line interface
-- `test/`: Comprehensive test suite
-- `pkg/`: Reusable packages
-- `docs/`: API documentation
-
-This guide serves as the foundation for consistent, high-quality development on the Compozy platform. For specific technical questions, refer to the code documentation and test examples.
+- Use `--debug` flag for verbose logging
+- Temporal Web UI for workflow inspection (port 8080)
+- Check logs for Deno runtime errors
+- Verify PostgreSQL connectivity

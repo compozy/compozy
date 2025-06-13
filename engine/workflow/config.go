@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
@@ -31,6 +32,7 @@ type Config struct {
 	Author      *core.Author    `json:"author,omitempty"      yaml:"author,omitempty"      mapstructure:"author,omitempty"`
 	Tools       []tool.Config   `json:"tools,omitempty"       yaml:"tools,omitempty"       mapstructure:"tools,omitempty"`
 	Agents      []agent.Config  `json:"agents,omitempty"      yaml:"agents,omitempty"      mapstructure:"agents,omitempty"`
+	MCPs        []mcp.Config    `json:"mcps,omitempty"        yaml:"mcps,omitempty"        mapstructure:"mcps,omitempty"`
 	Tasks       []task.Config   `json:"tasks"                 yaml:"tasks"                 mapstructure:"tasks"`
 
 	filePath string
@@ -110,6 +112,14 @@ func (w *Config) Validate() error {
 		}
 	}
 
+	for i := range w.MCPs {
+		mc := &w.MCPs[i]
+		mc.SetDefaults()
+		if err := mc.Validate(); err != nil {
+			return fmt.Errorf("mcp validation error: %s", err)
+		}
+	}
+
 	return nil
 }
 
@@ -153,6 +163,11 @@ func (w *Config) GetID() string {
 // GetTasks returns the workflow tasks
 func (w *Config) GetTasks() []task.Config {
 	return w.Tasks
+}
+
+// GetMCPs returns the workflow MCPs
+func (w *Config) GetMCPs() []mcp.Config {
+	return w.MCPs
 }
 
 func (w *Config) DetermineNextTask(

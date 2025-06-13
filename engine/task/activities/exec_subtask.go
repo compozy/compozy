@@ -84,15 +84,28 @@ func (a *ExecuteParallelTask) Run(ctx context.Context, input *ExecuteParallelTas
 		return nil, err
 	}
 	output, executionError := a.executeTaskUC.Execute(ctx, &uc.ExecuteTaskInput{
-		TaskConfig: taskConfig,
+		TaskConfig:   taskConfig,
+		WorkflowMCPs: workflowConfig.MCPs,
 	})
 	taskState.Output = output
-	return a.taskResponder.HandleSubtask(ctx, &services.SubtaskResponseInput{
+
+	// Handle subtask response
+	response, err := a.taskResponder.HandleSubtask(ctx, &services.SubtaskResponseInput{
 		WorkflowConfig: workflowConfig,
 		TaskState:      taskState,
 		TaskConfig:     taskConfig,
 		ExecutionError: executionError,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	// If there was an execution error, the subtask should be considered failed
+	if executionError != nil {
+		return response, executionError
+	}
+
+	return response, nil
 }
 
 // getChildState retrieves the existing child state for a specific task
