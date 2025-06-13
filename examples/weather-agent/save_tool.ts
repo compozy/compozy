@@ -7,6 +7,7 @@ type Input = {
         clothing: any;
         activities: any;
         detailed_analysis: any;
+        clothing_validation: any;
     };
     format: "json" | "txt";
 };
@@ -27,6 +28,7 @@ Weather: ${JSON.stringify(data.weather, null, 2)}
 Activities: ${JSON.stringify(data.activities, null, 2)}
 Clothing Recommendations: ${JSON.stringify(data.clothing, null, 2)}
 Detailed Analysis: ${JSON.stringify(data.detailed_analysis, null, 2)}
+Clothing Validation: ${JSON.stringify(data.clothing_validation, null, 2)}
 Generated at: ${new Date().toISOString()}
 `;
 

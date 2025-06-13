@@ -97,6 +97,18 @@ agents:
           - Required equipment or preparation
           - Safety considerations
           Return your analysis in JSON format with the fields: best_time, tips, equipment, safety_notes.
+      - id: validate_clothing
+        json_mode: true
+        prompt: |
+          Validate the clothing item "{{ .item }}" for {{ .workflow.input.city }} given the current weather conditions:
+          - Weather: {{ .tasks.weather.output | toJson }}
+          - Temperature: {{ .tasks.weather.output.temperature }}
+          - Humidity: {{ .tasks.weather.output.humidity }}
+          Determine if this clothing item is appropriate for the current conditions and provide:
+          - Suitability score (1-10)
+          - Reasoning for the score
+          - Any modifications or additions needed
+          Return your validation in JSON format with the fields: item, suitability_score, reasoning, modifications.
 
   - id: file_reader
     config:
@@ -169,6 +181,24 @@ tasks:
         clothing: "{{ .output.clothings }}"
         activities: "{{ .tasks.activities.output }}"
         detailed_analysis: "{{ .tasks.activity_analysis.output }}"
+    on_success:
+      next: clothing_validation
+
+  - id: clothing_validation
+    type: collection
+    items: "{{ .tasks.clothing.output.clothings }}"
+    mode: sequential
+    task:
+      id: "validate-clothing-{{ .index }}"
+      type: basic
+      $use: agent(local::agents.#(id="tourist_guide"))
+      action: validate_clothing
+      outputs:
+        clothing_item: "{{ .item }}"
+        validation: "{{ .output }}"
+    outputs:
+      validated_items: "{{ .output }}"
+      validation_count: "{{ len .output }}"
     on_success:
       next: clothing_check
 
