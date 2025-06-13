@@ -49,12 +49,12 @@ func NewState(deps BaseDeps, worker *worker.Worker) (*State, error) {
 	if deps.ProjectConfig == nil {
 		return nil, fmt.Errorf("project config is required")
 	}
-	CWD := deps.ProjectConfig.GetCWD()
-	if CWD == nil {
+	cwd := deps.ProjectConfig.GetCWD()
+	if cwd == nil {
 		return nil, fmt.Errorf("project config must have a valid CWD")
 	}
 	return &State{
-		CWD:      CWD,
+		CWD:      cwd,
 		BaseDeps: deps,
 		Worker:   worker,
 	}, nil

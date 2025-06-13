@@ -23,7 +23,7 @@ mcps:
     args:
       - -y
       - "@modelcontextprotocol/server-filesystem"
-      - "/Users/pedronauck/Dev/compozy/compozy/examples/weather-agent"
+      - "./"
     proto: "2025-03-26"
     start_timeout: 15s
 

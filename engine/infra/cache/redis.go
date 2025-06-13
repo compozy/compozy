@@ -95,8 +95,12 @@ func (r *Redis) Close() error {
 	var err error
 	r.once.Do(func() {
 		err = r.client.Close()
+		if err != nil {
+			logger.Error("Redis connection close failed", "error", err)
+		} else {
+			logger.Info("Redis connection closed")
+		}
 	})
-	logger.Info("Redis connection closed")
 	return err
 }
 

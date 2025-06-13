@@ -312,7 +312,7 @@ func (e *TaskExecutor) HandleCollectionTask(
 	}
 
 	// Wait for tasks to complete based on strategy
-	awaitErr := e.awaitSubtasks(ctx, taskConfig.GetStrategy(), childCount, &completed, &failed)
+	awaitErr := e.awaitSubtasks(ctx, taskConfig.GetStrategy(), childCount, &completed, &failed, taskConfig)
 	if awaitErr != nil {
 		return fmt.Errorf("failed to await collection task: %w", awaitErr)
 	}
@@ -396,7 +396,7 @@ func (e *TaskExecutor) HandleParallelTask(pConfig *task.Config) func(ctx workflo
 		}
 
 		// Wait for tasks to complete based on strategy
-		err = e.awaitSubtasks(ctx, pConfig.GetStrategy(), numTasks, &completed, &failed)
+		err = e.awaitSubtasks(ctx, pConfig.GetStrategy(), numTasks, &completed, &failed, pConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to await parallel task: %w", err)
 		}
@@ -446,8 +446,9 @@ func (e *TaskExecutor) awaitSubtasks(
 	strategy task.ParallelStrategy,
 	totalTasks int32,
 	completed, failed *int32,
+	taskConfig *task.Config,
 ) error {
-	return workflow.Await(ctx, func() bool {
+	condition := func() bool {
 		completedCount := atomic.LoadInt32(completed)
 		failedCount := atomic.LoadInt32(failed)
 		totalDone := completedCount + failedCount
@@ -462,5 +463,23 @@ func (e *TaskExecutor) awaitSubtasks(
 		default:
 			return totalDone >= totalTasks
 		}
-	})
+	}
+	timeout, err := taskConfig.GetTimeout()
+	if err != nil {
+		return fmt.Errorf("failed to parse task timeout: %w", err)
+	}
+	if timeout > 0 {
+		timedOut, err := workflow.AwaitWithTimeout(ctx, timeout, condition)
+		if err != nil {
+			return err
+		}
+		if timedOut {
+			completedCount := atomic.LoadInt32(completed)
+			failedCount := atomic.LoadInt32(failed)
+			return fmt.Errorf("timeout waiting for subtasks: completed=%d, failed=%d, total=%d, timeout=%v",
+				completedCount, failedCount, totalTasks, timeout)
+		}
+		return nil
+	}
+	return workflow.Await(ctx, condition)
 }

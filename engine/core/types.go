@@ -13,6 +13,9 @@ func GetVersion() string {
 }
 
 func GetStoreDir(cwd *PathCWD) string {
+	if cwd == nil {
+		return ".compozy"
+	}
 	return filepath.Join(cwd.PathStr(), ".compozy")
 }
 

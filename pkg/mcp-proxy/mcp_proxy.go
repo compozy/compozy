@@ -2,6 +2,7 @@ package mcpproxy
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -24,6 +25,9 @@ func New() (*Server, error) {
 
 // NewWithConfig creates a new MCP proxy server with custom configuration and in-memory storage
 func NewWithConfig(config *Config) (*Server, error) {
+	if config == nil {
+		return nil, fmt.Errorf("config cannot be nil")
+	}
 	storage := NewMemoryStorage()
 	clientManager := NewMCPClientManager(storage, nil)
 	return NewServer(config, storage, clientManager), nil

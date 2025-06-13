@@ -114,7 +114,6 @@ func (w *Config) Validate() error {
 
 	for i := range w.MCPs {
 		mc := &w.MCPs[i]
-		mc.SetDefaults()
 		if err := mc.Validate(); err != nil {
 			return fmt.Errorf("mcp validation error: %s", err)
 		}
@@ -160,6 +159,12 @@ func (w *Config) GetID() string {
 	return w.ID
 }
 
+func (w *Config) SetDefaults() {
+	for i := range w.MCPs {
+		w.MCPs[i].SetDefaults()
+	}
+}
+
 // GetTasks returns the workflow tasks
 func (w *Config) GetTasks() []task.Config {
 	return w.Tasks
@@ -167,7 +172,9 @@ func (w *Config) GetTasks() []task.Config {
 
 // GetMCPs returns the workflow MCPs
 func (w *Config) GetMCPs() []mcp.Config {
-	return w.MCPs
+	mcps := make([]mcp.Config, len(w.MCPs))
+	copy(mcps, w.MCPs)
+	return mcps
 }
 
 func (w *Config) DetermineNextTask(
@@ -192,11 +199,11 @@ func (w *Config) DetermineNextTask(
 }
 
 func WorkflowsFromProject(projectConfig *project.Config, ev *ref.Evaluator) ([]*Config, error) {
-	CWD := projectConfig.GetCWD()
+	cwd := projectConfig.GetCWD()
 	projectEnv := projectConfig.GetEnv()
 	var ws []*Config
 	for _, wf := range projectConfig.Workflows {
-		config, err := LoadAndEval(CWD, wf.Source, ev)
+		config, err := LoadAndEval(cwd, wf.Source, ev)
 		if err != nil {
 			return nil, err
 		}
@@ -257,6 +264,7 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	config.SetDefaults()
 	return config, nil
 }
 
@@ -274,6 +282,7 @@ func LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, er
 	if err != nil {
 		return nil, err
 	}
+	config.SetDefaults()
 	return config, nil
 }
 

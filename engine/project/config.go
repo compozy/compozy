@@ -36,7 +36,7 @@ type Config struct {
 	CacheConfig *cache.Config           `json:"cache,omitempty" yaml:"cache,omitempty" mapstructure:"cache"`
 
 	filePath string
-	CWD      *core.PathCWD
+	CWD      *core.PathCWD `json:"CWD,omitempty" yaml:"CWD,omitempty" mapstructure:"CWD,omitempty"`
 	env      *core.EnvMap
 }
 
@@ -109,6 +109,9 @@ func (p *Config) LoadID() (string, error) {
 }
 
 func (p *Config) loadEnv() (core.EnvMap, error) {
+	if p.CWD == nil {
+		return nil, fmt.Errorf("working directory not set for project %q", p.Name)
+	}
 	env, err := core.NewEnvFromFile(p.CWD.PathStr())
 	if err != nil {
 		return nil, fmt.Errorf("failed to load environment variables: %w", err)
@@ -149,7 +152,9 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	if config.CWD == nil {
+		config.CWD = cwd
+	}
 	env, err := config.loadEnv()
 	if err != nil {
 		return nil, err

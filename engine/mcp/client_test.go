@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -228,10 +229,9 @@ func TestClient_WithInvalidURL(t *testing.T) {
 func TestClient_RetryLogic(t *testing.T) {
 	t.Run("Should retry request when server initially fails", func(t *testing.T) {
 		// Create test server that fails first time, succeeds second time
-		callCount := 0
+		var callCount int32
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			callCount++
-			if callCount == 1 {
+			if atomic.AddInt32(&callCount, 1) == 1 {
 				w.WriteHeader(http.StatusInternalServerError)
 			} else {
 				w.WriteHeader(http.StatusOK)
@@ -244,7 +244,7 @@ func TestClient_RetryLogic(t *testing.T) {
 
 		err := client.Health(context.Background())
 		assert.NoError(t, err)
-		assert.Equal(t, 2, callCount) // Should have retried once
+		assert.Equal(t, int32(2), atomic.LoadInt32(&callCount)) // Should have retried once
 	})
 }
 

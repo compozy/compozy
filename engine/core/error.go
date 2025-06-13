@@ -20,6 +20,13 @@ func NewError(err error, code string, details map[string]any) *Error {
 	}
 }
 
+func (e *Error) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
+
 func (e *Error) AsMap() map[string]any {
 	if e == nil {
 		return nil

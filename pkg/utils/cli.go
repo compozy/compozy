@@ -8,9 +8,9 @@ import (
 )
 
 func GetConfigCWD(cmd *cobra.Command) (string, string, error) {
-	CWD, err := cmd.Flags().GetString("CWD")
+	cwd, err := cmd.Flags().GetString("cwd")
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get CWD flag: %w", err)
+		return "", "", fmt.Errorf("failed to get cwd flag: %w", err)
 	}
 	config, err := cmd.Flags().GetString("config")
 	if err != nil {
@@ -18,11 +18,11 @@ func GetConfigCWD(cmd *cobra.Command) (string, string, error) {
 	}
 
 	// Resolve paths
-	if CWD == "" {
-		CWD, err = filepath.Abs(".")
+	if cwd == "" {
+		cwd, err = filepath.Abs(".")
 		if err != nil {
 			return "", "", fmt.Errorf("failed to get absolute path: %w", err)
 		}
 	}
-	return CWD, config, nil
+	return cwd, config, nil
 }

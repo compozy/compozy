@@ -518,6 +518,25 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 	})
 }
 
+func TestConfigManager_TaskConfigOperations(t *testing.T) {
+	t.Run("Should save and delete task config successfully", func(t *testing.T) {
+		configStore := NewMockConfigStore()
+		cm := NewConfigManager(configStore)
+		ctx := context.Background()
+		taskExecID := core.MustNewID()
+		taskConfig := createTaskConfig("test-task", task.TaskTypeBasic)
+		err := cm.SaveTaskConfig(ctx, taskExecID, &taskConfig)
+		require.NoError(t, err)
+		savedConfig, err := configStore.Get(ctx, string(taskExecID))
+		require.NoError(t, err)
+		assert.Equal(t, "test-task", savedConfig.ID)
+		err = cm.DeleteTaskConfig(ctx, taskExecID)
+		require.NoError(t, err)
+		_, err = configStore.Get(ctx, string(taskExecID))
+		assert.Error(t, err)
+	})
+}
+
 // NewMockConfigStore creates a simple in-memory mock config store for testing
 func NewMockConfigStore() *MockConfigStore {
 	return &MockConfigStore{

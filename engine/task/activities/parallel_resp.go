@@ -44,6 +44,9 @@ func (a *GetParallelResponse) Run(
 	if err != nil {
 		return nil, fmt.Errorf("failed to get task config: %w", err)
 	}
+	if taskConfig == nil {
+		return nil, fmt.Errorf("task config for exec %s not found", input.ParentState.TaskExecID)
+	}
 
 	executionError := a.processParallelTask(ctx, input, taskConfig)
 

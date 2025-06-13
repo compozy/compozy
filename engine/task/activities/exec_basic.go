@@ -82,20 +82,20 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 	// Execute component
 	output, executionError := a.executeUC.Execute(ctx, &uc.ExecuteTaskInput{
 		TaskConfig:   taskConfig,
-		WorkflowMCPs: workflowConfig.MCPs,
+		WorkflowMCPs: uc.ProjectMCPConfigs(workflowConfig.MCPs),
 	})
 
 	taskState.Output = output
 
 	// Handle main task response
-	response, err := a.taskResponder.HandleMainTask(ctx, &services.MainTaskResponseInput{
+	response, handleErr := a.taskResponder.HandleMainTask(ctx, &services.MainTaskResponseInput{
 		WorkflowConfig: workflowConfig,
 		TaskState:      taskState,
 		TaskConfig:     taskConfig,
 		ExecutionError: executionError,
 	})
-	if err != nil {
-		return nil, err
+	if handleErr != nil {
+		return nil, handleErr
 	}
 
 	// If there was an execution error, the task should be considered failed

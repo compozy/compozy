@@ -7,9 +7,9 @@ import (
 )
 
 func TestProxyHandlers_CombineAuthTokens(t *testing.T) {
-	initLogger()
+	initLogger(t)
 
-	t.Run("No global tokens, client tokens only", func(t *testing.T) {
+	t.Run("Should handle no global tokens and client tokens only", func(t *testing.T) {
 		proxyHandlers := &ProxyHandlers{
 			globalAuthTokens: nil,
 		}
@@ -18,7 +18,7 @@ func TestProxyHandlers_CombineAuthTokens(t *testing.T) {
 		assert.Equal(t, clientTokens, result)
 	})
 
-	t.Run("Global tokens only, no client tokens", func(t *testing.T) {
+	t.Run("Should handle global tokens only with no client tokens", func(t *testing.T) {
 		globalTokens := []string{"global-token-1", "global-token-2"}
 		proxyHandlers := &ProxyHandlers{
 			globalAuthTokens: globalTokens,
@@ -28,7 +28,7 @@ func TestProxyHandlers_CombineAuthTokens(t *testing.T) {
 		assert.Equal(t, globalTokens, result)
 	})
 
-	t.Run("Both global and client tokens, no duplicates", func(t *testing.T) {
+	t.Run("Should handle both global and client tokens with no duplicates", func(t *testing.T) {
 		globalTokens := []string{"global-token-1", "global-token-2"}
 		clientTokens := []string{"client-token-1", "client-token-2"}
 		proxyHandlers := &ProxyHandlers{
@@ -40,7 +40,7 @@ func TestProxyHandlers_CombineAuthTokens(t *testing.T) {
 		assert.Equal(t, expected, result)
 	})
 
-	t.Run("Both global and client tokens with duplicates", func(t *testing.T) {
+	t.Run("Should handle both global and client tokens with duplicates", func(t *testing.T) {
 		globalTokens := []string{"shared-token", "global-token"}
 		clientTokens := []string{"shared-token", "client-token"}
 		proxyHandlers := &ProxyHandlers{
@@ -53,7 +53,7 @@ func TestProxyHandlers_CombineAuthTokens(t *testing.T) {
 		assert.Equal(t, expected, result)
 	})
 
-	t.Run("Empty string tokens are filtered out", func(t *testing.T) {
+	t.Run("Should filter out empty string tokens", func(t *testing.T) {
 		globalTokens := []string{"global-token", "", "global-token-2"}
 		clientTokens := []string{"", "client-token", ""}
 		proxyHandlers := &ProxyHandlers{
@@ -84,7 +84,7 @@ func TestProxyHandlers_CombineAuthTokens(t *testing.T) {
 }
 
 func TestGlobalAuthTokensIntegration(t *testing.T) {
-	initLogger()
+	initLogger(t)
 
 	t.Run("Server configuration with global auth tokens", func(t *testing.T) {
 		globalTokens := []string{"global-token-1", "global-token-2"}

@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // CreateChildTasksInput follows Temporal best practices by passing minimal data
@@ -93,6 +94,12 @@ func (uc *CreateChildTasks) validateChildConfigs(childConfigs []task.Config) err
 	return nil
 }
 
+// childConfigRef holds a reference to a child config and its execution ID
+type childConfigRef struct {
+	id  core.ID
+	cfg *task.Config
+}
+
 // createChildStatesInTransaction creates all child tasks atomically
 func (uc *CreateChildTasks) createChildStatesInTransaction(
 	ctx context.Context,
@@ -100,10 +107,7 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 	childConfigs []task.Config,
 ) error {
 	// Collect configs to save after transaction succeeds
-	var configsToSave []struct {
-		id  core.ID
-		cfg *task.Config
-	}
+	var configsToSave []childConfigRef
 
 	// Prepare all child states first
 	var childStates []*task.State
@@ -134,10 +138,10 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 		childStates = append(childStates, childState)
 
 		// Collect config to save after transaction succeeds
-		configsToSave = append(configsToSave, struct {
-			id  core.ID
-			cfg *task.Config
-		}{childTaskExecID, childConfig})
+		configsToSave = append(configsToSave, childConfigRef{
+			id:  childTaskExecID,
+			cfg: childConfig,
+		})
 	}
 
 	// Create all child states atomically in a single transaction
@@ -147,11 +151,21 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 	}
 
 	// Save configs only after database transaction succeeds
+	var savedConfigIDs []core.ID
 	for _, c := range configsToSave {
 		if err := uc.configManager.SaveTaskConfig(ctx, c.id, c.cfg); err != nil {
-			// TODO: Consider best-effort rollback or marking configs as invalid
-			return fmt.Errorf("failed to save child config %s after transaction: %w", c.cfg.ID, err)
+			// Best-effort rollback: delete any configs already saved
+			for _, savedID := range savedConfigIDs {
+				if deleteErr := uc.configManager.DeleteTaskConfig(ctx, savedID); deleteErr != nil {
+					// Log but don't fail on rollback errors
+					logger.Error("failed to rollback config during error recovery",
+						"config_id", savedID, "rollback_error", deleteErr)
+				}
+			}
+			return fmt.Errorf("failed to save child config %s after transaction (rolled back %d configs): %w",
+				c.cfg.ID, len(savedConfigIDs), err)
 		}
+		savedConfigIDs = append(savedConfigIDs, c.id)
 	}
 
 	return nil

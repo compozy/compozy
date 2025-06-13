@@ -44,6 +44,9 @@ func (a *GetCollectionResponse) Run(
 	if err != nil {
 		return nil, fmt.Errorf("failed to get task config: %w", err)
 	}
+	if taskConfig == nil {
+		return nil, fmt.Errorf("task config not found for task execution ID: %s", input.ParentState.TaskExecID.String())
+	}
 
 	executionError := a.processCollectionTask(ctx, input, taskConfig)
 
@@ -52,16 +55,20 @@ func (a *GetCollectionResponse) Run(
 	if input.ParentState.Output != nil {
 		if metadata, exists := (*input.ParentState.Output)["collection_metadata"]; exists {
 			if metadataMap, ok := metadata.(map[string]any); ok {
-				// Handle both int and float64 types (JSON unmarshaling often produces float64)
+				// Handle int, int64, and float64 types (JSON/protobuf unmarshaling)
 				switch v := metadataMap["item_count"].(type) {
 				case int:
 					itemCount = v
+				case int64:
+					itemCount = int(v)
 				case float64:
 					itemCount = int(v)
 				}
 				switch v := metadataMap["skipped_count"].(type) {
 				case int:
 					skippedCount = v
+				case int64:
+					skippedCount = int(v)
 				case float64:
 					skippedCount = int(v)
 				}

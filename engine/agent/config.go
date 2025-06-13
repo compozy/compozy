@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"dario.cat/mergo"
@@ -95,10 +96,14 @@ func (a *Config) Validate() error {
 	if err := v.Validate(); err != nil {
 		return err
 	}
+	var mcpErrors []error
 	for i := range a.MCPs {
 		if err := a.MCPs[i].Validate(); err != nil {
-			return fmt.Errorf("mcp validation error: %w", err)
+			mcpErrors = append(mcpErrors, fmt.Errorf("mcp validation error: %w", err))
 		}
+	}
+	if len(mcpErrors) > 0 {
+		return errors.Join(mcpErrors...)
 	}
 	return nil
 }

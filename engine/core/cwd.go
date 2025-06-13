@@ -8,6 +8,7 @@ import (
 )
 
 type PathCWD struct {
+	// Path holds the absolute working directory.
 	Path string `json:"path" yaml:"path" mapstructure:"path"`
 }
 
@@ -40,11 +41,11 @@ func CWDFromPath(path string) (*PathCWD, error) {
 }
 
 func (c *PathCWD) Set(path string) error {
-	if path == "" {
-		return errors.New("path is required")
-	}
 	if c == nil {
 		return errors.New("CWD is nil")
+	}
+	if path == "" {
+		return errors.New("path is required")
 	}
 	normalizedPath, err := CWDFromPath(path)
 	if err != nil {
@@ -68,12 +69,8 @@ func (c *PathCWD) JoinAndCheck(path string) (string, error) {
 	if c.Path == "" {
 		return "", errors.New("CWD is not set")
 	}
-	filename := filepath.Join(c.Path, path)
-	filename, err := filepath.Abs(filename)
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve absolute path: %w", err)
-	}
-	_, err = os.Stat(filename)
+	filename := filepath.Clean(filepath.Join(c.Path, path))
+	_, err := os.Stat(filename)
 	if err != nil {
 		return "", fmt.Errorf("file not found or inaccessible: %w", err)
 	}

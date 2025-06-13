@@ -151,6 +151,10 @@ func (m *MCPDefinition) Validate() error {
 		return errors.New("reconnectDelay cannot be negative")
 	}
 
+	if m.HealthCheckInterval < 0 {
+		return errors.New("healthCheckInterval cannot be negative")
+	}
+
 	return nil
 }
 

@@ -41,23 +41,27 @@ func NewService(
 	action *agent.ActionConfig,
 	mcps []mcp.Config,
 ) (*Service, error) {
-	client, err := initProxyClient()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize proxy client: %w", err)
-	}
 	service := &Service{
-		runtime:     runtime,
-		agent:       agent,
-		action:      action,
-		mcps:        mcps,
-		cacheTTL:    5 * time.Minute, // Cache tools for 5 minutes
-		proxyClient: client,
+		runtime:  runtime,
+		agent:    agent,
+		action:   action,
+		mcps:     mcps,
+		cacheTTL: 5 * time.Minute, // Cache tools for 5 minutes
 	}
-
+	// Only initialize proxy client if MCP configurations exist
+	hasMCPConfigs := len(agent.MCPs) > 0 || len(mcps) > 0
+	if hasMCPConfigs {
+		client, err := initProxyClient()
+		if err != nil {
+			// Log warning but don't fail service creation
+			logger.Warn("Failed to initialize MCP proxy client", "error", err)
+		} else {
+			service.proxyClient = client
+		}
+	}
 	// Initialize MCP once during service creation
 	ctx := context.Background()
 	service.initMCP(ctx)
-
 	return service, nil
 }
 
@@ -319,6 +323,9 @@ func (s *Service) findMCPTool(toolName string) tools.Tool {
 
 // Close cleans up MCP connections and other resources
 func (s *Service) Close() error {
+	if s.proxyClient != nil {
+		return s.proxyClient.Close()
+	}
 	return nil
 }
 

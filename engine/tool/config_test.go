@@ -23,8 +23,8 @@ func setupTest(t *testing.T, toolFile string) (*core.PathCWD, string) {
 
 func Test_LoadTool(t *testing.T) {
 	t.Run("Should load basic tool configuration correctly", func(t *testing.T) {
-		CWD, dstPath := setupTest(t, "basic_tool.yaml")
-		config, err := Load(CWD, dstPath)
+		cwd, dstPath := setupTest(t, "basic_tool.yaml")
+		config, err := Load(cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -71,8 +71,8 @@ func Test_LoadTool(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid tool configuration", func(t *testing.T) {
-		CWD, dstPath := setupTest(t, "invalid_tool.yaml")
-		config, err := Load(CWD, dstPath)
+		cwd, dstPath := setupTest(t, "invalid_tool.yaml")
+		config, err := Load(cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 

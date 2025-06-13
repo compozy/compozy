@@ -52,7 +52,7 @@ func (t *ProxyTool) Call(ctx context.Context, input string) (string, error) {
 	}
 
 	// Validate arguments against input schema
-	if err := t.validateArguments(args); err != nil {
+	if err := t.validateArguments(ctx, args); err != nil {
 		return "", fmt.Errorf("invalid tool arguments: %w", err)
 	}
 
@@ -69,7 +69,7 @@ func (t *ProxyTool) Call(ctx context.Context, input string) (string, error) {
 	default:
 		b, err := json.Marshal(v)
 		if err != nil {
-			return fmt.Sprintf("%v", v), nil
+			return "", fmt.Errorf("failed to marshal tool result: %w", err)
 		}
 		return string(b), nil
 	}
@@ -81,7 +81,7 @@ func (t *ProxyTool) ArgsType() any {
 }
 
 // validateArguments validates the provided arguments against the tool's input schema
-func (t *ProxyTool) validateArguments(args map[string]any) error {
+func (t *ProxyTool) validateArguments(ctx context.Context, args map[string]any) error {
 	// Skip validation if no schema is defined
 	if len(t.inputSchema) == 0 {
 		return nil
@@ -91,5 +91,5 @@ func (t *ProxyTool) validateArguments(args map[string]any) error {
 	toolSchema := schema.Schema(t.inputSchema)
 	validator := schema.NewParamsValidator(args, &toolSchema, fmt.Sprintf("tool:%s", t.name))
 
-	return validator.Validate(context.Background())
+	return validator.Validate(ctx)
 }

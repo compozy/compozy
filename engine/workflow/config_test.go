@@ -36,9 +36,9 @@ var globalScope = map[string]any{
 
 func Test_LoadWorkflow(t *testing.T) {
 	t.Run("Should load basic workflow configuration correctly", func(t *testing.T) {
-		CWD, dstPath := setupTest(t, "basic_workflow.yaml")
+		cwd, dstPath := setupTest(t, "basic_workflow.yaml")
 		ev := ref.NewEvaluator(ref.WithGlobalScope(globalScope))
-		config, err := LoadAndEval(CWD, dstPath, ev)
+		config, err := LoadAndEval(cwd, dstPath, ev)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 		require.NotNil(t, config.Opts)
@@ -85,8 +85,8 @@ func Test_LoadWorkflow(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid workflow configuration", func(t *testing.T) {
-		CWD, dstPath := setupTest(t, "invalid_workflow.yaml")
-		config, err := Load(CWD, dstPath)
+		cwd, dstPath := setupTest(t, "invalid_workflow.yaml")
+		config, err := Load(cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -100,12 +100,12 @@ func Test_WorkflowConfigValidation(t *testing.T) {
 	workflowID := "test-workflow"
 
 	t.Run("Should validate valid workflow configuration", func(t *testing.T) {
-		CWD, err := core.CWDFromPath("/test/path")
+		cwd, err := core.CWDFromPath("/test/path")
 		require.NoError(t, err)
 		config := &Config{
 			ID:   workflowID,
 			Opts: Opts{},
-			CWD:  CWD,
+			CWD:  cwd,
 		}
 
 		err = config.Validate()

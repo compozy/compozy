@@ -22,7 +22,7 @@ func processParentTask(
 
 	progressInfo, err := taskRepo.GetProgressInfo(ctx, parentState.TaskExecID)
 	if err != nil {
-		return fmt.Errorf("failed to get progress info: %w", err)
+		return core.NewError(err, "PROGRESS_INFO_FETCH_FAILED", map[string]any{"task_exec_id": parentState.TaskExecID})
 	}
 
 	// If no child tasks have completed or failed, it might be due to the DB commit race condition.
@@ -37,7 +37,8 @@ func processParentTask(
 	parentState.Status = overallStatus
 
 	if parentState.Output == nil {
-		parentState.Output = &core.Output{}
+		output := make(core.Output)
+		parentState.Output = &output
 	}
 	// Use the ProgressInfo struct directly for consistent JSON serialization
 	(*parentState.Output)["progress_info"] = progressInfo

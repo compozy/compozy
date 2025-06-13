@@ -264,5 +264,10 @@ func (cm *ConfigManager) calculateMaxWorkers(taskConfig *task.Config) int {
 
 // SaveTaskConfig saves a task configuration to Redis using taskExecID as key
 func (cm *ConfigManager) SaveTaskConfig(ctx context.Context, taskExecID core.ID, config *task.Config) error {
-	return cm.configStore.Save(ctx, string(taskExecID), config)
+	return cm.configStore.Save(ctx, taskExecID.String(), config)
+}
+
+// DeleteTaskConfig removes a task configuration from Redis using taskExecID as key
+func (cm *ConfigManager) DeleteTaskConfig(ctx context.Context, taskExecID core.ID) error {
+	return cm.configStore.Delete(ctx, taskExecID.String())
 }

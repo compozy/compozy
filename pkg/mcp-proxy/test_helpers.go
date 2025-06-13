@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"testing"
 
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -12,11 +13,11 @@ import (
 
 var once sync.Once
 
-func initLogger() {
+func initLogger(t *testing.T) {
 	once.Do(func() {
 		if err := logger.InitForTests(); err != nil {
 			// Log the error but don't fail test initialization
-			fmt.Printf("Warning: failed to initialize logger for tests: %v\n", err)
+			t.Logf("Warning: failed to initialize logger for tests: %v\n", err)
 		}
 	})
 }
@@ -36,8 +37,8 @@ func createTestDefinition(name string) *MCPDefinition {
 	return def
 }
 
-func newTestServer(config *Config) *Server {
-	initLogger()
+func newTestServer(t *testing.T, config *Config) *Server {
+	initLogger(t)
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
 	return NewServer(config, storage, clientManager)

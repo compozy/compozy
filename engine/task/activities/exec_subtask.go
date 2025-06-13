@@ -85,7 +85,7 @@ func (a *ExecuteSubtask) Run(ctx context.Context, input *ExecuteSubtaskInput) (*
 	}
 	output, executionError := a.executeTaskUC.Execute(ctx, &uc.ExecuteTaskInput{
 		TaskConfig:   taskConfig,
-		WorkflowMCPs: workflowConfig.MCPs,
+		WorkflowMCPs: uc.ProjectMCPConfigs(workflowConfig.MCPs),
 	})
 	taskState.Output = output
 
