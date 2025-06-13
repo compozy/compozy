@@ -386,7 +386,7 @@ mcps:
 2. **API changes:** Update Swagger annotations
 3. **Schema changes:** Create migrations with `make migrate-create name=<name>`
 4. **New features:** Include comprehensive tests following the mandatory pattern
-5. **Taskmaster tasks:** Follow mandatory code review workflow (see [taskmaster-completion-workflow.mdc](mdc:.cursor/rules/taskmaster-completion-workflow.mdc))
+5. **Taskmaster tasks:** Follow mandatory code review workflow via MCP tools (`mcp_zen_codereview` with `gemini-2.5-pro-preview-06-05` and `o3` models + `mcp_zen_precommit` + structured commits). See [taskmaster-completion-workflow.mdc](mdc:.cursor/rules/taskmaster-completion-workflow.mdc) for complete MCP-based workflow details.
 6. **Backwards Compatibility:** NOT REQUIRED - Compozy is in development/alpha phase. Make breaking changes freely to achieve best architecture and code quality.
 
 ## Debugging

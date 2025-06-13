@@ -222,7 +222,7 @@ runtime:
 2. **API changes:** Update Swagger annotations (`swag` comments)
 3. **Schema changes:** Create migrations with `make migrate-create name=<name>`
 4. **New features:** Include comprehensive tests following the mandatory pattern
-5. **Taskmaster tasks:** Follow mandatory code review workflow (Zen MCP + structured commits)
+5. **Taskmaster tasks:** Follow mandatory code review workflow via MCP tools (`mcp_zen_codereview` with Gemini 2.5 Pro and O3 models + `mcp_zen_precommit` + structured commits)
 6. **Logging:** Use `pkg/logger` for structured logging
 7. **Core types:** Use `core.ID` for UUIDs, `core.Ref` for polymorphic references
 8. **Backwards Compatibility:** NOT REQUIRED - Compozy is in development/alpha phase. Feel free to make breaking changes to focus on best architecture and code quality.
