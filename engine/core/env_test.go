@@ -29,8 +29,8 @@ func Test_NewEnvFromFile(t *testing.T) {
 			"KEY2": "value2",
 		}
 
-		cwd := setupEnvFile(t, content)
-		env, err := NewEnvFromFile(cwd)
+		CWD := setupEnvFile(t, content)
+		env, err := NewEnvFromFile(CWD)
 		if err != nil {
 			t.Errorf("NewEnvFromFile() error = %v, want nil", err)
 			return
@@ -47,8 +47,8 @@ func Test_NewEnvFromFile(t *testing.T) {
 		content := ""
 		expected := EnvMap{}
 
-		cwd := setupEnvFile(t, content)
-		env, err := NewEnvFromFile(cwd)
+		CWD := setupEnvFile(t, content)
+		env, err := NewEnvFromFile(CWD)
 		if err != nil {
 			t.Errorf("NewEnvFromFile() error = %v, want nil", err)
 			return
@@ -66,8 +66,8 @@ func Test_NewEnvFromFile(t *testing.T) {
 			"KEY2": "value2",
 		}
 
-		cwd := setupEnvFile(t, content)
-		env, err := NewEnvFromFile(cwd)
+		CWD := setupEnvFile(t, content)
+		env, err := NewEnvFromFile(CWD)
 		if err != nil {
 			t.Errorf("NewEnvFromFile() error = %v, want nil", err)
 			return
@@ -87,8 +87,8 @@ func Test_NewEnvFromFile(t *testing.T) {
 			"KEY2": "value2",
 		}
 
-		cwd := setupEnvFile(t, content)
-		env, err := NewEnvFromFile(cwd)
+		CWD := setupEnvFile(t, content)
+		env, err := NewEnvFromFile(CWD)
 		if err != nil {
 			t.Errorf("NewEnvFromFile() error = %v, want nil", err)
 			return

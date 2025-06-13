@@ -13,18 +13,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTest(t *testing.T, agentFile string) (cwd *core.CWD, dstPath string) {
+func setupTest(t *testing.T, agentFile string) (*core.PathCWD, string) {
 	_, filename, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	cwd, dstPath = utils.SetupTest(t, filename)
+	cwd, dstPath := utils.SetupTest(t, filename)
 	dstPath = filepath.Join(dstPath, agentFile)
-	return
+	return cwd, dstPath
 }
 
 func Test_LoadAgent(t *testing.T) {
 	t.Run("Should load basic agent configuration correctly", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "basic_agent.yaml")
-		config, err := Load(cwd, dstPath)
+		CWD, dstPath := setupTest(t, "basic_agent.yaml")
+		config, err := Load(CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -89,7 +89,7 @@ func Test_AgentActionConfigValidation(t *testing.T) {
 		config := &ActionConfig{
 			ID:     "test-action",
 			Prompt: "test prompt",
-			cwd:    actionCWD,
+			CWD:    actionCWD,
 		}
 		err := config.Validate()
 		assert.NoError(t, err)
@@ -109,7 +109,7 @@ func Test_AgentActionConfigValidation(t *testing.T) {
 		config := &ActionConfig{
 			ID:     "test-action",
 			Prompt: "test prompt",
-			cwd:    actionCWD,
+			CWD:    actionCWD,
 			InputSchema: &schema.Schema{
 				"type": "object",
 				"properties": map[string]any{
@@ -183,7 +183,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 			ID:           agentID,
 			Config:       core.ProviderConfig{},
 			Instructions: "test instructions",
-			cwd:          agentCWD,
+			CWD:          agentCWD,
 		}
 		err := config.Validate()
 		assert.NoError(t, err)

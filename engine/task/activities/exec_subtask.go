@@ -12,16 +12,16 @@ import (
 	"github.com/compozy/compozy/engine/workflow"
 )
 
-const ExecuteParallelTaskLabel = "ExecuteParallelTask"
+const ExecuteSubtaskLabel = "ExecuteSubtask"
 
-type ExecuteParallelTaskInput struct {
+type ExecuteSubtaskInput struct {
 	WorkflowID     string      `json:"workflow_id"`
 	WorkflowExecID core.ID     `json:"workflow_exec_id"`
 	ParentState    *task.State `json:"parent_state"`
 	TaskExecID     string      `json:"task_exec_id"`
 }
 
-type ExecuteParallelTask struct {
+type ExecuteSubtask struct {
 	loadWorkflowUC *uc.LoadWorkflow
 	executeTaskUC  *uc.ExecuteTask
 	taskResponder  *services.TaskResponder
@@ -29,15 +29,15 @@ type ExecuteParallelTask struct {
 	configStore    services.ConfigStore
 }
 
-// NewExecuteParallelTask creates a new ExecuteParallelTask activity
-func NewExecuteParallelTask(
+// NewExecuteSubtask creates a new ExecuteSubtask activity
+func NewExecuteSubtask(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	runtime *runtime.Manager,
 	configStore services.ConfigStore,
-) *ExecuteParallelTask {
-	return &ExecuteParallelTask{
+) *ExecuteSubtask {
+	return &ExecuteSubtask{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		executeTaskUC:  uc.NewExecuteTask(runtime),
 		taskResponder:  services.NewTaskResponder(workflowRepo, taskRepo),
@@ -46,7 +46,7 @@ func NewExecuteParallelTask(
 	}
 }
 
-func (a *ExecuteParallelTask) Run(ctx context.Context, input *ExecuteParallelTaskInput) (*task.SubtaskResponse, error) {
+func (a *ExecuteSubtask) Run(ctx context.Context, input *ExecuteSubtaskInput) (*task.SubtaskResponse, error) {
 	// Load workflow state and config
 	workflowState, workflowConfig, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
 		WorkflowID:     input.WorkflowID,
@@ -100,16 +100,14 @@ func (a *ExecuteParallelTask) Run(ctx context.Context, input *ExecuteParallelTas
 		return nil, err
 	}
 
-	// If there was an execution error, the subtask should be considered failed
-	if executionError != nil {
-		return response, executionError
-	}
-
+	// Return the response with the execution status embedded.
+	// We only return an error if there's an infrastructure issue that Temporal should retry.
+	// Business logic failures are captured in the response status.
 	return response, nil
 }
 
 // getChildState retrieves the existing child state for a specific task
-func (a *ExecuteParallelTask) getChildState(
+func (a *ExecuteSubtask) getChildState(
 	ctx context.Context,
 	parentStateID core.ID,
 	taskID string,

@@ -15,20 +15,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTest(t *testing.T, taskFile string) (cwd *core.CWD, dstPath string) {
+func setupTest(t *testing.T, taskFile string) (*core.PathCWD, string) {
 	_, filename, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	cwd, dstPath = utils.SetupTest(t, filename)
+	cwd, dstPath := utils.SetupTest(t, filename)
 	dstPath = filepath.Join(dstPath, taskFile)
-	return
+	return cwd, dstPath
 }
 
 func Test_LoadTask(t *testing.T) {
 	t.Run("Should load basic task configuration correctly", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "basic_task.yaml")
+		CWD, dstPath := setupTest(t, "basic_task.yaml")
 
 		// Run the test
-		config, err := Load(cwd, dstPath)
+		config, err := Load(CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -79,10 +79,10 @@ func Test_LoadTask(t *testing.T) {
 	})
 
 	t.Run("Should load router task configuration correctly", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "router_task.yaml")
+		CWD, dstPath := setupTest(t, "router_task.yaml")
 
 		// Run the test
-		config, err := Load(cwd, dstPath)
+		config, err := Load(CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -143,11 +143,11 @@ func Test_LoadTask(t *testing.T) {
 	})
 
 	t.Run("Should load parallel task configuration correctly", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "parallel_task.yaml")
+		CWD, dstPath := setupTest(t, "parallel_task.yaml")
 		ev := ref.NewEvaluator()
 
 		// Run the test
-		config, err := LoadAndEval(cwd, dstPath, ev)
+		config, err := LoadAndEval(CWD, dstPath, ev)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -219,10 +219,10 @@ func Test_LoadTask(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid task configuration", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "invalid_task.yaml")
+		CWD, dstPath := setupTest(t, "invalid_task.yaml")
 
 		// Run the test
-		config, err := Load(cwd, dstPath)
+		config, err := Load(CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -232,10 +232,10 @@ func Test_LoadTask(t *testing.T) {
 	})
 
 	t.Run("Should return error for circular dependency in loaded YAML", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "circular_task.yaml")
+		CWD, dstPath := setupTest(t, "circular_task.yaml")
 
 		// Run the test
-		config, err := Load(cwd, dstPath)
+		config, err := Load(CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -246,10 +246,10 @@ func Test_LoadTask(t *testing.T) {
 	})
 
 	t.Run("Should load collection task configuration correctly", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "collection_task.yaml")
+		CWD, dstPath := setupTest(t, "collection_task.yaml")
 
 		// Run the test
-		config, err := Load(cwd, dstPath)
+		config, err := Load(CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -338,7 +338,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   taskID,
 				Type: TaskTypeBasic,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 			BasicTask: BasicTask{
 				Action: "test-action",
@@ -354,7 +354,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   taskID,
 				Type: TaskTypeRouter,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 			RouterTask: RouterTask{
 				Condition: "test-condition",
@@ -375,7 +375,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   taskID,
 				Type: TaskTypeParallel,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 			ParallelTask: ParallelTask{
 				Tasks: []Config{
@@ -384,7 +384,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 							ID:    "task1",
 							Type:  TaskTypeBasic,
 							Agent: &agent.Config{ID: "test_agent"},
-							cwd:   taskCWD, // Each sub-task needs a CWD
+							CWD:   taskCWD, // Each sub-task needs a CWD
 						},
 						BasicTask: BasicTask{
 							Action: "test_action",
@@ -417,7 +417,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   "test-task",
 				Type: "invalid",
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 		}
 
@@ -431,7 +431,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   taskID,
 				Type: TaskTypeRouter,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 		}
 
@@ -445,7 +445,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   "test-task",
 				Type: TaskTypeRouter,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 		}
 
@@ -459,7 +459,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   "test-task",
 				Type: TaskTypeBasic,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 				InputSchema: &schema.Schema{
 					"type": "object",
 					"properties": map[string]any{
@@ -485,7 +485,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   taskID,
 				Type: TaskTypeParallel,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 			ParallelTask: ParallelTask{
 				Tasks: []Config{},
@@ -502,7 +502,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   taskID,
 				Type: TaskTypeParallel,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 			ParallelTask: ParallelTask{
 				Tasks: []Config{
@@ -532,7 +532,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   taskID,
 				Type: TaskTypeParallel,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 			ParallelTask: ParallelTask{
 				Tasks: []Config{
@@ -540,7 +540,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 						BaseConfig: BaseConfig{
 							ID:   "invalid",
 							Type: TaskTypeBasic,
-							// Missing required cwd for validation
+							// Missing required CWD for validation
 						},
 					},
 				},
@@ -557,7 +557,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   "parent_task",
 				Type: TaskTypeParallel,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 			ParallelTask: ParallelTask{
 				Tasks: []Config{
@@ -565,7 +565,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 						BaseConfig: BaseConfig{
 							ID:   "child_task",
 							Type: TaskTypeParallel,
-							cwd:  taskCWD,
+							CWD:  taskCWD,
 						},
 						ParallelTask: ParallelTask{
 							Tasks: []Config{
@@ -573,7 +573,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 									BaseConfig: BaseConfig{
 										ID:   "parent_task", // Creates a cycle
 										Type: TaskTypeBasic,
-										cwd:  taskCWD,
+										CWD:  taskCWD,
 									},
 								},
 							},
@@ -593,7 +593,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   "self_ref",
 				Type: TaskTypeParallel,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 			ParallelTask: ParallelTask{
 				Tasks: []Config{
@@ -601,7 +601,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 						BaseConfig: BaseConfig{
 							ID:   "self_ref", // Same ID as parent creates cycle
 							Type: TaskTypeBasic,
-							cwd:  taskCWD,
+							CWD:  taskCWD,
 						},
 						BasicTask: BasicTask{
 							Action: "test",
@@ -621,7 +621,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   "parent_task",
 				Type: TaskTypeParallel,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 			ParallelTask: ParallelTask{
 				Tasks: []Config{
@@ -629,7 +629,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 						BaseConfig: BaseConfig{
 							ID:   "child_task",
 							Type: TaskTypeParallel,
-							cwd:  taskCWD,
+							CWD:  taskCWD,
 						},
 						ParallelTask: ParallelTask{
 							Tasks: []Config{
@@ -637,7 +637,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 									BaseConfig: BaseConfig{
 										ID:   "grandchild_task",
 										Type: TaskTypeBasic,
-										cwd:  taskCWD,
+										CWD:  taskCWD,
 									},
 									BasicTask: BasicTask{
 										Action: "test",
@@ -659,7 +659,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   taskID,
 				Type: TaskTypeCollection,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 			CollectionConfig: CollectionConfig{
 				Items: `["item1", "item2", "item3"]`,
@@ -669,7 +669,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 					BaseConfig: BaseConfig{
 						ID:   "template-task",
 						Type: TaskTypeBasic,
-						cwd:  taskCWD,
+						CWD:  taskCWD,
 					},
 					BasicTask: BasicTask{
 						Action: "process {{ .item }}",
@@ -687,14 +687,14 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   taskID,
 				Type: TaskTypeCollection,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 			CollectionConfig: CollectionConfig{
 				Items: "", // Missing items
 			},
 			ParallelTask: ParallelTask{
 				Task: &Config{
-					BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, cwd: taskCWD},
+					BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, CWD: taskCWD},
 				},
 			},
 		}
@@ -709,7 +709,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   taskID,
 				Type: TaskTypeCollection,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 			CollectionConfig: CollectionConfig{
 				Items: `["item1", "item2"]`,
@@ -717,7 +717,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 			ParallelTask: ParallelTask{
 				Task: &Config{
-					BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, cwd: taskCWD},
+					BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, CWD: taskCWD},
 				},
 			},
 		}
@@ -732,7 +732,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   taskID,
 				Type: TaskTypeCollection,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 			CollectionConfig: CollectionConfig{
 				Items: `["item1", "item2"]`,
@@ -740,7 +740,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 			ParallelTask: ParallelTask{
 				Task: &Config{
-					BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, cwd: taskCWD},
+					BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, CWD: taskCWD},
 				},
 			},
 		}
@@ -755,17 +755,17 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   taskID,
 				Type: TaskTypeCollection,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 			CollectionConfig: CollectionConfig{
 				Items: `["item1", "item2"]`,
 			},
 			ParallelTask: ParallelTask{
 				Task: &Config{
-					BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, cwd: taskCWD},
+					BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, CWD: taskCWD},
 				},
 				Tasks: []Config{
-					{BaseConfig: BaseConfig{ID: "task1", Type: TaskTypeBasic, cwd: taskCWD}},
+					{BaseConfig: BaseConfig{ID: "task1", Type: TaskTypeBasic, CWD: taskCWD}},
 				},
 			},
 		}
@@ -780,7 +780,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{
 				ID:   taskID,
 				Type: TaskTypeCollection,
-				cwd:  taskCWD,
+				CWD:  taskCWD,
 			},
 			CollectionConfig: CollectionConfig{
 				Items: `["item1", "item2"]`,
@@ -862,11 +862,11 @@ func Test_TaskConfigMerge(t *testing.T) {
 
 func Test_TaskReference(t *testing.T) {
 	t.Run("Should load task reference correctly", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "ref_task.yaml")
+		CWD, dstPath := setupTest(t, "ref_task.yaml")
 		ev := ref.NewEvaluator()
 
 		// Run the test
-		config, err := LoadAndEval(cwd, dstPath, ev)
+		config, err := LoadAndEval(CWD, dstPath, ev)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 

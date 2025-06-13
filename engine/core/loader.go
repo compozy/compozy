@@ -9,7 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func ResolvePath(cwd *CWD, path string) (string, error) {
+func ResolvePath(cwd *PathCWD, path string) (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("path cannot be empty")
 	}
@@ -21,7 +21,7 @@ func ResolvePath(cwd *CWD, path string) (string, error) {
 			}
 			return cwd.JoinAndCheck(path)
 		}
-		// Fallback to os.Getwd() for relative paths when cwd is nil
+		// Fallback to os.Getwd() for relative paths when CWD is nil
 		absPath, err := filepath.Abs(path)
 		if err != nil {
 			return "", fmt.Errorf("failed to resolve absolute path: %w", err)

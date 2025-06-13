@@ -26,7 +26,7 @@ type Config struct {
 	Env          *core.EnvMap   `json:"env,omitempty"         yaml:"env,omitempty"         mapstructure:"env,omitempty"`
 
 	filePath string
-	cwd      *core.CWD
+	CWD      *core.PathCWD
 }
 
 func (t *Config) Component() core.ConfigType {
@@ -43,17 +43,17 @@ func (t *Config) SetFilePath(path string) {
 
 // SetCWD sets the current working directory for the tool
 func (t *Config) SetCWD(path string) error {
-	cwd, err := core.CWDFromPath(path)
+	CWD, err := core.CWDFromPath(path)
 	if err != nil {
 		return err
 	}
-	t.cwd = cwd
+	t.CWD = CWD
 	return nil
 }
 
 // GetCWD returns the current working directory
-func (t *Config) GetCWD() *core.CWD {
-	return t.cwd
+func (t *Config) GetCWD() *core.PathCWD {
+	return t.CWD
 }
 
 func (t *Config) GetEnv() core.EnvMap {
@@ -78,7 +78,7 @@ func (t *Config) HasSchema() bool {
 // Validate validates the tool configuration
 func (t *Config) Validate() error {
 	v := schema.NewCompositeValidator(
-		schema.NewCWDValidator(t.cwd, t.ID),
+		schema.NewCWDValidator(t.CWD, t.ID),
 		NewExecuteValidator(t),
 	)
 	return v.Validate()
@@ -135,7 +135,7 @@ func IsTypeScript(path string) bool {
 	return strings.EqualFold(ext, ".ts")
 }
 
-func Load(cwd *core.CWD, path string) (*Config, error) {
+func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err
@@ -147,7 +147,7 @@ func Load(cwd *core.CWD, path string) (*Config, error) {
 	return config, nil
 }
 
-func LoadAndEval(cwd *core.CWD, path string, ev *ref.Evaluator) (*Config, error) {
+func LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err

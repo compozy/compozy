@@ -36,7 +36,7 @@ type Config struct {
 	Tasks       []task.Config   `json:"tasks"                 yaml:"tasks"                 mapstructure:"tasks"`
 
 	filePath string
-	cwd      *core.CWD
+	CWD      *core.PathCWD
 }
 
 func (w *Config) Component() core.ConfigType {
@@ -44,19 +44,19 @@ func (w *Config) Component() core.ConfigType {
 }
 
 func (w *Config) SetCWD(path string) error {
-	cwd, err := core.CWDFromPath(path)
+	CWD, err := core.CWDFromPath(path)
 	if err != nil {
 		return err
 	}
-	w.cwd = cwd
-	if err := setComponentsCWD(w, w.cwd); err != nil {
+	w.CWD = CWD
+	if err := setComponentsCWD(w, w.CWD); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (w *Config) GetCWD() *core.CWD {
-	return w.cwd
+func (w *Config) GetCWD() *core.PathCWD {
+	return w.CWD
 }
 
 func (w *Config) GetEnv() core.EnvMap {
@@ -85,7 +85,7 @@ func (w *Config) HasSchema() bool {
 
 func (w *Config) Validate() error {
 	v := schema.NewCompositeValidator(
-		schema.NewCWDValidator(w.cwd, w.ID),
+		schema.NewCWDValidator(w.CWD, w.ID),
 	)
 	if err := v.Validate(); err != nil {
 		return err
@@ -192,11 +192,11 @@ func (w *Config) DetermineNextTask(
 }
 
 func WorkflowsFromProject(projectConfig *project.Config, ev *ref.Evaluator) ([]*Config, error) {
-	cwd := projectConfig.GetCWD()
+	CWD := projectConfig.GetCWD()
 	projectEnv := projectConfig.GetEnv()
 	var ws []*Config
 	for _, wf := range projectConfig.Workflows {
-		config, err := LoadAndEval(cwd, wf.Source, ev)
+		config, err := LoadAndEval(CWD, wf.Source, ev)
 		if err != nil {
 			return nil, err
 		}
@@ -208,7 +208,7 @@ func WorkflowsFromProject(projectConfig *project.Config, ev *ref.Evaluator) ([]*
 	return ws, nil
 }
 
-func setComponentsCWD(wc *Config, cwd *core.CWD) error {
+func setComponentsCWD(wc *Config, cwd *core.PathCWD) error {
 	if err := setTasksCWD(wc, cwd); err != nil {
 		return err
 	}
@@ -221,7 +221,7 @@ func setComponentsCWD(wc *Config, cwd *core.CWD) error {
 	return nil
 }
 
-func setTasksCWD(wc *Config, cwd *core.CWD) error {
+func setTasksCWD(wc *Config, cwd *core.PathCWD) error {
 	for i := range wc.Tasks {
 		if err := wc.Tasks[i].SetCWD(cwd.PathStr()); err != nil {
 			return err
@@ -230,7 +230,7 @@ func setTasksCWD(wc *Config, cwd *core.CWD) error {
 	return nil
 }
 
-func setToolsCWD(wc *Config, cwd *core.CWD) error {
+func setToolsCWD(wc *Config, cwd *core.PathCWD) error {
 	for i := range wc.Tools {
 		if err := wc.Tools[i].SetCWD(cwd.PathStr()); err != nil {
 			return err
@@ -239,7 +239,7 @@ func setToolsCWD(wc *Config, cwd *core.CWD) error {
 	return nil
 }
 
-func setAgentsCWD(wc *Config, cwd *core.CWD) error {
+func setAgentsCWD(wc *Config, cwd *core.PathCWD) error {
 	for i := range wc.Agents {
 		if err := wc.Agents[i].SetCWD(cwd.PathStr()); err != nil {
 			return err
@@ -248,7 +248,7 @@ func setAgentsCWD(wc *Config, cwd *core.CWD) error {
 	return nil
 }
 
-func Load(cwd *core.CWD, path string) (*Config, error) {
+func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err
@@ -260,7 +260,7 @@ func Load(cwd *core.CWD, path string) (*Config, error) {
 	return config, nil
 }
 
-func LoadAndEval(cwd *core.CWD, path string, ev *ref.Evaluator) (*Config, error) {
+func LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err

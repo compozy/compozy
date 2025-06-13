@@ -18,6 +18,9 @@ func createTaskConfig(id string, taskType task.Type) task.Config {
 	config := task.Config{}
 	config.ID = id
 	config.Type = taskType
+	// Set a default CWD to satisfy validation
+	CWD, _ := core.CWDFromPath("/tmp")
+	config.CWD = CWD
 	return config
 }
 
@@ -31,7 +34,12 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 		child1 := createTaskConfig("child1", task.TaskTypeBasic)
 		child2 := createTaskConfig("child2", task.TaskTypeBasic)
 
-		taskConfig := &task.Config{}
+		CWD, _ := core.CWDFromPath("/tmp")
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				CWD: CWD,
+			},
+		}
 		taskConfig.Type = task.TaskTypeParallel
 		taskConfig.ParallelTask = task.ParallelTask{
 			Tasks:      []task.Config{child1, child2},
@@ -62,7 +70,12 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
 		cm := NewConfigManager(configStore)
-		taskConfig := &task.Config{}
+		CWD, _ := core.CWDFromPath("/tmp")
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				CWD: CWD,
+			},
+		}
 		taskConfig.Type = task.TaskTypeParallel
 
 		// Act
@@ -92,7 +105,12 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 		configStore := NewMockConfigStore()
 		cm := NewConfigManager(configStore)
 		parentStateID := core.MustNewID()
-		taskConfig := &task.Config{}
+		CWD, _ := core.CWDFromPath("/tmp")
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				CWD: CWD,
+			},
+		}
 		taskConfig.Type = task.TaskTypeBasic
 
 		// Act
@@ -108,9 +126,11 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 		configStore := NewMockConfigStore()
 		cm := NewConfigManager(configStore)
 		parentStateID := core.MustNewID()
+		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				Type: task.TaskTypeParallel,
+				CWD:  CWD,
 			},
 			ParallelTask: task.ParallelTask{
 				Tasks: []task.Config{}, // Empty tasks
@@ -130,14 +150,16 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 		configStore := NewMockConfigStore()
 		cm := NewConfigManager(configStore)
 		parentStateID := core.MustNewID()
+		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				Type: task.TaskTypeParallel,
+				CWD:  CWD,
 			},
 			ParallelTask: task.ParallelTask{
 				Tasks: []task.Config{
-					{BaseConfig: task.BaseConfig{ID: "child1", Type: task.TaskTypeBasic}},
-					{BaseConfig: task.BaseConfig{ID: "", Type: task.TaskTypeBasic}}, // Missing ID
+					{BaseConfig: task.BaseConfig{ID: "child1", Type: task.TaskTypeBasic, CWD: CWD}},
+					{BaseConfig: task.BaseConfig{ID: "", Type: task.TaskTypeBasic, CWD: CWD}}, // Missing ID
 				},
 			},
 		}
@@ -162,10 +184,12 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 			WorkflowExecID: core.MustNewID(),
 			WorkflowID:     "test-workflow",
 		}
+		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-collection",
 				Type: task.TaskTypeCollection,
+				CWD:  CWD,
 			},
 			CollectionConfig: task.CollectionConfig{
 				Items: `["item1", "item2", "item3"]`,
@@ -176,6 +200,7 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 					BaseConfig: task.BaseConfig{
 						ID:   "template-task",
 						Type: task.TaskTypeBasic,
+						CWD:  CWD,
 					},
 				},
 			},
@@ -209,7 +234,12 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 		configStore := NewMockConfigStore()
 		cm := NewConfigManager(configStore)
 		workflowState := &workflow.State{}
-		taskConfig := &task.Config{}
+		CWD, _ := core.CWDFromPath("/tmp")
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				CWD: CWD,
+			},
+		}
 		taskConfig.Type = task.TaskTypeCollection
 
 		// Act
@@ -241,7 +271,12 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 		cm := NewConfigManager(configStore)
 		parentStateID := core.MustNewID()
 		workflowState := &workflow.State{}
-		taskConfig := &task.Config{}
+		CWD, _ := core.CWDFromPath("/tmp")
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				CWD: CWD,
+			},
+		}
 		taskConfig.Type = task.TaskTypeBasic
 
 		// Act
@@ -257,7 +292,12 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 		configStore := NewMockConfigStore()
 		cm := NewConfigManager(configStore)
 		parentStateID := core.MustNewID()
-		taskConfig := &task.Config{}
+		CWD, _ := core.CWDFromPath("/tmp")
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				CWD: CWD,
+			},
+		}
 		taskConfig.Type = task.TaskTypeCollection
 
 		// Act
@@ -276,14 +316,16 @@ func TestConfigManager_LoadParallelTaskMetadata(t *testing.T) {
 		cm := NewConfigManager(configStore)
 
 		parentStateID := core.MustNewID()
+		CWD, _ := core.CWDFromPath("/tmp")
 		originalTaskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				Type: task.TaskTypeParallel,
+				CWD:  CWD,
 			},
 			ParallelTask: task.ParallelTask{
 				Tasks: []task.Config{
-					{BaseConfig: task.BaseConfig{ID: "child1", Type: task.TaskTypeBasic}},
-					{BaseConfig: task.BaseConfig{ID: "child2", Type: task.TaskTypeBasic}},
+					{BaseConfig: task.BaseConfig{ID: "child1", Type: task.TaskTypeBasic, CWD: CWD}},
+					{BaseConfig: task.BaseConfig{ID: "child2", Type: task.TaskTypeBasic, CWD: CWD}},
 				},
 				Strategy:   task.StrategyWaitAll,
 				MaxWorkers: 2,
@@ -333,10 +375,12 @@ func TestConfigManager_LoadCollectionTaskMetadata(t *testing.T) {
 			WorkflowExecID: core.MustNewID(),
 			WorkflowID:     "test-workflow",
 		}
+		CWD, _ := core.CWDFromPath("/tmp")
 		originalTaskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-collection",
 				Type: task.TaskTypeCollection,
+				CWD:  CWD,
 			},
 			CollectionConfig: task.CollectionConfig{
 				Items: `["item1", "item2"]`,
@@ -347,6 +391,7 @@ func TestConfigManager_LoadCollectionTaskMetadata(t *testing.T) {
 					BaseConfig: task.BaseConfig{
 						ID:   "template-task",
 						Type: task.TaskTypeBasic,
+						CWD:  CWD,
 					},
 				},
 			},
@@ -395,10 +440,12 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 			WorkflowExecID: core.MustNewID(),
 			WorkflowID:     "test-workflow",
 		}
+		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-collection",
 				Type: task.TaskTypeCollection,
+				CWD:  CWD,
 			},
 			CollectionConfig: task.CollectionConfig{
 				Items:  `[]`, // Empty items array as JSON string
@@ -410,6 +457,7 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 					BaseConfig: task.BaseConfig{
 						ID:   "template-task",
 						Type: task.TaskTypeBasic,
+						CWD:  CWD,
 					},
 				},
 			},
@@ -433,10 +481,12 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 			WorkflowExecID: core.MustNewID(),
 			WorkflowID:     "test-workflow",
 		}
+		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-collection",
 				Type: task.TaskTypeCollection,
+				CWD:  CWD,
 			},
 			CollectionConfig: task.CollectionConfig{
 				Items: `["item1", "item2", "item3"]`,
@@ -448,6 +498,7 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 					BaseConfig: task.BaseConfig{
 						ID:   "template-task",
 						Type: task.TaskTypeBasic,
+						CWD:  CWD,
 					},
 				},
 			},

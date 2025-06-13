@@ -12,12 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTest(t *testing.T, workflowFile string) (cwd *core.CWD, dstPath string) {
+func setupTest(t *testing.T, workflowFile string) (*core.PathCWD, string) {
 	_, filename, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	cwd, dstPath = utils.SetupTest(t, filename)
+	cwd, dstPath := utils.SetupTest(t, filename)
 	dstPath = filepath.Join(dstPath, workflowFile)
-	return
+	return cwd, dstPath
 }
 
 var globalScope = map[string]any{
@@ -36,9 +36,9 @@ var globalScope = map[string]any{
 
 func Test_LoadWorkflow(t *testing.T) {
 	t.Run("Should load basic workflow configuration correctly", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "basic_workflow.yaml")
+		CWD, dstPath := setupTest(t, "basic_workflow.yaml")
 		ev := ref.NewEvaluator(ref.WithGlobalScope(globalScope))
-		config, err := LoadAndEval(cwd, dstPath, ev)
+		config, err := LoadAndEval(CWD, dstPath, ev)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 		require.NotNil(t, config.Opts)
@@ -85,8 +85,8 @@ func Test_LoadWorkflow(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid workflow configuration", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "invalid_workflow.yaml")
-		config, err := Load(cwd, dstPath)
+		CWD, dstPath := setupTest(t, "invalid_workflow.yaml")
+		config, err := Load(CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -100,12 +100,12 @@ func Test_WorkflowConfigValidation(t *testing.T) {
 	workflowID := "test-workflow"
 
 	t.Run("Should validate valid workflow configuration", func(t *testing.T) {
-		cwd, err := core.CWDFromPath("/test/path")
+		CWD, err := core.CWDFromPath("/test/path")
 		require.NoError(t, err)
 		config := &Config{
 			ID:   workflowID,
 			Opts: Opts{},
-			cwd:  cwd,
+			CWD:  CWD,
 		}
 
 		err = config.Validate()

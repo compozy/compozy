@@ -99,16 +99,17 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 	parentState *task.State,
 	childConfigs []task.Config,
 ) error {
+	// Collect configs to save after transaction succeeds
+	var configsToSave []struct {
+		id  core.ID
+		cfg *task.Config
+	}
+
 	// Prepare all child states first
 	var childStates []*task.State
 	for i := range childConfigs {
 		childConfig := &childConfigs[i]
 		childTaskExecID := core.MustNewID()
-
-		// Save child configuration for later retrieval during execution
-		if err := uc.configManager.SaveChildConfig(ctx, childTaskExecID, childConfig); err != nil {
-			return fmt.Errorf("failed to save child config %s: %w", childConfig.ID, err)
-		}
 
 		// Create child partial state by recursively processing the child config
 		childPartialState, err := uc.processChildConfig(childConfig)
@@ -131,12 +132,26 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 		// Create child state (without persisting yet)
 		childState := task.CreateBasicState(childStateInput, childPartialState)
 		childStates = append(childStates, childState)
+
+		// Collect config to save after transaction succeeds
+		configsToSave = append(configsToSave, struct {
+			id  core.ID
+			cfg *task.Config
+		}{childTaskExecID, childConfig})
 	}
 
 	// Create all child states atomically in a single transaction
 	err := uc.taskRepo.CreateChildStatesInTransaction(ctx, parentState.TaskExecID, childStates)
 	if err != nil {
 		return err
+	}
+
+	// Save configs only after database transaction succeeds
+	for _, c := range configsToSave {
+		if err := uc.configManager.SaveTaskConfig(ctx, c.id, c.cfg); err != nil {
+			// TODO: Consider best-effort rollback or marking configs as invalid
+			return fmt.Errorf("failed to save child config %s after transaction: %w", c.cfg.ID, err)
+		}
 	}
 
 	return nil

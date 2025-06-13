@@ -28,7 +28,7 @@ func (v *ExecuteValidator) Validate() error {
 		return fmt.Errorf("invalid typescript file: %s", v.config.Execute)
 	}
 
-	_, err := v.config.cwd.JoinAndCheck(v.config.Execute)
+	_, err := v.config.CWD.JoinAndCheck(v.config.Execute)
 	if err != nil {
 		return err
 	}

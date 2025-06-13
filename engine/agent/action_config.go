@@ -16,20 +16,20 @@ type ActionConfig struct {
 	OutputSchema *schema.Schema `json:"output,omitempty" yaml:"output,omitempty" mapstructure:"output,omitempty"`
 	With         *core.Input    `json:"with,omitempty"   yaml:"with,omitempty"   mapstructure:"with,omitempty"`
 	JSONMode     bool           `json:"json_mode"        yaml:"json_mode"        mapstructure:"json_mode"`
-	cwd          *core.CWD
+	CWD          *core.PathCWD
 }
 
 func (a *ActionConfig) SetCWD(path string) error {
-	cwd, err := core.CWDFromPath(path)
+	CWD, err := core.CWDFromPath(path)
 	if err != nil {
 		return err
 	}
-	a.cwd = cwd
+	a.CWD = CWD
 	return nil
 }
 
-func (a *ActionConfig) GetCWD() *core.CWD {
-	return a.cwd
+func (a *ActionConfig) GetCWD() *core.PathCWD {
+	return a.CWD
 }
 
 func (a *ActionConfig) GetInput() *core.Input {
@@ -41,7 +41,7 @@ func (a *ActionConfig) GetInput() *core.Input {
 
 func (a *ActionConfig) Validate() error {
 	v := schema.NewCompositeValidator(
-		schema.NewCWDValidator(a.cwd, a.ID),
+		schema.NewCWDValidator(a.CWD, a.ID),
 		schema.NewStructValidator(a),
 	)
 	return v.Validate()

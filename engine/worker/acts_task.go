@@ -11,7 +11,6 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	tkacts "github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/task/uc"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 type TaskExecutor struct {
@@ -168,13 +167,13 @@ func (e *TaskExecutor) ListChildStates(
 	return childStates, nil
 }
 
-func (e *TaskExecutor) ExecuteParallelTask(
+func (e *TaskExecutor) ExecuteSubtask(
 	ctx workflow.Context,
 	pState *task.State,
 	taskExecID string,
 ) (*task.SubtaskResponse, error) {
-	actLabel := tkacts.ExecuteParallelTaskLabel
-	actInput := tkacts.ExecuteParallelTaskInput{
+	actLabel := tkacts.ExecuteSubtaskLabel
+	actInput := tkacts.ExecuteSubtaskInput{
 		WorkflowID:     e.WorkflowID,
 		WorkflowExecID: e.WorkflowExecID,
 		ParentState:    pState,
@@ -184,13 +183,8 @@ func (e *TaskExecutor) ExecuteParallelTask(
 	var response *task.SubtaskResponse
 	err := future.Get(ctx, &response)
 	if err != nil {
-		subtaskResponse := &task.SubtaskResponse{
-			TaskID: taskExecID, // Using taskExecID as identifier
-			Output: nil,
-			Status: core.StatusFailed,
-			Error:  core.NewError(err, "subtask_execution_failed", nil),
-		}
-		return subtaskResponse, err
+		// Let the error propagate for Temporal to handle retries
+		return nil, err
 	}
 	return response, nil
 }
@@ -208,7 +202,7 @@ func (e *TaskExecutor) ExecuteCollectionTask(
 		if err != nil {
 			return nil, err
 		}
-		finalResponse, err := e.GetCollectionResponse(ctx, cState, taskConfig)
+		finalResponse, err := e.GetCollectionResponse(ctx, cState)
 		if err != nil {
 			return nil, err
 		}
@@ -223,14 +217,12 @@ func (e *TaskExecutor) ExecuteCollectionTask(
 func (e *TaskExecutor) GetParallelResponse(
 	ctx workflow.Context,
 	pState *task.State,
-	pConfig *task.Config,
 ) (task.Response, error) {
 	var response *task.MainTaskResponse
 	actLabel := tkacts.GetParallelResponseLabel
 	actInput := tkacts.GetParallelResponseInput{
 		ParentState:    pState,
 		WorkflowConfig: e.WorkflowConfig,
-		TaskConfig:     pConfig,
 	}
 	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &response)
 	if err != nil {
@@ -294,14 +286,23 @@ func (e *TaskExecutor) HandleCollectionTask(
 	for i := range childStates {
 		childState := childStates[i]
 		workflow.Go(ctx, func(gCtx workflow.Context) {
-			_, err := e.ExecuteParallelTask(gCtx, cState, childState.TaskExecID.String())
-			if err != nil {
-				logger.Error("Failed to execute collection item",
+			response, err := e.ExecuteSubtask(gCtx, cState, childState.TaskExecID.String())
+			switch {
+			case err != nil:
+				// Activity failed after all retries - this is a terminal failure
+				logger.Error("Failed to execute collection item after retries",
 					"parent_task_id", taskConfig.ID,
 					"child_task_exec_id", childState.TaskExecID,
 					"error", err)
 				atomic.AddInt32(&failed, 1)
-			} else {
+			case response.Status == core.StatusFailed:
+				// Activity succeeded but task business logic failed
+				logger.Warn("Collection item execution resulted in failed status",
+					"parent_task_id", taskConfig.ID,
+					"child_task_exec_id", childState.TaskExecID,
+					"error", response.Error)
+				atomic.AddInt32(&failed, 1)
+			default:
 				atomic.AddInt32(&completed, 1)
 				logger.Info("Collection item completed successfully",
 					"parent_task_id", taskConfig.ID,
@@ -311,23 +312,7 @@ func (e *TaskExecutor) HandleCollectionTask(
 	}
 
 	// Wait for tasks to complete based on strategy
-	awaitErr := workflow.Await(ctx, func() bool {
-		completedCount := atomic.LoadInt32(&completed)
-		failedCount := atomic.LoadInt32(&failed)
-		strategy := taskConfig.GetStrategy()
-		switch strategy {
-		case task.StrategyWaitAll:
-			return (completedCount + failedCount) >= childCount
-		case task.StrategyFailFast:
-			return failedCount > 0 || completedCount >= childCount
-		case task.StrategyBestEffort:
-			return (completedCount + failedCount) >= childCount
-		case task.StrategyRace:
-			return completedCount > 0 || failedCount >= childCount
-		default:
-			return (completedCount + failedCount) >= childCount
-		}
-	})
+	awaitErr := e.awaitSubtasks(ctx, taskConfig.GetStrategy(), childCount, &completed, &failed)
 	if awaitErr != nil {
 		return fmt.Errorf("failed to await collection task: %w", awaitErr)
 	}
@@ -346,14 +331,12 @@ func (e *TaskExecutor) HandleCollectionTask(
 func (e *TaskExecutor) GetCollectionResponse(
 	ctx workflow.Context,
 	cState *task.State,
-	taskConfig *task.Config,
 ) (task.Response, error) {
 	var response *task.CollectionResponse
 	actLabel := tkacts.GetCollectionResponseLabel
 	actInput := tkacts.GetCollectionResponseInput{
 		ParentState:    cState,
 		WorkflowConfig: e.WorkflowConfig,
-		TaskConfig:     taskConfig,
 	}
 	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &response)
 	if err != nil {
@@ -387,14 +370,23 @@ func (e *TaskExecutor) HandleParallelTask(pConfig *task.Config) func(ctx workflo
 		for i := range childStates {
 			childState := childStates[i]
 			workflow.Go(ctx, func(gCtx workflow.Context) {
-				_, err := e.ExecuteParallelTask(gCtx, pState, childState.TaskExecID.String())
-				if err != nil {
-					logger.Error("Failed to execute sub task",
+				response, err := e.ExecuteSubtask(gCtx, pState, childState.TaskExecID.String())
+				switch {
+				case err != nil:
+					// Activity failed after all retries - this is a terminal failure
+					logger.Error("Failed to execute sub task after retries",
 						"parent_task_id", pConfig.ID,
 						"sub_task_exec_id", childState.TaskExecID,
 						"error", err)
 					atomic.AddInt32(&failed, 1)
-				} else {
+				case response.Status == core.StatusFailed:
+					// Activity succeeded but task business logic failed
+					logger.Warn("Subtask execution resulted in failed status",
+						"parent_task_id", pConfig.ID,
+						"sub_task_exec_id", childState.TaskExecID,
+						"error", response.Error)
+					atomic.AddInt32(&failed, 1)
+				default:
 					atomic.AddInt32(&completed, 1)
 					logger.Info("Subtask completed successfully",
 						"parent_task_id", pConfig.ID,
@@ -404,28 +396,12 @@ func (e *TaskExecutor) HandleParallelTask(pConfig *task.Config) func(ctx workflo
 		}
 
 		// Wait for tasks to complete based on strategy
-		err = workflow.Await(ctx, func() bool {
-			completedCount := atomic.LoadInt32(&completed)
-			failedCount := atomic.LoadInt32(&failed)
-			strategy := pConfig.GetStrategy()
-			switch strategy {
-			case task.StrategyWaitAll:
-				return (completedCount + failedCount) >= numTasks
-			case task.StrategyFailFast:
-				return failedCount > 0 || completedCount >= numTasks
-			case task.StrategyBestEffort:
-				return (completedCount + failedCount) >= numTasks
-			case task.StrategyRace:
-				return completedCount > 0 || failedCount >= numTasks
-			default:
-				return (completedCount + failedCount) >= numTasks
-			}
-		})
+		err = e.awaitSubtasks(ctx, pConfig.GetStrategy(), numTasks, &completed, &failed)
 		if err != nil {
 			return nil, fmt.Errorf("failed to await parallel task: %w", err)
 		}
 		// Process parallel response with proper transitions
-		finalResponse, err := e.GetParallelResponse(ctx, pState, pConfig)
+		finalResponse, err := e.GetParallelResponse(ctx, pState)
 		if err != nil {
 			return nil, err
 		}
@@ -442,6 +418,8 @@ func (e *TaskExecutor) HandleParallelTask(pConfig *task.Config) func(ctx workflo
 }
 
 func (e *TaskExecutor) sleepTask(ctx workflow.Context, taskConfig *task.Config) error {
+	// Get logger from workflow context for consistency
+	logger := workflow.GetLogger(ctx)
 	// Check if task has sleep configuration
 	taskID := taskConfig.ID
 	sleepDuration, err := taskConfig.GetSleepDuration()
@@ -460,4 +438,29 @@ func (e *TaskExecutor) sleepTask(ctx workflow.Context, taskConfig *task.Config) 
 		logger.Info("Task sleep completed", "task_id", taskID)
 	}
 	return nil
+}
+
+// awaitSubtasks waits for subtasks to complete based on the strategy
+func (e *TaskExecutor) awaitSubtasks(
+	ctx workflow.Context,
+	strategy task.ParallelStrategy,
+	totalTasks int32,
+	completed, failed *int32,
+) error {
+	return workflow.Await(ctx, func() bool {
+		completedCount := atomic.LoadInt32(completed)
+		failedCount := atomic.LoadInt32(failed)
+		totalDone := completedCount + failedCount
+
+		switch strategy {
+		case task.StrategyWaitAll, task.StrategyBestEffort:
+			return totalDone >= totalTasks
+		case task.StrategyFailFast:
+			return failedCount > 0 || completedCount >= totalTasks
+		case task.StrategyRace:
+			return completedCount > 0 || failedCount >= totalTasks
+		default:
+			return totalDone >= totalTasks
+		}
+	})
 }

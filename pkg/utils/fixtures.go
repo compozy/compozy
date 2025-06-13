@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func SetupTest(t *testing.T, filename string) (*core.CWD, string) {
+func SetupTest(t *testing.T, filename string) (*core.PathCWD, string) {
 	testDir := filepath.Dir(filename)
 	cwd, err := core.CWDFromPath(testDir)
 	require.NoError(t, err)

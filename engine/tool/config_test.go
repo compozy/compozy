@@ -13,18 +13,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTest(t *testing.T, toolFile string) (cwd *core.CWD, dstPath string) {
+func setupTest(t *testing.T, toolFile string) (*core.PathCWD, string) {
 	_, filename, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	cwd, dstPath = utils.SetupTest(t, filename)
+	cwd, dstPath := utils.SetupTest(t, filename)
 	dstPath = filepath.Join(dstPath, toolFile)
-	return
+	return cwd, dstPath
 }
 
 func Test_LoadTool(t *testing.T) {
 	t.Run("Should load basic tool configuration correctly", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "basic_tool.yaml")
-		config, err := Load(cwd, dstPath)
+		CWD, dstPath := setupTest(t, "basic_tool.yaml")
+		config, err := Load(CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -71,8 +71,8 @@ func Test_LoadTool(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid tool configuration", func(t *testing.T) {
-		cwd, dstPath := setupTest(t, "invalid_tool.yaml")
-		config, err := Load(cwd, dstPath)
+		CWD, dstPath := setupTest(t, "invalid_tool.yaml")
+		config, err := Load(CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -91,7 +91,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 	t.Run("Should validate valid tool configuration", func(t *testing.T) {
 		config := &Config{
 			ID:  toolID,
-			cwd: toolCWD,
+			CWD: toolCWD,
 		}
 
 		err := config.Validate()
@@ -112,7 +112,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 		config := &Config{
 			ID:      toolID,
 			Execute: "./nonexistent.ts",
-			cwd:     toolCWD,
+			CWD:     toolCWD,
 		}
 
 		err := config.Validate()
@@ -123,7 +123,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 		config := &Config{
 			ID:      toolID,
 			Execute: "./test.ts",
-			cwd:     toolCWD,
+			CWD:     toolCWD,
 			InputSchema: &schema.Schema{
 				"type": "object",
 				"properties": map[string]any{

@@ -7,17 +7,17 @@ import (
 	"path/filepath"
 )
 
-type CWD struct {
-	path string
+type PathCWD struct {
+	Path string `json:"path" yaml:"path" mapstructure:"path"`
 }
 
-func CWDFromPath(path string) (*CWD, error) {
+func CWDFromPath(path string) (*PathCWD, error) {
 	if path == "" {
-		cwd, err := os.Getwd()
+		CWD, err := os.Getwd()
 		if err != nil {
 			return nil, err
 		}
-		return &CWD{path: cwd}, nil
+		return &PathCWD{Path: CWD}, nil
 	}
 
 	var absPath string
@@ -36,39 +36,39 @@ func CWDFromPath(path string) (*CWD, error) {
 		absPath = filepath.Dir(absPath)
 	}
 
-	return &CWD{path: absPath}, nil
+	return &PathCWD{Path: absPath}, nil
 }
 
-func (c *CWD) Set(path string) error {
+func (c *PathCWD) Set(path string) error {
 	if path == "" {
 		return errors.New("path is required")
 	}
 	if c == nil {
-		return errors.New("cwd is nil")
+		return errors.New("CWD is nil")
 	}
 	normalizedPath, err := CWDFromPath(path)
 	if err != nil {
 		return fmt.Errorf("failed to normalize path: %w", err)
 	}
-	c.path = normalizedPath.path
+	c.Path = normalizedPath.Path
 	return nil
 }
 
-func (c *CWD) PathStr() string {
+func (c *PathCWD) PathStr() string {
 	if c == nil {
 		return ""
 	}
-	return c.path
+	return c.Path
 }
 
-func (c *CWD) JoinAndCheck(path string) (string, error) {
+func (c *PathCWD) JoinAndCheck(path string) (string, error) {
 	if c == nil {
-		return "", errors.New("cwd is nil")
+		return "", errors.New("CWD is nil")
 	}
-	if c.path == "" {
-		return "", errors.New("cwd is not set")
+	if c.Path == "" {
+		return "", errors.New("CWD is not set")
 	}
-	filename := filepath.Join(c.path, path)
+	filename := filepath.Join(c.Path, path)
 	filename, err := filepath.Abs(filename)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve absolute path: %w", err)
@@ -80,8 +80,8 @@ func (c *CWD) JoinAndCheck(path string) (string, error) {
 	return filename, nil
 }
 
-func (c *CWD) Validate() error {
-	if c.path == "" {
+func (c *PathCWD) Validate() error {
+	if c.Path == "" {
 		return errors.New("current working directory not set")
 	}
 	return nil

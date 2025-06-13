@@ -80,6 +80,10 @@ func (cm *ConfigManager) PrepareParallelConfigs(
 		if taskConfig.Tasks[i].ID == "" {
 			return fmt.Errorf("child config at index %d missing required ID field", i)
 		}
+		// Perform full validation on each child config
+		if err := taskConfig.Tasks[i].Validate(); err != nil {
+			return fmt.Errorf("invalid child config at index %d: %w", i, err)
+		}
 	}
 
 	metadata := &ParallelTaskMetadata{
@@ -143,6 +147,10 @@ func (cm *ConfigManager) PrepareCollectionConfigs(
 	for i := range childConfigs {
 		if childConfigs[i].ID == "" {
 			return nil, fmt.Errorf("generated child config at index %d missing required ID field", i)
+		}
+		// Perform full validation on each generated child config
+		if err := childConfigs[i].Validate(); err != nil {
+			return nil, fmt.Errorf("invalid generated child config at index %d: %w", i, err)
 		}
 	}
 
@@ -254,10 +262,7 @@ func (cm *ConfigManager) calculateMaxWorkers(taskConfig *task.Config) int {
 	return 0 // 0 means unlimited for parallel mode
 }
 
-// SaveChildConfig saves a child task configuration by taskExecID
-func (cm *ConfigManager) SaveChildConfig(ctx context.Context, taskExecID core.ID, config *task.Config) error {
-	if err := cm.configStore.Save(ctx, string(taskExecID), config); err != nil {
-		return fmt.Errorf("failed to save child config for %s: %w", taskExecID, err)
-	}
-	return nil
+// SaveTaskConfig saves a task configuration to Redis using taskExecID as key
+func (cm *ConfigManager) SaveTaskConfig(ctx context.Context, taskExecID core.ID, config *task.Config) error {
+	return cm.configStore.Save(ctx, string(taskExecID), config)
 }

@@ -41,7 +41,7 @@ func NewBaseDeps(
 
 type State struct {
 	BaseDeps
-	CWD    *core.CWD
+	CWD    *core.PathCWD
 	Worker *worker.Worker
 }
 
@@ -49,12 +49,12 @@ func NewState(deps BaseDeps, worker *worker.Worker) (*State, error) {
 	if deps.ProjectConfig == nil {
 		return nil, fmt.Errorf("project config is required")
 	}
-	cwd := deps.ProjectConfig.GetCWD()
-	if cwd == nil {
+	CWD := deps.ProjectConfig.GetCWD()
+	if CWD == nil {
 		return nil, fmt.Errorf("project config must have a valid CWD")
 	}
 	return &State{
-		CWD:      cwd,
+		CWD:      CWD,
 		BaseDeps: deps,
 		Worker:   worker,
 	}, nil
