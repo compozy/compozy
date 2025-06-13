@@ -150,9 +150,10 @@ func TestValidateInput(t *testing.T) {
 ### Test Organization
 
 - Place `*_test.go` files alongside implementation files
-- Use testify for assertions and mocks
+- Use testify for assertions and mocks (`stretchr/testify/assert`, `stretchr/testify/mock`)
 - Each test must be independent and repeatable
-- Mock external dependencies
+- Mock external dependencies **only when necessary** using `testify/mock` pattern
+- **Priority:** Migrate existing custom mocks to standardized `testify/mock` implementations
 
 ## Code Quality Standards
 
@@ -385,7 +386,8 @@ mcps:
 2. **API changes:** Update Swagger annotations
 3. **Schema changes:** Create migrations with `make migrate-create name=<name>`
 4. **New features:** Include comprehensive tests following the mandatory pattern
-5. **Backwards Compatibility:** NOT REQUIRED - Compozy is in development/alpha phase. Make breaking changes freely to achieve best architecture and code quality.
+5. **Taskmaster tasks:** Follow mandatory code review workflow (see [taskmaster-completion-workflow.mdc](mdc:.cursor/rules/taskmaster-completion-workflow.mdc))
+6. **Backwards Compatibility:** NOT REQUIRED - Compozy is in development/alpha phase. Make breaking changes freely to achieve best architecture and code quality.
 
 ## Debugging
 

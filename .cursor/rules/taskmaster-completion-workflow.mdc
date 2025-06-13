@@ -1,0 +1,120 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Taskmaster Task Completion Workflow
+
+## MANDATORY: Code Review Before Task Completion
+
+**CRITICAL REQUIREMENT:** Before marking any Taskmaster task as `done`, you MUST follow this exact workflow:
+
+### 1. Code Review with Zen MCP
+
+**MANDATORY STEP:** Perform comprehensive code reviews using both AI models:
+
+```bash
+# Review with Gemini (fast, comprehensive)
+mcp_zen_codereview --model=gemini-2.0-flash --files=[absolute_paths_to_changed_files] --prompt="Review implementation for Taskmaster task [task_id]: [task_title]. Focus on code quality, security, and adherence to project standards."
+
+# Review with O3 (deep reasoning)
+mcp_zen_codereview --model=o3 --files=[absolute_paths_to_changed_files] --prompt="Deep review of implementation for Taskmaster task [task_id]: [task_title]. Analyze logic, edge cases, and potential issues."
+```
+
+**Key Parameters:**
+- `--files`: MUST include absolute paths to ALL modified files
+- `--review_type`: Use `full` for comprehensive review
+- `--thinking_mode`: Use `medium` for Gemini, `high` for O3
+- `--focus_on`: Specify task-specific concerns if applicable
+
+### 2. Fix Review Issues
+
+**MANDATORY:** Address ALL issues identified in the reviews:
+- Fix critical and high-severity issues immediately
+- Address medium-severity issues unless explicitly justified
+- Document any decisions to skip low-severity issues
+- Re-run reviews if significant changes are made
+
+### 3. Update Task with Review Results
+
+**MANDATORY:** Log review completion in the task:
+
+```bash
+# Update subtask with review completion
+update_subtask --id=[subtask_id] --prompt="Code review completed with Gemini and O3:
+- Gemini review: [summary of findings and fixes]
+- O3 review: [summary of findings and fixes]
+- All critical/high issues resolved
+- Implementation ready for completion"
+```
+
+### 4. Pre-Commit Validation
+
+**MANDATORY:** Run validation before committing:
+
+```bash
+# Use Zen MCP precommit tool
+mcp_zen_precommit --path=[absolute_project_path] --model=gemini-2.0-flash --prompt="Taskmaster task [task_id] implementation review"
+```
+
+### 5. Git Commit
+
+**MANDATORY:** Create structured commit with task reference:
+
+```bash
+git add .
+git commit -m "feat(task-[task_id]): [concise_task_description]
+
+- Implemented [specific changes made]
+- Code reviewed with Gemini and O3
+- All review issues addressed
+- Task: [task_id] - [task_title]
+
+Closes: task-[task_id]"
+```
+
+### 6. Mark Task Complete
+
+**ONLY AFTER** successful commit:
+
+```bash
+set_task_status --id=[task_id] --status=done
+```
+
+## Workflow Integration
+
+This workflow integrates with the existing [Task Master Development Workflow](mdc:.cursor/rules/dev_workflow.mdc):
+
+- **Step 7-8 Enhancement:** The existing workflow mentions reviewing and updating rules post-implementation. This rule adds the mandatory code review step before that.
+- **Step 9 Replacement:** This rule replaces the basic commit step with a comprehensive review and commit process.
+
+## Zen MCP Tool Requirements
+
+**MANDATORY TOOLS:** This workflow requires these Zen MCP tools:
+- `mcp_zen_codereview`: For AI-powered code reviews
+- `mcp_zen_precommit`: For pre-commit validation
+- Standard Taskmaster tools: `update_subtask`, `set_task_status`
+
+## Exception Handling
+
+**RARE EXCEPTIONS:** This workflow may be bypassed ONLY for:
+- Emergency hotfixes (must be reviewed post-deployment)
+- Simple documentation-only changes
+- Configuration-only changes with no code impact
+
+**DOCUMENTATION:** Any exceptions MUST be documented in the task update with clear justification.
+
+## Quality Assurance
+
+This workflow ensures:
+- **Code Quality:** Dual AI review catches different types of issues
+- **Security:** Both models analyze for security vulnerabilities
+- **Consistency:** Standardized review process across all tasks
+- **Traceability:** Clear connection between tasks and commits
+- **Accountability:** Review completion logged in task history
+
+## Compliance
+
+**ENFORCEMENT:** This rule is always applied and MUST be followed for every Taskmaster task completion. No exceptions without explicit documentation and justification.
+
+Reference the complete [Taskmaster Tool & Command Reference](mdc:.cursor/rules/taskmaster.mdc) for tool usage details.

@@ -1,0 +1,267 @@
+# Auto-Load Configuration System
+
+## Executive Summary
+
+This PRD defines the requirements for implementing an Auto-Load Configuration System in Compozy that enables automatic discovery and loading of configuration files using glob patterns. The system eliminates manual configuration management overhead while maintaining full backward compatibility.
+
+**Architecture Document**: See `/AUTOLOAD_ARCHITECTURE.md` for detailed technical design, implementation patterns, and code examples.
+
+## Overview
+
+The Auto-Load Configuration System enables Compozy projects to automatically discover and load configuration files (workflows, tasks, agents, tools, MCPs) using simple glob patterns. This eliminates the need for manual configuration management in `compozy.yaml` while maintaining full backward compatibility.
+
+> **Note**: This PRD focuses on requirements and user-facing features. For technical implementation details, component design, and code examples, refer to `/AUTOLOAD_ARCHITECTURE.md`.
+
+The system solves the problem of configuration overhead in large projects where developers must manually specify every configuration file. Instead of managing hundreds of individual entries, teams can define simple patterns to automatically discover and load configurations based on file organization.
+
+This feature is valuable for development teams managing 50+ configuration files, DevOps engineers setting up standardized project structures, and organizations scaling Compozy usage across multiple projects.
+
+### Definition of Success
+
+The primary success metric for this system is a significant reduction in manual configuration management. We will consider the system successful when we achieve:
+
+*   A 90% reduction in manual configuration entries in `compozy.yaml` for projects with more than 50 configuration files.
+*   End-to-end discovery and loading completes in under 500ms on CI for a representative project.
+
+## Core Features
+
+### Automatic Configuration Discovery
+
+**What it does**: Scans project directories using configurable glob patterns to find and load configuration files automatically. It is designed to handle common filesystem scenarios but has defined behaviors for edge cases.
+
+**Why it's important**: Eliminates manual configuration overhead and reduces human error in large projects with many configuration files.
+
+**How it works**: Uses standard glob patterns (like `workflows/**/*.yaml`) to discover files, auto-detects configuration types based on file structure, and loads them through the existing configuration system.
+*   **Edge Case Handling**:
+    *   **Symlink Loops**: The discovery process will not follow symbolic links to prevent infinite loops.
+    *   **Duplicate Basenames**: Files with the same basename (e.g., `config.yaml`) in different directories are treated as distinct configurations. Naming conflicts are based on the configuration's `name` field, not its filename.
+    *   **Editor/Temp Files**: Discovery should ignore common temporary files (e.g., those starting with `.#` or ending in `~`). This will be part of the default exclude list.
+
+### Simple Include/Exclude Patterns
+
+**What it does**: Provides tsconfig-style include/exclude arrays for defining which files to discover and make addressable via the new `resource::<type>` resolver.
+
+**Why it's important**: Offers familiar, simple pattern matching without complex fragmented configurations.
+
+**How it works**: Processes include patterns first, then applies exclude patterns to filter out unwanted files like test fixtures or deprecated configurations.
+
+### File Watching and Hot Reload
+
+**What it does**: Monitors discovered configuration files for changes and automatically reloads them during development.
+
+**Why it's important**: Enables rapid development workflows where configuration changes are immediately available without restart.
+
+**How it works**: Uses file system notifications with 1-second debouncing to detect changes and incrementally updates the configuration cache. This feature is planned for a future release to de-risk the initial MVP schedule. A manual `compozy reload` command may be considered as an interim step.
+
+### Configuration Resource Validation
+
+**What it does**: Validates that each configuration file contains a `resource` field specifying its component type (Task, Workflow, Agent, Tool, MCP).
+
+**Why it's important**: Enables proper validation, organization, and prevents configuration type mismatches during discovery.
+
+**How it works**: Each discovered file must declare its component type in the `resource` field, allowing the system to validate structure and organize configurations by type during loading.
+
+### Resource Reference Resolution
+
+**What it does**: Makes every discovered configuration addressable from any other configuration via a new `resource` scope in the pkg/ref directive system, e.g. `$ref: "resource::task::#(id=='save_results').outputs"`.
+
+**Why it's important**: Enables DRY composition patterns such as:
+*   Parallel/collection tasks injecting other task templates
+*   Agents reusing shared tool specs
+*   Router branches inspecting sibling task outputs
+*   Consistent single-source-of-truth for component configs
+
+**How it works**:
+1.  Discovery phase builds an in-memory index keyed by `(type, id)` → raw YAML node.
+2.  When a `$ref/$use` targets `resource::<type>::...`, the Evaluator fetches the node, applies its own directive evaluation **recursively**, then returns the (optionally drilled-down) value.
+3.  Cycle detection guards against A → B → A chains.
+4.  Strict mode treats missing resources as fatal; non-strict logs WARN.
+
+**Edge Cases**:
+*   Duplicate IDs across *different* types are allowed (`task.send_email` vs `tool.send_email`).
+*   Duplicate IDs within a type are still flagged as a conflict.
+*   Self-reference (`task.foo` referencing itself) will correctly result in a cyclic error.
+
+### Cross-Directory Configuration Support
+
+**What it does**: Maintains existing Current Working Directory (CWD) behavior to ensure configurations outside the project directory continue working correctly.
+
+**Why it's important**: Preserves backward compatibility and allows teams to organize configurations across multiple directories while maintaining proper relative path resolution for tool execution files.
+
+**How it works**: Uses the existing `core.LoadConfig()` function which automatically sets the configuration's CWD to the directory containing the config file. This ensures that tool `execute` fields and other relative paths resolve correctly regardless of where the config is located relative to the project root.
+
+## User Experience
+
+### User Personas
+
+1. **Development Teams**: Managing 50-200 configuration files organized by feature/domain
+2. **DevOps Engineers**: Setting up standardized project structures and organization patterns
+3. **Team Leads**: Establishing configuration conventions and reducing onboarding complexity
+
+### Key User Flows
+
+#### Setup Flow
+
+1. Developer adds `autoload` section to existing `compozy.yaml`
+2. Defines include patterns for their project organization (e.g., `workflows/**/*.yaml`)
+3. Optionally adds exclude patterns for test files or deprecated configs
+4. Runs `compozy config discover --print` to preview discovered configurations
+5. System automatically loads discovered configs alongside existing manual ones
+
+#### Development Flow
+
+1. Developer creates new configuration file in organized directory structure
+2. File is automatically discovered and loaded without manual `compozy.yaml` changes
+3. Changes to configuration files trigger automatic reload during development
+4. Developer can use `$ref` directives to reference environment variables and file-local values
+
+#### Conflict Detection Flow
+
+1. System detects conflict between manual and auto-discovered configuration
+2. Application immediately crashes with detailed error message showing conflicting files
+3. Developer must resolve conflicts by removing duplicate configurations or adjusting patterns
+4. System only proceeds when no conflicts exist, ensuring deterministic configuration loading
+- System only proceeds when no conflicts exist, ensuring deterministic configuration loading
+- **Fail-Safe Mode**: For development, a non-strict mode can be enabled (`autoload.strict: false`). In this mode, duplicates are ignored with a warning instead of causing a crash, allowing developers to iterate more easily. CI environments should always run in strict mode.
+
+### UI/UX Considerations
+
+- Clear error messages when glob patterns match no files
+- Detailed conflict reporting with file paths and configuration names that crashes the application in strict mode
+- Dry-run command to preview discovered configurations before enabling
+- Minimal configuration required - sensible defaults for common project layouts
+
+## Technical Architecture
+
+The technical architecture is fully documented in `/AUTOLOAD_ARCHITECTURE.md`. Key highlights:
+
+### System Components
+
+- **AutoLoader**: Main orchestrator for discovery and loading
+- **FileDiscoverer**: Secure glob pattern matching with sandboxing
+- **ConfigRegistry**: In-memory storage for discovered configurations
+- **Resource Resolver**: Lazy evaluation for `resource::` references
+
+### Data Models
+
+```yaml
+# Extended compozy.yaml
+autoload:
+  enabled: true
+  strict: true # When false, warn on duplicates instead of crashing
+  include:
+    - "workflows/**/*.{yaml,yml}"
+    - "tasks/**/*.yaml"
+    - "agents/**/*.yaml"
+  exclude:
+    - "**/test/**"
+    - "**/*.example.yaml"
+  watch_enabled: true # Deferred from MVP
+```
+
+### Key Architecture Decisions
+
+1. **Single-pass loading with lazy resolution** - Avoids ordering complexity
+2. **Reuse existing infrastructure** - Leverages `core.LoadConfig()` and `pkg/ref`
+3. **Security-first design** - Path traversal prevention and sandboxing
+4. **Simple abstractions** - Minimal interfaces only where needed for testing
+
+For detailed implementation patterns, security measures, and code examples, see `/AUTOLOAD_ARCHITECTURE.md`.
+
+## Acceptance and Graduation Criteria
+
+The Auto-Load system will be considered ready for General Availability (GA) when the following criteria are met:
+
+*   **Functional Completeness**: 100% of existing sample projects can be built using auto-load with zero manual `compozy.yaml` entries.
+*   **Test Coverage**: The `engine/autoload` package achieves ≥ 90% unit test coverage.
+*   **Performance**: End-to-end discovery and validation for a benchmark project with 200 configs completes in under 500ms on CI. The resource resolver must resolve 1,000 cross-resource references in under 10ms (p95) with caching enabled.
+*   **Resource Resolution**: The system correctly resolves cross-resource references (e.g., `$use: task(resource::task::#(id=='other-task'))`) including success and cyclic-dependency failure cases.
+*   **Documentation**: User documentation is complete, including examples and a guide for migrating from manual configuration.
+*   **CLI Support**: The `compozy config discover --print` command accurately reflects what the live system will load.
+*   **Stability**: The system runs for one full release cycle with no critical bugs reported.
+
+## Development Roadmap
+
+### MVP Requirements (Phase 1)
+
+Core implementation requirements are detailed in `/AUTOLOAD_ARCHITECTURE.md`. Summary:
+
+- Basic auto-load configuration parsing in project config
+- Glob pattern discovery with include/exclude arrays (tsconfig-style)
+- Integration with existing configuration loading pipeline
+- Strict conflict detection with `strict: false` option for development
+- Resource field validation for all configurations
+- Lazy resource resolution via enhanced pkg/ref
+- CLI dry-run command for pattern validation
+- Comprehensive testing suite
+
+### Future Enhancements (Phase 2)
+
+- File watching with fsnotify and hot reload
+- Advanced configuration validation
+- Performance optimizations for very large projects
+- Metrics and monitoring
+
+### Long-term Vision (Phase 3)
+
+- IDE/editor extensions
+- Project templates with predefined patterns
+- Configuration dependency visualization
+
+## Implementation Timeline
+
+See `/AUTOLOAD_ARCHITECTURE.md` for detailed component dependencies and implementation order. The MVP targets a 4-week development cycle with clear weekly milestones.
+
+## Risks and Mitigations
+
+Key risks and mitigation strategies are documented in `/AUTOLOAD_ARCHITECTURE.md`. Summary:
+
+### Technical Challenges
+
+- **Performance**: Lazy loading and caching to handle 200+ configs efficiently
+- **File watching**: Deferred from MVP, fallback to manual reload
+- **Resource resolution**: Lazy evaluation avoids ordering complexity
+
+### MVP Scope Management
+
+- **Feature creep**: Strictly limited to glob patterns, no complex conditions
+- **Conflict handling**: Strict mode for production, non-strict for development
+- **Simple configuration**: tsconfig-style patterns only
+
+### Resource Constraints
+
+- **Integration complexity**: Reuse existing patterns and infrastructure
+- **Testing complexity**: Mock file system operations, comprehensive fixtures
+
+For detailed risk analysis and mitigation strategies, see `/AUTOLOAD_ARCHITECTURE.md`.
+
+## Appendix
+
+### Research Findings
+
+- TypeScript's tsconfig.json include/exclude pattern is familiar to most developers
+- File watching with debouncing is essential for development workflow performance, but can be deferred from MVP.
+- Fail-fast approach on conflicts encourages clean configuration organization, but should be flexible for developers.
+- Resource field validation enables better tooling and prevents type mismatches
+- Cross-file references add significant complexity with minimal MVP value
+
+### Technical Specifications
+
+- Target performance: <500ms discovery for 200 configuration files
+- Memory usage: <20MB for 200 configs
+- File watching latency: <100ms change detection (post-MVP)
+- Supported glob patterns: \*, \*\*, ?, [abc], {a,b,c}
+- Configuration file formats: YAML (.yaml, .yml)
+
+For detailed implementation notes, testing standards, and code examples, see `/AUTOLOAD_ARCHITECTURE.md`.
+
+### Design Decisions
+
+Based on the architecture analysis, the following decisions have been made:
+
+*   **File Lifecycle**: The system is stateless between runs. Deleted files are automatically excluded on the next startup, ensuring predictable behavior without complex state management.
+*   **Default Excludes**: The system includes built-in exclude patterns for common temporary files (`.#*`, `*~`, `*.bak`, `*.swp`, `*.tmp`, `._*`) to prevent accidental loading of editor artifacts.
+
+### Configuration Examples
+
+Configuration examples are provided in `/AUTOLOAD_ARCHITECTURE.md`. Each configuration type (Workflow, Task, Agent, Tool, MCP) requires a `resource` field for identification and validation.

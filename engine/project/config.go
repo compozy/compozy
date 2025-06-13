@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"dario.cat/mergo"
+	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/schema"
@@ -24,16 +25,17 @@ type Opts struct {
 }
 
 type Config struct {
-	Name        string                  `json:"name"            yaml:"name"            mapstructure:"name"`
-	Version     string                  `json:"version"         yaml:"version"         mapstructure:"version"`
-	Description string                  `json:"description"     yaml:"description"     mapstructure:"description"`
-	Author      core.Author             `json:"author"          yaml:"author"          mapstructure:"author"`
-	Workflows   []*WorkflowSourceConfig `json:"workflows"       yaml:"workflows"       mapstructure:"workflows"`
-	Models      []*core.ProviderConfig  `json:"models"          yaml:"models"          mapstructure:"models"`
-	Schemas     []schema.Schema         `json:"schemas"         yaml:"schemas"         mapstructure:"schemas"`
-	Opts        Opts                    `json:"config"          yaml:"config"          mapstructure:"config"`
-	Runtime     RuntimeConfig           `json:"runtime"         yaml:"runtime"         mapstructure:"runtime"`
-	CacheConfig *cache.Config           `json:"cache,omitempty" yaml:"cache,omitempty" mapstructure:"cache"`
+	Name        string                  `json:"name"               yaml:"name"               mapstructure:"name"`
+	Version     string                  `json:"version"            yaml:"version"            mapstructure:"version"`
+	Description string                  `json:"description"        yaml:"description"        mapstructure:"description"`
+	Author      core.Author             `json:"author"             yaml:"author"             mapstructure:"author"`
+	Workflows   []*WorkflowSourceConfig `json:"workflows"          yaml:"workflows"          mapstructure:"workflows"`
+	Models      []*core.ProviderConfig  `json:"models"             yaml:"models"             mapstructure:"models"`
+	Schemas     []schema.Schema         `json:"schemas"            yaml:"schemas"            mapstructure:"schemas"`
+	Opts        Opts                    `json:"config"             yaml:"config"             mapstructure:"config"`
+	Runtime     RuntimeConfig           `json:"runtime"            yaml:"runtime"            mapstructure:"runtime"`
+	CacheConfig *cache.Config           `json:"cache,omitempty"    yaml:"cache,omitempty"    mapstructure:"cache"`
+	AutoLoad    *autoload.Config        `json:"autoload,omitempty" yaml:"autoload,omitempty" mapstructure:"autoload,omitempty"`
 
 	filePath string
 	CWD      *core.PathCWD `json:"CWD,omitempty" yaml:"CWD,omitempty" mapstructure:"CWD,omitempty"`
@@ -81,6 +83,13 @@ func (p *Config) Validate() error {
 	if p.CacheConfig != nil {
 		if err := p.CacheConfig.Validate(); err != nil {
 			return fmt.Errorf("cache configuration validation failed: %w", err)
+		}
+	}
+
+	// Validate autoload configuration if present
+	if p.AutoLoad != nil {
+		if err := p.AutoLoad.Validate(); err != nil {
+			return fmt.Errorf("autoload configuration validation failed: %w", err)
 		}
 	}
 
@@ -154,6 +163,10 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	}
 	if config.CWD == nil {
 		config.CWD = cwd
+	}
+	// Set autoload defaults if autoload config exists
+	if config.AutoLoad != nil {
+		config.AutoLoad.SetDefaults()
 	}
 	env, err := config.loadEnv()
 	if err != nil {

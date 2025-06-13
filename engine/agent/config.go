@@ -15,6 +15,7 @@ import (
 )
 
 type Config struct {
+	Resource     string              `json:"resource,omitempty"       yaml:"resource,omitempty"       mapstructure:"resource,omitempty"`
 	ID           string              `json:"id"                       yaml:"id"                       mapstructure:"id"                       validate:"required"`
 	Config       core.ProviderConfig `json:"config"                   yaml:"config"                   mapstructure:"config"                   validate:"required"`
 	Instructions string              `json:"instructions"             yaml:"instructions"             mapstructure:"instructions"             validate:"required"`

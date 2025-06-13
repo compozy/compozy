@@ -117,17 +117,32 @@ t.Run("Should handle errors", func(t *testing.T) {
 
 ### MANDATORY Test Pattern
 
-All tests MUST use the `t.Run("Should...")` pattern:
+All tests MUST use the `t.Run("Should...")` pattern. Use `testify/mock` only when necessary:
 
 ```go
-// ✅ CORRECT
-func TestTaskExecutor_Execute(t *testing.T) {
-    t.Run("Should execute task successfully", func(t *testing.T) {
-        // test implementation
+// ✅ CORRECT - Simple test without mocks
+func TestCalculateSum(t *testing.T) {
+    t.Run("Should calculate sum correctly", func(t *testing.T) {
+        result := CalculateSum(2, 3)
+        assert.Equal(t, 5, result)
     })
 }
 
-// ❌ WRONG - Never write tests without t.Run
+// ✅ CORRECT - Test with mocks for external dependencies
+func TestTaskExecutor_Execute(t *testing.T) {
+    t.Run("Should execute task successfully", func(t *testing.T) {
+        mockService := new(MockService)
+        mockService.On("Process", mock.Anything).Return(nil)
+
+        executor := NewTaskExecutor(mockService)
+        err := executor.Execute(ctx)
+
+        assert.NoError(t, err)
+        mockService.AssertExpectations(t)
+    })
+}
+
+// ❌ WRONG - Never write tests without t.Run or use custom mocks (use mocks only when necessary)
 ```
 
 ### Table-Driven Tests
@@ -168,7 +183,7 @@ defer func() {
 
 - **Web:** `gin-gonic/gin`
 - **DB:** `jackc/pgx/v5`, `redis/go-redis/v9`
-- **Testing:** `stretchr/testify`
+- **Testing:** `stretchr/testify` (assertions + mocks)
 - **Logging:** `charmbracelet/log` (use logger.Info/Error/Debug)
 - **Validation:** `go-playground/validator/v10`
 
@@ -207,8 +222,9 @@ runtime:
 2. **API changes:** Update Swagger annotations (`swag` comments)
 3. **Schema changes:** Create migrations with `make migrate-create name=<name>`
 4. **New features:** Include comprehensive tests following the mandatory pattern
-5. **Logging:** Use `pkg/logger` for structured logging
-6. **Core types:** Use `core.ID` for UUIDs, `core.Ref` for polymorphic references
-7. **Backwards Compatibility:** NOT REQUIRED - Compozy is in development/alpha phase. Feel free to make breaking changes to focus on best architecture and code quality.
+5. **Taskmaster tasks:** Follow mandatory code review workflow (Zen MCP + structured commits)
+6. **Logging:** Use `pkg/logger` for structured logging
+7. **Core types:** Use `core.ID` for UUIDs, `core.Ref` for polymorphic references
+8. **Backwards Compatibility:** NOT REQUIRED - Compozy is in development/alpha phase. Feel free to make breaking changes to focus on best architecture and code quality.
 
 The project uses Go 1.24+ features and requires all external dependencies to be mocked in tests.

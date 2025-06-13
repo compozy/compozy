@@ -18,6 +18,7 @@ const (
 
 // Config represents a remote MCP (Model Context Protocol) server configuration
 type Config struct {
+	Resource     string                 `yaml:"resource,omitempty"      json:"resource,omitempty"`
 	ID           string                 `yaml:"id"                      json:"id"`
 	URL          string                 `yaml:"url"                     json:"url"`
 	Command      string                 `yaml:"command,omitempty"       json:"command,omitempty"`

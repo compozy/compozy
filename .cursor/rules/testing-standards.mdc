@@ -1,8 +1,6 @@
 ---
 description: Comprehensive testing standards and patterns for Compozy Go development
 globs:
-  - "**/*_test.go"
-  - "**/*.go"
 alwaysApply: true
 ---
 
@@ -15,6 +13,7 @@ alwaysApply: true
 - Test function names: `func TestModuleName_MethodName(t *testing.T)`
 - Each test case within t.Run with descriptive "Should..." names
 - MUST use `stretchr/testify` for assertions and mocks
+- **STANDARDIZE ON TESTIFY MOCK:** Replace existing custom mocks with `testify/mock` implementations
 
 ## Table-Driven Tests
 
@@ -26,10 +25,50 @@ alwaysApply: true
 
 - Place `*_test.go` files alongside implementation files
 - Each test MUST be independent and repeatable
-- Mock all external dependencies
+- Mock external dependencies **only when necessary** using `testify/mock`
 - Use project test helpers: `utils.SetupTest()`, `utils.SetupFixture()`
 - Test both success and error paths
 - Ensure test coverage for all exported functions
+
+## Mock Standards
+
+**WHEN TO USE MOCKS:**
+- External services (HTTP clients, databases, file systems)
+- Dependencies that are slow, unreliable, or have side effects
+- Complex interfaces that would make tests brittle or slow
+- **NOT REQUIRED** for simple functions, pure logic, or internal utilities
+
+**MANDATORY MOCK PATTERN (when mocking is necessary):**
+```go
+// Define mock interface
+type MockService struct {
+    mock.Mock
+}
+
+func (m *MockService) DoSomething(ctx context.Context, param string) error {
+    args := m.Called(ctx, param)
+    return args.Error(0)
+}
+
+// Usage in tests
+func TestComponent_Method(t *testing.T) {
+    t.Run("Should use mocked service", func(t *testing.T) {
+        mockService := new(MockService)
+        mockService.On("DoSomething", mock.Anything, "test").Return(nil)
+
+        component := NewComponent(mockService)
+        err := component.Method("test")
+
+        assert.NoError(t, err)
+        mockService.AssertExpectations(t)
+    })
+}
+```
+
+**REFACTORING PRIORITY:**
+- Replace custom mocks with testify/mock implementations
+- Migrate interface-based mocks to use `mock.Mock` embedding
+- Standardize mock setup and assertion patterns across the codebase
 
 ## Example Structure
 
@@ -50,5 +89,7 @@ func TestService_Method(t *testing.T) {
 - **Arrange-Act-Assert:** Structure all tests with clear setup, execution, and verification phases
 - **Independent Tests:** Each test should be able to run in isolation
 - **Descriptive Names:** Use "Should..." pattern to describe expected behavior
-- **Mock External Dependencies:** Use testify/mock for external service dependencies
+- **Mock When Necessary:** Use testify/mock only for external dependencies or complex interfaces
 - **Context Propagation:** Pass context to functions that require it, even in tests
+- **Mock Assertions:** When using mocks, always call `mockService.AssertExpectations(t)` to verify all expected calls were made
+- **Mock Cleanup:** Use `mock.AnythingOfType()` and `mock.Anything` for flexible parameter matching

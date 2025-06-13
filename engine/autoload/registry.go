@@ -1,6 +1,7 @@
 package autoload
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -37,9 +38,9 @@ func (r *ConfigRegistry) Register(config any, source string) error {
 	if err != nil {
 		return err
 	}
-	// Normalize resource type (case-insensitive) and trim whitespace
+	// Normalize resource type and ID (case-insensitive) and trim whitespace
 	resourceType = strings.TrimSpace(strings.ToLower(resourceType))
-	id = strings.TrimSpace(id)
+	id = strings.TrimSpace(strings.ToLower(id))
 	if resourceType == "" || id == "" {
 		return core.NewError(nil, "INVALID_RESOURCE_INFO", map[string]any{
 			"type": resourceType,
@@ -71,9 +72,9 @@ func (r *ConfigRegistry) Register(config any, source string) error {
 func (r *ConfigRegistry) Get(resourceType, id string) (any, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	// Normalize resource type and ID for lookup
+	// Normalize resource type and ID for lookup (case-insensitive)
 	resourceType = strings.TrimSpace(strings.ToLower(resourceType))
-	id = strings.TrimSpace(id)
+	id = strings.TrimSpace(strings.ToLower(id))
 	if configs, ok := r.configs[resourceType]; ok {
 		if entry, ok := configs[id]; ok {
 			return entry.config, nil
@@ -100,7 +101,7 @@ func (r *ConfigRegistry) Count() int {
 func (r *ConfigRegistry) GetAll(resourceType string) []any {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	// Normalize resource type for lookup
+	// Normalize resource type for lookup (case-insensitive)
 	resourceType = strings.TrimSpace(strings.ToLower(resourceType))
 	if configs, ok := r.configs[resourceType]; ok {
 		result := make([]any, 0, len(configs))
@@ -126,7 +127,18 @@ func extractResourceInfo(config any) (resourceType string, id string, err error)
 	if c, ok := config.(Configurable); ok {
 		return c.GetResource(), c.GetID(), nil
 	}
+	// Handle map[string]any configurations (for auto-loaded configs)
+	if configMap, ok := config.(map[string]any); ok {
+		return extractResourceInfoFromMap(configMap)
+	}
 	v := reflect.ValueOf(config)
+	if !v.IsValid() {
+		return "", "", core.NewError(
+			errors.New("nil or invalid configuration"),
+			"NIL_CONFIG",
+			nil,
+		)
+	}
 	if v.Kind() == reflect.Ptr {
 		if v.IsNil() {
 			return "", "", core.NewError(nil, "NIL_CONFIG_POINTER", nil)
@@ -207,4 +219,45 @@ func extractID(v reflect.Value, typeName string) string {
 		}
 	}
 	return ""
+}
+
+// extractResourceInfoFromMap extracts resource type and ID from a map configuration
+func extractResourceInfoFromMap(configMap map[string]any) (resourceType string, id string, err error) {
+	// Extract resource type
+	if resource, exists := configMap["resource"]; exists {
+		if resourceStr, ok := resource.(string); ok && resourceStr != "" {
+			resourceType = resourceStr
+		} else {
+			return "", "", core.NewError(
+				errors.New("resource field must be a non-empty string"),
+				"INVALID_RESOURCE_FIELD",
+				map[string]any{"resource": resource},
+			)
+		}
+	} else {
+		return "", "", core.NewError(
+			errors.New("configuration missing required resource field"),
+			"MISSING_RESOURCE_FIELD",
+			nil,
+		)
+	}
+	// Extract ID
+	if idValue, exists := configMap["id"]; exists {
+		if idStr, ok := idValue.(string); ok && idStr != "" {
+			id = idStr
+		} else {
+			return "", "", core.NewError(
+				errors.New("id field must be a non-empty string"),
+				"INVALID_ID_FIELD",
+				map[string]any{"id": idValue},
+			)
+		}
+	} else {
+		return "", "", core.NewError(
+			errors.New("configuration missing required id field"),
+			"MISSING_ID_FIELD",
+			nil,
+		)
+	}
+	return resourceType, id, nil
 }
