@@ -17,7 +17,7 @@ func validateRef(node Node) error {
 	matches := refDirectiveRegex.FindStringSubmatch(str)
 	if matches == nil {
 		return fmt.Errorf(
-			"invalid $ref syntax: %s, expected format: <scope=local|global>::<gjson_path>[!merge:<options>]",
+			"invalid $ref syntax: %s, expected format: <scope=local|global|resource>::<gjson_path>[!merge:<options>]",
 			str,
 		)
 	}

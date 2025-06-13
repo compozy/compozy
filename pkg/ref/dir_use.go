@@ -17,7 +17,7 @@ func validateUse(node Node) error {
 	matches := useDirectiveRegex.FindStringSubmatch(str)
 	if matches == nil {
 		return fmt.Errorf("invalid $use syntax: %s, expected format: "+
-			"<component=agent|tool|task>(<scope=local|global>::<gjson_path>)[!merge:<options>]", str)
+			"<component=agent|tool|task>(<scope=local|global|resource>::<gjson_path>)[!merge:<options>]", str)
 	}
 	return nil
 }
