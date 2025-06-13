@@ -93,7 +93,7 @@ func TestProxyTool_Call(t *testing.T) {
 		err = json.Unmarshal([]byte(result), &resultData)
 		require.NoError(t, err)
 
-		// Check the structure
+		// Check the structure - CallTool returns the contents of the "result" field directly
 		assert.NotNil(t, resultData["results"])
 		assert.Equal(t, float64(2), resultData["count"])
 	})

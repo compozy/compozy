@@ -336,6 +336,7 @@ mcps:
 2. **API changes:** Update Swagger annotations
 3. **Schema changes:** Create migrations with `make migrate-create name=<name>`
 4. **New features:** Include comprehensive tests following the mandatory pattern
+5. **Backwards Compatibility:** NOT REQUIRED - Compozy is in development/alpha phase. Make breaking changes freely to achieve best architecture and code quality.
 
 ## Debugging
 

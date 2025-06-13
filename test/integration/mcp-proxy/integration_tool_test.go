@@ -23,7 +23,7 @@ import (
 func TestToolAPIEndpointsIntegration(t *testing.T) {
 	t.Run("Should handle tool listing endpoint structure", func(t *testing.T) {
 		// Initialize logger for tests
-		utils.InitLogger()
+		utils.InitLogger(t)
 
 		// Create memory storage
 		storage := mcpproxy.NewMemoryStorage()
@@ -61,7 +61,7 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 	})
 
 	t.Run("Should handle non-existent MCP in tool call", func(t *testing.T) {
-		utils.InitLogger()
+		utils.InitLogger(t)
 		storage := mcpproxy.NewMemoryStorage()
 		clientManager := mcpproxy.NewMockClientManager()
 
@@ -100,7 +100,7 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 	})
 
 	t.Run("Should validate tool call input", func(t *testing.T) {
-		utils.InitLogger()
+		utils.InitLogger(t)
 		storage := mcpproxy.NewMemoryStorage()
 		clientManager := mcpproxy.NewMockClientManager()
 
@@ -156,7 +156,7 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 	})
 
 	t.Run("Should require authentication for tool endpoints", func(t *testing.T) {
-		utils.InitLogger()
+		utils.InitLogger(t)
 		storage := mcpproxy.NewMemoryStorage()
 		clientManager := mcpproxy.NewMockClientManager()
 

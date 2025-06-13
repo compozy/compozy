@@ -160,5 +160,6 @@ runtime:
 4. **New features:** Include comprehensive tests following the mandatory pattern
 5. **Logging:** Use `pkg/logger` for structured logging
 6. **Core types:** Use `core.ID` for UUIDs, `core.Ref` for polymorphic references
+7. **Backwards Compatibility:** NOT REQUIRED - Compozy is in development/alpha phase. Feel free to make breaking changes to focus on best architecture and code quality.
 
 The project uses Go 1.24+ features and requires all external dependencies to be mocked in tests.

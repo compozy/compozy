@@ -76,24 +76,13 @@ func NewWorker(
 	configStore := services.NewRedisConfigStore(redisCache.Redis, 24*time.Hour)
 
 	// Initialize MCP register and register all MCPs from all workflows
-	var mcpRegister *mcp.RegisterService
-	if proxyURL := os.Getenv("MCP_PROXY_URL"); proxyURL != "" {
-		adminToken := os.Getenv("MCP_PROXY_ADMIN_TOKEN")
-		timeout := 30 * time.Second
-		mcpRegister = mcp.NewWithTimeout(proxyURL, adminToken, timeout)
-		logger.Info("Initialized MCP register with proxy", "proxy_url", proxyURL)
-
-		// Collect all MCPs from all workflows and register them at startup
-		allMCPs := collectAllMCPs(workflows)
-		if len(allMCPs) > 0 {
-			logger.Info("Registering MCPs at server startup", "mcp_count", len(allMCPs))
-			if err := mcpRegister.EnsureMultiple(ctx, allMCPs); err != nil {
-				logger.Error("Failed to register some MCPs with proxy at startup", "error", err)
-				// Don't fail server startup if MCP registration fails
-			} else {
-				logger.Info("Successfully registered all MCPs at server startup", "count", len(allMCPs))
-			}
-		}
+	workflowConfigs := make([]mcp.WorkflowConfig, len(workflows))
+	for i, wf := range workflows {
+		workflowConfigs[i] = wf
+	}
+	mcpRegister, err := mcp.SetupForWorkflows(ctx, workflowConfigs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize MCP register: %w", err)
 	}
 
 	activities := NewActivities(
@@ -116,25 +105,6 @@ func NewWorker(
 		redisCache:    redisCache,
 		mcpRegister:   mcpRegister,
 	}, nil
-}
-
-// collectAllMCPs collects all unique MCP configurations from all workflows
-func collectAllMCPs(workflows []*wf.Config) []mcp.Config {
-	seen := make(map[string]bool)
-	var allMCPs []mcp.Config
-
-	for _, workflow := range workflows {
-		for _, mcpConfig := range workflow.MCPs {
-			mcpConfig.SetDefaults() // Ensure defaults are applied
-			// Use ID to deduplicate MCPs across workflows
-			if !seen[mcpConfig.ID] {
-				seen[mcpConfig.ID] = true
-				allMCPs = append(allMCPs, mcpConfig)
-			}
-		}
-	}
-
-	return allMCPs
 }
 
 func (o *Worker) Setup(_ context.Context) error {

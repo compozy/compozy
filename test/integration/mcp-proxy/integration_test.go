@@ -17,7 +17,7 @@ import (
 // TestMCPProxyIntegration tests the complete MCP proxy workflow
 func TestMCPProxyIntegration(t *testing.T) {
 	// Initialize logger for tests
-	utils.InitLogger()
+	utils.InitLogger(t)
 
 	// Create memory storage
 	storage := mcpproxy.NewMemoryStorage()
@@ -71,8 +71,25 @@ func TestMCPProxyIntegration(t *testing.T) {
 	assert.Equal(t, "MCP definition added successfully", response["message"])
 	assert.Equal(t, "test-mcp", response["name"])
 
-	// Give some time for async operations
-	time.Sleep(100 * time.Millisecond)
+	// Wait for async MCP registration to complete
+	require.Eventually(t, func() bool {
+		req := httptest.NewRequest(http.MethodGet, "/admin/mcps", http.NoBody)
+		req.Header.Set("Authorization", "Bearer test-admin-token")
+		w := httptest.NewRecorder()
+		server.Router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			return false
+		}
+
+		var listResponse map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &listResponse); err != nil {
+			return false
+		}
+
+		mcps, ok := listResponse["mcps"].([]any)
+		return ok && len(mcps) == 1
+	}, 2*time.Second, 10*time.Millisecond, "MCP should be registered within timeout")
 
 	// Test healthz endpoint
 	req = httptest.NewRequest(http.MethodGet, "/healthz", http.NoBody)
@@ -111,7 +128,7 @@ func TestMCPProxyIntegration(t *testing.T) {
 // TestAdminSecurity tests the admin API security features
 func TestAdminSecurity(t *testing.T) {
 	// Initialize logger for tests
-	utils.InitLogger()
+	utils.InitLogger(t)
 
 	storage := mcpproxy.NewMemoryStorage()
 	clientManager := mcpproxy.NewMockClientManager()

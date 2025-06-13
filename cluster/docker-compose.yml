@@ -188,10 +188,10 @@ services:
     networks:
       - temporal-network
     ports:
-      - "${MCP_PROXY_PORT:-8081}:8081" # MCP Proxy HTTP API
+      - "${MCP_PROXY_PORT:-8081}:${MCP_PROXY_PORT:-8081}" # MCP Proxy HTTP API
     healthcheck:
       test:
-        ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/healthz"]
+        ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${MCP_PROXY_PORT:-8081}/healthz"]
       interval: 30s
       timeout: 3s
       retries: 3

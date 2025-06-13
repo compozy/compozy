@@ -116,7 +116,7 @@ func (c *Config) validateProto() error {
 
 func (c *Config) validateTransport() error {
 	if !isValidTransport(c.Transport) {
-		return fmt.Errorf("invalid transport type: %s (must be 'sse' or 'streamable-http')", c.Transport)
+		return fmt.Errorf("invalid transport type: %s (must be 'sse', 'streamable-http' or 'stdio')", c.Transport)
 	}
 	return nil
 }
@@ -136,6 +136,7 @@ func (c *Config) Clone() *Config {
 	clone := &Config{
 		ID:           c.ID,
 		URL:          c.URL,
+		Command:      c.Command,
 		Env:          make(map[string]string),
 		Proto:        c.Proto,
 		Transport:    c.Transport,

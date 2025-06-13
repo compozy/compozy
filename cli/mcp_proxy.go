@@ -22,16 +22,22 @@ func MCPProxyCmd() *cobra.Command {
 	}
 
 	// Server configuration flags
-	cmd.Flags().String("host", "0.0.0.0", "Host to bind the server to")
-	cmd.Flags().String("port", "8081", "Port to run the MCP proxy server on")
-	cmd.Flags().String("base-url", "http://localhost:8081", "Base URL for the MCP proxy server")
-	cmd.Flags().String("env-file", ".env", "Path to the environment variables file")
+	cmd.Flags().String("host", "",
+		"Host to bind the server to (env: MCP_PROXY_HOST, default: 0.0.0.0)")
+	cmd.Flags().String("port", "",
+		"Port to run the MCP proxy server on (env: MCP_PROXY_PORT, default: 8081)")
+	cmd.Flags().String("base-url", "",
+		"Base URL for the MCP proxy server (env: MCP_PROXY_BASE_URL, default: http://localhost:<port>)")
+	cmd.Flags().String("env-file", "", "Path to the environment variables file (default: .env)")
 
 	// Security configuration flags
 	cmd.Flags().StringSlice("admin-tokens", []string{}, "Admin API tokens")
-	cmd.Flags().StringSlice("admin-allow-ips", []string{}, "Admin API allowed IP addresses/CIDR blocks")
-	cmd.Flags().StringSlice("trusted-proxies", []string{}, "Trusted proxy IP addresses/CIDR blocks")
-	cmd.Flags().StringSlice("global-auth-tokens", []string{}, "Global auth tokens for all MCP clients")
+	cmd.Flags().StringSlice("admin-allow-ips", []string{},
+		"Admin API allowed IP addresses/CIDR blocks")
+	cmd.Flags().StringSlice("trusted-proxies", []string{},
+		"Trusted proxy IP addresses/CIDR blocks")
+	cmd.Flags().StringSlice("global-auth-tokens", []string{},
+		"Global auth tokens for all MCP clients")
 
 	// Logging configuration flags
 	cmd.Flags().String("log-level", "info", "Log level (debug, info, warn, error)")

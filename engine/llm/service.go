@@ -45,14 +45,20 @@ func NewService(
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize proxy client: %w", err)
 	}
-	return &Service{
+	service := &Service{
 		runtime:     runtime,
 		agent:       agent,
 		action:      action,
 		mcps:        mcps,
 		cacheTTL:    5 * time.Minute, // Cache tools for 5 minutes
 		proxyClient: client,
-	}, nil
+	}
+
+	// Initialize MCP once during service creation
+	ctx := context.Background()
+	service.initMCP(ctx)
+
+	return service, nil
 }
 
 func (s *Service) CreateLLM() (llms.Model, error) {
@@ -64,7 +70,6 @@ func (s *Service) GenerateContent(ctx context.Context) (*core.Output, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM: %w", err)
 	}
-	s.initMCP(ctx)
 	// Validate input parameters if schema is defined
 	if err := s.validateInput(ctx); err != nil {
 		return nil, fmt.Errorf("input validation failed: %w", err)
@@ -112,15 +117,11 @@ func (s *Service) initMCP(ctx context.Context) {
 	if len(mcps) == 0 {
 		return
 	}
-	var allTools []tools.Tool
-	for _, mcpConfig := range mcps {
-		tools := s.getToolsFromProxy(ctx)
-		allTools = append(allTools, tools...)
-		logger.Info("Discovered tools via proxy", "mcp_id", mcpConfig.ID, "tool_count", len(tools))
-	}
+	// Get tools from proxy once for all MCP configurations
+	allTools := s.getToolsFromProxy(ctx)
 	// Store tools for later use
 	s.mcpTools = allTools
-	logger.Info("MCP proxy initialization completed", "total_tools", len(allTools))
+	logger.Info("MCP proxy initialization completed", "mcp_configs", len(mcps), "total_tools", len(allTools))
 }
 
 // getLLMCallTools returns properly configured tool definitions including MCP tools
@@ -148,7 +149,6 @@ func (s *Service) getLLMCallTools(ctx context.Context) []llms.Tool {
 			},
 		}
 		tools = append(tools, llmTool)
-		s.mcpTools = append(s.mcpTools, proxyTool)
 	}
 	// Add agent-specific tools
 	for _, toolConfig := range s.agent.Tools {

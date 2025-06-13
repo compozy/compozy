@@ -667,7 +667,7 @@ func (h *AdminHandlers) extractToolResult(result *mcp.CallToolResult) any {
 }
 
 // handleToolError processes tool execution errors and sends appropriate response
-func (h *AdminHandlers) handleToolError(c *gin.Context, result *mcp.CallToolResult) {
+func (h *AdminHandlers) handleToolError(c *gin.Context, result *mcp.CallToolResult, statusCode int) {
 	var errorMsg string
 	if len(result.Content) > 0 {
 		// Extract text from first content item
@@ -679,7 +679,7 @@ func (h *AdminHandlers) handleToolError(c *gin.Context, result *mcp.CallToolResu
 	} else {
 		errorMsg = "Tool returned an error without details"
 	}
-	c.JSON(http.StatusOK, gin.H{
+	c.JSON(statusCode, gin.H{
 		"result": nil,
 		"error":  errorMsg,
 	})
@@ -742,7 +742,7 @@ func (h *AdminHandlers) CallToolHandler(c *gin.Context) {
 
 	// Check if tool returned an error
 	if result.IsError {
-		h.handleToolError(c, result)
+		h.handleToolError(c, result, http.StatusBadRequest)
 		return
 	}
 

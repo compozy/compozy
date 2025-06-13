@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
@@ -35,7 +36,7 @@ type RedisInterface interface {
 type Redis struct {
 	client redis.UniversalClient
 	config *Config
-	closed bool
+	once   sync.Once // guarantees idempotent, race-free Close
 }
 
 // NewRedis creates a new Redis client with the provided configuration.
@@ -91,11 +92,10 @@ func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 
 // Close shuts down the Redis connection.
 func (r *Redis) Close() error {
-	if r.closed {
-		return nil // Already closed, return without error
-	}
-	err := r.client.Close()
-	r.closed = true
+	var err error
+	r.once.Do(func() {
+		err = r.client.Close()
+	})
 	logger.Info("Redis connection closed")
 	return err
 }

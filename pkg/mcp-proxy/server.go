@@ -276,6 +276,8 @@ func (s *Server) adminSecurityMiddleware() gin.HandlerFunc {
 
 // validateSecurityConfig checks security configuration at startup
 func (s *Server) validateSecurityConfig() error {
+	const minTokenLength = 16
+
 	// Check if we should disable default token in production
 	disableDefault := os.Getenv("MCP_PROXY_DISABLE_DEFAULT_TOKEN") == "true"
 	if !disableDefault {
@@ -284,6 +286,10 @@ func (s *Server) validateSecurityConfig() error {
 			if token == "CHANGE_ME_ADMIN_TOKEN" {
 				logger.Warn("SECURITY WARNING: Using default admin token. " +
 					"Set MCP_PROXY_DISABLE_DEFAULT_TOKEN=true to fail on startup with default token")
+			}
+			if len(token) < minTokenLength {
+				logger.Warn("SECURITY WARNING: Admin token is shorter than recommended minimum length",
+					"min_length", minTokenLength, "actual_length", len(token))
 			}
 		}
 		return nil
@@ -294,6 +300,10 @@ func (s *Server) validateSecurityConfig() error {
 		if token == "CHANGE_ME_ADMIN_TOKEN" {
 			return fmt.Errorf("default admin token 'CHANGE_ME_ADMIN_TOKEN' is not allowed. " +
 				"Please set a secure admin token via MCP_PROXY_ADMIN_TOKEN environment variable")
+		}
+		if len(token) < minTokenLength {
+			return fmt.Errorf("admin token length (%d) is below minimum required length (%d). "+
+				"Please use a stronger token", len(token), minTokenLength)
 		}
 	}
 

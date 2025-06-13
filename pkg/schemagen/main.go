@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -101,17 +102,17 @@ func GenerateParserSchemas(outDir string) error {
 
 func main() {
 	// Parse command line arguments
-	outDir := "./schemas"
+	outDir := flag.String("out", "./schemas", "output directory for generated schemas")
+	flag.Parse()
 
-	// Check for -out flag
-	for i, arg := range os.Args {
-		if arg == "-out" && i+1 < len(os.Args) {
-			outDir = os.Args[i+1]
-			break
-		}
+	// Convert to absolute path to avoid issues with relative paths
+	absOutDir, err := filepath.Abs(*outDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error converting path to absolute: %v\n", err)
+		os.Exit(1)
 	}
 
-	if err := GenerateParserSchemas(outDir); err != nil {
+	if err := GenerateParserSchemas(absOutDir); err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating schemas: %v\n", err)
 		os.Exit(1)
 	}

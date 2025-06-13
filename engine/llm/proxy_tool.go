@@ -43,6 +43,9 @@ func (t *ProxyTool) Description() string {
 // Call executes the tool via the proxy
 func (t *ProxyTool) Call(ctx context.Context, input string) (string, error) {
 	// Parse the input arguments
+	if input == "" {
+		input = "{}"
+	}
 	var args map[string]any
 	if err := json.Unmarshal([]byte(input), &args); err != nil {
 		return "", fmt.Errorf("failed to parse tool arguments: %w", err)
@@ -59,14 +62,17 @@ func (t *ProxyTool) Call(ctx context.Context, input string) (string, error) {
 		return "", fmt.Errorf("failed to execute tool '%s' from MCP '%s': %w", t.name, t.mcpName, err)
 	}
 
-	// Convert result to JSON string
-	resultJSON, err := json.Marshal(result)
-	if err != nil {
-		// If we can't marshal the result, return it as a string
-		return fmt.Sprintf("%v", result), nil
+	// Preserve raw strings; JSON-encode structured payloads
+	switch v := result.(type) {
+	case string:
+		return v, nil
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Sprintf("%v", v), nil
+		}
+		return string(b), nil
 	}
-
-	return string(resultJSON), nil
 }
 
 // ArgsType returns the input schema (not implemented for langchain tools)

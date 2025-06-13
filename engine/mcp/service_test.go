@@ -306,3 +306,59 @@ func TestRegisterService_ConvertToDefinition(t *testing.T) {
 		assert.Contains(t, err.Error(), "MCP transport is required")
 	})
 }
+
+func TestParseCommand(t *testing.T) {
+	t.Run("Should parse simple command without arguments", func(t *testing.T) {
+		parts, err := parseCommand("node")
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"node"}, parts)
+	})
+
+	t.Run("Should parse command with simple arguments", func(t *testing.T) {
+		parts, err := parseCommand("node server.js --port 3000")
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"node", "server.js", "--port", "3000"}, parts)
+	})
+
+	t.Run("Should parse command with quoted arguments containing spaces", func(t *testing.T) {
+		parts, err := parseCommand(`python server.py --config "config file.json" --env production`)
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"python", "server.py", "--config", "config file.json", "--env", "production"}, parts)
+	})
+
+	t.Run("Should parse command with single quoted arguments", func(t *testing.T) {
+		parts, err := parseCommand(`node server.js --path '/tmp/data with spaces'`)
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"node", "server.js", "--path", "/tmp/data with spaces"}, parts)
+	})
+
+	t.Run("Should parse command with escaped quotes", func(t *testing.T) {
+		parts, err := parseCommand(`echo "He said \"hello\""`)
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"echo", `He said "hello"`}, parts)
+	})
+
+	t.Run("Should return error for empty command", func(t *testing.T) {
+		_, err := parseCommand("")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "command cannot be empty")
+	})
+
+	t.Run("Should return error for command with newlines", func(t *testing.T) {
+		_, err := parseCommand("node\nserver.js")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "command cannot contain newlines")
+	})
+
+	t.Run("Should return error for command starting with dash", func(t *testing.T) {
+		_, err := parseCommand("--help")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "command name cannot start with dash")
+	})
+
+	t.Run("Should return error for malformed quotes", func(t *testing.T) {
+		_, err := parseCommand(`node server.js "unclosed quote`)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to parse command")
+	})
+}

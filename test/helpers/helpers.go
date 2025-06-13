@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -75,11 +74,11 @@ func (sv *StatusValidator) IsComplete() bool {
 
 var loggerOnce sync.Once
 
-func InitLogger() {
+func InitLogger(t *testing.T) {
 	loggerOnce.Do(func() {
 		if err := logger.InitForTests(); err != nil {
 			// Log the error but don't fail test initialization
-			fmt.Printf("Warning: failed to initialize logger for tests: %v\n", err)
+			t.Errorf("Warning: failed to initialize logger for tests: %v\n", err)
 		}
 	})
 }

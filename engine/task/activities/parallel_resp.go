@@ -53,6 +53,10 @@ func (a *GetParallelResponse) Run(
 
 	// If there was an execution error, the parallel task should be considered failed
 	if executionError != nil {
+		// Ensure we return a valid response object even when there's an execution error
+		if response == nil {
+			response = &task.MainTaskResponse{}
+		}
 		return response, executionError
 	}
 

@@ -168,7 +168,7 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 	}
 
 	// Get MCP definition for options first
-	def, err := p.storage.LoadMCP(context.Background(), name)
+	def, err := p.storage.LoadMCP(c.Request.Context(), name)
 	if err != nil {
 		logger.Error("Failed to get MCP definition", "name", name, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get MCP configuration"})
@@ -551,8 +551,8 @@ func (p *ProxyHandlers) addResourceTemplatesToServer(
 type MiddlewareFunc func(http.Handler) http.Handler
 
 func (p *ProxyHandlers) chainMiddleware(h http.Handler, middlewares ...MiddlewareFunc) http.Handler {
-	for _, mw := range middlewares {
-		h = mw(h)
+	for i := len(middlewares) - 1; i >= 0; i-- {
+		h = middlewares[i](h)
 	}
 	return h
 }

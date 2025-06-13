@@ -165,6 +165,11 @@ func (w *Config) GetTasks() []task.Config {
 	return w.Tasks
 }
 
+// GetMCPs returns the workflow MCPs
+func (w *Config) GetMCPs() []mcp.Config {
+	return w.MCPs
+}
+
 func (w *Config) DetermineNextTask(
 	taskConfig *task.Config,
 	success bool,

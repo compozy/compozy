@@ -84,7 +84,8 @@ func (a *ExecuteParallelTask) Run(ctx context.Context, input *ExecuteParallelTas
 		return nil, err
 	}
 	output, executionError := a.executeTaskUC.Execute(ctx, &uc.ExecuteTaskInput{
-		TaskConfig: taskConfig,
+		TaskConfig:   taskConfig,
+		WorkflowMCPs: workflowConfig.MCPs,
 	})
 	taskState.Output = output
 

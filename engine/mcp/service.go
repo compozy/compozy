@@ -3,13 +3,20 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/google/shlex"
 	"golang.org/x/sync/errgroup"
 )
+
+// WorkflowConfig represents the minimal interface needed from workflow configs
+type WorkflowConfig interface {
+	GetMCPs() []Config
+}
 
 // RegisterService manages MCP registration lifecycle with the proxy
 type RegisterService struct {
@@ -273,7 +280,7 @@ func (s *RegisterService) convertToDefinition(config *Config) (Definition, error
 }
 
 // parseCommand safely parses a command string into command and arguments
-// This is a basic implementation that handles simple cases and validates input
+// Uses shell lexer to properly handle quoted arguments with spaces
 func parseCommand(command string) ([]string, error) {
 	if command == "" {
 		return nil, fmt.Errorf("command cannot be empty")
@@ -287,10 +294,12 @@ func parseCommand(command string) ([]string, error) {
 		return nil, fmt.Errorf("command cannot contain newlines")
 	}
 
-	// Use simple splitting for now - this handles basic cases
-	// Note: This doesn't handle quoted arguments with spaces properly
-	// For production use, consider using shlex or similar library
-	parts := strings.Fields(command)
+	// Use shell lexer to properly parse quoted arguments
+	parts, err := shlex.Split(command)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse command: %w", err)
+	}
+
 	if len(parts) == 0 {
 		return nil, fmt.Errorf("command cannot be empty after parsing")
 	}
@@ -363,4 +372,55 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 	}
 
 	return nil
+}
+
+// -----------------------------------------------------------------------------
+// Setup and Initialization Functions
+// -----------------------------------------------------------------------------
+
+// SetupForWorkflows creates and initializes an MCP RegisterService for the given workflows
+// Returns nil if MCP_PROXY_URL is not configured
+func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*RegisterService, error) {
+	proxyURL := os.Getenv("MCP_PROXY_URL")
+	if proxyURL == "" {
+		return nil, nil // No proxy configured
+	}
+
+	adminToken := os.Getenv("MCP_PROXY_ADMIN_TOKEN")
+	timeout := 30 * time.Second
+	service := NewWithTimeout(proxyURL, adminToken, timeout)
+	logger.Info("Initialized MCP register with proxy", "proxy_url", proxyURL)
+
+	// Collect all MCPs from all workflows and register them at startup
+	allMCPs := CollectWorkflowMCPs(workflows)
+	if len(allMCPs) > 0 {
+		logger.Info("Registering MCPs at server startup", "mcp_count", len(allMCPs))
+		if err := service.EnsureMultiple(ctx, allMCPs); err != nil {
+			logger.Error("Failed to register some MCPs with proxy at startup", "error", err)
+			// Don't fail server startup if MCP registration fails
+		} else {
+			logger.Info("Successfully registered all MCPs at server startup", "count", len(allMCPs))
+		}
+	}
+
+	return service, nil
+}
+
+// CollectWorkflowMCPs collects all unique MCP configurations from all workflows
+func CollectWorkflowMCPs(workflows []WorkflowConfig) []Config {
+	seen := make(map[string]bool)
+	var allMCPs []Config
+
+	for _, workflow := range workflows {
+		for _, mcpConfig := range workflow.GetMCPs() {
+			mcpConfig.SetDefaults() // Ensure defaults are applied
+			// Use ID to deduplicate MCPs across workflows
+			if !seen[mcpConfig.ID] {
+				seen[mcpConfig.ID] = true
+				allMCPs = append(allMCPs, mcpConfig)
+			}
+		}
+	}
+
+	return allMCPs
 }
