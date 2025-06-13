@@ -17,7 +17,7 @@ import (
 
 // Server represents the MCP proxy server
 type Server struct {
-	router        *gin.Engine
+	Router        *gin.Engine
 	httpServer    *http.Server
 	config        *Config
 	storage       Storage
@@ -69,7 +69,7 @@ func NewServer(config *Config, storage Storage, clientManager ClientManager) *Se
 	proxyHandlers := NewProxyHandlers(storage, clientManager, config.BaseURL, config.GlobalAuthTokens)
 	adminHandlers := NewAdminHandlers(storage, clientManager, proxyHandlers)
 	server := &Server{
-		router:        router,
+		Router:        router,
 		config:        config,
 		storage:       storage,
 		clientManager: clientManager,
@@ -91,10 +91,10 @@ func NewServer(config *Config, storage Storage, clientManager ClientManager) *Se
 // setupRoutes configures all server routes
 func (s *Server) setupRoutes() {
 	// Health check endpoint
-	s.router.GET("/healthz", s.healthzHandler)
+	s.Router.GET("/healthz", s.healthzHandler)
 
 	// Admin API for MCP management with security middleware
-	admin := s.router.Group("/admin")
+	admin := s.Router.Group("/admin")
 	admin.Use(s.adminSecurityMiddleware())
 	{
 		// MCP Definition CRUD operations
@@ -117,16 +117,16 @@ func (s *Server) setupRoutes() {
 	// MCP Proxy endpoints - direct routes for each transport type
 	{
 		// SSE transport proxy - all methods for SSE endpoint
-		s.router.Any("/:name/sse", s.proxyHandlers.SSEProxyHandler)
-		s.router.Any("/:name/sse/*path", s.proxyHandlers.SSEProxyHandler)
+		s.Router.Any("/:name/sse", s.proxyHandlers.SSEProxyHandler)
+		s.Router.Any("/:name/sse/*path", s.proxyHandlers.SSEProxyHandler)
 
 		// Streamable HTTP transport proxy
-		s.router.Any("/:name/stream", s.proxyHandlers.StreamableHTTPProxyHandler)
-		s.router.Any("/:name/stream/*path", s.proxyHandlers.StreamableHTTPProxyHandler)
+		s.Router.Any("/:name/stream", s.proxyHandlers.StreamableHTTPProxyHandler)
+		s.Router.Any("/:name/stream/*path", s.proxyHandlers.StreamableHTTPProxyHandler)
 	}
 
 	// API versioning for legacy compatibility
-	v1 := s.router.Group("/api/v1")
+	v1 := s.Router.Group("/api/v1")
 	{
 		v1.GET("/ping", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"message": "pong"})

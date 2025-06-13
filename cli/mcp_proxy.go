@@ -62,42 +62,65 @@ func handleMCPProxyCmd(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Setup logging
+	if err := setupMCPProxyLogging(cmd); err != nil {
+		return err
+	}
+
+	// Parse configuration from flags and environment
+	config, err := parseMCPProxyConfig(cmd)
+	if err != nil {
+		return err
+	}
+
+	// Create context with cancellation
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	logger.Info("Starting MCP proxy server", "host", config.Host, "port", config.Port)
+
+	// Run the MCP proxy server
+	return mcpproxy.Run(ctx, config)
+}
+
+// setupMCPProxyLogging configures logging for the MCP proxy
+func setupMCPProxyLogging(cmd *cobra.Command) error {
 	logLevel, logJSON, logSource, err := logger.GetLoggerConfig(cmd)
 	if err != nil {
 		return err
 	}
-	if err := logger.SetupLogger(logLevel, logJSON, logSource); err != nil {
-		return err
-	}
+	return logger.SetupLogger(logLevel, logJSON, logSource)
+}
 
-	// Get configuration from flags and environment
+// parseMCPProxyConfig extracts configuration from flags and environment variables
+func parseMCPProxyConfig(cmd *cobra.Command) (*mcpproxy.Config, error) {
+	// Get flag values
 	host, err := cmd.Flags().GetString("host")
 	if err != nil {
-		return fmt.Errorf("failed to get host flag: %w", err)
+		return nil, fmt.Errorf("failed to get host flag: %w", err)
 	}
 	port, err := cmd.Flags().GetString("port")
 	if err != nil {
-		return fmt.Errorf("failed to get port flag: %w", err)
+		return nil, fmt.Errorf("failed to get port flag: %w", err)
 	}
 	baseURL, err := cmd.Flags().GetString("base-url")
 	if err != nil {
-		return fmt.Errorf("failed to get base-url flag: %w", err)
+		return nil, fmt.Errorf("failed to get base-url flag: %w", err)
 	}
 	adminTokens, err := cmd.Flags().GetStringSlice("admin-tokens")
 	if err != nil {
-		return fmt.Errorf("failed to get admin-tokens flag: %w", err)
+		return nil, fmt.Errorf("failed to get admin-tokens flag: %w", err)
 	}
 	adminAllowIPs, err := cmd.Flags().GetStringSlice("admin-allow-ips")
 	if err != nil {
-		return fmt.Errorf("failed to get admin-allow-ips flag: %w", err)
+		return nil, fmt.Errorf("failed to get admin-allow-ips flag: %w", err)
 	}
 	trustedProxies, err := cmd.Flags().GetStringSlice("trusted-proxies")
 	if err != nil {
-		return fmt.Errorf("failed to get trusted-proxies flag: %w", err)
+		return nil, fmt.Errorf("failed to get trusted-proxies flag: %w", err)
 	}
 	globalAuthTokens, err := cmd.Flags().GetStringSlice("global-auth-tokens")
 	if err != nil {
-		return fmt.Errorf("failed to get global-auth-tokens flag: %w", err)
+		return nil, fmt.Errorf("failed to get global-auth-tokens flag: %w", err)
 	}
 
 	// Use environment variables as fallback
@@ -111,8 +134,7 @@ func handleMCPProxyCmd(cmd *cobra.Command, _ []string) error {
 		baseURL = getEnvOrDefault("MCP_PROXY_BASE_URL", fmt.Sprintf("http://localhost:%s", port))
 	}
 
-	// Create MCP proxy configuration
-	config := &mcpproxy.Config{
+	return &mcpproxy.Config{
 		Host:             host,
 		Port:             port,
 		BaseURL:          baseURL,
@@ -120,14 +142,5 @@ func handleMCPProxyCmd(cmd *cobra.Command, _ []string) error {
 		AdminAllowIPs:    adminAllowIPs,
 		TrustedProxies:   trustedProxies,
 		GlobalAuthTokens: globalAuthTokens,
-	}
-
-	// Create context with cancellation
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-
-	logger.Info("Starting MCP proxy server", "host", host, "port", port)
-
-	// Run the MCP proxy server
-	return mcpproxy.Run(ctx, config)
+	}, nil
 }

@@ -93,16 +93,17 @@ func (h *AdminHandlers) validateAndPrepareMCP(c *gin.Context) (*MCPDefinition, b
 // connectMCPWithFallback attempts immediate connection with async fallback
 func (h *AdminHandlers) connectMCPWithFallback(c *gin.Context, mcpDef *MCPDefinition) bool {
 	// Try immediate connection first, fall back to async on timeout
-	connectCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	connectCtx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
 	defer cancel()
 
 	immediateErr := h.clientManager.AddClient(connectCtx, mcpDef)
 	if immediateErr != nil {
 		// Check if it was a timeout - if so, proceed async
 		if connectCtx.Err() == context.DeadlineExceeded {
-			// Background connection attempt
+			// Background connection attempt - create detached context for async work
+			asyncCtx := context.WithoutCancel(c.Request.Context())
 			go func() {
-				h.handleAsyncConnection(mcpDef)
+				h.handleAsyncConnection(asyncCtx, mcpDef)
 			}()
 			return true
 		}
@@ -116,7 +117,7 @@ func (h *AdminHandlers) connectMCPWithFallback(c *gin.Context, mcpDef *MCPDefini
 
 	// Immediate success - register proxy synchronously
 	if h.proxyHandlers != nil {
-		if err := h.proxyHandlers.RegisterMCPProxy(context.Background(), mcpDef.Name, mcpDef); err != nil {
+		if err := h.proxyHandlers.RegisterMCPProxy(c.Request.Context(), mcpDef.Name, mcpDef); err != nil {
 			logger.Warn("Proxy registration failed but client is connected", "name", mcpDef.Name, "error", err)
 		}
 	}
@@ -124,14 +125,14 @@ func (h *AdminHandlers) connectMCPWithFallback(c *gin.Context, mcpDef *MCPDefini
 }
 
 // handleAsyncConnection handles background MCP connection and proxy registration
-func (h *AdminHandlers) handleAsyncConnection(mcpDef *MCPDefinition) {
-	if err := h.clientManager.AddClient(context.Background(), mcpDef); err != nil {
+func (h *AdminHandlers) handleAsyncConnection(ctx context.Context, mcpDef *MCPDefinition) {
+	if err := h.clientManager.AddClient(ctx, mcpDef); err != nil {
 		status := &MCPStatus{
 			Name:      mcpDef.Name,
 			Status:    StatusError,
 			LastError: err.Error(),
 		}
-		if saveErr := h.storage.SaveStatus(context.Background(), status); saveErr != nil {
+		if saveErr := h.storage.SaveStatus(ctx, status); saveErr != nil {
 			logger.Error("Failed to save error status", "name", mcpDef.Name, "error", saveErr)
 		}
 		return
@@ -139,13 +140,13 @@ func (h *AdminHandlers) handleAsyncConnection(mcpDef *MCPDefinition) {
 
 	if h.proxyHandlers != nil {
 		// Register the MCP as a proxy endpoint
-		if err := h.proxyHandlers.RegisterMCPProxy(context.Background(), mcpDef.Name, mcpDef); err != nil {
+		if err := h.proxyHandlers.RegisterMCPProxy(ctx, mcpDef.Name, mcpDef); err != nil {
 			status := &MCPStatus{
 				Name:      mcpDef.Name,
 				Status:    StatusError,
 				LastError: fmt.Sprintf("proxy registration failed: %v", err),
 			}
-			if saveErr := h.storage.SaveStatus(context.Background(), status); saveErr != nil {
+			if saveErr := h.storage.SaveStatus(ctx, status); saveErr != nil {
 				logger.Error("Failed to save proxy registration error status", "name", mcpDef.Name, "error", saveErr)
 			}
 		}
@@ -224,7 +225,7 @@ func (h *AdminHandlers) validateUpdateRequest(c *gin.Context) (*MCPDefinition, *
 	}
 
 	// Check if MCP exists
-	existing, err := h.storage.LoadMCP(context.Background(), name)
+	existing, err := h.storage.LoadMCP(c.Request.Context(), name)
 	if err != nil {
 		if isNotFoundError(err) {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -244,9 +245,9 @@ func (h *AdminHandlers) validateUpdateRequest(c *gin.Context) (*MCPDefinition, *
 }
 
 // performHotReload removes old client and adds updated client with proper error handling
-func (h *AdminHandlers) performHotReload(name string, mcpDef *MCPDefinition) error {
+func (h *AdminHandlers) performHotReload(ctx context.Context, name string, mcpDef *MCPDefinition) error {
 	// Remove old client and unregister proxy
-	if err := h.clientManager.RemoveClient(context.Background(), name); err != nil {
+	if err := h.clientManager.RemoveClient(ctx, name); err != nil {
 		logger.Error("Failed to remove client during update", "name", name, "error", err)
 	}
 	if h.proxyHandlers != nil {
@@ -256,33 +257,34 @@ func (h *AdminHandlers) performHotReload(name string, mcpDef *MCPDefinition) err
 	}
 
 	// Try immediate connection first with timeout
-	connectCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	connectCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	immediateErr := h.clientManager.AddClient(connectCtx, mcpDef)
 	if immediateErr != nil {
 		// Check if it was a timeout - if so, proceed async
 		if connectCtx.Err() == context.DeadlineExceeded {
-			// Background connection attempt for timeout case
+			// Background connection attempt for timeout case - create detached context
+			asyncCtx := context.WithoutCancel(ctx)
 			go func() {
-				if err := h.clientManager.AddClient(context.Background(), mcpDef); err != nil {
+				if err := h.clientManager.AddClient(asyncCtx, mcpDef); err != nil {
 					status := &MCPStatus{
 						Name:      mcpDef.Name,
 						Status:    StatusError,
 						LastError: err.Error(),
 					}
-					if saveErr := h.storage.SaveStatus(context.Background(), status); saveErr != nil {
+					if saveErr := h.storage.SaveStatus(asyncCtx, status); saveErr != nil {
 						logger.Error("Failed to save error status during update", "name", mcpDef.Name, "error", saveErr)
 					}
 				} else if h.proxyHandlers != nil {
 					// Register the updated MCP as a proxy endpoint
-					if err := h.proxyHandlers.RegisterMCPProxy(context.Background(), mcpDef.Name, mcpDef); err != nil {
+					if err := h.proxyHandlers.RegisterMCPProxy(asyncCtx, mcpDef.Name, mcpDef); err != nil {
 						status := &MCPStatus{
 							Name:      mcpDef.Name,
 							Status:    StatusError,
 							LastError: fmt.Sprintf("proxy registration failed: %v", err),
 						}
-						if saveErr := h.storage.SaveStatus(context.Background(), status); saveErr != nil {
+						if saveErr := h.storage.SaveStatus(asyncCtx, status); saveErr != nil {
 							logger.Error("Failed to save proxy registration error status during update",
 								"name", mcpDef.Name, "error", saveErr)
 						}
@@ -297,7 +299,7 @@ func (h *AdminHandlers) performHotReload(name string, mcpDef *MCPDefinition) err
 
 	if h.proxyHandlers != nil {
 		// Register the updated MCP as a proxy endpoint (synchronous since connection succeeded)
-		if err := h.proxyHandlers.RegisterMCPProxy(context.Background(), mcpDef.Name, mcpDef); err != nil {
+		if err := h.proxyHandlers.RegisterMCPProxy(ctx, mcpDef.Name, mcpDef); err != nil {
 			logger.Warn(
 				"Proxy registration failed but client is connected during update",
 				"name",
@@ -337,7 +339,7 @@ func (h *AdminHandlers) UpdateMCPHandler(c *gin.Context) {
 	mcpDef.CreatedAt = existing.CreatedAt // Keep original creation time
 
 	// Save updated MCP definition FIRST to ensure consistency
-	if err := h.storage.SaveMCP(context.Background(), mcpDef); err != nil {
+	if err := h.storage.SaveMCP(c.Request.Context(), mcpDef); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to update MCP definition",
 			"details": err.Error(),
@@ -346,7 +348,7 @@ func (h *AdminHandlers) UpdateMCPHandler(c *gin.Context) {
 	}
 
 	// Now perform the hot reload operations
-	if err := h.performHotReload(mcpDef.Name, mcpDef); err != nil {
+	if err := h.performHotReload(c.Request.Context(), mcpDef.Name, mcpDef); err != nil {
 		// Hot reload failed, but definition was saved - return partial success
 		c.JSON(http.StatusAccepted, gin.H{
 			"message": "MCP definition updated but connection failed",
@@ -384,7 +386,7 @@ func (h *AdminHandlers) RemoveMCPHandler(c *gin.Context) {
 	}
 
 	// Check if MCP exists
-	_, err := h.storage.LoadMCP(context.Background(), name)
+	_, err := h.storage.LoadMCP(c.Request.Context(), name)
 	if err != nil {
 		if isNotFoundError(err) {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -401,7 +403,7 @@ func (h *AdminHandlers) RemoveMCPHandler(c *gin.Context) {
 	}
 
 	// Remove from storage FIRST to ensure consistency
-	if err := h.storage.DeleteMCP(context.Background(), name); err != nil {
+	if err := h.storage.DeleteMCP(c.Request.Context(), name); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to delete MCP definition",
 			"details": err.Error(),
@@ -410,7 +412,7 @@ func (h *AdminHandlers) RemoveMCPHandler(c *gin.Context) {
 	}
 
 	// Now remove runtime components
-	if err := h.clientManager.RemoveClient(context.Background(), name); err != nil {
+	if err := h.clientManager.RemoveClient(c.Request.Context(), name); err != nil {
 		logger.Error("Failed to remove client during deletion", "name", name, "error", err)
 	}
 	if h.proxyHandlers != nil {
@@ -433,7 +435,7 @@ func (h *AdminHandlers) RemoveMCPHandler(c *gin.Context) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /admin/mcps [get]
 func (h *AdminHandlers) ListMCPsHandler(c *gin.Context) {
-	mcps, err := h.storage.ListMCPs(context.Background())
+	mcps, err := h.storage.ListMCPs(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to retrieve MCP definitions",
@@ -487,7 +489,7 @@ func (h *AdminHandlers) GetMCPHandler(c *gin.Context) {
 		return
 	}
 
-	mcp, err := h.storage.LoadMCP(context.Background(), name)
+	mcp, err := h.storage.LoadMCP(c.Request.Context(), name)
 	if err != nil {
 		if isNotFoundError(err) {
 			c.JSON(http.StatusNotFound, gin.H{

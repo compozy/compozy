@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/mcp"
+	"github.com/compozy/compozy/engine/schema"
 	"github.com/tmc/langchaingo/tools"
 )
 
@@ -47,6 +48,11 @@ func (t *ProxyTool) Call(ctx context.Context, input string) (string, error) {
 		return "", fmt.Errorf("failed to parse tool arguments: %w", err)
 	}
 
+	// Validate arguments against input schema
+	if err := t.validateArguments(args); err != nil {
+		return "", fmt.Errorf("invalid tool arguments: %w", err)
+	}
+
 	// Execute the tool via proxy
 	result, err := t.proxyClient.CallTool(ctx, t.mcpName, t.name, args)
 	if err != nil {
@@ -66,4 +72,18 @@ func (t *ProxyTool) Call(ctx context.Context, input string) (string, error) {
 // ArgsType returns the input schema (not implemented for langchain tools)
 func (t *ProxyTool) ArgsType() any {
 	return t.inputSchema
+}
+
+// validateArguments validates the provided arguments against the tool's input schema
+func (t *ProxyTool) validateArguments(args map[string]any) error {
+	// Skip validation if no schema is defined
+	if len(t.inputSchema) == 0 {
+		return nil
+	}
+
+	// Convert map[string]any to schema.Schema and use the engine/schema package
+	toolSchema := schema.Schema(t.inputSchema)
+	validator := schema.NewParamsValidator(args, &toolSchema, fmt.Sprintf("tool:%s", t.name))
+
+	return validator.Validate(context.Background())
 }

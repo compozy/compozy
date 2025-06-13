@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -37,6 +39,40 @@ type RetryConfig struct {
 	MaxAttempts int
 	BaseDelay   time.Duration
 	MaxDelay    time.Duration
+}
+
+// ProxyRequestError represents an error from proxy HTTP requests with structured data
+type ProxyRequestError struct {
+	StatusCode int
+	Message    string
+	Err        error
+}
+
+func (e *ProxyRequestError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("proxy request failed (status %d): %s: %v", e.StatusCode, e.Message, e.Err)
+	}
+
+	// Provide backward compatibility for error messages
+	switch e.StatusCode {
+	case http.StatusInternalServerError:
+		if strings.Contains(e.Message, "Service unavailable") {
+			return fmt.Sprintf("proxy service unhealthy (status %d): %s", e.StatusCode, e.Message)
+		}
+		if e.Message == "Internal server error" {
+			return fmt.Sprintf("tools request failed (status %d): %s", e.StatusCode, e.Message)
+		}
+	case http.StatusNotFound:
+		if strings.Contains(e.Message, "MCP not found") {
+			return fmt.Sprintf("tool call failed (status %d): %s", e.StatusCode, e.Message)
+		}
+	}
+
+	return fmt.Sprintf("proxy request failed (status %d): %s", e.StatusCode, e.Message)
+}
+
+func (e *ProxyRequestError) Unwrap() error {
+	return e.Err
 }
 
 // DefaultRetryConfig returns a sensible default retry configuration
@@ -86,7 +122,10 @@ func (c *Client) Health(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("failed to read response body: %w", err)
 			}
-			return fmt.Errorf("proxy service unhealthy (status %d): %s", resp.StatusCode, string(body))
+			return &ProxyRequestError{
+				StatusCode: resp.StatusCode,
+				Message:    string(body),
+			}
 		}
 		logger.Debug("Proxy health check successful", "proxy_url", c.baseURL)
 		return nil
@@ -129,11 +168,20 @@ func (c *Client) Register(ctx context.Context, def *Definition) error {
 				"mcp_name", def.Name, "proxy_url", c.baseURL)
 			return nil // Treat as success - idempotent operation
 		case http.StatusUnauthorized:
-			return fmt.Errorf("unauthorized: invalid admin token")
+			return &ProxyRequestError{
+				StatusCode: resp.StatusCode,
+				Message:    "unauthorized: invalid admin token",
+			}
 		case http.StatusBadRequest:
-			return fmt.Errorf("bad request: %s", string(body))
+			return &ProxyRequestError{
+				StatusCode: resp.StatusCode,
+				Message:    string(body),
+			}
 		default:
-			return fmt.Errorf("registration failed (status %d): %s", resp.StatusCode, string(body))
+			return &ProxyRequestError{
+				StatusCode: resp.StatusCode,
+				Message:    string(body),
+			}
 		}
 	})
 }
@@ -141,8 +189,8 @@ func (c *Client) Register(ctx context.Context, def *Definition) error {
 // Deregister removes an MCP from the proxy service
 func (c *Client) Deregister(ctx context.Context, name string) error {
 	return c.withRetry(ctx, "deregister MCP", func() error {
-		url := fmt.Sprintf("%s/admin/mcps/%s", c.baseURL, name)
-		req, err := http.NewRequestWithContext(ctx, "DELETE", url, http.NoBody)
+		reqURL := fmt.Sprintf("%s/admin/mcps/%s", c.baseURL, url.PathEscape(name))
+		req, err := http.NewRequestWithContext(ctx, "DELETE", reqURL, http.NoBody)
 		if err != nil {
 			return fmt.Errorf("failed to create deregister request: %w", err)
 		}
@@ -168,9 +216,15 @@ func (c *Client) Deregister(ctx context.Context, name string) error {
 				"mcp_name", name, "proxy_url", c.baseURL)
 			return nil // Treat as success - idempotent operation
 		case http.StatusUnauthorized:
-			return fmt.Errorf("unauthorized: invalid admin token")
+			return &ProxyRequestError{
+				StatusCode: resp.StatusCode,
+				Message:    "unauthorized: invalid admin token",
+			}
 		default:
-			return fmt.Errorf("deregistration failed (status %d): %s", resp.StatusCode, string(body))
+			return &ProxyRequestError{
+				StatusCode: resp.StatusCode,
+				Message:    string(body),
+			}
 		}
 	})
 }
@@ -196,7 +250,10 @@ func (c *Client) ListMCPs(ctx context.Context) ([]Definition, error) {
 			return fmt.Errorf("failed to read response: %w", err)
 		}
 		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("list failed (status %d): %s", resp.StatusCode, string(body))
+			return &ProxyRequestError{
+				StatusCode: resp.StatusCode,
+				Message:    string(body),
+			}
 		}
 		var response struct {
 			MCPs []Definition `json:"mcps"`
@@ -247,7 +304,10 @@ func (c *Client) ListTools(ctx context.Context) ([]ToolDefinition, error) {
 			return fmt.Errorf("failed to read response: %w", err)
 		}
 		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("tools request failed (status %d): %s", resp.StatusCode, string(body))
+			return &ProxyRequestError{
+				StatusCode: resp.StatusCode,
+				Message:    string(body),
+			}
 		}
 		var response ToolsResponse
 		if err := json.Unmarshal(body, &response); err != nil {
@@ -309,7 +369,10 @@ func (c *Client) CallTool(ctx context.Context, mcpName, toolName string, argumen
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("tool call failed (status %d): %s", resp.StatusCode, string(body))
+			return &ProxyRequestError{
+				StatusCode: resp.StatusCode,
+				Message:    string(body),
+			}
 		}
 
 		if err := json.Unmarshal(body, &response); err != nil {
@@ -372,6 +435,15 @@ func isRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
+
+	// Check for structured proxy errors
+	var proxyErr *ProxyRequestError
+	if errors.As(err, &proxyErr) {
+		// Only retry on server errors (5xx status codes)
+		return proxyErr.StatusCode >= 500 && proxyErr.StatusCode < 600
+	}
+
+	// Check for network-level errors using string matching as fallback
 	errStr := err.Error()
 	if strings.Contains(errStr, "connection refused") ||
 		strings.Contains(errStr, "timeout") ||
@@ -379,10 +451,7 @@ func isRetryableError(err error) bool {
 		strings.Contains(errStr, "network is unreachable") {
 		return true
 	}
-	// HTTP status code errors - only retry on server errors
-	if strings.Contains(errStr, "status 5") {
-		return true
-	}
+
 	// Don't retry client errors (4xx) or authentication issues
 	return false
 }

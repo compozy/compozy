@@ -115,6 +115,154 @@ func TestProxyTool_Call(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to parse tool arguments")
 	})
+
+	t.Run("Should validate arguments against schema and accept valid input", func(t *testing.T) {
+		// Create test server to mock the proxy
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			resp := map[string]any{"result": "success"}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+		}))
+		defer server.Close()
+
+		toolDef := mcp.ToolDefinition{
+			Name:    "validation-tool",
+			MCPName: "test-mcp",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"query": map[string]any{
+						"type": "string",
+					},
+					"limit": map[string]any{
+						"type": "number",
+					},
+				},
+				"required": []string{"query"},
+			},
+		}
+
+		proxyClient := mcp.NewProxyClient(server.URL, "", 5*time.Second)
+		defer proxyClient.Close()
+
+		tool := NewProxyTool(toolDef, proxyClient)
+
+		validInput := `{"query": "test", "limit": 10}`
+		_, err := tool.Call(context.Background(), validInput)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should return validation error for missing required field", func(t *testing.T) {
+		toolDef := mcp.ToolDefinition{
+			Name:    "validation-tool",
+			MCPName: "test-mcp",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"query": map[string]any{
+						"type": "string",
+					},
+				},
+				"required": []string{"query"},
+			},
+		}
+
+		proxyClient := mcp.NewProxyClient("http://localhost:7077", "", 0)
+		defer proxyClient.Close()
+
+		tool := NewProxyTool(toolDef, proxyClient)
+
+		invalidInput := `{"limit": 10}`
+		_, err := tool.Call(context.Background(), invalidInput)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid tool arguments")
+		assert.Contains(t, err.Error(), "validation error for tool:validation-tool")
+		assert.Contains(t, err.Error(), "Required property 'query' is missing")
+	})
+
+	t.Run("Should return validation error for wrong type", func(t *testing.T) {
+		toolDef := mcp.ToolDefinition{
+			Name:    "validation-tool",
+			MCPName: "test-mcp",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"limit": map[string]any{
+						"type": "number",
+					},
+				},
+			},
+		}
+
+		proxyClient := mcp.NewProxyClient("http://localhost:7077", "", 0)
+		defer proxyClient.Close()
+
+		tool := NewProxyTool(toolDef, proxyClient)
+
+		invalidInput := `{"limit": "not a number"}`
+		_, err := tool.Call(context.Background(), invalidInput)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid tool arguments")
+		assert.Contains(t, err.Error(), "validation error for tool:validation-tool")
+		assert.Contains(t, err.Error(), "does not match the schema")
+	})
+
+	t.Run("Should skip validation when no schema is defined", func(t *testing.T) {
+		// Create test server to mock the proxy
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			resp := map[string]any{"result": "success"}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+		}))
+		defer server.Close()
+
+		toolDef := mcp.ToolDefinition{
+			Name:        "no-schema-tool",
+			MCPName:     "test-mcp",
+			InputSchema: nil, // No schema defined
+		}
+
+		proxyClient := mcp.NewProxyClient(server.URL, "", 5*time.Second)
+		defer proxyClient.Close()
+
+		tool := NewProxyTool(toolDef, proxyClient)
+
+		// Should accept any valid JSON
+		anyInput := `{"anything": "goes", "number": 42, "bool": true}`
+		_, err := tool.Call(context.Background(), anyInput)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should skip validation when empty schema is defined", func(t *testing.T) {
+		// Create test server to mock the proxy
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			resp := map[string]any{"result": "success"}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+		}))
+		defer server.Close()
+
+		toolDef := mcp.ToolDefinition{
+			Name:        "empty-schema-tool",
+			MCPName:     "test-mcp",
+			InputSchema: map[string]any{}, // Empty schema
+		}
+
+		proxyClient := mcp.NewProxyClient(server.URL, "", 5*time.Second)
+		defer proxyClient.Close()
+
+		tool := NewProxyTool(toolDef, proxyClient)
+
+		// Should accept any valid JSON
+		anyInput := `{"anything": "goes"}`
+		_, err := tool.Call(context.Background(), anyInput)
+
+		assert.NoError(t, err)
+	})
 }
 
 func TestProxyTool_ArgsType(t *testing.T) {

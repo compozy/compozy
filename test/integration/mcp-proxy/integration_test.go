@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
+	utils "github.com/compozy/compozy/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,16 +17,16 @@ import (
 // TestMCPProxyIntegration tests the complete MCP proxy workflow
 func TestMCPProxyIntegration(t *testing.T) {
 	// Initialize logger for tests
-	initLogger()
+	utils.InitLogger()
 
 	// Create memory storage
-	storage := NewMemoryStorage()
+	storage := mcpproxy.NewMemoryStorage()
 
 	// Create mock client manager
-	clientManager := NewMockClientManager()
+	clientManager := mcpproxy.NewMockClientManager()
 
 	// Create server
-	config := &Config{
+	config := &mcpproxy.Config{
 		Port:            "8080",
 		Host:            "localhost",
 		BaseURL:         "http://localhost:8080",
@@ -33,13 +35,13 @@ func TestMCPProxyIntegration(t *testing.T) {
 		// No IP restrictions for tests
 	}
 
-	server := NewServer(config, storage, clientManager)
+	server := mcpproxy.NewServer(config, storage, clientManager)
 
 	// Test case: Add MCP with stdio transport
-	mcpDef := MCPDefinition{
+	mcpDef := mcpproxy.MCPDefinition{
 		Name:        "test-mcp",
 		Description: "Test MCP for integration testing",
-		Transport:   TransportStdio,
+		Transport:   mcpproxy.TransportStdio,
 		Command:     "echo",
 		Args:        []string{"hello"},
 	}
@@ -57,7 +59,7 @@ func TestMCPProxyIntegration(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// Serve the request
-	server.router.ServeHTTP(w, req)
+	server.Router.ServeHTTP(w, req)
 
 	// Check response
 	assert.Equal(t, http.StatusCreated, w.Code)
@@ -75,14 +77,14 @@ func TestMCPProxyIntegration(t *testing.T) {
 	// Test healthz endpoint
 	req = httptest.NewRequest(http.MethodGet, "/healthz", http.NoBody)
 	w = httptest.NewRecorder()
-	server.router.ServeHTTP(w, req)
+	server.Router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Test admin/mcps endpoint
 	req = httptest.NewRequest(http.MethodGet, "/admin/mcps", http.NoBody)
 	req.Header.Set("Authorization", "Bearer test-admin-token")
 	w = httptest.NewRecorder()
-	server.router.ServeHTTP(w, req)
+	server.Router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	var listResponse map[string]any
@@ -97,7 +99,7 @@ func TestMCPProxyIntegration(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/admin/metrics", http.NoBody)
 	req.Header.Set("Authorization", "Bearer test-admin-token")
 	w = httptest.NewRecorder()
-	server.router.ServeHTTP(w, req)
+	server.Router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	var metricsResponse map[string]any
@@ -109,12 +111,12 @@ func TestMCPProxyIntegration(t *testing.T) {
 // TestAdminSecurity tests the admin API security features
 func TestAdminSecurity(t *testing.T) {
 	// Initialize logger for tests
-	initLogger()
+	utils.InitLogger()
 
-	storage := NewMemoryStorage()
-	clientManager := NewMockClientManager()
+	storage := mcpproxy.NewMemoryStorage()
+	clientManager := mcpproxy.NewMockClientManager()
 
-	config := &Config{
+	config := &mcpproxy.Config{
 		Port:            "8080",
 		Host:            "localhost",
 		BaseURL:         "http://localhost:8080",
@@ -123,25 +125,28 @@ func TestAdminSecurity(t *testing.T) {
 		// Don't restrict IPs for testing httptest
 	}
 
-	server := NewServer(config, storage, clientManager)
+	server := mcpproxy.NewServer(config, storage, clientManager)
 
 	// Test unauthorized access (no token)
 	req := httptest.NewRequest(http.MethodGet, "/admin/mcps", http.NoBody)
 	w := httptest.NewRecorder()
-	server.router.ServeHTTP(w, req)
+	server.Router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 
 	// Test invalid token
 	req = httptest.NewRequest(http.MethodGet, "/admin/mcps", http.NoBody)
 	req.Header.Set("Authorization", "Bearer invalid-token")
 	w = httptest.NewRecorder()
-	server.router.ServeHTTP(w, req)
+	server.Router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 
 	// Test valid token
 	req = httptest.NewRequest(http.MethodGet, "/admin/mcps", http.NoBody)
 	req.Header.Set("Authorization", "Bearer valid-token")
 	w = httptest.NewRecorder()
-	server.router.ServeHTTP(w, req)
+	server.Router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 }
+
+// NOTE: Additional tool execution integration tests are available in integration_tool_test.go
+// These tests validate the tool API endpoints structure, authentication, and input validation.

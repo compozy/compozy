@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -168,11 +169,14 @@ func TestRegisterService_EnsureMultiple(t *testing.T) {
 
 func TestRegisterService_Shutdown(t *testing.T) {
 	t.Run("Should deregister all MCPs during shutdown", func(t *testing.T) {
+		var mu sync.Mutex
 		deregisteredMCPs := make(map[string]bool)
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == "DELETE" {
 				mcpID := r.URL.Path[len("/admin/mcps/"):]
+				mu.Lock()
 				deregisteredMCPs[mcpID] = true
+				mu.Unlock()
 				w.WriteHeader(http.StatusOK)
 			}
 		}))
@@ -189,8 +193,10 @@ func TestRegisterService_Shutdown(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Verify all MCPs were deregistered
+		mu.Lock()
 		assert.True(t, deregisteredMCPs["mcp-1"])
 		assert.True(t, deregisteredMCPs["mcp-2"])
+		mu.Unlock()
 
 		// Verify registry is cleared
 		assert.Len(t, service.ListRegistered(), 0)

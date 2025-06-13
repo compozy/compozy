@@ -6,7 +6,6 @@ import (
 	"maps"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
@@ -78,20 +77,7 @@ func (c *Config) validateURL() error {
 		return errors.New("mcp url is required when not using proxy")
 	}
 
-	parsedURL, err := url.Parse(c.URL)
-	if err != nil {
-		return fmt.Errorf("invalid mcp url format: %w", err)
-	}
-
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return fmt.Errorf("mcp url must use http or https scheme, got: %s", parsedURL.Scheme)
-	}
-
-	if parsedURL.Host == "" {
-		return fmt.Errorf("mcp url must include a host")
-	}
-
-	return nil
+	return validateURLFormat(c.URL, "mcp url")
 }
 
 func (c *Config) validateProxy() error {
@@ -100,17 +86,22 @@ func (c *Config) validateProxy() error {
 		return errors.New("MCP_PROXY_URL environment variable is required for MCP server configuration")
 	}
 
-	parsedProxyURL, err := url.Parse(proxyURL)
+	return validateURLFormat(proxyURL, "proxy url")
+}
+
+// validateURLFormat validates a URL format and scheme for the given context
+func validateURLFormat(urlStr, context string) error {
+	parsedURL, err := url.Parse(urlStr)
 	if err != nil {
-		return fmt.Errorf("invalid proxy url format: %w", err)
+		return fmt.Errorf("invalid %s format: %w", context, err)
 	}
 
-	if parsedProxyURL.Scheme != "http" && parsedProxyURL.Scheme != "https" {
-		return fmt.Errorf("proxy url must use http or https scheme, got: %s", parsedProxyURL.Scheme)
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return fmt.Errorf("%s must use http or https scheme, got: %s", context, parsedURL.Scheme)
 	}
 
-	if parsedProxyURL.Host == "" {
-		return fmt.Errorf("proxy url must include a host")
+	if parsedURL.Host == "" {
+		return fmt.Errorf("%s must include a host", context)
 	}
 
 	return nil
@@ -157,24 +148,8 @@ func (c *Config) Clone() *Config {
 
 // isValidProtoVersion validates the protocol version format (YYYY-MM-DD)
 func isValidProtoVersion(version string) bool {
-	parts := strings.Split(version, "-")
-	if len(parts) != 3 {
-		return false
-	}
-	// Basic format validation - should be YYYY-MM-DD
-	year, month, day := parts[0], parts[1], parts[2]
-	if len(year) != 4 || len(month) != 2 || len(day) != 2 {
-		return false
-	}
-	// All parts should be numeric
-	for _, part := range parts {
-		for _, char := range part {
-			if char < '0' || char > '9' {
-				return false
-			}
-		}
-	}
-	return true
+	_, err := time.Parse("2006-01-02", version)
+	return err == nil
 }
 
 // isValidTransport validates the transport type

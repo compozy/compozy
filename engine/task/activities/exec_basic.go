@@ -86,10 +86,22 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 	})
 
 	taskState.Output = output
-	return a.taskResponder.HandleMainTask(ctx, &services.MainTaskResponseInput{
+
+	// Handle main task response
+	response, err := a.taskResponder.HandleMainTask(ctx, &services.MainTaskResponseInput{
 		WorkflowConfig: workflowConfig,
 		TaskState:      taskState,
 		TaskConfig:     taskConfig,
 		ExecutionError: executionError,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	// If there was an execution error, the task should be considered failed
+	if executionError != nil {
+		return response, executionError
+	}
+
+	return response, nil
 }

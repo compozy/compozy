@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
+	"golang.org/x/sync/errgroup"
 )
 
 // RegisterService manages MCP registration lifecycle with the proxy
@@ -102,29 +103,48 @@ func (s *RegisterService) ListRegistered() []string {
 
 // Shutdown deregisters all MCPs and cleans up resources
 func (s *RegisterService) Shutdown(ctx context.Context) error {
+	// Collect MCP IDs under lock
 	s.mux.Lock()
-	defer s.mux.Unlock()
+	mcpIDs := make([]string, 0, len(s.regs))
+	for mcpID := range s.regs {
+		mcpIDs = append(mcpIDs, mcpID)
+	}
+	s.mux.Unlock()
 
 	logger.Info("Shutting down MCP register, deregistering all MCPs",
-		"count", len(s.regs))
+		"count", len(mcpIDs))
 
-	var errs []error
-	for mcpID := range s.regs {
-		if err := s.proxy.Deregister(ctx, mcpID); err != nil {
-			logger.Error("Failed to deregister MCP during shutdown",
-				"mcp_id", mcpID, "error", err)
-			errs = append(errs, fmt.Errorf("failed to deregister %s: %w", mcpID, err))
-		} else {
-			logger.Debug("Deregistered MCP during shutdown", "mcp_id", mcpID)
-		}
+	if len(mcpIDs) == 0 {
+		logger.Info("No MCPs to deregister during shutdown")
+		return nil
 	}
 
-	// Clear the registry
-	s.regs = make(map[string]bool)
+	// Use errgroup for concurrent deregistration
+	g, gCtx := errgroup.WithContext(ctx)
 
-	// Return combined error if any deregistrations failed
-	if len(errs) > 0 {
-		return fmt.Errorf("shutdown failed for %d MCPs: %v", len(errs), errs)
+	for _, mcpID := range mcpIDs {
+		mcpID := mcpID // capture loop variable
+		g.Go(func() error {
+			if err := s.proxy.Deregister(gCtx, mcpID); err != nil {
+				logger.Error("Failed to deregister MCP during shutdown",
+					"mcp_id", mcpID, "error", err)
+				return fmt.Errorf("failed to deregister %s: %w", mcpID, err)
+			}
+			logger.Debug("Deregistered MCP during shutdown", "mcp_id", mcpID)
+			return nil
+		})
+	}
+
+	// Wait for all deregistrations to complete
+	err := g.Wait()
+
+	// Clear the registry
+	s.mux.Lock()
+	s.regs = make(map[string]bool)
+	s.mux.Unlock()
+
+	if err != nil {
+		return fmt.Errorf("shutdown failed: %w", err)
 	}
 
 	logger.Info("MCP register shutdown completed successfully")
@@ -223,7 +243,11 @@ func (s *RegisterService) convertToDefinition(config *Config) (Definition, error
 		// Remote MCP (SSE or streamable-http)
 		def.URL = config.URL
 	case config.Command != "":
-		commandParts := strings.Split(config.Command, " ")
+		// Parse command with basic validation
+		commandParts, err := parseCommand(config.Command)
+		if err != nil {
+			return def, fmt.Errorf("invalid command format: %w", err)
+		}
 		def.Command = commandParts[0]
 		if len(commandParts) > 1 {
 			def.Args = commandParts[1:]
@@ -246,6 +270,37 @@ func (s *RegisterService) convertToDefinition(config *Config) (Definition, error
 	}
 
 	return def, nil
+}
+
+// parseCommand safely parses a command string into command and arguments
+// This is a basic implementation that handles simple cases and validates input
+func parseCommand(command string) ([]string, error) {
+	if command == "" {
+		return nil, fmt.Errorf("command cannot be empty")
+	}
+
+	// Trim whitespace
+	command = strings.TrimSpace(command)
+
+	// Basic validation - reject obviously malicious patterns
+	if strings.Contains(command, "\n") || strings.Contains(command, "\r") {
+		return nil, fmt.Errorf("command cannot contain newlines")
+	}
+
+	// Use simple splitting for now - this handles basic cases
+	// Note: This doesn't handle quoted arguments with spaces properly
+	// For production use, consider using shlex or similar library
+	parts := strings.Fields(command)
+	if len(parts) == 0 {
+		return nil, fmt.Errorf("command cannot be empty after parsing")
+	}
+
+	// Validate command name (basic check)
+	if strings.HasPrefix(parts[0], "-") {
+		return nil, fmt.Errorf("command name cannot start with dash")
+	}
+
+	return parts, nil
 }
 
 // EnsureMultiple registers multiple MCPs in parallel with error handling

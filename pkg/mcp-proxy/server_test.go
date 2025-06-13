@@ -23,7 +23,7 @@ func TestNewServer(t *testing.T) {
 
 	assert.NotNil(t, server)
 	assert.Equal(t, config, server.config)
-	assert.NotNil(t, server.router)
+	assert.NotNil(t, server.Router)
 	assert.NotNil(t, server.httpServer)
 }
 
@@ -39,7 +39,7 @@ func TestHealthzEndpoint(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	// Execute the request
-	server.router.ServeHTTP(rr, req)
+	server.Router.ServeHTTP(rr, req)
 
 	// Check the response
 	assert.Equal(t, http.StatusOK, rr.Code)
@@ -60,7 +60,7 @@ func TestPingEndpoint(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	// Execute the request
-	server.router.ServeHTTP(rr, req)
+	server.Router.ServeHTTP(rr, req)
 
 	// Check the response
 	assert.Equal(t, http.StatusOK, rr.Code)

@@ -39,12 +39,24 @@ func (a *GetParallelResponse) Run(
 	input *GetParallelResponseInput,
 ) (*task.MainTaskResponse, error) {
 	executionError := a.processParallelTask(ctx, input)
-	return a.taskResponder.HandleMainTask(ctx, &services.MainTaskResponseInput{
+
+	// Handle main task response
+	response, err := a.taskResponder.HandleMainTask(ctx, &services.MainTaskResponseInput{
 		WorkflowConfig: input.WorkflowConfig,
 		TaskState:      input.ParentState,
 		TaskConfig:     input.TaskConfig,
 		ExecutionError: executionError,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	// If there was an execution error, the parallel task should be considered failed
+	if executionError != nil {
+		return response, executionError
+	}
+
+	return response, nil
 }
 
 // processParallelTask handles parallel task processing logic and returns execution error if any
