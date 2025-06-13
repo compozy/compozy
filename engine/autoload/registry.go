@@ -58,6 +58,7 @@ func (r *ConfigRegistry) Register(config any, source string) error {
 			"id":              id,
 			"source":          source,
 			"existing_source": existing.source,
+			"suggestion":      "Check for duplicate resource IDs or use unique identifiers across configuration files",
 		})
 	}
 	// Add the configuration to the registry
@@ -81,8 +82,9 @@ func (r *ConfigRegistry) Get(resourceType, id string) (any, error) {
 		}
 	}
 	return nil, core.NewError(nil, "RESOURCE_NOT_FOUND", map[string]any{
-		"type": resourceType,
-		"id":   id,
+		"type":       resourceType,
+		"id":         id,
+		"suggestion": "Verify the resource exists and has been loaded by AutoLoader",
 	})
 }
 
