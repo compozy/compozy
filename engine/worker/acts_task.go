@@ -343,7 +343,8 @@ func (e *TaskExecutor) HandleParallelTask(pConfig *task.Config) func(ctx workflo
 			case task.StrategyBestEffort:
 				return (completedCount + failedCount) >= numTasks
 			case task.StrategyRace:
-				return completedCount > 0 || failedCount >= numTasks
+				// Race terminates on first result, either success or failure
+				return completedCount > 0 || failedCount > 0
 			default:
 				return (completedCount + failedCount) >= numTasks
 			}
@@ -390,7 +391,7 @@ func (e *TaskExecutor) HandleCollectionTask(
 	logger := workflow.GetLogger(ctx)
 
 	if len(childStates) == 0 {
-		logger.Warn("No child states found for collection task",
+		logger.Error("No child states found for collection task",
 			"task_id", taskConfig.ID,
 			"parent_state_id", cState.TaskExecID)
 		return fmt.Errorf("no child states found for collection %s", taskConfig.ID)
@@ -399,8 +400,31 @@ func (e *TaskExecutor) HandleCollectionTask(
 	logger.Info("Executing collection child tasks",
 		"task_id", taskConfig.ID,
 		"child_count", len(childStates),
-		"expected_count", childCount)
+		"expected_count", childCount,
+		"mode", taskConfig.GetMode())
 
+	// Branch based on collection mode
+	mode := taskConfig.GetMode()
+	switch mode {
+	case task.CollectionModeSequential:
+		return e.handleCollectionSequential(ctx, cState, taskConfig, childStates, &completed, &failed)
+	case task.CollectionModeParallel:
+		return e.handleCollectionParallel(ctx, cState, taskConfig, childStates, &completed, &failed, childCount)
+	default:
+		// Default to parallel for backward compatibility
+		return e.handleCollectionParallel(ctx, cState, taskConfig, childStates, &completed, &failed, childCount)
+	}
+}
+
+func (e *TaskExecutor) handleCollectionParallel(
+	ctx workflow.Context,
+	cState *task.State,
+	taskConfig *task.Config,
+	childStates []*task.State,
+	completed, failed *int32,
+	childCount int32,
+) error {
+	logger := workflow.GetLogger(ctx)
 	// Execute child tasks using their TaskExecIDs
 	for i := range childStates {
 		childState := childStates[i]
@@ -411,20 +435,19 @@ func (e *TaskExecutor) HandleCollectionTask(
 					"parent_task_id", taskConfig.ID,
 					"child_task_exec_id", childState.TaskExecID,
 					"error", err)
-				atomic.AddInt32(&failed, 1)
+				atomic.AddInt32(failed, 1)
 			} else {
-				atomic.AddInt32(&completed, 1)
+				atomic.AddInt32(completed, 1)
 				logger.Info("Collection item completed successfully",
 					"parent_task_id", taskConfig.ID,
 					"child_task_exec_id", childState.TaskExecID)
 			}
 		})
 	}
-
 	// Wait for tasks to complete based on strategy
 	awaitErr := workflow.Await(ctx, func() bool {
-		completedCount := atomic.LoadInt32(&completed)
-		failedCount := atomic.LoadInt32(&failed)
+		completedCount := atomic.LoadInt32(completed)
+		failedCount := atomic.LoadInt32(failed)
 		strategy := taskConfig.GetStrategy()
 		switch strategy {
 		case task.StrategyWaitAll:
@@ -434,7 +457,8 @@ func (e *TaskExecutor) HandleCollectionTask(
 		case task.StrategyBestEffort:
 			return (completedCount + failedCount) >= childCount
 		case task.StrategyRace:
-			return completedCount > 0 || failedCount >= childCount
+			// Race terminates on first result, either success or failure
+			return completedCount > 0 || failedCount > 0
 		default:
 			return (completedCount + failedCount) >= childCount
 		}
@@ -442,14 +466,71 @@ func (e *TaskExecutor) HandleCollectionTask(
 	if awaitErr != nil {
 		return fmt.Errorf("failed to await collection task: %w", awaitErr)
 	}
-
-	completedCount := atomic.LoadInt32(&completed)
-	failedCount := atomic.LoadInt32(&failed)
-	logger.Info("Collection execution completed",
+	completedCount := atomic.LoadInt32(completed)
+	failedCount := atomic.LoadInt32(failed)
+	logger.Info("Collection parallel execution completed",
 		"task_id", taskConfig.ID,
 		"completed", completedCount,
 		"failed", failedCount,
 		"total", childCount)
+	return nil
+}
 
+func (e *TaskExecutor) handleCollectionSequential(
+	ctx workflow.Context,
+	cState *task.State,
+	taskConfig *task.Config,
+	childStates []*task.State,
+	completed, failed *int32,
+) error {
+	logger := workflow.GetLogger(ctx)
+	strategy := taskConfig.GetStrategy()
+	// Process child tasks sequentially
+	for i, childState := range childStates {
+		// Check for cancellation between iterations
+		// Note: In Temporal, we don't check cancellation explicitly in workflows
+		// The framework handles it automatically
+		logger.Info("Executing collection item sequentially",
+			"parent_task_id", taskConfig.ID,
+			"child_task_exec_id", childState.TaskExecID,
+			"index", i,
+			"total", len(childStates))
+		_, err := e.ExecuteSubtask(ctx, cState, childState.TaskExecID.String())
+		if err != nil {
+			atomic.AddInt32(failed, 1)
+			logger.Error("Failed to execute collection item",
+				"parent_task_id", taskConfig.ID,
+				"child_task_exec_id", childState.TaskExecID,
+				"index", i,
+				"error", err)
+			// Handle strategy-based early termination
+			if strategy == task.StrategyFailFast {
+				logger.Info("Stopping collection execution due to FailFast strategy",
+					"task_id", taskConfig.ID,
+					"failed_at_index", i)
+				break
+			}
+		} else {
+			atomic.AddInt32(completed, 1)
+			logger.Info("Collection item completed successfully",
+				"parent_task_id", taskConfig.ID,
+				"child_task_exec_id", childState.TaskExecID,
+				"index", i)
+			// Handle Race strategy - stop on first success
+			if strategy == task.StrategyRace {
+				logger.Info("Stopping collection execution due to Race strategy",
+					"task_id", taskConfig.ID,
+					"succeeded_at_index", i)
+				break
+			}
+		}
+	}
+	completedCount := atomic.LoadInt32(completed)
+	failedCount := atomic.LoadInt32(failed)
+	logger.Info("Collection sequential execution completed",
+		"task_id", taskConfig.ID,
+		"completed", completedCount,
+		"failed", failedCount,
+		"total", len(childStates))
 	return nil
 }

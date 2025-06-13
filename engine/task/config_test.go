@@ -681,6 +681,61 @@ func Test_TaskConfigValidation(t *testing.T) {
 		err := config.Validate()
 		assert.NoError(t, err)
 	})
+	t.Run("Should validate collection task with sequential mode", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:   taskID,
+				Type: TaskTypeCollection,
+				CWD:  taskCWD,
+			},
+			CollectionConfig: CollectionConfig{
+				Items: `["item1", "item2", "item3"]`,
+				Mode:  CollectionModeSequential,
+			},
+			ParallelTask: ParallelTask{
+				Task: &Config{
+					BaseConfig: BaseConfig{
+						ID:   "template-task",
+						Type: TaskTypeBasic,
+						CWD:  taskCWD,
+					},
+					BasicTask: BasicTask{
+						Action: "process {{ .item }}",
+					},
+				},
+			},
+		}
+		err := config.Validate()
+		assert.NoError(t, err)
+		assert.Equal(t, CollectionModeSequential, config.GetMode())
+	})
+	t.Run("Should default to parallel mode when mode is not specified", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:   taskID,
+				Type: TaskTypeCollection,
+				CWD:  taskCWD,
+			},
+			CollectionConfig: CollectionConfig{
+				Items: `["item1", "item2", "item3"]`,
+			},
+			ParallelTask: ParallelTask{
+				Task: &Config{
+					BaseConfig: BaseConfig{
+						ID:   "template-task",
+						Type: TaskTypeBasic,
+						CWD:  taskCWD,
+					},
+					BasicTask: BasicTask{
+						Action: "process {{ .item }}",
+					},
+				},
+			},
+		}
+		// Apply defaults
+		config.Default()
+		assert.Equal(t, CollectionModeParallel, config.GetMode())
+	})
 
 	t.Run("Should return error for collection task missing items", func(t *testing.T) {
 		config := &Config{
