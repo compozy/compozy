@@ -13,10 +13,8 @@ func TestProxyHandlers_CombineAuthTokens(t *testing.T) {
 		proxyHandlers := &ProxyHandlers{
 			globalAuthTokens: nil,
 		}
-
 		clientTokens := []string{"client-token-1", "client-token-2"}
-		result := proxyHandlers.combineAuthTokens(clientTokens)
-
+		result := combineAuthTokens(proxyHandlers.globalAuthTokens, clientTokens)
 		assert.Equal(t, clientTokens, result)
 	})
 
@@ -26,8 +24,7 @@ func TestProxyHandlers_CombineAuthTokens(t *testing.T) {
 			globalAuthTokens: globalTokens,
 		}
 
-		result := proxyHandlers.combineAuthTokens(nil)
-
+		result := combineAuthTokens(proxyHandlers.globalAuthTokens, nil)
 		assert.Equal(t, globalTokens, result)
 	})
 
@@ -38,8 +35,7 @@ func TestProxyHandlers_CombineAuthTokens(t *testing.T) {
 			globalAuthTokens: globalTokens,
 		}
 
-		result := proxyHandlers.combineAuthTokens(clientTokens)
-
+		result := combineAuthTokens(proxyHandlers.globalAuthTokens, clientTokens)
 		expected := []string{"global-token-1", "global-token-2", "client-token-1", "client-token-2"}
 		assert.Equal(t, expected, result)
 	})
@@ -51,8 +47,7 @@ func TestProxyHandlers_CombineAuthTokens(t *testing.T) {
 			globalAuthTokens: globalTokens,
 		}
 
-		result := proxyHandlers.combineAuthTokens(clientTokens)
-
+		result := combineAuthTokens(proxyHandlers.globalAuthTokens, clientTokens)
 		// Should include each token only once, with global tokens having priority
 		expected := []string{"shared-token", "global-token", "client-token"}
 		assert.Equal(t, expected, result)
@@ -64,9 +59,7 @@ func TestProxyHandlers_CombineAuthTokens(t *testing.T) {
 		proxyHandlers := &ProxyHandlers{
 			globalAuthTokens: globalTokens,
 		}
-
-		result := proxyHandlers.combineAuthTokens(clientTokens)
-
+		result := combineAuthTokens(proxyHandlers.globalAuthTokens, clientTokens)
 		expected := []string{"global-token", "global-token-2", "client-token"}
 		assert.Equal(t, expected, result)
 	})
@@ -75,9 +68,7 @@ func TestProxyHandlers_CombineAuthTokens(t *testing.T) {
 		proxyHandlers := &ProxyHandlers{
 			globalAuthTokens: []string{},
 		}
-
-		result := proxyHandlers.combineAuthTokens([]string{})
-
+		result := combineAuthTokens(proxyHandlers.globalAuthTokens, []string{})
 		assert.Empty(t, result)
 	})
 
@@ -86,7 +77,7 @@ func TestProxyHandlers_CombineAuthTokens(t *testing.T) {
 			globalAuthTokens: nil,
 		}
 
-		result := proxyHandlers.combineAuthTokens(nil)
+		result := combineAuthTokens(proxyHandlers.globalAuthTokens, nil)
 
 		assert.Nil(t, result)
 	})
@@ -122,7 +113,7 @@ func TestGlobalAuthTokensIntegration(t *testing.T) {
 		proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:8080", globalTokens)
 
 		// Test the combination logic
-		combined := proxyHandlers.combineAuthTokens(clientTokens)
+		combined := combineAuthTokens(proxyHandlers.globalAuthTokens, clientTokens)
 
 		expected := []string{"global-auth-123", "client-auth-456"}
 		assert.Equal(t, expected, combined)
@@ -137,12 +128,12 @@ func TestGlobalAuthTokensIntegration(t *testing.T) {
 		proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:8080", globalTokens)
 
 		// Test with empty client tokens
-		combined := proxyHandlers.combineAuthTokens([]string{})
+		combined := combineAuthTokens(proxyHandlers.globalAuthTokens, []string{})
 
 		assert.Equal(t, globalTokens, combined)
 
 		// Test with nil client tokens
-		combined = proxyHandlers.combineAuthTokens(nil)
+		combined = combineAuthTokens(proxyHandlers.globalAuthTokens, nil)
 
 		assert.Equal(t, globalTokens, combined)
 	})
@@ -156,7 +147,7 @@ func TestGlobalAuthTokensIntegration(t *testing.T) {
 		// No global tokens
 		proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:8080", nil)
 
-		combined := proxyHandlers.combineAuthTokens(clientTokens)
+		combined := combineAuthTokens(proxyHandlers.globalAuthTokens, clientTokens)
 
 		assert.Equal(t, clientTokens, combined)
 	})

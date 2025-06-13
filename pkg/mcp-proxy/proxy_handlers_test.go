@@ -89,15 +89,24 @@ func TestProxyHandlers(t *testing.T) {
 
 		// Manually add a mock proxy server to simulate successful registration
 		// This tests the routing logic without the complex MCP initialization
+		mockDef := &MCPDefinition{
+			Name:        "registered-mcp",
+			Description: "Test MCP",
+			Transport:   TransportStdio,
+			Command:     "echo",
+			LogEnabled:  false,
+			AuthTokens:  nil,
+		}
 		mockProxyServer := &ProxyServer{
 			mcpServer: nil, // Can be nil for this routing test
 			sseServer: nil, // Will be checked but routing will work
 			client:    nil,
+			def:       mockDef, // Provide a proper definition
 		}
 
-		proxyHandlers.serversMu.Lock()
+		proxyHandlers.serversMutex.Lock()
 		proxyHandlers.servers["registered-mcp"] = mockProxyServer
-		proxyHandlers.serversMu.Unlock()
+		proxyHandlers.serversMutex.Unlock()
 
 		// Test SSE endpoint access
 		req, err := http.NewRequestWithContext(context.Background(), "GET", "/registered-mcp/sse", http.NoBody)

@@ -47,6 +47,55 @@ compozy/
 - **NATS**: Messaging system
 - **Deno**: Runtime for TypeScript tools
 
+## 🚨 CRITICAL: Code Formatting Standards
+
+### ⚠️ MANDATORY LINE SPACING RULE - NEVER VIOLATE
+
+**ABSOLUTELY CRITICAL:** Never add blank lines inside function bodies, code blocks, or any enclosed scope.
+
+```go
+// ✅ CORRECT - No blank lines inside blocks
+t.Run("Should execute task successfully", func(t *testing.T) {
+    proxyHandlers := &ProxyHandlers{
+        globalAuthTokens: []string{},
+    }
+    result := combineAuthTokens(proxyHandlers.globalAuthTokens, []string{})
+    assert.Empty(t, result)
+})
+
+func processWorkflow() error {
+    workflow := loadWorkflow()
+    validated := validate(workflow)
+    return execute(validated)
+}
+
+// ❌ WRONG - Never add blank lines inside blocks
+t.Run("Should handle errors", func(t *testing.T) {
+    proxyHandlers := &ProxyHandlers{
+        globalAuthTokens: nil,
+    }
+
+    result := combineAuthTokens(proxyHandlers.globalAuthTokens, nil)
+
+    assert.Nil(t, result)
+})
+```
+
+**Blank lines are ONLY allowed:**
+
+- Between separate function definitions
+- Between separate `t.Run()` test cases
+- Between separate struct/interface definitions
+- Between separate const/var blocks
+
+**Blank lines are FORBIDDEN:**
+
+- Inside function bodies (even with comments)
+- Inside test cases (`t.Run` blocks)
+- Inside struct definitions
+- Inside if/for/switch/select blocks
+- Inside method receivers
+
 ## 🚨 CRITICAL: Testing Standards
 
 ### Test Pattern Requirements
