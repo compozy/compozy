@@ -35,9 +35,21 @@ func NewCreateState(taskRepo task.Repository, configManager *services.ConfigMana
 }
 
 func (uc *CreateState) Execute(ctx context.Context, input *CreateStateInput) (*task.State, error) {
-	// Create the basic state (without complex metadata handling)
-	state, err := uc.createBasicState(ctx, input)
+	// Generate taskExecID early so we can save config before creating state
+	taskExecID := core.MustNewID()
+
+	// Save task config to Redis BEFORE creating state to avoid race condition
+	err := uc.configManager.SaveTaskConfig(ctx, taskExecID, input.TaskConfig)
 	if err != nil {
+		return nil, fmt.Errorf("failed to save task config: %w", err)
+	}
+
+	// Create the basic state with the pre-generated taskExecID
+	state, err := uc.createBasicState(ctx, input, taskExecID)
+	if err != nil {
+		if deleteErr := uc.configManager.DeleteTaskConfig(ctx, taskExecID); deleteErr != nil {
+			return nil, fmt.Errorf("state create failed (%w) and rollback failed (%v)", err, deleteErr)
+		}
 		return nil, err
 	}
 
@@ -49,13 +61,16 @@ func (uc *CreateState) Execute(ctx context.Context, input *CreateStateInput) (*t
 	return state, nil
 }
 
-func (uc *CreateState) createBasicState(ctx context.Context, input *CreateStateInput) (*task.State, error) {
+func (uc *CreateState) createBasicState(
+	ctx context.Context,
+	input *CreateStateInput,
+	taskExecID core.ID,
+) (*task.State, error) {
 	envMap := input.TaskConfig.Env
 	result, err := uc.processComponent(input, envMap)
 	if err != nil {
 		return nil, err
 	}
-	taskExecID := core.MustNewID()
 	stateInput := task.CreateStateInput{
 		WorkflowID:     input.WorkflowConfig.ID,
 		WorkflowExecID: input.WorkflowState.WorkflowExecID,
@@ -82,13 +97,23 @@ func (uc *CreateState) prepareChildConfigsIfNeeded(
 	case task.TaskTypeParallel:
 		return uc.configManager.PrepareParallelConfigs(ctx, state.TaskExecID, input.TaskConfig)
 	case task.TaskTypeCollection:
-		_, err := uc.configManager.PrepareCollectionConfigs(
+		// Capture the metadata returned by PrepareCollectionConfigs
+		metadata, err := uc.configManager.PrepareCollectionConfigs(
 			ctx,
 			state.TaskExecID,
 			input.TaskConfig,
 			input.WorkflowState,
 		)
-		return err
+		if err != nil {
+			return err
+		}
+		// Store the metadata in the parent state's output
+		if state.Output == nil {
+			state.Output = &core.Output{}
+		}
+		(*state.Output)["collection_metadata"] = metadata
+		// Update the state in the repository to persist the metadata
+		return uc.taskRepo.UpsertState(ctx, state)
 	default:
 		return nil
 	}

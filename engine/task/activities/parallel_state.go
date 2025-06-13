@@ -31,8 +31,9 @@ func NewCreateParallelState(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
+	cwd *core.PathCWD,
 ) *CreateParallelState {
-	configManager := services.NewConfigManager(configStore)
+	configManager := services.NewConfigManager(configStore, cwd)
 	return &CreateParallelState{
 		loadWorkflowUC:     uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:      uc.NewCreateState(taskRepo, configManager),

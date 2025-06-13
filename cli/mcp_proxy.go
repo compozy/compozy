@@ -140,7 +140,7 @@ func parseMCPProxyConfig(cmd *cobra.Command) (*mcpproxy.Config, error) {
 		baseURL = getEnvOrDefault("MCP_PROXY_BASE_URL", fmt.Sprintf("http://localhost:%s", port))
 	}
 
-	return &mcpproxy.Config{
+	config := &mcpproxy.Config{
 		Host:             host,
 		Port:             port,
 		BaseURL:          baseURL,
@@ -148,5 +148,9 @@ func parseMCPProxyConfig(cmd *cobra.Command) (*mcpproxy.Config, error) {
 		AdminAllowIPs:    adminAllowIPs,
 		TrustedProxies:   trustedProxies,
 		GlobalAuthTokens: globalAuthTokens,
-	}, nil
+	}
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
+	return config, nil
 }

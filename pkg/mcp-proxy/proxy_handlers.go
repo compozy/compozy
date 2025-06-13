@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -90,6 +91,10 @@ func (p *ProxyHandlers) RegisterMCPProxy(_ context.Context, name string, def *MC
 	// Store the proxy server BEFORE initialization to avoid race condition
 	// This allows requests to find the server, even if initialization is still in progress
 	p.serversMutex.Lock()
+	if _, exists := p.servers[name]; exists {
+		p.serversMutex.Unlock()
+		return fmt.Errorf("MCP proxy %q is already registered", name)
+	}
 	p.servers[name] = proxyServer
 	p.serversMutex.Unlock()
 
@@ -127,6 +132,14 @@ func (p *ProxyHandlers) UnregisterMCPProxy(name string) error {
 		return nil
 	}
 
+	// Shutdown server resources first
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if proxyServer.sseServer != nil {
+		if err := proxyServer.sseServer.Shutdown(shutdownCtx); err != nil {
+			logger.Error("Failed to shutdown SSE server", "name", name, "error", err)
+		}
+	}
 	// Disconnect the client connection
 	if proxyServer.client != nil {
 		if err := proxyServer.client.Disconnect(context.Background()); err != nil {

@@ -33,12 +33,12 @@ func getServerConfig(cmd *cobra.Command) (*server.Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config flag: %w", err)
 	}
-	cwd, _, err := utils.GetConfigCWD(cmd)
+	CWD, _, err := utils.GetConfigCWD(cmd)
 	if err != nil {
 		return nil, err
 	}
 	serverConfig := &server.Config{
-		CWD:         cwd,
+		CWD:         CWD,
 		Host:        host,
 		Port:        port,
 		CORSEnabled: cors,

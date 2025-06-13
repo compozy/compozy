@@ -412,7 +412,7 @@ func (c *Client) withRetry(ctx context.Context, operation string, fn func() erro
 			break
 		}
 		// Calculate exponential backoff delay
-		delay := min(time.Duration(attempt-1)*c.retryConf.BaseDelay, c.retryConf.MaxDelay)
+		delay := minDuration(time.Duration(attempt-1)*c.retryConf.BaseDelay, c.retryConf.MaxDelay)
 		logger.Warn("Proxy operation failed, retrying",
 			"operation", operation,
 			"attempt", attempt,
@@ -454,4 +454,11 @@ func isRetryableError(err error) bool {
 
 	// Don't retry client errors (4xx) or authentication issues
 	return false
+}
+
+func minDuration(a, b time.Duration) time.Duration {
+	if a < b {
+		return a
+	}
+	return b
 }

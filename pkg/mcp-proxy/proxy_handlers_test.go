@@ -12,7 +12,7 @@ import (
 )
 
 func TestProxyHandlers(t *testing.T) {
-	initLogger()
+	initLogger(t)
 	// Set gin to test mode
 	gin.SetMode(gin.TestMode)
 	// Create dependencies
@@ -135,7 +135,7 @@ func TestProxyHandlers(t *testing.T) {
 }
 
 func TestProxyServerManagement(t *testing.T) {
-	initLogger()
+	initLogger(t)
 	// Create dependencies
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()

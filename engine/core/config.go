@@ -13,7 +13,7 @@ type Config interface {
 	SetFilePath(string)
 	GetFilePath() string
 	SetCWD(path string) error
-	GetCWD() *CWD
+	GetCWD() *PathCWD
 	GetEnv() EnvMap
 	GetInput() *Input
 	Validate() error

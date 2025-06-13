@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // CreateChildTasksInput follows Temporal best practices by passing minimal data
@@ -93,22 +94,26 @@ func (uc *CreateChildTasks) validateChildConfigs(childConfigs []task.Config) err
 	return nil
 }
 
+// childConfigRef holds a reference to a child config and its execution ID
+type childConfigRef struct {
+	id  core.ID
+	cfg *task.Config
+}
+
 // createChildStatesInTransaction creates all child tasks atomically
 func (uc *CreateChildTasks) createChildStatesInTransaction(
 	ctx context.Context,
 	parentState *task.State,
 	childConfigs []task.Config,
 ) error {
+	// Collect configs to save after transaction succeeds
+	var configsToSave []childConfigRef
+
 	// Prepare all child states first
 	var childStates []*task.State
 	for i := range childConfigs {
 		childConfig := &childConfigs[i]
 		childTaskExecID := core.MustNewID()
-
-		// Save child configuration for later retrieval during execution
-		if err := uc.configManager.SaveChildConfig(ctx, childTaskExecID, childConfig); err != nil {
-			return fmt.Errorf("failed to save child config %s: %w", childConfig.ID, err)
-		}
 
 		// Create child partial state by recursively processing the child config
 		childPartialState, err := uc.processChildConfig(childConfig)
@@ -131,12 +136,36 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 		// Create child state (without persisting yet)
 		childState := task.CreateBasicState(childStateInput, childPartialState)
 		childStates = append(childStates, childState)
+
+		// Collect config to save after transaction succeeds
+		configsToSave = append(configsToSave, childConfigRef{
+			id:  childTaskExecID,
+			cfg: childConfig,
+		})
 	}
 
 	// Create all child states atomically in a single transaction
 	err := uc.taskRepo.CreateChildStatesInTransaction(ctx, parentState.TaskExecID, childStates)
 	if err != nil {
 		return err
+	}
+
+	// Save configs only after database transaction succeeds
+	var savedConfigIDs []core.ID
+	for _, c := range configsToSave {
+		if err := uc.configManager.SaveTaskConfig(ctx, c.id, c.cfg); err != nil {
+			// Best-effort rollback: delete any configs already saved
+			for _, savedID := range savedConfigIDs {
+				if deleteErr := uc.configManager.DeleteTaskConfig(ctx, savedID); deleteErr != nil {
+					// Log but don't fail on rollback errors
+					logger.Error("failed to rollback config during error recovery",
+						"config_id", savedID, "rollback_error", deleteErr)
+				}
+			}
+			return fmt.Errorf("failed to save child config %s after transaction (rolled back %d configs): %w",
+				c.cfg.ID, len(savedConfigIDs), err)
+		}
+		savedConfigIDs = append(savedConfigIDs, c.id)
 	}
 
 	return nil

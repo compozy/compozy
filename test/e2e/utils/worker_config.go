@@ -34,7 +34,9 @@ type WorkerTestConfig struct {
 func (w *WorkerTestConfig) Cleanup(t *testing.T) {
 	t.Cleanup(func() {
 		if w.Worker != nil {
-			w.Worker.Stop(context.Background())
+			ctx, cancel := context.WithTimeout(context.Background(), w.WorkerTimeout)
+			defer cancel()
+			w.Worker.Stop(ctx)
 		}
 		if w.TemporalTestEnv != nil {
 			w.TemporalTestEnv.AssertExpectations(t)

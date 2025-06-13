@@ -11,7 +11,6 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	tkacts "github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/task/uc"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 type TaskExecutor struct {
@@ -168,13 +167,13 @@ func (e *TaskExecutor) ListChildStates(
 	return childStates, nil
 }
 
-func (e *TaskExecutor) ExecuteParallelTask(
+func (e *TaskExecutor) ExecuteSubtask(
 	ctx workflow.Context,
 	pState *task.State,
 	taskExecID string,
 ) (*task.SubtaskResponse, error) {
-	actLabel := tkacts.ExecuteParallelTaskLabel
-	actInput := tkacts.ExecuteParallelTaskInput{
+	actLabel := tkacts.ExecuteSubtaskLabel
+	actInput := tkacts.ExecuteSubtaskInput{
 		WorkflowID:     e.WorkflowID,
 		WorkflowExecID: e.WorkflowExecID,
 		ParentState:    pState,
@@ -184,13 +183,8 @@ func (e *TaskExecutor) ExecuteParallelTask(
 	var response *task.SubtaskResponse
 	err := future.Get(ctx, &response)
 	if err != nil {
-		subtaskResponse := &task.SubtaskResponse{
-			TaskID: taskExecID, // Using taskExecID as identifier
-			Output: nil,
-			Status: core.StatusFailed,
-			Error:  core.NewError(err, "subtask_execution_failed", nil),
-		}
-		return subtaskResponse, err
+		// Let the error propagate for Temporal to handle retries
+		return nil, err
 	}
 	return response, nil
 }
@@ -208,7 +202,7 @@ func (e *TaskExecutor) ExecuteCollectionTask(
 		if err != nil {
 			return nil, err
 		}
-		finalResponse, err := e.GetCollectionResponse(ctx, cState, taskConfig)
+		finalResponse, err := e.GetCollectionResponse(ctx, cState)
 		if err != nil {
 			return nil, err
 		}
@@ -223,14 +217,12 @@ func (e *TaskExecutor) ExecuteCollectionTask(
 func (e *TaskExecutor) GetParallelResponse(
 	ctx workflow.Context,
 	pState *task.State,
-	pConfig *task.Config,
 ) (task.Response, error) {
 	var response *task.MainTaskResponse
 	actLabel := tkacts.GetParallelResponseLabel
 	actInput := tkacts.GetParallelResponseInput{
 		ParentState:    pState,
 		WorkflowConfig: e.WorkflowConfig,
-		TaskConfig:     pConfig,
 	}
 	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &response)
 	if err != nil {
@@ -255,6 +247,125 @@ func (e *TaskExecutor) CreateCollectionState(
 		return nil, err
 	}
 	return state, nil
+}
+
+func (e *TaskExecutor) GetCollectionResponse(
+	ctx workflow.Context,
+	cState *task.State,
+) (task.Response, error) {
+	var response *task.CollectionResponse
+	actLabel := tkacts.GetCollectionResponseLabel
+	actInput := tkacts.GetCollectionResponseInput{
+		ParentState:    cState,
+		WorkflowConfig: e.WorkflowConfig,
+	}
+	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &response)
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func (e *TaskExecutor) sleepTask(ctx workflow.Context, taskConfig *task.Config) error {
+	// Get logger from workflow context for consistency
+	logger := workflow.GetLogger(ctx)
+	// Check if task has sleep configuration
+	taskID := taskConfig.ID
+	sleepDuration, err := taskConfig.GetSleepDuration()
+	if err != nil {
+		logger.Error("Invalid sleep duration format", "task_id", taskID, "sleep", taskConfig.Sleep, "error", err)
+		return err
+	}
+	if sleepDuration != 0 {
+		if err := SleepWithPause(ctx, sleepDuration); err != nil {
+			if err == workflow.ErrCanceled {
+				return nil
+			}
+			logger.Error("Error during task sleep", "task_id", taskID, "error", err)
+			return err
+		}
+		logger.Info("Task sleep completed", "task_id", taskID)
+	}
+	return nil
+}
+
+func (e *TaskExecutor) HandleParallelTask(pConfig *task.Config) func(ctx workflow.Context) (task.Response, error) {
+	return func(ctx workflow.Context) (task.Response, error) {
+		logger := workflow.GetLogger(ctx)
+		var completed, failed int32
+		pState, err := e.CreateParallelState(ctx, pConfig)
+		if err != nil {
+			return nil, err
+		}
+
+		// Get child states that were created by CreateParallelState
+		childStates, err := e.ListChildStates(ctx, pState.TaskExecID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list child states: %w", err)
+		}
+
+		tasksLen := len(childStates)
+		if tasksLen > math.MaxInt32 {
+			return nil, fmt.Errorf("too many tasks: %d exceeds maximum of %d", tasksLen, math.MaxInt32)
+		}
+		numTasks := int32(tasksLen)
+
+		// Execute subtasks in parallel using their TaskExecIDs
+		for i := range childStates {
+			childState := childStates[i]
+			workflow.Go(ctx, func(gCtx workflow.Context) {
+				_, err := e.ExecuteSubtask(gCtx, pState, childState.TaskExecID.String())
+				if err != nil {
+					logger.Error("Failed to execute sub task",
+						"parent_task_id", pConfig.ID,
+						"sub_task_exec_id", childState.TaskExecID,
+						"error", err)
+					atomic.AddInt32(&failed, 1)
+				} else {
+					atomic.AddInt32(&completed, 1)
+					logger.Info("Subtask completed successfully",
+						"parent_task_id", pConfig.ID,
+						"sub_task_exec_id", childState.TaskExecID)
+				}
+			})
+		}
+
+		// Wait for tasks to complete based on strategy
+		err = workflow.Await(ctx, func() bool {
+			completedCount := atomic.LoadInt32(&completed)
+			failedCount := atomic.LoadInt32(&failed)
+			strategy := pConfig.GetStrategy()
+			switch strategy {
+			case task.StrategyWaitAll:
+				return (completedCount + failedCount) >= numTasks
+			case task.StrategyFailFast:
+				return failedCount > 0 || completedCount >= numTasks
+			case task.StrategyBestEffort:
+				return (completedCount + failedCount) >= numTasks
+			case task.StrategyRace:
+				return completedCount > 0 || failedCount >= numTasks
+			default:
+				return (completedCount + failedCount) >= numTasks
+			}
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to await parallel task: %w", err)
+		}
+		// Process parallel response with proper transitions
+		finalResponse, err := e.GetParallelResponse(ctx, pState)
+		if err != nil {
+			return nil, err
+		}
+		completedCount := atomic.LoadInt32(&completed)
+		failedCount := atomic.LoadInt32(&failed)
+		logger.Info("Parallel task execution completed",
+			"task_id", pConfig.ID,
+			"completed", completedCount,
+			"failed", failedCount,
+			"total", numTasks,
+			"final_status", finalResponse.GetState().Status)
+		return finalResponse, nil
+	}
 }
 
 func (e *TaskExecutor) HandleCollectionTask(
@@ -294,7 +405,7 @@ func (e *TaskExecutor) HandleCollectionTask(
 	for i := range childStates {
 		childState := childStates[i]
 		workflow.Go(ctx, func(gCtx workflow.Context) {
-			_, err := e.ExecuteParallelTask(gCtx, cState, childState.TaskExecID.String())
+			_, err := e.ExecuteSubtask(gCtx, cState, childState.TaskExecID.String())
 			if err != nil {
 				logger.Error("Failed to execute collection item",
 					"parent_task_id", taskConfig.ID,
@@ -340,124 +451,5 @@ func (e *TaskExecutor) HandleCollectionTask(
 		"failed", failedCount,
 		"total", childCount)
 
-	return nil
-}
-
-func (e *TaskExecutor) GetCollectionResponse(
-	ctx workflow.Context,
-	cState *task.State,
-	taskConfig *task.Config,
-) (task.Response, error) {
-	var response *task.CollectionResponse
-	actLabel := tkacts.GetCollectionResponseLabel
-	actInput := tkacts.GetCollectionResponseInput{
-		ParentState:    cState,
-		WorkflowConfig: e.WorkflowConfig,
-		TaskConfig:     taskConfig,
-	}
-	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &response)
-	if err != nil {
-		return nil, err
-	}
-	return response, nil
-}
-
-func (e *TaskExecutor) HandleParallelTask(pConfig *task.Config) func(ctx workflow.Context) (task.Response, error) {
-	return func(ctx workflow.Context) (task.Response, error) {
-		logger := workflow.GetLogger(ctx)
-		var completed, failed int32
-		pState, err := e.CreateParallelState(ctx, pConfig)
-		if err != nil {
-			return nil, err
-		}
-
-		// Get child states that were created by CreateParallelState
-		childStates, err := e.ListChildStates(ctx, pState.TaskExecID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list child states: %w", err)
-		}
-
-		tasksLen := len(childStates)
-		if tasksLen > math.MaxInt32 {
-			return nil, fmt.Errorf("too many tasks: %d exceeds maximum of %d", tasksLen, math.MaxInt32)
-		}
-		numTasks := int32(tasksLen)
-
-		// Execute subtasks in parallel using their TaskExecIDs
-		for i := range childStates {
-			childState := childStates[i]
-			workflow.Go(ctx, func(gCtx workflow.Context) {
-				_, err := e.ExecuteParallelTask(gCtx, pState, childState.TaskExecID.String())
-				if err != nil {
-					logger.Error("Failed to execute sub task",
-						"parent_task_id", pConfig.ID,
-						"sub_task_exec_id", childState.TaskExecID,
-						"error", err)
-					atomic.AddInt32(&failed, 1)
-				} else {
-					atomic.AddInt32(&completed, 1)
-					logger.Info("Subtask completed successfully",
-						"parent_task_id", pConfig.ID,
-						"sub_task_exec_id", childState.TaskExecID)
-				}
-			})
-		}
-
-		// Wait for tasks to complete based on strategy
-		err = workflow.Await(ctx, func() bool {
-			completedCount := atomic.LoadInt32(&completed)
-			failedCount := atomic.LoadInt32(&failed)
-			strategy := pConfig.GetStrategy()
-			switch strategy {
-			case task.StrategyWaitAll:
-				return (completedCount + failedCount) >= numTasks
-			case task.StrategyFailFast:
-				return failedCount > 0 || completedCount >= numTasks
-			case task.StrategyBestEffort:
-				return (completedCount + failedCount) >= numTasks
-			case task.StrategyRace:
-				return completedCount > 0 || failedCount >= numTasks
-			default:
-				return (completedCount + failedCount) >= numTasks
-			}
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to await parallel task: %w", err)
-		}
-		// Process parallel response with proper transitions
-		finalResponse, err := e.GetParallelResponse(ctx, pState, pConfig)
-		if err != nil {
-			return nil, err
-		}
-		completedCount := atomic.LoadInt32(&completed)
-		failedCount := atomic.LoadInt32(&failed)
-		logger.Info("Parallel task execution completed",
-			"task_id", pConfig.ID,
-			"completed", completedCount,
-			"failed", failedCount,
-			"total", numTasks,
-			"final_status", finalResponse.GetState().Status)
-		return finalResponse, nil
-	}
-}
-
-func (e *TaskExecutor) sleepTask(ctx workflow.Context, taskConfig *task.Config) error {
-	// Check if task has sleep configuration
-	taskID := taskConfig.ID
-	sleepDuration, err := taskConfig.GetSleepDuration()
-	if err != nil {
-		logger.Error("Invalid sleep duration format", "task_id", taskID, "sleep", taskConfig.Sleep, "error", err)
-		return err
-	}
-	if sleepDuration != 0 {
-		if err := SleepWithPause(ctx, sleepDuration); err != nil {
-			if err == workflow.ErrCanceled {
-				return nil
-			}
-			logger.Error("Error during task sleep", "task_id", taskID, "error", err)
-			return err
-		}
-		logger.Info("Task sleep completed", "task_id", taskID)
-	}
 	return nil
 }

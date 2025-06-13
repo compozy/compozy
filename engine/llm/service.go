@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/kaptinlin/jsonrepair"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/tools"
 )
@@ -41,23 +42,27 @@ func NewService(
 	action *agent.ActionConfig,
 	mcps []mcp.Config,
 ) (*Service, error) {
-	client, err := initProxyClient()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize proxy client: %w", err)
-	}
 	service := &Service{
-		runtime:     runtime,
-		agent:       agent,
-		action:      action,
-		mcps:        mcps,
-		cacheTTL:    5 * time.Minute, // Cache tools for 5 minutes
-		proxyClient: client,
+		runtime:  runtime,
+		agent:    agent,
+		action:   action,
+		mcps:     mcps,
+		cacheTTL: 5 * time.Minute, // Cache tools for 5 minutes
 	}
-
+	// Only initialize proxy client if MCP configurations exist
+	hasMCPConfigs := len(agent.MCPs) > 0 || len(mcps) > 0
+	if hasMCPConfigs {
+		client, err := initProxyClient()
+		if err != nil {
+			// Log warning but don't fail service creation
+			logger.Warn("Failed to initialize MCP proxy client", "error", err)
+		} else {
+			service.proxyClient = client
+		}
+	}
 	// Initialize MCP once during service creation
 	ctx := context.Background()
 	service.initMCP(ctx)
-
 	return service, nil
 }
 
@@ -267,13 +272,20 @@ func (s *Service) parseContent(content string) (core.Output, error) {
 	if s.action.ShouldUseJSONOutput() {
 		var structuredOutput map[string]any
 		if err := json.Unmarshal([]byte(content), &structuredOutput); err != nil {
-			// Try to clean up common JSON syntax issues and retry
-			cleanedContent := s.cleanupJSON(content)
-			if err := json.Unmarshal([]byte(cleanedContent), &structuredOutput); err != nil {
+			// Try to repair the JSON and retry
+			repairedContent, repairErr := jsonrepair.JSONRepair(content)
+			if repairErr != nil {
 				return nil, fmt.Errorf(
-					"expected structured output but received invalid JSON: %w. Content: %s",
+					"expected structured output but received invalid JSON that could not be repaired: %w. Content: %s",
 					err,
 					content,
+				)
+			}
+			if err := json.Unmarshal([]byte(repairedContent), &structuredOutput); err != nil {
+				return nil, fmt.Errorf(
+					"expected structured output but repaired JSON is still invalid: %w. Content: %s",
+					err,
+					repairedContent,
 				)
 			}
 		}
@@ -319,6 +331,9 @@ func (s *Service) findMCPTool(toolName string) tools.Tool {
 
 // Close cleans up MCP connections and other resources
 func (s *Service) Close() error {
+	if s.proxyClient != nil {
+		return s.proxyClient.Close()
+	}
 	return nil
 }
 
@@ -331,23 +346,6 @@ func (s *Service) supportsStructuredOutput() bool {
 	default:
 		return false
 	}
-}
-
-// cleanupJSON attempts to fix common JSON syntax issues
-func (s *Service) cleanupJSON(content string) string {
-	content = strings.TrimSpace(content)
-	// Remove any markdown code blocks
-	content = strings.TrimPrefix(content, "```json")
-	content = strings.TrimPrefix(content, "```")
-	content = strings.TrimSuffix(content, "```")
-	content = strings.TrimSpace(content)
-	// Fix trailing commas in arrays and objects using regex
-	// This is a simple approach - for more complex cases, a proper JSON parser would be needed
-	content = strings.ReplaceAll(content, ",]", "]")
-	content = strings.ReplaceAll(content, ",}", "}")
-	content = strings.ReplaceAll(content, ", ]", "]")
-	content = strings.ReplaceAll(content, ", }", "}")
-	return content
 }
 
 // executeMCPTool executes an MCP tool, handling both direct and proxy modes

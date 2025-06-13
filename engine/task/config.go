@@ -35,9 +35,9 @@ type BaseConfig struct {
 	OnError   *core.ErrorTransition   `json:"on_error,omitempty"   yaml:"on_error,omitempty"   mapstructure:"on_error,omitempty"`
 	Sleep     string                  `json:"sleep"                yaml:"sleep"                mapstructure:"sleep"`
 	Final     bool                    `json:"final"                yaml:"final"                mapstructure:"final"`
-	// Private properties
-	filePath string
-	cwd      *core.CWD
+	// Path and working directory properties
+	FilePath string        `json:"file_path,omitempty"  yaml:"file_path,omitempty"  mapstructure:"file_path,omitempty"`
+	CWD      *core.PathCWD `json:"CWD,omitempty"        yaml:"CWD,omitempty"        mapstructure:"CWD,omitempty"`
 }
 
 // -----------------------------------------------------------------------------
@@ -250,24 +250,24 @@ func (t *Config) Component() core.ConfigType {
 }
 
 func (t *Config) GetFilePath() string {
-	return t.filePath
+	return t.FilePath
 }
 
 func (t *Config) SetFilePath(path string) {
-	t.filePath = path
+	t.FilePath = path
 }
 
 func (t *Config) SetCWD(path string) error {
-	cwd, err := core.CWDFromPath(path)
+	CWD, err := core.CWDFromPath(path)
 	if err != nil {
 		return err
 	}
-	t.cwd = cwd
+	t.CWD = CWD
 	return nil
 }
 
-func (t *Config) GetCWD() *core.CWD {
-	return t.cwd
+func (t *Config) GetCWD() *core.PathCWD {
+	return t.CWD
 }
 
 func (t *Config) GetGlobalOpts() *core.GlobalOpts {
@@ -277,7 +277,7 @@ func (t *Config) GetGlobalOpts() *core.GlobalOpts {
 func (t *Config) Validate() error {
 	// First run basic validation
 	v := schema.NewCompositeValidator(
-		schema.NewCWDValidator(t.cwd, t.ID),
+		schema.NewCWDValidator(t.CWD, t.ID),
 		NewTaskTypeValidator(t),
 	)
 	if err := v.Validate(); err != nil {
@@ -376,8 +376,8 @@ func applyDefaults(config *Config) {
 }
 
 // setCWDForTask sets the CWD for a single task if needed
-func setCWDForTask(task *Config, parentCWD *core.CWD, taskType string) error {
-	if task.cwd != nil || parentCWD == nil {
+func setCWDForTask(task *Config, parentCWD *core.PathCWD, taskType string) error {
+	if task.CWD != nil || parentCWD == nil {
 		return nil
 	}
 
@@ -387,8 +387,8 @@ func setCWDForTask(task *Config, parentCWD *core.CWD, taskType string) error {
 	return nil
 }
 
-// propagateCWDToTaskList propagates CWD to a list of tasks
-func propagateCWDToTaskList(tasks []Config, parentCWD *core.CWD, taskType string) error {
+// PropagateTaskListCWD propagates CWD to a list of tasks
+func PropagateTaskListCWD(tasks []Config, parentCWD *core.PathCWD, taskType string) error {
 	for i := range tasks {
 		if err := setCWDForTask(&tasks[i], parentCWD, taskType); err != nil {
 			return err
@@ -400,8 +400,8 @@ func propagateCWDToTaskList(tasks []Config, parentCWD *core.CWD, taskType string
 	return nil
 }
 
-// propagateCWDToSingleTask propagates CWD to a single task
-func propagateCWDToSingleTask(task *Config, parentCWD *core.CWD, taskType string) error {
+// PropagateSingleTaskCWD propagates CWD to a single task
+func PropagateSingleTaskCWD(task *Config, parentCWD *core.PathCWD, taskType string) error {
 	if err := setCWDForTask(task, parentCWD, taskType); err != nil {
 		return err
 	}
@@ -412,22 +412,22 @@ func propagateCWDToSubTasks(config *Config) error {
 	switch config.Type {
 	case TaskTypeParallel:
 		if len(config.Tasks) > 0 {
-			return propagateCWDToTaskList(config.Tasks, config.cwd, "sub-task")
+			return PropagateTaskListCWD(config.Tasks, config.CWD, "sub-task")
 		}
 	case TaskTypeCollection:
 		if config.Task != nil {
-			if err := propagateCWDToSingleTask(config.Task, config.cwd, "collection task template"); err != nil {
+			if err := PropagateSingleTaskCWD(config.Task, config.CWD, "collection task template"); err != nil {
 				return err
 			}
 		}
 		if len(config.Tasks) > 0 {
-			return propagateCWDToTaskList(config.Tasks, config.cwd, "collection task")
+			return PropagateTaskListCWD(config.Tasks, config.CWD, "collection task")
 		}
 	}
 	return nil
 }
 
-func Load(cwd *core.CWD, path string) (*Config, error) {
+func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err
@@ -446,7 +446,7 @@ func Load(cwd *core.CWD, path string) (*Config, error) {
 	return config, nil
 }
 
-func LoadAndEval(cwd *core.CWD, path string, ev *ref.Evaluator) (*Config, error) {
+func LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err

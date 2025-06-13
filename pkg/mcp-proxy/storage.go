@@ -75,7 +75,7 @@ func NewRedisStorage(config *RedisConfig) (*RedisStorage, error) {
 	})
 
 	// Test the connection to ensure Redis is accessible
-	ctx, cancel := context.WithTimeout(context.Background(), AdminHealthCheckTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), config.DialTimeout)
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {
@@ -200,14 +200,19 @@ func (r *RedisStorage) ListMCPs(ctx context.Context) ([]*MCPDefinition, error) {
 					continue
 				}
 
-				data, ok := value.(string)
-				if !ok {
+				var raw []byte
+				switch v := value.(type) {
+				case string:
+					raw = []byte(v)
+				case []byte:
+					raw = v
+				default:
 					logger.Warn("Unexpected value type for key", "key", keys[i])
 					continue
 				}
 
 				var def MCPDefinition
-				if err := json.Unmarshal([]byte(data), &def); err != nil {
+				if err := json.Unmarshal(raw, &def); err != nil {
 					logger.Warn("Failed to unmarshal definition", "key", keys[i], "error", err)
 					continue
 				}

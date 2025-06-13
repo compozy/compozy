@@ -388,7 +388,7 @@ func RegisterWorkerActivities(env *testsuite.TestWorkflowEnvironment, activities
 	// Task execution activities
 	env.RegisterActivity(activities.ExecuteBasicTask)
 	env.RegisterActivity(activities.ExecuteRouterTask)
-	env.RegisterActivity(activities.ExecuteParallelTask)
+	env.RegisterActivity(activities.ExecuteSubtask)
 	env.RegisterActivity(activities.CreateParallelState)
 	env.RegisterActivity(activities.GetParallelResponse)
 	env.RegisterActivity(activities.CreateCollectionState)

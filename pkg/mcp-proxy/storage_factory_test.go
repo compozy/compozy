@@ -3,6 +3,7 @@ package mcpproxy
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/stretchr/testify/assert"
@@ -18,19 +19,28 @@ func TestDefaultStorageConfig(t *testing.T) {
 }
 
 func TestNewStorage(t *testing.T) {
-	initLogger()
+	initLogger(t)
 
 	t.Run("Redis storage", func(t *testing.T) {
 		// Create miniredis instance for testing
 		mr := miniredis.RunT(t)
 		defer mr.Close()
 
+		// Ensure miniredis is ready
+		time.Sleep(10 * time.Millisecond)
+
 		config := &StorageConfig{
 			Type: StorageTypeRedis,
 			Redis: &RedisConfig{
-				Addr:     mr.Addr(),
-				Password: "",
-				DB:       0,
+				Addr:         mr.Addr(),
+				Password:     "",
+				DB:           0,
+				PoolSize:     5,
+				MinIdleConns: 1,
+				MaxRetries:   2,
+				DialTimeout:  5 * time.Second,
+				ReadTimeout:  3 * time.Second,
+				WriteTimeout: 3 * time.Second,
 			},
 		}
 
@@ -52,17 +62,12 @@ func TestNewStorage(t *testing.T) {
 	})
 
 	t.Run("Nil config", func(t *testing.T) {
-		// Create miniredis instance for testing the default Redis config
-		mr := miniredis.RunT(t)
-		defer mr.Close()
-
-		// We need to temporarily modify the default config to use miniredis
-		// Since NewStorage(nil) uses DefaultStorageConfig(), we need to test memory instead
-		// or modify the approach. Let's test that it defaults to Redis type but skip the connection test
-		storage, err := NewStorage(&StorageConfig{Type: StorageTypeMemory})
-		require.NoError(t, err)
-		assert.IsType(t, &MemoryStorage{}, storage)
-		defer storage.Close()
+		// Test that nil config defaults to Redis storage type
+		// Since we can't connect to real Redis in tests, this should fail with connection error
+		storage, err := NewStorage(nil)
+		assert.Error(t, err)
+		assert.Nil(t, storage)
+		assert.Contains(t, err.Error(), "failed to connect to Redis")
 	})
 
 	t.Run("Unsupported type", func(t *testing.T) {
@@ -78,7 +83,7 @@ func TestNewStorage(t *testing.T) {
 }
 
 func TestMemoryStorage_SaveMCP(t *testing.T) {
-	initLogger()
+	initLogger(t)
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
@@ -108,7 +113,7 @@ func TestMemoryStorage_SaveMCP(t *testing.T) {
 }
 
 func TestMemoryStorage_LoadMCP(t *testing.T) {
-	initLogger()
+	initLogger(t)
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
@@ -146,7 +151,7 @@ func TestMemoryStorage_LoadMCP(t *testing.T) {
 }
 
 func TestMemoryStorage_DeleteMCP(t *testing.T) {
-	initLogger()
+	initLogger(t)
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
@@ -191,7 +196,7 @@ func TestMemoryStorage_DeleteMCP(t *testing.T) {
 }
 
 func TestMemoryStorage_ListMCPs(t *testing.T) {
-	initLogger()
+	initLogger(t)
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
@@ -231,7 +236,7 @@ func TestMemoryStorage_ListMCPs(t *testing.T) {
 }
 
 func TestMemoryStorage_SaveStatus(t *testing.T) {
-	initLogger()
+	initLogger(t)
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
@@ -259,7 +264,7 @@ func TestMemoryStorage_SaveStatus(t *testing.T) {
 }
 
 func TestMemoryStorage_LoadStatus(t *testing.T) {
-	initLogger()
+	initLogger(t)
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
@@ -302,14 +307,14 @@ func TestMemoryStorage_LoadStatus(t *testing.T) {
 }
 
 func TestMemoryStorage_Close(t *testing.T) {
-	initLogger()
+	initLogger(t)
 	storage := NewMemoryStorage()
 	err := storage.Close()
 	assert.NoError(t, err)
 }
 
 func TestMemoryStorage_Integration(t *testing.T) {
-	initLogger()
+	initLogger(t)
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 

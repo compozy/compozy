@@ -98,6 +98,7 @@ func (a *Activities) ExecuteBasicTask(
 		a.taskRepo,
 		a.runtime,
 		a.configStore,
+		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
 }
@@ -114,6 +115,7 @@ func (a *Activities) ExecuteRouterTask(
 		a.workflowRepo,
 		a.taskRepo,
 		a.configStore,
+		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
 }
@@ -130,18 +132,19 @@ func (a *Activities) CreateParallelState(
 		a.workflowRepo,
 		a.taskRepo,
 		a.configStore,
+		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
 }
 
-func (a *Activities) ExecuteParallelTask(
+func (a *Activities) ExecuteSubtask(
 	ctx context.Context,
-	input *tkfacts.ExecuteParallelTaskInput,
+	input *tkfacts.ExecuteSubtaskInput,
 ) (*task.SubtaskResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewExecuteParallelTask(
+	act := tkfacts.NewExecuteSubtask(
 		a.workflows,
 		a.workflowRepo,
 		a.taskRepo,
@@ -158,7 +161,7 @@ func (a *Activities) GetParallelResponse(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewGetParallelResponse(a.workflowRepo, a.taskRepo)
+	act := tkfacts.NewGetParallelResponse(a.workflowRepo, a.taskRepo, a.configStore)
 	return act.Run(ctx, input)
 }
 
@@ -196,6 +199,7 @@ func (a *Activities) CreateCollectionState(
 		a.workflowRepo,
 		a.taskRepo,
 		a.configStore,
+		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
 }
@@ -207,7 +211,7 @@ func (a *Activities) GetCollectionResponse(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewGetCollectionResponse(a.workflowRepo, a.taskRepo)
+	act := tkfacts.NewGetCollectionResponse(a.workflowRepo, a.taskRepo, a.configStore)
 	return act.Run(ctx, input)
 }
 

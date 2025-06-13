@@ -434,3 +434,103 @@ func TestRedisConfigStore_GetKeys(t *testing.T) {
 		}
 	})
 }
+
+func TestRedisConfigStore_GetExtendsTTL(t *testing.T) {
+	t.Run("Should extend TTL on config retrieval", func(t *testing.T) {
+		// Initialize logger for tests
+		err := logger.Init(&logger.Config{Level: logger.InfoLevel})
+		require.NoError(t, err, "Failed to initialize logger")
+
+		// Create miniredis instance for testing
+		mr := miniredis.RunT(t)
+
+		// Create Redis configuration for testing
+		config := &cache.Config{
+			Host:     mr.Host(),
+			Port:     mr.Port(),
+			Password: "",
+			DB:       0,
+		}
+
+		ctx := context.Background()
+		redis, err := cache.NewRedis(ctx, config)
+		require.NoError(t, err, "Failed to connect to Redis for testing")
+
+		store := NewRedisConfigStore(redis, 2*time.Second)
+		defer func() {
+			store.Close()
+			mr.Close()
+		}()
+
+		redisStore := store.(*redisConfigStore)
+		taskExecID := "test-task-123"
+
+		// Create test config
+		taskConfig := &task.Config{}
+		taskConfig.ID = "test-task"
+		taskConfig.Type = task.TaskTypeBasic
+		taskConfig.Action = "test_action"
+
+		// Save config with 2-second TTL
+		err = store.Save(context.Background(), taskExecID, taskConfig)
+		assert.NoError(t, err)
+
+		// Wait 1 second, then retrieve (should extend TTL)
+		time.Sleep(1 * time.Second)
+		retrievedConfig, err := store.Get(context.Background(), taskExecID)
+		assert.NoError(t, err)
+		assert.Equal(t, taskConfig.ID, retrievedConfig.ID)
+
+		// Check that TTL was extended - should be close to 2 seconds again
+		ttl, err := redisStore.GetTTL(context.Background(), taskExecID)
+		assert.NoError(t, err)
+		assert.Greater(t, ttl, 1*time.Second, "TTL should have been extended")
+	})
+
+	t.Run("Should extend TTL on metadata retrieval", func(t *testing.T) {
+		// Initialize logger for tests
+		err := logger.Init(&logger.Config{Level: logger.InfoLevel})
+		require.NoError(t, err, "Failed to initialize logger")
+
+		// Create miniredis instance for testing
+		mr := miniredis.RunT(t)
+
+		// Create Redis configuration for testing
+		config := &cache.Config{
+			Host:     mr.Host(),
+			Port:     mr.Port(),
+			Password: "",
+			DB:       0,
+		}
+
+		ctx := context.Background()
+		redis, err := cache.NewRedis(ctx, config)
+		require.NoError(t, err, "Failed to connect to Redis for testing")
+
+		store := NewRedisConfigStore(redis, 2*time.Second)
+		defer func() {
+			store.Close()
+			mr.Close()
+		}()
+
+		redisStore := store.(*redisConfigStore)
+		key := "test-metadata"
+		data := []byte("test data")
+
+		// Save metadata with 2-second TTL
+		err = redisStore.SaveMetadata(context.Background(), key, data)
+		assert.NoError(t, err)
+
+		// Wait 1 second, then retrieve (should extend TTL)
+		time.Sleep(1 * time.Second)
+		retrievedData, err := redisStore.GetMetadata(context.Background(), key)
+		assert.NoError(t, err)
+		assert.Equal(t, data, retrievedData)
+
+		// Check that TTL was extended for metadata
+		prefixedKey := "metadata:" + key
+		ttl, err := redisStore.redis.TTL(context.Background(), prefixedKey).Result()
+		assert.NoError(t, err)
+		assert.Greater(t, ttl, 1*time.Second, "Metadata TTL should have been extended")
+	})
+}

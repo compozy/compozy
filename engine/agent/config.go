@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"dario.cat/mergo"
@@ -27,7 +28,7 @@ type Config struct {
 	JSONMode      bool          `json:"json_mode"                yaml:"json_mode"                mapstructure:"json_mode"`
 
 	filePath string
-	cwd      *core.CWD
+	CWD      *core.PathCWD
 }
 
 func (a *Config) Component() core.ConfigType {
@@ -43,11 +44,11 @@ func (a *Config) SetFilePath(path string) {
 }
 
 func (a *Config) SetCWD(path string) error {
-	cwd, err := core.CWDFromPath(path)
+	CWD, err := core.CWDFromPath(path)
 	if err != nil {
 		return err
 	}
-	a.cwd = cwd
+	a.CWD = CWD
 	for i := range a.Actions {
 		if err := a.Actions[i].SetCWD(path); err != nil {
 			return err
@@ -56,8 +57,8 @@ func (a *Config) SetCWD(path string) error {
 	return nil
 }
 
-func (a *Config) GetCWD() *core.CWD {
-	return a.cwd
+func (a *Config) GetCWD() *core.PathCWD {
+	return a.CWD
 }
 
 func (a *Config) GetInput() *core.Input {
@@ -88,17 +89,21 @@ func (a *Config) GetMaxIterations() int {
 
 func (a *Config) Validate() error {
 	v := schema.NewCompositeValidator(
-		schema.NewCWDValidator(a.cwd, a.ID),
+		schema.NewCWDValidator(a.CWD, a.ID),
 		NewActionsValidator(a.Actions),
 		schema.NewStructValidator(a),
 	)
 	if err := v.Validate(); err != nil {
 		return err
 	}
+	var mcpErrors []error
 	for i := range a.MCPs {
 		if err := a.MCPs[i].Validate(); err != nil {
-			return fmt.Errorf("mcp validation error: %w", err)
+			mcpErrors = append(mcpErrors, fmt.Errorf("mcp validation error: %w", err))
 		}
+	}
+	if len(mcpErrors) > 0 {
+		return errors.Join(mcpErrors...)
 	}
 	return nil
 }
@@ -133,7 +138,7 @@ func (a *Config) FromMap(data any) error {
 	return a.Merge(config)
 }
 
-func Load(cwd *core.CWD, path string) (*Config, error) {
+func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err
@@ -145,7 +150,7 @@ func Load(cwd *core.CWD, path string) (*Config, error) {
 	return config, nil
 }
 
-func LoadAndEval(cwd *core.CWD, path string, ev *ref.Evaluator) (*Config, error) {
+func LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err

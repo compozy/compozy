@@ -32,8 +32,9 @@ func NewExecuteRouter(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
+	cwd *core.PathCWD,
 ) *ExecuteRouter {
-	configManager := services.NewConfigManager(configStore)
+	configManager := services.NewConfigManager(configStore, cwd)
 	return &ExecuteRouter{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:  uc.NewCreateState(taskRepo, configManager),

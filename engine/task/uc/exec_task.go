@@ -3,6 +3,7 @@ package uc
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -11,11 +12,25 @@ import (
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/pkg/logger"
+	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 )
 
+// SafeMCPConfig contains only non-sensitive MCP configuration data for task execution
+type SafeMCPConfig struct {
+	ID           string                 `json:"id"`
+	URL          string                 `json:"url"`
+	Command      string                 `json:"command,omitempty"`
+	Proto        string                 `json:"proto,omitempty"`
+	Transport    mcpproxy.TransportType `json:"transport,omitempty"`
+	StartTimeout time.Duration          `json:"start_timeout,omitempty"`
+	MaxSessions  int                    `json:"max_sessions,omitempty"`
+	// Env field is intentionally omitted to avoid serializing sensitive data
+}
+
 type ExecuteTaskInput struct {
-	TaskConfig   *task.Config `json:"task_config"`
-	WorkflowMCPs []mcp.Config `json:"workflow_mcps,omitempty"`
+	TaskConfig   *task.Config    `json:"task_config"`
+	WorkflowMCPs []SafeMCPConfig `json:"workflow_mcps,omitempty"`
 }
 
 type ExecuteTask struct {
@@ -58,14 +73,16 @@ func (uc *ExecuteTask) executeAgent(
 	ctx context.Context,
 	agentConfig *agent.Config,
 	actionID string,
-	workflowMCPs []mcp.Config,
+	workflowMCPs []SafeMCPConfig,
 ) (*core.Output, error) {
 	actionConfig, err := agent.FindActionConfig(agentConfig.Actions, actionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find action config: %w", err)
 	}
 
-	llmService, err := llm.NewService(uc.runtime, agentConfig, actionConfig, workflowMCPs)
+	// Convert safe MCP configs back to full configs for LLM service
+	fullMCPConfigs := uc.restoreMCPConfigs(workflowMCPs)
+	llmService, err := llm.NewService(uc.runtime, agentConfig, actionConfig, fullMCPConfigs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM service: %w", err)
 	}
@@ -73,7 +90,7 @@ func (uc *ExecuteTask) executeAgent(
 	defer func() {
 		if closeErr := llmService.Close(); closeErr != nil {
 			// Log error but don't fail the task
-			fmt.Printf("Warning: failed to close LLM service: %v\n", closeErr)
+			logger.Warn("failed to close LLM service", "error", closeErr)
 		}
 	}()
 
@@ -95,4 +112,43 @@ func (uc *ExecuteTask) executeTool(
 		return nil, fmt.Errorf("tool execution failed: %w", err)
 	}
 	return output, nil
+}
+
+// restoreMCPConfigs converts SafeMCPConfig back to full mcp.Config with environment variables
+// Environment variables should be loaded from a secure source rather than serialized in activities
+func (uc *ExecuteTask) restoreMCPConfigs(safeMCPs []SafeMCPConfig) []mcp.Config {
+	fullConfigs := make([]mcp.Config, len(safeMCPs))
+	for i, safe := range safeMCPs {
+		fullConfigs[i] = mcp.Config{
+			ID:           safe.ID,
+			URL:          safe.URL,
+			Command:      safe.Command,
+			Proto:        safe.Proto,
+			Transport:    safe.Transport,
+			StartTimeout: safe.StartTimeout,
+			MaxSessions:  safe.MaxSessions,
+			// TODO: Load environment variables from secure storage based on MCP ID
+			// For now, this assumes environment variables are available at runtime
+			Env: make(map[string]string),
+		}
+	}
+	return fullConfigs
+}
+
+// ProjectMCPConfigs converts full mcp.Config slice to SafeMCPConfig slice, excluding sensitive data
+func ProjectMCPConfigs(fullMCPs []mcp.Config) []SafeMCPConfig {
+	safeConfigs := make([]SafeMCPConfig, len(fullMCPs))
+	for i, full := range fullMCPs {
+		safeConfigs[i] = SafeMCPConfig{
+			ID:           full.ID,
+			URL:          full.URL,
+			Command:      full.Command,
+			Proto:        full.Proto,
+			Transport:    full.Transport,
+			StartTimeout: full.StartTimeout,
+			MaxSessions:  full.MaxSessions,
+			// Env field is intentionally omitted
+		}
+	}
+	return safeConfigs
 }

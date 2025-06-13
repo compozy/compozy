@@ -2,6 +2,7 @@ package mcpproxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -45,6 +46,20 @@ type Config struct {
 	// Global tokens are checked first, then client-specific tokens.
 	// This enables setting common authentication tokens once that work for all clients.
 	GlobalAuthTokens []string
+}
+
+// Validate validates the server configuration
+func (c *Config) Validate() error {
+	if c.Port == "" {
+		return errors.New("port is required")
+	}
+	if c.Host == "" {
+		return errors.New("host is required")
+	}
+	if c.BaseURL == "" {
+		return errors.New("base URL is required")
+	}
+	return nil
 }
 
 // NewServer creates a new MCP proxy server instance

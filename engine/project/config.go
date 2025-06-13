@@ -36,7 +36,7 @@ type Config struct {
 	CacheConfig *cache.Config           `json:"cache,omitempty" yaml:"cache,omitempty" mapstructure:"cache"`
 
 	filePath string
-	cwd      *core.CWD
+	CWD      *core.PathCWD `json:"CWD,omitempty" yaml:"CWD,omitempty" mapstructure:"CWD,omitempty"`
 	env      *core.EnvMap
 }
 
@@ -53,16 +53,16 @@ func (p *Config) SetFilePath(path string) {
 }
 
 func (p *Config) SetCWD(path string) error {
-	cwd, err := core.CWDFromPath(path)
+	CWD, err := core.CWDFromPath(path)
 	if err != nil {
 		return err
 	}
-	p.cwd = cwd
+	p.CWD = CWD
 	return nil
 }
 
-func (p *Config) GetCWD() *core.CWD {
-	return p.cwd
+func (p *Config) GetCWD() *core.PathCWD {
+	return p.CWD
 }
 
 func (p *Config) HasSchema() bool {
@@ -71,7 +71,7 @@ func (p *Config) HasSchema() bool {
 
 func (p *Config) Validate() error {
 	validator := schema.NewCompositeValidator(
-		schema.NewCWDValidator(p.cwd, p.Name),
+		schema.NewCWDValidator(p.CWD, p.Name),
 	)
 	if err := validator.Validate(); err != nil {
 		return err
@@ -109,7 +109,10 @@ func (p *Config) LoadID() (string, error) {
 }
 
 func (p *Config) loadEnv() (core.EnvMap, error) {
-	env, err := core.NewEnvFromFile(p.cwd.PathStr())
+	if p.CWD == nil {
+		return nil, fmt.Errorf("working directory not set for project %q", p.Name)
+	}
+	env, err := core.NewEnvFromFile(p.CWD.PathStr())
 	if err != nil {
 		return nil, fmt.Errorf("failed to load environment variables: %w", err)
 	}
@@ -140,7 +143,7 @@ func (p *Config) FromMap(data any) error {
 	return p.Merge(config)
 }
 
-func Load(cwd *core.CWD, path string) (*Config, error) {
+func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err
@@ -149,7 +152,9 @@ func Load(cwd *core.CWD, path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	if config.CWD == nil {
+		config.CWD = cwd
+	}
 	env, err := config.loadEnv()
 	if err != nil {
 		return nil, err

@@ -12,12 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTest(t *testing.T, workflowFile string) (cwd *core.CWD, dstPath string) {
+func setupTest(t *testing.T, workflowFile string) (*core.PathCWD, string) {
 	_, filename, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	cwd, dstPath = utils.SetupTest(t, filename)
+	cwd, dstPath := utils.SetupTest(t, filename)
 	dstPath = filepath.Join(dstPath, workflowFile)
-	return
+	return cwd, dstPath
 }
 
 var globalScope = map[string]any{
@@ -105,7 +105,7 @@ func Test_WorkflowConfigValidation(t *testing.T) {
 		config := &Config{
 			ID:   workflowID,
 			Opts: Opts{},
-			cwd:  cwd,
+			CWD:  cwd,
 		}
 
 		err = config.Validate()

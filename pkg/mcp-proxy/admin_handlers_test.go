@@ -14,7 +14,7 @@ import (
 )
 
 func TestAdminHandlers(t *testing.T) {
-	initLogger()
+	initLogger(t)
 	gin.SetMode(gin.TestMode)
 
 	setupTest := func() (*gin.Engine, *MCPService) {

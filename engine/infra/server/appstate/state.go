@@ -41,7 +41,7 @@ func NewBaseDeps(
 
 type State struct {
 	BaseDeps
-	CWD    *core.CWD
+	CWD    *core.PathCWD
 	Worker *worker.Worker
 }
 

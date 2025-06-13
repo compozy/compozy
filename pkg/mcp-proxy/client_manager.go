@@ -240,17 +240,9 @@ func (m *MCPClientManager) GetClient(name string) (MCPClientInterface, error) {
 	return client, nil
 }
 
-// ListClients returns all active clients (returns copies of status for safety)
-func (m *MCPClientManager) ListClients() map[string]*MCPClient {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	result := make(map[string]*MCPClient)
-	for name, client := range m.clients {
-		result[name] = client
-	}
-
-	return result
+// ListClients returns safe copies of client statuses
+func (m *MCPClientManager) ListClients() map[string]*MCPStatus {
+	return m.ListClientStatuses()
 }
 
 // ListClientStatuses returns status copies for all clients using concurrent retrieval

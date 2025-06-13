@@ -10,7 +10,7 @@ import (
 
 // TestMCPStatus_ThreadSafety tests concurrent access to MCPStatus methods
 func TestMCPStatus_ThreadSafety(t *testing.T) {
-	initLogger()
+	initLogger(t)
 
 	status := NewMCPStatus("test-status")
 
@@ -73,7 +73,7 @@ func TestMCPStatus_ThreadSafety(t *testing.T) {
 
 // TestMCPStatus_SafeCopy tests that SafeCopy returns independent copies
 func TestMCPStatus_SafeCopy(t *testing.T) {
-	initLogger()
+	initLogger(t)
 
 	original := NewMCPStatus("original")
 	original.UpdateStatus(StatusConnected, "")
@@ -95,7 +95,7 @@ func TestMCPStatus_SafeCopy(t *testing.T) {
 
 // TestMCPStatus_ConcurrentSafeCopy tests concurrent SafeCopy operations
 func TestMCPStatus_ConcurrentSafeCopy(t *testing.T) {
-	initLogger()
+	initLogger(t)
 
 	original := NewMCPStatus("concurrent-copy-test")
 	original.UpdateStatus(StatusConnected, "")
@@ -139,7 +139,7 @@ func TestMCPStatus_ConcurrentSafeCopy(t *testing.T) {
 
 // TestMCPStatus_RaceConditionDetection tests for race conditions in field updates
 func TestMCPStatus_RaceConditionDetection(t *testing.T) {
-	initLogger()
+	initLogger(t)
 
 	status := NewMCPStatus("race-test")
 
@@ -211,7 +211,7 @@ func TestMCPStatus_RaceConditionDetection(t *testing.T) {
 
 // TestMCPStatus_TimestampConsistency tests timestamp field consistency under concurrent access
 func TestMCPStatus_TimestampConsistency(t *testing.T) {
-	initLogger()
+	initLogger(t)
 
 	status := NewMCPStatus("timestamp-test")
 
@@ -272,7 +272,7 @@ func TestMCPStatus_TimestampConsistency(t *testing.T) {
 
 // TestMCPStatus_DataIntegrity tests that data remains consistent across concurrent operations
 func TestMCPStatus_DataIntegrity(t *testing.T) {
-	initLogger()
+	initLogger(t)
 
 	status := NewMCPStatus("integrity-test")
 

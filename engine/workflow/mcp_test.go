@@ -11,10 +11,10 @@ import (
 
 func TestLoadMCPWorkflow(t *testing.T) {
 	t.Run("Should load MCP workflow configuration successfully", func(t *testing.T) {
-		cwd, err := core.CWDFromPath("./fixtures")
+		CWD, err := core.CWDFromPath("./fixtures")
 		require.NoError(t, err)
 
-		config, err := Load(cwd, "mcp_workflow.yaml")
+		config, err := Load(CWD, "mcp_workflow.yaml")
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -25,10 +25,10 @@ func TestLoadMCPWorkflow(t *testing.T) {
 	})
 
 	t.Run("Should parse MCP server configurations correctly", func(t *testing.T) {
-		cwd, err := core.CWDFromPath("./fixtures")
+		CWD, err := core.CWDFromPath("./fixtures")
 		require.NoError(t, err)
 
-		config, err := Load(cwd, "mcp_workflow.yaml")
+		config, err := Load(CWD, "mcp_workflow.yaml")
 		require.NoError(t, err)
 
 		// Verify MCP configurations
@@ -52,10 +52,10 @@ func TestLoadMCPWorkflow(t *testing.T) {
 		os.Setenv("MCP_PROXY_URL", "http://localhost:8081")
 		defer os.Unsetenv("MCP_PROXY_URL")
 
-		cwd, err := core.CWDFromPath("./fixtures")
+		CWD, err := core.CWDFromPath("./fixtures")
 		require.NoError(t, err)
 
-		config, err := Load(cwd, "mcp_workflow.yaml")
+		config, err := Load(CWD, "mcp_workflow.yaml")
 		require.NoError(t, err)
 
 		err = config.Validate()
@@ -69,10 +69,10 @@ func TestMCPWorkflowValidation(t *testing.T) {
 		os.Setenv("MCP_PROXY_URL", "http://localhost:8081")
 		defer os.Unsetenv("MCP_PROXY_URL")
 
-		cwd, err := core.CWDFromPath("./fixtures")
+		CWD, err := core.CWDFromPath("./fixtures")
 		require.NoError(t, err)
 
-		config, err := Load(cwd, "mcp_workflow.yaml")
+		config, err := Load(CWD, "mcp_workflow.yaml")
 		require.NoError(t, err)
 
 		// Test that MCP configs are validated

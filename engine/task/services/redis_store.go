@@ -67,7 +67,7 @@ func (s *redisConfigStore) Save(ctx context.Context, taskExecID string, config *
 	return nil
 }
 
-// Get retrieves a task configuration by taskExecID
+// Get retrieves a task configuration by taskExecID and atomically extends TTL
 func (s *redisConfigStore) Get(ctx context.Context, taskExecID string) (*task.Config, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context canceled: %w", err)
@@ -78,7 +78,7 @@ func (s *redisConfigStore) Get(ctx context.Context, taskExecID string) (*task.Co
 	}
 
 	key := ConfigKeyPrefix + taskExecID
-	data, err := s.redis.Get(ctx, key).Result()
+	data, err := s.redis.GetEx(ctx, key, s.ttl).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return nil, fmt.Errorf("config not found for taskExecID %s", taskExecID)
@@ -92,7 +92,8 @@ func (s *redisConfigStore) Get(ctx context.Context, taskExecID string) (*task.Co
 		return nil, fmt.Errorf("failed to unmarshal config for taskExecID %s: %w", taskExecID, err)
 	}
 
-	logger.With("task_exec_id", taskExecID).Debug("Task config retrieved from Redis")
+	logger.With("task_exec_id", taskExecID, "ttl_extended", s.ttl).
+		Debug("Task config retrieved from Redis with TTL extended")
 	return &config, nil
 }
 
@@ -144,7 +145,7 @@ func (s *redisConfigStore) SaveMetadata(ctx context.Context, key string, data []
 	return nil
 }
 
-// GetMetadata retrieves metadata by key
+// GetMetadata retrieves metadata by key and atomically extends TTL
 func (s *redisConfigStore) GetMetadata(ctx context.Context, key string) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context canceled: %w", err)
@@ -155,7 +156,7 @@ func (s *redisConfigStore) GetMetadata(ctx context.Context, key string) ([]byte,
 	}
 
 	prefixedKey := MetadataKeyPrefix + key
-	data, err := s.redis.Get(ctx, prefixedKey).Result()
+	data, err := s.redis.GetEx(ctx, prefixedKey, s.ttl).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return nil, fmt.Errorf("metadata not found for key %s", key)
@@ -163,7 +164,7 @@ func (s *redisConfigStore) GetMetadata(ctx context.Context, key string) ([]byte,
 		return nil, fmt.Errorf("failed to get metadata for key %s: %w", key, err)
 	}
 
-	logger.With("metadata_key", key).Debug("Metadata retrieved from Redis")
+	logger.With("metadata_key", key, "ttl_extended", s.ttl).Debug("Metadata retrieved from Redis with TTL extended")
 	return []byte(data), nil
 }
 
