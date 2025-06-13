@@ -23,7 +23,8 @@ func TestAdminHandlers(t *testing.T) {
 	clientManager := NewMockClientManager()
 
 	// Create admin handlers (proxy handlers set to nil for testing)
-	handlers := NewAdminHandlers(storage, clientManager, nil)
+	service := NewMCPService(storage, clientManager, nil)
+	handlers := NewAdminHandlers(service)
 
 	// Create router
 	router := gin.New()

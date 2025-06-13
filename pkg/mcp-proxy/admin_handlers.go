@@ -2,11 +2,9 @@ package mcpproxy
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
-	"strings"
-	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -24,25 +22,46 @@ type ClientManager interface {
 	GetMetrics() map[string]any
 }
 
-// AdminHandlers provides HTTP handlers for MCP management operations
-type AdminHandlers struct {
-	storage       Storage
-	clientManager ClientManager
-	proxyHandlers *ProxyHandlers
-}
+// errorClassification represents different types of errors for switch statements
+type errorClassification int
 
-// NewAdminHandlers creates a new AdminHandlers instance
-func NewAdminHandlers(storage Storage, clientManager ClientManager, proxyHandlers *ProxyHandlers) *AdminHandlers {
-	return &AdminHandlers{
-		storage:       storage,
-		clientManager: clientManager,
-		proxyHandlers: proxyHandlers,
+const (
+	errorUnknown errorClassification = iota
+	errorNotFound
+	errorAlreadyExists
+	errorHotReloadFailed
+	errorInvalidDefinition
+	errorClientNotConnected
+)
+
+// classifyError determines the type of error for switch statement usage
+func classifyError(err error) errorClassification {
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return errorNotFound
+	case errors.Is(err, ErrAlreadyExists):
+		return errorAlreadyExists
+	case errors.Is(err, ErrHotReloadFailed):
+		return errorHotReloadFailed
+	case errors.Is(err, ErrInvalidDefinition):
+		return errorInvalidDefinition
+	case errors.Is(err, ErrClientNotConnected):
+		return errorClientNotConnected
+	default:
+		return errorUnknown
 	}
 }
 
-// isNotFoundError checks if an error is a "not found" error
-func isNotFoundError(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "not found")
+// AdminHandlers provides HTTP handlers for MCP management operations
+type AdminHandlers struct {
+	mcpService *MCPService
+}
+
+// NewAdminHandlers creates a new AdminHandlers instance
+func NewAdminHandlers(mcpService *MCPService) *AdminHandlers {
+	return &AdminHandlers{
+		mcpService: mcpService,
+	}
 }
 
 // parseAndValidateMCP parses and validates the incoming MCP definition
@@ -55,30 +74,6 @@ func (h *AdminHandlers) parseAndValidateMCP(c *gin.Context) (*MCPDefinition, err
 		return nil, fmt.Errorf("invalid MCP definition: %w", err)
 	}
 	return &mcpDef, nil
-}
-
-// checkMCPExists checks if an MCP with the given name already exists
-func (h *AdminHandlers) checkMCPExists(ctx context.Context, name string) (*MCPDefinition, error) {
-	existing, err := h.storage.LoadMCP(ctx, name)
-	if err != nil && !isNotFoundError(err) {
-		return nil, fmt.Errorf("storage error: %w", err)
-	}
-	return existing, nil
-}
-
-// prepareMCPForCreation sets up timestamps and validates uniqueness for a new MCP
-func (h *AdminHandlers) prepareMCPForCreation(ctx context.Context, mcpDef *MCPDefinition) error {
-	existing, err := h.checkMCPExists(ctx, mcpDef.Name)
-	if err != nil {
-		return err
-	}
-	if existing != nil {
-		return fmt.Errorf("MCP with name '%s' already exists", mcpDef.Name)
-	}
-	now := time.Now()
-	mcpDef.CreatedAt = now
-	mcpDef.UpdatedAt = now
-	return nil
 }
 
 // writeErrorResponse writes an error response to the client
@@ -96,69 +91,6 @@ func (h *AdminHandlers) writeSuccessResponse(c *gin.Context, statusCode int, mes
 		"message": message,
 		"name":    name,
 	})
-}
-
-// connectMCPWithFallback attempts immediate connection with async fallback
-func (h *AdminHandlers) connectMCPWithFallback(c *gin.Context, mcpDef *MCPDefinition) bool {
-	// Try immediate connection first, fall back to async on timeout
-	connectCtx, cancel := context.WithTimeout(c.Request.Context(), QuickConnectTimeout)
-	defer cancel()
-
-	immediateErr := h.clientManager.AddClient(connectCtx, mcpDef)
-	if immediateErr != nil {
-		// Check if it was a timeout - if so, proceed async
-		if connectCtx.Err() == context.DeadlineExceeded {
-			// Background connection attempt - create detached context for async work
-			asyncCtx := context.WithoutCancel(c.Request.Context())
-			go func() {
-				h.handleAsyncConnection(asyncCtx, mcpDef)
-			}()
-			return true
-		}
-		// Immediate failure - return error to user
-		c.JSON(http.StatusBadGateway, gin.H{
-			"error":   "Failed to connect to MCP server",
-			"details": immediateErr.Error(),
-		})
-		return false
-	}
-
-	// Immediate success - register proxy synchronously
-	if h.proxyHandlers != nil {
-		if err := h.proxyHandlers.RegisterMCPProxy(c.Request.Context(), mcpDef.Name, mcpDef); err != nil {
-			logger.Warn("Proxy registration failed but client is connected", "name", mcpDef.Name, "error", err)
-		}
-	}
-	return true
-}
-
-// handleAsyncConnection handles background MCP connection and proxy registration
-func (h *AdminHandlers) handleAsyncConnection(ctx context.Context, mcpDef *MCPDefinition) {
-	if err := h.clientManager.AddClient(ctx, mcpDef); err != nil {
-		status := &MCPStatus{
-			Name:      mcpDef.Name,
-			Status:    StatusError,
-			LastError: err.Error(),
-		}
-		if saveErr := h.storage.SaveStatus(ctx, status); saveErr != nil {
-			logger.Error("Failed to save error status", "name", mcpDef.Name, "error", saveErr)
-		}
-		return
-	}
-
-	if h.proxyHandlers != nil {
-		// Register the MCP as a proxy endpoint
-		if err := h.proxyHandlers.RegisterMCPProxy(ctx, mcpDef.Name, mcpDef); err != nil {
-			status := &MCPStatus{
-				Name:      mcpDef.Name,
-				Status:    StatusError,
-				LastError: fmt.Sprintf("proxy registration failed: %v", err),
-			}
-			if saveErr := h.storage.SaveStatus(ctx, status); saveErr != nil {
-				logger.Error("Failed to save proxy registration error status", "name", mcpDef.Name, "error", saveErr)
-			}
-		}
-	}
 }
 
 // AddMCPHandler handles POST /admin/mcps - adds a new MCP definition
@@ -181,142 +113,18 @@ func (h *AdminHandlers) AddMCPHandler(c *gin.Context) {
 		h.writeErrorResponse(c, http.StatusBadRequest, "Invalid request", err)
 		return
 	}
-	if err := h.prepareMCPForCreation(c.Request.Context(), mcpDef); err != nil {
-		if strings.Contains(err.Error(), "already exists") {
+	if err := h.mcpService.CreateMCP(c.Request.Context(), mcpDef); err != nil {
+		switch classifyError(err) {
+		case errorAlreadyExists:
 			h.writeErrorResponse(c, http.StatusConflict, "MCP already exists", err)
-		} else {
-			h.writeErrorResponse(c, http.StatusInternalServerError, "Storage error", err)
+		case errorInvalidDefinition:
+			h.writeErrorResponse(c, http.StatusBadRequest, "Invalid MCP definition", err)
+		default:
+			h.writeErrorResponse(c, http.StatusInternalServerError, "Failed to create MCP", err)
 		}
-		return
-	}
-	if err := h.storage.SaveMCP(c.Request.Context(), mcpDef); err != nil {
-		h.writeErrorResponse(c, http.StatusInternalServerError, "Failed to save MCP definition", err)
-		return
-	}
-	if !h.connectMCPWithFallback(c, mcpDef) {
 		return
 	}
 	h.writeSuccessResponse(c, http.StatusCreated, "MCP definition added successfully", mcpDef.Name)
-}
-
-// validateUpdateRequest validates the request parameters and MCP definition for update
-func (h *AdminHandlers) validateUpdateRequest(c *gin.Context) (*MCPDefinition, *MCPDefinition, bool) {
-	name := c.Param("name")
-	if name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "MCP name is required",
-		})
-		return nil, nil, false
-	}
-
-	var mcpDef MCPDefinition
-	if err := c.ShouldBindJSON(&mcpDef); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid JSON payload",
-			"details": err.Error(),
-		})
-		return nil, nil, false
-	}
-
-	// Ensure the name in the URL matches the name in the payload
-	mcpDef.Name = name
-
-	// Validate the updated MCP definition
-	if err := mcpDef.Validate(); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid MCP definition",
-			"details": err.Error(),
-		})
-		return nil, nil, false
-	}
-
-	// Check if MCP exists
-	existing, err := h.storage.LoadMCP(c.Request.Context(), name)
-	if err != nil {
-		if isNotFoundError(err) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "MCP not found",
-				"name":  name,
-			})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "Storage error",
-				"details": err.Error(),
-			})
-		}
-		return nil, nil, false
-	}
-
-	return &mcpDef, existing, true
-}
-
-// performHotReload removes old client and adds updated client with proper error handling
-func (h *AdminHandlers) performHotReload(ctx context.Context, name string, mcpDef *MCPDefinition) error {
-	// Remove old client and unregister proxy
-	if err := h.clientManager.RemoveClient(ctx, name); err != nil {
-		logger.Error("Failed to remove client during update", "name", name, "error", err)
-	}
-	if h.proxyHandlers != nil {
-		if err := h.proxyHandlers.UnregisterMCPProxy(name); err != nil {
-			logger.Error("Failed to unregister proxy during update", "name", name, "error", err)
-		}
-	}
-
-	// Try immediate connection first with timeout
-	connectCtx, cancel := context.WithTimeout(ctx, QuickConnectTimeout)
-	defer cancel()
-
-	immediateErr := h.clientManager.AddClient(connectCtx, mcpDef)
-	if immediateErr != nil {
-		// Check if it was a timeout - if so, proceed async
-		if connectCtx.Err() == context.DeadlineExceeded {
-			// Background connection attempt for timeout case - create detached context
-			asyncCtx := context.WithoutCancel(ctx)
-			go func() {
-				if err := h.clientManager.AddClient(asyncCtx, mcpDef); err != nil {
-					status := &MCPStatus{
-						Name:      mcpDef.Name,
-						Status:    StatusError,
-						LastError: err.Error(),
-					}
-					if saveErr := h.storage.SaveStatus(asyncCtx, status); saveErr != nil {
-						logger.Error("Failed to save error status during update", "name", mcpDef.Name, "error", saveErr)
-					}
-				} else if h.proxyHandlers != nil {
-					// Register the updated MCP as a proxy endpoint
-					if err := h.proxyHandlers.RegisterMCPProxy(asyncCtx, mcpDef.Name, mcpDef); err != nil {
-						status := &MCPStatus{
-							Name:      mcpDef.Name,
-							Status:    StatusError,
-							LastError: fmt.Sprintf("proxy registration failed: %v", err),
-						}
-						if saveErr := h.storage.SaveStatus(asyncCtx, status); saveErr != nil {
-							logger.Error("Failed to save proxy registration error status during update",
-								"name", mcpDef.Name, "error", saveErr)
-						}
-					}
-				}
-			}()
-			return nil // Async connection in progress
-		}
-		// Immediate failure
-		return fmt.Errorf("failed to reconnect: %w", immediateErr)
-	}
-
-	if h.proxyHandlers != nil {
-		// Register the updated MCP as a proxy endpoint (synchronous since connection succeeded)
-		if err := h.proxyHandlers.RegisterMCPProxy(ctx, mcpDef.Name, mcpDef); err != nil {
-			logger.Warn(
-				"Proxy registration failed but client is connected during update",
-				"name",
-				mcpDef.Name,
-				"error",
-				err,
-			)
-		}
-	}
-
-	return nil
 }
 
 // UpdateMCPHandler handles PUT /admin/mcps/{name} - updates an existing MCP definition
@@ -335,38 +143,51 @@ func (h *AdminHandlers) performHotReload(ctx context.Context, name string, mcpDe
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /admin/mcps/{name} [put]
 func (h *AdminHandlers) UpdateMCPHandler(c *gin.Context) {
-	mcpDef, existing, valid := h.validateUpdateRequest(c)
-	if !valid {
+	name := c.Param("name")
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "MCP name is required",
+		})
 		return
 	}
-
-	// Set updated timestamp before any operations
-	mcpDef.UpdatedAt = time.Now()
-	mcpDef.CreatedAt = existing.CreatedAt // Keep original creation time
-
-	// Save updated MCP definition FIRST to ensure consistency
-	if err := h.storage.SaveMCP(c.Request.Context(), mcpDef); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to update MCP definition",
+	var mcpDef MCPDefinition
+	if err := c.ShouldBindJSON(&mcpDef); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid JSON payload",
 			"details": err.Error(),
 		})
 		return
 	}
-
-	// Now perform the hot reload operations
-	if err := h.performHotReload(c.Request.Context(), mcpDef.Name, mcpDef); err != nil {
-		// Hot reload failed, but definition was saved - return partial success
-		c.JSON(http.StatusAccepted, gin.H{
-			"message": "MCP definition updated but connection failed",
-			"name":    mcpDef.Name,
-			"warning": err.Error(),
-		})
+	updated, err := h.mcpService.UpdateMCP(c.Request.Context(), name, &mcpDef)
+	if err != nil {
+		switch classifyError(err) {
+		case errorNotFound:
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "MCP not found",
+				"name":  name,
+			})
+		case errorHotReloadFailed:
+			c.JSON(http.StatusAccepted, gin.H{
+				"message": "MCP definition updated but connection failed",
+				"name":    name,
+				"warning": err.Error(),
+			})
+		case errorInvalidDefinition:
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Invalid MCP definition",
+				"details": err.Error(),
+			})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Failed to update MCP",
+				"details": err.Error(),
+			})
+		}
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"message": "MCP definition updated successfully",
-		"name":    mcpDef.Name,
+		"name":    updated.Name,
 	})
 }
 
@@ -390,43 +211,21 @@ func (h *AdminHandlers) RemoveMCPHandler(c *gin.Context) {
 		})
 		return
 	}
-
-	// Check if MCP exists
-	_, err := h.storage.LoadMCP(c.Request.Context(), name)
-	if err != nil {
-		if isNotFoundError(err) {
+	if err := h.mcpService.DeleteMCP(c.Request.Context(), name); err != nil {
+		switch classifyError(err) {
+		case errorNotFound:
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "MCP not found",
 				"name":  name,
 			})
-		} else {
+		default:
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "Storage error",
+				"error":   "Failed to delete MCP",
 				"details": err.Error(),
 			})
 		}
 		return
 	}
-
-	// Remove from storage FIRST to ensure consistency
-	if err := h.storage.DeleteMCP(c.Request.Context(), name); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to delete MCP definition",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	// Now remove runtime components
-	if err := h.clientManager.RemoveClient(c.Request.Context(), name); err != nil {
-		logger.Error("Failed to remove client during deletion", "name", name, "error", err)
-	}
-	if h.proxyHandlers != nil {
-		if err := h.proxyHandlers.UnregisterMCPProxy(name); err != nil {
-			logger.Error("Failed to unregister proxy during deletion", "name", name, "error", err)
-		}
-	}
-
 	c.JSON(http.StatusNoContent, nil)
 }
 
@@ -436,12 +235,12 @@ func (h *AdminHandlers) RemoveMCPHandler(c *gin.Context) {
 // @Tags MCP Management
 // @Produce json
 // @Param Authorization header string true "Admin authorization token"
-// @Success 200 {object} map[string]interface{} "List of MCPs with their status"
+// @Success 200 {object} ListMCPsResponse "List of MCPs with their status"
 // @Failure 401 {object} map[string]interface{} "Unauthorized"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /admin/mcps [get]
 func (h *AdminHandlers) ListMCPsHandler(c *gin.Context) {
-	mcps, err := h.storage.ListMCPs(c.Request.Context())
+	result, err := h.mcpService.ListMCPs(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to retrieve MCP definitions",
@@ -449,28 +248,9 @@ func (h *AdminHandlers) ListMCPsHandler(c *gin.Context) {
 		})
 		return
 	}
-
-	// Enrich with current connection status
-	result := make([]map[string]any, len(mcps))
-	for i, mcp := range mcps {
-		status, statusErr := h.clientManager.GetClientStatus(mcp.Name)
-		if statusErr != nil {
-			// Client not found, set default status
-			status = &MCPStatus{
-				Name:   mcp.Name,
-				Status: StatusDisconnected,
-			}
-		}
-
-		result[i] = map[string]any{
-			"definition": mcp,
-			"status":     status,
-		}
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"mcps":  result,
-		"count": len(result),
+	c.JSON(http.StatusOK, ListMCPsResponse{
+		MCPs:  result,
+		Count: len(result),
 	})
 }
 
@@ -481,7 +261,7 @@ func (h *AdminHandlers) ListMCPsHandler(c *gin.Context) {
 // @Produce json
 // @Param Authorization header string true "Admin authorization token"
 // @Param name path string true "MCP name"
-// @Success 200 {object} map[string]interface{} "MCP details with status"
+// @Success 200 {object} MCPDetailsResponse "MCP details with status"
 // @Failure 401 {object} map[string]interface{} "Unauthorized"
 // @Failure 404 {object} map[string]interface{} "MCP not found"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
@@ -494,15 +274,15 @@ func (h *AdminHandlers) GetMCPHandler(c *gin.Context) {
 		})
 		return
 	}
-
-	mcp, err := h.storage.LoadMCP(c.Request.Context(), name)
+	result, err := h.mcpService.GetMCP(c.Request.Context(), name)
 	if err != nil {
-		if isNotFoundError(err) {
+		switch classifyError(err) {
+		case errorNotFound:
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "MCP not found",
 				"name":  name,
 			})
-		} else {
+		default:
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error":   "Storage error",
 				"details": err.Error(),
@@ -510,21 +290,7 @@ func (h *AdminHandlers) GetMCPHandler(c *gin.Context) {
 		}
 		return
 	}
-
-	// Enrich with current connection status
-	status, statusErr := h.clientManager.GetClientStatus(name)
-	if statusErr != nil {
-		// Client not found, set default status
-		status = &MCPStatus{
-			Name:   name,
-			Status: StatusDisconnected,
-		}
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"definition": mcp,
-		"status":     status,
-	})
+	c.JSON(http.StatusOK, result)
 }
 
 // MCPToolDefinition represents a tool definition for the API response
@@ -533,6 +299,18 @@ type MCPToolDefinition struct {
 	Description string         `json:"description"`
 	InputSchema map[string]any `json:"inputSchema"`
 	MCPName     string         `json:"mcpName"`
+}
+
+// MCPDetailsResponse represents the response structure for MCP details with status
+type MCPDetailsResponse struct {
+	Definition *MCPDefinition `json:"definition"`
+	Status     *MCPStatus     `json:"status"`
+}
+
+// ListMCPsResponse represents the response structure for listing MCPs
+type ListMCPsResponse struct {
+	MCPs  []MCPDetailsResponse `json:"mcps"`
+	Count int                  `json:"count"`
 }
 
 // ListToolsHandler returns all available tools from registered MCPs
@@ -546,154 +324,74 @@ type MCPToolDefinition struct {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /admin/tools [get]
 func (h *AdminHandlers) ListToolsHandler(c *gin.Context) {
-	logger.Debug("Listing all available tools from registered MCPs")
-
-	// Get all registered MCPs
-	mcps, err := h.storage.ListMCPs(c.Request.Context())
+	tools, err := h.mcpService.ListAllTools(c.Request.Context())
 	if err != nil {
-		logger.Error("Failed to list MCPs for tools discovery", "error", err)
+		logger.Error("Failed to list tools", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to retrieve MCPs",
+			"error":   "Failed to retrieve tools",
 			"details": err.Error(),
 		})
 		return
 	}
-
-	var allTools []MCPToolDefinition
-
-	// Iterate through each MCP and get its tools
-	for _, mcpDef := range mcps {
-		client, err := h.clientManager.GetClient(mcpDef.Name)
-		if err != nil {
-			logger.Warn("Failed to get client for MCP, skipping", "mcp_name", mcpDef.Name, "error", err)
-			continue
-		}
-
-		// Get tools from this MCP client
-		ctx, cancel := context.WithTimeout(c.Request.Context(), DefaultConnectTimeout)
-		tools, err := client.ListTools(ctx)
-		if err != nil {
-			logger.Warn("Failed to list tools for MCP, skipping", "mcp_name", mcpDef.Name, "error", err)
-			cancel()
-			continue
-		}
-
-		// Convert tools to our API format
-		for i := range tools {
-			// Convert the tool's input schema to a generic map using JSON marshaling
-			tool := &tools[i]
-			var inputSchema map[string]any
-			if schemaBytes, err := json.Marshal(tool.InputSchema); err == nil {
-				if err := json.Unmarshal(schemaBytes, &inputSchema); err != nil {
-					logger.Warn("Failed to unmarshal tool input schema", "mcp_name", mcpDef.Name, "error", err)
-				}
-			}
-
-			toolDef := MCPToolDefinition{
-				Name:        tool.Name,
-				Description: tool.Description,
-				InputSchema: inputSchema,
-				MCPName:     mcpDef.Name,
-			}
-			allTools = append(allTools, toolDef)
-		}
-
-		logger.Debug("Listed tools for MCP", "mcp_name", mcpDef.Name, "tool_count", len(tools))
-		cancel()
-	}
-
-	logger.Info("Listed all available tools", "total_tools", len(allTools), "total_mcps", len(mcps))
-
 	c.JSON(http.StatusOK, gin.H{
-		"tools": allTools,
+		"tools": tools,
+		"count": len(tools),
 	})
 }
 
-// CallToolRequest represents a request to call a tool
+// CallToolRequest represents a tool execution request
 type CallToolRequest struct {
 	MCPName   string         `json:"mcpName"`
 	ToolName  string         `json:"toolName"`
 	Arguments map[string]any `json:"arguments"`
 }
 
-// validateCallToolRequest validates the incoming tool call request
-func (h *AdminHandlers) validateCallToolRequest(c *gin.Context) (*CallToolRequest, bool) {
+// validateCallToolRequest validates and parses the tool call request
+func (h *AdminHandlers) validateCallToolRequest(c *gin.Context) (*CallToolRequest, error) {
 	var request CallToolRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid JSON payload",
-			"details": err.Error(),
-		})
-		return nil, false
+		return nil, fmt.Errorf("invalid JSON payload: %w", err)
 	}
-
-	if request.MCPName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "MCP name is required",
-		})
-		return nil, false
+	if request.MCPName == "" || request.ToolName == "" {
+		return nil, errors.New("mcpName and toolName are required")
 	}
-	if request.ToolName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Tool name is required",
-		})
-		return nil, false
-	}
-
-	return &request, true
+	return &request, nil
 }
 
-// extractToolResult extracts and formats the result from MCP tool execution
+// extractToolResult extracts content from tool result
 func (h *AdminHandlers) extractToolResult(result *mcp.CallToolResult) any {
-	if len(result.Content) == 0 {
+	if result == nil {
 		return nil
 	}
-
-	// Handle different content types
-	switch content := result.Content[0].(type) {
-	case mcp.TextContent:
-		// Try to parse as JSON if it's text content
-		var jsonResult map[string]any
-		if err := json.Unmarshal([]byte(content.Text), &jsonResult); err == nil {
-			return jsonResult
+	if len(result.Content) == 0 {
+		return map[string]any{
+			"error": "No content in tool result",
 		}
-		// Return as plain text if not JSON
-		return content.Text
+	}
+	content := result.Content[0]
+	switch typedContent := content.(type) {
+	case mcp.TextContent:
+		return map[string]any{
+			"type": "text",
+			"text": typedContent.Text,
+		}
 	case mcp.ImageContent:
-		// Return image content as-is
 		return map[string]any{
 			"type":     "image",
-			"data":     content.Data,
-			"mimeType": content.MIMEType,
+			"data":     typedContent.Data,
+			"mimeType": typedContent.MIMEType,
 		}
 	default:
-		// For unknown types, return the content array
-		return result.Content
-	}
-}
-
-// handleToolError processes tool execution errors and sends appropriate response
-func (h *AdminHandlers) handleToolError(c *gin.Context, result *mcp.CallToolResult, statusCode int) {
-	var errorMsg string
-	if len(result.Content) > 0 {
-		// Extract text from first content item
-		if textContent, ok := result.Content[0].(mcp.TextContent); ok {
-			errorMsg = textContent.Text
-		} else {
-			errorMsg = "Tool returned an error without text details"
+		return map[string]any{
+			"type": "unknown",
+			"data": content,
 		}
-	} else {
-		errorMsg = "Tool returned an error without details"
 	}
-	c.JSON(statusCode, gin.H{
-		"result": nil,
-		"error":  errorMsg,
-	})
 }
 
 // CallToolHandler executes a tool on a specific MCP server
 // @Summary Call a tool on an MCP server
-// @Description Execute a specific tool on a registered MCP server
+// @Description Execute a specific tool with provided arguments on the specified MCP server
 // @Tags MCP Tools
 // @Accept json
 // @Produce json
@@ -703,63 +401,31 @@ func (h *AdminHandlers) handleToolError(c *gin.Context, result *mcp.CallToolResu
 // @Failure 400 {object} map[string]interface{} "Invalid request"
 // @Failure 401 {object} map[string]interface{} "Unauthorized"
 // @Failure 404 {object} map[string]interface{} "MCP or tool not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Failure 500 {object} map[string]interface{} "Tool execution failed"
 // @Router /admin/tools/call [post]
 func (h *AdminHandlers) CallToolHandler(c *gin.Context) {
-	request, valid := h.validateCallToolRequest(c)
-	if !valid {
-		return
-	}
-
-	// Get the MCP client
-	client, err := h.clientManager.GetClient(request.MCPName)
+	request, err := h.validateCallToolRequest(c)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "MCP not found or not connected",
-			"details": err.Error(),
-		})
+		h.writeErrorResponse(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
-
-	// Create the MCP tool call request
-	toolCallReq := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name:      request.ToolName,
-			Arguments: request.Arguments,
-		},
-	}
-
-	// Execute the tool with timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), DefaultConnectTimeout)
-	defer cancel()
-
-	result, err := client.CallTool(ctx, toolCallReq)
+	result, err := h.mcpService.CallTool(c.Request.Context(), request.MCPName, request.ToolName, request.Arguments)
 	if err != nil {
-		logger.Error("Failed to call tool",
-			"mcp_name", request.MCPName,
-			"tool_name", request.ToolName,
-			"error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Tool execution failed",
-			"details": err.Error(),
-		})
+		switch classifyError(err) {
+		case errorClientNotConnected:
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "MCP not found or not connected",
+				"details": err.Error(),
+			})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Tool execution failed",
+				"details": err.Error(),
+			})
+		}
 		return
 	}
-
-	// Check if tool returned an error
-	if result.IsError {
-		h.handleToolError(c, result, http.StatusBadRequest)
-		return
-	}
-
-	// Extract the result content
-	resultData := h.extractToolResult(result)
-
-	logger.Info("Tool executed successfully",
-		"mcp_name", request.MCPName,
-		"tool_name", request.ToolName)
-
 	c.JSON(http.StatusOK, gin.H{
-		"result": resultData,
+		"result": h.extractToolResult(result),
 	})
 }

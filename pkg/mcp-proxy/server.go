@@ -67,7 +67,8 @@ func NewServer(config *Config, storage Storage, clientManager ClientManager) *Se
 
 	router.Use(gin.Recovery())
 	proxyHandlers := NewProxyHandlers(storage, clientManager, config.BaseURL, config.GlobalAuthTokens)
-	adminHandlers := NewAdminHandlers(storage, clientManager, proxyHandlers)
+	service := NewMCPService(storage, clientManager, proxyHandlers)
+	adminHandlers := NewAdminHandlers(service)
 	server := &Server{
 		Router:        router,
 		config:        config,

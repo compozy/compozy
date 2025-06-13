@@ -577,3 +577,24 @@ func (c *MCPClient) ListResourceTemplatesWithCursor(
 
 	return response.ResourceTemplates, string(response.NextCursor), nil
 }
+
+// WaitUntilConnected waits for the client to be connected, with timeout
+func (c *MCPClient) WaitUntilConnected(ctx context.Context) error {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if c.IsConnected() {
+				return nil
+			}
+			// Check if client is in error state
+			status := c.GetStatus()
+			if status.Status == StatusError {
+				return fmt.Errorf("client connection failed: %s", status.LastError)
+			}
+		}
+	}
+}

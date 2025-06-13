@@ -225,7 +225,7 @@ func (p *ProxyHandlers) StreamableHTTPProxyHandler(c *gin.Context) {
 	p.SSEProxyHandler(c)
 }
 
-// initializeClientConnection initializes the MCP client and adds its capabilities to the server
+// initializeClientConnection waits for the MCP client to be connected and then loads its capabilities to the server
 func (p *ProxyHandlers) initializeClientConnection(
 	ctx context.Context,
 	client *MCPClient,
@@ -233,15 +233,15 @@ func (p *ProxyHandlers) initializeClientConnection(
 	name string,
 	def *MCPDefinition,
 ) error {
-	logger.Info("Initializing MCP client connection", "name", name)
+	logger.Info("Waiting for MCP client to be connected", "name", name)
 
-	// Connect to the MCP server (this handles initialization internally)
-	err := client.Connect(ctx)
-	if err != nil {
-		return err
+	// Wait for the client to be connected by the ClientManager.
+	// This requires a way to observe the client's status. The client has WaitUntilConnected method.
+	if err := client.WaitUntilConnected(ctx); err != nil {
+		return fmt.Errorf("client connection timed out or failed: %w", err)
 	}
 
-	logger.Info("Successfully initialized MCP client", "name", name)
+	logger.Info("MCP client is connected, loading resources", "name", name)
 
 	// Create resource loader
 	resourceLoader := NewResourceLoader(client, mcpServer, name)
