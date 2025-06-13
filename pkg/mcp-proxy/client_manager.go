@@ -377,8 +377,8 @@ func (m *MCPClientManager) connectClient(ctx context.Context, client *MCPClient)
 		if attempt < maxRetries {
 			// Exponential backoff with jitter to prevent thundering herd
 			backoffDelay := time.Duration(float64(reconnectDelay) * (1.5*float64(attempt) + 1))
-			if backoffDelay > 60*time.Second {
-				backoffDelay = 60 * time.Second // Cap at 60 seconds
+			if backoffDelay > MaxBackoffDelay {
+				backoffDelay = MaxBackoffDelay // Cap at 60 seconds
 			}
 
 			select {
@@ -463,7 +463,7 @@ func (m *MCPClientManager) performHealthChecks() {
 			}
 
 			// Perform health check with timeout
-			healthCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			healthCtx, cancel := context.WithTimeout(ctx, AdminHealthCheckTimeout)
 			defer cancel()
 
 			err := client.Health(healthCtx)

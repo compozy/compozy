@@ -75,7 +75,7 @@ func NewRedisStorage(config *RedisConfig) (*RedisStorage, error) {
 	})
 
 	// Test the connection to ensure Redis is accessible
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), AdminHealthCheckTimeout)
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {

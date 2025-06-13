@@ -336,7 +336,7 @@ func (c *MCPClient) startPingRoutine(ctx context.Context) {
 				return
 			}
 
-			pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			pingCtx, cancel := context.WithTimeout(ctx, DefaultConnectTimeout)
 			err := c.mcpClient.Ping(pingCtx)
 			cancel()
 

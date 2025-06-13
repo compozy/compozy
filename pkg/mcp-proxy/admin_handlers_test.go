@@ -175,7 +175,7 @@ func TestAdminHandlers(t *testing.T) {
 		var response map[string]any
 		err = json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
-		assert.Equal(t, "MCP with this name already exists", response["error"])
+		assert.Equal(t, "MCP already exists", response["error"])
 	})
 
 	t.Run("Invalid MCP Definition", func(t *testing.T) {
@@ -199,7 +199,7 @@ func TestAdminHandlers(t *testing.T) {
 		var response map[string]any
 		err = json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
-		assert.Equal(t, "Invalid MCP definition", response["error"])
+		assert.Equal(t, "Invalid request", response["error"])
 	})
 
 	t.Run("Get Non-existent MCP", func(t *testing.T) {

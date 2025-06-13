@@ -45,55 +45,63 @@ func isNotFoundError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "not found")
 }
 
-// validateAndPrepareMCP validates the incoming MCP definition and checks for conflicts
-func (h *AdminHandlers) validateAndPrepareMCP(c *gin.Context) (*MCPDefinition, bool) {
+// parseAndValidateMCP parses and validates the incoming MCP definition
+func (h *AdminHandlers) parseAndValidateMCP(c *gin.Context) (*MCPDefinition, error) {
 	var mcpDef MCPDefinition
 	if err := c.ShouldBindJSON(&mcpDef); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid JSON payload",
-			"details": err.Error(),
-		})
-		return nil, false
+		return nil, fmt.Errorf("invalid JSON payload: %w", err)
 	}
-
-	// Validate the MCP definition
 	if err := mcpDef.Validate(); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid MCP definition",
-			"details": err.Error(),
-		})
-		return nil, false
+		return nil, fmt.Errorf("invalid MCP definition: %w", err)
 	}
+	return &mcpDef, nil
+}
 
-	// Check if MCP with same name already exists
-	existing, err := h.storage.LoadMCP(c.Request.Context(), mcpDef.Name)
+// checkMCPExists checks if an MCP with the given name already exists
+func (h *AdminHandlers) checkMCPExists(ctx context.Context, name string) (*MCPDefinition, error) {
+	existing, err := h.storage.LoadMCP(ctx, name)
 	if err != nil && !isNotFoundError(err) {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Storage error",
-			"details": err.Error(),
-		})
-		return nil, false
+		return nil, fmt.Errorf("storage error: %w", err)
+	}
+	return existing, nil
+}
+
+// prepareMCPForCreation sets up timestamps and validates uniqueness for a new MCP
+func (h *AdminHandlers) prepareMCPForCreation(ctx context.Context, mcpDef *MCPDefinition) error {
+	existing, err := h.checkMCPExists(ctx, mcpDef.Name)
+	if err != nil {
+		return err
 	}
 	if existing != nil {
-		c.JSON(http.StatusConflict, gin.H{
-			"error": "MCP with this name already exists",
-			"name":  mcpDef.Name,
-		})
-		return nil, false
+		return fmt.Errorf("MCP with name '%s' already exists", mcpDef.Name)
 	}
-
-	// Set timestamps
 	now := time.Now()
 	mcpDef.CreatedAt = now
 	mcpDef.UpdatedAt = now
+	return nil
+}
 
-	return &mcpDef, true
+// writeErrorResponse writes an error response to the client
+func (h *AdminHandlers) writeErrorResponse(c *gin.Context, statusCode int, message string, details error) {
+	response := gin.H{"error": message}
+	if details != nil {
+		response["details"] = details.Error()
+	}
+	c.JSON(statusCode, response)
+}
+
+// writeSuccessResponse writes a success response to the client
+func (h *AdminHandlers) writeSuccessResponse(c *gin.Context, statusCode int, message string, name string) {
+	c.JSON(statusCode, gin.H{
+		"message": message,
+		"name":    name,
+	})
 }
 
 // connectMCPWithFallback attempts immediate connection with async fallback
 func (h *AdminHandlers) connectMCPWithFallback(c *gin.Context, mcpDef *MCPDefinition) bool {
 	// Try immediate connection first, fall back to async on timeout
-	connectCtx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
+	connectCtx, cancel := context.WithTimeout(c.Request.Context(), QuickConnectTimeout)
 	defer cancel()
 
 	immediateErr := h.clientManager.AddClient(connectCtx, mcpDef)
@@ -168,29 +176,27 @@ func (h *AdminHandlers) handleAsyncConnection(ctx context.Context, mcpDef *MCPDe
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /admin/mcps [post]
 func (h *AdminHandlers) AddMCPHandler(c *gin.Context) {
-	mcpDef, valid := h.validateAndPrepareMCP(c)
-	if !valid {
+	mcpDef, err := h.parseAndValidateMCP(c)
+	if err != nil {
+		h.writeErrorResponse(c, http.StatusBadRequest, "Invalid request", err)
 		return
 	}
-
-	// Save MCP definition to storage
+	if err := h.prepareMCPForCreation(c.Request.Context(), mcpDef); err != nil {
+		if strings.Contains(err.Error(), "already exists") {
+			h.writeErrorResponse(c, http.StatusConflict, "MCP already exists", err)
+		} else {
+			h.writeErrorResponse(c, http.StatusInternalServerError, "Storage error", err)
+		}
+		return
+	}
 	if err := h.storage.SaveMCP(c.Request.Context(), mcpDef); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to save MCP definition",
-			"details": err.Error(),
-		})
+		h.writeErrorResponse(c, http.StatusInternalServerError, "Failed to save MCP definition", err)
 		return
 	}
-
-	// Attempt connection with fallback strategy
 	if !h.connectMCPWithFallback(c, mcpDef) {
 		return
 	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "MCP definition added successfully",
-		"name":    mcpDef.Name,
-	})
+	h.writeSuccessResponse(c, http.StatusCreated, "MCP definition added successfully", mcpDef.Name)
 }
 
 // validateUpdateRequest validates the request parameters and MCP definition for update
@@ -257,7 +263,7 @@ func (h *AdminHandlers) performHotReload(ctx context.Context, name string, mcpDe
 	}
 
 	// Try immediate connection first with timeout
-	connectCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	connectCtx, cancel := context.WithTimeout(ctx, QuickConnectTimeout)
 	defer cancel()
 
 	immediateErr := h.clientManager.AddClient(connectCtx, mcpDef)
@@ -564,7 +570,7 @@ func (h *AdminHandlers) ListToolsHandler(c *gin.Context) {
 		}
 
 		// Get tools from this MCP client
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(c.Request.Context(), DefaultConnectTimeout)
 		tools, err := client.ListTools(ctx)
 		if err != nil {
 			logger.Warn("Failed to list tools for MCP, skipping", "mcp_name", mcpDef.Name, "error", err)
@@ -724,7 +730,7 @@ func (h *AdminHandlers) CallToolHandler(c *gin.Context) {
 	}
 
 	// Execute the tool with timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), DefaultConnectTimeout)
 	defer cancel()
 
 	result, err := client.CallTool(ctx, toolCallReq)

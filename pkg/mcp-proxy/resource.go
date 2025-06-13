@@ -24,7 +24,7 @@ type ResourceLoader struct {
 // The loader is configured with a bounded semaphore (maxConcurrentAdds=5) to limit concurrent
 // resource registration operations and prevent overwhelming the system.
 func NewResourceLoader(client *MCPClient, mcpServer *server.MCPServer, name string) *ResourceLoader {
-	const maxConcurrentAdds = 5
+	const maxConcurrentAdds = MaxConcurrentResourceAdds
 	return &ResourceLoader{
 		client:    client,
 		mcpServer: mcpServer,
@@ -121,6 +121,49 @@ func (rl *ResourceLoader) LoadResourceTemplates(ctx context.Context) error {
 	)
 }
 
+// processBatch processes a batch of resources concurrently with bounded parallelism
+func processBatch[T any](
+	ctx context.Context,
+	items []T,
+	sem chan struct{},
+	addFn func(context.Context, T) error,
+) error {
+	g, gCtx := errgroup.WithContext(ctx)
+	for _, item := range items {
+		item := item // capture loop variable
+		g.Go(func() error {
+			// Acquire semaphore to limit concurrency
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-gCtx.Done():
+				return gCtx.Err()
+			}
+			return addFn(gCtx, item)
+		})
+	}
+	return g.Wait()
+}
+
+// fetchBatch fetches a batch of resources using the provided cursor
+func fetchBatch[T any](
+	ctx context.Context,
+	cursor string,
+	listFn func(context.Context, string) ([]T, string, error),
+) ([]T, string, error) {
+	return listFn(ctx, cursor)
+}
+
+// logBatchProgress logs progress information for a batch of resources
+func logBatchProgress[T any](name, resourceType, cursor string, items []T) {
+	logger.Debug("Listed batch", "name", name, "type", resourceType, "count", len(items), "cursor", cursor)
+}
+
+// logCompletionSummary logs the final summary when all resources are loaded
+func logCompletionSummary(name, resourceType string, totalCount int) {
+	logger.Info("Successfully added all resources", "name", name, "type", resourceType, "total", totalCount)
+}
+
 // loadResources is a generic function to handle paginated resource loading with bounded concurrency.
 // It handles pagination using cursors, processes items in batches with concurrent registration,
 // and uses a semaphore to limit concurrent operations to prevent resource exhaustion.
@@ -139,51 +182,25 @@ func loadResources[T any](
 ) error {
 	var cursor string
 	totalCount := 0
-
 	for {
-		items, nextCursor, err := listFn(ctx, cursor)
+		items, nextCursor, err := fetchBatch(ctx, cursor, listFn)
 		if err != nil {
 			return fmt.Errorf("failed to list %s: %w", resourceType, err)
 		}
-
 		if len(items) == 0 {
 			break
 		}
-
 		totalCount += len(items)
-		logger.Debug("Listed batch", "name", name, "type", resourceType, "count", len(items), "cursor", cursor)
-
-		// Process items in this batch concurrently
-		g, gCtx := errgroup.WithContext(ctx)
-
-		for _, item := range items {
-			item := item // capture loop variable
-
-			g.Go(func() error {
-				// Acquire semaphore to limit concurrency
-				select {
-				case sem <- struct{}{}:
-					defer func() { <-sem }()
-				case <-gCtx.Done():
-					return gCtx.Err()
-				}
-
-				return addFn(gCtx, item)
-			})
-		}
-
-		// Wait for all items in this batch to be processed
-		if err := g.Wait(); err != nil {
+		logBatchProgress(name, resourceType, cursor, items)
+		if err := processBatch(ctx, items, sem, addFn); err != nil {
 			return fmt.Errorf("failed to add %s: %w", resourceType, err)
 		}
-
 		if nextCursor == "" {
 			break
 		}
 		cursor = nextCursor
 	}
-
-	logger.Info("Successfully added all resources", "name", name, "type", resourceType, "total", totalCount)
+	logCompletionSummary(name, resourceType, totalCount)
 	return nil
 }
 
