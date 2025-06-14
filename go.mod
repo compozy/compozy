@@ -22,7 +22,6 @@ require (
 	github.com/invopop/jsonschema v0.13.0
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/joho/godotenv v1.5.1
-	github.com/kaptinlin/jsonrepair v0.1.1
 	github.com/kaptinlin/jsonschema v0.4.2
 	github.com/mark3labs/mcp-go v0.32.0
 	github.com/mitchellh/mapstructure v1.5.0

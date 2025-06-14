@@ -9,29 +9,29 @@ import (
 	"github.com/compozy/compozy/engine/tool"
 )
 
-type Tool struct {
+type InternalTool struct {
 	config  *tool.Config
 	runtime *runtime.Manager
 	env     *core.EnvMap
 }
 
-func NewTool(config *tool.Config, env *core.EnvMap, runtime *runtime.Manager) *Tool {
-	return &Tool{
+func NewTool(config *tool.Config, env *core.EnvMap, runtime *runtime.Manager) *InternalTool {
+	return &InternalTool{
 		config:  config,
 		env:     env,
 		runtime: runtime,
 	}
 }
 
-func (t *Tool) Name() string {
+func (t *InternalTool) Name() string {
 	return t.config.ID
 }
 
-func (t *Tool) Description() string {
+func (t *InternalTool) Description() string {
 	return t.config.Description
 }
 
-func (t *Tool) Call(ctx context.Context, input *core.Input) (*core.Output, error) {
+func (t *InternalTool) Call(ctx context.Context, input *core.Input) (*core.Output, error) {
 	inputMap, err := t.validateInput(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("input validation failed: %w", err)
@@ -54,14 +54,14 @@ func (t *Tool) Call(ctx context.Context, input *core.Input) (*core.Output, error
 }
 
 // validateInput parses the input JSON and validates it against the input schema
-func (t *Tool) validateInput(ctx context.Context, input *core.Input) (*core.Input, error) {
+func (t *InternalTool) validateInput(ctx context.Context, input *core.Input) (*core.Input, error) {
 	if err := t.config.ValidateInput(ctx, input); err != nil {
 		return nil, fmt.Errorf("input schema validation failed: %w", err)
 	}
 	return input, nil
 }
 
-func (t *Tool) validateOutput(ctx context.Context, output *core.Output) error {
+func (t *InternalTool) validateOutput(ctx context.Context, output *core.Output) error {
 	if t.config.OutputSchema == nil {
 		return nil
 	}
@@ -69,7 +69,7 @@ func (t *Tool) validateOutput(ctx context.Context, output *core.Output) error {
 }
 
 // executeTool executes the tool with the runtime manager
-func (t *Tool) executeTool(ctx context.Context, input *core.Input) (*core.Output, error) {
+func (t *InternalTool) executeTool(ctx context.Context, input *core.Input) (*core.Output, error) {
 	toolExecID := core.MustNewID()
 	env := core.EnvMap{}
 	if t.env != nil {

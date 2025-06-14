@@ -1,0 +1,359 @@
+package llmadapter
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+
+	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/logger"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/tmc/langchaingo/llms"
+)
+
+func init() {
+	logger.InitForTests()
+}
+
+func TestLangChainAdapter_ConvertMessages(t *testing.T) {
+	adapter := &LangChainAdapter{}
+
+	t.Run("Should convert messages with system prompt", func(t *testing.T) {
+		req := LLMRequest{
+			SystemPrompt: "You are a helpful assistant",
+			Messages: []Message{
+				{Role: "user", Content: "Hello"},
+				{Role: "assistant", Content: "Hi there!"},
+			},
+		}
+
+		messages := adapter.convertMessages(&req)
+
+		assert.Len(t, messages, 3)
+		// Check system message
+		assert.Equal(t, llms.ChatMessageTypeSystem, messages[0].Role)
+		assert.Equal(t, "You are a helpful assistant", messages[0].Parts[0].(llms.TextContent).Text)
+		// Check user message
+		assert.Equal(t, llms.ChatMessageTypeHuman, messages[1].Role)
+		assert.Equal(t, "Hello", messages[1].Parts[0].(llms.TextContent).Text)
+		// Check assistant message
+		assert.Equal(t, llms.ChatMessageTypeAI, messages[2].Role)
+		assert.Equal(t, "Hi there!", messages[2].Parts[0].(llms.TextContent).Text)
+	})
+
+	t.Run("Should handle messages without system prompt", func(t *testing.T) {
+		req := LLMRequest{
+			Messages: []Message{
+				{Role: "user", Content: "Test message"},
+			},
+		}
+
+		messages := adapter.convertMessages(&req)
+
+		assert.Len(t, messages, 1)
+		assert.Equal(t, llms.ChatMessageTypeHuman, messages[0].Role)
+	})
+}
+
+func TestLangChainAdapter_MapMessageRole(t *testing.T) {
+	adapter := &LangChainAdapter{}
+
+	tests := []struct {
+		role     string
+		expected llms.ChatMessageType
+	}{
+		{"system", llms.ChatMessageTypeSystem},
+		{"user", llms.ChatMessageTypeHuman},
+		{"assistant", llms.ChatMessageTypeAI},
+		{"tool", llms.ChatMessageTypeTool},
+		{"unknown", llms.ChatMessageTypeHuman}, // Default
+	}
+
+	for _, tt := range tests {
+		t.Run("Should map role "+tt.role, func(t *testing.T) {
+			t.Parallel()
+			result := adapter.mapMessageRole(tt.role)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestLangChainAdapter_BuildCallOptions(t *testing.T) {
+	adapter := &LangChainAdapter{}
+
+	t.Run("Should build options with temperature and max tokens", func(t *testing.T) {
+		req := LLMRequest{
+			Options: CallOptions{
+				Temperature: 0.7,
+				MaxTokens:   100,
+			},
+		}
+
+		options := adapter.buildCallOptions(&req)
+
+		assert.Len(t, options, 2)
+		// Note: We can't easily test the actual values as they're wrapped in functions
+	})
+
+	t.Run("Should include tools when provided", func(t *testing.T) {
+		req := LLMRequest{
+			Tools: []ToolDefinition{
+				{
+					Name:        "test_tool",
+					Description: "A test tool",
+					Parameters: map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"input": map[string]any{"type": "string"},
+						},
+					},
+				},
+			},
+			Options: CallOptions{
+				ToolChoice: "auto",
+			},
+		}
+
+		options := adapter.buildCallOptions(&req)
+
+		// Should have WithTools and WithToolChoice
+		assert.GreaterOrEqual(t, len(options), 2)
+	})
+
+	t.Run("Should enable JSON mode when requested without tools", func(t *testing.T) {
+		req := LLMRequest{
+			Options: CallOptions{
+				UseJSONMode: true,
+			},
+		}
+
+		options := adapter.buildCallOptions(&req)
+
+		assert.GreaterOrEqual(t, len(options), 1)
+	})
+
+	t.Run("Should not enable JSON mode when tools are present", func(t *testing.T) {
+		req := LLMRequest{
+			Tools: []ToolDefinition{{Name: "tool"}},
+			Options: CallOptions{
+				UseJSONMode: true,
+			},
+		}
+
+		options := adapter.buildCallOptions(&req)
+
+		// Should have tool options but not JSON mode
+		assert.GreaterOrEqual(t, len(options), 1)
+	})
+}
+
+func TestLangChainAdapter_ConvertTools(t *testing.T) {
+	adapter := &LangChainAdapter{}
+
+	t.Run("Should convert tool definitions", func(t *testing.T) {
+		tools := []ToolDefinition{
+			{
+				Name:        "search",
+				Description: "Search for information",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"query": map[string]any{
+							"type":        "string",
+							"description": "Search query",
+						},
+					},
+					"required": []string{"query"},
+				},
+			},
+		}
+
+		llmTools := adapter.convertTools(tools)
+
+		require.Len(t, llmTools, 1)
+		assert.Equal(t, "function", llmTools[0].Type)
+		assert.NotNil(t, llmTools[0].Function)
+		assert.Equal(t, "search", llmTools[0].Function.Name)
+		assert.Equal(t, "Search for information", llmTools[0].Function.Description)
+		assert.NotNil(t, llmTools[0].Function.Parameters)
+	})
+}
+
+func TestLangChainAdapter_ConvertResponse(t *testing.T) {
+	adapter := &LangChainAdapter{}
+
+	t.Run("Should convert simple text response", func(t *testing.T) {
+		langchainResp := &llms.ContentResponse{
+			Choices: []*llms.ContentChoice{
+				{
+					Content: "Hello, world!",
+				},
+			},
+		}
+
+		resp, err := adapter.convertResponse(langchainResp)
+
+		require.NoError(t, err)
+		assert.Equal(t, "Hello, world!", resp.Content)
+		assert.Empty(t, resp.ToolCalls)
+	})
+
+	t.Run("Should convert response with tool calls", func(t *testing.T) {
+		langchainResp := &llms.ContentResponse{
+			Choices: []*llms.ContentChoice{
+				{
+					Content: "",
+					ToolCalls: []llms.ToolCall{
+						{
+							ID: "call_123",
+							FunctionCall: &llms.FunctionCall{
+								Name:      "search",
+								Arguments: `{"query": "test"}`,
+							},
+						},
+					},
+				},
+			},
+		}
+
+		resp, err := adapter.convertResponse(langchainResp)
+
+		require.NoError(t, err)
+		assert.Empty(t, resp.Content)
+		require.Len(t, resp.ToolCalls, 1)
+		assert.Equal(t, "call_123", resp.ToolCalls[0].ID)
+		assert.Equal(t, "search", resp.ToolCalls[0].Name)
+		assert.Equal(t, `{"query": "test"}`, string(resp.ToolCalls[0].Arguments))
+	})
+
+	// Note: Usage information is not supported by langchaingo ContentResponse
+	// This is documented in the convertResponse method
+
+	t.Run("Should return error for empty response", func(t *testing.T) {
+		langchainResp := &llms.ContentResponse{
+			Choices: []*llms.ContentChoice{},
+		}
+
+		resp, err := adapter.convertResponse(langchainResp)
+
+		assert.Error(t, err)
+		assert.Nil(t, resp)
+		assert.Contains(t, err.Error(), "empty response")
+	})
+
+	t.Run("Should return error for nil response", func(t *testing.T) {
+		resp, err := adapter.convertResponse(nil)
+
+		assert.Error(t, err)
+		assert.Nil(t, resp)
+		assert.Contains(t, err.Error(), "empty response")
+	})
+}
+
+func TestNewLangChainAdapter(t *testing.T) {
+	t.Run("Should create adapter for mock provider", func(t *testing.T) {
+		config := core.ProviderConfig{
+			Provider: core.ProviderMock,
+			Model:    "mock-model",
+		}
+
+		adapter, err := NewLangChainAdapter(&config)
+
+		require.NoError(t, err)
+		assert.NotNil(t, adapter)
+		assert.NotNil(t, adapter.model)
+		assert.Equal(t, config, adapter.provider)
+	})
+}
+
+func TestTestAdapter(t *testing.T) {
+	t.Run("Should record calls and return configured response", func(t *testing.T) {
+		adapter := NewTestAdapter()
+		adapter.SetResponse("Test content", ToolCall{
+			ID:        "test_call",
+			Name:      "test_tool",
+			Arguments: json.RawMessage("{}"),
+		})
+
+		req := LLMRequest{
+			SystemPrompt: "Test prompt",
+			Messages: []Message{
+				{Role: "user", Content: "Test message"},
+			},
+		}
+
+		resp, err := adapter.GenerateContent(context.Background(), &req)
+
+		require.NoError(t, err)
+		assert.Equal(t, "Test content", resp.Content)
+		assert.Len(t, resp.ToolCalls, 1)
+		assert.Equal(t, "test_tool", resp.ToolCalls[0].Name)
+
+		// Check recorded call
+		assert.Len(t, adapter.Calls, 1)
+		lastCall := adapter.GetLastCall()
+		assert.NotNil(t, lastCall)
+		assert.Equal(t, "Test prompt", lastCall.SystemPrompt)
+	})
+
+	t.Run("Should return configured error", func(t *testing.T) {
+		adapter := NewTestAdapter()
+		adapter.SetError(assert.AnError)
+
+		resp, err := adapter.GenerateContent(context.Background(), &LLMRequest{})
+
+		assert.Error(t, err)
+		assert.Nil(t, resp)
+		assert.Equal(t, assert.AnError, err)
+	})
+
+	t.Run("Should reset state", func(t *testing.T) {
+		adapter := NewTestAdapter()
+		adapter.SetResponse("Test")
+		adapter.GenerateContent(context.Background(), &LLMRequest{})
+
+		adapter.Reset()
+
+		assert.Empty(t, adapter.Calls)
+		assert.Nil(t, adapter.Response)
+		assert.Nil(t, adapter.Error)
+	})
+}
+
+func TestMockToolAdapter(t *testing.T) {
+	t.Run("Should simulate tool calling", func(t *testing.T) {
+		adapter := NewMockToolAdapter()
+		adapter.SetToolResult("search", "Search results")
+
+		req := LLMRequest{
+			Tools: []ToolDefinition{
+				{Name: "search", Description: "Search tool"},
+			},
+		}
+
+		resp, err := adapter.GenerateContent(context.Background(), &req)
+
+		require.NoError(t, err)
+		assert.Empty(t, resp.Content)
+		require.Len(t, resp.ToolCalls, 1)
+		assert.Equal(t, "search", resp.ToolCalls[0].Name)
+		assert.Equal(t, "call_search", resp.ToolCalls[0].ID)
+	})
+
+	t.Run("Should return default response when no matching tool", func(t *testing.T) {
+		adapter := NewMockToolAdapter()
+
+		req := LLMRequest{
+			Tools: []ToolDefinition{
+				{Name: "unknown", Description: "Unknown tool"},
+			},
+		}
+
+		resp, err := adapter.GenerateContent(context.Background(), &req)
+
+		require.NoError(t, err)
+		assert.Equal(t, "Mock response", resp.Content)
+		assert.Empty(t, resp.ToolCalls)
+	})
+}
