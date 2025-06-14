@@ -10,6 +10,7 @@ import (
 	"go.temporal.io/sdk/testsuite"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/schema"
 	wf "github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 )
@@ -104,5 +105,79 @@ func (s *DispatcherWorkflowTestSuite) TestUnknownSignal() {
 	})
 }
 
-// TestConfigurationLoadFailure is temporarily disabled due to test framework complexity
-// The error handling is covered by unit tests and the actual workflow implements proper error handling
+func TestGetRegisteredSignalNames(t *testing.T) {
+	t.Run("Should return empty slice for empty signal map", func(t *testing.T) {
+		signalMap := make(map[string]*compiledTrigger)
+		names := getRegisteredSignalNames(signalMap)
+		assert.Empty(t, names)
+	})
+
+	t.Run("Should return all signal names", func(t *testing.T) {
+		signalMap := map[string]*compiledTrigger{
+			"signal1": {config: &wf.Config{ID: "workflow1"}},
+			"signal2": {config: &wf.Config{ID: "workflow2"}},
+			"signal3": {config: &wf.Config{ID: "workflow3"}},
+		}
+		names := getRegisteredSignalNames(signalMap)
+		assert.Len(t, names, 3)
+		assert.Contains(t, names, "signal1")
+		assert.Contains(t, names, "signal2")
+		assert.Contains(t, names, "signal3")
+	})
+}
+
+// TestDispatcherWorkflow_PayloadValidationLogic tests the validation logic without full workflow setup
+func TestDispatcherWorkflow_PayloadValidationLogic(t *testing.T) {
+	t.Run("Should create compiled triggers with schema", func(t *testing.T) {
+		schemaDefinition := &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string"},
+			},
+			"required": []string{"name"},
+		}
+
+		compiled, err := schemaDefinition.Compile()
+		assert.NoError(t, err)
+		assert.NotNil(t, compiled)
+
+		trigger := &compiledTrigger{
+			config: &wf.Config{ID: "test-workflow"},
+			trigger: &wf.Trigger{
+				Type:   wf.TriggerTypeSignal,
+				Name:   "test-signal",
+				Schema: schemaDefinition,
+			},
+			compiledSchema: compiled,
+		}
+
+		assert.Equal(t, "test-workflow", trigger.config.ID)
+		assert.Equal(t, "test-signal", trigger.trigger.Name)
+		assert.NotNil(t, trigger.compiledSchema)
+	})
+
+	t.Run("Should validate payload with compiled schema", func(t *testing.T) {
+		schemaDefinition := &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string"},
+			},
+			"required": []string{"name"},
+		}
+
+		compiled, err := schemaDefinition.Compile()
+		assert.NoError(t, err)
+
+		// Test valid payload
+		validPayload := core.Input{"name": "John"}
+		isValid, errors := validatePayloadAgainstCompiledSchema(validPayload, compiled)
+		assert.True(t, isValid)
+		assert.Nil(t, errors)
+
+		// Test invalid payload
+		invalidPayload := core.Input{"age": 30} // missing required "name"
+		isValid, errors = validatePayloadAgainstCompiledSchema(invalidPayload, compiled)
+		assert.False(t, isValid)
+		assert.NotEmpty(t, errors)
+	})
+}

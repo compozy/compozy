@@ -140,7 +140,6 @@ func validateSignalPayload(
 // generateWorkflowExecID generates a unique workflow execution ID
 func generateWorkflowExecID(ctx workflow.Context) core.ID {
 	logger := workflow.GetLogger(ctx)
-
 	var workflowExecID core.ID
 	// Use versioning to handle backward compatibility during replay
 	version := workflow.GetVersion(ctx, "workflow-id-generation", workflow.DefaultVersion, 1)
@@ -148,7 +147,6 @@ func generateWorkflowExecID(ctx workflow.Context) core.ID {
 		// Old behavior for existing workflows - use deterministic fallback
 		return core.ID("fallback-id")
 	}
-
 	// New behavior with SideEffect
 	if err := workflow.SideEffect(ctx, func(_ workflow.Context) any {
 		return core.MustNewID()
@@ -167,9 +165,7 @@ func executeChildWorkflow(
 	correlationID string,
 ) bool {
 	logger := workflow.GetLogger(ctx)
-
 	workflowExecID := generateWorkflowExecID(ctx)
-
 	cwo := workflow.ChildWorkflowOptions{
 		WorkflowID:        target.config.ID + "-" + workflowExecID.String(),
 		ParentClosePolicy: enums.PARENT_CLOSE_POLICY_ABANDON, // Let child continue if parent restarts

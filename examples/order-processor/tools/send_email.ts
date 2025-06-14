@@ -19,6 +19,7 @@ interface EmailOutput {
     messageId: string;
     recipient: string;
     subject: string;
+    body: string;
     timestamp: string;
 }
 
@@ -117,7 +118,6 @@ export default function run(input: EmailInput): EmailOutput {
     const emailBody = templateFn(input.data);
 
     // Mock email sending - in production, integrate with actual email service
-
 
     return {
         sent: true,
