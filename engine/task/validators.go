@@ -88,19 +88,19 @@ func (v *TypeValidator) Validate() error {
 	}
 	switch v.config.Type {
 	case TaskTypeBasic:
-		return v.validateBasicTaskWithRef()
+		return v.validateExecutorFields()
 	case TaskTypeRouter:
-		if err := v.validateBasicTaskWithRef(); err != nil {
+		if err := v.validateExecutorFields(); err != nil {
 			return err
 		}
 		return v.validateRouterTask()
 	case TaskTypeParallel:
-		if err := v.validateBasicTaskWithRef(); err != nil {
+		if err := v.validateExecutorFields(); err != nil {
 			return err
 		}
 		return v.validateParallelTask()
 	case TaskTypeCollection:
-		if err := v.validateBasicTaskWithRef(); err != nil {
+		if err := v.validateExecutorFields(); err != nil {
 			return err
 		}
 		return v.validateCollectionTask()
@@ -111,10 +111,7 @@ func (v *TypeValidator) Validate() error {
 	}
 }
 
-func (v *TypeValidator) validateBasicTaskWithRef() error {
-	if v.config.Type != TaskTypeBasic {
-		return nil
-	}
+func (v *TypeValidator) validateExecutorFields() error {
 	if v.config.GetTool() != nil && v.config.Action != "" {
 		return fmt.Errorf("action is not allowed when executor type is tool")
 	}
