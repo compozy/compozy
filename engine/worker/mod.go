@@ -22,6 +22,12 @@ import (
 )
 
 // -----------------------------------------------------------------------------
+// Constants
+// -----------------------------------------------------------------------------
+
+const DispatcherEventChannel = "event_channel"
+
+// -----------------------------------------------------------------------------
 // Temporal-based Worker
 // -----------------------------------------------------------------------------
 
@@ -108,7 +114,7 @@ func NewWorker(
 	}, nil
 }
 
-func (o *Worker) Setup(_ context.Context) error {
+func (o *Worker) Setup(ctx context.Context) error {
 	o.worker.RegisterWorkflow(CompozyWorkflow)
 	o.worker.RegisterWorkflow(DispatcherWorkflow)
 	o.worker.RegisterActivity(o.activities.GetWorkflowData)
@@ -133,7 +139,7 @@ func (o *Worker) Setup(_ context.Context) error {
 		return err
 	}
 	// Ensure dispatcher is running
-	go o.ensureDispatcherRunning(context.Background())
+	go o.ensureDispatcherRunning(ctx)
 	return nil
 }
 
@@ -180,7 +186,7 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 	_, err := o.client.SignalWithStartWorkflow(
 		ctx,
 		dispatcherID,
-		"event_channel",
+		DispatcherEventChannel,
 		nil,
 		client.StartWorkflowOptions{
 			ID:        dispatcherID,

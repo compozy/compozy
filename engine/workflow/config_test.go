@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/pkg/ref"
 	"github.com/compozy/compozy/pkg/utils"
 	"github.com/stretchr/testify/assert"
@@ -175,6 +176,78 @@ func Test_TriggerValidation(t *testing.T) {
 		err = config.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "trigger name is required")
+	})
+
+	t.Run("Should return error for duplicate trigger names", func(t *testing.T) {
+		cwd, err := core.CWDFromPath("/test/path")
+		require.NoError(t, err)
+		config := &Config{
+			ID:  "test-workflow",
+			CWD: cwd,
+			Triggers: []Trigger{
+				{
+					Type: TriggerTypeSignal,
+					Name: "order.created",
+				},
+				{
+					Type: TriggerTypeSignal,
+					Name: "order.created",
+				},
+			},
+		}
+		err = config.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "duplicate trigger name: order.created")
+	})
+
+	t.Run("Should validate trigger with valid schema", func(t *testing.T) {
+		validSchema := &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"orderId": map[string]any{
+					"type": "string",
+				},
+			},
+			"required": []any{"orderId"},
+		}
+		cwd, err := core.CWDFromPath("/test/path")
+		require.NoError(t, err)
+		config := &Config{
+			ID:  "test-workflow",
+			CWD: cwd,
+			Triggers: []Trigger{
+				{
+					Type:   TriggerTypeSignal,
+					Name:   "order.created",
+					Schema: validSchema,
+				},
+			},
+		}
+		err = config.Validate()
+		require.NoError(t, err)
+	})
+
+	t.Run("Should return error for trigger with invalid schema", func(t *testing.T) {
+		invalidSchema := &schema.Schema{
+			"type":       "invalid-type",
+			"properties": "should-be-object",
+		}
+		cwd, err := core.CWDFromPath("/test/path")
+		require.NoError(t, err)
+		config := &Config{
+			ID:  "test-workflow",
+			CWD: cwd,
+			Triggers: []Trigger{
+				{
+					Type:   TriggerTypeSignal,
+					Name:   "order.created",
+					Schema: invalidSchema,
+				},
+			},
+		}
+		err = config.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid trigger schema for order.created")
 	})
 }
 

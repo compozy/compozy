@@ -69,8 +69,9 @@ func (s *DispatcherWorkflowTestSuite) TestSuccessfulDispatch() {
 		s.env.OnActivity("GetWorkflowData", mock.Anything).Return(&wfacts.GetData{Workflows: mockWorkflows}, nil)
 		s.env.OnWorkflow("CompozyWorkflow", mock.Anything).Return(nil, nil)
 		s.env.RegisterWorkflow(DispatcherWorkflow)
-		s.env.ExecuteWorkflow(DispatcherWorkflow, "test-project")
-		s.env.SignalWorkflow("event_channel", EventSignal{
+		go s.env.ExecuteWorkflow(DispatcherWorkflow, "test-project")
+		time.Sleep(50 * time.Millisecond) // Allow workflow to start
+		s.env.SignalWorkflow(DispatcherEventChannel, EventSignal{
 			Name:          "order.created",
 			Payload:       core.Input{"orderId": "123"},
 			CorrelationID: "test-correlation-id",
@@ -92,8 +93,9 @@ func (s *DispatcherWorkflowTestSuite) TestUnknownSignal() {
 		}
 		s.env.OnActivity("GetWorkflowData", mock.Anything).Return(&wfacts.GetData{Workflows: mockWorkflows}, nil)
 		s.env.RegisterWorkflow(DispatcherWorkflow)
-		s.env.ExecuteWorkflow(DispatcherWorkflow, "test-project")
-		s.env.SignalWorkflow("event_channel", EventSignal{
+		go s.env.ExecuteWorkflow(DispatcherWorkflow, "test-project")
+		time.Sleep(50 * time.Millisecond) // Allow workflow to start
+		s.env.SignalWorkflow(DispatcherEventChannel, EventSignal{
 			Name:    "unknown.event",
 			Payload: core.Input{},
 		})

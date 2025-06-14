@@ -11,6 +11,22 @@ This example demonstrates Compozy's event-driven workflow capabilities using sig
 - **AI Integration**: Uses AI agents for order validation and customer communication
 - **External Tool Integration**: Mock tools for inventory, payment, and shipping
 
+## Project Structure
+
+```
+order-processor/
+├── compozy.yaml          # Project configuration
+├── workflow.yaml         # Workflow definition with triggers and tasks
+├── deno.json            # Deno configuration and imports
+├── test-order.json      # Sample test event (create this file)
+├── tools/               # Tool implementations
+│   ├── check_inventory.ts
+│   ├── calculate_shipping.ts
+│   ├── process_payment.ts
+│   └── send_email.ts
+└── README.md
+```
+
 ## Quick Start
 
 1. **Setup Environment**:
@@ -81,29 +97,77 @@ If any step fails, appropriate error notifications are sent to the customer.
 
 ## Tools Overview
 
+All tools are implemented as TypeScript modules that export a `run` function, following Compozy's runtime requirements.
+
 ### check_inventory.ts
 
+- **Function**: `export default function run(input: InventoryInput): InventoryOutput`
 - Checks product availability against mock inventory
 - Returns availability status and warnings for low stock
 - Simulates real inventory management system
 
 ### calculate_shipping.ts
 
+- **Function**: `export default function run(input: ShippingInput): ShippingOutput`
 - Calculates shipping costs based on weight and destination
 - Provides delivery estimates
 - Handles free shipping and expedited options
 
 ### process_payment.ts
 
+- **Function**: `export default function run(input: PaymentInput): PaymentOutput`
 - Mock payment processing with success/failure simulation
 - Calculates processing fees
 - Returns transaction details
 
 ### send_email.ts
 
+- **Function**: `export default function run(input: EmailInput): EmailOutput`
 - Sends email notifications using templates
 - Supports multiple email types (confirmation, errors)
 - Mock implementation that logs email content
+
+## Configuration Files
+
+### compozy.yaml
+
+Defines the project configuration, model settings, and runtime permissions:
+
+```yaml
+name: order-processor-example
+version: 0.1.0
+workflows:
+    - source: ./workflow.yaml
+models:
+    - id: gpt-4o
+      provider: openai
+      model: gpt-4o
+      api_key: "{{ .env.OPENAI_API_KEY }}"
+runtime:
+    permissions:
+        - --allow-read
+        - --allow-net
+        - --allow-write
+        - --allow-env
+```
+
+### workflow.yaml
+
+Contains the complete workflow definition including:
+
+- Signal triggers for `order.created` events
+- JSON schema validation
+- Tool definitions with file paths
+- AI agent configurations
+- Task flow with error handling
+
+### deno.json
+
+Provides Deno-specific configuration:
+
+- Import mappings for tools
+- Compiler options
+- Formatting and linting rules
 
 ## Schema Validation
 
@@ -130,9 +194,30 @@ Monitor the workflow execution in:
 
 ### Adding New Tools
 
-1. Create new TypeScript tool in `tools/` directory
-2. Add tool definition to `workflow.yaml`
-3. Reference tool in workflow tasks
+1. Create new TypeScript tool in `tools/` directory that exports a `run` function:
+
+    ```typescript
+    export default function run(input: YourInputType): YourOutputType {
+        // Tool implementation
+        return result;
+    }
+    ```
+
+2. Add tool definition to `workflow.yaml`:
+
+    ```yaml
+    tools:
+        - id: your_tool_id
+          description: "Your tool description"
+          execute: ./tools/your_tool.ts
+    ```
+
+3. Reference tool in workflow tasks:
+    ```yaml
+    - id: your_task
+      type: basic
+      $use: tool(local::tools.#(id=="your_tool_id"))
+    ```
 
 ### Modifying Email Templates
 

@@ -1,0 +1,29 @@
+{
+    "name": "order.created",
+    "payload": {
+        "orderId": "order_12345",
+        "customerId": "customer_67890",
+        "customerEmail": "customer@example.com",
+        "items": [
+            {
+                "productId": "prod_001",
+                "name": "Wireless Headphones",
+                "quantity": 1,
+                "price": 99.99
+            },
+            {
+                "productId": "prod_002",
+                "name": "Phone Case",
+                "quantity": 2,
+                "price": 15.99
+            }
+        ],
+        "totalAmount": 131.97,
+        "shippingAddress": {
+            "street": "123 Main St",
+            "city": "New York",
+            "zipCode": "10001",
+            "country": "US"
+        }
+    }
+}

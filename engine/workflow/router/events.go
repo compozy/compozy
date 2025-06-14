@@ -1,6 +1,8 @@
 package wfrouter
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gosimple/slug"
 	"go.temporal.io/sdk/client"
@@ -33,31 +35,18 @@ type EventResponse struct {
 func handleEvent(c *gin.Context) {
 	var req EventRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		reqErr := router.NewRequestError(400, "Invalid event format", err)
-		router.RespondWithError(c, 400, reqErr)
-		return
-	}
-
-	// Get authenticated claims for project scoping
-	claimsValue := c.Request.Context().Value(authClaimsKey)
-	claims, ok := claimsValue.(*AuthClaims)
-	if !ok || claims == nil {
-		reqErr := router.NewRequestError(500, "Authentication context missing", nil)
-		router.RespondWithError(c, 500, reqErr)
+		reqErr := router.NewRequestError(http.StatusBadRequest, "Invalid event format", err)
+		router.RespondWithError(c, http.StatusBadRequest, reqErr)
 		return
 	}
 
 	state := router.GetAppState(c)
 	workerMgr := state.Worker
-	// Use project ID from auth claims for deterministic dispatcher workflow ID
-	projectName := claims.ProjectID
-	if projectName == "" {
-		reqErr := router.NewRequestError(400, "Project ID missing from authentication token", nil)
-		router.RespondWithError(c, 400, reqErr)
-		return
-	}
-	dispatcherID := "dispatcher-" + slug.Make(projectName)
-	taskQueue := slug.Make(projectName)
+	// Use default project name for now (no auth)
+	projectName := "order-processor-example"
+	projectID := core.MustNewID().String()
+	dispatcherID := "dispatcher-" + slug.Make(projectName) + "-" + projectID[:8]
+	taskQueue := slug.Make(projectName) + "-" + projectID[:8]
 
 	// Generate correlation ID for tracking
 	eventID := core.MustNewID().String()
@@ -80,8 +69,8 @@ func handleEvent(c *gin.Context) {
 		projectName,
 	)
 	if err != nil {
-		reqErr := router.NewRequestError(500, "Failed to send event", err)
-		router.RespondWithError(c, 500, reqErr)
+		reqErr := router.NewRequestError(http.StatusInternalServerError, "Failed to send event", err)
+		router.RespondWithError(c, http.StatusInternalServerError, reqErr)
 		return
 	}
 	router.RespondAccepted(c, "event received", EventResponse{

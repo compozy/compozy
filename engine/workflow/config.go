@@ -133,6 +133,15 @@ func (w *Config) Validate() error {
 		}
 	}
 
+	if err := w.validateTriggers(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (w *Config) validateTriggers() error {
+	seen := map[string]struct{}{}
 	for i := range w.Triggers {
 		trigger := &w.Triggers[i]
 		if trigger.Type != TriggerTypeSignal {
@@ -141,8 +150,16 @@ func (w *Config) Validate() error {
 		if trigger.Name == "" {
 			return fmt.Errorf("trigger name is required")
 		}
+		if _, dup := seen[trigger.Name]; dup {
+			return fmt.Errorf("duplicate trigger name: %s", trigger.Name)
+		}
+		seen[trigger.Name] = struct{}{}
+		if trigger.Schema != nil {
+			if _, err := trigger.Schema.Compile(); err != nil {
+				return fmt.Errorf("invalid trigger schema for %s: %w", trigger.Name, err)
+			}
+		}
 	}
-
 	return nil
 }
 

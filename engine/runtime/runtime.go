@@ -443,48 +443,44 @@ func isValidToolID(toolID string) bool {
 type safeLogger struct{}
 
 func (s *safeLogger) Debug(msg string, keyvals ...any) {
-	if log := logger.GetDefault(); log != nil {
-		// Test if logger is functional by using a recover block
-		defer func() {
-			if recover() != nil {
-				return // Panic occurred, ignore it
-			}
-		}()
-		log.Debug(msg, keyvals...)
-	}
+	log := logger.GetDefault()
+	// Test if logger is functional by using a recover block
+	defer func() {
+		if recover() != nil {
+			return // Panic occurred, ignore it
+		}
+	}()
+	log.Debug(msg, keyvals...)
 }
 
 func (s *safeLogger) Info(msg string, keyvals ...any) {
-	if log := logger.GetDefault(); log != nil {
-		defer func() {
-			if recover() != nil {
-				return // Panic occurred, ignore it
-			}
-		}()
-		log.Info(msg, keyvals...)
-	}
+	log := logger.GetDefault()
+	defer func() {
+		if recover() != nil {
+			return // Panic occurred, ignore it
+		}
+	}()
+	log.Info(msg, keyvals...)
 }
 
 func (s *safeLogger) Warn(msg string, keyvals ...any) {
-	if log := logger.GetDefault(); log != nil {
-		defer func() {
-			if recover() != nil {
-				return // Panic occurred, ignore it
-			}
-		}()
-		log.Warn(msg, keyvals...)
-	}
+	log := logger.GetDefault()
+	defer func() {
+		if recover() != nil {
+			return // Panic occurred, ignore it
+		}
+	}()
+	log.Warn(msg, keyvals...)
 }
 
 func (s *safeLogger) Error(msg string, keyvals ...any) {
-	if log := logger.GetDefault(); log != nil {
-		defer func() {
-			if recover() != nil {
-				return // Panic occurred, ignore it
-			}
-		}()
-		log.Error(msg, keyvals...)
-	}
+	log := logger.GetDefault()
+	defer func() {
+		if recover() != nil {
+			return // Panic occurred, ignore it
+		}
+	}()
+	log.Error(msg, keyvals...)
 }
 
 // getSafeLogger returns a safe logger that won't panic

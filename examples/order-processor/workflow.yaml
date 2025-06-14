@@ -2,76 +2,81 @@ id: order-processor
 version: "1.0.0"
 description: "Event-driven order processing workflow triggered by order creation events"
 
+# Reusable schemas
+schemas:
+  - id: order_schema
+    type: object
+    properties:
+      orderId:
+        type: string
+        description: "Unique order identifier"
+      customerId:
+        type: string
+        description: "Customer identifier"
+      customerEmail:
+        type: string
+        format: email
+        description: "Customer email for notifications"
+      items:
+        type: array
+        description: "Items in the order"
+        items:
+          type: object
+          properties:
+            productId:
+              type: string
+            name:
+              type: string
+            quantity:
+              type: integer
+              minimum: 1
+            price:
+              type: number
+              minimum: 0
+          required:
+            - productId
+            - name
+            - quantity
+            - price
+      totalAmount:
+        type: number
+        minimum: 0
+        description: "Total order amount"
+      shippingAddress:
+        type: object
+        properties:
+          street:
+            type: string
+          city:
+            type: string
+          zipCode:
+            type: string
+          country:
+            type: string
+        required:
+          - street
+          - city
+          - zipCode
+          - country
+    required:
+      - orderId
+      - customerId
+      - customerEmail
+      - items
+      - totalAmount
+      - shippingAddress
+
 # Configure signal trigger to respond to order events
 triggers:
   - type: signal
     name: "order.created"
     schema:
-      type: object
-      properties:
-        orderId:
-          type: string
-          description: "Unique order identifier"
-        customerId:
-          type: string
-          description: "Customer identifier"
-        customerEmail:
-          type: string
-          format: email
-          description: "Customer email for notifications"
-        items:
-          type: array
-          description: "Items in the order"
-          items:
-            type: object
-            properties:
-              productId:
-                type: string
-              name:
-                type: string
-              quantity:
-                type: integer
-                minimum: 1
-              price:
-                type: number
-                minimum: 0
-            required:
-              - productId
-              - name
-              - quantity
-              - price
-        totalAmount:
-          type: number
-          minimum: 0
-          description: "Total order amount"
-        shippingAddress:
-          type: object
-          properties:
-            street:
-              type: string
-            city:
-              type: string
-            zipCode:
-              type: string
-            country:
-              type: string
-          required:
-            - street
-            - city
-            - zipCode
-            - country
-      required:
-        - orderId
-        - customerId
-        - customerEmail
-        - items
-        - totalAmount
-        - shippingAddress
+      $ref: local::schemas.#(id=="order_schema")
 
 # Workflow input matches the event payload structure
 config:
   input:
-    $ref: "#/triggers/0/schema"
+    $ref: local::schemas.#(id=="order_schema")
 
 # Tools for external integrations
 tools:
@@ -93,7 +98,7 @@ tools:
         customerId:
           type: string
         amount:
-          type: number
+          type: string
 
   - id: shipping_calculator
     description: "Calculate shipping costs and delivery estimates"
@@ -125,7 +130,7 @@ tools:
 agents:
   - id: order_validator
     config:
-      $ref: global::models.#(id=="gpt-4o")
+      $ref: global::models.#(provider=="groq")
     instructions: |
       You are an order validation specialist. Your role is to:
       1. Review order details for completeness and accuracy
@@ -134,10 +139,20 @@ agents:
       4. Check for fraud indicators
 
       Always respond with clear validation results and any concerns.
+    actions:
+      - id: default
+        prompt: "{{ .input.task }}"
+        input:
+          type: object
+          properties:
+            task:
+              type: string
+        output:
+          type: string
 
   - id: customer_service
     config:
-      $ref: global::models.#(id=="gpt-4o")
+      $ref: global::models.#(provider=="groq")
     instructions: |
       You are a customer service agent specializing in order communications.
       You craft professional, friendly email content for order updates.
@@ -147,6 +162,16 @@ agents:
       - Clear next steps for the customer
       - Contact information for support
       - Estimated timelines when available
+    actions:
+      - id: default
+        prompt: "{{ .input.task }}"
+        input:
+          type: object
+          properties:
+            task:
+              type: string
+        output:
+          type: string
 
 # Workflow tasks
 tasks:
@@ -158,26 +183,26 @@ tasks:
       task: |
         Validate this order for any issues:
 
-        Order ID: {{ .input.orderId }}
-        Customer: {{ .input.customerId }}
-        Email: {{ .input.customerEmail }}
-        Total Amount: ${{ .input.totalAmount }}
-        Item Count: {{ len .input.items }}
+        Order ID: {{ .workflow.input.orderId }}
+        Customer: {{ .workflow.input.customerId }}
+        Email: {{ .workflow.input.customerEmail }}
+        Total Amount: ${{ .workflow.input.totalAmount }}
+        Item Count: {{ len .workflow.input.items }}
 
         Items:
-        {{- range .input.items }}
+        {{ range .workflow.input.items }}
         - {{ .name }}: {{ .quantity }} x ${{ .price }}
-        {{- end }}
+        {{ end }}
 
         Shipping Address:
-        {{ .input.shippingAddress.street }}
-        {{ .input.shippingAddress.city }}, {{ .input.shippingAddress.zipCode }}
-        {{ .input.shippingAddress.country }}
+        {{ .workflow.input.shippingAddress.street }}
+        {{ .workflow.input.shippingAddress.city }}, {{ .workflow.input.shippingAddress.zipCode }}
+        {{ .workflow.input.shippingAddress.country }}
 
         Please validate this order and report any concerns.
     outputs:
       validation_result: "{{ .output }}"
-      order_id: "{{ .input.orderId }}"
+      order_id: "{{ .workflow.input.orderId }}"
     on_success:
       next: check_inventory
     on_error:
@@ -187,7 +212,7 @@ tasks:
     type: basic
     $use: tool(local::tools.#(id=="inventory_checker"))
     with:
-      items: "{{ .input.items }}"
+      items: "{{ .workflow.input.items }}"
     outputs:
       inventory_status: "{{ .output }}"
       items_available: "{{ .output.available }}"
@@ -200,41 +225,23 @@ tasks:
     type: basic
     $use: tool(local::tools.#(id=="shipping_calculator"))
     with:
-      items: "{{ .input.items }}"
-      address: "{{ .input.shippingAddress }}"
+      items: "{{ .workflow.input.items }}"
+      address: "{{ .workflow.input.shippingAddress }}"
     outputs:
       shipping_cost: "{{ .output.cost }}"
       estimated_delivery: "{{ .output.estimatedDelivery }}"
       shipping_method: "{{ .output.method }}"
     on_success:
-      next: calculate_total
-    on_error:
-      next: send_shipping_error
-
-  - id: calculate_total
-    type: basic
-    $use: agent(local::agents.#(id=="order_validator"))
-    action: default
-    with:
-      task: |
-        Calculate the total amount for this order:
-        Subtotal: ${{ .input.totalAmount }}
-        Shipping: ${{ .tasks.calculate_shipping.output.shipping_cost }}
-
-        Return just the total amount as a number.
-    outputs:
-      grand_total: "{{ .output }}"
-    on_success:
       next: process_payment
     on_error:
-      next: send_payment_error
+      next: send_shipping_error
 
   - id: process_payment
     type: basic
     $use: tool(local::tools.#(id=="payment_processor"))
     with:
-      customerId: "{{ .input.customerId }}"
-      amount: "{{ .tasks.calculate_total.output.grand_total }}"
+      customerId: "{{ .workflow.input.customerId }}"
+      amount: "{{ add (.workflow.input.totalAmount) (.tasks.calculate_shipping.output.shipping_cost) }}"
     outputs:
       payment_status: "{{ .output.status }}"
       transaction_id: "{{ .output.transactionId }}"
@@ -253,10 +260,10 @@ tasks:
         Create an order confirmation summary for this successfully processed order:
 
         Order Details:
-        - Order ID: {{ .input.orderId }}
-        - Customer: {{ .input.customerEmail }}
-        - Items: {{ len .input.items }} items
-        - Subtotal: ${{ .input.totalAmount }}
+        - Order ID: {{ .workflow.input.orderId }}
+        - Customer: {{ .workflow.input.customerEmail }}
+        - Items: {{ len .workflow.input.items }} items
+        - Subtotal: ${{ .workflow.input.totalAmount }}
         - Shipping: ${{ .tasks.calculate_shipping.output.shipping_cost }}
         - Total Charged: ${{ .tasks.process_payment.output.total_charged }}
         - Payment Status: {{ .tasks.process_payment.output.payment_status }}
@@ -274,14 +281,14 @@ tasks:
     type: basic
     $use: tool(local::tools.#(id=="email_sender"))
     with:
-      recipient: "{{ .input.customerEmail }}"
-      subject: "Order Confirmation - {{ .input.orderId }}"
+      recipient: "{{ .workflow.input.customerEmail }}"
+      subject: "Order Confirmation - {{ .workflow.input.orderId }}"
       template: "order_confirmation"
       data:
-        order_id: "{{ .input.orderId }}"
-        customer_email: "{{ .input.customerEmail }}"
-        items: "{{ .input.items }}"
-        subtotal: "{{ .input.totalAmount }}"
+        order_id: "{{ .workflow.input.orderId }}"
+        customer_email: "{{ .workflow.input.customerEmail }}"
+        items: "{{ .workflow.input.items }}"
+        subtotal: "{{ .workflow.input.totalAmount }}"
         shipping_cost: "{{ .tasks.calculate_shipping.output.shipping_cost }}"
         total: "{{ .tasks.process_payment.output.total_charged }}"
         estimated_delivery: "{{ .tasks.calculate_shipping.output.estimated_delivery }}"
@@ -293,11 +300,11 @@ tasks:
     type: basic
     $use: tool(local::tools.#(id=="email_sender"))
     with:
-      recipient: "{{ .input.customerEmail }}"
-      subject: "Order Processing Issue - {{ .input.orderId }}"
+      recipient: "{{ .workflow.input.customerEmail }}"
+      subject: "Order Processing Issue - {{ .workflow.input.orderId }}"
       template: "validation_error"
       data:
-        order_id: "{{ .input.orderId }}"
+        order_id: "{{ .workflow.input.orderId }}"
         error_details: "{{ .error }}"
     final: true
 
@@ -305,12 +312,12 @@ tasks:
     type: basic
     $use: tool(local::tools.#(id=="email_sender"))
     with:
-      recipient: "{{ .input.customerEmail }}"
-      subject: "Inventory Issue - {{ .input.orderId }}"
+      recipient: "{{ .workflow.input.customerEmail }}"
+      subject: "Inventory Issue - {{ .workflow.input.orderId }}"
       template: "inventory_error"
       data:
-        order_id: "{{ .input.orderId }}"
-        items: "{{ .input.items }}"
+        order_id: "{{ .workflow.input.orderId }}"
+        items: "{{ .workflow.input.items }}"
         inventory_status: "{{ .tasks.check_inventory.output.inventory_status }}"
     final: true
 
@@ -318,12 +325,12 @@ tasks:
     type: basic
     $use: tool(local::tools.#(id=="email_sender"))
     with:
-      recipient: "{{ .input.customerEmail }}"
-      subject: "Shipping Calculation Error - {{ .input.orderId }}"
+      recipient: "{{ .workflow.input.customerEmail }}"
+      subject: "Shipping Calculation Error - {{ .workflow.input.orderId }}"
       template: "shipping_error"
       data:
-        order_id: "{{ .input.orderId }}"
-        shipping_address: "{{ .input.shippingAddress }}"
+        order_id: "{{ .workflow.input.orderId }}"
+        shipping_address: "{{ .workflow.input.shippingAddress }}"
         error_details: "{{ .error }}"
     final: true
 
@@ -331,11 +338,11 @@ tasks:
     type: basic
     $use: tool(local::tools.#(id=="email_sender"))
     with:
-      recipient: "{{ .input.customerEmail }}"
-      subject: "Payment Processing Error - {{ .input.orderId }}"
+      recipient: "{{ .workflow.input.customerEmail }}"
+      subject: "Payment Processing Error - {{ .workflow.input.orderId }}"
       template: "payment_error"
       data:
-        order_id: "{{ .input.orderId }}"
-        amount: "{{ add .input.totalAmount .tasks.calculate_shipping.output.shipping_cost }}"
+        order_id: "{{ .workflow.input.orderId }}"
+        amount: "{{ add .workflow.input.totalAmount .tasks.calculate_shipping.output.shipping_cost }}"
         error_details: "{{ .error }}"
     final: true

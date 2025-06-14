@@ -4,10 +4,7 @@ import "github.com/gin-gonic/gin"
 
 func Register(apiBase *gin.RouterGroup) {
 	// Event routes (v1)
-	v1 := apiBase.Group("/v1")
-	{
-		v1.POST("/events", AuthMiddleware(), RequirePermission("events:write"), handleEvent)
-	}
+	apiBase.POST("/events", handleEvent)
 	// Workflow definition routes
 	workflowsGroup := apiBase.Group("/workflows")
 	{

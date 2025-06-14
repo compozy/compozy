@@ -301,7 +301,7 @@ func Register(e *gin.Engine, state *server.AppState) {
     // ... existing routes ...
 
     // Event routes
-    v1 := api.Group("/v1")
+    v1 := api.Group("/v0")
     v1.POST("/events", middleware.Auth(), handleEvent)
 }
 ```
