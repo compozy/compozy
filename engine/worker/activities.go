@@ -242,3 +242,31 @@ func (a *Activities) ExecuteAggregateTask(
 	)
 	return act.Run(ctx, input)
 }
+
+func (a *Activities) CreateCompositeState(
+	ctx context.Context,
+	input *tkfacts.CreateCompositeStateInput,
+) (*task.State, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewCreateCompositeState(
+		a.workflows,
+		a.workflowRepo,
+		a.taskRepo,
+		a.configStore,
+		a.projectConfig.CWD,
+	)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) GetCompositeResponse(
+	ctx context.Context,
+	input *tkfacts.GetCompositeResponseInput,
+) (*task.MainTaskResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewGetCompositeResponse(a.workflowRepo, a.taskRepo, a.configStore)
+	return act.Run(ctx, input)
+}

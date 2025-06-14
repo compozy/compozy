@@ -106,8 +106,8 @@ func (b *WorkerTestBuilder) WithWorkflowTimeout(timeout time.Duration) *WorkerTe
 }
 
 // WithBasicTask adds a basic task execution test scenario
-func (b *WorkerTestBuilder) WithBasicTask(taskID, actionID, actionPrompt string) *WorkerTestBuilder {
-	b.WithSimpleTask(taskID, actionID, actionPrompt)
+func (b *WorkerTestBuilder) WithBasicTask(_, _, _ string) *WorkerTestBuilder {
+	// Just record the execution type - actual task configuration is handled by TestConfigBuilder
 	b.executionTypes = append(b.executionTypes, task.ExecutionBasic)
 	return b
 }

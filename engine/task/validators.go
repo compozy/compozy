@@ -46,7 +46,8 @@ func (v *CycleValidator) detectCycle(config *Config, visited map[string]bool, vi
 	visiting[taskID] = true
 
 	// Check parallel task dependencies
-	if config.Type == TaskTypeParallel {
+	switch config.Type {
+	case TaskTypeParallel:
 		for i := range config.Tasks {
 			if err := v.detectCycle(&config.Tasks[i], visited, visiting); err != nil {
 				return err
@@ -56,6 +57,12 @@ func (v *CycleValidator) detectCycle(config *Config, visited map[string]bool, vi
 		// Check task reference if present
 		if config.Task != nil {
 			if err := v.detectCycle(config.Task, visited, visiting); err != nil {
+				return err
+			}
+		}
+	case TaskTypeComposite:
+		for i := range config.Tasks {
+			if err := v.detectCycle(&config.Tasks[i], visited, visiting); err != nil {
 				return err
 			}
 		}
@@ -106,6 +113,11 @@ func (v *TypeValidator) Validate() error {
 		return v.validateCollectionTask()
 	case TaskTypeAggregate:
 		return v.validateAggregateTask()
+	case TaskTypeComposite:
+		if err := v.validateExecutorFields(); err != nil {
+			return err
+		}
+		return v.validateCompositeTask()
 	default:
 		return fmt.Errorf("invalid task type: %s", v.config.Type)
 	}
@@ -280,6 +292,49 @@ func (v *TypeValidator) validateAggregateTask() error {
 	}
 	if v.config.With != nil && len(*v.config.With) > 0 {
 		return fmt.Errorf("aggregate tasks cannot have a with field")
+	}
+	return nil
+}
+
+func (v *TypeValidator) validateCompositeTask() error {
+	if len(v.config.Tasks) == 0 {
+		return fmt.Errorf("composite tasks must have at least one sub-task")
+	}
+	// Check for duplicate IDs
+	seen := make(map[string]bool)
+	for i := range v.config.Tasks {
+		task := &v.config.Tasks[i]
+		if seen[task.ID] {
+			return fmt.Errorf("duplicate task ID in composite execution: %s", task.ID)
+		}
+		seen[task.ID] = true
+	}
+	// Validate each individual task
+	for i := range v.config.Tasks {
+		task := &v.config.Tasks[i]
+		if err := v.validateCompositeTaskItem(task); err != nil {
+			return fmt.Errorf("invalid composite task item %s: %w", task.ID, err)
+		}
+	}
+	// Validate strategy
+	strategy := v.config.GetStrategy()
+	if strategy != "" && strategy != StrategyFailFast && strategy != StrategyBestEffort {
+		return fmt.Errorf("invalid composite strategy: %s", strategy)
+	}
+	return nil
+}
+
+func (v *TypeValidator) validateCompositeTaskItem(item *Config) error {
+	if item.ID == "" {
+		return fmt.Errorf("task item ID is required")
+	}
+	// For MVP, only basic tasks are supported as subtasks
+	if item.Type != "" && item.Type != TaskTypeBasic {
+		return fmt.Errorf("composite subtasks must be of type 'basic' in current implementation")
+	}
+	// Each task in composite execution should be a valid task configuration
+	if err := item.Validate(); err != nil {
+		return fmt.Errorf("invalid task configuration: %w", err)
 	}
 	return nil
 }

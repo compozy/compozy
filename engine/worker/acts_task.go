@@ -3,6 +3,7 @@ package worker
 import (
 	"fmt"
 	"math"
+	"sort"
 	"sync/atomic"
 
 	"go.temporal.io/sdk/workflow"
@@ -87,6 +88,9 @@ func (e *TaskExecutor) HandleExecution(ctx workflow.Context, taskConfig *task.Co
 		response, err = executeFn(ctx)
 	case task.TaskTypeAggregate:
 		executeFn := e.ExecuteAggregateTask(taskConfig)
+		response, err = executeFn(ctx)
+	case task.TaskTypeComposite:
+		executeFn := e.HandleCompositeTask(taskConfig)
 		response, err = executeFn(ctx)
 	default:
 		return nil, fmt.Errorf("unsupported execution type: %s", taskType)
@@ -553,4 +557,97 @@ func (e *TaskExecutor) handleCollectionSequential(
 		"failed", failedCount,
 		"total", len(childStates))
 	return nil
+}
+
+func (e *TaskExecutor) HandleCompositeTask(config *task.Config) func(ctx workflow.Context) (task.Response, error) {
+	return func(ctx workflow.Context) (task.Response, error) {
+		logger := workflow.GetLogger(ctx)
+		// Create parent state for composite task
+		compositeState, err := e.CreateCompositeState(ctx, config)
+		if err != nil {
+			return nil, err
+		}
+		// Get child states that were created by CreateCompositeState
+		childStates, err := e.ListChildStates(ctx, compositeState.TaskExecID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list child states: %w", err)
+		}
+		// Sort child states by task ID to ensure deterministic ordering
+		// This matches the order defined in config.ParallelTask.Tasks
+		sort.Slice(childStates, func(i, j int) bool {
+			// Find index of each task in the config
+			iIdx := findTaskIndex(config.Tasks, childStates[i].TaskID)
+			jIdx := findTaskIndex(config.Tasks, childStates[j].TaskID)
+			return iIdx < jIdx
+		})
+		// Execute subtasks sequentially
+		strategy := config.GetStrategy()
+		for i, childState := range childStates {
+			// Execute subtask
+			_, err := e.ExecuteSubtask(ctx, compositeState, childState.TaskExecID.String())
+			if err != nil {
+				logger.Error("Subtask failed",
+					"composite_task", config.ID,
+					"subtask", childState.TaskID,
+					"index", i,
+					"error", err)
+				if strategy == task.StrategyFailFast {
+					return nil, fmt.Errorf("subtask %s failed: %w", childState.TaskID, err)
+				}
+				// Best effort: continue to next task
+				continue
+			}
+			logger.Info("Subtask completed",
+				"composite_task", config.ID,
+				"subtask", childState.TaskID,
+				"index", i)
+		}
+		// Generate final response using standard parent task processing
+		return e.GetCompositeResponse(ctx, compositeState)
+	}
+}
+
+func (e *TaskExecutor) CreateCompositeState(
+	ctx workflow.Context,
+	config *task.Config,
+) (*task.State, error) {
+	var state *task.State
+	actLabel := tkacts.CreateCompositeStateLabel
+	actInput := tkacts.CreateCompositeStateInput{
+		WorkflowID:     e.WorkflowID,
+		WorkflowExecID: e.WorkflowExecID,
+		TaskConfig:     config,
+	}
+	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &state)
+	if err != nil {
+		return nil, err
+	}
+	return state, nil
+}
+
+func (e *TaskExecutor) GetCompositeResponse(
+	ctx workflow.Context,
+	compositeState *task.State,
+) (task.Response, error) {
+	var response *task.MainTaskResponse
+	actLabel := tkacts.GetCompositeResponseLabel
+	actInput := tkacts.GetCompositeResponseInput{
+		ParentState:    compositeState,
+		WorkflowConfig: e.WorkflowConfig,
+	}
+	err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &response)
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+// findTaskIndex finds the index of a task ID in the task config slice
+func findTaskIndex(tasks []task.Config, taskID string) int {
+	for i := range tasks {
+		if tasks[i].ID == taskID {
+			return i
+		}
+	}
+	return -1 // Not found, will sort to the end
 }
