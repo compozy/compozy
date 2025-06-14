@@ -1,0 +1,718 @@
+# Product Requirements Document: COM-25 - File Upload and Embeddings System
+
+## Executive Summary
+
+This PRD outlines the design and implementation of a comprehensive file upload and embeddings system for Compozy, a workflow orchestration engine for AI agents. The system will enable users to upload files (single or directories), generate embeddings using multiple providers, store them in PostgreSQL with pgvector, and integrate seamlessly with existing workflows.
+
+## Problem Statement
+
+Currently, Compozy lacks the ability to:
+- Handle file uploads and process various document formats
+- Generate and store embeddings for semantic search and RAG workflows
+- Support multiple embedding providers with flexible configuration
+- Enable vector-based similarity search within workflows
+
+## Goals and Objectives
+
+1. **File Upload Support**: Enable upload of single files, directories, and various formats (PDF, DOCX, TXT, images, etc.)
+2. **Multi-Provider Embeddings**: Support multiple embedding providers (OpenAI, Cohere, HuggingFace, Ollama, etc.)
+3. **Scalable Storage**: Use PostgreSQL with pgvector for efficient vector storage and similarity search
+4. **Workflow Integration**: Seamlessly integrate with existing task and workflow system
+5. **Production-Ready**: Handle large files, async processing, and provide monitoring capabilities
+
+## Technical Architecture
+
+### 1. System Components
+
+#### 1.1 Core Modules
+```
+engine/
+├── embedding/
+│   ├── config.go           # Configuration structures
+│   ├── service.go          # Core embedding service
+│   ├── provider.go         # Provider interface and factory
+│   ├── quota.go            # Rate limiting and quota management
+│   ├── chunker.go          # Document chunking strategies
+│   ├── dedup.go            # Deduplication service
+│   ├── store.go            # Vector storage interface
+│   ├── cost.go             # Cost tracking and reporting
+│   ├── router/
+│   │   └── router.go       # HTTP endpoints with OpenAPI annotations
+│   ├── uc/
+│   │   ├── upload.go       # Upload use case
+│   │   ├── embed.go        # Embedding generation use case
+│   │   ├── search.go       # Vector search use case
+│   │   ├── reembed.go      # Re-embedding workflow
+│   │   └── stats.go        # Usage statistics and monitoring
+│   ├── providers/
+│   │   ├── openai.go
+│   │   ├── cohere.go
+│   │   ├── huggingface.go
+│   │   ├── ollama.go
+│   │   └── mock.go         # Mock provider for testing
+│   └── validators/
+│       └── file_validator.go   # File type and size validation
+```
+
+#### 1.2 Database Schema
+```sql
+-- Enable required extensions
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Documents table
+CREATE TABLE documents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    filename VARCHAR(255) NOT NULL,
+    content_type VARCHAR(100),
+    size_bytes BIGINT,
+    storage_path TEXT NOT NULL,
+    storage_type VARCHAR(20) NOT NULL DEFAULT 's3', -- 's3', 'gcs', 'azure'
+    content_hash VARCHAR(64), -- SHA-256 for deduplication
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    INDEX idx_documents_tenant (tenant_id),
+    INDEX idx_documents_created (created_at),
+    INDEX idx_documents_metadata_gin USING GIN (metadata),
+    UNIQUE(tenant_id, content_hash) -- Prevent duplicate uploads per tenant
+);
+
+-- Document chunks table with multi-tenancy
+CREATE TABLE document_chunks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL, -- Critical for RLS
+    chunk_index INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    content_hash VARCHAR(64) NOT NULL, -- SHA-256 for chunk deduplication
+    token_count INTEGER,
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(document_id, chunk_index),
+    INDEX idx_chunks_tenant (tenant_id),
+    INDEX idx_chunks_hash (content_hash)
+);
+
+-- Dimension-specific embedding tables (critical for multi-provider support)
+-- Table for 1536-dimension embeddings (OpenAI)
+CREATE TABLE embeddings_1536 (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    chunk_id UUID NOT NULL REFERENCES document_chunks(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL, -- Critical for RLS
+    provider VARCHAR(50) NOT NULL,
+    model VARCHAR(100) NOT NULL,
+    model_version VARCHAR(50), -- For versioning
+    embedding vector(1536) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    INDEX idx_embeddings_1536_chunk (chunk_id),
+    INDEX idx_embeddings_1536_tenant (tenant_id),
+    INDEX idx_embeddings_1536_provider (provider, model),
+    UNIQUE(chunk_id, provider, model, model_version)
+);
+CREATE INDEX embeddings_1536_hnsw_idx ON embeddings_1536
+USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+
+-- Table for 768-dimension embeddings (Ollama/HuggingFace)
+CREATE TABLE embeddings_768 (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    chunk_id UUID NOT NULL REFERENCES document_chunks(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL,
+    provider VARCHAR(50) NOT NULL,
+    model VARCHAR(100) NOT NULL,
+    model_version VARCHAR(50),
+    embedding vector(768) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    INDEX idx_embeddings_768_chunk (chunk_id),
+    INDEX idx_embeddings_768_tenant (tenant_id),
+    INDEX idx_embeddings_768_provider (provider, model),
+    UNIQUE(chunk_id, provider, model, model_version)
+);
+CREATE INDEX embeddings_768_hnsw_idx ON embeddings_768
+USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+
+-- Table for 1024-dimension embeddings (Cohere)
+CREATE TABLE embeddings_1024 (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    chunk_id UUID NOT NULL REFERENCES document_chunks(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL,
+    provider VARCHAR(50) NOT NULL,
+    model VARCHAR(100) NOT NULL,
+    model_version VARCHAR(50),
+    embedding vector(1024) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    INDEX idx_embeddings_1024_chunk (chunk_id),
+    INDEX idx_embeddings_1024_tenant (tenant_id),
+    INDEX idx_embeddings_1024_provider (provider, model),
+    UNIQUE(chunk_id, provider, model, model_version)
+);
+CREATE INDEX embeddings_1024_hnsw_idx ON embeddings_1024
+USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+
+-- Embedding metadata table (tracks all embeddings across dimensions)
+CREATE TABLE embedding_metadata (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    chunk_id UUID NOT NULL REFERENCES document_chunks(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL,
+    provider VARCHAR(50) NOT NULL,
+    model VARCHAR(100) NOT NULL,
+    model_version VARCHAR(50),
+    dimension INTEGER NOT NULL,
+    table_name VARCHAR(50) NOT NULL, -- Which embedding table contains this
+    embedding_id UUID NOT NULL, -- ID in the specific embedding table
+    cost_tokens INTEGER, -- Track token usage for cost
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    INDEX idx_embedding_meta_chunk (chunk_id),
+    INDEX idx_embedding_meta_tenant (tenant_id),
+    INDEX idx_embedding_meta_lookup (provider, model, dimension)
+);
+
+-- Embedding jobs tracking (minimal, Temporal is source of truth)
+CREATE TABLE embedding_jobs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID NOT NULL REFERENCES documents(id),
+    tenant_id UUID NOT NULL,
+    temporal_workflow_id VARCHAR(255) UNIQUE, -- Link to Temporal
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    provider VARCHAR(50),
+    error_message TEXT,
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    INDEX idx_jobs_status (status),
+    INDEX idx_jobs_tenant (tenant_id),
+    INDEX idx_jobs_document (document_id)
+);
+
+-- Cost tracking table
+CREATE TABLE embedding_costs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    provider VARCHAR(50) NOT NULL,
+    model VARCHAR(100) NOT NULL,
+    date DATE NOT NULL,
+    token_count BIGINT NOT NULL DEFAULT 0,
+    request_count INTEGER NOT NULL DEFAULT 0,
+    estimated_cost DECIMAL(10, 4),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, provider, model, date)
+);
+
+-- Row Level Security Policies
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE document_chunks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE embeddings_1536 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE embeddings_768 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE embeddings_1024 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE embedding_metadata ENABLE ROW LEVEL SECURITY;
+ALTER TABLE embedding_jobs ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policies (example for documents table)
+CREATE POLICY tenant_isolation_documents ON documents
+    FOR ALL USING (tenant_id = current_setting('app.current_tenant')::UUID);
+
+-- Similar policies needed for all tables with tenant_id
+```
+
+### 2. API Design
+
+#### 2.1 REST Endpoints
+```
+# Document Management
+POST   /api/v1/embeddings/upload         # Upload file(s)
+POST   /api/v1/embeddings/upload/url     # Generate presigned upload URL
+GET    /api/v1/embeddings/documents      # List documents (paginated)
+GET    /api/v1/embeddings/documents/{id} # Get document details + job status
+DELETE /api/v1/embeddings/documents/{id} # Delete document and embeddings
+POST   /api/v1/embeddings/documents/{id}/re-embed # Re-embed with new model
+
+# Search and Retrieval
+POST   /api/v1/embeddings/search         # Vector similarity search
+
+# Provider and Configuration
+GET    /api/v1/embeddings/providers      # List available providers
+GET    /api/v1/embeddings/providers/{name}/models # List models for provider
+
+# Job Management
+GET    /api/v1/embeddings/jobs/{id}      # Get job details
+DELETE /api/v1/embeddings/jobs/{id}      # Cancel job
+
+# Monitoring
+GET    /api/v1/embeddings/stats          # Usage statistics
+GET    /api/v1/embeddings/costs          # Cost breakdown by provider
+```
+
+#### 2.2 Upload Flow
+```yaml
+# Multipart upload request
+POST /api/v1/embeddings/upload
+Content-Type: multipart/form-data
+
+file: [binary data]
+metadata: {
+  "project_id": "uuid",
+  "tags": ["invoice", "2024"],
+  "chunking_strategy": "recursive",
+  "chunk_size": 1000,
+  "chunk_overlap": 200,
+  "provider": "openai",
+  "model": "text-embedding-3-small"
+}
+
+# Response
+{
+  "data": {
+    "document_id": "uuid",
+    "job_id": "uuid",
+    "status": "processing"
+  }
+}
+```
+
+#### 2.3 Search API
+```yaml
+POST /api/v1/embeddings/search
+{
+  "query": "What are the payment terms?",
+  "provider": "openai",  # Required: must match stored embeddings
+  "model": "text-embedding-3-small",  # Required: must match stored embeddings
+  "limit": 10,
+  "offset": 0,  # For pagination
+  "filters": {
+    "project_id": "uuid",
+    "tags": ["invoice"]
+  },
+  "threshold": 0.7
+}
+
+# Response
+{
+  "data": {
+    "results": [{
+      "chunk_id": "uuid",
+      "document_id": "uuid",
+      "content": "Payment terms are...",
+      "similarity": 0.89,
+      "metadata": {
+        "filename": "invoice-2024.pdf",
+        "page_number": 3
+      }
+    }],
+    "total_count": 42,
+    "next_offset": 10
+  }
+}
+```
+
+### 3. Provider Integration
+
+#### 3.1 Provider Interface
+```go
+type EmbeddingProvider interface {
+    Name() string
+    GetDimension(model string) int
+    GetMaxBatchSize() int
+    GetRateLimit() RateLimit // RPM, TPM limits
+    EstimateCost(tokenCount int) float64
+    Embed(ctx context.Context, texts []string, model string) ([][]float32, error)
+    ValidateConfig(config map[string]any) error
+}
+
+type RateLimit struct {
+    RequestsPerMinute int
+    TokensPerMinute   int
+}
+
+type ProviderRegistry struct {
+    providers    map[string]EmbeddingProvider
+    quotaManager *QuotaManager // Centralized rate limiting
+    mu           sync.RWMutex
+}
+
+// Quota manager for rate limiting across all providers
+type QuotaManager struct {
+    limiters map[string]*rate.Limiter // key: tenant_id:provider
+    mu       sync.RWMutex
+}
+
+// Provider selection policy
+type ProviderSelector interface {
+    SelectProvider(ctx context.Context, tenant string, texts []string) (EmbeddingProvider, error)
+}
+
+type CostAwareSelector struct {
+    registry     *ProviderRegistry
+    costLimit    float64
+    fallbackList []string // Ordered list of providers
+}
+```
+
+#### 3.2 Configuration in compozy.yaml
+```yaml
+name: my-project
+version: 0.1.0
+embeddings:
+  default_provider: openai
+  providers:
+    - name: openai
+      api_key: "{{ .env.OPENAI_API_KEY }}"
+      model: text-embedding-3-small
+      dimension: 1536
+      rate_limit: 3000  # RPM
+    - name: ollama
+      base_url: http://localhost:11434
+      model: nomic-embed-text
+      dimension: 768
+    - name: cohere
+      api_key: "{{ .env.COHERE_API_KEY }}"
+      model: embed-english-v3.0
+      dimension: 1024
+  storage:
+    max_file_size: 100MB
+    allowed_types: [pdf, docx, txt, md, csv, json, jpg, png]
+    chunk_strategies:
+      - name: recursive
+        chunk_size: 1000
+        chunk_overlap: 200
+      - name: semantic
+        min_chunk_size: 500
+        max_chunk_size: 2000
+```
+
+### 4. Processing Pipeline
+
+#### 4.1 Async Processing with Temporal
+```go
+// Workflow definition with streaming and deduplication
+type EmbeddingWorkflow struct{}
+
+func (w *EmbeddingWorkflow) Execute(ctx workflow.Context, params EmbeddingParams) error {
+    // 1. Validate and prepare
+    var validationResult ValidationResult
+    err := workflow.ExecuteActivity(ctx, ValidateDocumentActivity, params).Get(ctx, &validationResult)
+    if err != nil {
+        return err
+    }
+
+    // 2. Extract text with streaming (returns chunk IDs, not content)
+    var chunkResult ChunkingResult
+    err = workflow.ExecuteActivity(ctx, ExtractAndChunkActivity, params).Get(ctx, &chunkResult)
+    if err != nil {
+        return err
+    }
+
+    // 3. Deduplicate chunks
+    var dedupResult DeduplicationResult
+    err = workflow.ExecuteActivity(ctx, DeduplicateChunksActivity, chunkResult).Get(ctx, &dedupResult)
+
+    // 4. Process unique chunks in parallel batches
+    var futures []workflow.Future
+    batchSize := 50 // Smaller batches to avoid OOM
+
+    for i := 0; i < len(dedupResult.UniqueChunkIDs); i += batchSize {
+        end := min(i+batchSize, len(dedupResult.UniqueChunkIDs))
+        batchIDs := dedupResult.UniqueChunkIDs[i:end]
+
+        // Each activity fetches chunks by ID, generates embeddings, and stores
+        activityOptions := workflow.ActivityOptions{
+            StartToCloseTimeout: 5 * time.Minute,
+            RetryPolicy: &temporal.RetryPolicy{
+                InitialInterval: 1 * time.Second,
+                BackoffCoefficient: 2.0,
+                MaximumAttempts: 3,
+            },
+        }
+        ctx := workflow.WithActivityOptions(ctx, activityOptions)
+
+        future := workflow.ExecuteActivity(ctx, ProcessChunkBatchActivity, ProcessBatchParams{
+            ChunkIDs: batchIDs,
+            Provider: params.Provider,
+            Model:    params.Model,
+            TenantID: params.TenantID,
+        })
+        futures = append(futures, future)
+    }
+
+    // 5. Wait for all batches with error handling
+    var errors []error
+    for _, future := range futures {
+        var result ProcessBatchResult
+        if err := future.Get(ctx, &result); err != nil {
+            errors = append(errors, err)
+        }
+    }
+
+    // 6. Update job status
+    status := "completed"
+    if len(errors) > 0 {
+        status = "partial_failure"
+    }
+
+    err = workflow.ExecuteActivity(ctx, UpdateJobStatusActivity, UpdateJobParams{
+        JobID:  params.JobID,
+        Status: status,
+        Errors: errors,
+    }).Get(ctx, nil)
+
+    return nil
+}
+
+// Activity that processes a batch of chunks
+func ProcessChunkBatchActivity(ctx context.Context, params ProcessBatchParams) (ProcessBatchResult, error) {
+    // 1. Fetch chunk content from DB
+    chunks, err := db.GetChunksByIDs(ctx, params.ChunkIDs)
+    if err != nil {
+        return ProcessBatchResult{}, err
+    }
+
+    // 2. Apply rate limiting
+    quotaManager.WaitForQuota(ctx, params.TenantID, params.Provider, len(chunks))
+
+    // 3. Generate embeddings
+    provider := registry.GetProvider(params.Provider)
+    embeddings, err := provider.Embed(ctx, chunks.GetTexts(), params.Model)
+    if err != nil {
+        return ProcessBatchResult{}, err
+    }
+
+    // 4. Store embeddings in appropriate table based on dimension
+    dimension := provider.GetDimension(params.Model)
+    tableName := fmt.Sprintf("embeddings_%d", dimension)
+
+    err = db.BulkInsertEmbeddings(ctx, tableName, chunks, embeddings, params)
+    if err != nil {
+        return ProcessBatchResult{}, err
+    }
+
+    // 5. Track costs
+    tokenCount := calculateTokens(chunks)
+    cost := provider.EstimateCost(tokenCount)
+    err = db.UpdateCosts(ctx, params.TenantID, params.Provider, params.Model, tokenCount, cost)
+
+    return ProcessBatchResult{
+        ProcessedCount: len(chunks),
+        TokensUsed:     tokenCount,
+        Cost:           cost,
+    }, nil
+}
+```
+
+#### 4.2 File Processing Pipeline
+1. **Upload Handler**: Receives file, validates, stores to S3/local storage
+2. **Job Creation**: Creates embedding job record, triggers Temporal workflow
+3. **Text Extraction**: Uses appropriate extractor based on file type
+4. **Chunking**: Applies selected chunking strategy
+5. **Embedding Generation**: Batched processing with rate limiting
+6. **Storage**: Bulk insert embeddings to PostgreSQL
+7. **Notification**: Updates job status, optionally notifies via webhook
+
+### 5. Integration with Workflows
+
+#### 5.1 New Task Types
+```yaml
+# In workflow.yaml
+tasks:
+  - id: upload_documents
+    type: embedding.upload
+    config:
+      source: "./documents/*.pdf"
+      provider: openai
+      chunking_strategy: recursive
+
+  - id: search_knowledge
+    type: embedding.search
+    config:
+      query: "{{ .input.question }}"
+      limit: 5
+      threshold: 0.7
+
+  - id: process_with_context
+    type: agent.task
+    config:
+      agent: $ref:agents.assistant
+      prompt: |
+        Based on these documents:
+        {{ range .tasks.search_knowledge.output.results }}
+        - {{ .content }}
+        {{ end }}
+
+        Answer: {{ .input.question }}
+```
+
+#### 5.2 Tool Integration
+```typescript
+// New tool for semantic search
+export interface SearchInput {
+  query: string;
+  filters?: Record<string, any>;
+  limit?: number;
+}
+
+export async function search(input: SearchInput): Promise<SearchResult[]> {
+  const response = await fetch(`${API_URL}/embeddings/search`, {
+    method: 'POST',
+    body: JSON.stringify(input)
+  });
+  return response.json();
+}
+```
+
+### 6. Security and Performance
+
+#### 6.1 Security Measures
+- **Multi-tenancy**: Row-level security with tenant_id
+- **File Validation**: Content-type and size verification
+- **Access Control**: JWT-based authentication, project-level permissions
+- **Rate Limiting**: Per-tenant, per-provider limits
+
+#### 6.2 Performance Optimizations
+- **Batch Processing**: Process embeddings in configurable batches
+- **Caching**: Redis cache for frequently accessed embeddings
+- **Index Optimization**: HNSW index with tuned parameters
+- **Streaming**: Stream large files during processing
+- **Worker Scaling**: Auto-scale Temporal workers based on queue depth
+
+### 7. Monitoring and Observability
+
+#### 7.1 Metrics
+- Upload success/failure rates
+- Embedding generation time by provider
+- Storage usage by tenant
+- Search query performance (p50, p95, p99)
+- Provider API costs and usage
+
+#### 7.2 Logging
+```go
+logger.Info("embedding.upload.started",
+    "document_id", docID,
+    "size_bytes", size,
+    "content_type", contentType)
+```
+
+### 8. Implementation Phases
+
+#### Phase 1 (3 weeks) - Core Infrastructure
+- Database schema with dimension-specific tables
+- RLS policies and multi-tenancy implementation
+- Object storage integration (S3/GCS/Azure)
+- Basic file upload API with presigned URLs
+- Provider interface with quota management
+- OpenAI provider implementation
+- SHA-256 based deduplication
+
+#### Phase 2 (3 weeks) - Processing Pipeline
+- Temporal workflow with streaming architecture
+- Text extraction for PDF, DOCX, TXT
+- OCR support for images
+- Recursive chunking with hash-based dedup
+- Batch embedding generation with rate limiting
+- Cost tracking implementation
+
+#### Phase 3 (2 weeks) - Search and Retrieval
+- Vector search with dimension routing
+- Search API with provider/model specification
+- Filtering and pagination
+- Query result caching in Redis
+- Search performance optimization
+
+#### Phase 4 (2 weeks) - Provider Expansion
+- Ollama integration for local models
+- Cohere and HuggingFace providers
+- Provider selection policies
+- Fallback mechanisms
+- A/B testing framework
+- Re-embedding workflow
+
+#### Phase 5 (2 weeks) - Workflow Integration
+- New task types for upload and search
+- Tool functions for TypeScript/Deno
+- Example RAG workflows
+- SDK generation from OpenAPI spec
+- Integration documentation
+
+#### Phase 6 (3 weeks) - Production Hardening
+- Comprehensive monitoring (OpenTelemetry)
+- Cost alerting and budgets
+- Performance optimization and load testing
+- Disaster recovery procedures
+- Basic security validation
+- Operational runbook
+- Client SDKs (Go, Python, TypeScript)
+
+## Success Metrics
+
+1. **Functional**: Support 5+ file types, 4+ embedding providers
+2. **Performance**: <5s for processing 10-page PDF, <100ms search latency
+3. **Scale**: Handle 1000+ concurrent uploads, 10M+ embeddings
+4. **Reliability**: 99.9% success rate for embedding generation
+5. **Developer Experience**: Complete integration in <30 minutes
+
+## Key Design Decisions
+
+1. **Storage Backend**: Mandating object storage (S3/GCS/Azure) for production deployments to ensure scalability and avoid host affinity. Local storage only for development.
+
+2. **Embedding Dimensions**: Using dimension-specific tables (embeddings_768, embeddings_1024, embeddings_1536) to handle different providers efficiently with proper indexing.
+
+3. **Versioning Strategy**: Including model_version in embedding tables and supporting re-embedding workflows. Old embeddings marked obsolete but retained for rollback.
+
+4. **Deduplication**: Implementing SHA-256 based deduplication at both document and chunk levels to reduce costs and storage.
+
+5. **Search Type**: Starting with vector-only search for MVP. Hybrid search can be added later based on user needs.
+
+6. **State Management**: Using Temporal as the single source of truth for job status, with minimal database tracking for API queries.
+
+7. **Multi-tenancy**: Enforcing tenant_id in all tables with Row Level Security policies to prevent data leakage.
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| pgvector index bloat | High | Schedule nightly REINDEX, monitor table size, consider partitioning at 50M vectors |
+| Multi-tenant data leakage | Critical | RLS policies on all tables, automated tests for tenant isolation, security audit |
+| Provider API outages | High | Multi-provider fallback, local model options, circuit breakers with exponential backoff |
+| Cost overruns | High | Real-time cost tracking, per-tenant budgets, alerts at 80% threshold |
+| Large file OOM | Medium | Streaming architecture, chunk-by-chunk processing, memory limits per worker |
+| Dimension mismatch | Medium | Dimension-specific tables, validation at API layer, clear error messages |
+| GDPR compliance | High | Data retention policies, hard delete workflows |
+| Temporal history growth | Medium | Archive to S3 after 30 days, configure retention policies |
+| Duplicate processing | Medium | Idempotent operations, unique constraints, hash-based deduplication |
+
+## Operational Considerations
+
+### Monitoring and Alerting
+- **Metrics**: Embedding latency (p50, p95, p99), queue depth, provider availability
+- **Alerts**: Cost threshold exceeded, provider errors > 5%, queue backlog > 1000
+- **Dashboards**: Real-time cost tracking, tenant usage, provider performance
+- **SLOs**: 99.9% availability, <5s PDF processing, <100ms search latency
+
+### Maintenance Procedures
+- **Daily**: Monitor cost trends, check error rates
+- **Weekly**: Review tenant usage patterns, optimize slow queries
+- **Monthly**: REINDEX on embedding tables, vacuum full, archive old jobs
+- **Quarterly**: Security audit, disaster recovery drill
+
+### Scaling Triggers
+- **Horizontal**: Add workers when queue depth > 500 for 5 minutes
+- **Vertical**: Increase DB memory when buffer hit ratio < 90%
+- **Sharding**: Consider at 50M vectors or 500GB table size
+
+## API Documentation
+
+The system will provide OpenAPI 3.0 specification with:
+- Comprehensive endpoint documentation
+- Request/response examples
+- Error code reference
+- Rate limiting details
+- SDK generation for Go, Python, TypeScript
+
+## Conclusion
+
+This redesigned embeddings system addresses all critical issues identified in the review:
+- **Multi-dimensional support** through dimension-specific tables
+- **Multi-tenancy security** with RLS policies on all tables
+- **Production scalability** with streaming architecture and deduplication
+- **Cost optimization** through local models and intelligent caching
+- **Developer experience** with OpenAPI spec and comprehensive SDKs
+
+The 15-week implementation timeline reflects the true complexity of building a production-grade embeddings system. The modular design ensures extensibility while maintaining consistency with Compozy's architecture patterns.
