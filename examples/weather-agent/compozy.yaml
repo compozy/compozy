@@ -1,6 +1,7 @@
-name: weather-agent
-version: 0.1.0
-description: Agent that provides weather information based on location
+name: Weather Agent Example
+version: "0.1.0"
+description: A multi-agent weather advisory system that provides recommendations for tourists based on
+  weather conditions
 
 author:
   name: Pedro Nauck
@@ -24,3 +25,15 @@ runtime:
     - --allow-env
     - --allow-sys
     - --allow-write
+
+# AutoLoad configuration for discovering agents and tools
+autoload:
+  enabled: true
+  strict: true
+  include:
+    - "agents/*.yaml"
+    - "tools/*.yaml"
+  exclude:
+    - "**/*~"
+    - "**/*.bak"
+    - "**/*.tmp"

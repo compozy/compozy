@@ -33,6 +33,7 @@ const (
 	ConfigTask     ConfigType = "task"
 	ConfigAgent    ConfigType = "agent"
 	ConfigTool     ConfigType = "tool"
+	ConfigMCP      ConfigType = "mcp"
 )
 
 func AsMapDefault(config any) (map[string]any, error) {

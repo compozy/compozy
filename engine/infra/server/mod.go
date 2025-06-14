@@ -9,16 +9,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
+	csvc "github.com/compozy/compozy/engine/infra/server/config"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/store"
-	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
-	"github.com/compozy/compozy/pkg/ref"
 	"github.com/gin-gonic/gin"
 )
 
@@ -81,7 +79,9 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	var cleanupFuncs []func()
 
 	// Load project and workspace files
-	projectConfig, workflows, err := loadProject(s.Config.CWD, s.Config.ConfigFile)
+	log := logger.NewLogger(nil)
+	configService := csvc.NewService(log)
+	projectConfig, workflows, err := configService.LoadProject(s.Config.CWD, s.Config.ConfigFile)
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to load project: %w", err)
 	}
@@ -112,44 +112,6 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	}
 
 	return state, cleanupFuncs, nil
-}
-
-func loadProject(cwd string, file string) (*project.Config, []*workflow.Config, error) {
-	pCWD, err := core.CWDFromPath(cwd)
-	if err != nil {
-		return nil, nil, err
-	}
-	logger.Info("Starting compozy server")
-	logger.Debug("Loading config file", "config_file", file)
-
-	projectConfig, err := project.Load(pCWD, file)
-	if err != nil {
-		logger.Error("Failed to load project config", "error", err)
-		return nil, nil, err
-	}
-
-	if err := projectConfig.Validate(); err != nil {
-		logger.Error("Invalid project config", "error", err)
-		return nil, nil, err
-	}
-	globalScope, err := projectConfig.AsMap()
-	if err != nil {
-		logger.Error("Failed to convert project config to map", "error", err)
-		return nil, nil, err
-	}
-
-	// Load workflows from sources
-	ev := ref.NewEvaluator(
-		ref.WithGlobalScope(globalScope),
-		ref.WithCacheEnabled(),
-	)
-	workflows, err := workflow.WorkflowsFromProject(projectConfig, ev)
-	if err != nil {
-		logger.Error("Failed to load workflows", "error", err)
-		return nil, nil, err
-	}
-
-	return projectConfig, workflows, nil
 }
 
 func setupWorker(ctx context.Context, deps appstate.BaseDeps) (*worker.Worker, error) {

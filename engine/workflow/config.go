@@ -24,6 +24,7 @@ type Opts struct {
 }
 
 type Config struct {
+	Resource    string          `json:"resource,omitempty"    yaml:"resource,omitempty"    mapstructure:"resource,omitempty"`
 	ID          string          `json:"id"                    yaml:"id"                    mapstructure:"id"`
 	Version     string          `json:"version,omitempty"     yaml:"version,omitempty"     mapstructure:"version,omitempty"`
 	Description string          `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description,omitempty"`

@@ -3,6 +3,8 @@ package ref
 import (
 	"encoding/json"
 	"fmt"
+	"math"
+	"strings"
 
 	"github.com/dgraph-io/ristretto"
 	"github.com/tidwall/gjson"
@@ -20,6 +22,11 @@ type TransformUseFunc func(component string, config Node) (key string, value Nod
 
 // PreEvalFunc defines a callback for preprocessing nodes before evaluation.
 type PreEvalFunc func(node Node) (Node, error)
+
+// ResourceResolver defines the interface for resolving resource:: references
+type ResourceResolver interface {
+	ResolveResource(resourceType, selector string) (Node, error)
+}
 
 // EvalConfigOption configures EvalState.
 type EvalConfigOption func(*Evaluator)
@@ -67,6 +74,13 @@ func WithPreEval(hook PreEvalFunc) EvalConfigOption {
 	}
 }
 
+// WithResourceResolver sets the resource resolver for resource:: scope
+func WithResourceResolver(resolver ResourceResolver) EvalConfigOption {
+	return func(ev *Evaluator) {
+		ev.ResourceResolver = resolver
+	}
+}
+
 // CacheConfig holds cache configuration options
 type CacheConfig struct {
 	MaxCost     int64 // Maximum cost of cache (approximately memory in bytes)
@@ -103,15 +117,16 @@ func WithCacheEnabled() EvalConfigOption {
 // Evaluator holds evaluation state.
 // Once created, it's safe to share across goroutines as it becomes read-only.
 type Evaluator struct {
-	LocalScope   map[string]any
-	GlobalScope  map[string]any
-	localJSON    []byte // Cached JSON representation of LocalScope
-	globalJSON   []byte // Cached JSON representation of GlobalScope
-	Directives   map[string]Directive
-	TransformUse TransformUseFunc
-	PreEval      PreEvalFunc
-	cache        *ristretto.Cache[string, Node] // Path resolution cache
-	cacheConfig  *CacheConfig
+	LocalScope       map[string]any
+	GlobalScope      map[string]any
+	localJSON        []byte // Cached JSON representation of LocalScope
+	globalJSON       []byte // Cached JSON representation of GlobalScope
+	Directives       map[string]Directive
+	TransformUse     TransformUseFunc
+	PreEval          PreEvalFunc
+	ResourceResolver ResourceResolver
+	cache            *ristretto.Cache[string, Node] // Path resolution cache
+	cacheConfig      *CacheConfig
 }
 
 // NewEvaluator creates a new evaluation state with the given options.
@@ -145,6 +160,9 @@ func NewEvaluator(options ...EvalConfigOption) *Evaluator {
 
 // ResolvePath resolves a GJSON path in the given scope.
 func (ev *Evaluator) ResolvePath(scope, path string) (Node, error) {
+	if path == "" {
+		return nil, fmt.Errorf("path cannot be empty")
+	}
 	// Check cache first if available
 	cacheKey := scope + "::" + path
 	if ev.cache != nil {
@@ -153,35 +171,93 @@ func (ev *Evaluator) ResolvePath(scope, path string) (Node, error) {
 		}
 	}
 
-	var dataJSON []byte
+	var node Node
+	var err error
+
 	switch scope {
 	case "local":
-		if ev.localJSON == nil {
-			return nil, fmt.Errorf("local scope is not configured")
-		}
-		dataJSON = ev.localJSON
+		node, err = ev.resolveLocalScope(path)
 	case "global":
-		if ev.globalJSON == nil {
-			return nil, fmt.Errorf("global scope is not configured")
-		}
-		dataJSON = ev.globalJSON
+		node, err = ev.resolveGlobalScope(path)
+	case "resource":
+		node, err = ev.resolveResourceScope(path)
 	default:
 		return nil, fmt.Errorf("invalid scope: %s", scope)
 	}
 
-	result := gjson.GetBytes(dataJSON, path)
-	if !result.Exists() {
-		return nil, fmt.Errorf("path %s not found in %s scope", path, scope)
-	}
-	node, err := parseJSON(result.Raw)
 	if err != nil {
 		return nil, err
 	}
 
-	// Store in cache if available
+	// Store in cache if available - use defensive copy to prevent shared state mutations
 	if ev.cache != nil {
-		ev.cache.Set(cacheKey, node, 0) // Cost will be calculated by the Cost function
-		ev.cache.Wait()                 // Ensure the item is processed
+		ev.cache.Set(cacheKey, createCacheDefensiveCopy(node), 0) // Cost will be calculated by the Cost function
+	}
+
+	return node, nil
+}
+
+// resolveLocalScope resolves a path in the local scope
+func (ev *Evaluator) resolveLocalScope(path string) (Node, error) {
+	if ev.localJSON == nil {
+		return nil, fmt.Errorf("local scope is not configured")
+	}
+	result := gjson.GetBytes(ev.localJSON, path)
+	if !result.Exists() {
+		return nil, fmt.Errorf("path %s not found in local scope", path)
+	}
+	return parseJSON(result.Raw)
+}
+
+// resolveGlobalScope resolves a path in the global scope
+func (ev *Evaluator) resolveGlobalScope(path string) (Node, error) {
+	if ev.globalJSON == nil {
+		return nil, fmt.Errorf("global scope is not configured")
+	}
+	result := gjson.GetBytes(ev.globalJSON, path)
+	if !result.Exists() {
+		return nil, fmt.Errorf("path %s not found in global scope", path)
+	}
+	return parseJSON(result.Raw)
+}
+
+// resolveResourceScope resolves a path in the resource scope
+// Path format: <type>::<selector> where selector can be #(id=='name').field or direct field access
+func (ev *Evaluator) resolveResourceScope(path string) (Node, error) {
+	if ev.ResourceResolver == nil {
+		return nil, fmt.Errorf("resource scope is not configured - no ResourceResolver available")
+	}
+
+	// Parse resource path: <type>::<selector>
+	// Note: we only split on the first "::" to handle cases where selector might contain "::"
+	parts := strings.SplitN(path, "::", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid resource path format: %s, expected <type>::<selector>", path)
+	}
+
+	// Validate that selector doesn't contain additional "::" which could cause ambiguity
+	if strings.Contains(parts[1], "::") {
+		return nil, fmt.Errorf("invalid resource selector contains '::': %s. Selectors cannot contain '::'", parts[1])
+	}
+
+	resourceType := strings.TrimSpace(parts[0])
+	selector := strings.TrimSpace(parts[1])
+
+	if resourceType == "" {
+		return nil, fmt.Errorf("resource type cannot be empty in path: %s", path)
+	}
+
+	if selector == "" {
+		return nil, fmt.Errorf("resource selector cannot be empty in path: %s", path)
+	}
+
+	node, err := ev.ResourceResolver.ResolveResource(resourceType, selector)
+	if err != nil {
+		return nil, err
+	}
+
+	if node == nil {
+		return nil, fmt.Errorf("resource resolver returned nil node for path: %s", path)
 	}
 
 	return node, nil
@@ -210,14 +286,26 @@ func estimateNodeCost(value Node) int64 {
 	}
 	switch v := value.(type) {
 	case map[string]any:
-		// Base cost for map + estimated cost per key-value pair
-		return int64(50 + len(v)*20)
+		// Base cost for map + estimated cost per key-value pair with overflow protection
+		cost := int64(50 + len(v)*20)
+		if cost < 0 || cost > math.MaxInt64/2 { // Detect overflow
+			return math.MaxInt64 / 2 // Cap at half of max to avoid further overflow
+		}
+		return cost
 	case []any:
-		// Base cost for slice + estimated cost per element
-		return int64(30 + len(v)*15)
+		// Base cost for slice + estimated cost per element with overflow protection
+		cost := int64(30 + len(v)*15)
+		if cost < 0 || cost > math.MaxInt64/2 { // Detect overflow
+			return math.MaxInt64 / 2 // Cap at half of max to avoid further overflow
+		}
+		return cost
 	case string:
-		// Cost based on string length
-		return int64(10 + len(v))
+		// Cost based on string length with overflow protection
+		cost := int64(10 + len(v))
+		if cost < 0 || cost > math.MaxInt64/2 { // Detect overflow
+			return math.MaxInt64 / 2 // Cap at half of max to avoid further overflow
+		}
+		return cost
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
 		return 8
 	case float32:
@@ -229,6 +317,27 @@ func estimateNodeCost(value Node) int64 {
 	default:
 		// Default cost for unknown types
 		return 100
+	}
+}
+
+// createCacheDefensiveCopy creates a defensive copy for caching to prevent shared state mutations
+func createCacheDefensiveCopy(node Node) Node {
+	switch v := node.(type) {
+	case map[string]any:
+		// Create a shallow copy for maps to prevent shared state mutations
+		result := make(map[string]any, len(v))
+		for k, val := range v {
+			result[k] = val
+		}
+		return result
+	case []any:
+		// Create a copy for slices
+		result := make([]any, len(v))
+		copy(result, v)
+		return result
+	default:
+		// Primitives are safe to cache as-is
+		return node
 	}
 }
 

@@ -110,27 +110,6 @@ agents:
           - Any modifications or additions needed
           Return your validation in JSON format with the fields: item, suitability_score, reasoning, modifications.
 
-  - id: file_reader
-    config:
-      $ref: global::models.#(provider=="groq")
-    instructions: |
-      You are a file management assistant that uses MCP tools to read and list files.
-      Your responsibilities:
-      - Use MCP tools to check what files exist in the current directory
-      - Read file contents when needed
-    mcps:
-      - $ref: local::mcps.#(id=="file_server")
-    actions:
-      - id: list_saved_files
-        prompt: |
-          Use MCP tools to list the files in the current directory and find any files that were saved by the previous tasks.
-          Look specifically for:
-          - results.json files (weather data in JSON format)
-          - results.txt files (weather data in text format)
-          IMPORTANT: Use the read_directory MCP tool to list the directory contents.
-          The MCP server is configured to access the weather-agent directory.
-          Then return the file paths found in the directory.
-
 tasks:
   - id: weather
     type: basic
@@ -242,6 +221,8 @@ tasks:
 
   - id: verify_saved_files
     type: basic
-    $use: agent(local::agents.#(id="file_reader"))
+    $use: agent(resource::agent::#(id=='file_reader'))
     action: list_saved_files
     final: true
+    on_success:
+      next: log_completion

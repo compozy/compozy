@@ -17,6 +17,7 @@ import (
 
 // Config represents a tool configuration
 type Config struct {
+	Resource     string         `json:"resource,omitempty"    yaml:"resource,omitempty"    mapstructure:"resource,omitempty"`
 	ID           string         `json:"id,omitempty"          yaml:"id,omitempty"          mapstructure:"id,omitempty"`
 	Description  string         `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description,omitempty"`
 	Execute      string         `json:"execute,omitempty"     yaml:"execute,omitempty"     mapstructure:"execute,omitempty"`

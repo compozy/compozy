@@ -20,6 +20,7 @@ import (
 // -----------------------------------------------------------------------------
 
 type BaseConfig struct {
+	Resource     string          `json:"resource,omitempty"   yaml:"resource,omitempty"   mapstructure:"resource,omitempty"`
 	ID           string          `json:"id,omitempty"         yaml:"id,omitempty"         mapstructure:"id,omitempty"`
 	Type         Type            `json:"type,omitempty"       yaml:"type,omitempty"       mapstructure:"type,omitempty"`
 	Config       core.GlobalOpts `json:"config"               yaml:"config"               mapstructure:"config"`

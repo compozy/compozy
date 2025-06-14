@@ -21,6 +21,7 @@ alwaysApply: true
 **Testing:**
 - **MUST use:** `stretchr/testify` for assertions and mocks
 - Import as: `github.com/stretchr/testify/assert`, `github.com/stretchr/testify/mock`
+- **STANDARDIZE:** Replace all custom mocks with `testify/mock` implementations
 
 **Validation:**
 - **MUST use:** `go-playground/validator/v10` for input validation
