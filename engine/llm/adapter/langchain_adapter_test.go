@@ -2,6 +2,7 @@ package llmadapter
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -71,6 +72,7 @@ func TestLangChainAdapter_MapMessageRole(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("Should map role "+tt.role, func(t *testing.T) {
+			t.Parallel()
 			result := adapter.mapMessageRole(tt.role)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -222,7 +224,7 @@ func TestLangChainAdapter_ConvertResponse(t *testing.T) {
 		require.Len(t, resp.ToolCalls, 1)
 		assert.Equal(t, "call_123", resp.ToolCalls[0].ID)
 		assert.Equal(t, "search", resp.ToolCalls[0].Name)
-		assert.Equal(t, `{"query": "test"}`, resp.ToolCalls[0].Arguments)
+		assert.Equal(t, `{"query": "test"}`, string(resp.ToolCalls[0].Arguments))
 	})
 
 	// Note: Usage information is not supported by langchaingo ContentResponse
@@ -271,7 +273,7 @@ func TestTestAdapter(t *testing.T) {
 		adapter.SetResponse("Test content", ToolCall{
 			ID:        "test_call",
 			Name:      "test_tool",
-			Arguments: "{}",
+			Arguments: json.RawMessage("{}"),
 		})
 
 		req := LLMRequest{

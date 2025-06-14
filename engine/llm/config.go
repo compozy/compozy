@@ -2,8 +2,11 @@ package llm
 
 import (
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
+	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/mcp"
 )
 
@@ -25,6 +28,9 @@ type Config struct {
 	// Feature flags
 	EnableStructuredOutput bool
 	EnableToolCaching      bool
+
+	// LLM factory for creating clients
+	LLMFactory llmadapter.Factory
 }
 
 // DefaultConfig returns a default configuration
@@ -92,20 +98,27 @@ func WithToolCaching(enabled bool) Option {
 	}
 }
 
+// WithLLMFactory sets the LLM factory for creating clients
+func WithLLMFactory(factory llmadapter.Factory) Option {
+	return func(c *Config) {
+		c.LLMFactory = factory
+	}
+}
+
 // Validate validates the configuration
 func (c *Config) Validate() error {
+	if strings.TrimSpace(c.ProxyURL) == "" {
+		return fmt.Errorf("proxy URL cannot be empty")
+	}
 	if c.CacheTTL < 0 {
 		return fmt.Errorf("cache TTL cannot be negative")
 	}
-
 	if c.Timeout <= 0 {
 		return fmt.Errorf("timeout must be positive")
 	}
-
 	if c.MaxConcurrentTools <= 0 {
 		return fmt.Errorf("max concurrent tools must be positive")
 	}
-
 	return nil
 }
 
@@ -114,11 +127,12 @@ func (c *Config) CreateMCPClient() (*mcp.Client, error) {
 	if c.ProxyURL == "" {
 		return nil, fmt.Errorf("proxy URL is required for MCP client creation")
 	}
-
+	if _, err := url.ParseRequestURI(c.ProxyURL); err != nil {
+		return nil, fmt.Errorf("invalid proxy URL: %w", err)
+	}
 	client := mcp.NewProxyClient(c.ProxyURL, c.AdminToken, c.Timeout)
 	if client == nil {
 		return nil, fmt.Errorf("failed to create MCP proxy client")
 	}
-
 	return client, nil
 }

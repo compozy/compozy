@@ -2,6 +2,7 @@ package llmadapter
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/compozy/compozy/engine/core"
 )
@@ -48,7 +49,7 @@ type LLMResponse struct {
 type ToolCall struct {
 	ID        string
 	Name      string
-	Arguments string // JSON string
+	Arguments json.RawMessage // JSON bytes
 }
 
 // Usage represents token usage information
@@ -62,6 +63,8 @@ type Usage struct {
 type LLMClient interface {
 	// GenerateContent sends a request to the LLM and returns a response
 	GenerateContent(ctx context.Context, req *LLMRequest) (*LLMResponse, error)
+	// Close cleans up any resources held by the client
+	Close() error
 }
 
 // Factory creates LLMClient instances based on provider configuration

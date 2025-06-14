@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // PromptBuilder handles prompt construction and enhancement
@@ -46,7 +47,7 @@ func (b *promptBuilder) EnhanceForStructuredOutput(prompt string, schema *schema
 		schemaJSON, err := json.Marshal(schema)
 		if err != nil {
 			// This is a developer error (bad schema), so we fallback to original prompt
-			// TODO: Add logging when logger is available in this context
+			logger.Error("failed to marshal schema for structured output", "error", err)
 			return prompt
 		}
 		return fmt.Sprintf(`%s
@@ -83,8 +84,8 @@ func (b *promptBuilder) ShouldUseStructuredOutput(
 		return false
 	}
 
-	// Check if action has JSON output schema
-	if action != nil && action.OutputSchema != nil {
+	// Check if action has JSON mode or JSON output schema
+	if action != nil && (action.JSONMode || action.OutputSchema != nil) {
 		return true
 	}
 

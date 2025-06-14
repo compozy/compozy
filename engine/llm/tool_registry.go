@@ -19,19 +19,19 @@ import (
 // ToolRegistry manages tool discovery, registration, and caching
 type ToolRegistry interface {
 	// Register registers a local tool
-	Register(tool ToolInterface) error
+	Register(tool Tool) error
 	// Find finds a tool by name, checking local tools first, then MCP tools
-	Find(ctx context.Context, name string) (ToolInterface, bool)
+	Find(ctx context.Context, name string) (Tool, bool)
 	// ListAll returns all available tools (local + MCP)
-	ListAll(ctx context.Context) ([]ToolInterface, error)
+	ListAll(ctx context.Context) ([]Tool, error)
 	// InvalidateCache clears the MCP tools cache
 	InvalidateCache()
 	// Close cleans up resources
 	Close() error
 }
 
-// ToolInterface represents a unified tool interface
-type ToolInterface interface {
+// Tool represents a unified tool interface
+type Tool interface {
 	Name() string
 	Description() string
 	Call(ctx context.Context, input string) (string, error)
@@ -47,7 +47,7 @@ type ToolRegistryConfig struct {
 type toolRegistry struct {
 	config ToolRegistryConfig
 	// Local tools - these take precedence over MCP tools
-	localTools map[string]ToolInterface
+	localTools map[string]Tool
 	localMu    sync.RWMutex
 	// MCP tools cache
 	mcpTools   []tools.Tool
@@ -65,12 +65,12 @@ func NewToolRegistry(config ToolRegistryConfig) ToolRegistry {
 
 	return &toolRegistry{
 		config:     config,
-		localTools: make(map[string]ToolInterface),
+		localTools: make(map[string]Tool),
 	}
 }
 
 // Register registers a local tool with precedence over MCP tools
-func (r *toolRegistry) Register(tool ToolInterface) error {
+func (r *toolRegistry) Register(tool Tool) error {
 	canonical := r.canonicalize(tool.Name())
 
 	r.localMu.Lock()
@@ -83,7 +83,7 @@ func (r *toolRegistry) Register(tool ToolInterface) error {
 }
 
 // Find finds a tool by name, checking local tools first
-func (r *toolRegistry) Find(ctx context.Context, name string) (ToolInterface, bool) {
+func (r *toolRegistry) Find(ctx context.Context, name string) (Tool, bool) {
 	canonical := r.canonicalize(name)
 
 	// Check local tools first (they have precedence)
@@ -111,8 +111,8 @@ func (r *toolRegistry) Find(ctx context.Context, name string) (ToolInterface, bo
 }
 
 // ListAll returns all available tools
-func (r *toolRegistry) ListAll(ctx context.Context) ([]ToolInterface, error) {
-	var allTools []ToolInterface
+func (r *toolRegistry) ListAll(ctx context.Context) ([]Tool, error) {
+	var allTools []Tool
 
 	// Add local tools
 	r.localMu.RLock()
@@ -165,9 +165,9 @@ func (r *toolRegistry) Close() error {
 func (r *toolRegistry) getMCPTools(ctx context.Context) ([]tools.Tool, error) {
 	r.mcpMu.RLock()
 	if r.isCacheValid() {
-		tools := r.mcpTools
+		cached := append([]tools.Tool(nil), r.mcpTools...)
 		r.mcpMu.RUnlock()
-		return tools, nil
+		return cached, nil
 	}
 	r.mcpMu.RUnlock()
 
@@ -290,7 +290,7 @@ type ToolRuntime interface {
 	ExecuteTool(ctx context.Context, toolConfig *tool.Config, input map[string]any) (*core.Output, error)
 }
 
-func NewLocalToolAdapter(config *tool.Config, runtime ToolRuntime) ToolInterface {
+func NewLocalToolAdapter(config *tool.Config, runtime ToolRuntime) Tool {
 	return &localToolAdapter{
 		config:  config,
 		runtime: runtime,
@@ -319,6 +319,11 @@ func (a *localToolAdapter) Call(ctx context.Context, input string) (string, erro
 	output, err := a.runtime.ExecuteTool(ctx, a.config, inputMap)
 	if err != nil {
 		return "", core.NewError(err, "TOOL_EXECUTION_ERROR", map[string]any{
+			"tool": a.config.ID,
+		})
+	}
+	if output == nil {
+		return "", core.NewError(fmt.Errorf("nil output"), "TOOL_EMPTY_OUTPUT", map[string]any{
 			"tool": a.config.ID,
 		})
 	}

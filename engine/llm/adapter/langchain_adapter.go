@@ -2,6 +2,7 @@ package llmadapter
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
@@ -16,7 +17,10 @@ type LangChainAdapter struct {
 
 // NewLangChainAdapter creates a new LangChain adapter
 func NewLangChainAdapter(config *core.ProviderConfig) (*LangChainAdapter, error) {
-	model, err := config.CreateLLM(nil)
+	if config == nil {
+		return nil, fmt.Errorf("provider config is nil")
+	}
+	model, err := CreateLLMFactory(config, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM model: %w", err)
 	}
@@ -154,7 +158,7 @@ func (a *LangChainAdapter) convertResponse(resp *llms.ContentResponse) (*LLMResp
 				response.ToolCalls = append(response.ToolCalls, ToolCall{
 					ID:        tc.ID,
 					Name:      tc.FunctionCall.Name,
-					Arguments: tc.FunctionCall.Arguments,
+					Arguments: json.RawMessage(tc.FunctionCall.Arguments),
 				})
 			}
 		}
@@ -164,4 +168,11 @@ func (a *LangChainAdapter) convertResponse(resp *llms.ContentResponse) (*LLMResp
 	// Usage tracking would need to be implemented at a different level
 
 	return response, nil
+}
+
+// Close implements LLMClient interface - langchain models don't require explicit cleanup
+func (a *LangChainAdapter) Close() error {
+	// LangChain models don't expose cleanup methods directly
+	// HTTP clients and connections are managed by the underlying providers
+	return nil
 }

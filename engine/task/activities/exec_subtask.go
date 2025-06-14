@@ -84,8 +84,7 @@ func (a *ExecuteSubtask) Run(ctx context.Context, input *ExecuteSubtaskInput) (*
 		return nil, err
 	}
 	output, executionError := a.executeTaskUC.Execute(ctx, &uc.ExecuteTaskInput{
-		TaskConfig:   taskConfig,
-		WorkflowMCPs: uc.ProjectMCPConfigs(workflowConfig.MCPs),
+		TaskConfig: taskConfig,
 	})
 	taskState.Output = output
 	if err := a.taskRepo.UpsertState(ctx, taskState); err != nil {

@@ -17,9 +17,8 @@ func TestNewService(t *testing.T) {
 	t.Run("Should create service with clean architecture", func(t *testing.T) {
 		runtimeMgr := &runtime.Manager{}
 		agentConfig := createTestAgentConfig()
-		actionConfig := createTestActionConfig()
 
-		service, err := NewService(runtimeMgr, agentConfig, actionConfig, nil)
+		service, err := NewService(runtimeMgr, agentConfig)
 
 		require.NoError(t, err)
 		assert.NotNil(t, service)
@@ -30,16 +29,8 @@ func TestNewService(t *testing.T) {
 	t.Run("Should handle MCP configurations", func(t *testing.T) {
 		runtimeMgr := &runtime.Manager{}
 		agentConfig := createTestAgentConfig()
-		actionConfig := createTestActionConfig()
-		mcpConfigs := []mcp.Config{
-			{
-				ID:        "test-mcp",
-				URL:       "http://localhost:3000",
-				Transport: "sse",
-			},
-		}
 
-		service, err := NewService(runtimeMgr, agentConfig, actionConfig, mcpConfigs)
+		service, err := NewService(runtimeMgr, agentConfig)
 
 		require.NoError(t, err)
 		assert.NotNil(t, service)
@@ -52,9 +43,7 @@ func TestService_InvalidateToolsCache(t *testing.T) {
 	t.Run("Should handle cache invalidation", func(t *testing.T) {
 		runtimeMgr := &runtime.Manager{}
 		agentConfig := createTestAgentConfig()
-		actionConfig := createTestActionConfig()
-
-		service, err := NewService(runtimeMgr, agentConfig, actionConfig, nil)
+		service, err := NewService(runtimeMgr, agentConfig)
 		require.NoError(t, err)
 
 		// Should not panic
@@ -66,9 +55,7 @@ func TestService_Close(t *testing.T) {
 	t.Run("Should close without error", func(t *testing.T) {
 		runtimeMgr := &runtime.Manager{}
 		agentConfig := createTestAgentConfig()
-		actionConfig := createTestActionConfig()
-
-		service, err := NewService(runtimeMgr, agentConfig, actionConfig, nil)
+		service, err := NewService(runtimeMgr, agentConfig)
 		require.NoError(t, err)
 
 		err = service.Close()
@@ -87,14 +74,5 @@ func createTestAgentConfig() *agent.Config {
 			Provider: "test",
 			Model:    "test-model",
 		},
-	}
-}
-
-func createTestActionConfig() *agent.ActionConfig {
-	input := core.NewInput(map[string]any{"test": "value"})
-	return &agent.ActionConfig{
-		ID:     "test-action",
-		Prompt: "Test prompt",
-		With:   &input,
 	}
 }

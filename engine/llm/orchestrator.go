@@ -28,10 +28,10 @@ type Request struct {
 
 // OrchestratorConfig configures the LLM orchestrator
 type OrchestratorConfig struct {
-	LLMClientFactory llmadapter.Factory
-	ToolRegistry     ToolRegistry
-	PromptBuilder    PromptBuilder
-	RuntimeManager   *runtime.Manager
+	ToolRegistry   ToolRegistry
+	PromptBuilder  PromptBuilder
+	RuntimeManager *runtime.Manager
+	LLMFactory     llmadapter.Factory
 }
 
 // Implementation of LLMOrchestrator
@@ -53,14 +53,23 @@ func (o *llmOrchestrator) Execute(ctx context.Context, request Request) (*core.O
 		return nil, NewValidationError(err, "request", request)
 	}
 
-	// Create LLM client
-	llmClient, err := o.config.LLMClientFactory.CreateClient(&request.Agent.Config)
+	// Create LLM client using factory
+	factory := o.config.LLMFactory
+	if factory == nil {
+		factory = llmadapter.NewDefaultFactory()
+	}
+	llmClient, err := factory.CreateClient(&request.Agent.Config)
 	if err != nil {
 		return nil, NewLLMError(err, ErrCodeLLMCreation, map[string]any{
 			"provider": request.Agent.Config.Provider,
 			"model":    request.Agent.Config.Model,
 		})
 	}
+	defer func() {
+		if closeErr := llmClient.Close(); closeErr != nil {
+			logger.Error("failed to close LLM client", "error", closeErr)
+		}
+	}()
 
 	// Build prompt
 	basePrompt, err := o.config.PromptBuilder.Build(ctx, request.Action)
@@ -107,7 +116,7 @@ func (o *llmOrchestrator) Execute(ctx context.Context, request Request) (*core.O
 		Tools: toolDefs,
 		Options: llmadapter.CallOptions{
 			Temperature:      0.7, // TODO: make configurable via agent/action config
-			UseJSONMode:      shouldUseStructured && len(toolDefs) == 0,
+			UseJSONMode:      request.Action.JSONMode || (shouldUseStructured && len(toolDefs) == 0),
 			StructuredOutput: shouldUseStructured,
 		},
 	}
@@ -170,6 +179,7 @@ func (o *llmOrchestrator) buildToolDefinitions(
 		if !found {
 			return nil, NewToolError(
 				fmt.Errorf("tool not found"),
+				ErrCodeToolNotFound,
 				toolConfig.ID,
 				map[string]any{"configured_tools": len(tools)},
 			)
@@ -220,37 +230,64 @@ func (o *llmOrchestrator) executeToolCalls(
 	toolCalls []llmadapter.ToolCall,
 	request Request,
 ) (*core.Output, error) {
-	// For now, execute the first tool call
-	// TODO: Support multiple tool calls and parallel execution
 	if len(toolCalls) == 0 {
 		return nil, fmt.Errorf("no tool calls to execute")
 	}
+	// Execute all tool calls sequentially
+	var results []map[string]any
+	for _, toolCall := range toolCalls {
+		result, err := o.executeSingleToolCall(ctx, toolCall, request)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, map[string]any{
+			"tool_call_id": toolCall.ID,
+			"tool_name":    toolCall.Name,
+			"result":       result,
+		})
+	}
+	// If only one tool call, return its result directly
+	if len(results) == 1 {
+		if result, ok := results[0]["result"].(*core.Output); ok {
+			return result, nil
+		}
+	}
+	// Multiple tool calls - return combined results
+	output := core.Output(map[string]any{
+		"results": results,
+	})
+	return &output, nil
+}
 
-	toolCall := toolCalls[0]
-
+// executeSingleToolCall executes a single tool call
+func (o *llmOrchestrator) executeSingleToolCall(
+	ctx context.Context,
+	toolCall llmadapter.ToolCall,
+	request Request,
+) (*core.Output, error) {
 	// Find the tool
 	tool, found := o.config.ToolRegistry.Find(ctx, toolCall.Name)
 	if !found {
 		return nil, NewToolError(
 			fmt.Errorf("tool not found for execution"),
+			ErrCodeToolNotFound,
 			toolCall.Name,
 			map[string]any{"call_id": toolCall.ID},
 		)
 	}
-
 	// Execute the tool
-	result, err := tool.Call(ctx, toolCall.Arguments)
+	result, err := tool.Call(ctx, string(toolCall.Arguments))
 	if err != nil {
-		return nil, NewToolError(err, toolCall.Name, map[string]any{
+		return nil, NewToolError(err, ErrCodeToolExecution, toolCall.Name, map[string]any{
 			"call_id":   toolCall.ID,
 			"arguments": toolCall.Arguments,
 		})
 	}
-
 	// Check for tool execution errors using improved error detection
 	if toolErr, isError := IsToolExecutionError(result); isError {
 		return nil, NewToolError(
 			fmt.Errorf("tool execution failed: %s", toolErr.Message),
+			ErrCodeToolExecution,
 			toolCall.Name,
 			map[string]any{
 				"error_code":    toolErr.Code,
@@ -258,7 +295,6 @@ func (o *llmOrchestrator) executeToolCalls(
 			},
 		)
 	}
-
 	// Parse the tool result with appropriate schema
 	// Note: Tool output schema should come from the tool configuration, not action
 	// For now, use action schema as fallback until tool schemas are properly wired
@@ -269,19 +305,28 @@ func (o *llmOrchestrator) executeToolCalls(
 // parseContent parses content and validates against schema if provided
 func (o *llmOrchestrator) parseContent(content string, outputSchema *schema.Schema) (*core.Output, error) {
 	// Try to parse as JSON first
-	var data map[string]any
+	var data any
 	if err := json.Unmarshal([]byte(content), &data); err == nil {
-		// Successfully parsed as JSON
-		output := core.Output(data)
+		// Successfully parsed as JSON - check if it's an object
+		if obj, ok := data.(map[string]any); ok {
+			output := core.Output(obj)
 
-		// Validate against schema if provided
-		if outputSchema != nil {
-			if err := o.validateOutput(&output, outputSchema); err != nil {
-				return nil, NewValidationError(err, "output", data)
+			// Validate against schema if provided
+			if outputSchema != nil {
+				if err := o.validateOutput(&output, outputSchema); err != nil {
+					return nil, NewValidationError(err, "output", obj)
+				}
 			}
+
+			return &output, nil
 		}
 
-		return &output, nil
+		// Valid JSON but not an object - return error since core.Output expects map
+		return nil, NewLLMError(
+			fmt.Errorf("expected JSON object, got %T", data),
+			ErrCodeInvalidResponse,
+			map[string]any{"content": data},
+		)
 	}
 
 	// Not valid JSON, return as text response

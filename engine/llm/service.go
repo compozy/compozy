@@ -7,7 +7,6 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
-	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/tool"
@@ -21,13 +20,7 @@ type Service struct {
 }
 
 // NewService creates a new LLM service with clean architecture
-func NewService(
-	runtime *runtime.Manager,
-	agent *agent.Config,
-	_ *agent.ActionConfig,
-	_ []mcp.Config,
-	opts ...Option,
-) (*Service, error) {
+func NewService(runtime *runtime.Manager, agent *agent.Config, opts ...Option) (*Service, error) {
 	// Build configuration
 	config := DefaultConfig()
 	for _, opt := range opts {
@@ -59,21 +52,22 @@ func NewService(
 		CacheTTL:    config.CacheTTL,
 	})
 	// Register local tools
-	for i := range agent.Tools {
-		localTool := NewLocalToolAdapter(&agent.Tools[i], &runtimeAdapter{runtime})
-		if err := toolRegistry.Register(localTool); err != nil {
-			logger.Warn("failed to register local tool", "tool", agent.Tools[i].ID, "error", err)
+	if agent != nil {
+		for i := range agent.Tools {
+			localTool := NewLocalToolAdapter(&agent.Tools[i], &runtimeAdapter{runtime})
+			if err := toolRegistry.Register(localTool); err != nil {
+				logger.Warn("failed to register local tool", "tool", agent.Tools[i].ID, "error", err)
+			}
 		}
 	}
 	// Create components
-	llmFactory := llmadapter.NewDefaultFactory()
 	promptBuilder := NewPromptBuilder()
 	// Create orchestrator
 	orchestratorConfig := OrchestratorConfig{
-		LLMClientFactory: llmFactory,
-		ToolRegistry:     toolRegistry,
-		PromptBuilder:    promptBuilder,
-		RuntimeManager:   runtime,
+		ToolRegistry:   toolRegistry,
+		PromptBuilder:  promptBuilder,
+		RuntimeManager: runtime,
+		LLMFactory:     config.LLMFactory,
 	}
 	llmOrchestrator := NewOrchestrator(orchestratorConfig)
 	return &Service{
@@ -97,8 +91,9 @@ func (s *Service) GenerateContent(
 
 // InvalidateToolsCache invalidates the tools cache
 func (s *Service) InvalidateToolsCache() {
-	// This would be handled by the registry itself in the new architecture
-	logger.Debug("tools cache invalidation delegated to registry")
+	if orchestrator, ok := s.orchestrator.(*llmOrchestrator); ok {
+		orchestrator.config.ToolRegistry.InvalidateCache()
+	}
 }
 
 // Close cleans up resources

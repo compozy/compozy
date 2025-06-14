@@ -102,13 +102,13 @@ func NewLLMError(err error, code string, details map[string]any) error {
 }
 
 // NewToolError creates a new tool-related error
-func NewToolError(err error, toolName string, details map[string]any) error {
+func NewToolError(err error, code, toolName string, details map[string]any) error {
 	if details == nil {
 		details = make(map[string]any)
 	}
 	details["tool"] = toolName
 
-	return core.NewError(err, ErrCodeToolExecution, details)
+	return core.NewError(err, code, details)
 }
 
 // NewValidationError creates a new validation error
