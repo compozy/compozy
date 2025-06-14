@@ -1,0 +1,205 @@
+PRODUCT REQUIREMENTS DOCUMENT: COMPOZY HOOKS SYSTEM
+==================================================
+
+VERSION: 1.0
+DATE: 2025-01-14
+AUTHOR: Task Master AI
+
+EXECUTIVE SUMMARY
+-----------------
+This PRD defines a comprehensive hook system for Compozy workflow orchestration engine. The system will enable users to inject custom logic at various lifecycle points of task and workflow execution, enhancing observability, extensibility, and control flow capabilities while maintaining the deterministic nature of Temporal workflows.
+
+PROBLEM STATEMENT
+-----------------
+Current Limitations:
+- Only two hooks exist: on_success and on_error (task-level transitions only)
+- No workflow-level hooks for global setup/teardown
+- No lifecycle hooks for monitoring task progress
+- Task types lack specific hooks for their unique behaviors
+- Limited observability into task execution phases
+- No mechanism for pre/post-processing or validation
+
+Business Impact:
+- Reduced visibility into workflow execution
+- Difficult to implement cross-cutting concerns (logging, metrics, security)
+- Limited ability to integrate with external systems
+- Cannot implement advanced patterns (circuit breakers, dynamic routing)
+
+OBJECTIVES
+----------
+1. Provide comprehensive lifecycle hooks for all task types
+2. Enable both synchronous and asynchronous hook execution
+3. Maintain Temporal workflow determinism
+4. Support secure, controlled extensibility
+5. Enhance observability and debugging capabilities
+6. Follow clean architecture and SOLID principles
+
+REQUIREMENTS
+------------
+
+1. FUNCTIONAL REQUIREMENTS
+
+1.1 Hook Types (MVP)
+- Task hooks: task_started, task_finished (with status: success/failed/canceled)
+- Workflow hooks: workflow_finished (with status: success/failed/canceled)
+- All hooks execute asynchronously as Temporal activities
+- dispatch_task action always runs async, never blocks workflow
+
+1.2 Hook Actions (Initial Set)
+- log: Structured logging with configurable levels
+- webhook: HTTP calls with retry and timeout policies
+- metric: Emit metrics to monitoring systems
+- dispatch_task: Dispatch another task within the workflow
+- transform: Limited data transformation capabilities
+
+1.3 Configuration
+- YAML-based declarative configuration
+- Template support using existing ref.Evaluator
+- Per-hook error handling strategies
+- Environment-specific hook enabling/disabling
+
+1.4 Hook Events (MVP)
+
+All Task Types:
+- task_started: When any task begins execution
+- task_finished: When any task completes (includes status: success/failed/canceled)
+
+Workflow Level:
+- workflow_finished: When workflow completes (includes status: success/failed/canceled)
+
+Note: Additional task-specific hooks (e.g., child_task_complete, iteration_complete)
+will be added in future phases based on user needs and feedback.
+
+2. NON-FUNCTIONAL REQUIREMENTS
+
+2.1 Performance
+- Hook execution overhead < 10ms for sync hooks
+- Async hooks must not block task progression
+- Support batching of multiple hooks for efficiency
+- Cache hook configurations to avoid repeated parsing
+
+2.2 Security
+- No arbitrary code execution
+- Webhook URLs must be whitelisted
+- Secrets handled via environment variables only
+- Rate limiting for external calls
+- Sandboxed execution environment
+
+2.3 Reliability
+- Failed hooks should not crash workflows (configurable)
+- Retry policies for transient failures
+- Circuit breaker for repeated failures
+- Comprehensive error logging
+
+2.4 Maintainability
+- Clean separation of concerns
+- Extensible architecture for new hook types
+- Comprehensive testing coverage
+- Clear documentation and examples
+
+ARCHITECTURE OVERVIEW
+--------------------
+
+1. Core Components
+- HookExecutor: Central service for hook execution
+- HookRegistry: Registry of available hook actions
+- HookContext: Contextual data for hook execution
+- HookConfig: Configuration and validation
+
+2. Integration Points
+- Task activities invoke HookExecutor at lifecycle points
+- Workflow activities handle workflow-level hooks
+- Temporal activities ensure determinism
+- Template engine for dynamic values
+
+3. Data Flow
+- Task/Workflow provides context
+- HookExecutor retrieves configuration
+- Actions executed based on type
+- Results logged/handled per configuration
+
+YAML CONFIGURATION EXAMPLE
+--------------------------
+
+```yaml
+id: process_order
+type: basic
+action: validate_and_process
+hooks:
+  task_started:
+    - type: log
+      params:
+        level: info
+        message: "Processing order {{ input.order_id }}"
+    - type: metric
+      params:
+        name: order_processing_started
+        tags:
+          customer_id: "{{ input.customer_id }}"
+  task_finished:
+    - type: webhook
+      on_error: continue
+      params:
+        url: "${WEBHOOK_URL}/order/complete"
+        method: POST
+        body:
+          order_id: "{{ input.order_id }}"
+          status: "{{ task.status }}"
+          total: "{{ output.total }}"
+    - type: dispatch_task
+      params:
+        task_id: "send_notification"
+        input:
+          order_id: "{{ input.order_id }}"
+          status: "{{ task.status }}"
+```
+
+SUCCESS CRITERIA
+----------------
+1. All task types support comprehensive lifecycle hooks
+2. Hook execution maintains workflow determinism
+3. Performance overhead < 10ms for sync hooks
+4. 100% backward compatibility with existing workflows
+5. Security audit passes with no critical findings
+6. Developer documentation and examples complete
+
+ROLLOUT PLAN
+------------
+Phase 1: Core hook infrastructure and basic actions (log, metric)
+Phase 2: Task-specific hooks for all types
+Phase 3: Advanced actions (webhook, dispatch_task, transform)
+Phase 4: Performance optimizations and monitoring
+
+RISKS AND MITIGATIONS
+---------------------
+1. Risk: Non-determinism in workflows
+   Mitigation: All hooks execute in Temporal activities
+
+2. Risk: Performance degradation
+   Mitigation: Async execution, batching, caching
+
+3. Risk: Security vulnerabilities
+   Mitigation: Sandboxing, whitelisting, rate limiting
+
+4. Risk: Complexity for users
+   Mitigation: Sensible defaults, clear documentation
+
+OPEN QUESTIONS
+--------------
+1. Should hooks support modification of task flow beyond routing?
+2. How to handle hook versioning for long-running workflows?
+3. Should we support hook composition (hooks triggering hooks)?
+4. What metrics and monitoring should be built-in?
+
+APPENDIX: HOOK LIFECYCLE DIAGRAMS
+---------------------------------
+
+MVP Task Flow (All Types):
+START -> task_started (async) -> EXECUTE -> task_finished (async, with status) -> END
+
+Workflow Flow:
+START -> Execute Tasks -> workflow_finished (async, with final status) -> END
+
+Note: All hooks execute asynchronously in Temporal activities and do not block
+the main workflow execution. The dispatch_task action specifically runs as a
+fire-and-forget operation.
