@@ -94,7 +94,7 @@ func (uc *ExecuteTask) executeAgent(
 		}
 	}()
 
-	result, err := llmService.GenerateContent(ctx)
+	result, err := llmService.GenerateContent(ctx, agentConfig, actionConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}
