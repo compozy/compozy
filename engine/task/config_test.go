@@ -957,7 +957,7 @@ func Test_TaskReference(t *testing.T) {
 	})
 }
 
-func TestValidateStrategy(t *testing.T) {
+func Test_ValidateStrategy(t *testing.T) {
 	tests := []struct {
 		name     string
 		strategy string
@@ -1019,4 +1019,111 @@ func TestValidateStrategy(t *testing.T) {
 			)
 		})
 	}
+}
+
+func TestAggregate_TaskValidation(t *testing.T) {
+	t.Run("Should validate aggregate task with outputs", func(t *testing.T) {
+		cwd, err := core.CWDFromPath("/test")
+		require.NoError(t, err)
+		outputs := &core.Input{
+			"total": "{{ add .tasks.task1.output.count .tasks.task2.output.count }}",
+			"summary": map[string]any{
+				"task1_result": "{{ .tasks.task1.output }}",
+				"task2_result": "{{ .tasks.task2.output }}",
+			},
+		}
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:      "aggregate-task",
+				Type:    TaskTypeAggregate,
+				Outputs: outputs,
+				CWD:     cwd,
+			},
+		}
+		err = config.Validate()
+		assert.NoError(t, err)
+	})
+	t.Run("Should fail validation when aggregate task has no outputs", func(t *testing.T) {
+		cwd, err := core.CWDFromPath("/test")
+		require.NoError(t, err)
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:   "aggregate-task",
+				Type: TaskTypeAggregate,
+				CWD:  cwd,
+			},
+		}
+		err = config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "aggregate tasks must have outputs defined")
+	})
+	t.Run("Should fail validation when aggregate task has action", func(t *testing.T) {
+		cwd, err := core.CWDFromPath("/test")
+		require.NoError(t, err)
+		outputs := &core.Input{
+			"result": "{{ .tasks.task1.output }}",
+		}
+		config := &Config{
+			BasicTask: BasicTask{
+				Action: "some action",
+			},
+			BaseConfig: BaseConfig{
+				ID:      "aggregate-task",
+				Type:    TaskTypeAggregate,
+				Outputs: outputs,
+				CWD:     cwd,
+			},
+		}
+		err = config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "aggregate tasks cannot have an action field")
+	})
+	t.Run("Should map aggregate task to ExecutionBasic", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{
+				Type: TaskTypeAggregate,
+			},
+		}
+		execType := config.GetExecType()
+		assert.Equal(t, ExecutionBasic, execType)
+	})
+}
+
+func TestAggregate_LoadTask(t *testing.T) {
+	t.Run("Should load aggregate task from YAML", func(t *testing.T) {
+		cwd, dstPath := setupTest(t, "aggregate_task.yaml")
+		// Load the aggregate task
+		config, err := Load(cwd, dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
+		// Verify task type
+		assert.Equal(t, TaskTypeAggregate, config.Type)
+		assert.Equal(t, "aggregate-results", config.ID)
+		// Verify outputs are loaded
+		require.NotNil(t, config.Outputs)
+		outputs := *config.Outputs
+		// Check simple field
+		assert.Contains(t, outputs, "total_count")
+		assert.Equal(t, "{{ add .tasks.task1.output.count .tasks.task2.output.count }}", outputs["total_count"])
+		// Check complex aggregation
+		assert.Contains(t, outputs, "summary")
+		// YAML loading may preserve the structure differently
+		// Let's just check that summary exists and is not nil
+		assert.NotNil(t, outputs["summary"])
+		// Check conditional logic
+		assert.Contains(t, outputs, "status")
+		assert.Equal(
+			t,
+			"{{ if gt .tasks.task2.output.failed_count 0 }}partial_success{{ else }}success{{ end }}",
+			outputs["status"],
+		)
+		// Check transitions
+		require.NotNil(t, config.OnSuccess)
+		assert.Equal(t, "notify-completion", *config.OnSuccess.Next)
+		require.NotNil(t, config.OnError)
+		assert.Equal(t, "handle-aggregation-error", *config.OnError.Next)
+		// Validate the loaded config
+		err = config.Validate()
+		assert.NoError(t, err)
+	})
 }

@@ -1,0 +1,10 @@
+id: combine-results
+type: aggregate
+
+outputs:
+  total: "{{ add .tasks.count1.output.value .tasks.count2.output.value }}"
+  message: "Found {{ .total }} total items"
+  timestamp: "{{ now | date \"2006-01-02\" }}"
+
+on_success:
+  next: next-task

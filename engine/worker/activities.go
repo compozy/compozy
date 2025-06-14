@@ -225,3 +225,20 @@ func (a *Activities) ListChildStates(
 	act := tkfacts.NewListChildStates(a.taskRepo)
 	return act.Run(ctx, input)
 }
+
+func (a *Activities) ExecuteAggregateTask(
+	ctx context.Context,
+	input *tkfacts.ExecuteAggregateInput,
+) (*task.MainTaskResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewExecuteAggregate(
+		a.workflows,
+		a.workflowRepo,
+		a.taskRepo,
+		a.configStore,
+		a.projectConfig.CWD,
+	)
+	return act.Run(ctx, input)
+}

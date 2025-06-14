@@ -86,35 +86,32 @@ func (v *TypeValidator) Validate() error {
 	if v.config.Type == "" {
 		return nil
 	}
-	if v.config.Type != TaskTypeBasic && v.config.Type != TaskTypeRouter && v.config.Type != TaskTypeParallel &&
-		v.config.Type != TaskTypeCollection {
+	switch v.config.Type {
+	case TaskTypeBasic:
+		return v.validateExecutorFields()
+	case TaskTypeRouter:
+		if err := v.validateExecutorFields(); err != nil {
+			return err
+		}
+		return v.validateRouterTask()
+	case TaskTypeParallel:
+		if err := v.validateExecutorFields(); err != nil {
+			return err
+		}
+		return v.validateParallelTask()
+	case TaskTypeCollection:
+		if err := v.validateExecutorFields(); err != nil {
+			return err
+		}
+		return v.validateCollectionTask()
+	case TaskTypeAggregate:
+		return v.validateAggregateTask()
+	default:
 		return fmt.Errorf("invalid task type: %s", v.config.Type)
 	}
-	if err := v.validateBasicTaskWithRef(); err != nil {
-		return err
-	}
-	if v.config.Type == TaskTypeRouter {
-		if err := v.validateRouterTask(); err != nil {
-			return err
-		}
-	}
-	if v.config.Type == TaskTypeParallel {
-		if err := v.validateParallelTask(); err != nil {
-			return err
-		}
-	}
-	if v.config.Type == TaskTypeCollection {
-		if err := v.validateCollectionTask(); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
-func (v *TypeValidator) validateBasicTaskWithRef() error {
-	if v.config.Type != TaskTypeBasic {
-		return nil
-	}
+func (v *TypeValidator) validateExecutorFields() error {
 	if v.config.GetTool() != nil && v.config.Action != "" {
 		return fmt.Errorf("action is not allowed when executor type is tool")
 	}
@@ -260,5 +257,29 @@ func (v *CollectionValidator) validateTaskTemplate() error {
 		}
 	}
 
+	return nil
+}
+
+func (v *TypeValidator) validateAggregateTask() error {
+	if v.config.Outputs == nil || len(*v.config.Outputs) == 0 {
+		return fmt.Errorf("aggregate tasks must have outputs defined")
+	}
+	// Aggregate tasks should not have action, agent, or tool
+	if v.config.Action != "" {
+		return fmt.Errorf("aggregate tasks cannot have an action field")
+	}
+	if v.config.Agent != nil {
+		return fmt.Errorf("aggregate tasks cannot have an agent")
+	}
+	if v.config.Tool != nil {
+		return fmt.Errorf("aggregate tasks cannot have a tool")
+	}
+	// Aggregate tasks should not have other execution-related fields
+	if v.config.Sleep != "" {
+		return fmt.Errorf("aggregate tasks cannot have a sleep field")
+	}
+	if v.config.With != nil && len(*v.config.With) > 0 {
+		return fmt.Errorf("aggregate tasks cannot have a with field")
+	}
 	return nil
 }
