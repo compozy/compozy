@@ -51,6 +51,7 @@ const (
 	TaskTypeRouter     Type = "router"
 	TaskTypeParallel   Type = "parallel"
 	TaskTypeCollection Type = "collection"
+	TaskTypeAggregate  Type = "aggregate"
 )
 
 // -----------------------------------------------------------------------------
@@ -334,6 +335,8 @@ func (t *Config) GetExecType() ExecutionType {
 		executionType = ExecutionParallel
 	case TaskTypeCollection:
 		executionType = ExecutionCollection
+	case TaskTypeAggregate:
+		executionType = ExecutionBasic
 	default:
 		executionType = ExecutionBasic
 	}

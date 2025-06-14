@@ -115,6 +115,7 @@ func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterActivity(o.activities.CompleteWorkflow)
 	o.worker.RegisterActivity(o.activities.ExecuteBasicTask)
 	o.worker.RegisterActivity(o.activities.ExecuteRouterTask)
+	o.worker.RegisterActivity(o.activities.ExecuteAggregateTask)
 	o.worker.RegisterActivity(o.activities.ExecuteSubtask)
 	o.worker.RegisterActivity(o.activities.CreateParallelState)
 	o.worker.RegisterActivity(o.activities.GetParallelResponse)

@@ -1,0 +1,26 @@
+id: aggregate-results
+type: aggregate
+
+outputs:
+  # Simple field mapping
+  total_count: "{{ add .tasks.task1.output.count .tasks.task2.output.count }}"
+
+  # Complex aggregation
+  summary:
+    processed_items: "{{ .tasks.task1.output.count }}"
+    failed_items: "{{ .tasks.task2.output.failed_count }}"
+    success_rate: "{{ div .tasks.task1.output.count (add .tasks.task1.output.count .tasks.task2.output.failed_count) }}"
+
+  # Conditional logic
+  status: "{{ if gt .tasks.task2.output.failed_count 0 }}partial_success{{ else }}success{{ end }}"
+
+  # Array aggregation
+  all_results:
+    - "{{ .tasks.task1.output }}"
+    - "{{ .tasks.task2.output }}"
+
+on_success:
+  next: notify-completion
+
+on_error:
+  next: handle-aggregation-error

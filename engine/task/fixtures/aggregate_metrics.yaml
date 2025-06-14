@@ -1,0 +1,30 @@
+id: aggregate-metrics
+type: aggregate
+
+outputs:
+  metrics:
+    user_metrics:
+      total: "{{ .tasks.count_users.output.total }}"
+      active: "{{ .tasks.count_users.output.active }}"
+      inactive: "{{ sub .tasks.count_users.output.total .tasks.count_users.output.active }}"
+
+    order_metrics:
+      total: "{{ .tasks.count_orders.output.total }}"
+      completed: "{{ .tasks.count_orders.output.completed }}"
+      pending: "{{ .tasks.count_orders.output.pending }}"
+      revenue: "{{ .tasks.count_orders.output.revenue }}"
+
+    combined:
+      total_entities: "{{ add .tasks.count_users.output.total .tasks.count_orders.output.total }}"
+      average_order_value: "{{ div .tasks.count_orders.output.revenue .tasks.count_orders.output.completed }}"
+
+  report_timestamp: "{{ now | date \"2006-01-02T15:04:05Z07:00\" }}"
+  workflow_id: "{{ .workflow.id }}"
+  execution_id: "{{ .workflow.execution_id }}"
+
+on_success:
+  next: generate-report
+
+on_error:
+  retry: 3
+  next: alert-team

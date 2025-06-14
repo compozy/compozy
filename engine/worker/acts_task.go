@@ -85,6 +85,9 @@ func (e *TaskExecutor) HandleExecution(ctx workflow.Context, taskConfig *task.Co
 	case task.TaskTypeCollection:
 		executeFn := e.ExecuteCollectionTask(taskConfig)
 		response, err = executeFn(ctx)
+	case task.TaskTypeAggregate:
+		executeFn := e.ExecuteAggregateTask(taskConfig)
+		response, err = executeFn(ctx)
 	default:
 		return nil, fmt.Errorf("unsupported execution type: %s", taskType)
 	}
@@ -121,6 +124,23 @@ func (e *TaskExecutor) ExecuteRouterTask(taskConfig *task.Config) func(ctx workf
 		var response *task.MainTaskResponse
 		actLabel := tkacts.ExecuteRouterLabel
 		actInput := tkacts.ExecuteRouterInput{
+			WorkflowID:     e.WorkflowID,
+			WorkflowExecID: e.WorkflowExecID,
+			TaskConfig:     taskConfig,
+		}
+		err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &response)
+		if err != nil {
+			return nil, err
+		}
+		return response, nil
+	}
+}
+
+func (e *TaskExecutor) ExecuteAggregateTask(taskConfig *task.Config) func(ctx workflow.Context) (task.Response, error) {
+	return func(ctx workflow.Context) (task.Response, error) {
+		var response *task.MainTaskResponse
+		actLabel := tkacts.ExecuteAggregateLabel
+		actInput := tkacts.ExecuteAggregateInput{
 			WorkflowID:     e.WorkflowID,
 			WorkflowExecID: e.WorkflowExecID,
 			TaskConfig:     taskConfig,
