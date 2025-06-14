@@ -31,6 +31,14 @@ type CollectionTaskMetadata struct {
 	BatchSize     int           `json:"batch_size"`
 }
 
+// CompositeTaskMetadata represents metadata for composite tasks
+type CompositeTaskMetadata struct {
+	ParentStateID core.ID       `json:"parent_state_id"`
+	ChildConfigs  []task.Config `json:"child_configs"`
+	Strategy      string        `json:"strategy"`
+	MaxWorkers    int           `json:"max_workers"`
+}
+
 // CollectionMetadata represents the result of collection processing (for state output)
 type CollectionMetadata struct {
 	ItemCount    int    `json:"item_count"`
@@ -242,6 +250,77 @@ func (cm *ConfigManager) buildParallelMetadataKey(parentStateID core.ID) string 
 
 func (cm *ConfigManager) buildCollectionMetadataKey(parentStateID core.ID) string {
 	return fmt.Sprintf("collection_metadata:%s", parentStateID.String())
+}
+
+// PrepareCompositeConfigs stores composite task configuration for later child creation
+func (cm *ConfigManager) PrepareCompositeConfigs(
+	ctx context.Context,
+	parentStateID core.ID,
+	taskConfig *task.Config,
+) error {
+	if parentStateID == "" {
+		return fmt.Errorf("parent state ID cannot be empty")
+	}
+	if taskConfig == nil {
+		return fmt.Errorf("task config cannot be nil")
+	}
+	if taskConfig.Type != task.TaskTypeComposite {
+		return fmt.Errorf("task config must be composite type, got: %s", taskConfig.Type)
+	}
+	if len(taskConfig.Tasks) == 0 {
+		return fmt.Errorf("composite task must have at least one child task")
+	}
+	if err := task.PropagateTaskListCWD(taskConfig.Tasks, taskConfig.CWD, "composite child task"); err != nil {
+		return fmt.Errorf("failed to propagate CWD to child configs: %w", err)
+	}
+	for i := range taskConfig.Tasks {
+		childConfig := &taskConfig.Tasks[i]
+		if childConfig.ID == "" {
+			return fmt.Errorf("child config at index %d missing required ID field", i)
+		}
+		if childConfig.CWD == nil {
+			childConfig.CWD = cm.cwd
+		}
+		if err := childConfig.Validate(); err != nil {
+			return fmt.Errorf("invalid child config at index %d: %w", i, err)
+		}
+	}
+	metadata := &CompositeTaskMetadata{
+		ParentStateID: parentStateID,
+		ChildConfigs:  taskConfig.Tasks,
+		Strategy:      string(taskConfig.GetStrategy()),
+		MaxWorkers:    1, // Composite tasks are always sequential
+	}
+	key := cm.buildCompositeMetadataKey(parentStateID)
+	metadataBytes, err := json.Marshal(metadata)
+	if err != nil {
+		return fmt.Errorf("failed to marshal composite metadata for parent %s: %w", parentStateID, err)
+	}
+	if err := cm.configStore.SaveMetadata(ctx, key, metadataBytes); err != nil {
+		return fmt.Errorf("failed to store composite metadata for parent %s: %w", parentStateID, err)
+	}
+	return nil
+}
+
+// LoadCompositeTaskMetadata retrieves stored metadata for composite task
+func (cm *ConfigManager) LoadCompositeTaskMetadata(
+	ctx context.Context,
+	parentStateID core.ID,
+) (*CompositeTaskMetadata, error) {
+	key := cm.buildCompositeMetadataKey(parentStateID)
+	metadataBytes, err := cm.configStore.GetMetadata(ctx, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get composite task metadata: %w", err)
+	}
+	var metadata CompositeTaskMetadata
+	if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal composite task metadata: %w", err)
+	}
+	return &metadata, nil
+}
+
+func (cm *ConfigManager) buildCompositeMetadataKey(parentStateID core.ID) string {
+	return fmt.Sprintf("composite_metadata:%s", parentStateID.String())
 }
 
 // processCollectionItems expands and filters collection items using the normalizer

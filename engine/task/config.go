@@ -53,6 +53,7 @@ const (
 	TaskTypeParallel   Type = "parallel"
 	TaskTypeCollection Type = "collection"
 	TaskTypeAggregate  Type = "aggregate"
+	TaskTypeComposite  Type = "composite"
 )
 
 // -----------------------------------------------------------------------------
@@ -202,6 +203,19 @@ type Config struct {
 	BaseConfig       `json:",inline" yaml:",inline" mapstructure:",squash"`
 }
 
+// GetStrategy returns the execution strategy for the task
+func (t *Config) GetStrategy() ParallelStrategy {
+	// For composite tasks, default to fail-fast if not specified
+	if t.Type == TaskTypeComposite {
+		if t.Strategy == "" {
+			return StrategyFailFast
+		}
+		return t.Strategy
+	}
+	// For other tasks that use ParallelTask, use its default behavior
+	return t.ParallelTask.GetStrategy()
+}
+
 func (t *Config) GetEnv() core.EnvMap {
 	if t.Env == nil {
 		t.Env = &core.EnvMap{}
@@ -336,6 +350,8 @@ func (t *Config) GetExecType() ExecutionType {
 		executionType = ExecutionParallel
 	case TaskTypeCollection:
 		executionType = ExecutionCollection
+	case TaskTypeComposite:
+		executionType = ExecutionComposite
 	case TaskTypeAggregate:
 		executionType = ExecutionBasic
 	default:
@@ -358,9 +374,11 @@ func applyDefaults(config *Config) {
 	if config.Type == TaskTypeCollection {
 		config.Default()
 	}
-
-	// Recursively apply defaults to sub-tasks
-	if config.Type == TaskTypeParallel && len(config.Tasks) > 0 {
+	// Recursively apply defaults to sub-tasks for any task type with a tasks array
+	hasSubTasks := config.Type == TaskTypeParallel ||
+		config.Type == TaskTypeComposite ||
+		config.Type == TaskTypeCollection
+	if hasSubTasks && len(config.Tasks) > 0 {
 		for i := range config.Tasks {
 			applyDefaults(&config.Tasks[i])
 		}
@@ -369,13 +387,6 @@ func applyDefaults(config *Config) {
 	// Handle collection tasks with task template
 	if config.Type == TaskTypeCollection && config.Task != nil {
 		applyDefaults(config.Task)
-	}
-
-	// Handle collection tasks with tasks array
-	if config.Type == TaskTypeCollection && len(config.Tasks) > 0 {
-		for i := range config.Tasks {
-			applyDefaults(&config.Tasks[i])
-		}
 	}
 }
 
@@ -414,7 +425,7 @@ func PropagateSingleTaskCWD(task *Config, parentCWD *core.PathCWD, taskType stri
 
 func propagateCWDToSubTasks(config *Config) error {
 	switch config.Type {
-	case TaskTypeParallel:
+	case TaskTypeParallel, TaskTypeComposite:
 		if len(config.Tasks) > 0 {
 			return PropagateTaskListCWD(config.Tasks, config.CWD, "sub-task")
 		}

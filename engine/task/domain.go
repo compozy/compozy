@@ -20,6 +20,7 @@ const (
 	ExecutionRouter     ExecutionType = "router"
 	ExecutionParallel   ExecutionType = "parallel"
 	ExecutionCollection ExecutionType = "collection"
+	ExecutionComposite  ExecutionType = "composite"
 )
 
 // -----------------------------------------------------------------------------
@@ -154,9 +155,11 @@ func (s *State) IsParallelExecution() bool {
 	return s.ExecutionType == ExecutionParallel
 }
 
-// CanHaveChildren returns true if this task can have child tasks (parallel or collection)
+// CanHaveChildren returns true if this task can have child tasks (parallel, collection, or composite)
 func (s *State) CanHaveChildren() bool {
-	return s.ExecutionType == ExecutionParallel || s.ExecutionType == ExecutionCollection
+	return s.ExecutionType == ExecutionParallel ||
+		s.ExecutionType == ExecutionCollection ||
+		s.ExecutionType == ExecutionComposite
 }
 
 // IsChildTask returns true if this task is a child task (has a parent)
@@ -428,7 +431,10 @@ func CreateParentState(input *CreateStateInput, result *PartialState) *State {
 	// Ensure parent state has correct component
 	result.Component = core.ComponentTask
 	// Only set ExecutionParallel if the execution type is not already a valid parent type
-	if result.ExecutionType != ExecutionParallel && result.ExecutionType != ExecutionCollection {
+	isValidParentType := result.ExecutionType == ExecutionParallel ||
+		result.ExecutionType == ExecutionCollection ||
+		result.ExecutionType == ExecutionComposite
+	if !isValidParentType {
 		result.ExecutionType = ExecutionParallel
 	}
 	return CreateState(input, result)

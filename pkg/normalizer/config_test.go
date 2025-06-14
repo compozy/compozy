@@ -1039,16 +1039,16 @@ func TestConfigNormalizer_NormalizeParallelTask(t *testing.T) {
 		}
 
 		// Check what templates look like before normalization
-		t.Logf("Before normalization - subTask1 text: %v", (*parallelTaskConfig.Tasks[0].With)["text"])
-		t.Logf("Before normalization - subTask2 text: %v", (*parallelTaskConfig.Tasks[1].With)["text"])
+		t.Logf("Before normalization - subTask1 text: %v", (*parallelTaskConfig.ParallelTask.Tasks[0].With)["text"])
+		t.Logf("Before normalization - subTask2 text: %v", (*parallelTaskConfig.ParallelTask.Tasks[1].With)["text"])
 
 		// Normalize the parallel task
 		err := normalizer.NormalizeTask(workflowState, workflowConfig, parallelTaskConfig)
 		require.NoError(t, err)
 
 		// Check what templates look like after normalization
-		t.Logf("After normalization - subTask1 text: %v", (*parallelTaskConfig.Tasks[0].With)["text"])
-		t.Logf("After normalization - subTask2 text: %v", (*parallelTaskConfig.Tasks[1].With)["text"])
+		t.Logf("After normalization - subTask1 text: %v", (*parallelTaskConfig.ParallelTask.Tasks[0].With)["text"])
+		t.Logf("After normalization - subTask2 text: %v", (*parallelTaskConfig.ParallelTask.Tasks[1].With)["text"])
 
 		// Check that sub-task templates were resolved
 		subTask1 := parallelTaskConfig.Tasks[0]

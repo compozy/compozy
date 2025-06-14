@@ -72,7 +72,7 @@ func CreateAndPersistState(
 	switch result.ExecutionType {
 	case ExecutionBasic, ExecutionRouter:
 		state = CreateBasicState(input, result)
-	case ExecutionParallel, ExecutionCollection:
+	case ExecutionParallel, ExecutionCollection, ExecutionComposite:
 		state = CreateParentState(input, result)
 	default:
 		return nil, fmt.Errorf("unsupported execution type: %s", result.ExecutionType)

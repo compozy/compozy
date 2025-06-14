@@ -1,0 +1,160 @@
+id: user_onboarding_flow
+type: composite
+strategy: fail_fast
+
+tasks:
+  - id: validate_user_data
+    type: basic
+    agent:
+      id: validation_service
+      config:
+        provider: anthropic
+        model: claude-3-haiku
+        params:
+          temperature: 0.2
+          max_tokens: 500
+      instructions: Validate the user registration data for completeness and correctness.
+    action: validate_registration
+    with:
+      email: "{{ .workflow.input.email }}"
+      name: "{{ .workflow.input.name }}"
+      phone: "{{ .workflow.input.phone }}"
+
+  - id: create_user_account
+    type: basic
+    agent:
+      id: account_service
+      config:
+        provider: anthropic
+        model: claude-3-haiku
+        params:
+          temperature: 0.3
+          max_tokens: 1000
+      instructions: Create a new user account with the provided information.
+    action: create_account
+    with:
+      email: "{{ .tasks.validate_user_data.output.email }}"
+      name: "{{ .tasks.validate_user_data.output.name }}"
+      phone: "{{ .tasks.validate_user_data.output.phone }}"
+      validation_status: "{{ .tasks.validate_user_data.output.status }}"
+
+  - id: send_welcome_email
+    type: basic
+    tool:
+      id: email_sender
+      config:
+        provider: deno
+        script: email_sender.ts
+      env:
+        SMTP_HOST: "{{ .env.SMTP_HOST }}"
+        SMTP_PORT: "{{ .env.SMTP_PORT }}"
+    with:
+      user_id: "{{ .tasks.create_user_account.output.user_id }}"
+      email: "{{ .tasks.create_user_account.output.email }}"
+      name: "{{ .tasks.create_user_account.output.name }}"
+      template: "welcome_new_user"
+
+  - id: initialize_user_preferences
+    type: basic
+    agent:
+      id: settings_service
+      config:
+        provider: anthropic
+        model: claude-3-haiku
+        params:
+          temperature: 0.1
+          max_tokens: 500
+      instructions: Set up initial user preferences and default settings.
+    action: setup_defaults
+    with:
+      user_id: "{{ .tasks.create_user_account.output.user_id }}"
+      preferences: "{{ .workflow.input.preferences }}"
+      email_sent: "{{ .tasks.send_welcome_email.output.success }}"
+
+input:
+  type: object
+  properties:
+    email:
+      type: string
+      format: email
+    name:
+      type: string
+      minLength: 2
+    phone:
+      type: string
+    preferences:
+      type: object
+      properties:
+        theme:
+          type: string
+          enum:
+            - "light"
+            - "dark"
+            - "auto"
+        notifications:
+          type: boolean
+        language:
+          type: string
+          enum:
+            - "en"
+            - "es"
+            - "fr"
+            - "de"
+      required:
+        - theme
+        - notifications
+        - language
+  required:
+    - email
+    - name
+    - preferences
+
+output:
+  type: object
+  properties:
+    user_id:
+      type: string
+    account_status:
+      type: string
+    email_sent:
+      type: boolean
+    preferences_set:
+      type: boolean
+  required:
+    - user_id
+    - account_status
+    - email_sent
+    - preferences_set
+
+env:
+  SMTP_HOST: "smtp.example.com"
+  SMTP_PORT: "587"
+  DEFAULT_LANGUAGE: "en"
+
+with:
+  email: "newuser@example.com"
+  name: "Test User"
+  phone: "+1234567890"
+  preferences:
+    theme: "auto"
+    notifications: true
+    language: "en"
+
+outputs:
+  user_id: "{{ .tasks.initialize_user_preferences.output.user_id }}"
+  account_status: "{{ .tasks.create_user_account.output.status }}"
+  email_sent: "{{ .tasks.send_welcome_email.output.success }}"
+  preferences_set: "{{ .tasks.initialize_user_preferences.output.success }}"
+
+on_success:
+  next: onboarding_complete
+  with:
+    user_id: "{{ .output.user_id }}"
+    completed_at: "{{ .workflow.output.completed_at }}"
+
+on_error:
+  next: onboarding_failed
+  with:
+    user_email: "{{ .workflow.input.email }}"
+    error_step: "{{ .error.task_id }}"
+    error_message: "{{ .error.message }}"

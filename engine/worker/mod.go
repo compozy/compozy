@@ -121,6 +121,8 @@ func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterActivity(o.activities.GetParallelResponse)
 	o.worker.RegisterActivity(o.activities.CreateCollectionState)
 	o.worker.RegisterActivity(o.activities.GetCollectionResponse)
+	o.worker.RegisterActivity(o.activities.CreateCompositeState)
+	o.worker.RegisterActivity(o.activities.GetCompositeResponse)
 	o.worker.RegisterActivity(o.activities.GetProgress)
 	o.worker.RegisterActivity(o.activities.UpdateParentStatus)
 	o.worker.RegisterActivity(o.activities.ListChildStates)

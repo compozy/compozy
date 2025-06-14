@@ -166,7 +166,7 @@ tasks:
   - id: clothing_validation
     type: collection
     items: "{{ .tasks.clothing.output.save_data.clothing }}"
-    mode: sequential
+    mode: parallel  # can be sequencial
     task:
       id: "validate-clothing-{{ .index }}"
       type: basic
@@ -202,19 +202,8 @@ tasks:
       no_clothes:
         $ref: local::tasks.#(id="no_results")
 
-  - id: no_results
-    type: basic
-    $use: tool(local::tools.#(id="save_data"))
-    final: true
-    with:
-      payload: "{{ .tasks.aggr.output }}"
-      format: "txt"
-
   - id: save_results
-    type: parallel
-    strategy: wait_all
-    max_workers: 2
-    timeout: 30s
+    type: composite
     tasks:
       - id: save_json
         type: basic
@@ -230,6 +219,14 @@ tasks:
           format: "txt"
     on_success:
       next: verify_saved_files
+
+  - id: no_results
+    type: basic
+    $use: tool(local::tools.#(id="save_data"))
+    final: true
+    with:
+      payload: "{{ .tasks.aggr.output }}"
+      format: "txt"
 
   - id: verify_saved_files
     type: basic

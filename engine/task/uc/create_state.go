@@ -114,6 +114,8 @@ func (uc *CreateState) prepareChildConfigsIfNeeded(
 		(*state.Output)["collection_metadata"] = metadata
 		// Update the state in the repository to persist the metadata
 		return uc.taskRepo.UpsertState(ctx, state)
+	case task.TaskTypeComposite:
+		return uc.configManager.PrepareCompositeConfigs(ctx, state.TaskExecID, input.TaskConfig)
 	default:
 		return nil
 	}

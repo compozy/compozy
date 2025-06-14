@@ -46,6 +46,8 @@ func (uc *CreateChildTasks) Execute(ctx context.Context, input *CreateChildTasks
 		return uc.createParallelChildren(ctx, parentState)
 	case task.ExecutionCollection:
 		return uc.createCollectionChildren(ctx, parentState)
+	case task.ExecutionComposite:
+		return uc.createCompositeChildren(ctx, parentState)
 	default:
 		return fmt.Errorf("unsupported execution type for child creation: %s", parentState.ExecutionType)
 	}
@@ -74,6 +76,17 @@ func (uc *CreateChildTasks) createCollectionChildren(ctx context.Context, parent
 		return err
 	}
 
+	return uc.createChildStatesInTransaction(ctx, parentState, metadata.ChildConfigs)
+}
+
+func (uc *CreateChildTasks) createCompositeChildren(ctx context.Context, parentState *task.State) error {
+	metadata, err := uc.configManager.LoadCompositeTaskMetadata(ctx, parentState.TaskExecID)
+	if err != nil {
+		return err
+	}
+	if err := uc.validateChildConfigs(metadata.ChildConfigs); err != nil {
+		return err
+	}
 	return uc.createChildStatesInTransaction(ctx, parentState, metadata.ChildConfigs)
 }
 
