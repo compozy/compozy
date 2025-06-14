@@ -265,9 +265,19 @@ func (al *AutoLoader) Stats() map[string]int {
 func (al *AutoLoader) Validate(ctx context.Context) (*LoadResult, error) {
 	// Create a temporary registry for validation
 	tempRegistry := NewConfigRegistry()
+
+	// Create a config copy with strict mode disabled to collect all errors
+	tempConfig := &Config{
+		Enabled:      al.config.Enabled,
+		Strict:       false, // Force non-strict mode to collect all errors
+		Include:      al.config.Include,
+		Exclude:      al.config.Exclude,
+		WatchEnabled: al.config.WatchEnabled,
+	}
+
 	tempLoader := &AutoLoader{
 		projectRoot: al.projectRoot,
-		config:      al.config,
+		config:      tempConfig,
 		registry:    tempRegistry,
 		discoverer:  al.discoverer,
 	}
@@ -297,8 +307,8 @@ func (al *AutoLoader) loadAndRegisterConfig(filePath string) error {
 
 // validateFilePath ensures the file path doesn't escape the project root
 func (al *AutoLoader) validateFilePath(filePath string) error {
-	// Convert both paths to absolute for comparison
-	absFile, err := filepath.Abs(filePath)
+	// Convert both paths to absolute and resolve symlinks for comparison
+	absFile, err := filepath.EvalSymlinks(filePath)
 	if err != nil {
 		return core.NewError(
 			err,
@@ -309,7 +319,7 @@ func (al *AutoLoader) validateFilePath(filePath string) error {
 			},
 		)
 	}
-	absProject, err := filepath.Abs(al.projectRoot)
+	absProject, err := filepath.EvalSymlinks(al.projectRoot)
 	if err != nil {
 		return core.NewError(
 			err,

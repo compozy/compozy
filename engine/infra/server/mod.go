@@ -13,7 +13,6 @@ import (
 	csvc "github.com/compozy/compozy/engine/infra/server/config"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/store"
-	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
@@ -25,7 +24,6 @@ type Server struct {
 	Config         *Config
 	TemporalConfig *worker.TemporalConfig
 	StoreConfig    *store.Config
-	configService  csvc.Service
 	router         *gin.Engine
 	ctx            context.Context
 	cancel         context.CancelFunc
@@ -39,7 +37,6 @@ func NewServer(config Config, tConfig *worker.TemporalConfig, sConfig *store.Con
 		Config:         &config,
 		TemporalConfig: tConfig,
 		StoreConfig:    sConfig,
-		configService:  csvc.NewService(),
 		ctx:            ctx,
 		cancel:         cancel,
 		shutdownChan:   make(chan struct{}, 1),
@@ -82,7 +79,9 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	var cleanupFuncs []func()
 
 	// Load project and workspace files
-	projectConfig, workflows, err := loadProject(s.Config.CWD, s.Config.ConfigFile)
+	log := logger.NewLogger(nil)
+	configService := csvc.NewService(log)
+	projectConfig, workflows, err := configService.LoadProject(s.Config.CWD, s.Config.ConfigFile)
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to load project: %w", err)
 	}
@@ -113,11 +112,6 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	}
 
 	return state, cleanupFuncs, nil
-}
-
-func loadProject(cwd string, file string) (*project.Config, []*workflow.Config, error) {
-	configService := csvc.NewService()
-	return configService.LoadProject(cwd, file)
 }
 
 func setupWorker(ctx context.Context, deps appstate.BaseDeps) (*worker.Worker, error) {

@@ -268,11 +268,10 @@ func extractResourceInfoFromMap(configMap map[string]any) (resourceType string, 
 func (r *ConfigRegistry) CountByType(resourceType string) int {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-
-	configs, exists := r.configs[strings.ToLower(resourceType)]
+	resourceType = strings.TrimSpace(strings.ToLower(resourceType))
+	configs, exists := r.configs[resourceType]
 	if !exists {
 		return 0
 	}
-
 	return len(configs)
 }

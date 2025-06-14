@@ -16,11 +16,12 @@ var DefaultExcludes = []string{
 
 // Config represents the autoload configuration in compozy.yaml
 type Config struct {
-	Enabled      bool     `json:"enabled"                 yaml:"enabled"                 mapstructure:"enabled"`
-	Strict       bool     `json:"strict"                  yaml:"strict"                  mapstructure:"strict"`
-	Include      []string `json:"include"                 yaml:"include"                 mapstructure:"include"                 validate:"required_if=Enabled true,dive,required"`
-	Exclude      []string `json:"exclude,omitempty"       yaml:"exclude,omitempty"       mapstructure:"exclude,omitempty"`
-	WatchEnabled bool     `json:"watch_enabled,omitempty" yaml:"watch_enabled,omitempty" mapstructure:"watch_enabled,omitempty"`
+	Enabled         bool     `json:"enabled"                 yaml:"enabled"                 mapstructure:"enabled"`
+	Strict          bool     `json:"strict"                  yaml:"strict"                  mapstructure:"strict"`
+	Include         []string `json:"include"                 yaml:"include"                 mapstructure:"include"                 validate:"required_if=Enabled true,dive,required"`
+	Exclude         []string `json:"exclude,omitempty"       yaml:"exclude,omitempty"       mapstructure:"exclude,omitempty"`
+	WatchEnabled    bool     `json:"watch_enabled,omitempty" yaml:"watch_enabled,omitempty" mapstructure:"watch_enabled,omitempty"`
+	defaultsApplied bool     // Internal flag to ensure SetDefaults is idempotent
 }
 
 // NewConfig creates a new AutoLoadConfig with defaults
@@ -59,15 +60,21 @@ func (c *Config) Validate() error {
 
 // SetDefaults sets default values for the configuration
 func (c *Config) SetDefaults() {
-	// Strict mode defaults to true if not explicitly set
+	if c.defaultsApplied {
+		return
+	}
+	// Strict mode defaults to true only when autoload is disabled
 	if !c.Enabled {
 		c.Strict = true
 	}
+	c.defaultsApplied = true
 }
 
 // GetAllExcludes returns the combined list of default and user-defined excludes
 func (c *Config) GetAllExcludes() []string {
-	return append(DefaultExcludes, c.Exclude...)
+	out := make([]string, 0, len(DefaultExcludes)+len(c.Exclude))
+	out = append(out, DefaultExcludes...)
+	return append(out, c.Exclude...)
 }
 
 // MergeDefaults merges default values into the configuration

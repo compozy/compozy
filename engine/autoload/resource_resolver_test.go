@@ -162,56 +162,56 @@ func TestResourceResolver_ResolveResource(t *testing.T) {
 
 func TestParseResourceSelector(t *testing.T) {
 	t.Run("Should parse ID selector with field", func(t *testing.T) {
-		id, fieldPath, err := parseResourceSelector("#(id=='test-workflow').name")
+		id, fieldPath, err := ParseResourceSelector("#(id=='test-workflow').name")
 		require.NoError(t, err)
 		assert.Equal(t, "test-workflow", id)
 		assert.Equal(t, "name", fieldPath)
 	})
 
 	t.Run("Should parse ID selector without field", func(t *testing.T) {
-		id, fieldPath, err := parseResourceSelector("#(id=='test-workflow')")
+		id, fieldPath, err := ParseResourceSelector("#(id=='test-workflow')")
 		require.NoError(t, err)
 		assert.Equal(t, "test-workflow", id)
 		assert.Equal(t, "", fieldPath)
 	})
 
 	t.Run("Should parse simple ID with field", func(t *testing.T) {
-		id, fieldPath, err := parseResourceSelector("test-workflow.name")
+		id, fieldPath, err := ParseResourceSelector("test-workflow.name")
 		require.NoError(t, err)
 		assert.Equal(t, "test-workflow", id)
 		assert.Equal(t, "name", fieldPath)
 	})
 
 	t.Run("Should parse simple ID without field", func(t *testing.T) {
-		id, fieldPath, err := parseResourceSelector("test-workflow")
+		id, fieldPath, err := ParseResourceSelector("test-workflow")
 		require.NoError(t, err)
 		assert.Equal(t, "test-workflow", id)
 		assert.Equal(t, "", fieldPath)
 	})
 
 	t.Run("Should parse ID selector with nested field", func(t *testing.T) {
-		id, fieldPath, err := parseResourceSelector("#(id=='api-tool').config.endpoint")
+		id, fieldPath, err := ParseResourceSelector("#(id=='api-tool').config.endpoint")
 		require.NoError(t, err)
 		assert.Equal(t, "api-tool", id)
 		assert.Equal(t, "config.endpoint", fieldPath)
 	})
 
 	t.Run("Should handle single quotes in selector", func(t *testing.T) {
-		id, fieldPath, err := parseResourceSelector("#(id=='my-task').output")
+		id, fieldPath, err := ParseResourceSelector("#(id=='my-task').output")
 		require.NoError(t, err)
 		assert.Equal(t, "my-task", id)
 		assert.Equal(t, "output", fieldPath)
 	})
 
 	t.Run("Should handle double quotes in selector", func(t *testing.T) {
-		id, fieldPath, err := parseResourceSelector(`#(id=="my-task").output`)
+		id, fieldPath, err := ParseResourceSelector(`#(id=="my-task").output`)
 		require.NoError(t, err)
 		assert.Equal(t, "my-task", id)
 		assert.Equal(t, "output", fieldPath)
 	})
 
 	t.Run("Should return error for empty selector", func(t *testing.T) {
-		id, fieldPath, err := parseResourceSelector("")
+		id, fieldPath, err := ParseResourceSelector("")
 		assert.Error(t, err)
 		assert.Equal(t, "", id)
 		assert.Equal(t, "", fieldPath)
@@ -219,7 +219,7 @@ func TestParseResourceSelector(t *testing.T) {
 	})
 
 	t.Run("Should return error for invalid selector format", func(t *testing.T) {
-		id, fieldPath, err := parseResourceSelector("#(invalid==test)")
+		id, fieldPath, err := ParseResourceSelector("#(invalid==test)")
 		assert.Error(t, err)
 		assert.Equal(t, "", id)
 		assert.Equal(t, "", fieldPath)
@@ -232,7 +232,7 @@ func TestApplyFieldPath(t *testing.T) {
 			"name": "Test Config",
 			"type": "workflow",
 		}
-		result, err := applyFieldPath(config, "name")
+		result, err := ApplyFieldPath(config, "name")
 		require.NoError(t, err)
 		assert.Equal(t, "Test Config", result)
 	})
@@ -246,7 +246,7 @@ func TestApplyFieldPath(t *testing.T) {
 				},
 			},
 		}
-		result, err := applyFieldPath(config, "config.auth.type")
+		result, err := ApplyFieldPath(config, "config.auth.type")
 		require.NoError(t, err)
 		assert.Equal(t, "bearer", result)
 	})
@@ -255,7 +255,7 @@ func TestApplyFieldPath(t *testing.T) {
 		config := map[string]any{
 			"steps": []any{"step1", "step2", "step3"},
 		}
-		result, err := applyFieldPath(config, "steps.1")
+		result, err := ApplyFieldPath(config, "steps.1")
 		require.NoError(t, err)
 		assert.Equal(t, "step2", result)
 	})
@@ -264,7 +264,7 @@ func TestApplyFieldPath(t *testing.T) {
 		config := map[string]any{
 			"name": "Test Config",
 		}
-		result, err := applyFieldPath(config, "missing")
+		result, err := ApplyFieldPath(config, "missing")
 		assert.Error(t, err)
 		assert.Nil(t, result)
 		// Check if it's a core.Error with the expected code
@@ -282,13 +282,13 @@ func TestApplyFieldPath(t *testing.T) {
 				map[string]any{"id": "wf2", "name": "Workflow 2"},
 			},
 		}
-		result, err := applyFieldPath(config, "workflows.0.name")
+		result, err := ApplyFieldPath(config, "workflows.0.name")
 		require.NoError(t, err)
 		assert.Equal(t, "Workflow 1", result)
 	})
 
 	t.Run("Should handle nil config", func(t *testing.T) {
-		result, err := applyFieldPath(nil, "field")
+		result, err := ApplyFieldPath(nil, "field")
 		assert.Error(t, err)
 		assert.Nil(t, result)
 	})

@@ -37,9 +37,11 @@ type Config struct {
 	CacheConfig *cache.Config           `json:"cache,omitempty"    yaml:"cache,omitempty"    mapstructure:"cache"`
 	AutoLoad    *autoload.Config        `json:"autoload,omitempty" yaml:"autoload,omitempty" mapstructure:"autoload,omitempty"`
 
-	filePath string
-	CWD      *core.PathCWD `json:"CWD,omitempty" yaml:"CWD,omitempty" mapstructure:"CWD,omitempty"`
-	env      *core.EnvMap
+	filePath           string
+	CWD                *core.PathCWD `json:"CWD,omitempty" yaml:"CWD,omitempty" mapstructure:"CWD,omitempty"`
+	env                *core.EnvMap
+	autoloadValidated  bool
+	autoloadValidError error
 }
 
 func (p *Config) Component() core.ConfigType {
@@ -86,10 +88,14 @@ func (p *Config) Validate() error {
 		}
 	}
 
-	// Validate autoload configuration if present
+	// Validate autoload configuration if present (with caching)
 	if p.AutoLoad != nil {
-		if err := p.AutoLoad.Validate(); err != nil {
-			return fmt.Errorf("autoload configuration validation failed: %w", err)
+		if !p.autoloadValidated {
+			p.autoloadValidError = p.AutoLoad.Validate()
+			p.autoloadValidated = true
+		}
+		if p.autoloadValidError != nil {
+			return fmt.Errorf("autoload configuration validation failed: %w", p.autoloadValidError)
 		}
 	}
 
@@ -133,6 +139,9 @@ func (p *Config) SetEnv(env core.EnvMap) {
 }
 
 func (p *Config) GetEnv() core.EnvMap {
+	if p.env == nil {
+		return core.EnvMap{}
+	}
 	return *p.env
 }
 

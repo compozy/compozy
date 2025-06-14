@@ -31,11 +31,14 @@ type Config struct {
 
 // SetDefaults sets default values for optional configuration fields
 func (c *Config) SetDefaults() {
+	// Set default resource if not specified
+	if c.Resource == "" {
+		c.Resource = c.ID
+	}
 	// Set default protocol version if not specified
 	if c.Proto == "" {
 		c.Proto = DefaultProtocolVersion
 	}
-
 	// Set default transport if not specified
 	if c.Transport == "" {
 		c.Transport = DefaultTransport
@@ -44,7 +47,12 @@ func (c *Config) SetDefaults() {
 
 // Validate validates the MCP configuration
 func (c *Config) Validate() error {
+	// Ensure defaults are set before validation
+	c.SetDefaults()
 	if err := c.validateID(); err != nil {
+		return err
+	}
+	if err := c.validateResource(); err != nil {
 		return err
 	}
 	if err := c.validateURL(); err != nil {
@@ -62,7 +70,13 @@ func (c *Config) Validate() error {
 	if err := c.validateLimits(); err != nil {
 		return err
 	}
+	return nil
+}
 
+func (c *Config) validateResource() error {
+	if c.Resource == "" {
+		return errors.New("mcp resource is required")
+	}
 	return nil
 }
 

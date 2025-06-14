@@ -41,6 +41,7 @@ func TestFileDiscoverer_Discover(t *testing.T) {
 	discoverer := NewFileDiscoverer(tempDir)
 
 	t.Run("Should discover files with basic patterns", func(t *testing.T) {
+		t.Parallel()
 		files, err := discoverer.Discover([]string{"workflows/*.yaml"}, nil)
 		assert.NoError(t, err)
 		assert.Len(t, files, 2)
@@ -57,6 +58,7 @@ func TestFileDiscoverer_Discover(t *testing.T) {
 	})
 
 	t.Run("Should discover files with ** patterns", func(t *testing.T) {
+		t.Parallel()
 		files, err := discoverer.Discover([]string{"workflows/**/*.yaml"}, nil)
 		assert.NoError(t, err)
 		assert.Len(t, files, 3)
@@ -73,12 +75,14 @@ func TestFileDiscoverer_Discover(t *testing.T) {
 	})
 
 	t.Run("Should handle multiple include patterns", func(t *testing.T) {
+		t.Parallel()
 		files, err := discoverer.Discover([]string{"workflows/*.yaml", "tasks/*.yaml"}, nil)
 		assert.NoError(t, err)
 		assert.Len(t, files, 4) // 2 workflows + 2 tasks (temp file excluded by default)
 	})
 
 	t.Run("Should exclude default temporary files", func(t *testing.T) {
+		t.Parallel()
 		files, err := discoverer.Discover([]string{"**/*.yaml"}, nil)
 		assert.NoError(t, err)
 
@@ -91,6 +95,7 @@ func TestFileDiscoverer_Discover(t *testing.T) {
 	})
 
 	t.Run("Should apply custom exclude patterns", func(t *testing.T) {
+		t.Parallel()
 		files, err := discoverer.Discover(
 			[]string{"**/*.yaml"},
 			[]string{"**/test/**", "workflows/*"},
@@ -114,12 +119,14 @@ func TestFileDiscoverer_Discover(t *testing.T) {
 	})
 
 	t.Run("Should handle empty includes", func(t *testing.T) {
+		t.Parallel()
 		files, err := discoverer.Discover([]string{}, nil)
 		assert.NoError(t, err)
 		assert.Empty(t, files)
 	})
 
 	t.Run("Should deduplicate files", func(t *testing.T) {
+		t.Parallel()
 		files, err := discoverer.Discover(
 			[]string{"tasks/*.yaml", "tasks/email.yaml"},
 			nil,
@@ -142,6 +149,7 @@ func TestFileDiscoverer_Security(t *testing.T) {
 	discoverer := NewFileDiscoverer(tempDir)
 
 	t.Run("Should reject absolute paths", func(t *testing.T) {
+		t.Parallel()
 		_, err := discoverer.Discover([]string{"/etc/passwd"}, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "INVALID_PATTERN")
@@ -149,6 +157,7 @@ func TestFileDiscoverer_Security(t *testing.T) {
 	})
 
 	t.Run("Should reject parent directory references", func(t *testing.T) {
+		t.Parallel()
 		_, err := discoverer.Discover([]string{"../../../etc/passwd"}, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "INVALID_PATTERN")
@@ -156,6 +165,7 @@ func TestFileDiscoverer_Security(t *testing.T) {
 	})
 
 	t.Run("Should reject patterns with .. in the middle", func(t *testing.T) {
+		t.Parallel()
 		_, err := discoverer.Discover([]string{"workflows/../../../etc/passwd"}, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "INVALID_PATTERN")
@@ -185,12 +195,14 @@ func TestFileDiscoverer_EdgeCases(t *testing.T) {
 	discoverer := NewFileDiscoverer(tempDir)
 
 	t.Run("Should handle duplicate basenames in different directories", func(t *testing.T) {
+		t.Parallel()
 		files, err := discoverer.Discover([]string{"**/config.yaml"}, nil)
 		assert.NoError(t, err)
 		assert.Len(t, files, 3) // root, dir1, dir2
 	})
 
 	t.Run("Should handle files with spaces", func(t *testing.T) {
+		t.Parallel()
 		files, err := discoverer.Discover([]string{"*.yaml"}, nil)
 		assert.NoError(t, err)
 
@@ -205,12 +217,14 @@ func TestFileDiscoverer_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("Should handle files with special characters", func(t *testing.T) {
+		t.Parallel()
 		files, err := discoverer.Discover([]string{"special-*.yaml"}, nil)
 		assert.NoError(t, err)
 		assert.Len(t, files, 1)
 	})
 
 	t.Run("Should handle invalid glob patterns", func(t *testing.T) {
+		t.Parallel()
 		_, err := discoverer.Discover([]string{"[invalid"}, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid glob pattern")

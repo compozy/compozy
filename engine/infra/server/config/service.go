@@ -19,12 +19,12 @@ type Service interface {
 
 // service is the concrete implementation of the Service interface
 type service struct {
-	// Dependencies can be added here (logger, etc.)
+	log logger.Logger
 }
 
 // NewService creates and initializes a new config service
-func NewService() Service {
-	return &service{}
+func NewService(log logger.Logger) Service {
+	return &service{log: log}
 }
 
 // LoadProject loads a project configuration and handles AutoLoad integration
@@ -33,17 +33,17 @@ func (s *service) LoadProject(cwd string, file string) (*project.Config, []*work
 	if err != nil {
 		return nil, nil, err
 	}
-	logger.Info("Starting compozy server")
-	logger.Debug("Loading config file", "config_file", file)
+	s.log.Info("Starting compozy server")
+	s.log.Debug("Loading config file", "config_file", file)
 
 	projectConfig, err := project.Load(pCWD, file)
 	if err != nil {
-		logger.Error("Failed to load project config", "error", err)
+		s.log.Error("Failed to load project config", "error", err)
 		return nil, nil, err
 	}
 
 	if err := projectConfig.Validate(); err != nil {
-		logger.Error("Invalid project config", "error", err)
+		s.log.Error("Invalid project config", "error", err)
 		return nil, nil, err
 	}
 
@@ -52,17 +52,17 @@ func (s *service) LoadProject(cwd string, file string) (*project.Config, []*work
 
 	// Run AutoLoad if enabled
 	if projectConfig.AutoLoad != nil && projectConfig.AutoLoad.Enabled {
-		logger.Info("AutoLoad enabled, discovering and loading configurations")
+		s.log.Info("AutoLoad enabled, discovering and loading configurations")
 		autoLoader := autoload.New(pCWD.PathStr(), projectConfig.AutoLoad, configRegistry)
 		if err := autoLoader.Load(context.Background()); err != nil {
-			logger.Error("AutoLoad failed", "error", err)
+			s.log.Error("AutoLoad failed", "error", err)
 			return nil, nil, fmt.Errorf("autoload failed: %w", err)
 		}
 	}
 
 	globalScope, err := projectConfig.AsMap()
 	if err != nil {
-		logger.Error("Failed to convert project config to map", "error", err)
+		s.log.Error("Failed to convert project config to map", "error", err)
 		return nil, nil, err
 	}
 
@@ -83,7 +83,7 @@ func (s *service) LoadProject(cwd string, file string) (*project.Config, []*work
 
 	workflows, err := workflow.WorkflowsFromProject(projectConfig, ev)
 	if err != nil {
-		logger.Error("Failed to load workflows", "error", err)
+		s.log.Error("Failed to load workflows", "error", err)
 		return nil, nil, err
 	}
 

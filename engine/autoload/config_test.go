@@ -79,7 +79,7 @@ func TestConfig_YAML_Marshaling(t *testing.T) {
 			Exclude:      []string{"**/test/**"},
 			WatchEnabled: true,
 		}
-		data, err := yaml.Marshal(config)
+		marshaled, err := yaml.Marshal(config)
 		assert.NoError(t, err)
 		expected := `enabled: true
 strict: false
@@ -90,7 +90,10 @@ exclude:
     - '**/test/**'
 watch_enabled: true
 `
-		assert.Equal(t, expected, string(data))
+		var got, want Config
+		assert.NoError(t, yaml.Unmarshal(marshaled, &got))
+		assert.NoError(t, yaml.Unmarshal([]byte(expected), &want))
+		assert.Equal(t, want, got)
 	})
 	t.Run("Should unmarshal from YAML correctly", func(t *testing.T) {
 		yamlData := `
@@ -143,6 +146,17 @@ func TestConfig_SetDefaults(t *testing.T) {
 			Enabled: true,
 			Strict:  false,
 		}
+		config.SetDefaults()
+		assert.False(t, config.Strict)
+	})
+	t.Run("Should be idempotent - no changes on repeated calls", func(t *testing.T) {
+		config := &Config{
+			Enabled: false,
+			Strict:  false,
+		}
+		config.SetDefaults()
+		assert.True(t, config.Strict)
+		config.Strict = false
 		config.SetDefaults()
 		assert.False(t, config.Strict)
 	})

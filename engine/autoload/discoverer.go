@@ -51,8 +51,9 @@ func (d *fsDiscoverer) Discover(includes, excludes []string) ([]string, error) {
 
 		// Add matches to set (deduplicates)
 		for _, match := range matches {
-			// Ensure file is within project root
-			if !strings.HasPrefix(match, d.root) {
+			// Ensure the discovered path is really inside the root directory.
+			rel, err := filepath.Rel(d.root, match)
+			if err != nil || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
 				return nil, core.NewError(nil, "PATH_ESCAPE_ATTEMPT", map[string]any{
 					"file": match,
 					"root": d.root,
@@ -85,8 +86,10 @@ func (d *fsDiscoverer) validatePattern(pattern string) error {
 	}
 
 	// Reject parent directory references
-	if strings.Contains(cleanPattern, "..") {
-		return fmt.Errorf("INVALID_PATTERN: parent directory references not allowed: %s", pattern)
+	for _, part := range strings.Split(cleanPattern, string(filepath.Separator)) {
+		if part == ".." {
+			return fmt.Errorf("INVALID_PATTERN: parent directory references not allowed: %s", pattern)
+		}
 	}
 
 	return nil
@@ -102,6 +105,11 @@ func (d *fsDiscoverer) applyExcludes(files []string, excludes []string) []string
 	allExcludes := make([]string, 0, len(DefaultExcludes)+len(excludes))
 	allExcludes = append(allExcludes, DefaultExcludes...)
 	allExcludes = append(allExcludes, excludes...)
+
+	// Pre-compute exclude pattern normalization
+	for i, pattern := range allExcludes {
+		allExcludes[i] = filepath.ToSlash(pattern)
+	}
 
 	filtered := make([]string, 0, len(files))
 	for _, file := range files {
@@ -120,9 +128,6 @@ func (d *fsDiscoverer) applyExcludes(files []string, excludes []string) []string
 
 		// Check each exclude pattern
 		for _, pattern := range allExcludes {
-			// Convert pattern to forward slashes
-			pattern = filepath.ToSlash(pattern)
-
 			// Use doublestar for pattern matching
 			matched, err := doublestar.Match(pattern, relFile)
 			if err != nil {

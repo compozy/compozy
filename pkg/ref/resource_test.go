@@ -19,6 +19,7 @@ func (m *MockResourceResolver) ResolveResource(resourceType, selector string) (N
 }
 
 func TestEvaluator_ResourceScope(t *testing.T) {
+	t.Parallel()
 	t.Run("Should resolve resource reference", func(t *testing.T) {
 		mockResolver := &MockResourceResolver{}
 		mockResolver.On("ResolveResource", "workflow", "test-workflow").Return(
@@ -219,6 +220,7 @@ func TestEvaluator_ResourceScope(t *testing.T) {
 }
 
 func TestResourceScopeValidation(t *testing.T) {
+	t.Parallel()
 	t.Run("Should validate ref directive with resource scope", func(t *testing.T) {
 		err := validateRef("resource::workflow::test-workflow")
 		assert.NoError(t, err)
@@ -247,6 +249,7 @@ func TestResourceScopeValidation(t *testing.T) {
 }
 
 func TestResourceScopeWithCache(t *testing.T) {
+	t.Parallel()
 	t.Run("Should cache resource resolutions", func(t *testing.T) {
 		mockResolver := &MockResourceResolver{}
 		// Should only be called once due to caching

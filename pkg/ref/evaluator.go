@@ -160,6 +160,9 @@ func NewEvaluator(options ...EvalConfigOption) *Evaluator {
 
 // ResolvePath resolves a GJSON path in the given scope.
 func (ev *Evaluator) ResolvePath(scope, path string) (Node, error) {
+	if path == "" {
+		return nil, fmt.Errorf("path cannot be empty")
+	}
 	// Check cache first if available
 	cacheKey := scope + "::" + path
 	if ev.cache != nil {
@@ -189,7 +192,6 @@ func (ev *Evaluator) ResolvePath(scope, path string) (Node, error) {
 	// Store in cache if available - use defensive copy to prevent shared state mutations
 	if ev.cache != nil {
 		ev.cache.Set(cacheKey, createCacheDefensiveCopy(node), 0) // Cost will be calculated by the Cost function
-		ev.cache.Wait()                                           // Ensure the item is processed
 	}
 
 	return node, nil

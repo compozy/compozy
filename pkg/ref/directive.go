@@ -23,7 +23,7 @@ type MergeOptions struct {
 var (
 	// Updated regex patterns to capture optional inline merge syntax and resource scope
 	useDirectiveRegex = regexp.MustCompile(
-		`^(?P<component>agent|tool|task)\((?P<scope>local|global|resource)::(?P<path>.+?)\)(?:!merge:<(?P<merge_opts>[^>]*)>)?$`,
+		`^(?P<component>agent|tool|task|mcp)\((?P<scope>local|global|resource)::(?P<path>.+?)\)(?:!merge:<(?P<merge_opts>[^>]*)>)?$`,
 	)
 	refDirectiveRegex = regexp.MustCompile(
 		`^(?P<scope>local|global|resource)::(?P<path>.+?)(?:!merge:<(?P<merge_opts>[^>]*)>)?$`,

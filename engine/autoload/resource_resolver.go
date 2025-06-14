@@ -30,7 +30,7 @@ func NewResourceResolver(registry *ConfigRegistry) *ResourceResolver {
 //   - field                - Direct field access (for single resources)
 func (r *ResourceResolver) ResolveResource(resourceType, selector string) (ref.Node, error) {
 	// Parse the selector to extract ID and field path
-	id, fieldPath, err := parseResourceSelector(selector)
+	id, fieldPath, err := ParseResourceSelector(selector)
 	if err != nil {
 		return nil, fmt.Errorf("invalid resource selector '%s': %w", selector, err)
 	}
@@ -47,7 +47,7 @@ func (r *ResourceResolver) ResolveResource(resourceType, selector string) (ref.N
 	}
 
 	// Apply field path using GJSON
-	return applyFieldPath(config, fieldPath)
+	return ApplyFieldPath(config, fieldPath)
 }
 
 // createDefensiveCopy creates a defensive copy to prevent data races
@@ -71,51 +71,48 @@ func createDefensiveCopy(node ref.Node) ref.Node {
 	}
 }
 
-// parseResourceSelector parses resource selectors
+// ParseResourceSelector parses resource selectors
 // Supports:
 //   - #(id=='name')        -> id="name", fieldPath=""
 //   - #(id=='name').field  -> id="name", fieldPath="field"
 //   - name                 -> id="name", fieldPath=""
-//   - name.field           -> id="name", fieldPath="field" (if no # prefix)
-func parseResourceSelector(selector string) (id string, fieldPath string, err error) {
+//   - name.field           -> id="name", fieldPath="field"
+func ParseResourceSelector(selector string) (id string, fieldPath string, err error) {
 	if selector == "" {
 		return "", "", fmt.Errorf("selector cannot be empty")
 	}
 
-	// Pattern for #(id=='value') or #(id=="value") selector with optional field path
-	idSelectorPattern := regexp.MustCompile(`^#\(id==['"]([^'"]+)['"]\)(.*)$`)
-
-	if matches := idSelectorPattern.FindStringSubmatch(selector); matches != nil {
-		// Extract ID and field path from #(id=='name').field format
-		id = matches[1]                                 // The ID value (between quotes)
-		fieldPath = strings.TrimPrefix(matches[2], ".") // Optional field path after )
+	// Handle explicit ID selector format: #(id=='value').field
+	if strings.HasPrefix(selector, "#(id==") {
+		idPattern := regexp.MustCompile(`^#\(id==['"]([^'"]*)['"]\)(.*)$`)
+		matches := idPattern.FindStringSubmatch(selector)
+		if matches == nil {
+			return "", "", fmt.Errorf("invalid selector format: %s, expected #(id=='value') format", selector)
+		}
+		id = matches[1]
+		fieldPath = strings.TrimPrefix(matches[2], ".")
 		if id == "" {
 			return "", "", fmt.Errorf("ID cannot be empty in selector: %s", selector)
 		}
 		return id, fieldPath, nil
 	}
 
-	// Check for invalid # selectors that don't match the pattern
+	// Check for invalid # selectors
 	if strings.HasPrefix(selector, "#") {
 		return "", "", fmt.Errorf("invalid selector format: %s, expected #(id=='value') format", selector)
 	}
 
-	// Handle direct field access (no # prefix)
-	// This supports patterns like "name" or "name.field"
+	// Simple parsing for direct selectors - treat first dot as separator
 	if strings.Contains(selector, ".") {
 		parts := strings.SplitN(selector, ".", 2)
 		return parts[0], parts[1], nil
 	}
 
-	// Simple ID selector - validate ID is not empty
-	if selector == "" {
-		return "", "", fmt.Errorf("selector cannot be empty after parsing")
-	}
 	return selector, "", nil
 }
 
-// applyFieldPath applies a GJSON field path to a configuration object
-func applyFieldPath(config ref.Node, fieldPath string) (ref.Node, error) {
+// ApplyFieldPath applies a GJSON field path to a configuration object
+func ApplyFieldPath(config ref.Node, fieldPath string) (ref.Node, error) {
 	// Marshal config to JSON for GJSON processing
 	jsonBytes, err := marshalToJSON(config)
 	if err != nil {
