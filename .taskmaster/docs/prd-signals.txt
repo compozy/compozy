@@ -1,0 +1,193 @@
+# Product Requirements Document (PRD)
+
+# Signal-Based Workflow Triggers for Compozy
+
+## 1. Overview
+
+Compozy currently supports workflow execution through direct REST API calls, which works well for synchronous, user-initiated actions. However, this approach lacks support for event-driven automation where workflows need to react to external events from various sources (webhooks, message queues, system events, etc.).
+
+**Problem**: No mechanism exists to trigger workflows based on external events or signals, limiting automation capabilities and requiring external systems to directly call Compozy's API for every workflow execution.
+
+**Solution**: Implement signal-based workflow triggers leveraging Temporal's native signal capabilities, allowing workflows to be initiated by external events through a REST API endpoint for sending events.
+
+**Value**: Enables event-driven automation, decouples event producers from workflow execution details, provides durability for events, and supports complex event routing patterns without custom infrastructure.
+
+**Target Users**: Platform developers building event-driven integrations, DevOps teams automating infrastructure workflows, and external systems that need to trigger Compozy workflows asynchronously.
+
+## 2. Goals & Success Criteria
+
+1. **Event-Driven Automation:** Enable workflows to be triggered by external events without direct API calls to specific workflows.
+2. **Durability:** Ensure no events are lost using Temporal's signal persistence and delivery guarantees.
+3. **Scalability:** Support high-volume event processing through Temporal's distributed architecture.
+4. **Flexibility:** Allow workflows to subscribe to multiple event types with configurable routing.
+5. **Simplicity:** Minimize implementation complexity by leveraging Temporal's existing signal infrastructure.
+6. **Observability:** Provide clear logging and monitoring of event processing and workflow dispatch.
+
+## 3. In-Scope Requirements
+
+### 3.1 Workflow Configuration
+
+| Component | Description |
+| --------- | ----------- |
+| **Trigger Definition** | • New `triggers` section in workflow YAML configuration |
+| | • Support for `signal` trigger type |
+| | • Event name mapping (e.g., "user.created", "deployment.completed") |
+| | • Optional payload schema validation |
+| **Event Routing** | • Map event names to workflow IDs |
+| | • Support multiple workflows listening to same event |
+| | • Pass event payload as workflow input |
+
+### 3.2 Functional Requirements
+
+1. **REST API Endpoint**
+   • `POST /api/v1/events` endpoint for receiving external events
+   • Accept event name and payload in request body
+   • Return 202 Accepted with event acknowledgment
+   • Support authentication and authorization
+
+2. **Dispatcher Workflow**
+   • Long-running singleton workflow per project
+   • Listen for incoming event signals
+   • Route events to appropriate workflows based on configuration
+   • Start target workflows as child workflows
+
+3. **Workflow Configuration Extension**
+   • Add `triggers` array to workflow config structure
+   • Support signal trigger type with event name
+   • Optional payload schema for validation
+   • Backward compatibility with existing configs
+
+4. **Event Processing**
+   • Durable signal delivery via Temporal
+   • Automatic dispatcher startup on worker initialization
+   • Signal-with-start pattern for reliability
+   • Event payload passed as workflow input
+
+5. **Error Handling**
+   • Log unregistered event types
+   • Handle malformed payloads gracefully
+   • Report child workflow start failures
+   • Maintain dispatcher availability during errors
+
+### 3.3 Non-Functional Requirements
+
+- **Reliability:** Zero event loss through Temporal's durable signals
+- **Performance:** Sub-second event to workflow dispatch latency
+- **Security:** API authentication, event payload validation
+- **Monitoring:** Metrics for event processing, dispatch success/failure
+- **Testing:** Unit tests for routing logic, integration tests for end-to-end flow
+
+## 4. Out-of-Scope
+
+- Complex event processing (CEP) patterns
+- Event transformation or enrichment
+- Direct integration with external message queues (Kafka, RabbitMQ)
+- Workflow-to-workflow signaling
+- Event replay or time-travel debugging
+
+## 5. API Specification
+
+### Send Event Endpoint
+
+```
+POST /api/v1/events
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "user.created",
+  "payload": {
+    "userId": "usr_12345",
+    "email": "user@example.com",
+    "source": "webapp"
+  }
+}
+
+Response:
+202 Accepted
+{
+  "message": "event received",
+  "event_id": "evt_abc123"
+}
+```
+
+### Workflow Configuration Example
+
+```yaml
+id: user-onboarding
+version: 1.0.0
+description: Onboard new users when created
+triggers:
+  - type: signal
+    name: "user.created"
+    schema:
+      type: object
+      properties:
+        userId:
+          type: string
+        email:
+          type: string
+      required:
+        - userId
+        - email
+tasks:
+  - id: send-welcome-email
+    type: basic
+    # Can access event data via input context
+    config:
+      template: |
+        Welcome {{ .input.email }}!
+```
+
+## 6. Stakeholders
+
+- **Engineering:** Backend team implements signal infrastructure
+- **Platform Team:** Integrate with existing workflow engine
+- **API Consumers:** External systems sending events
+- **DevOps:** Monitor event processing and workflow dispatch
+
+## 7. Milestones
+
+| Phase | Description | Target |
+| ----- | ----------- | ------ |
+| 1 | Design approval & technical specification | T+0 days |
+| 2 | Extend workflow configuration for triggers | T+3 days |
+| 3 | Implement dispatcher workflow | T+5 days |
+| 4 | Create events REST API endpoint | T+7 days |
+| 5 | Integration testing & documentation | T+9 days |
+| 6 | Performance testing & optimization | T+11 days |
+| 7 | Production deployment & monitoring | T+14 days |
+
+## 8. Acceptance Criteria
+
+- ✅ Workflows can define signal triggers in configuration
+- ✅ Events API successfully receives and acknowledges events
+- ✅ Dispatcher workflow routes events to correct workflows
+- ✅ Event payloads are passed as workflow input
+- ✅ No events lost during worker restarts
+- ✅ Comprehensive test coverage (>80%)
+- ✅ Documentation and examples provided
+- ✅ Monitoring dashboards show event metrics
+
+## 9. Risks & Mitigations
+
+| Risk | Likelihood | Impact | Mitigation |
+| ---- | ---------- | ------ | ---------- |
+| Dispatcher workflow failure | Low | High | Auto-restart, monitoring alerts, signal persistence |
+| Event routing misconfiguration | Medium | Medium | Schema validation, configuration tests, clear logs |
+| High event volume overload | Low | High | Temporal scaling, rate limiting, backpressure |
+| Signal name collisions | Low | Low | Namespace conventions, validation rules |
+
+## 10. Future Enhancements
+
+- Event filtering and transformation rules
+- Workflow-to-workflow communication via signals
+- Event sourcing and audit trail
+- Integration with cloud event sources (AWS EventBridge, GCP Pub/Sub)
+- Complex event patterns (aggregation, time windows)
+
+## 11. References
+
+- Temporal Signals Documentation: https://docs.temporal.io/workflows#signal
+- Temporal Child Workflows: https://docs.temporal.io/workflows#child-workflow
+- Go SDK Signal Examples: https://github.com/temporalio/samples-go

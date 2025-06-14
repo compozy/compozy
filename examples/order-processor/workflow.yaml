@@ -1,0 +1,341 @@
+id: order-processor
+version: "1.0.0"
+description: "Event-driven order processing workflow triggered by order creation events"
+
+# Configure signal trigger to respond to order events
+triggers:
+  - type: signal
+    name: "order.created"
+    schema:
+      type: object
+      properties:
+        orderId:
+          type: string
+          description: "Unique order identifier"
+        customerId:
+          type: string
+          description: "Customer identifier"
+        customerEmail:
+          type: string
+          format: email
+          description: "Customer email for notifications"
+        items:
+          type: array
+          description: "Items in the order"
+          items:
+            type: object
+            properties:
+              productId:
+                type: string
+              name:
+                type: string
+              quantity:
+                type: integer
+                minimum: 1
+              price:
+                type: number
+                minimum: 0
+            required:
+              - productId
+              - name
+              - quantity
+              - price
+        totalAmount:
+          type: number
+          minimum: 0
+          description: "Total order amount"
+        shippingAddress:
+          type: object
+          properties:
+            street:
+              type: string
+            city:
+              type: string
+            zipCode:
+              type: string
+            country:
+              type: string
+          required:
+            - street
+            - city
+            - zipCode
+            - country
+      required:
+        - orderId
+        - customerId
+        - customerEmail
+        - items
+        - totalAmount
+        - shippingAddress
+
+# Workflow input matches the event payload structure
+config:
+  input:
+    $ref: "#/triggers/0/schema"
+
+# Tools for external integrations
+tools:
+  - id: inventory_checker
+    description: "Check product inventory levels"
+    execute: ./tools/check_inventory.ts
+    input:
+      type: object
+      properties:
+        items:
+          type: array
+
+  - id: payment_processor
+    description: "Process payment for the order"
+    execute: ./tools/process_payment.ts
+    input:
+      type: object
+      properties:
+        customerId:
+          type: string
+        amount:
+          type: number
+
+  - id: shipping_calculator
+    description: "Calculate shipping costs and delivery estimates"
+    execute: ./tools/calculate_shipping.ts
+    input:
+      type: object
+      properties:
+        items:
+          type: array
+        address:
+          type: object
+
+  - id: email_sender
+    description: "Send email notifications to customers"
+    execute: ./tools/send_email.ts
+    input:
+      type: object
+      properties:
+        recipient:
+          type: string
+        subject:
+          type: string
+        template:
+          type: string
+        data:
+          type: object
+
+# AI agents for order processing
+agents:
+  - id: order_validator
+    config:
+      $ref: global::models.#(id=="gpt-4o")
+    instructions: |
+      You are an order validation specialist. Your role is to:
+      1. Review order details for completeness and accuracy
+      2. Identify any potential issues or anomalies
+      3. Validate customer information
+      4. Check for fraud indicators
+
+      Always respond with clear validation results and any concerns.
+
+  - id: customer_service
+    config:
+      $ref: global::models.#(id=="gpt-4o")
+    instructions: |
+      You are a customer service agent specializing in order communications.
+      You craft professional, friendly email content for order updates.
+
+      Always include:
+      - Order number and summary
+      - Clear next steps for the customer
+      - Contact information for support
+      - Estimated timelines when available
+
+# Workflow tasks
+tasks:
+  - id: validate_order
+    type: basic
+    $use: agent(local::agents.#(id=="order_validator"))
+    action: default
+    with:
+      task: |
+        Validate this order for any issues:
+
+        Order ID: {{ .input.orderId }}
+        Customer: {{ .input.customerId }}
+        Email: {{ .input.customerEmail }}
+        Total Amount: ${{ .input.totalAmount }}
+        Item Count: {{ len .input.items }}
+
+        Items:
+        {{- range .input.items }}
+        - {{ .name }}: {{ .quantity }} x ${{ .price }}
+        {{- end }}
+
+        Shipping Address:
+        {{ .input.shippingAddress.street }}
+        {{ .input.shippingAddress.city }}, {{ .input.shippingAddress.zipCode }}
+        {{ .input.shippingAddress.country }}
+
+        Please validate this order and report any concerns.
+    outputs:
+      validation_result: "{{ .output }}"
+      order_id: "{{ .input.orderId }}"
+    on_success:
+      next: check_inventory
+    on_error:
+      next: send_validation_error
+
+  - id: check_inventory
+    type: basic
+    $use: tool(local::tools.#(id=="inventory_checker"))
+    with:
+      items: "{{ .input.items }}"
+    outputs:
+      inventory_status: "{{ .output }}"
+      items_available: "{{ .output.available }}"
+    on_success:
+      next: calculate_shipping
+    on_error:
+      next: send_inventory_error
+
+  - id: calculate_shipping
+    type: basic
+    $use: tool(local::tools.#(id=="shipping_calculator"))
+    with:
+      items: "{{ .input.items }}"
+      address: "{{ .input.shippingAddress }}"
+    outputs:
+      shipping_cost: "{{ .output.cost }}"
+      estimated_delivery: "{{ .output.estimatedDelivery }}"
+      shipping_method: "{{ .output.method }}"
+    on_success:
+      next: calculate_total
+    on_error:
+      next: send_shipping_error
+
+  - id: calculate_total
+    type: basic
+    $use: agent(local::agents.#(id=="order_validator"))
+    action: default
+    with:
+      task: |
+        Calculate the total amount for this order:
+        Subtotal: ${{ .input.totalAmount }}
+        Shipping: ${{ .tasks.calculate_shipping.output.shipping_cost }}
+
+        Return just the total amount as a number.
+    outputs:
+      grand_total: "{{ .output }}"
+    on_success:
+      next: process_payment
+    on_error:
+      next: send_payment_error
+
+  - id: process_payment
+    type: basic
+    $use: tool(local::tools.#(id=="payment_processor"))
+    with:
+      customerId: "{{ .input.customerId }}"
+      amount: "{{ .tasks.calculate_total.output.grand_total }}"
+    outputs:
+      payment_status: "{{ .output.status }}"
+      transaction_id: "{{ .output.transactionId }}"
+      total_charged: "{{ .output.amount }}"
+    on_success:
+      next: generate_order_summary
+    on_error:
+      next: send_payment_error
+
+  - id: generate_order_summary
+    type: basic
+    $use: agent(local::agents.#(id=="customer_service"))
+    action: default
+    with:
+      task: |
+        Create an order confirmation summary for this successfully processed order:
+
+        Order Details:
+        - Order ID: {{ .input.orderId }}
+        - Customer: {{ .input.customerEmail }}
+        - Items: {{ len .input.items }} items
+        - Subtotal: ${{ .input.totalAmount }}
+        - Shipping: ${{ .tasks.calculate_shipping.output.shipping_cost }}
+        - Total Charged: ${{ .tasks.process_payment.output.total_charged }}
+        - Payment Status: {{ .tasks.process_payment.output.payment_status }}
+        - Transaction ID: {{ .tasks.process_payment.output.transaction_id }}
+        - Estimated Delivery: {{ .tasks.calculate_shipping.output.estimated_delivery }}
+
+        Create a professional order confirmation message.
+    outputs:
+      confirmation_message: "{{ .output }}"
+      final_total: "{{ .tasks.process_payment.output.total_charged }}"
+    on_success:
+      next: send_confirmation_email
+
+  - id: send_confirmation_email
+    type: basic
+    $use: tool(local::tools.#(id=="email_sender"))
+    with:
+      recipient: "{{ .input.customerEmail }}"
+      subject: "Order Confirmation - {{ .input.orderId }}"
+      template: "order_confirmation"
+      data:
+        order_id: "{{ .input.orderId }}"
+        customer_email: "{{ .input.customerEmail }}"
+        items: "{{ .input.items }}"
+        subtotal: "{{ .input.totalAmount }}"
+        shipping_cost: "{{ .tasks.calculate_shipping.output.shipping_cost }}"
+        total: "{{ .tasks.process_payment.output.total_charged }}"
+        estimated_delivery: "{{ .tasks.calculate_shipping.output.estimated_delivery }}"
+        confirmation_message: "{{ .tasks.generate_order_summary.output.confirmation_message }}"
+    final: true
+
+  # Error handling tasks
+  - id: send_validation_error
+    type: basic
+    $use: tool(local::tools.#(id=="email_sender"))
+    with:
+      recipient: "{{ .input.customerEmail }}"
+      subject: "Order Processing Issue - {{ .input.orderId }}"
+      template: "validation_error"
+      data:
+        order_id: "{{ .input.orderId }}"
+        error_details: "{{ .error }}"
+    final: true
+
+  - id: send_inventory_error
+    type: basic
+    $use: tool(local::tools.#(id=="email_sender"))
+    with:
+      recipient: "{{ .input.customerEmail }}"
+      subject: "Inventory Issue - {{ .input.orderId }}"
+      template: "inventory_error"
+      data:
+        order_id: "{{ .input.orderId }}"
+        items: "{{ .input.items }}"
+        inventory_status: "{{ .tasks.check_inventory.output.inventory_status }}"
+    final: true
+
+  - id: send_shipping_error
+    type: basic
+    $use: tool(local::tools.#(id=="email_sender"))
+    with:
+      recipient: "{{ .input.customerEmail }}"
+      subject: "Shipping Calculation Error - {{ .input.orderId }}"
+      template: "shipping_error"
+      data:
+        order_id: "{{ .input.orderId }}"
+        shipping_address: "{{ .input.shippingAddress }}"
+        error_details: "{{ .error }}"
+    final: true
+
+  - id: send_payment_error
+    type: basic
+    $use: tool(local::tools.#(id=="email_sender"))
+    with:
+      recipient: "{{ .input.customerEmail }}"
+      subject: "Payment Processing Error - {{ .input.orderId }}"
+      template: "payment_error"
+      data:
+        order_id: "{{ .input.orderId }}"
+        amount: "{{ add .input.totalAmount .tasks.calculate_shipping.output.shipping_cost }}"
+        error_details: "{{ .error }}"
+    final: true

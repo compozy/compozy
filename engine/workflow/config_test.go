@@ -123,6 +123,61 @@ func Test_WorkflowConfigValidation(t *testing.T) {
 	})
 }
 
+func Test_TriggerValidation(t *testing.T) {
+	t.Run("Should validate signal trigger correctly", func(t *testing.T) {
+		cwd, err := core.CWDFromPath("/test/path")
+		require.NoError(t, err)
+		config := &Config{
+			ID:  "test-workflow",
+			CWD: cwd,
+			Triggers: []Trigger{
+				{
+					Type: TriggerTypeSignal,
+					Name: "order.created",
+				},
+			},
+		}
+		err = config.Validate()
+		require.NoError(t, err)
+	})
+
+	t.Run("Should return error for unsupported trigger type", func(t *testing.T) {
+		cwd, err := core.CWDFromPath("/test/path")
+		require.NoError(t, err)
+		config := &Config{
+			ID:  "test-workflow",
+			CWD: cwd,
+			Triggers: []Trigger{
+				{
+					Type: "unsupported",
+					Name: "test.event",
+				},
+			},
+		}
+		err = config.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported trigger type: unsupported")
+	})
+
+	t.Run("Should return error for empty trigger name", func(t *testing.T) {
+		cwd, err := core.CWDFromPath("/test/path")
+		require.NoError(t, err)
+		config := &Config{
+			ID:  "test-workflow",
+			CWD: cwd,
+			Triggers: []Trigger{
+				{
+					Type: TriggerTypeSignal,
+					Name: "",
+				},
+			},
+		}
+		err = config.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "trigger name is required")
+	})
+}
+
 func Test_WorkflowConfigCWD(t *testing.T) {
 	t.Run("Should handle CWD operations correctly", func(t *testing.T) {
 		config := &Config{}

@@ -16,6 +16,7 @@ import (
 	wf "github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gosimple/slug"
+	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 )
@@ -109,6 +110,7 @@ func NewWorker(
 
 func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterWorkflow(CompozyWorkflow)
+	o.worker.RegisterWorkflow(DispatcherWorkflow)
 	o.worker.RegisterActivity(o.activities.GetWorkflowData)
 	o.worker.RegisterActivity(o.activities.TriggerWorkflow)
 	o.worker.RegisterActivity(o.activities.UpdateWorkflowState)
@@ -126,7 +128,13 @@ func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterActivity(o.activities.GetProgress)
 	o.worker.RegisterActivity(o.activities.UpdateParentStatus)
 	o.worker.RegisterActivity(o.activities.ListChildStates)
-	return o.worker.Start()
+	err := o.worker.Start()
+	if err != nil {
+		return err
+	}
+	// Ensure dispatcher is running
+	go o.ensureDispatcherRunning(context.Background())
+	return nil
 }
 
 func (o *Worker) Stop(ctx context.Context) {
@@ -160,6 +168,33 @@ func (o *Worker) WorkflowRepo() wf.Repository {
 
 func (o *Worker) TaskRepo() task.Repository {
 	return o.config.TaskRepo()
+}
+
+// GetClient exposes the Temporal client for signal operations
+func (o *Worker) GetClient() client.Client {
+	return o.client
+}
+
+func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
+	dispatcherID := "dispatcher-" + slug.Make(o.projectConfig.Name)
+	_, err := o.client.SignalWithStartWorkflow(
+		ctx,
+		dispatcherID,
+		"event_channel",
+		nil,
+		client.StartWorkflowOptions{
+			ID:        dispatcherID,
+			TaskQueue: o.taskQueue,
+		},
+		DispatcherWorkflow,
+		o.projectConfig.Name,
+	)
+	if err != nil {
+		// Use the typed error check for robustness
+		if _, ok := err.(*serviceerror.WorkflowExecutionAlreadyStarted); !ok {
+			logger.Error("Failed to start dispatcher", "error", err)
+		}
+	}
 }
 
 // HealthCheck performs a comprehensive health check including cache connectivity

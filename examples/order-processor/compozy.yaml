@@ -1,0 +1,19 @@
+name: order-processor-example
+version: 0.1.0
+description: "Event-driven order processing system demonstrating signal triggers"
+
+workflows:
+  - source: ./workflow.yaml
+
+models:
+  - id: gpt-4o
+    provider: openai
+    model: gpt-4o
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+
+runtime:
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-write
+    - --allow-env
