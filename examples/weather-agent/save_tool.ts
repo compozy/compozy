@@ -7,7 +7,7 @@ type Input = {
         clothing: any;
         activities: any;
         detailed_analysis: any;
-        clothing_validation: any;
+        validated_items: any;
     };
     format: "json" | "txt";
 };
@@ -24,11 +24,23 @@ export async function run(input: Input): Promise<Output> {
     if (input.format === "txt") {
         const txtContent = `Weather Report for ${data.city}
 ============================================
-Weather: ${JSON.stringify(data.weather, null, 2)}
-Activities: ${JSON.stringify(data.activities, null, 2)}
-Clothing Recommendations: ${JSON.stringify(data.clothing, null, 2)}
-Detailed Analysis: ${JSON.stringify(data.detailed_analysis, null, 2)}
-Clothing Validation: ${JSON.stringify(data.clothing_validation, null, 2)}
+
+WEATHER CONDITIONS:
+${JSON.stringify(data.weather, null, 2)}
+
+RECOMMENDED ACTIVITIES:
+${JSON.stringify(data.activities, null, 2)}
+
+CLOTHING RECOMMENDATIONS:
+${JSON.stringify(data.clothing, null, 2)}
+
+DETAILED ACTIVITY ANALYSIS:
+${JSON.stringify(data.detailed_analysis, null, 2)}
+
+CLOTHING VALIDATION RESULTS:
+${JSON.stringify(data.validated_items, null, 2)}
+
+============================================
 Generated at: ${new Date().toISOString()}
 `;
 

@@ -27,7 +27,7 @@ mcps:
 
 actions:
   - id: list_saved_files
-    prompt: |
+    prompt: |-
       Use MCP tools to list the files in the current directory and find any files that were saved by the previous tasks.
       Look specifically for:
       - results.json files (weather data in JSON format)
@@ -35,9 +35,3 @@ actions:
       IMPORTANT: Use the read_directory MCP tool to list the directory contents.
       The MCP server is configured to access the weather-agent directory.
       Then return the file paths found in the directory.
-
-  - id: read_file_content
-    prompt: |-
-      Read the content of the file "{{ .file_path }}" using MCP tools.
-      Use the read_file MCP tool to get the file contents.
-      Return a summary of what the file contains.

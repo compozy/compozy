@@ -165,7 +165,7 @@ tasks:
 
   - id: clothing_validation
     type: collection
-    items: "{{ .tasks.clothing.output.clothings }}"
+    items: "{{ .tasks.clothing.output.save_data.clothing }}"
     mode: sequential
     task:
       id: "validate-clothing-{{ .index }}"
@@ -178,6 +178,18 @@ tasks:
     outputs:
       validated_items: "{{ .output }}"
       validation_count: "{{ len .output }}"
+    on_success:
+      next: aggr
+
+  - id: aggr
+    type: aggregate
+    outputs:
+      city: "{{ .workflow.input.city }}"
+      weather: "{{ .tasks.weather.output }}"
+      clothing: "{{ .tasks.clothing.output.save_data.clothing }}"
+      activities: "{{ .tasks.activities.output }}"
+      detailed_analysis: "{{ .tasks.activity_analysis.output }}"
+      validated_items: "{{ .tasks.clothing_validation.output }}"
     on_success:
       next: clothing_check
 
@@ -195,7 +207,7 @@ tasks:
     $use: tool(local::tools.#(id="save_data"))
     final: true
     with:
-      payload: "{{ .tasks.clothing.output.save_data }}"
+      payload: "{{ .tasks.aggr.output }}"
       format: "txt"
 
   - id: save_results
@@ -208,13 +220,13 @@ tasks:
         type: basic
         $use: tool(local::tools.#(id="save_data"))
         with:
-          payload: "{{ .tasks.clothing.output.save_data }}"
+          payload: "{{ .tasks.aggr.output }}"
           format: "json"
       - id: save_txt
         type: basic
         $use: tool(local::tools.#(id="save_data"))
         with:
-          payload: "{{ .tasks.clothing.output.save_data }}"
+          payload: "{{ .tasks.aggr.output }}"
           format: "txt"
     on_success:
       next: verify_saved_files
