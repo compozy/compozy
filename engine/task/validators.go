@@ -118,6 +118,8 @@ func (v *TypeValidator) Validate() error {
 			return err
 		}
 		return v.validateCompositeTask()
+	case TaskTypeSignal:
+		return v.validateSignalTask()
 	default:
 		return fmt.Errorf("invalid task type: %s", v.config.Type)
 	}
@@ -335,6 +337,23 @@ func (v *TypeValidator) validateCompositeTaskItem(item *Config) error {
 	// Each task in composite execution should be a valid task configuration
 	if err := item.Validate(); err != nil {
 		return fmt.Errorf("invalid task configuration: %w", err)
+	}
+	return nil
+}
+
+func (v *TypeValidator) validateSignalTask() error {
+	if v.config.Signal == nil || strings.TrimSpace(v.config.Signal.ID) == "" {
+		return fmt.Errorf("signal.id is required for signal tasks")
+	}
+	// Signal tasks should not have action, agent, or tool
+	if v.config.Action != "" {
+		return fmt.Errorf("signal tasks cannot have an action field")
+	}
+	if v.config.Agent != nil {
+		return fmt.Errorf("signal tasks cannot have an agent")
+	}
+	if v.config.Tool != nil {
+		return fmt.Errorf("signal tasks cannot have a tool")
 	}
 	return nil
 }

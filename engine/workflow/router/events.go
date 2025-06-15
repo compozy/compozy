@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gosimple/slug"
 	"go.temporal.io/sdk/client"
 
 	"github.com/compozy/compozy/engine/core"
@@ -42,11 +41,9 @@ func handleEvent(c *gin.Context) {
 
 	state := router.GetAppState(c)
 	workerMgr := state.Worker
-	// Use default project name for now (no auth)
-	projectName := "order-processor-example"
-	projectID := core.MustNewID().String()
-	dispatcherID := "dispatcher-" + slug.Make(projectName) + "-" + projectID[:8]
-	taskQueue := slug.Make(projectName) + "-" + projectID[:8]
+	projectName := state.ProjectConfig.Name
+	dispatcherID := workerMgr.GetDispatcherID() // Use this instance's dispatcher
+	taskQueue := workerMgr.GetTaskQueue()       // Use this instance's task queue
 
 	// Generate correlation ID for tracking
 	eventID := core.MustNewID().String()
@@ -55,7 +52,7 @@ func handleEvent(c *gin.Context) {
 	_, err := workerMgr.GetClient().SignalWithStartWorkflow(
 		c.Request.Context(),
 		dispatcherID,
-		"event_channel",
+		worker.DispatcherEventChannel,
 		worker.EventSignal{
 			Name:          req.Name,
 			Payload:       req.Payload,

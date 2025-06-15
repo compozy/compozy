@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/worker"
+	"github.com/compozy/compozy/engine/workflow"
 )
 
 // -----------------------------------------------------------------------------
@@ -14,18 +15,25 @@ import (
 
 type CancelExecution struct {
 	worker         *worker.Worker
+	workflowRepo   workflow.Repository
 	workflowExecID core.ID
 }
 
 func NewCancelExecution(worker *worker.Worker, workflowExecID core.ID) *CancelExecution {
 	return &CancelExecution{
 		worker:         worker,
+		workflowRepo:   worker.WorkflowRepo(),
 		workflowExecID: workflowExecID,
 	}
 }
 
 func (uc *CancelExecution) Execute(ctx context.Context) error {
-	return uc.worker.CancelWorkflow(ctx, uc.workflowExecID)
+	// Get workflow state to retrieve workflowID
+	state, err := uc.workflowRepo.GetState(ctx, uc.workflowExecID)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow state: %w", err)
+	}
+	return uc.worker.CancelWorkflow(ctx, state.WorkflowID, uc.workflowExecID)
 }
 
 // -----------------------------------------------------------------------------

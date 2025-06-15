@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 
@@ -37,10 +38,16 @@ func getServerConfig(cmd *cobra.Command) (*server.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Find available port starting from requested port
+	availablePort := findAvailablePort(host, port)
+	if availablePort != port {
+		fmt.Printf("Port %d unavailable, using port %d instead\n", port, availablePort)
+	}
+
 	serverConfig := &server.Config{
 		CWD:         CWD,
 		Host:        host,
-		Port:        port,
+		Port:        availablePort,
 		CORSEnabled: cors,
 		ConfigFile:  configFile,
 	}
@@ -213,6 +220,30 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
+// isPortAvailable checks if a port is available for binding
+func isPortAvailable(host string, port int) bool {
+	addr := fmt.Sprintf("%s:%d", host, port)
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return false
+	}
+	listener.Close()
+	return true
+}
+
+// findAvailablePort finds the next available port starting from the given port
+func findAvailablePort(host string, startPort int) int {
+	maxAttempts := 100 // Prevent infinite loops
+	for i := 0; i < maxAttempts; i++ {
+		port := startPort + i
+		if isPortAvailable(host, port) {
+			return port
+		}
+	}
+	// If no port found, return the original port (will fail with proper error)
+	return startPort
+}
+
 func loadEnvFile(cmd *cobra.Command) error {
 	envFile, err := cmd.Flags().GetString("env-file")
 	if err != nil {
@@ -345,6 +376,15 @@ func runAndWatchServer(
 	restartChan chan bool,
 ) error {
 	for {
+		// Find available port on each restart in case the original port becomes free
+		availablePort := findAvailablePort(scfg.Host, scfg.Port)
+		if availablePort != scfg.Port {
+			logger.Info("port conflict on restart, using next available port",
+				"original_port", scfg.Port,
+				"available_port", availablePort)
+			scfg.Port = availablePort
+		}
+
 		srv := server.NewServer(*scfg, tcfg, dbCfg)
 		serverErrChan := make(chan error, 1)
 		go func() {

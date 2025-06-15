@@ -92,6 +92,9 @@ func (e *TaskExecutor) HandleExecution(ctx workflow.Context, taskConfig *task.Co
 	case task.TaskTypeComposite:
 		executeFn := e.HandleCompositeTask(taskConfig)
 		response, err = executeFn(ctx)
+	case task.TaskTypeSignal:
+		executeFn := e.ExecuteSignalTask(taskConfig)
+		response, err = executeFn(ctx)
 	default:
 		return nil, fmt.Errorf("unsupported execution type: %s", taskType)
 	}
@@ -148,6 +151,24 @@ func (e *TaskExecutor) ExecuteAggregateTask(taskConfig *task.Config) func(ctx wo
 			WorkflowID:     e.WorkflowID,
 			WorkflowExecID: e.WorkflowExecID,
 			TaskConfig:     taskConfig,
+		}
+		err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &response)
+		if err != nil {
+			return nil, err
+		}
+		return response, nil
+	}
+}
+
+func (e *TaskExecutor) ExecuteSignalTask(taskConfig *task.Config) func(ctx workflow.Context) (task.Response, error) {
+	return func(ctx workflow.Context) (task.Response, error) {
+		var response *task.MainTaskResponse
+		actLabel := tkacts.ExecuteSignalLabel
+		actInput := tkacts.ExecuteSignalInput{
+			WorkflowID:     e.WorkflowID,
+			WorkflowExecID: e.WorkflowExecID,
+			TaskConfig:     taskConfig,
+			ProjectName:    e.ProjectConfig.Name,
 		}
 		err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &response)
 		if err != nil {

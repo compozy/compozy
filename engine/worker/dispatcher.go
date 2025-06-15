@@ -167,7 +167,7 @@ func executeChildWorkflow(
 	logger := workflow.GetLogger(ctx)
 	workflowExecID := generateWorkflowExecID(ctx)
 	cwo := workflow.ChildWorkflowOptions{
-		WorkflowID:        target.config.ID + "-" + workflowExecID.String(),
+		WorkflowID:        buildWorkflowID(target.config.ID, workflowExecID),
 		ParentClosePolicy: enums.PARENT_CLOSE_POLICY_ABANDON, // Let child continue if parent restarts
 	}
 	childCtx := workflow.WithChildOptions(ctx, cwo)
@@ -245,7 +245,7 @@ func DispatcherWorkflow(ctx workflow.Context, projectName string) error {
 	var data *wfacts.GetData
 	lao := workflow.LocalActivityOptions{StartToCloseTimeout: 10 * time.Second}
 	ctx = workflow.WithLocalActivityOptions(ctx, lao)
-	err := workflow.ExecuteLocalActivity(ctx, wfacts.GetDataLabel, &wfacts.GetDataInput{WorkflowID: "order-processor"}).
+	err := workflow.ExecuteLocalActivity(ctx, wfacts.GetDataLabel, &wfacts.GetDataInput{WorkflowID: projectName}).
 		Get(ctx, &data)
 	if err != nil {
 		logger.Error("Failed to load workflow configuration", "error", err)

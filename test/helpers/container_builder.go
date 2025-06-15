@@ -356,6 +356,7 @@ func SetupWorkflowEnvironment(t *testing.T, env *testsuite.TestWorkflowEnvironme
 		config.TaskRepo,
 		runtime,
 		configStore,
+		services.NewMockSignalDispatcher(),
 	)
 
 	// Register workflows

@@ -16,6 +16,7 @@ import (
 	wf "github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gosimple/slug"
+	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
@@ -47,6 +48,7 @@ type Worker struct {
 	configStore   services.ConfigStore
 	redisCache    *cache.Cache
 	mcpRegister   *mcp.RegisterService
+	dispatcherID  string // Track dispatcher ID for cleanup
 }
 
 func NewWorker(
@@ -61,6 +63,7 @@ func NewWorker(
 		return nil, fmt.Errorf("failed to create worker client: %w", err)
 	}
 	taskQueue := slug.Make(projectConfig.Name)
+
 	worker := client.NewWorker(taskQueue)
 	projectRoot := projectConfig.GetCWD().PathStr()
 
@@ -92,6 +95,11 @@ func NewWorker(
 		return nil, fmt.Errorf("failed to initialize MCP register: %w", err)
 	}
 
+	// Create unique dispatcher ID per server instance to avoid conflicts
+	serverID := core.MustNewID().String()[:8] // Use first 8 chars for readability
+	dispatcherID := fmt.Sprintf("dispatcher-%s-%s", slug.Make(projectConfig.Name), serverID)
+
+	signalDispatcher := NewTemporalSignalDispatcher(client, dispatcherID, taskQueue)
 	activities := NewActivities(
 		projectConfig,
 		workflows,
@@ -99,6 +107,7 @@ func NewWorker(
 		config.TaskRepo(),
 		runtime,
 		configStore,
+		signalDispatcher,
 	)
 	return &Worker{
 		client:        client,
@@ -111,6 +120,7 @@ func NewWorker(
 		configStore:   configStore,
 		redisCache:    redisCache,
 		mcpRegister:   mcpRegister,
+		dispatcherID:  dispatcherID,
 	}, nil
 }
 
@@ -124,6 +134,7 @@ func (o *Worker) Setup(ctx context.Context) error {
 	o.worker.RegisterActivity(o.activities.ExecuteBasicTask)
 	o.worker.RegisterActivity(o.activities.ExecuteRouterTask)
 	o.worker.RegisterActivity(o.activities.ExecuteAggregateTask)
+	o.worker.RegisterActivity(o.activities.ExecuteSignalTask)
 	o.worker.RegisterActivity(o.activities.ExecuteSubtask)
 	o.worker.RegisterActivity(o.activities.CreateParallelState)
 	o.worker.RegisterActivity(o.activities.GetParallelResponse)
@@ -144,6 +155,14 @@ func (o *Worker) Setup(ctx context.Context) error {
 }
 
 func (o *Worker) Stop(ctx context.Context) {
+	// Terminate this instance's dispatcher since each server has its own
+	if o.dispatcherID != "" {
+		logger.Info("terminating instance dispatcher", "dispatcher_id", o.dispatcherID)
+		if err := o.client.TerminateWorkflow(ctx, o.dispatcherID, "", "server shutdown"); err != nil {
+			logger.Error("failed to terminate dispatcher", "error", err, "dispatcher_id", o.dispatcherID)
+		}
+	}
+
 	o.worker.Stop()
 	o.client.Close()
 
@@ -181,26 +200,55 @@ func (o *Worker) GetClient() client.Client {
 	return o.client
 }
 
+// GetDispatcherID returns this worker's unique dispatcher ID
+func (o *Worker) GetDispatcherID() string {
+	return o.dispatcherID
+}
+
+// GetTaskQueue returns this worker's task queue name
+func (o *Worker) GetTaskQueue() string {
+	return o.taskQueue
+}
+
+// TerminateDispatcher explicitly terminates the dispatcher workflow
+// Use this only when you want to force cleanup (e.g., CLI cleanup command)
+func (o *Worker) TerminateDispatcher(ctx context.Context, reason string) error {
+	if o.dispatcherID == "" {
+		return fmt.Errorf("no dispatcher ID available")
+	}
+	logger.Info("terminating dispatcher workflow", "dispatcher_id", o.dispatcherID, "reason", reason)
+	return o.client.TerminateWorkflow(ctx, o.dispatcherID, "", reason)
+}
+
 func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
-	dispatcherID := "dispatcher-" + slug.Make(o.projectConfig.Name)
 	_, err := o.client.SignalWithStartWorkflow(
 		ctx,
-		dispatcherID,
+		o.dispatcherID,
 		DispatcherEventChannel,
 		nil,
 		client.StartWorkflowOptions{
-			ID:        dispatcherID,
-			TaskQueue: o.taskQueue,
+			ID:                    o.dispatcherID,
+			TaskQueue:             o.taskQueue,
+			WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
 		},
 		DispatcherWorkflow,
 		o.projectConfig.Name,
 	)
 	if err != nil {
-		// Use the typed error check for robustness
-		if _, ok := err.(*serviceerror.WorkflowExecutionAlreadyStarted); !ok {
-			logger.Error("Failed to start dispatcher", "error", err)
+		if _, ok := err.(*serviceerror.WorkflowExecutionAlreadyStarted); ok {
+			logger.Info("dispatcher already running", "dispatcher_id", o.dispatcherID, "project", o.projectConfig.Name)
+		} else {
+			logger.Error("failed to start dispatcher", "error", err, "dispatcher_id", o.dispatcherID)
 		}
+	} else {
+		logger.Info("started new dispatcher", "dispatcher_id", o.dispatcherID, "project", o.projectConfig.Name)
 	}
+
+	// Debug: Check if dispatcher workflow actually started
+	logger.Info("dispatcher start attempt completed",
+		"dispatcher_id", o.dispatcherID,
+		"task_queue", o.taskQueue,
+		"error", err)
 }
 
 // HealthCheck performs a comprehensive health check including cache connectivity
@@ -234,6 +282,15 @@ func (o *Worker) checkMCPProxyHealth(ctx context.Context) error {
 }
 
 // -----------------------------------------------------------------------------
+// Workflow ID Management
+// -----------------------------------------------------------------------------
+
+// buildWorkflowID creates a consistent Temporal workflow ID from workflowID and execID
+func buildWorkflowID(workflowID string, workflowExecID core.ID) string {
+	return workflowID + "-" + workflowExecID.String()
+}
+
+// -----------------------------------------------------------------------------
 // Workflow Operations
 // -----------------------------------------------------------------------------
 
@@ -251,9 +308,8 @@ func (o *Worker) TriggerWorkflow(
 		Input:          input,
 		InitialTaskID:  initTaskID,
 	}
-
 	options := client.StartWorkflowOptions{
-		ID:        workflowExecID.String(),
+		ID:        buildWorkflowID(workflowID, workflowInput.WorkflowExecID),
 		TaskQueue: o.taskQueue,
 	}
 	workflowConfig, err := wf.FindConfig(o.workflows, workflowID)
@@ -265,7 +321,6 @@ func (o *Worker) TriggerWorkflow(
 	}
 
 	// MCPs are already registered at server startup, no need to register per workflow
-
 	_, err = o.client.ExecuteWorkflow(
 		ctx,
 		options,
@@ -278,7 +333,7 @@ func (o *Worker) TriggerWorkflow(
 	return &workflowInput, nil
 }
 
-func (o *Worker) CancelWorkflow(ctx context.Context, workflowExecID core.ID) error {
-	id := workflowExecID.String()
-	return o.client.CancelWorkflow(ctx, id, "")
+func (o *Worker) CancelWorkflow(ctx context.Context, workflowID string, workflowExecID core.ID) error {
+	temporalID := buildWorkflowID(workflowID, workflowExecID)
+	return o.client.CancelWorkflow(ctx, temporalID, "")
 }

@@ -53,23 +53,8 @@ func (a *GetCollectionResponse) Run(
 	if input.ParentState.Output != nil {
 		if metadata, exists := (*input.ParentState.Output)["collection_metadata"]; exists {
 			if metadataMap, ok := metadata.(map[string]any); ok {
-				// Handle int, int64, and float64 types (JSON/protobuf unmarshaling)
-				switch v := metadataMap["item_count"].(type) {
-				case int:
-					itemCount = v
-				case int64:
-					itemCount = int(v)
-				case float64:
-					itemCount = int(v)
-				}
-				switch v := metadataMap["skipped_count"].(type) {
-				case int:
-					skippedCount = v
-				case int64:
-					skippedCount = int(v)
-				case float64:
-					skippedCount = int(v)
-				}
+				itemCount = toInt(metadataMap["item_count"])
+				skippedCount = toInt(metadataMap["skipped_count"])
 			}
 		}
 	}
@@ -102,4 +87,21 @@ func (a *GetCollectionResponse) processCollectionTask(
 	taskConfig *task.Config,
 ) error {
 	return processParentTask(ctx, a.taskRepo, input.ParentState, taskConfig, task.TaskTypeCollection)
+}
+
+// toInt safely converts any value to int, handling nil and different numeric types
+func toInt(v any) int {
+	if v == nil {
+		return 0
+	}
+	switch val := v.(type) {
+	case int:
+		return val
+	case int64:
+		return int(val)
+	case float64:
+		return int(val)
+	default:
+		return 0
+	}
 }

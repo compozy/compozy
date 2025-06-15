@@ -24,6 +24,7 @@ func TestEventSignal_Structure(t *testing.T) {
 		}
 		assert.Equal(t, "order.created", signal.Name)
 		assert.Equal(t, "123", signal.Payload["orderId"])
+		assert.Equal(t, "test-correlation-id", signal.CorrelationID)
 	})
 
 	t.Run("Should handle empty payload", func(t *testing.T) {

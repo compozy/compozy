@@ -33,5 +33,5 @@ actions:
       - results.json files (weather data in JSON format)
       - results.txt files (weather data in text format)
       IMPORTANT: Use the read_directory MCP tool to list the directory contents.
-      The MCP server is configured to access the weather-agent directory.
+      The MCP server is configured to access the weather directory.
       Then return the file paths found in the directory.
