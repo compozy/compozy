@@ -274,6 +274,28 @@ func (a *Activities) GetCompositeResponse(
 	return act.Run(ctx, input)
 }
 
+func (a *Activities) LoadTaskConfigActivity(
+	ctx context.Context,
+	input *tkfacts.LoadTaskConfigInput,
+) (*task.Config, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewLoadTaskConfig(a.workflows)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) LoadBatchConfigsActivity(
+	ctx context.Context,
+	input *tkfacts.LoadBatchConfigsInput,
+) (map[string]*task.Config, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewLoadBatchConfigs(a.workflows)
+	return act.Run(ctx, input)
+}
+
 func (a *Activities) ExecuteSignalTask(
 	ctx context.Context,
 	input *tkfacts.ExecuteSignalInput,

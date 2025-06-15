@@ -12,12 +12,14 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
+	tkacts "github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/task/services"
 	wf "github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gosimple/slug"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/api/serviceerror"
+	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 )
@@ -155,6 +157,14 @@ func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterActivity(o.activities.GetProgress)
 	o.worker.RegisterActivity(o.activities.UpdateParentStatus)
 	o.worker.RegisterActivity(o.activities.ListChildStates)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.LoadTaskConfigActivity,
+		activity.RegisterOptions{Name: tkacts.LoadTaskConfigLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.LoadBatchConfigsActivity,
+		activity.RegisterOptions{Name: tkacts.LoadBatchConfigsLabel},
+	)
 	err := o.worker.Start()
 	if err != nil {
 		return err
