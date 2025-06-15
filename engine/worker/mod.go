@@ -126,6 +126,8 @@ func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterActivity(o.activities.GetProgress)
 	o.worker.RegisterActivity(o.activities.UpdateParentStatus)
 	o.worker.RegisterActivity(o.activities.ListChildStates)
+	o.worker.RegisterActivity(o.activities.LoadTaskConfigActivity)
+	o.worker.RegisterActivity(o.activities.LoadBatchConfigsActivity)
 	return o.worker.Start()
 }
 

@@ -11,7 +11,6 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	tkacts "github.com/compozy/compozy/engine/task/activities"
-	"github.com/compozy/compozy/engine/task/uc"
 )
 
 type TaskExecutor struct {
@@ -25,15 +24,18 @@ func NewTaskExecutor(contextBuilder *ContextBuilder) *TaskExecutor {
 func (e *TaskExecutor) ExecuteFirstTask() func(ctx workflow.Context) (task.Response, error) {
 	return func(ctx workflow.Context) (task.Response, error) {
 		ctx = e.BuildTaskContext(ctx, e.InitialTaskID)
-		loadTaskUC := uc.NewLoadTaskConfig(e.Workflows)
-		taskConfig, err := loadTaskUC.Execute(ctx, &uc.LoadTaskConfigInput{
+
+		// Load task config via activity (deterministic)
+		var taskConfig *task.Config
+		actInput := &tkacts.LoadTaskConfigInput{
 			WorkflowConfig: e.WorkflowConfig,
 			TaskID:         e.InitialTaskID,
-		})
+		}
+		err := workflow.ExecuteActivity(ctx, tkacts.LoadTaskConfigLabel, actInput).Get(ctx, &taskConfig)
 		if err != nil {
 			return nil, err
 		}
-		return e.HandleExecution(ctx, taskConfig)
+		return e.HandleExecution(ctx, taskConfig, 0)
 	}
 }
 
@@ -48,7 +50,7 @@ func (e *TaskExecutor) ExecuteTasks(response task.Response) func(ctx workflow.Co
 			return nil, err
 		}
 		// Execute task
-		taskResponse, err := e.HandleExecution(ctx, taskConfig)
+		taskResponse, err := e.HandleExecution(ctx, taskConfig, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -67,10 +69,21 @@ func (e *TaskExecutor) ExecuteTasks(response task.Response) func(ctx workflow.Co
 	}
 }
 
-func (e *TaskExecutor) HandleExecution(ctx workflow.Context, taskConfig *task.Config) (task.Response, error) {
+func (e *TaskExecutor) HandleExecution(
+	ctx workflow.Context,
+	taskConfig *task.Config,
+	depth ...int,
+) (task.Response, error) {
 	logger := workflow.GetLogger(ctx)
 	taskID := taskConfig.ID
 	taskType := taskConfig.Type
+	currentDepth := 0
+	if len(depth) > 0 {
+		currentDepth = depth[0]
+	}
+	if currentDepth > 20 { // max_nesting_depth from config
+		return nil, fmt.Errorf("maximum nesting depth exceeded: %d", currentDepth)
+	}
 	var response task.Response
 	var err error
 	switch taskType {
@@ -81,27 +94,28 @@ func (e *TaskExecutor) HandleExecution(ctx workflow.Context, taskConfig *task.Co
 		executeFn := e.ExecuteRouterTask(taskConfig)
 		response, err = executeFn(ctx)
 	case task.TaskTypeParallel:
-		executeFn := e.HandleParallelTask(taskConfig)
+		executeFn := e.HandleParallelTask(taskConfig, currentDepth)
 		response, err = executeFn(ctx)
 	case task.TaskTypeCollection:
-		executeFn := e.ExecuteCollectionTask(taskConfig)
+		executeFn := e.ExecuteCollectionTask(taskConfig, currentDepth)
 		response, err = executeFn(ctx)
 	case task.TaskTypeAggregate:
 		executeFn := e.ExecuteAggregateTask(taskConfig)
 		response, err = executeFn(ctx)
 	case task.TaskTypeComposite:
-		executeFn := e.HandleCompositeTask(taskConfig)
+		executeFn := e.HandleCompositeTask(taskConfig, currentDepth)
 		response, err = executeFn(ctx)
 	default:
 		return nil, fmt.Errorf("unsupported execution type: %s", taskType)
 	}
 	if err != nil {
-		logger.Error("Failed to execute task", "task_id", taskID, "error", err)
+		logger.Error("Failed to execute task", "task_id", taskID, "depth", currentDepth, "error", err)
 		return nil, err
 	}
 	logger.Info("Task executed successfully",
 		"status", response.GetState().Status,
 		"task_id", taskID,
+		"depth", currentDepth,
 	)
 	return response, nil
 }
@@ -215,14 +229,19 @@ func (e *TaskExecutor) ExecuteSubtask(
 
 func (e *TaskExecutor) ExecuteCollectionTask(
 	taskConfig *task.Config,
+	depth ...int,
 ) func(ctx workflow.Context) (task.Response, error) {
 	return func(ctx workflow.Context) (task.Response, error) {
 		logger := workflow.GetLogger(ctx)
+		currentDepth := 0
+		if len(depth) > 0 {
+			currentDepth = depth[0]
+		}
 		cState, err := e.CreateCollectionState(ctx, taskConfig)
 		if err != nil {
 			return nil, err
 		}
-		err = e.HandleCollectionTask(ctx, cState, taskConfig)
+		err = e.HandleCollectionTask(ctx, cState, taskConfig, currentDepth)
 		if err != nil {
 			return nil, err
 		}
@@ -290,6 +309,29 @@ func (e *TaskExecutor) GetCollectionResponse(
 	return response, nil
 }
 
+// executeChild executes a child task, handling both Basic tasks (using ExecuteSubtask)
+// and container tasks (recursively calling HandleExecution)
+func (e *TaskExecutor) executeChild(
+	ctx workflow.Context,
+	parentState *task.State,
+	childState *task.State,
+	cfg *task.Config,
+	depth int,
+) error {
+	logger := workflow.GetLogger(ctx)
+	logger.Debug("Executing child", "task", cfg.ID, "depth", depth)
+
+	switch cfg.Type {
+	case task.TaskTypeBasic:
+		_, err := e.ExecuteSubtask(ctx, parentState, childState.TaskExecID.String())
+		return err
+	default:
+		// Recurse for container tasks - bump depth
+		_, err := e.HandleExecution(ctx, cfg, depth+1)
+		return err
+	}
+}
+
 func (e *TaskExecutor) sleepTask(ctx workflow.Context, taskConfig *task.Config) error {
 	// Get logger from workflow context for consistency
 	logger := workflow.GetLogger(ctx)
@@ -313,65 +355,34 @@ func (e *TaskExecutor) sleepTask(ctx workflow.Context, taskConfig *task.Config) 
 	return nil
 }
 
-func (e *TaskExecutor) HandleParallelTask(pConfig *task.Config) func(ctx workflow.Context) (task.Response, error) {
+func (e *TaskExecutor) HandleParallelTask(
+	pConfig *task.Config,
+	depth ...int,
+) func(ctx workflow.Context) (task.Response, error) {
 	return func(ctx workflow.Context) (task.Response, error) {
 		logger := workflow.GetLogger(ctx)
+		currentDepth := 0
+		if len(depth) > 0 {
+			currentDepth = depth[0]
+		}
+
+		// TODO: ContinueAsNew guard (history safety) - implement when needed
+		// if historyLength > 25000 { return continueAsNew() }
+
 		var completed, failed int32
-		pState, err := e.CreateParallelState(ctx, pConfig)
+		pState, childStates, childCfgs, numTasks, err := e.setupParallelExecution(ctx, pConfig)
 		if err != nil {
 			return nil, err
 		}
 
-		// Get child states that were created by CreateParallelState
-		childStates, err := e.ListChildStates(ctx, pState.TaskExecID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list child states: %w", err)
-		}
-
-		tasksLen := len(childStates)
-		if tasksLen > math.MaxInt32 {
-			return nil, fmt.Errorf("too many tasks: %d exceeds maximum of %d", tasksLen, math.MaxInt32)
-		}
-		numTasks := int32(tasksLen)
-
-		// Execute subtasks in parallel using their TaskExecIDs
-		for i := range childStates {
-			childState := childStates[i]
-			workflow.Go(ctx, func(gCtx workflow.Context) {
-				_, err := e.ExecuteSubtask(gCtx, pState, childState.TaskExecID.String())
-				if err != nil {
-					logger.Error("Failed to execute sub task",
-						"parent_task_id", pConfig.ID,
-						"sub_task_exec_id", childState.TaskExecID,
-						"error", err)
-					atomic.AddInt32(&failed, 1)
-				} else {
-					atomic.AddInt32(&completed, 1)
-					logger.Info("Subtask completed successfully",
-						"parent_task_id", pConfig.ID,
-						"sub_task_exec_id", childState.TaskExecID)
-				}
-			})
-		}
+		// Execute subtasks in parallel using executeChild helper
+		e.executeChildrenInParallel(ctx, pState, childStates, childCfgs, pConfig, currentDepth, &completed, &failed)
 
 		// Wait for tasks to complete based on strategy
 		err = workflow.Await(ctx, func() bool {
 			completedCount := atomic.LoadInt32(&completed)
 			failedCount := atomic.LoadInt32(&failed)
-			strategy := pConfig.GetStrategy()
-			switch strategy {
-			case task.StrategyWaitAll:
-				return (completedCount + failedCount) >= numTasks
-			case task.StrategyFailFast:
-				return failedCount > 0 || completedCount >= numTasks
-			case task.StrategyBestEffort:
-				return (completedCount + failedCount) >= numTasks
-			case task.StrategyRace:
-				// Race terminates on first result, either success or failure
-				return completedCount > 0 || failedCount > 0
-			default:
-				return (completedCount + failedCount) >= numTasks
-			}
+			return e.shouldCompleteParallelTask(pConfig.GetStrategy(), completedCount, failedCount, numTasks)
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to await parallel task: %w", err)
@@ -393,10 +404,103 @@ func (e *TaskExecutor) HandleParallelTask(pConfig *task.Config) func(ctx workflo
 	}
 }
 
+// shouldCompleteParallelTask determines if parallel task execution should complete based on strategy
+func (e *TaskExecutor) shouldCompleteParallelTask(strategy task.ParallelStrategy, completed, failed, total int32) bool {
+	switch strategy {
+	case task.StrategyWaitAll:
+		return (completed + failed) >= total
+	case task.StrategyFailFast:
+		return failed > 0 || completed >= total
+	case task.StrategyBestEffort:
+		return (completed + failed) >= total
+	case task.StrategyRace:
+		// Race terminates on first result, either success or failure
+		return completed > 0 || failed > 0
+	default:
+		return (completed + failed) >= total
+	}
+}
+
+// executeChildrenInParallel executes child tasks in parallel using goroutines
+func (e *TaskExecutor) executeChildrenInParallel(
+	ctx workflow.Context,
+	parentState *task.State,
+	childStates []*task.State,
+	childCfgs map[string]*task.Config,
+	taskConfig *task.Config,
+	depth int,
+	completed, failed *int32,
+) {
+	logger := workflow.GetLogger(ctx)
+	for i := range childStates {
+		childState := childStates[i]
+		childConfig := childCfgs[childState.TaskID]
+		workflow.Go(ctx, func(gCtx workflow.Context) {
+			if gCtx.Err() != nil {
+				return // canceled before start
+			}
+			err := e.executeChild(gCtx, parentState, childState, childConfig, depth)
+			if gCtx.Err() != nil {
+				return // canceled during work
+			}
+			if err != nil {
+				logger.Error("Failed to execute child task",
+					"parent_task_id", taskConfig.ID,
+					"child_task_id", childState.TaskID,
+					"depth", depth+1,
+					"error", err)
+				atomic.AddInt32(failed, 1)
+			} else {
+				atomic.AddInt32(completed, 1)
+				logger.Info("Child task completed successfully",
+					"parent_task_id", taskConfig.ID,
+					"child_task_id", childState.TaskID,
+					"depth", depth+1)
+			}
+		})
+	}
+}
+
+// setupParallelExecution sets up the parallel task execution
+func (e *TaskExecutor) setupParallelExecution(
+	ctx workflow.Context,
+	pConfig *task.Config,
+) (*task.State, []*task.State, map[string]*task.Config, int32, error) {
+	pState, err := e.CreateParallelState(ctx, pConfig)
+	if err != nil {
+		return nil, nil, nil, 0, err
+	}
+	// Get child states that were created by CreateParallelState
+	childStates, err := e.ListChildStates(ctx, pState.TaskExecID)
+	if err != nil {
+		return nil, nil, nil, 0, fmt.Errorf("failed to list child states: %w", err)
+	}
+	// Batch-load child configs once
+	childIDs := make([]string, len(childStates))
+	for i, st := range childStates {
+		childIDs[i] = st.TaskID
+	}
+	var childCfgs map[string]*task.Config
+	err = workflow.ExecuteActivity(ctx, tkacts.LoadBatchConfigsLabel, &tkacts.LoadBatchConfigsInput{
+		WorkflowConfig: e.WorkflowConfig,
+		TaskIDs:        childIDs,
+	}).Get(ctx, &childCfgs)
+	if err != nil {
+		return nil, nil, nil, 0, fmt.Errorf("failed to load child configs: %w", err)
+	}
+	tasksLen := len(childStates)
+	if tasksLen > math.MaxInt32 {
+		return nil, nil, nil, 0, fmt.Errorf("too many tasks: %d exceeds maximum of %d", tasksLen, math.MaxInt32)
+	}
+	numTasks := int32(tasksLen)
+	return pState, childStates, childCfgs, numTasks, nil
+}
+
 func (e *TaskExecutor) HandleCollectionTask(
 	ctx workflow.Context,
 	cState *task.State,
 	taskConfig *task.Config,
+	depth int,
 ) error {
 	// Get child states that were created by CreateCollectionState
 	childStates, err := e.ListChildStates(ctx, cState.TaskExecID)
@@ -431,12 +535,12 @@ func (e *TaskExecutor) HandleCollectionTask(
 	mode := taskConfig.GetMode()
 	switch mode {
 	case task.CollectionModeSequential:
-		return e.handleCollectionSequential(ctx, cState, taskConfig, childStates, &completed, &failed)
+		return e.handleCollectionSequential(ctx, cState, taskConfig, childStates, &completed, &failed, depth)
 	case task.CollectionModeParallel:
-		return e.handleCollectionParallel(ctx, cState, taskConfig, childStates, &completed, &failed, childCount)
+		return e.handleCollectionParallel(ctx, cState, taskConfig, childStates, &completed, &failed, childCount, depth)
 	default:
 		// Default to parallel for backward compatibility
-		return e.handleCollectionParallel(ctx, cState, taskConfig, childStates, &completed, &failed, childCount)
+		return e.handleCollectionParallel(ctx, cState, taskConfig, childStates, &completed, &failed, childCount, depth)
 	}
 }
 
@@ -447,24 +551,49 @@ func (e *TaskExecutor) handleCollectionParallel(
 	childStates []*task.State,
 	completed, failed *int32,
 	childCount int32,
+	depth int,
 ) error {
 	logger := workflow.GetLogger(ctx)
-	// Execute child tasks using their TaskExecIDs
+
+	// Batch-load child configs once
+	childIDs := make([]string, len(childStates))
+	for i, st := range childStates {
+		childIDs[i] = st.TaskID
+	}
+	var childCfgs map[string]*task.Config
+	err := workflow.ExecuteActivity(ctx, tkacts.LoadBatchConfigsLabel, &tkacts.LoadBatchConfigsInput{
+		WorkflowConfig: e.WorkflowConfig,
+		TaskIDs:        childIDs,
+	}).Get(ctx, &childCfgs)
+	if err != nil {
+		return fmt.Errorf("failed to load child configs: %w", err)
+	}
+
+	// Execute child tasks using executeChild helper
 	for i := range childStates {
 		childState := childStates[i]
+		childConfig := childCfgs[childState.TaskID]
 		workflow.Go(ctx, func(gCtx workflow.Context) {
-			_, err := e.ExecuteSubtask(gCtx, cState, childState.TaskExecID.String())
+			if gCtx.Err() != nil {
+				return // canceled before start
+			}
+			err := e.executeChild(gCtx, cState, childState, childConfig, depth)
+			if gCtx.Err() != nil {
+				return // canceled during work
+			}
 			if err != nil {
-				logger.Error("Failed to execute collection item",
+				logger.Error("Failed to execute child task",
 					"parent_task_id", taskConfig.ID,
-					"child_task_exec_id", childState.TaskExecID,
+					"child_task_id", childState.TaskID,
+					"depth", depth+1,
 					"error", err)
 				atomic.AddInt32(failed, 1)
 			} else {
 				atomic.AddInt32(completed, 1)
-				logger.Info("Collection item completed successfully",
+				logger.Info("Child task completed successfully",
 					"parent_task_id", taskConfig.ID,
-					"child_task_exec_id", childState.TaskExecID)
+					"child_task_id", childState.TaskID,
+					"depth", depth+1)
 			}
 		})
 	}
@@ -506,26 +635,42 @@ func (e *TaskExecutor) handleCollectionSequential(
 	taskConfig *task.Config,
 	childStates []*task.State,
 	completed, failed *int32,
+	depth int,
 ) error {
 	logger := workflow.GetLogger(ctx)
 	strategy := taskConfig.GetStrategy()
+
+	// Batch-load child configs once
+	childIDs := make([]string, len(childStates))
+	for i, st := range childStates {
+		childIDs[i] = st.TaskID
+	}
+	var childCfgs map[string]*task.Config
+	err := workflow.ExecuteActivity(ctx, tkacts.LoadBatchConfigsLabel, &tkacts.LoadBatchConfigsInput{
+		WorkflowConfig: e.WorkflowConfig,
+		TaskIDs:        childIDs,
+	}).Get(ctx, &childCfgs)
+	if err != nil {
+		return fmt.Errorf("failed to load child configs: %w", err)
+	}
+
 	// Process child tasks sequentially
 	for i, childState := range childStates {
-		// Check for cancellation between iterations
-		// Note: In Temporal, we don't check cancellation explicitly in workflows
-		// The framework handles it automatically
-		logger.Info("Executing collection item sequentially",
+		childConfig := childCfgs[childState.TaskID]
+		logger.Info("Executing child task sequentially",
 			"parent_task_id", taskConfig.ID,
-			"child_task_exec_id", childState.TaskExecID,
+			"child_task_id", childState.TaskID,
 			"index", i,
+			"depth", depth+1,
 			"total", len(childStates))
-		_, err := e.ExecuteSubtask(ctx, cState, childState.TaskExecID.String())
+		err := e.executeChild(ctx, cState, childState, childConfig, depth)
 		if err != nil {
 			atomic.AddInt32(failed, 1)
-			logger.Error("Failed to execute collection item",
+			logger.Error("Failed to execute child task",
 				"parent_task_id", taskConfig.ID,
-				"child_task_exec_id", childState.TaskExecID,
+				"child_task_id", childState.TaskID,
 				"index", i,
+				"depth", depth+1,
 				"error", err)
 			// Handle strategy-based early termination
 			if strategy == task.StrategyFailFast {
@@ -536,10 +681,11 @@ func (e *TaskExecutor) handleCollectionSequential(
 			}
 		} else {
 			atomic.AddInt32(completed, 1)
-			logger.Info("Collection item completed successfully",
+			logger.Info("Child task completed successfully",
 				"parent_task_id", taskConfig.ID,
-				"child_task_exec_id", childState.TaskExecID,
-				"index", i)
+				"child_task_id", childState.TaskID,
+				"index", i,
+				"depth", depth+1)
 			// Handle Race strategy - stop on first success
 			if strategy == task.StrategyRace {
 				logger.Info("Stopping collection execution due to Race strategy",
@@ -559,9 +705,17 @@ func (e *TaskExecutor) handleCollectionSequential(
 	return nil
 }
 
-func (e *TaskExecutor) HandleCompositeTask(config *task.Config) func(ctx workflow.Context) (task.Response, error) {
+func (e *TaskExecutor) HandleCompositeTask(
+	config *task.Config,
+	depth ...int,
+) func(ctx workflow.Context) (task.Response, error) {
 	return func(ctx workflow.Context) (task.Response, error) {
 		logger := workflow.GetLogger(ctx)
+		currentDepth := 0
+		if len(depth) > 0 {
+			currentDepth = depth[0]
+		}
+
 		// Create parent state for composite task
 		compositeState, err := e.CreateCompositeState(ctx, config)
 		if err != nil {
@@ -572,8 +726,23 @@ func (e *TaskExecutor) HandleCompositeTask(config *task.Config) func(ctx workflo
 		if err != nil {
 			return nil, fmt.Errorf("failed to list child states: %w", err)
 		}
+
+		// Batch-load child configs once
+		childIDs := make([]string, len(childStates))
+		for i, st := range childStates {
+			childIDs[i] = st.TaskID
+		}
+		var childCfgs map[string]*task.Config
+		err = workflow.ExecuteActivity(ctx, tkacts.LoadBatchConfigsLabel, &tkacts.LoadBatchConfigsInput{
+			WorkflowConfig: e.WorkflowConfig,
+			TaskIDs:        childIDs,
+		}).Get(ctx, &childCfgs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load child configs: %w", err)
+		}
+
 		// Sort child states by task ID to ensure deterministic ordering
-		// This matches the order defined in config.ParallelTask.Tasks
+		// This matches the order defined in config.Tasks
 		sort.Slice(childStates, func(i, j int) bool {
 			// Find index of each task in the config
 			iIdx := findTaskIndex(config.Tasks, childStates[i].TaskID)
@@ -583,24 +752,27 @@ func (e *TaskExecutor) HandleCompositeTask(config *task.Config) func(ctx workflo
 		// Execute subtasks sequentially
 		strategy := config.GetStrategy()
 		for i, childState := range childStates {
-			// Execute subtask
-			_, err := e.ExecuteSubtask(ctx, compositeState, childState.TaskExecID.String())
+			childConfig := childCfgs[childState.TaskID]
+			// Execute child task
+			err := e.executeChild(ctx, compositeState, childState, childConfig, currentDepth)
 			if err != nil {
-				logger.Error("Subtask failed",
+				logger.Error("Child task failed",
 					"composite_task", config.ID,
-					"subtask", childState.TaskID,
+					"child_task", childState.TaskID,
 					"index", i,
+					"depth", currentDepth+1,
 					"error", err)
 				if strategy == task.StrategyFailFast {
-					return nil, fmt.Errorf("subtask %s failed: %w", childState.TaskID, err)
+					return nil, fmt.Errorf("child task %s failed: %w", childState.TaskID, err)
 				}
 				// Best effort: continue to next task
 				continue
 			}
-			logger.Info("Subtask completed",
+			logger.Info("Child task completed",
 				"composite_task", config.ID,
-				"subtask", childState.TaskID,
-				"index", i)
+				"child_task", childState.TaskID,
+				"index", i,
+				"depth", currentDepth+1)
 		}
 		// Generate final response using standard parent task processing
 		return e.GetCompositeResponse(ctx, compositeState)
