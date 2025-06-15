@@ -3,6 +3,8 @@ package wfrouter
 import "github.com/gin-gonic/gin"
 
 func Register(apiBase *gin.RouterGroup) {
+	// Event routes (v1)
+	apiBase.POST("/events", handleEvent)
 	// Workflow definition routes
 	workflowsGroup := apiBase.Group("/workflows")
 	{

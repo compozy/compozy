@@ -1,0 +1,13 @@
+name: signals
+version: 0.1.0
+description: Simple signal communication between workflows
+
+workflows:
+  - source: ./sender-workflow.yaml
+  - source: ./receiver-workflow.yaml
+
+runtime:
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-env

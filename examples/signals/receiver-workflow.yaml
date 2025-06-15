@@ -1,0 +1,17 @@
+id: receiver
+
+triggers:
+  - type: signal
+    name: workflow-ready
+
+tools:
+  - id: log_tool
+    description: Log a message
+    execute: ./log_tool.ts
+
+tasks:
+  - id: process-signal
+    type: basic
+    $use: tool(local::tools.#(id="log_tool"))
+    with:
+      message: "Received: {{ .input.message | default \"manually started\" }}"

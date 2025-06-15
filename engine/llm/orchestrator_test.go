@@ -96,6 +96,137 @@ func (m *MockPromptBuilder) EnhanceForStructuredOutput(
 	return args.String(0)
 }
 
+func TestOrchestrator_validateInput(t *testing.T) {
+	t.Run("Should validate input with schema successfully", func(t *testing.T) {
+		orchestrator := &llmOrchestrator{}
+		ctx := context.Background()
+		inputData := core.Input(map[string]any{
+			"name": "test",
+			"age":  25,
+		})
+		inputSchema := &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string"},
+				"age":  map[string]any{"type": "number"},
+			},
+			"required": []string{"name", "age"},
+		}
+		request := Request{
+			Agent: &agent.Config{
+				Instructions: "test instructions",
+			},
+			Action: &agent.ActionConfig{
+				Prompt:      "test prompt",
+				With:        &inputData,
+				InputSchema: inputSchema,
+			},
+		}
+		err := orchestrator.validateInput(ctx, request)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should return error for invalid input schema", func(t *testing.T) {
+		orchestrator := &llmOrchestrator{}
+		ctx := context.Background()
+		inputData := core.Input(map[string]any{
+			"name": "test",
+		})
+		inputSchema := &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string"},
+				"age":  map[string]any{"type": "number"},
+			},
+			"required": []string{"name", "age"},
+		}
+		request := Request{
+			Agent: &agent.Config{
+				Instructions: "test instructions",
+			},
+			Action: &agent.ActionConfig{
+				Prompt:      "test prompt",
+				With:        &inputData,
+				InputSchema: inputSchema,
+			},
+		}
+		err := orchestrator.validateInput(ctx, request)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "input validation failed")
+	})
+
+	t.Run("Should skip validation when no input schema provided", func(t *testing.T) {
+		orchestrator := &llmOrchestrator{}
+		ctx := context.Background()
+		request := Request{
+			Agent: &agent.Config{
+				Instructions: "test instructions",
+			},
+			Action: &agent.ActionConfig{
+				Prompt: "test prompt",
+			},
+		}
+		err := orchestrator.validateInput(ctx, request)
+		assert.NoError(t, err)
+	})
+}
+
+func TestOrchestrator_validateOutput(t *testing.T) {
+	t.Run("Should validate output with schema successfully", func(t *testing.T) {
+		orchestrator := &llmOrchestrator{}
+		ctx := context.Background()
+		output := core.Output(map[string]any{
+			"result": "success",
+			"count":  42,
+		})
+		outputSchema := &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"result": map[string]any{"type": "string"},
+				"count":  map[string]any{"type": "number"},
+			},
+			"required": []string{"result", "count"},
+		}
+		action := &agent.ActionConfig{
+			OutputSchema: outputSchema,
+		}
+		err := orchestrator.validateOutput(ctx, &output, action)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should return error for invalid output schema", func(t *testing.T) {
+		orchestrator := &llmOrchestrator{}
+		ctx := context.Background()
+		output := core.Output(map[string]any{
+			"result": "success",
+		})
+		outputSchema := &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"result": map[string]any{"type": "string"},
+				"count":  map[string]any{"type": "number"},
+			},
+			"required": []string{"result", "count"},
+		}
+		action := &agent.ActionConfig{
+			OutputSchema: outputSchema,
+		}
+		err := orchestrator.validateOutput(ctx, &output, action)
+		assert.Error(t, err)
+	})
+
+	t.Run("Should skip validation when no output schema provided", func(t *testing.T) {
+		orchestrator := &llmOrchestrator{}
+		ctx := context.Background()
+		output := core.Output(map[string]any{
+			"result": "success",
+		})
+		action := &agent.ActionConfig{}
+		err := orchestrator.validateOutput(ctx, &output, action)
+		assert.NoError(t, err)
+	})
+}
+
 func TestOrchestrator_executeToolCalls(t *testing.T) {
 	t.Run("Should execute single tool call and return result directly", func(t *testing.T) {
 		mockRegistry := &MockToolRegistry{}

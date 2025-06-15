@@ -54,6 +54,7 @@ const (
 	TaskTypeCollection Type = "collection"
 	TaskTypeAggregate  Type = "aggregate"
 	TaskTypeComposite  Type = "composite"
+	TaskTypeSignal     Type = "signal"
 )
 
 // -----------------------------------------------------------------------------
@@ -192,6 +193,19 @@ func (pt *ParallelTask) GetMaxWorkers() int {
 }
 
 // -----------------------------------------------------------------------------
+// Signal Task
+// -----------------------------------------------------------------------------
+
+type SignalTask struct {
+	Signal *SignalConfig `json:"signal,omitempty" yaml:"signal,omitempty" mapstructure:"signal,omitempty"`
+}
+
+type SignalConfig struct {
+	ID      string         `json:"id"                yaml:"id"                mapstructure:"id"`
+	Payload map[string]any `json:"payload,omitempty" yaml:"payload,omitempty" mapstructure:"payload,omitempty"`
+}
+
+// -----------------------------------------------------------------------------
 // Config
 // -----------------------------------------------------------------------------
 
@@ -200,6 +214,7 @@ type Config struct {
 	RouterTask       `json:",inline" yaml:",inline" mapstructure:",squash"`
 	ParallelTask     `json:",inline" yaml:",inline" mapstructure:",squash"`
 	CollectionConfig `json:",inline" yaml:",inline" mapstructure:",squash"`
+	SignalTask       `json:",inline" yaml:",inline" mapstructure:",squash"`
 	BaseConfig       `json:",inline" yaml:",inline" mapstructure:",squash"`
 }
 
@@ -353,6 +368,8 @@ func (t *Config) GetExecType() ExecutionType {
 	case TaskTypeComposite:
 		executionType = ExecutionComposite
 	case TaskTypeAggregate:
+		executionType = ExecutionBasic
+	case TaskTypeSignal:
 		executionType = ExecutionBasic
 	default:
 		executionType = ExecutionBasic

@@ -1,0 +1,9 @@
+id: sender
+
+tasks:
+  - id: send-signal
+    type: signal
+    signal:
+      id: workflow-ready
+      payload:
+        message: "Hello from sender!"

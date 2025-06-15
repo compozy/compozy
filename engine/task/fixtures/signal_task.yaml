@@ -1,0 +1,11 @@
+id: test-signal-task
+type: signal
+
+signal:
+  id: workflow-ready
+  payload:
+    status: "completed"
+    timestamp: "{{ .now }}"
+    workflow_id: "{{ .workflow.id }}"
+
+description: "Dispatch a signal to notify other workflows"

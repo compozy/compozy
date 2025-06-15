@@ -328,6 +328,31 @@ func Test_LoadTask(t *testing.T) {
 		require.NotNil(t, config.OnError)
 		assert.Equal(t, "handle-batch-error", *config.OnError.Next)
 	})
+
+	t.Run("Should load signal task configuration correctly", func(t *testing.T) {
+		CWD, dstPath := setupTest(t, "signal_task.yaml")
+
+		// Run the test
+		config, err := Load(CWD, dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
+
+		// Validate the config
+		err = config.Validate()
+		require.NoError(t, err)
+
+		// Validate basic task properties
+		assert.Equal(t, "test-signal-task", config.ID)
+		assert.Equal(t, TaskTypeSignal, config.Type)
+
+		// Validate signal-specific configuration
+		require.NotNil(t, config.Signal)
+		assert.Equal(t, "workflow-ready", config.Signal.ID)
+		require.NotNil(t, config.Signal.Payload)
+		assert.Equal(t, "completed", config.Signal.Payload["status"])
+		assert.Equal(t, "{{ .now }}", config.Signal.Payload["timestamp"])
+		assert.Equal(t, "{{ .workflow.id }}", config.Signal.Payload["workflow_id"])
+	})
 }
 
 func Test_TaskConfigValidation(t *testing.T) {
@@ -497,6 +522,65 @@ func Test_TaskConfigValidation(t *testing.T) {
 		err := config.Validate()
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "parallel tasks must have at least one sub-task")
+	})
+
+	t.Run("Should validate valid signal task", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:   taskID,
+				Type: TaskTypeSignal,
+				CWD:  taskCWD,
+			},
+			SignalTask: SignalTask{
+				Signal: &SignalConfig{
+					ID: "test-signal",
+					Payload: map[string]any{
+						"message": "hello world",
+					},
+				},
+			},
+		}
+
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should return error for signal task missing signal.id", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:   taskID,
+				Type: TaskTypeSignal,
+				CWD:  taskCWD,
+			},
+			SignalTask: SignalTask{
+				Signal: &SignalConfig{
+					ID: "",
+				},
+			},
+		}
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "signal.id is required for signal tasks")
+	})
+
+	t.Run("Should return error for signal task with whitespace signal.id", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:   taskID,
+				Type: TaskTypeSignal,
+				CWD:  taskCWD,
+			},
+			SignalTask: SignalTask{
+				Signal: &SignalConfig{
+					ID: "   ",
+				},
+			},
+		}
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "signal.id is required for signal tasks")
 	})
 
 	t.Run("Should return error for parallel task with duplicate IDs", func(t *testing.T) {
