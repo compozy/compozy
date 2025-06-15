@@ -19,7 +19,7 @@ LINTCMD=golangci-lint-v2
 SWAGGER_DIR=./docs
 SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
 
-.PHONY: all test lint fmt clean build dev dev-weather deps schemagen help integration-test
+.PHONY: all test lint fmt clean build dev dev-weather dev-order dev-signals deps schemagen help integration-test
 .PHONY: tidy test-go start-docker stop-docker clean-docker reset-docker mcp-proxy rebuild-mcp-proxy
 .PHONY: swagger swagger-deps swagger-gen swagger-serve
 
@@ -58,7 +58,10 @@ dev:
 	$(GOCMD) run . dev
 
 dev-weather:
-	wgo run . dev --cwd examples/weather-agent --env-file .env --debug --watch
+	wgo run . dev --cwd examples/weather --env-file .env --debug --watch
+
+dev-signals:
+	wgo run . dev --cwd examples/signals --env-file .env --debug --watch
 
 mcp-proxy:
 	$(GOCMD) run . mcp-proxy

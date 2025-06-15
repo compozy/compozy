@@ -25,11 +25,21 @@ func NewGetData(projectConfig *project.Config, workflows []*workflow.Config) *Ge
 }
 
 func (a *GetData) Run(_ context.Context, input *GetDataInput) (*GetData, error) {
+	// Try to find specific workflow config
 	workflowConfig, err := workflow.FindConfig(a.Workflows, input.WorkflowID)
 	if err != nil {
+		// If no specific workflow found but WorkflowID matches project name,
+		// return project data for dispatcher (which needs access to all workflows)
+		if input.WorkflowID == a.ProjectConfig.Name {
+			return &GetData{
+				ProjectConfig:  a.ProjectConfig,
+				Workflows:      a.Workflows,
+				WorkflowConfig: nil, // No specific workflow
+			}, nil
+		}
 		return nil, fmt.Errorf("failed to find workflow config: %w", err)
 	}
-	a.WorkflowConfig = workflowConfig
+
 	return &GetData{
 		ProjectConfig:  a.ProjectConfig,
 		Workflows:      a.Workflows,

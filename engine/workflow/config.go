@@ -17,6 +17,18 @@ import (
 	"github.com/compozy/compozy/pkg/ref"
 )
 
+type TriggerType string
+
+const (
+	TriggerTypeSignal TriggerType = "signal"
+)
+
+type Trigger struct {
+	Type   TriggerType    `json:"type"             yaml:"type"             mapstructure:"type"`
+	Name   string         `json:"name"             yaml:"name"             mapstructure:"name"`
+	Schema *schema.Schema `json:"schema,omitempty" yaml:"schema,omitempty" mapstructure:"schema,omitempty"`
+}
+
 type Opts struct {
 	core.GlobalOpts `json:",inline" yaml:",inline" mapstructure:",squash"`
 	InputSchema     *schema.Schema `json:"input,omitempty" yaml:"input,omitempty" mapstructure:"input,omitempty"`
@@ -34,6 +46,7 @@ type Config struct {
 	Tools       []tool.Config   `json:"tools,omitempty"       yaml:"tools,omitempty"       mapstructure:"tools,omitempty"`
 	Agents      []agent.Config  `json:"agents,omitempty"      yaml:"agents,omitempty"      mapstructure:"agents,omitempty"`
 	MCPs        []mcp.Config    `json:"mcps,omitempty"        yaml:"mcps,omitempty"        mapstructure:"mcps,omitempty"`
+	Triggers    []Trigger       `json:"triggers,omitempty"    yaml:"triggers,omitempty"    mapstructure:"triggers,omitempty"`
 	Tasks       []task.Config   `json:"tasks"                 yaml:"tasks"                 mapstructure:"tasks"`
 
 	filePath string
@@ -120,6 +133,33 @@ func (w *Config) Validate() error {
 		}
 	}
 
+	if err := w.validateTriggers(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (w *Config) validateTriggers() error {
+	seen := map[string]struct{}{}
+	for i := range w.Triggers {
+		trigger := &w.Triggers[i]
+		if trigger.Type != TriggerTypeSignal {
+			return fmt.Errorf("unsupported trigger type: %s", trigger.Type)
+		}
+		if trigger.Name == "" {
+			return fmt.Errorf("trigger name is required")
+		}
+		if _, dup := seen[trigger.Name]; dup {
+			return fmt.Errorf("duplicate trigger name: %s", trigger.Name)
+		}
+		seen[trigger.Name] = struct{}{}
+		if trigger.Schema != nil {
+			if _, err := trigger.Schema.Compile(); err != nil {
+				return fmt.Errorf("invalid trigger schema for %s: %w", trigger.Name, err)
+			}
+		}
+	}
 	return nil
 }
 

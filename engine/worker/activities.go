@@ -13,12 +13,13 @@ import (
 )
 
 type Activities struct {
-	projectConfig *project.Config
-	workflows     []*workflow.Config
-	workflowRepo  workflow.Repository
-	taskRepo      task.Repository
-	runtime       *runtime.Manager
-	configStore   services.ConfigStore
+	projectConfig    *project.Config
+	workflows        []*workflow.Config
+	workflowRepo     workflow.Repository
+	taskRepo         task.Repository
+	runtime          *runtime.Manager
+	configStore      services.ConfigStore
+	signalDispatcher services.SignalDispatcher
 }
 
 func NewActivities(
@@ -28,14 +29,16 @@ func NewActivities(
 	taskRepo task.Repository,
 	runtime *runtime.Manager,
 	configStore services.ConfigStore,
+	signalDispatcher services.SignalDispatcher,
 ) *Activities {
 	return &Activities{
-		projectConfig: projectConfig,
-		workflows:     workflows,
-		workflowRepo:  workflowRepo,
-		taskRepo:      taskRepo,
-		runtime:       runtime,
-		configStore:   configStore,
+		projectConfig:    projectConfig,
+		workflows:        workflows,
+		workflowRepo:     workflowRepo,
+		taskRepo:         taskRepo,
+		runtime:          runtime,
+		configStore:      configStore,
+		signalDispatcher: signalDispatcher,
 	}
 }
 
@@ -290,5 +293,23 @@ func (a *Activities) LoadBatchConfigsActivity(
 		return nil, err
 	}
 	act := tkfacts.NewLoadBatchConfigs(a.workflows)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) ExecuteSignalTask(
+	ctx context.Context,
+	input *tkfacts.ExecuteSignalInput,
+) (*task.MainTaskResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewExecuteSignal(
+		a.workflows,
+		a.workflowRepo,
+		a.taskRepo,
+		a.configStore,
+		a.signalDispatcher,
+		a.projectConfig.CWD,
+	)
 	return act.Run(ctx, input)
 }

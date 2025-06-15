@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/runtime"
-	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -140,7 +139,7 @@ func (o *llmOrchestrator) Execute(ctx context.Context, request Request) (*core.O
 }
 
 // validateInput validates the input request
-func (o *llmOrchestrator) validateInput(_ context.Context, request Request) error {
+func (o *llmOrchestrator) validateInput(ctx context.Context, request Request) error {
 	if request.Agent == nil {
 		return fmt.Errorf("agent config is required")
 	}
@@ -159,8 +158,9 @@ func (o *llmOrchestrator) validateInput(_ context.Context, request Request) erro
 
 	// Validate input schema if defined
 	if request.Action.InputSchema != nil {
-		// TODO: Implement input validation against schema
-		logger.Debug("input schema validation not yet implemented")
+		if err := request.Action.ValidateInput(ctx, request.Action.GetInput()); err != nil {
+			return fmt.Errorf("input validation failed: %w", err)
+		}
 	}
 
 	return nil
@@ -214,7 +214,7 @@ func (o *llmOrchestrator) processResponse(
 	}
 
 	// Parse the content response
-	output, err := o.parseContent(response.Content, request.Action.OutputSchema)
+	output, err := o.parseContent(ctx, response.Content, request.Action)
 	if err != nil {
 		return nil, NewLLMError(err, ErrCodeInvalidResponse, map[string]any{
 			"content": response.Content,
@@ -298,12 +298,15 @@ func (o *llmOrchestrator) executeSingleToolCall(
 	// Parse the tool result with appropriate schema
 	// Note: Tool output schema should come from the tool configuration, not action
 	// For now, use action schema as fallback until tool schemas are properly wired
-	schema := request.Action.OutputSchema
-	return o.parseContent(result, schema)
+	return o.parseContent(ctx, result, request.Action)
 }
 
 // parseContent parses content and validates against schema if provided
-func (o *llmOrchestrator) parseContent(content string, outputSchema *schema.Schema) (*core.Output, error) {
+func (o *llmOrchestrator) parseContent(
+	ctx context.Context,
+	content string,
+	action *agent.ActionConfig,
+) (*core.Output, error) {
 	// Try to parse as JSON first
 	var data any
 	if err := json.Unmarshal([]byte(content), &data); err == nil {
@@ -312,10 +315,8 @@ func (o *llmOrchestrator) parseContent(content string, outputSchema *schema.Sche
 			output := core.Output(obj)
 
 			// Validate against schema if provided
-			if outputSchema != nil {
-				if err := o.validateOutput(&output, outputSchema); err != nil {
-					return nil, NewValidationError(err, "output", obj)
-				}
+			if err := o.validateOutput(ctx, &output, action); err != nil {
+				return nil, NewValidationError(err, "output", obj)
 			}
 
 			return &output, nil
@@ -337,10 +338,11 @@ func (o *llmOrchestrator) parseContent(content string, outputSchema *schema.Sche
 }
 
 // validateOutput validates output against schema
-func (o *llmOrchestrator) validateOutput(_ *core.Output, _ *schema.Schema) error {
-	// TODO: Implement proper schema validation
-	logger.Debug("output schema validation not yet implemented")
-	return nil
+func (o *llmOrchestrator) validateOutput(ctx context.Context, output *core.Output, action *agent.ActionConfig) error {
+	if action.OutputSchema == nil {
+		return nil
+	}
+	return action.ValidateOutput(ctx, output)
 }
 
 // Close cleans up resources
