@@ -63,7 +63,8 @@ func MCPProxyCmd() *cobra.Command {
 
 func handleMCPProxyCmd(cmd *cobra.Command, _ []string) error {
 	// Load environment variables from the specified file first
-	if err := loadEnvFile(cmd); err != nil {
+	_, err := loadEnvFile(cmd)
+	if err != nil {
 		return err
 	}
 

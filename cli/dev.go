@@ -17,7 +17,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func getServerConfig(cmd *cobra.Command) (*server.Config, error) {
+func getServerConfig(cmd *cobra.Command, envFilePath string) (*server.Config, error) {
 	port, err := cmd.Flags().GetInt("port")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get port flag: %w", err)
@@ -53,6 +53,7 @@ func getServerConfig(cmd *cobra.Command) (*server.Config, error) {
 		Port:        availablePort,
 		CORSEnabled: cors,
 		ConfigFile:  configFile,
+		EnvFilePath: envFilePath,
 	}
 	return serverConfig, nil
 }
@@ -246,33 +247,45 @@ func findAvailablePort(host string, startPort int) (int, error) {
 	return 0, fmt.Errorf("no available port found near %d", startPort)
 }
 
-func loadEnvFile(cmd *cobra.Command) error {
+func loadEnvFile(cmd *cobra.Command) (string, error) {
 	envFile, err := cmd.Flags().GetString("env-file")
 	if err != nil {
-		return fmt.Errorf("failed to get env-file flag: %w", err)
+		return "", fmt.Errorf("failed to get env-file flag: %w", err)
 	}
 
 	if envFile != "" {
+		// Get the current working directory before any cwd changes
+		pwd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("failed to get current working directory: %w", err)
+		}
+
+		// Resolve env file path relative to original working directory
+		if !filepath.IsAbs(envFile) {
+			envFile = filepath.Join(pwd, envFile)
+		}
+
 		if err := godotenv.Load(envFile); err != nil {
 			// Don't fail if the env file doesn't exist, just log a debug message
 			if !os.IsNotExist(err) {
-				return fmt.Errorf("failed to load env file %s: %w", envFile, err)
+				return "", fmt.Errorf("failed to load env file %s: %w", envFile, err)
 			}
 		}
 	}
-	return nil
+	return envFile, nil
 }
 
 func handleDevCmd(cmd *cobra.Command, _ []string) error {
 	gin.SetMode(gin.ReleaseMode)
 
 	// Load environment variables from the specified file first
-	if err := loadEnvFile(cmd); err != nil {
+	envFilePath, err := loadEnvFile(cmd)
+	if err != nil {
 		return err
 	}
 
 	// Get server configuration
-	scfg, err := getServerConfig(cmd)
+	scfg, err := getServerConfig(cmd, envFilePath)
 	if err != nil {
 		return err
 	}

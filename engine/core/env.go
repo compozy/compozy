@@ -12,9 +12,11 @@ import (
 
 type EnvMap map[string]string
 
-func NewEnvFromFile(cwd string) (EnvMap, error) {
-	envPath := filepath.Join(cwd, ".env")
-	envMap, err := godotenv.Read(envPath)
+func NewEnvFromFile(cwd string, envFilePath string) (EnvMap, error) {
+	if envFilePath == "" {
+		envFilePath = filepath.Join(cwd, ".env")
+	}
+	envMap, err := godotenv.Read(envFilePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return make(EnvMap), nil

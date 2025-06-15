@@ -11,6 +11,7 @@ type Config struct {
 	Port        int
 	CORSEnabled bool
 	ConfigFile  string
+	EnvFilePath string
 }
 
 func (c *Config) FullAddress() string {

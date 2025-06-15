@@ -19,16 +19,20 @@ type Service interface {
 
 // service is the concrete implementation of the Service interface
 type service struct {
-	log logger.Logger
+	log         logger.Logger
+	envFilePath string
 }
 
 // NewService creates and initializes a new config service
-func NewService(log logger.Logger) Service {
-	return &service{log: log}
+func NewService(log logger.Logger, envFilePath string) Service {
+	return &service{log: log, envFilePath: envFilePath}
 }
 
 // LoadProject loads a project configuration and handles AutoLoad integration
-func (s *service) LoadProject(cwd string, file string) (*project.Config, []*workflow.Config, error) {
+func (s *service) LoadProject(
+	cwd string,
+	file string,
+) (*project.Config, []*workflow.Config, error) {
 	pCWD, err := core.CWDFromPath(cwd)
 	if err != nil {
 		return nil, nil, err
@@ -36,7 +40,7 @@ func (s *service) LoadProject(cwd string, file string) (*project.Config, []*work
 	s.log.Info("Starting compozy server")
 	s.log.Debug("Loading config file", "config_file", file)
 
-	projectConfig, err := project.Load(pCWD, file)
+	projectConfig, err := project.Load(pCWD, file, s.envFilePath)
 	if err != nil {
 		s.log.Error("Failed to load project config", "error", err)
 		return nil, nil, err

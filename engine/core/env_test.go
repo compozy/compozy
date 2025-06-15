@@ -30,7 +30,7 @@ func Test_NewEnvFromFile(t *testing.T) {
 		}
 
 		cwd := setupEnvFile(t, content)
-		env, err := NewEnvFromFile(cwd)
+		env, err := NewEnvFromFile(cwd, "")
 		if err != nil {
 			t.Errorf("NewEnvFromFile() error = %v, want nil", err)
 			return
@@ -48,7 +48,7 @@ func Test_NewEnvFromFile(t *testing.T) {
 		expected := EnvMap{}
 
 		cwd := setupEnvFile(t, content)
-		env, err := NewEnvFromFile(cwd)
+		env, err := NewEnvFromFile(cwd, "")
 		if err != nil {
 			t.Errorf("NewEnvFromFile() error = %v, want nil", err)
 			return
@@ -67,7 +67,7 @@ func Test_NewEnvFromFile(t *testing.T) {
 		}
 
 		cwd := setupEnvFile(t, content)
-		env, err := NewEnvFromFile(cwd)
+		env, err := NewEnvFromFile(cwd, "")
 		if err != nil {
 			t.Errorf("NewEnvFromFile() error = %v, want nil", err)
 			return
@@ -88,7 +88,7 @@ func Test_NewEnvFromFile(t *testing.T) {
 		}
 
 		cwd := setupEnvFile(t, content)
-		env, err := NewEnvFromFile(cwd)
+		env, err := NewEnvFromFile(cwd, "")
 		if err != nil {
 			t.Errorf("NewEnvFromFile() error = %v, want nil", err)
 			return
@@ -104,7 +104,7 @@ func Test_NewEnvFromFile(t *testing.T) {
 	t.Run("Should handle nonexistent file gracefully", func(t *testing.T) {
 		// Create a temporary directory without an .env file
 		tmpDir := t.TempDir()
-		env, err := NewEnvFromFile(tmpDir)
+		env, err := NewEnvFromFile(tmpDir, "")
 		if err != nil {
 			t.Errorf("NewEnvFromFile() error = %v, want nil for nonexistent file", err)
 		}

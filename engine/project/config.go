@@ -123,11 +123,11 @@ func (p *Config) LoadID() (string, error) {
 	return p.Name, nil
 }
 
-func (p *Config) loadEnv() (core.EnvMap, error) {
+func (p *Config) loadEnv(envFilePath string) (core.EnvMap, error) {
 	if p.CWD == nil {
 		return nil, fmt.Errorf("working directory not set for project %q", p.Name)
 	}
-	env, err := core.NewEnvFromFile(p.CWD.PathStr())
+	env, err := core.NewEnvFromFile(p.CWD.PathStr(), envFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load environment variables: %w", err)
 	}
@@ -161,7 +161,7 @@ func (p *Config) FromMap(data any) error {
 	return p.Merge(config)
 }
 
-func Load(cwd *core.PathCWD, path string) (*Config, error) {
+func Load(cwd *core.PathCWD, path string, envFilePath string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err
@@ -177,7 +177,7 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	if config.AutoLoad != nil {
 		config.AutoLoad.SetDefaults()
 	}
-	env, err := config.loadEnv()
+	env, err := config.loadEnv(envFilePath)
 	if err != nil {
 		return nil, err
 	}

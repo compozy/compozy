@@ -80,7 +80,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 
 	// Load project and workspace files
 	log := logger.NewLogger(nil)
-	configService := csvc.NewService(log)
+	configService := csvc.NewService(log, s.Config.EnvFilePath)
 	projectConfig, workflows, err := configService.LoadProject(s.Config.CWD, s.Config.ConfigFile)
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to load project: %w", err)
