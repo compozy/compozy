@@ -49,6 +49,10 @@ type Worker struct {
 	redisCache    *cache.Cache
 	mcpRegister   *mcp.RegisterService
 	dispatcherID  string // Track dispatcher ID for cleanup
+
+	// Lifecycle management
+	lifecycleCtx    context.Context
+	lifecycleCancel context.CancelFunc
 }
 
 func NewWorker(
@@ -109,22 +113,28 @@ func NewWorker(
 		configStore,
 		signalDispatcher,
 	)
+
+	// Create lifecycle context for independent operation
+	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
+
 	return &Worker{
-		client:        client,
-		config:        config,
-		worker:        worker,
-		projectConfig: projectConfig,
-		workflows:     workflows,
-		activities:    activities,
-		taskQueue:     taskQueue,
-		configStore:   configStore,
-		redisCache:    redisCache,
-		mcpRegister:   mcpRegister,
-		dispatcherID:  dispatcherID,
+		client:          client,
+		config:          config,
+		worker:          worker,
+		projectConfig:   projectConfig,
+		workflows:       workflows,
+		activities:      activities,
+		taskQueue:       taskQueue,
+		configStore:     configStore,
+		redisCache:      redisCache,
+		mcpRegister:     mcpRegister,
+		dispatcherID:    dispatcherID,
+		lifecycleCtx:    lifecycleCtx,
+		lifecycleCancel: lifecycleCancel,
 	}, nil
 }
 
-func (o *Worker) Setup(ctx context.Context) error {
+func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterWorkflow(CompozyWorkflow)
 	o.worker.RegisterWorkflow(DispatcherWorkflow)
 	o.worker.RegisterActivity(o.activities.GetWorkflowData)
@@ -149,12 +159,17 @@ func (o *Worker) Setup(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	// Ensure dispatcher is running
-	go o.ensureDispatcherRunning(ctx)
+	// Ensure dispatcher is running with independent lifecycle context
+	go o.ensureDispatcherRunning(o.lifecycleCtx)
 	return nil
 }
 
 func (o *Worker) Stop(ctx context.Context) {
+	// Cancel lifecycle context to stop background operations
+	if o.lifecycleCancel != nil {
+		o.lifecycleCancel()
+	}
+
 	// Terminate this instance's dispatcher since each server has its own
 	if o.dispatcherID != "" {
 		logger.Info("terminating instance dispatcher", "dispatcher_id", o.dispatcherID)
@@ -221,34 +236,71 @@ func (o *Worker) TerminateDispatcher(ctx context.Context, reason string) error {
 }
 
 func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
-	_, err := o.client.SignalWithStartWorkflow(
-		ctx,
-		o.dispatcherID,
-		DispatcherEventChannel,
-		nil,
-		client.StartWorkflowOptions{
-			ID:                    o.dispatcherID,
-			TaskQueue:             o.taskQueue,
-			WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
-		},
-		DispatcherWorkflow,
-		o.projectConfig.Name,
-	)
-	if err != nil {
-		if _, ok := err.(*serviceerror.WorkflowExecutionAlreadyStarted); ok {
-			logger.Info("dispatcher already running", "dispatcher_id", o.dispatcherID, "project", o.projectConfig.Name)
-		} else {
-			logger.Error("failed to start dispatcher", "error", err, "dispatcher_id", o.dispatcherID)
+	maxRetries := 5
+	baseDelay := 1 * time.Second
+	maxDelay := 30 * time.Second
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		select {
+		case <-ctx.Done():
+			logger.Info("context canceled, stopping dispatcher startup attempts", "dispatcher_id", o.dispatcherID)
+			return
+		default:
 		}
-	} else {
-		logger.Info("started new dispatcher", "dispatcher_id", o.dispatcherID, "project", o.projectConfig.Name)
+		_, err := o.client.SignalWithStartWorkflow(
+			ctx,
+			o.dispatcherID,
+			DispatcherEventChannel,
+			nil,
+			client.StartWorkflowOptions{
+				ID:                    o.dispatcherID,
+				TaskQueue:             o.taskQueue,
+				WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
+			},
+			DispatcherWorkflow,
+			o.projectConfig.Name,
+		)
+		if err != nil {
+			if _, ok := err.(*serviceerror.WorkflowExecutionAlreadyStarted); ok {
+				logger.Info(
+					"dispatcher already running",
+					"dispatcher_id",
+					o.dispatcherID,
+					"project",
+					o.projectConfig.Name,
+				)
+				return
+			}
+			if attempt < maxRetries-1 {
+				delay := time.Duration(1<<attempt) * baseDelay
+				if delay > maxDelay {
+					delay = maxDelay
+				}
+				logger.Error(
+					"failed to start dispatcher, retrying",
+					"error",
+					err,
+					"dispatcher_id",
+					o.dispatcherID,
+					"attempt",
+					attempt+1,
+					"retry_in",
+					delay,
+				)
+				select {
+				case <-ctx.Done():
+					logger.Info("context canceled during retry delay", "dispatcher_id", o.dispatcherID)
+					return
+				case <-time.After(delay):
+				}
+			} else {
+				logger.Error("failed to start dispatcher after all retries",
+					"error", err, "dispatcher_id", o.dispatcherID, "attempts", maxRetries)
+			}
+		} else {
+			logger.Info("started new dispatcher", "dispatcher_id", o.dispatcherID, "project", o.projectConfig.Name)
+			return
+		}
 	}
-
-	// Debug: Check if dispatcher workflow actually started
-	logger.Info("dispatcher start attempt completed",
-		"dispatcher_id", o.dispatcherID,
-		"task_queue", o.taskQueue,
-		"error", err)
 }
 
 // HealthCheck performs a comprehensive health check including cache connectivity

@@ -33,6 +33,9 @@ func (uc *CancelExecution) Execute(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get workflow state: %w", err)
 	}
+	if state == nil {
+		return fmt.Errorf("workflow state not found for execution %s", uc.workflowExecID)
+	}
 	return uc.worker.CancelWorkflow(ctx, state.WorkflowID, uc.workflowExecID)
 }
 

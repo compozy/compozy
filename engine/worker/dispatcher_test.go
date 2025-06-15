@@ -71,14 +71,14 @@ func (s *DispatcherWorkflowTestSuite) TestSuccessfulDispatch() {
 		s.env.OnActivity("GetWorkflowData", mock.Anything).Return(&wfacts.GetData{Workflows: mockWorkflows}, nil)
 		s.env.OnWorkflow("CompozyWorkflow", mock.Anything).Return(nil, nil)
 		s.env.RegisterWorkflow(DispatcherWorkflow)
-		go s.env.ExecuteWorkflow(DispatcherWorkflow, "test-project")
-		time.Sleep(50 * time.Millisecond) // Allow workflow to start
-		s.env.SignalWorkflow(DispatcherEventChannel, EventSignal{
-			Name:          "order.created",
-			Payload:       core.Input{"orderId": "123"},
-			CorrelationID: "test-correlation-id",
-		})
-		time.Sleep(100 * time.Millisecond)
+		s.env.RegisterDelayedCallback(func() {
+			s.env.SignalWorkflow(DispatcherEventChannel, EventSignal{
+				Name:          "order.created",
+				Payload:       core.Input{"orderId": "123"},
+				CorrelationID: "test-correlation-id",
+			})
+		}, time.Millisecond)
+		s.env.ExecuteWorkflow(DispatcherWorkflow, "test-project")
 		s.env.AssertExpectations(s.T())
 	})
 }

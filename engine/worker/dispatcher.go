@@ -90,8 +90,15 @@ func generateCorrelationID(ctx workflow.Context, existingID string) string {
 	// Use versioning to handle backward compatibility during replay
 	version := workflow.GetVersion(ctx, "correlation-id-generation", workflow.DefaultVersion, 1)
 	if version == workflow.DefaultVersion {
-		// Old behavior for existing workflows
-		return "generated-id"
+		// Old behavior for existing workflows - use deterministic but unique fallback
+		var fallbackID string
+		if err := workflow.SideEffect(ctx, func(_ workflow.Context) any {
+			return fmt.Sprintf("generated-%d", workflow.Now(ctx).UnixNano())
+		}).Get(&fallbackID); err != nil {
+			logger.Error("Failed to generate fallback correlation ID", "error", err)
+			return "generated-id-fallback"
+		}
+		return fallbackID
 	}
 
 	// New behavior with SideEffect
@@ -144,8 +151,15 @@ func generateWorkflowExecID(ctx workflow.Context) core.ID {
 	// Use versioning to handle backward compatibility during replay
 	version := workflow.GetVersion(ctx, "workflow-id-generation", workflow.DefaultVersion, 1)
 	if version == workflow.DefaultVersion {
-		// Old behavior for existing workflows - use deterministic fallback
-		return core.ID("fallback-id")
+		// Old behavior for existing workflows - use deterministic but unique fallback
+		var fallbackID string
+		if err := workflow.SideEffect(ctx, func(_ workflow.Context) any {
+			return fmt.Sprintf("fallback-%d", workflow.Now(ctx).UnixNano())
+		}).Get(&fallbackID); err != nil {
+			logger.Error("Failed to generate fallback workflow execution ID", "error", err)
+			return core.ID("fallback-exec-id")
+		}
+		return core.ID(fallbackID)
 	}
 	// New behavior with SideEffect
 	if err := workflow.SideEffect(ctx, func(_ workflow.Context) any {

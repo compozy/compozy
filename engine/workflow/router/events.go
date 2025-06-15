@@ -5,6 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.temporal.io/sdk/client"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
@@ -67,7 +69,16 @@ func handleEvent(c *gin.Context) {
 	)
 	if err != nil {
 		reqErr := router.NewRequestError(http.StatusInternalServerError, "Failed to send event", err)
-		router.RespondWithError(c, http.StatusInternalServerError, reqErr)
+		var statusCode int
+		switch status.Code(err) {
+		case codes.NotFound, codes.InvalidArgument:
+			statusCode = http.StatusBadRequest
+		case codes.AlreadyExists:
+			statusCode = http.StatusConflict
+		default:
+			statusCode = http.StatusInternalServerError
+		}
+		router.RespondWithError(c, statusCode, reqErr)
 		return
 	}
 	router.RespondAccepted(c, "event received", EventResponse{

@@ -39,7 +39,10 @@ func getServerConfig(cmd *cobra.Command) (*server.Config, error) {
 		return nil, err
 	}
 	// Find available port starting from requested port
-	availablePort := findAvailablePort(host, port)
+	availablePort, err := findAvailablePort(host, port)
+	if err != nil {
+		return nil, fmt.Errorf("no free port found near %d: %w", port, err)
+	}
 	if availablePort != port {
 		fmt.Printf("Port %d unavailable, using port %d instead\n", port, availablePort)
 	}
@@ -232,16 +235,15 @@ func isPortAvailable(host string, port int) bool {
 }
 
 // findAvailablePort finds the next available port starting from the given port
-func findAvailablePort(host string, startPort int) int {
+func findAvailablePort(host string, startPort int) (int, error) {
 	maxAttempts := 100 // Prevent infinite loops
 	for i := 0; i < maxAttempts; i++ {
 		port := startPort + i
 		if isPortAvailable(host, port) {
-			return port
+			return port, nil
 		}
 	}
-	// If no port found, return the original port (will fail with proper error)
-	return startPort
+	return 0, fmt.Errorf("no available port found near %d", startPort)
 }
 
 func loadEnvFile(cmd *cobra.Command) error {
@@ -377,7 +379,10 @@ func runAndWatchServer(
 ) error {
 	for {
 		// Find available port on each restart in case the original port becomes free
-		availablePort := findAvailablePort(scfg.Host, scfg.Port)
+		availablePort, err := findAvailablePort(scfg.Host, scfg.Port)
+		if err != nil {
+			return fmt.Errorf("no free port found near %d: %w", scfg.Port, err)
+		}
 		if availablePort != scfg.Port {
 			logger.Info("port conflict on restart, using next available port",
 				"original_port", scfg.Port,
