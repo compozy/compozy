@@ -1,67 +1,141 @@
 ---
 description: "Guide for creating Product Requirements Documents (PRDs) with AI assistance, including clarifying questions and structured documentation process"
-ruleType: "Agent Requested"
+globs:
 alwaysApply: false
 ---
 # Rule: Generating a Product Requirements Document (PRD)
 
 <goal>
-To guide an AI assistant in creating a detailed Product Requirements Document (PRD) in Markdown format, based on an initial user prompt. The PRD should be clear, actionable, and suitable for a junior developer to understand and implement the feature.
+To guide an AI assistant in creating a detailed Product Requirements Document (PRD) in Markdown format, based on an initial user prompt. The PRD should be comprehensive, covering both functional requirements and implementation planning, suitable for developers and stakeholders to understand and execute the feature development.
 </goal>
+
+## Template Reference
+
+<template_reference>
+**ALWAYS use the standardized PRD template:** @_prd-template.md
+
+This template provides a comprehensive structure that balances requirements gathering with implementation planning, ensuring consistency across all PRDs in the project.
+</template_reference>
 
 ## Process
 
 <process_workflow>
-1.  **Receive Initial Prompt:** The user provides a brief description or request for a new feature or functionality.
-2.  **Ask Clarifying Questions:** Before writing the PRD, the AI *must* ask clarifying questions to gather sufficient detail. The goal is to understand the "what" and "why" of the feature, not necessarily the "how" (which the developer will figure out).
-3.  **Generate PRD:** Based on the initial prompt and the user's answers to the clarifying questions, generate a PRD using the structure outlined below.
-4.  **Save PRD:** Save the generated document as `prd-[feature-name].md` inside the `./tasks/docs` directory.
+1. **Receive Initial Prompt:** The user provides a brief description or request for a new feature or functionality.
+2. **Ask Clarifying Questions:** Before writing the PRD, the AI *must* ask clarifying questions to gather sufficient detail. Focus on understanding the "what" and "why" of the feature, user needs, and success criteria.
+3. **Generate Comprehensive PRD:** Based on the initial prompt and the user's answers, generate a PRD using the template structure that covers both requirements and implementation planning.
+4. **Save PRD:** Save the generated document as `prd-[feature-name].md` inside the `./tasks/docs` directory.
 </process_workflow>
 
 ## Clarifying Questions (Examples)
 
 <clarifying_questions_guidance>
-The AI should adapt its questions based on the prompt, but here are some common areas to explore:
+The AI should adapt its questions based on the prompt and template sections. Here are key areas to explore:
 
-*   **Problem/Goal:** "What problem does this feature solve for the user?" or "What is the main goal we want to achieve with this feature?"
-*   **Target User:** "Who is the primary user of this feature?"
-*   **Core Functionality:** "Can you describe the key actions a user should be able to perform with this feature?"
-*   **User Stories:** "Could you provide a few user stories? (e.g., As a [type of user], I want to [perform an action] so that [benefit].)"
-*   **Acceptance Criteria:** "How will we know when this feature is successfully implemented? What are the key success criteria?"
-*   **Scope/Boundaries:** "Are there any specific things this feature *should not* do (non-goals)?"
-*   **Data Requirements:** "What kind of data does this feature need to display or manipulate?"
-*   **Design/UI:** "Are there any existing design mockups or UI guidelines to follow?" or "Can you describe the desired look and feel?"
-*   **Edge Cases:** "Are there any potential edge cases or error conditions we should consider?"
+**Problem & Goals:**
+- "What problem does this feature solve for the user?"
+- "What are the specific, measurable goals we want to achieve?"
+- "How will we measure success?"
+
+**Users & Stories:**
+- "Who is the primary user of this feature?"
+- "Can you provide user stories? (As a [type of user], I want to [action] so that [benefit])"
+- "What are the key user flows and interactions?"
+
+**Core Functionality:**
+- "What are the essential features that must be included in the MVP?"
+- "Can you describe the key actions a user should be able to perform?"
+- "What data does this feature need to display or manipulate?"
+
+**Technical Considerations:**
+- "Are there any existing systems this needs to integrate with?"
+- "What are the performance or security requirements?"
+- "Are there any technical constraints or dependencies?"
+
+**Scope & Planning:**
+- "What should this feature NOT do (non-goals)?"
+- "How should development be phased for incremental delivery?"
+- "What are the dependencies between different parts of this feature?"
+
+**Risks & Challenges:**
+- "What are the biggest risks or challenges you foresee?"
+- "Are there any unknowns that need research before implementation?"
+- "What could prevent this feature from being successful?"
+
+**Design & Experience:**
+- "Are there any design mockups or UI guidelines to follow?"
+- "What accessibility requirements should be considered?"
+- "How should this feature integrate with the existing user experience?"
 </clarifying_questions_guidance>
 
-## PRD Structure
+## PRD Structure Requirements
 
 <prd_structure_requirements>
-The generated PRD should include the following sections:
+The generated PRD MUST follow the template structure from @_prd-template.md:
 
-1.  **Introduction/Overview:** Briefly describe the feature and the problem it solves. State the goal.
-2.  **Goals:** List the specific, measurable objectives for this feature.
-3.  **User Stories:** Detail the user narratives describing feature usage and benefits.
-4.  **Functional Requirements:** List the specific functionalities the feature must have. Use clear, concise language (e.g., "The system must allow users to upload a profile picture."). Number these requirements.
-5.  **Non-Goals (Out of Scope):** Clearly state what this feature will *not* include to manage scope.
-6.  **Design Considerations (Optional):** Link to mockups, describe UI/UX requirements, or mention relevant components/styles if applicable.
-7.  **Technical Considerations (Optional):** Mention any known technical constraints, dependencies, or suggestions (e.g., "Should integrate with the existing Auth module").
-8.  **Success Metrics:** How will the success of this feature be measured? (e.g., "Increase user engagement by 10%", "Reduce support tickets related to X").
-9.  **Open Questions:** List any remaining questions or areas needing further clarification.
+1. **Overview:** Problem statement, target users, and value proposition
+2. **Goals:** Specific, measurable objectives and business outcomes
+3. **User Stories:** Detailed narratives covering primary and edge case scenarios
+4. **Core Features:** Main functionality with detailed functional requirements
+5. **User Experience:** User journeys, flows, UI/UX considerations, and accessibility
+6. **Technical Architecture:** System components, data models, APIs, infrastructure
+7. **Non-Goals (Out of Scope):** Clear boundaries and excluded features
+8. **Development Roadmap:** Phased approach with MVP and enhancement stages
+9. **Logical Dependency Chain:** Build order and incremental delivery strategy
+10. **Success Metrics:** Measurable outcomes for user engagement and business impact
+11. **Risks and Mitigations:** Potential challenges and response strategies
+12. **Open Questions:** Unresolved items requiring further clarification
+13. **Appendix:** Supporting materials, research, and reference documentation
 </prd_structure_requirements>
 
-<target_audience>
-Assume the primary reader of the PRD is a **junior developer**. Therefore, requirements should be explicit, unambiguous, and avoid jargon where possible. Provide enough detail for them to understand the feature's purpose and core logic.
-</target_audience>
+## Content Guidelines
+
+<content_guidelines>
+**Target Audience:** Assume readers include both **junior developers** and **project stakeholders**. Requirements should be:
+- Explicit and unambiguous
+- Detailed enough for implementation
+- Strategic enough for decision-making
+- Avoid technical jargon without explanation
+
+**Functional Requirements:** Use clear, actionable language:
+- "The system must allow users to..."
+- "Users should be able to..."
+- Number requirements for easy reference
+
+**Implementation Focus:** Balance user needs with practical development:
+- Consider MVP vs. full feature scope
+- Plan for incremental delivery
+- Address technical dependencies
+- Identify critical path features
+</content_guidelines>
 
 <output_specification>
-*   **Format:** Markdown (`.md`)
-*   **Location:** `./tasks/docs/`
-*   **Filename:** `prd-[feature-name].md`
+- **Format:** Markdown (`.md`)
+- **Location:** `./tasks/docs/`
+- **Filename:** `prd-[feature-name].md`
+- **Template:** Use @_prd-template.md structure
 </output_specification>
 
-<final_instructions>
-1. Do NOT start implementing the PRD
-2. Make sure to ask the user clarifying questions
-3. Take the user's answers to the clarifying questions and improve the PRD
-</final_instructions>
+## Workflow Instructions
+
+<workflow_instructions>
+1. **DO NOT** start implementing the PRD immediately
+2. **ALWAYS** ask clarifying questions first to gather comprehensive information
+3. **USE** the standardized template structure for consistency
+4. **FOCUS** on both user requirements and implementation planning
+5. **ENSURE** the PRD is actionable for both development and project management
+6. **ITERATE** on the PRD based on user feedback and additional clarification
+</workflow_instructions>
+
+## Quality Checklist
+
+<quality_checklist>
+Before finalizing the PRD, ensure:
+- [ ] All template sections are completed with relevant information
+- [ ] User stories cover primary flows and edge cases
+- [ ] Functional requirements are numbered and specific
+- [ ] Technical considerations address integration and dependencies
+- [ ] Development roadmap shows clear phases and dependencies
+- [ ] Success metrics are measurable and relevant
+- [ ] Risks are identified with mitigation strategies
+- [ ] Open questions capture any remaining uncertainties
+</quality_checklist>
