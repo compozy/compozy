@@ -3,12 +3,11 @@ description: Core Go patterns and conventions required for Compozy development
 globs: **/*.go
 alwaysApply: true
 ---
-
 # Core Go Patterns & Conventions
 
 ## Concurrency Patterns
 
-**Thread-Safe Structures:**
+<pattern type="thread_safe_structures">
 ```go
 // Thread-safe structs with embedded mutex
 type Status struct {
@@ -16,8 +15,9 @@ type Status struct {
     mu     sync.RWMutex // Protects all fields
 }
 ```
+</pattern>
 
-**Concurrent Operations:**
+<pattern type="concurrent_operations">
 ```go
 // Concurrent operations with errgroup
 g, ctx := errgroup.WithContext(ctx)
@@ -27,26 +27,45 @@ for _, item := range items {
 }
 return g.Wait()
 ```
+</pattern>
 
-## Factory Pattern
+## Factory Pattern (OCP Implementation)
 
+<requirement type="mandatory">
 **MANDATORY for service creation:**
+</requirement>
+
+<pattern type="factory_implementation">
 ```go
-func NewStorage(config *StorageConfig) (Storage, error) {
-    switch config.Type {
-    case StorageTypeRedis:
-        return NewRedisStorage(config.Redis)
-    case StorageTypeMemory:
-        return NewMemoryStorage(), nil
-    default:
-        return nil, fmt.Errorf("unsupported storage type: %s", config.Type)
+// ✅ Good: Extensible through interfaces
+type Storage interface {
+    Save(ctx context.Context, data []byte) error
+}
+
+type StorageFactory struct{}
+func (f *StorageFactory) CreateStorage(storageType string) (Storage, error) {
+    switch storageType {
+    case "redis": return NewRedisStorage(), nil
+    case "memory": return NewMemoryStorage(), nil
+    default: return nil, fmt.Errorf("unsupported storage type: %s", storageType)
     }
 }
+
+// Usage in constructors
+func NewStorage(config *StorageConfig) (Storage, error) {
+    factory := &StorageFactory{}
+    return factory.CreateStorage(config.Type)
+}
 ```
+</pattern>
 
 ## Configuration with Defaults
 
+<requirement type="always">
 **Always provide defaults:**
+</requirement>
+
+<pattern type="configuration_defaults">
 ```go
 func NewService(config *Config) *Service {
     if config == nil {
@@ -55,10 +74,41 @@ func NewService(config *Config) *Service {
     return &Service{config: config}
 }
 ```
+</pattern>
+
+<pattern type="configuration_implementation">
+```go
+// ✅ Good: Centralized configuration with defaults
+type ServiceConfig struct {
+    Port        int           `yaml:"port"`
+    Timeout     time.Duration `yaml:"timeout"`
+    MaxRetries  int           `yaml:"max_retries"`
+}
+
+func DefaultServiceConfig() *ServiceConfig {
+    return &ServiceConfig{
+        Port:       8080,
+        Timeout:    30 * time.Second,
+        MaxRetries: 3,
+    }
+}
+
+func NewServiceFromConfig(cfg *ServiceConfig) *Service {
+    if cfg == nil {
+        cfg = DefaultServiceConfig()
+    }
+    return &Service{config: cfg}
+}
+```
+</pattern>
 
 ## Graceful Shutdown
 
+<requirement type="long_running_services">
 **REQUIRED for long-running services:**
+</requirement>
+
+<pattern type="graceful_shutdown">
 ```go
 quit := make(chan os.Signal, 1)
 signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -69,10 +119,15 @@ case <-quit:
     return shutdown(ctx)
 }
 ```
+</pattern>
 
 ## Middleware Pattern
 
+<context type="http_handlers">
 **For HTTP handlers:**
+</context>
+
+<pattern type="middleware_implementation">
 ```go
 func authMiddleware() gin.HandlerFunc {
     return func(c *gin.Context) {
@@ -85,10 +140,15 @@ func authMiddleware() gin.HandlerFunc {
     }
 }
 ```
+</pattern>
 
 ## Resource Management
 
+<context type="connection_handling">
 **Connection limits and cleanup:**
+</context>
+
+<pattern type="resource_management">
 ```go
 // Connection limits
 if len(m.clients) >= m.config.MaxConnections {
@@ -104,20 +164,205 @@ defer func() {
     }
 }()
 ```
+</pattern>
 
-## Interface Design
+## Interface Design (ISP Implementation)
 
-**Small, focused interfaces:**
+<guideline type="interface_size">
+**Small, focused interfaces (ISP):**
+</guideline>
+
+<pattern type="interface_segregation">
 ```go
-// Small, focused interfaces
+// ✅ Good: Small, focused interfaces
+type Reader interface {
+    Read(ctx context.Context, id core.ID) (*Data, error)
+}
+
+type Writer interface {
+    Write(ctx context.Context, data *Data) error
+}
+
+type Deleter interface {
+    Delete(ctx context.Context, id core.ID) error
+}
+
+// Compose when needed
+type Repository interface {
+    Reader
+    Writer
+    Deleter
+}
+
+// ❌ Bad: Monolithic interface
+type DataManager interface {
+    Read(ctx context.Context, id core.ID) (*Data, error)
+    Write(ctx context.Context, data *Data) error
+    Delete(ctx context.Context, id core.ID) error
+    Backup(ctx context.Context) error
+    Restore(ctx context.Context) error
+    Migrate(ctx context.Context) error
+}
+```
+</pattern>
+
+<pattern type="interface_definition">
+```go
+// Small, focused interfaces for specific domains
 type Storage interface {
     SaveMCP(ctx context.Context, def *MCPDefinition) error
     LoadMCP(ctx context.Context, name string) (*MCPDefinition, error)
     Close() error
 }
 ```
+</pattern>
 
-**Separate interfaces from implementations:**
+<best_practices type="interface_organization">
+**Interface best practices:**
 - Define interfaces in separate files when used across packages
 - Keep interfaces small and focused on specific behavior
 - Use interface composition for complex behavior
+- Honor contracts consistently (LSP)
+</best_practices>
+
+## Constructor Patterns (DIP Implementation)
+
+<requirement type="mandatory">
+**MANDATORY for all services:**
+</requirement>
+
+<pattern type="dependency_injection">
+```go
+// ✅ Good: Depends on abstraction (DIP)
+type WorkflowService struct {
+    taskRepo TaskRepository // interface
+    executor TaskExecutor  // interface
+}
+
+func NewWorkflowService(taskRepo TaskRepository, executor TaskExecutor) *WorkflowService {
+    return &WorkflowService{
+        taskRepo: taskRepo,
+        executor: executor,
+    }
+}
+
+// ❌ Bad: Depends on concrete implementation
+type WorkflowService struct {
+    taskRepo *PostgreSQLTaskRepository // concrete
+    executor *DockerExecutor          // concrete
+}
+```
+</pattern>
+
+<pattern type="service_constructor">
+```go
+// ✅ Required pattern for all services
+type AgentService struct {
+    repo   AgentRepository
+    logger logger.Logger
+    config *AgentConfig
+}
+
+func NewAgentService(
+    repo AgentRepository,
+    logger logger.Logger,
+    config *AgentConfig,
+) *AgentService {
+    if config == nil {
+        config = DefaultAgentConfig()
+    }
+    return &AgentService{
+        repo:   repo,
+        logger: logger,
+        config: config,
+    }
+}
+```
+</pattern>
+
+## Single Responsibility Examples (SRP Implementation)
+
+<pattern type="srp_separation">
+```go
+// ✅ Good: Single responsibility
+type UserValidator struct{}
+func (v *UserValidator) ValidateEmail(email string) error { /* validation logic */ }
+
+type UserRepository struct{}
+func (r *UserRepository) SaveUser(ctx context.Context, user *User) error { /* persistence logic */ }
+
+// ❌ Bad: Multiple responsibilities
+type UserService struct{}
+func (s *UserService) ValidateAndSaveUser(ctx context.Context, email string) error {
+    // validation + persistence mixed
+}
+```
+</pattern>
+
+## Context Handling Patterns
+
+<requirement type="mandatory">
+**Context as first parameter:**
+</requirement>
+
+<pattern type="context_propagation">
+```go
+// ✅ Context as first parameter
+func (s *TaskService) ExecuteTask(ctx context.Context, task *core.Task) (*core.TaskResult, error) {
+    select {
+    case <-ctx.Done():
+        return nil, ctx.Err()
+    default:
+        return s.doExecuteTask(ctx, task)
+    }
+}
+```
+</pattern>
+
+## Resource Management Patterns
+
+<pattern type="resource_cleanup">
+```go
+// ✅ Proper resource cleanup
+func (s *Service) ProcessWithResources(ctx context.Context) error {
+    conn, err := s.acquireConnection()
+    if err != nil {
+        return fmt.Errorf("failed to acquire connection: %w", err)
+    }
+    defer func() {
+        if closeErr := conn.Close(); closeErr != nil {
+            logger.Error("failed to close connection", "error", closeErr)
+        }
+    }()
+    return s.processWithConnection(ctx, conn)
+}
+
+// ✅ Timeout handling with cleanup
+func (s *Service) ProcessWithTimeout(ctx context.Context, timeout time.Duration) error {
+    ctx, cancel := context.WithTimeout(ctx, timeout)
+    defer cancel() // Always cancel to free resources
+    done := make(chan error, 1)
+    go func() {
+        done <- s.heavyProcessing(ctx)
+    }()
+    select {
+    case err := <-done:
+        return err
+    case <-ctx.Done():
+        return fmt.Errorf("operation timed out: %w", ctx.Err())
+    }
+}
+
+// ✅ Multiple resource cleanup
+func (s *Service) ProcessMultipleResources(ctx context.Context) error {
+    file, err := os.Open("data.txt")
+    if err != nil {
+        return fmt.Errorf("failed to open file: %w", err)
+    }
+    defer file.Close()
+    lock := s.mutex.Lock()
+    defer s.mutex.Unlock()
+    return s.processFileWithLock(ctx, file)
+}
+```
+</pattern>

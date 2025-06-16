@@ -1,0 +1,113 @@
+---
+description: "Project configuration patterns and examples for compozy.yaml files"
+globs:
+  - "**/compozy.yaml"
+  - "**/*.compozy.yaml"
+alwaysApply: false
+---
+# Compozy Project Configuration Examples
+
+<configuration_overview type="project_config">
+Project configuration defines the top-level settings for Compozy projects including models, workflows, autoload settings, and runtime permissions.
+</configuration_overview>
+
+## Basic Project Configuration
+
+<project_config_pattern type="basic">
+```yaml
+name: project-name
+version: 0.1.0
+description: Project description
+
+workflows:
+  - source: ./workflow.yaml
+
+runtime:
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-env
+```
+</project_config_pattern>
+
+## Project with Model Configuration
+
+<project_config_pattern type="with_models">
+```yaml
+name: weather-agent
+version: "0.1.0"
+description: A multi-agent weather advisory system
+
+author:
+  name: Pedro Nauck
+  url: https://github.com/pedronauck
+
+workflows:
+  - source: ./workflow.yaml
+
+models:
+  - provider: groq
+    model: llama-3.3-70b-versatile
+    api_key: "{{ .env.GROQ_API_KEY }}"
+  - provider: ollama
+    model: llama4:16x17b
+    api_url: "http://localhost:11434"
+
+runtime:
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-env
+    - --allow-sys
+    - --allow-write
+```
+</project_config_pattern>
+
+## Project with AutoLoad Configuration
+
+<project_config_pattern type="with_autoload">
+```yaml
+name: project-name
+version: 0.1.0
+
+workflows:
+  - source: ./workflow.yaml
+
+# AutoLoad configuration for discovering agents and tools
+autoload:
+  enabled: true
+  strict: true
+  include:
+    - "agents/*.yaml"
+    - "tools/*.yaml"
+  exclude:
+    - "**/*~"
+    - "**/*.bak"
+    - "**/*.tmp"
+
+runtime:
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-env
+```
+</project_config_pattern>
+
+## Environment Variable Patterns
+
+<environment_patterns type="api_keys">
+```yaml
+# Environment variable references
+api_key: "{{ .env.GROQ_API_KEY }}"
+api_key: "{{ .env.OPENAI_API_KEY }}"
+database_url: "{{ .env.DATABASE_URL }}"
+
+# MCP environment variables
+mcps:
+  - id: external_service
+    url: "{{ .env.MCP_SERVICE_URL }}"
+    env:
+      API_KEY: "{{ .env.EXTERNAL_API_KEY }}"
+      TIMEOUT: "{{ .env.REQUEST_TIMEOUT | default \"30s\" }}"
+```
+</environment_patterns>

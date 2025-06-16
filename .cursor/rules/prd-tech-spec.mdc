@@ -1,0 +1,160 @@
+---
+description: "Guides AI in creating detailed Technical Specification documents that complement PRDs, providing senior-level architectural guidance and implementation details for development teams"
+type: "agent-requested"
+category: "task-workflow"
+priority: "high"
+alwaysApply: false
+triggers: ["technical specification", "tech spec", "architecture design", "PRD analysis", "implementation planning"]
+dependencies: ["architecture.mdc", "core-libraries.mdc", "testing-standards.mdc"]
+---
+# Rule: Generating Technical Specification Documents
+
+<goal>
+To guide an AI assistant in creating detailed Technical Specification (Tech Spec) documents that complement Product Requirements Documents (PRDs). The Tech Spec should provide senior-level architectural guidance, implementation details, and system design decisions suitable for implementation teams.
+</goal>
+
+## Prerequisites
+
+<prerequisites>
+- **Review Project Standards:** First examine `.cursor/rules/` to understand all established coding standards, patterns, and architectural guidelines
+- **MANDATORY:** Review [architecture.mdc](mdc:.cursor/rules/architecture.mdc) for SOLID principles, Clean Architecture, and design patterns
+- A completed PRD document must exist in `tasks/docs/prd-<feature>.md`
+- Understanding of the project's domain structure: `engine/{agent,task,tool,workflow,runtime,infra}/`
+- Familiarity with project standards: Go patterns, clean architecture, SOLID principles
+</prerequisites>
+
+## Process
+
+<process_workflow>
+1. **Analyze PRD:** Review the existing PRD to understand requirements and scope
+2. **Pre-Analysis with Zen MCP:** Use Zen MCP with Gemini 2.5 and O3 to analyze the PRD and identify technical complexity areas, potential architecture patterns, and system design considerations
+3. **Ask Technical Questions:** Gather technical clarifications focusing on system design, performance, and architecture decisions
+4. **Generate Tech Spec:** Create comprehensive technical specification following senior architect standards
+5. **Post-Review with Zen MCP:** Use Zen MCP with Gemini 2.5 and O3 to review the generated tech spec for completeness, architectural soundness, and adherence to best practices
+6. **Save Tech Spec:** Save as `prd-<feature>_techspec.md` in `tasks/docs/`
+</process_workflow>
+
+## Technical Clarifying Questions
+
+<technical_questions_guidance>
+Focus on architecture and implementation details:
+
+* **System Architecture:** "How should this feature integrate with the existing domain structure (agent/task/tool/workflow/runtime/infra)?"
+* **Data Flow:** "What is the expected data flow and state management approach?"
+* **Performance Requirements:** "Are there specific performance, scalability, or concurrency requirements?"
+* **External Dependencies:** "What external services, databases, or APIs need integration?"
+* **Security Considerations:** "What are the security requirements and potential vulnerabilities?"
+* **Error Handling:** "What error scenarios need handling and recovery strategies?"
+* **Testing Strategy:** "What testing approaches are needed (unit, integration, e2e)?"
+* **Monitoring & Observability:** "What metrics, logging, and monitoring are required?"
+* **Migration Strategy:** "How will this feature be deployed and any migration considerations?"
+</technical_questions_guidance>
+
+## Tech Spec Structure
+
+<spec_structure>
+1. **Executive Summary:** High-level technical overview and architectural approach
+2. **System Architecture:**
+   - Domain placement within `engine/` structure
+   - Component relationships and dependencies
+   - Data flow diagrams (if complex)
+3. **Technical Requirements:**
+   - Performance specifications
+   - Scalability considerations
+   - Security requirements
+   - Compatibility constraints
+4. **Implementation Design:**
+   - **Core Interfaces:** Define service interfaces following [architecture.mdc](mdc:.cursor/rules/architecture.mdc) patterns (small, focused, composable)
+   - **Data Structures:** Use `core.ID`, `core.Ref` and project domain types
+   - **Service Construction:** Apply mandatory constructor patterns from [architecture.mdc](mdc:.cursor/rules/architecture.mdc)
+   - **Key Algorithms:** Business logic implementation approach
+   - **Database Schema:** Changes following project DB patterns
+   - **API Design:** RESTful endpoints at `/api/v0/` with Swagger documentation
+5. **Integration Points:**
+   - External service integrations
+   - Internal component interactions
+   - Event/message flow
+6. **Error Handling & Resilience:**
+   - **Error Architecture:** Follow [architecture.mdc](mdc:.cursor/rules/architecture.mdc) error handling patterns
+   - **Error Scenarios:** Specific failure modes and response strategies
+   - **Fallback Strategies:** Graceful degradation approaches
+   - **Circuit Breaker Patterns:** If needed for external service resilience
+7. **Security Implementation:**
+   - Authentication/authorization approach
+   - Data protection measures
+   - Security validation points
+8. **Testing Strategy:**
+   - **Unit Testing:** MUST use `t.Run("Should...")` pattern with `stretchr/testify`
+   - **Mock Strategy:** Use `testify/mock` only when necessary (external services, slow/unreliable dependencies)
+   - **Test Organization:** Place `*_test.go` alongside implementation files
+   - **Test Helpers:** Use project utilities `utils.SetupTest()`, `utils.SetupFixture()`
+   - **Integration Testing:** Requirements for end-to-end testing scenarios
+   - **Performance Testing:** Load and stress testing considerations if applicable
+9. **Monitoring & Observability:**
+   - **Logging:** Use `charmbracelet/log` via `pkg/logger` - structured logging with `logger.Info/Error/Debug`
+   - **Security:** NEVER log sensitive data (passwords, tokens, PII)
+   - **Metrics:** Application metrics and alerting strategies
+   - **Tracing:** Distributed tracing requirements for complex workflows
+10. **Deployment Considerations:**
+    - Configuration management
+    - Environment-specific considerations
+    - Rollback strategies
+11. **Technical Risks & Mitigation:**
+    - Identified technical risks
+    - Mitigation strategies
+    - Contingency plans
+</spec_structure>
+
+## Architecture Standards
+
+<architecture_requirements type="mandatory">
+**MANDATORY:** Follow all standards from [core-libraries.mdc](mdc:.cursor/rules/core-libraries.mdc), [architecture.mdc](mdc:.cursor/rules/architecture.mdc), and [testing-standards.mdc](mdc:.cursor/rules/testing-standards.mdc).
+</architecture_requirements>
+
+<tech_spec_requirements>
+**Tech Spec Specific Requirements:**
+- **Domain Placement:** Clearly specify which `engine/` subdirectory components belong to
+- **Interface Design:** Define service interfaces following [architecture.mdc](mdc:.cursor/rules/architecture.mdc) patterns
+- **Error Handling:** Follow unified error handling strategy from [go-coding-standards.mdc](mdc:.cursor/rules/go-coding-standards.mdc)
+- **Dependency Injection:** Specify constructor patterns and dependency flow
+- **Configuration:** Use project patterns for config with defaults and template engine
+- **Resource Management:** Plan proper cleanup and connection management
+</tech_spec_requirements>
+
+
+
+## Design Principles
+
+<design_principles type="mandatory">
+**MANDATORY:** Follow architectural principles defined in [architecture.mdc](mdc:.cursor/rules/architecture.mdc):
+- **SOLID Principles:** Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion
+- **DRY Principle:** Don't Repeat Yourself - extract common functionality, centralize configuration
+- **Clean Architecture:** Domain-driven design with proper layer separation and dependency flow
+- **Clean Code:** Intention-revealing names, small functions, proper error handling
+- **Project Patterns:** Service construction, context propagation, resource management
+</design_principles>
+
+<target_audience>
+Written for **senior developers and architects** who need:
+- Clear implementation guidance
+- Architectural decision rationale
+- Integration and deployment strategies
+- Performance and security considerations
+</target_audience>
+
+<output_specification>
+* **Format:** Markdown (`.md`)
+* **Location:** `tasks/docs/`
+* **Filename:** `prd-<feature>_techspec.md`
+</output_specification>
+
+## Final Instructions
+
+<final_instructions type="mandatory">
+1. **Pre-Analysis Required:** Use Zen MCP with Gemini 2.5 and O3 to analyze the PRD before starting
+2. **Architecture Foundation:** MUST reference and apply patterns from [architecture.mdc](mdc:.cursor/rules/architecture.mdc)
+3. **Technical Focus:** Concentrate on "how" to implement, not "what" to implement
+4. **Standards Compliance:** Ensure alignment with all `.cursor/rules/` standards and project patterns
+5. **Post-Review Required:** Use Zen MCP with Gemini 2.5 and O3 to review completed tech spec for architecture compliance
+6. **Implementation Ready:** Provide sufficient detail for development teams to begin implementation following established patterns
+</final_instructions>

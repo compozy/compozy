@@ -1,13 +1,15 @@
 ---
 description: Go coding standards covering project structure, code style, error handling, and dependency patterns for Compozy
-globs:
-  - "**/*.go"
-alwaysApply: true
+globs: ["**/*.go", "**/go.mod", "**/go.sum"]
+alwaysApply: false
+type: auto_attached
+applies_to: ["go_development", "backend_development"]
 ---
-
 # Go Coding Standards
 
+<role>
 You are an expert in Go, microservices architecture, and clean backend development practices. Your role is to ensure code is idiomatic, modular, testable, and aligned with Compozy's established patterns and best practices.
+</role>
 
 ## Project Structure and Organization
 
@@ -17,55 +19,104 @@ You are an expert in Go, microservices architecture, and clean backend developme
 
 ## Code Style and Standards
 
+<limits type="mandatory">
 - Adhere to Go's official style guide and the project's `.golangci.yml` configuration
-- Function length should not exceed 80 lines or 50 statements
+- Function length should not exceed 30 lines for business logic
 - Line length should not exceed 120 characters
-- Cyclomatic complexity should be kept below 15
+- Cyclomatic complexity should be kept below 10
+</limits>
+
+<documentation_policy>
 - **DON'T ADD** comments to explain code changes - explanation belongs in text responses
 - Only add code comments when user explicitly requests them or code is complex and requires context for future developers
+</documentation_policy>
 
 ## Error Handling
 
-**MANDATORY PATTERNS:**
-- Always check and handle errors explicitly
-- **Use structured errors:** `core.NewError(err, "CODE", details)` for project errors
-- **Use error wrapping:** `fmt.Errorf("context: %w", err)` for context
-- **Transaction pattern:**
-  ```go
-  defer func() {
-      if err != nil { tx.Rollback(ctx) } else { tx.Commit(ctx) }
-  }()
-  ```
-- Avoid naked returns in longer functions (as enforced by nakedret linter)
-- Return early on errors to avoid deep nesting
+<unified_strategy type="mandatory">
+**UNIFIED ERROR HANDLING STRATEGY - SINGLE SOURCE OF TRUTH**
+
+1. **Internal Error Propagation (within domains):**
+   - Use `fmt.Errorf()` for all internal error propagation within a domain
+   - Always wrap errors with context: `fmt.Errorf("failed to load user: %w", err)`
+   - This keeps internal code simple and avoids unnecessary abstraction
+
+2. **Domain Boundaries (public service methods):**
+   - Use `core.NewError()` ONLY when returning errors from public service methods
+   - These are the methods exposed to other domains or external consumers
+   - Provides structured error information for cross-domain communication
+
+3. **Always Required:**
+   - Check and handle errors explicitly - never ignore errors
+   - Return early on errors to avoid deep nesting
+   - Avoid naked returns in longer functions (as enforced by nakedret linter)
+</unified_strategy>
+
+<examples type="implementation">
+```go
+// ✅ INTERNAL: Use fmt.Errorf within domain
+func (s *userService) validateUser(ctx context.Context, user *User) error {
+    if user.Email == "" {
+        return fmt.Errorf("email is required")
+    }
+    if err := s.repo.CheckEmailExists(ctx, user.Email); err != nil {
+        return fmt.Errorf("failed to check email existence: %w", err)
+    }
+    return nil
+}
+
+// ✅ DOMAIN BOUNDARY: Use core.NewError for public methods
+func (s *userService) CreateUser(ctx context.Context, req CreateUserRequest) (*User, error) {
+    user := &User{Email: req.Email, Name: req.Name}
+    if err := s.validateUser(ctx, user); err != nil {
+        return nil, core.NewError(err, "USER_VALIDATION_FAILED", map[string]any{
+            "email": req.Email,
+        })
+    }
+    // ... rest of implementation using fmt.Errorf internally
+}
+```
+</examples>
+
+<pattern type="transaction">
+```go
+defer func() {
+    if err != nil { tx.Rollback(ctx) } else { tx.Commit(ctx) }
+}()
+```
+</pattern>
 
 ## Dependencies and Interfaces
 
 - Prefer explicit dependency injection through constructor functions
 - Use interfaces to define behavior and enable testing
-- Follow the established pattern:
-  ```go
-  // Define interface
-  type Service interface {
-    DoSomething(ctx context.Context, param string) error
-  }
 
-  // Implement interface
-  type ServiceImpl struct {
-    dependency Dependency
-  }
+<pattern type="interface_implementation">
+```go
+// Define interface
+type Service interface {
+  DoSomething(ctx context.Context, param string) error
+}
 
-  // Constructor function
-  func NewService(dependency Dependency) Service {
-    return &serviceImpl{
-      dependency: dependency,
-    }
+// Implement interface
+type ServiceImpl struct {
+  dependency Dependency
+}
+
+// Constructor function
+func NewService(dependency Dependency) Service {
+  return &serviceImpl{
+    dependency: dependency,
   }
-  ```
+}
+```
+</pattern>
 
 ## Context and Concurrency
 
+<requirements type="context">
 - Use `context.Context` for request-scoped values, deadlines, and cancellations
 - Pass context as the first parameter to functions that make external calls
 - Use the noctx linter to enforce context propagation
 - Ensure goroutines are properly managed and cleaned up
+</requirements>

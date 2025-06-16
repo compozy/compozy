@@ -1,0 +1,96 @@
+---
+description: "Agent configuration patterns and examples for Compozy agents"
+globs:
+  - "**/agents/*.yaml"
+  - "**/agent.yaml"
+alwaysApply: false
+---
+# Compozy Agent Configuration Examples
+
+<configuration_overview type="agent_config">
+Agent configuration defines AI agents with instructions, tools, actions, and MCP integrations for workflow execution.
+</configuration_overview>
+
+## Basic Agent Configuration
+
+<agent_config_pattern type="basic_agent">
+```yaml
+resource: agent
+id: tourist_guide
+description: A helpful tourist guide assistant
+version: 0.1.0
+
+config:
+  provider: groq
+  model: llama-3.3-70b-versatile
+  api_key: "{{ .env.GROQ_API_KEY }}"
+
+instructions: |
+  You are a helpful tourist guide assistant specialized in {{ .workflow.input.city }}
+  Your capabilities:
+  - Provide thoughtful recommendations for activities
+  - Suggest appropriate clothing based on weather
+  Always respond in valid JSON format when json_mode is enabled.
+
+tools:
+  - $ref: local::tools.#(id=="weather_tool")
+
+actions:
+  - id: get_weather
+    prompt: |
+      What is the current weather in {{ .workflow.input.city }}?
+
+  - id: suggest_activities
+    json_mode: true
+    prompt: |
+      Given the current conditions: {{ .tasks.weather.output | toJson }}
+      Suggest appropriate activities for these weather conditions
+    output:
+      type: object
+      properties:
+        activities:
+          type: array
+          items:
+            type: string
+      required:
+        - activities
+```
+</agent_config_pattern>
+
+## Agent with MCP Integration
+
+<agent_config_pattern type="agent_with_mcp">
+```yaml
+resource: agent
+id: file_reader
+description: An agent that uses MCP tools to read and list files
+version: 0.1.0
+
+config:
+  provider: groq
+  model: llama-3.3-70b-versatile
+  api_key: "{{ .env.GROQ_API_KEY }}"
+
+instructions: |
+  You are a file management assistant that uses MCP tools.
+  Use MCP tools to check what files exist and read contents when needed.
+
+mcps:
+  - id: file_server
+    transport: stdio
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - "./"
+    proto: "2025-03-26"
+    start_timeout: 15s
+
+actions:
+  - id: list_saved_files
+    prompt: |
+      Use MCP tools to list files in the current directory.
+      Look for results.json and results.txt files.
+      Use the read_directory MCP tool to list contents.
+```
+</agent_config_pattern>

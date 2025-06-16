@@ -1,44 +1,55 @@
 ---
-description: Comprehensive testing standards and patterns for Compozy Go development
+description: Comprehensive testing standards and patterns for Compozy Go development - enforces mandatory t.Run patterns, testify usage, and mock standards
 globs:
+  - "**/*_test.go"
+  - "**/test/**/*.go"
 alwaysApply: true
+priority: high
+tags: ["testing", "go", "standards", "mocks", "testify"]
+category: "Always"
 ---
-
 # Testing Standards
 
 ## Testing Requirements
 
-**MANDATORY REQUIREMENTS:**
+<requirements type="mandatory">
 - **ALL tests MUST use `t.Run("Should...")` pattern** - no direct test implementation without t.Run wrapper
 - Test function names: `func TestModuleName_MethodName(t *testing.T)`
 - Each test case within t.Run with descriptive "Should..." names
 - MUST use `stretchr/testify` for assertions and mocks
 - **STANDARDIZE ON TESTIFY MOCK:** Replace existing custom mocks with `testify/mock` implementations
+</requirements>
 
 ## Table-Driven Tests
 
+<guidelines type="table_tests">
 - AVOID table-driven tests for 2-3 cases
 - ONLY use when 5+ similar variations exist
 - Each table test case must still use "Should..." naming
+</guidelines>
 
 ## Test Organization
 
+<organization_rules>
 - Place `*_test.go` files alongside implementation files
 - Each test MUST be independent and repeatable
 - Mock external dependencies **only when necessary** using `testify/mock`
 - Use project test helpers: `utils.SetupTest()`, `utils.SetupFixture()`
 - Test both success and error paths
 - Ensure test coverage for all exported functions
+</organization_rules>
 
 ## Mock Standards
 
+<when_to_mock>
 **WHEN TO USE MOCKS:**
 - External services (HTTP clients, databases, file systems)
 - Dependencies that are slow, unreliable, or have side effects
 - Complex interfaces that would make tests brittle or slow
 - **NOT REQUIRED** for simple functions, pure logic, or internal utilities
+</when_to_mock>
 
-**MANDATORY MOCK PATTERN (when mocking is necessary):**
+<pattern type="mock_implementation">
 ```go
 // Define mock interface
 type MockService struct {
@@ -64,14 +75,15 @@ func TestComponent_Method(t *testing.T) {
     })
 }
 ```
+</pattern>
 
-**REFACTORING PRIORITY:**
+<refactoring_priorities>
 - Replace custom mocks with testify/mock implementations
 - Migrate interface-based mocks to use `mock.Mock` embedding
 - Standardize mock setup and assertion patterns across the codebase
+</refactoring_priorities>
 
-## Example Structure
-
+<example type="test_structure">
 ```go
 func TestService_Method(t *testing.T) {
     t.Run("Should succeed with valid input", func(t *testing.T) {
@@ -83,9 +95,11 @@ func TestService_Method(t *testing.T) {
     })
 }
 ```
+</example>
 
 ## Test Patterns
 
+<patterns type="testing_best_practices">
 - **Arrange-Act-Assert:** Structure all tests with clear setup, execution, and verification phases
 - **Independent Tests:** Each test should be able to run in isolation
 - **Descriptive Names:** Use "Should..." pattern to describe expected behavior
@@ -93,3 +107,4 @@ func TestService_Method(t *testing.T) {
 - **Context Propagation:** Pass context to functions that require it, even in tests
 - **Mock Assertions:** When using mocks, always call `mockService.AssertExpectations(t)` to verify all expected calls were made
 - **Mock Cleanup:** Use `mock.AnythingOfType()` and `mock.Anything` for flexible parameter matching
+</patterns>

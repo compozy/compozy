@@ -1,0 +1,84 @@
+---
+description: "Mandatory task completion workflow using Zen MCP for code review and validation"
+globs: []
+alwaysApply: false
+type: "agent-requested"
+keywords: ["task-completion", "zen-mcp", "code-review", "workflow"]
+priority: "high"
+version: "1.0"
+dependencies: ["task-generate-list.mdc", "review-checklist.mdc"]
+---
+# Task Completion Workflow with Zen MCP
+
+<critical_requirement>
+**MANDATORY:** Before marking any task as complete, you MUST follow this exact workflow:
+</critical_requirement>
+
+## 1. Code Review with Zen MCP
+
+<mandatory_step>
+Use the criteria from [`review-checklist.mdc`](mdc:.cursor/rules/review-checklist.mdc) as the basis for all code reviews. Perform multi-model code reviews:
+</mandatory_step>
+
+```
+Use zen for codereview with gemini-2.5-pro-preview-05-06 to analyze the implementation for task [task_number]: [task_title].
+Focus on the review checklist criteria: code quality, security, adherence to project standards, error handling, testing patterns, and maintainability.
+```
+
+```
+Use zen with o3 to perform a logical review of the implementation for task [task_number]: [task_title].
+Analyze the logic, edge cases, and potential issues.
+```
+
+## 2. Fix Review Issues
+
+<mandatory_fixes>
+Address ALL issues identified:
+- Fix critical and high-severity issues immediately
+- Address medium-severity issues unless explicitly justified
+- Document any decisions to skip low-severity issues
+</mandatory_fixes>
+
+## 3. Pre-Commit Validation
+
+```
+Use zen precommit to validate all changes for task [task_number] implementation using gemini-2.5-pro-preview-05-06
+```
+
+## 4. Git Commit
+
+```bash
+git add .
+git commit -m "feat(task-[task_number]): [concise_task_description]
+
+- Implemented [specific changes made]
+- Code reviewed with Zen MCP (Gemini 2.5 Pro + O3)
+- All review issues addressed
+- Task: [task_number] - [task_title]
+
+Closes: task-[task_number]"
+```
+
+## 5. Mark Task Complete
+
+**ONLY AFTER** successful commit, update the Markdown task file:
+
+```markdown
+- [x] 1.0 [task_title] ✅ COMPLETED
+  - [x] 1.1 Implementation completed
+  - [x] 1.2 Code review completed with Zen MCP
+  - [x] 1.3 Ready for commit
+```
+
+## Important Notes
+
+- **Natural Language Usage:** Zen MCP uses natural language requests, NOT structured parameters
+- **File Paths:** Use absolute paths when referencing files with Zen MCP
+- **Available Models:** `gemini-2.5-pro-preview-05-06` (deep analysis), `o3` (logical reasoning), `flash` (fast responses)
+- **Exceptions:** Only allowed for hotfixes, documentation-only, or config-only changes (must be documented)
+
+<enforcement_policy>
+**MANDATORY:** This workflow must be followed for every task completion. No exceptions without explicit justification.
+</enforcement_policy>
+
+Reference: [Zen MCP Documentation](https://github.com/BeehiveInnovations/zen-mcp-server)
