@@ -12,6 +12,8 @@
 - `engine/infra/monitoring/middleware/gin_test.go` - HTTP middleware tests
 - `engine/infra/monitoring/interceptor/temporal.go` - Temporal workflow interceptor
 - `engine/infra/monitoring/interceptor/temporal_test.go` - Temporal interceptor tests
+- `engine/infra/monitoring/system.go` - System health metrics implementation
+- `engine/infra/monitoring/system_test.go` - System metrics tests
 
 ### Integration Points
 
@@ -43,7 +45,7 @@
 - [x] 1.0 Set Up Core Monitoring Infrastructure
 - [x] 2.0 Implement HTTP Metrics Collection
 - [x] 3.0 Implement Temporal Workflow Metrics
-- [ ] 4.0 Add System Health Metrics
+- [x] 4.0 Add System Health Metrics
 - [ ] 5.0 Integrate Monitoring Service with Main Application
 - [ ] 6.0 Add Configuration Support
 - [ ] 7.0 Performance Validation and Testing

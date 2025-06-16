@@ -2,6 +2,14 @@
 status: excluded
 ---
 
+<task_context>
+<domain>engine/infra/monitoring</domain>
+<type>testing</type>
+<scope>performance</scope>
+<complexity>high</complexity>
+<dependencies>external_apis</dependencies>
+</task_context>
+
 # Task 7.0: Performance Validation and Testing
 
 ## Overview
@@ -285,10 +293,25 @@ kill $SERVER_PID
 
 ## Success Criteria
 
-- Test environment properly configured
-- Baseline measurements captured accurately
-- Load tests execute successfully at 1000 RPS
-- Performance overhead within limits (<0.5% latency, <2% resources)
-- pprof analysis identifies any hotspots
-- Rollback mechanism verified working
-- Formal report generated with SRE sign-off
+- Load testing demonstrates <0.5% performance overhead
+- Baseline measurements accurately captured
+- Load test results properly documented with environment details
+- Performance report includes recommendations and findings
+- SRE team sign-off obtained for production readiness
+- All monitoring functionality validated under load
+- Documentation updated with performance characteristics
+
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test-all` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>

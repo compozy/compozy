@@ -172,6 +172,6 @@ From line 66: Total overhead must be <0.5% under normal load. The middleware sho
     - API standards: `.cursor/rules/api-standards.mdc`
     - Security & quality: `.cursor/rules/quality-security.mdc`
 - **MUST** run `make lint` and `make test-all` before completing ANY subtask
-- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
+- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
 **Enforcement:** Violating these standards results in immediate task rejection.
 </critical>

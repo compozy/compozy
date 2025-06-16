@@ -2,6 +2,14 @@
 status: pending
 ---
 
+<task_context>
+<domain>engine/infra/monitoring</domain>
+<type>documentation</type>
+<scope>core_feature</scope>
+<complexity>low</complexity>
+<dependencies>none</dependencies>
+</task_context>
+
 # Task 9.0: Complete Documentation
 
 ## Overview
@@ -394,12 +402,26 @@ Monitoring adds <0.5% latency overhead and <2% resource usage.
 ```
 
 ## Success Criteria
-- Comprehensive monitoring guide created
-- All metrics documented with descriptions
-- Kubernetes integration examples provided
-- ServiceMonitor and Pod annotation examples included
-- Clear troubleshooting steps for common issues
-- Rollback procedure documented and tested
-- README updated with monitoring section
-- Documentation follows project style guidelines
+
+- Comprehensive user documentation covering setup, configuration, and usage
+- Swagger documentation for /metrics endpoint is complete and accurate
+- Kubernetes deployment examples with ServiceMonitor configurations
+- Clear troubleshooting guide for common monitoring issues
+- Performance characteristics and validation results documented
+- All documentation follows project standards and is easily discoverable
+
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+  - Architecture patterns: `.cursor/rules/architecture.mdc`
+  - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+  - Testing requirements: `.cursor/rules/testing-standards.mdc`
+  - API standards: `.cursor/rules/api-standards.mdc`
+  - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test-all` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>
 ```

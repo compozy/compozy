@@ -2,6 +2,14 @@
 status: excluded
 ---
 
+<task_context>
+<domain>engine/infra/monitoring</domain>
+<type>implementation</type>
+<scope>tooling</scope>
+<complexity>high</complexity>
+<dependencies>none</dependencies>
+</task_context>
+
 # Task 8.0: Implement CI Label Validation
 
 ## Overview
@@ -311,11 +319,24 @@ engine/infra/monitoring/interceptor/temporal.go:67:5: metric "compozy_temporal_w
 
 ## Success Criteria
 
-- Go AST analysis correctly identifies OTEL metric creation
-- Label extraction accurately finds all label usage
-- Validation correctly enforces allow-list
-- Clear error messages with file/line information
-- Makefile integration works smoothly
-- CI pipeline fails on violations
-- Comprehensive test coverage for linter logic
-- Documentation explains how to add new allowed labels
+- CI linter successfully validates metric labels against allow-list
+- Linter fails builds on disallowed or high-cardinality labels
+- Tool properly integrated into CI pipeline
+- Documentation explains linter usage and label validation rules
+- All existing metrics pass validation
+- Tool can be easily extended for future label requirements
+
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test-all` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>

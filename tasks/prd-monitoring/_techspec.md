@@ -510,7 +510,7 @@ runtime:
 | `compozy_temporal_workers_running_total`     | Gauge     | -                                      | Currently running workers       | N/A                                                |
 | `compozy_temporal_workers_configured_total`  | Gauge     | -                                      | Configured workers per instance | N/A                                                |
 | `compozy_build_info`                         | Gauge     | `version`, `commit_hash`, `go_version` | Build information (value=1)     | N/A                                                |
-| `compozy_uptime_seconds_total`               | Counter   | -                                      | Service uptime (monotonic)      | N/A                                                |
+| `compozy_uptime_seconds`                     | Gauge     | -                                      | Service uptime in seconds       | N/A                                                |
 
 ### 13.2 Label Cardinality Guidelines
 

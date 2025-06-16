@@ -56,6 +56,20 @@ Analyze all Cursor rules that apply to the changed files for task [task_number]:
 <mandatory_step>
 Use the criteria from [`review-checklist.mdc`](mdc:.cursor/rules/review-checklist.mdc) as the basis for all code reviews:
 </mandatory_step>
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test-all` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>
 
 ```
 Use zen for codereview with gemini-2.5-pro-preview-05-06 to analyze the implementation for task [task_number]: [task_title].
@@ -127,22 +141,6 @@ Closes: task-[task_number]"
 - **File Paths:** Use absolute paths when referencing files with Zen MCP
 - **Available Models:** `gemini-2.5-pro-preview-05-06` (deep analysis), `o3` (logical reasoning), `flash` (fast responses)
 - **Exceptions:** Only allowed for hotfixes, documentation-only, or config-only changes (must be documented)
-
-
-<critical>
-**MANDATORY REQUIREMENTS:**
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-    - Architecture patterns: `.cursor/rules/architecture.mdc`
-    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-    - Testing requirements: `.cursor/rules/testing-standards.mdc`
-    - API standards: `.cursor/rules/api-standards.mdc`
-    - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test-all` before completing ANY subtask
-- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>
 
 <enforcement_policy>
 **MANDATORY:** This workflow must be followed for every task completion. No exceptions without explicit justification.

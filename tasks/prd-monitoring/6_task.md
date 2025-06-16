@@ -2,6 +2,14 @@
 status: pending
 ---
 
+<task_context>
+<domain>engine/infra/monitoring</domain>
+<type>implementation</type>
+<scope>configuration</scope>
+<complexity>low</complexity>
+<dependencies>none</dependencies>
+</task_context>
+
 # Task 6.0: Add Configuration Support
 
 ## Overview
@@ -191,6 +199,8 @@ monitoring:
 ```
 ````
 
+````
+
 ### Configuration Precedence
 
 1. Environment variables (highest priority)
@@ -204,7 +214,7 @@ monitoring:
 monitoring:
     enabled: true
     path: /custom-metrics
-```
+````
 
 To disable via environment:
 
@@ -238,11 +248,27 @@ compozy run
    - Path conflicts with API routes
 
 ## Success Criteria
-- Configuration schema properly defined
-- Environment variable support working
-- YAML configuration loading correctly
-- Proper precedence handling (env > yaml > default)
-- Validation prevents invalid configurations
-- Documentation clearly explains options
-- All test scenarios passing
+
+- Configuration supports both environment variables and YAML
+- Environment variable `MONITORING_ENABLED` properly controls global state
+- Project-level `monitoring` section in compozy.yaml works correctly
+- Default configuration values are sensible and well-documented
+- Configuration validation prevents invalid values
+- All configuration tests pass with comprehensive coverage
+- Documentation clearly explains all configuration options
+
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+  - Architecture patterns: `.cursor/rules/architecture.mdc`
+  - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+  - Testing requirements: `.cursor/rules/testing-standards.mdc`
+  - API standards: `.cursor/rules/api-standards.mdc`
+  - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test-all` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>
 ```

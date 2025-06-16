@@ -2,6 +2,14 @@
 status: pending
 ---
 
+<task_context>
+<domain>engine/infra/monitoring</domain>
+<type>integration</type>
+<scope>core_feature</scope>
+<complexity>medium</complexity>
+<dependencies>http_server,temporal</dependencies>
+</task_context>
+
 # Task 5.0: Integrate Monitoring Service with Main Application
 
 ## Overview
@@ -211,10 +219,25 @@ if ms != nil {
 
 ## Success Criteria
 
-- MonitoringService properly integrated into server
-- Middleware added in correct order
-- `/metrics` endpoint accessible and documented
-- Temporal workers include interceptor when available
-- Graceful handling of monitoring failures
-- Swagger documentation complete
-- No critical path dependencies on monitoring
+- MonitoringService properly integrated into main server startup
+- /metrics endpoint correctly registered and serving Prometheus format
+- Gin middleware applied to all HTTP routes before other middleware
+- Temporal interceptor integrated with worker initialization
+- Graceful shutdown handled properly (no additional cleanup needed)
+- Server starts successfully with monitoring enabled and disabled modes
+- All integration tests passing
+
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test-all` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>

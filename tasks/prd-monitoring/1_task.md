@@ -2,6 +2,14 @@
 status: completed
 ---
 
+<task_context>
+<domain>engine/infra/monitoring</domain>
+<type>implementation</type>
+<scope>core_feature</scope>
+<complexity>medium</complexity>
+<dependencies>external_apis</dependencies>
+</task_context>
+
 # Task 1.0: Set Up Core Monitoring Infrastructure
 
 ## Overview
@@ -142,3 +150,18 @@ Per line 49: All service methods performing I/O or long-running operations must 
 - ExporterHandler returns 503 on failure
 - All tests passing with proper coverage
 - Follows all project coding standards
+
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test-all` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>

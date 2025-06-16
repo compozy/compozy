@@ -14,6 +14,16 @@ SRC_DIRS=./...
 LINTCMD=golangci-lint-v2
 
 # -----------------------------------------------------------------------------
+# Build Variables
+# -----------------------------------------------------------------------------
+GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+VERSION := $(shell git describe --tags --always 2>/dev/null || echo "unknown")
+
+# Build flags for injecting version info
+LDFLAGS := -X 'github.com/compozy/compozy/engine/infra/monitoring.Version=$(VERSION)' \
+           -X 'github.com/compozy/compozy/engine/infra/monitoring.CommitHash=$(GIT_COMMIT)'
+
+# -----------------------------------------------------------------------------
 # Swagger/OpenAPI
 # -----------------------------------------------------------------------------
 SWAGGER_DIR=./docs
@@ -35,7 +45,7 @@ clean:
 
 build: swagger
 	mkdir -p $(BINARY_DIR)
-	$(GOBUILD) -o $(BINARY_DIR)/$(BINARY_NAME) .
+	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BINARY_DIR)/$(BINARY_NAME) .
 	chmod +x $(BINARY_DIR)/$(BINARY_NAME)
 
 # -----------------------------------------------------------------------------

@@ -1,6 +1,14 @@
 ---
-status: pending
+status: completed
 ---
+
+<task_context>
+<domain>engine/infra/monitoring</domain>
+<type>implementation</type>
+<scope>core_feature</scope>
+<complexity>low</complexity>
+<dependencies>none</dependencies>
+</task_context>
 
 # Task 4.0: Add System Health Metrics
 
@@ -10,13 +18,13 @@ Implement system health metrics to expose build information and service uptime, 
 
 ## Subtasks
 
-- [ ] 4.1 Define build-time ldflags strategy for version and commit injection
-- [ ] 4.2 Add build_info gauge with version, commit_hash, and go_version labels
-- [ ] 4.3 Implement uptime_seconds_total counter with monotonic behavior
-- [ ] 4.4 Create build info extraction from ldflags or fallback to runtime
-- [ ] 4.5 Initialize system metrics on service startup
-- [ ] 4.6 Update Makefile to inject build variables during compilation
-- [ ] 4.7 Create tests to verify metric values and label correctness
+- [x] 4.1 Define build-time ldflags strategy for version and commit injection
+- [x] 4.2 Add build_info gauge with version, commit_hash, and go_version labels
+- [x] 4.3 Implement uptime_seconds_total counter with monotonic behavior
+- [x] 4.4 Create build info extraction from ldflags or fallback to runtime
+- [x] 4.5 Initialize system metrics on service startup
+- [x] 4.6 Update Makefile to inject build variables during compilation
+- [x] 4.7 Create tests to verify metric values and label correctness
 
 ## Implementation Details
 
@@ -38,9 +46,9 @@ func initSystemMetrics(meter metric.Meter) {
         metric.WithDescription("Build information (value=1)"),
     )
 
-    uptimeTotal, _ = meter.Int64Counter(
-        "compozy_uptime_seconds_total",
-        metric.WithDescription("Service uptime (monotonic)"),
+    uptimeGauge, _ = meter.Float64ObservableGauge(
+        "compozy_uptime_seconds",
+        metric.WithDescription("Service uptime in seconds"),
     )
 
     // Record start time for uptime calculation
@@ -216,3 +224,18 @@ logger.Info("System metrics initialized",
 - Both metrics use only allowed labels
 - Tests verify all scenarios
 - Metrics visible at /metrics endpoint
+
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test-all` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>

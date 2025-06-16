@@ -68,6 +68,9 @@ func NewMonitoringService(cfg *Config) (*Service, error) {
 		config:      cfg,
 		initialized: true,
 	}
+	// Initialize system health metrics
+	ctx := context.Background()
+	InitSystemMetrics(ctx, meter)
 	logger.Info("Monitoring service initialized successfully")
 	return service, nil
 }
