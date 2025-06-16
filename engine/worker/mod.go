@@ -90,6 +90,7 @@ func NewWorker(
 
 	// Create Redis-backed ConfigStore with 24h TTL as per PRD
 	configStore := services.NewRedisConfigStore(redisCache.Redis, 24*time.Hour)
+	configManager := services.NewConfigManager(configStore, nil)
 
 	// Initialize MCP register and register all MCPs from all workflows
 	workflowConfigs := make([]mcp.WorkflowConfig, len(workflows))
@@ -114,6 +115,7 @@ func NewWorker(
 		runtime,
 		configStore,
 		signalDispatcher,
+		configManager,
 	)
 
 	// Create lifecycle context for independent operation
@@ -156,6 +158,7 @@ func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterActivity(o.activities.GetCompositeResponse)
 	o.worker.RegisterActivity(o.activities.GetProgress)
 	o.worker.RegisterActivity(o.activities.UpdateParentStatus)
+	o.worker.RegisterActivity(o.activities.UpdateChildState)
 	o.worker.RegisterActivity(o.activities.ListChildStates)
 	o.worker.RegisterActivityWithOptions(
 		o.activities.LoadTaskConfigActivity,
@@ -164,6 +167,10 @@ func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterActivityWithOptions(
 		o.activities.LoadBatchConfigsActivity,
 		activity.RegisterOptions{Name: tkacts.LoadBatchConfigsLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.LoadCompositeConfigsActivity,
+		activity.RegisterOptions{Name: tkacts.LoadCompositeConfigsLabel},
 	)
 	err := o.worker.Start()
 	if err != nil {

@@ -330,10 +330,7 @@ func (v *TypeValidator) validateCompositeTaskItem(item *Config) error {
 	if item.ID == "" {
 		return fmt.Errorf("task item ID is required")
 	}
-	// For MVP, only basic tasks are supported as subtasks
-	if item.Type != "" && item.Type != TaskTypeBasic {
-		return fmt.Errorf("composite subtasks must be of type 'basic' in current implementation")
-	}
+	// All task types are now supported as subtasks with nested tasks implementation
 	// Each task in composite execution should be a valid task configuration
 	if err := item.Validate(); err != nil {
 		return fmt.Errorf("invalid task configuration: %w", err)

@@ -339,7 +339,7 @@ func handleDevCmd(cmd *cobra.Command, _ []string) error {
 		return runAndWatchServer(scfg, tcfg, dbCfg, restartChan)
 	}
 
-	srv := server.NewServer(*scfg, tcfg, dbCfg)
+	srv := server.NewServer(scfg, tcfg, dbCfg)
 	return srv.Run()
 }
 
@@ -403,7 +403,7 @@ func runAndWatchServer(
 			scfg.Port = availablePort
 		}
 
-		srv := server.NewServer(*scfg, tcfg, dbCfg)
+		srv := server.NewServer(scfg, tcfg, dbCfg)
 		serverErrChan := make(chan error, 1)
 		go func() {
 			serverErrChan <- srv.Run()

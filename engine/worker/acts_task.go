@@ -348,8 +348,28 @@ func (e *TaskExecutor) executeChild(
 		return err
 	default:
 		// Recurse for container tasks - bump depth
-		_, err := e.HandleExecution(ctx, cfg, depth+1)
-		return err
+		response, err := e.HandleExecution(ctx, cfg, depth+1)
+		if err != nil {
+			return err
+		}
+		// Update child state record with final status from nested task execution
+		// This ensures parent tasks can see the completion status
+		if response != nil && response.GetState() != nil {
+			finalState := response.GetState()
+			// Create a simple activity to update the child state status
+			updateInput := map[string]any{
+				"task_exec_id": childState.TaskExecID.String(),
+				"status":       string(finalState.Status),
+				"output":       finalState.Output,
+			}
+			err = workflow.ExecuteActivity(ctx, "UpdateChildState", updateInput).Get(ctx, nil)
+			if err != nil {
+				logger.Error("Failed to update child state after nested task completion",
+					"child_task_id", childState.TaskID, "final_status", finalState.Status, "error", err)
+				// Don't fail the execution - this is for tracking purposes only
+			}
+		}
+		return nil
 	}
 }
 
@@ -496,18 +516,28 @@ func (e *TaskExecutor) setupParallelExecution(
 	if err != nil {
 		return nil, nil, nil, 0, fmt.Errorf("failed to list child states: %w", err)
 	}
-	// Batch-load child configs once
-	childIDs := make([]string, len(childStates))
-	for i, st := range childStates {
-		childIDs[i] = st.TaskID
-	}
+	// For nested parallel tasks, use the task's own configs; for root tasks, load from workflow
 	var childCfgs map[string]*task.Config
-	err = workflow.ExecuteActivity(ctx, tkacts.LoadBatchConfigsLabel, &tkacts.LoadBatchConfigsInput{
-		WorkflowConfig: e.WorkflowConfig,
-		TaskIDs:        childIDs,
-	}).Get(ctx, &childCfgs)
-	if err != nil {
-		return nil, nil, nil, 0, fmt.Errorf("failed to load child configs: %w", err)
+	if len(pConfig.Tasks) > 0 {
+		// Nested parallel task - use configs from the task itself
+		childCfgs = make(map[string]*task.Config)
+		for i := range pConfig.Tasks {
+			cfg := &pConfig.Tasks[i]
+			childCfgs[cfg.ID] = cfg
+		}
+	} else {
+		// Root parallel task - load configs from workflow
+		childIDs := make([]string, len(childStates))
+		for i, st := range childStates {
+			childIDs[i] = st.TaskID
+		}
+		err = workflow.ExecuteActivity(ctx, tkacts.LoadBatchConfigsLabel, &tkacts.LoadBatchConfigsInput{
+			WorkflowConfig: e.WorkflowConfig,
+			TaskIDs:        childIDs,
+		}).Get(ctx, &childCfgs)
+		if err != nil {
+			return nil, nil, nil, 0, fmt.Errorf("failed to load child configs: %w", err)
+		}
 	}
 	tasksLen := len(childStates)
 	if tasksLen > math.MaxInt32 {
@@ -576,29 +606,18 @@ func (e *TaskExecutor) handleCollectionParallel(
 ) error {
 	logger := workflow.GetLogger(ctx)
 
-	// Batch-load child configs once
-	childIDs := make([]string, len(childStates))
-	for i, st := range childStates {
-		childIDs[i] = st.TaskID
-	}
-	var childCfgs map[string]*task.Config
-	err := workflow.ExecuteActivity(ctx, tkacts.LoadBatchConfigsLabel, &tkacts.LoadBatchConfigsInput{
-		WorkflowConfig: e.WorkflowConfig,
-		TaskIDs:        childIDs,
-	}).Get(ctx, &childCfgs)
-	if err != nil {
-		return fmt.Errorf("failed to load child configs: %w", err)
-	}
+	// For collection tasks, all children use the parent's task template
+	// Collection child TaskIDs are dynamically generated (e.g., activity_analysis_item_0)
+	// and don't exist as separate tasks in the workflow config
 
 	// Execute child tasks using executeChild helper
 	for i := range childStates {
 		childState := childStates[i]
-		childConfig := childCfgs[childState.TaskID]
 		workflow.Go(ctx, func(gCtx workflow.Context) {
 			if gCtx.Err() != nil {
 				return // canceled before start
 			}
-			err := e.executeChild(gCtx, cState, childState, childConfig, depth)
+			err := e.executeChild(gCtx, cState, childState, taskConfig.Task, depth)
 			if gCtx.Err() != nil {
 				return // canceled during work
 			}
@@ -661,30 +680,19 @@ func (e *TaskExecutor) handleCollectionSequential(
 	logger := workflow.GetLogger(ctx)
 	strategy := taskConfig.GetStrategy()
 
-	// Batch-load child configs once
-	childIDs := make([]string, len(childStates))
-	for i, st := range childStates {
-		childIDs[i] = st.TaskID
-	}
-	var childCfgs map[string]*task.Config
-	err := workflow.ExecuteActivity(ctx, tkacts.LoadBatchConfigsLabel, &tkacts.LoadBatchConfigsInput{
-		WorkflowConfig: e.WorkflowConfig,
-		TaskIDs:        childIDs,
-	}).Get(ctx, &childCfgs)
-	if err != nil {
-		return fmt.Errorf("failed to load child configs: %w", err)
-	}
+	// For collection tasks, all children use the parent's task template
+	// Collection child TaskIDs are dynamically generated (e.g., activity_analysis_item_0)
+	// and don't exist as separate tasks in the workflow config
 
 	// Process child tasks sequentially
 	for i, childState := range childStates {
-		childConfig := childCfgs[childState.TaskID]
 		logger.Info("Executing child task sequentially",
 			"parent_task_id", taskConfig.ID,
 			"child_task_id", childState.TaskID,
 			"index", i,
 			"depth", depth+1,
 			"total", len(childStates))
-		err := e.executeChild(ctx, cState, childState, childConfig, depth)
+		err := e.executeChild(ctx, cState, childState, taskConfig.Task, depth)
 		if err != nil {
 			atomic.AddInt32(failed, 1)
 			logger.Error("Failed to execute child task",
@@ -748,15 +756,15 @@ func (e *TaskExecutor) HandleCompositeTask(
 			return nil, fmt.Errorf("failed to list child states: %w", err)
 		}
 
-		// Batch-load child configs once
+		// Load child configs from composite metadata
 		childIDs := make([]string, len(childStates))
 		for i, st := range childStates {
 			childIDs[i] = st.TaskID
 		}
 		var childCfgs map[string]*task.Config
-		err = workflow.ExecuteActivity(ctx, tkacts.LoadBatchConfigsLabel, &tkacts.LoadBatchConfigsInput{
-			WorkflowConfig: e.WorkflowConfig,
-			TaskIDs:        childIDs,
+		err = workflow.ExecuteActivity(ctx, tkacts.LoadCompositeConfigsLabel, &tkacts.LoadCompositeConfigsInput{
+			ParentTaskExecID: compositeState.TaskExecID,
+			TaskIDs:          childIDs,
 		}).Get(ctx, &childCfgs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load child configs: %w", err)

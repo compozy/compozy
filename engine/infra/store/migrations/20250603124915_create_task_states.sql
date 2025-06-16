@@ -40,10 +40,8 @@ CREATE TABLE IF NOT EXISTS task_states (
             (agent_id IS NULL AND action_id IS NULL AND tool_id IS NULL)
         )) OR
         (execution_type = 'router' AND agent_id IS NULL AND action_id IS NULL AND tool_id IS NULL) OR
-        (execution_type = 'parallel' AND parent_state_id IS NULL) OR
-        (execution_type = 'collection' AND parent_state_id IS NULL) OR
-        (execution_type = 'composite' AND parent_state_id IS NULL) OR
-        (execution_type NOT IN ('parallel', 'collection', 'composite') AND parent_state_id IS NOT NULL)
+        (execution_type IN ('parallel', 'collection', 'composite')) OR
+        (execution_type NOT IN ('parallel', 'collection', 'composite', 'basic', 'router'))
     )
 );
 

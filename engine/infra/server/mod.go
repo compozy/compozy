@@ -31,10 +31,10 @@ type Server struct {
 	shutdownChan   chan struct{}
 }
 
-func NewServer(config Config, tConfig *worker.TemporalConfig, sConfig *store.Config) *Server {
+func NewServer(config *Config, tConfig *worker.TemporalConfig, sConfig *store.Config) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		Config:         &config,
+		Config:         config,
 		TemporalConfig: tConfig,
 		StoreConfig:    sConfig,
 		ctx:            ctx,

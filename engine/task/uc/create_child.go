@@ -193,12 +193,16 @@ func (uc *CreateChildTasks) processChildConfig(childConfig *task.Config) (*task.
 	toolConfig := childConfig.GetTool()
 
 	switch {
-	case childConfig.Type == task.TaskTypeParallel:
-		// TODO: Add support for nested parallel tasks
-		return nil, fmt.Errorf("nested parallel tasks not yet supported")
-	case childConfig.Type == task.TaskTypeCollection:
-		// TODO: Add support for nested collection tasks
-		return nil, fmt.Errorf("nested collection tasks not yet supported")
+	case childConfig.Type == task.TaskTypeParallel ||
+		childConfig.Type == task.TaskTypeCollection ||
+		childConfig.Type == task.TaskTypeComposite:
+		// Container tasks - create basic state for tracking, actual execution handled by executeChild
+		return &task.PartialState{
+			Component:     core.ComponentTask,
+			ExecutionType: executionType,
+			Input:         childConfig.With,
+			MergedEnv:     baseEnv,
+		}, nil
 	case agentConfig != nil:
 		return uc.processAgent(agentConfig, executionType, childConfig.Action)
 	case toolConfig != nil:

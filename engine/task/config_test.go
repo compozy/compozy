@@ -1295,10 +1295,10 @@ func TestCompositeTask(t *testing.T) {
 		assert.Contains(t, err.Error(), "composite tasks must have at least one sub-task")
 	})
 
-	t.Run("Should fail validation for composite task with non-basic subtasks", func(t *testing.T) {
+	t.Run("Should support nested container tasks in composite", func(t *testing.T) {
 		config := &Config{
 			BaseConfig: BaseConfig{
-				ID:   "invalid-composite",
+				ID:   "valid-nested-composite",
 				Type: TaskTypeComposite,
 				CWD:  cwd,
 			},
@@ -1310,14 +1310,27 @@ func TestCompositeTask(t *testing.T) {
 							Type: TaskTypeParallel,
 							CWD:  cwd,
 						},
+						ParallelTask: ParallelTask{
+							Tasks: []Config{
+								{
+									BaseConfig: BaseConfig{
+										ID:   "nested-basic",
+										Type: TaskTypeBasic,
+										CWD:  cwd,
+									},
+									BasicTask: BasicTask{
+										Action: "test",
+									},
+								},
+							},
+						},
 					},
 				},
 			},
 		}
 
 		err := config.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "composite subtasks must be of type 'basic'")
+		require.NoError(t, err)
 	})
 
 	t.Run("Should support best effort strategy", func(t *testing.T) {

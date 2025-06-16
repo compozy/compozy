@@ -345,6 +345,7 @@ func SetupWorkflowEnvironment(t *testing.T, env *testsuite.TestWorkflowEnvironme
 	})
 
 	configStore := services.NewRedisConfigStore(redisCache.Redis, 1*time.Hour)
+	configManager := services.NewConfigManager(configStore, nil)
 	runtime, err := runtime.NewRuntimeManager(config.ProjectConfig.GetCWD().PathStr(), runtime.WithTestConfig())
 	if err != nil {
 		panic(err)
@@ -357,6 +358,7 @@ func SetupWorkflowEnvironment(t *testing.T, env *testsuite.TestWorkflowEnvironme
 		runtime,
 		configStore,
 		services.NewMockSignalDispatcher(),
+		configManager,
 	)
 
 	// Register workflows

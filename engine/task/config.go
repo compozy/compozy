@@ -383,7 +383,11 @@ func FindConfig(tasks []Config, taskID string) (*Config, error) {
 			return &tasks[i], nil
 		}
 	}
-	return nil, fmt.Errorf("task not found")
+	availableIDs := make([]string, len(tasks))
+	for i := range tasks {
+		availableIDs[i] = tasks[i].ID
+	}
+	return nil, fmt.Errorf("task not found: searched for '%s', available tasks: %v", taskID, availableIDs)
 }
 
 func applyDefaults(config *Config) {

@@ -20,6 +20,7 @@ type Activities struct {
 	runtime          *runtime.Manager
 	configStore      services.ConfigStore
 	signalDispatcher services.SignalDispatcher
+	configManager    *services.ConfigManager
 }
 
 func NewActivities(
@@ -30,6 +31,7 @@ func NewActivities(
 	runtime *runtime.Manager,
 	configStore services.ConfigStore,
 	signalDispatcher services.SignalDispatcher,
+	configManager *services.ConfigManager,
 ) *Activities {
 	return &Activities{
 		projectConfig:    projectConfig,
@@ -39,6 +41,7 @@ func NewActivities(
 		runtime:          runtime,
 		configStore:      configStore,
 		signalDispatcher: signalDispatcher,
+		configManager:    configManager,
 	}
 }
 
@@ -190,6 +193,17 @@ func (a *Activities) UpdateParentStatus(
 	return act.Run(ctx, input)
 }
 
+func (a *Activities) UpdateChildState(
+	ctx context.Context,
+	input map[string]any,
+) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	act := tkfacts.NewUpdateChildState(a.taskRepo)
+	return act.Run(ctx, input)
+}
+
 func (a *Activities) CreateCollectionState(
 	ctx context.Context,
 	input *tkfacts.CreateCollectionStateInput,
@@ -293,6 +307,17 @@ func (a *Activities) LoadBatchConfigsActivity(
 		return nil, err
 	}
 	act := tkfacts.NewLoadBatchConfigs(a.workflows)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) LoadCompositeConfigsActivity(
+	ctx context.Context,
+	input *tkfacts.LoadCompositeConfigsInput,
+) (map[string]*task.Config, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewLoadCompositeConfigs(a.configManager)
 	return act.Run(ctx, input)
 }
 
