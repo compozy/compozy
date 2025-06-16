@@ -1,6 +1,14 @@
 ---
-status: pending
+status: done
 ---
+
+<task_context>
+<domain>engine/infra/monitoring</domain>
+<type>implementation</type>
+<scope>middleware</scope>
+<complexity>medium</complexity>
+<dependencies>http_server</dependencies>
+</task_context>
 
 # Task 2.0: Implement HTTP Metrics Collection
 
@@ -10,14 +18,14 @@ Implement HTTP metrics collection using OpenTelemetry Gin middleware to track re
 
 ## Subtasks
 
-- [ ] 2.1 Create `middleware/gin.go` for HTTP middleware implementation
-- [ ] 2.2 Define HTTP metrics (requests_total, request_duration_seconds, requests_in_flight) with proper OTEL registration
-- [ ] 2.3 Implement `GinMiddleware()` method using otelgin with route templating (.WithRouteTag)
-- [ ] 2.4 Add proper label handling for method, path (templated), and status_code
-- [ ] 2.5 Implement request timing logic and in-flight request tracking
-- [ ] 2.6 Add error handling to prevent middleware failures from affecting requests
-- [ ] 2.7 Create comprehensive unit tests for middleware functionality including edge cases
-- [ ] 2.7a Add a specific test case to verify that requests to non-templated routes (e.g., a default 404 handler) do not generate high-cardinality path labels
+- [x] 2.1 Create `middleware/gin.go` for HTTP middleware implementation
+- [x] 2.2 Define HTTP metrics (requests_total, request_duration_seconds, requests_in_flight) with proper OTEL registration
+- [x] 2.3 Implement `GinMiddleware()` method using otelgin with route templating (.WithRouteTag)
+- [x] 2.4 Add proper label handling for method, path (templated), and status_code
+- [x] 2.5 Implement request timing logic and in-flight request tracking
+- [x] 2.6 Add error handling to prevent middleware failures from affecting requests
+- [x] 2.7 Create comprehensive unit tests for middleware functionality including edge cases
+- [x] 2.7a Add a specific test case to verify that requests to non-templated routes (e.g., a default 404 handler) do not generate high-cardinality path labels
 
 ## Implementation Details
 
@@ -152,3 +160,18 @@ From line 66: Total overhead must be <0.5% under normal load. The middleware sho
 - Error handling prevents request disruption
 - All tests passing including cardinality prevention
 - Performance overhead within acceptable limits
+
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test-all` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>

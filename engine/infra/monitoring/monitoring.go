@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/compozy/compozy/engine/infra/monitoring/middleware"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/metric"
@@ -76,14 +76,17 @@ func (s *Service) Meter() metric.Meter {
 	return s.meter
 }
 
-// GinMiddleware returns Gin middleware for HTTP metrics
+// GinMiddleware returns Gin middleware for HTTP metrics.
+// Note: The OpenTelemetry tracing middleware (otelgin) should be applied separately
+// when building the Gin router to ensure proper middleware chaining.
 func (s *Service) GinMiddleware() gin.HandlerFunc {
 	if !s.initialized {
 		return func(c *gin.Context) {
 			c.Next()
 		}
 	}
-	return otelgin.Middleware("compozy")
+	// Return only the custom HTTP metrics middleware
+	return middleware.HTTPMetrics(s.meter)
 }
 
 // TemporalInterceptor returns Temporal interceptor for workflow metrics

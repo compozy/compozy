@@ -40,8 +40,8 @@
 
 ## Tasks
 
-- [ ] 1.0 Set Up Core Monitoring Infrastructure
-- [ ] 2.0 Implement HTTP Metrics Collection
+- [x] 1.0 Set Up Core Monitoring Infrastructure
+- [x] 2.0 Implement HTTP Metrics Collection
 - [ ] 3.0 Implement Temporal Workflow Metrics
 - [ ] 4.0 Add System Health Metrics
 - [ ] 5.0 Integrate Monitoring Service with Main Application
