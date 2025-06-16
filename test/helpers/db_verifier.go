@@ -19,18 +19,20 @@ import (
 // DatabaseStateVerifier helps verify workflow and task states in the database
 type DatabaseStateVerifier struct {
 	t            *testing.T
-	config       *ContainerTestConfig
 	workflowRepo workflow.Repository
 	taskRepo     task.Repository
 }
 
 // NewDatabaseStateVerifier creates a new database state verifier
-func NewDatabaseStateVerifier(t *testing.T, config *ContainerTestConfig) *DatabaseStateVerifier {
+func NewDatabaseStateVerifier(
+	t *testing.T,
+	workflowRepo workflow.Repository,
+	taskRepo task.Repository,
+) *DatabaseStateVerifier {
 	return &DatabaseStateVerifier{
 		t:            t,
-		config:       config,
-		workflowRepo: config.WorkflowRepo,
-		taskRepo:     config.TaskRepo,
+		workflowRepo: workflowRepo,
+		taskRepo:     taskRepo,
 	}
 }
 

@@ -280,29 +280,3 @@ func (td *DataBuilder) MustCreateNilJSONB() []byte {
 	}
 	return data
 }
-
-// -----
-// Test Helpers
-// -----
-
-// SimpleWorkflowTest runs a simple workflow state test with task population
-func (m *MockSetup) SimpleWorkflowTest(
-	testName string,
-	setupQuery func(*QueryExpectations, *WorkflowStateRowBuilder, *TaskStateRowBuilder),
-	runTest func() error,
-) {
-	m.T.Run(testName, func(t *testing.T) {
-		tx := m.NewTransactionExpectations()
-		queries := m.NewQueryExpectations()
-		workflowRows := m.NewWorkflowStateRowBuilder()
-		taskRows := m.NewTaskStateRowBuilder()
-
-		tx.ExpectBegin()
-		setupQuery(queries, workflowRows, taskRows)
-		tx.ExpectCommit()
-
-		err := runTest()
-		assert.NoError(t, err)
-		m.ExpectationsWereMet()
-	})
-}
