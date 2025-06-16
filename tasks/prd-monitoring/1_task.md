@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 ---
 
 # Task 1.0: Set Up Core Monitoring Infrastructure
@@ -10,14 +10,14 @@ Create the foundational monitoring package structure and implement the core Moni
 
 ## Subtasks
 
-- [ ] 1.1 Create the `engine/infra/monitoring` package directory structure
-- [ ] 1.2 Add OpenTelemetry dependencies to `go.mod` (otel SDK, Prometheus exporter, otelgin)
-- [ ] 1.3 Create `config.go` with `Config` struct and `DefaultConfig()` function
-- [ ] 1.4 Implement `monitoring.go` with `MonitoringService` struct and constructor following mandatory patterns
-- [ ] 1.5 Initialize MeterProvider with Prometheus exporter in the constructor
-- [ ] 1.6 Implement graceful fallback to no-op meter on initialization failures
-- [ ] 1.6a Update the `ExporterHandler` to return an HTTP 503 Service Unavailable status if the monitoring service failed to initialize
-- [ ] 1.7 Create unit tests for MonitoringService initialization with positive and negative cases
+- [x] 1.1 Create the `engine/infra/monitoring` package directory structure
+- [x] 1.2 Add OpenTelemetry dependencies to `go.mod` (otel SDK, Prometheus exporter, otelgin)
+- [x] 1.3 Create `config.go` with `Config` struct and `DefaultConfig()` function
+- [x] 1.4 Implement `monitoring.go` with `MonitoringService` struct and constructor following mandatory patterns
+- [x] 1.5 Initialize MeterProvider with Prometheus exporter in the constructor
+- [x] 1.6 Implement graceful fallback to no-op meter on initialization failures
+- [x] 1.6a Update the `ExporterHandler` to return an HTTP 503 Service Unavailable status if the monitoring service failed to initialize
+- [x] 1.7 Create unit tests for MonitoringService initialization with positive and negative cases
 
 ## Implementation Details
 
