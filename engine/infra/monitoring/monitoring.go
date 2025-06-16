@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	interceptorpkg "github.com/compozy/compozy/engine/infra/monitoring/interceptor"
 	"github.com/compozy/compozy/engine/infra/monitoring/middleware"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -91,9 +92,10 @@ func (s *Service) GinMiddleware() gin.HandlerFunc {
 
 // TemporalInterceptor returns Temporal interceptor for workflow metrics
 func (s *Service) TemporalInterceptor() interceptor.WorkerInterceptor {
-	// TODO: Implement Temporal metrics interceptor in Task 3
-	// This will be implemented when we add Temporal workflow metrics collection
-	return &interceptor.WorkerInterceptorBase{}
+	if !s.initialized {
+		return &interceptor.WorkerInterceptorBase{}
+	}
+	return interceptorpkg.TemporalMetrics(s.meter)
 }
 
 // ExporterHandler returns an HTTP handler for the /metrics endpoint
