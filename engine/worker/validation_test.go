@@ -12,7 +12,7 @@ import (
 func TestValidatePayloadAgainstCompiledSchema(t *testing.T) {
 	t.Run("Should pass validation with no schema", func(t *testing.T) {
 		payload := core.Input{"test": "value"}
-		isValid, validationErrors := validatePayloadAgainstCompiledSchema(payload, nil)
+		isValid, validationErrors := ValidatePayloadAgainstCompiledSchema(payload, nil)
 		assert.True(t, isValid)
 		assert.Nil(t, validationErrors)
 	})
@@ -37,7 +37,7 @@ func TestValidatePayloadAgainstCompiledSchema(t *testing.T) {
 			"name": "John Doe",
 			"age":  30,
 		}
-		isValid, validationErrors := validatePayloadAgainstCompiledSchema(payload, compiledSchema)
+		isValid, validationErrors := ValidatePayloadAgainstCompiledSchema(payload, compiledSchema)
 		assert.True(t, isValid)
 		assert.Nil(t, validationErrors)
 	})
@@ -61,7 +61,7 @@ func TestValidatePayloadAgainstCompiledSchema(t *testing.T) {
 		payload := core.Input{
 			"age": 30,
 		}
-		isValid, validationErrors := validatePayloadAgainstCompiledSchema(payload, compiledSchema)
+		isValid, validationErrors := ValidatePayloadAgainstCompiledSchema(payload, compiledSchema)
 		assert.False(t, isValid)
 		assert.NotEmpty(t, validationErrors)
 	})
@@ -85,7 +85,7 @@ func TestValidatePayloadAgainstCompiledSchema(t *testing.T) {
 			"name": "John Doe",
 			"age":  "thirty", // Wrong type - should be number
 		}
-		isValid, validationErrors := validatePayloadAgainstCompiledSchema(payload, compiledSchema)
+		isValid, validationErrors := ValidatePayloadAgainstCompiledSchema(payload, compiledSchema)
 		assert.False(t, isValid)
 		assert.NotEmpty(t, validationErrors)
 	})

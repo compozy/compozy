@@ -1,0 +1,116 @@
+---
+description: "Comprehensive project structure, architecture patterns, and technology stack overview for the Compozy workflow orchestration engine. Provides essential context for understanding codebase organization, core components, infrastructure services, and development environment setup."
+type: "agent-requested"
+alwaysApply: false
+tags: ["architecture", "structure", "technology-stack", "infrastructure"]
+---
+# Project Structure & Architecture
+
+<project_overview type="domain">
+Compozy is a **workflow orchestration engine for AI agents** that enables building AI-powered applications through declarative YAML configuration and a robust Go backend. It integrates with various LLM providers and supports the Model Context Protocol (MCP) for extending AI capabilities.
+</project_overview>
+
+## Folder Structure
+
+<folder_structure type="main_directories">
+```
+compozy/
+├── engine/           # Core domain logic
+│   ├── agent/        # AI agent management
+│   ├── task/         # Task orchestration (basic, parallel, collection, router types)
+│   ├── tool/         # Tool execution framework (TypeScript/Deno-based)
+│   ├── workflow/     # Workflow definition and execution
+│   ├── mcp/          # Model Context Protocol integration for external tool servers
+│   ├── llm/          # LLM service integration (OpenAI, Groq, Ollama)
+│   ├── runtime/      # Deno runtime for executing TypeScript tools
+│   ├── worker/       # Temporal-based workflow execution
+│   └── infra/        # Infrastructure (server, db, messaging)
+├── cli/              # Command-line interface
+├── pkg/              # Reusable packages (mcp-proxy, utils, logger, tplengine)
+└── test/             # Test suite
+```
+</folder_structure>
+
+## Core Components
+
+See folder structure above for detailed component organization.
+
+## Technology Stack
+
+<tech_stack type="core_technologies">
+- **Go 1.24+**: Core language for backend services
+- **PostgreSQL**: Main database (port 5432) + Temporal database (port 5433)
+- **Redis**: Caching, config storage, and pub/sub messaging (port 6379)
+- **Temporal**: Workflow orchestration engine (port 7233, Web UI: 8080)
+- **MCP Proxy**: HTTP proxy for MCP servers (port 8081)
+- **NATS**: High-performance messaging system
+- **Deno**: Secure runtime for TypeScript tool execution
+</tech_stack>
+
+## Infrastructure Stack
+
+Port mappings and service details are included in the Technology Stack above.
+
+## Architectural Patterns
+
+<patterns type="design_principles">
+1. **Declarative YAML Configuration**: All components use `$ref` for references and `$use` for dependency injection
+2. **Tool Execution**: TypeScript files executed in Deno with JSON I/O communication
+3. **MCP Integration**: External tool servers via HTTP/SSE transport protocols
+4. **Microservice Architecture**: Modular components with clear boundaries
+5. **Event-Driven**: Pub/sub messaging for loose coupling
+6. **Workflow Orchestration**: Temporal-based distributed execution
+</patterns>
+
+## MCP Integration Architecture
+
+<mcp_integration type="components">
+The MCP (Model Context Protocol) integration enables external tool servers:
+
+- **engine/mcp/**: MCP client implementation and protocol handling
+- **pkg/mcp-proxy/**: HTTP proxy for MCP servers (runs on port 8081)
+- **engine/llm/proxy_tool.go**: Tool for proxying MCP calls to external servers
+
+Configuration examples available in compozy-examples.mdc.
+</mcp_integration>
+
+## Runtime Environment
+
+<runtime_characteristics type="execution_model">
+### Temporal Integration
+- Automatic retry and error recovery mechanisms
+- Distributed workflow execution across multiple nodes
+- Built-in state tracking and persistence
+- Fault-tolerant task scheduling
+
+### Deno Tool Execution
+- Configurable permissions per project (security sandboxing)
+- JSON-based stdin/stdout communication protocol
+- Process isolation with timeout handling
+- TypeScript-first execution environment
+</runtime_characteristics>
+
+## Development Environment
+
+<development_setup type="local_development">
+### Required Services
+- Docker containers for PostgreSQL, Redis, Temporal, and NATS
+- MCP Proxy service for external tool integration
+- Deno runtime for tool execution
+
+### Key Directories for Development
+- `engine/`: Domain logic implementation
+- `pkg/`: Shared utilities and libraries
+- `test/helpers/`: Test utilities and fixtures
+- `.cursor/rules/`: Development standards and patterns
+</development_setup>
+
+## Package Dependencies
+
+<package_organization type="internal_packages">
+- **pkg/logger**: Structured logging with charmbracelet/log
+- **pkg/mcp-proxy**: HTTP proxy for MCP server communication
+- **pkg/utils**: Common utilities and helper functions
+- **pkg/tplengine**: Template engine for dynamic configurations
+- **core**: Core types (ID, Ref) and domain primitives
+</package_organization>

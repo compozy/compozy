@@ -1,0 +1,55 @@
+---
+description: Guidelines for managing task lists and implementing sequential sub-task completion workflow
+globs: ['**/tasks/*.md', '**/tasks/**/*.md', '**/*tasks*.md', '**/*task-list*.md']
+alwaysApply: false
+---
+# Task List Management
+
+Guidelines for managing task lists in markdown files to track progress on completing a PRD and its technical specification
+
+## Task Implementation
+
+<workflow type="sequential">
+- **One sub-task at a time:** Do **NOT** start the next sub‑task until you ask the user for permission and they say "yes" or "y"
+</workflow>
+
+<completion_protocol>
+1. When you finish a **sub‑task**, immediately mark it as completed by changing `[ ]` to `[x]`.
+2. If **all** subtasks underneath a parent task are now `[x]`, also mark the **parent task** as completed.
+- Stop after each sub‑task and wait for the user's go‑ahead.
+</completion_protocol>
+
+<critical type="before_subtask_completion">
+Before complete any subtasks, you need to run `make lint` and `make test-all` to ensure what you create didn't broke anything.
+</critical>
+
+<critical type="before_parent_task_completion">
+Before completing the parent task (when ALL sub-tasks are [x]), you MUST follow the [task-completion.mdc](mdc:.cursor/rules/task-completion.mdc) workflow to ensure quality and review. This workflow is only required for parent tasks, not individual sub-tasks.
+</critical>
+
+## Task List Maintenance
+
+<maintenance_rules>
+1. **Update the task list as you work:**
+   - Mark tasks and subtasks as completed (`[x]`) per the protocol above.
+   - Add new tasks as they emerge.
+
+2. **Maintain the "Relevant Files" section:**
+   - List every file created or modified.
+   - Give each file a one‑line description of its purpose.
+</maintenance_rules>
+
+## AI Instructions
+
+<ai_workflow>
+When working with task lists, the AI must:
+
+1. Regularly update the task list file after finishing any significant work.
+2. Follow the completion protocol:
+   - Mark each finished **sub‑task** `[x]`.
+   - Mark the **parent task** `[x]` once **all** its subtasks are `[x]`.
+3. Add newly discovered tasks.
+4. Keep "Relevant Files" accurate and up to date.
+5. Before starting work, check which sub‑task is next.
+6. After implementing a sub‑task, update the file and then pause for user approval.
+</ai_workflow>

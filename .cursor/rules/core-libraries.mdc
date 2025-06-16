@@ -3,43 +3,53 @@ description: Required libraries and project utilities for Compozy development
 globs: **/*.go
 alwaysApply: true
 ---
-
 # Core Libraries & Project Utilities
 
 ## Required Libraries
 
+<library_requirements type="web_framework">
 **Web Framework:**
 - **MUST use:** `gin-gonic/gin` for HTTP APIs
-- API versioned at `/api/v0/`
-- Update Swagger annotations for API changes
+</library_requirements>
 
+<library_requirements type="database">
 **Database:**
 - **PostgreSQL:** `jackc/pgx/v5`
 - **Redis:** `redis/go-redis/v9`
 - Always use connection pooling and proper cleanup
+</library_requirements>
 
+<library_requirements type="testing">
 **Testing:**
 - **MUST use:** `stretchr/testify` for assertions and mocks
 - Import as: `github.com/stretchr/testify/assert`, `github.com/stretchr/testify/mock`
 - **STANDARDIZE:** Replace all custom mocks with `testify/mock` implementations
+</library_requirements>
 
+<library_requirements type="validation">
 **Validation:**
 - **MUST use:** `go-playground/validator/v10` for input validation
+</library_requirements>
 
+<library_requirements type="logging">
 **Logging:**
 - **MUST use:** `charmbracelet/log` - use `logger.Info/Error/Debug`
 - **NEVER use:** `fmt.Printf` or `log.Printf` for application logging
+</library_requirements>
 
+<library_requirements type="cli">
 **CLI:**
 - **MUST use:** `spf13/cobra` for commands
+</library_requirements>
 
+<library_requirements type="documentation">
 **Documentation:**
 - **MUST use:** `swaggo/swag` for API documentation
-- Generate docs at `/swagger/index.html`
+</library_requirements>
 
 ## Project Utilities
 
-**Structured Logging:**
+<utility_pattern type="structured_logging">
 ```go
 // Use pkg/logger for structured logging
 logger.Info("task executed", "task_id", id, "duration", time.Since(start))
@@ -49,15 +59,17 @@ logger.Error("execution failed", "error", err, "task_id", id)
 logger.Info("user authenticated", "user_id", userID) // ✅ Good
 logger.Info("user authenticated", "password", pass) // ❌ Never do this
 ```
+</utility_pattern>
 
-**Core Types:**
+<utility_pattern type="core_types">
 ```go
 // Use project core types
 var taskID core.ID  // UUIDs
 var reference core.Ref  // Polymorphic references
 ```
+</utility_pattern>
 
-**Test Helpers:**
+<utility_pattern type="test_helpers">
 ```go
 // Use project test utilities
 func TestService(t *testing.T) {
@@ -70,10 +82,12 @@ func TestService(t *testing.T) {
     })
 }
 ```
+</utility_pattern>
 
-**Template Engine:**
+<utility_pattern type="template_engine">
 ```go
 // Use pkg/tplengine for dynamic configurations
 engine := tplengine.New()
 result, err := engine.Process(template, variables)
 ```
+</utility_pattern>

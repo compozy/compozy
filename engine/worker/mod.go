@@ -106,7 +106,7 @@ func NewWorker(
 	serverID := core.MustNewID().String()[:8] // Use first 8 chars for readability
 	dispatcherID := fmt.Sprintf("dispatcher-%s-%s", slug.Make(projectConfig.Name), serverID)
 
-	signalDispatcher := NewTemporalSignalDispatcher(client, dispatcherID, taskQueue)
+	signalDispatcher := NewSignalDispatcher(client, dispatcherID, taskQueue)
 	activities := NewActivities(
 		projectConfig,
 		workflows,

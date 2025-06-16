@@ -1,0 +1,73 @@
+---
+description: "Lightweight index for Compozy configuration examples and patterns - references focused files for specific configuration types"
+globs:
+  - "**/compozy.yaml"
+  - "**/workflow.yaml"
+  - "**/workflows/*.yaml"
+  - "**/agents/*.yaml"
+  - "**/tools/*.yaml"
+  - "**/*.compozy.yaml"
+alwaysApply: false
+---
+# Compozy Configuration Examples Index
+
+<configuration_overview type="yaml_patterns">
+Compozy uses YAML configuration files to define projects, workflows, agents, tools, and runtime settings. This index references focused documentation for each configuration type.
+</configuration_overview>
+
+## Configuration File Types
+
+### Project Configuration (`compozy.yaml`)
+See [compozy-project-config.mdc](mdc:.cursor/rules/compozy-project-config.mdc) for:
+- Basic project configuration
+- Model configuration patterns
+- AutoLoad configuration
+- Runtime permissions
+- Environment variable patterns
+
+### Workflow and Task Configuration
+See [compozy-task-patterns.mdc](mdc:.cursor/rules/compozy-task-patterns.mdc) for:
+- All task type patterns (basic, composite, parallel, collection, router, signal, aggregate)
+- Workflow configuration structure
+- Tool configuration
+- Execution strategies
+- Trigger patterns
+- Deno configuration
+
+### Agent Configuration
+See [compozy-agent-config.mdc](mdc:.cursor/rules/compozy-agent-config.mdc) for:
+- Basic agent configuration
+- Agent instructions and actions
+- Agent with MCP integration
+- Tool integration patterns
+
+### Shared Patterns
+See [compozy-shared-patterns.mdc](mdc:.cursor/rules/compozy-shared-patterns.mdc) for:
+- MCP integration patterns (filesystem, HTTP)
+- Reference patterns (local, global, resource)
+- Template expression patterns
+- Use patterns for tools and agents
+
+## Quick Reference
+
+```yaml
+# Basic project structure
+name: project-name
+version: 0.1.0
+workflows:
+  - source: ./workflow.yaml
+
+# Basic task structure
+- id: task_name
+  type: basic
+  $use: tool(local::tools.#(id=="tool_name"))
+  with:
+    param: "{{ .workflow.input.value }}"
+
+# Basic agent structure
+resource: agent
+id: agent_name
+config:
+  provider: groq
+  model: llama-3.3-70b-versatile
+```

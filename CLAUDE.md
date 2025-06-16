@@ -1,10 +1,10 @@
-# CLAUDE.md
+# Development Guide
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides comprehensive guidance for working with the Compozy codebase, including development commands, standards, and workflow patterns.
 
 ## Project Overview
 
-Compozy is a workflow orchestration engine for AI agents that enables building AI-powered applications through declarative YAML configuration and a robust Go backend. It integrates with various LLM providers and supports the Model Context Protocol (MCP) for extending AI capabilities.
+Compozy is a **workflow orchestration engine for AI agents** that enables building AI-powered applications through declarative YAML configuration and a robust Go backend. It integrates with various LLM providers and supports the Model Context Protocol (MCP) for extending AI capabilities.
 
 ## Development Commands
 
@@ -39,192 +39,74 @@ make migrate-status # Check migration status
 make reset-db       # Reset database completely
 ```
 
-## Architecture Overview
+## Architecture & Project Structure
 
-### Core Components
+**📁 Complete project structure, technology stack, and architectural patterns:** See [project-structure.mdc](mdc:.cursor/rules/project-structure.mdc)
 
-- **engine/**: Core business logic
-    - **agent/**: AI agent management and configuration
-    - **task/**: Task orchestration (basic, parallel, collection, router types)
-    - **tool/**: Tool execution framework (TypeScript/Deno-based)
-    - **workflow/**: Workflow definition and execution
-    - **mcp/**: Model Context Protocol integration for external tool servers
-    - **llm/**: LLM service integration (OpenAI, Groq, Ollama)
-    - **runtime/**: Deno runtime for executing TypeScript tools
-    - **worker/**: Temporal-based workflow execution
-    - **infra/**: Infrastructure (server, database, cache, messaging)
-- **cli/**: Command-line interface
-- **pkg/**: Shared packages (mcp-proxy, utils, logger, tplengine)
+## 🚨 CRITICAL: Follow All Development Standards
 
-### Infrastructure Stack
+**📋 MANDATORY: Review and follow ALL established coding standards:**
 
-- **PostgreSQL**: Main database (5432) + Temporal database (5433)
-- **Redis**: Caching, config storage, and pub/sub (6379)
-- **Temporal**: Workflow orchestration (7233, UI: 8080)
-- **MCP Proxy**: HTTP proxy for MCP servers (8081)
-- **NATS**: Messaging system
+- **Code Formatting & Line Spacing**: [no_linebreaks.mdc](mdc:.cursor/rules/no_linebreaks.mdc) - NEVER add blank lines inside function bodies
+- **Go Coding Standards**: [go-coding-standards.mdc](mdc:.cursor/rules/go-coding-standards.mdc) - Function limits, error handling, documentation policy
+- **Testing Standards**: [testing-standards.mdc](mdc:.cursor/rules/testing-standards.mdc) - MANDATORY `t.Run("Should...")` pattern, testify usage
+- **Go Implementation Patterns**: [go-patterns.mdc](mdc:.cursor/rules/go-patterns.mdc) - Canonical implementations of architecture principles
+- **Architecture Principles**: [architecture.mdc](mdc:.cursor/rules/architecture.mdc) - SOLID principles, Clean Architecture, DRY
+- **Code Quality & Security**: [quality-security.mdc](mdc:.cursor/rules/quality-security.mdc) - Linting rules, security requirements
+- **Required Libraries**: [core-libraries.mdc](mdc:.cursor/rules/core-libraries.mdc) - Mandatory library choices and usage patterns
+- **API Development**: [api-standards.mdc](mdc:.cursor/rules/api-standards.mdc) - RESTful design, versioning, documentation
+- **Code Review Process**: [review-checklist.mdc](mdc:.cursor/rules/review-checklist.mdc) - Pre-review requirements and checklist
 
-## 🚨 CRITICAL: Code Formatting Standards
+## Development Workflow
 
-### ⚠️ MANDATORY LINE SPACING RULE - NEVER VIOLATE
+### Pre-Commit Requirements
 
-**ABSOLUTELY CRITICAL:** Never add blank lines inside function bodies, code blocks, or any enclosed scope.
+**ALWAYS run before committing:**
 
-```go
-// ✅ CORRECT - No blank lines inside blocks
-t.Run("Should execute task successfully", func(t *testing.T) {
-    proxyHandlers := &ProxyHandlers{
-        globalAuthTokens: []string{},
-    }
-    result := combineAuthTokens(proxyHandlers.globalAuthTokens, []string{})
-    assert.Empty(t, result)
-})
-
-func processWorkflow() error {
-    workflow := loadWorkflow()
-    validated := validate(workflow)
-    return execute(validated)
-}
-
-// ❌ WRONG - Never add blank lines inside blocks
-t.Run("Should handle errors", func(t *testing.T) {
-    proxyHandlers := &ProxyHandlers{
-        globalAuthTokens: nil,
-    }
-
-    result := combineAuthTokens(proxyHandlers.globalAuthTokens, nil)
-
-    assert.Nil(t, result)
-})
+```bash
+make fmt && make lint && make test
 ```
 
-**Blank lines are ONLY allowed:**
+### Development Process
 
-- Between separate function definitions
-- Between separate `t.Run()` test cases
-- Between separate struct/interface definitions
-- Between separate const/var blocks
+1. **API changes:** Update Swagger annotations (`swag` comments)
+2. **Schema changes:** Create migrations with `make migrate-create name=<name>`
+3. **New features:** Include comprehensive tests following [testing-standards.mdc](mdc:.cursor/rules/testing-standards.mdc)
+4. **Task completion:** Follow [task-completion.mdc](mdc:.cursor/rules/task-completion.mdc) for mandatory code review workflow via Zen MCP tools
+5. **Backwards Compatibility:** See [backwards-compatibility.mdc](mdc:.cursor/rules/backwards-compatibility.mdc) - NOT REQUIRED during development phase
 
-**Blank lines are FORBIDDEN:**
+### Key Development Notes
 
-- Inside function bodies (even with comments)
-- Inside test cases (`t.Run` blocks)
-- Inside struct definitions
-- Inside if/for/switch/select blocks
-- Inside method receivers
+- **Logging:** Use [core-libraries.mdc](mdc:.cursor/rules/core-libraries.mdc) for structured logging patterns
+- **Core types:** Use `core.ID` for UUIDs, `core.Ref` for polymorphic references
+- **Dependencies:** Mock external dependencies in tests when necessary (see [testing-standards.mdc](mdc:.cursor/rules/testing-standards.mdc))
 
-## Critical Testing Standards
+## Task Management
 
-### MANDATORY Test Pattern
+For task-based development workflows, see these rule files:
 
-All tests MUST use the `t.Run("Should...")` pattern. Use `testify/mock` only when necessary:
+- [prd-create.mdc](mdc:.cursor/rules/prd-create.mdc) - PRD Creation
+- [prd-tech-spec.mdc](mdc:.cursor/rules/prd-tech-spec.mdc) - Technical Specifications
+- [task-generate-list.mdc](mdc:.cursor/rules/task-generate-list.mdc) - Task List Generation
+- [task-developing.mdc](mdc:.cursor/rules/task-developing.mdc) - Task Development
+- [task-completion.mdc](mdc:.cursor/rules/task-completion.mdc) - Task Completion with Zen MCP code review
 
-```go
-// ✅ CORRECT - Simple test without mocks
-func TestCalculateSum(t *testing.T) {
-    t.Run("Should calculate sum correctly", func(t *testing.T) {
-        result := CalculateSum(2, 3)
-        assert.Equal(t, 5, result)
-    })
-}
+## Rule Management
 
-// ✅ CORRECT - Test with mocks for external dependencies
-func TestTaskExecutor_Execute(t *testing.T) {
-    t.Run("Should execute task successfully", func(t *testing.T) {
-        mockService := new(MockService)
-        mockService.On("Process", mock.Anything).Return(nil)
+The development rules are actively maintained and improved:
 
-        executor := NewTaskExecutor(mockService)
-        err := executor.Execute(ctx)
+- **Rule Management**: [cursor_rules.mdc](mdc:.cursor/rules/cursor_rules.mdc) - Comprehensive guidelines for creating, maintaining, and improving rules
 
-        assert.NoError(t, err)
-        mockService.AssertExpectations(t)
-    })
-}
+## Compozy Configuration Examples
 
-// ❌ WRONG - Never write tests without t.Run or use custom mocks (use mocks only when necessary)
-```
+For YAML configuration patterns and examples:
 
-### Table-Driven Tests
+- **Project Configuration**: [compozy-project-config.mdc](mdc:.cursor/rules/compozy-project-config.mdc) - Project setup patterns
+- **Task Patterns**: [compozy-task-patterns.mdc](mdc:.cursor/rules/compozy-task-patterns.mdc) - Workflow task configurations
+- **Agent Configuration**: [compozy-agent-config.mdc](mdc:.cursor/rules/compozy-agent-config.mdc) - AI agent setup patterns
+- **Shared Patterns**: [compozy-shared-patterns.mdc](mdc:.cursor/rules/compozy-shared-patterns.mdc) - MCP, templates, and references
+- **Configuration Index**: [compozy-examples.mdc](mdc:.cursor/rules/compozy-examples.mdc) - Overview and cross-references
 
-ONLY use table-driven tests when you have 5+ similar test cases. Avoid for just 2-3 cases.
+**All rule files are located in `.cursor/rules/` and use semantic XML tags for better context and AI understanding.**
 
-## Code Standards
-
-### Linting Requirements
-
-- **Function length:** Max 80 lines or 50 statements
-- **Line length:** Max 120 characters
-- **Cyclomatic complexity:** Max 15
-- **Error handling:** All errors must be checked
-
-### Error Handling
-
-```go
-// Use custom errors
-return core.NewError(err, "ERROR_CODE", map[string]any{"detail": value})
-
-// Transaction pattern
-defer func() {
-    if err != nil { tx.Rollback(ctx) } else { tx.Commit(ctx) }
-}()
-```
-
-### Key Patterns
-
-1. **Declarative YAML Configuration**: All components use `$ref` for references and `$use` for dependency injection
-2. **Tool Execution**: TypeScript files executed in Deno with JSON I/O
-3. **MCP Integration**: External tool servers via HTTP/SSE transport
-4. **Thread-Safe Structs**: Always embed mutex for concurrent access
-5. **Factory Pattern**: Use for creating implementations based on config
-6. **Graceful Shutdown**: Handle context cancellation and OS signals
-
-### Common Libraries
-
-- **Web:** `gin-gonic/gin`
-- **DB:** `jackc/pgx/v5`, `redis/go-redis/v9`
-- **Testing:** `stretchr/testify` (assertions + mocks)
-- **Logging:** `charmbracelet/log` (use logger.Info/Error/Debug)
-- **Validation:** `go-playground/validator/v10`
-
-## Working with MCP
-
-The MCP integration is currently being developed. Key locations:
-
-- `engine/mcp/`: MCP client implementation
-- `pkg/mcp-proxy/`: HTTP proxy for MCP servers
-- `engine/llm/proxy_tool.go`: Tool for proxying MCP calls
-
-MCP servers are configured in YAML under the `mcps` section and the proxy runs on port 8081.
-
-## Project Configuration
-
-### compozy.yaml Structure
-
-```yaml
-name: project-name
-version: 0.1.0
-workflows:
-    - source: ./workflow.yaml
-models:
-    - provider: ollama|openai|groq
-      model: model-name
-      api_key: "{{ .env.API_KEY }}"
-runtime:
-    permissions:
-        - --allow-read
-        - --allow-net
-```
-
-## Important Development Notes
-
-1. **Before commits:** Always run `make fmt && make lint && make test`
-2. **API changes:** Update Swagger annotations (`swag` comments)
-3. **Schema changes:** Create migrations with `make migrate-create name=<name>`
-4. **New features:** Include comprehensive tests following the mandatory pattern
-5. **Taskmaster tasks:** Follow mandatory code review workflow via MCP tools (`mcp_zen_codereview` with Gemini 2.5 Pro and O3 models + `mcp_zen_precommit` + structured commits)
-6. **Logging:** Use `pkg/logger` for structured logging
-7. **Core types:** Use `core.ID` for UUIDs, `core.Ref` for polymorphic references
-8. **Backwards Compatibility:** NOT REQUIRED - Compozy is in development/alpha phase. Feel free to make breaking changes to focus on best architecture and code quality.
-
-The project uses Go 1.24+ features and requires all external dependencies to be mocked in tests.
+The project uses Go 1.24+ features and requires external dependencies to be mocked in tests when necessary.

@@ -15,7 +15,7 @@ func TestProgressInfo_CalculateOverallStatus(t *testing.T) {
 		expectedStatus core.StatusType
 	}{
 		{
-			name: "WaitAll strategy - all completed successfully",
+			name: "Should return success for WaitAll strategy when all completed successfully",
 			progressInfo: &ProgressInfo{
 				TotalChildren:  3,
 				CompletedCount: 3,
@@ -27,7 +27,7 @@ func TestProgressInfo_CalculateOverallStatus(t *testing.T) {
 			expectedStatus: core.StatusSuccess,
 		},
 		{
-			name: "WaitAll strategy - one failed",
+			name: "Should return failed for WaitAll strategy when one failed",
 			progressInfo: &ProgressInfo{
 				TotalChildren:  3,
 				CompletedCount: 2,
@@ -39,7 +39,7 @@ func TestProgressInfo_CalculateOverallStatus(t *testing.T) {
 			expectedStatus: core.StatusFailed,
 		},
 		{
-			name: "WaitAll strategy - still running",
+			name: "Should return running for WaitAll strategy when still running",
 			progressInfo: &ProgressInfo{
 				TotalChildren:  3,
 				CompletedCount: 1,
@@ -51,7 +51,7 @@ func TestProgressInfo_CalculateOverallStatus(t *testing.T) {
 			expectedStatus: core.StatusRunning,
 		},
 		{
-			name: "FailFast strategy - immediate failure",
+			name: "Should return failed for FailFast strategy on immediate failure",
 			progressInfo: &ProgressInfo{
 				TotalChildren:  3,
 				CompletedCount: 1,
@@ -63,7 +63,7 @@ func TestProgressInfo_CalculateOverallStatus(t *testing.T) {
 			expectedStatus: core.StatusFailed,
 		},
 		{
-			name: "FailFast strategy - all completed successfully",
+			name: "Should return success for FailFast strategy when all completed successfully",
 			progressInfo: &ProgressInfo{
 				TotalChildren:  3,
 				CompletedCount: 3,
@@ -75,7 +75,7 @@ func TestProgressInfo_CalculateOverallStatus(t *testing.T) {
 			expectedStatus: core.StatusSuccess,
 		},
 		{
-			name: "BestEffort strategy - some completed, some failed",
+			name: "Should return success for BestEffort strategy when some completed and some failed",
 			progressInfo: &ProgressInfo{
 				TotalChildren:  3,
 				CompletedCount: 2,
@@ -87,7 +87,7 @@ func TestProgressInfo_CalculateOverallStatus(t *testing.T) {
 			expectedStatus: core.StatusSuccess,
 		},
 		{
-			name: "BestEffort strategy - all failed",
+			name: "Should return failed for BestEffort strategy when all failed",
 			progressInfo: &ProgressInfo{
 				TotalChildren:  3,
 				CompletedCount: 0,
@@ -99,7 +99,7 @@ func TestProgressInfo_CalculateOverallStatus(t *testing.T) {
 			expectedStatus: core.StatusFailed,
 		},
 		{
-			name: "Race strategy - first completed",
+			name: "Should return success for Race strategy when first completed",
 			progressInfo: &ProgressInfo{
 				TotalChildren:  3,
 				CompletedCount: 1,
@@ -111,7 +111,7 @@ func TestProgressInfo_CalculateOverallStatus(t *testing.T) {
 			expectedStatus: core.StatusSuccess,
 		},
 		{
-			name: "Race strategy - all failed",
+			name: "Should return failed for Race strategy when all failed",
 			progressInfo: &ProgressInfo{
 				TotalChildren:  3,
 				CompletedCount: 0,
@@ -123,7 +123,7 @@ func TestProgressInfo_CalculateOverallStatus(t *testing.T) {
 			expectedStatus: core.StatusFailed,
 		},
 		{
-			name: "Empty children - should be pending",
+			name: "Should return pending for empty children",
 			progressInfo: &ProgressInfo{
 				TotalChildren:  0,
 				CompletedCount: 0,
@@ -147,120 +147,82 @@ func TestProgressInfo_CalculateOverallStatus(t *testing.T) {
 }
 
 func TestProgressInfo_IsComplete(t *testing.T) {
-	tests := []struct {
-		name         string
-		progressInfo *ProgressInfo
-		strategy     ParallelStrategy
-		expected     bool
-	}{
-		{
-			name: "WaitAll strategy - all completed",
-			progressInfo: &ProgressInfo{
-				TotalChildren:  3,
-				CompletedCount: 3,
-				FailedCount:    0,
-			},
-			strategy: StrategyWaitAll,
-			expected: true,
-		},
-		{
-			name: "WaitAll strategy - still running",
-			progressInfo: &ProgressInfo{
-				TotalChildren:  3,
-				CompletedCount: 1,
-				RunningCount:   2,
-			},
-			strategy: StrategyWaitAll,
-			expected: false,
-		},
-		{
-			name: "Race strategy - first completed",
-			progressInfo: &ProgressInfo{
-				TotalChildren:  3,
-				CompletedCount: 1,
-				RunningCount:   2,
-			},
-			strategy: StrategyRace,
-			expected: true,
-		},
-	}
+	t.Run("Should return true for WaitAll strategy when all completed", func(t *testing.T) {
+		progressInfo := &ProgressInfo{
+			TotalChildren:  3,
+			CompletedCount: 3,
+			FailedCount:    0,
+		}
+		actual := progressInfo.IsComplete(StrategyWaitAll)
+		assert.True(t, actual)
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := tt.progressInfo.IsComplete(tt.strategy)
-			assert.Equal(t, tt.expected, actual)
-		})
-	}
+	t.Run("Should return false for WaitAll strategy when still running", func(t *testing.T) {
+		progressInfo := &ProgressInfo{
+			TotalChildren:  3,
+			CompletedCount: 1,
+			RunningCount:   2,
+		}
+		actual := progressInfo.IsComplete(StrategyWaitAll)
+		assert.False(t, actual)
+	})
+
+	t.Run("Should return true for Race strategy when first completed", func(t *testing.T) {
+		progressInfo := &ProgressInfo{
+			TotalChildren:  3,
+			CompletedCount: 1,
+			RunningCount:   2,
+		}
+		actual := progressInfo.IsComplete(StrategyRace)
+		assert.True(t, actual)
+	})
 }
 
 func TestProgressInfo_HasFailures(t *testing.T) {
-	tests := []struct {
-		name         string
-		progressInfo *ProgressInfo
-		expected     bool
-	}{
-		{
-			name: "Has failures",
-			progressInfo: &ProgressInfo{
-				FailedCount: 1,
-			},
-			expected: true,
-		},
-		{
-			name: "No failures",
-			progressInfo: &ProgressInfo{
-				FailedCount: 0,
-			},
-			expected: false,
-		},
-	}
+	t.Run("Should return true when has failures", func(t *testing.T) {
+		progressInfo := &ProgressInfo{
+			FailedCount: 1,
+		}
+		actual := progressInfo.HasFailures()
+		assert.True(t, actual)
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := tt.progressInfo.HasFailures()
-			assert.Equal(t, tt.expected, actual)
-		})
-	}
+	t.Run("Should return false when no failures", func(t *testing.T) {
+		progressInfo := &ProgressInfo{
+			FailedCount: 0,
+		}
+		actual := progressInfo.HasFailures()
+		assert.False(t, actual)
+	})
 }
 
 func TestProgressInfo_IsAllComplete(t *testing.T) {
-	tests := []struct {
-		name         string
-		progressInfo *ProgressInfo
-		expected     bool
-	}{
-		{
-			name: "All tasks completed",
-			progressInfo: &ProgressInfo{
-				TotalChildren:  3,
-				CompletedCount: 2,
-				FailedCount:    1,
-			},
-			expected: true,
-		},
-		{
-			name: "Some tasks still running",
-			progressInfo: &ProgressInfo{
-				TotalChildren:  3,
-				CompletedCount: 1,
-				FailedCount:    1,
-				RunningCount:   1,
-			},
-			expected: false,
-		},
-		{
-			name: "Empty task list",
-			progressInfo: &ProgressInfo{
-				TotalChildren: 0,
-			},
-			expected: true,
-		},
-	}
+	t.Run("Should return true when all tasks completed", func(t *testing.T) {
+		progressInfo := &ProgressInfo{
+			TotalChildren:  3,
+			CompletedCount: 2,
+			FailedCount:    1,
+		}
+		actual := progressInfo.IsAllComplete()
+		assert.True(t, actual)
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := tt.progressInfo.IsAllComplete()
-			assert.Equal(t, tt.expected, actual)
-		})
-	}
+	t.Run("Should return false when some tasks still running", func(t *testing.T) {
+		progressInfo := &ProgressInfo{
+			TotalChildren:  3,
+			CompletedCount: 1,
+			FailedCount:    1,
+			RunningCount:   1,
+		}
+		actual := progressInfo.IsAllComplete()
+		assert.False(t, actual)
+	})
+
+	t.Run("Should return true for empty task list", func(t *testing.T) {
+		progressInfo := &ProgressInfo{
+			TotalChildren: 0,
+		}
+		actual := progressInfo.IsAllComplete()
+		assert.True(t, actual)
+	})
 }
