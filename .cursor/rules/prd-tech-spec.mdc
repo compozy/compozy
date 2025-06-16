@@ -18,7 +18,7 @@ To guide an AI assistant in creating detailed Technical Specification (Tech Spec
 <prerequisites>
 - **Review Project Standards:** First examine `.cursor/rules/` to understand all established coding standards, patterns, and architectural guidelines
 - **MANDATORY:** Review [architecture.mdc](mdc:.cursor/rules/architecture.mdc) for SOLID principles, Clean Architecture, and design patterns
-- A completed PRD document must exist in `tasks/docs/prd-<feature>.md`
+- A completed PRD document must exist in `tasks/prd-<feature>/_prd.md`
 - Understanding of the project's domain structure: `engine/{agent,task,tool,workflow,runtime,infra}/`
 - Familiarity with project standards: Go patterns, clean architecture, SOLID principles
 </prerequisites>
@@ -31,7 +31,7 @@ To guide an AI assistant in creating detailed Technical Specification (Tech Spec
 3. **Ask Technical Questions:** Gather technical clarifications focusing on system design, performance, and architecture decisions
 4. **Generate Tech Spec:** Create comprehensive technical specification following senior architect standards
 5. **Post-Review with Zen MCP:** Use Zen MCP with Gemini 2.5 and O3 to review the generated tech spec for completeness, architectural soundness, and adherence to best practices
-6. **Save Tech Spec:** Save as `prd-<feature>_techspec.md` in `tasks/docs/`
+6. **Save Tech Spec:** Save as `_techspec.md` in `tasks/prd-<feature>/`
 </process_workflow>
 
 ## Technical Clarifying Questions
@@ -53,7 +53,7 @@ Focus on architecture and implementation details:
 ## Tech Spec Structure
 
 <spec_structure>
-1. **Executive Summary:** High-level technical overview and architectural approach
+1. **Executive Tasks:** High-level technical overview and architectural approach
 2. **System Architecture:**
    - Domain placement within `engine/` structure
    - Component relationships and dependencies
@@ -144,8 +144,8 @@ Written for **senior developers and architects** who need:
 
 <output_specification>
 * **Format:** Markdown (`.md`)
-* **Location:** `tasks/docs/`
-* **Filename:** `prd-<feature>_techspec.md`
+* **Location:** `tasks/prd-<feature>/`
+* **Filename:** `_techspec.md`
 </output_specification>
 
 ## Final Instructions

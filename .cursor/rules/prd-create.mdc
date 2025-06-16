@@ -23,7 +23,8 @@ This template provides a comprehensive structure that balances requirements gath
 1. **Receive Initial Prompt:** The user provides a brief description or request for a new feature or functionality.
 2. **Ask Clarifying Questions:** Before writing the PRD, the AI *must* ask clarifying questions to gather sufficient detail. Focus on understanding the "what" and "why" of the feature, user needs, and success criteria.
 3. **Generate Comprehensive PRD:** Based on the initial prompt and the user's answers, generate a PRD using the template structure that covers both requirements and implementation planning.
-4. **Save PRD:** Save the generated document as `prd-[feature-name].md` inside the `./tasks/docs` directory.
+4. **Create Feature Folder:** Create a feature folder `./tasks/prd-[feature-name]/`.
+5. **Save PRD:** Save the generated document as `_prd.md` inside the feature folder.
 </process_workflow>
 
 ## Clarifying Questions (Examples)
@@ -110,8 +111,8 @@ The generated PRD MUST follow the template structure from @_prd-template.md:
 
 <output_specification>
 - **Format:** Markdown (`.md`)
-- **Location:** `./tasks/docs/`
-- **Filename:** `prd-[feature-name].md`
+- **Location:** `./tasks/prd-[feature-name]/`
+- **Filename:** `_prd.md`
 - **Template:** Use @_prd-template.md structure
 </output_specification>
 

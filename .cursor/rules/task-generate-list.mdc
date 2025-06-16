@@ -1,5 +1,6 @@
 ---
 description: "Guide for creating detailed task lists from PRDs and tech specs, including complexity analysis and phased generation workflow"
+globs:
 alwaysApply: false
 ---
 # Rule: Generating a Task List from a PRD
@@ -10,15 +11,19 @@ To guide an AI assistant in creating a detailed, step-by-step task list in Markd
 
 <output_specification>
 - **Format:** Markdown (`.md`)
-- **Location:** `/tasks/`
-- **Filename:** `tasks-<prd-file-name>.md` (e.g., `tasks-prd-user-profile-editing.md`)
+- **Locations:**
+  - **Main task list:** `/tasks/tasks-prd-<feature>.md`
+  - **Feature folder:** `/tasks/prd-<feature>/`
+  - **Individual task files:** `/tasks/prd-<feature>/<num>_task.md`
+  - **Tasks file:** `/tasks/prd-<feature>/_tasks.md`
+  - **Complexity report:** `/tasks/prd-<feature>/task-complexity-report.json`
 </output_specification>
 
 ## Process
 
 <process_steps>
 1.  **Receive PRD Reference:** The user points the AI to a specific PRD file
-2.  **Verify Tech Spec:** Confirm that a corresponding tech spec document exists (`tasks/docs/prd-<feature>_techspec.md`). If not, remind the user to create it using [prd-tech-spec.mdc](mdc:.cursor/rules/prd-tech-spec.mdc) before proceeding with task generation.
+2.  **Verify Tech Spec:** Confirm that a corresponding tech spec document exists (`tasks/prd-<feature>/_techspec.md`). If not, remind the user to create it using [prd-tech-spec.mdc](mdc:.cursor/rules/prd-tech-spec.mdc) before proceeding with task generation.
 3.  **Analyze PRD & Tech Spec:** The AI reads and analyzes both the functional requirements from the PRD and the implementation details from the tech spec document.
 4.  **Phase 1: Generate Parent Tasks:** Based on the combined PRD and tech spec analysis, create the file and generate the main, high-level tasks required to implement the feature. Use your judgement on how many high-level tasks to use. It's likely to be about 5. Present these tasks to the user in the specified format (without sub-tasks yet). Inform the user: "I have generated the high-level tasks based on the PRD and tech spec. Ready to generate the sub-tasks? Respond with 'Go' to proceed."
 5.  **Wait for Confirmation:** Pause and wait for the user to respond with "Go".
@@ -26,7 +31,17 @@ To guide an AI assistant in creating a detailed, step-by-step task list in Markd
 7.  **Phase 3: Analyze Task Complexity:** Use Zen MCP tools to analyze task complexity and identify tasks that need further breakdown. Generate a comprehensive complexity analysis report (typically saved as `task-complexity-report.json`) that includes complexity scores (1-10), recommended number of subtasks, reasoning for complexity assessment, and expansion prompts for each task. Tasks with complexity scores above the threshold (typically 6-7) should be broken down into more granular subtasks to ensure manageable implementation units.
 8.  **Identify Relevant Files:** Based on the tasks, PRD, and tech spec, identify potential files that will need to be created or modified. List these under the `Relevant Files` section, including corresponding test files if applicable. Reference the tech spec's file structure and architectural decisions.
 9.  **Generate Final Output:** Combine the parent tasks, sub-tasks, relevant files, and notes into the final Markdown structure.
-10. **Save Task List:** Save the generated document in the `/tasks/` directory with the filename `tasks-<prd-file-name>.md`, where `<prd-file-name>` matches the base name of the input PRD file (e.g., if the input was `prd-user-profile-editing.md`, the output is `tasks-prd-user-profile-editing.md`).
+10. **Save Main Task List:** Save the main task list document in the `/tasks/` directory with the filename `tasks-prd-<feature>.md`.
+11. **Create Individual Task Files:** For each parent task, create a separate file in `/tasks/prd-<feature>/<num>_task.md` with:
+    - Frontmatter with `status: pending` field
+    - Task title and overview
+    - Complete list of subtasks for that parent task
+    - Implementation details extracted from the tech spec relevant to that task
+    - Success criteria
+12. **Create Tasks File:** Generate `_tasks.md` in the feature folder containing:
+    - Relevant files section (first)
+    - Simple checkbox list of parent tasks (last)
+13. **Save Complexity Report:** Save the complexity analysis as `task-complexity-report.json` in the feature folder.
 </process_steps>
 
 <complexity_analysis_features>
@@ -40,34 +55,81 @@ To guide an AI assistant in creating a detailed, step-by-step task list in Markd
 
 ## Output Format
 
-<output_format_template>
-The generated task list _must_ follow this structure:
+### Main Task List Format
+<main_task_list_format>
+The main task list (`tasks-prd-<feature>.md`) follows the existing structure with relevant files and all parent/sub-tasks.
+</main_task_list_format>
+
+### Individual Task File Format
+<individual_task_format>
+Each individual task file (`<num>_task.md`) must follow this structure:
 
 ```markdown
+---
+status: pending  # Options: pending, in-progress, completed, excluded
+---
+
+# Task X.0: [Parent Task Title]
+
+## Overview
+[Brief description of what this task accomplishes]
+
+## Subtasks
+
+- [ ] X.1 [Subtask description]
+- [ ] X.2 [Subtask description]
+- [ ] X.3 [Subtask description]
+
+## Implementation Details
+
+[Extract relevant sections from the tech spec that apply to this task]
+
+### [Relevant Technical Section]
+[Technical details, code examples, specifications]
+
+### [Another Relevant Section]
+[More implementation guidance]
+
+## Success Criteria
+- [Clear definition of when this task is complete]
+- [Measurable outcomes]
+- [Quality requirements]
+```
+</individual_task_format>
+
+### Tasks File Format
+<tasks_file_format>
+The tasks file (`_tasks.md`) must follow this structure:
+
+```markdown
+# [Feature] Implementation Task Tasks
+
 ## Relevant Files
 
-- `path/to/potential/file1.ts` - Brief description of why this file is relevant (e.g., Contains the main component for this feature).
-- `path/to/file1.test.ts` - Unit tests for `file1.ts`.
-- `path/to/another/file.tsx` - Brief description (e.g., API route handler for data submission).
-- `path/to/another/file.test.tsx` - Unit tests for `another/file.tsx`.
-- `lib/utils/helpers.ts` - Brief description (e.g., Utility functions needed for calculations).
-- `lib/utils/helpers.test.ts` - Unit tests for `helpers.ts`.
+### Core Implementation Files
+- `path/to/file.go` - Description
+- `path/to/file_test.go` - Tests
+
+### Integration Points
+- `path/to/integration.go` - Description
+
+### Documentation Files
+- `docs/feature.md` - User documentation
 
 ### Notes
 
-- Unit tests should typically be placed alongside the code files they are testing (e.g., `MyComponent.tsx` and `MyComponent.test.tsx` in the same directory).
-- Use `npx jest [optional/path/to/test/file]` to run tests. Running without a path executes all tests found by the Jest configuration.
+- Unit tests should be placed alongside the implementation files (e.g., `monitoring.go` and `monitoring_test.go` in the same directory)
+- Use `go test ./...` to run all tests or `go test -v ./path/to/package` for specific package tests
+- Always run `make fmt && make lint && make test` before committing changes
+- Follow project testing standards with `t.Run("Should...")` pattern
 
 ## Tasks
 
 - [ ] 1.0 Parent Task Title
-  - [ ] 1.1 [Sub-task description 1.1]
-  - [ ] 1.2 [Sub-task description 1.2]
 - [ ] 2.0 Parent Task Title
-  - [ ] 2.1 [Sub-task description 2.1]
-- [ ] 3.0 Parent Task Title (may not require sub-tasks if purely structural or configuration)
+- [ ] 3.0 Parent Task Title
 ```
-</output_format_template>
+</tasks_file_format>
 
 ## Interaction Model
 
