@@ -6,6 +6,7 @@ import (
 	docs "github.com/compozy/compozy/docs"
 	agentrouter "github.com/compozy/compozy/engine/agent/router"
 	"github.com/compozy/compozy/engine/core"
+	_ "github.com/compozy/compozy/engine/infra/monitoring" // Import for swagger docs
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	tkrouter "github.com/compozy/compozy/engine/task/router"
 	toolrouter "github.com/compozy/compozy/engine/tool/router"

@@ -102,9 +102,30 @@ Address ALL issues identified:
 
 ## 4. Pre-Commit Validation
 
+<mandatory_step>
+**Execute precommit validation with proper parameters:**
+</mandatory_step>
+
+**Required Parameters:**
+- `path`: Current workspace directory (absolute path)
+- `model`: Use `gemini-2.5-pro-preview-05-06` for comprehensive analysis
+- `prompt`: Original task requirements and context
+
+**Example Implementation:**
 ```
-Use zen precommit to validate all changes for task [task_number] implementation using gemini-2.5-pro-preview-05-06
+Execute precommit validation for task [task_number]:
+- Path: /path/to/workspace
+- Model: gemini-2.5-pro-preview-05-06
+- Context: Implementation of [task_title] as defined in task requirements
+- Review: Comprehensive validation of all staged and unstaged changes
 ```
+
+**Validation Focus:**
+- Verify implementation matches task requirements
+- Check for bugs, security issues, and incomplete implementations
+- Ensure changes follow project coding standards
+- Validate test coverage and error handling
+- Confirm no code duplication or logic redundancy
 
 ## 5. Git Commit
 
@@ -137,9 +158,10 @@ Closes: task-[task_number]"
 
 ## Important Notes
 
-- **Natural Language Usage:** Zen MCP uses natural language requests, NOT structured parameters
+- **Tool Usage:** Most Zen MCP tools use natural language requests, but **precommit requires structured parameters** (path, model, prompt)
 - **File Paths:** Use absolute paths when referencing files with Zen MCP
 - **Available Models:** `gemini-2.5-pro-preview-05-06` (deep analysis), `o3` (logical reasoning), `flash` (fast responses)
+- **Precommit Parameters:** Always provide absolute workspace path, model selection, and task context for precommit validation
 - **Exceptions:** Only allowed for hotfixes, documentation-only, or config-only changes (must be documented)
 
 <enforcement_policy>

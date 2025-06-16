@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	csvc "github.com/compozy/compozy/engine/infra/server/config"
 	"github.com/compozy/compozy/engine/infra/server/router"
@@ -25,6 +26,7 @@ type Server struct {
 	TemporalConfig *worker.TemporalConfig
 	StoreConfig    *store.Config
 	router         *gin.Engine
+	monitoring     *monitoring.Service
 	ctx            context.Context
 	cancel         context.CancelFunc
 	httpServer     *http.Server
@@ -46,12 +48,21 @@ func NewServer(config *Config, tConfig *worker.TemporalConfig, sConfig *store.Co
 func (s *Server) buildRouter(state *appstate.State) error {
 	r := gin.New()
 	r.Use(gin.Recovery())
+	// Add monitoring middleware BEFORE other middleware if monitoring is initialized
+	if s.monitoring != nil && s.monitoring.IsInitialized() {
+		r.Use(s.monitoring.GinMiddleware())
+	}
 	r.Use(LoggerMiddleware())
 	if s.Config.CORSEnabled {
 		r.Use(CORSMiddleware())
 	}
 	r.Use(appstate.StateMiddleware(state))
 	r.Use(router.ErrorHandler())
+	// Register metrics endpoint (not versioned under /api/v0/)
+	if s.monitoring != nil && s.monitoring.IsInitialized() {
+		monitoringPath := state.ProjectConfig.MonitoringConfig.Path
+		r.GET(monitoringPath, gin.WrapH(s.monitoring.ExporterHandler()))
+	}
 	if err := RegisterRoutes(r, state); err != nil {
 		return err
 	}
@@ -77,7 +88,6 @@ func (s *Server) Run() error {
 
 func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	var cleanupFuncs []func()
-
 	// Load project and workspace files
 	log := logger.NewLogger(nil)
 	configService := csvc.NewService(log, s.Config.EnvFilePath)
@@ -85,7 +95,30 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to load project: %w", err)
 	}
-
+	// Initialize monitoring service based on project config
+	monitoringService, err := monitoring.NewMonitoringService(projectConfig.MonitoringConfig)
+	if err != nil {
+		// Log but don't fail - monitoring is not critical
+		logger.Error("Failed to initialize monitoring service", "error", err)
+		// Continue with nil monitoring service
+		s.monitoring = nil
+	} else {
+		s.monitoring = monitoringService
+		if monitoringService.IsInitialized() {
+			logger.Info("Monitoring service initialized successfully",
+				"enabled", projectConfig.MonitoringConfig.Enabled,
+				"path", projectConfig.MonitoringConfig.Path)
+			cleanupFuncs = append(cleanupFuncs, func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if err := monitoringService.Shutdown(ctx); err != nil {
+					logger.Error("Failed to shutdown monitoring service", "error", err)
+				}
+			})
+		} else {
+			logger.Info("Monitoring is disabled in the configuration")
+		}
+	}
 	store, err := store.SetupStore(s.ctx, s.StoreConfig)
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to setup store: %w", err)
@@ -93,10 +126,9 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	cleanupFuncs = append(cleanupFuncs, func() {
 		store.DB.Close()
 	})
-
 	clientConfig := s.TemporalConfig
 	deps := appstate.NewBaseDeps(projectConfig, workflows, store, clientConfig)
-	worker, err := setupWorker(s.ctx, deps)
+	worker, err := setupWorker(s.ctx, deps, s.monitoring)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
@@ -105,7 +137,6 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 		defer cancel()
 		worker.Stop(ctx)
 	})
-
 	state, err := appstate.NewState(deps, worker)
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to create app state: %w", err)
@@ -114,7 +145,11 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	return state, cleanupFuncs, nil
 }
 
-func setupWorker(ctx context.Context, deps appstate.BaseDeps) (*worker.Worker, error) {
+func setupWorker(
+	ctx context.Context,
+	deps appstate.BaseDeps,
+	monitoringService *monitoring.Service,
+) (*worker.Worker, error) {
 	workerConfig := &worker.Config{
 		WorkflowRepo: func() workflow.Repository {
 			return deps.Store.NewWorkflowRepo()
@@ -122,6 +157,7 @@ func setupWorker(ctx context.Context, deps appstate.BaseDeps) (*worker.Worker, e
 		TaskRepo: func() task.Repository {
 			return deps.Store.NewTaskRepo()
 		},
+		MonitoringService: monitoringService,
 	}
 	worker, err := worker.NewWorker(
 		ctx,
@@ -150,10 +186,8 @@ func (s *Server) cleanup(cleanupFuncs []func()) {
 func (s *Server) startAndRunServer(cleanupFuncs []func()) error {
 	srv := s.createHTTPServer()
 	s.httpServer = srv
-
 	// Start server in goroutine
 	go s.startServer(srv)
-
 	// Wait for shutdown signal and handle graceful shutdown
 	return s.handleGracefulShutdown(srv, cleanupFuncs)
 }
@@ -184,25 +218,20 @@ func (s *Server) startServer(srv *http.Server) {
 func (s *Server) handleGracefulShutdown(srv *http.Server, cleanupFuncs []func()) error {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
 	select {
 	case <-quit:
 		logger.Debug("Received shutdown signal, initiating graceful shutdown")
 	case <-s.shutdownChan:
 		logger.Debug("Received programmatic shutdown signal, initiating graceful shutdown")
 	}
-
 	// Clean up dependencies first
 	s.cleanup(cleanupFuncs)
 	s.cancel()
-
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
-
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("server shutdown failed: %w", err)
 	}
-
 	logger.Info("Server shutdown completed successfully")
 	return nil
 }

@@ -6,8 +6,11 @@ import (
 	"os"
 	"time"
 
+	"errors"
+
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/cache"
+	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
@@ -35,8 +38,9 @@ const DispatcherEventChannel = "event_channel"
 // -----------------------------------------------------------------------------
 
 type Config struct {
-	WorkflowRepo func() wf.Repository
-	TaskRepo     func() task.Repository
+	WorkflowRepo      func() wf.Repository
+	TaskRepo          func() task.Repository
+	MonitoringService *monitoring.Service
 }
 
 type Worker struct {
@@ -57,6 +61,18 @@ type Worker struct {
 	lifecycleCancel context.CancelFunc
 }
 
+func buildWorkerOptions(monitoringService *monitoring.Service) *worker.Options {
+	options := &worker.Options{}
+	if monitoringService != nil && monitoringService.IsInitialized() {
+		interceptor := monitoringService.TemporalInterceptor()
+		if interceptor != nil {
+			options.Interceptors = append(options.Interceptors, interceptor)
+			logger.Info("Added Temporal monitoring interceptor to worker")
+		}
+	}
+	return options
+}
+
 func NewWorker(
 	ctx context.Context,
 	config *Config,
@@ -64,15 +80,17 @@ func NewWorker(
 	projectConfig *project.Config,
 	workflows []*wf.Config,
 ) (*Worker, error) {
+	if config == nil {
+		return nil, errors.New("worker config cannot be nil")
+	}
 	client, err := NewClient(clientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create worker client: %w", err)
 	}
 	taskQueue := slug.Make(projectConfig.Name)
-
-	worker := client.NewWorker(taskQueue)
+	workerOptions := buildWorkerOptions(config.MonitoringService)
+	worker := client.NewWorker(taskQueue, workerOptions)
 	projectRoot := projectConfig.GetCWD().PathStr()
-
 	// Build runtime options from project config
 	var rtOpts []runtime.Option
 	if len(projectConfig.Runtime.Permissions) > 0 {
@@ -82,16 +100,13 @@ func NewWorker(
 	if err != nil {
 		return nil, fmt.Errorf("failed to created execution manager: %w", err)
 	}
-
 	redisCache, err := cache.SetupCache(ctx, projectConfig.CacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup Redis cache: %w", err)
 	}
-
 	// Create Redis-backed ConfigStore with 24h TTL as per PRD
 	configStore := services.NewRedisConfigStore(redisCache.Redis, 24*time.Hour)
 	configManager := services.NewConfigManager(configStore, nil)
-
 	// Initialize MCP register and register all MCPs from all workflows
 	workflowConfigs := make([]mcp.WorkflowConfig, len(workflows))
 	for i, wf := range workflows {
@@ -101,11 +116,9 @@ func NewWorker(
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize MCP register: %w", err)
 	}
-
 	// Create unique dispatcher ID per server instance to avoid conflicts
 	serverID := core.MustNewID().String()[:8] // Use first 8 chars for readability
 	dispatcherID := fmt.Sprintf("dispatcher-%s-%s", slug.Make(projectConfig.Name), serverID)
-
 	signalDispatcher := NewSignalDispatcher(client, dispatcherID, taskQueue)
 	activities := NewActivities(
 		projectConfig,
@@ -117,10 +130,8 @@ func NewWorker(
 		signalDispatcher,
 		configManager,
 	)
-
 	// Create lifecycle context for independent operation
 	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
-
 	return &Worker{
 		client:          client,
 		config:          config,
@@ -186,7 +197,6 @@ func (o *Worker) Stop(ctx context.Context) {
 	if o.lifecycleCancel != nil {
 		o.lifecycleCancel()
 	}
-
 	// Terminate this instance's dispatcher since each server has its own
 	if o.dispatcherID != "" {
 		logger.Info("terminating instance dispatcher", "dispatcher_id", o.dispatcherID)
@@ -194,10 +204,8 @@ func (o *Worker) Stop(ctx context.Context) {
 			logger.Error("failed to terminate dispatcher", "error", err, "dispatcher_id", o.dispatcherID)
 		}
 	}
-
 	o.worker.Stop()
 	o.client.Close()
-
 	// Deregister all MCPs from proxy on shutdown
 	if o.mcpRegister != nil {
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -206,7 +214,6 @@ func (o *Worker) Stop(ctx context.Context) {
 			logger.Error("failed to shutdown MCP register", "error", err)
 		}
 	}
-
 	if o.configStore != nil {
 		if err := o.configStore.Close(); err != nil {
 			logger.Error("failed to close config store", "error", err)
@@ -333,7 +340,6 @@ func (o *Worker) HealthCheck(ctx context.Context) error {
 		// Log error but don't fail health check since MCP proxy is optional
 		fmt.Printf("Warning: MCP proxy health check failed: %v\n", err)
 	}
-
 	return nil
 }
 
@@ -346,7 +352,6 @@ func (o *Worker) checkMCPProxyHealth(ctx context.Context) error {
 	adminToken := os.Getenv("MCP_PROXY_ADMIN_TOKEN")
 	client := mcp.NewProxyClient(proxyURL, adminToken, 10*time.Second)
 	defer client.Close()
-
 	return client.Health(ctx)
 }
 
@@ -388,7 +393,6 @@ func (o *Worker) TriggerWorkflow(
 	if err := workflowConfig.ValidateInput(ctx, input); err != nil {
 		return nil, fmt.Errorf("failed to validate workflow params: %w", err)
 	}
-
 	// MCPs are already registered at server startup, no need to register per workflow
 	_, err = o.client.ExecuteWorkflow(
 		ctx,

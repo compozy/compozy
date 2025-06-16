@@ -16,6 +16,7 @@ Commands are organized by workflow phase:
 │   ├── tasks-subtasks.md       # Break down into subtasks
 │   ├── tasks-complexity.md     # Analyze task complexity
 │   ├── task-start.md           # Start next task with proper setup
+│   ├── task-next.md            # Find and start next available task automatically
 │   ├── task-review.md          # Complete task review & completion workflow
 │   ├── rules-check.md          # Check code against project rules
 │   ├── analyze-file.md         # Analyze current file changes
@@ -55,8 +56,11 @@ Commands are organized by workflow phase:
 ### 3. Implementation & Completion Workflow
 
 ```bash
-# Start next task with proper setup and context
+# Start specific task with proper setup and context
 /project:task-start <task-number>
+
+# Find and start next available task automatically
+/project:task-next
 
 # Complete full task review and completion workflow
 /project:task-review <task-number>
@@ -136,14 +140,25 @@ Commands are organized by workflow phase:
 
 #### `/project:task-start <task-number>`
 
-- **Purpose:** Start working on next task with proper setup and context
+- **Purpose:** Start working on specific task with proper setup and context
 - **Based on:** All project standards and task workflow requirements
-- **Usage:** Before beginning implementation of any task
+- **Usage:** Before beginning implementation of a specific task
 - **Process:**
     - Reads task definition, PRD, and tech spec for context
     - Provides critical reminders about project standards
     - Outlines development workflow and available commands
     - Ensures proper task setup before implementation begins
+
+#### `/project:task-next`
+
+- **Purpose:** Find and start next available task automatically
+- **Based on:** All project standards and task workflow requirements
+- **Usage:** When ready to work on the next task without knowing the number
+- **Process:**
+    - Scans `tasks/prd-*/` directories for task files
+    - Identifies next uncompleted task (first unchecked checkbox)
+    - Provides same setup as `task-start` but automatically
+    - Displays task number, title, and description
 
 #### `/project:task-review <task-number>`
 
@@ -222,7 +237,7 @@ Commands are organized by workflow phase:
 /project:tasks-complexity monitoring-system
 
 # 3. Implement and complete tasks
-/project:task-start 1
+/project:task-next
 # ... implement the task ...
 
 /project:task-review 1

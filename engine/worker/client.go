@@ -42,8 +42,11 @@ func (c *Client) Config() *TemporalConfig {
 	return c.config
 }
 
-func (c *Client) NewWorker(taskQueue string) worker.Worker {
-	return worker.New(c.Client, taskQueue, worker.Options{})
+func (c *Client) NewWorker(taskQueue string, options *worker.Options) worker.Worker {
+	if options == nil {
+		return worker.New(c.Client, taskQueue, worker.Options{})
+	}
+	return worker.New(c.Client, taskQueue, *options)
 }
 
 func (c *Client) Close() {
