@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 ---
 
 <task_context>
@@ -18,12 +18,12 @@ Implement configuration support for the monitoring feature, allowing control via
 
 ## Subtasks
 
-- [ ] 6.1 Update project configuration schema to include monitoring section
-- [ ] 6.2 Add `MONITORING_ENABLED` environment variable support
-- [ ] 6.3 Implement configuration loading in `compozy.yaml` (monitoring.enabled, monitoring.path)
-- [ ] 6.4 Add configuration validation and default values
-- [ ] 6.5 Update configuration documentation with monitoring options
-- [ ] 6.6 Create tests for configuration loading and precedence (env var vs yaml)
+- [x] 6.1 Update project configuration schema to include monitoring section ✅ COMPLETED
+- [x] 6.2 Add `MONITORING_ENABLED` environment variable support ✅ COMPLETED
+- [x] 6.3 Implement configuration loading in `compozy.yaml` (monitoring.enabled, monitoring.path) ✅ COMPLETED
+- [x] 6.4 Add configuration validation and default values ✅ COMPLETED
+- [x] 6.5 Update configuration documentation with monitoring options ✅ COMPLETED
+- [x] 6.6 Create tests for configuration loading and precedence (env var vs yaml) ✅ COMPLETED
 
 ## Implementation Details
 
