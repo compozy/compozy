@@ -53,3 +53,18 @@ When working with task lists, the AI must:
 5. Before starting work, check which sub‑task is next.
 6. After implementing a sub‑task, update the file and then pause for user approval.
 </ai_workflow>
+
+<critical type="code_quality_enforcement">
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+  - Architecture patterns: [Architecture & Design Principles](mdc:.cursor/rules/architecture.mdc)
+  - Go coding standards: [Go Coding Standards](mdc:.cursor/rules/go-coding-standards.mdc)
+  - Testing requirements: [Testing Standards](mdc:.cursor/rules/testing-standards.mdc)
+  - API standards: [API Development Standards](mdc:.cursor/rules/api-standards.mdc)
+  - Security & quality: [Quality and Security Standards](mdc:.cursor/rules/quality-security.mdc)
+- **MUST** run `make lint` and `make test-all` before completing ANY subtask
+- **MUST** follow [task-completion.mdc](mdc:.cursor/rules/task-completion.mdc) workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>

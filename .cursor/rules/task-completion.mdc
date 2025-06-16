@@ -2,35 +2,82 @@
 description: "Mandatory task completion workflow using Zen MCP for code review and validation"
 globs: []
 alwaysApply: false
-type: "agent-requested"
-keywords: ["task-completion", "zen-mcp", "code-review", "workflow"]
-priority: "high"
-version: "1.0"
-dependencies: ["task-generate-list.mdc", "review-checklist.mdc"]
 ---
 # Task Completion Workflow with Zen MCP
 
 <critical_requirement>
-**MANDATORY:** Before marking any task as complete, you MUST follow this exact workflow:
+**MANDATORY:** Before marking any task as complete, you MUST follow this exact workflow to ensure code quality:
 </critical_requirement>
 
-## 1. Code Review with Zen MCP
+<workflow_overview>
+**Enhanced Quality Assurance Steps:**
+1. **Task Definition Validation** - Verify alignment with task, PRD, and tech spec
+2. **Rules Analysis & Code Review** - Analyze applicable rules and perform comprehensive review
+3. **Issue Resolution** - Address all identified problems
+4. **Pre-Commit Validation** - Final validation before commit
+5. **Git Commit** - Commit with detailed validation summary
+6. **Task Completion** - Mark task as complete only after successful commit
+</workflow_overview>
+
+## 1. Task Definition Validation
 
 <mandatory_step>
-Use the criteria from [`review-checklist.mdc`](mdc:.cursor/rules/review-checklist.mdc) as the basis for all code reviews. Perform multi-model code reviews:
+**FIRST:** Verify the implementation aligns with requirements:
+</mandatory_step>
+
+- **Task Definition:** Review the specific task file (e.g., `tasks/prd-monitoring/[task_number]_task.md`)
+- **PRD Alignment:** Check against the Product Requirements Document (`tasks/prd-monitoring/_prd.md`)
+- **Tech Spec Compliance:** Ensure implementation follows the Technical Specification (`tasks/prd-monitoring/_techspec.md`)
+
+```
+Verify that task [task_number] implementation fully satisfies:
+1. The specific requirements defined in the task file
+2. The business objectives from the PRD
+3. The technical specifications and architecture requirements
+4. All acceptance criteria and success metrics
+```
+
+## 2. Rules Analysis & Code Review with Zen MCP
+
+<mandatory_step>
+**Analyze applicable rules first, then perform comprehensive code review:**
+</mandatory_step>
+
+### 2.1 Rules Analysis
+```
+Analyze all Cursor rules that apply to the changed files for task [task_number]:
+- Identify which .cursor/rules/*.mdc files are relevant to the implementation
+- List the specific coding standards, patterns, and requirements that apply
+- Check for any rule violations or areas needing attention
+```
+
+### 2.2 Multi-Model Code Review
+
+<mandatory_step>
+Use the criteria from [`review-checklist.mdc`](mdc:.cursor/rules/review-checklist.mdc) as the basis for all code reviews:
 </mandatory_step>
 
 ```
 Use zen for codereview with gemini-2.5-pro-preview-05-06 to analyze the implementation for task [task_number]: [task_title].
 Focus on the review checklist criteria: code quality, security, adherence to project standards, error handling, testing patterns, and maintainability.
+Apply the specific rules identified in step 2.1 during the review.
 ```
 
 ```
 Use zen with o3 to perform a logical review of the implementation for task [task_number]: [task_title].
-Analyze the logic, edge cases, and potential issues.
+Analyze the logic, edge cases, and potential issues while considering the applicable coding standards and rules.
 ```
 
-## 2. Fix Review Issues
+### 2.3 Rules-Specific Review
+```
+Use zen with gemini-2.5-pro-preview-05-06 to review task [task_number] implementation specifically against the identified Cursor rules:
+- Verify compliance with project-specific coding standards
+- Check adherence to architectural patterns and design principles
+- Validate implementation follows the established conventions
+- Ensure all rule-based requirements are met
+```
+
+## 3. Fix Review Issues
 
 <mandatory_fixes>
 Address ALL issues identified:
@@ -39,35 +86,39 @@ Address ALL issues identified:
 - Document any decisions to skip low-severity issues
 </mandatory_fixes>
 
-## 3. Pre-Commit Validation
+## 4. Pre-Commit Validation
 
 ```
 Use zen precommit to validate all changes for task [task_number] implementation using gemini-2.5-pro-preview-05-06
 ```
 
-## 4. Git Commit
+## 5. Git Commit
 
 ```bash
 git add .
 git commit -m "feat(task-[task_number]): [concise_task_description]
 
 - Implemented [specific changes made]
+- Task definition, PRD, and tech spec validated
 - Code reviewed with Zen MCP (Gemini 2.5 Pro + O3)
+- Rules compliance verified
 - All review issues addressed
 - Task: [task_number] - [task_title]
 
 Closes: task-[task_number]"
 ```
 
-## 5. Mark Task Complete
+## 6. Mark Task Complete
 
 **ONLY AFTER** successful commit, update the Markdown task file:
 
 ```markdown
 - [x] 1.0 [task_title] ✅ COMPLETED
   - [x] 1.1 Implementation completed
-  - [x] 1.2 Code review completed with Zen MCP
-  - [x] 1.3 Ready for commit
+  - [x] 1.2 Task definition, PRD, and tech spec validated
+  - [x] 1.3 Rules analysis and compliance verified
+  - [x] 1.4 Code review completed with Zen MCP
+  - [x] 1.5 Ready for commit
 ```
 
 ## Important Notes
@@ -77,8 +128,22 @@ Closes: task-[task_number]"
 - **Available Models:** `gemini-2.5-pro-preview-05-06` (deep analysis), `o3` (logical reasoning), `flash` (fast responses)
 - **Exceptions:** Only allowed for hotfixes, documentation-only, or config-only changes (must be documented)
 
+
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test-all` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>
+
 <enforcement_policy>
 **MANDATORY:** This workflow must be followed for every task completion. No exceptions without explicit justification.
 </enforcement_policy>
-
-Reference: [Zen MCP Documentation](https://github.com/BeehiveInnovations/zen-mcp-server)

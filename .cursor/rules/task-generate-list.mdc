@@ -69,7 +69,17 @@ Each individual task file (`<num>_task.md`) must follow this structure:
 status: pending  # Options: pending, in-progress, completed, excluded
 ---
 
+<task_context>
+<domain>engine/infra/[subdomain]</domain>
+<type>implementation|integration|testing|documentation</type>
+<scope>core_feature|middleware|configuration|performance</scope>
+<complexity>low|medium|high</complexity>
+<dependencies>external_apis|database|temporal|http_server</dependencies>
+</task_context>
+
 # Task X.0: [Parent Task Title]
+
+**Note:** The `<task_context>` XML block provides semantic context for AI agents to automatically identify which project rules and patterns apply to the task without explicitly listing them. This enables intelligent rule selection based on the domain, type, scope, complexity, and dependencies of the work.
 
 ## Overview
 [Brief description of what this task accomplishes]
@@ -94,6 +104,23 @@ status: pending  # Options: pending, in-progress, completed, excluded
 - [Clear definition of when this task is complete]
 - [Measurable outcomes]
 - [Quality requirements]
+
+<critical>
+**MANDATORY REQUIREMENTS:**
+
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+  - Architecture patterns: `.cursor/rules/architecture.mdc`
+  - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+  - Testing requirements: `.cursor/rules/testing-standards.mdc`
+  - API standards: `.cursor/rules/api-standards.mdc`
+  - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test-all` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
+
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>
 ```
 </individual_task_format>
 
