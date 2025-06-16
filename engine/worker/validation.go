@@ -1,13 +1,12 @@
 package worker
 
 import (
-	"github.com/kaptinlin/jsonschema"
-
 	"github.com/compozy/compozy/engine/core"
+	"github.com/kaptinlin/jsonschema"
 )
 
-// validatePayloadAgainstCompiledSchema validates a payload against a pre-compiled JSON schema
-func validatePayloadAgainstCompiledSchema(
+// ValidatePayloadAgainstCompiledSchema validates a payload against a pre-compiled JSON schema
+func ValidatePayloadAgainstCompiledSchema(
 	payload core.Input,
 	compiledSchema *jsonschema.Schema,
 ) (bool, []string) {

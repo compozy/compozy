@@ -1,14 +1,18 @@
 package worker
 
 import (
+	"context"
 	"fmt"
 	"time"
 
+	"github.com/gosimple/slug"
 	"github.com/kaptinlin/jsonschema"
 	"go.temporal.io/api/enums/v1"
+	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/task/services"
 	wf "github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 )
@@ -20,15 +24,15 @@ type EventSignal struct {
 	CorrelationID string     `json:"correlation_id,omitempty"`
 }
 
-// compiledTrigger holds workflow config and pre-compiled schema for efficient validation
-type compiledTrigger struct {
-	config         *wf.Config
-	trigger        *wf.Trigger
-	compiledSchema *jsonschema.Schema
+// CompiledTrigger holds workflow config and pre-compiled schema for efficient validation
+type CompiledTrigger struct {
+	Config         *wf.Config
+	Trigger        *wf.Trigger
+	CompiledSchema *jsonschema.Schema
 }
 
-// getRegisteredSignalNames returns a list of currently registered signal names for logging
-func getRegisteredSignalNames(signalMap map[string]*compiledTrigger) []string {
+// GetRegisteredSignalNames returns a list of currently registered signal names for logging
+func GetRegisteredSignalNames(signalMap map[string]*CompiledTrigger) []string {
 	names := make([]string, 0, len(signalMap))
 	for name := range signalMap {
 		names = append(names, name)
@@ -36,10 +40,10 @@ func getRegisteredSignalNames(signalMap map[string]*compiledTrigger) []string {
 	return names
 }
 
-// buildSignalRoutingMap creates a map of signal names to compiled triggers with pre-compiled schemas
-func buildSignalRoutingMap(ctx workflow.Context, data *wfacts.GetData) (map[string]*compiledTrigger, error) {
+// BuildSignalRoutingMap creates a map of signal names to compiled triggers with pre-compiled schemas
+func BuildSignalRoutingMap(ctx workflow.Context, data *wfacts.GetData) (map[string]*CompiledTrigger, error) {
 	logger := workflow.GetLogger(ctx)
-	signalMap := make(map[string]*compiledTrigger)
+	signalMap := make(map[string]*CompiledTrigger)
 
 	for _, wcfg := range data.Workflows {
 		for i := range wcfg.Triggers {
@@ -49,14 +53,14 @@ func buildSignalRoutingMap(ctx workflow.Context, data *wfacts.GetData) (map[stri
 					return nil, fmt.Errorf(
 						"duplicate signal name %q registered by both %q and %q",
 						trigger.Name,
-						existing.config.ID,
+						existing.Config.ID,
 						wcfg.ID,
 					)
 				}
 
-				target := &compiledTrigger{
-					config:  wcfg,
-					trigger: trigger,
+				target := &CompiledTrigger{
+					Config:  wcfg,
+					Trigger: trigger,
 				}
 
 				// Pre-compile schema if defined
@@ -67,7 +71,7 @@ func buildSignalRoutingMap(ctx workflow.Context, data *wfacts.GetData) (map[stri
 							"signal", trigger.Name, "workflow", wcfg.ID, "error", err)
 						return nil, fmt.Errorf("failed to compile schema for %s: %w", trigger.Name, err)
 					}
-					target.compiledSchema = compiled
+					target.CompiledSchema = compiled
 				}
 
 				signalMap[trigger.Name] = target
@@ -78,8 +82,8 @@ func buildSignalRoutingMap(ctx workflow.Context, data *wfacts.GetData) (map[stri
 	return signalMap, nil
 }
 
-// generateCorrelationID generates or uses existing correlation ID for event tracking
-func generateCorrelationID(ctx workflow.Context, existingID string) string {
+// GenerateCorrelationID generates or uses existing correlation ID for event tracking
+func GenerateCorrelationID(ctx workflow.Context, existingID string) string {
 	logger := workflow.GetLogger(ctx)
 
 	if existingID != "" {
@@ -115,24 +119,24 @@ func generateCorrelationID(ctx workflow.Context, existingID string) string {
 func validateSignalPayload(
 	ctx workflow.Context,
 	signal EventSignal,
-	target *compiledTrigger,
+	target *CompiledTrigger,
 	correlationID string,
 ) bool {
 	logger := workflow.GetLogger(ctx)
 
-	if target.compiledSchema == nil {
+	if target.CompiledSchema == nil {
 		return true // No schema to validate against
 	}
 
-	isValid, validationErrors := validatePayloadAgainstCompiledSchema(
+	isValid, validationErrors := ValidatePayloadAgainstCompiledSchema(
 		signal.Payload,
-		target.compiledSchema,
+		target.CompiledSchema,
 	)
 	if !isValid {
 		logger.Error("Payload validation failed",
 			"signalName", signal.Name,
 			"correlationId", correlationID,
-			"targetWorkflow", target.config.ID,
+			"targetWorkflow", target.Config.ID,
 			"validationErrors", validationErrors)
 		return false
 	}
@@ -140,7 +144,7 @@ func validateSignalPayload(
 	logger.Debug("Payload validation passed",
 		"signalName", signal.Name,
 		"correlationId", correlationID,
-		"targetWorkflow", target.config.ID)
+		"targetWorkflow", target.Config.ID)
 	return true
 }
 
@@ -175,25 +179,25 @@ func generateWorkflowExecID(ctx workflow.Context) core.ID {
 func executeChildWorkflow(
 	ctx workflow.Context,
 	signal EventSignal,
-	target *compiledTrigger,
+	target *CompiledTrigger,
 	correlationID string,
 ) bool {
 	logger := workflow.GetLogger(ctx)
 	workflowExecID := generateWorkflowExecID(ctx)
 	cwo := workflow.ChildWorkflowOptions{
-		WorkflowID:        buildWorkflowID(target.config.ID, workflowExecID),
+		WorkflowID:        buildWorkflowID(target.Config.ID, workflowExecID),
 		ParentClosePolicy: enums.PARENT_CLOSE_POLICY_ABANDON, // Let child continue if parent restarts
 	}
 	childCtx := workflow.WithChildOptions(ctx, cwo)
 	childInput := WorkflowInput{
-		WorkflowID:     target.config.ID,
+		WorkflowID:     target.Config.ID,
 		WorkflowExecID: workflowExecID,
 		Input:          &signal.Payload,
 	}
 
 	// Execute child workflow with comprehensive error handling
 	logger.Info("Starting child workflow",
-		"targetWorkflow", target.config.ID,
+		"targetWorkflow", target.Config.ID,
 		"workflowId", cwo.WorkflowID,
 		"signalName", signal.Name,
 		"correlationId", correlationID)
@@ -206,7 +210,7 @@ func executeChildWorkflow(
 	if err != nil {
 		logger.Error("Failed to get child workflow execution",
 			"workflowId", cwo.WorkflowID,
-			"targetWorkflow", target.config.ID,
+			"targetWorkflow", target.Config.ID,
 			"signalName", signal.Name,
 			"correlationId", correlationID,
 			"error", err)
@@ -215,7 +219,7 @@ func executeChildWorkflow(
 
 	logger.Info("Successfully started child workflow",
 		"workflowId", cwo.WorkflowID,
-		"targetWorkflow", target.config.ID,
+		"targetWorkflow", target.Config.ID,
 		"signalName", signal.Name,
 		"correlationId", correlationID,
 		"childRunId", childExecution.RunID)
@@ -223,12 +227,12 @@ func executeChildWorkflow(
 	return true
 }
 
-// processEventSignal handles a single event signal with validation and child workflow execution
-func processEventSignal(ctx workflow.Context, signal EventSignal, signalMap map[string]*compiledTrigger) bool {
+// ProcessEventSignal handles a single event signal with validation and child workflow execution
+func ProcessEventSignal(ctx workflow.Context, signal EventSignal, signalMap map[string]*CompiledTrigger) bool {
 	logger := workflow.GetLogger(ctx)
 
 	// Use provided correlation ID or generate one for tracking this event
-	correlationID := generateCorrelationID(ctx, signal.CorrelationID)
+	correlationID := GenerateCorrelationID(ctx, signal.CorrelationID)
 	logger.Info("Received signal", "name", signal.Name, "correlationId", correlationID)
 
 	// Find target workflow with enhanced error handling
@@ -237,7 +241,7 @@ func processEventSignal(ctx workflow.Context, signal EventSignal, signalMap map[
 		logger.Warn("Unknown signal - no workflow configured",
 			"signalName", signal.Name,
 			"correlationId", correlationID,
-			"availableSignals", getRegisteredSignalNames(signalMap))
+			"availableSignals", GetRegisteredSignalNames(signalMap))
 		return false // Not a fatal error, just unknown signal
 	}
 
@@ -267,7 +271,7 @@ func DispatcherWorkflow(ctx workflow.Context, projectName string) error {
 	}
 
 	// Build signal routing map with pre-compiled schemas
-	signalMap, err := buildSignalRoutingMap(ctx, data)
+	signalMap, err := BuildSignalRoutingMap(ctx, data)
 	if err != nil {
 		return err
 	}
@@ -322,7 +326,7 @@ func DispatcherWorkflow(ctx workflow.Context, projectName string) error {
 			continue
 		}
 		// Process the event signal
-		success := processEventSignal(ctx, signal, signalMap)
+		success := ProcessEventSignal(ctx, signal, signalMap)
 
 		if success {
 			// Reset consecutive errors on successful processing
@@ -333,4 +337,63 @@ func DispatcherWorkflow(ctx workflow.Context, projectName string) error {
 		}
 		processed++
 	}
+}
+
+// -----------------------------------------------------------------------------
+// Signal Dispatcher
+// -----------------------------------------------------------------------------
+
+// SignalDispatcher implements SignalDispatcher using Temporal client
+type SignalDispatcher struct {
+	client       client.Client
+	dispatcherID string
+	taskQueue    string
+}
+
+// NewSignalDispatcher creates a new TemporalSignalDispatcher
+func NewSignalDispatcher(
+	client client.Client,
+	dispatcherID string,
+	taskQueue string,
+) services.SignalDispatcher {
+	return &SignalDispatcher{
+		client:       client,
+		dispatcherID: dispatcherID,
+		taskQueue:    taskQueue,
+	}
+}
+
+// DispatchSignal sends a signal using Temporal's SignalWithStartWorkflow
+func (t *SignalDispatcher) DispatchSignal(
+	ctx context.Context,
+	signalName string,
+	payload map[string]any,
+	correlationID string,
+) error {
+	projectName, err := core.GetProjectName(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get project name: %w", err)
+	}
+
+	_, err = t.client.SignalWithStartWorkflow(
+		ctx,
+		t.dispatcherID,
+		DispatcherEventChannel,
+		EventSignal{
+			Name:          signalName,
+			Payload:       core.Input(payload),
+			CorrelationID: correlationID,
+		},
+		client.StartWorkflowOptions{
+			ID:        t.dispatcherID,
+			TaskQueue: t.taskQueue,
+		},
+		DispatcherWorkflow,
+		projectName,
+	)
+	return err
+}
+
+func GetTaskQueue(projectName string) string {
+	return slug.Make(projectName)
 }

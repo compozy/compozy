@@ -11,13 +11,14 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/engine/worker"
 	wf "github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 )
 
 func TestEventSignal_Structure(t *testing.T) {
 	t.Run("Should create EventSignal correctly", func(t *testing.T) {
-		signal := EventSignal{
+		signal := worker.EventSignal{
 			Name:          "order.created",
 			Payload:       core.Input{"orderId": "123"},
 			CorrelationID: "test-correlation-id",
@@ -28,7 +29,7 @@ func TestEventSignal_Structure(t *testing.T) {
 	})
 
 	t.Run("Should handle empty payload", func(t *testing.T) {
-		signal := EventSignal{
+		signal := worker.EventSignal{
 			Name:    "test.event",
 			Payload: core.Input{},
 		}
@@ -70,15 +71,15 @@ func (s *DispatcherWorkflowTestSuite) TestSuccessfulDispatch() {
 		}
 		s.env.OnActivity("GetWorkflowData", mock.Anything).Return(&wfacts.GetData{Workflows: mockWorkflows}, nil)
 		s.env.OnWorkflow("CompozyWorkflow", mock.Anything).Return(nil, nil)
-		s.env.RegisterWorkflow(DispatcherWorkflow)
+		s.env.RegisterWorkflow(worker.DispatcherWorkflow)
 		s.env.RegisterDelayedCallback(func() {
-			s.env.SignalWorkflow(DispatcherEventChannel, EventSignal{
+			s.env.SignalWorkflow(worker.DispatcherEventChannel, worker.EventSignal{
 				Name:          "order.created",
 				Payload:       core.Input{"orderId": "123"},
 				CorrelationID: "test-correlation-id",
 			})
 		}, time.Millisecond)
-		s.env.ExecuteWorkflow(DispatcherWorkflow, "test-project")
+		s.env.ExecuteWorkflow(worker.DispatcherWorkflow, "test-project")
 		s.env.AssertExpectations(s.T())
 	})
 }
@@ -94,10 +95,10 @@ func (s *DispatcherWorkflowTestSuite) TestUnknownSignal() {
 			},
 		}
 		s.env.OnActivity("GetWorkflowData", mock.Anything).Return(&wfacts.GetData{Workflows: mockWorkflows}, nil)
-		s.env.RegisterWorkflow(DispatcherWorkflow)
-		go s.env.ExecuteWorkflow(DispatcherWorkflow, "test-project")
+		s.env.RegisterWorkflow(worker.DispatcherWorkflow)
+		go s.env.ExecuteWorkflow(worker.DispatcherWorkflow, "test-project")
 		time.Sleep(50 * time.Millisecond) // Allow workflow to start
-		s.env.SignalWorkflow(DispatcherEventChannel, EventSignal{
+		s.env.SignalWorkflow(worker.DispatcherEventChannel, worker.EventSignal{
 			Name:    "unknown.event",
 			Payload: core.Input{},
 		})
@@ -108,18 +109,18 @@ func (s *DispatcherWorkflowTestSuite) TestUnknownSignal() {
 
 func TestGetRegisteredSignalNames(t *testing.T) {
 	t.Run("Should return empty slice for empty signal map", func(t *testing.T) {
-		signalMap := make(map[string]*compiledTrigger)
-		names := getRegisteredSignalNames(signalMap)
+		signalMap := make(map[string]*worker.CompiledTrigger)
+		names := worker.GetRegisteredSignalNames(signalMap)
 		assert.Empty(t, names)
 	})
 
 	t.Run("Should return all signal names", func(t *testing.T) {
-		signalMap := map[string]*compiledTrigger{
-			"signal1": {config: &wf.Config{ID: "workflow1"}},
-			"signal2": {config: &wf.Config{ID: "workflow2"}},
-			"signal3": {config: &wf.Config{ID: "workflow3"}},
+		signalMap := map[string]*worker.CompiledTrigger{
+			"signal1": {Config: &wf.Config{ID: "workflow1"}},
+			"signal2": {Config: &wf.Config{ID: "workflow2"}},
+			"signal3": {Config: &wf.Config{ID: "workflow3"}},
 		}
-		names := getRegisteredSignalNames(signalMap)
+		names := worker.GetRegisteredSignalNames(signalMap)
 		assert.Len(t, names, 3)
 		assert.Contains(t, names, "signal1")
 		assert.Contains(t, names, "signal2")
@@ -142,19 +143,19 @@ func TestDispatcherWorkflow_PayloadValidationLogic(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, compiled)
 
-		trigger := &compiledTrigger{
-			config: &wf.Config{ID: "test-workflow"},
-			trigger: &wf.Trigger{
+		trigger := &worker.CompiledTrigger{
+			Config: &wf.Config{ID: "test-workflow"},
+			Trigger: &wf.Trigger{
 				Type:   wf.TriggerTypeSignal,
 				Name:   "test-signal",
 				Schema: schemaDefinition,
 			},
-			compiledSchema: compiled,
+			CompiledSchema: compiled,
 		}
 
-		assert.Equal(t, "test-workflow", trigger.config.ID)
-		assert.Equal(t, "test-signal", trigger.trigger.Name)
-		assert.NotNil(t, trigger.compiledSchema)
+		assert.Equal(t, "test-workflow", trigger.Config.ID)
+		assert.Equal(t, "test-signal", trigger.Trigger.Name)
+		assert.NotNil(t, trigger.CompiledSchema)
 	})
 
 	t.Run("Should validate payload with compiled schema", func(t *testing.T) {
@@ -171,13 +172,13 @@ func TestDispatcherWorkflow_PayloadValidationLogic(t *testing.T) {
 
 		// Test valid payload
 		validPayload := core.Input{"name": "John"}
-		isValid, errors := validatePayloadAgainstCompiledSchema(validPayload, compiled)
+		isValid, errors := worker.ValidatePayloadAgainstCompiledSchema(validPayload, compiled)
 		assert.True(t, isValid)
 		assert.Nil(t, errors)
 
 		// Test invalid payload
 		invalidPayload := core.Input{"age": 30} // missing required "name"
-		isValid, errors = validatePayloadAgainstCompiledSchema(invalidPayload, compiled)
+		isValid, errors = worker.ValidatePayloadAgainstCompiledSchema(invalidPayload, compiled)
 		assert.False(t, isValid)
 		assert.NotEmpty(t, errors)
 	})
