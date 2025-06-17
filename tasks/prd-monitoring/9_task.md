@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 ---
 
 <task_context>
@@ -18,12 +18,12 @@ Create comprehensive documentation for the monitoring feature, including setup g
 
 ## Subtasks
 
-- [ ] 9.1 Write monitoring setup guide in docs/monitoring.md
-- [ ] 9.2 Add Kubernetes deployment examples with ServiceMonitor
-- [ ] 9.3 Document Pod annotations for Prometheus scraping
-- [ ] 9.4 Create troubleshooting guide for common monitoring issues
-- [ ] 9.5 Document rollback procedures for disabling monitoring
-- [ ] 9.6 Add monitoring configuration examples to README
+- [x] 9.1 Write monitoring setup guide in docs/monitoring.md
+- [x] 9.2 Add Kubernetes deployment examples with ServiceMonitor
+- [x] 9.3 Document Pod annotations for Prometheus scraping
+- [x] 9.4 Create troubleshooting guide for common monitoring issues
+- [x] 9.5 Document rollback procedures for disabling monitoring
+- [x] 9.6 Add monitoring configuration examples to README
 
 ## Implementation Details
 
@@ -403,12 +403,53 @@ Monitoring adds <0.5% latency overhead and <2% resource usage.
 
 ## Success Criteria
 
-- Comprehensive user documentation covering setup, configuration, and usage
-- Swagger documentation for /metrics endpoint is complete and accurate
-- Kubernetes deployment examples with ServiceMonitor configurations
-- Clear troubleshooting guide for common monitoring issues
-- Performance characteristics and validation results documented
-- All documentation follows project standards and is easily discoverable
+- [x] Comprehensive user documentation covering setup, configuration, and usage
+- [x] Swagger documentation for /metrics endpoint is complete and accurate
+- [x] Kubernetes deployment examples with ServiceMonitor configurations
+- [x] Clear troubleshooting guide for common monitoring issues
+- [x] Performance characteristics and validation results documented
+- [x] All documentation follows project standards and is easily discoverable
+
+## Status: COMPLETED ✅
+
+**Completion Date**: 2025-06-17
+**Implementation Summary**:
+
+Successfully completed comprehensive documentation for the monitoring feature with the following achievements:
+
+### Enhanced Documentation (`docs/monitoring.md`)
+- ✅ **Updated Monitoring Setup Guide**: Enhanced existing guide with complete metric definitions and performance characteristics
+- ✅ **Performance Impact Documentation**: Added formal validation results showing <0.5% latency overhead and <2% resource usage
+- ✅ **Security Considerations**: Comprehensive network protection guidelines and data privacy policies
+- ✅ **Updated Metrics Definitions**: Added missing `compozy_temporal_workflow_failed_total` and `compozy_temporal_workers_running_total` metrics
+
+### Kubernetes Integration
+- ✅ **ServiceMonitor Examples**: Complete configurations for Prometheus Operator with labels, intervals, and timeouts
+- ✅ **Manual Prometheus Configuration**: Kubernetes service discovery with proper relabeling configurations
+- ✅ **Helm Chart Integration**: Complete values.yaml examples for Helm-based deployments
+- ✅ **Pod Annotations**: Comprehensive annotation examples for autodiscovery
+
+### Troubleshooting & Operations
+- ✅ **Comprehensive Troubleshooting Guide**: Added detailed scenarios including:
+  - Metrics endpoint returning 503 errors
+  - No metrics appearing situations
+  - High memory usage diagnosis
+  - Prometheus scraping failures
+  - Configuration validation errors
+- ✅ **Complete Rollback Procedures**: Step-by-step instructions for:
+  - Environment variable and configuration file methods
+  - Kubernetes rollback procedures with kubectl commands
+  - Docker Compose rollback for local development
+  - Emergency rollback procedures for production
+  - Verification steps and cleanup procedures
+
+### Technical Documentation
+- ✅ **Local Development**: Comprehensive integration with existing docker-compose setup
+- ✅ **Configuration Examples**: Multiple deployment scenarios covered
+- ✅ **Network Security**: Ingress controller examples and firewall guidelines
+- ✅ **Data Privacy**: PII protection and label cardinality constraints
+
+The monitoring documentation is now production-ready and provides comprehensive guidance for setup, operation, troubleshooting, and rollback scenarios across all deployment environments.
 
 <critical>
 **MANDATORY REQUIREMENTS:**
