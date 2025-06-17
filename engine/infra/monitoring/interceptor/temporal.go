@@ -82,8 +82,8 @@ func initMetrics(meter metric.Meter) {
 			logger.Error("Failed to create workflow failed counter", "error", err)
 		}
 		workflowTaskDuration, err = meter.Float64Histogram(
-			"compozy_temporal_workflow_task_duration_seconds",
-			metric.WithDescription("Workflow task execution time on a worker"),
+			"compozy_temporal_workflow_duration_seconds",
+			metric.WithDescription("Workflow execution time"),
 			metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
 		)
 		if err != nil {

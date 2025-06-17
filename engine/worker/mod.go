@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
+	"github.com/compozy/compozy/engine/infra/monitoring/interceptor"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
@@ -130,6 +131,8 @@ func NewWorker(
 		signalDispatcher,
 		configManager,
 	)
+	// Set configured worker count for monitoring
+	interceptor.SetConfiguredWorkerCount(1) // Each worker instance represents 1 configured worker
 	// Create lifecycle context for independent operation
 	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
 	return &Worker{
@@ -187,12 +190,16 @@ func (o *Worker) Setup(_ context.Context) error {
 	if err != nil {
 		return err
 	}
+	// Track running worker for monitoring
+	interceptor.IncrementRunningWorkers(context.Background())
 	// Ensure dispatcher is running with independent lifecycle context
 	go o.ensureDispatcherRunning(o.lifecycleCtx)
 	return nil
 }
 
 func (o *Worker) Stop(ctx context.Context) {
+	// Track worker stopping for monitoring
+	interceptor.DecrementRunningWorkers(ctx)
 	// Cancel lifecycle context to stop background operations
 	if o.lifecycleCancel != nil {
 		o.lifecycleCancel()

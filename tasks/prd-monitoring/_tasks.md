@@ -46,9 +46,10 @@
 - [x] 2.0 Implement HTTP Metrics Collection
 - [x] 3.0 Implement Temporal Workflow Metrics
 - [x] 4.0 Add System Health Metrics
-- [ ] 5.0 Integrate Monitoring Service with Main Application
-- [ ] 6.0 Add Configuration Support
-- [ ] 7.0 Performance Validation and Testing
-- [ ] 8.0 Implement CI Label Validation
-- [ ] 8.5 Create comprehensive integration tests for monitoring (HTTP, Temporal, System metrics)
+- [x] 5.0 Integrate Monitoring Service with Main Application
+- [x] 6.0 Add Configuration Support
+- [ ] 7.0 Performance Validation and Testing (EXCLUDED)
+- [ ] 8.0 Implement CI Label Validation (EXCLUDED)
+- [x] 8.5 Create comprehensive integration tests for monitoring (HTTP, Temporal, System metrics)
+- [ ] 8.7 Setup Local Metrics Infrastructure
 - [ ] 9.0 Complete Documentation
