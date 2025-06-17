@@ -32,7 +32,7 @@ var bufferPool = sync.Pool{
 }
 
 // NewRuntimeManager initializes a RuntimeManager
-func NewRuntimeManager(projectRoot string, options ...Option) (*Manager, error) {
+func NewRuntimeManager(ctx context.Context, projectRoot string, options ...Option) (*Manager, error) {
 	config := DefaultConfig()
 	for _, option := range options {
 		option(config)
@@ -49,7 +49,7 @@ func NewRuntimeManager(projectRoot string, options ...Option) (*Manager, error) 
 	rm := &Manager{
 		config:      config,
 		projectRoot: projectRoot,
-		logger:      getSafeLogger(),
+		logger:      logger.FromContext(ctx),
 	}
 
 	// Ensure worker script exists
@@ -437,55 +437,6 @@ func isValidToolID(toolID string) bool {
 	}
 
 	return true
-}
-
-// safeLogger wraps the logger to prevent panics when logger is not initialized
-type safeLogger struct{}
-
-func (s *safeLogger) Debug(msg string, keyvals ...any) {
-	log := logger.GetDefault()
-	// Test if logger is functional by using a recover block
-	defer func() {
-		if recover() != nil {
-			return // Panic occurred, ignore it
-		}
-	}()
-	log.Debug(msg, keyvals...)
-}
-
-func (s *safeLogger) Info(msg string, keyvals ...any) {
-	log := logger.GetDefault()
-	defer func() {
-		if recover() != nil {
-			return // Panic occurred, ignore it
-		}
-	}()
-	log.Info(msg, keyvals...)
-}
-
-func (s *safeLogger) Warn(msg string, keyvals ...any) {
-	log := logger.GetDefault()
-	defer func() {
-		if recover() != nil {
-			return // Panic occurred, ignore it
-		}
-	}()
-	log.Warn(msg, keyvals...)
-}
-
-func (s *safeLogger) Error(msg string, keyvals ...any) {
-	log := logger.GetDefault()
-	defer func() {
-		if recover() != nil {
-			return // Panic occurred, ignore it
-		}
-	}()
-	log.Error(msg, keyvals...)
-}
-
-// getSafeLogger returns a safe logger that won't panic
-func getSafeLogger() logger.Logger {
-	return &safeLogger{}
 }
 
 // minInt returns the minimum of two integers

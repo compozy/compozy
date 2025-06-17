@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 
 	docs "github.com/compozy/compozy/docs"
@@ -17,7 +18,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-func RegisterRoutes(router *gin.Engine, state *appstate.State) error {
+func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.State) error {
 	version := core.GetVersion()
 	prefixURL := fmt.Sprintf("/api/%s", version)
 	apiBase := router.Group(prefixURL)
@@ -83,7 +84,8 @@ func RegisterRoutes(router *gin.Engine, state *appstate.State) error {
 	agentrouter.Register(apiBase)
 	toolrouter.Register(apiBase)
 
-	logger.Info("Completed route registration",
+	log := logger.FromContext(ctx)
+	log.Info("Completed route registration",
 		"total_workflows", len(state.Workflows),
 		"swagger_base_path", docs.SwaggerInfo.BasePath,
 	)

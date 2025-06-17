@@ -77,7 +77,8 @@ func NewMCPClientManager(storage Storage, config *ClientManagerConfig) *MCPClien
 
 // Start starts the client manager and begins monitoring existing definitions
 func (m *MCPClientManager) Start(ctx context.Context) error {
-	logger.Info("Starting MCP client manager")
+	log := logger.FromContext(ctx)
+	log.Info("Starting MCP client manager")
 
 	// Load existing definitions and start clients
 	definitions, err := m.storage.ListMCPs(ctx)
@@ -92,7 +93,7 @@ func (m *MCPClientManager) Start(ctx context.Context) error {
 		def := def // capture loop variable for closure
 		g.Go(func() error {
 			if err := m.AddClient(groupCtx, def); err != nil {
-				logger.Error("Failed to add client during startup", "name", def.Name, "error", err)
+				log.Error("Failed to add client during startup", "name", def.Name, "error", err)
 				return fmt.Errorf("failed to add client '%s': %w", def.Name, err)
 			}
 			return nil
@@ -108,13 +109,14 @@ func (m *MCPClientManager) Start(ctx context.Context) error {
 	m.wg.Add(1)
 	go m.healthMonitor()
 
-	logger.Info("MCP client manager started", "clients", len(m.clients))
+	log.Info("MCP client manager started", "clients", len(m.clients))
 	return nil
 }
 
 // Stop stops the client manager and all active clients
 func (m *MCPClientManager) Stop(ctx context.Context) error {
-	logger.Info("Stopping MCP client manager")
+	log := logger.FromContext(ctx)
+	log.Info("Stopping MCP client manager")
 
 	// Cancel background operations
 	m.cancel()
@@ -133,7 +135,7 @@ func (m *MCPClientManager) Stop(ctx context.Context) error {
 		name, client := name, client // capture loop variables
 		g.Go(func() error {
 			if err := client.Disconnect(groupCtx); err != nil {
-				logger.Error("Failed to disconnect client", "name", name, "error", err)
+				log.Error("Failed to disconnect client", "name", name, "error", err)
 				return fmt.Errorf("failed to disconnect client '%s': %w", name, err)
 			}
 			return nil
@@ -142,18 +144,19 @@ func (m *MCPClientManager) Stop(ctx context.Context) error {
 
 	// Wait for all disconnections to complete
 	if err := g.Wait(); err != nil {
-		logger.Warn("Some clients failed to disconnect cleanly", "error", err)
+		log.Warn("Some clients failed to disconnect cleanly", "error", err)
 	}
 
 	// Wait for background goroutines to finish
 	m.wg.Wait()
 
-	logger.Info("MCP client manager stopped")
+	log.Info("MCP client manager stopped")
 	return nil
 }
 
 // AddClient adds a new MCP client based on the definition
 func (m *MCPClientManager) AddClient(ctx context.Context, def *MCPDefinition) error {
+	log := logger.FromContext(ctx)
 	if def == nil {
 		return fmt.Errorf("definition cannot be nil")
 	}
@@ -175,7 +178,7 @@ func (m *MCPClientManager) AddClient(ctx context.Context, def *MCPDefinition) er
 		m.mu.Unlock()
 		// Clean up the created client since we're not using it
 		if disconnectErr := client.Disconnect(ctx); disconnectErr != nil {
-			logger.Warn("Failed to clean up unused client", "name", def.Name, "error", disconnectErr)
+			log.Warn("Failed to clean up unused client", "name", def.Name, "error", disconnectErr)
 		}
 		return fmt.Errorf("client '%s' already exists", def.Name)
 	}
@@ -185,7 +188,7 @@ func (m *MCPClientManager) AddClient(ctx context.Context, def *MCPDefinition) er
 		m.mu.Unlock()
 		// Clean up the created client since we can't add it
 		if disconnectErr := client.Disconnect(ctx); disconnectErr != nil {
-			logger.Warn("Failed to clean up client due to connection limit", "name", def.Name, "error", disconnectErr)
+			log.Warn("Failed to clean up client due to connection limit", "name", def.Name, "error", disconnectErr)
 		}
 		return fmt.Errorf("maximum concurrent connections (%d) reached", m.config.MaxConcurrentConnections)
 	}
@@ -201,12 +204,13 @@ func (m *MCPClientManager) AddClient(ctx context.Context, def *MCPDefinition) er
 		m.connectClient(m.ctx, client)
 	}()
 
-	logger.Info("Added MCP client", "name", def.Name, "transport", def.Transport)
+	log.Info("Added MCP client", "name", def.Name, "transport", def.Transport)
 	return nil
 }
 
 // RemoveClient removes and disconnects an MCP client
 func (m *MCPClientManager) RemoveClient(ctx context.Context, name string) error {
+	log := logger.FromContext(ctx)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -217,13 +221,13 @@ func (m *MCPClientManager) RemoveClient(ctx context.Context, name string) error 
 
 	// Disconnect the client
 	if err := client.Disconnect(ctx); err != nil {
-		logger.Error("Failed to disconnect client", "name", name, "error", err)
+		log.Error("Failed to disconnect client", "name", name, "error", err)
 	}
 
 	// Remove from map
 	delete(m.clients, name)
 
-	logger.Info("Removed MCP client", "name", name)
+	log.Info("Removed MCP client", "name", name)
 	return nil
 }
 
@@ -241,12 +245,13 @@ func (m *MCPClientManager) GetClient(name string) (MCPClientInterface, error) {
 }
 
 // ListClients returns safe copies of client statuses
-func (m *MCPClientManager) ListClients() map[string]*MCPStatus {
-	return m.ListClientStatuses()
+func (m *MCPClientManager) ListClients(ctx context.Context) map[string]*MCPStatus {
+	return m.ListClientStatuses(ctx)
 }
 
 // ListClientStatuses returns status copies for all clients using concurrent retrieval
-func (m *MCPClientManager) ListClientStatuses() map[string]*MCPStatus {
+func (m *MCPClientManager) ListClientStatuses(ctx context.Context) map[string]*MCPStatus {
+	log := logger.FromContext(ctx)
 	m.mu.RLock()
 	clients := make(map[string]*MCPClient)
 	for name, client := range m.clients {
@@ -276,7 +281,7 @@ func (m *MCPClientManager) ListClientStatuses() map[string]*MCPStatus {
 
 	// Wait for all status retrievals to complete
 	if err := g.Wait(); err != nil {
-		logger.Warn("Error during concurrent status retrieval", "error", err)
+		log.Warn("Error during concurrent status retrieval", "error", err)
 	}
 
 	return statuses
@@ -316,6 +321,7 @@ func (m *MCPClientManager) createClient(def *MCPDefinition) (*MCPClient, error) 
 
 // connectClient attempts to connect a client with retry logic
 func (m *MCPClientManager) connectClient(ctx context.Context, client *MCPClient) {
+	log := logger.FromContext(ctx)
 	def := client.GetDefinition()
 	status := client.GetStatus()
 
@@ -351,7 +357,7 @@ func (m *MCPClientManager) connectClient(ctx context.Context, client *MCPClient)
 			// Success
 			status.UpdateStatus(StatusConnected, "")
 			m.saveStatus(ctx, status)
-			logger.Info("MCP client connected", "name", def.Name, "attempt", attempt+1)
+			log.Info("MCP client connected", "name", def.Name, "attempt", attempt+1)
 			return
 		}
 
@@ -359,7 +365,7 @@ func (m *MCPClientManager) connectClient(ctx context.Context, client *MCPClient)
 		status.UpdateStatus(StatusError, err.Error())
 		m.saveStatus(ctx, status)
 
-		logger.Warn("MCP client connection failed",
+		log.Warn("MCP client connection failed",
 			"name", def.Name,
 			"attempt", attempt+1,
 			"maxRetries", maxRetries+1,
@@ -386,7 +392,7 @@ func (m *MCPClientManager) connectClient(ctx context.Context, client *MCPClient)
 	// All attempts failed
 	status.UpdateStatus(StatusError, "maximum connection attempts exceeded")
 	m.saveStatus(ctx, status)
-	logger.Error("MCP client connection failed permanently", "name", def.Name)
+	log.Error("MCP client connection failed permanently", "name", def.Name)
 }
 
 // healthMonitor runs periodic health checks on all clients
@@ -408,6 +414,7 @@ func (m *MCPClientManager) healthMonitor() {
 
 // performHealthChecks checks the health of all connected clients concurrently
 func (m *MCPClientManager) performHealthChecks() {
+	log := logger.FromContext(m.ctx)
 	// Get client list outside of individual health checks to avoid long lock
 	m.mu.RLock()
 	clientsCopy := make(map[string]*MCPClient)
@@ -462,7 +469,7 @@ func (m *MCPClientManager) performHealthChecks() {
 			status := client.GetStatus()
 
 			if err != nil {
-				logger.Warn("MCP client health check failed", "name", name, "error", err)
+				log.Warn("MCP client health check failed", "name", name, "error", err)
 				status.UpdateStatus(StatusError, fmt.Sprintf("health check failed: %v", err))
 
 				// Trigger reconnection if auto-reconnect is enabled
@@ -482,18 +489,19 @@ func (m *MCPClientManager) performHealthChecks() {
 
 	// Wait for all health checks to complete
 	if err := g.Wait(); err != nil {
-		logger.Error("Health check process interrupted", "error", err)
+		log.Error("Health check process interrupted", "error", err)
 	}
 }
 
 // triggerReconnection safely triggers reconnection for a client, preventing concurrent attempts
 func (m *MCPClientManager) triggerReconnection(client *MCPClient) {
+	log := logger.FromContext(m.ctx)
 	name := client.GetDefinition().Name
 
 	m.reconnectMu.Lock()
 	if m.reconnecting[name] {
 		m.reconnectMu.Unlock()
-		logger.Debug("Reconnection already in progress", "name", name)
+		log.Debug("Reconnection already in progress", "name", name)
 		return // Already reconnecting
 	}
 	m.reconnecting[name] = true
@@ -508,15 +516,16 @@ func (m *MCPClientManager) triggerReconnection(client *MCPClient) {
 			m.reconnectMu.Unlock()
 		}()
 
-		logger.Info("Starting automatic reconnection", "name", name)
+		log.Info("Starting automatic reconnection", "name", name)
 		m.connectClient(m.ctx, client)
 	}()
 }
 
 // saveStatus saves a client status to storage
 func (m *MCPClientManager) saveStatus(ctx context.Context, status *MCPStatus) {
+	log := logger.FromContext(ctx)
 	if err := m.storage.SaveStatus(ctx, status); err != nil {
-		logger.Error("Failed to save client status", "name", status.Name, "error", err)
+		log.Error("Failed to save client status", "name", status.Name, "error", err)
 	}
 }
 

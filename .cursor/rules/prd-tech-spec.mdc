@@ -1,11 +1,7 @@
 ---
 description: "Guides AI in creating detailed Technical Specification documents that complement PRDs, providing senior-level architectural guidance and implementation details for development teams"
-type: "agent-requested"
-category: "task-workflow"
-priority: "high"
+globs:
 alwaysApply: false
-triggers: ["technical specification", "tech spec", "architecture design", "PRD analysis", "implementation planning"]
-dependencies: ["architecture.mdc", "core-libraries.mdc", "testing-standards.mdc"]
 ---
 # Rule: Generating Technical Specification Documents
 
@@ -91,7 +87,6 @@ Focus on architecture and implementation details:
    - **Integration Testing:** Requirements for end-to-end testing scenarios
    - **Performance Testing:** Load and stress testing considerations if applicable
 9. **Monitoring & Observability:**
-   - **Logging:** Use `charmbracelet/log` via `pkg/logger` - structured logging with `logger.Info/Error/Debug`
    - **Security:** NEVER log sensitive data (passwords, tokens, PII)
    - **Metrics:** Application metrics and alerting strategies
    - **Tracing:** Distributed tracing requirements for complex workflows

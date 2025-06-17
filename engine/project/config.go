@@ -174,7 +174,7 @@ func (p *Config) Clone() (*Config, error) {
 	return core.DeepCopy(p)
 }
 
-func Load(cwd *core.PathCWD, path string, envFilePath string) (*Config, error) {
+func Load(ctx context.Context, cwd *core.PathCWD, path string, envFilePath string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err
@@ -191,7 +191,7 @@ func Load(cwd *core.PathCWD, path string, envFilePath string) (*Config, error) {
 		config.AutoLoad.SetDefaults()
 	}
 	// Load monitoring config with environment variable precedence
-	config.MonitoringConfig, err = monitoring.LoadWithEnv(config.MonitoringConfig)
+	config.MonitoringConfig, err = monitoring.LoadWithEnv(ctx, config.MonitoringConfig)
 	if err != nil {
 		return nil, err
 	}

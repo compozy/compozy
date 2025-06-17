@@ -37,27 +37,23 @@ func NewResourceLoader(client MCPClientInterface, mcpServer *server.MCPServer, n
 // Tools are filtered according to the provided toolFilter configuration (allow/block lists).
 // This method loads all tools at once (no pagination) and applies filtering before registration.
 func (rl *ResourceLoader) LoadTools(ctx context.Context, toolFilter *ToolFilter) error {
+	log := logger.FromContext(ctx)
 	tools, err := rl.client.ListTools(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list tools: %w", err)
 	}
-
-	logger.Info("Successfully listed tools", "name", rl.name, "count", len(tools))
-
-	// Create tool filter function
-	filterFunc := rl.createToolFilter(toolFilter)
-
+	log.Info("Successfully listed tools", "name", rl.name, "count", len(tools))
+	filterFunc := rl.createToolFilter(ctx, toolFilter)
 	addedCount := 0
 	for i := range tools {
 		tool := &tools[i]
 		if filterFunc(tool.Name) {
-			logger.Debug("Adding tool to proxy server", "name", rl.name, "tool", tool.Name)
+			log.Debug("Adding tool to proxy server", "name", rl.name, "tool", tool.Name)
 			rl.mcpServer.AddTool(*tool, rl.client.CallTool)
 			addedCount++
 		}
 	}
-
-	logger.Info("Successfully added filtered tools", "name", rl.name, "total", len(tools), "added", addedCount)
+	log.Info("Successfully added filtered tools", "name", rl.name, "total", len(tools), "added", addedCount)
 	return nil
 }
 
@@ -65,10 +61,11 @@ func (rl *ResourceLoader) LoadTools(ctx context.Context, toolFilter *ToolFilter)
 // Uses the generic loadResources function to handle pagination, concurrency, and error handling.
 // Each prompt is registered with its corresponding GetPrompt handler from the client.
 func (rl *ResourceLoader) LoadPrompts(ctx context.Context) error {
+	log := logger.FromContext(ctx)
 	return loadResources(ctx, rl.name, "prompts", rl.sem,
 		rl.client.ListPromptsWithCursor,
 		func(_ context.Context, prompt mcp.Prompt) error {
-			logger.Debug("Adding prompt to proxy server", "name", rl.name, "prompt", prompt.Name)
+			log.Debug("Adding prompt to proxy server", "name", rl.name, "prompt", prompt.Name)
 			rl.mcpServer.AddPrompt(prompt, rl.client.GetPrompt)
 			return nil
 		},
@@ -79,10 +76,11 @@ func (rl *ResourceLoader) LoadPrompts(ctx context.Context) error {
 // Uses the generic loadResources function to handle pagination, concurrency, and error handling.
 // Each resource is registered with a ReadResource handler that forwards requests to the client.
 func (rl *ResourceLoader) LoadResources(ctx context.Context) error {
+	log := logger.FromContext(ctx)
 	return loadResources(ctx, rl.name, "resources", rl.sem,
 		rl.client.ListResourcesWithCursor,
 		func(_ context.Context, resource mcp.Resource) error {
-			logger.Debug("Adding resource to proxy server", "name", rl.name, "resource", resource.URI)
+			log.Debug("Adding resource to proxy server", "name", rl.name, "resource", resource.URI)
 			rl.mcpServer.AddResource(
 				resource,
 				func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
@@ -102,10 +100,11 @@ func (rl *ResourceLoader) LoadResources(ctx context.Context) error {
 // Uses the generic loadResources function to handle pagination, concurrency, and error handling.
 // Each template is registered with a ReadResource handler that forwards requests to the client.
 func (rl *ResourceLoader) LoadResourceTemplates(ctx context.Context) error {
+	log := logger.FromContext(ctx)
 	return loadResources(ctx, rl.name, "resource templates", rl.sem,
 		rl.client.ListResourceTemplatesWithCursor,
 		func(_ context.Context, template mcp.ResourceTemplate) error {
-			logger.Debug("Adding resource template to proxy server", "name", rl.name, "template", template.Name)
+			log.Debug("Adding resource template to proxy server", "name", rl.name, "template", template.Name)
 			rl.mcpServer.AddResourceTemplate(
 				template,
 				func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
@@ -155,13 +154,15 @@ func fetchBatch[T any](
 }
 
 // logBatchProgress logs progress information for a batch of resources
-func logBatchProgress[T any](name, resourceType, cursor string, items []T) {
-	logger.Debug("Listed batch", "name", name, "type", resourceType, "count", len(items), "cursor", cursor)
+func logBatchProgress[T any](ctx context.Context, name, resourceType, cursor string, items []T) {
+	log := logger.FromContext(ctx)
+	log.Debug("Listed batch", "name", name, "type", resourceType, "count", len(items), "cursor", cursor)
 }
 
 // logCompletionSummary logs the final summary when all resources are loaded
-func logCompletionSummary(name, resourceType string, totalCount int) {
-	logger.Info("Successfully added all resources", "name", name, "type", resourceType, "total", totalCount)
+func logCompletionSummary(ctx context.Context, name, resourceType string, totalCount int) {
+	log := logger.FromContext(ctx)
+	log.Info("Successfully added all resources", "name", name, "type", resourceType, "total", totalCount)
 }
 
 // loadResources is a generic function to handle paginated resource loading with bounded concurrency.
@@ -191,7 +192,7 @@ func loadResources[T any](
 			break
 		}
 		totalCount += len(items)
-		logBatchProgress(name, resourceType, cursor, items)
+		logBatchProgress(ctx, name, resourceType, cursor, items)
 		if err := processBatch(ctx, items, sem, addFn); err != nil {
 			return fmt.Errorf("failed to add %s: %w", resourceType, err)
 		}
@@ -200,14 +201,15 @@ func loadResources[T any](
 		}
 		cursor = nextCursor
 	}
-	logCompletionSummary(name, resourceType, totalCount)
+	logCompletionSummary(ctx, name, resourceType, totalCount)
 	return nil
 }
 
 // createToolFilter creates a tool filtering function based on the provided configuration.
 // Returns a function that evaluates whether a tool should be included based on allow/block lists.
 // If no filter is configured, all tools are allowed. The function logs filtering decisions for debugging.
-func (rl *ResourceLoader) createToolFilter(filter *ToolFilter) func(string) bool {
+func (rl *ResourceLoader) createToolFilter(ctx context.Context, filter *ToolFilter) func(string) bool {
+	log := logger.FromContext(ctx)
 	if filter == nil || len(filter.List) == 0 {
 		return func(_ string) bool { return true }
 	}
@@ -222,7 +224,7 @@ func (rl *ResourceLoader) createToolFilter(filter *ToolFilter) func(string) bool
 		return func(toolName string) bool {
 			_, inList := filterSet[toolName]
 			if !inList {
-				logger.Debug("Tool filtered out by allow list", "client", rl.name, "tool", toolName)
+				log.Debug("Tool filtered out by allow list", "client", rl.name, "tool", toolName)
 			}
 			return inList
 		}
@@ -230,12 +232,12 @@ func (rl *ResourceLoader) createToolFilter(filter *ToolFilter) func(string) bool
 		return func(toolName string) bool {
 			_, inList := filterSet[toolName]
 			if inList {
-				logger.Debug("Tool filtered out by block list", "client", rl.name, "tool", toolName)
+				log.Debug("Tool filtered out by block list", "client", rl.name, "tool", toolName)
 			}
 			return !inList
 		}
 	default:
-		logger.Warn("Unknown tool filter mode, allowing all tools", "client", rl.name, "mode", filter.Mode)
+		log.Warn("Unknown tool filter mode, allowing all tools", "client", rl.name, "mode", filter.Mode)
 		return func(_ string) bool { return true }
 	}
 }

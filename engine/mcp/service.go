@@ -53,12 +53,13 @@ func (s *RegisterService) Ensure(ctx context.Context, config *Config) error {
 
 // Deregister removes an MCP from the proxy
 func (s *RegisterService) Deregister(ctx context.Context, mcpID string) error {
+	log := logger.FromContext(ctx)
 	// Deregister from proxy
 	if err := s.proxy.Deregister(ctx, mcpID); err != nil {
 		return fmt.Errorf("failed to deregister MCP from proxy: %w", err)
 	}
 
-	logger.Info("Successfully deregistered MCP from proxy", "mcp_id", mcpID)
+	log.Info("Successfully deregistered MCP from proxy", "mcp_id", mcpID)
 	return nil
 }
 
@@ -91,28 +92,29 @@ func (s *RegisterService) ListRegistered(ctx context.Context) ([]string, error) 
 
 // Shutdown deregisters all MCPs and cleans up resources
 func (s *RegisterService) Shutdown(ctx context.Context) error {
-	logger.Info("Shutting down MCP register, deregistering all MCPs")
+	log := logger.FromContext(ctx)
+	log.Info("Shutting down MCP register, deregistering all MCPs")
 	mcpIDs, err := s.ListRegistered(ctx)
 	if err != nil {
-		logger.Error("Failed to get registered MCPs for shutdown", "error", err)
+		log.Error("Failed to get registered MCPs for shutdown", "error", err)
 		return fmt.Errorf("failed to get registered MCPs: %w", err)
 	}
 	if len(mcpIDs) == 0 {
-		logger.Info("No MCPs to deregister during shutdown")
+		log.Info("No MCPs to deregister during shutdown")
 		return nil
 	}
-	logger.Info("Found MCPs to deregister", "count", len(mcpIDs))
+	log.Info("Found MCPs to deregister", "count", len(mcpIDs))
 	// Use errgroup for concurrent deregistration
 	g, gCtx := errgroup.WithContext(ctx)
 	for _, mcpID := range mcpIDs {
 		mcpID := mcpID // capture loop variable
 		g.Go(func() error {
 			if err := s.proxy.Deregister(gCtx, mcpID); err != nil {
-				logger.Error("Failed to deregister MCP during shutdown",
+				log.Error("Failed to deregister MCP during shutdown",
 					"mcp_id", mcpID, "error", err)
 				return fmt.Errorf("failed to deregister %s: %w", mcpID, err)
 			}
-			logger.Debug("Deregistered MCP during shutdown", "mcp_id", mcpID)
+			log.Debug("Deregistered MCP during shutdown", "mcp_id", mcpID)
 			return nil
 		})
 	}
@@ -121,23 +123,25 @@ func (s *RegisterService) Shutdown(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("shutdown failed: %w", err)
 	}
-	logger.Info("MCP register shutdown completed successfully")
+	log.Info("MCP register shutdown completed successfully")
 	return nil
 }
 
 // HealthCheck verifies the proxy connection
 func (s *RegisterService) HealthCheck(ctx context.Context) error {
+	log := logger.FromContext(ctx)
 	// Check proxy health
 	if err := s.proxy.Health(ctx); err != nil {
 		return fmt.Errorf("proxy health check failed: %w", err)
 	}
-	logger.Debug("MCP register health check passed")
+	log.Debug("MCP register health check passed")
 	return nil
 }
 
 // SyncWithProxy is no longer needed since we always use proxy as source of truth
-func (s *RegisterService) SyncWithProxy(_ context.Context) error {
-	logger.Debug("Registry synchronized with proxy")
+func (s *RegisterService) SyncWithProxy(ctx context.Context) error {
+	log := logger.FromContext(ctx)
+	log.Debug("Registry synchronized with proxy")
 	return nil
 }
 
@@ -219,10 +223,11 @@ func parseCommand(command string) ([]string, error) {
 
 // EnsureMultiple registers multiple MCPs in parallel with error handling
 func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) error {
+	log := logger.FromContext(ctx)
 	if len(configs) == 0 {
 		return nil
 	}
-	logger.Info("Registering multiple MCPs with proxy", "count", len(configs))
+	log.Info("Registering multiple MCPs with proxy", "count", len(configs))
 	// Use a worker pool for concurrent registration
 	type result struct {
 		mcpID string
@@ -253,7 +258,7 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 		select {
 		case res := <-results:
 			if res.err != nil {
-				logger.Error("Failed to register MCP", "mcp_id", res.mcpID, "error", res.err)
+				log.Error("Failed to register MCP", "mcp_id", res.mcpID, "error", res.err)
 				errs = append(errs, fmt.Errorf("MCP %s: %w", res.mcpID, res.err))
 			} else {
 				successCount++
@@ -262,7 +267,7 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 			return fmt.Errorf("registration canceled: %w", ctx.Err())
 		}
 	}
-	logger.Info("MCP registration completed",
+	log.Info("MCP registration completed",
 		"total", len(configs),
 		"successful", successCount,
 		"failed", len(errs))
@@ -280,6 +285,7 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 // SetupForWorkflows creates and initializes an MCP RegisterService for the given workflows
 // Returns nil if MCP_PROXY_URL is not configured
 func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*RegisterService, error) {
+	log := logger.FromContext(ctx)
 	proxyURL := os.Getenv("MCP_PROXY_URL")
 	if proxyURL == "" {
 		return nil, nil // No proxy configured
@@ -288,17 +294,17 @@ func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*Regist
 	adminToken := os.Getenv("MCP_PROXY_ADMIN_TOKEN")
 	timeout := 30 * time.Second
 	service := NewWithTimeout(proxyURL, adminToken, timeout)
-	logger.Info("Initialized MCP register with proxy", "proxy_url", proxyURL)
+	log.Info("Initialized MCP register with proxy", "proxy_url", proxyURL)
 
 	// Collect all MCPs from all workflows and register them at startup
 	allMCPs := CollectWorkflowMCPs(workflows)
 	if len(allMCPs) > 0 {
-		logger.Info("Registering MCPs at server startup", "mcp_count", len(allMCPs))
+		log.Info("Registering MCPs at server startup", "mcp_count", len(allMCPs))
 		if err := service.EnsureMultiple(ctx, allMCPs); err != nil {
-			logger.Error("Failed to register some MCPs with proxy at startup", "error", err)
+			log.Error("Failed to register some MCPs with proxy at startup", "error", err)
 			// Don't fail server startup if MCP registration fails
 		} else {
-			logger.Info("Successfully registered all MCPs at server startup", "count", len(allMCPs))
+			log.Info("Successfully registered all MCPs at server startup", "count", len(allMCPs))
 		}
 	}
 

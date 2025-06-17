@@ -37,7 +37,7 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Initialize temporal interceptor to register metrics
-		_ = env.monitoring.TemporalInterceptor()
+		_ = env.monitoring.TemporalInterceptor(t.Context())
 		// Generate HTTP metrics
 		resp, err := env.MakeRequest("GET", "/api/v1/health")
 		require.NoError(t, err)

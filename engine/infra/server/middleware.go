@@ -8,19 +8,16 @@ import (
 )
 
 // LoggerMiddleware logs HTTP request details.
-func LoggerMiddleware() gin.HandlerFunc {
+func LoggerMiddleware(log logger.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
 		raw := c.Request.URL.RawQuery
-
 		c.Next()
-
 		param := gin.LogFormatterParams{
 			Request: c.Request,
 			Keys:    c.Keys,
 		}
-
 		param.TimeStamp = time.Now()
 		param.Latency = param.TimeStamp.Sub(start)
 		param.ClientIP = c.ClientIP()
@@ -28,13 +25,13 @@ func LoggerMiddleware() gin.HandlerFunc {
 		param.StatusCode = c.Writer.Status()
 		param.ErrorMessage = c.Errors.ByType(gin.ErrorTypePrivate).String()
 		param.BodySize = c.Writer.Size()
-
 		if raw != "" {
 			path = path + "?" + raw
 		}
 		param.Path = path
-
-		logger.Info("Request completed",
+		ctx := logger.ContextWithLogger(c.Request.Context(), log)
+		log := logger.FromContext(ctx)
+		log.Info("Request completed",
 			"timestamp", param.TimeStamp.Format(time.RFC3339),
 			"latency", param.Latency,
 			"client_ip", param.ClientIP,

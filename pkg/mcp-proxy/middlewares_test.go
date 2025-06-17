@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -52,85 +53,123 @@ func TestCombineAuthTokens(t *testing.T) {
 
 func TestNewAuthMiddleware(t *testing.T) {
 	t.Run("Should accept valid Bearer token", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+
 		middleware := newAuthMiddleware([]string{"valid-token"})
-		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
 		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req.Header.Set("Authorization", "Bearer valid-token")
-		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusOK, w.Code)
+		c.Request = req
+
+		middleware(c)
+
+		assert.False(t, c.IsAborted())
 	})
 
 	t.Run("Should accept case-insensitive Bearer token", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+
 		middleware := newAuthMiddleware([]string{"valid-token"})
-		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
 		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req.Header.Set("Authorization", "bearer valid-token")
-		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusOK, w.Code)
+		c.Request = req
+
+		middleware(c)
+
+		assert.False(t, c.IsAborted())
 	})
 
 	t.Run("Should accept mixed case Bearer token", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+
 		middleware := newAuthMiddleware([]string{"valid-token"})
-		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
 		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req.Header.Set("Authorization", "BeArEr valid-token")
-		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusOK, w.Code)
+		c.Request = req
+
+		middleware(c)
+
+		assert.False(t, c.IsAborted())
 	})
 
 	t.Run("Should reject invalid token", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+
 		middleware := newAuthMiddleware([]string{"valid-token"})
-		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
 		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req.Header.Set("Authorization", "Bearer invalid-token")
-		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
+		c.Request = req
+
+		middleware(c)
+
+		assert.True(t, c.IsAborted())
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
 	t.Run("Should reject missing authorization header", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+
 		middleware := newAuthMiddleware([]string{"valid-token"})
-		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
-		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+
 		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
+		c, _ := gin.CreateTestContext(w)
+
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+		c.Request = req
+
+		middleware(c)
+
+		assert.True(t, c.IsAborted())
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
 	t.Run("Should reject non-Bearer authorization", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+
 		middleware := newAuthMiddleware([]string{"valid-token"})
-		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
 		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
-		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
+		c.Request = req
+
+		middleware(c)
+
+		assert.True(t, c.IsAborted())
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
 	t.Run("Should skip empty tokens during initialization", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+
 		middleware := newAuthMiddleware([]string{"valid-token", "", "another-token"})
-		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
 		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req.Header.Set("Authorization", "Bearer another-token")
-		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusOK, w.Code)
+		c.Request = req
+
+		middleware(c)
+
+		assert.False(t, c.IsAborted())
 	})
 }

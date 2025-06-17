@@ -6,15 +6,10 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tmc/langchaingo/llms"
 )
-
-func init() {
-	logger.InitForTests()
-}
 
 func TestLangChainAdapter_ConvertMessages(t *testing.T) {
 	adapter := &LangChainAdapter{}

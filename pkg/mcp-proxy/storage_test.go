@@ -40,7 +40,6 @@ func setupTestRedis(t *testing.T) (*RedisStorage, func()) {
 // createTestDefinition is now defined in test_helpers.go
 
 func TestNewRedisStorage(t *testing.T) {
-	initLogger(t)
 	t.Run("With config", func(t *testing.T) {
 		// Create miniredis instance for testing
 		mr := miniredis.RunT(t)
@@ -77,7 +76,6 @@ func TestNewRedisStorage(t *testing.T) {
 }
 
 func TestDefaultRedisConfig(t *testing.T) {
-	initLogger(t)
 	config := DefaultRedisConfig()
 
 	assert.Equal(t, "localhost:6379", config.Addr)
@@ -92,7 +90,6 @@ func TestDefaultRedisConfig(t *testing.T) {
 }
 
 func TestRedisStorage_Ping(t *testing.T) {
-	initLogger(t)
 	storage, cleanup := setupTestRedis(t)
 	defer cleanup()
 
@@ -102,7 +99,6 @@ func TestRedisStorage_Ping(t *testing.T) {
 }
 
 func TestRedisStorage_SaveMCP(t *testing.T) {
-	initLogger(t)
 	storage, cleanup := setupTestRedis(t)
 	defer cleanup()
 
@@ -134,7 +130,6 @@ func TestRedisStorage_SaveMCP(t *testing.T) {
 }
 
 func TestRedisStorage_LoadMCP(t *testing.T) {
-	initLogger(t)
 	storage, cleanup := setupTestRedis(t)
 	defer cleanup()
 
@@ -173,7 +168,6 @@ func TestRedisStorage_LoadMCP(t *testing.T) {
 }
 
 func TestRedisStorage_DeleteMCP(t *testing.T) {
-	initLogger(t)
 	storage, cleanup := setupTestRedis(t)
 	defer cleanup()
 
@@ -210,7 +204,6 @@ func TestRedisStorage_DeleteMCP(t *testing.T) {
 }
 
 func TestRedisStorage_ListMCPs(t *testing.T) {
-	initLogger(t)
 	storage, cleanup := setupTestRedis(t)
 	defer cleanup()
 
@@ -252,7 +245,6 @@ func TestRedisStorage_ListMCPs(t *testing.T) {
 }
 
 func TestRedisStorage_SaveStatus(t *testing.T) {
-	initLogger(t)
 	storage, cleanup := setupTestRedis(t)
 	defer cleanup()
 
@@ -282,7 +274,6 @@ func TestRedisStorage_SaveStatus(t *testing.T) {
 }
 
 func TestRedisStorage_LoadStatus(t *testing.T) {
-	initLogger(t)
 	storage, cleanup := setupTestRedis(t)
 	defer cleanup()
 
@@ -325,7 +316,6 @@ func TestRedisStorage_LoadStatus(t *testing.T) {
 }
 
 func TestRedisStorage_KeyMethods(t *testing.T) {
-	initLogger(t)
 	storage, cleanup := setupTestRedis(t)
 	defer cleanup()
 
@@ -352,7 +342,6 @@ func TestRedisStorage_KeyMethods(t *testing.T) {
 }
 
 func TestRedisStorage_Health(t *testing.T) {
-	initLogger(t)
 	storage, cleanup := setupTestRedis(t)
 	defer cleanup()
 
@@ -363,7 +352,6 @@ func TestRedisStorage_Health(t *testing.T) {
 }
 
 func TestRedisStorage_Stats(t *testing.T) {
-	initLogger(t)
 	storage, cleanup := setupTestRedis(t)
 	defer cleanup()
 
@@ -372,7 +360,6 @@ func TestRedisStorage_Stats(t *testing.T) {
 }
 
 func TestRedisStorage_Integration(t *testing.T) {
-	initLogger(t)
 	storage, cleanup := setupTestRedis(t)
 	defer cleanup()
 

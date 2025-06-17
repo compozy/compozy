@@ -172,7 +172,8 @@ func createStreamableHTTPMCPClient(def *MCPDefinition) (*mcpclient.Client, bool,
 
 // Connect establishes connection to the MCP server
 func (c *MCPClient) Connect(ctx context.Context) error {
-	logger.Info("Connecting to MCP server", "transport", c.definition.Transport)
+	log := logger.FromContext(ctx)
+	log.Info("Connecting to MCP server", "transport", c.definition.Transport)
 
 	// Check if already connected (without lock to avoid deadlock)
 	c.mu.RLock()
@@ -196,7 +197,7 @@ func (c *MCPClient) Connect(ctx context.Context) error {
 		// Clean up the started client if initialization fails
 		if c.needManualStart {
 			if closeErr := c.mcpClient.Close(); closeErr != nil {
-				logger.Error("Failed to close client after initialization failure", "error", closeErr)
+				log.Error("Failed to close client after initialization failure", "error", closeErr)
 			}
 		}
 		c.updateStatus(StatusError, fmt.Sprintf("failed to initialize: %v", err))
@@ -215,13 +216,14 @@ func (c *MCPClient) Connect(ctx context.Context) error {
 		go c.startPingRoutine(c.managerCtx)
 	}
 
-	logger.Info("Successfully connected to MCP server")
+	log.Info("Successfully connected to MCP server")
 	return nil
 }
 
 // Disconnect closes the connection to the MCP server
-func (c *MCPClient) Disconnect(_ context.Context) error {
-	logger.Info("Disconnecting from MCP server")
+func (c *MCPClient) Disconnect(ctx context.Context) error {
+	log := logger.FromContext(ctx)
+	log.Info("Disconnecting from MCP server")
 
 	// Check if already disconnected (without lock to avoid deadlock)
 	c.mu.RLock()
@@ -243,13 +245,13 @@ func (c *MCPClient) Disconnect(_ context.Context) error {
 		case <-c.pingDone:
 			// Ping routine already finished
 		case <-time.After(5 * time.Second):
-			logger.Warn("Timeout waiting for ping routine to finish")
+			log.Warn("Timeout waiting for ping routine to finish")
 		}
 	}
 
 	// Close the MCP client - no lock held during network operation
 	if err := c.mcpClient.Close(); err != nil {
-		logger.Error("Error closing MCP client", "error", err)
+		log.Error("Error closing MCP client", "error", err)
 	}
 
 	// Update remaining state under lock
@@ -258,7 +260,7 @@ func (c *MCPClient) Disconnect(_ context.Context) error {
 	c.status.UpdateStatus(StatusDisconnected, "")
 	c.mu.Unlock()
 
-	logger.Info("Disconnected from MCP server")
+	log.Info("Disconnected from MCP server")
 	return nil
 }
 
@@ -302,6 +304,7 @@ func (c *MCPClient) Health(ctx context.Context) error {
 
 // initializeMCP performs the MCP initialization handshake
 func (c *MCPClient) initializeMCP(ctx context.Context) error {
+	log := logger.FromContext(ctx)
 	initRequest := mcp.InitializeRequest{}
 	initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
 	initRequest.Params.ClientInfo = mcp.Implementation{
@@ -319,13 +322,14 @@ func (c *MCPClient) initializeMCP(ctx context.Context) error {
 		return fmt.Errorf("MCP initialization failed: %w", err)
 	}
 
-	logger.Info("MCP client initialized successfully")
+	log.Info("MCP client initialized successfully")
 	return nil
 }
 
 // startPingRoutine starts a background ping routine for connection health
 func (c *MCPClient) startPingRoutine(ctx context.Context) {
-	logger.Debug("Starting ping routine")
+	log := logger.FromContext(ctx)
+	log.Debug("Starting ping routine")
 	defer close(c.pingDone) // Signal completion when routine exits
 
 	ticker := time.NewTicker(30 * time.Second)
@@ -334,11 +338,11 @@ func (c *MCPClient) startPingRoutine(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Debug("Context canceled, stopping ping routine")
+			log.Debug("Context canceled, stopping ping routine")
 			return
 		case <-ticker.C:
 			if !c.IsConnected() {
-				logger.Debug("Client disconnected, stopping ping routine")
+				log.Debug("Client disconnected, stopping ping routine")
 				return
 			}
 
@@ -347,7 +351,7 @@ func (c *MCPClient) startPingRoutine(ctx context.Context) {
 			cancel()
 
 			if err != nil {
-				logger.Warn("Ping failed", "error", err)
+				log.Warn("Ping failed", "error", err)
 				c.updateStatus(StatusError, fmt.Sprintf("ping failed: %v", err))
 			}
 		}

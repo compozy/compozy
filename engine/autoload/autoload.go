@@ -3,7 +3,6 @@ package autoload
 import (
 	"context"
 	"errors"
-	"fmt"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -65,29 +64,16 @@ type ErrorSummary struct {
 
 // Load discovers and loads all configuration files
 func (al *AutoLoader) Load(ctx context.Context) error {
-	logger.Info("Starting AutoLoad", "project_root", al.projectRoot, "enabled", al.config.Enabled)
+	log := logger.FromContext(ctx)
+	log.Info("Starting AutoLoad", "project_root", al.projectRoot, "enabled", al.config.Enabled)
 	result, err := al.LoadWithResult(ctx)
 	if err != nil {
-		logger.Error("AutoLoad failed", "error", err, "files_processed", result.FilesProcessed)
+		log.Error("AutoLoad failed", "error", err, "files_processed", result.FilesProcessed)
 		return err
 	}
 
-	// Log final summary with performance info
-	if result.FilesProcessed > 0 {
-		logger.Info("AutoLoad completed successfully",
-			"files_processed", result.FilesProcessed,
-			"configs_loaded", result.ConfigsLoaded,
-			"errors", len(result.Errors),
-			"success_rate_percent", float64(result.ConfigsLoaded)/float64(result.FilesProcessed)*100)
-	} else {
-		logger.Info("AutoLoad completed successfully",
-			"files_processed", result.FilesProcessed,
-			"configs_loaded", result.ConfigsLoaded,
-			"errors", len(result.Errors))
-	}
-
 	if len(result.Errors) > 0 && !al.config.Strict {
-		logger.Warn("Some files failed to load but were skipped (non-strict mode)", "failed_count", len(result.Errors))
+		log.Warn("Some files failed to load but were skipped (non-strict mode)", "failed_count", len(result.Errors))
 	}
 
 	return nil
@@ -95,21 +81,22 @@ func (al *AutoLoader) Load(ctx context.Context) error {
 
 // LoadWithResult discovers and loads all configuration files, returning detailed results
 func (al *AutoLoader) LoadWithResult(ctx context.Context) (*LoadResult, error) {
+	log := logger.FromContext(ctx)
 	startTime := time.Now()
 	result := &LoadResult{
 		Errors:       make([]LoadError, 0),
 		ErrorSummary: &ErrorSummary{ByFile: make(map[string]int)},
 	}
 	if !al.config.Enabled {
-		logger.Debug("AutoLoad disabled, skipping discovery")
+		log.Debug("AutoLoad disabled, skipping discovery")
 		return result, nil
 	}
-	files, err := al.discoverFiles()
+	files, err := al.discoverFiles(ctx)
 	if err != nil {
 		return result, err
 	}
 	if len(files) == 0 {
-		logger.Warn(
+		log.Warn(
 			"No configuration files found matching patterns",
 			"include_patterns",
 			al.config.Include,
@@ -123,23 +110,16 @@ func (al *AutoLoader) LoadWithResult(ctx context.Context) (*LoadResult, error) {
 	}
 	// 3. Install lazy resolver for resource:: scope
 	// TODO: Implement in resource resolution task
-	al.logCompletionStats(startTime, result)
+	al.logCompletionStats(ctx, startTime, result)
 	return result, nil
 }
 
 // discoverFiles handles file discovery and returns the list of files to process
-func (al *AutoLoader) discoverFiles() ([]string, error) {
-	logger.Debug(
-		"Starting file discovery",
-		"include_patterns",
-		al.config.Include,
-		"exclude_patterns",
-		al.config.Exclude,
-	)
-	discoveryStart := time.Now()
+func (al *AutoLoader) discoverFiles(ctx context.Context) ([]string, error) {
+	log := logger.FromContext(ctx)
 	files, err := al.discoverer.Discover(al.config.Include, al.config.Exclude)
 	if err != nil {
-		logger.Error(
+		log.Error(
 			"File discovery failed",
 			"error",
 			err,
@@ -155,16 +135,6 @@ func (al *AutoLoader) discoverFiles() ([]string, error) {
 			"suggestion":       "Check that include patterns are valid glob patterns and target files exist",
 		})
 	}
-	discoveryDuration := time.Since(discoveryStart)
-	logger.Info(
-		"Discovered configuration files",
-		"count",
-		len(files),
-		"patterns",
-		al.config.Include,
-		"discovery_time",
-		discoveryDuration,
-	)
 	return files, nil
 }
 
@@ -178,32 +148,31 @@ func (al *AutoLoader) processFiles(ctx context.Context, files []string, result *
 			// Continue processing
 		}
 		result.FilesProcessed++
-		logger.Debug(
-			"Processing config file",
-			"file",
-			file,
-			"progress",
-			fmt.Sprintf("%d/%d", result.FilesProcessed, len(files)),
-		)
-		if err := al.loadAndRegisterConfig(file); err != nil {
-			if err := al.handleLoadError(file, err, result, len(files)); err != nil {
+		if err := al.loadAndRegisterConfig(ctx, file); err != nil {
+			if err := al.handleLoadError(ctx, file, err, result, len(files)); err != nil {
 				return err
 			}
 		} else {
 			result.ConfigsLoaded++
-			logger.Debug("Successfully loaded and registered config", "file", file, "configs_loaded", result.ConfigsLoaded)
 		}
 	}
 	return nil
 }
 
 // handleLoadError handles errors during file loading
-func (al *AutoLoader) handleLoadError(file string, err error, result *LoadResult, totalFiles int) error {
+func (al *AutoLoader) handleLoadError(
+	ctx context.Context,
+	file string,
+	err error,
+	result *LoadResult,
+	totalFiles int,
+) error {
+	log := logger.FromContext(ctx)
 	loadErr := LoadError{File: file, Error: err}
 	result.Errors = append(result.Errors, loadErr)
 	al.categorizeError(err, result.ErrorSummary, file)
 	if al.config.Strict {
-		logger.Error("Failed to load config file in strict mode", "file", file, "error", err)
+		log.Error("Failed to load config file in strict mode", "file", file, "error", err)
 		return core.NewError(err, "AUTOLOAD_FILE_FAILED", map[string]any{
 			"file":             file,
 			"total_files":      totalFiles,
@@ -211,20 +180,21 @@ func (al *AutoLoader) handleLoadError(file string, err error, result *LoadResult
 			"suggestion":       "Fix the configuration file syntax or set strict=false to skip invalid files",
 		})
 	}
-	logger.Warn("Skipping invalid config file (non-strict mode)", "file", file, "error", err)
+	log.Warn("Skipping invalid config file (non-strict mode)", "file", file, "error", err)
 	return nil
 }
 
 // logCompletionStats logs completion statistics
-func (al *AutoLoader) logCompletionStats(startTime time.Time, result *LoadResult) {
+func (al *AutoLoader) logCompletionStats(ctx context.Context, startTime time.Time, result *LoadResult) {
+	log := logger.FromContext(ctx)
 	totalDuration := time.Since(startTime)
 	if result.FilesProcessed > 0 && totalDuration > 0 {
-		logger.Info("AutoLoad processing completed",
+		log.Info("AutoLoad processing completed",
 			"total_time_ms", totalDuration.Milliseconds(),
 			"files_per_second", float64(result.FilesProcessed)/totalDuration.Seconds(),
 			"avg_time_per_file_ms", float64(totalDuration.Milliseconds())/float64(result.FilesProcessed))
 	} else {
-		logger.Info("AutoLoad processing completed",
+		log.Info("AutoLoad processing completed",
 			"total_time_ms", totalDuration.Milliseconds())
 	}
 }
@@ -287,7 +257,8 @@ func (al *AutoLoader) Validate(ctx context.Context) (*LoadResult, error) {
 }
 
 // loadAndRegisterConfig loads a configuration file and registers it in the registry
-func (al *AutoLoader) loadAndRegisterConfig(filePath string) error {
+func (al *AutoLoader) loadAndRegisterConfig(ctx context.Context, filePath string) error {
+	log := logger.FromContext(ctx)
 	// Security: Verify the file path doesn't escape the project root
 	if err := al.validateFilePath(filePath); err != nil {
 		return err
@@ -295,7 +266,7 @@ func (al *AutoLoader) loadAndRegisterConfig(filePath string) error {
 	// First, load the file as a map to determine the resource type
 	configMap, err := core.MapFromFilePath(filePath)
 	if err != nil {
-		logger.Error("Failed to parse config file", "file", filePath, "error", err)
+		log.Error("Failed to parse config file", "file", filePath, "error", err)
 		return core.NewError(err, "PARSE_ERROR", map[string]any{
 			"file":       filePath,
 			"suggestion": "Check YAML/JSON syntax and file format",

@@ -1,6 +1,7 @@
 package monitoring
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -44,10 +45,9 @@ func (c *Config) Validate() error {
 
 // LoadWithEnv creates a monitoring config with environment variable precedence
 // Environment variables take precedence over the provided config values
-func LoadWithEnv(yamlConfig *Config) (*Config, error) {
-	// Start with defaults if no config provided
+func LoadWithEnv(ctx context.Context, yamlConfig *Config) (*Config, error) {
+	log := logger.FromContext(ctx)
 	config := DefaultConfig()
-	// Apply YAML config if provided
 	if yamlConfig != nil {
 		config.Enabled = yamlConfig.Enabled
 		if yamlConfig.Path != "" {
@@ -58,7 +58,7 @@ func LoadWithEnv(yamlConfig *Config) (*Config, error) {
 	if envEnabled := os.Getenv("MONITORING_ENABLED"); envEnabled != "" {
 		enabled, err := strconv.ParseBool(envEnabled)
 		if err != nil {
-			logger.Error("Invalid MONITORING_ENABLED value", "value", envEnabled, "error", err)
+			log.Error("Invalid MONITORING_ENABLED value", "value", envEnabled, "error", err)
 		} else {
 			config.Enabled = enabled
 		}

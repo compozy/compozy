@@ -15,7 +15,7 @@ import (
 
 func TestSystemMetrics(t *testing.T) {
 	t.Run("Should initialize build info gauge", func(t *testing.T) {
-		resetSystemMetrics()
+		resetSystemMetrics(t.Context())
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
@@ -53,7 +53,7 @@ func TestSystemMetrics(t *testing.T) {
 		assert.True(t, buildInfoFound, "compozy_build_info metric not found")
 	})
 	t.Run("Should initialize uptime gauge", func(t *testing.T) {
-		resetSystemMetrics()
+		resetSystemMetrics(t.Context())
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
@@ -83,7 +83,7 @@ func TestSystemMetrics(t *testing.T) {
 		assert.True(t, uptimeFound, "compozy_uptime_seconds metric not found")
 	})
 	t.Run("Should have monotonic uptime", func(t *testing.T) {
-		resetSystemMetrics()
+		resetSystemMetrics(t.Context())
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
@@ -143,7 +143,7 @@ func TestBuildInfoExtraction(t *testing.T) {
 
 func TestSystemMetricsIdempotency(t *testing.T) {
 	t.Run("Should handle multiple initializations safely", func(t *testing.T) {
-		resetSystemMetrics()
+		resetSystemMetrics(t.Context())
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
@@ -177,7 +177,7 @@ func TestSystemMetricsIdempotency(t *testing.T) {
 
 func TestLabelValidation(t *testing.T) {
 	t.Run("Should only use allowed labels", func(t *testing.T) {
-		resetSystemMetrics()
+		resetSystemMetrics(t.Context())
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
@@ -241,7 +241,7 @@ func TestSpecialCharactersInVersion(t *testing.T) {
 		meter := provider.Meter("test")
 		ctx := context.Background()
 		// Reset metrics for clean test
-		resetSystemMetrics()
+		resetSystemMetrics(t.Context())
 		InitSystemMetrics(ctx, meter)
 		var rm metricdata.ResourceMetrics
 		err := reader.Collect(ctx, &rm)

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
-	utils "github.com/compozy/compozy/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,9 +21,6 @@ import (
 // TestToolAPIEndpointsIntegration tests the tool API endpoints structure and validation
 func TestToolAPIEndpointsIntegration(t *testing.T) {
 	t.Run("Should handle tool listing endpoint structure", func(t *testing.T) {
-		// Initialize logger for tests
-		utils.InitLogger(t)
-
 		// Create memory storage
 		storage := mcpproxy.NewMemoryStorage()
 
@@ -61,7 +57,6 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 	})
 
 	t.Run("Should handle non-existent MCP in tool call", func(t *testing.T) {
-		utils.InitLogger(t)
 		storage := mcpproxy.NewMemoryStorage()
 		clientManager := mcpproxy.NewMockClientManager()
 
@@ -100,7 +95,6 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 	})
 
 	t.Run("Should validate tool call input", func(t *testing.T) {
-		utils.InitLogger(t)
 		storage := mcpproxy.NewMemoryStorage()
 		clientManager := mcpproxy.NewMockClientManager()
 
@@ -156,7 +150,6 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 	})
 
 	t.Run("Should require authentication for tool endpoints", func(t *testing.T) {
-		utils.InitLogger(t)
 		storage := mcpproxy.NewMemoryStorage()
 		clientManager := mcpproxy.NewMockClientManager()
 

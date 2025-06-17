@@ -22,7 +22,8 @@ func GetAppState(c *gin.Context) *appstate.State {
 			"failed to get application state",
 			err,
 		)
-		logger.Error("Failed to get app state", "error", err)
+		log := logger.FromContext(c.Request.Context())
+		log.Error("Failed to get app state", "error", err)
 		RespondWithError(c, reqErr.StatusCode, reqErr)
 		return nil
 	}

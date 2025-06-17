@@ -63,6 +63,7 @@ func (uc *ExecuteTask) executeAgent(
 	actionID string,
 	taskWith *core.Input,
 ) (*core.Output, error) {
+	log := logger.FromContext(ctx)
 	actionConfig, err := agent.FindActionConfig(agentConfig.Actions, actionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find action config: %w", err)
@@ -81,7 +82,7 @@ func (uc *ExecuteTask) executeAgent(
 		runtimeActionConfig.With = inputCopy
 	}
 
-	llmService, err := llm.NewService(uc.runtime, agentConfig)
+	llmService, err := llm.NewService(ctx, uc.runtime, agentConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM service: %w", err)
 	}
@@ -89,7 +90,7 @@ func (uc *ExecuteTask) executeAgent(
 	defer func() {
 		if closeErr := llmService.Close(); closeErr != nil {
 			// Log error but don't fail the task
-			logger.Warn("failed to close LLM service", "error", closeErr)
+			log.Warn("failed to close LLM service", "error", closeErr)
 		}
 	}()
 

@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/compozy/compozy/pkg/logger"
@@ -22,11 +23,12 @@ type Client struct {
 	config *TemporalConfig
 }
 
-func NewClient(cfg *TemporalConfig) (*Client, error) {
+func NewClient(ctx context.Context, cfg *TemporalConfig) (*Client, error) {
+	log := logger.FromContext(ctx)
 	options := client.Options{
 		HostPort:  cfg.HostPort,
 		Namespace: cfg.Namespace,
-		Logger:    logger.GetDefault(),
+		Logger:    log,
 	}
 	temporalClient, err := client.Dial(options)
 	if err != nil {

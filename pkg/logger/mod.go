@@ -2,42 +2,55 @@ package logger
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"strings"
-	"testing"
 
 	charmlog "github.com/charmbracelet/log"
 )
 
-var defaultLogger *loggerImpl
+type LogLevel string
 
-type (
-	LogLevel string
-	// Logger defines the interface for structured logging
-	Logger interface {
-		Debug(msg string, keyvals ...any)
-		Info(msg string, keyvals ...any)
-		Warn(msg string, keyvals ...any)
-		Error(msg string, keyvals ...any)
-	}
-
-	// loggerImpl implements Logger interface using charm logger
-	loggerImpl struct {
-		charmLogger *charmlog.Logger
-	}
-)
+// ContextKey is an alias for string type
+type ContextKey string
 
 const (
-	DebugLevel LogLevel = "debug"
-	InfoLevel  LogLevel = "info"
-	WarnLevel  LogLevel = "warn"
-	ErrorLevel LogLevel = "error"
-	NoLevel    LogLevel = ""
+	// LoggerCtxKey is the string used to extract logger
+	LoggerCtxKey ContextKey = "logger"
+	DebugLevel   LogLevel   = "debug"
+	InfoLevel    LogLevel   = "info"
+	WarnLevel    LogLevel   = "warn"
+	ErrorLevel   LogLevel   = "error"
+	NoLevel      LogLevel   = ""
 	// DisabledLevel effectively disables all logging
 	DisabledLevel LogLevel = "disabled"
 )
+
+type Logger interface {
+	Debug(msg string, keyvals ...any)
+	Info(msg string, keyvals ...any)
+	Warn(msg string, keyvals ...any)
+	Error(msg string, keyvals ...any)
+	With(args ...any) Logger
+}
+
+// ContextWithLogger stores a logger in the context
+func ContextWithLogger(ctx context.Context, l Logger) context.Context {
+	return context.WithValue(ctx, LoggerCtxKey, l)
+}
+
+// FromContext retrieves a logger from the context, returning a default logger if none is found
+func FromContext(ctx context.Context) Logger {
+	if l, ok := ctx.Value(LoggerCtxKey).(Logger); ok {
+		return l
+	}
+	// Return a default logger if none is found in context
+	return NewLogger(nil)
+}
+
+type loggerImpl struct {
+	charmLogger *charmlog.Logger
+}
 
 func (c *LogLevel) String() string {
 	return string(*c)
@@ -75,6 +88,10 @@ func (l *loggerImpl) Warn(msg string, keyvals ...any) {
 
 func (l *loggerImpl) Error(msg string, keyvals ...any) {
 	l.charmLogger.Error(msg, keyvals...)
+}
+
+func (l *loggerImpl) With(args ...any) Logger {
+	return &loggerImpl{charmLogger: l.charmLogger.With(args...)}
 }
 
 type Config struct {
@@ -126,7 +143,6 @@ func IsTestEnvironment() bool {
 func NewLogger(cfg *Config) Logger {
 	if cfg == nil {
 		cfg = DefaultConfig()
-
 		// Auto-detect test environment and use test config
 		if IsTestEnvironment() {
 			cfg = TestConfig()
@@ -150,74 +166,6 @@ func NewLogger(cfg *Config) Logger {
 	return &loggerImpl{charmLogger: charmLogger}
 }
 
-func Init(cfg *Config) error {
-	logger := NewLogger(cfg)
-	loggerImpl, ok := logger.(*loggerImpl)
-	if !ok {
-		return fmt.Errorf("failed to initialize logger")
-	}
-	defaultLogger = loggerImpl
-	return nil
-}
-
-// InitForTests initializes the logger with test-friendly settings
-func InitForTests() error {
-	return Init(TestConfig())
-}
-
-// DisableLogging completely disables logging by setting output to io.Discard
-func DisableLogging() {
-	if defaultLogger != nil {
-		defaultLogger.charmLogger.SetOutput(io.Discard)
-		defaultLogger.charmLogger.SetLevel(charmlog.Level(1000)) // Very high level
-	}
-}
-
-// EnableLogging re-enables logging with the given config
-func EnableLogging(cfg *Config) error {
-	return Init(cfg)
-}
-
-// SetupTestLogger is a helper for tests that automatically disables logging
-// Usage in tests: defer logger.SetupTestLogger(t)()
-func SetupTestLogger(t *testing.T) func() {
-	originalLogger := defaultLogger
-
-	// Initialize with test config
-	if err := InitForTests(); err != nil {
-		t.Fatalf("failed to initialize test logger: %v", err)
-	}
-
-	// Return cleanup function
-	return func() {
-		defaultLogger = originalLogger
-	}
-}
-
-func FromContext(_ context.Context) Logger {
-	return defaultLogger
-}
-
-func GetDefault() Logger {
-	return defaultLogger
-}
-
-func Debug(msg string, args ...any) {
-	defaultLogger.Debug(msg, args...)
-}
-
-func Info(msg string, args ...any) {
-	defaultLogger.Info(msg, args...)
-}
-
-func Warn(msg string, args ...any) {
-	defaultLogger.Warn(msg, args...)
-}
-
-func Error(msg string, args ...any) {
-	defaultLogger.Error(msg, args...)
-}
-
-func With(args ...any) *charmlog.Logger {
-	return defaultLogger.charmLogger.With(args...)
+func NewForTests() Logger {
+	return NewLogger(TestConfig())
 }

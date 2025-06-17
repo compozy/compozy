@@ -18,7 +18,7 @@ func TestNewService(t *testing.T) {
 		runtimeMgr := &runtime.Manager{}
 		agentConfig := createTestAgentConfig()
 
-		service, err := NewService(runtimeMgr, agentConfig)
+		service, err := NewService(t.Context(), runtimeMgr, agentConfig)
 
 		require.NoError(t, err)
 		assert.NotNil(t, service)
@@ -30,7 +30,7 @@ func TestNewService(t *testing.T) {
 		runtimeMgr := &runtime.Manager{}
 		agentConfig := createTestAgentConfig()
 
-		service, err := NewService(runtimeMgr, agentConfig)
+		service, err := NewService(t.Context(), runtimeMgr, agentConfig)
 
 		require.NoError(t, err)
 		assert.NotNil(t, service)
@@ -43,11 +43,11 @@ func TestService_InvalidateToolsCache(t *testing.T) {
 	t.Run("Should handle cache invalidation", func(t *testing.T) {
 		runtimeMgr := &runtime.Manager{}
 		agentConfig := createTestAgentConfig()
-		service, err := NewService(runtimeMgr, agentConfig)
+		service, err := NewService(t.Context(), runtimeMgr, agentConfig)
 		require.NoError(t, err)
 
 		// Should not panic
-		service.InvalidateToolsCache()
+		service.InvalidateToolsCache(t.Context())
 	})
 }
 
@@ -55,7 +55,7 @@ func TestService_Close(t *testing.T) {
 	t.Run("Should close without error", func(t *testing.T) {
 		runtimeMgr := &runtime.Manager{}
 		agentConfig := createTestAgentConfig()
-		service, err := NewService(runtimeMgr, agentConfig)
+		service, err := NewService(t.Context(), runtimeMgr, agentConfig)
 		require.NoError(t, err)
 
 		err = service.Close()

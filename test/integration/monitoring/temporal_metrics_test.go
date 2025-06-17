@@ -17,7 +17,7 @@ func TestTemporalMetricsIntegration(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Initialize temporal interceptor to register metrics
-		_ = env.monitoring.TemporalInterceptor()
+		_ = env.monitoring.TemporalInterceptor(t.Context())
 		// Set configured workers count
 		monitoringinterceptor.SetConfiguredWorkerCount(5)
 		defer monitoringinterceptor.SetConfiguredWorkerCount(0) // Reset to default
@@ -54,7 +54,7 @@ func TestTemporalMetricsIntegration(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Get workflow interceptor from monitoring service
-		workflowInterceptor := env.monitoring.TemporalInterceptor()
+		workflowInterceptor := env.monitoring.TemporalInterceptor(t.Context())
 		require.NotNil(t, workflowInterceptor)
 		// Verify it's not nil
 		assert.NotNil(t, workflowInterceptor, "Should have a valid interceptor")
@@ -63,7 +63,7 @@ func TestTemporalMetricsIntegration(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Initialize temporal interceptor to register metrics
-		interceptor := env.monitoring.TemporalInterceptor()
+		interceptor := env.monitoring.TemporalInterceptor(t.Context())
 		require.NotNil(t, interceptor)
 		// Get metrics and verify observable gauges are registered (these always appear)
 		metrics, err := env.GetMetrics()

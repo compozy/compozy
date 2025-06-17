@@ -171,10 +171,11 @@ func (s *Server) metricsHandler(c *gin.Context) {
 
 // Start starts the HTTP server
 func (s *Server) Start(ctx context.Context) error {
-	logger.Info("Starting MCP proxy server", "port", s.config.Port, "host", s.config.Host)
+	log := logger.FromContext(ctx)
+	log.Info("Starting MCP proxy server", "port", s.config.Port, "host", s.config.Host)
 
 	// Security check: prevent default admin token in production
-	if err := s.validateSecurityConfig(); err != nil {
+	if err := s.validateSecurityConfig(ctx); err != nil {
 		return fmt.Errorf("security configuration error: %w", err)
 	}
 
@@ -198,7 +199,7 @@ func (s *Server) Start(ctx context.Context) error {
 	case err := <-errChan:
 		if err != nil {
 			if stopErr := s.clientManager.Stop(ctx); stopErr != nil {
-				logger.Error("Failed to stop client manager during server startup failure", "error", stopErr)
+				log.Error("Failed to stop client manager during server startup failure", "error", stopErr)
 			}
 			return err
 		}
@@ -208,7 +209,7 @@ func (s *Server) Start(ctx context.Context) error {
 		return ctx.Err()
 	}
 
-	logger.Info("MCP proxy server started successfully")
+	log.Info("MCP proxy server started successfully")
 
 	// Wait for shutdown signal or HTTP server failure
 	return s.waitForShutdown(ctx, errChan)
@@ -216,47 +217,49 @@ func (s *Server) Start(ctx context.Context) error {
 
 // Stop gracefully stops the server
 func (s *Server) Stop(ctx context.Context) error {
-	logger.Info("Shutting down MCP proxy server")
+	log := logger.FromContext(ctx)
+	log.Info("Shutting down MCP proxy server")
 
 	shutdownCtx, cancel := context.WithTimeout(ctx, s.config.ShutdownTimeout)
 	defer cancel()
 
 	// Stop client manager first
 	if err := s.clientManager.Stop(shutdownCtx); err != nil {
-		logger.Error("Client manager shutdown failed", "error", err)
+		log.Error("Client manager shutdown failed", "error", err)
 	}
 
 	if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
-		logger.Error("Server shutdown failed", "error", err)
+		log.Error("Server shutdown failed", "error", err)
 		return err
 	}
 
-	logger.Info("MCP proxy server stopped gracefully")
+	log.Info("MCP proxy server stopped gracefully")
 	return nil
 }
 
 // waitForShutdown waits for shutdown signals and handles graceful shutdown
 func (s *Server) waitForShutdown(ctx context.Context, errChan <-chan error) error {
+	log := logger.FromContext(ctx)
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(quit) // Clean up signal handler to prevent resource leak
 
 	select {
 	case <-ctx.Done():
-		logger.Info("Context canceled, shutting down server")
+		log.Info("Context canceled, shutting down server")
 		return s.Stop(ctx)
 	case sig := <-quit:
-		logger.Info("Received shutdown signal", "signal", sig.String())
+		log.Info("Received shutdown signal", "signal", sig.String())
 		return s.Stop(ctx)
 	case err := <-errChan:
 		if err != nil {
-			logger.Error("HTTP server failed", "error", err)
+			log.Error("HTTP server failed", "error", err)
 			if stopErr := s.Stop(ctx); stopErr != nil {
-				logger.Error("Failed to stop server after HTTP failure", "error", stopErr)
+				log.Error("Failed to stop server after HTTP failure", "error", stopErr)
 			}
 			return err
 		}
-		logger.Info("HTTP server stopped gracefully")
+		log.Info("HTTP server stopped gracefully")
 		return s.Stop(ctx)
 	}
 }
@@ -301,7 +304,8 @@ func (s *Server) adminSecurityMiddleware() gin.HandlerFunc {
 }
 
 // validateSecurityConfig checks security configuration at startup
-func (s *Server) validateSecurityConfig() error {
+func (s *Server) validateSecurityConfig(ctx context.Context) error {
+	log := logger.FromContext(ctx)
 	const minTokenLength = 16
 
 	// Check if we should disable default token in production
@@ -310,11 +314,11 @@ func (s *Server) validateSecurityConfig() error {
 		// Not enforcing, just warn
 		for _, token := range s.config.AdminTokens {
 			if token == "CHANGE_ME_ADMIN_TOKEN" {
-				logger.Warn("SECURITY WARNING: Using default admin token. " +
+				log.Warn("SECURITY WARNING: Using default admin token. " +
 					"Set MCP_PROXY_DISABLE_DEFAULT_TOKEN=true to fail on startup with default token")
 			}
 			if len(token) < minTokenLength {
-				logger.Warn("SECURITY WARNING: Admin token is shorter than recommended minimum length",
+				log.Warn("SECURITY WARNING: Admin token is shorter than recommended minimum length",
 					"min_length", minTokenLength, "actual_length", len(token))
 			}
 		}

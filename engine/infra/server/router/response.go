@@ -43,7 +43,8 @@ func RespondWithError(c *gin.Context, statusCode int, err *RequestError) {
 		Status: statusCode,
 		Error:  errorInfo,
 	}
-	logger.Error("Request error",
+	log := logger.FromContext(c.Request.Context())
+	log.Error("Request error",
 		"error_code", errorInfo.Code,
 		"error_message", errorInfo.Message,
 		"details", errorInfo.Details,
@@ -60,7 +61,8 @@ func RespondWithServerError(c *gin.Context, code string, message string, err err
 		details = err.Error()
 	}
 	statusCode := getStatusCode(code)
-	logger.Error("Server error",
+	log := logger.FromContext(c.Request.Context())
+	log.Error("Server error",
 		"error_code", code,
 		"error_message", message,
 		"error", err,
@@ -110,7 +112,8 @@ func ErrorHandler() gin.HandlerFunc {
 				response = NewErrorResponse(statusCode, ErrInternalCode, "An unexpected error occurred", err.Error())
 			}
 
-			logger.Error("Request failed",
+			log := logger.FromContext(c.Request.Context())
+			log.Error("Request failed",
 				"error", err,
 				"path", c.Request.URL.Path,
 				"method", c.Request.Method,

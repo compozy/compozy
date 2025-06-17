@@ -9,15 +9,9 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/mcp"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func init() {
-	// Initialize logger for tests
-	logger.InitForTests()
-}
 
 func TestNewProxyTool(t *testing.T) {
 	t.Run("Should create proxy tool with correct properties", func(t *testing.T) {

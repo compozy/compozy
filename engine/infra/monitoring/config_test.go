@@ -18,7 +18,7 @@ func TestDefaultConfig(t *testing.T) {
 
 func TestLoadWithEnv(t *testing.T) {
 	t.Run("Should return defaults when no config provided", func(t *testing.T) {
-		result, err := LoadWithEnv(nil)
+		result, err := LoadWithEnv(t.Context(), nil)
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.False(t, result.Enabled)
@@ -29,7 +29,7 @@ func TestLoadWithEnv(t *testing.T) {
 			Enabled: true,
 			Path:    "/custom/metrics",
 		}
-		result, err := LoadWithEnv(yamlConfig)
+		result, err := LoadWithEnv(t.Context(), yamlConfig)
 		require.NoError(t, err)
 		assert.True(t, result.Enabled)
 		assert.Equal(t, "/custom/metrics", result.Path)
@@ -39,7 +39,7 @@ func TestLoadWithEnv(t *testing.T) {
 			Enabled: true,
 			Path:    "",
 		}
-		result, err := LoadWithEnv(yamlConfig)
+		result, err := LoadWithEnv(t.Context(), yamlConfig)
 		require.NoError(t, err)
 		assert.True(t, result.Enabled)
 		assert.Equal(t, "/metrics", result.Path)
@@ -49,7 +49,7 @@ func TestLoadWithEnv(t *testing.T) {
 			Enabled: true,
 			// Path not specified, should use default
 		}
-		result, err := LoadWithEnv(yamlConfig)
+		result, err := LoadWithEnv(t.Context(), yamlConfig)
 		require.NoError(t, err)
 		assert.True(t, result.Enabled)
 		assert.Equal(t, "/metrics", result.Path)
@@ -61,7 +61,7 @@ func TestLoadWithEnv(t *testing.T) {
 			Enabled: false, // YAML says false
 			Path:    "/metrics",
 		}
-		result, err := LoadWithEnv(yamlConfig)
+		result, err := LoadWithEnv(t.Context(), yamlConfig)
 		require.NoError(t, err)
 		assert.True(t, result.Enabled) // Env var takes precedence
 		assert.Equal(t, "/metrics", result.Path)
@@ -73,7 +73,7 @@ func TestLoadWithEnv(t *testing.T) {
 			Enabled: true, // YAML says true
 			Path:    "/metrics",
 		}
-		result, err := LoadWithEnv(yamlConfig)
+		result, err := LoadWithEnv(t.Context(), yamlConfig)
 		require.NoError(t, err)
 		assert.False(t, result.Enabled) // Env var takes precedence
 		assert.Equal(t, "/metrics", result.Path)
@@ -85,7 +85,7 @@ func TestLoadWithEnv(t *testing.T) {
 			Enabled: true,
 			Path:    "/metrics",
 		}
-		result, err := LoadWithEnv(yamlConfig)
+		result, err := LoadWithEnv(t.Context(), yamlConfig)
 		require.NoError(t, err)
 		// Should fall back to YAML config when env var is invalid
 		assert.True(t, result.Enabled)
@@ -111,7 +111,7 @@ func TestLoadWithEnv(t *testing.T) {
 					Enabled: !tc.expectedValue, // Opposite of expected
 					Path:    "/metrics",
 				}
-				result, err := LoadWithEnv(yamlConfig)
+				result, err := LoadWithEnv(t.Context(), yamlConfig)
 				require.NoError(t, err)
 				assert.Equal(t, tc.expectedValue, result.Enabled)
 			})
@@ -124,7 +124,7 @@ func TestLoadWithEnv(t *testing.T) {
 			Enabled: true,
 			Path:    "/yaml/metrics",
 		}
-		result, err := LoadWithEnv(yamlConfig)
+		result, err := LoadWithEnv(t.Context(), yamlConfig)
 		require.NoError(t, err)
 		assert.Equal(t, "/env/metrics", result.Path)
 		assert.True(t, result.Enabled)
@@ -137,7 +137,7 @@ func TestLoadWithEnv(t *testing.T) {
 			Enabled: true,
 			Path:    "/metrics",
 		}
-		result, err := LoadWithEnv(yamlConfig)
+		result, err := LoadWithEnv(t.Context(), yamlConfig)
 		require.NoError(t, err)
 		assert.False(t, result.Enabled)              // Env overrides YAML
 		assert.Equal(t, "/custom/path", result.Path) // Env overrides YAML

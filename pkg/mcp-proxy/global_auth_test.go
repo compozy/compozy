@@ -7,8 +7,6 @@ import (
 )
 
 func TestProxyHandlers_CombineAuthTokens(t *testing.T) {
-	initLogger(t)
-
 	t.Run("Should handle no global tokens and client tokens only", func(t *testing.T) {
 		proxyHandlers := &ProxyHandlers{
 			globalAuthTokens: nil,
@@ -84,8 +82,6 @@ func TestProxyHandlers_CombineAuthTokens(t *testing.T) {
 }
 
 func TestGlobalAuthTokensIntegration(t *testing.T) {
-	initLogger(t)
-
 	t.Run("Server configuration with global auth tokens", func(t *testing.T) {
 		globalTokens := []string{"global-token-1", "global-token-2"}
 

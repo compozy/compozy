@@ -16,7 +16,7 @@ type PromptBuilder interface {
 	// Build constructs the main prompt from action config
 	Build(ctx context.Context, action *agent.ActionConfig) (string, error)
 	// EnhanceForStructuredOutput enhances prompt for structured JSON output
-	EnhanceForStructuredOutput(prompt string, schema *schema.Schema, hasTools bool) string
+	EnhanceForStructuredOutput(ctx context.Context, prompt string, schema *schema.Schema, hasTools bool) string
 	// ShouldUseStructuredOutput determines if structured output should be used
 	ShouldUseStructuredOutput(provider string, action *agent.ActionConfig, tools []tool.Config) bool
 }
@@ -41,13 +41,19 @@ func (b *promptBuilder) Build(_ context.Context, action *agent.ActionConfig) (st
 }
 
 // EnhanceForStructuredOutput enhances prompt for structured JSON output
-func (b *promptBuilder) EnhanceForStructuredOutput(prompt string, schema *schema.Schema, hasTools bool) string {
+func (b *promptBuilder) EnhanceForStructuredOutput(
+	ctx context.Context,
+	prompt string,
+	schema *schema.Schema,
+	hasTools bool,
+) string {
+	log := logger.FromContext(ctx)
 	if schema != nil {
 		// Enhanced prompt with schema
 		schemaJSON, err := json.Marshal(schema)
 		if err != nil {
 			// This is a developer error (bad schema), so we fallback to original prompt
-			logger.Error("failed to marshal schema for structured output", "error", err)
+			log.Error("failed to marshal schema for structured output", "error", err)
 			return prompt
 		}
 		return fmt.Sprintf(`%s

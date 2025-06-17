@@ -9,7 +9,6 @@ import (
 	"time"
 
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
-	utils "github.com/compozy/compozy/test/helpers"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,9 +16,6 @@ import (
 
 // TestMCPProxyIntegration tests the complete MCP proxy workflow
 func TestMCPProxyIntegration(t *testing.T) {
-	// Initialize logger for tests
-	utils.InitLogger(t)
-
 	// Create memory storage
 	storage := mcpproxy.NewMemoryStorage()
 
@@ -151,9 +147,6 @@ func TestMCPProxyIntegration(t *testing.T) {
 
 // TestAdminSecurity tests the admin API security features
 func TestAdminSecurity(t *testing.T) {
-	// Initialize logger for tests
-	utils.InitLogger(t)
-
 	storage := mcpproxy.NewMemoryStorage()
 	clientManager := mcpproxy.NewMockClientManager()
 

@@ -37,6 +37,7 @@ func NewMCPService(storage Storage, clientManager ClientManager, proxyHandlers *
 
 // CreateMCP creates a new MCP definition with coordinated storage, client setup, and proxy registration
 func (s *MCPService) CreateMCP(ctx context.Context, def *MCPDefinition) error {
+	log := logger.FromContext(ctx)
 	// Validate definition
 	if err := def.Validate(); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidDefinition, err)
@@ -61,7 +62,7 @@ func (s *MCPService) CreateMCP(ctx context.Context, def *MCPDefinition) error {
 	if err := s.clientManager.AddClient(ctx, def); err != nil {
 		// Attempt to roll back the storage save on failure.
 		if delErr := s.storage.DeleteMCP(context.Background(), def.Name); delErr != nil {
-			logger.Error("Failed to roll back MCP creation from storage", "name", def.Name, "error", delErr)
+			log.Error("Failed to roll back MCP creation from storage", "name", def.Name, "error", delErr)
 		}
 		return fmt.Errorf("failed to add client to manager: %w", err)
 	}
@@ -70,14 +71,14 @@ func (s *MCPService) CreateMCP(ctx context.Context, def *MCPDefinition) error {
 		if err := s.proxyHandlers.RegisterMCPProxy(ctx, def.Name, def); err != nil {
 			// Roll back client addition to maintain consistency
 			if removeErr := s.clientManager.RemoveClient(ctx, def.Name); removeErr != nil {
-				logger.Error(
+				log.Error(
 					"Failed to roll back client addition after proxy registration failure",
 					"name", def.Name, "remove_error", removeErr,
 				)
 			}
 			// Also roll back storage save
 			if delErr := s.storage.DeleteMCP(context.Background(), def.Name); delErr != nil {
-				logger.Error(
+				log.Error(
 					"Failed to roll back MCP storage after proxy registration failure",
 					"name", def.Name, "delete_error", delErr,
 				)
@@ -183,6 +184,7 @@ func (s *MCPService) GetMCP(ctx context.Context, name string) (*MCPDetailsRespon
 
 // ListAllTools returns all available tools from all registered MCPs
 func (s *MCPService) ListAllTools(ctx context.Context) ([]MCPToolDefinition, error) {
+	log := logger.FromContext(ctx)
 	mcps, err := s.storage.ListMCPs(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve MCPs: %w", err)
@@ -191,12 +193,12 @@ func (s *MCPService) ListAllTools(ctx context.Context) ([]MCPToolDefinition, err
 	for _, mcpDef := range mcps {
 		client, err := s.clientManager.GetClient(mcpDef.Name)
 		if err != nil {
-			logger.Warn("Failed to get client for MCP, skipping", "mcp_name", mcpDef.Name, "error", err)
+			log.Warn("Failed to get client for MCP, skipping", "mcp_name", mcpDef.Name, "error", err)
 			continue
 		}
 		tools, err := client.ListTools(ctx)
 		if err != nil {
-			logger.Warn("Failed to list tools for MCP, skipping", "mcp_name", mcpDef.Name, "error", err)
+			log.Warn("Failed to list tools for MCP, skipping", "mcp_name", mcpDef.Name, "error", err)
 			continue
 		}
 		for i := range tools {
@@ -209,7 +211,7 @@ func (s *MCPService) ListAllTools(ctx context.Context) ([]MCPToolDefinition, err
 			}
 			allTools = append(allTools, toolDef)
 		}
-		logger.Debug("Listed tools for MCP", "mcp_name", mcpDef.Name, "tool_count", len(tools))
+		log.Debug("Listed tools for MCP", "mcp_name", mcpDef.Name, "tool_count", len(tools))
 	}
 	return allTools, nil
 }
@@ -220,6 +222,7 @@ func (s *MCPService) CallTool(
 	mcpName, toolName string,
 	arguments map[string]any,
 ) (*mcp.CallToolResult, error) {
+	log := logger.FromContext(ctx)
 	client, err := s.clientManager.GetClient(mcpName)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrClientNotConnected, mcpName)
@@ -232,22 +235,23 @@ func (s *MCPService) CallTool(
 	}
 	result, err := client.CallTool(ctx, toolCallReq)
 	if err != nil {
-		logger.Error("Failed to call tool", "mcp_name", mcpName, "tool_name", toolName, "error", err)
+		log.Error("Failed to call tool", "mcp_name", mcpName, "tool_name", toolName, "error", err)
 		return nil, fmt.Errorf("tool execution failed: %w", err)
 	}
-	logger.Info("Tool executed successfully", "mcp_name", mcpName, "tool_name", toolName)
+	log.Info("Tool executed successfully", "mcp_name", mcpName, "tool_name", toolName)
 	return result, nil
 }
 
 // performHotReload removes old client and adds updated client
 func (s *MCPService) performHotReload(ctx context.Context, name string, def *MCPDefinition) error {
+	log := logger.FromContext(ctx)
 	// Remove existing client and proxy
 	if err := s.clientManager.RemoveClient(ctx, name); err != nil {
-		logger.Error("Failed to remove client during update", "name", name, "error", err)
+		log.Error("Failed to remove client during update", "name", name, "error", err)
 	}
 	if s.proxyHandlers != nil {
-		if err := s.proxyHandlers.UnregisterMCPProxy(name); err != nil {
-			logger.Error("Failed to unregister proxy during update", "name", name, "error", err)
+		if err := s.proxyHandlers.UnregisterMCPProxy(ctx, name); err != nil {
+			log.Error("Failed to unregister proxy during update", "name", name, "error", err)
 		}
 	}
 
@@ -259,7 +263,7 @@ func (s *MCPService) performHotReload(ctx context.Context, name string, def *MCP
 	// Register the proxy - it will wait for the client to connect
 	if s.proxyHandlers != nil {
 		if err := s.proxyHandlers.RegisterMCPProxy(ctx, def.Name, def); err != nil {
-			logger.Warn("Proxy registration failed but client is being managed", "name", def.Name, "error", err)
+			log.Warn("Proxy registration failed but client is being managed", "name", def.Name, "error", err)
 		}
 	}
 
@@ -268,12 +272,13 @@ func (s *MCPService) performHotReload(ctx context.Context, name string, def *MCP
 
 // cleanupRuntimeComponents removes client and proxy registration
 func (s *MCPService) cleanupRuntimeComponents(ctx context.Context, name string) {
+	log := logger.FromContext(ctx)
 	if err := s.clientManager.RemoveClient(ctx, name); err != nil {
-		logger.Error("Failed to remove client during deletion", "name", name, "error", err)
+		log.Error("Failed to remove client during deletion", "name", name, "error", err)
 	}
 	if s.proxyHandlers != nil {
-		if err := s.proxyHandlers.UnregisterMCPProxy(name); err != nil {
-			logger.Error("Failed to unregister proxy during deletion", "name", name, "error", err)
+		if err := s.proxyHandlers.UnregisterMCPProxy(ctx, name); err != nil {
+			log.Error("Failed to unregister proxy during deletion", "name", name, "error", err)
 		}
 	}
 }

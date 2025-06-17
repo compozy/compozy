@@ -19,13 +19,13 @@ import (
 // ToolRegistry manages tool discovery, registration, and caching
 type ToolRegistry interface {
 	// Register registers a local tool
-	Register(tool Tool) error
+	Register(ctx context.Context, tool Tool) error
 	// Find finds a tool by name, checking local tools first, then MCP tools
 	Find(ctx context.Context, name string) (Tool, bool)
 	// ListAll returns all available tools (local + MCP)
 	ListAll(ctx context.Context) ([]Tool, error)
 	// InvalidateCache clears the MCP tools cache
-	InvalidateCache()
+	InvalidateCache(ctx context.Context)
 	// Close cleans up resources
 	Close() error
 }
@@ -70,20 +70,22 @@ func NewToolRegistry(config ToolRegistryConfig) ToolRegistry {
 }
 
 // Register registers a local tool with precedence over MCP tools
-func (r *toolRegistry) Register(tool Tool) error {
+func (r *toolRegistry) Register(ctx context.Context, tool Tool) error {
+	log := logger.FromContext(ctx)
 	canonical := r.canonicalize(tool.Name())
 
 	r.localMu.Lock()
 	defer r.localMu.Unlock()
 
 	r.localTools[canonical] = tool
-	logger.Debug("registered local tool", "name", canonical)
+	log.Debug("registered local tool", "name", canonical)
 
 	return nil
 }
 
 // Find finds a tool by name, checking local tools first
 func (r *toolRegistry) Find(ctx context.Context, name string) (Tool, bool) {
+	log := logger.FromContext(ctx)
 	canonical := r.canonicalize(name)
 
 	// Check local tools first (they have precedence)
@@ -97,7 +99,7 @@ func (r *toolRegistry) Find(ctx context.Context, name string) (Tool, bool) {
 	// Check MCP tools
 	mcpTools, err := r.getMCPTools(ctx)
 	if err != nil {
-		logger.Warn("failed to get MCP tools", "error", err)
+		log.Warn("failed to get MCP tools", "error", err)
 		return nil, false
 	}
 
@@ -146,13 +148,14 @@ func (r *toolRegistry) ListAll(ctx context.Context) ([]Tool, error) {
 }
 
 // InvalidateCache clears the MCP tools cache
-func (r *toolRegistry) InvalidateCache() {
+func (r *toolRegistry) InvalidateCache(ctx context.Context) {
+	log := logger.FromContext(ctx)
 	r.mcpMu.Lock()
 	defer r.mcpMu.Unlock()
 
 	r.mcpTools = nil
 	r.mcpCacheTs = time.Time{}
-	logger.Debug("invalidated MCP tools cache")
+	log.Debug("invalidated MCP tools cache")
 }
 
 // Close cleans up resources
@@ -189,6 +192,7 @@ func (r *toolRegistry) getMCPTools(ctx context.Context) ([]tools.Tool, error) {
 
 // refreshMCPTools refreshes the MCP tools cache
 func (r *toolRegistry) refreshMCPTools(ctx context.Context) ([]tools.Tool, error) {
+	log := logger.FromContext(ctx)
 	if r.config.ProxyClient == nil {
 		return []tools.Tool{}, nil
 	}
@@ -216,8 +220,7 @@ func (r *toolRegistry) refreshMCPTools(ctx context.Context) ([]tools.Tool, error
 	r.mcpTools = mcpTools
 	r.mcpCacheTs = time.Now()
 	r.mcpMu.Unlock()
-
-	logger.Debug("refreshed MCP tools cache", "count", len(mcpTools))
+	log.Debug("refreshed MCP tools cache", "count", len(mcpTools))
 	return mcpTools, nil
 }
 

@@ -69,7 +69,8 @@ func handleMCPProxyCmd(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Setup logging
-	if err := setupMCPProxyLogging(cmd); err != nil {
+	log, err := setupMCPProxyLogging(cmd)
+	if err != nil {
 		return err
 	}
 
@@ -79,23 +80,26 @@ func handleMCPProxyCmd(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	// Create context with cancellation
+	// Create context with cancellation and logger
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	logger.Info("Starting MCP proxy server", "host", config.Host, "port", config.Port)
+	// Add logger to context
+	ctx = logger.ContextWithLogger(ctx, log)
+
+	log.Info("Starting MCP proxy server", "host", config.Host, "port", config.Port)
 
 	// Run the MCP proxy server
 	return mcpproxy.Run(ctx, config)
 }
 
 // setupMCPProxyLogging configures logging for the MCP proxy
-func setupMCPProxyLogging(cmd *cobra.Command) error {
+func setupMCPProxyLogging(cmd *cobra.Command) (logger.Logger, error) {
 	logLevel, logJSON, logSource, err := logger.GetLoggerConfig(cmd)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return logger.SetupLogger(logLevel, logJSON, logSource)
+	return logger.SetupLogger(logLevel, logJSON, logSource), nil
 }
 
 // parseMCPProxyConfig extracts configuration from flags and environment variables

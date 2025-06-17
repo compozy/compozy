@@ -10,11 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 func TestAutoLoader_Load(t *testing.T) {
-	logger.InitForTests()
 	t.Run("Should load valid configuration files", func(t *testing.T) {
 		tempDir := t.TempDir()
 		registry := NewConfigRegistry()
@@ -198,7 +196,6 @@ version: "1.0"
 }
 
 func TestAutoLoader_Discover(t *testing.T) {
-	logger.InitForTests()
 	t.Run("Should return discovered files list", func(t *testing.T) {
 		tempDir := t.TempDir()
 		config := &Config{
@@ -220,7 +217,6 @@ func TestAutoLoader_Discover(t *testing.T) {
 }
 
 func TestAutoLoader_LoadWithResult(t *testing.T) {
-	logger.InitForTests()
 	t.Run("Should return detailed results for successful loading", func(t *testing.T) {
 		tempDir := t.TempDir()
 		registry := NewConfigRegistry()
@@ -352,7 +348,6 @@ version: "1.0"
 }
 
 func TestAutoLoader_Stats(t *testing.T) {
-	logger.InitForTests()
 	t.Run("Should return correct statistics", func(t *testing.T) {
 		tempDir := t.TempDir()
 		registry := NewConfigRegistry()
@@ -375,7 +370,6 @@ func TestAutoLoader_Stats(t *testing.T) {
 }
 
 func TestAutoLoader_Validate(t *testing.T) {
-	logger.InitForTests()
 	t.Run("Should perform dry-run validation without affecting main registry", func(t *testing.T) {
 		tempDir := t.TempDir()
 		registry := NewConfigRegistry()

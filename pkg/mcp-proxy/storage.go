@@ -150,6 +150,7 @@ func (r *RedisStorage) LoadMCP(ctx context.Context, name string) (*MCPDefinition
 
 // DeleteMCP deletes an MCP definition from Redis
 func (r *RedisStorage) DeleteMCP(ctx context.Context, name string) error {
+	log := logger.FromContext(ctx)
 	if name == "" {
 		return fmt.Errorf("name cannot be empty")
 	}
@@ -167,7 +168,7 @@ func (r *RedisStorage) DeleteMCP(ctx context.Context, name string) error {
 	// Also delete the status if it exists
 	statusKey := r.getStatusKey(name)
 	if _, err := r.client.Del(ctx, statusKey).Result(); err != nil {
-		logger.Warn("Failed to delete status during MCP deletion", "name", name, "error", err)
+		log.Warn("Failed to delete status during MCP deletion", "name", name, "error", err)
 	}
 
 	return nil
@@ -175,6 +176,7 @@ func (r *RedisStorage) DeleteMCP(ctx context.Context, name string) error {
 
 // ListMCPs lists all MCP definitions from Redis using SCAN for better performance
 func (r *RedisStorage) ListMCPs(ctx context.Context) ([]*MCPDefinition, error) {
+	log := logger.FromContext(ctx)
 	pattern := r.getMCPKey("*")
 	var definitions []*MCPDefinition
 	var cursor uint64
@@ -207,13 +209,13 @@ func (r *RedisStorage) ListMCPs(ctx context.Context) ([]*MCPDefinition, error) {
 				case []byte:
 					raw = v
 				default:
-					logger.Warn("Unexpected value type for key", "key", keys[i])
+					log.Warn("Unexpected value type for key", "key", keys[i])
 					continue
 				}
 
 				var def MCPDefinition
 				if err := json.Unmarshal(raw, &def); err != nil {
-					logger.Warn("Failed to unmarshal definition", "key", keys[i], "error", err)
+					log.Warn("Failed to unmarshal definition", "key", keys[i], "error", err)
 					continue
 				}
 

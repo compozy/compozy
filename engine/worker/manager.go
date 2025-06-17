@@ -8,7 +8,6 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 // -----------------------------------------------------------------------------
@@ -75,7 +74,8 @@ func (m *Manager) CancelCleanup(ctx workflow.Context) {
 	if ctx.Err() != workflow.ErrCanceled {
 		return
 	}
-	logger.Info("Workflow canceled, performing cleanup...")
+	log := workflow.GetLogger(ctx)
+	log.Info("Workflow canceled, performing cleanup...")
 	cleanupCtx, _ := workflow.NewDisconnectedContext(ctx)
 	cleanupCtx = workflow.WithActivityOptions(cleanupCtx, workflow.ActivityOptions{
 		StartToCloseTimeout: 30 * time.Second,
@@ -92,9 +92,9 @@ func (m *Manager) CancelCleanup(ctx workflow.Context) {
 		wfacts.UpdateStateLabel,
 		statusInput,
 	).Get(cleanupCtx, nil); err != nil {
-		logger.Error("Failed to update workflow status to Canceled during cleanup", "error", err)
+		log.Error("Failed to update workflow status to Canceled during cleanup", "error", err)
 	} else {
-		logger.Info("Successfully updated workflow status to Canceled")
+		log.Info("Successfully updated workflow status to Canceled")
 	}
 }
 

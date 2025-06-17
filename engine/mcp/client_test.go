@@ -9,15 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func init() {
-	// Initialize logger for tests
-	logger.InitForTests()
-}
 
 func TestClient_Health_Success(t *testing.T) {
 	t.Run("Should successfully check health when server responds OK", func(t *testing.T) {

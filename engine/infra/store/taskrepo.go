@@ -508,6 +508,7 @@ func (r *TaskRepo) CreateChildStatesInTransaction(
 	parentStateID core.ID,
 	childStates []*task.State,
 ) (err error) {
+	log := logger.FromContext(ctx)
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
@@ -516,12 +517,12 @@ func (r *TaskRepo) CreateChildStatesInTransaction(
 	defer func() {
 		if p := recover(); p != nil {
 			if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
-				logger.Error("Failed to rollback transaction after panic", "error", rollbackErr)
+				log.Error("Failed to rollback transaction after panic", "error", rollbackErr)
 			}
 			panic(p)
 		} else if err != nil {
 			if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
-				logger.Error("Failed to rollback transaction", "error", rollbackErr)
+				log.Error("Failed to rollback transaction", "error", rollbackErr)
 			}
 		}
 	}()

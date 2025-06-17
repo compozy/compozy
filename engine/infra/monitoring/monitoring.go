@@ -41,7 +41,8 @@ func newDisabledService(cfg *Config, initErr error) *Service {
 }
 
 // NewMonitoringService creates a new monitoring service with Prometheus exporter
-func NewMonitoringService(cfg *Config) (*Service, error) {
+func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
+	log := logger.FromContext(ctx)
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
@@ -49,7 +50,7 @@ func NewMonitoringService(cfg *Config) (*Service, error) {
 		return nil, err
 	}
 	if !cfg.Enabled {
-		logger.Debug("Monitoring disabled, using no-op meter")
+		log.Debug("Monitoring disabled, using no-op meter")
 		return newDisabledService(cfg, nil), nil
 	}
 	registry := prom.NewRegistry()
@@ -69,9 +70,8 @@ func NewMonitoringService(cfg *Config) (*Service, error) {
 		initialized: true,
 	}
 	// Initialize system health metrics
-	ctx := context.Background()
 	InitSystemMetrics(ctx, meter)
-	logger.Info("Monitoring service initialized successfully")
+	log.Info("Monitoring service initialized successfully")
 	return service, nil
 }
 
@@ -83,22 +83,22 @@ func (s *Service) Meter() metric.Meter {
 // GinMiddleware returns Gin middleware for HTTP metrics.
 // Note: The OpenTelemetry tracing middleware (otelgin) should be applied separately
 // when building the Gin router to ensure proper middleware chaining.
-func (s *Service) GinMiddleware() gin.HandlerFunc {
+func (s *Service) GinMiddleware(ctx context.Context) gin.HandlerFunc {
 	if !s.initialized {
 		return func(c *gin.Context) {
 			c.Next()
 		}
 	}
 	// Return only the custom HTTP metrics middleware
-	return middleware.HTTPMetrics(s.meter)
+	return middleware.HTTPMetrics(ctx, s.meter)
 }
 
 // TemporalInterceptor returns Temporal interceptor for workflow metrics
-func (s *Service) TemporalInterceptor() interceptor.WorkerInterceptor {
+func (s *Service) TemporalInterceptor(ctx context.Context) interceptor.WorkerInterceptor {
 	if !s.initialized {
 		return &interceptor.WorkerInterceptorBase{}
 	}
-	return interceptorpkg.TemporalMetrics(s.meter)
+	return interceptorpkg.TemporalMetrics(ctx, s.meter)
 }
 
 // ExporterHandler returns an HTTP handler for the /metrics endpoint
@@ -107,7 +107,8 @@ func (s *Service) ExporterHandler() http.Handler {
 		if !s.initialized {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			if _, err := w.Write([]byte("Monitoring service not initialized")); err != nil {
-				logger.Error("Failed to write response", "error", err)
+				log := logger.FromContext(r.Context())
+				log.Error("Failed to write response", "error", err)
 			}
 			return
 		}
@@ -144,10 +145,11 @@ func (s *Service) SetAsGlobal() {
 // If monitoring initialization fails, it returns a service with no-op implementations
 // and logs the error. This is useful for applications that should not fail due to
 // monitoring initialization errors.
-func NewMonitoringServiceWithFallback(cfg *Config) *Service {
-	service, err := NewMonitoringService(cfg)
+func NewMonitoringServiceWithFallback(ctx context.Context, cfg *Config) *Service {
+	log := logger.FromContext(ctx)
+	service, err := NewMonitoringService(ctx, cfg)
 	if err != nil {
-		logger.Error("Failed to initialize monitoring, using no-op implementation", "error", err)
+		log.Error("Failed to initialize monitoring, using no-op implementation", "error", err)
 		// Return a degraded service with no-op meter
 		// The cfg is guaranteed to be non-nil here because NewMonitoringService
 		// only returns an error for non-nil invalid configs

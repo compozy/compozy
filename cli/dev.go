@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -284,6 +285,17 @@ func handleDevCmd(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
+	// Setup logging
+	logLevel, logJSON, logSource, err := logger.GetLoggerConfig(cmd)
+	if err != nil {
+		return err
+	}
+	log := logger.SetupLogger(logLevel, logJSON, logSource)
+
+	// Create context with logger
+	ctx := context.Background()
+	ctx = logger.ContextWithLogger(ctx, log)
+
 	// Get server configuration
 	scfg, err := getServerConfig(cmd, envFilePath)
 	if err != nil {
@@ -315,35 +327,27 @@ func handleDevCmd(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	// Setup logging
-	logLevel, logJSON, logSource, err := logger.GetLoggerConfig(cmd)
-	if err != nil {
-		return err
-	}
-	if err := logger.SetupLogger(logLevel, logJSON, logSource); err != nil {
-		return err
-	}
-
 	watch, err := cmd.Flags().GetBool("watch")
 	if err != nil {
 		return fmt.Errorf("failed to get watch flag: %w", err)
 	}
 	if watch {
-		watcher, err := setupWatcher(scfg.CWD)
+		watcher, err := setupWatcher(ctx, scfg.CWD)
 		if err != nil {
 			return err
 		}
 		defer watcher.Close()
 		restartChan := make(chan bool)
-		go startWatcher(watcher, restartChan)
-		return runAndWatchServer(scfg, tcfg, dbCfg, restartChan)
+		go startWatcher(ctx, watcher, restartChan)
+		return runAndWatchServer(ctx, scfg, tcfg, dbCfg, restartChan)
 	}
 
 	srv := server.NewServer(scfg, tcfg, dbCfg)
 	return srv.Run()
 }
 
-func setupWatcher(cwd string) (*fsnotify.Watcher, error) {
+func setupWatcher(ctx context.Context, cwd string) (*fsnotify.Watcher, error) {
+	log := logger.FromContext(ctx)
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create file watcher: %w", err)
@@ -354,7 +358,7 @@ func setupWatcher(cwd string) (*fsnotify.Watcher, error) {
 		}
 		if !info.IsDir() && (filepath.Ext(path) == ".yaml" || filepath.Ext(path) == ".yml") {
 			if err := watcher.Add(path); err != nil {
-				logger.Warn("Failed to watch file", "path", path, "error", err)
+				log.Warn("Failed to watch file", "path", path, "error", err)
 			}
 		}
 		return nil
@@ -364,7 +368,8 @@ func setupWatcher(cwd string) (*fsnotify.Watcher, error) {
 	return watcher, nil
 }
 
-func startWatcher(watcher *fsnotify.Watcher, restartChan chan bool) {
+func startWatcher(ctx context.Context, watcher *fsnotify.Watcher, restartChan chan bool) {
+	log := logger.FromContext(ctx)
 	for {
 		select {
 		case event, ok := <-watcher.Events:
@@ -372,24 +377,26 @@ func startWatcher(watcher *fsnotify.Watcher, restartChan chan bool) {
 				return
 			}
 			if event.Has(fsnotify.Write) {
-				logger.Info("Detected file change, sending restart signal...", "file", event.Name)
+				log.Info("Detected file change, sending restart signal...", "file", event.Name)
 				restartChan <- true
 			}
 		case err, ok := <-watcher.Errors:
 			if !ok {
 				return
 			}
-			logger.Error("Watcher error", "error", err)
+			log.Error("Watcher error", "error", err)
 		}
 	}
 }
 
 func runAndWatchServer(
+	ctx context.Context,
 	scfg *server.Config,
 	tcfg *worker.TemporalConfig,
 	dbCfg *store.Config,
 	restartChan chan bool,
 ) error {
+	log := logger.FromContext(ctx)
 	for {
 		// Find available port on each restart in case the original port becomes free
 		availablePort, err := findAvailablePort(scfg.Host, scfg.Port)
@@ -397,7 +404,7 @@ func runAndWatchServer(
 			return fmt.Errorf("no free port found near %d: %w", scfg.Port, err)
 		}
 		if availablePort != scfg.Port {
-			logger.Info("port conflict on restart, using next available port",
+			log.Info("port conflict on restart, using next available port",
 				"original_port", scfg.Port,
 				"available_port", availablePort)
 			scfg.Port = availablePort
@@ -408,13 +415,13 @@ func runAndWatchServer(
 		go func() {
 			serverErrChan <- srv.Run()
 		}()
-		logger.Info("Server started. Watching for file changes.")
+		log.Info("Server started. Watching for file changes.")
 		select {
 		case <-restartChan:
-			logger.Info("Restart signal received. Shutting down server...")
+			log.Info("Restart signal received. Shutting down server...")
 			srv.Shutdown()
 			<-serverErrChan // Wait for shutdown to complete
-			logger.Info("Server shut down. Restarting...")
+			log.Info("Server shut down. Restarting...")
 			// Drain the channel in case of multiple file change events
 			for len(restartChan) > 0 {
 				<-restartChan
@@ -422,10 +429,10 @@ func runAndWatchServer(
 			continue // Restart the loop
 		case err := <-serverErrChan:
 			if err != nil {
-				logger.Error("Server stopped with error", "error", err)
+				log.Error("Server stopped with error", "error", err)
 				return err
 			}
-			logger.Info("Server stopped.")
+			log.Info("Server stopped.")
 			return nil
 		}
 	}

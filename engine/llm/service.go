@@ -20,7 +20,8 @@ type Service struct {
 }
 
 // NewService creates a new LLM service with clean architecture
-func NewService(runtime *runtime.Manager, agent *agent.Config, opts ...Option) (*Service, error) {
+func NewService(ctx context.Context, runtime *runtime.Manager, agent *agent.Config, opts ...Option) (*Service, error) {
+	log := logger.FromContext(ctx)
 	// Build configuration
 	config := DefaultConfig()
 	for _, opt := range opts {
@@ -55,8 +56,8 @@ func NewService(runtime *runtime.Manager, agent *agent.Config, opts ...Option) (
 	if agent != nil {
 		for i := range agent.Tools {
 			localTool := NewLocalToolAdapter(&agent.Tools[i], &runtimeAdapter{runtime})
-			if err := toolRegistry.Register(localTool); err != nil {
-				logger.Warn("failed to register local tool", "tool", agent.Tools[i].ID, "error", err)
+			if err := toolRegistry.Register(ctx, localTool); err != nil {
+				log.Warn("failed to register local tool", "tool", agent.Tools[i].ID, "error", err)
 			}
 		}
 	}
@@ -90,9 +91,9 @@ func (s *Service) GenerateContent(
 }
 
 // InvalidateToolsCache invalidates the tools cache
-func (s *Service) InvalidateToolsCache() {
+func (s *Service) InvalidateToolsCache(ctx context.Context) {
 	if orchestrator, ok := s.orchestrator.(*llmOrchestrator); ok {
-		orchestrator.config.ToolRegistry.InvalidateCache()
+		orchestrator.config.ToolRegistry.InvalidateCache(ctx)
 	}
 }
 

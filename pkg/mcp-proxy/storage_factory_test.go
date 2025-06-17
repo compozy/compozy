@@ -19,8 +19,6 @@ func TestDefaultStorageConfig(t *testing.T) {
 }
 
 func TestNewStorage(t *testing.T) {
-	initLogger(t)
-
 	t.Run("Redis storage", func(t *testing.T) {
 		// Create miniredis instance for testing
 		mr := miniredis.RunT(t)
@@ -83,7 +81,6 @@ func TestNewStorage(t *testing.T) {
 }
 
 func TestMemoryStorage_SaveMCP(t *testing.T) {
-	initLogger(t)
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
@@ -113,7 +110,6 @@ func TestMemoryStorage_SaveMCP(t *testing.T) {
 }
 
 func TestMemoryStorage_LoadMCP(t *testing.T) {
-	initLogger(t)
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
@@ -151,7 +147,6 @@ func TestMemoryStorage_LoadMCP(t *testing.T) {
 }
 
 func TestMemoryStorage_DeleteMCP(t *testing.T) {
-	initLogger(t)
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
@@ -196,7 +191,6 @@ func TestMemoryStorage_DeleteMCP(t *testing.T) {
 }
 
 func TestMemoryStorage_ListMCPs(t *testing.T) {
-	initLogger(t)
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
@@ -236,7 +230,6 @@ func TestMemoryStorage_ListMCPs(t *testing.T) {
 }
 
 func TestMemoryStorage_SaveStatus(t *testing.T) {
-	initLogger(t)
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
@@ -264,7 +257,6 @@ func TestMemoryStorage_SaveStatus(t *testing.T) {
 }
 
 func TestMemoryStorage_LoadStatus(t *testing.T) {
-	initLogger(t)
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
@@ -307,14 +299,12 @@ func TestMemoryStorage_LoadStatus(t *testing.T) {
 }
 
 func TestMemoryStorage_Close(t *testing.T) {
-	initLogger(t)
 	storage := NewMemoryStorage()
 	err := storage.Close()
 	assert.NoError(t, err)
 }
 
 func TestMemoryStorage_Integration(t *testing.T) {
-	initLogger(t)
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
