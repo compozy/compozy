@@ -59,7 +59,7 @@ func (s *service) LoadProject(
 	if projectConfig.AutoLoad != nil && projectConfig.AutoLoad.Enabled {
 		s.log.Info("AutoLoad enabled, discovering and loading configurations")
 		autoLoader := autoload.New(pCWD.PathStr(), projectConfig.AutoLoad, configRegistry)
-		if err := autoLoader.Load(context.Background()); err != nil {
+		if err := autoLoader.Load(ctx); err != nil {
 			s.log.Error("AutoLoad failed", "error", err)
 			return nil, nil, fmt.Errorf("autoload failed: %w", err)
 		}

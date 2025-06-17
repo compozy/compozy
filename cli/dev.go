@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/compozy/compozy/engine/infra/server"
 	"github.com/compozy/compozy/engine/infra/store"
@@ -18,7 +19,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func getServerConfig(cmd *cobra.Command, envFilePath string) (*server.Config, error) {
+func getServerConfig(ctx context.Context, cmd *cobra.Command, envFilePath string) (*server.Config, error) {
+	log := logger.FromContext(ctx)
 	port, err := cmd.Flags().GetInt("port")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get port flag: %w", err)
@@ -45,7 +47,7 @@ func getServerConfig(cmd *cobra.Command, envFilePath string) (*server.Config, er
 		return nil, fmt.Errorf("no free port found near %d: %w", port, err)
 	}
 	if availablePort != port {
-		fmt.Printf("Port %d unavailable, using port %d instead\n", port, availablePort)
+		log.Info("Port unavailable, using alternative port", "requested_port", port, "available_port", availablePort)
 	}
 
 	serverConfig := &server.Config{
@@ -297,7 +299,7 @@ func handleDevCmd(cmd *cobra.Command, _ []string) error {
 	ctx = logger.ContextWithLogger(ctx, log)
 
 	// Get server configuration
-	scfg, err := getServerConfig(cmd, envFilePath)
+	scfg, err := getServerConfig(ctx, cmd, envFilePath)
 	if err != nil {
 		return err
 	}
@@ -337,7 +339,7 @@ func handleDevCmd(cmd *cobra.Command, _ []string) error {
 			return err
 		}
 		defer watcher.Close()
-		restartChan := make(chan bool)
+		restartChan := make(chan bool, 1)
 		go startWatcher(ctx, watcher, restartChan)
 		return runAndWatchServer(ctx, scfg, tcfg, dbCfg, restartChan)
 	}
@@ -352,6 +354,11 @@ func setupWatcher(ctx context.Context, cwd string) (*fsnotify.Watcher, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create file watcher: %w", err)
 	}
+	// Close watcher when context is canceled to prevent goroutine leaks
+	go func() {
+		<-ctx.Done()
+		_ = watcher.Close()
+	}()
 	if err := filepath.Walk(cwd, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -363,6 +370,7 @@ func setupWatcher(ctx context.Context, cwd string) (*fsnotify.Watcher, error) {
 		}
 		return nil
 	}); err != nil {
+		watcher.Close()
 		return nil, fmt.Errorf("failed to walk project directory: %w", err)
 	}
 	return watcher, nil
@@ -372,13 +380,19 @@ func startWatcher(ctx context.Context, watcher *fsnotify.Watcher, restartChan ch
 	log := logger.FromContext(ctx)
 	for {
 		select {
+		case <-ctx.Done():
+			log.Info("Context canceled, stopping file watcher")
+			return
 		case event, ok := <-watcher.Events:
 			if !ok {
 				return
 			}
 			if event.Has(fsnotify.Write) {
-				log.Info("Detected file change, sending restart signal...", "file", event.Name)
-				restartChan <- true
+				log.Debug("Detected file change, sending restart signal...", "file", event.Name)
+				select {
+				case restartChan <- true:
+				default: // restart already pending
+				}
 			}
 		case err, ok := <-watcher.Errors:
 			if !ok {
@@ -430,7 +444,10 @@ func runAndWatchServer(
 		case err := <-serverErrChan:
 			if err != nil {
 				log.Error("Server stopped with error", "error", err)
-				return err
+				// Add back-off to prevent tight restart loops on server failures
+				log.Debug("Waiting before retry...")
+				time.Sleep(2 * time.Second)
+				continue // Retry after back-off
 			}
 			log.Info("Server stopped.")
 			return nil

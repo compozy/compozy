@@ -173,3 +173,84 @@ func TestNewAuthMiddleware(t *testing.T) {
 		assert.False(t, c.IsAborted())
 	})
 }
+
+func TestWrapWithGinMiddlewares_PanicRecovery(t *testing.T) {
+	t.Run("Should catch panics from the handler", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+
+		// Create a handler that panics
+		panicHandler := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			panic("test panic")
+		})
+
+		// Create recovery middleware
+		recoverMW := recoverMiddleware("test-client")
+
+		// Wrap handler with recovery middleware
+		wrappedHandler := wrapWithGinMiddlewares(panicHandler, recoverMW)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+		c.Request = req
+
+		// This should not panic and should return 500
+		wrappedHandler(c)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Contains(t, w.Body.String(), "Internal server error")
+	})
+
+	t.Run("Should work with nil handler", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+
+		wrappedHandler := wrapWithGinMiddlewares(nil)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+		c.Request = req
+
+		wrappedHandler(c)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Contains(t, w.Body.String(), "Handler not initialized")
+	})
+
+	t.Run("Should properly chain middlewares", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+
+		var executionOrder []string
+
+		middleware1 := func(c *gin.Context) {
+			executionOrder = append(executionOrder, "middleware1-start")
+			c.Next()
+			executionOrder = append(executionOrder, "middleware1-end")
+		}
+
+		middleware2 := func(c *gin.Context) {
+			executionOrder = append(executionOrder, "middleware2-start")
+			c.Next()
+			executionOrder = append(executionOrder, "middleware2-end")
+		}
+
+		handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			executionOrder = append(executionOrder, "handler")
+			w.WriteHeader(http.StatusOK)
+		})
+
+		wrappedHandler := wrapWithGinMiddlewares(handler, middleware1, middleware2)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+		c.Request = req
+
+		wrappedHandler(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		// Middleware should execute in order: 1-start, 2-start, handler, 2-end, 1-end
+		expected := []string{"middleware1-start", "middleware2-start", "handler", "middleware2-end", "middleware1-end"}
+		assert.Equal(t, expected, executionOrder)
+	})
+}

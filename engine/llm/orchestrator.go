@@ -66,7 +66,7 @@ func (o *llmOrchestrator) Execute(ctx context.Context, request Request) (*core.O
 	}
 	defer func() {
 		if closeErr := llmClient.Close(); closeErr != nil {
-			log.Error("failed to close LLM client", "error", closeErr)
+			log.Error("Failed to close LLM client", "error", closeErr)
 		}
 	}()
 	// Build prompt

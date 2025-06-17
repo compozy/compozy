@@ -52,23 +52,26 @@ const bearerPrefix = "Bearer "
 
 // wrapWithGinMiddlewares wraps an http.Handler with gin middlewares
 func wrapWithGinMiddlewares(handler http.Handler, middlewares ...gin.HandlerFunc) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Apply middlewares
-		for _, middleware := range middlewares {
-			middleware(c)
-			if c.IsAborted() {
-				return
-			}
-		}
+	// Create a new gin engine to properly chain middlewares
+	engine := gin.New()
 
-		// Check for nil handler (test scenario)
+	// Add all middlewares to the engine
+	for _, middleware := range middlewares {
+		engine.Use(middleware)
+	}
+
+	// Add the final handler that calls the wrapped http.Handler
+	engine.Use(func(c *gin.Context) {
 		if handler == nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Handler not initialized"})
 			return
 		}
-
-		// Call the wrapped handler
 		handler.ServeHTTP(c.Writer, c.Request)
+	})
+
+	// Return a handler that uses the engine
+	return func(c *gin.Context) {
+		engine.HandleContext(c)
 	}
 }
 

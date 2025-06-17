@@ -43,13 +43,13 @@ func (r *WorkflowRepo) withTransaction(ctx context.Context, fn func(pgx.Tx) erro
 		if p := recover(); p != nil {
 			err := tx.Rollback(ctx)
 			if err != nil {
-				log.Error("error rolling back transaction", "error", err)
+				log.Error("Failed to rollback transaction", "error", err)
 			}
 			panic(p)
 		} else if err != nil {
 			err := tx.Rollback(ctx)
 			if err != nil {
-				log.Error("error rolling back transaction", "error", err)
+				log.Error("Failed to rollback transaction", "error", err)
 			}
 		} else {
 			err = tx.Commit(ctx)

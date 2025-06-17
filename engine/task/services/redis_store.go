@@ -40,11 +40,10 @@ func NewRedisConfigStore(redis *cache.Redis, ttl time.Duration) ConfigStore {
 
 // Save persists a task configuration with the given taskExecID as key
 func (s *redisConfigStore) Save(ctx context.Context, taskExecID string, config *task.Config) error {
-	log := logger.FromContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context canceled: %w", err)
 	}
-
+	log := logger.FromContext(ctx)
 	if taskExecID == "" {
 		return fmt.Errorf("taskExecID cannot be empty")
 	}
@@ -70,11 +69,10 @@ func (s *redisConfigStore) Save(ctx context.Context, taskExecID string, config *
 
 // Get retrieves a task configuration by taskExecID and atomically extends TTL
 func (s *redisConfigStore) Get(ctx context.Context, taskExecID string) (*task.Config, error) {
-	log := logger.FromContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context canceled: %w", err)
 	}
-
+	log := logger.FromContext(ctx)
 	if taskExecID == "" {
 		return nil, fmt.Errorf("taskExecID cannot be empty")
 	}
@@ -101,11 +99,10 @@ func (s *redisConfigStore) Get(ctx context.Context, taskExecID string) (*task.Co
 
 // Delete removes a task configuration by taskExecID
 func (s *redisConfigStore) Delete(ctx context.Context, taskExecID string) error {
-	log := logger.FromContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context canceled: %w", err)
 	}
-
+	log := logger.FromContext(ctx)
 	if taskExecID == "" {
 		return fmt.Errorf("taskExecID cannot be empty")
 	}
@@ -127,11 +124,10 @@ func (s *redisConfigStore) Delete(ctx context.Context, taskExecID string) error 
 
 // SaveMetadata persists arbitrary metadata with the given key
 func (s *redisConfigStore) SaveMetadata(ctx context.Context, key string, data []byte) error {
-	log := logger.FromContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context canceled: %w", err)
 	}
-
+	log := logger.FromContext(ctx)
 	if key == "" {
 		return fmt.Errorf("key cannot be empty")
 	}
@@ -151,11 +147,10 @@ func (s *redisConfigStore) SaveMetadata(ctx context.Context, key string, data []
 
 // GetMetadata retrieves metadata by key and atomically extends TTL
 func (s *redisConfigStore) GetMetadata(ctx context.Context, key string) ([]byte, error) {
-	log := logger.FromContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context canceled: %w", err)
 	}
-
+	log := logger.FromContext(ctx)
 	if key == "" {
 		return nil, fmt.Errorf("key cannot be empty")
 	}
@@ -175,11 +170,10 @@ func (s *redisConfigStore) GetMetadata(ctx context.Context, key string) ([]byte,
 
 // DeleteMetadata removes metadata by key
 func (s *redisConfigStore) DeleteMetadata(ctx context.Context, key string) error {
-	log := logger.FromContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context canceled: %w", err)
 	}
-
+	log := logger.FromContext(ctx)
 	if key == "" {
 		return fmt.Errorf("key cannot be empty")
 	}

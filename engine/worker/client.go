@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/compozy/pkg/logger"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 )
@@ -23,12 +22,10 @@ type Client struct {
 	config *TemporalConfig
 }
 
-func NewClient(ctx context.Context, cfg *TemporalConfig) (*Client, error) {
-	log := logger.FromContext(ctx)
+func NewClient(_ context.Context, cfg *TemporalConfig) (*Client, error) {
 	options := client.Options{
 		HostPort:  cfg.HostPort,
 		Namespace: cfg.Namespace,
-		Logger:    log,
 	}
 	temporalClient, err := client.Dial(options)
 	if err != nil {

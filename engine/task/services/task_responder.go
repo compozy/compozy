@@ -426,7 +426,7 @@ func (s *TaskResponder) normalizeErrorTransition(
 func (s *TaskResponder) logParentStatusUpdateError(ctx context.Context, state *task.State) {
 	log := logger.FromContext(ctx)
 	if err := s.updateParentStatusIfNeeded(ctx, state); err != nil {
-		log.Debug("failed to update parent status", "error", err)
+		log.Debug("Failed to update parent status", "error", err)
 	}
 }
 
@@ -516,7 +516,7 @@ func (s *TaskResponder) extractParallelStrategy(
 	// Validate the extracted strategy
 	if !task.ValidateStrategy(string(configData.Strategy)) {
 		if configData.Strategy != "" {
-			log.Error("Invalid parallel strategy found, using default wait_all",
+			log.Debug("Invalid parallel strategy found, using default wait_all",
 				"invalid_strategy", configData.Strategy,
 				"parent_state_id", parentStateID,
 			)

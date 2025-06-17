@@ -38,15 +38,15 @@ func (m *Manager) BuildErrHandler(ctx workflow.Context) func(err error) error {
 		},
 	})
 	return func(err error) error {
-		logger := workflow.GetLogger(ctx)
+		log := workflow.GetLogger(ctx)
 		if temporal.IsCanceledError(err) || err == workflow.ErrCanceled {
-			logger.Info("Workflow canceled")
+			log.Info("Workflow canceled")
 			return err
 		}
 
 		// For non-cancellation errors, update status to failed in a disconnected context
 		// to ensure the status update happens even if workflow is being terminated
-		logger.Info("Updating workflow status to Failed due to error", "error", err)
+		log.Info("Updating workflow status to Failed due to error", "error", err)
 		cleanupCtx, _ := workflow.NewDisconnectedContext(ctx)
 		label := wfacts.UpdateStateLabel
 		statusInput := &wfacts.UpdateStateInput{
@@ -61,9 +61,9 @@ func (m *Manager) BuildErrHandler(ctx workflow.Context) func(err error) error {
 			label,
 			statusInput,
 		).Get(cleanupCtx, nil); updateErr != nil {
-			logger.Error("Failed to update workflow status to Failed", "error", updateErr)
+			log.Error("Failed to update workflow status to Failed", "error", updateErr)
 		} else {
-			logger.Info("Successfully updated workflow status to Failed")
+			log.Debug("Successfully updated workflow status to Failed")
 		}
 		return err
 	}
@@ -94,7 +94,7 @@ func (m *Manager) CancelCleanup(ctx workflow.Context) {
 	).Get(cleanupCtx, nil); err != nil {
 		log.Error("Failed to update workflow status to Canceled during cleanup", "error", err)
 	} else {
-		log.Info("Successfully updated workflow status to Canceled")
+		log.Debug("Successfully updated workflow status to Canceled")
 	}
 }
 
@@ -103,8 +103,8 @@ func (m *Manager) CancelCleanup(ctx workflow.Context) {
 // -----------------------------------------------------------------------------
 
 func InitManager(ctx workflow.Context, input WorkflowInput) (*Manager, error) {
-	logger := workflow.GetLogger(ctx)
-	logger.Info("Starting workflow", "workflow_id", input.WorkflowID, "exec_id", input.WorkflowExecID)
+	log := workflow.GetLogger(ctx)
+	log.Info("Starting workflow", "workflow_id", input.WorkflowID, "exec_id", input.WorkflowExecID)
 	ctx = workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
 		StartToCloseTimeout: 10 * time.Second,
 	})

@@ -34,6 +34,7 @@ var bufferPool = sync.Pool{
 // NewRuntimeManager initializes a RuntimeManager
 func NewRuntimeManager(ctx context.Context, projectRoot string, options ...Option) (*Manager, error) {
 	config := DefaultConfig()
+	log := logger.FromContext(ctx)
 	for _, option := range options {
 		option(config)
 	}
@@ -49,7 +50,6 @@ func NewRuntimeManager(ctx context.Context, projectRoot string, options ...Optio
 	rm := &Manager{
 		config:      config,
 		projectRoot: projectRoot,
-		logger:      logger.FromContext(ctx),
 	}
 
 	// Ensure worker script exists
@@ -63,7 +63,7 @@ func NewRuntimeManager(ctx context.Context, projectRoot string, options ...Optio
 		return nil, fmt.Errorf("worker file not found at %s: run 'compozy dev' to generate it", workerPath)
 	}
 
-	rm.logger.Info("Deno runtime manager initialized", "project_root", projectRoot)
+	log.Info("Deno runtime manager initialized", "project_root", projectRoot)
 	return rm, nil
 }
 
@@ -79,6 +79,7 @@ func (rm *Manager) ExecuteTool(
 	input *core.Input,
 	env core.EnvMap,
 ) (*core.Output, error) {
+	log := logger.FromContext(ctx)
 	if err := rm.validateInputs(toolID, toolExecID, input, env); err != nil {
 		return nil, err
 	}
@@ -104,7 +105,7 @@ func (rm *Manager) ExecuteTool(
 	}
 	defer pipes.cleanup()
 
-	if err := rm.writeRequest(pipes.stdin, toolID, toolExecID, input, env); err != nil {
+	if err := rm.writeRequest(ctx, pipes.stdin, toolID, toolExecID, input, env); err != nil {
 		return nil, &ToolExecutionError{
 			ToolID:     toolID,
 			ToolExecID: toolExecID.String(),
@@ -113,12 +114,12 @@ func (rm *Manager) ExecuteTool(
 		}
 	}
 
-	response, err := rm.readResponse(cmd, pipes, toolID, toolExecID)
+	response, err := rm.readResponse(ctx, cmd, pipes, toolID, toolExecID)
 	if err != nil {
 		return nil, err
 	}
 
-	rm.logger.Debug("Tool execution completed successfully",
+	log.Debug("Tool execution completed successfully",
 		"tool_id", toolID,
 		"exec_id", toolExecID.String(),
 	)
@@ -186,12 +187,13 @@ func (rm *Manager) setupCommand(
 	workerPath string,
 	env core.EnvMap,
 ) (*exec.Cmd, *cmdPipes, error) {
+	log := logger.FromContext(ctx)
 	// Create deno run command with configurable permissions
 	args := append([]string{"run"}, rm.config.DenoPermissions...)
 	args = append(args, []string{"--quiet", "--no-check"}...)
 	args = append(args, workerPath)
 
-	rm.logger.Debug("Setting up Deno command",
+	log.Debug("Setting up Deno command",
 		"worker_path", workerPath,
 	)
 
@@ -233,12 +235,14 @@ func (rm *Manager) setupCommand(
 
 // writeRequest writes the JSON request to the process stdin
 func (rm *Manager) writeRequest(
+	ctx context.Context,
 	stdin io.WriteCloser,
 	toolID string,
 	toolExecID core.ID,
 	input *core.Input,
 	env core.EnvMap,
 ) error {
+	log := logger.FromContext(ctx)
 	if input == nil {
 		input = &core.Input{}
 	}
@@ -267,7 +271,7 @@ func (rm *Manager) writeRequest(
 		return fmt.Errorf("encode request: %w", err)
 	}
 
-	rm.logger.Debug("Sending request to Deno process",
+	log.Debug("Sending request to Deno process",
 		"tool_id", toolID,
 		"request_length", buf.Len(),
 	)
@@ -282,11 +286,13 @@ func (rm *Manager) writeRequest(
 
 // readResponse reads and parses the response from the process
 func (rm *Manager) readResponse(
+	ctx context.Context,
 	cmd *exec.Cmd,
 	pipes *cmdPipes,
 	toolID string,
 	toolExecID core.ID,
 ) (*core.Output, error) {
+	log := logger.FromContext(ctx)
 	var stderrBuf bytes.Buffer
 	stderrDone := make(chan struct{})
 
@@ -296,7 +302,7 @@ func (rm *Manager) readResponse(
 			stderrBuf.WriteString(stderrScanner.Text() + "\n")
 		}
 		if err := stderrScanner.Err(); err != nil {
-			rm.logger.Warn("Stderr scanner error", "error", err)
+			log.Warn("Stderr scanner error", "error", err)
 		}
 		close(stderrDone)
 	}()
@@ -313,7 +319,7 @@ func (rm *Manager) readResponse(
 	}
 
 	// Filter out Deno error messages from stdout
-	responseBytes = rm.filterDenoMessages(responseBytes)
+	responseBytes = rm.filterDenoMessages(ctx, responseBytes)
 
 	<-stderrDone
 
@@ -326,16 +332,18 @@ func (rm *Manager) readResponse(
 		}
 	}
 
-	return rm.parseResponse(responseBytes, toolID, toolExecID, stderrBuf.String())
+	return rm.parseResponse(ctx, responseBytes, toolID, toolExecID, stderrBuf.String())
 }
 
 // parseResponse parses the JSON response from the deno process
 func (rm *Manager) parseResponse(
+	ctx context.Context,
 	responseBytes []byte,
 	toolID string,
 	toolExecID core.ID,
 	stderr string,
 ) (*core.Output, error) {
+	log := logger.FromContext(ctx)
 	if len(responseBytes) == 0 {
 		return nil, &ToolExecutionError{
 			ToolID:     toolID,
@@ -346,7 +354,7 @@ func (rm *Manager) parseResponse(
 	}
 
 	// Log basic response info for debugging
-	rm.logger.Debug("Received response from Deno process",
+	log.Debug("Received response from Deno process",
 		"tool_id", toolID,
 		"response_length", len(responseBytes),
 	)
@@ -448,7 +456,8 @@ func minInt(a, b int) int {
 }
 
 // filterDenoMessages removes Deno error/warning messages from output to extract clean JSON
-func (rm *Manager) filterDenoMessages(output []byte) []byte {
+func (rm *Manager) filterDenoMessages(ctx context.Context, output []byte) []byte {
+	log := logger.FromContext(ctx)
 	lines := strings.Split(string(output), "\n")
 	var cleanLines []string
 
@@ -462,7 +471,7 @@ func (rm *Manager) filterDenoMessages(output []byte) []byte {
 
 		// Skip common Deno error/warning message patterns
 		if rm.isDenoMessage(trimmed) {
-			rm.logger.Debug("Filtered Deno message", "message", trimmed)
+			log.Debug("Filtered Deno message", "message", trimmed)
 			continue
 		}
 

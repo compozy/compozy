@@ -57,7 +57,7 @@ func NewService(ctx context.Context, runtime *runtime.Manager, agent *agent.Conf
 		for i := range agent.Tools {
 			localTool := NewLocalToolAdapter(&agent.Tools[i], &runtimeAdapter{runtime})
 			if err := toolRegistry.Register(ctx, localTool); err != nil {
-				log.Warn("failed to register local tool", "tool", agent.Tools[i].ID, "error", err)
+				log.Warn("Failed to register local tool", "tool", agent.Tools[i].ID, "error", err)
 			}
 		}
 	}

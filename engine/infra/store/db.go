@@ -123,19 +123,16 @@ func (db *DB) WithTx(ctx context.Context, fn func(pgx.Tx) error) error {
 
 	defer func() {
 		if p := recover(); p != nil {
-			err := tx.Rollback(ctx)
-			if err != nil {
-				log.Error("error rolling back transaction", "error", err)
+			if rbErr := tx.Rollback(ctx); rbErr != nil {
+				log.Error("Failed to rollback transaction", "error", rbErr)
 			}
 		} else if err != nil {
-			err := tx.Rollback(ctx)
-			if err != nil {
-				log.Error("error rolling back transaction", "error", err)
+			if rbErr := tx.Rollback(ctx); rbErr != nil {
+				log.Error("Failed to rollback transaction", "error", rbErr)
 			}
 		} else {
-			err := tx.Commit(ctx)
-			if err != nil {
-				log.Error("error committing transaction", "error", err)
+			if commitErr := tx.Commit(ctx); commitErr != nil {
+				log.Error("Failed to commit transaction", "error", commitErr)
 			}
 		}
 	}()

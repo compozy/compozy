@@ -80,6 +80,7 @@ func initSystemMetrics(ctx context.Context, meter metric.Meter) {
 		if err != nil {
 			log.Error("Failed to register build info callback", "error", err)
 		}
+		recordBuildInfo(ctx)
 	})
 }
 
@@ -121,7 +122,6 @@ func recordBuildInfo(ctx context.Context) {
 // InitSystemMetrics initializes system health metrics and records build info
 func InitSystemMetrics(ctx context.Context, meter metric.Meter) {
 	initSystemMetrics(ctx, meter)
-	recordBuildInfo(ctx)
 }
 
 // resetSystemMetrics is used for testing purposes only
@@ -131,14 +131,14 @@ func resetSystemMetrics(ctx context.Context) {
 	if uptimeRegistration != nil {
 		err := uptimeRegistration.Unregister()
 		if err != nil {
-			log.Error("Failed to unregister uptime callback during reset", "error", err)
+			log.Debug("Failed to unregister uptime callback during reset", "error", err)
 		}
 		uptimeRegistration = nil
 	}
 	if buildInfoRegistration != nil {
 		err := buildInfoRegistration.Unregister()
 		if err != nil {
-			log.Error("Failed to unregister build info callback during reset", "error", err)
+			log.Debug("Failed to unregister build info callback during reset", "error", err)
 		}
 		buildInfoRegistration = nil
 	}

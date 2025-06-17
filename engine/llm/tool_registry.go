@@ -78,7 +78,7 @@ func (r *toolRegistry) Register(ctx context.Context, tool Tool) error {
 	defer r.localMu.Unlock()
 
 	r.localTools[canonical] = tool
-	log.Debug("registered local tool", "name", canonical)
+	log.Debug("Registered local tool", "name", canonical)
 
 	return nil
 }
@@ -99,7 +99,7 @@ func (r *toolRegistry) Find(ctx context.Context, name string) (Tool, bool) {
 	// Check MCP tools
 	mcpTools, err := r.getMCPTools(ctx)
 	if err != nil {
-		log.Warn("failed to get MCP tools", "error", err)
+		log.Warn("Failed to get MCP tools", "error", err)
 		return nil, false
 	}
 
@@ -155,7 +155,7 @@ func (r *toolRegistry) InvalidateCache(ctx context.Context) {
 
 	r.mcpTools = nil
 	r.mcpCacheTs = time.Time{}
-	log.Debug("invalidated MCP tools cache")
+	log.Debug("Invalidated MCP tools cache")
 }
 
 // Close cleans up resources
@@ -220,7 +220,7 @@ func (r *toolRegistry) refreshMCPTools(ctx context.Context) ([]tools.Tool, error
 	r.mcpTools = mcpTools
 	r.mcpCacheTs = time.Now()
 	r.mcpMu.Unlock()
-	log.Debug("refreshed MCP tools cache", "count", len(mcpTools))
+	log.Debug("Refreshed MCP tools cache", "count", len(mcpTools))
 	return mcpTools, nil
 }
 

@@ -79,6 +79,7 @@ func NewMCPClientManager(storage Storage, config *ClientManagerConfig) *MCPClien
 func (m *MCPClientManager) Start(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Info("Starting MCP client manager")
+	m.ctx = logger.ContextWithLogger(m.ctx, log)
 
 	// Load existing definitions and start clients
 	definitions, err := m.storage.ListMCPs(ctx)
@@ -178,7 +179,7 @@ func (m *MCPClientManager) AddClient(ctx context.Context, def *MCPDefinition) er
 		m.mu.Unlock()
 		// Clean up the created client since we're not using it
 		if disconnectErr := client.Disconnect(ctx); disconnectErr != nil {
-			log.Warn("Failed to clean up unused client", "name", def.Name, "error", disconnectErr)
+			log.Debug("Failed to clean up unused client", "name", def.Name, "error", disconnectErr)
 		}
 		return fmt.Errorf("client '%s' already exists", def.Name)
 	}
@@ -188,7 +189,7 @@ func (m *MCPClientManager) AddClient(ctx context.Context, def *MCPDefinition) er
 		m.mu.Unlock()
 		// Clean up the created client since we can't add it
 		if disconnectErr := client.Disconnect(ctx); disconnectErr != nil {
-			log.Warn("Failed to clean up client due to connection limit", "name", def.Name, "error", disconnectErr)
+			log.Debug("Failed to clean up client due to connection limit", "name", def.Name, "error", disconnectErr)
 		}
 		return fmt.Errorf("maximum concurrent connections (%d) reached", m.config.MaxConcurrentConnections)
 	}
@@ -204,7 +205,7 @@ func (m *MCPClientManager) AddClient(ctx context.Context, def *MCPDefinition) er
 		m.connectClient(m.ctx, client)
 	}()
 
-	log.Info("Added MCP client", "name", def.Name, "transport", def.Transport)
+	log.Debug("Added MCP client", "name", def.Name, "transport", def.Transport)
 	return nil
 }
 
@@ -227,7 +228,7 @@ func (m *MCPClientManager) RemoveClient(ctx context.Context, name string) error 
 	// Remove from map
 	delete(m.clients, name)
 
-	log.Info("Removed MCP client", "name", name)
+	log.Debug("Removed MCP client", "name", name)
 	return nil
 }
 
@@ -242,11 +243,6 @@ func (m *MCPClientManager) GetClient(name string) (MCPClientInterface, error) {
 	}
 
 	return client, nil
-}
-
-// ListClients returns safe copies of client statuses
-func (m *MCPClientManager) ListClients(ctx context.Context) map[string]*MCPStatus {
-	return m.ListClientStatuses(ctx)
 }
 
 // ListClientStatuses returns status copies for all clients using concurrent retrieval
@@ -357,7 +353,7 @@ func (m *MCPClientManager) connectClient(ctx context.Context, client *MCPClient)
 			// Success
 			status.UpdateStatus(StatusConnected, "")
 			m.saveStatus(ctx, status)
-			log.Info("MCP client connected", "name", def.Name, "attempt", attempt+1)
+			log.Debug("MCP client connected", "name", def.Name, "attempt", attempt+1)
 			return
 		}
 

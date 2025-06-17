@@ -142,7 +142,7 @@ func NewMonitoringService(ctx context.Context, cfg *Config) (*MonitoringService,
     // Initialize Prometheus exporter
     exporter, err := prometheus.New()
     if err != nil {
-        logger.Error("Failed to initialize Prometheus exporter", "error", err)
+        log.Error("Failed to initialize Prometheus exporter", "error", err)
         return &MonitoringService{meter: noop.NewMeterProvider().Meter("noop")}, nil
     }
 
@@ -243,7 +243,7 @@ r.GET("/metrics", gin.WrapH(ms.ExporterHandler()))
 // In engine/worker package
 interceptor, err := ms.TemporalInterceptor(ctx)
 if err != nil {
-    logger.Error("Failed to create Temporal interceptor", "error", err)
+    log.Error("Failed to create Temporal interceptor", "error", err)
     // Continue without interceptor rather than failing
 }
 if interceptor != nil {
@@ -366,15 +366,15 @@ func TestMetricsEndpoint_Integration(t *testing.T) {
 ### 9.1 Bootstrap Logging
 
 ```go
-logger.Info("Initializing monitoring service", "enabled", cfg.Enabled)
-logger.Info("Metrics endpoint registered", "path", cfg.Path)
+log.Info("Initializing monitoring service", "enabled", cfg.Enabled)
+log.Info("Metrics endpoint registered", "path", cfg.Path)
 ```
 
 ### 9.2 Error Logging
 
 ```go
-logger.Error("Prometheus exporter initialization failed", "error", err)
-logger.Error("Metric recording failed", "metric", "http_requests_total", "error", err)
+log.Error("Prometheus exporter initialization failed", "error", err)
+log.Error("Metric recording failed", "metric", "http_requests_total", "error", err)
 ```
 
 ### 9.3 Health Metrics

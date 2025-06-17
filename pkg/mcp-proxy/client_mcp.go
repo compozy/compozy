@@ -30,8 +30,9 @@ type MCPClient struct {
 	// Lifecycle management
 	initialized bool
 	connected   bool
-	managerCtx  context.Context // Manager context for long-lived operations
-	pingDone    chan struct{}   // Signal for ping routine completion
+	managerCtx  context.Context    // Manager context for long-lived operations
+	pingCancel  context.CancelFunc // Cancel function for ping routine
+	pingDone    chan struct{}      // Signal for ping routine completion
 	mu          sync.RWMutex
 }
 
@@ -173,7 +174,7 @@ func createStreamableHTTPMCPClient(def *MCPDefinition) (*mcpclient.Client, bool,
 // Connect establishes connection to the MCP server
 func (c *MCPClient) Connect(ctx context.Context) error {
 	log := logger.FromContext(ctx)
-	log.Info("Connecting to MCP server", "transport", c.definition.Transport)
+	log.Info("Connecting to MCP server", "transport", c.definition.Transport, "mcp_name", c.definition.Name)
 
 	// Check if already connected (without lock to avoid deadlock)
 	c.mu.RLock()
@@ -213,17 +214,22 @@ func (c *MCPClient) Connect(ctx context.Context) error {
 
 	// Start ping routine if needed - use manager context for proper lifecycle
 	if c.needPing {
-		go c.startPingRoutine(c.managerCtx)
+		pingCtx, pingCancel := context.WithCancel(c.managerCtx)
+		c.mu.Lock()
+		c.pingCancel = pingCancel
+		c.mu.Unlock()
+		pingCtx = logger.ContextWithLogger(pingCtx, log)
+		go c.startPingRoutine(pingCtx)
 	}
 
-	log.Info("Successfully connected to MCP server")
+	log.Info("Successfully connected to MCP server", "mcp_name", c.definition.Name)
 	return nil
 }
 
 // Disconnect closes the connection to the MCP server
 func (c *MCPClient) Disconnect(ctx context.Context) error {
 	log := logger.FromContext(ctx)
-	log.Info("Disconnecting from MCP server")
+	log.Info("Disconnecting from MCP server", "mcp_name", c.definition.Name)
 
 	// Check if already disconnected (without lock to avoid deadlock)
 	c.mu.RLock()
@@ -234,24 +240,21 @@ func (c *MCPClient) Disconnect(ctx context.Context) error {
 		return nil
 	}
 
-	// Mark as disconnected first so the ping routine can exit
+	// Mark as disconnected and cancel ping routine
 	c.mu.Lock()
 	c.connected = false
+	pingCancel := c.pingCancel
 	c.mu.Unlock()
 
-	// Wait for ping routine to finish if it was started
-	if c.needPing {
-		select {
-		case <-c.pingDone:
-			// Ping routine already finished
-		case <-time.After(5 * time.Second):
-			log.Warn("Timeout waiting for ping routine to finish")
-		}
+	// Cancel ping routine if it was started
+	if c.needPing && pingCancel != nil {
+		pingCancel()
+		<-c.pingDone // Wait for routine to exit (will be immediate now)
 	}
 
 	// Close the MCP client - no lock held during network operation
 	if err := c.mcpClient.Close(); err != nil {
-		log.Error("Error closing MCP client", "error", err)
+		log.Error("Error closing MCP client", "error", err, "mcp_name", c.definition.Name)
 	}
 
 	// Update remaining state under lock
@@ -260,7 +263,7 @@ func (c *MCPClient) Disconnect(ctx context.Context) error {
 	c.status.UpdateStatus(StatusDisconnected, "")
 	c.mu.Unlock()
 
-	log.Info("Disconnected from MCP server")
+	log.Info("Disconnected from MCP server", "mcp_name", c.definition.Name)
 	return nil
 }
 
@@ -322,14 +325,14 @@ func (c *MCPClient) initializeMCP(ctx context.Context) error {
 		return fmt.Errorf("MCP initialization failed: %w", err)
 	}
 
-	log.Info("MCP client initialized successfully")
+	log.Info("MCP client initialized successfully", "mcp_name", c.definition.Name)
 	return nil
 }
 
 // startPingRoutine starts a background ping routine for connection health
 func (c *MCPClient) startPingRoutine(ctx context.Context) {
 	log := logger.FromContext(ctx)
-	log.Debug("Starting ping routine")
+	log.Debug("Starting ping routine", "mcp_name", c.definition.Name)
 	defer close(c.pingDone) // Signal completion when routine exits
 
 	ticker := time.NewTicker(30 * time.Second)
@@ -338,11 +341,11 @@ func (c *MCPClient) startPingRoutine(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Debug("Context canceled, stopping ping routine")
+			log.Debug("Context canceled, stopping ping routine", "mcp_name", c.definition.Name)
 			return
 		case <-ticker.C:
 			if !c.IsConnected() {
-				log.Debug("Client disconnected, stopping ping routine")
+				log.Debug("Client disconnected, stopping ping routine", "mcp_name", c.definition.Name)
 				return
 			}
 
@@ -351,8 +354,8 @@ func (c *MCPClient) startPingRoutine(ctx context.Context) {
 			cancel()
 
 			if err != nil {
-				log.Warn("Ping failed", "error", err)
-				c.updateStatus(StatusError, fmt.Sprintf("ping failed: %v", err))
+				log.Warn("Ping failed", "error", err, "mcp_name", c.definition.Name)
+				c.updateStatus(StatusError, fmt.Sprintf("Ping failed: %v", err))
 			}
 		}
 	}

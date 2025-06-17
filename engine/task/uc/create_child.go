@@ -171,9 +171,10 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 			// Best-effort rollback: delete any configs already saved
 			for _, savedID := range savedConfigIDs {
 				if deleteErr := uc.configManager.DeleteTaskConfig(ctx, savedID); deleteErr != nil {
-					// Log but don't fail on rollback errors
-					log.Error("failed to rollback config during error recovery",
-						"config_id", savedID, "rollback_error", deleteErr)
+					log.Warn("Failed to rollback config during error recovery",
+						"config_id", savedID,
+						"rollback_error", deleteErr,
+					)
 				}
 			}
 			return fmt.Errorf("failed to save child config %s after transaction (rolled back %d configs): %w",

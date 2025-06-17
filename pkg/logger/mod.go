@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 
 	charmlog "github.com/charmbracelet/log"
 )
@@ -39,13 +40,28 @@ func ContextWithLogger(ctx context.Context, l Logger) context.Context {
 	return context.WithValue(ctx, LoggerCtxKey, l)
 }
 
+var defaultLogger Logger
+var defaultLoggerOnce sync.Once
+
 // FromContext retrieves a logger from the context, returning a default logger if none is found
 func FromContext(ctx context.Context) Logger {
-	if l, ok := ctx.Value(LoggerCtxKey).(Logger); ok {
+	if ctx == nil {
+		return getDefaultLogger()
+	}
+	// Try to get logger from context - check both type assertion success AND non-nil
+	if l, ok := ctx.Value(LoggerCtxKey).(Logger); ok && l != nil {
 		return l
 	}
-	// Return a default logger if none is found in context
-	return NewLogger(nil)
+	// Fallback to default logger
+	return getDefaultLogger()
+}
+
+// getDefaultLogger returns the singleton default logger, initializing it if needed
+func getDefaultLogger() Logger {
+	defaultLoggerOnce.Do(func() {
+		defaultLogger = NewLogger(nil)
+	})
+	return defaultLogger
 }
 
 type loggerImpl struct {

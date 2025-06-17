@@ -90,7 +90,7 @@ func (uc *ExecuteTask) executeAgent(
 	defer func() {
 		if closeErr := llmService.Close(); closeErr != nil {
 			// Log error but don't fail the task
-			log.Warn("failed to close LLM service", "error", closeErr)
+			log.Warn("Failed to close LLM service", "error", closeErr)
 		}
 	}()
 

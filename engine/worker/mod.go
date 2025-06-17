@@ -99,7 +99,7 @@ func NewWorker(
 	if len(projectConfig.Runtime.Permissions) > 0 {
 		rtOpts = append(rtOpts, runtime.WithDenoPermissions(projectConfig.Runtime.Permissions))
 	}
-	runtime, err := runtime.NewRuntimeManager(ctx, projectRoot, rtOpts...)
+	rtManager, err := runtime.NewRuntimeManager(ctx, projectRoot, rtOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to created execution manager: %w", err)
 	}
@@ -128,7 +128,7 @@ func NewWorker(
 		workflows,
 		config.WorkflowRepo(),
 		config.TaskRepo(),
-		runtime,
+		rtManager,
 		configStore,
 		signalDispatcher,
 		configManager,
@@ -209,9 +209,9 @@ func (o *Worker) Stop(ctx context.Context) {
 	}
 	// Terminate this instance's dispatcher since each server has its own
 	if o.dispatcherID != "" {
-		log.Info("terminating instance dispatcher", "dispatcher_id", o.dispatcherID)
+		log.Info("Terminating instance dispatcher", "dispatcher_id", o.dispatcherID)
 		if err := o.client.TerminateWorkflow(ctx, o.dispatcherID, "", "server shutdown"); err != nil {
-			log.Error("failed to terminate dispatcher", "error", err, "dispatcher_id", o.dispatcherID)
+			log.Error("Failed to terminate dispatcher", "error", err, "dispatcher_id", o.dispatcherID)
 		}
 	}
 	o.worker.Stop()
@@ -221,17 +221,17 @@ func (o *Worker) Stop(ctx context.Context) {
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		if err := o.mcpRegister.Shutdown(ctx); err != nil {
-			log.Error("failed to shutdown MCP register", "error", err)
+			log.Error("Failed to shutdown MCP register", "error", err)
 		}
 	}
 	if o.configStore != nil {
 		if err := o.configStore.Close(); err != nil {
-			log.Error("failed to close config store", "error", err)
+			log.Error("Failed to close config store", "error", err)
 		}
 	}
 	if o.redisCache != nil {
 		if err := o.redisCache.Close(); err != nil {
-			log.Error("failed to close Redis cache", "error", err)
+			log.Error("Failed to close Redis cache", "error", err)
 		}
 	}
 }
@@ -266,7 +266,7 @@ func (o *Worker) TerminateDispatcher(ctx context.Context, reason string) error {
 	if o.dispatcherID == "" {
 		return fmt.Errorf("no dispatcher ID available")
 	}
-	log.Info("terminating dispatcher workflow", "dispatcher_id", o.dispatcherID, "reason", reason)
+	log.Info("Terminating dispatcher workflow", "dispatcher_id", o.dispatcherID, "reason", reason)
 	return o.client.TerminateWorkflow(ctx, o.dispatcherID, "", reason)
 }
 
@@ -288,8 +288,8 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 		)
 		if err != nil {
 			if _, ok := err.(*serviceerror.WorkflowExecutionAlreadyStarted); ok {
-				log.Info(
-					"dispatcher already running",
+				log.Debug(
+					"Dispatcher already running",
 					"dispatcher_id",
 					o.dispatcherID,
 					"project",
@@ -297,15 +297,15 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 				)
 				return nil
 			}
-			log.Warn("failed to start dispatcher, retrying", "error", err, "dispatcher_id", o.dispatcherID)
+			log.Warn("Failed to start dispatcher, retrying", "error", err, "dispatcher_id", o.dispatcherID)
 			return retry.RetryableError(err)
 		}
 		return nil
 	})
 	if err != nil {
-		log.Error("failed to start dispatcher after all retries", "error", err, "dispatcher_id", o.dispatcherID)
+		log.Error("Failed to start dispatcher after all retries", "error", err, "dispatcher_id", o.dispatcherID)
 	} else {
-		log.Info("started new dispatcher", "dispatcher_id", o.dispatcherID, "project", o.projectConfig.Name)
+		log.Info("Started new dispatcher", "dispatcher_id", o.dispatcherID, "project", o.projectConfig.Name)
 	}
 }
 

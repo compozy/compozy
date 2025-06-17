@@ -179,6 +179,11 @@ func Load(ctx context.Context, cwd *core.PathCWD, path string, envFilePath strin
 	if err != nil {
 		return nil, err
 	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
 	config, _, err := core.LoadConfig[*Config](filePath)
 	if err != nil {
 		return nil, err
@@ -194,6 +199,11 @@ func Load(ctx context.Context, cwd *core.PathCWD, path string, envFilePath strin
 	config.MonitoringConfig, err = monitoring.LoadWithEnv(ctx, config.MonitoringConfig)
 	if err != nil {
 		return nil, err
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
 	}
 	env, err := config.loadEnv(envFilePath)
 	if err != nil {

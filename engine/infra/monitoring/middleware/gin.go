@@ -71,8 +71,8 @@ func HTTPMetrics(ctx context.Context, meter metric.Meter) gin.HandlerFunc {
 	initMetrics(meter, log)
 	return func(c *gin.Context) {
 		// Add logger to request context
-		ctx := logger.ContextWithLogger(c.Request.Context(), log)
-		c.Request = c.Request.WithContext(ctx)
+		reqCtx := logger.ContextWithLogger(c.Request.Context(), log)
+		c.Request = c.Request.WithContext(reqCtx)
 		// Skip metrics collection if instruments are not initialized
 		if httpRequestsTotal == nil {
 			c.Next()

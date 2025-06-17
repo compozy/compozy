@@ -246,7 +246,7 @@ func (s *Server) waitForShutdown(ctx context.Context, errChan <-chan error) erro
 
 	select {
 	case <-ctx.Done():
-		log.Info("Context canceled, shutting down server")
+		log.Debug("Context canceled, shutting down server")
 		return s.Stop(ctx)
 	case sig := <-quit:
 		log.Info("Received shutdown signal", "signal", sig.String())
@@ -259,7 +259,6 @@ func (s *Server) waitForShutdown(ctx context.Context, errChan <-chan error) erro
 			}
 			return err
 		}
-		log.Info("HTTP server stopped gracefully")
 		return s.Stop(ctx)
 	}
 }

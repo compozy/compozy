@@ -188,13 +188,16 @@ func (al *AutoLoader) handleLoadError(
 func (al *AutoLoader) logCompletionStats(ctx context.Context, startTime time.Time, result *LoadResult) {
 	log := logger.FromContext(ctx)
 	totalDuration := time.Since(startTime)
-	if result.FilesProcessed > 0 && totalDuration > 0 {
+	if result.FilesProcessed > 0 {
 		log.Info("AutoLoad processing completed",
+			"files_processed", result.FilesProcessed,
+			"configs_loaded", result.ConfigsLoaded,
+			"errors", len(result.Errors),
 			"total_time_ms", totalDuration.Milliseconds(),
-			"files_per_second", float64(result.FilesProcessed)/totalDuration.Seconds(),
-			"avg_time_per_file_ms", float64(totalDuration.Milliseconds())/float64(result.FilesProcessed))
+			"avg_time_per_file_ms", float64(totalDuration.Milliseconds())/float64(result.FilesProcessed),
+		)
 	} else {
-		log.Info("AutoLoad processing completed",
+		log.Debug("AutoLoad processing completed",
 			"total_time_ms", totalDuration.Milliseconds())
 	}
 }
@@ -257,8 +260,7 @@ func (al *AutoLoader) Validate(ctx context.Context) (*LoadResult, error) {
 }
 
 // loadAndRegisterConfig loads a configuration file and registers it in the registry
-func (al *AutoLoader) loadAndRegisterConfig(ctx context.Context, filePath string) error {
-	log := logger.FromContext(ctx)
+func (al *AutoLoader) loadAndRegisterConfig(_ context.Context, filePath string) error {
 	// Security: Verify the file path doesn't escape the project root
 	if err := al.validateFilePath(filePath); err != nil {
 		return err
@@ -266,7 +268,6 @@ func (al *AutoLoader) loadAndRegisterConfig(ctx context.Context, filePath string
 	// First, load the file as a map to determine the resource type
 	configMap, err := core.MapFromFilePath(filePath)
 	if err != nil {
-		log.Error("Failed to parse config file", "file", filePath, "error", err)
 		return core.NewError(err, "PARSE_ERROR", map[string]any{
 			"file":       filePath,
 			"suggestion": "Check YAML/JSON syntax and file format",

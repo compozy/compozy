@@ -102,9 +102,8 @@ func TestLogger_WithMethod(t *testing.T) {
 	})
 
 	// Test the With method
-	contextLogger := logger.With("component", "test")
-	contextLogger.Info("message with context")
-
+	log := logger.With("component", "test")
+	log.Info("message with context")
 	output := buf.String()
 	if !contains(output, "component") || !contains(output, "test") {
 		t.Error("Expected context fields in log output")
@@ -112,12 +111,12 @@ func TestLogger_WithMethod(t *testing.T) {
 }
 
 func TestContextWithLogger(t *testing.T) {
-	// Create a logger
-	logger := NewLogger(TestConfig())
+	// Create a log
+	log := NewLogger(TestConfig())
 
 	// Store it in context
 	ctx := context.Background()
-	ctx = ContextWithLogger(ctx, logger)
+	ctx = ContextWithLogger(ctx, log)
 
 	// Retrieve it from context
 	retrievedLogger := FromContext(ctx)
@@ -133,28 +132,28 @@ func TestContextWithLogger(t *testing.T) {
 func TestLoggerFromContext_WithoutLogger(t *testing.T) {
 	// Test context without logger returns default
 	ctx := context.Background()
-	logger := FromContext(ctx)
+	log := FromContext(ctx)
 
-	if logger == nil {
+	if log == nil {
 		t.Error("Expected default logger when none in context")
 	}
 
 	// Test that the default logger works
-	logger.Info("message from default logger")
+	log.Info("message from default logger")
 }
 
 func TestLoggerFromContext_WithWrongType(t *testing.T) {
 	// Test context with wrong type returns default
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, LoggerCtxKey, "not a logger")
-	logger := FromContext(ctx)
+	log := FromContext(ctx)
 
-	if logger == nil {
+	if log == nil {
 		t.Error("Expected default logger when wrong type in context")
 	}
 
 	// Test that the default logger works
-	logger.Info("message from default logger after wrong type")
+	log.Info("message from default logger after wrong type")
 }
 
 // Helper function since strings.Contains might not be available in all contexts

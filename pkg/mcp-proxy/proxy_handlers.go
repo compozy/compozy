@@ -103,7 +103,7 @@ func (p *ProxyHandlers) RegisterMCPProxy(ctx context.Context, name string, def *
 	// This runs in background after the server is registered
 	go func() {
 		// Create independent context to avoid cancellation affecting background initialization
-		bgCtx := context.Background()
+		bgCtx := logger.ContextWithLogger(context.Background(), log)
 		if err := p.initializeClientConnection(bgCtx, client, mcpServer, name, def); err != nil {
 			log.Error("Failed to initialize MCP client connection", "name", name, "error", err)
 			// Update client status to reflect initialization failure
@@ -130,7 +130,7 @@ func (p *ProxyHandlers) UnregisterMCPProxy(ctx context.Context, name string) err
 	p.serversMutex.Unlock()
 
 	if !exists {
-		log.Warn("Proxy server not found for unregistration", "name", name)
+		log.Debug("Proxy server not found for unregistration", "name", name)
 		return nil
 	}
 
@@ -144,7 +144,8 @@ func (p *ProxyHandlers) UnregisterMCPProxy(ctx context.Context, name string) err
 	}
 	// Disconnect the client connection
 	if proxyServer.client != nil {
-		if err := proxyServer.client.Disconnect(context.Background()); err != nil {
+		disconnectCtx := logger.ContextWithLogger(shutdownCtx, log)
+		if err := proxyServer.client.Disconnect(disconnectCtx); err != nil {
 			log.Error("Failed to disconnect MCP client", "name", name, "error", err)
 		}
 	}
@@ -180,7 +181,7 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 	p.serversMutex.RUnlock()
 
 	if !exists {
-		log.Warn("MCP proxy server not found", "name", name)
+		log.Debug("MCP proxy server not found", "name", name)
 		c.JSON(http.StatusNotFound, gin.H{"error": "MCP server not found"})
 		return
 	}
@@ -257,7 +258,7 @@ func (p *ProxyHandlers) initializeClientConnection(
 	def *MCPDefinition,
 ) error {
 	log := logger.FromContext(ctx)
-	log.Info("Waiting for MCP client to be connected", "name", name)
+	log.Debug("Waiting for MCP client to be connected", "name", name)
 
 	// Wait for the client to be connected by the ClientManager.
 	// This requires a way to observe the client's status. The client has WaitUntilConnected method.
@@ -265,7 +266,7 @@ func (p *ProxyHandlers) initializeClientConnection(
 		return fmt.Errorf("client connection timed out or failed: %w", err)
 	}
 
-	log.Info("MCP client is connected, loading resources", "name", name)
+	log.Debug("MCP client is connected, loading resources", "name", name)
 
 	// Create resource loader
 	resourceLoader := NewResourceLoader(client, mcpServer, name)
@@ -314,7 +315,7 @@ func (p *ProxyHandlers) loadOptionalCapabilities(
 
 	// Wait for all optional operations to complete
 	if err := optionalGroup.Wait(); err != nil {
-		log.Warn("Unexpected error from optional operations", "error", err)
+		log.Debug("Unexpected error from optional operations", "error", err)
 	}
 }
 

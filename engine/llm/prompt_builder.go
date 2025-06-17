@@ -53,7 +53,7 @@ func (b *promptBuilder) EnhanceForStructuredOutput(
 		schemaJSON, err := json.Marshal(schema)
 		if err != nil {
 			// This is a developer error (bad schema), so we fallback to original prompt
-			log.Error("failed to marshal schema for structured output", "error", err)
+			log.Error("Failed to marshal schema for structured output", "error", err)
 			return prompt
 		}
 		return fmt.Sprintf(`%s

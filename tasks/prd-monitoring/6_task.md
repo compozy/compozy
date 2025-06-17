@@ -118,7 +118,7 @@ func LoadMonitoringConfig(yamlConfig *MonitoringConfig) *MonitoringConfig {
     if envEnabled := os.Getenv("MONITORING_ENABLED"); envEnabled != "" {
         enabled, err := strconv.ParseBool(envEnabled)
         if err != nil {
-            logger.Error("Invalid MONITORING_ENABLED value", "value", envEnabled)
+            log.Error("Invalid MONITORING_ENABLED value", "value", envEnabled)
         } else {
             config.Enabled = enabled
         }

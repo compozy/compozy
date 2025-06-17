@@ -353,6 +353,6 @@ func (uc *HandleResponse) updateParentStatusIfNeeded(ctx context.Context, childS
 func (uc *HandleResponse) logParentStatusUpdateError(ctx context.Context, state *task.State) {
 	log := logger.FromContext(ctx)
 	if err := uc.updateParentStatusIfNeeded(ctx, state); err != nil {
-		log.Debug("failed to update parent status", "error", err)
+		log.Debug("Failed to update parent status", "error", err)
 	}
 }

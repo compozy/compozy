@@ -106,7 +106,7 @@ func (r *SubtaskResponse) GetNextTask() *Config {
 	return nil
 }
 
-func (r *SubtaskResponse) NextTaskID() string {
+func (r *SubtaskResponse) NextTaskID(_ context.Context) string {
 	// Subtasks don't transition to other tasks
 	return ""
 }

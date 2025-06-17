@@ -61,8 +61,8 @@ func (s *MCPService) CreateMCP(ctx context.Context, def *MCPDefinition) error {
 	// Add client to the manager. The manager will handle the connection asynchronously.
 	if err := s.clientManager.AddClient(ctx, def); err != nil {
 		// Attempt to roll back the storage save on failure.
-		if delErr := s.storage.DeleteMCP(context.Background(), def.Name); delErr != nil {
-			log.Error("Failed to roll back MCP creation from storage", "name", def.Name, "error", delErr)
+		if delErr := s.storage.DeleteMCP(ctx, def.Name); delErr != nil {
+			log.Debug("Failed to roll back MCP creation from storage", "name", def.Name, "error", delErr)
 		}
 		return fmt.Errorf("failed to add client to manager: %w", err)
 	}
@@ -71,14 +71,14 @@ func (s *MCPService) CreateMCP(ctx context.Context, def *MCPDefinition) error {
 		if err := s.proxyHandlers.RegisterMCPProxy(ctx, def.Name, def); err != nil {
 			// Roll back client addition to maintain consistency
 			if removeErr := s.clientManager.RemoveClient(ctx, def.Name); removeErr != nil {
-				log.Error(
+				log.Debug(
 					"Failed to roll back client addition after proxy registration failure",
 					"name", def.Name, "remove_error", removeErr,
 				)
 			}
 			// Also roll back storage save
-			if delErr := s.storage.DeleteMCP(context.Background(), def.Name); delErr != nil {
-				log.Error(
+			if delErr := s.storage.DeleteMCP(ctx, def.Name); delErr != nil {
+				log.Debug(
 					"Failed to roll back MCP storage after proxy registration failure",
 					"name", def.Name, "delete_error", delErr,
 				)
@@ -238,7 +238,7 @@ func (s *MCPService) CallTool(
 		log.Error("Failed to call tool", "mcp_name", mcpName, "tool_name", toolName, "error", err)
 		return nil, fmt.Errorf("tool execution failed: %w", err)
 	}
-	log.Info("Tool executed successfully", "mcp_name", mcpName, "tool_name", toolName)
+	log.Debug("Tool executed successfully", "mcp_name", mcpName, "tool_name", toolName)
 	return result, nil
 }
 
@@ -247,11 +247,11 @@ func (s *MCPService) performHotReload(ctx context.Context, name string, def *MCP
 	log := logger.FromContext(ctx)
 	// Remove existing client and proxy
 	if err := s.clientManager.RemoveClient(ctx, name); err != nil {
-		log.Error("Failed to remove client during update", "name", name, "error", err)
+		log.Debug("Failed to remove client during update", "name", name, "error", err)
 	}
 	if s.proxyHandlers != nil {
 		if err := s.proxyHandlers.UnregisterMCPProxy(ctx, name); err != nil {
-			log.Error("Failed to unregister proxy during update", "name", name, "error", err)
+			log.Debug("Failed to unregister proxy during update", "name", name, "error", err)
 		}
 	}
 

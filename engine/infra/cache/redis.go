@@ -38,6 +38,7 @@ type Redis struct {
 	client redis.UniversalClient
 	config *Config
 	once   sync.Once // guarantees idempotent, race-free Close
+	log    logger.Logger
 }
 
 // NewRedis creates a new Redis client with the provided configuration.
@@ -89,19 +90,19 @@ func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 	return &Redis{
 		client: client,
 		config: cfg,
+		log:    log,
 	}, nil
 }
 
 // Close shuts down the Redis connection.
 func (r *Redis) Close() error {
-	log := logger.FromContext(context.Background())
 	var err error
 	r.once.Do(func() {
 		err = r.client.Close()
 		if err != nil {
-			log.Error("Redis connection close failed", "error", err)
+			r.log.Error("Redis connection close failed", "error", err)
 		} else {
-			log.Info("Redis connection closed")
+			r.log.Debug("Redis connection closed")
 		}
 	})
 	return err
@@ -226,7 +227,7 @@ func (r *Redis) HealthCheck(ctx context.Context) error {
 
 	// Clean up test key
 	if err := r.Del(ctx, testKey).Err(); err != nil {
-		log.Warn("failed to clean up test key", "key", testKey, "error", err)
+		log.Debug("failed to clean up test key", "key", testKey, "error", err)
 	}
 
 	return nil

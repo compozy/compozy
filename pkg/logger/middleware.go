@@ -9,8 +9,8 @@ func Middleware(log Logger) gin.HandlerFunc {
 		// Add logger to Gin context
 		ctx := ContextWithLogger(c.Request.Context(), log)
 		c.Request = c.Request.WithContext(ctx)
-		log := FromContext(c.Request.Context())
-		log.Info("request", "path", c.Request.URL.Path)
+		ctxLog := FromContext(c.Request.Context())
+		ctxLog.Info("request", "path", c.Request.URL.Path)
 		c.Next()
 	}
 }
