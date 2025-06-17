@@ -20,11 +20,21 @@ var (
 	workersRunning             metric.Int64UpDownCounter
 	workersConfigured          metric.Int64ObservableGauge
 	configuredWorkerCountValue atomic.Int64
+	callbackRegistration       metric.Registration
 	initOnce                   sync.Once
+	resetMutex                 sync.Mutex
 )
 
 // resetMetrics is used for testing purposes only
 func resetMetrics() {
+	// Unregister callback if it exists
+	if callbackRegistration != nil {
+		err := callbackRegistration.Unregister()
+		if err != nil {
+			logger.Error("Failed to unregister callback during reset", "error", err)
+		}
+		callbackRegistration = nil
+	}
 	workflowStartedTotal = nil
 	workflowCompletedTotal = nil
 	workflowFailedTotal = nil
@@ -35,7 +45,19 @@ func resetMetrics() {
 	initOnce = sync.Once{}
 }
 
+// ResetMetricsForTesting resets the metrics initialization state for testing
+// This should only be used in tests to ensure clean state between test runs
+func ResetMetricsForTesting() {
+	resetMutex.Lock()
+	defer resetMutex.Unlock()
+	resetMetrics()
+}
+
 func initMetrics(meter metric.Meter) {
+	// Skip initialization if meter is nil
+	if meter == nil {
+		return
+	}
 	initOnce.Do(func() {
 		var err error
 		workflowStartedTotal, err = meter.Int64Counter(
@@ -83,7 +105,7 @@ func initMetrics(meter metric.Meter) {
 			return
 		}
 		// Register the callback only once during initialization
-		_, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		callbackRegistration, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
 			o.ObserveInt64(workersConfigured, configuredWorkerCountValue.Load())
 			return nil
 		}, workersConfigured)
@@ -95,6 +117,11 @@ func initMetrics(meter metric.Meter) {
 
 // TemporalMetrics creates a new Temporal metrics interceptor
 func TemporalMetrics(meter metric.Meter) interceptor.WorkerInterceptor {
+	// Handle nil meter gracefully
+	if meter == nil {
+		logger.Error("TemporalMetrics called with nil meter, metrics will not be recorded")
+		return &metricsInterceptor{meter: nil}
+	}
 	initMetrics(meter)
 	return &metricsInterceptor{
 		meter: meter,

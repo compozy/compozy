@@ -20,10 +20,12 @@ var (
 )
 
 var (
-	buildInfo      metric.Float64Gauge
-	uptimeGauge    metric.Float64ObservableGauge
-	startTime      time.Time
-	systemInitOnce sync.Once
+	buildInfo          metric.Float64Gauge
+	uptimeGauge        metric.Float64ObservableGauge
+	uptimeRegistration metric.Registration
+	startTime          time.Time
+	systemInitOnce     sync.Once
+	systemResetMutex   sync.Mutex
 )
 
 // initSystemMetrics initializes system health metrics
@@ -49,7 +51,7 @@ func initSystemMetrics(meter metric.Meter) {
 		// Record start time for uptime calculation
 		startTime = time.Now()
 		// Register callback to observe uptime
-		_, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		uptimeRegistration, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
 			uptime := time.Since(startTime).Seconds()
 			o.ObserveFloat64(uptimeGauge, uptime)
 			return nil
@@ -112,8 +114,24 @@ func InitSystemMetrics(ctx context.Context, meter metric.Meter) {
 
 // resetSystemMetrics is used for testing purposes only
 func resetSystemMetrics() {
+	// Unregister callback if it exists
+	if uptimeRegistration != nil {
+		err := uptimeRegistration.Unregister()
+		if err != nil {
+			logger.Error("Failed to unregister uptime callback during reset", "error", err)
+		}
+		uptimeRegistration = nil
+	}
 	buildInfo = nil
 	uptimeGauge = nil
 	startTime = time.Time{}
 	systemInitOnce = sync.Once{}
+}
+
+// ResetSystemMetricsForTesting resets the system metrics initialization state for testing
+// This should only be used in tests to ensure clean state between test runs
+func ResetSystemMetricsForTesting() {
+	systemResetMutex.Lock()
+	defer systemResetMutex.Unlock()
+	resetSystemMetrics()
 }

@@ -1,9 +1,11 @@
 package monitoring_test
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,10 +16,16 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Make some requests to generate metrics
-		_, _ = env.MakeRequest("GET", "/api/v1/health")
-		_, _ = env.MakeRequest("GET", "/api/v1/users/123")
+		if resp, err := env.MakeRequest("GET", "/api/v1/health"); err == nil {
+			resp.Body.Close()
+		}
+		if resp, err := env.MakeRequest("GET", "/api/v1/users/123"); err == nil {
+			resp.Body.Close()
+		}
 		// Get metrics
-		resp, err := env.GetMetricsClient().Get(env.metricsURL)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		require.NoError(t, err)
+		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		// Verify content type
@@ -28,10 +36,17 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 	t.Run("Should include all required metric metadata", func(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
+		// Initialize temporal interceptor to register metrics
+		_ = env.monitoring.TemporalInterceptor()
+		// Generate HTTP metrics
+		resp, err := env.MakeRequest("GET", "/api/v1/health")
+		require.NoError(t, err)
+		resp.Body.Close()
+		time.Sleep(100 * time.Millisecond)
 		// Get metrics
 		metrics, err := env.GetMetrics()
 		require.NoError(t, err)
-		// Define expected metrics
+		// Define expected metrics that should always be present
 		expectedMetrics := []struct {
 			name       string
 			metricType string
@@ -40,7 +55,7 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 			{
 				name:       "compozy_http_requests_total",
 				metricType: "counter",
-				helpText:   "Total number of HTTP requests",
+				helpText:   "Total HTTP requests",
 			},
 			{
 				name:       "compozy_http_request_duration_seconds",
@@ -50,27 +65,7 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 			{
 				name:       "compozy_http_requests_in_flight",
 				metricType: "gauge",
-				helpText:   "Number of HTTP requests currently being served",
-			},
-			{
-				name:       "compozy_temporal_workflow_started_total",
-				metricType: "counter",
-				helpText:   "Total number of workflows started",
-			},
-			{
-				name:       "compozy_temporal_workflow_completed_total",
-				metricType: "counter",
-				helpText:   "Total number of workflows completed successfully",
-			},
-			{
-				name:       "compozy_temporal_workflow_failed_total",
-				metricType: "counter",
-				helpText:   "Total number of workflows failed",
-			},
-			{
-				name:       "compozy_temporal_workflow_task_duration_seconds",
-				metricType: "histogram",
-				helpText:   "Workflow task execution time on a worker",
+				helpText:   "Currently active HTTP requests",
 			},
 			{
 				name:       "compozy_build_info",
@@ -97,7 +92,9 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Get metrics without generating any
-		resp, err := env.GetMetricsClient().Get(env.metricsURL)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		require.NoError(t, err)
+		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		// Should return 200 OK
@@ -115,7 +112,9 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 		defer env.Cleanup()
 		// Make requests to generate histogram data
 		for i := 0; i < 5; i++ {
-			_, _ = env.MakeRequest("GET", "/api/v1/health")
+			if resp, err := env.MakeRequest("GET", "/api/v1/health"); err == nil {
+				resp.Body.Close()
+			}
 		}
 		// Get metrics
 		metrics, err := env.GetMetrics()

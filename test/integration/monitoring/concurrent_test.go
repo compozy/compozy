@@ -1,6 +1,7 @@
 package monitoring_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -41,7 +42,12 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 						"/",
 					}
 					path := paths[j%len(paths)]
-					req, err := http.NewRequest("GET", env.httpServer.URL+path, http.NoBody)
+					req, err := http.NewRequestWithContext(
+						context.Background(),
+						"GET",
+						env.httpServer.URL+path,
+						http.NoBody,
+					)
 					if err != nil {
 						atomic.AddInt64(&errorCount, 1)
 						continue
@@ -82,7 +88,9 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 		defer env.Cleanup()
 		// Generate some initial metrics
 		for i := 0; i < 10; i++ {
-			_, _ = env.MakeRequest("GET", "/api/v1/health")
+			if resp, err := env.MakeRequest("GET", "/api/v1/health"); err == nil {
+				resp.Body.Close()
+			}
 		}
 		// Number of concurrent metrics readers
 		numReaders := 20
@@ -97,7 +105,11 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 				client := env.GetMetricsClient()
 				// Each reader makes multiple requests
 				for j := 0; j < 5; j++ {
-					resp, err := client.Get(env.metricsURL)
+					req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+					if err != nil {
+						continue
+					}
+					resp, err := client.Do(req)
 					if err != nil {
 						continue
 					}
@@ -171,7 +183,12 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 				case <-stopChan:
 					return
 				default:
-					req, _ := http.NewRequest("GET", env.httpServer.URL+"/api/v1/health", http.NoBody)
+					req, _ := http.NewRequestWithContext(
+						context.Background(),
+						"GET",
+						env.httpServer.URL+"/api/v1/health",
+						http.NoBody,
+					)
 					resp, err := client.Do(req)
 					if err == nil {
 						resp.Body.Close()

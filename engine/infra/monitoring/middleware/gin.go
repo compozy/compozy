@@ -84,8 +84,10 @@ func HTTPMetrics(meter metric.Meter) gin.HandlerFunc {
 		}()
 
 		start := time.Now()
-		httpRequestsInFlight.Add(c.Request.Context(), 1)
-		defer httpRequestsInFlight.Add(c.Request.Context(), -1)
+		if httpRequestsInFlight != nil {
+			httpRequestsInFlight.Add(c.Request.Context(), 1)
+			defer httpRequestsInFlight.Add(c.Request.Context(), -1)
+		}
 
 		c.Next()
 
@@ -107,6 +109,10 @@ func recordMetrics(c *gin.Context, start time.Time) {
 		attribute.String("status_code", strconv.Itoa(c.Writer.Status())),
 	)
 
-	httpRequestsTotal.Add(c.Request.Context(), 1, attrs)
-	httpRequestDuration.Record(c.Request.Context(), duration, attrs)
+	if httpRequestsTotal != nil {
+		httpRequestsTotal.Add(c.Request.Context(), 1, attrs)
+	}
+	if httpRequestDuration != nil {
+		httpRequestDuration.Record(c.Request.Context(), duration, attrs)
+	}
 }

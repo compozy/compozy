@@ -99,17 +99,33 @@ func TestMetricCardinalityLimits(t *testing.T) {
 		// Generate mixed traffic pattern
 		for i := 0; i < 50; i++ {
 			// Static routes
-			_, _ = env.MakeRequest("GET", "/")
-			_, _ = env.MakeRequest("GET", "/api/v1/health")
+			if resp, err := env.MakeRequest("GET", "/"); err == nil {
+				resp.Body.Close()
+			}
+			if resp, err := env.MakeRequest("GET", "/api/v1/health"); err == nil {
+				resp.Body.Close()
+			}
 			// Dynamic routes with parameters
-			_, _ = env.MakeRequest("GET", fmt.Sprintf("/api/v1/users/%d", i))
-			_, _ = env.MakeRequest("GET", fmt.Sprintf("/api/v1/workflows/wf-%d/executions/exec-%d", i, i))
+			if resp, err := env.MakeRequest("GET", fmt.Sprintf("/api/v1/users/%d", i)); err == nil {
+				resp.Body.Close()
+			}
+			if resp, err := env.MakeRequest("GET", fmt.Sprintf("/api/v1/workflows/wf-%d/executions/exec-%d", i, i)); err == nil {
+				resp.Body.Close()
+			}
 			// Error routes
-			_, _ = env.MakeRequest("GET", "/api/v1/error")
-			_, _ = env.MakeRequest("GET", fmt.Sprintf("/api/v1/notfound-%d", i))
+			if resp, err := env.MakeRequest("GET", "/api/v1/error"); err == nil {
+				resp.Body.Close()
+			}
+			if resp, err := env.MakeRequest("GET", fmt.Sprintf("/api/v1/notfound-%d", i)); err == nil {
+				resp.Body.Close()
+			}
 			// Different methods
-			_, _ = env.MakeRequest("POST", fmt.Sprintf("/api/v1/users/%d", i))
-			_, _ = env.MakeRequest("PUT", fmt.Sprintf("/api/v1/users/%d", i))
+			if resp, err := env.MakeRequest("POST", fmt.Sprintf("/api/v1/users/%d", i)); err == nil {
+				resp.Body.Close()
+			}
+			if resp, err := env.MakeRequest("PUT", fmt.Sprintf("/api/v1/users/%d", i)); err == nil {
+				resp.Body.Close()
+			}
 		}
 		// Get metrics
 		metrics, err := env.GetMetrics()

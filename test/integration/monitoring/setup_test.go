@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	"go.temporal.io/sdk/testsuite"
 
 	"github.com/compozy/compozy/engine/infra/monitoring"
+	"github.com/compozy/compozy/engine/infra/monitoring/interceptor"
+	"github.com/compozy/compozy/engine/infra/monitoring/middleware"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	utils "github.com/compozy/compozy/test/helpers"
 	"github.com/compozy/compozy/test/integration/worker/helpers"
@@ -33,6 +36,10 @@ type TestEnvironment struct {
 
 // SetupTestEnvironment creates a configured test environment with all services
 func SetupTestEnvironment(t *testing.T) *TestEnvironment {
+	// Reset metrics for clean state in each test
+	middleware.ResetMetricsForTesting()
+	interceptor.ResetMetricsForTesting()
+	monitoring.ResetSystemMetricsForTesting()
 	// Initialize logger for tests
 	utils.InitLogger(t)
 	// Initialize monitoring service with test configuration
@@ -95,7 +102,7 @@ func (env *TestEnvironment) GetMetricsClient() *http.Client {
 
 // MakeRequest makes a request to the test HTTP server
 func (env *TestEnvironment) MakeRequest(method, path string) (*http.Response, error) {
-	req, err := http.NewRequest(method, env.httpServer.URL+path, http.NoBody)
+	req, err := http.NewRequestWithContext(context.Background(), method, env.httpServer.URL+path, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +111,11 @@ func (env *TestEnvironment) MakeRequest(method, path string) (*http.Response, er
 
 // GetMetrics fetches the current metrics from the metrics endpoint
 func (env *TestEnvironment) GetMetrics() (string, error) {
-	resp, err := env.GetMetricsClient().Get(env.metricsURL)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+	if err != nil {
+		return "", err
+	}
+	resp, err := env.GetMetricsClient().Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -174,4 +185,73 @@ func setupTestRoutes(r *gin.Engine) {
 			Message: "Route not found",
 		})
 	})
+}
+
+// PollingCondition represents a condition to check in polling operations
+type PollingCondition func() (bool, error)
+
+// WaitForCondition polls a condition until it becomes true or timeout
+func WaitForCondition(t *testing.T, condition PollingCondition, timeout time.Duration, message string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			t.Fatalf("Timeout waiting for condition: %s", message)
+		case <-ticker.C:
+			ok, err := condition()
+			if err != nil {
+				t.Fatalf("Error checking condition: %s - %v", message, err)
+			}
+			if ok {
+				return
+			}
+		}
+	}
+}
+
+// WaitForMetricValue waits for a specific metric to appear with expected characteristics
+func (env *TestEnvironment) WaitForMetricValue(
+	t *testing.T,
+	metricName string,
+	expectedPattern string,
+	timeout time.Duration,
+) {
+	t.Helper()
+	condition := func() (bool, error) {
+		metrics, err := env.GetMetrics()
+		if err != nil {
+			return false, err
+		}
+		if !strings.Contains(metrics, metricName) {
+			return false, nil
+		}
+		if expectedPattern != "" && !strings.Contains(metrics, expectedPattern) {
+			return false, nil
+		}
+		return true, nil
+	}
+	WaitForCondition(t, condition, timeout, fmt.Sprintf("metric %s with pattern %s", metricName, expectedPattern))
+}
+
+// WaitForMetricCount waits for a metric line count to reach the expected value
+func (env *TestEnvironment) WaitForMetricCount(
+	t *testing.T,
+	metricName string,
+	expectedCount int,
+	timeout time.Duration,
+) {
+	t.Helper()
+	condition := func() (bool, error) {
+		metrics, err := env.GetMetrics()
+		if err != nil {
+			return false, err
+		}
+		count := strings.Count(metrics, metricName)
+		return count >= expectedCount, nil
+	}
+	WaitForCondition(t, condition, timeout, fmt.Sprintf("metric %s count to reach %d", metricName, expectedCount))
 }

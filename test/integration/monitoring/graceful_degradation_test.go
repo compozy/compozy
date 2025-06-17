@@ -34,7 +34,9 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		server := httptest.NewServer(router)
 		defer server.Close()
 		// Make request - should work even with degraded monitoring
-		resp, err := http.Get(server.URL + "/test")
+		req, err := http.NewRequestWithContext(context.Background(), "GET", server.URL+"/test", http.NoBody)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -55,7 +57,9 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		server := httptest.NewServer(router)
 		defer server.Close()
 		// Request metrics endpoint
-		resp, err := http.Get(server.URL + "/metrics")
+		req, err := http.NewRequestWithContext(context.Background(), "GET", server.URL+"/metrics", http.NoBody)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		// Should return 503 Service Unavailable
@@ -81,7 +85,9 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		server := httptest.NewServer(router)
 		defer server.Close()
 		// Make request - should work even with disabled monitoring
-		resp, err := http.Get(server.URL + "/test")
+		req, err := http.NewRequestWithContext(context.Background(), "GET", server.URL+"/test", http.NoBody)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -90,7 +96,9 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		metricsRouter.GET("/metrics", gin.WrapH(monitoringService.ExporterHandler()))
 		metricsServer := httptest.NewServer(metricsRouter)
 		defer metricsServer.Close()
-		resp, err = http.Get(metricsServer.URL + "/metrics")
+		req, err = http.NewRequestWithContext(context.Background(), "GET", metricsServer.URL+"/metrics", http.NoBody)
+		require.NoError(t, err)
+		resp, err = http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		// With disabled monitoring, the handler should indicate the service is unavailable
@@ -111,7 +119,9 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		router.GET("/metrics", gin.WrapH(monitoringService.ExporterHandler()))
 		server := httptest.NewServer(router)
 		defer server.Close()
-		resp, err := http.Get(server.URL + "/metrics")
+		req, err := http.NewRequestWithContext(context.Background(), "GET", server.URL+"/metrics", http.NoBody)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		// Should return 503 for degraded service

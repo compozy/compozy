@@ -104,7 +104,7 @@ func TestSystemHealthMetrics(t *testing.T) {
 			if line == "# TYPE compozy_build_info gauge" {
 				foundBuildInfoType = true
 			}
-			if line == "# TYPE compozy_uptime_seconds_total counter" {
+			if line == "# TYPE compozy_uptime_seconds gauge" {
 				foundUptimeType = true
 			}
 			// Check HELP lines
@@ -112,7 +112,7 @@ func TestSystemHealthMetrics(t *testing.T) {
 				foundBuildInfoHelp = true
 				assert.Contains(t, line, "Build information")
 			}
-			if strings.HasPrefix(line, "# HELP compozy_uptime_seconds_total") {
+			if strings.HasPrefix(line, "# HELP compozy_uptime_seconds") {
 				foundUptimeHelp = true
 				assert.Contains(t, line, "uptime")
 			}

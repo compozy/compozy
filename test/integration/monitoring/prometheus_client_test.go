@@ -1,8 +1,11 @@
 package monitoring_test
 
 import (
+	"context"
+	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -16,35 +19,57 @@ func TestPrometheusClientScraping(t *testing.T) {
 		defer env.Cleanup()
 		// Generate some metrics
 		for i := 0; i < 5; i++ {
-			_, _ = env.MakeRequest("GET", "/api/v1/health")
-			_, _ = env.MakeRequest("GET", "/api/v1/users/123")
+			resp, err := env.MakeRequest("GET", "/api/v1/health")
+			require.NoError(t, err)
+			resp.Body.Close()
+			resp, err = env.MakeRequest("GET", "/api/v1/users/123")
+			require.NoError(t, err)
+			resp.Body.Close()
 		}
+		// Give metrics time to be recorded
+		time.Sleep(100 * time.Millisecond)
 		// Get metrics response
-		resp, err := env.GetMetricsClient().Get(env.metricsURL)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		require.NoError(t, err)
+		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		// Parse with Prometheus text parser
 		parser := expfmt.TextParser{}
 		metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
 		require.NoError(t, err, "Metrics should be parseable by Prometheus client")
-		// Verify expected metric families exist
-		expectedFamilies := []string{
+		// Verify expected metric families exist (system metrics always present)
+		systemMetrics := []string{
+			"compozy_build_info",
+			"compozy_uptime_seconds",
+		}
+		for _, expected := range systemMetrics {
+			_, exists := metricFamilies[expected]
+			assert.True(t, exists, "Should have metric family: %s", expected)
+		}
+		// HTTP metrics should exist after making requests
+		httpMetrics := []string{
 			"compozy_http_requests_total",
 			"compozy_http_request_duration_seconds",
 			"compozy_http_requests_in_flight",
-			"compozy_build_info",
-			"compozy_uptime_seconds_total",
 		}
-		for _, expected := range expectedFamilies {
+		for _, expected := range httpMetrics {
 			_, exists := metricFamilies[expected]
-			assert.True(t, exists, "Should have metric family: %s", expected)
+			assert.True(t, exists, "Should have HTTP metric family: %s", expected)
 		}
 	})
 	t.Run("Should have correct metric types", func(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
+		// Generate some HTTP metrics first
+		resp, err := env.MakeRequest("GET", "/api/v1/health")
+		require.NoError(t, err)
+		resp.Body.Close()
+		time.Sleep(100 * time.Millisecond)
 		// Get metrics response
-		resp, err := env.GetMetricsClient().Get(env.metricsURL)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		require.NoError(t, err)
+		resp, err = env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		// Parse metrics
@@ -70,7 +95,9 @@ func TestPrometheusClientScraping(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Get metrics response
-		resp, err := env.GetMetricsClient().Get(env.metricsURL)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		require.NoError(t, err)
+		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		// Parse metrics
@@ -90,10 +117,14 @@ func TestPrometheusClientScraping(t *testing.T) {
 		defer env.Cleanup()
 		// Generate histogram data
 		for i := 0; i < 10; i++ {
-			_, _ = env.MakeRequest("GET", "/api/v1/health")
+			if resp, err := env.MakeRequest("GET", "/api/v1/health"); err == nil {
+				resp.Body.Close()
+			}
 		}
 		// Get metrics response
-		resp, err := env.GetMetricsClient().Get(env.metricsURL)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		require.NoError(t, err)
+		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		// Parse metrics
@@ -132,11 +163,19 @@ func TestPrometheusClientScraping(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Generate metrics with different labels
-		_, _ = env.MakeRequest("GET", "/api/v1/health")
-		_, _ = env.MakeRequest("GET", "/api/v1/error")
-		_, _ = env.MakeRequest("GET", "/api/v1/users/123")
+		if resp, err := env.MakeRequest("GET", "/api/v1/health"); err == nil {
+			resp.Body.Close()
+		}
+		if resp, err := env.MakeRequest("GET", "/api/v1/error"); err == nil {
+			resp.Body.Close()
+		}
+		if resp, err := env.MakeRequest("GET", "/api/v1/users/123"); err == nil {
+			resp.Body.Close()
+		}
 		// Get metrics response
-		resp, err := env.GetMetricsClient().Get(env.metricsURL)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		require.NoError(t, err)
+		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		// Parse metrics
@@ -166,7 +205,9 @@ func TestPrometheusClientScraping(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Generate some metrics
-		_, _ = env.MakeRequest("GET", "/api/v1/health")
+		if resp, err := env.MakeRequest("GET", "/api/v1/health"); err == nil {
+			resp.Body.Close()
+		}
 		// Get metrics as string
 		metrics, err := env.GetMetrics()
 		require.NoError(t, err)
