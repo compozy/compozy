@@ -2,9 +2,13 @@ package activities
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math/rand"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
@@ -15,10 +19,10 @@ import (
 const ExecuteSubtaskLabel = "ExecuteSubtask"
 
 type ExecuteSubtaskInput struct {
-	WorkflowID     string      `json:"workflow_id"`
-	WorkflowExecID core.ID     `json:"workflow_exec_id"`
-	ParentState    *task.State `json:"parent_state"`
-	TaskExecID     string      `json:"task_exec_id"`
+	WorkflowID     string  `json:"workflow_id"`
+	WorkflowExecID core.ID `json:"workflow_exec_id"`
+	ParentStateID  core.ID `json:"parent_state_id"` // was *task.State
+	TaskExecID     string  `json:"task_exec_id"`
 }
 
 type ExecuteSubtask struct {
@@ -62,33 +66,40 @@ func (a *ExecuteSubtask) Run(ctx context.Context, input *ExecuteSubtaskInput) (*
 		return nil, fmt.Errorf("failed to load task config for taskExecID %s: %w", input.TaskExecID, err)
 	}
 
-	// Task config loaded from ConfigStore has item context but needs env normalization
-	normalizer := uc.NewNormalizeConfig()
-	normalizeInput := &uc.NormalizeConfigInput{
-		WorkflowState:  workflowState,
-		WorkflowConfig: workflowConfig,
-		TaskConfig:     taskConfig,
-	}
-	err = normalizer.Execute(ctx, normalizeInput)
-	if err != nil {
+	// Normalize task configuration
+	if err := a.normalizeTaskConfig(ctx, workflowState, workflowConfig, taskConfig); err != nil {
 		return nil, err
 	}
-	taskType := taskConfig.Type
-	// TODO: we need to support parallel task execution here too
-	if taskType != task.TaskTypeBasic {
-		return nil, fmt.Errorf("unsupported task type: %s", taskType)
-	}
-	// Get the existing child state that was already created by CreateParallelState
-	taskState, err := a.getChildState(ctx, input.ParentState.TaskExecID, taskConfig.ID)
+
+	// Get child state with retry logic
+	taskState, err := a.getChildStateWithRetry(ctx, input.ParentStateID, taskConfig.ID)
 	if err != nil {
 		return nil, err
 	}
 	output, executionError := a.executeTaskUC.Execute(ctx, &uc.ExecuteTaskInput{
 		TaskConfig: taskConfig,
 	})
-	taskState.Output = output
+
+	// Update task status and output based on execution result
+	if executionError != nil {
+		taskState.Status = core.StatusFailed
+		taskState.Output = nil // Clear output on failure to prevent partial data
+		// Convert error to core.Error if needed
+		if coreErr, ok := executionError.(*core.Error); ok {
+			taskState.Error = coreErr
+		} else {
+			taskState.Error = core.NewError(executionError, "EXECUTION_ERROR", nil)
+		}
+	} else {
+		taskState.Status = core.StatusSuccess
+		taskState.Output = output // Only set output on success
+	}
+	// Manual timestamp update: Required because the database schema doesn't use
+	// ON UPDATE CURRENT_TIMESTAMP for the updated_at column, and the ORM doesn't
+	// automatically manage timestamps. This ensures the change is properly tracked.
+	taskState.UpdatedAt = time.Now()
 	if err := a.taskRepo.UpsertState(ctx, taskState); err != nil {
-		return nil, fmt.Errorf("failed to persist task output: %w", err)
+		return nil, fmt.Errorf("failed to persist task output and status: %w", err)
 	}
 	// Handle subtask response
 	response, err := a.taskResponder.HandleSubtask(ctx, &services.SubtaskResponseInput{
@@ -107,21 +118,80 @@ func (a *ExecuteSubtask) Run(ctx context.Context, input *ExecuteSubtaskInput) (*
 	return response, nil
 }
 
+// normalizeTaskConfig normalizes the task configuration to avoid race conditions
+func (a *ExecuteSubtask) normalizeTaskConfig(
+	ctx context.Context,
+	workflowState *workflow.State,
+	workflowConfig *workflow.Config,
+	taskConfig *task.Config,
+) error {
+	// Create a copy of workflow config to avoid race conditions when multiple goroutines
+	// concurrently call NormalizeConfig.Execute which mutates the config in-place
+	wcCopy := *workflowConfig
+	wcCopy.Tasks = append([]task.Config(nil), workflowConfig.Tasks...)
+
+	normalizer := uc.NewNormalizeConfig()
+	normalizeInput := &uc.NormalizeConfigInput{
+		WorkflowState:  workflowState,
+		WorkflowConfig: &wcCopy,
+		TaskConfig:     taskConfig,
+	}
+	return normalizer.Execute(ctx, normalizeInput)
+}
+
+// getChildStateWithRetry retrieves child state with exponential backoff retry
+func (a *ExecuteSubtask) getChildStateWithRetry(
+	ctx context.Context,
+	parentStateID core.ID,
+	taskID string,
+) (*task.State, error) {
+	const maxRetries = 5
+	const baseDelay = 50 * time.Millisecond
+
+	var taskState *task.State
+	var err error
+
+	for i := 0; i < maxRetries; i++ {
+		taskState, err = a.getChildState(ctx, parentStateID, taskID)
+		if err == nil {
+			break // State found, exit loop
+		}
+		// If the error is anything other than Not Found, fail immediately
+		if !errors.Is(err, store.ErrTaskNotFound) {
+			return nil, fmt.Errorf("failed to get child state: %w", err)
+		}
+		// Exponential backoff with jitter: baseDelay * 2^i + random jitter
+		delay := baseDelay * time.Duration(1<<uint(i))
+		//nolint:gosec // Non-cryptographic randomness is fine for jitter
+		jitter := time.Duration(rand.Int63n(int64(delay / 4))) // Up to 25% jitter
+		totalDelay := delay + jitter
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(totalDelay):
+			// continue to next retry
+		}
+	}
+
+	// If the state is still not found after all retries, return an error
+	if err != nil {
+		return nil, fmt.Errorf("child state for task %s not found after retries: %w", taskID, err)
+	}
+	// Add explicit nil check in case repository returns (nil, nil)
+	if taskState == nil {
+		return nil, fmt.Errorf("child state for task %s returned nil without error", taskID)
+	}
+
+	return taskState, nil
+}
+
 // getChildState retrieves the existing child state for a specific task
 func (a *ExecuteSubtask) getChildState(
 	ctx context.Context,
 	parentStateID core.ID,
 	taskID string,
 ) (*task.State, error) {
-	childStates, err := a.taskRepo.ListChildren(ctx, parentStateID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list child states: %w", err)
-	}
-	// Find the child state for this specific task
-	for _, child := range childStates {
-		if child.TaskID == taskID {
-			return child, nil
-		}
-	}
-	return nil, fmt.Errorf("child state not found for task ID: %s", taskID)
+	// Use optimized direct lookup instead of fetching all children
+	return a.taskRepo.GetChildByTaskID(ctx, parentStateID, taskID)
 }

@@ -1,0 +1,31 @@
+name: basic-with-error-test
+id: basic-error-test
+
+workflow:
+  id: basic-error-workflow
+  tasks:
+    - id: failing-task
+      type: basic
+      action: process_with_error
+      with:
+        message: "This will fail"
+        should_fail: true
+      on_error:
+        next: error-handler-task
+
+    - id: error-handler-task
+      type: basic
+      action: handle_error
+      with:
+        recovery_message: "Error handled successfully"
+
+expected:
+  workflow_state:
+    status: "FAILED"
+  task_states:
+    - id: failing-task
+      name: failing-task
+      status: "FAILED"
+      inputs:
+        message: "This will fail"
+        should_fail: true

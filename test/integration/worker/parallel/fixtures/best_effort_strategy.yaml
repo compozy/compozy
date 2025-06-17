@@ -1,0 +1,88 @@
+name: parallel-best-effort-strategy
+
+workflow:
+  id: test-parallel-best-effort
+  version: "1.0.0"
+  tasks:
+    - id: best-effort-parallel-task
+      type: parallel
+      strategy: best_effort
+      max_workers: 3
+      tasks:
+        - id: successful-task-1
+          type: basic
+          action: test-action
+          with:
+            task_name: "successful-task-1"
+            should_fail: false
+            value: "{{ .workflow.input.test_value }}"
+          outputs:
+            result: "{{ .output.result }}"
+            status: "{{ .output.status }}"
+            task_name: "{{ .with.task_name }}"
+
+        - id: failing-task
+          type: basic
+          action: test-action
+          with:
+            task_name: "failing-task"
+            should_fail: true
+            value: "{{ .workflow.input.test_value }}"
+          outputs:
+            result: "{{ .output.result }}"
+            status: "{{ .output.status }}"
+            task_name: "{{ .with.task_name }}"
+
+        - id: successful-task-2
+          type: basic
+          action: test-action
+          with:
+            task_name: "successful-task-2"
+            should_fail: false
+            value: "{{ .workflow.input.test_value }}"
+          outputs:
+            result: "{{ .output.result }}"
+            status: "{{ .output.status }}"
+            task_name: "{{ .with.task_name }}"
+      outputs:
+        successful_tasks: "{{ .tasks | selectattr('status', 'eq', 'SUCCESS') | list | len }}"
+        failed_tasks: "{{ .tasks | selectattr('status', 'eq', 'FAILED') | list | len }}"
+        successful_results: "{{ .tasks | selectattr('status', 'eq', 'SUCCESS') | map(attr='output.result') | list }}"
+        strategy: "best_effort"
+
+input:
+  test_value: "best-effort-test"
+
+expected:
+  workflow_state:
+    status: SUCCESS  # Workflow succeeds despite child failure due to best_effort strategy
+    total_tasks: 4  # 1 parallel + 3 child tasks
+    completed_tasks: 4  # All tasks complete
+  task_states:
+    - name: best-effort-parallel-task
+      status: SUCCESS
+      output:
+        successful_tasks: 2.0
+        failed_tasks: 1.0
+        successful_results:
+          - "best-effort-test"
+          - "best-effort-test"
+        strategy: "best_effort"
+    - name: best-effort-parallel-task-successful-task-1
+      status: SUCCESS
+      parent: best-effort-parallel-task
+      output:
+        result: "best-effort-test"
+        status: "SUCCESS"
+        task_name: "successful-task-1"
+    - name: best-effort-parallel-task-failing-task
+      status: FAILED
+      parent: best-effort-parallel-task
+      error: "Simulated failure for testing"
+    - name: best-effort-parallel-task-successful-task-2
+      status: SUCCESS
+      parent: best-effort-parallel-task
+      output:
+        result: "best-effort-test"
+        status: "SUCCESS"
+        task_name: "successful-task-2"

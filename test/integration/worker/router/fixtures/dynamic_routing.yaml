@@ -1,0 +1,41 @@
+name: router-dynamic-routing
+
+workflow:
+  id: test-router-dynamic
+  version: "1.0.0"
+  tasks:
+    # Dynamic router that routes based on user type/permissions
+    # The 'route_by_user' action evaluates input.user_type and maps to condition
+    - id: user-router
+      type: router
+      action: route_by_user
+      condition: "premium"  # Condition derived from input.user_type
+      routes:
+        premium: premium-task  # Enhanced processing for premium users
+        standard: standard-task  # Standard processing for regular users
+      default_route: standard-task  # Default to standard processing
+    - id: premium-task
+      type: basic
+      action: process_data
+      with:
+        multiplier: 5.0
+    - id: standard-task
+      type: basic
+      action: process_data
+      with:
+        multiplier: 2.0
+
+input:
+  user_type: "premium"
+
+expected:
+  workflow_state:
+    status: "SUCCESS"
+    total_tasks: 2  # 1 router + 1 routed task
+    completed_tasks: 2
+  task_states:
+    - name: user-router
+      status: "SUCCESS"
+    - name: premium-task
+      status: "SUCCESS"
+      parent: user-router

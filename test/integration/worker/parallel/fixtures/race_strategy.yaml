@@ -1,0 +1,77 @@
+name: parallel-race-strategy
+
+workflow:
+  id: test-parallel-race
+  version: "1.0.0"
+  tasks:
+    - id: race-parallel-task
+      type: parallel
+      strategy: race
+      max_workers: 3
+      tasks:
+        - id: fast-racer
+          type: basic
+          action: test-action
+          with:
+            task_name: "fast-racer"
+            duration: 50
+            value: "{{ .workflow.input.test_value }}"
+          outputs:
+            result: "{{ .output.result }}"
+            duration: "{{ .output.duration }}"
+            winner: true
+
+        - id: medium-racer
+          type: basic
+          action: test-action
+          with:
+            task_name: "medium-racer"
+            duration: 150
+            value: "{{ .workflow.input.test_value }}"
+          outputs:
+            result: "{{ .output.result }}"
+            duration: "{{ .output.duration }}"
+            winner: false
+
+        - id: slow-racer
+          type: basic
+          action: test-action
+          with:
+            task_name: "slow-racer"
+            duration: 300
+            value: "{{ .workflow.input.test_value }}"
+          outputs:
+            result: "{{ .output.result }}"
+            duration: "{{ .output.duration }}"
+            winner: false
+      outputs:
+        winner_task: "{{ (.tasks | selectattr('status', 'eq', 'SUCCESS') | first).name }}"
+        winner_result: "{{ (.tasks | selectattr('status', 'eq', 'SUCCESS') | first).output.result }}"
+        winner_duration: "{{ (.tasks | selectattr('status', 'eq', 'SUCCESS') | first).output.duration }}"
+        completed_tasks: "{{ .tasks | selectattr('status', 'eq', 'SUCCESS') | list | len }}"
+        strategy: "race"
+
+input:
+  test_value: "race-test"
+
+expected:
+  workflow_state:
+    status: SUCCESS  # First task to complete wins
+    total_tasks: 2  # 1 parallel + 1 completed child task (winner)
+    completed_tasks: 2  # Only winner completes
+  task_states:
+    - name: race-parallel-task
+      status: SUCCESS
+      output:
+        winner_task: "fast-racer"
+        winner_result: "race-test"
+        winner_duration: 50.0
+        completed_tasks: 1.0
+        strategy: "race"
+    - name: race-parallel-task-fast-racer
+      status: SUCCESS
+      parent: race-parallel-task
+      output:
+        result: "race-test"
+        duration: 50.0
+        winner: true

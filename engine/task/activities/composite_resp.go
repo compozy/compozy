@@ -56,11 +56,15 @@ func (a *GetCompositeResponse) Run(
 		ExecutionError: executionError,
 	})
 	if err != nil {
+		// If both errors exist, include execution error in the message
+		if executionError != nil {
+			return nil, fmt.Errorf("handler error: %w (execution error: %v)", err, executionError)
+		}
 		return nil, err
 	}
 	// If there was an execution error, the composite task should be considered failed
 	if executionError != nil {
-		return nil, executionError
+		return nil, fmt.Errorf("composite task failed: %w", executionError)
 	}
 	return response, nil
 }

@@ -1,0 +1,70 @@
+name: parallel-fail-fast-strategy
+
+workflow:
+  id: test-parallel-fail-fast
+  version: "1.0.0"
+  tasks:
+    - id: fail-fast-parallel-task
+      type: parallel
+      strategy: fail_fast
+      max_workers: 3
+      tasks:
+        - id: success-task
+          type: basic
+          action: test-action
+          with:
+            task_name: "success-task"
+            should_fail: false
+            value: "{{ .workflow.input.test_value }}"
+          outputs:
+            result: "{{ .output.result }}"
+            status: "{{ .output.status }}"
+
+        - id: failing-task
+          type: basic
+          action: test-action
+          with:
+            task_name: "failing-task"
+            should_fail: true
+            value: "{{ .workflow.input.test_value }}"
+          outputs:
+            result: "{{ .output.result }}"
+            status: "{{ .output.status }}"
+
+        - id: pending-task
+          type: basic
+          action: test-action
+          with:
+            task_name: "pending-task"
+            should_fail: false
+            value: "{{ .workflow.input.test_value }}"
+          outputs:
+            result: "{{ .output.result }}"
+            status: "{{ .output.status }}"
+      outputs:
+        successful_tasks: "{{ .tasks | selectattr('status', 'eq', 'SUCCESS') | list | len }}"
+        failed_tasks: "{{ .tasks | selectattr('status', 'eq', 'FAILED') | list | len }}"
+        strategy: "fail_fast"
+
+input:
+  test_value: "fail-fast-test"
+
+expected:
+  workflow_state:
+    status: FAILED  # Workflow fails due to fail_fast strategy
+    total_tasks: 3  # 1 parallel + 2 executed child tasks (pending may not execute)
+    completed_tasks: 2  # Only success-task and failing-task execute
+  task_states:
+    - name: fail-fast-parallel-task
+      status: FAILED
+      error: "Child task failed: failing-task"
+    - name: fail-fast-parallel-task-success-task
+      status: SUCCESS
+      parent: fail-fast-parallel-task
+      output:
+        result: "fail-fast-test"
+        status: "SUCCESS"
+    - name: fail-fast-parallel-task-failing-task
+      status: FAILED
+      parent: fail-fast-parallel-task
+      error: "Simulated failure for testing"

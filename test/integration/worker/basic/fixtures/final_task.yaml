@@ -1,0 +1,35 @@
+name: basic-final-task-test
+id: basic-final-task-test
+
+workflow:
+  id: basic-final-task-workflow
+  tasks:
+    - id: first-task
+      type: basic
+      action: prepare_data
+      with:
+        initial_value: 100
+      on_success:
+        next: final-processing-task
+
+    - id: final-processing-task
+      type: basic
+      action: process_data
+      final: true
+      with:
+        multiplier: 5
+
+expected:
+  workflow_state:
+    status: "SUCCESS"
+  task_states:
+    - id: first-task
+      name: first-task
+      status: "SUCCESS"
+      output:
+        response: "Mock response for: Test agent for integration testing Prepare data for testing "
+    - id: final-processing-task
+      name: final-processing-task
+      status: "SUCCESS"
+      output:
+        response: "Mock response for: Test agent for integration testing Process data for testing "

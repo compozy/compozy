@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"strconv"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -220,17 +221,40 @@ func (cn *CollectionNormalizer) applyTemplateGeneric(
 	fieldName string,
 ) (any, error) {
 	if strVal, ok := value.(string); ok {
+		// For string templates, try to preserve original data types
 		renderedVal, err := engine.RenderString(strVal, itemContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to apply template to %s: %w", fieldName, err)
 		}
-		return renderedVal, nil
+		// Try to convert back to original type if the template referenced a simple value
+		return cn.tryConvertToOriginalType(renderedVal), nil
 	}
 	processedVal, err := engine.ParseMap(value, itemContext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply template to %s: %w", fieldName, err)
 	}
 	return processedVal, nil
+}
+
+// tryConvertToOriginalType attempts to convert a string back to its original numeric/boolean type
+func (cn *CollectionNormalizer) tryConvertToOriginalType(value string) any {
+	// Try to parse as integer
+	if intVal, err := strconv.Atoi(value); err == nil {
+		return intVal
+	}
+
+	// Try to parse as float
+	if floatVal, err := strconv.ParseFloat(value, 64); err == nil {
+		return floatVal
+	}
+
+	// Try to parse as boolean
+	if boolVal, err := strconv.ParseBool(value); err == nil {
+		return boolVal
+	}
+
+	// Return as string if no conversion is possible
+	return value
 }
 
 // applyTemplateToMap applies templates to a map of values using the generic processor

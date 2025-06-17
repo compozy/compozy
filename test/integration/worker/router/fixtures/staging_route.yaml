@@ -1,0 +1,40 @@
+name: router-staging-route
+
+workflow:
+  id: test-router-fallback
+  version: "1.0.0"
+  tasks:
+    # Environment-based router that selects deployment tasks based on target environment
+    # The condition "staging" matches the input.environment and routes to staging processing
+    - id: fallback-router
+      type: router
+      action: route_task
+      condition: "staging"  # Environment condition that matches input
+      routes:
+        production: process-production  # Production deployment task
+        staging: process-staging  # Staging deployment task
+    - id: process-staging
+      type: basic
+      action: process_data
+      with:
+        multiplier: 2.0
+    - id: process-production
+      type: basic
+      action: process_data
+      with:
+        multiplier: 1.0
+
+input:
+  environment: "staging"
+
+expected:
+  workflow_state:
+    status: "SUCCESS"
+    total_tasks: 2  # 1 router + 1 routed task
+    completed_tasks: 2
+  task_states:
+    - name: fallback-router
+      status: "SUCCESS"
+    - name: process-staging
+      status: "SUCCESS"
+      parent: fallback-router

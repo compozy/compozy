@@ -5,7 +5,9 @@ import (
 	"math"
 	"sort"
 	"sync/atomic"
+	"time"
 
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/compozy/compozy/engine/core"
@@ -228,14 +230,14 @@ func (e *TaskExecutor) ListChildStates(
 
 func (e *TaskExecutor) ExecuteSubtask(
 	ctx workflow.Context,
-	pState *task.State,
+	parentStateID core.ID,
 	taskExecID string,
 ) (*task.SubtaskResponse, error) {
 	actLabel := tkacts.ExecuteSubtaskLabel
 	actInput := tkacts.ExecuteSubtaskInput{
 		WorkflowID:     e.WorkflowID,
 		WorkflowExecID: e.WorkflowExecID,
-		ParentState:    pState,
+		ParentStateID:  parentStateID,
 		TaskExecID:     taskExecID,
 	}
 	future := workflow.ExecuteActivity(ctx, actLabel, actInput)
@@ -334,7 +336,7 @@ func (e *TaskExecutor) GetCollectionResponse(
 // and container tasks (recursively calling HandleExecution)
 func (e *TaskExecutor) executeChild(
 	ctx workflow.Context,
-	parentState *task.State,
+	parentStateID core.ID,
 	childState *task.State,
 	cfg *task.Config,
 	depth int,
@@ -344,7 +346,7 @@ func (e *TaskExecutor) executeChild(
 
 	switch cfg.Type {
 	case task.TaskTypeBasic:
-		_, err := e.ExecuteSubtask(ctx, parentState, childState.TaskExecID.String())
+		_, err := e.ExecuteSubtask(ctx, parentStateID, childState.TaskExecID.String())
 		return err
 	default:
 		// Recurse for container tasks - bump depth
@@ -362,7 +364,21 @@ func (e *TaskExecutor) executeChild(
 				"status":       string(finalState.Status),
 				"output":       finalState.Output,
 			}
-			err = workflow.ExecuteActivity(ctx, "UpdateChildState", updateInput).Get(ctx, nil)
+
+			// Add retry policy for this non-critical but important update
+			// This makes the update more resilient to transient network or database issues
+			activityOpts := workflow.ActivityOptions{
+				StartToCloseTimeout: 30 * time.Second,
+				RetryPolicy: &temporal.RetryPolicy{
+					InitialInterval:    time.Second,
+					BackoffCoefficient: 2.0,
+					MaximumInterval:    10 * time.Second,
+					MaximumAttempts:    3,
+				},
+			}
+			activityCtx := workflow.WithActivityOptions(ctx, activityOpts)
+
+			err = workflow.ExecuteActivity(activityCtx, "UpdateChildState", updateInput).Get(activityCtx, nil)
 			if err != nil {
 				logger.Error("Failed to update child state after nested task completion",
 					"child_task_id", childState.TaskID, "final_status", finalState.Status, "error", err)
@@ -476,18 +492,21 @@ func (e *TaskExecutor) executeChildrenInParallel(
 	for i := range childStates {
 		childState := childStates[i]
 		childConfig := childCfgs[childState.TaskID]
+		// Capture variables by value to avoid race conditions in goroutines
+		cs := childState
+		cfg := childConfig
 		workflow.Go(ctx, func(gCtx workflow.Context) {
 			if gCtx.Err() != nil {
 				return // canceled before start
 			}
-			err := e.executeChild(gCtx, parentState, childState, childConfig, depth)
+			err := e.executeChild(gCtx, parentState.TaskExecID, cs, cfg, depth)
 			if gCtx.Err() != nil {
 				return // canceled during work
 			}
 			if err != nil {
 				logger.Error("Failed to execute child task",
 					"parent_task_id", taskConfig.ID,
-					"child_task_id", childState.TaskID,
+					"child_task_id", cs.TaskID,
 					"depth", depth+1,
 					"error", err)
 				atomic.AddInt32(failed, 1)
@@ -495,7 +514,7 @@ func (e *TaskExecutor) executeChildrenInParallel(
 				atomic.AddInt32(completed, 1)
 				logger.Info("Child task completed successfully",
 					"parent_task_id", taskConfig.ID,
-					"child_task_id", childState.TaskID,
+					"child_task_id", cs.TaskID,
 					"depth", depth+1)
 			}
 		})
@@ -569,11 +588,13 @@ func (e *TaskExecutor) HandleCollectionTask(
 	var completed, failed int32
 	logger := workflow.GetLogger(ctx)
 
+	// Empty collections are valid - they complete successfully with no child tasks
 	if len(childStates) == 0 {
-		logger.Error("No child states found for collection task",
+		logger.Info("Collection task has no items, completing successfully",
 			"task_id", taskConfig.ID,
 			"parent_state_id", cState.TaskExecID)
-		return fmt.Errorf("no child states found for collection %s", taskConfig.ID)
+		// Collection completes successfully even with no items
+		return nil
 	}
 
 	logger.Info("Executing collection child tasks",
@@ -613,18 +634,20 @@ func (e *TaskExecutor) handleCollectionParallel(
 	// Execute child tasks using executeChild helper
 	for i := range childStates {
 		childState := childStates[i]
+		// Capture variables by value to avoid race conditions in goroutines
+		cs := childState
 		workflow.Go(ctx, func(gCtx workflow.Context) {
 			if gCtx.Err() != nil {
 				return // canceled before start
 			}
-			err := e.executeChild(gCtx, cState, childState, taskConfig.Task, depth)
+			err := e.executeChild(gCtx, cState.TaskExecID, cs, taskConfig.Task, depth)
 			if gCtx.Err() != nil {
 				return // canceled during work
 			}
 			if err != nil {
 				logger.Error("Failed to execute child task",
 					"parent_task_id", taskConfig.ID,
-					"child_task_id", childState.TaskID,
+					"child_task_id", cs.TaskID,
 					"depth", depth+1,
 					"error", err)
 				atomic.AddInt32(failed, 1)
@@ -632,7 +655,7 @@ func (e *TaskExecutor) handleCollectionParallel(
 				atomic.AddInt32(completed, 1)
 				logger.Info("Child task completed successfully",
 					"parent_task_id", taskConfig.ID,
-					"child_task_id", childState.TaskID,
+					"child_task_id", cs.TaskID,
 					"depth", depth+1)
 			}
 		})
@@ -692,7 +715,7 @@ func (e *TaskExecutor) handleCollectionSequential(
 			"index", i,
 			"depth", depth+1,
 			"total", len(childStates))
-		err := e.executeChild(ctx, cState, childState, taskConfig.Task, depth)
+		err := e.executeChild(ctx, cState.TaskExecID, childState, taskConfig.Task, depth)
 		if err != nil {
 			atomic.AddInt32(failed, 1)
 			logger.Error("Failed to execute child task",
@@ -783,7 +806,7 @@ func (e *TaskExecutor) HandleCompositeTask(
 		for i, childState := range childStates {
 			childConfig := childCfgs[childState.TaskID]
 			// Execute child task
-			err := e.executeChild(ctx, compositeState, childState, childConfig, currentDepth)
+			err := e.executeChild(ctx, compositeState.TaskExecID, childState, childConfig, currentDepth)
 			if err != nil {
 				logger.Error("Child task failed",
 					"composite_task", config.ID,

@@ -464,11 +464,14 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 		}
 
 		// Act
-		_, err := cm.PrepareCollectionConfigs(context.Background(), parentStateID, taskConfig, workflowState)
+		metadata, err := cm.PrepareCollectionConfigs(context.Background(), parentStateID, taskConfig, workflowState)
 
 		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "no child configs generated")
+		require.NoError(t, err)
+		require.NotNil(t, metadata)
+		assert.Equal(t, 0, metadata.ItemCount)
+		assert.Equal(t, 0, metadata.SkippedCount)
+		assert.Equal(t, string(task.CollectionModeParallel), metadata.Mode)
 	})
 
 	t.Run("Should handle parallel task with batch size in collection mode", func(t *testing.T) {

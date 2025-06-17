@@ -1,0 +1,34 @@
+name: parallel-with-failure
+
+workflow:
+  id: test-parallel-failure
+  version: "1.0.0"
+  tasks:
+    - id: parallel-task
+      type: parallel
+      tasks:
+        - id: success-task
+          type: basic
+          action: process_parallel_task
+        - id: failing-task
+          type: basic
+          action: handle_parallel_failure
+          with:
+            should_fail: true
+
+input:
+  message: "parallel-failure-test"
+
+expected:
+  workflow_state:
+    status: SUCCESS  # Workflow can complete even with task failures
+    total_tasks: 3  # 1 parallel + 2 child tasks
+    completed_tasks: 3
+  task_states:
+    - name: parallel-task
+      status: SUCCESS  # Parent task manages child failures
+    - name: success-task
+      status: SUCCESS
+    - name: failing-task
+      status: FAILED
+      error: "Simulated task failure"

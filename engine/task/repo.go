@@ -42,6 +42,7 @@ type Repository interface {
 
 	// Parent-child relationship operations
 	ListChildren(ctx context.Context, parentStateID core.ID) ([]*State, error)
+	GetChildByTaskID(ctx context.Context, parentStateID core.ID, taskID string) (*State, error)
 	CreateChildStatesInTransaction(ctx context.Context, parentStateID core.ID, childStates []*State) error
 	GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*State, error)
 

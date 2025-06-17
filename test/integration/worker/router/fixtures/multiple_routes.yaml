@@ -1,0 +1,41 @@
+name: router-multiple-routes
+
+workflow:
+  id: test-router-multiple
+  version: "1.0.0"
+  tasks:
+    # Router with multiple route options that evaluates input data_type
+    # The condition "json" matches the input and routes to process-json task
+    - id: data-router
+      type: router
+      action: route_by_type
+      condition: "json"  # Condition that matches input.data_type
+      routes:
+        json: process-json  # Route for JSON data processing
+        text: process-text  # Route for text data processing
+      default_route: process-text  # Fallback if no route matches
+    - id: process-json
+      type: basic
+      action: process_data
+      with:
+        multiplier: 1.0
+    - id: process-text
+      type: basic
+      action: process_data
+      with:
+        multiplier: 2.0
+
+input:
+  data_type: "json"
+
+expected:
+  workflow_state:
+    status: "SUCCESS"
+    total_tasks: 2  # 1 router + 1 routed task
+    completed_tasks: 2
+  task_states:
+    - name: data-router
+      status: "SUCCESS"
+    - name: process-json
+      status: "SUCCESS"
+      parent: data-router

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -16,6 +17,12 @@ import (
 // -----------------------------------------------------------------------------
 // TaskResponder - Service for handling task responses
 // -----------------------------------------------------------------------------
+
+// ParallelConfigData represents the parallel task configuration stored in task state
+type ParallelConfigData struct {
+	Strategy task.ParallelStrategy `json:"strategy"`
+	// Add other parallel config fields as needed
+}
 
 type TaskResponder struct {
 	workflowRepo        workflow.Repository
@@ -178,6 +185,7 @@ func (s *TaskResponder) HandleSubtask(ctx context.Context, input *SubtaskRespons
 	// Apply output transformation if needed
 	if isSuccess {
 		state.UpdateStatus(core.StatusSuccess)
+		state.Error = nil // Clear any residual error from previous attempts
 		if input.TaskConfig.GetOutputs() != nil && state.Output != nil {
 			if err := s.applySubtaskOutputTransformation(ctx, input); err != nil {
 				executionErr = err
@@ -206,8 +214,8 @@ func (s *TaskResponder) HandleSubtask(ctx context.Context, input *SubtaskRespons
 		return nil, fmt.Errorf("failed to update subtask state: %w", err)
 	}
 
-	// Update parent status (non-critical)
-	s.logParentStatusUpdateError(ctx, state)
+	// Parent status updates are handled by GetParallelResponse/GetCollectionResponse activities
+	// after all child tasks complete, avoiding race conditions in concurrent subtask execution
 
 	return &task.SubtaskResponse{
 		TaskID: input.TaskConfig.ID,
@@ -440,41 +448,8 @@ func (s *TaskResponder) updateParentStatusIfNeeded(ctx context.Context, childSta
 		return nil
 	}
 
-	// Get the parallel configuration to determine strategy
-	strategy := task.StrategyWaitAll // Default strategy
-	if parentState.Input != nil {
-		if parallelConfig, ok := (*parentState.Input)["_parallel_config"].(map[string]any); ok {
-			if strategyValue, exists := parallelConfig["strategy"]; exists {
-				if strategyStr, ok := strategyValue.(string); ok {
-					if task.ValidateStrategy(strategyStr) {
-						strategy = task.ParallelStrategy(strategyStr)
-					} else {
-						logger.Error("Invalid parallel strategy found, using default wait_all",
-							"invalid_strategy", strategyStr,
-							"parent_state_id", parentStateID,
-						)
-					}
-				} else {
-					logger.Error("Parallel strategy field is not a string, using default wait_all",
-						"strategy_type", fmt.Sprintf("%T", strategyValue),
-						"strategy_value", strategyValue,
-						"parent_state_id", parentStateID,
-					)
-				}
-			} else {
-				logger.Debug("No strategy field found in parallel config, using default wait_all",
-					"parent_state_id", parentStateID,
-				)
-			}
-		} else {
-			if _, exists := (*parentState.Input)["_parallel_config"]; exists {
-				logger.Error("Parallel config field is not a map, using default wait_all",
-					"config_type", fmt.Sprintf("%T", (*parentState.Input)["_parallel_config"]),
-					"parent_state_id", parentStateID,
-				)
-			}
-		}
-	}
+	// Extract strategy from parallel configuration
+	strategy := s.extractParallelStrategy(parentState, parentStateID)
 
 	// Use the shared service to update parent status
 	_, err = s.parentStatusUpdater.UpdateParentStatus(ctx, &UpdateParentStatusInput{
@@ -485,4 +460,56 @@ func (s *TaskResponder) updateParentStatusIfNeeded(ctx context.Context, childSta
 	})
 
 	return err
+}
+
+// extractParallelStrategy extracts the parallel strategy from parent state input
+// using a typed struct to avoid brittle nested type assertions
+func (s *TaskResponder) extractParallelStrategy(parentState *task.State, parentStateID core.ID) task.ParallelStrategy {
+	// Default strategy
+	defaultStrategy := task.StrategyWaitAll
+
+	// Check if input exists
+	if parentState.Input == nil {
+		return defaultStrategy
+	}
+
+	// Get the parallel config field
+	parallelConfigRaw, exists := (*parentState.Input)["_parallel_config"]
+	if !exists {
+		return defaultStrategy
+	}
+
+	// Try to unmarshal into our typed struct
+	// First convert to JSON, then unmarshal
+	jsonBytes, err := json.Marshal(parallelConfigRaw)
+	if err != nil {
+		logger.Error("Failed to marshal parallel config for extraction",
+			"parent_state_id", parentStateID,
+			"error", err,
+		)
+		return defaultStrategy
+	}
+
+	var configData ParallelConfigData
+	if err := json.Unmarshal(jsonBytes, &configData); err != nil {
+		logger.Error("Failed to unmarshal parallel config into typed struct",
+			"parent_state_id", parentStateID,
+			"config_type", fmt.Sprintf("%T", parallelConfigRaw),
+			"error", err,
+		)
+		return defaultStrategy
+	}
+
+	// Validate the extracted strategy
+	if !task.ValidateStrategy(string(configData.Strategy)) {
+		if configData.Strategy != "" {
+			logger.Error("Invalid parallel strategy found, using default wait_all",
+				"invalid_strategy", configData.Strategy,
+				"parent_state_id", parentStateID,
+			)
+		}
+		return defaultStrategy
+	}
+
+	return configData.Strategy
 }

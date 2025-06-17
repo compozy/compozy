@@ -1,0 +1,89 @@
+name: parallel-wait-all-strategy
+
+workflow:
+  id: test-parallel-wait-all
+  version: "1.0.0"
+  tasks:
+    - id: wait-all-parallel-task
+      type: parallel
+      strategy: wait_all
+      max_workers: 3
+      tasks:
+        - id: fast-task
+          type: basic
+          action: test-action
+          with:
+            task_name: "fast-task"
+            duration: 50
+            value: "{{ .workflow.input.test_value }}"
+          outputs:
+            result: "{{ .output.result }}"
+            duration: "{{ .output.duration }}"
+            completed_at: "{{ .output.completed_at }}"
+
+        - id: medium-task
+          type: basic
+          action: test-action
+          with:
+            task_name: "medium-task"
+            duration: 100
+            value: "{{ .workflow.input.test_value }}"
+          outputs:
+            result: "{{ .output.result }}"
+            duration: "{{ .output.duration }}"
+            completed_at: "{{ .output.completed_at }}"
+
+        - id: slow-task
+          type: basic
+          action: test-action
+          with:
+            task_name: "slow-task"
+            duration: 200
+            value: "{{ .workflow.input.test_value }}"
+          outputs:
+            result: "{{ .output.result }}"
+            duration: "{{ .output.duration }}"
+            completed_at: "{{ .output.completed_at }}"
+      outputs:
+        total_tasks: "{{ len(.tasks) }}"
+        all_completed: "{{ (.tasks | selectattr('status', 'eq', 'SUCCESS') | list | len) == len(.tasks) }}"
+        total_duration: "{{ .tasks | map(attr='output.duration') | sum }}"
+        strategy: "wait_all"
+
+input:
+  test_value: "wait-all-test"
+
+expected:
+  workflow_state:
+    status: SUCCESS  # All tasks complete successfully
+    total_tasks: 4  # 1 parallel + 3 child tasks
+    completed_tasks: 4  # All tasks complete
+  task_states:
+    - name: wait-all-parallel-task
+      status: SUCCESS
+      output:
+        total_tasks: 3.0
+        all_completed: true
+        total_duration: 350.0
+        strategy: "wait_all"
+    - name: wait-all-parallel-task-fast-task
+      status: SUCCESS
+      parent: wait-all-parallel-task
+      output:
+        result: "wait-all-test"
+        duration: 50.0
+        completed_at: "2023-01-01T00:00:01Z"
+    - name: wait-all-parallel-task-medium-task
+      status: SUCCESS
+      parent: wait-all-parallel-task
+      output:
+        result: "wait-all-test"
+        duration: 100.0
+        completed_at: "2023-01-01T00:00:02Z"
+    - name: wait-all-parallel-task-slow-task
+      status: SUCCESS
+      parent: wait-all-parallel-task
+      output:
+        result: "wait-all-test"
+        duration: 200.0
+        completed_at: "2023-01-01T00:00:03Z"

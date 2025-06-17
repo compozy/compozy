@@ -132,18 +132,9 @@ func (cm *ConfigManager) PrepareCollectionConfigs(
 	taskConfig *task.Config,
 	workflowState *workflow.State,
 ) (*CollectionMetadata, error) {
-	// Defensive validation
-	if parentStateID == "" {
-		return nil, fmt.Errorf("parent state ID cannot be empty")
-	}
-	if taskConfig == nil {
-		return nil, fmt.Errorf("task config cannot be nil")
-	}
-	if taskConfig.Type != task.TaskTypeCollection {
-		return nil, fmt.Errorf("task config must be collection type, got: %s", taskConfig.Type)
-	}
-	if workflowState == nil {
-		return nil, fmt.Errorf("workflow state cannot be nil")
+	// Validate inputs
+	if err := cm.validateCollectionInputs(parentStateID, taskConfig, workflowState); err != nil {
+		return nil, err
 	}
 
 	// Process collection items
@@ -159,9 +150,9 @@ func (cm *ConfigManager) PrepareCollectionConfigs(
 		return nil, fmt.Errorf("failed to create child configs for parent %s: %w", parentStateID, err)
 	}
 
-	// Validate generated child configs
+	// Handle empty collections
 	if len(childConfigs) == 0 {
-		return nil, fmt.Errorf("no child configs generated for collection task %s", parentStateID)
+		return cm.handleEmptyCollection(ctx, parentStateID, taskConfig, skippedCount)
 	}
 
 	// Ensure child configs inherit CWD from parent before validation
@@ -267,29 +258,30 @@ func (cm *ConfigManager) PrepareCompositeConfigs(
 	if taskConfig.Type != task.TaskTypeComposite {
 		return fmt.Errorf("task config must be composite type, got: %s", taskConfig.Type)
 	}
-	if len(taskConfig.Tasks) == 0 {
-		return fmt.Errorf("composite task must have at least one child task")
-	}
-	if err := task.PropagateTaskListCWD(taskConfig.Tasks, taskConfig.CWD, "composite child task"); err != nil {
-		return fmt.Errorf("failed to propagate CWD to child configs: %w", err)
-	}
-	for i := range taskConfig.Tasks {
-		childConfig := &taskConfig.Tasks[i]
-		if childConfig.ID == "" {
-			return fmt.Errorf("child config at index %d missing required ID field", i)
+	// Allow empty composite tasks - they should complete successfully with no children
+	if len(taskConfig.Tasks) > 0 {
+		if err := task.PropagateTaskListCWD(taskConfig.Tasks, taskConfig.CWD, "composite child task"); err != nil {
+			return fmt.Errorf("failed to propagate CWD to child configs: %w", err)
 		}
-		if childConfig.CWD == nil {
-			childConfig.CWD = cm.cwd
-		}
-		if err := childConfig.Validate(); err != nil {
-			return fmt.Errorf("invalid child config at index %d: %w", i, err)
+		// Validate child configs
+		for i := range taskConfig.Tasks {
+			childConfig := &taskConfig.Tasks[i]
+			if childConfig.ID == "" {
+				return fmt.Errorf("child config at index %d missing required ID field", i)
+			}
+			if childConfig.CWD == nil {
+				childConfig.CWD = cm.cwd
+			}
+			if err := childConfig.Validate(); err != nil {
+				return fmt.Errorf("invalid child config at index %d: %w", i, err)
+			}
 		}
 	}
 	metadata := &CompositeTaskMetadata{
 		ParentStateID: parentStateID,
 		ChildConfigs:  taskConfig.Tasks,
-		Strategy:      string(taskConfig.GetStrategy()),
-		MaxWorkers:    1, // Composite tasks are always sequential
+		Strategy:      string(task.StrategyWaitAll), // Composite tasks are always sequential
+		MaxWorkers:    1,                            // Composite tasks are always sequential
 	}
 	key := cm.buildCompositeMetadataKey(parentStateID)
 	metadataBytes, err := json.Marshal(metadata)
@@ -366,4 +358,61 @@ func (cm *ConfigManager) SaveTaskConfig(ctx context.Context, taskExecID core.ID,
 // DeleteTaskConfig removes a task configuration from Redis using taskExecID as key
 func (cm *ConfigManager) DeleteTaskConfig(ctx context.Context, taskExecID core.ID) error {
 	return cm.configStore.Delete(ctx, taskExecID.String())
+}
+
+// validateCollectionInputs validates inputs for PrepareCollectionConfigs
+func (cm *ConfigManager) validateCollectionInputs(
+	parentStateID core.ID,
+	taskConfig *task.Config,
+	workflowState *workflow.State,
+) error {
+	if parentStateID == "" {
+		return fmt.Errorf("parent state ID cannot be empty")
+	}
+	if taskConfig == nil {
+		return fmt.Errorf("task config cannot be nil")
+	}
+	if taskConfig.Type != task.TaskTypeCollection {
+		return fmt.Errorf("task config must be collection type, got: %s", taskConfig.Type)
+	}
+	if workflowState == nil {
+		return fmt.Errorf("workflow state cannot be nil")
+	}
+	return nil
+}
+
+// handleEmptyCollection handles the case when a collection has no items
+func (cm *ConfigManager) handleEmptyCollection(
+	ctx context.Context,
+	parentStateID core.ID,
+	taskConfig *task.Config,
+	skippedCount int,
+) (*CollectionMetadata, error) {
+	metadata := &CollectionTaskMetadata{
+		ParentStateID: parentStateID,
+		ChildConfigs:  []task.Config{}, // Empty slice
+		Strategy:      string(task.StrategyWaitAll),
+		MaxWorkers:    1,
+		ItemCount:     0,
+		SkippedCount:  skippedCount,
+		Mode:          string(taskConfig.GetMode()),
+		BatchSize:     taskConfig.Batch,
+	}
+
+	key := cm.buildCollectionMetadataKey(parentStateID)
+	metadataBytes, err := json.Marshal(metadata)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal empty collection metadata: %w", err)
+	}
+
+	if err := cm.configStore.SaveMetadata(ctx, key, metadataBytes); err != nil {
+		return nil, fmt.Errorf("failed to save empty collection metadata for parent %s: %w", parentStateID, err)
+	}
+
+	return &CollectionMetadata{
+		ItemCount:    0,
+		SkippedCount: skippedCount,
+		Mode:         string(taskConfig.GetMode()),
+		BatchSize:    taskConfig.Batch,
+	}, nil
 }

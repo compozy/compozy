@@ -37,7 +37,7 @@ func (uc *ExecuteTask) Execute(ctx context.Context, input *ExecuteTaskInput) (*c
 		if actionID == "" {
 			return nil, fmt.Errorf("action ID is required for agent")
 		}
-		result, err = uc.executeAgent(ctx, agentConfig, actionID)
+		result, err = uc.executeAgent(ctx, agentConfig, actionID, input.TaskConfig.With)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute agent: %w", err)
 		}
@@ -48,19 +48,30 @@ func (uc *ExecuteTask) Execute(ctx context.Context, input *ExecuteTaskInput) (*c
 			return nil, fmt.Errorf("failed to execute tool: %w", err)
 		}
 		return result, nil
-	default:
-		return nil, fmt.Errorf("no component specified for execution")
 	}
+	// This should be unreachable for valid basic tasks due to load-time validation
+	return nil, fmt.Errorf(
+		"unreachable: task (ID: %s, Type: %s) has no executable component (agent/tool); validation may be misconfigured",
+		input.TaskConfig.ID,
+		input.TaskConfig.Type,
+	)
 }
 
 func (uc *ExecuteTask) executeAgent(
 	ctx context.Context,
 	agentConfig *agent.Config,
 	actionID string,
+	taskWith *core.Input,
 ) (*core.Output, error) {
 	actionConfig, err := agent.FindActionConfig(agentConfig.Actions, actionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find action config: %w", err)
+	}
+
+	// Create a copy of the action config with task's runtime input data
+	runtimeActionConfig := *actionConfig // shallow copy
+	if taskWith != nil {
+		runtimeActionConfig.With = taskWith
 	}
 
 	llmService, err := llm.NewService(uc.runtime, agentConfig)
@@ -75,7 +86,7 @@ func (uc *ExecuteTask) executeAgent(
 		}
 	}()
 
-	result, err := llmService.GenerateContent(ctx, agentConfig, actionConfig)
+	result, err := llmService.GenerateContent(ctx, agentConfig, &runtimeActionConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}

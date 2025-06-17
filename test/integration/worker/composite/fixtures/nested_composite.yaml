@@ -1,0 +1,34 @@
+name: composite-nested
+
+workflow:
+  id: test-composite-nested
+  version: "1.0.0"
+  tasks:
+    - id: parent-composite
+      type: composite
+      tasks:
+        - id: child-task1
+          type: basic
+          action: process_message
+          with:
+            message: "Child 1"
+        - id: child-task2
+          type: basic
+          action: process_message
+          with:
+            message: "Child 2"
+
+input:
+  test_data: "nested-test"
+
+expected:
+  workflow_state:
+    status: SUCCESS
+  task_states:
+    - name: parent-composite
+      status: SUCCESS
+      output:
+        progress_info:
+          total_children: 2
+          completed_count: 2
+          failed_count: 0

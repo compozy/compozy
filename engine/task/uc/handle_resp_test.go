@@ -303,6 +303,10 @@ func (m *mockTaskRepo) GetProgressInfo(ctx context.Context, parentStateID core.I
 	return nil, nil
 }
 
+func (m *mockTaskRepo) GetChildByTaskID(_ context.Context, _ core.ID, _ string) (*task.State, error) {
+	return nil, nil
+}
+
 // mockWorkflowRepo is a simple mock implementation for testing
 type mockWorkflowRepo struct{}
 

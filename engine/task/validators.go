@@ -10,16 +10,10 @@ import (
 // CycleValidator - Detects circular dependencies in task references
 // -----------------------------------------------------------------------------
 
-type CycleValidator struct {
-	visited  map[string]bool
-	visiting map[string]bool
-}
+type CycleValidator struct{}
 
 func NewCycleValidator() *CycleValidator {
-	return &CycleValidator{
-		visited:  make(map[string]bool),
-		visiting: make(map[string]bool),
-	}
+	return &CycleValidator{}
 }
 
 func (v *CycleValidator) Validate() error {
@@ -95,7 +89,7 @@ func (v *TypeValidator) Validate() error {
 	}
 	switch v.config.Type {
 	case TaskTypeBasic:
-		return v.validateExecutorFields()
+		return v.validateBasicTask()
 	case TaskTypeRouter:
 		if err := v.validateExecutorFields(); err != nil {
 			return err
@@ -133,6 +127,13 @@ func (v *TypeValidator) validateExecutorFields() error {
 		return fmt.Errorf("action is required when executor type is agent")
 	}
 	return nil
+}
+
+func (v *TypeValidator) validateBasicTask() error {
+	// For basic tasks, just run the standard executor field validation
+	// The runtime check in ExecuteTask will catch missing components when they're actually needed
+	// This allows for $use references and other dynamic resolution patterns to work properly
+	return v.validateExecutorFields()
 }
 
 func (v *TypeValidator) validateRouterTask() error {
