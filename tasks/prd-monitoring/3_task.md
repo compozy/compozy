@@ -107,7 +107,7 @@ func (m *MonitoringService) TemporalInterceptor(ctx context.Context) (intercepto
 // In engine/worker package
 interceptor, err := ms.TemporalInterceptor(ctx)
 if err != nil {
-    logger.Error("Failed to create Temporal interceptor", "error", err)
+    log.Error("Failed to create Temporal interceptor", "error", err)
     // Continue without interceptor rather than failing
 }
 if interceptor != nil {

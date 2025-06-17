@@ -99,7 +99,8 @@ func (s *TestConfigStore) Close() error {
 
 // CreateMockRuntime creates a mock runtime manager for integration tests
 func CreateMockRuntime(t *testing.T) *coreruntime.Manager {
-	rtManager, err := coreruntime.NewRuntimeManager("/tmp", coreruntime.WithTestConfig())
+	ctx := t.Context()
+	rtManager, err := coreruntime.NewRuntimeManager(ctx, "/tmp", coreruntime.WithTestConfig())
 	require.NoError(t, err, "failed to create mock runtime manager")
 	return rtManager
 }

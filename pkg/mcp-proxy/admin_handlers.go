@@ -345,9 +345,10 @@ type ListMCPsResponse struct {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /admin/tools [get]
 func (h *AdminHandlers) ListToolsHandler(c *gin.Context) {
+	log := logger.FromContext(c.Request.Context())
 	tools, err := h.mcpService.ListAllTools(c.Request.Context())
 	if err != nil {
-		logger.Error("Failed to list tools", "error", err)
+		log.Error("Failed to list tools", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to retrieve tools",
 			"details": err.Error(),

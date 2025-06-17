@@ -4,23 +4,10 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"testing"
 
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/mock"
 )
-
-var once sync.Once
-
-func initLogger(t *testing.T) {
-	once.Do(func() {
-		if err := logger.InitForTests(); err != nil {
-			// Log the error but don't fail test initialization
-			t.Logf("Warning: failed to initialize logger for tests: %v\n", err)
-		}
-	})
-}
 
 // createTestDefinition creates a test MCP definition that won't hang tests
 // Uses a command that exits immediately instead of trying to establish real MCP connections
@@ -37,8 +24,7 @@ func createTestDefinition(name string) *MCPDefinition {
 	return def
 }
 
-func newTestServer(t *testing.T, config *Config) *Server {
-	initLogger(t)
+func newTestServer(config *Config) *Server {
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
 	return NewServer(config, storage, clientManager)

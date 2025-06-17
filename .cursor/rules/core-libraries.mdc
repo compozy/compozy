@@ -52,12 +52,12 @@ alwaysApply: true
 <utility_pattern type="structured_logging">
 ```go
 // Use pkg/logger for structured logging
-logger.Info("task executed", "task_id", id, "duration", time.Since(start))
-logger.Error("execution failed", "error", err, "task_id", id)
+log.Info("task executed", "task_id", id, "duration", time.Since(start))
+log.Error("execution failed", "error", err, "task_id", id)
 
 // NEVER log sensitive data
-logger.Info("user authenticated", "user_id", userID) // ✅ Good
-logger.Info("user authenticated", "password", pass) // ❌ Never do this
+log.Info("user authenticated", "user_id", userID) // ✅ Good
+log.Info("user authenticated", "password", pass) // ❌ Never do this
 ```
 </utility_pattern>
 

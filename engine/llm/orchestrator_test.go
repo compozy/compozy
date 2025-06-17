@@ -38,8 +38,8 @@ type MockToolRegistry struct {
 	mock.Mock
 }
 
-func (m *MockToolRegistry) Register(tool Tool) error {
-	args := m.Called(tool)
+func (m *MockToolRegistry) Register(ctx context.Context, tool Tool) error {
+	args := m.Called(ctx, tool)
 	return args.Error(0)
 }
 
@@ -59,8 +59,8 @@ func (m *MockToolRegistry) ListAll(ctx context.Context) ([]Tool, error) {
 	return args.Get(0).([]Tool), args.Error(1)
 }
 
-func (m *MockToolRegistry) InvalidateCache() {
-	m.Called()
+func (m *MockToolRegistry) InvalidateCache(ctx context.Context) {
+	m.Called(ctx)
 }
 
 func (m *MockToolRegistry) Close() error {

@@ -43,7 +43,7 @@ func (s *redisConfigStore) Save(ctx context.Context, taskExecID string, config *
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context canceled: %w", err)
 	}
-
+	log := logger.FromContext(ctx)
 	if taskExecID == "" {
 		return fmt.Errorf("taskExecID cannot be empty")
 	}
@@ -63,7 +63,7 @@ func (s *redisConfigStore) Save(ctx context.Context, taskExecID string, config *
 		return fmt.Errorf("failed to save config for taskExecID %s: %w", taskExecID, err)
 	}
 
-	logger.With("task_exec_id", taskExecID, "ttl", s.ttl).Debug("Task config saved to Redis")
+	log.With("task_exec_id", taskExecID, "ttl", s.ttl).Debug("Task config saved to Redis")
 	return nil
 }
 
@@ -72,7 +72,7 @@ func (s *redisConfigStore) Get(ctx context.Context, taskExecID string) (*task.Co
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context canceled: %w", err)
 	}
-
+	log := logger.FromContext(ctx)
 	if taskExecID == "" {
 		return nil, fmt.Errorf("taskExecID cannot be empty")
 	}
@@ -92,7 +92,7 @@ func (s *redisConfigStore) Get(ctx context.Context, taskExecID string) (*task.Co
 		return nil, fmt.Errorf("failed to unmarshal config for taskExecID %s: %w", taskExecID, err)
 	}
 
-	logger.With("task_exec_id", taskExecID, "ttl_extended", s.ttl).
+	log.With("task_exec_id", taskExecID, "ttl_extended", s.ttl).
 		Debug("Task config retrieved from Redis with TTL extended")
 	return &config, nil
 }
@@ -102,7 +102,7 @@ func (s *redisConfigStore) Delete(ctx context.Context, taskExecID string) error 
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context canceled: %w", err)
 	}
-
+	log := logger.FromContext(ctx)
 	if taskExecID == "" {
 		return fmt.Errorf("taskExecID cannot be empty")
 	}
@@ -114,9 +114,9 @@ func (s *redisConfigStore) Delete(ctx context.Context, taskExecID string) error 
 	}
 
 	if deleted > 0 {
-		logger.With("task_exec_id", taskExecID).Debug("Task config deleted from Redis")
+		log.With("task_exec_id", taskExecID).Debug("Task config deleted from Redis")
 	} else {
-		logger.With("task_exec_id", taskExecID).Debug("Task config not found for deletion")
+		log.With("task_exec_id", taskExecID).Debug("Task config not found for deletion")
 	}
 
 	return nil
@@ -127,7 +127,7 @@ func (s *redisConfigStore) SaveMetadata(ctx context.Context, key string, data []
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context canceled: %w", err)
 	}
-
+	log := logger.FromContext(ctx)
 	if key == "" {
 		return fmt.Errorf("key cannot be empty")
 	}
@@ -141,7 +141,7 @@ func (s *redisConfigStore) SaveMetadata(ctx context.Context, key string, data []
 		return fmt.Errorf("failed to save metadata for key %s: %w", key, err)
 	}
 
-	logger.With("metadata_key", key, "ttl", s.ttl).Debug("Metadata saved to Redis")
+	log.With("metadata_key", key, "ttl", s.ttl).Debug("Metadata saved to Redis")
 	return nil
 }
 
@@ -150,7 +150,7 @@ func (s *redisConfigStore) GetMetadata(ctx context.Context, key string) ([]byte,
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context canceled: %w", err)
 	}
-
+	log := logger.FromContext(ctx)
 	if key == "" {
 		return nil, fmt.Errorf("key cannot be empty")
 	}
@@ -164,7 +164,7 @@ func (s *redisConfigStore) GetMetadata(ctx context.Context, key string) ([]byte,
 		return nil, fmt.Errorf("failed to get metadata for key %s: %w", key, err)
 	}
 
-	logger.With("metadata_key", key, "ttl_extended", s.ttl).Debug("Metadata retrieved from Redis with TTL extended")
+	log.With("metadata_key", key, "ttl_extended", s.ttl).Debug("Metadata retrieved from Redis with TTL extended")
 	return []byte(data), nil
 }
 
@@ -173,7 +173,7 @@ func (s *redisConfigStore) DeleteMetadata(ctx context.Context, key string) error
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context canceled: %w", err)
 	}
-
+	log := logger.FromContext(ctx)
 	if key == "" {
 		return fmt.Errorf("key cannot be empty")
 	}
@@ -185,9 +185,9 @@ func (s *redisConfigStore) DeleteMetadata(ctx context.Context, key string) error
 	}
 
 	if deleted > 0 {
-		logger.With("metadata_key", key).Debug("Metadata deleted from Redis")
+		log.With("metadata_key", key).Debug("Metadata deleted from Redis")
 	} else {
-		logger.With("metadata_key", key).Debug("Metadata not found for deletion")
+		log.With("metadata_key", key).Debug("Metadata not found for deletion")
 	}
 
 	return nil
@@ -236,6 +236,7 @@ func (s *redisConfigStore) GetAllMetadataKeys(ctx context.Context) ([]string, er
 
 // ExtendTTL extends the TTL of a task configuration
 func (s *redisConfigStore) ExtendTTL(ctx context.Context, taskExecID string, ttl time.Duration) error {
+	log := logger.FromContext(ctx)
 	if taskExecID == "" {
 		return fmt.Errorf("taskExecID cannot be empty")
 	}
@@ -245,7 +246,7 @@ func (s *redisConfigStore) ExtendTTL(ctx context.Context, taskExecID string, ttl
 		return fmt.Errorf("failed to extend TTL for taskExecID %s: %w", taskExecID, err)
 	}
 
-	logger.With("task_exec_id", taskExecID, "new_ttl", ttl).Debug("Task config TTL extended")
+	log.With("task_exec_id", taskExecID, "new_ttl", ttl).Debug("Task config TTL extended")
 	return nil
 }
 

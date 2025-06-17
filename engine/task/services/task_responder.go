@@ -424,8 +424,9 @@ func (s *TaskResponder) normalizeErrorTransition(
 }
 
 func (s *TaskResponder) logParentStatusUpdateError(ctx context.Context, state *task.State) {
+	log := logger.FromContext(ctx)
 	if err := s.updateParentStatusIfNeeded(ctx, state); err != nil {
-		logger.Debug("failed to update parent status", "error", err)
+		log.Debug("Failed to update parent status", "error", err)
 	}
 }
 
@@ -449,7 +450,7 @@ func (s *TaskResponder) updateParentStatusIfNeeded(ctx context.Context, childSta
 	}
 
 	// Extract strategy from parallel configuration
-	strategy := s.extractParallelStrategy(parentState, parentStateID)
+	strategy := s.extractParallelStrategy(ctx, parentState, parentStateID)
 
 	// Use the shared service to update parent status
 	_, err = s.parentStatusUpdater.UpdateParentStatus(ctx, &UpdateParentStatusInput{
@@ -464,7 +465,12 @@ func (s *TaskResponder) updateParentStatusIfNeeded(ctx context.Context, childSta
 
 // extractParallelStrategy extracts the parallel strategy from parent state input
 // using a typed struct to avoid brittle nested type assertions
-func (s *TaskResponder) extractParallelStrategy(parentState *task.State, parentStateID core.ID) task.ParallelStrategy {
+func (s *TaskResponder) extractParallelStrategy(
+	ctx context.Context,
+	parentState *task.State,
+	parentStateID core.ID,
+) task.ParallelStrategy {
+	log := logger.FromContext(ctx)
 	// Default strategy
 	defaultStrategy := task.StrategyWaitAll
 
@@ -489,7 +495,7 @@ func (s *TaskResponder) extractParallelStrategy(parentState *task.State, parentS
 		var err error
 		jsonBytes, err = json.Marshal(v)
 		if err != nil {
-			logger.Error("Failed to marshal parallel config for extraction",
+			log.Error("Failed to marshal parallel config for extraction",
 				"parent_state_id", parentStateID,
 				"error", err,
 			)
@@ -499,7 +505,7 @@ func (s *TaskResponder) extractParallelStrategy(parentState *task.State, parentS
 
 	var configData ParallelConfigData
 	if err := json.Unmarshal(jsonBytes, &configData); err != nil {
-		logger.Error("Failed to unmarshal parallel config into typed struct",
+		log.Error("Failed to unmarshal parallel config into typed struct",
 			"parent_state_id", parentStateID,
 			"config_type", fmt.Sprintf("%T", parallelConfigRaw),
 			"error", err,
@@ -510,7 +516,7 @@ func (s *TaskResponder) extractParallelStrategy(parentState *task.State, parentS
 	// Validate the extracted strategy
 	if !task.ValidateStrategy(string(configData.Strategy)) {
 		if configData.Strategy != "" {
-			logger.Error("Invalid parallel strategy found, using default wait_all",
+			log.Debug("Invalid parallel strategy found, using default wait_all",
 				"invalid_strategy", configData.Strategy,
 				"parent_state_id", parentStateID,
 			)

@@ -12,8 +12,7 @@ import (
 )
 
 // setupTestManager creates a new client manager for testing
-func setupTestManager(t *testing.T) (*MCPClientManager, *MemoryStorage, *ClientManagerConfig) {
-	initLogger(t)
+func setupTestManager() (*MCPClientManager, *MemoryStorage, *ClientManagerConfig) {
 	storage := NewMemoryStorage()
 	config := DefaultClientManagerConfig()
 	manager := NewMCPClientManager(storage, config)
@@ -21,7 +20,7 @@ func setupTestManager(t *testing.T) (*MCPClientManager, *MemoryStorage, *ClientM
 }
 
 func TestMCPClientManager_New(t *testing.T) {
-	manager, storage, config := setupTestManager(t)
+	manager, storage, config := setupTestManager()
 
 	assert.NotNil(t, manager)
 	assert.Equal(t, storage, manager.storage)
@@ -33,7 +32,7 @@ func TestMCPClientManager_New(t *testing.T) {
 }
 
 func TestMCPClientManager_StartStop(t *testing.T) {
-	manager, _, _ := setupTestManager(t)
+	manager, _, _ := setupTestManager()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -48,7 +47,7 @@ func TestMCPClientManager_StartStop(t *testing.T) {
 }
 
 func TestMCPClientManager_AddClient_Success(t *testing.T) {
-	manager, _, _ := setupTestManager(t)
+	manager, _, _ := setupTestManager()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -72,7 +71,7 @@ func TestMCPClientManager_AddClient_Success(t *testing.T) {
 }
 
 func TestMCPClientManager_AddClient_Duplicate(t *testing.T) {
-	manager, _, _ := setupTestManager(t)
+	manager, _, _ := setupTestManager()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -94,7 +93,7 @@ func TestMCPClientManager_AddClient_Duplicate(t *testing.T) {
 }
 
 func TestMCPClientManager_AddClient_ConnectionLimit(t *testing.T) {
-	manager, _, config := setupTestManager(t)
+	manager, _, config := setupTestManager()
 	config.MaxConcurrentConnections = 1 // Set low limit for testing
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -117,7 +116,7 @@ func TestMCPClientManager_AddClient_ConnectionLimit(t *testing.T) {
 }
 
 func TestMCPClientManager_RemoveClient(t *testing.T) {
-	manager, _, _ := setupTestManager(t)
+	manager, _, _ := setupTestManager()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -147,7 +146,7 @@ func TestMCPClientManager_RemoveClient(t *testing.T) {
 }
 
 func TestMCPClientManager_GetClientStatus(t *testing.T) {
-	manager, _, _ := setupTestManager(t)
+	manager, _, _ := setupTestManager()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -170,7 +169,7 @@ func TestMCPClientManager_GetClientStatus(t *testing.T) {
 }
 
 func TestMCPClientManager_ListClientStatuses(t *testing.T) {
-	manager, _, _ := setupTestManager(t)
+	manager, _, _ := setupTestManager()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -189,14 +188,14 @@ func TestMCPClientManager_ListClientStatuses(t *testing.T) {
 	require.NoError(t, err)
 
 	// List all statuses
-	statuses := manager.ListClientStatuses()
+	statuses := manager.ListClientStatuses(ctx)
 	assert.Len(t, statuses, 2)
 	assert.Contains(t, statuses, "client-1")
 	assert.Contains(t, statuses, "client-2")
 }
 
 func TestMCPClientManager_GetMetrics(t *testing.T) {
-	manager, _, _ := setupTestManager(t)
+	manager, _, _ := setupTestManager()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -315,7 +314,7 @@ func TestMCPClientManager_Concurrent_Operations(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			_ = manager.GetMetrics()
-			_ = manager.ListClientStatuses()
+			_ = manager.ListClientStatuses(ctx)
 		}()
 	}
 
@@ -331,7 +330,7 @@ func TestMCPClientManager_Concurrent_Operations(t *testing.T) {
 	metrics := manager.GetMetrics()
 	assert.Equal(t, clientCount, metrics["total_clients"])
 
-	statuses := manager.ListClientStatuses()
+	statuses := manager.ListClientStatuses(ctx)
 	assert.Len(t, statuses, clientCount)
 }
 

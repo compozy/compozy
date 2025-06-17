@@ -160,7 +160,7 @@ defer func() {
     m.cancel()
     m.wg.Wait()
     if closeErr := m.conn.Close(); closeErr != nil {
-        logger.Error("failed to close connection", "error", closeErr)
+        log.Error("failed to close connection", "error", closeErr)
     }
 }()
 ```
@@ -259,13 +259,11 @@ type WorkflowService struct {
 // ✅ Required pattern for all services
 type AgentService struct {
     repo   AgentRepository
-    logger logger.Logger
     config *AgentConfig
 }
 
 func NewAgentService(
     repo AgentRepository,
-    logger logger.Logger,
     config *AgentConfig,
 ) *AgentService {
     if config == nil {
@@ -273,7 +271,6 @@ func NewAgentService(
     }
     return &AgentService{
         repo:   repo,
-        logger: logger,
         config: config,
     }
 }
@@ -331,7 +328,7 @@ func (s *Service) ProcessWithResources(ctx context.Context) error {
     }
     defer func() {
         if closeErr := conn.Close(); closeErr != nil {
-            logger.Error("failed to close connection", "error", closeErr)
+            log.Error("failed to close connection", "error", closeErr)
         }
     }()
     return s.processWithConnection(ctx, conn)

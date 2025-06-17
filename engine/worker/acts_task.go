@@ -43,7 +43,7 @@ func (e *TaskExecutor) ExecuteFirstTask() func(ctx workflow.Context) (task.Respo
 
 func (e *TaskExecutor) ExecuteTasks(response task.Response) func(ctx workflow.Context) (task.Response, error) {
 	return func(ctx workflow.Context) (task.Response, error) {
-		logger := workflow.GetLogger(ctx)
+		log := workflow.GetLogger(ctx)
 		taskConfig := response.GetNextTask()
 		taskID := taskConfig.ID
 		ctx = e.BuildTaskContext(ctx, taskID)
@@ -58,13 +58,13 @@ func (e *TaskExecutor) ExecuteTasks(response task.Response) func(ctx workflow.Co
 		}
 		// Dispatch next task if there is one
 		if taskResponse.GetNextTask() == nil {
-			logger.Info("No more tasks to execute", "task_id", taskID)
+			log.Info("No more tasks to execute", "task_id", taskID)
 			return nil, nil
 		}
 		// Ensure NextTask has a valid ID
 		nextTaskID := taskResponse.GetNextTask().ID
 		if nextTaskID == "" {
-			logger.Error("NextTask has empty ID", "current_task", taskID)
+			log.Error("NextTask has empty ID", "current_task", taskID)
 			return nil, fmt.Errorf("next task has empty ID for current task: %s", taskID)
 		}
 		return taskResponse, nil
@@ -76,7 +76,7 @@ func (e *TaskExecutor) HandleExecution(
 	taskConfig *task.Config,
 	depth ...int,
 ) (task.Response, error) {
-	logger := workflow.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	taskID := taskConfig.ID
 	taskType := taskConfig.Type
 	currentDepth := 0
@@ -114,10 +114,10 @@ func (e *TaskExecutor) HandleExecution(
 		return nil, fmt.Errorf("unsupported execution type: %s", taskType)
 	}
 	if err != nil {
-		logger.Error("Failed to execute task", "task_id", taskID, "depth", currentDepth, "error", err)
+		log.Error("Failed to execute task", "task_id", taskID, "depth", currentDepth, "error", err)
 		return nil, err
 	}
-	logger.Info("Task executed successfully",
+	log.Debug("Task executed successfully",
 		"status", response.GetState().Status,
 		"task_id", taskID,
 		"depth", currentDepth,
@@ -255,7 +255,7 @@ func (e *TaskExecutor) ExecuteCollectionTask(
 	depth ...int,
 ) func(ctx workflow.Context) (task.Response, error) {
 	return func(ctx workflow.Context) (task.Response, error) {
-		logger := workflow.GetLogger(ctx)
+		log := workflow.GetLogger(ctx)
 		currentDepth := 0
 		if len(depth) > 0 {
 			currentDepth = depth[0]
@@ -272,7 +272,7 @@ func (e *TaskExecutor) ExecuteCollectionTask(
 		if err != nil {
 			return nil, err
 		}
-		logger.Info("Collection task execution completed",
+		log.Debug("Collection task execution completed",
 			"task_id", taskConfig.ID,
 			"final_status", finalResponse.GetState().Status)
 
@@ -341,8 +341,8 @@ func (e *TaskExecutor) executeChild(
 	cfg *task.Config,
 	depth int,
 ) error {
-	logger := workflow.GetLogger(ctx)
-	logger.Debug("Executing child", "task", cfg.ID, "depth", depth)
+	log := workflow.GetLogger(ctx)
+	log.Debug("Executing child", "task", cfg.ID, "depth", depth)
 
 	switch cfg.Type {
 	case task.TaskTypeBasic:
@@ -380,7 +380,7 @@ func (e *TaskExecutor) executeChild(
 
 			err = workflow.ExecuteActivity(activityCtx, "UpdateChildState", updateInput).Get(activityCtx, nil)
 			if err != nil {
-				logger.Error("Failed to update child state after nested task completion",
+				log.Error("Failed to update child state after nested task completion",
 					"child_task_id", childState.TaskID, "final_status", finalState.Status, "error", err)
 				// Don't fail the execution - this is for tracking purposes only
 			}
@@ -390,13 +390,13 @@ func (e *TaskExecutor) executeChild(
 }
 
 func (e *TaskExecutor) sleepTask(ctx workflow.Context, taskConfig *task.Config) error {
-	// Get logger from workflow context for consistency
-	logger := workflow.GetLogger(ctx)
+	// Get log from workflow context for consistency
+	log := workflow.GetLogger(ctx)
 	// Check if task has sleep configuration
 	taskID := taskConfig.ID
 	sleepDuration, err := taskConfig.GetSleepDuration()
 	if err != nil {
-		logger.Error("Invalid sleep duration format", "task_id", taskID, "sleep", taskConfig.Sleep, "error", err)
+		log.Error("Invalid sleep duration format", "task_id", taskID, "sleep", taskConfig.Sleep, "error", err)
 		return err
 	}
 	if sleepDuration != 0 {
@@ -404,10 +404,10 @@ func (e *TaskExecutor) sleepTask(ctx workflow.Context, taskConfig *task.Config) 
 			if err == workflow.ErrCanceled {
 				return nil
 			}
-			logger.Error("Error during task sleep", "task_id", taskID, "error", err)
+			log.Error("Error during task sleep", "task_id", taskID, "error", err)
 			return err
 		}
-		logger.Info("Task sleep completed", "task_id", taskID)
+		log.Debug("Task sleep completed", "task_id", taskID)
 	}
 	return nil
 }
@@ -417,7 +417,7 @@ func (e *TaskExecutor) HandleParallelTask(
 	depth ...int,
 ) func(ctx workflow.Context) (task.Response, error) {
 	return func(ctx workflow.Context) (task.Response, error) {
-		logger := workflow.GetLogger(ctx)
+		log := workflow.GetLogger(ctx)
 		currentDepth := 0
 		if len(depth) > 0 {
 			currentDepth = depth[0]
@@ -451,7 +451,7 @@ func (e *TaskExecutor) HandleParallelTask(
 		}
 		completedCount := atomic.LoadInt32(&completed)
 		failedCount := atomic.LoadInt32(&failed)
-		logger.Info("Parallel task execution completed",
+		log.Debug("Parallel task execution completed",
 			"task_id", pConfig.ID,
 			"completed", completedCount,
 			"failed", failedCount,
@@ -488,7 +488,7 @@ func (e *TaskExecutor) executeChildrenInParallel(
 	depth int,
 	completed, failed *int32,
 ) {
-	logger := workflow.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	for i := range childStates {
 		childState := childStates[i]
 		childConfig := childCfgs[childState.TaskID]
@@ -504,7 +504,7 @@ func (e *TaskExecutor) executeChildrenInParallel(
 				return // canceled during work
 			}
 			if err != nil {
-				logger.Error("Failed to execute child task",
+				log.Error("Failed to execute child task",
 					"parent_task_id", taskConfig.ID,
 					"child_task_id", cs.TaskID,
 					"depth", depth+1,
@@ -512,7 +512,7 @@ func (e *TaskExecutor) executeChildrenInParallel(
 				atomic.AddInt32(failed, 1)
 			} else {
 				atomic.AddInt32(completed, 1)
-				logger.Info("Child task completed successfully",
+				log.Debug("Child task completed successfully",
 					"parent_task_id", taskConfig.ID,
 					"child_task_id", cs.TaskID,
 					"depth", depth+1)
@@ -586,18 +586,18 @@ func (e *TaskExecutor) HandleCollectionTask(
 
 	// Use the same atomic counters approach as parallel tasks
 	var completed, failed int32
-	logger := workflow.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 
 	// Empty collections are valid - they complete successfully with no child tasks
 	if len(childStates) == 0 {
-		logger.Info("Collection task has no items, completing successfully",
+		log.Debug("Collection task has no items, completing successfully",
 			"task_id", taskConfig.ID,
 			"parent_state_id", cState.TaskExecID)
 		// Collection completes successfully even with no items
 		return nil
 	}
 
-	logger.Info("Executing collection child tasks",
+	log.Debug("Executing collection child tasks",
 		"task_id", taskConfig.ID,
 		"child_count", len(childStates),
 		"expected_count", childCount,
@@ -625,7 +625,7 @@ func (e *TaskExecutor) handleCollectionParallel(
 	childCount int32,
 	depth int,
 ) error {
-	logger := workflow.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 
 	// For collection tasks, all children use the parent's task template
 	// Collection child TaskIDs are dynamically generated (e.g., activity_analysis_item_0)
@@ -645,7 +645,7 @@ func (e *TaskExecutor) handleCollectionParallel(
 				return // canceled during work
 			}
 			if err != nil {
-				logger.Error("Failed to execute child task",
+				log.Error("Failed to execute child task",
 					"parent_task_id", taskConfig.ID,
 					"child_task_id", cs.TaskID,
 					"depth", depth+1,
@@ -653,7 +653,7 @@ func (e *TaskExecutor) handleCollectionParallel(
 				atomic.AddInt32(failed, 1)
 			} else {
 				atomic.AddInt32(completed, 1)
-				logger.Info("Child task completed successfully",
+				log.Debug("Child task completed successfully",
 					"parent_task_id", taskConfig.ID,
 					"child_task_id", cs.TaskID,
 					"depth", depth+1)
@@ -684,7 +684,7 @@ func (e *TaskExecutor) handleCollectionParallel(
 	}
 	completedCount := atomic.LoadInt32(completed)
 	failedCount := atomic.LoadInt32(failed)
-	logger.Info("Collection parallel execution completed",
+	log.Debug("Collection parallel execution completed",
 		"task_id", taskConfig.ID,
 		"completed", completedCount,
 		"failed", failedCount,
@@ -700,7 +700,7 @@ func (e *TaskExecutor) handleCollectionSequential(
 	completed, failed *int32,
 	depth int,
 ) error {
-	logger := workflow.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	strategy := taskConfig.GetStrategy()
 
 	// For collection tasks, all children use the parent's task template
@@ -709,7 +709,7 @@ func (e *TaskExecutor) handleCollectionSequential(
 
 	// Process child tasks sequentially
 	for i, childState := range childStates {
-		logger.Info("Executing child task sequentially",
+		log.Debug("Executing child task sequentially",
 			"parent_task_id", taskConfig.ID,
 			"child_task_id", childState.TaskID,
 			"index", i,
@@ -718,7 +718,7 @@ func (e *TaskExecutor) handleCollectionSequential(
 		err := e.executeChild(ctx, cState.TaskExecID, childState, taskConfig.Task, depth)
 		if err != nil {
 			atomic.AddInt32(failed, 1)
-			logger.Error("Failed to execute child task",
+			log.Error("Failed to execute child task",
 				"parent_task_id", taskConfig.ID,
 				"child_task_id", childState.TaskID,
 				"index", i,
@@ -726,21 +726,21 @@ func (e *TaskExecutor) handleCollectionSequential(
 				"error", err)
 			// Handle strategy-based early termination
 			if strategy == task.StrategyFailFast {
-				logger.Info("Stopping collection execution due to FailFast strategy",
+				log.Debug("Stopping collection execution due to FailFast strategy",
 					"task_id", taskConfig.ID,
 					"failed_at_index", i)
 				break
 			}
 		} else {
 			atomic.AddInt32(completed, 1)
-			logger.Info("Child task completed successfully",
+			log.Debug("Child task completed successfully",
 				"parent_task_id", taskConfig.ID,
 				"child_task_id", childState.TaskID,
 				"index", i,
 				"depth", depth+1)
 			// Handle Race strategy - stop on first success
 			if strategy == task.StrategyRace {
-				logger.Info("Stopping collection execution due to Race strategy",
+				log.Debug("Stopping collection execution due to Race strategy",
 					"task_id", taskConfig.ID,
 					"succeeded_at_index", i)
 				break
@@ -749,7 +749,7 @@ func (e *TaskExecutor) handleCollectionSequential(
 	}
 	completedCount := atomic.LoadInt32(completed)
 	failedCount := atomic.LoadInt32(failed)
-	logger.Info("Collection sequential execution completed",
+	log.Debug("Collection sequential execution completed",
 		"task_id", taskConfig.ID,
 		"completed", completedCount,
 		"failed", failedCount,
@@ -762,7 +762,7 @@ func (e *TaskExecutor) HandleCompositeTask(
 	depth ...int,
 ) func(ctx workflow.Context) (task.Response, error) {
 	return func(ctx workflow.Context) (task.Response, error) {
-		logger := workflow.GetLogger(ctx)
+		log := workflow.GetLogger(ctx)
 		currentDepth := 0
 		if len(depth) > 0 {
 			currentDepth = depth[0]
@@ -807,7 +807,7 @@ func (e *TaskExecutor) HandleCompositeTask(
 			// Execute child task
 			err := e.executeChild(ctx, compositeState.TaskExecID, childState, childConfig, currentDepth)
 			if err != nil {
-				logger.Error("Child task failed",
+				log.Error("Child task failed",
 					"composite_task", config.ID,
 					"child_task", childState.TaskID,
 					"index", i,
@@ -816,7 +816,7 @@ func (e *TaskExecutor) HandleCompositeTask(
 				// Composite tasks always fail immediately on any child failure
 				return nil, fmt.Errorf("child task %s failed: %w", childState.TaskID, err)
 			}
-			logger.Info("Child task completed",
+			log.Debug("Child task completed",
 				"composite_task", config.ID,
 				"child_task", childState.TaskID,
 				"index", i,

@@ -3,7 +3,6 @@ package worker
 import (
 	"time"
 
-	"github.com/compozy/compozy/pkg/logger"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -13,8 +12,9 @@ import (
 // -----------------------------------------------------------------------------
 
 func SleepWithPause(ctx workflow.Context, dur time.Duration) error {
+	log := workflow.GetLogger(ctx)
 	if temporal.IsCanceledError(ctx.Err()) {
-		logger.Info("Sleep skipped due to cancellation")
+		log.Info("Sleep skipped due to cancellation")
 		return workflow.ErrCanceled
 	}
 	timerDone := false
@@ -22,7 +22,7 @@ func SleepWithPause(ctx workflow.Context, dur time.Duration) error {
 	for !timerDone {
 		// Check cancellation before each iteration
 		if temporal.IsCanceledError(ctx.Err()) {
-			logger.Info("Sleep interrupted by cancellation")
+			log.Info("Sleep interrupted by cancellation")
 			return workflow.ErrCanceled
 		}
 		sel := workflow.NewSelector(ctx)
@@ -30,7 +30,7 @@ func SleepWithPause(ctx workflow.Context, dur time.Duration) error {
 		sel.Select(ctx)
 		// Check again after select
 		if temporal.IsCanceledError(ctx.Err()) {
-			logger.Info("Sleep interrupted by cancellation")
+			log.Info("Sleep interrupted by cancellation")
 			return workflow.ErrCanceled
 		}
 	}

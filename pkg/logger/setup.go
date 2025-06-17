@@ -6,8 +6,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func SetupLogger(lvl LogLevel, json, source bool) error {
-	return Init(&Config{
+func SetupLogger(lvl LogLevel, json, source bool) Logger {
+	return NewLogger(&Config{
 		Level:      lvl,
 		JSON:       json,
 		AddSource:  source,

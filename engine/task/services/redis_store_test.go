@@ -12,15 +12,10 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 // createTestRedisStore creates a Redis store for testing using miniredis
 func createTestRedisStore(t *testing.T) ConfigStore {
-	// Initialize logger for tests
-	err := logger.Init(&logger.Config{Level: logger.InfoLevel})
-	require.NoError(t, err, "Failed to initialize logger")
-
 	// Create miniredis instance for testing
 	mr := miniredis.RunT(t)
 
@@ -175,10 +170,6 @@ func TestRedisConfigStore_Delete(t *testing.T) {
 
 func TestRedisConfigStore_TTL(t *testing.T) {
 	t.Run("Should apply TTL to stored configs", func(t *testing.T) {
-		// Initialize logger for tests
-		err := logger.Init(&logger.Config{Level: logger.InfoLevel})
-		require.NoError(t, err, "Failed to initialize logger")
-
 		// Create miniredis instance for testing
 		mr := miniredis.RunT(t)
 		defer mr.Close()
@@ -437,10 +428,6 @@ func TestRedisConfigStore_GetKeys(t *testing.T) {
 
 func TestRedisConfigStore_GetExtendsTTL(t *testing.T) {
 	t.Run("Should extend TTL on config retrieval", func(t *testing.T) {
-		// Initialize logger for tests
-		err := logger.Init(&logger.Config{Level: logger.InfoLevel})
-		require.NoError(t, err, "Failed to initialize logger")
-
 		// Create miniredis instance for testing
 		mr := miniredis.RunT(t)
 
@@ -488,10 +475,6 @@ func TestRedisConfigStore_GetExtendsTTL(t *testing.T) {
 	})
 
 	t.Run("Should extend TTL on metadata retrieval", func(t *testing.T) {
-		// Initialize logger for tests
-		err := logger.Init(&logger.Config{Level: logger.InfoLevel})
-		require.NoError(t, err, "Failed to initialize logger")
-
 		// Create miniredis instance for testing
 		mr := miniredis.RunT(t)
 

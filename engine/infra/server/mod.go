@@ -49,10 +49,11 @@ func (s *Server) buildRouter(state *appstate.State) error {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	// Add monitoring middleware BEFORE other middleware if monitoring is initialized
+	log := logger.FromContext(s.ctx)
 	if s.monitoring != nil && s.monitoring.IsInitialized() {
-		r.Use(s.monitoring.GinMiddleware())
+		r.Use(s.monitoring.GinMiddleware(s.ctx))
 	}
-	r.Use(LoggerMiddleware())
+	r.Use(LoggerMiddleware(log))
 	if s.Config.CORSEnabled {
 		r.Use(CORSMiddleware())
 	}
@@ -63,7 +64,7 @@ func (s *Server) buildRouter(state *appstate.State) error {
 		monitoringPath := state.ProjectConfig.MonitoringConfig.Path
 		r.GET(monitoringPath, gin.WrapH(s.monitoring.ExporterHandler()))
 	}
-	if err := RegisterRoutes(r, state); err != nil {
+	if err := RegisterRoutes(s.ctx, r, state); err != nil {
 		return err
 	}
 	s.router = r
@@ -89,34 +90,34 @@ func (s *Server) Run() error {
 func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	var cleanupFuncs []func()
 	// Load project and workspace files
-	log := logger.NewLogger(nil)
+	log := logger.FromContext(s.ctx)
 	configService := csvc.NewService(log, s.Config.EnvFilePath)
-	projectConfig, workflows, err := configService.LoadProject(s.Config.CWD, s.Config.ConfigFile)
+	projectConfig, workflows, err := configService.LoadProject(s.ctx, s.Config.CWD, s.Config.ConfigFile)
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to load project: %w", err)
 	}
 	// Initialize monitoring service based on project config
-	monitoringService, err := monitoring.NewMonitoringService(projectConfig.MonitoringConfig)
+	monitoringService, err := monitoring.NewMonitoringService(s.ctx, projectConfig.MonitoringConfig)
 	if err != nil {
 		// Log but don't fail - monitoring is not critical
-		logger.Error("Failed to initialize monitoring service", "error", err)
+		log.Error("Failed to initialize monitoring service", "error", err)
 		// Continue with nil monitoring service
 		s.monitoring = nil
 	} else {
 		s.monitoring = monitoringService
 		if monitoringService.IsInitialized() {
-			logger.Info("Monitoring service initialized successfully",
+			log.Info("Monitoring service initialized successfully",
 				"enabled", projectConfig.MonitoringConfig.Enabled,
 				"path", projectConfig.MonitoringConfig.Path)
 			cleanupFuncs = append(cleanupFuncs, func() {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				if err := monitoringService.Shutdown(ctx); err != nil {
-					logger.Error("Failed to shutdown monitoring service", "error", err)
+					log.Error("Failed to shutdown monitoring service", "error", err)
 				}
 			})
 		} else {
-			logger.Info("Monitoring is disabled in the configuration")
+			log.Info("Monitoring is disabled in the configuration")
 		}
 	}
 	store, err := store.SetupStore(s.ctx, s.StoreConfig)
@@ -124,7 +125,9 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 		return nil, cleanupFuncs, fmt.Errorf("failed to setup store: %w", err)
 	}
 	cleanupFuncs = append(cleanupFuncs, func() {
-		store.DB.Close()
+		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
+		defer cancel()
+		store.DB.Close(ctx)
 	})
 	clientConfig := s.TemporalConfig
 	deps := appstate.NewBaseDeps(projectConfig, workflows, store, clientConfig)
@@ -150,6 +153,7 @@ func setupWorker(
 	deps appstate.BaseDeps,
 	monitoringService *monitoring.Service,
 ) (*worker.Worker, error) {
+	log := logger.FromContext(ctx)
 	workerConfig := &worker.Config{
 		WorkflowRepo: func() workflow.Repository {
 			return deps.Store.NewWorkflowRepo()
@@ -167,11 +171,11 @@ func setupWorker(
 		deps.Workflows,
 	)
 	if err != nil {
-		logger.Error("Failed to create worker", "error", err)
+		log.Error("Failed to create worker", "error", err)
 		return nil, fmt.Errorf("failed to create worker: %w", err)
 	}
 	if err := worker.Setup(ctx); err != nil {
-		logger.Error("Failed to setup worker", "error", err)
+		log.Error("Failed to setup worker", "error", err)
 		return nil, fmt.Errorf("failed to setup worker: %w", err)
 	}
 	return worker, nil
@@ -194,7 +198,8 @@ func (s *Server) startAndRunServer(cleanupFuncs []func()) error {
 
 func (s *Server) createHTTPServer() *http.Server {
 	addr := s.Config.FullAddress()
-	logger.Info("Starting HTTP server",
+	log := logger.FromContext(s.ctx)
+	log.Info("Starting HTTP server",
 		"address", fmt.Sprintf("http://%s", addr),
 	)
 	return &http.Server{
@@ -208,7 +213,8 @@ func (s *Server) createHTTPServer() *http.Server {
 
 func (s *Server) startServer(srv *http.Server) {
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		logger.Error("Server failed to start",
+		log := logger.FromContext(s.ctx)
+		log.Error("Server failed to start",
 			"error", err,
 		)
 		os.Exit(1)
@@ -216,13 +222,14 @@ func (s *Server) startServer(srv *http.Server) {
 }
 
 func (s *Server) handleGracefulShutdown(srv *http.Server, cleanupFuncs []func()) error {
+	log := logger.FromContext(s.ctx)
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	select {
 	case <-quit:
-		logger.Debug("Received shutdown signal, initiating graceful shutdown")
+		log.Debug("Received shutdown signal, initiating graceful shutdown")
 	case <-s.shutdownChan:
-		logger.Debug("Received programmatic shutdown signal, initiating graceful shutdown")
+		log.Debug("Received programmatic shutdown signal, initiating graceful shutdown")
 	}
 	// Clean up dependencies first
 	s.cleanup(cleanupFuncs)
@@ -232,7 +239,7 @@ func (s *Server) handleGracefulShutdown(srv *http.Server, cleanupFuncs []func())
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("server shutdown failed: %w", err)
 	}
-	logger.Info("Server shutdown completed successfully")
+	log.Info("Server shutdown completed successfully")
 	return nil
 }
 

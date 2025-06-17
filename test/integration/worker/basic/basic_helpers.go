@@ -501,7 +501,8 @@ func (s *testConfigStore) Close() error {
 func createMockRuntime(t *testing.T) *runtime.Manager {
 	// Create a test runtime manager that won't be used since we're using agents
 	// We need to provide something to satisfy the interface
-	rtManager, err := runtime.NewRuntimeManager("/tmp", runtime.WithTestConfig())
+	ctx := t.Context()
+	rtManager, err := runtime.NewRuntimeManager(ctx, "/tmp", runtime.WithTestConfig())
 	require.NoError(t, err, "failed to create mock runtime manager")
 	return rtManager
 }

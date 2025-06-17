@@ -39,18 +39,18 @@ func TestTemporalMetrics(t *testing.T) {
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
-		interceptor := TemporalMetrics(meter)
+		interceptor := TemporalMetrics(t.Context(), meter)
 		assert.NotNil(t, interceptor)
 	})
 }
 
 func TestWorkerMetrics(t *testing.T) {
 	t.Run("Should set configured worker count", func(t *testing.T) {
-		resetMetrics()
+		resetMetrics(t.Context())
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
-		initMetrics(meter)
+		initMetrics(t.Context(), meter)
 		SetConfiguredWorkerCount(5)
 		var rm metricdata.ResourceMetrics
 		err := reader.Collect(context.Background(), &rm)
@@ -59,11 +59,11 @@ func TestWorkerMetrics(t *testing.T) {
 		assert.Equal(t, int64(5), configuredCount)
 	})
 	t.Run("Should increment running workers", func(t *testing.T) {
-		resetMetrics()
+		resetMetrics(t.Context())
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
-		initMetrics(meter)
+		initMetrics(t.Context(), meter)
 		IncrementRunningWorkers(context.Background())
 		IncrementRunningWorkers(context.Background())
 		var rm metricdata.ResourceMetrics
@@ -73,11 +73,11 @@ func TestWorkerMetrics(t *testing.T) {
 		assert.Equal(t, int64(2), runningCount)
 	})
 	t.Run("Should decrement running workers", func(t *testing.T) {
-		resetMetrics()
+		resetMetrics(t.Context())
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
-		initMetrics(meter)
+		initMetrics(t.Context(), meter)
 		IncrementRunningWorkers(context.Background())
 		IncrementRunningWorkers(context.Background())
 		DecrementRunningWorkers(context.Background())
@@ -111,12 +111,12 @@ func TestWorkflowInterceptorErrorHandling(t *testing.T) {
 		// The real test would be in integration tests with actual Temporal workflow context
 	})
 	t.Run("Should recover from panic in metrics recording", func(t *testing.T) {
-		resetMetrics()
+		resetMetrics(t.Context())
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
 		interceptor := &metricsInterceptor{meter: meter}
-		initMetrics(meter)
+		initMetrics(t.Context(), meter)
 		// This test demonstrates the panic recovery mechanism
 		// In actual usage, panics would be caught and logged
 		workflowInterceptor := interceptor.InterceptWorkflow(nil, &MockWorkflowInboundInterceptor{})
@@ -126,11 +126,11 @@ func TestWorkflowInterceptorErrorHandling(t *testing.T) {
 
 func TestMetricsInitialization(t *testing.T) {
 	t.Run("Should initialize all metrics", func(t *testing.T) {
-		resetMetrics()
+		resetMetrics(t.Context())
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
-		initMetrics(meter)
+		initMetrics(t.Context(), meter)
 		assert.NotNil(t, workflowStartedTotal)
 		assert.NotNil(t, workflowCompletedTotal)
 		assert.NotNil(t, workflowFailedTotal)
@@ -141,14 +141,14 @@ func TestMetricsInitialization(t *testing.T) {
 	t.Run("Should handle metric creation errors gracefully", func(t *testing.T) {
 		// The implementation logs errors but continues
 		// This ensures monitoring doesn't break the application
-		resetMetrics()
+		resetMetrics(t.Context())
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
 		// Call initMetrics multiple times - should use sync.Once
-		initMetrics(meter)
-		initMetrics(meter)
-		initMetrics(meter)
+		initMetrics(t.Context(), meter)
+		initMetrics(t.Context(), meter)
+		initMetrics(t.Context(), meter)
 		// Metrics should still be initialized once
 		assert.NotNil(t, workflowStartedTotal)
 	})

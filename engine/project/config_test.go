@@ -84,7 +84,7 @@ workflows:
 		// Load project
 		cwd, err := core.CWDFromPath(tmpDir)
 		require.NoError(t, err)
-		cfg, err := Load(cwd, configPath, "")
+		cfg, err := Load(t.Context(), cwd, configPath, "")
 		require.NoError(t, err)
 		// Verify monitoring config
 		assert.NotNil(t, cfg.MonitoringConfig)
@@ -110,7 +110,7 @@ workflows:
 		// Load project
 		cwd, err := core.CWDFromPath(tmpDir)
 		require.NoError(t, err)
-		cfg, err := Load(cwd, configPath, "")
+		cfg, err := Load(t.Context(), cwd, configPath, "")
 		require.NoError(t, err)
 		// Verify default monitoring config
 		assert.NotNil(t, cfg.MonitoringConfig)
@@ -141,7 +141,7 @@ workflows:
 		// Load project
 		cwd, err := core.CWDFromPath(tmpDir)
 		require.NoError(t, err)
-		cfg, err := Load(cwd, configPath, "")
+		cfg, err := Load(t.Context(), cwd, configPath, "")
 		require.NoError(t, err)
 		// Verify environment variable took precedence
 		assert.NotNil(t, cfg.MonitoringConfig)
@@ -173,7 +173,7 @@ workflows:
 		// Load project
 		cwd, err := core.CWDFromPath(tmpDir)
 		require.NoError(t, err)
-		cfg, err := Load(cwd, configPath, "")
+		cfg, err := Load(t.Context(), cwd, configPath, "")
 		require.NoError(t, err)
 		// Verify environment variables took precedence
 		assert.NotNil(t, cfg.MonitoringConfig)

@@ -69,7 +69,8 @@ func NewDB(ctx context.Context, cfg *Config) (*DB, error) {
 		return nil, fmt.Errorf("pinging database: %w", err)
 	}
 
-	logger.With(
+	log := logger.FromContext(ctx)
+	log.With(
 		"host", cfg.Host,
 		"port", cfg.Port,
 		"user", cfg.User,
@@ -80,9 +81,10 @@ func NewDB(ctx context.Context, cfg *Config) (*DB, error) {
 }
 
 // Close shuts down the connection pool.
-func (db *DB) Close() error {
+func (db *DB) Close(ctx context.Context) error {
 	db.pool.Close()
-	logger.Info("Database connection closed")
+	log := logger.FromContext(ctx)
+	log.Info("Database connection closed")
 	return nil
 }
 
@@ -113,6 +115,7 @@ func (db *DB) Begin(ctx context.Context) (pgx.Tx, error) {
 
 // WithTx executes a function within a transaction.
 func (db *DB) WithTx(ctx context.Context, fn func(pgx.Tx) error) error {
+	log := logger.FromContext(ctx)
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
@@ -120,19 +123,16 @@ func (db *DB) WithTx(ctx context.Context, fn func(pgx.Tx) error) error {
 
 	defer func() {
 		if p := recover(); p != nil {
-			err := tx.Rollback(ctx)
-			if err != nil {
-				logger.Error("error rolling back transaction", "error", err)
+			if rbErr := tx.Rollback(ctx); rbErr != nil {
+				log.Error("Failed to rollback transaction", "error", rbErr)
 			}
 		} else if err != nil {
-			err := tx.Rollback(ctx)
-			if err != nil {
-				logger.Error("error rolling back transaction", "error", err)
+			if rbErr := tx.Rollback(ctx); rbErr != nil {
+				log.Error("Failed to rollback transaction", "error", rbErr)
 			}
 		} else {
-			err := tx.Commit(ctx)
-			if err != nil {
-				logger.Error("error committing transaction", "error", err)
+			if commitErr := tx.Commit(ctx); commitErr != nil {
+				log.Error("Failed to commit transaction", "error", commitErr)
 			}
 		}
 	}()

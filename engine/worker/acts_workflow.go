@@ -20,7 +20,7 @@ func NewWorkflowExecutor(contextBuilder *ContextBuilder) *WorkflowExecutor {
 
 func (e *WorkflowExecutor) TriggerWorkflow() func(ctx workflow.Context) (*wf.State, error) {
 	return func(ctx workflow.Context) (*wf.State, error) {
-		logger := workflow.GetLogger(ctx)
+		log := workflow.GetLogger(ctx)
 		var state *wf.State
 		actLabel := wfacts.TriggerLabel
 		actInput := &wfacts.TriggerInput{
@@ -34,7 +34,7 @@ func (e *WorkflowExecutor) TriggerWorkflow() func(ctx workflow.Context) (*wf.Sta
 		if err != nil {
 			return nil, err
 		}
-		logger.Info("Workflow trigger",
+		log.Info("Workflow trigger",
 			"workflow_id", e.WorkflowID,
 			"exec_id", e.WorkflowExecID,
 		)
@@ -44,7 +44,7 @@ func (e *WorkflowExecutor) TriggerWorkflow() func(ctx workflow.Context) (*wf.Sta
 
 func (e *WorkflowExecutor) CompleteWorkflow() func(ctx workflow.Context) (*wf.State, error) {
 	return func(ctx workflow.Context) (*wf.State, error) {
-		logger := workflow.GetLogger(ctx)
+		log := workflow.GetLogger(ctx)
 
 		// Configure specific activity options for CompleteWorkflow to handle race conditions
 		activityOptions := workflow.ActivityOptions{
@@ -70,7 +70,7 @@ func (e *WorkflowExecutor) CompleteWorkflow() func(ctx workflow.Context) (*wf.St
 		if err != nil {
 			return nil, err
 		}
-		logger.Info("Workflow completed",
+		log.Info("Workflow completed",
 			"workflow_id", e.WorkflowID,
 			"exec_id", e.WorkflowExecID,
 		)

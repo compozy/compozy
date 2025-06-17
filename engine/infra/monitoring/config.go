@@ -1,12 +1,11 @@
 package monitoring
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
-
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 // Config holds configuration for monitoring service
@@ -44,10 +43,8 @@ func (c *Config) Validate() error {
 
 // LoadWithEnv creates a monitoring config with environment variable precedence
 // Environment variables take precedence over the provided config values
-func LoadWithEnv(yamlConfig *Config) (*Config, error) {
-	// Start with defaults if no config provided
+func LoadWithEnv(_ context.Context, yamlConfig *Config) (*Config, error) {
 	config := DefaultConfig()
-	// Apply YAML config if provided
 	if yamlConfig != nil {
 		config.Enabled = yamlConfig.Enabled
 		if yamlConfig.Path != "" {
@@ -57,9 +54,7 @@ func LoadWithEnv(yamlConfig *Config) (*Config, error) {
 	// Environment variable takes precedence for Enabled flag
 	if envEnabled := os.Getenv("MONITORING_ENABLED"); envEnabled != "" {
 		enabled, err := strconv.ParseBool(envEnabled)
-		if err != nil {
-			logger.Error("Invalid MONITORING_ENABLED value", "value", envEnabled, "error", err)
-		} else {
+		if err == nil {
 			config.Enabled = enabled
 		}
 	}

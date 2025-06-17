@@ -19,7 +19,7 @@ func TestNewServer(t *testing.T) {
 		ShutdownTimeout: 5 * time.Second,
 	}
 
-	server := newTestServer(t, config)
+	server := newTestServer(config)
 
 	assert.NotNil(t, server)
 	assert.Equal(t, config, server.config)
@@ -29,7 +29,7 @@ func TestNewServer(t *testing.T) {
 
 func TestHealthzEndpoint(t *testing.T) {
 	config := DefaultConfig()
-	server := newTestServer(t, config)
+	server := newTestServer(config)
 
 	// Create a test request
 	req, err := http.NewRequestWithContext(context.Background(), "GET", "/healthz", http.NoBody)
@@ -50,7 +50,7 @@ func TestHealthzEndpoint(t *testing.T) {
 
 func TestPingEndpoint(t *testing.T) {
 	config := DefaultConfig()
-	server := newTestServer(t, config)
+	server := newTestServer(config)
 
 	// Create a test request
 	req, err := http.NewRequestWithContext(context.Background(), "GET", "/api/v1/ping", http.NoBody)
@@ -74,7 +74,7 @@ func TestServerShutdown(t *testing.T) {
 		ShutdownTimeout: 1 * time.Second,
 	}
 
-	server := newTestServer(t, config)
+	server := newTestServer(config)
 
 	ctx, cancel := context.WithCancel(context.Background())
 

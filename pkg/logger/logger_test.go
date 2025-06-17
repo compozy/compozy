@@ -2,51 +2,30 @@ package logger
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"testing"
 )
 
 func TestLogger_BasicFunctionality(t *testing.T) {
-	// Method 1: Use SetupTestLogger helper (recommended)
-	defer SetupTestLogger(t)()
-
-	// These log calls should not produce any output
-	Info("This should not appear in test output")
-	Debug("Debug message should be suppressed")
-	Error("Even errors should be suppressed")
+	ctx := t.Context()
+	log := FromContext(ctx)
+	log.Debug("debug message")
+	log.Info("info message")
+	log.Warn("warn message")
+	log.Error("error message")
 }
 
 func TestLogger_ManualTestConfig(t *testing.T) {
-	// Method 2: Manually initialize with test config
-	err := Init(TestConfig())
-	if err != nil {
-		t.Fatalf("Failed to initialize test logger: %v", err)
-	}
-
-	// These should not produce output
-	Info("Test message 1")
-	Warn("Test warning")
-}
-
-func TestLogger_DisableLogging(t *testing.T) {
-	// Method 3: Disable logging after initialization
-	err := Init(DefaultConfig())
-	if err != nil {
-		t.Fatalf("Failed to initialize logger: %v", err)
-	}
-
-	DisableLogging()
-
-	// These should not produce output
-	Info("This should be disabled")
-	Error("This error should not show")
+	ctx := t.Context()
+	log := FromContext(ctx)
+	log.Info("test message")
+	log.Error("test error")
 }
 
 func TestLogger_WithOutput(t *testing.T) {
-	// Method 4: Capture output for testing log content
 	var buf bytes.Buffer
-
 	cfg := &Config{
 		Level:      InfoLevel,
 		Output:     &buf,
@@ -55,12 +34,8 @@ func TestLogger_WithOutput(t *testing.T) {
 		TimeFormat: "15:04:05",
 	}
 
-	err := Init(cfg)
-	if err != nil {
-		t.Fatalf("Failed to initialize logger: %v", err)
-	}
-
-	Info("Test message for verification")
+	log := NewLogger(cfg)
+	log.Info("Test message for verification")
 
 	output := buf.String()
 	if output == "" {
@@ -73,32 +48,29 @@ func TestLogger_WithOutput(t *testing.T) {
 }
 
 func TestIsTestEnvironment(t *testing.T) {
-	// This should return true when running under go test
 	if !IsTestEnvironment() {
 		t.Error("Expected IsTestEnvironment() to return true during tests")
 	}
 }
 
 func TestLogger_AutoDetectTest(t *testing.T) {
-	// Test that NewLogger automatically uses test config in test environment
-	logger := NewLogger(nil) // nil config should auto-detect test env
+	ctx := t.Context()
+	log := FromContext(ctx)
 
-	// Verify it's using the right configuration by checking if logs are suppressed
-	// We can't easily test this without capturing output, but we can at least
-	// verify the logger was created successfully
-	if logger == nil {
+	if log == nil {
 		t.Error("Expected logger to be created")
 	}
+
+	log.Info("auto-detected test logger")
 }
 
 func TestLogLevels(t *testing.T) {
-	defer SetupTestLogger(t)()
-
-	// Test all log levels work without panicking
-	Debug("Debug level test")
-	Info("Info level test")
-	Warn("Warn level test")
-	Error("Error level test")
+	ctx := t.Context()
+	log := FromContext(ctx)
+	log.Debug("debug level")
+	log.Info("info level")
+	log.Warn("warn level")
+	log.Error("error level")
 }
 
 func TestConfigDefaults(t *testing.T) {
@@ -117,6 +89,71 @@ func TestConfigDefaults(t *testing.T) {
 	if testCfg.Output != io.Discard {
 		t.Error("Expected test output to be io.Discard")
 	}
+}
+
+func TestLogger_WithMethod(t *testing.T) {
+	var buf bytes.Buffer
+	logger := NewLogger(&Config{
+		Level:      InfoLevel,
+		Output:     &buf,
+		JSON:       false,
+		AddSource:  false,
+		TimeFormat: "15:04:05",
+	})
+
+	// Test the With method
+	log := logger.With("component", "test")
+	log.Info("message with context")
+	output := buf.String()
+	if !contains(output, "component") || !contains(output, "test") {
+		t.Error("Expected context fields in log output")
+	}
+}
+
+func TestContextWithLogger(t *testing.T) {
+	// Create a log
+	log := NewLogger(TestConfig())
+
+	// Store it in context
+	ctx := context.Background()
+	ctx = ContextWithLogger(ctx, log)
+
+	// Retrieve it from context
+	retrievedLogger := FromContext(ctx)
+
+	if retrievedLogger == nil {
+		t.Error("Expected to retrieve logger from context")
+	}
+
+	// Test that the logger works
+	retrievedLogger.Info("message from context logger")
+}
+
+func TestLoggerFromContext_WithoutLogger(t *testing.T) {
+	// Test context without logger returns default
+	ctx := context.Background()
+	log := FromContext(ctx)
+
+	if log == nil {
+		t.Error("Expected default logger when none in context")
+	}
+
+	// Test that the default logger works
+	log.Info("message from default logger")
+}
+
+func TestLoggerFromContext_WithWrongType(t *testing.T) {
+	// Test context with wrong type returns default
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, LoggerCtxKey, "not a logger")
+	log := FromContext(ctx)
+
+	if log == nil {
+		t.Error("Expected default logger when wrong type in context")
+	}
+
+	// Test that the default logger works
+	log.Info("message from default logger after wrong type")
 }
 
 // Helper function since strings.Contains might not be available in all contexts

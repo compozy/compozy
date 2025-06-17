@@ -208,7 +208,7 @@ func (m *MonitoringService) InitSystemMetrics(ctx context.Context) {
 From lines 368-370:
 
 ```go
-logger.Info("System metrics initialized",
+log.Info("System metrics initialized",
     "version", version,
     "commit", commit,
     "go_version", goVersion,

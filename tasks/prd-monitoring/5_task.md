@@ -41,7 +41,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (*Server, error) {
     ms, err := monitoring.NewMonitoringService(ctx, cfg.Monitoring)
     if err != nil {
         // Log but don't fail - monitoring is not critical
-        logger.Error("Failed to initialize monitoring", "error", err)
+        log.Error("Failed to initialize monitoring", "error", err)
         // Continue with nil monitoring service
     }
 
@@ -102,7 +102,7 @@ func NewWorker(ctx context.Context, cfg *WorkerConfig, ms *monitoring.Monitoring
     if ms != nil {
         interceptor, err := ms.TemporalInterceptor(ctx)
         if err != nil {
-            logger.Error("Failed to create Temporal interceptor", "error", err)
+            log.Error("Failed to create Temporal interceptor", "error", err)
             // Continue without interceptor rather than failing
         } else if interceptor != nil {
             workerOptions.Interceptors = append(workerOptions.Interceptors, interceptor)
@@ -193,11 +193,11 @@ From lines 368-370, add startup logging:
 
 ```go
 if ms != nil {
-    logger.Info("Monitoring service initialized",
+    log.Info("Monitoring service initialized",
         "enabled", cfg.Monitoring.Enabled,
         "path", cfg.Monitoring.Path)
 } else {
-    logger.Warn("Monitoring service not available")
+    log.Warn("Monitoring service not available")
 }
 ```
 

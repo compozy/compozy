@@ -119,6 +119,7 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 	parentState *task.State,
 	childConfigs []task.Config,
 ) error {
+	log := logger.FromContext(ctx)
 	// Collect configs to save after transaction succeeds
 	var configsToSave []childConfigRef
 
@@ -170,9 +171,10 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 			// Best-effort rollback: delete any configs already saved
 			for _, savedID := range savedConfigIDs {
 				if deleteErr := uc.configManager.DeleteTaskConfig(ctx, savedID); deleteErr != nil {
-					// Log but don't fail on rollback errors
-					logger.Error("failed to rollback config during error recovery",
-						"config_id", savedID, "rollback_error", deleteErr)
+					log.Warn("Failed to rollback config during error recovery",
+						"config_id", savedID,
+						"rollback_error", deleteErr,
+					)
 				}
 			}
 			return fmt.Errorf("failed to save child config %s after transaction (rolled back %d configs): %w",

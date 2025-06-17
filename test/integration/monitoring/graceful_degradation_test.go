@@ -20,12 +20,12 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 			Enabled: false,
 			Path:    "/metrics",
 		}
-		degradedService, err := monitoring.NewMonitoringService(config)
+		degradedService, err := monitoring.NewMonitoringService(t.Context(), config)
 		require.NoError(t, err)
 		// Create router with degraded middleware
 		gin.SetMode(gin.TestMode)
 		router := gin.New()
-		router.Use(degradedService.GinMiddleware())
+		router.Use(degradedService.GinMiddleware(t.Context()))
 		// Add test route
 		router.GET("/test", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
@@ -47,7 +47,7 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 			Enabled: false,
 			Path:    "/metrics",
 		}
-		degradedService, err := monitoring.NewMonitoringService(config)
+		degradedService, err := monitoring.NewMonitoringService(t.Context(), config)
 		require.NoError(t, err)
 		// Create metrics endpoint with degraded handler
 		gin.SetMode(gin.TestMode)
@@ -71,12 +71,12 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 			Enabled: false,
 			Path:    "/metrics",
 		}
-		monitoringService, err := monitoring.NewMonitoringService(config)
+		monitoringService, err := monitoring.NewMonitoringService(t.Context(), config)
 		require.NoError(t, err)
 		// Create router with monitoring middleware
 		gin.SetMode(gin.TestMode)
 		router := gin.New()
-		router.Use(monitoringService.GinMiddleware())
+		router.Use(monitoringService.GinMiddleware(t.Context()))
 		// Add test route
 		router.GET("/test", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
@@ -111,7 +111,7 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 			Path:    "invalid-path", // Missing leading slash
 		}
 		// NewMonitoringServiceWithFallback should return degraded service
-		monitoringService := monitoring.NewMonitoringServiceWithFallback(invalidConfig)
+		monitoringService := monitoring.NewMonitoringServiceWithFallback(t.Context(), invalidConfig)
 		assert.NotNil(t, monitoringService)
 		// Verify it's using degraded service by checking metrics endpoint
 		gin.SetMode(gin.TestMode)
@@ -133,10 +133,10 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 			Enabled: false,
 			Path:    "/metrics",
 		}
-		degradedService, err := monitoring.NewMonitoringService(config)
+		degradedService, err := monitoring.NewMonitoringService(t.Context(), config)
 		require.NoError(t, err)
 		// Get temporal interceptor - should not panic
-		interceptor := degradedService.TemporalInterceptor()
+		interceptor := degradedService.TemporalInterceptor(t.Context())
 		assert.NotNil(t, interceptor)
 		// The interceptor should be a no-op but functional
 		// We can't easily test the actual behavior without a full Temporal setup,
@@ -148,7 +148,7 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 			Enabled: false,
 			Path:    "/metrics",
 		}
-		degradedService, err := monitoring.NewMonitoringService(config)
+		degradedService, err := monitoring.NewMonitoringService(t.Context(), config)
 		require.NoError(t, err)
 		// Shutdown should not panic or error
 		ctx := context.Background()

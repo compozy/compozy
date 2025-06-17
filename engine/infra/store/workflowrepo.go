@@ -33,6 +33,7 @@ func NewWorkflowRepo(db DBInterface) *WorkflowRepo {
 
 // withTransaction executes a function within a database transaction
 func (r *WorkflowRepo) withTransaction(ctx context.Context, fn func(pgx.Tx) error) error {
+	log := logger.FromContext(ctx)
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
@@ -42,13 +43,13 @@ func (r *WorkflowRepo) withTransaction(ctx context.Context, fn func(pgx.Tx) erro
 		if p := recover(); p != nil {
 			err := tx.Rollback(ctx)
 			if err != nil {
-				logger.Error("error rolling back transaction", "error", err)
+				log.Error("Failed to rollback transaction", "error", err)
 			}
 			panic(p)
 		} else if err != nil {
 			err := tx.Rollback(ctx)
 			if err != nil {
-				logger.Error("error rolling back transaction", "error", err)
+				log.Error("Failed to rollback transaction", "error", err)
 			}
 		} else {
 			err = tx.Commit(ctx)

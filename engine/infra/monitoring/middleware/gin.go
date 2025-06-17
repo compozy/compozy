@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -19,12 +20,11 @@ var (
 )
 
 // initMetrics initializes the HTTP metrics instruments
-func initMetrics(meter metric.Meter) {
+func initMetrics(meter metric.Meter, log logger.Logger) {
 	// Skip initialization if meter is nil
 	if meter == nil {
 		return
 	}
-
 	initOnce.Do(func() {
 		var err error
 		httpRequestsTotal, err = meter.Int64Counter(
@@ -32,7 +32,7 @@ func initMetrics(meter metric.Meter) {
 			metric.WithDescription("Total HTTP requests"),
 		)
 		if err != nil {
-			logger.Error("Failed to create http requests total counter", "error", err)
+			log.Error("Failed to create http requests total counter", "error", err)
 		}
 		httpRequestDuration, err = meter.Float64Histogram(
 			"compozy_http_request_duration_seconds",
@@ -40,14 +40,14 @@ func initMetrics(meter metric.Meter) {
 			metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
 		)
 		if err != nil {
-			logger.Error("Failed to create http request duration histogram", "error", err)
+			log.Error("Failed to create http request duration histogram", "error", err)
 		}
 		httpRequestsInFlight, err = meter.Int64UpDownCounter(
 			"compozy_http_requests_in_flight",
 			metric.WithDescription("Currently active HTTP requests"),
 		)
 		if err != nil {
-			logger.Error("Failed to create http requests in flight counter", "error", err)
+			log.Error("Failed to create http requests in flight counter", "error", err)
 		}
 	})
 }
@@ -65,32 +65,32 @@ func ResetMetricsForTesting() {
 }
 
 // HTTPMetrics returns a Gin middleware that collects HTTP metrics
-func HTTPMetrics(meter metric.Meter) gin.HandlerFunc {
+func HTTPMetrics(ctx context.Context, meter metric.Meter) gin.HandlerFunc {
 	// Initialize metrics on first use
-	initMetrics(meter)
-
+	log := logger.FromContext(ctx)
+	initMetrics(meter, log)
 	return func(c *gin.Context) {
+		// Add logger to request context
+		reqCtx := logger.ContextWithLogger(c.Request.Context(), log)
+		c.Request = c.Request.WithContext(reqCtx)
 		// Skip metrics collection if instruments are not initialized
 		if httpRequestsTotal == nil {
 			c.Next()
 			return
 		}
-
 		// Wrap the entire middleware in a recovery to prevent panics from affecting requests
 		defer func() {
 			if r := recover(); r != nil {
-				logger.Error("Panic in HTTP metrics middleware", "panic", r)
+				log := logger.FromContext(c.Request.Context())
+				log.Error("Panic in HTTP metrics middleware", "panic", r)
 			}
 		}()
-
 		start := time.Now()
 		if httpRequestsInFlight != nil {
 			httpRequestsInFlight.Add(c.Request.Context(), 1)
 			defer httpRequestsInFlight.Add(c.Request.Context(), -1)
 		}
-
 		c.Next()
-
 		recordMetrics(c, start)
 	}
 }

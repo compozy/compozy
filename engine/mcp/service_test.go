@@ -8,16 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/pkg/logger"
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func init() {
-	// Initialize logger for tests
-	logger.InitForTests()
-}
 
 func TestRegisterService_Ensure(t *testing.T) {
 	t.Run("Should register MCP successfully when not already registered", func(t *testing.T) {

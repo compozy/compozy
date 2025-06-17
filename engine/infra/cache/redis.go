@@ -38,10 +38,12 @@ type Redis struct {
 	client redis.UniversalClient
 	config *Config
 	once   sync.Once // guarantees idempotent, race-free Close
+	log    logger.Logger
 }
 
 // NewRedis creates a new Redis client with the provided configuration.
 func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
+	log := logger.FromContext(ctx)
 	if cfg == nil {
 		return nil, fmt.Errorf("redis config is required")
 	}
@@ -77,7 +79,7 @@ func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 		return nil, fmt.Errorf("pinging Redis server: %w", err)
 	}
 
-	logger.With(
+	log.With(
 		"host", cfg.Host,
 		"port", cfg.Port,
 		"db", cfg.DB,
@@ -88,6 +90,7 @@ func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 	return &Redis{
 		client: client,
 		config: cfg,
+		log:    log,
 	}, nil
 }
 
@@ -97,9 +100,9 @@ func (r *Redis) Close() error {
 	r.once.Do(func() {
 		err = r.client.Close()
 		if err != nil {
-			logger.Error("Redis connection close failed", "error", err)
+			r.log.Error("Redis connection close failed", "error", err)
 		} else {
-			logger.Info("Redis connection closed")
+			r.log.Debug("Redis connection closed")
 		}
 	})
 	return err
@@ -197,6 +200,7 @@ func (r *Redis) Pipeline() redis.Pipeliner {
 
 // HealthCheck performs a comprehensive health check
 func (r *Redis) HealthCheck(ctx context.Context) error {
+	log := logger.FromContext(ctx)
 	// Test basic connectivity
 	if err := r.Ping(ctx).Err(); err != nil {
 		return fmt.Errorf("ping failed: %w", err)
@@ -223,7 +227,7 @@ func (r *Redis) HealthCheck(ctx context.Context) error {
 
 	// Clean up test key
 	if err := r.Del(ctx, testKey).Err(); err != nil {
-		logger.Warn("failed to clean up test key", "key", testKey, "error", err)
+		log.Debug("failed to clean up test key", "key", testKey, "error", err)
 	}
 
 	return nil

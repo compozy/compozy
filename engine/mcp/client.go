@@ -108,6 +108,7 @@ func NewProxyClient(baseURL, adminToken string, timeout time.Duration) *Client {
 
 // Health checks if the proxy service is healthy and accessible
 func (c *Client) Health(ctx context.Context) error {
+	log := logger.FromContext(ctx)
 	return c.withRetry(ctx, "health check", func() error {
 		req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/healthz", http.NoBody)
 		if err != nil {
@@ -128,13 +129,14 @@ func (c *Client) Health(ctx context.Context) error {
 				Message:    string(body),
 			}
 		}
-		logger.Debug("Proxy health check successful", "proxy_url", c.baseURL)
+		log.Debug("Proxy health check successful", "proxy_url", c.baseURL)
 		return nil
 	})
 }
 
 // Register registers an MCP definition with the proxy service
 func (c *Client) Register(ctx context.Context, def *Definition) error {
+	log := logger.FromContext(ctx)
 	return c.withRetry(ctx, "register MCP", func() error {
 		payload, err := json.Marshal(def)
 
@@ -161,11 +163,11 @@ func (c *Client) Register(ctx context.Context, def *Definition) error {
 		// Handle different status codes
 		switch resp.StatusCode {
 		case http.StatusCreated:
-			logger.Info("Successfully registered MCP with proxy",
+			log.Info("Successfully registered MCP with proxy",
 				"mcp_name", def.Name, "proxy_url", c.baseURL)
 			return nil
 		case http.StatusConflict:
-			logger.Warn("MCP already registered with proxy",
+			log.Warn("MCP already registered with proxy",
 				"mcp_name", def.Name, "proxy_url", c.baseURL)
 			return nil // Treat as success - idempotent operation
 		case http.StatusUnauthorized:
@@ -189,6 +191,7 @@ func (c *Client) Register(ctx context.Context, def *Definition) error {
 
 // Deregister removes an MCP from the proxy service
 func (c *Client) Deregister(ctx context.Context, name string) error {
+	log := logger.FromContext(ctx)
 	return c.withRetry(ctx, "deregister MCP", func() error {
 		reqURL := fmt.Sprintf("%s/admin/mcps/%s", c.baseURL, url.PathEscape(name))
 		req, err := http.NewRequestWithContext(ctx, "DELETE", reqURL, http.NoBody)
@@ -209,11 +212,11 @@ func (c *Client) Deregister(ctx context.Context, name string) error {
 		}
 		switch resp.StatusCode {
 		case http.StatusOK, http.StatusNoContent:
-			logger.Info("Successfully deregistered MCP from proxy",
+			log.Info("Successfully deregistered MCP from proxy",
 				"mcp_name", name, "proxy_url", c.baseURL)
 			return nil
 		case http.StatusNotFound:
-			logger.Warn("MCP not found in proxy (already deregistered)",
+			log.Warn("MCP not found in proxy (already deregistered)",
 				"mcp_name", name, "proxy_url", c.baseURL)
 			return nil // Treat as success - idempotent operation
 		case http.StatusUnauthorized:
@@ -401,6 +404,7 @@ func (c *Client) Close() error {
 
 // withRetry executes the provided function with exponential backoff retry logic
 func (c *Client) withRetry(ctx context.Context, operation string, fn func() error) error {
+	log := logger.FromContext(ctx)
 	return retry.Do(
 		ctx,
 		retry.WithMaxRetries(c.retryConf.MaxAttempts, retry.NewExponential(c.retryConf.BaseDelay)),
@@ -410,7 +414,7 @@ func (c *Client) withRetry(ctx context.Context, operation string, fn func() erro
 				if !isRetryableError(err) {
 					return err
 				}
-				logger.Warn("Proxy operation failed, retrying", "operation", operation, "error", err)
+				log.Warn("Proxy operation failed, retrying", "operation", operation, "error", err)
 				return retry.RetryableError(err)
 			}
 			return nil

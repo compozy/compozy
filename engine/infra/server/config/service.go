@@ -14,7 +14,7 @@ import (
 
 // Service defines the contract for configuration loading and processing
 type Service interface {
-	LoadProject(cwd string, file string) (*project.Config, []*workflow.Config, error)
+	LoadProject(ctx context.Context, cwd string, file string) (*project.Config, []*workflow.Config, error)
 }
 
 // service is the concrete implementation of the Service interface
@@ -30,6 +30,7 @@ func NewService(log logger.Logger, envFilePath string) Service {
 
 // LoadProject loads a project configuration and handles AutoLoad integration
 func (s *service) LoadProject(
+	ctx context.Context,
 	cwd string,
 	file string,
 ) (*project.Config, []*workflow.Config, error) {
@@ -40,7 +41,7 @@ func (s *service) LoadProject(
 	s.log.Info("Starting compozy server")
 	s.log.Debug("Loading config file", "config_file", file)
 
-	projectConfig, err := project.Load(pCWD, file, s.envFilePath)
+	projectConfig, err := project.Load(ctx, pCWD, file, s.envFilePath)
 	if err != nil {
 		s.log.Error("Failed to load project config", "error", err)
 		return nil, nil, err
@@ -58,7 +59,7 @@ func (s *service) LoadProject(
 	if projectConfig.AutoLoad != nil && projectConfig.AutoLoad.Enabled {
 		s.log.Info("AutoLoad enabled, discovering and loading configurations")
 		autoLoader := autoload.New(pCWD.PathStr(), projectConfig.AutoLoad, configRegistry)
-		if err := autoLoader.Load(context.Background()); err != nil {
+		if err := autoLoader.Load(ctx); err != nil {
 			s.log.Error("AutoLoad failed", "error", err)
 			return nil, nil, fmt.Errorf("autoload failed: %w", err)
 		}

@@ -42,7 +42,7 @@ func GetRegisteredSignalNames(signalMap map[string]*CompiledTrigger) []string {
 
 // BuildSignalRoutingMap creates a map of signal names to compiled triggers with pre-compiled schemas
 func BuildSignalRoutingMap(ctx workflow.Context, data *wfacts.GetData) (map[string]*CompiledTrigger, error) {
-	logger := workflow.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	signalMap := make(map[string]*CompiledTrigger)
 
 	for _, wcfg := range data.Workflows {
@@ -67,7 +67,7 @@ func BuildSignalRoutingMap(ctx workflow.Context, data *wfacts.GetData) (map[stri
 				if trigger.Schema != nil {
 					compiled, err := trigger.Schema.Compile()
 					if err != nil {
-						logger.Error("Failed to compile schema for trigger",
+						log.Error("Failed to compile schema for trigger",
 							"signal", trigger.Name, "workflow", wcfg.ID, "error", err)
 						return nil, fmt.Errorf("failed to compile schema for %s: %w", trigger.Name, err)
 					}
@@ -75,7 +75,7 @@ func BuildSignalRoutingMap(ctx workflow.Context, data *wfacts.GetData) (map[stri
 				}
 
 				signalMap[trigger.Name] = target
-				logger.Info("Registered signal trigger", "signal", trigger.Name, "workflow", wcfg.ID)
+				log.Debug("Registered signal trigger", "signal", trigger.Name, "workflow", wcfg.ID)
 			}
 		}
 	}
@@ -84,7 +84,7 @@ func BuildSignalRoutingMap(ctx workflow.Context, data *wfacts.GetData) (map[stri
 
 // GenerateCorrelationID generates or uses existing correlation ID for event tracking
 func GenerateCorrelationID(ctx workflow.Context, existingID string) string {
-	logger := workflow.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 
 	if existingID != "" {
 		return existingID
@@ -99,7 +99,7 @@ func GenerateCorrelationID(ctx workflow.Context, existingID string) string {
 		if err := workflow.SideEffect(ctx, func(_ workflow.Context) any {
 			return fmt.Sprintf("generated-%d", workflow.Now(ctx).UnixNano())
 		}).Get(&fallbackID); err != nil {
-			logger.Error("Failed to generate fallback correlation ID", "error", err)
+			log.Error("Failed to generate fallback correlation ID", "error", err)
 			return "generated-id-fallback"
 		}
 		return fallbackID
@@ -109,7 +109,7 @@ func GenerateCorrelationID(ctx workflow.Context, existingID string) string {
 	if err := workflow.SideEffect(ctx, func(_ workflow.Context) any {
 		return core.MustNewID().String()
 	}).Get(&newID); err != nil {
-		logger.Error("Failed to generate correlation ID", "error", err)
+		log.Error("Failed to generate correlation ID", "error", err)
 		return "generated-id-fallback"
 	}
 	return newID
@@ -122,7 +122,7 @@ func validateSignalPayload(
 	target *CompiledTrigger,
 	correlationID string,
 ) bool {
-	logger := workflow.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 
 	if target.CompiledSchema == nil {
 		return true // No schema to validate against
@@ -133,7 +133,7 @@ func validateSignalPayload(
 		target.CompiledSchema,
 	)
 	if !isValid {
-		logger.Error("Payload validation failed",
+		log.Error("Payload validation failed",
 			"signalName", signal.Name,
 			"correlationId", correlationID,
 			"targetWorkflow", target.Config.ID,
@@ -141,7 +141,7 @@ func validateSignalPayload(
 		return false
 	}
 
-	logger.Debug("Payload validation passed",
+	log.Debug("Payload validation passed",
 		"signalName", signal.Name,
 		"correlationId", correlationID,
 		"targetWorkflow", target.Config.ID)
@@ -150,7 +150,7 @@ func validateSignalPayload(
 
 // generateWorkflowExecID generates a unique workflow execution ID
 func generateWorkflowExecID(ctx workflow.Context) core.ID {
-	logger := workflow.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	var workflowExecID core.ID
 	// Use versioning to handle backward compatibility during replay
 	version := workflow.GetVersion(ctx, "workflow-id-generation", workflow.DefaultVersion, 1)
@@ -160,7 +160,7 @@ func generateWorkflowExecID(ctx workflow.Context) core.ID {
 		if err := workflow.SideEffect(ctx, func(_ workflow.Context) any {
 			return fmt.Sprintf("fallback-%d", workflow.Now(ctx).UnixNano())
 		}).Get(&fallbackID); err != nil {
-			logger.Error("Failed to generate fallback workflow execution ID", "error", err)
+			log.Error("Failed to generate fallback workflow execution ID", "error", err)
 			return core.ID("fallback-exec-id")
 		}
 		return core.ID(fallbackID)
@@ -169,7 +169,7 @@ func generateWorkflowExecID(ctx workflow.Context) core.ID {
 	if err := workflow.SideEffect(ctx, func(_ workflow.Context) any {
 		return core.MustNewID()
 	}).Get(&workflowExecID); err != nil {
-		logger.Error("Failed to generate workflow execution ID", "error", err)
+		log.Error("Failed to generate workflow execution ID", "error", err)
 		return core.ID("fallback-exec-id")
 	}
 	return workflowExecID
@@ -182,7 +182,7 @@ func executeChildWorkflow(
 	target *CompiledTrigger,
 	correlationID string,
 ) bool {
-	logger := workflow.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 	workflowExecID := generateWorkflowExecID(ctx)
 	cwo := workflow.ChildWorkflowOptions{
 		WorkflowID:        buildWorkflowID(target.Config.ID, workflowExecID),
@@ -196,7 +196,7 @@ func executeChildWorkflow(
 	}
 
 	// Execute child workflow with comprehensive error handling
-	logger.Info("Starting child workflow",
+	log.Info("Starting child workflow",
 		"targetWorkflow", target.Config.ID,
 		"workflowId", cwo.WorkflowID,
 		"signalName", signal.Name,
@@ -208,7 +208,7 @@ func executeChildWorkflow(
 	var childExecution workflow.Execution
 	err := childFuture.GetChildWorkflowExecution().Get(ctx, &childExecution)
 	if err != nil {
-		logger.Error("Failed to get child workflow execution",
+		log.Error("Failed to get child workflow execution",
 			"workflowId", cwo.WorkflowID,
 			"targetWorkflow", target.Config.ID,
 			"signalName", signal.Name,
@@ -217,7 +217,7 @@ func executeChildWorkflow(
 		return false
 	}
 
-	logger.Info("Successfully started child workflow",
+	log.Debug("Successfully started child workflow",
 		"workflowId", cwo.WorkflowID,
 		"targetWorkflow", target.Config.ID,
 		"signalName", signal.Name,
@@ -229,16 +229,16 @@ func executeChildWorkflow(
 
 // ProcessEventSignal handles a single event signal with validation and child workflow execution
 func ProcessEventSignal(ctx workflow.Context, signal EventSignal, signalMap map[string]*CompiledTrigger) bool {
-	logger := workflow.GetLogger(ctx)
+	log := workflow.GetLogger(ctx)
 
 	// Use provided correlation ID or generate one for tracking this event
 	correlationID := GenerateCorrelationID(ctx, signal.CorrelationID)
-	logger.Info("Received signal", "name", signal.Name, "correlationId", correlationID)
+	log.Debug("Received signal", "name", signal.Name, "correlationId", correlationID)
 
 	// Find target workflow with enhanced error handling
 	target, ok := signalMap[signal.Name]
 	if !ok {
-		logger.Warn("Unknown signal - no workflow configured",
+		log.Warn("Unknown signal - no workflow configured",
 			"signalName", signal.Name,
 			"correlationId", correlationID,
 			"availableSignals", GetRegisteredSignalNames(signalMap))
@@ -256,8 +256,8 @@ func ProcessEventSignal(ctx workflow.Context, signal EventSignal, signalMap map[
 
 // DispatcherWorkflow handles event routing
 func DispatcherWorkflow(ctx workflow.Context, projectName string) error {
-	logger := workflow.GetLogger(ctx)
-	logger.Info("DispatcherWorkflow started", "project", projectName)
+	log := workflow.GetLogger(ctx)
+	log.Info("DispatcherWorkflow started", "project", projectName)
 
 	// Load workflow configurations
 	var data *wfacts.GetData
@@ -266,7 +266,6 @@ func DispatcherWorkflow(ctx workflow.Context, projectName string) error {
 	err := workflow.ExecuteLocalActivity(ctx, wfacts.GetDataLabel, &wfacts.GetDataInput{WorkflowID: projectName}).
 		Get(ctx, &data)
 	if err != nil {
-		logger.Error("Failed to load workflow configuration", "error", err)
 		return fmt.Errorf("configuration load failed: %w", err)
 	}
 
@@ -284,27 +283,27 @@ func DispatcherWorkflow(ctx workflow.Context, projectName string) error {
 	processed := 0
 	consecutiveErrors := 0
 
-	logger.Info("Dispatcher ready to process events", "maxSignalsPerRun", maxSignalsPerRun)
+	log.Debug("Dispatcher ready to process events", "maxSignalsPerRun", maxSignalsPerRun)
 
 	for {
 		// Check for cancellation before blocking on Receive
 		if ctx.Err() != nil {
-			logger.Info("DispatcherWorkflow canceled", "processedEvents", processed)
+			log.Info("DispatcherWorkflow canceled", "processedEvents", processed)
 			return ctx.Err()
 		}
 		// Protect from unbounded history growth
 		if processed >= maxSignalsPerRun {
-			logger.Info("Reaching max signals per run, continuing as new",
+			log.Info("Reaching max signals per run, continuing as new",
 				"processed", processed, "maxSignalsPerRun", maxSignalsPerRun)
 			return workflow.NewContinueAsNewError(ctx, DispatcherWorkflow, projectName)
 		}
 		// Circuit breaker: if too many consecutive errors, pause briefly
 		if consecutiveErrors >= maxConsecutiveErrors {
-			logger.Warn("Too many consecutive errors, implementing backoff",
+			log.Warn("Too many consecutive errors, implementing backoff",
 				"consecutiveErrors", consecutiveErrors, "maxConsecutiveErrors", maxConsecutiveErrors,
 				"backoffDelay", circuitBreakerDelay)
 			if err := workflow.Sleep(ctx, circuitBreakerDelay); err != nil {
-				logger.Error("Circuit breaker sleep interrupted", "error", err)
+				log.Debug("Circuit breaker sleep interrupted", "error", err)
 			}
 			// Note: consecutiveErrors will only reset on successful processing
 		}
@@ -315,13 +314,13 @@ func DispatcherWorkflow(ctx workflow.Context, projectName string) error {
 			return workflow.NewContinueAsNewError(ctx, DispatcherWorkflow, projectName)
 		}
 		if ctx.Err() != nil {
-			logger.Info("DispatcherWorkflow canceled while receiving signal")
+			log.Debug("DispatcherWorkflow canceled while receiving signal")
 			return ctx.Err()
 		}
 
 		// Skip empty signals (initialization signals)
 		if signal.Name == "" {
-			logger.Debug("Skipping empty signal (likely initialization signal)")
+			log.Debug("Skipping empty signal (likely initialization signal)")
 			processed++
 			continue
 		}

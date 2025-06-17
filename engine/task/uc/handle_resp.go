@@ -283,24 +283,19 @@ func (uc *HandleResponse) normalizeErrorTransition(
 
 // updateParentStatusIfNeeded updates the parent task status when a child task completes
 func (uc *HandleResponse) updateParentStatusIfNeeded(ctx context.Context, childState *task.State) error {
+	log := logger.FromContext(ctx)
 	// Only proceed if this is a child task (has a parent)
 	if childState.ParentStateID == nil {
 		return nil
 	}
-
 	parentStateID := *childState.ParentStateID
-
-	// Get the parent task to determine the parallel strategy
 	parentState, err := uc.taskRepo.GetState(ctx, parentStateID)
 	if err != nil {
 		return fmt.Errorf("failed to get parent state %s: %w", parentStateID, err)
 	}
-
-	// Only update parent status for parallel tasks
 	if parentState.ExecutionType != task.ExecutionParallel {
 		return nil
 	}
-
 	// Get the parallel configuration to determine strategy
 	// The parallel strategy should be stored in the parent task's input metadata
 	strategy := task.StrategyWaitAll // Default strategy
@@ -312,14 +307,14 @@ func (uc *HandleResponse) updateParentStatusIfNeeded(ctx context.Context, childS
 					if task.ValidateStrategy(strategyStr) {
 						strategy = task.ParallelStrategy(strategyStr)
 					} else {
-						logger.Error("Invalid parallel strategy found, using default wait_all",
+						log.Error("Invalid parallel strategy found, using default wait_all",
 							"invalid_strategy", strategyStr,
 							"parent_state_id", parentStateID,
 						)
 					}
 				} else {
 					// Strategy exists but is not a string - log the type mismatch
-					logger.Error("Parallel strategy field is not a string, using default wait_all",
+					log.Error("Parallel strategy field is not a string, using default wait_all",
 						"strategy_type", fmt.Sprintf("%T", strategyValue),
 						"strategy_value", strategyValue,
 						"parent_state_id", parentStateID,
@@ -327,14 +322,14 @@ func (uc *HandleResponse) updateParentStatusIfNeeded(ctx context.Context, childS
 				}
 			} else {
 				// Strategy field is missing from parallel config
-				logger.Debug("No strategy field found in parallel config, using default wait_all",
+				log.Debug("No strategy field found in parallel config, using default wait_all",
 					"parent_state_id", parentStateID,
 				)
 			}
 		} else {
 			// _parallel_config exists but is not the expected map type
 			if _, exists := (*parentState.Input)["_parallel_config"]; exists {
-				logger.Error("Parallel config field is not a map, using default wait_all",
+				log.Error("Parallel config field is not a map, using default wait_all",
 					"config_type", fmt.Sprintf("%T", (*parentState.Input)["_parallel_config"]),
 					"parent_state_id", parentStateID,
 				)
@@ -356,7 +351,8 @@ func (uc *HandleResponse) updateParentStatusIfNeeded(ctx context.Context, childS
 // logParentStatusUpdateError updates parent status and logs any errors without propagating them
 // Parent status updates are non-critical operations that should not fail task completion
 func (uc *HandleResponse) logParentStatusUpdateError(ctx context.Context, state *task.State) {
+	log := logger.FromContext(ctx)
 	if err := uc.updateParentStatusIfNeeded(ctx, state); err != nil {
-		logger.Debug("failed to update parent status", "error", err)
+		log.Debug("Failed to update parent status", "error", err)
 	}
 }

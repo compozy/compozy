@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/compozy/compozy/pkg/logger"
 	utils "github.com/compozy/compozy/test/helpers"
 	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v4"
@@ -17,12 +16,8 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// Initialize logger once for all tests in this package
-	logger.Init(logger.DefaultConfig())
-
 	// Run tests
 	exitCode := m.Run()
-
 	// Cleanup if needed
 	os.Exit(exitCode)
 }

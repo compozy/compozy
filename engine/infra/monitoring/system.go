@@ -30,7 +30,8 @@ var (
 )
 
 // initSystemMetrics initializes system health metrics
-func initSystemMetrics(meter metric.Meter) {
+func initSystemMetrics(ctx context.Context, meter metric.Meter) {
+	log := logger.FromContext(ctx)
 	if meter == nil {
 		return
 	}
@@ -41,7 +42,7 @@ func initSystemMetrics(meter metric.Meter) {
 			metric.WithDescription("Build information (value=1)"),
 		)
 		if err != nil {
-			logger.Error("Failed to create build info gauge", "error", err)
+			log.Error("Failed to create build info gauge", "error", err)
 			return
 		}
 		// Create observable gauge for uptime
@@ -50,7 +51,7 @@ func initSystemMetrics(meter metric.Meter) {
 			metric.WithDescription("Service uptime in seconds"),
 		)
 		if err != nil {
-			logger.Error("Failed to create uptime gauge", "error", err)
+			log.Error("Failed to create uptime gauge", "error", err)
 			return
 		}
 		// Record start time for uptime calculation
@@ -62,7 +63,7 @@ func initSystemMetrics(meter metric.Meter) {
 			return nil
 		}, uptimeGauge)
 		if err != nil {
-			logger.Error("Failed to register uptime callback", "error", err)
+			log.Error("Failed to register uptime callback", "error", err)
 		}
 		// Register callback for build info
 		version, commit, goVersion := getBuildInfo()
@@ -77,8 +78,9 @@ func initSystemMetrics(meter metric.Meter) {
 			return nil
 		}, buildInfo)
 		if err != nil {
-			logger.Error("Failed to register build info callback", "error", err)
+			log.Error("Failed to register build info callback", "error", err)
 		}
+		recordBuildInfo(ctx)
 	})
 }
 
@@ -107,9 +109,10 @@ func getBuildInfo() (version, commit, goVersion string) {
 }
 
 // recordBuildInfo logs the build info (callback is registered in initSystemMetrics)
-func recordBuildInfo() {
+func recordBuildInfo(ctx context.Context) {
+	log := logger.FromContext(ctx)
 	version, commit, goVersion := getBuildInfo()
-	logger.Info("System metrics initialized",
+	log.Info("System metrics initialized",
 		"version", version,
 		"commit", commit,
 		"go_version", goVersion,
@@ -117,25 +120,25 @@ func recordBuildInfo() {
 }
 
 // InitSystemMetrics initializes system health metrics and records build info
-func InitSystemMetrics(_ context.Context, meter metric.Meter) {
-	initSystemMetrics(meter)
-	recordBuildInfo()
+func InitSystemMetrics(ctx context.Context, meter metric.Meter) {
+	initSystemMetrics(ctx, meter)
 }
 
 // resetSystemMetrics is used for testing purposes only
-func resetSystemMetrics() {
+func resetSystemMetrics(ctx context.Context) {
+	log := logger.FromContext(ctx)
 	// Unregister callbacks if they exist
 	if uptimeRegistration != nil {
 		err := uptimeRegistration.Unregister()
 		if err != nil {
-			logger.Error("Failed to unregister uptime callback during reset", "error", err)
+			log.Debug("Failed to unregister uptime callback during reset", "error", err)
 		}
 		uptimeRegistration = nil
 	}
 	if buildInfoRegistration != nil {
 		err := buildInfoRegistration.Unregister()
 		if err != nil {
-			logger.Error("Failed to unregister build info callback during reset", "error", err)
+			log.Debug("Failed to unregister build info callback during reset", "error", err)
 		}
 		buildInfoRegistration = nil
 	}
@@ -147,8 +150,8 @@ func resetSystemMetrics() {
 
 // ResetSystemMetricsForTesting resets the system metrics initialization state for testing
 // This should only be used in tests to ensure clean state between test runs
-func ResetSystemMetricsForTesting() {
+func ResetSystemMetricsForTesting(ctx context.Context) {
 	systemResetMutex.Lock()
 	defer systemResetMutex.Unlock()
-	resetSystemMetrics()
+	resetSystemMetrics(ctx)
 }

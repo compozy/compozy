@@ -12,7 +12,6 @@ import (
 )
 
 func TestProxyHandlers(t *testing.T) {
-	initLogger(t)
 	// Set gin to test mode
 	gin.SetMode(gin.TestMode)
 	// Create dependencies
@@ -124,7 +123,7 @@ func TestProxyHandlers(t *testing.T) {
 		assert.NotNil(t, server)
 
 		// Test cleanup
-		err = proxyHandlers.UnregisterMCPProxy("registered-mcp")
+		err = proxyHandlers.UnregisterMCPProxy(t.Context(), "registered-mcp")
 		assert.NoError(t, err)
 
 		// After unregistration, should get 404 again
@@ -135,7 +134,6 @@ func TestProxyHandlers(t *testing.T) {
 }
 
 func TestProxyServerManagement(t *testing.T) {
-	initLogger(t)
 	// Create dependencies
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
@@ -143,7 +141,7 @@ func TestProxyServerManagement(t *testing.T) {
 	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:8080", nil)
 
 	t.Run("Unregister Nonexistent Proxy", func(t *testing.T) {
-		err := proxyHandlers.UnregisterMCPProxy("nonexistent")
+		err := proxyHandlers.UnregisterMCPProxy(t.Context(), "nonexistent")
 		assert.NoError(t, err) // Should not error, just log warning
 	})
 

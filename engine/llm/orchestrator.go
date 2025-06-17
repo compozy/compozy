@@ -47,11 +47,11 @@ func NewOrchestrator(config OrchestratorConfig) Orchestrator {
 
 // Execute processes an LLM request end-to-end
 func (o *llmOrchestrator) Execute(ctx context.Context, request Request) (*core.Output, error) {
+	log := logger.FromContext(ctx)
 	// Validate input
 	if err := o.validateInput(ctx, request); err != nil {
 		return nil, NewValidationError(err, "request", request)
 	}
-
 	// Create LLM client using factory
 	factory := o.config.LLMFactory
 	if factory == nil {
@@ -66,10 +66,9 @@ func (o *llmOrchestrator) Execute(ctx context.Context, request Request) (*core.O
 	}
 	defer func() {
 		if closeErr := llmClient.Close(); closeErr != nil {
-			logger.Error("failed to close LLM client", "error", closeErr)
+			log.Error("Failed to close LLM client", "error", closeErr)
 		}
 	}()
-
 	// Build prompt
 	basePrompt, err := o.config.PromptBuilder.Build(ctx, request.Action)
 	if err != nil {
@@ -77,24 +76,22 @@ func (o *llmOrchestrator) Execute(ctx context.Context, request Request) (*core.O
 			"action": request.Action.ID,
 		})
 	}
-
 	// Determine if structured output should be used
 	shouldUseStructured := o.config.PromptBuilder.ShouldUseStructuredOutput(
 		string(request.Agent.Config.Provider),
 		request.Action,
 		request.Agent.Tools,
 	)
-
 	// Enhance prompt for structured output if needed
 	enhancedPrompt := basePrompt
 	if shouldUseStructured {
 		enhancedPrompt = o.config.PromptBuilder.EnhanceForStructuredOutput(
+			ctx,
 			basePrompt,
 			request.Action.OutputSchema,
 			len(request.Agent.Tools) > 0,
 		)
 	}
-
 	// Build tool definitions for LLM
 	toolDefs, err := o.buildToolDefinitions(ctx, request.Agent.Tools)
 	if err != nil {
@@ -102,15 +99,11 @@ func (o *llmOrchestrator) Execute(ctx context.Context, request Request) (*core.O
 			"agent": request.Agent.ID,
 		})
 	}
-
 	// Prepare LLM request
 	llmReq := llmadapter.LLMRequest{
 		SystemPrompt: request.Agent.Instructions,
 		Messages: []llmadapter.Message{
-			{
-				Role:    "user",
-				Content: enhancedPrompt,
-			},
+			{Role: "user", Content: enhancedPrompt},
 		},
 		Tools: toolDefs,
 		Options: llmadapter.CallOptions{
@@ -119,7 +112,6 @@ func (o *llmOrchestrator) Execute(ctx context.Context, request Request) (*core.O
 			StructuredOutput: shouldUseStructured,
 		},
 	}
-
 	// Generate content
 	response, err := llmClient.GenerateContent(ctx, &llmReq)
 	if err != nil {
@@ -128,7 +120,6 @@ func (o *llmOrchestrator) Execute(ctx context.Context, request Request) (*core.O
 			"action": request.Action.ID,
 		})
 	}
-
 	// Process response
 	output, err := o.processResponse(ctx, response, request)
 	if err != nil {

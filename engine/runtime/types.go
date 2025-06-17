@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 // ToolExecutionError provides structured error information with context
@@ -58,5 +57,4 @@ type ToolExecuteResult = core.Output
 type Manager struct {
 	config      *Config
 	projectRoot string
-	logger      logger.Logger
 }

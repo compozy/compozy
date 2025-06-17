@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/compozy/compozy/engine/infra/server"
 	"github.com/compozy/compozy/engine/infra/store"
@@ -17,7 +19,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func getServerConfig(cmd *cobra.Command, envFilePath string) (*server.Config, error) {
+func getServerConfig(ctx context.Context, cmd *cobra.Command, envFilePath string) (*server.Config, error) {
+	log := logger.FromContext(ctx)
 	port, err := cmd.Flags().GetInt("port")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get port flag: %w", err)
@@ -44,7 +47,7 @@ func getServerConfig(cmd *cobra.Command, envFilePath string) (*server.Config, er
 		return nil, fmt.Errorf("no free port found near %d: %w", port, err)
 	}
 	if availablePort != port {
-		fmt.Printf("Port %d unavailable, using port %d instead\n", port, availablePort)
+		log.Info("Port unavailable, using alternative port", "requested_port", port, "available_port", availablePort)
 	}
 
 	serverConfig := &server.Config{
@@ -284,8 +287,19 @@ func handleDevCmd(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
+	// Setup logging
+	logLevel, logJSON, logSource, err := logger.GetLoggerConfig(cmd)
+	if err != nil {
+		return err
+	}
+	log := logger.SetupLogger(logLevel, logJSON, logSource)
+
+	// Create context with logger
+	ctx := context.Background()
+	ctx = logger.ContextWithLogger(ctx, log)
+
 	// Get server configuration
-	scfg, err := getServerConfig(cmd, envFilePath)
+	scfg, err := getServerConfig(ctx, cmd, envFilePath)
 	if err != nil {
 		return err
 	}
@@ -315,81 +329,88 @@ func handleDevCmd(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	// Setup logging
-	logLevel, logJSON, logSource, err := logger.GetLoggerConfig(cmd)
-	if err != nil {
-		return err
-	}
-	if err := logger.SetupLogger(logLevel, logJSON, logSource); err != nil {
-		return err
-	}
-
 	watch, err := cmd.Flags().GetBool("watch")
 	if err != nil {
 		return fmt.Errorf("failed to get watch flag: %w", err)
 	}
 	if watch {
-		watcher, err := setupWatcher(scfg.CWD)
+		watcher, err := setupWatcher(ctx, scfg.CWD)
 		if err != nil {
 			return err
 		}
 		defer watcher.Close()
-		restartChan := make(chan bool)
-		go startWatcher(watcher, restartChan)
-		return runAndWatchServer(scfg, tcfg, dbCfg, restartChan)
+		restartChan := make(chan bool, 1)
+		go startWatcher(ctx, watcher, restartChan)
+		return runAndWatchServer(ctx, scfg, tcfg, dbCfg, restartChan)
 	}
 
 	srv := server.NewServer(scfg, tcfg, dbCfg)
 	return srv.Run()
 }
 
-func setupWatcher(cwd string) (*fsnotify.Watcher, error) {
+func setupWatcher(ctx context.Context, cwd string) (*fsnotify.Watcher, error) {
+	log := logger.FromContext(ctx)
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create file watcher: %w", err)
 	}
+	// Close watcher when context is canceled to prevent goroutine leaks
+	go func() {
+		<-ctx.Done()
+		_ = watcher.Close()
+	}()
 	if err := filepath.Walk(cwd, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		if !info.IsDir() && (filepath.Ext(path) == ".yaml" || filepath.Ext(path) == ".yml") {
 			if err := watcher.Add(path); err != nil {
-				logger.Warn("Failed to watch file", "path", path, "error", err)
+				log.Warn("Failed to watch file", "path", path, "error", err)
 			}
 		}
 		return nil
 	}); err != nil {
+		watcher.Close()
 		return nil, fmt.Errorf("failed to walk project directory: %w", err)
 	}
 	return watcher, nil
 }
 
-func startWatcher(watcher *fsnotify.Watcher, restartChan chan bool) {
+func startWatcher(ctx context.Context, watcher *fsnotify.Watcher, restartChan chan bool) {
+	log := logger.FromContext(ctx)
 	for {
 		select {
+		case <-ctx.Done():
+			log.Info("Context canceled, stopping file watcher")
+			return
 		case event, ok := <-watcher.Events:
 			if !ok {
 				return
 			}
 			if event.Has(fsnotify.Write) {
-				logger.Info("Detected file change, sending restart signal...", "file", event.Name)
-				restartChan <- true
+				log.Debug("Detected file change, sending restart signal...", "file", event.Name)
+				select {
+				case restartChan <- true:
+				default: // restart already pending
+				}
 			}
 		case err, ok := <-watcher.Errors:
 			if !ok {
 				return
 			}
-			logger.Error("Watcher error", "error", err)
+			log.Error("Watcher error", "error", err)
 		}
 	}
 }
 
 func runAndWatchServer(
+	ctx context.Context,
 	scfg *server.Config,
 	tcfg *worker.TemporalConfig,
 	dbCfg *store.Config,
 	restartChan chan bool,
 ) error {
+	log := logger.FromContext(ctx)
 	for {
 		// Find available port on each restart in case the original port becomes free
 		availablePort, err := findAvailablePort(scfg.Host, scfg.Port)
@@ -397,7 +418,7 @@ func runAndWatchServer(
 			return fmt.Errorf("no free port found near %d: %w", scfg.Port, err)
 		}
 		if availablePort != scfg.Port {
-			logger.Info("port conflict on restart, using next available port",
+			log.Info("port conflict on restart, using next available port",
 				"original_port", scfg.Port,
 				"available_port", availablePort)
 			scfg.Port = availablePort
@@ -408,13 +429,13 @@ func runAndWatchServer(
 		go func() {
 			serverErrChan <- srv.Run()
 		}()
-		logger.Info("Server started. Watching for file changes.")
+		log.Info("Server started. Watching for file changes.")
 		select {
 		case <-restartChan:
-			logger.Info("Restart signal received. Shutting down server...")
+			log.Info("Restart signal received. Shutting down server...")
 			srv.Shutdown()
 			<-serverErrChan // Wait for shutdown to complete
-			logger.Info("Server shut down. Restarting...")
+			log.Info("Server shut down. Restarting...")
 			// Drain the channel in case of multiple file change events
 			for len(restartChan) > 0 {
 				<-restartChan
@@ -422,10 +443,13 @@ func runAndWatchServer(
 			continue // Restart the loop
 		case err := <-serverErrChan:
 			if err != nil {
-				logger.Error("Server stopped with error", "error", err)
-				return err
+				log.Error("Server stopped with error", "error", err)
+				// Add back-off to prevent tight restart loops on server failures
+				log.Debug("Waiting before retry...")
+				time.Sleep(2 * time.Second)
+				continue // Retry after back-off
 			}
-			logger.Info("Server stopped.")
+			log.Info("Server stopped.")
 			return nil
 		}
 	}

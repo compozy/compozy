@@ -18,7 +18,6 @@ import (
 	"github.com/compozy/compozy/engine/infra/monitoring/interceptor"
 	"github.com/compozy/compozy/engine/infra/monitoring/middleware"
 	"github.com/compozy/compozy/engine/infra/server/router"
-	utils "github.com/compozy/compozy/test/helpers"
 	"github.com/compozy/compozy/test/integration/worker/helpers"
 )
 
@@ -38,21 +37,19 @@ type TestEnvironment struct {
 func SetupTestEnvironment(t *testing.T) *TestEnvironment {
 	// Reset metrics for clean state in each test
 	middleware.ResetMetricsForTesting()
-	interceptor.ResetMetricsForTesting()
-	monitoring.ResetSystemMetricsForTesting()
-	// Initialize logger for tests
-	utils.InitLogger(t)
+	interceptor.ResetMetricsForTesting(t.Context())
+	monitoring.ResetSystemMetricsForTesting(t.Context())
 	// Initialize monitoring service with test configuration
 	config := &monitoring.Config{
 		Enabled: true,
 		Path:    "/metrics",
 	}
-	monitoringService, err := monitoring.NewMonitoringService(config)
+	monitoringService, err := monitoring.NewMonitoringService(t.Context(), config)
 	require.NoError(t, err)
 	// Initialize Gin router with monitoring middleware
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.Use(monitoringService.GinMiddleware())
+	r.Use(monitoringService.GinMiddleware(t.Context()))
 	// Add test routes
 	setupTestRoutes(r)
 	// Create HTTP test server

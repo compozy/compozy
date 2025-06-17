@@ -1,6 +1,8 @@
 package task
 
 import (
+	"context"
+
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -14,7 +16,7 @@ type Response interface {
 	GetOnSuccess() *core.SuccessTransition
 	GetOnError() *core.ErrorTransition
 	GetNextTask() *Config
-	NextTaskID() string
+	NextTaskID(ctx context.Context) string
 }
 
 // -----------------------------------------------------------------------------
@@ -44,7 +46,8 @@ func (r *MainTaskResponse) GetNextTask() *Config {
 	return r.NextTask
 }
 
-func (r *MainTaskResponse) NextTaskID() string {
+func (r *MainTaskResponse) NextTaskID(ctx context.Context) string {
+	log := logger.FromContext(ctx)
 	if r.State == nil {
 		return ""
 	}
@@ -56,18 +59,18 @@ func (r *MainTaskResponse) NextTaskID() string {
 	switch {
 	case state.Status == core.StatusSuccess && r.OnSuccess != nil && r.OnSuccess.Next != nil:
 		nextTaskID = *r.OnSuccess.Next
-		logger.Info("Task succeeded, transitioning to next task",
+		log.Info("Task succeeded, transitioning to next task",
 			"current_task", taskID,
 			"next_task", nextTaskID,
 		)
 	case state.Status == core.StatusFailed && r.OnError != nil && r.OnError.Next != nil:
 		nextTaskID = *r.OnError.Next
-		logger.Info("Task failed, transitioning to error task",
+		log.Info("Task failed, transitioning to error task",
 			"current_task", taskID,
 			"next_task", nextTaskID,
 		)
 	default:
-		logger.Info("No more tasks to execute", "current_task", taskID)
+		log.Info("No more tasks to execute", "current_task", taskID)
 	}
 	return nextTaskID
 }
@@ -103,7 +106,7 @@ func (r *SubtaskResponse) GetNextTask() *Config {
 	return nil
 }
 
-func (r *SubtaskResponse) NextTaskID() string {
+func (r *SubtaskResponse) NextTaskID(_ context.Context) string {
 	// Subtasks don't transition to other tasks
 	return ""
 }
@@ -134,6 +137,6 @@ func (r *CollectionResponse) GetNextTask() *Config {
 	return r.MainTaskResponse.GetNextTask()
 }
 
-func (r *CollectionResponse) NextTaskID() string {
-	return r.MainTaskResponse.NextTaskID()
+func (r *CollectionResponse) NextTaskID(ctx context.Context) string {
+	return r.MainTaskResponse.NextTaskID(ctx)
 }

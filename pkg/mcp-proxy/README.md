@@ -273,7 +273,7 @@ if err := svc.Ensure(ctx, &mcp.Config{
     Transport: "sse",
     UseProxy:  true, // Critical – routes traffic via the proxy
 }); err != nil {
-    logger.Error("failed to register", "error", err)
+    log.Error("failed to register", "error", err)
 }
 ```
 

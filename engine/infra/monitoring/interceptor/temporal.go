@@ -23,16 +23,17 @@ var (
 	configuredWorkerCountValue atomic.Int64
 	callbackRegistration       metric.Registration
 	initOnce                   sync.Once
-	resetMutex                 sync.Mutex
+	metricsMutex               sync.RWMutex
 )
 
 // resetMetrics is used for testing purposes only
-func resetMetrics() {
+func resetMetrics(ctx context.Context) {
 	// Unregister callback if it exists
 	if callbackRegistration != nil {
 		err := callbackRegistration.Unregister()
 		if err != nil {
-			logger.Error("Failed to unregister callback during reset", "error", err)
+			log := logger.FromContext(ctx)
+			log.Debug("Failed to unregister callback during reset", "error", err, "component", "temporal_metrics")
 		}
 		callbackRegistration = nil
 	}
@@ -48,17 +49,20 @@ func resetMetrics() {
 
 // ResetMetricsForTesting resets the metrics initialization state for testing
 // This should only be used in tests to ensure clean state between test runs
-func ResetMetricsForTesting() {
-	resetMutex.Lock()
-	defer resetMutex.Unlock()
-	resetMetrics()
+func ResetMetricsForTesting(ctx context.Context) {
+	metricsMutex.Lock()
+	defer metricsMutex.Unlock()
+	resetMetrics(ctx)
 }
 
-func initMetrics(meter metric.Meter) {
+func initMetrics(ctx context.Context, meter metric.Meter) {
 	// Skip initialization if meter is nil
 	if meter == nil {
 		return
 	}
+	log := logger.FromContext(ctx)
+	metricsMutex.Lock()
+	defer metricsMutex.Unlock()
 	initOnce.Do(func() {
 		var err error
 		workflowStartedTotal, err = meter.Int64Counter(
@@ -66,21 +70,21 @@ func initMetrics(meter metric.Meter) {
 			metric.WithDescription("Started workflows"),
 		)
 		if err != nil {
-			logger.Error("Failed to create workflow started counter", "error", err)
+			log.Error("Failed to create workflow started counter", "error", err, "component", "temporal_metrics")
 		}
 		workflowCompletedTotal, err = meter.Int64Counter(
 			"compozy_temporal_workflow_completed_total",
 			metric.WithDescription("Completed workflows"),
 		)
 		if err != nil {
-			logger.Error("Failed to create workflow completed counter", "error", err)
+			log.Error("Failed to create workflow completed counter", "error", err, "component", "temporal_metrics")
 		}
 		workflowFailedTotal, err = meter.Int64Counter(
 			"compozy_temporal_workflow_failed_total",
 			metric.WithDescription("Failed workflows"),
 		)
 		if err != nil {
-			logger.Error("Failed to create workflow failed counter", "error", err)
+			log.Error("Failed to create workflow failed counter", "error", err, "component", "temporal_metrics")
 		}
 		workflowTaskDuration, err = meter.Float64Histogram(
 			"compozy_temporal_workflow_duration_seconds",
@@ -88,21 +92,27 @@ func initMetrics(meter metric.Meter) {
 			metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
 		)
 		if err != nil {
-			logger.Error("Failed to create workflow task duration histogram", "error", err)
+			log.Error(
+				"Failed to create workflow task duration histogram",
+				"error",
+				err,
+				"component",
+				"temporal_metrics",
+			)
 		}
 		workersRunning, err = meter.Int64UpDownCounter(
 			"compozy_temporal_workers_running_total",
 			metric.WithDescription("Currently running workers"),
 		)
 		if err != nil {
-			logger.Error("Failed to create workers running counter", "error", err)
+			log.Error("Failed to create workers running counter", "error", err, "component", "temporal_metrics")
 		}
 		workersConfigured, err = meter.Int64ObservableGauge(
 			"compozy_temporal_workers_configured_total",
 			metric.WithDescription("Configured workers per instance"),
 		)
 		if err != nil {
-			logger.Error("Failed to create workers configured gauge", "error", err)
+			log.Error("Failed to create workers configured gauge", "error", err, "component", "temporal_metrics")
 			return
 		}
 		// Register the callback only once during initialization
@@ -111,19 +121,26 @@ func initMetrics(meter metric.Meter) {
 			return nil
 		}, workersConfigured)
 		if err != nil {
-			logger.Error("Failed to register callback for workers configured gauge", "error", err)
+			log.Error(
+				"Failed to register callback for workers configured gauge",
+				"error",
+				err,
+				"component",
+				"temporal_metrics",
+			)
 		}
 	})
 }
 
 // TemporalMetrics creates a new Temporal metrics interceptor
-func TemporalMetrics(meter metric.Meter) interceptor.WorkerInterceptor {
+func TemporalMetrics(ctx context.Context, meter metric.Meter) interceptor.WorkerInterceptor {
 	// Handle nil meter gracefully
 	if meter == nil {
-		logger.Error("TemporalMetrics called with nil meter, metrics will not be recorded")
-		return &metricsInterceptor{meter: nil}
+		log := logger.FromContext(ctx)
+		log.Warn("TemporalMetrics called with nil meter, returning no-op interceptor")
+		return &interceptor.WorkerInterceptorBase{}
 	}
-	initMetrics(meter)
+	initMetrics(ctx, meter)
 	return &metricsInterceptor{
 		meter: meter,
 	}
@@ -157,8 +174,15 @@ func (w *workflowInboundInterceptor) ExecuteWorkflow(
 	ctx workflow.Context,
 	in *interceptor.ExecuteWorkflowInput,
 ) (any, error) {
-	// Check if metrics have been initialized
-	if workflowStartedTotal == nil {
+	// Get local references to metrics instruments under a single lock
+	metricsMutex.RLock()
+	wst := workflowStartedTotal
+	wtd := workflowTaskDuration
+	wft := workflowFailedTotal
+	wct := workflowCompletedTotal
+	metricsMutex.RUnlock()
+	// If not initialized, proceed without metrics
+	if wst == nil {
 		return w.Next.ExecuteWorkflow(ctx, in)
 	}
 	// Skip metrics during replay to avoid inflating counts
@@ -167,7 +191,9 @@ func (w *workflowInboundInterceptor) ExecuteWorkflow(
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Error("Panic in Temporal metrics interceptor", "panic", r)
+			// Use background context for panic logging since workflow context might be corrupted
+			log := logger.FromContext(context.Background())
+			log.Error("Panic in Temporal metrics interceptor", "panic", r)
 			// Re-panic to let Temporal handle it properly
 			panic(r)
 		}
@@ -176,7 +202,7 @@ func (w *workflowInboundInterceptor) ExecuteWorkflow(
 	info := workflow.GetInfo(ctx)
 	workflowType := info.WorkflowType.Name
 	otelCtx := context.Background()
-	workflowStartedTotal.Add(otelCtx, 1,
+	wst.Add(otelCtx, 1,
 		metric.WithAttributes(attribute.String("workflow_type", workflowType)))
 	result, err := w.Next.ExecuteWorkflow(ctx, in)
 	// Calculate duration using deterministic time
@@ -196,21 +222,23 @@ func (w *workflowInboundInterceptor) ExecuteWorkflow(
 			resultLabel = "failed"
 			logMessage = "Workflow failed"
 		}
-		workflowTaskDuration.Record(otelCtx, duration,
+		wtd.Record(otelCtx, duration,
 			metric.WithAttributes(
 				attribute.String("workflow_type", workflowType),
 				attribute.String("result", resultLabel)))
-		workflowFailedTotal.Add(otelCtx, 1,
+		wft.Add(otelCtx, 1,
 			metric.WithAttributes(
 				attribute.String("workflow_type", workflowType),
 				attribute.String("result", resultLabel)))
-		logger.Debug(logMessage, "workflow_type", workflowType, "error", err)
+		// Use background context for logging since workflow context is for Temporal operations
+		log := logger.FromContext(context.Background())
+		log.Debug(logMessage, "workflow_type", workflowType, "workflow_id", info.WorkflowExecution.ID, "error", err)
 	} else {
-		workflowTaskDuration.Record(otelCtx, duration,
+		wtd.Record(otelCtx, duration,
 			metric.WithAttributes(
 				attribute.String("workflow_type", workflowType),
 				attribute.String("result", "completed")))
-		workflowCompletedTotal.Add(otelCtx, 1,
+		wct.Add(otelCtx, 1,
 			metric.WithAttributes(attribute.String("workflow_type", workflowType)))
 	}
 	return result, err
@@ -223,6 +251,8 @@ func SetConfiguredWorkerCount(count int64) {
 
 // IncrementRunningWorkers increments the running workers counter
 func IncrementRunningWorkers(ctx context.Context) {
+	metricsMutex.RLock()
+	defer metricsMutex.RUnlock()
 	if workersRunning != nil {
 		workersRunning.Add(ctx, 1)
 	}
@@ -230,6 +260,8 @@ func IncrementRunningWorkers(ctx context.Context) {
 
 // DecrementRunningWorkers decrements the running workers counter
 func DecrementRunningWorkers(ctx context.Context) {
+	metricsMutex.RLock()
+	defer metricsMutex.RUnlock()
 	if workersRunning != nil {
 		workersRunning.Add(ctx, -1)
 	}

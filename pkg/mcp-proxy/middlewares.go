@@ -6,20 +6,8 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/gin-gonic/gin"
 )
-
-// MiddlewareFunc represents a middleware function signature
-type MiddlewareFunc func(http.Handler) http.Handler
-
-// chainMiddleware applies middleware functions in order
-// Note: middlewares are applied in reverse order - last middleware wraps the innermost handler
-// Example: [recover, auth, logger] becomes recover(auth(logger(handler)))
-func chainMiddleware(h http.Handler, middlewares ...MiddlewareFunc) http.Handler {
-	for i := len(middlewares) - 1; i >= 0; i-- {
-		h = middlewares[i](h)
-	}
-	return h
-}
 
 // combineAuthTokens combines global auth tokens with client-specific tokens
 func combineAuthTokens(globalTokens, clientTokens []string) []string {
@@ -62,8 +50,33 @@ func combineAuthTokens(globalTokens, clientTokens []string) []string {
 
 const bearerPrefix = "Bearer "
 
+// wrapWithGinMiddlewares wraps an http.Handler with gin middlewares
+func wrapWithGinMiddlewares(handler http.Handler, middlewares ...gin.HandlerFunc) gin.HandlerFunc {
+	// Create a new gin engine to properly chain middlewares
+	engine := gin.New()
+
+	// Add all middlewares to the engine
+	for _, middleware := range middlewares {
+		engine.Use(middleware)
+	}
+
+	// Add the final handler that calls the wrapped http.Handler
+	engine.Use(func(c *gin.Context) {
+		if handler == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Handler not initialized"})
+			return
+		}
+		handler.ServeHTTP(c.Writer, c.Request)
+	})
+
+	// Return a handler that uses the engine
+	return func(c *gin.Context) {
+		engine.HandleContext(c)
+	}
+}
+
 // newAuthMiddleware creates an authentication middleware with given tokens
-func newAuthMiddleware(tokens []string) MiddlewareFunc {
+func newAuthMiddleware(tokens []string) gin.HandlerFunc {
 	tokenSet := make(map[string]struct{}, len(tokens))
 	for _, token := range tokens {
 		if token == "" {
@@ -72,55 +85,48 @@ func newAuthMiddleware(tokens []string) MiddlewareFunc {
 		tokenSet[token] = struct{}{}
 	}
 
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			authHeader := r.Header.Get("Authorization")
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
 
-			if authHeader == "" {
-				http.Error(w, "Authorization required", http.StatusUnauthorized)
-				return
-			}
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization required"})
+			c.Abort()
+			return
+		}
 
-			if len(authHeader) < len(bearerPrefix) || !strings.EqualFold(authHeader[:len(bearerPrefix)], bearerPrefix) {
-				http.Error(w, "Invalid authorization format", http.StatusUnauthorized)
-				return
-			}
+		if len(authHeader) < len(bearerPrefix) || !strings.EqualFold(authHeader[:len(bearerPrefix)], bearerPrefix) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization format"})
+			c.Abort()
+			return
+		}
 
-			token := strings.TrimSpace(authHeader[len(bearerPrefix):])
-			if _, valid := tokenSet[token]; !valid {
-				http.Error(w, "Invalid token", http.StatusUnauthorized)
-				return
-			}
+		token := strings.TrimSpace(authHeader[len(bearerPrefix):])
+		if _, valid := tokenSet[token]; !valid {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.Abort()
+			return
+		}
 
-			next.ServeHTTP(w, r)
-		})
+		c.Next()
 	}
 }
 
 // loggerMiddleware creates a logging middleware for requests
-func loggerMiddleware(clientName string) MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			logger.Info("MCP proxy request", "client", clientName, "method", r.Method, "path", r.URL.Path)
-			next.ServeHTTP(w, r)
-		})
-	}
-}
 
 // recoverMiddleware creates a panic recovery middleware
-func recoverMiddleware(clientName string) MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			defer func() {
-				if r := recover(); r != nil {
-					logger.Error("Panic recovered in MCP proxy",
-						"client", clientName,
-						"panic", r,
-						"stack", string(debug.Stack()))
-					http.Error(w, "Internal server error", http.StatusInternalServerError)
-				}
-			}()
-			next.ServeHTTP(w, r)
-		})
+func recoverMiddleware(clientName string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		log := logger.FromContext(c.Request.Context())
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("Panic recovered in MCP proxy",
+					"client", clientName,
+					"panic", r,
+					"stack", string(debug.Stack()))
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+				c.Abort()
+			}
+		}()
+		c.Next()
 	}
 }

@@ -93,7 +93,7 @@ func NewMonitoringService(ctx context.Context, cfg *Config) (*MonitoringService,
     // Initialize Prometheus exporter
     exporter, err := prometheus.New()
     if err != nil {
-        logger.Error("Failed to initialize Prometheus exporter", "error", err)
+        log.Error("Failed to initialize Prometheus exporter", "error", err)
         // Return service with no-op meter for graceful degradation
         return &MonitoringService{meter: noop.NewMeterProvider().Meter("noop")}, nil
     }
