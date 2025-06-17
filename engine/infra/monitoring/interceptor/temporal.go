@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.temporal.io/sdk/interceptor"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -180,14 +181,35 @@ func (w *workflowInboundInterceptor) ExecuteWorkflow(
 	result, err := w.Next.ExecuteWorkflow(ctx, in)
 	// Calculate duration using deterministic time
 	duration := workflow.Now(ctx).Sub(startTime).Seconds()
-	workflowTaskDuration.Record(otelCtx, duration,
-		metric.WithAttributes(attribute.String("workflow_type", workflowType)))
 	if err != nil {
-		// All errors are counted as failures
+		// Distinguish between different error types for better observability
+		var resultLabel string
+		var logMessage string
+		switch {
+		case temporal.IsCanceledError(err) || err == workflow.ErrCanceled:
+			resultLabel = "canceled"
+			logMessage = "Workflow canceled"
+		case temporal.IsTimeoutError(err):
+			resultLabel = "timeout"
+			logMessage = "Workflow timed out"
+		default:
+			resultLabel = "failed"
+			logMessage = "Workflow failed"
+		}
+		workflowTaskDuration.Record(otelCtx, duration,
+			metric.WithAttributes(
+				attribute.String("workflow_type", workflowType),
+				attribute.String("result", resultLabel)))
 		workflowFailedTotal.Add(otelCtx, 1,
-			metric.WithAttributes(attribute.String("workflow_type", workflowType)))
-		logger.Debug("Workflow failed", "workflow_type", workflowType, "error", err)
+			metric.WithAttributes(
+				attribute.String("workflow_type", workflowType),
+				attribute.String("result", resultLabel)))
+		logger.Debug(logMessage, "workflow_type", workflowType, "error", err)
 	} else {
+		workflowTaskDuration.Record(otelCtx, duration,
+			metric.WithAttributes(
+				attribute.String("workflow_type", workflowType),
+				attribute.String("result", "completed")))
 		workflowCompletedTotal.Add(otelCtx, 1,
 			metric.WithAttributes(attribute.String("workflow_type", workflowType)))
 	}

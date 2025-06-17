@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -17,7 +18,8 @@ func TestDefaultConfig(t *testing.T) {
 
 func TestLoadWithEnv(t *testing.T) {
 	t.Run("Should return defaults when no config provided", func(t *testing.T) {
-		result := LoadWithEnv(nil)
+		result, err := LoadWithEnv(nil)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.False(t, result.Enabled)
 		assert.Equal(t, "/metrics", result.Path)
@@ -27,7 +29,8 @@ func TestLoadWithEnv(t *testing.T) {
 			Enabled: true,
 			Path:    "/custom/metrics",
 		}
-		result := LoadWithEnv(yamlConfig)
+		result, err := LoadWithEnv(yamlConfig)
+		require.NoError(t, err)
 		assert.True(t, result.Enabled)
 		assert.Equal(t, "/custom/metrics", result.Path)
 	})
@@ -36,7 +39,8 @@ func TestLoadWithEnv(t *testing.T) {
 			Enabled: true,
 			Path:    "",
 		}
-		result := LoadWithEnv(yamlConfig)
+		result, err := LoadWithEnv(yamlConfig)
+		require.NoError(t, err)
 		assert.True(t, result.Enabled)
 		assert.Equal(t, "/metrics", result.Path)
 	})
@@ -45,7 +49,8 @@ func TestLoadWithEnv(t *testing.T) {
 			Enabled: true,
 			// Path not specified, should use default
 		}
-		result := LoadWithEnv(yamlConfig)
+		result, err := LoadWithEnv(yamlConfig)
+		require.NoError(t, err)
 		assert.True(t, result.Enabled)
 		assert.Equal(t, "/metrics", result.Path)
 	})
@@ -56,7 +61,8 @@ func TestLoadWithEnv(t *testing.T) {
 			Enabled: false, // YAML says false
 			Path:    "/metrics",
 		}
-		result := LoadWithEnv(yamlConfig)
+		result, err := LoadWithEnv(yamlConfig)
+		require.NoError(t, err)
 		assert.True(t, result.Enabled) // Env var takes precedence
 		assert.Equal(t, "/metrics", result.Path)
 	})
@@ -67,7 +73,8 @@ func TestLoadWithEnv(t *testing.T) {
 			Enabled: true, // YAML says true
 			Path:    "/metrics",
 		}
-		result := LoadWithEnv(yamlConfig)
+		result, err := LoadWithEnv(yamlConfig)
+		require.NoError(t, err)
 		assert.False(t, result.Enabled) // Env var takes precedence
 		assert.Equal(t, "/metrics", result.Path)
 	})
@@ -78,7 +85,8 @@ func TestLoadWithEnv(t *testing.T) {
 			Enabled: true,
 			Path:    "/metrics",
 		}
-		result := LoadWithEnv(yamlConfig)
+		result, err := LoadWithEnv(yamlConfig)
+		require.NoError(t, err)
 		// Should fall back to YAML config when env var is invalid
 		assert.True(t, result.Enabled)
 		assert.Equal(t, "/metrics", result.Path)
@@ -96,13 +104,15 @@ func TestLoadWithEnv(t *testing.T) {
 			{"0", false},
 		}
 		for _, tc := range testCases {
+			tc := tc // pin loop variable for the closure
 			t.Run("env value "+tc.envValue, func(t *testing.T) {
 				t.Setenv("MONITORING_ENABLED", tc.envValue)
 				yamlConfig := &Config{
 					Enabled: !tc.expectedValue, // Opposite of expected
 					Path:    "/metrics",
 				}
-				result := LoadWithEnv(yamlConfig)
+				result, err := LoadWithEnv(yamlConfig)
+				require.NoError(t, err)
 				assert.Equal(t, tc.expectedValue, result.Enabled)
 			})
 		}
@@ -114,7 +124,8 @@ func TestLoadWithEnv(t *testing.T) {
 			Enabled: true,
 			Path:    "/yaml/metrics",
 		}
-		result := LoadWithEnv(yamlConfig)
+		result, err := LoadWithEnv(yamlConfig)
+		require.NoError(t, err)
 		assert.Equal(t, "/env/metrics", result.Path)
 		assert.True(t, result.Enabled)
 	})
@@ -126,7 +137,8 @@ func TestLoadWithEnv(t *testing.T) {
 			Enabled: true,
 			Path:    "/metrics",
 		}
-		result := LoadWithEnv(yamlConfig)
+		result, err := LoadWithEnv(yamlConfig)
+		require.NoError(t, err)
 		assert.False(t, result.Enabled)              // Env overrides YAML
 		assert.Equal(t, "/custom/path", result.Path) // Env overrides YAML
 	})

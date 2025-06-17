@@ -44,7 +44,7 @@ func (c *Config) Validate() error {
 
 // LoadWithEnv creates a monitoring config with environment variable precedence
 // Environment variables take precedence over the provided config values
-func LoadWithEnv(yamlConfig *Config) *Config {
+func LoadWithEnv(yamlConfig *Config) (*Config, error) {
 	// Start with defaults if no config provided
 	config := DefaultConfig()
 	// Apply YAML config if provided
@@ -67,5 +67,9 @@ func LoadWithEnv(yamlConfig *Config) *Config {
 	if envPath := os.Getenv("MONITORING_PATH"); envPath != "" {
 		config.Path = envPath
 	}
-	return config
+	// Validate configuration before returning
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid monitoring configuration: %w", err)
+	}
+	return config, nil
 }

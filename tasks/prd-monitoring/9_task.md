@@ -87,7 +87,7 @@ curl http://localhost:8080/metrics
 ### System Metrics
 
 - `compozy_build_info`: Build information (labels: version, commit_hash, go_version)
-- `compozy_uptime_seconds_total`: Service uptime counter
+- `compozy_uptime_seconds`: Service uptime gauge
 
 ## Configuration
 

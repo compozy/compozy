@@ -1,6 +1,7 @@
 ---
-description:
+description: "Critical validation rules – MUST pass before a task can be closed"
 globs:
+  - "**/*"
 alwaysApply: true
 ---
 <critical>

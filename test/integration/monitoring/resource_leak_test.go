@@ -67,9 +67,8 @@ func TestMonitoringResourceLeaks(t *testing.T) {
 			}
 			path := endpoints[i%len(endpoints)]
 			resp, err := env.MakeRequest("GET", path)
-			if err == nil {
-				resp.Body.Close()
-			}
+			require.NoError(t, err)
+			resp.Body.Close()
 			// Periodically get metrics to exercise the exporter
 			if i%100 == 0 {
 				_, _ = env.GetMetrics()
@@ -127,9 +126,8 @@ func TestMonitoringResourceLeaks(t *testing.T) {
 			// Use the monitoring
 			for j := 0; j < 5; j++ {
 				resp, err := env.MakeRequest("GET", "/api/v1/health")
-				if err == nil {
-					resp.Body.Close()
-				}
+				require.NoError(t, err)
+				resp.Body.Close()
 			}
 			_, _ = env.GetMetrics()
 			// Cleanup

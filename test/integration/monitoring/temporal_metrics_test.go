@@ -2,6 +2,7 @@ package monitoring_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,28 +26,29 @@ func TestTemporalMetricsIntegration(t *testing.T) {
 		monitoringinterceptor.IncrementRunningWorkers(ctx)
 		monitoringinterceptor.IncrementRunningWorkers(ctx)
 		monitoringinterceptor.IncrementRunningWorkers(ctx)
-		// Give metrics time to be recorded
-		time.Sleep(100 * time.Millisecond)
-		// Get metrics
-		metrics, err := env.GetMetrics()
-		require.NoError(t, err)
-		// Check configured workers gauge
-		assert.Contains(t, metrics, "compozy_temporal_workers_configured_total{")
-		assert.Contains(t, metrics, "} 5")
-		// Check running workers gauge
-		assert.Contains(t, metrics, "compozy_temporal_workers_running_total{")
-		assert.Contains(t, metrics, "} 3")
+		// Wait for metrics to be recorded
+		assert.Eventually(t, func() bool {
+			metrics, err := env.GetMetrics()
+			if err != nil {
+				return false
+			}
+			return strings.Contains(metrics, "compozy_temporal_workers_configured_total{") &&
+				strings.Contains(metrics, "} 5") &&
+				strings.Contains(metrics, "compozy_temporal_workers_running_total{") &&
+				strings.Contains(metrics, "} 3")
+		}, 2*time.Second, 25*time.Millisecond)
 		// Simulate workers stopping
 		monitoringinterceptor.DecrementRunningWorkers(ctx)
 		monitoringinterceptor.DecrementRunningWorkers(ctx)
-		// Give metrics time to be recorded
-		time.Sleep(100 * time.Millisecond)
-		// Get updated metrics
-		metrics, err = env.GetMetrics()
-		require.NoError(t, err)
-		// Check running workers gauge decreased
-		assert.Contains(t, metrics, "compozy_temporal_workers_running_total{")
-		assert.Contains(t, metrics, "} 1")
+		// Wait for metrics to be updated
+		assert.Eventually(t, func() bool {
+			metrics, err := env.GetMetrics()
+			if err != nil {
+				return false
+			}
+			return strings.Contains(metrics, "compozy_temporal_workers_running_total{") &&
+				strings.Contains(metrics, "} 1")
+		}, 2*time.Second, 25*time.Millisecond)
 	})
 	t.Run("Should verify temporal interceptor exists", func(t *testing.T) {
 		env := SetupTestEnvironment(t)

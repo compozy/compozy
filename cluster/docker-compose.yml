@@ -202,7 +202,7 @@ services:
   # Prometheus for metrics collection
   prometheus:
     container_name: prometheus
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.52.0
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -227,7 +227,7 @@ services:
   # Grafana for metrics visualization
   grafana:
     container_name: grafana
-    image: grafana/grafana:latest
+    image: grafana/grafana:10.4.3
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}

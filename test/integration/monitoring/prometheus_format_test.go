@@ -157,9 +157,9 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 		// Get metrics
 		metrics, err := env.GetMetrics()
 		require.NoError(t, err)
-		// Check that path is using template, not actual value
-		assert.Contains(t, metrics, `path="/api/v1/users/:id"`)
-		assert.NotContains(t, metrics, `path="/api/v1/users/test%20user"`)
+		// Check that route is using template, not actual value
+		assert.Contains(t, metrics, `http_route="/api/v1/users/:id"`)
+		assert.NotContains(t, metrics, `http_route="/api/v1/users/test%20user"`)
 		// Verify no unescaped characters in labels
 		lines := strings.Split(metrics, "\n")
 		for _, line := range lines {

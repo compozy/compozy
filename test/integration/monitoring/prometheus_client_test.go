@@ -87,6 +87,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 		for name, expectedType := range expectedTypes {
 			family, exists := metricFamilies[name]
 			if assert.True(t, exists, "Should have metric family: %s", name) {
+				require.NotNil(t, family.Type, "Metric %s has no TYPE metadata", name)
 				assert.Equal(t, expectedType, *family.Type, "Metric %s should be type %s", name, expectedType)
 			}
 		}
@@ -195,10 +196,10 @@ func TestPrometheusClientScraping(t *testing.T) {
 					labelMap[*label.Name] = *label.Value
 				}
 			}
-			// Should have method, path, and status_code labels
-			assert.Contains(t, labelMap, "method")
-			assert.Contains(t, labelMap, "path")
-			assert.Contains(t, labelMap, "status_code")
+			// Should have http_method, http_route, and http_status_code labels (OpenTelemetry semantic conventions)
+			assert.Contains(t, labelMap, "http_method")
+			assert.Contains(t, labelMap, "http_route")
+			assert.Contains(t, labelMap, "http_status_code")
 		}
 	})
 	t.Run("Should be compatible with Prometheus registry", func(t *testing.T) {

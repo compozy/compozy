@@ -5,9 +5,64 @@ import (
 	"strings"
 	"testing"
 
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// parseMetrics parses Prometheus metrics text format into metric families
+func parseMetrics(t *testing.T, metricsText string) map[string]*dto.MetricFamily {
+	var parser expfmt.TextParser
+	mf, err := parser.TextToMetricFamilies(strings.NewReader(metricsText))
+	require.NoError(t, err)
+	return mf
+}
+
+// extractLabelValues extracts unique values for a specific label from a metric family
+func extractLabelValues(mf *dto.MetricFamily, labelName string) map[string]bool {
+	values := make(map[string]bool)
+	if mf == nil {
+		return values
+	}
+	for _, metric := range mf.Metric {
+		for _, label := range metric.Label {
+			if label.GetName() == labelName {
+				values[label.GetValue()] = true
+				break
+			}
+		}
+	}
+	return values
+}
+
+// countMetricsWithLabels counts metrics that match specific label criteria
+func countMetricsWithLabels(mf *dto.MetricFamily, labelCriteria map[string]string) int {
+	if mf == nil {
+		return 0
+	}
+	count := 0
+	for _, metric := range mf.Metric {
+		matches := true
+		for expectedName, expectedValue := range labelCriteria {
+			found := false
+			for _, label := range metric.Label {
+				if label.GetName() == expectedName && label.GetValue() == expectedValue {
+					found = true
+					break
+				}
+			}
+			if !found {
+				matches = false
+				break
+			}
+		}
+		if matches {
+			count++
+		}
+	}
+	return count
+}
 
 func TestMetricCardinalityLimits(t *testing.T) {
 	t.Run("Should use route templates to prevent cardinality explosion", func(t *testing.T) {
@@ -28,23 +83,9 @@ func TestMetricCardinalityLimits(t *testing.T) {
 		// Get metrics
 		metrics, err := env.GetMetrics()
 		require.NoError(t, err)
-		// Count unique path labels in HTTP metrics
-		pathLabels := make(map[string]bool)
-		lines := strings.Split(metrics, "\n")
-		for _, line := range lines {
-			if strings.Contains(line, "compozy_http_requests_total{") {
-				// Extract path label
-				start := strings.Index(line, `path="`)
-				if start >= 0 {
-					start += 6
-					end := strings.Index(line[start:], `"`)
-					if end >= 0 {
-						path := line[start : start+end]
-						pathLabels[path] = true
-					}
-				}
-			}
-		}
+		// Parse metrics and extract path labels
+		metricFamilies := parseMetrics(t, metrics)
+		pathLabels := extractLabelValues(metricFamilies["compozy_http_requests_total"], "http_route")
 		// Should have only template paths, not individual IDs
 		assert.Contains(t, pathLabels, "/api/v1/users/:id")
 		assert.Contains(t, pathLabels, "/api/v1/workflows/:workflow_id/executions/:exec_id")
@@ -76,16 +117,12 @@ func TestMetricCardinalityLimits(t *testing.T) {
 		// Get metrics
 		metrics, err := env.GetMetrics()
 		require.NoError(t, err)
-		// Count 404 responses with "unmatched" path
-		unmatchedCount := 0
-		lines := strings.Split(metrics, "\n")
-		for _, line := range lines {
-			if strings.Contains(line, "compozy_http_requests_total") &&
-				strings.Contains(line, `path="unmatched"`) &&
-				strings.Contains(line, `status_code="404"`) {
-				unmatchedCount++
-			}
-		}
+		// Parse metrics and count 404 responses with "unmatched" path
+		metricFamilies := parseMetrics(t, metrics)
+		unmatchedCount := countMetricsWithLabels(metricFamilies["compozy_http_requests_total"], map[string]string{
+			"http_route":       "unmatched",
+			"http_status_code": "404",
+		})
 		// Should have exactly one "unmatched" metric line for 404s
 		assert.Equal(t, 1, unmatchedCount, "Should consolidate all unmatched routes to single metric")
 		// Should NOT have individual unmatched paths in metrics
@@ -130,18 +167,19 @@ func TestMetricCardinalityLimits(t *testing.T) {
 		// Get metrics
 		metrics, err := env.GetMetrics()
 		require.NoError(t, err)
-		// Count total unique label combinations for HTTP metrics
+		// Parse metrics and count unique label combinations
+		metricFamilies := parseMetrics(t, metrics)
+		httpMetrics := metricFamilies["compozy_http_requests_total"]
 		uniqueCombinations := make(map[string]bool)
-		lines := strings.Split(metrics, "\n")
-		for _, line := range lines {
-			if strings.Contains(line, "compozy_http_requests_total{") {
-				// Extract the label portion
-				start := strings.Index(line, "{")
-				end := strings.Index(line, "}")
-				if start >= 0 && end > start {
-					labels := line[start : end+1]
-					uniqueCombinations[labels] = true
+		if httpMetrics != nil {
+			for _, metric := range httpMetrics.Metric {
+				// Create a string representation of all labels
+				var labelPairs []string
+				for _, label := range metric.Label {
+					labelPairs = append(labelPairs, fmt.Sprintf(`%s=%q`, label.GetName(), label.GetValue()))
 				}
+				labelString := fmt.Sprintf("{%s}", strings.Join(labelPairs, ","))
+				uniqueCombinations[labelString] = true
 			}
 		}
 		// Should have reasonable number of combinations
@@ -155,14 +193,22 @@ func TestMetricCardinalityLimits(t *testing.T) {
 		// actually running workflows, but we can verify the structure
 		metrics, err := env.GetMetrics()
 		require.NoError(t, err)
-		// Check that Temporal metrics use workflow_type label, not workflow_id
-		if strings.Contains(metrics, "compozy_temporal_workflow_") {
-			// Should use workflow_type label
-			assert.Contains(t, metrics, `workflow_type="`)
-			// Should NOT have workflow_id or execution_id labels
-			assert.NotContains(t, metrics, `workflow_id="`)
-			assert.NotContains(t, metrics, `execution_id="`)
-			assert.NotContains(t, metrics, `run_id="`)
+		// Parse metrics and check Temporal metric structure
+		metricFamilies := parseMetrics(t, metrics)
+		// Check for any Temporal workflow metrics
+		for name, mf := range metricFamilies {
+			if strings.Contains(name, "compozy_temporal_workflow_") {
+				// Should use workflow_type label, not workflow_id
+				workflowTypeLabels := extractLabelValues(mf, "workflow_type")
+				assert.NotEmpty(t, workflowTypeLabels, "Should have workflow_type labels")
+				// Should NOT have high-cardinality labels
+				workflowIDLabels := extractLabelValues(mf, "workflow_id")
+				executionIDLabels := extractLabelValues(mf, "execution_id")
+				runIDLabels := extractLabelValues(mf, "run_id")
+				assert.Empty(t, workflowIDLabels, "Should not have workflow_id labels")
+				assert.Empty(t, executionIDLabels, "Should not have execution_id labels")
+				assert.Empty(t, runIDLabels, "Should not have run_id labels")
+			}
 		}
 	})
 }

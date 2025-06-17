@@ -116,7 +116,7 @@ SERVER_PID=$!
 sleep 5
 
 # Verify metrics endpoint is available
-curl -s http://localhost:8080/metrics | head -20
+curl -sf http://localhost:8080/metrics > /dev/null
 
 # Run load test with monitoring
 ghz --insecure \

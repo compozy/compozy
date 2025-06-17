@@ -33,22 +33,20 @@ func TestHTTPMetricsIntegration(t *testing.T) {
 			require.Equal(t, req.status, resp.StatusCode)
 			resp.Body.Close()
 		}
-		// Give metrics time to be recorded
-		time.Sleep(100 * time.Millisecond)
-		// Get metrics
-		metrics, err := env.GetMetrics()
-		require.NoError(t, err)
-		// Verify HTTP request counter
-		assert.Contains(t, metrics, "compozy_http_requests_total")
-		// OpenTelemetry adds extra labels, so check for the important parts
-		assert.Contains(t, metrics, `path="/api/v1/health",status_code="200"`)
-		assert.Contains(t, metrics, `path="/api/v1/users/:id",status_code="200"`)
-		assert.Contains(t, metrics, `path="/",status_code="200"`)
-		// Verify HTTP request duration histogram
-		assert.Contains(t, metrics, "compozy_http_request_duration_seconds_bucket")
-		assert.Contains(t, metrics, `path="/api/v1/health"`)
-		// Verify in-flight gauge
-		assert.Contains(t, metrics, "compozy_http_requests_in_flight")
+		// Wait for metrics to be recorded
+		assert.Eventually(t, func() bool {
+			metrics, err := env.GetMetrics()
+			if err != nil {
+				return false
+			}
+			// Check all required metrics are present
+			return strings.Contains(metrics, "compozy_http_requests_total") &&
+				strings.Contains(metrics, `http_route="/api/v1/health",http_status_code="200"`) &&
+				strings.Contains(metrics, `http_route="/api/v1/users/:id",http_status_code="200"`) &&
+				strings.Contains(metrics, `http_route="/",http_status_code="200"`) &&
+				strings.Contains(metrics, "compozy_http_request_duration_seconds_bucket") &&
+				strings.Contains(metrics, "compozy_http_requests_in_flight")
+		}, 2*time.Second, 50*time.Millisecond, "Expected metrics should be recorded")
 	})
 	t.Run("Should record metrics for error responses", func(t *testing.T) {
 		env := SetupTestEnvironment(t)
@@ -69,16 +67,18 @@ func TestHTTPMetricsIntegration(t *testing.T) {
 			require.Equal(t, req.status, resp.StatusCode)
 			resp.Body.Close()
 		}
-		// Give metrics time to be recorded
-		time.Sleep(100 * time.Millisecond)
-		// Get metrics
-		metrics, err := env.GetMetrics()
-		require.NoError(t, err)
-		// Verify error metrics
-		assert.Contains(t, metrics, `path="/api/v1/error",status_code="500"`)
-		assert.Contains(t, metrics, `path="/api/v1/not-found",status_code="404"`)
-		assert.Contains(t, metrics, `method="POST"`)
-		assert.Contains(t, metrics, `status_code="404"`)
+		// Wait for error metrics to be recorded
+		assert.Eventually(t, func() bool {
+			metrics, err := env.GetMetrics()
+			if err != nil {
+				return false
+			}
+			// Check all required error metrics are present
+			return strings.Contains(metrics, `http_route="/api/v1/error",http_status_code="500"`) &&
+				strings.Contains(metrics, `http_route="/api/v1/not-found",http_status_code="404"`) &&
+				strings.Contains(metrics, `http_method="POST"`) &&
+				strings.Contains(metrics, `http_status_code="404"`)
+		}, 2*time.Second, 50*time.Millisecond, "Expected error metrics should be recorded")
 	})
 	t.Run("Should use route templates to prevent high cardinality", func(t *testing.T) {
 		env := SetupTestEnvironment(t)
@@ -95,20 +95,20 @@ func TestHTTPMetricsIntegration(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		resp.Body.Close()
-		// Give metrics time to be recorded
-		time.Sleep(100 * time.Millisecond)
-		// Get metrics
-		metrics, err := env.GetMetrics()
-		require.NoError(t, err)
-		// Count occurrences of the path label
-		userPathCount := strings.Count(metrics, `path="/api/v1/users/:id"`)
-		assert.Greater(t, userPathCount, 0, "Should have metrics for user path template")
-		// Should NOT have individual user IDs in metrics
-		assert.NotContains(t, metrics, `path="/api/v1/users/user-0"`)
-		assert.NotContains(t, metrics, `path="/api/v1/users/user-1"`)
-		// Check compound path template
-		assert.Contains(t, metrics, `path="/api/v1/workflows/:workflow_id/executions/:exec_id"`)
-		assert.NotContains(t, metrics, `path="/api/v1/workflows/wf-123/executions/exec-456"`)
+		// Wait for route template metrics to be recorded
+		assert.Eventually(t, func() bool {
+			metrics, err := env.GetMetrics()
+			if err != nil {
+				return false
+			}
+			// Check route template metrics and absence of individual IDs
+			userPathCount := strings.Count(metrics, `http_route="/api/v1/users/:id"`)
+			return userPathCount > 0 &&
+				!strings.Contains(metrics, `http_route="/api/v1/users/user-0"`) &&
+				!strings.Contains(metrics, `http_route="/api/v1/users/user-1"`) &&
+				strings.Contains(metrics, `http_route="/api/v1/workflows/:workflow_id/executions/:exec_id"`) &&
+				!strings.Contains(metrics, `http_route="/api/v1/workflows/wf-123/executions/exec-456"`)
+		}, 2*time.Second, 50*time.Millisecond, "Expected route template metrics should be recorded")
 	})
 	t.Run("Should track concurrent in-flight requests", func(t *testing.T) {
 		env := SetupTestEnvironment(t)
@@ -134,40 +134,41 @@ func TestHTTPMetricsIntegration(t *testing.T) {
 		// Check metrics while requests are in flight
 		metrics, err := env.GetMetrics()
 		require.NoError(t, err)
-		// Extract in-flight value
-		lines := strings.Split(metrics, "\n")
-		foundInFlight := false
-		for _, line := range lines {
-			if strings.HasPrefix(line, "compozy_http_requests_in_flight{") {
-				foundInFlight = true
-				// The value comes after the labels
-				parts := strings.Split(line, "} ")
-				if len(parts) >= 2 {
-					value := strings.TrimSpace(parts[1])
-					// Should have some requests in flight
-					assert.NotEqual(t, "0", value, "Should have requests in flight during concurrent requests")
-				}
+		// Parse metrics and check in-flight value
+		metricFamilies := parseMetrics(t, metrics)
+		inFlightMetric := metricFamilies["compozy_http_requests_in_flight"]
+		require.NotNil(t, inFlightMetric, "Should have found in-flight metric")
+		// Should have some requests in flight
+		foundNonZero := false
+		for _, metric := range inFlightMetric.Metric {
+			if metric.GetGauge().GetValue() > 0 {
+				foundNonZero = true
+				break
 			}
 		}
-		assert.True(t, foundInFlight, "Should have found in-flight metric")
+		assert.True(t, foundNonZero, "Should have requests in flight during concurrent requests")
 		// Wait for all requests to complete
 		for i := 0; i < 5; i++ {
 			<-done
 		}
-		// Give metrics time to update
-		time.Sleep(100 * time.Millisecond)
-		// Check metrics after requests complete
-		metrics, err = env.GetMetrics()
-		require.NoError(t, err)
-		// In-flight should be back to 0
-		lines = strings.Split(metrics, "\n")
-		for _, line := range lines {
-			if strings.HasPrefix(line, "compozy_http_requests_in_flight ") {
-				parts := strings.Fields(line)
-				if len(parts) >= 2 {
-					assert.Equal(t, "0", parts[1], "Should have no requests in flight")
+		// Wait for in-flight count to return to 0
+		assert.Eventually(t, func() bool {
+			metrics, err := env.GetMetrics()
+			if err != nil {
+				return false
+			}
+			metricFamilies := parseMetrics(t, metrics)
+			inFlightMetric := metricFamilies["compozy_http_requests_in_flight"]
+			if inFlightMetric == nil {
+				return true // No metric means 0 in-flight
+			}
+			// Check all metrics to ensure they're all 0
+			for _, metric := range inFlightMetric.Metric {
+				if metric.GetGauge().GetValue() != 0 {
+					return false
 				}
 			}
-		}
+			return true
+		}, 2*time.Second, 50*time.Millisecond, "In-flight requests should return to 0")
 	})
 }

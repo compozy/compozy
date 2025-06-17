@@ -98,6 +98,38 @@ workflows:
 		assert.True(t, cfg.MonitoringConfig.Enabled) // Env var overrides YAML
 		assert.Equal(t, "/metrics", cfg.MonitoringConfig.Path)
 	})
+	t.Run("Should give precedence to MONITORING_PATH environment variable", func(t *testing.T) {
+		// Set environment variables
+		t.Setenv("MONITORING_ENABLED", "true")
+		t.Setenv("MONITORING_PATH", "/env/metrics")
+		// Create temporary directory and config file
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, "compozy.yaml")
+		configContent := `
+name: test-project
+version: 0.1.0
+monitoring:
+  enabled: false
+  path: /yaml/metrics
+workflows:
+  - source: ./workflow.yaml
+`
+		err := os.WriteFile(configPath, []byte(configContent), 0644)
+		require.NoError(t, err)
+		// Create dummy workflow file
+		workflowPath := filepath.Join(tmpDir, "workflow.yaml")
+		err = os.WriteFile(workflowPath, []byte("name: test-workflow\nversion: 0.1.0"), 0644)
+		require.NoError(t, err)
+		// Load project
+		cwd, err := core.CWDFromPath(tmpDir)
+		require.NoError(t, err)
+		cfg, err := Load(cwd, configPath, "")
+		require.NoError(t, err)
+		// Verify environment variables took precedence
+		assert.NotNil(t, cfg.MonitoringConfig)
+		assert.True(t, cfg.MonitoringConfig.Enabled)               // MONITORING_ENABLED env var overrides YAML
+		assert.Equal(t, "/env/metrics", cfg.MonitoringConfig.Path) // MONITORING_PATH env var overrides YAML
+	})
 }
 
 func TestConfig_Validate_Monitoring(t *testing.T) {

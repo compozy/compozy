@@ -1,14 +1,13 @@
 package middleware
 
 import (
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	semconv "go.opentelemetry.io/otel/semconv/v1.22.0"
 )
 
 var (
@@ -53,8 +52,9 @@ func initMetrics(meter metric.Meter) {
 	})
 }
 
-// ResetMetricsForTesting resets the metrics initialization state for testing
-// This should only be used in tests to ensure clean state between test runs
+// ResetMetricsForTesting resets the metrics initialization state for testing.
+// This function should only be used in tests to ensure clean state between test runs.
+// While it's exported and available in all builds, it should not be called in production code.
 func ResetMetricsForTesting() {
 	initMutex.Lock()
 	defer initMutex.Unlock()
@@ -104,9 +104,9 @@ func recordMetrics(c *gin.Context, start time.Time) {
 	}
 
 	attrs := metric.WithAttributes(
-		attribute.String("method", c.Request.Method),
-		attribute.String("path", path),
-		attribute.String("status_code", strconv.Itoa(c.Writer.Status())),
+		semconv.HTTPMethodKey.String(c.Request.Method),
+		semconv.HTTPRouteKey.String(path),
+		semconv.HTTPStatusCodeKey.Int(c.Writer.Status()),
 	)
 
 	if httpRequestsTotal != nil {

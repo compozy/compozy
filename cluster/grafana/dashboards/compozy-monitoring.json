@@ -597,14 +597,14 @@
             "targets": [
                 {
                     "datasource": "Prometheus",
-                    "expr": "histogram_quantile(0.95, rate(compozy_temporal_workflow_task_duration_seconds_bucket[5m]))",
+                    "expr": "histogram_quantile(0.95, rate(compozy_temporal_workflow_duration_seconds_bucket[5m]))",
                     "interval": "",
                     "legendFormat": "95th percentile - {{workflow_type}}",
                     "refId": "A"
                 },
                 {
                     "datasource": "Prometheus",
-                    "expr": "histogram_quantile(0.50, rate(compozy_temporal_workflow_task_duration_seconds_bucket[5m]))",
+                    "expr": "histogram_quantile(0.50, rate(compozy_temporal_workflow_duration_seconds_bucket[5m]))",
                     "interval": "",
                     "legendFormat": "50th percentile - {{workflow_type}}",
                     "refId": "B"

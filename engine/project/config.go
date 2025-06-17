@@ -184,7 +184,10 @@ func Load(cwd *core.PathCWD, path string, envFilePath string) (*Config, error) {
 		config.AutoLoad.SetDefaults()
 	}
 	// Load monitoring config with environment variable precedence
-	config.MonitoringConfig = monitoring.LoadWithEnv(config.MonitoringConfig)
+	config.MonitoringConfig, err = monitoring.LoadWithEnv(config.MonitoringConfig)
+	if err != nil {
+		return nil, err
+	}
 	env, err := config.loadEnv(envFilePath)
 	if err != nil {
 		return nil, err

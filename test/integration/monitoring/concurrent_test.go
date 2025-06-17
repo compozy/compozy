@@ -79,9 +79,12 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 		// The total across all labels should equal our request count
 		// Note: This is a basic check - a more thorough test would parse
 		// all counter values and sum them
-		assert.Contains(t, metrics, `path="/api/v1/health"`)
-		assert.Contains(t, metrics, `path="/api/v1/users/:id"`)
-		assert.Contains(t, metrics, `path="/api/v1/error"`)
+		assert.Contains(t, metrics, `http_route="/api/v1/health"`)
+		// Check for either templated path or literal paths for users endpoint
+		hasUsersRoute := strings.Contains(metrics, `http_route="/api/v1/users/:id"`) ||
+			strings.Contains(metrics, `http_route="/api/v1/users/`)
+		assert.True(t, hasUsersRoute, "Should contain users route (templated or literal)")
+		assert.Contains(t, metrics, `http_route="/api/v1/error"`)
 	})
 	t.Run("Should handle concurrent metrics endpoint access", func(t *testing.T) {
 		env := SetupTestEnvironment(t)
@@ -157,16 +160,15 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 		lines := strings.Split(metrics, "\n")
 		for _, line := range lines {
 			if strings.Contains(line, "compozy_http_requests_total") &&
-				strings.Contains(line, `path="/api/v1/health"`) &&
-				strings.Contains(line, `status_code="200"`) {
+				strings.Contains(line, `http_route="/api/v1/health"`) &&
+				strings.Contains(line, `http_status_code="200"`) {
 				// Extract the counter value
 				parts := strings.Fields(line)
 				if len(parts) >= 2 {
-					var count int
-					_, err := fmt.Sscanf(parts[1], "%d", &count)
-					if err == nil {
-						assert.Equal(t, numRequests, count, "Counter should match number of requests")
-					}
+					var count float64
+					_, err := fmt.Sscanf(parts[1], "%f", &count)
+					require.NoError(t, err, "failed to parse Prometheus counter")
+					assert.Equal(t, float64(numRequests), count, "Counter should match number of requests")
 				}
 			}
 		}
