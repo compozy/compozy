@@ -17,6 +17,7 @@ bin
 *.so
 *.dylib
 schemas/
+sessions/
 
 # Test binary, built with `go test -c`
 *.test

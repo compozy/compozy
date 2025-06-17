@@ -72,7 +72,7 @@ make fmt && make lint && make test
 1. **API changes:** Update Swagger annotations (`swag` comments)
 2. **Schema changes:** Create migrations with `make migrate-create name=<name>`
 3. **New features:** Include comprehensive tests following [testing-standards.mdc](mdc:.cursor/rules/testing-standards.mdc)
-4. **Task completion:** Follow [task-completion.mdc](mdc:.cursor/rules/task-completion.mdc) for mandatory code review workflow via Zen MCP tools
+4. **Task completion:** Follow [task-review.mdc](mdc:.cursor/rules/task-review.mdc) for mandatory code review workflow via Zen MCP tools
 5. **Backwards Compatibility:** See [backwards-compatibility.mdc](mdc:.cursor/rules/backwards-compatibility.mdc) - NOT REQUIRED during development phase
 
 ### Key Development Notes
@@ -89,7 +89,7 @@ For task-based development workflows, see these rule files:
 - [prd-tech-spec.mdc](mdc:.cursor/rules/prd-tech-spec.mdc) - Technical Specifications
 - [task-generate-list.mdc](mdc:.cursor/rules/task-generate-list.mdc) - Task List Generation
 - [task-developing.mdc](mdc:.cursor/rules/task-developing.mdc) - Task Development
-- [task-completion.mdc](mdc:.cursor/rules/task-completion.mdc) - Task Completion with Zen MCP code review
+- [task-review.mdc](mdc:.cursor/rules/task-review.mdc) - Task Completion with Zen MCP code review
 
 ## Rule Management
 

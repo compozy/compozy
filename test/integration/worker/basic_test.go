@@ -358,7 +358,7 @@ func (s *BasicTaskTestSuite) testRedisOperations(fixture *helpers.TestFixture) {
 }
 
 // testErrorStateVerification tests error handling verification methods
-func (s *BasicTaskTestSuite) testErrorStateVerification(fixture *helpers.TestFixture) {
+func (s *BasicTaskTestSuite) testErrorStateVerification(_ *helpers.TestFixture) {
 	s.T().Log("Testing error state verification methods")
 
 	// Create mock failed task state

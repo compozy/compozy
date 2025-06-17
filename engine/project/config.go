@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/cache"
+	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/schema"
 )
 
@@ -25,17 +26,18 @@ type Opts struct {
 }
 
 type Config struct {
-	Name        string                  `json:"name"               yaml:"name"               mapstructure:"name"`
-	Version     string                  `json:"version"            yaml:"version"            mapstructure:"version"`
-	Description string                  `json:"description"        yaml:"description"        mapstructure:"description"`
-	Author      core.Author             `json:"author"             yaml:"author"             mapstructure:"author"`
-	Workflows   []*WorkflowSourceConfig `json:"workflows"          yaml:"workflows"          mapstructure:"workflows"`
-	Models      []*core.ProviderConfig  `json:"models"             yaml:"models"             mapstructure:"models"`
-	Schemas     []schema.Schema         `json:"schemas"            yaml:"schemas"            mapstructure:"schemas"`
-	Opts        Opts                    `json:"config"             yaml:"config"             mapstructure:"config"`
-	Runtime     RuntimeConfig           `json:"runtime"            yaml:"runtime"            mapstructure:"runtime"`
-	CacheConfig *cache.Config           `json:"cache,omitempty"    yaml:"cache,omitempty"    mapstructure:"cache"`
-	AutoLoad    *autoload.Config        `json:"autoload,omitempty" yaml:"autoload,omitempty" mapstructure:"autoload,omitempty"`
+	Name             string                  `json:"name"                 yaml:"name"                 mapstructure:"name"`
+	Version          string                  `json:"version"              yaml:"version"              mapstructure:"version"`
+	Description      string                  `json:"description"          yaml:"description"          mapstructure:"description"`
+	Author           core.Author             `json:"author"               yaml:"author"               mapstructure:"author"`
+	Workflows        []*WorkflowSourceConfig `json:"workflows"            yaml:"workflows"            mapstructure:"workflows"`
+	Models           []*core.ProviderConfig  `json:"models"               yaml:"models"               mapstructure:"models"`
+	Schemas          []schema.Schema         `json:"schemas"              yaml:"schemas"              mapstructure:"schemas"`
+	Opts             Opts                    `json:"config"               yaml:"config"               mapstructure:"config"`
+	Runtime          RuntimeConfig           `json:"runtime"              yaml:"runtime"              mapstructure:"runtime"`
+	CacheConfig      *cache.Config           `json:"cache,omitempty"      yaml:"cache,omitempty"      mapstructure:"cache"`
+	AutoLoad         *autoload.Config        `json:"autoload,omitempty"   yaml:"autoload,omitempty"   mapstructure:"autoload,omitempty"`
+	MonitoringConfig *monitoring.Config      `json:"monitoring,omitempty" yaml:"monitoring,omitempty" mapstructure:"monitoring"`
 
 	filePath           string
 	CWD                *core.PathCWD `json:"CWD,omitempty" yaml:"CWD,omitempty" mapstructure:"CWD,omitempty"`
@@ -80,14 +82,18 @@ func (p *Config) Validate() error {
 	if err := validator.Validate(); err != nil {
 		return err
 	}
-
 	// Validate cache configuration if present
 	if p.CacheConfig != nil {
 		if err := p.CacheConfig.Validate(); err != nil {
 			return fmt.Errorf("cache configuration validation failed: %w", err)
 		}
 	}
-
+	// Validate monitoring configuration if present
+	if p.MonitoringConfig != nil {
+		if err := p.MonitoringConfig.Validate(); err != nil {
+			return fmt.Errorf("monitoring configuration validation failed: %w", err)
+		}
+	}
 	// Validate autoload configuration if present (with caching)
 	if p.AutoLoad != nil {
 		if !p.autoloadValidated {
@@ -176,6 +182,11 @@ func Load(cwd *core.PathCWD, path string, envFilePath string) (*Config, error) {
 	// Set autoload defaults if autoload config exists
 	if config.AutoLoad != nil {
 		config.AutoLoad.SetDefaults()
+	}
+	// Load monitoring config with environment variable precedence
+	config.MonitoringConfig, err = monitoring.LoadWithEnv(config.MonitoringConfig)
+	if err != nil {
+		return nil, err
 	}
 	env, err := config.loadEnv(envFilePath)
 	if err != nil {

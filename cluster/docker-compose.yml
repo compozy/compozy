@@ -127,10 +127,12 @@ services:
       - TEMPORAL_HOST=${TEMPORAL_HOST:-temporal}:${TEMPORAL_PORT:-7233}
       - TEMPORAL_CLI_HOST=${TEMPORAL_HOST:-temporal}:${TEMPORAL_PORT:-7233}
       - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+      - PROMETHEUS_ENDPOINT=0.0.0.0:8000
     networks:
       - temporal-network
     ports:
       - "${TEMPORAL_PORT:-7233}:7233" # Temporal gRPC endpoint
+      - "${TEMPORAL_METRICS_PORT:-8000}:8000" # Temporal Prometheus metrics
     volumes:
       - ./temporal-dev.yaml:/etc/temporal/config/dynamicconfig/development-sql.yaml
     healthcheck:
@@ -197,6 +199,57 @@ services:
       retries: 3
       start_period: 10s
 
+  # Prometheus for metrics collection
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:v2.52.0
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.enable-lifecycle'
+    networks:
+      - temporal-network
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Grafana for metrics visualization
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:10.4.3
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - temporal-network
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
 networks:
   temporal-network:
     driver: bridge
@@ -210,4 +263,8 @@ volumes:
   app_postgres_data:
     driver: local
   test_postgres_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
     driver: local

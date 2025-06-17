@@ -24,6 +24,9 @@
 //	@tag.name			tools
 //	@tag.description	Tool management operations
 
+//	@tag.name			Operations
+//	@tag.description	Operational endpoints for monitoring and health
+
 package main
 
 import (
