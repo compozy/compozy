@@ -92,15 +92,15 @@ func (cm *ConfigManager) PrepareParallelConfigs(
 
 	// Validate child configs
 	for i := range taskConfig.Tasks {
-		taskConfig := &taskConfig.Tasks[i]
-		if taskConfig.ID == "" {
+		child := &taskConfig.Tasks[i]
+		if child.ID == "" {
 			return fmt.Errorf("child config at index %d missing required ID field", i)
 		}
-		if taskConfig.CWD == nil {
-			taskConfig.CWD = cm.cwd
+		if child.CWD == nil {
+			child.CWD = cm.cwd
 		}
 		// Perform full validation on each child config
-		if err := taskConfig.Validate(); err != nil {
+		if err := child.Validate(); err != nil {
 			return fmt.Errorf("invalid child config at index %d: %w", i, err)
 		}
 	}
@@ -133,7 +133,7 @@ func (cm *ConfigManager) PrepareCollectionConfigs(
 	workflowState *workflow.State,
 ) (*CollectionMetadata, error) {
 	// Validate inputs
-	if err := cm.validateCollectionInputs(parentStateID, taskConfig, workflowState); err != nil {
+	if err := cm.validateCollectionInputs(ctx, parentStateID, taskConfig, workflowState); err != nil {
 		return nil, err
 	}
 
@@ -362,6 +362,7 @@ func (cm *ConfigManager) DeleteTaskConfig(ctx context.Context, taskExecID core.I
 
 // validateCollectionInputs validates inputs for PrepareCollectionConfigs
 func (cm *ConfigManager) validateCollectionInputs(
+	_ context.Context,
 	parentStateID core.ID,
 	taskConfig *task.Config,
 	workflowState *workflow.State,

@@ -14,6 +14,7 @@ import (
 
 	"github.com/compozy/compozy/pkg/logger"
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
+	"github.com/sethvargo/go-retry"
 )
 
 // Definition represents the structure for registering an MCP with the proxy
@@ -36,7 +37,7 @@ type Client struct {
 
 // RetryConfig configures retry behavior for proxy operations
 type RetryConfig struct {
-	MaxAttempts int
+	MaxAttempts uint64
 	BaseDelay   time.Duration
 	MaxDelay    time.Duration
 }
@@ -400,34 +401,21 @@ func (c *Client) Close() error {
 
 // withRetry executes the provided function with exponential backoff retry logic
 func (c *Client) withRetry(ctx context.Context, operation string, fn func() error) error {
-	var lastErr error
-	for attempt := 1; attempt <= c.retryConf.MaxAttempts; attempt++ {
-		err := fn()
-		if err == nil {
+	return retry.Do(
+		ctx,
+		retry.WithMaxRetries(c.retryConf.MaxAttempts, retry.NewExponential(c.retryConf.BaseDelay)),
+		func(_ context.Context) error {
+			err := fn()
+			if err != nil {
+				if !isRetryableError(err) {
+					return err
+				}
+				logger.Warn("Proxy operation failed, retrying", "operation", operation, "error", err)
+				return retry.RetryableError(err)
+			}
 			return nil
-		}
-		lastErr = err
-		// Don't retry on the last attempt or for certain errors
-		if attempt == c.retryConf.MaxAttempts || !isRetryableError(err) {
-			break
-		}
-		// Calculate exponential backoff delay
-		delay := minDuration(time.Duration(attempt-1)*c.retryConf.BaseDelay, c.retryConf.MaxDelay)
-		logger.Warn("Proxy operation failed, retrying",
-			"operation", operation,
-			"attempt", attempt,
-			"max_attempts", c.retryConf.MaxAttempts,
-			"delay", delay,
-			"error", err)
-
-		select {
-		case <-time.After(delay):
-			// Continue with retry
-		case <-ctx.Done():
-			return fmt.Errorf("operation canceled during retry: %w", ctx.Err())
-		}
-	}
-	return fmt.Errorf("operation failed after %d attempts: %w", c.retryConf.MaxAttempts, lastErr)
+		},
+	)
 }
 
 // isRetryableError determines if an error is worth retrying
@@ -454,11 +442,4 @@ func isRetryableError(err error) bool {
 
 	// Don't retry client errors (4xx) or authentication issues
 	return false
-}
-
-func minDuration(a, b time.Duration) time.Duration {
-	if a < b {
-		return a
-	}
-	return b
 }

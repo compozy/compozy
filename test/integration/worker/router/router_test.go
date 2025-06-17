@@ -2,80 +2,107 @@ package router
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/test/integration/worker/helpers"
+	"github.com/stretchr/testify/require"
 )
 
-func TestRouterTasks(t *testing.T) {
-	basePath, err := filepath.Abs(".")
-	require.NoError(t, err)
-	fixtureLoader := helpers.NewFixtureLoader(basePath)
-
-	testCases := []struct {
-		name        string
-		fixtureName string
-		verifiers   []func(t *testing.T, fixture *helpers.TestFixture, result *workflow.State)
-	}{
-		{
-			name:        "Should execute simple conditional routing",
-			fixtureName: "simple_condition",
-			verifiers: []func(t *testing.T, fixture *helpers.TestFixture, result *workflow.State){
-				verifyRouterTaskSucceeded,
-				verifyConditionalRouting,
-			},
-		},
-		{
-			name:        "Should handle multiple routes",
-			fixtureName: "multiple_routes",
-			verifiers: []func(t *testing.T, fixture *helpers.TestFixture, result *workflow.State){
-				verifyRouterTaskSucceeded,
-				verifyConditionalRouting,
-			},
-		},
-		{
-			name:        "Should handle staging route selection",
-			fixtureName: "staging_route",
-			verifiers: []func(t *testing.T, fixture *helpers.TestFixture, result *workflow.State){
-				verifyRouterTaskSucceeded,
-				verifyConditionalRouting,
-			},
-		},
-		{
-			name:        "Should handle complex routing conditions",
-			fixtureName: "complex_condition",
-			verifiers: []func(t *testing.T, fixture *helpers.TestFixture, result *workflow.State){
-				verifyRouterTaskSucceeded,
-				verifyConditionalRouting,
-			},
-		},
-		{
-			name:        "Should handle dynamic user-based routing",
-			fixtureName: "dynamic_routing",
-			verifiers: []func(t *testing.T, fixture *helpers.TestFixture, result *workflow.State){
-				verifyRouterTaskSucceeded,
-				verifyConditionalRouting,
-			},
-		},
+func getTestDir() string {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("failed to get caller info")
 	}
+	return filepath.Dir(filename)
+}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			dbHelper := helpers.NewDatabaseHelper(t)
-			defer dbHelper.Cleanup(t)
+func TestRouterTasks_SimpleCondition(t *testing.T) {
+	t.Run("Should execute simple conditional routing", func(t *testing.T) {
+		t.Parallel()
+		basePath := getTestDir()
+		fixtureLoader := helpers.NewFixtureLoader(basePath)
+		dbHelper := helpers.NewDatabaseHelper(t)
+		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
-			fixture := fixtureLoader.LoadFixture(t, "", tc.fixtureName)
+		fixture := fixtureLoader.LoadFixture(t, "", "simple_condition")
+		result := executeWorkflowAndGetState(t, fixture, dbHelper)
+		require.NotNil(t, result, "Should have workflow result")
 
-			result := executeWorkflowAndGetState(t, fixture, dbHelper)
-			require.NotNil(t, result, "Should have workflow result")
+		verifyRouterTaskSucceeded(t, fixture, result)
+		verifyConditionalRouting(t, fixture, result)
+		fixture.AssertWorkflowState(t, result)
+	})
+}
 
-			for _, verify := range tc.verifiers {
-				verify(t, fixture, result)
-			}
-			fixture.AssertWorkflowState(t, result)
-		})
-	}
+func TestRouterTasks_MultipleRoutes(t *testing.T) {
+	t.Run("Should handle multiple routes", func(t *testing.T) {
+		t.Parallel()
+		basePath := getTestDir()
+		fixtureLoader := helpers.NewFixtureLoader(basePath)
+		dbHelper := helpers.NewDatabaseHelper(t)
+		t.Cleanup(func() { dbHelper.Cleanup(t) })
+
+		fixture := fixtureLoader.LoadFixture(t, "", "multiple_routes")
+		result := executeWorkflowAndGetState(t, fixture, dbHelper)
+		require.NotNil(t, result, "Should have workflow result")
+
+		verifyRouterTaskSucceeded(t, fixture, result)
+		verifyConditionalRouting(t, fixture, result)
+		fixture.AssertWorkflowState(t, result)
+	})
+}
+
+func TestRouterTasks_StagingRoute(t *testing.T) {
+	t.Run("Should handle staging route selection", func(t *testing.T) {
+		t.Parallel()
+		basePath := getTestDir()
+		fixtureLoader := helpers.NewFixtureLoader(basePath)
+		dbHelper := helpers.NewDatabaseHelper(t)
+		t.Cleanup(func() { dbHelper.Cleanup(t) })
+
+		fixture := fixtureLoader.LoadFixture(t, "", "staging_route")
+		result := executeWorkflowAndGetState(t, fixture, dbHelper)
+		require.NotNil(t, result, "Should have workflow result")
+
+		verifyRouterTaskSucceeded(t, fixture, result)
+		verifyConditionalRouting(t, fixture, result)
+		fixture.AssertWorkflowState(t, result)
+	})
+}
+
+func TestRouterTasks_ComplexCondition(t *testing.T) {
+	t.Run("Should handle complex routing conditions", func(t *testing.T) {
+		t.Parallel()
+		basePath := getTestDir()
+		fixtureLoader := helpers.NewFixtureLoader(basePath)
+		dbHelper := helpers.NewDatabaseHelper(t)
+		t.Cleanup(func() { dbHelper.Cleanup(t) })
+
+		fixture := fixtureLoader.LoadFixture(t, "", "complex_condition")
+		result := executeWorkflowAndGetState(t, fixture, dbHelper)
+		require.NotNil(t, result, "Should have workflow result")
+
+		verifyRouterTaskSucceeded(t, fixture, result)
+		verifyConditionalRouting(t, fixture, result)
+		fixture.AssertWorkflowState(t, result)
+	})
+}
+
+func TestRouterTasks_DynamicRouting(t *testing.T) {
+	t.Run("Should handle dynamic user-based routing", func(t *testing.T) {
+		t.Parallel()
+		basePath := getTestDir()
+		fixtureLoader := helpers.NewFixtureLoader(basePath)
+		dbHelper := helpers.NewDatabaseHelper(t)
+		t.Cleanup(func() { dbHelper.Cleanup(t) })
+
+		fixture := fixtureLoader.LoadFixture(t, "", "dynamic_routing")
+		result := executeWorkflowAndGetState(t, fixture, dbHelper)
+		require.NotNil(t, result, "Should have workflow result")
+
+		verifyRouterTaskSucceeded(t, fixture, result)
+		verifyConditionalRouting(t, fixture, result)
+		fixture.AssertWorkflowState(t, result)
+	})
 }

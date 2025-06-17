@@ -9,7 +9,7 @@ workflow:
       mode: parallel
       items: "{{ .workflow.input.test_items }}"
       task:
-        id: "process-item-{{ .index }}"
+        id: "process-items-parallel-item-{{ .index }}"
         type: basic
         action: process_parallel_item
         with:

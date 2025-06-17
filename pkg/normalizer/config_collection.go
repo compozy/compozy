@@ -2,9 +2,7 @@ package normalizer
 
 import (
 	"fmt"
-	"maps"
 
-	"dario.cat/mergo"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 )
@@ -51,7 +49,7 @@ func (ccb *CollectionConfigBuilder) createConfigsFromTaskTemplate(
 			item,
 			i,
 		)
-		childConfigPtr, err := deepCopyConfig(taskConfig.Task)
+		childConfigPtr, err := taskConfig.Task.Clone()
 		if err != nil {
 			return nil, fmt.Errorf("failed to deep copy task config for item %d: %w", i, err)
 		}
@@ -105,7 +103,7 @@ func (ccb *CollectionConfigBuilder) createConfigsFromTasksArray(
 			i,
 		)
 		for j := range taskConfig.Tasks {
-			childConfigPtr, err := deepCopyConfig(&taskConfig.Tasks[j])
+			childConfigPtr, err := taskConfig.Tasks[j].Clone()
 			if err != nil {
 				return nil, fmt.Errorf("failed to deep copy task config for item %d, task %d: %w", i, j, err)
 			}
@@ -134,55 +132,4 @@ func (ccb *CollectionConfigBuilder) createConfigsFromTasksArray(
 		}
 	}
 	return childConfigs, nil
-}
-
-// deepCopyConfig creates a deep copy of a task.Config using mergo to ensure isolation between iterations
-func deepCopyConfig(original *task.Config) (*task.Config, error) {
-	copied := task.Config{}
-	if err := mergo.Merge(&copied, original, mergo.WithOverride); err != nil {
-		return nil, fmt.Errorf("failed to deep copy config: %w", err)
-	}
-	// Manually deep copy map pointers to ensure true isolation
-	if original.With != nil {
-		withCopy := core.Input(make(map[string]any))
-		maps.Copy(withCopy, *original.With)
-		copied.With = &withCopy
-	}
-	if original.Env != nil {
-		envCopy := core.EnvMap(make(map[string]string))
-		maps.Copy(envCopy, *original.Env)
-		copied.Env = &envCopy
-	}
-	if original.Outputs != nil {
-		outputsCopy := core.Input(make(map[string]any))
-		maps.Copy(outputsCopy, *original.Outputs)
-		copied.Outputs = &outputsCopy
-	}
-	// Copy CWD to ensure child configs have the working directory set
-	if original.CWD != nil {
-		copied.CWD = original.CWD
-	}
-	// Copy FilePath as well
-	copied.FilePath = original.FilePath
-	// --- recursively copy nested task(s) ----------------------------------
-	if original.Task != nil {
-		taskCopy, err := deepCopyConfig(original.Task)
-		if err != nil {
-			return nil, err
-		}
-		copied.Task = taskCopy
-	}
-
-	if len(original.Tasks) > 0 {
-		copied.Tasks = make([]task.Config, len(original.Tasks))
-		for i := range original.Tasks {
-			tk, err := deepCopyConfig(&original.Tasks[i])
-			if err != nil {
-				return nil, err
-			}
-			copied.Tasks[i] = *tk
-		}
-	}
-
-	return &copied, nil
 }

@@ -210,7 +210,8 @@ func TestConfig_Clone(t *testing.T) {
 			MaxSessions:  10,
 		}
 
-		clone := original.Clone()
+		clone, err := original.Clone()
+		assert.NoError(t, err)
 
 		// Verify all fields are copied
 		assert.Equal(t, original.ID, clone.ID)

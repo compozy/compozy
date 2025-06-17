@@ -211,9 +211,10 @@ func TestHandleResponse_UpdateParentStatusIfNeeded(t *testing.T) {
 
 // mockTaskRepo is a simple mock implementation for testing
 type mockTaskRepo struct {
-	getStateFunc        func(ctx context.Context, taskExecID core.ID) (*task.State, error)
-	upsertStateFunc     func(ctx context.Context, state *task.State) error
-	getProgressInfoFunc func(ctx context.Context, parentStateID core.ID) (*task.ProgressInfo, error)
+	getStateFunc         func(ctx context.Context, taskExecID core.ID) (*task.State, error)
+	upsertStateFunc      func(ctx context.Context, state *task.State) error
+	getProgressInfoFunc  func(ctx context.Context, parentStateID core.ID) (*task.ProgressInfo, error)
+	getChildByTaskIDFunc func(ctx context.Context, parentStateID core.ID, taskID string) (*task.State, error)
 }
 
 func (m *mockTaskRepo) ListStates(_ context.Context, _ *task.StateFilter) ([]*task.State, error) {
@@ -303,7 +304,14 @@ func (m *mockTaskRepo) GetProgressInfo(ctx context.Context, parentStateID core.I
 	return nil, nil
 }
 
-func (m *mockTaskRepo) GetChildByTaskID(_ context.Context, _ core.ID, _ string) (*task.State, error) {
+func (m *mockTaskRepo) GetChildByTaskID(
+	ctx context.Context,
+	parentStateID core.ID,
+	taskID string,
+) (*task.State, error) {
+	if m.getChildByTaskIDFunc != nil {
+		return m.getChildByTaskIDFunc(ctx, parentStateID, taskID)
+	}
 	return nil, nil
 }
 

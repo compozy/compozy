@@ -801,8 +801,7 @@ func (e *TaskExecutor) HandleCompositeTask(
 			jIdx := findTaskIndex(config.Tasks, childStates[j].TaskID)
 			return iIdx < jIdx
 		})
-		// Execute subtasks sequentially
-		strategy := config.GetStrategy()
+		// Execute subtasks sequentially (composite tasks are always sequential)
 		for i, childState := range childStates {
 			childConfig := childCfgs[childState.TaskID]
 			// Execute child task
@@ -814,11 +813,8 @@ func (e *TaskExecutor) HandleCompositeTask(
 					"index", i,
 					"depth", currentDepth+1,
 					"error", err)
-				if strategy == task.StrategyFailFast {
-					return nil, fmt.Errorf("child task %s failed: %w", childState.TaskID, err)
-				}
-				// Best effort: continue to next task
-				continue
+				// Composite tasks always fail immediately on any child failure
+				return nil, fmt.Errorf("child task %s failed: %w", childState.TaskID, err)
 			}
 			logger.Info("Child task completed",
 				"composite_task", config.ID,

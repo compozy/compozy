@@ -36,9 +36,7 @@ func TestCollectionConfigBuilder_CreateChildConfigs(t *testing.T) {
 				ItemVar:  "item",
 				IndexVar: "index",
 			},
-			ParallelTask: task.ParallelTask{
-				Task: templateConfig,
-			},
+			Task: templateConfig,
 		}
 
 		filteredItems := []any{
@@ -76,23 +74,21 @@ func TestCollectionConfigBuilder_CreateChildConfigs(t *testing.T) {
 				ItemVar:  "item",
 				IndexVar: "index",
 			},
-			ParallelTask: task.ParallelTask{
-				Tasks: []task.Config{
-					{
-						BaseConfig: task.BaseConfig{
-							ID: "task1",
-						},
-						BasicTask: task.BasicTask{
-							Action: "step1-{{ .item }}",
-						},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID: "task1",
 					},
-					{
-						BaseConfig: task.BaseConfig{
-							ID: "task2",
-						},
-						BasicTask: task.BasicTask{
-							Action: "step2-{{ .item }}",
-						},
+					BasicTask: task.BasicTask{
+						Action: "step1-{{ .item }}",
+					},
+				},
+				{
+					BaseConfig: task.BaseConfig{
+						ID: "task2",
+					},
+					BasicTask: task.BasicTask{
+						Action: "step2-{{ .item }}",
 					},
 				},
 			},
@@ -154,10 +150,10 @@ func TestCollectionConfigBuilder_DeepCopyConfig(t *testing.T) {
 			},
 		}
 
-		copy1, err := deepCopyConfig(original)
+		copy1, err := original.Clone()
 		require.NoError(t, err)
 
-		copy2, err := deepCopyConfig(original)
+		copy2, err := original.Clone()
 		require.NoError(t, err)
 
 		// Modify the copies
@@ -199,7 +195,7 @@ func TestCollectionConfigBuilder_DeepCopyConfig(t *testing.T) {
 			},
 		}
 
-		copied, err := deepCopyConfig(original)
+		copied, err := original.Clone()
 		require.NoError(t, err)
 
 		assert.Equal(t, "original", copied.ID)
@@ -241,9 +237,7 @@ func TestCollectionConfigBuilder_Integration(t *testing.T) {
 				ItemVar:  "item",
 				IndexVar: "index",
 			},
-			ParallelTask: task.ParallelTask{
-				Task: templateConfig,
-			},
+			Task: templateConfig,
 		}
 
 		filteredItems := []any{

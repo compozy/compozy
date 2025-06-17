@@ -480,14 +480,21 @@ func (s *TaskResponder) extractParallelStrategy(parentState *task.State, parentS
 	}
 
 	// Try to unmarshal into our typed struct
-	// First convert to JSON, then unmarshal
-	jsonBytes, err := json.Marshal(parallelConfigRaw)
-	if err != nil {
-		logger.Error("Failed to marshal parallel config for extraction",
-			"parent_state_id", parentStateID,
-			"error", err,
-		)
-		return defaultStrategy
+	// Handle both map and JSON string formats
+	var jsonBytes []byte
+	switch v := parallelConfigRaw.(type) {
+	case string:
+		jsonBytes = []byte(v) // already JSON
+	default:
+		var err error
+		jsonBytes, err = json.Marshal(v)
+		if err != nil {
+			logger.Error("Failed to marshal parallel config for extraction",
+				"parent_state_id", parentStateID,
+				"error", err,
+			)
+			return defaultStrategy
+		}
 	}
 
 	var configData ParallelConfigData

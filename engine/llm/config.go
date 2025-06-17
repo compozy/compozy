@@ -15,20 +15,15 @@ type Config struct {
 	// MCP proxy configuration
 	ProxyURL   string
 	AdminToken string
-
 	// Caching configuration
 	CacheTTL time.Duration
-
 	// Timeout configuration
 	Timeout time.Duration
-
 	// Tool execution configuration
 	MaxConcurrentTools int
-
 	// Feature flags
 	EnableStructuredOutput bool
 	EnableToolCaching      bool
-
 	// LLM factory for creating clients
 	LLMFactory llmadapter.Factory
 }

@@ -217,6 +217,18 @@ func (f *TestFixture) AssertTaskStates(t *testing.T, states []*task.State) {
 			assert.Equal(expected.Status, string(state.Status),
 				"Task %s status mismatch", taskID)
 
+			if expected.Parent != "" {
+				if state.ParentStateID != nil {
+					assert.Equal(expected.Parent, string(*state.ParentStateID),
+						"Parent mismatch for task %s", taskID)
+				} else {
+					assert.Empty(expected.Parent, "Expected no parent but fixture specifies parent for task %s", taskID)
+				}
+			}
+
+			// Note: ExecutionOrder is not tracked in the current State struct
+			// Note: ChildrenCount would require a separate repository query to verify
+
 			if expected.Output != nil && state.Output != nil {
 				// Compare outputs
 				for key, expectedValue := range expected.Output {

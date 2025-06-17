@@ -9,7 +9,7 @@ workflow:
       mode: sequential
       items: "{{ .workflow.input.test_items }}"
       task:
-        id: "process-item-{{ .index }}"
+        id: "process-items-sequential-item-{{ .index }}"
         type: basic
         action: process_item
         with:

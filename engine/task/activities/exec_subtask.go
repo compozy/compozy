@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
@@ -14,6 +13,7 @@ import (
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/sethvargo/go-retry"
 )
 
 const ExecuteSubtaskLabel = "ExecuteSubtask"
@@ -121,20 +121,26 @@ func (a *ExecuteSubtask) Run(ctx context.Context, input *ExecuteSubtaskInput) (*
 // normalizeTaskConfig normalizes the task configuration to avoid race conditions
 func (a *ExecuteSubtask) normalizeTaskConfig(
 	ctx context.Context,
-	workflowState *workflow.State,
-	workflowConfig *workflow.Config,
+	wState *workflow.State,
+	wConfig *workflow.Config,
 	taskConfig *task.Config,
 ) error {
 	// Create a copy of workflow config to avoid race conditions when multiple goroutines
 	// concurrently call NormalizeConfig.Execute which mutates the config in-place
-	wcCopy := *workflowConfig
-	wcCopy.Tasks = append([]task.Config(nil), workflowConfig.Tasks...)
-
+	wcCopy, err := wConfig.Clone()
+	if err != nil {
+		return fmt.Errorf("failed to clone workflow config: %w", err)
+	}
+	wcCopy.Tasks = append([]task.Config(nil), wConfig.Tasks...)
+	tcCopy, err := taskConfig.Clone()
+	if err != nil {
+		return fmt.Errorf("failed to clone task config: %w", err)
+	}
 	normalizer := uc.NewNormalizeConfig()
 	normalizeInput := &uc.NormalizeConfigInput{
-		WorkflowState:  workflowState,
-		WorkflowConfig: &wcCopy,
-		TaskConfig:     taskConfig,
+		WorkflowState:  wState,
+		WorkflowConfig: wcCopy,
+		TaskConfig:     tcCopy,
 	}
 	return normalizer.Execute(ctx, normalizeInput)
 }
@@ -145,36 +151,24 @@ func (a *ExecuteSubtask) getChildStateWithRetry(
 	parentStateID core.ID,
 	taskID string,
 ) (*task.State, error) {
-	const maxRetries = 5
-	const baseDelay = 50 * time.Millisecond
-
 	var taskState *task.State
-	var err error
-
-	for i := 0; i < maxRetries; i++ {
-		taskState, err = a.getChildState(ctx, parentStateID, taskID)
-		if err == nil {
-			break // State found, exit loop
-		}
-		// If the error is anything other than Not Found, fail immediately
-		if !errors.Is(err, store.ErrTaskNotFound) {
-			return nil, fmt.Errorf("failed to get child state: %w", err)
-		}
-		// Exponential backoff with jitter: baseDelay * 2^i + random jitter
-		delay := baseDelay * time.Duration(1<<uint(i))
-		//nolint:gosec // Non-cryptographic randomness is fine for jitter
-		jitter := time.Duration(rand.Int63n(int64(delay / 4))) // Up to 25% jitter
-		totalDelay := delay + jitter
-
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(totalDelay):
-			// continue to next retry
-		}
-	}
-
-	// If the state is still not found after all retries, return an error
+	err := retry.Do(
+		ctx,
+		retry.WithMaxRetries(5, retry.NewExponential(50*time.Millisecond)),
+		func(ctx context.Context) error {
+			var err error
+			taskState, err = a.getChildState(ctx, parentStateID, taskID)
+			if err != nil {
+				// If the error is anything other than Not Found, fail immediately (non-retryable)
+				if !errors.Is(err, store.ErrTaskNotFound) {
+					return fmt.Errorf("failed to get child state: %w", err)
+				}
+				// ErrTaskNotFound is retryable
+				return retry.RetryableError(err)
+			}
+			return nil
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("child state for task %s not found after retries: %w", taskID, err)
 	}
@@ -182,7 +176,6 @@ func (a *ExecuteSubtask) getChildStateWithRetry(
 	if taskState == nil {
 		return nil, fmt.Errorf("child state for task %s returned nil without error", taskID)
 	}
-
 	return taskState, nil
 }
 

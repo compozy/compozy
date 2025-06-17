@@ -62,9 +62,9 @@ expected:
     - name: wait-all-parallel-task
       status: SUCCESS
       output:
-        total_tasks: 3.0
+        total_tasks: 3
         all_completed: true
-        total_duration: 350.0
+        total_duration: 350
         strategy: "wait_all"
     - name: wait-all-parallel-task-fast-task
       status: SUCCESS

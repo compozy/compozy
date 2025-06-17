@@ -29,6 +29,7 @@ func verifyRouterTaskSucceeded(t *testing.T, _ *helpers.TestFixture, result *wor
 	t.Log("Verifying router task succeeded from database state")
 
 	// Find all router tasks and verify they all succeeded
+	require.NotNil(t, result, "workflow state must not be nil")
 	routerTasks := findAllRouterTasks(result)
 	require.Greater(t, len(routerTasks), 0, "Should have at least one router task")
 

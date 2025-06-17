@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/mitchellh/mapstructure"
+	"github.com/mohae/deepcopy"
 )
 
 type Config interface {
@@ -60,4 +61,14 @@ func FromMapDefault[T any](data any) (T, error) {
 	}
 
 	return config, decoder.Decode(data)
+}
+
+func DeepCopy[T any](v T) (T, error) {
+	copied := deepcopy.Copy(v)
+	result, ok := copied.(T)
+	if !ok {
+		var zero T
+		return zero, fmt.Errorf("failed to cast copied value to type %T", zero)
+	}
+	return result, nil
 }

@@ -1,6 +1,7 @@
 ---
-description:
+description: Critical validation rules for every PR
 globs:
+  - "**/*"
 alwaysApply: true
 ---
 <critical>

@@ -39,6 +39,9 @@ type BaseConfig struct {
 	// Path and working directory properties
 	FilePath string        `json:"file_path,omitempty"  yaml:"file_path,omitempty"  mapstructure:"file_path,omitempty"`
 	CWD      *core.PathCWD `json:"CWD,omitempty"        yaml:"CWD,omitempty"        mapstructure:"CWD,omitempty"`
+	// Composite and Paralle tasks
+	Timeout string `json:"timeout,omitempty"    yaml:"timeout,omitempty"    mapstructure:"timeout,omitempty"`
+	Retries int    `json:"retries,omitempty"    yaml:"retries,omitempty"    mapstructure:"retries,omitempty"`
 }
 
 // -----------------------------------------------------------------------------
@@ -100,10 +103,13 @@ func ValidateStrategy(strategy string) bool {
 type ParallelTask struct {
 	Strategy   ParallelStrategy `json:"strategy,omitempty"    yaml:"strategy,omitempty"    mapstructure:"strategy,omitempty"`
 	MaxWorkers int              `json:"max_workers,omitempty" yaml:"max_workers,omitempty" mapstructure:"max_workers,omitempty"`
-	Timeout    string           `json:"timeout,omitempty"     yaml:"timeout,omitempty"     mapstructure:"timeout,omitempty"`
-	Retries    int              `json:"retries,omitempty"     yaml:"retries,omitempty"     mapstructure:"retries,omitempty"`
-	Tasks      []Config         `json:"tasks"                 yaml:"tasks"                 mapstructure:"tasks"`
-	Task       *Config          `json:"task,omitempty"        yaml:"task,omitempty"        mapstructure:"task,omitempty"`
+}
+
+func (pt *ParallelTask) GetStrategy() ParallelStrategy {
+	if pt.Strategy == "" {
+		return StrategyWaitAll
+	}
+	return pt.Strategy
 }
 
 // -----------------------------------------------------------------------------
@@ -167,31 +173,6 @@ func (cc *CollectionConfig) GetMode() CollectionMode {
 	return cc.Mode
 }
 
-func (pt *ParallelTask) GetTasks() []Config {
-	return pt.Tasks
-}
-
-func (pt *ParallelTask) GetTimeout() (time.Duration, error) {
-	if pt.Timeout == "" {
-		return 0, nil
-	}
-	return core.ParseHumanDuration(pt.Timeout)
-}
-
-func (pt *ParallelTask) GetStrategy() ParallelStrategy {
-	if pt.Strategy == "" {
-		return StrategyWaitAll
-	}
-	return pt.Strategy
-}
-
-func (pt *ParallelTask) GetMaxWorkers() int {
-	if pt.MaxWorkers <= 0 {
-		return len(pt.Tasks) // Default to number of tasks
-	}
-	return pt.MaxWorkers
-}
-
 // -----------------------------------------------------------------------------
 // Signal Task
 // -----------------------------------------------------------------------------
@@ -210,25 +191,14 @@ type SignalConfig struct {
 // -----------------------------------------------------------------------------
 
 type Config struct {
-	BasicTask        `json:",inline" yaml:",inline" mapstructure:",squash"`
-	RouterTask       `json:",inline" yaml:",inline" mapstructure:",squash"`
-	ParallelTask     `json:",inline" yaml:",inline" mapstructure:",squash"`
-	CollectionConfig `json:",inline" yaml:",inline" mapstructure:",squash"`
-	SignalTask       `json:",inline" yaml:",inline" mapstructure:",squash"`
-	BaseConfig       `json:",inline" yaml:",inline" mapstructure:",squash"`
-}
-
-// GetStrategy returns the execution strategy for the task
-func (t *Config) GetStrategy() ParallelStrategy {
-	// For composite tasks, default to fail-fast if not specified
-	if t.Type == TaskTypeComposite {
-		if t.Strategy == "" {
-			return StrategyFailFast
-		}
-		return t.Strategy
-	}
-	// For other tasks that use ParallelTask, use its default behavior
-	return t.ParallelTask.GetStrategy()
+	BasicTask        `         json:",inline"        yaml:",inline"        mapstructure:",squash"`
+	RouterTask       `         json:",inline"        yaml:",inline"        mapstructure:",squash"`
+	ParallelTask     `         json:",inline"        yaml:",inline"        mapstructure:",squash"`
+	CollectionConfig `         json:",inline"        yaml:",inline"        mapstructure:",squash"`
+	SignalTask       `         json:",inline"        yaml:",inline"        mapstructure:",squash"`
+	BaseConfig       `         json:",inline"        yaml:",inline"        mapstructure:",squash"`
+	Tasks            []Config `json:"tasks"          yaml:"tasks"          mapstructure:"tasks"`
+	Task             *Config  `json:"task,omitempty" yaml:"task,omitempty" mapstructure:"task,omitempty"`
 }
 
 func (t *Config) GetEnv() core.EnvMap {
@@ -256,6 +226,11 @@ func (t *Config) GetTool() *tool.Config {
 
 func (t *Config) GetOutputs() *core.Input {
 	return t.Outputs
+}
+
+// GetMaxWorkers returns the maximum number of workers for the task
+func (t *Config) GetMaxWorkers() int {
+	return t.MaxWorkers
 }
 
 func (t *Config) ValidateInput(ctx context.Context, input *core.Input) error {
@@ -352,6 +327,24 @@ func (t *Config) GetSleepDuration() (time.Duration, error) {
 	return core.ParseHumanDuration(t.Sleep)
 }
 
+// GetStrategy returns the strategy for the task based on its type
+func (t *Config) GetStrategy() ParallelStrategy {
+	switch t.Type {
+	case TaskTypeParallel:
+		// Use the embedded ParallelTask's GetStrategy method
+		return t.ParallelTask.GetStrategy()
+	case TaskTypeCollection:
+		// Collections can have a strategy defined via the embedded ParallelTask
+		return t.ParallelTask.GetStrategy()
+	case TaskTypeComposite:
+		// Composite tasks are always sequential (WaitAll)
+		return StrategyWaitAll
+	default:
+		// Other task types don't have a strategy concept, default to WaitAll
+		return StrategyWaitAll
+	}
+}
+
 func (t *Config) GetExecType() ExecutionType {
 	taskType := t.Type
 	if taskType == "" {
@@ -375,6 +368,13 @@ func (t *Config) GetExecType() ExecutionType {
 		executionType = ExecutionBasic
 	}
 	return executionType
+}
+
+func (t *Config) Clone() (*Config, error) {
+	if t == nil {
+		return nil, nil
+	}
+	return core.DeepCopy(t)
 }
 
 func FindConfig(tasks []Config, taskID string) (*Config, error) {

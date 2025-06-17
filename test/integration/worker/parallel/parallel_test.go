@@ -2,6 +2,7 @@ package parallel
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,15 +10,23 @@ import (
 	"github.com/compozy/compozy/test/integration/worker/helpers"
 )
 
+func getTestDir() string {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("failed to get caller info")
+	}
+	return filepath.Dir(filename)
+}
+
 func TestParallelTaskExecution(t *testing.T) {
 	// Setup fixture loader
-	basePath, err := filepath.Abs(".")
-	require.NoError(t, err)
+	basePath := getTestDir()
 	fixtureLoader := helpers.NewFixtureLoader(basePath)
 
 	t.Run("Should execute parallel tasks with real workflow execution", func(t *testing.T) {
+		t.Parallel()
 		dbHelper := helpers.NewDatabaseHelper(t)
-		defer dbHelper.Cleanup(t)
+		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
 		fixture := fixtureLoader.LoadFixture(t, "", "simple_parallel")
 
@@ -38,13 +47,13 @@ func TestParallelTaskExecution(t *testing.T) {
 }
 
 func TestParallelTaskDatabase(t *testing.T) {
-	basePath, err := filepath.Abs(".")
-	require.NoError(t, err)
+	basePath := getTestDir()
 	fixtureLoader := helpers.NewFixtureLoader(basePath)
 
 	t.Run("Should verify database infrastructure is available", func(t *testing.T) {
+		t.Parallel()
 		dbHelper := helpers.NewDatabaseHelper(t)
-		defer dbHelper.Cleanup(t)
+		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
 		fixture := fixtureLoader.LoadFixture(t, "", "simple_parallel")
 
@@ -58,13 +67,13 @@ func TestParallelTaskDatabase(t *testing.T) {
 }
 
 func TestParallelTaskRedis(t *testing.T) {
-	basePath, err := filepath.Abs(".")
-	require.NoError(t, err)
+	basePath := getTestDir()
 	fixtureLoader := helpers.NewFixtureLoader(basePath)
 
 	t.Run("Should verify redis operations", func(t *testing.T) {
+		t.Parallel()
 		redisHelper := helpers.NewRedisHelper(t)
-		defer redisHelper.Cleanup(t)
+		t.Cleanup(func() { redisHelper.Cleanup(t) })
 
 		fixture := fixtureLoader.LoadFixture(t, "", "simple_parallel")
 		testRedisOperations(t, fixture, redisHelper)

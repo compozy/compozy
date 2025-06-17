@@ -2,27 +2,34 @@ package basic
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/test/integration/worker/helpers"
 )
 
+func getTestDir() string {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("failed to get caller info")
+	}
+	return filepath.Dir(filename)
+}
+
 func TestBasicTask_SuccessfulExecution(t *testing.T) {
 	t.Run("Should execute basic task successfully and verify database state", func(t *testing.T) {
+		t.Parallel()
 		// Setup test infrastructure
-		basePath, err := filepath.Abs(".")
-		require.NoError(t, err)
+		basePath := getTestDir()
 
 		fixtureLoader := helpers.NewFixtureLoader(basePath)
 		dbHelper := helpers.NewDatabaseHelper(t)
 		redisHelper := helpers.NewRedisHelper(t)
 
-		defer func() {
+		t.Cleanup(func() {
 			dbHelper.Cleanup(t)
 			redisHelper.Cleanup(t)
-		}()
+		})
 
 		// Load fixture
 		fixture := fixtureLoader.LoadFixture(t, "", "simple_success")
@@ -42,18 +49,18 @@ func TestBasicTask_SuccessfulExecution(t *testing.T) {
 
 func TestBasicTask_WithError(t *testing.T) {
 	t.Run("Should handle basic task with error and verify database state", func(t *testing.T) {
+		t.Parallel()
 		// Setup test infrastructure
-		basePath, err := filepath.Abs(".")
-		require.NoError(t, err)
+		basePath := getTestDir()
 
 		fixtureLoader := helpers.NewFixtureLoader(basePath)
 		dbHelper := helpers.NewDatabaseHelper(t)
 		redisHelper := helpers.NewRedisHelper(t)
 
-		defer func() {
+		t.Cleanup(func() {
 			dbHelper.Cleanup(t)
 			redisHelper.Cleanup(t)
-		}()
+		})
 
 		// Load fixture
 		fixture := fixtureLoader.LoadFixture(t, "", "with_error")
@@ -72,18 +79,18 @@ func TestBasicTask_WithError(t *testing.T) {
 
 func TestBasicTask_WithNextTransitions(t *testing.T) {
 	t.Run("Should handle basic task with next transitions and verify database state", func(t *testing.T) {
+		t.Parallel()
 		// Setup test infrastructure
-		basePath, err := filepath.Abs(".")
-		require.NoError(t, err)
+		basePath := getTestDir()
 
 		fixtureLoader := helpers.NewFixtureLoader(basePath)
 		dbHelper := helpers.NewDatabaseHelper(t)
 		redisHelper := helpers.NewRedisHelper(t)
 
-		defer func() {
+		t.Cleanup(func() {
 			dbHelper.Cleanup(t)
 			redisHelper.Cleanup(t)
-		}()
+		})
 
 		// Load fixture
 		fixture := fixtureLoader.LoadFixture(t, "", "with_next_task")
@@ -103,18 +110,18 @@ func TestBasicTask_WithNextTransitions(t *testing.T) {
 
 func TestBasicTask_WithFinalFlag(t *testing.T) {
 	t.Run("Should handle basic task with final flag and verify database state", func(t *testing.T) {
+		t.Parallel()
 		// Setup test infrastructure
-		basePath, err := filepath.Abs(".")
-		require.NoError(t, err)
+		basePath := getTestDir()
 
 		fixtureLoader := helpers.NewFixtureLoader(basePath)
 		dbHelper := helpers.NewDatabaseHelper(t)
 		redisHelper := helpers.NewRedisHelper(t)
 
-		defer func() {
+		t.Cleanup(func() {
 			dbHelper.Cleanup(t)
 			redisHelper.Cleanup(t)
-		}()
+		})
 
 		// Load fixture
 		fixture := fixtureLoader.LoadFixture(t, "", "final_task")

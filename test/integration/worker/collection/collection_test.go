@@ -2,23 +2,30 @@ package collection
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/test/integration/worker/helpers"
 )
 
+func getTestDir() string {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("failed to get caller info")
+	}
+	return filepath.Dir(filename)
+}
+
 func TestCollectionTask_SequentialExecution(t *testing.T) {
 	t.Run("Should execute collection items sequentially and verify database state", func(t *testing.T) {
+		t.Parallel()
 		// Setup test infrastructure
-		basePath, err := filepath.Abs(".")
-		require.NoError(t, err)
+		basePath := getTestDir()
 
 		fixtureLoader := helpers.NewFixtureLoader(basePath)
 		dbHelper := helpers.NewDatabaseHelper(t)
 
-		defer dbHelper.Cleanup(t)
+		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
 		// Load fixture
 		fixture := fixtureLoader.LoadFixture(t, "", "sequential_items")
@@ -39,14 +46,14 @@ func TestCollectionTask_SequentialExecution(t *testing.T) {
 
 func TestCollectionTask_ParallelExecution(t *testing.T) {
 	t.Run("Should execute collection items in parallel and verify database state", func(t *testing.T) {
+		t.Parallel()
 		// Setup test infrastructure
-		basePath, err := filepath.Abs(".")
-		require.NoError(t, err)
+		basePath := getTestDir()
 
 		fixtureLoader := helpers.NewFixtureLoader(basePath)
 		dbHelper := helpers.NewDatabaseHelper(t)
 
-		defer dbHelper.Cleanup(t)
+		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
 		// Load fixture
 		fixture := fixtureLoader.LoadFixture(t, "", "parallel_items")
@@ -67,14 +74,14 @@ func TestCollectionTask_ParallelExecution(t *testing.T) {
 
 func TestCollectionTask_EmptyCollection(t *testing.T) {
 	t.Run("Should handle empty collections gracefully and verify database state", func(t *testing.T) {
+		t.Parallel()
 		// Setup test infrastructure
-		basePath, err := filepath.Abs(".")
-		require.NoError(t, err)
+		basePath := getTestDir()
 
 		fixtureLoader := helpers.NewFixtureLoader(basePath)
 		dbHelper := helpers.NewDatabaseHelper(t)
 
-		defer dbHelper.Cleanup(t)
+		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
 		// Load fixture
 		fixture := fixtureLoader.LoadFixture(t, "", "empty_collection")

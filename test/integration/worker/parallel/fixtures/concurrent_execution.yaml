@@ -62,7 +62,7 @@ expected:
     - name: concurrent-parallel-task
       status: SUCCESS
       output:
-        total_tasks: 3.0
+        total_tasks: 3
         all_results:
           - "test-concurrent"
           - "test-concurrent"

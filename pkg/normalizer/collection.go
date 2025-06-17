@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"math"
+	"math/big"
 	"strconv"
+	"strings"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -137,11 +140,7 @@ func (cn *CollectionNormalizer) CreateProgressContext(
 	progressInfo *task.ProgressInfo,
 ) map[string]any {
 	contextWithProgress := make(map[string]any)
-
-	// Copy base context
 	maps.Copy(contextWithProgress, baseContext)
-
-	// Add progress info
 	contextWithProgress["progress"] = map[string]any{
 		"total_children":  progressInfo.TotalChildren,
 		"completed_count": progressInfo.CompletedCount,
@@ -158,7 +157,6 @@ func (cn *CollectionNormalizer) CreateProgressContext(
 
 	// Add summary alias for backward compatibility
 	contextWithProgress["summary"] = contextWithProgress["progress"]
-
 	return contextWithProgress
 }
 
@@ -167,33 +165,26 @@ func (cn *CollectionNormalizer) ApplyTemplateToConfig(
 	config *task.Config,
 	itemContext map[string]any,
 ) (*task.Config, error) {
-	// Create a deep copy to avoid mutating the original config
-	newConfig := cn.deepCopyConfig(config)
-
-	// Use the template engine to process the configuration
+	newConfig, err := config.Clone()
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone config: %w", err)
+	}
 	engine := tplengine.NewEngine(tplengine.FormatText)
-
-	// Apply templates to different parts of the configuration
 	if err := cn.applyActionTemplate(newConfig, itemContext, engine); err != nil {
 		return nil, err
 	}
-
 	if err := cn.applyWithTemplate(newConfig, itemContext, engine); err != nil {
 		return nil, err
 	}
-
 	if err := cn.applyEnvTemplate(newConfig, itemContext, engine); err != nil {
 		return nil, err
 	}
-
 	if err := cn.applyAgentTemplate(newConfig, itemContext, engine); err != nil {
 		return nil, err
 	}
-
 	if err := cn.applyToolTemplate(newConfig, itemContext, engine); err != nil {
 		return nil, err
 	}
-
 	return newConfig, nil
 }
 
@@ -236,25 +227,74 @@ func (cn *CollectionNormalizer) applyTemplateGeneric(
 	return processedVal, nil
 }
 
-// tryConvertToOriginalType attempts to convert a string back to its original numeric/boolean type
+// tryConvertToOriginalType attempts to convert a string back to its original type
+// with safe handling of large integers and explicit type conversion
 func (cn *CollectionNormalizer) tryConvertToOriginalType(value string) any {
-	// Try to parse as integer
-	if intVal, err := strconv.Atoi(value); err == nil {
-		return intVal
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return value
 	}
-
-	// Try to parse as float
-	if floatVal, err := strconv.ParseFloat(value, 64); err == nil {
-		return floatVal
+	// First try numeric types with precise parsing
+	if i, err := strconv.ParseInt(trimmed, 10, 64); err == nil {
+		return i
 	}
-
-	// Try to parse as boolean
-	if boolVal, err := strconv.ParseBool(value); err == nil {
-		return boolVal
+	// Handle unsigned integers
+	if !strings.HasPrefix(trimmed, "-") {
+		if u, err := strconv.ParseUint(trimmed, 10, 64); err == nil {
+			return u
+		}
 	}
-
-	// Return as string if no conversion is possible
+	// Float handling with precision check
+	if f, err := strconv.ParseFloat(trimmed, 64); err == nil {
+		if isPrecisionLoss(trimmed, f) {
+			return trimmed // Return original string if precision lost
+		}
+		return f
+	}
+	// Boolean handling
+	if b, err := strconv.ParseBool(trimmed); err == nil {
+		return b
+	}
+	// JSON handling for complex types
+	var v any
+	if err := json.Unmarshal([]byte(trimmed), &v); err == nil {
+		switch val := v.(type) {
+		case float64:
+			return handleJSONNumber(val)
+		case nil: // Explicit null handling
+			return nil
+		default:
+			return val
+		}
+	}
 	return value
+}
+
+// Helper function to detect float precision loss
+func isPrecisionLoss(original string, parsed float64) bool {
+	if !strings.ContainsAny(original, "eE.") {
+		bigInt := new(big.Int)
+		if _, ok := bigInt.SetString(original, 10); ok {
+			bigFloat := big.NewFloat(parsed)
+			bigFloatInt := new(big.Int)
+			bigFloat.Int(bigFloatInt)
+			return bigInt.Cmp(bigFloatInt) != 0
+		}
+	}
+	return false
+}
+
+// Handle JSON numbers with proper typing
+func handleJSONNumber(f float64) any {
+	if f == math.Trunc(f) {
+		if f >= math.MinInt64 && f <= math.MaxInt64 {
+			return int64(f)
+		}
+		if f >= 0 && f <= math.MaxUint64 {
+			return uint64(f)
+		}
+	}
+	return f
 }
 
 // applyTemplateToMap applies templates to a map of values using the generic processor
@@ -615,26 +655,4 @@ func (cn *CollectionNormalizer) applyToolEnvTemplate(
 		toolPtr.Env = &envMapPtr
 	}
 	return nil
-}
-
-// deepCopyConfig creates a deep copy of a task configuration using JSON serialization
-func (cn *CollectionNormalizer) deepCopyConfig(config *task.Config) *task.Config {
-	// Serialize the original config to JSON
-	data, err := json.Marshal(config)
-	if err != nil {
-		// Fallback to shallow copy if JSON serialization fails
-		// This shouldn't happen with well-formed task configs
-		newConfig := *config
-		return &newConfig
-	}
-
-	// Deserialize into a new config instance
-	var newConfig task.Config
-	if err := json.Unmarshal(data, &newConfig); err != nil {
-		// Fallback to shallow copy if JSON deserialization fails
-		newConfig := *config
-		return &newConfig
-	}
-
-	return &newConfig
 }

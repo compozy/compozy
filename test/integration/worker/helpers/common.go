@@ -15,7 +15,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/project"
-	"github.com/compozy/compozy/engine/runtime"
+	coreruntime "github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
 	tkacts "github.com/compozy/compozy/engine/task/activities"
@@ -98,8 +98,8 @@ func (s *TestConfigStore) Close() error {
 }
 
 // CreateMockRuntime creates a mock runtime manager for integration tests
-func CreateMockRuntime(t *testing.T) *runtime.Manager {
-	rtManager, err := runtime.NewRuntimeManager("/tmp", runtime.WithTestConfig())
+func CreateMockRuntime(t *testing.T) *coreruntime.Manager {
+	rtManager, err := coreruntime.NewRuntimeManager("/tmp", coreruntime.WithTestConfig())
 	require.NoError(t, err, "failed to create mock runtime manager")
 	return rtManager
 }
@@ -377,7 +377,7 @@ func CreateTestActivities(
 	taskRepo *store.TaskRepo,
 	workflowRepo *store.WorkflowRepo,
 	fixture *TestFixture,
-	runtime *runtime.Manager,
+	runtime *coreruntime.Manager,
 	configStore *TestConfigStore,
 	projectName string,
 	agentConfig *agent.Config,

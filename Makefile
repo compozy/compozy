@@ -51,7 +51,7 @@ build: swagger
 # Code Quality & Formatting
 # -----------------------------------------------------------------------------
 lint:
-	$(LINTCMD) run --fix
+	$(LINTCMD) run --fix --allow-parallel-runners
 	@echo "Linting completed successfully"
 
 fmt:

@@ -64,8 +64,13 @@ func verifyParallelChildTaskCreation(t *testing.T, fixture *helpers.TestFixture,
 	parentTask := helpers.FindParentTask(result, task.ExecutionParallel)
 	require.NotNil(t, parentTask, "Should have a parent parallel task")
 
-	// Expected child count from fixture (subtract parent task)
-	expectedChildCount := len(fixture.Expected.TaskStates) - 1
+	// Count expected child tasks from fixture based on parent relationship
+	expectedChildCount := 0
+	for _, expected := range fixture.Expected.TaskStates {
+		if expected.Parent != "" {
+			expectedChildCount++
+		}
+	}
 	helpers.VerifyChildTaskCount(t, result, parentTask.TaskExecID, expectedChildCount, "parallel task")
 
 	// Verify child task properties

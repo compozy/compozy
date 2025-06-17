@@ -2,23 +2,30 @@ package composite
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/test/integration/worker/helpers"
 )
 
+func getTestDir() string {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("failed to get caller info")
+	}
+	return filepath.Dir(filename)
+}
+
 func TestCompositeTaskExecution(t *testing.T) {
 	// Setup fixture loader
-	basePath, err := filepath.Abs(".")
-	require.NoError(t, err)
+	basePath := getTestDir()
 	fixtureLoader := helpers.NewFixtureLoader(basePath)
 
 	// Sequential execution tests
 	t.Run("Should execute tasks in sequence", func(t *testing.T) {
+		t.Parallel()
 		dbHelper := helpers.NewDatabaseHelper(t)
-		defer dbHelper.Cleanup(t)
+		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
 		fixture := fixtureLoader.LoadFixture(t, "", "sequential_execution")
 		result := executeWorkflowAndGetState(t, fixture, dbHelper)
@@ -30,8 +37,9 @@ func TestCompositeTaskExecution(t *testing.T) {
 
 	// Nested composite tests
 	t.Run("Should handle nested composite tasks", func(t *testing.T) {
+		t.Parallel()
 		dbHelper := helpers.NewDatabaseHelper(t)
-		defer dbHelper.Cleanup(t)
+		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
 		fixture := fixtureLoader.LoadFixture(t, "", "nested_composite")
 		result := executeWorkflowAndGetState(t, fixture, dbHelper)
@@ -42,8 +50,9 @@ func TestCompositeTaskExecution(t *testing.T) {
 
 	// Empty composite tests
 	t.Run("Should handle empty composite tasks", func(t *testing.T) {
+		t.Parallel()
 		dbHelper := helpers.NewDatabaseHelper(t)
-		defer dbHelper.Cleanup(t)
+		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
 		fixture := fixtureLoader.LoadFixture(t, "", "empty_composite")
 		result := executeWorkflowAndGetState(t, fixture, dbHelper)
@@ -53,8 +62,9 @@ func TestCompositeTaskExecution(t *testing.T) {
 
 	// Failure propagation tests
 	t.Run("Should handle child task failures", func(t *testing.T) {
+		t.Parallel()
 		dbHelper := helpers.NewDatabaseHelper(t)
-		defer dbHelper.Cleanup(t)
+		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
 		fixture := fixtureLoader.LoadFixture(t, "", "child_failure")
 		result := executeWorkflowAndGetState(t, fixture, dbHelper)
@@ -65,8 +75,9 @@ func TestCompositeTaskExecution(t *testing.T) {
 
 	// State management tests
 	t.Run("Should manage composite state correctly", func(t *testing.T) {
+		t.Parallel()
 		dbHelper := helpers.NewDatabaseHelper(t)
-		defer dbHelper.Cleanup(t)
+		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
 		fixture := fixtureLoader.LoadFixture(t, "", "state_passing")
 		result := executeWorkflowAndGetState(t, fixture, dbHelper)
@@ -77,13 +88,13 @@ func TestCompositeTaskExecution(t *testing.T) {
 }
 
 func TestCompositeTaskDatabase(t *testing.T) {
-	basePath, err := filepath.Abs(".")
-	require.NoError(t, err)
+	basePath := getTestDir()
 	fixtureLoader := helpers.NewFixtureLoader(basePath)
 
 	t.Run("Should verify database operations", func(t *testing.T) {
+		t.Parallel()
 		dbHelper := helpers.NewDatabaseHelper(t)
-		defer dbHelper.Cleanup(t)
+		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
 		fixture := fixtureLoader.LoadFixture(t, "", "sequential_execution")
 		testDatabaseStateOperations(t, fixture, dbHelper)
@@ -91,13 +102,13 @@ func TestCompositeTaskDatabase(t *testing.T) {
 }
 
 func TestCompositeTaskRedis(t *testing.T) {
-	basePath, err := filepath.Abs(".")
-	require.NoError(t, err)
+	basePath := getTestDir()
 	fixtureLoader := helpers.NewFixtureLoader(basePath)
 
 	t.Run("Should verify redis operations", func(t *testing.T) {
+		t.Parallel()
 		redisHelper := helpers.NewRedisHelper(t)
-		defer redisHelper.Cleanup(t)
+		t.Cleanup(func() { redisHelper.Cleanup(t) })
 
 		fixture := fixtureLoader.LoadFixture(t, "", "sequential_execution")
 		testRedisOperations(t, fixture, redisHelper)

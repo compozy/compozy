@@ -419,3 +419,175 @@ func TestCollectionNormalizer_ApplyTemplateToConfig(t *testing.T) {
 		assert.Equal(t, "test-data-value", (*processedConfig.With)["template"])
 	})
 }
+
+func TestCollectionNormalizer_ExpandCollectionItems_TypeConversion(t *testing.T) {
+	normalizer := NewCollectionNormalizer()
+	ctx := context.Background()
+
+	t.Run("Should handle large 64-bit integers in JSON arrays", func(t *testing.T) {
+		config := &task.CollectionConfig{
+			Items: `["9223372036854775807", "-9223372036854775808", "12345"]`,
+		}
+		templateContext := map[string]any{}
+
+		items, err := normalizer.ExpandCollectionItems(ctx, config, templateContext)
+
+		require.NoError(t, err)
+		assert.Len(t, items, 3)
+		assert.Equal(t, "9223372036854775807", items[0])
+		assert.Equal(t, "-9223372036854775808", items[1])
+		assert.Equal(t, "12345", items[2])
+	})
+
+	t.Run("Should handle mixed data types in JSON arrays", func(t *testing.T) {
+		config := &task.CollectionConfig{
+			Items: `["123.456", "true", "false", "hello world"]`,
+		}
+		templateContext := map[string]any{}
+
+		items, err := normalizer.ExpandCollectionItems(ctx, config, templateContext)
+
+		require.NoError(t, err)
+		assert.Len(t, items, 4)
+		assert.Equal(t, "123.456", items[0])
+		assert.Equal(t, "true", items[1])
+		assert.Equal(t, "false", items[2])
+		assert.Equal(t, "hello world", items[3])
+	})
+
+	t.Run("Should handle nested JSON structures", func(t *testing.T) {
+		config := &task.CollectionConfig{
+			Items: `[{"key": "value", "num": 42}, ["a", "b", "c"]]`,
+		}
+		templateContext := map[string]any{}
+
+		items, err := normalizer.ExpandCollectionItems(ctx, config, templateContext)
+
+		require.NoError(t, err)
+		assert.Len(t, items, 2)
+
+		firstItem, ok := items[0].(map[string]any)
+		assert.True(t, ok)
+		assert.Equal(t, "value", firstItem["key"])
+		assert.Equal(t, float64(42), firstItem["num"])
+
+		secondItem, ok := items[1].([]any)
+		assert.True(t, ok)
+		assert.Equal(t, []any{"a", "b", "c"}, secondItem)
+	})
+
+	t.Run("Should handle template expressions with type conversion", func(t *testing.T) {
+		config := &task.CollectionConfig{
+			Items: `{{ .numbers }}`,
+		}
+		templateContext := map[string]any{
+			"numbers": []string{"123", "456.789", "true", "false"},
+		}
+
+		items, err := normalizer.ExpandCollectionItems(ctx, config, templateContext)
+
+		require.NoError(t, err)
+		assert.Len(t, items, 4)
+		assert.Equal(t, "123", items[0])
+		assert.Equal(t, "456.789", items[1])
+		assert.Equal(t, "true", items[2])
+		assert.Equal(t, "false", items[3])
+	})
+
+	t.Run("Should handle empty strings and whitespace", func(t *testing.T) {
+		config := &task.CollectionConfig{
+			Items: `["", "   ", "  123  "]`,
+		}
+		templateContext := map[string]any{}
+
+		items, err := normalizer.ExpandCollectionItems(ctx, config, templateContext)
+
+		require.NoError(t, err)
+		assert.Len(t, items, 3)
+		assert.Equal(t, "", items[0])
+		assert.Equal(t, "   ", items[1])
+		assert.Equal(t, "  123  ", items[2])
+	})
+
+	t.Run("Should handle scientific notation in arrays", func(t *testing.T) {
+		config := &task.CollectionConfig{
+			Items: `["1.23e10", "1e-5"]`,
+		}
+		templateContext := map[string]any{}
+
+		items, err := normalizer.ExpandCollectionItems(ctx, config, templateContext)
+
+		require.NoError(t, err)
+		assert.Len(t, items, 2)
+		assert.Equal(t, "1.23e10", items[0])
+		assert.Equal(t, "1e-5", items[1])
+	})
+
+	t.Run("Should preserve ZIP codes and identifiers with leading zeros", func(t *testing.T) {
+		config := &task.CollectionConfig{
+			Items: `["00123", "01234", "000"]`,
+		}
+		templateContext := map[string]any{}
+
+		items, err := normalizer.ExpandCollectionItems(ctx, config, templateContext)
+
+		require.NoError(t, err)
+		assert.Len(t, items, 3)
+		assert.Equal(t, "00123", items[0])
+		assert.Equal(t, "01234", items[1])
+		assert.Equal(t, "000", items[2])
+	})
+
+	t.Run("Should return error for invalid JSON", func(t *testing.T) {
+		config := &task.CollectionConfig{
+			Items: `{"invalid": json}`,
+		}
+		templateContext := map[string]any{}
+
+		items, err := normalizer.ExpandCollectionItems(ctx, config, templateContext)
+
+		assert.Error(t, err)
+		assert.Nil(t, items)
+		assert.Contains(t, err.Error(), "failed to process items expression")
+	})
+}
+
+func TestCollectionNormalizer_ApplyTemplateToConfig_TypeHandling(t *testing.T) {
+	normalizer := NewCollectionNormalizer()
+
+	t.Run("Should preserve type information in template context", func(t *testing.T) {
+		config := &task.Config{
+			BasicTask: task.BasicTask{
+				Action: "process-item-{{ .item }}-{{ .index }}",
+			},
+		}
+		itemContext := map[string]any{
+			"item":  "12345",
+			"index": 0,
+		}
+
+		newConfig, err := normalizer.ApplyTemplateToConfig(config, itemContext)
+
+		require.NoError(t, err)
+		assert.Equal(t, "process-item-12345-0", newConfig.Action)
+	})
+
+	t.Run("Should handle complex data types in templates", func(t *testing.T) {
+		config := &task.Config{
+			BasicTask: task.BasicTask{
+				Action: "process-{{ .item.name }}-{{ .item.count }}",
+			},
+		}
+		itemContext := map[string]any{
+			"item": map[string]any{
+				"name":  "test",
+				"count": 42,
+			},
+		}
+
+		newConfig, err := normalizer.ApplyTemplateToConfig(config, itemContext)
+
+		require.NoError(t, err)
+		assert.Equal(t, "process-test-42", newConfig.Action)
+	})
+}

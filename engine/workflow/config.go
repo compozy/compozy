@@ -239,6 +239,13 @@ func (w *Config) DetermineNextTask(
 	return nextTask
 }
 
+func (w *Config) Clone() (*Config, error) {
+	if w == nil {
+		return nil, nil
+	}
+	return core.DeepCopy(w)
+}
+
 func WorkflowsFromProject(projectConfig *project.Config, ev *ref.Evaluator) ([]*Config, error) {
 	cwd := projectConfig.GetCWD()
 	projectEnv := projectConfig.GetEnv()

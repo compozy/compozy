@@ -381,6 +381,7 @@ func (r *TaskRepo) GetChildByTaskID(ctx context.Context, parentStateID core.ID, 
 		SELECT *
 		FROM task_states
 		WHERE parent_state_id = $1 AND task_id = $2
+		ORDER BY created_at DESC
 		LIMIT 1
 	`
 

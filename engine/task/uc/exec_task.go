@@ -68,10 +68,17 @@ func (uc *ExecuteTask) executeAgent(
 		return nil, fmt.Errorf("failed to find action config: %w", err)
 	}
 
-	// Create a copy of the action config with task's runtime input data
-	runtimeActionConfig := *actionConfig // shallow copy
+	// Create a deep copy of the action config with task's runtime input data
+	runtimeActionConfig, err := actionConfig.Clone()
+	if err != nil {
+		return nil, fmt.Errorf("failed to deep copy action config: %w", err)
+	}
 	if taskWith != nil {
-		runtimeActionConfig.With = taskWith
+		inputCopy, err := taskWith.Clone()
+		if err != nil {
+			return nil, fmt.Errorf("failed to clone task with: %w", err)
+		}
+		runtimeActionConfig.With = inputCopy
 	}
 
 	llmService, err := llm.NewService(uc.runtime, agentConfig)
@@ -86,7 +93,7 @@ func (uc *ExecuteTask) executeAgent(
 		}
 	}()
 
-	result, err := llmService.GenerateContent(ctx, agentConfig, &runtimeActionConfig)
+	result, err := llmService.GenerateContent(ctx, agentConfig, runtimeActionConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}

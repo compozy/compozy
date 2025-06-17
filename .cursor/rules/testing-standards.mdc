@@ -1,8 +1,4 @@
----
-description:
-globs:
-alwaysApply: false
----
+
 ---
 description: Comprehensive testing standards and patterns for Compozy Go development - enforces mandatory t.Run patterns, testify usage, and mock standards
 globs:
