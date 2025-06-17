@@ -25,6 +25,7 @@ require (
 	github.com/kaptinlin/jsonschema v0.4.2
 	github.com/mark3labs/mcp-go v0.32.0
 	github.com/mitchellh/mapstructure v1.5.0
+	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/nats-io/nats.go v1.43.0
 	github.com/otiai10/copy v1.14.1
 	github.com/pashagolub/pgxmock/v4 v4.7.0
@@ -34,6 +35,7 @@ require (
 	github.com/prometheus/common v0.64.0
 	github.com/redis/go-redis/v9 v9.10.0
 	github.com/segmentio/ksuid v1.0.4
+	github.com/sethvargo/go-retry v0.3.0
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
 	github.com/swaggo/files v1.0.1
@@ -145,7 +147,6 @@ require (
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
-	github.com/sethvargo/go-retry v0.3.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.9.2 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect

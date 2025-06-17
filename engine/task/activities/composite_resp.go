@@ -2,6 +2,7 @@ package activities
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/task"
@@ -56,11 +57,15 @@ func (a *GetCompositeResponse) Run(
 		ExecutionError: executionError,
 	})
 	if err != nil {
+		// If both errors exist, join them to preserve both error chains
+		if executionError != nil {
+			return nil, errors.Join(err, executionError)
+		}
 		return nil, err
 	}
 	// If there was an execution error, the composite task should be considered failed
 	if executionError != nil {
-		return nil, executionError
+		return nil, fmt.Errorf("composite task failed: %w", executionError)
 	}
 	return response, nil
 }

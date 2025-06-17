@@ -319,15 +319,15 @@ func TestNormalizer_NormalizeTaskConfig(t *testing.T) {
 			},
 			ParallelTask: task.ParallelTask{
 				Strategy: task.StrategyWaitAll,
-				Tasks: []task.Config{
-					{
-						BaseConfig: task.BaseConfig{
-							ID:   "sentiment_analysis",
-							Type: task.TaskTypeBasic,
-						},
-						BasicTask: task.BasicTask{
-							Action: "analyze",
-						},
+			},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "sentiment_analysis",
+						Type: task.TaskTypeBasic,
+					},
+					BasicTask: task.BasicTask{
+						Action: "analyze",
 					},
 				},
 			},

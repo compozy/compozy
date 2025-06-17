@@ -1,0 +1,34 @@
+name: composite-sequential-execution
+
+workflow:
+  id: test-composite-sequential
+  version: "1.0.0"
+  tasks:
+    - id: process-composite
+      type: composite
+      tasks:
+        - id: step1
+          type: basic
+          action: process_message
+          with:
+            message: "Step 1"
+        - id: step2
+          type: basic
+          action: process_message
+          with:
+            message: "Step 2"
+
+input:
+  test_data: "sequential-test"
+
+expected:
+  workflow_state:
+    status: SUCCESS
+  task_states:
+    - name: process-composite
+      status: SUCCESS
+      output:
+        progress_info:
+          total_children: 2
+          completed_count: 2
+          failed_count: 0

@@ -78,10 +78,13 @@ func TestServerShutdown(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Channel to capture server error
+	serverErr := make(chan error, 1)
+
 	// Start server in background
 	go func() {
 		err := server.Start(ctx)
-		assert.NoError(t, err)
+		serverErr <- err
 	}()
 
 	// Give server time to start
@@ -90,8 +93,17 @@ func TestServerShutdown(t *testing.T) {
 	// Cancel context to trigger shutdown
 	cancel()
 
-	// Give server time to shutdown
-	time.Sleep(200 * time.Millisecond)
+	// Wait for server to shutdown and check error
+	select {
+	case err := <-serverErr:
+		// When context is canceled, we expect a "context canceled" error
+		// This is normal behavior for graceful shutdown
+		if err != nil && err.Error() != "context canceled" {
+			t.Errorf("Expected 'context canceled' error, got: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Server shutdown timed out")
+	}
 }
 
 func TestGetClientIP(t *testing.T) {

@@ -1,0 +1,24 @@
+name: composite-empty
+
+workflow:
+  id: test-composite-empty
+  version: "1.0.0"
+  tasks:
+    - id: empty-composite
+      type: composite
+      tasks: []
+
+input:
+  test_data: "empty-test"
+
+expected:
+  workflow_state:
+    status: SUCCESS
+  task_states:
+    - name: empty-composite
+      status: SUCCESS
+      output:
+        progress_info:
+          total_children: 0
+          completed_count: 0
+          failed_count: 0

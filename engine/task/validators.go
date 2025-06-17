@@ -10,16 +10,10 @@ import (
 // CycleValidator - Detects circular dependencies in task references
 // -----------------------------------------------------------------------------
 
-type CycleValidator struct {
-	visited  map[string]bool
-	visiting map[string]bool
-}
+type CycleValidator struct{}
 
 func NewCycleValidator() *CycleValidator {
-	return &CycleValidator{
-		visited:  make(map[string]bool),
-		visiting: make(map[string]bool),
-	}
+	return &CycleValidator{}
 }
 
 func (v *CycleValidator) Validate() error {
@@ -42,36 +36,45 @@ func (v *CycleValidator) detectCycle(config *Config, visited map[string]bool, vi
 	if visited[taskID] {
 		return nil // Already processed this task
 	}
-
 	visiting[taskID] = true
+	if err := v.processTaskByType(config, visited, visiting); err != nil {
+		return err
+	}
+	delete(visiting, taskID)
+	visited[taskID] = true
+	return nil
+}
 
-	// Check parallel task dependencies
+func (v *CycleValidator) processTaskByType(config *Config, visited map[string]bool, visiting map[string]bool) error {
 	switch config.Type {
 	case TaskTypeParallel:
-		for i := range config.Tasks {
-			if err := v.detectCycle(&config.Tasks[i], visited, visiting); err != nil {
-				return err
-			}
-		}
-
-		// Check task reference if present
-		if config.Task != nil {
-			if err := v.detectCycle(config.Task, visited, visiting); err != nil {
-				return err
-			}
-		}
+		return v.processNestedTasks(config, visited, visiting)
 	case TaskTypeComposite:
-		for i := range config.Tasks {
-			if err := v.detectCycle(&config.Tasks[i], visited, visiting); err != nil {
-				return err
-			}
+		return v.processTasksArray(config.Tasks, visited, visiting)
+	case TaskTypeCollection:
+		return v.processNestedTasks(config, visited, visiting)
+	}
+	return nil
+}
+
+func (v *CycleValidator) processNestedTasks(config *Config, visited map[string]bool, visiting map[string]bool) error {
+	if err := v.processTasksArray(config.Tasks, visited, visiting); err != nil {
+		return err
+	}
+	if config.Task != nil {
+		if err := v.detectCycle(config.Task, visited, visiting); err != nil {
+			return err
 		}
 	}
+	return nil
+}
 
-	// Mark as visited and remove from visiting
-	visiting[taskID] = false
-	visited[taskID] = true
-
+func (v *CycleValidator) processTasksArray(tasks []Config, visited map[string]bool, visiting map[string]bool) error {
+	for i := range tasks {
+		if err := v.detectCycle(&tasks[i], visited, visiting); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -95,7 +98,7 @@ func (v *TypeValidator) Validate() error {
 	}
 	switch v.config.Type {
 	case TaskTypeBasic:
-		return v.validateExecutorFields()
+		return v.validateBasicTask()
 	case TaskTypeRouter:
 		if err := v.validateExecutorFields(); err != nil {
 			return err
@@ -126,6 +129,9 @@ func (v *TypeValidator) Validate() error {
 }
 
 func (v *TypeValidator) validateExecutorFields() error {
+	if v.config.GetTool() != nil && v.config.GetAgent() != nil {
+		return fmt.Errorf("cannot specify both agent and tool - use only one executor type")
+	}
 	if v.config.GetTool() != nil && v.config.Action != "" {
 		return fmt.Errorf("action is not allowed when executor type is tool")
 	}
@@ -133,6 +139,13 @@ func (v *TypeValidator) validateExecutorFields() error {
 		return fmt.Errorf("action is required when executor type is agent")
 	}
 	return nil
+}
+
+func (v *TypeValidator) validateBasicTask() error {
+	// For basic tasks, just run the standard executor field validation
+	// The runtime check in ExecuteTask will catch missing components when they're actually needed
+	// This allows for $use references and other dynamic resolution patterns to work properly
+	return v.validateExecutorFields()
 }
 
 func (v *TypeValidator) validateRouterTask() error {
@@ -318,10 +331,9 @@ func (v *TypeValidator) validateCompositeTask() error {
 			return fmt.Errorf("invalid composite task item %s: %w", task.ID, err)
 		}
 	}
-	// Validate strategy
-	strategy := v.config.GetStrategy()
-	if strategy != "" && strategy != StrategyFailFast && strategy != StrategyBestEffort {
-		return fmt.Errorf("invalid composite strategy: %s", strategy)
+	// Validate strategy - check the actual field, not the computed value
+	if v.config.Strategy != "" {
+		return fmt.Errorf("composite tasks cannot have a strategy: %s", v.config.Strategy)
 	}
 	return nil
 }

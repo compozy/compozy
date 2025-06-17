@@ -1,0 +1,33 @@
+name: simple-parallel-execution
+
+workflow:
+  id: test-simple-parallel
+  version: "1.0.0"
+  tasks:
+    - id: parallel-task
+      type: parallel
+      tasks:
+        - id: task-1
+          type: basic
+          action: process_message
+        - id: task-2
+          type: basic
+          action: process_message
+
+input:
+  message: "parallel-test"
+
+expected:
+  workflow_state:
+    status: SUCCESS
+    total_tasks: 3  # 1 parallel + 2 child tasks
+    completed_tasks: 3
+  task_states:
+    - name: parallel-task
+      status: SUCCESS
+    - name: task-1
+      status: SUCCESS
+      parent: parallel-task
+    - name: task-2
+      status: SUCCESS
+      parent: parallel-task

@@ -989,36 +989,36 @@ func TestConfigNormalizer_NormalizeParallelTask(t *testing.T) {
 				Env: &core.EnvMap{
 					"PARALLEL_TIMEOUT": "5m",
 				},
+				Timeout: "5m",
 			},
 			ParallelTask: task.ParallelTask{
 				Strategy:   task.StrategyWaitAll,
 				MaxWorkers: 4,
-				Timeout:    "5m",
-				Tasks: []task.Config{
-					{
-						BaseConfig: task.BaseConfig{
-							ID:   "sentiment_analysis",
-							Type: task.TaskTypeBasic,
-							With: &core.Input{
-								"text": "{{ .workflow.input.content }}",
-							},
-						},
-						BasicTask: task.BasicTask{
-							Action: "analyze_sentiment",
+			},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "sentiment_analysis",
+						Type: task.TaskTypeBasic,
+						With: &core.Input{
+							"text": "{{ .workflow.input.content }}",
 						},
 					},
-					{
-						BaseConfig: task.BaseConfig{
-							ID:   "extract_keywords",
-							Type: task.TaskTypeBasic,
-							With: &core.Input{
-								"text":         "{{ .workflow.input.content }}",
-								"max_keywords": 10,
-							},
+					BasicTask: task.BasicTask{
+						Action: "analyze_sentiment",
+					},
+				},
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "extract_keywords",
+						Type: task.TaskTypeBasic,
+						With: &core.Input{
+							"text":         "{{ .workflow.input.content }}",
+							"max_keywords": 10,
 						},
-						BasicTask: task.BasicTask{
-							Action: "extract",
-						},
+					},
+					BasicTask: task.BasicTask{
+						Action: "extract",
 					},
 				},
 			},
@@ -1039,16 +1039,16 @@ func TestConfigNormalizer_NormalizeParallelTask(t *testing.T) {
 		}
 
 		// Check what templates look like before normalization
-		t.Logf("Before normalization - subTask1 text: %v", (*parallelTaskConfig.ParallelTask.Tasks[0].With)["text"])
-		t.Logf("Before normalization - subTask2 text: %v", (*parallelTaskConfig.ParallelTask.Tasks[1].With)["text"])
+		t.Logf("Before normalization - subTask1 text: %v", (*parallelTaskConfig.Tasks[0].With)["text"])
+		t.Logf("Before normalization - subTask2 text: %v", (*parallelTaskConfig.Tasks[1].With)["text"])
 
 		// Normalize the parallel task
 		err := normalizer.NormalizeTask(workflowState, workflowConfig, parallelTaskConfig)
 		require.NoError(t, err)
 
 		// Check what templates look like after normalization
-		t.Logf("After normalization - subTask1 text: %v", (*parallelTaskConfig.ParallelTask.Tasks[0].With)["text"])
-		t.Logf("After normalization - subTask2 text: %v", (*parallelTaskConfig.ParallelTask.Tasks[1].With)["text"])
+		t.Logf("After normalization - subTask1 text: %v", (*parallelTaskConfig.Tasks[0].With)["text"])
+		t.Logf("After normalization - subTask2 text: %v", (*parallelTaskConfig.Tasks[1].With)["text"])
 
 		// Check that sub-task templates were resolved
 		subTask1 := parallelTaskConfig.Tasks[0]
@@ -1084,20 +1084,20 @@ func TestConfigNormalizer_NormalizeParallelTask(t *testing.T) {
 			},
 			ParallelTask: task.ParallelTask{
 				Strategy: task.StrategyWaitAll,
-				Tasks: []task.Config{
-					{
-						BaseConfig: task.BaseConfig{
-							ID:   "process_item_1",
-							Type: task.TaskTypeBasic,
-							With: &core.Input{
-								"item_id":   "item-1",
-								"parent_id": "{{ .parent.id }}",             // Should reference parallel task
-								"batch_id":  "{{ .parent.input.batch_id }}", // Should reference parent input
-							},
+			},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "process_item_1",
+						Type: task.TaskTypeBasic,
+						With: &core.Input{
+							"item_id":   "item-1",
+							"parent_id": "{{ .parent.id }}",             // Should reference parallel task
+							"batch_id":  "{{ .parent.input.batch_id }}", // Should reference parent input
 						},
-						BasicTask: task.BasicTask{
-							Action: "process",
-						},
+					},
+					BasicTask: task.BasicTask{
+						Action: "process",
 					},
 				},
 			},
@@ -1220,24 +1220,24 @@ func TestConfigNormalizer_NormalizeParallelTask(t *testing.T) {
 			},
 			ParallelTask: task.ParallelTask{
 				Strategy: task.StrategyWaitAll,
-				Tasks: []task.Config{
-					{
-						BaseConfig: task.BaseConfig{
-							ID:   "sentiment_analysis",
-							Type: task.TaskTypeBasic,
-						},
+			},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "sentiment_analysis",
+						Type: task.TaskTypeBasic,
 					},
-					{
-						BaseConfig: task.BaseConfig{
-							ID:   "keyword_extraction",
-							Type: task.TaskTypeBasic,
-						},
+				},
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "keyword_extraction",
+						Type: task.TaskTypeBasic,
 					},
-					{
-						BaseConfig: task.BaseConfig{
-							ID:   "performance_monitor",
-							Type: task.TaskTypeBasic,
-						},
+				},
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "performance_monitor",
+						Type: task.TaskTypeBasic,
 					},
 				},
 			},
@@ -1402,74 +1402,74 @@ func TestConfigNormalizer_NestedParallelTasks(t *testing.T) {
 			ParallelTask: task.ParallelTask{
 				Strategy:   task.StrategyWaitAll,
 				MaxWorkers: 2,
-				Tasks: []task.Config{
-					// First sub-task: another parallel task
-					{
-						BaseConfig: task.BaseConfig{
-							ID:   "data_processor",
-							Type: task.TaskTypeParallel,
-							With: &core.Input{
-								"processor_id":    "dp-{{ .parent.input.batch_id }}",
-								"parent_batch":    "{{ .parent.id }}",
-								"parent_priority": "{{ .parent.input.priority }}",
-								"workflow_id":     "{{ .workflow.id }}",
+			},
+			Tasks: []task.Config{
+				// First sub-task: another parallel task
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "data_processor",
+						Type: task.TaskTypeParallel,
+						With: &core.Input{
+							"processor_id":    "dp-{{ .parent.input.batch_id }}",
+							"parent_batch":    "{{ .parent.id }}",
+							"parent_priority": "{{ .parent.input.priority }}",
+							"workflow_id":     "{{ .workflow.id }}",
+						},
+					},
+					ParallelTask: task.ParallelTask{
+						Strategy: task.StrategyWaitAll,
+					},
+					Tasks: []task.Config{
+						// Deeply nested basic task 1
+						{
+							BaseConfig: task.BaseConfig{
+								ID:   "sentiment_analysis",
+								Type: task.TaskTypeBasic,
+								With: &core.Input{
+									"text":              "{{ .workflow.input.content }}",
+									"processor_parent":  "{{ .parent.id }}",
+									"batch_parent":      "{{ .parent.input.parent_batch }}",
+									"original_priority": "{{ .parent.input.parent_priority }}",
+									"task_chain":        "{{ .workflow.id }}.{{ .parent.input.parent_batch }}.{{ .parent.id }}.sentiment_analysis",
+								},
+							},
+							BasicTask: task.BasicTask{
+								Action: "analyze_sentiment",
 							},
 						},
-						ParallelTask: task.ParallelTask{
-							Strategy: task.StrategyWaitAll,
-							Tasks: []task.Config{
-								// Deeply nested basic task 1
-								{
-									BaseConfig: task.BaseConfig{
-										ID:   "sentiment_analysis",
-										Type: task.TaskTypeBasic,
-										With: &core.Input{
-											"text":              "{{ .workflow.input.content }}",
-											"processor_parent":  "{{ .parent.id }}",
-											"batch_parent":      "{{ .parent.input.parent_batch }}",
-											"original_priority": "{{ .parent.input.parent_priority }}",
-											"task_chain":        "{{ .workflow.id }}.{{ .parent.input.parent_batch }}.{{ .parent.id }}.sentiment_analysis",
-										},
-									},
-									BasicTask: task.BasicTask{
-										Action: "analyze_sentiment",
-									},
+						// Deeply nested basic task 2
+						{
+							BaseConfig: task.BaseConfig{
+								ID:   "keyword_extraction",
+								Type: task.TaskTypeBasic,
+								With: &core.Input{
+									"text":              "{{ .workflow.input.content }}",
+									"processor_parent":  "{{ .parent.id }}",
+									"batch_parent":      "{{ .parent.input.parent_batch }}",
+									"original_priority": "{{ .parent.input.parent_priority }}",
+									"max_keywords":      "{{ .parent.input.parent_batch | len }}",
 								},
-								// Deeply nested basic task 2
-								{
-									BaseConfig: task.BaseConfig{
-										ID:   "keyword_extraction",
-										Type: task.TaskTypeBasic,
-										With: &core.Input{
-											"text":              "{{ .workflow.input.content }}",
-											"processor_parent":  "{{ .parent.id }}",
-											"batch_parent":      "{{ .parent.input.parent_batch }}",
-											"original_priority": "{{ .parent.input.parent_priority }}",
-											"max_keywords":      "{{ .parent.input.parent_batch | len }}",
-										},
-									},
-									BasicTask: task.BasicTask{
-										Action: "extract_keywords",
-									},
-								},
+							},
+							BasicTask: task.BasicTask{
+								Action: "extract_keywords",
 							},
 						},
 					},
-					// Second sub-task: basic task at first nesting level
-					{
-						BaseConfig: task.BaseConfig{
-							ID:   "metadata_processor",
-							Type: task.TaskTypeBasic,
-							With: &core.Input{
-								"batch_info":     "{{ .parent.input.batch_id }}",
-								"batch_priority": "{{ .parent.input.priority }}",
-								"parent_task":    "{{ .parent.id }}",
-								"workflow_ref":   "{{ .workflow.id }}",
-							},
+				},
+				// Second sub-task: basic task at first nesting level
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "metadata_processor",
+						Type: task.TaskTypeBasic,
+						With: &core.Input{
+							"batch_info":     "{{ .parent.input.batch_id }}",
+							"batch_priority": "{{ .parent.input.priority }}",
+							"parent_task":    "{{ .parent.id }}",
+							"workflow_ref":   "{{ .workflow.id }}",
 						},
-						BasicTask: task.BasicTask{
-							Action: "process_metadata",
-						},
+					},
+					BasicTask: task.BasicTask{
+						Action: "process_metadata",
 					},
 				},
 			},
@@ -1641,24 +1641,20 @@ func TestConfigNormalizer_NestedParallelTasks(t *testing.T) {
 				ID:   "error_batch_processor",
 				Type: task.TaskTypeParallel,
 			},
-			ParallelTask: task.ParallelTask{
-				Tasks: []task.Config{
-					{
-						BaseConfig: task.BaseConfig{
-							ID:   "error_data_processor",
-							Type: task.TaskTypeParallel,
-						},
-						ParallelTask: task.ParallelTask{
-							Tasks: []task.Config{
-								{
-									BaseConfig: task.BaseConfig{
-										ID:   "error_task",
-										Type: task.TaskTypeBasic,
-										With: &core.Input{
-											// This should cause an error due to invalid template
-											"invalid": "{{ .nonexistent.field.value }}",
-										},
-									},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "error_data_processor",
+						Type: task.TaskTypeParallel,
+					},
+					Tasks: []task.Config{
+						{
+							BaseConfig: task.BaseConfig{
+								ID:   "error_task",
+								Type: task.TaskTypeBasic,
+								With: &core.Input{
+									// This should cause an error due to invalid template
+									"invalid": "{{ .nonexistent.field.value }}",
 								},
 							},
 						},

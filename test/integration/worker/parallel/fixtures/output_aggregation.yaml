@@ -1,0 +1,82 @@
+name: parallel-output-aggregation-test
+id: parallel-output-aggregation-test
+
+workflow:
+  id: parallel-output-aggregation-workflow-004
+  tasks:
+    - id: data-processors
+      type: parallel
+      strategy: wait_all
+      tasks:
+        - id: process-numbers
+          type: basic
+          action: calculate_stats
+          with:
+            numbers:
+              - 10
+              - 20
+              - 30
+              - 40
+              - 50
+
+        - id: process-strings
+          type: basic
+          action: process_text
+          with:
+            texts:
+              - "hello"
+              - "world"
+              - "test"
+
+        - id: process-metadata
+          type: basic
+          action: generate_metadata
+          with:
+            source: "test-suite"
+            version: "1.0.0"
+
+expected:
+  workflow_state:
+    status: "SUCCESS"
+  task_states:
+    - id: data-processors
+      name: data-processors
+      status: "SUCCESS"
+      output:
+        aggregated_results:
+          stats:
+            sum: 150
+            average: 30
+            min: 10
+            max: 50
+          text_processing:
+            concatenated: "hello world test"
+            word_count: 3
+            unique_chars: 10
+          metadata:
+            source: "test-suite"
+            version: "1.0.0"
+            timestamp: "2024-01-01T00:00:00Z"
+        all_tasks_completed: true
+    - id: process-numbers
+      name: process-numbers
+      status: "SUCCESS"
+      output:
+        sum: 150
+        average: 30
+        min: 10
+        max: 50
+    - id: process-strings
+      name: process-strings
+      status: "SUCCESS"
+      output:
+        concatenated: "hello world test"
+        word_count: 3
+        unique_chars: 10
+    - id: process-metadata
+      name: process-metadata
+      status: "SUCCESS"
+      output:
+        source: "test-suite"
+        version: "1.0.0"
+        timestamp: "2024-01-01T00:00:00Z"

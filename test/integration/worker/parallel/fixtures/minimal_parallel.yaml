@@ -1,0 +1,26 @@
+name: minimal-parallel-test
+
+workflow:
+  id: test-minimal-parallel
+  version: "1.0.0"
+  tasks:
+    - id: parallel-task
+      type: parallel
+      tasks:
+        - id: task-1
+          type: basic
+          action: process_message
+
+input:
+  message: "test"
+
+expected:
+  workflow_state:
+    status: SUCCESS
+    total_tasks: 2  # 1 parallel + 1 child task
+    completed_tasks: 2
+  task_states:
+    - name: parallel-task
+      status: SUCCESS
+    - name: task-1
+      status: SUCCESS

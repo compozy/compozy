@@ -41,8 +41,8 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 			},
 		}
 		taskConfig.Type = task.TaskTypeParallel
+		taskConfig.Tasks = []task.Config{child1, child2}
 		taskConfig.ParallelTask = task.ParallelTask{
-			Tasks:      []task.Config{child1, child2},
 			Strategy:   task.StrategyWaitAll,
 			MaxWorkers: 2,
 		}
@@ -132,9 +132,7 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 				Type: task.TaskTypeParallel,
 				CWD:  CWD,
 			},
-			ParallelTask: task.ParallelTask{
-				Tasks: []task.Config{}, // Empty tasks
-			},
+			Tasks: []task.Config{}, // Empty tasks
 		}
 
 		// Act
@@ -156,11 +154,9 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 				Type: task.TaskTypeParallel,
 				CWD:  CWD,
 			},
-			ParallelTask: task.ParallelTask{
-				Tasks: []task.Config{
-					{BaseConfig: task.BaseConfig{ID: "child1", Type: task.TaskTypeBasic, CWD: CWD}},
-					{BaseConfig: task.BaseConfig{ID: "", Type: task.TaskTypeBasic, CWD: CWD}}, // Missing ID
-				},
+			Tasks: []task.Config{
+				{BaseConfig: task.BaseConfig{ID: "child1", Type: task.TaskTypeBasic, CWD: CWD}},
+				{BaseConfig: task.BaseConfig{ID: "", Type: task.TaskTypeBasic, CWD: CWD}}, // Missing ID
 			},
 		}
 
@@ -195,13 +191,11 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 				Items: `["item1", "item2", "item3"]`,
 				Mode:  task.CollectionModeParallel,
 			},
-			ParallelTask: task.ParallelTask{
-				Task: &task.Config{
-					BaseConfig: task.BaseConfig{
-						ID:   "template-task",
-						Type: task.TaskTypeBasic,
-						CWD:  CWD,
-					},
+			Task: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:   "template-task",
+					Type: task.TaskTypeBasic,
+					CWD:  CWD,
 				},
 			},
 		}
@@ -323,12 +317,12 @@ func TestConfigManager_LoadParallelTaskMetadata(t *testing.T) {
 				CWD:  CWD,
 			},
 			ParallelTask: task.ParallelTask{
-				Tasks: []task.Config{
-					{BaseConfig: task.BaseConfig{ID: "child1", Type: task.TaskTypeBasic, CWD: CWD}},
-					{BaseConfig: task.BaseConfig{ID: "child2", Type: task.TaskTypeBasic, CWD: CWD}},
-				},
 				Strategy:   task.StrategyWaitAll,
 				MaxWorkers: 2,
+			},
+			Tasks: []task.Config{
+				{BaseConfig: task.BaseConfig{ID: "child1", Type: task.TaskTypeBasic, CWD: CWD}},
+				{BaseConfig: task.BaseConfig{ID: "child2", Type: task.TaskTypeBasic, CWD: CWD}},
 			},
 		}
 
@@ -386,13 +380,11 @@ func TestConfigManager_LoadCollectionTaskMetadata(t *testing.T) {
 				Items: `["item1", "item2"]`,
 				Mode:  task.CollectionModeSequential,
 			},
-			ParallelTask: task.ParallelTask{
-				Task: &task.Config{
-					BaseConfig: task.BaseConfig{
-						ID:   "template-task",
-						Type: task.TaskTypeBasic,
-						CWD:  CWD,
-					},
+			Task: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:   "template-task",
+					Type: task.TaskTypeBasic,
+					CWD:  CWD,
 				},
 			},
 		}
@@ -452,23 +444,24 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 				Mode:   task.CollectionModeParallel,
 				Filter: "false", // Filter that removes everything
 			},
-			ParallelTask: task.ParallelTask{
-				Task: &task.Config{
-					BaseConfig: task.BaseConfig{
-						ID:   "template-task",
-						Type: task.TaskTypeBasic,
-						CWD:  CWD,
-					},
+			Task: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:   "template-task",
+					Type: task.TaskTypeBasic,
+					CWD:  CWD,
 				},
 			},
 		}
 
 		// Act
-		_, err := cm.PrepareCollectionConfigs(context.Background(), parentStateID, taskConfig, workflowState)
+		metadata, err := cm.PrepareCollectionConfigs(context.Background(), parentStateID, taskConfig, workflowState)
 
 		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "no child configs generated")
+		require.NoError(t, err)
+		require.NotNil(t, metadata)
+		assert.Equal(t, 0, metadata.ItemCount)
+		assert.Equal(t, 0, metadata.SkippedCount)
+		assert.Equal(t, string(task.CollectionModeParallel), metadata.Mode)
 	})
 
 	t.Run("Should handle parallel task with batch size in collection mode", func(t *testing.T) {
@@ -493,13 +486,11 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 				Mode:  task.CollectionModeSequential,
 				Batch: 2,
 			},
-			ParallelTask: task.ParallelTask{
-				Task: &task.Config{
-					BaseConfig: task.BaseConfig{
-						ID:   "template-task",
-						Type: task.TaskTypeBasic,
-						CWD:  CWD,
-					},
+			Task: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:   "template-task",
+					Type: task.TaskTypeBasic,
+					CWD:  CWD,
 				},
 			},
 		}

@@ -9,7 +9,6 @@ import (
 	"reflect"
 
 	"github.com/compozy/compozy/engine/agent"
-	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
@@ -45,12 +44,6 @@ func GenerateParserSchemas(outDir string) error {
 					schema.Type = typeStr
 				}
 				return schema
-			}
-			if t == reflect.TypeOf(core.PackageRefConfig("")) {
-				return &jsonschema.Schema{
-					Type:    "string",
-					Pattern: `^(agent|tool|task)\((id|file|dep)=[^)]+\)$`,
-				}
 			}
 			return nil
 		},

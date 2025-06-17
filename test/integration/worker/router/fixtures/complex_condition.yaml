@@ -1,0 +1,41 @@
+name: router-complex-condition
+
+workflow:
+  id: test-router-complex
+  version: "1.0.0"
+  tasks:
+    # Complex router that evaluates business logic based on confidence level
+    # The 'route_by_condition' action translates input.confidence > 0.9 into "high_confidence"
+    - id: condition-router
+      type: router
+      action: route_by_condition
+      condition: "high_confidence"  # Business logic result for high confidence scenarios
+      routes:
+        high_confidence: process-fast  # Fast processing for high confidence
+        low_confidence: process-manual  # Manual processing for low confidence
+      default_route: process-manual  # Default to manual processing
+    - id: process-fast
+      type: basic
+      action: process_data
+      with:
+        multiplier: 1.5
+    - id: process-manual
+      type: basic
+      action: process_data
+      with:
+        multiplier: 0.5
+
+input:
+  confidence: 0.95
+
+expected:
+  workflow_state:
+    status: "SUCCESS"
+    total_tasks: 2  # 1 router + 1 routed task
+    completed_tasks: 2
+  task_states:
+    - name: condition-router
+      status: "SUCCESS"
+    - name: process-fast
+      status: "SUCCESS"
+      parent: condition-router

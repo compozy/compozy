@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/kaptinlin/jsonschema"
 )
 
@@ -52,4 +53,11 @@ func (s *Schema) Validate(_ context.Context, value any) (*Result, error) {
 		return result, nil
 	}
 	return nil, fmt.Errorf("schema validation failed: %v", result.Errors)
+}
+
+func (s *Schema) Clone() (*Schema, error) {
+	if s == nil {
+		return nil, nil
+	}
+	return core.DeepCopy(s)
 }

@@ -3,11 +3,11 @@ package mcp
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"net/url"
 	"os"
 	"time"
 
+	"github.com/compozy/compozy/engine/core"
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 )
 
@@ -147,19 +147,11 @@ func (c *Config) validateLimits() error {
 }
 
 // Clone creates a deep copy of the MCP configuration
-func (c *Config) Clone() *Config {
-	clone := &Config{
-		ID:           c.ID,
-		URL:          c.URL,
-		Command:      c.Command,
-		Env:          make(map[string]string),
-		Proto:        c.Proto,
-		Transport:    c.Transport,
-		StartTimeout: c.StartTimeout,
-		MaxSessions:  c.MaxSessions,
+func (c *Config) Clone() (*Config, error) {
+	if c == nil {
+		return nil, nil
 	}
-	maps.Copy(clone.Env, c.Env)
-	return clone
+	return core.DeepCopy(c)
 }
 
 // isValidProtoVersion validates the protocol version format (YYYY-MM-DD)

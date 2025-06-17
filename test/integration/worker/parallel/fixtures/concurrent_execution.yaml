@@ -1,0 +1,92 @@
+name: parallel-concurrent-execution
+
+workflow:
+  id: test-parallel-concurrent
+  version: "1.0.0"
+  tasks:
+    - id: concurrent-parallel-task
+      type: parallel
+      strategy: wait_all
+      max_workers: 3
+      tasks:
+        - id: task-1
+          type: basic
+          action: test-action
+          with:
+            task_name: "parallel-task-1"
+            duration: 100
+            value: "{{ .workflow.input.base_value }}"
+          outputs:
+            result: "{{ .output.result }}"
+            task_id: "{{ .output.task_id }}"
+            duration: "{{ .output.duration }}"
+
+        - id: task-2
+          type: basic
+          action: test-action
+          with:
+            task_name: "parallel-task-2"
+            duration: 100
+            value: "{{ .workflow.input.base_value }}"
+          outputs:
+            result: "{{ .output.result }}"
+            task_id: "{{ .output.task_id }}"
+            duration: "{{ .output.duration }}"
+
+        - id: task-3
+          type: basic
+          action: test-action
+          with:
+            task_name: "parallel-task-3"
+            duration: 100
+            value: "{{ .workflow.input.base_value }}"
+          outputs:
+            result: "{{ .output.result }}"
+            task_id: "{{ .output.task_id }}"
+            duration: "{{ .output.duration }}"
+      outputs:
+        total_tasks: "{{ len(.tasks) }}"
+        all_results: "{{ .tasks | map(attr='output.result') | list }}"
+        total_duration: "{{ .tasks | map(attr='output.duration') | sum }}"
+        concurrent_execution: true
+
+input:
+  base_value: "test-concurrent"
+
+expected:
+  workflow_state:
+    status: SUCCESS
+    total_tasks: 4  # 1 parallel + 3 child tasks
+    completed_tasks: 4
+  task_states:
+    - name: concurrent-parallel-task
+      status: SUCCESS
+      output:
+        total_tasks: 3
+        all_results:
+          - "test-concurrent"
+          - "test-concurrent"
+          - "test-concurrent"
+        total_duration: 300.0
+        concurrent_execution: true
+    - name: concurrent-parallel-task-task-1
+      status: SUCCESS
+      parent: concurrent-parallel-task
+      output:
+        result: "test-concurrent"
+        task_id: "task-1"
+        duration: 100.0
+    - name: concurrent-parallel-task-task-2
+      status: SUCCESS
+      parent: concurrent-parallel-task
+      output:
+        result: "test-concurrent"
+        task_id: "task-2"
+        duration: 100.0
+    - name: concurrent-parallel-task-task-3
+      status: SUCCESS
+      parent: concurrent-parallel-task
+      output:
+        result: "test-concurrent"
+        task_id: "task-3"
+        duration: 100.0

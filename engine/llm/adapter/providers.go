@@ -198,7 +198,25 @@ func (m *MockLLM) GenerateContent(
 	messages []llms.MessageContent,
 	_ ...llms.CallOption,
 ) (*llms.ContentResponse, error) {
-	// Extract all message content to generate a response based on it
+	// Extract prompt from messages
+	prompt := m.extractPrompt(messages)
+
+	// Check for error conditions
+	if err := m.checkErrorConditions(prompt); err != nil {
+		return nil, err
+	}
+
+	// Handle delay simulation if needed
+	if err := m.handleDelaySimulation(ctx, prompt); err != nil {
+		return nil, err
+	}
+
+	// Generate response
+	return m.generateResponse(prompt), nil
+}
+
+// extractPrompt extracts text content from messages
+func (m *MockLLM) extractPrompt(messages []llms.MessageContent) string {
 	var prompt string
 	for _, message := range messages {
 		// Check both system and human messages for trigger patterns
@@ -210,31 +228,43 @@ func (m *MockLLM) GenerateContent(
 			}
 		}
 	}
+	return prompt
+}
 
-	// Debug: log the actual prompt being processed
-	fmt.Printf("MockLLM received prompt: %q\n", prompt)
+// checkErrorConditions checks if the prompt should trigger an error
+func (m *MockLLM) checkErrorConditions(prompt string) error {
+	if strings.Contains(prompt, "Process with error for testing") ||
+		strings.Contains(prompt, "Process item that may fail") {
+		// Check if should_fail is true
+		if strings.Contains(prompt, "should_fail") && strings.Contains(prompt, "true") {
+			return fmt.Errorf("mock agent error: simulated failure for testing")
+		}
+	}
+	return nil
+}
 
-	// For test environment, use minimal delay since cancellation propagation is limited
-	// In production, the real LLM calls would be naturally long-running and cancellable
+// handleDelaySimulation handles delay simulation for testing
+func (m *MockLLM) handleDelaySimulation(ctx context.Context, prompt string) error {
 	if strings.Contains(prompt, "duration:") ||
 		strings.Contains(prompt, "Think deeply") ||
 		strings.Contains(prompt, "cancellation-test") ||
 		strings.Contains(prompt, "slow") ||
 		strings.Contains(prompt, "long-") {
-		// Use a very short delay for testing - the test focuses on signal handling rather than activity cancellation
+		// Use a very short delay for testing
 		totalDelay := 100 * time.Millisecond
-		fmt.Printf("MockLLM simulating brief processing delay for cancellation testing\n")
 
 		select {
 		case <-time.After(totalDelay):
-			fmt.Printf("MockLLM processing completed\n")
+			return nil
 		case <-ctx.Done():
-			fmt.Printf("MockLLM canceled: %v\n", ctx.Err())
-			return nil, ctx.Err()
+			return ctx.Err()
 		}
 	}
+	return nil
+}
 
-	// Generate a predictable response based on the prompt
+// generateResponse generates a mock response based on the prompt
+func (m *MockLLM) generateResponse(prompt string) *llms.ContentResponse {
 	var responseText string
 	if prompt != "" {
 		responseText = fmt.Sprintf("Mock response for: %s", prompt)
@@ -242,15 +272,13 @@ func (m *MockLLM) GenerateContent(
 		responseText = "Mock agent response: task completed successfully"
 	}
 
-	response := &llms.ContentResponse{
+	return &llms.ContentResponse{
 		Choices: []*llms.ContentChoice{
 			{
 				Content: responseText,
 			},
 		},
 	}
-
-	return response, nil
 }
 
 // Call implements the legacy Call interface

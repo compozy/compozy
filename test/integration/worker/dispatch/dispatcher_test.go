@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/suite"
+	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/testsuite"
 
 	"github.com/compozy/compozy/engine/core"
@@ -39,28 +39,16 @@ func TestEventSignal_Structure(t *testing.T) {
 	})
 }
 
-type DispatcherWorkflowTestSuite struct {
-	suite.Suite
-	testsuite.WorkflowTestSuite
-	env *testsuite.TestWorkflowEnvironment
-}
-
 // Workflow tests are temporarily disabled due to complex Temporal test setup requirements
 // The dispatcher workflow functionality is tested through integration tests
-// func TestDispatcherWorkflow(t *testing.T) {
-// 	suite.Run(t, new(DispatcherWorkflowTestSuite))
-// }
+func TestDispatcherWorkflow_SuccessfulDispatch(t *testing.T) {
+	t.Run("Should dispatch event to matching workflow", func(t *testing.T) {
+		testSuite := &testsuite.WorkflowTestSuite{}
+		env := testSuite.NewTestWorkflowEnvironment()
+		defer func() {
+			env.AssertExpectations(t)
+		}()
 
-func (s *DispatcherWorkflowTestSuite) SetupTest() {
-	s.env = s.NewTestWorkflowEnvironment()
-}
-
-func (s *DispatcherWorkflowTestSuite) AfterTest(_, _ string) {
-	s.env.AssertExpectations(s.T())
-}
-
-func (s *DispatcherWorkflowTestSuite) TestSuccessfulDispatch() {
-	s.T().Run("Should dispatch event to matching workflow", func(_ *testing.T) {
 		mockWorkflows := []*wf.Config{
 			{
 				ID: "order-processor",
@@ -69,23 +57,59 @@ func (s *DispatcherWorkflowTestSuite) TestSuccessfulDispatch() {
 				},
 			},
 		}
-		s.env.OnActivity("GetWorkflowData", mock.Anything).Return(&wfacts.GetData{Workflows: mockWorkflows}, nil)
-		s.env.OnWorkflow("CompozyWorkflow", mock.Anything).Return(nil, nil)
-		s.env.RegisterWorkflow(worker.DispatcherWorkflow)
-		s.env.RegisterDelayedCallback(func() {
-			s.env.SignalWorkflow(worker.DispatcherEventChannel, worker.EventSignal{
+
+		// Create a GetData activity instance for testing
+		getData := &wfacts.GetData{Workflows: mockWorkflows}
+
+		// Register the activity with the test environment using the correct activity label
+		env.RegisterActivityWithOptions(getData.Run, activity.RegisterOptions{Name: wfacts.GetDataLabel})
+		env.OnActivity(wfacts.GetDataLabel, mock.Anything, mock.Anything).
+			Return(&wfacts.GetData{Workflows: mockWorkflows}, nil)
+
+		// Expect exactly one child workflow to be started
+		env.OnWorkflow("CompozyWorkflow", mock.Anything, mock.Anything).Return(nil, nil).Once()
+		env.RegisterWorkflow(worker.DispatcherWorkflow)
+		env.RegisterWorkflow(worker.CompozyWorkflow)
+
+		workflowFinished := make(chan struct{})
+		// Execute the workflow in a goroutine to avoid hanging
+		go func() {
+			defer close(workflowFinished)
+			env.ExecuteWorkflow(worker.DispatcherWorkflow, "test-project")
+		}()
+
+		// Use RegisterDelayedCallback for more reliable timing
+		env.RegisterDelayedCallback(func() {
+			env.SignalWorkflow(worker.DispatcherEventChannel, worker.EventSignal{
 				Name:          "order.created",
 				Payload:       core.Input{"orderId": "123"},
 				CorrelationID: "test-correlation-id",
 			})
-		}, time.Millisecond)
-		s.env.ExecuteWorkflow(worker.DispatcherWorkflow, "test-project")
-		s.env.AssertExpectations(s.T())
+		}, 10*time.Millisecond)
+
+		// Give the workflow time to process the signal and start the child workflow
+		env.RegisterDelayedCallback(func() {
+			// Cancel the workflow to allow the test to finish
+			env.CancelWorkflow()
+		}, 100*time.Millisecond)
+
+		// Wait for workflow completion
+		<-workflowFinished
+
+		// Verify the workflow was canceled (expected for long-running workflows)
+		assert.Error(t, env.GetWorkflowError(), "Workflow should be canceled")
+		env.AssertExpectations(t)
 	})
 }
 
-func (s *DispatcherWorkflowTestSuite) TestUnknownSignal() {
-	s.T().Run("Should handle unknown signal gracefully", func(_ *testing.T) {
+func TestDispatcherWorkflow_UnknownSignal(t *testing.T) {
+	t.Run("Should handle unknown signal gracefully", func(t *testing.T) {
+		testSuite := &testsuite.WorkflowTestSuite{}
+		env := testSuite.NewTestWorkflowEnvironment()
+		defer func() {
+			env.AssertExpectations(t)
+		}()
+
 		mockWorkflows := []*wf.Config{
 			{
 				ID: "order-processor",
@@ -94,16 +118,46 @@ func (s *DispatcherWorkflowTestSuite) TestUnknownSignal() {
 				},
 			},
 		}
-		s.env.OnActivity("GetWorkflowData", mock.Anything).Return(&wfacts.GetData{Workflows: mockWorkflows}, nil)
-		s.env.RegisterWorkflow(worker.DispatcherWorkflow)
-		go s.env.ExecuteWorkflow(worker.DispatcherWorkflow, "test-project")
-		time.Sleep(50 * time.Millisecond) // Allow workflow to start
-		s.env.SignalWorkflow(worker.DispatcherEventChannel, worker.EventSignal{
-			Name:    "unknown.event",
-			Payload: core.Input{},
-		})
-		time.Sleep(100 * time.Millisecond)
-		s.env.AssertExpectations(s.T())
+
+		// Create a GetData activity instance for testing
+		getData := &wfacts.GetData{Workflows: mockWorkflows}
+
+		// Register the activity with the test environment using the correct activity label
+		env.RegisterActivityWithOptions(getData.Run, activity.RegisterOptions{Name: wfacts.GetDataLabel})
+		env.OnActivity(wfacts.GetDataLabel, mock.Anything, mock.Anything).
+			Return(&wfacts.GetData{Workflows: mockWorkflows}, nil)
+
+		// No expectations for child workflows since unknown signals should not trigger any
+		env.RegisterWorkflow(worker.DispatcherWorkflow)
+		env.RegisterWorkflow(worker.CompozyWorkflow)
+
+		workflowFinished := make(chan struct{})
+		// Execute the workflow in a goroutine to avoid hanging
+		go func() {
+			defer close(workflowFinished)
+			env.ExecuteWorkflow(worker.DispatcherWorkflow, "test-project")
+		}()
+
+		// Use RegisterDelayedCallback for more reliable timing
+		env.RegisterDelayedCallback(func() {
+			env.SignalWorkflow(worker.DispatcherEventChannel, worker.EventSignal{
+				Name:    "unknown.event",
+				Payload: core.Input{},
+			})
+		}, 10*time.Millisecond)
+
+		// Allow some workflow time to pass to ensure no action is taken
+		env.RegisterDelayedCallback(func() {
+			// Cancel the workflow to finish the test
+			env.CancelWorkflow()
+		}, 100*time.Millisecond)
+
+		// Wait for workflow completion
+		<-workflowFinished
+
+		// Verify the workflow was canceled and no child workflow was started
+		assert.Error(t, env.GetWorkflowError(), "Workflow should be canceled")
+		env.AssertExpectations(t)
 	})
 }
 

@@ -167,6 +167,13 @@ func (p *Config) FromMap(data any) error {
 	return p.Merge(config)
 }
 
+func (p *Config) Clone() (*Config, error) {
+	if p == nil {
+		return nil, nil
+	}
+	return core.DeepCopy(p)
+}
+
 func Load(cwd *core.PathCWD, path string, envFilePath string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {

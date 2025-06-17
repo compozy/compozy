@@ -200,3 +200,77 @@ func Test_AgentConfigValidation(t *testing.T) {
 		assert.Contains(t, err.Error(), "current working directory is required for test-agent")
 	})
 }
+
+func TestActionConfig_DeepCopy(t *testing.T) {
+	t.Run("Should create independent copy that doesn't share pointer fields", func(t *testing.T) {
+		// Arrange
+		originalInput := &core.Input{"key": "original"}
+		originalSchema := &schema.Schema{"type": "object"}
+		originalCWD := &core.PathCWD{Path: "/original/path"}
+
+		original := &ActionConfig{
+			ID:           "test-action",
+			Prompt:       "test prompt",
+			InputSchema:  originalSchema,
+			OutputSchema: originalSchema, // intentionally same reference
+			With:         originalInput,
+			JSONMode:     true,
+			CWD:          originalCWD,
+		}
+
+		// Act
+		copied, err := original.Clone()
+		assert.NoError(t, err)
+
+		// Assert - verify basic fields are copied
+		assert.Equal(t, original.ID, copied.ID)
+		assert.Equal(t, original.Prompt, copied.Prompt)
+		assert.Equal(t, original.JSONMode, copied.JSONMode)
+
+		// Assert - verify pointer fields are different instances
+		assert.NotSame(t, original.With, copied.With)
+		assert.NotSame(t, original.InputSchema, copied.InputSchema)
+		assert.NotSame(t, original.OutputSchema, copied.OutputSchema)
+		assert.NotSame(t, original.CWD, copied.CWD)
+
+		// Assert - verify content is the same
+		assert.Equal(t, *original.With, *copied.With)
+		assert.Equal(t, *original.InputSchema, *copied.InputSchema)
+		assert.Equal(t, *original.OutputSchema, *copied.OutputSchema)
+		assert.Equal(t, *original.CWD, *copied.CWD)
+
+		// Assert - verify mutations don't affect original
+		(*copied.With)["key"] = "modified"
+		(*copied.InputSchema)["type"] = "string"
+		copied.CWD.Path = "/modified/path"
+
+		assert.Equal(t, "original", (*original.With)["key"])
+		assert.Equal(t, "object", (*original.InputSchema)["type"])
+		assert.Equal(t, "/original/path", original.CWD.Path)
+	})
+
+	t.Run("Should handle nil input gracefully", func(t *testing.T) {
+		var original *ActionConfig
+		copied, err := original.Clone()
+		assert.Nil(t, copied)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should handle action config with nil fields", func(t *testing.T) {
+		original := &ActionConfig{
+			ID:     "test",
+			Prompt: "test prompt",
+			// All pointer fields are nil
+		}
+
+		copied, err := original.Clone()
+		assert.NoError(t, err)
+
+		assert.Equal(t, original.ID, copied.ID)
+		assert.Equal(t, original.Prompt, copied.Prompt)
+		assert.Nil(t, copied.With)
+		assert.Nil(t, copied.InputSchema)
+		assert.Nil(t, copied.OutputSchema)
+		assert.Nil(t, copied.CWD)
+	})
+}

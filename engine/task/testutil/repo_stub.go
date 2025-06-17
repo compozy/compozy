@@ -91,6 +91,22 @@ func (r *InMemoryRepo) ListChildren(_ context.Context, parentStateID core.ID) ([
 	return children, nil
 }
 
+// GetChildByTaskID retrieves a specific child task state by its parent and task ID
+func (r *InMemoryRepo) GetChildByTaskID(_ context.Context, parentStateID core.ID, taskID string) (*task.State, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, state := range r.states {
+		if state.ParentStateID != nil && *state.ParentStateID == parentStateID && state.TaskID == taskID {
+			// Return a copy to prevent race conditions
+			stateCopy := *state
+			return &stateCopy, nil
+		}
+	}
+
+	return nil, fmt.Errorf("child state not found for parent %s and task %s", parentStateID, taskID)
+}
+
 // GetProgressInfo calculates progress information for a parent task
 func (r *InMemoryRepo) GetProgressInfo(ctx context.Context, parentStateID core.ID) (*task.ProgressInfo, error) {
 	children, err := r.ListChildren(ctx, parentStateID)

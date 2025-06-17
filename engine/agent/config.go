@@ -127,6 +127,13 @@ func (a *Config) Merge(other any) error {
 	return mergo.Merge(a, otherConfig, mergo.WithOverride)
 }
 
+func (a *Config) Clone() (*Config, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return core.DeepCopy(a)
+}
+
 func (a *Config) AsMap() (map[string]any, error) {
 	return core.AsMapDefault(a)
 }

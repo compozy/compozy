@@ -375,6 +375,28 @@ func (r *TaskRepo) ListChildren(ctx context.Context, parentStateID core.ID) ([]*
 	return states, nil
 }
 
+// GetChildByTaskID retrieves a specific child task state by its parent and task ID.
+func (r *TaskRepo) GetChildByTaskID(ctx context.Context, parentStateID core.ID, taskID string) (*task.State, error) {
+	query := `
+		SELECT *
+		FROM task_states
+		WHERE parent_state_id = $1 AND task_id = $2
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+
+	var stateDB task.StateDB
+	err := pgxscan.Get(ctx, r.db, &stateDB, query, parentStateID, taskID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrTaskNotFound
+		}
+		return nil, fmt.Errorf("scanning child state: %w", err)
+	}
+
+	return stateDB.ToState()
+}
+
 // GetTaskTree retrieves a complete task hierarchy starting from the root using PostgreSQL CTE.
 func (r *TaskRepo) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*task.State, error) {
 	query := `

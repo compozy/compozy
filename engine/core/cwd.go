@@ -84,6 +84,10 @@ func (c *PathCWD) Validate() error {
 	return nil
 }
 
+func (c *PathCWD) Clone() (*PathCWD, error) {
+	return DeepCopy(c)
+}
+
 func ReadFile(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }

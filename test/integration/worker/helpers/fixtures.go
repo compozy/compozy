@@ -38,12 +38,15 @@ type WorkflowStateExpectation struct {
 
 // TaskStateExpectation represents expected task state
 type TaskStateExpectation struct {
-	Name   string         `yaml:"name"`
-	ID     string         `yaml:"id,omitempty"`
-	Status string         `yaml:"status"`
-	Inputs map[string]any `yaml:"inputs,omitempty"`
-	Output map[string]any `yaml:"output,omitempty"`
-	Error  string         `yaml:"error,omitempty"`
+	Name           string         `yaml:"name"`
+	ID             string         `yaml:"id,omitempty"`
+	Status         string         `yaml:"status"`
+	Inputs         map[string]any `yaml:"inputs,omitempty"`
+	Output         map[string]any `yaml:"output,omitempty"`
+	Error          string         `yaml:"error,omitempty"`
+	Parent         string         `yaml:"parent,omitempty"`
+	ExecutionOrder int            `yaml:"execution_order,omitempty"`
+	ChildrenCount  int            `yaml:"children_count,omitempty"`
 }
 
 // FixtureLoader provides functionality to load test fixtures
@@ -169,7 +172,9 @@ func (f *TestFixture) AssertWorkflowState(t *testing.T, state *workflow.State) {
 	if expected.CompletedTasks > 0 {
 		completedCount := 0
 		for _, taskState := range state.Tasks {
-			if taskState.Status == core.StatusSuccess {
+			// Count tasks that have finished execution (success or failed) as completed
+			// Running/pending tasks are not completed yet
+			if taskState.Status == core.StatusSuccess || taskState.Status == core.StatusFailed {
 				completedCount++
 			}
 		}
@@ -211,6 +216,18 @@ func (f *TestFixture) AssertTaskStates(t *testing.T, states []*task.State) {
 		if exists {
 			assert.Equal(expected.Status, string(state.Status),
 				"Task %s status mismatch", taskID)
+
+			if expected.Parent != "" {
+				if state.ParentStateID != nil {
+					assert.Equal(expected.Parent, string(*state.ParentStateID),
+						"Parent mismatch for task %s", taskID)
+				} else {
+					assert.Empty(expected.Parent, "Expected no parent but fixture specifies parent for task %s", taskID)
+				}
+			}
+
+			// Note: ExecutionOrder is not tracked in the current State struct
+			// Note: ChildrenCount would require a separate repository query to verify
 
 			if expected.Output != nil && state.Output != nil {
 				// Compare outputs

@@ -21,6 +21,7 @@ import (
 	wf "github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gosimple/slug"
+	"github.com/sethvargo/go-retry"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/activity"
@@ -267,16 +268,7 @@ func (o *Worker) TerminateDispatcher(ctx context.Context, reason string) error {
 }
 
 func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
-	maxRetries := 5
-	baseDelay := 1 * time.Second
-	maxDelay := 30 * time.Second
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		select {
-		case <-ctx.Done():
-			logger.Info("context canceled, stopping dispatcher startup attempts", "dispatcher_id", o.dispatcherID)
-			return
-		default:
-		}
+	err := retry.Do(ctx, retry.WithMaxRetries(5, retry.NewExponential(1*time.Second)), func(ctx context.Context) error {
 		_, err := o.client.SignalWithStartWorkflow(
 			ctx,
 			o.dispatcherID,
@@ -299,38 +291,17 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 					"project",
 					o.projectConfig.Name,
 				)
-				return
+				return nil
 			}
-			if attempt < maxRetries-1 {
-				delay := time.Duration(1<<attempt) * baseDelay
-				if delay > maxDelay {
-					delay = maxDelay
-				}
-				logger.Error(
-					"failed to start dispatcher, retrying",
-					"error",
-					err,
-					"dispatcher_id",
-					o.dispatcherID,
-					"attempt",
-					attempt+1,
-					"retry_in",
-					delay,
-				)
-				select {
-				case <-ctx.Done():
-					logger.Info("context canceled during retry delay", "dispatcher_id", o.dispatcherID)
-					return
-				case <-time.After(delay):
-				}
-			} else {
-				logger.Error("failed to start dispatcher after all retries",
-					"error", err, "dispatcher_id", o.dispatcherID, "attempts", maxRetries)
-			}
-		} else {
-			logger.Info("started new dispatcher", "dispatcher_id", o.dispatcherID, "project", o.projectConfig.Name)
-			return
+			logger.Warn("failed to start dispatcher, retrying", "error", err, "dispatcher_id", o.dispatcherID)
+			return retry.RetryableError(err)
 		}
+		return nil
+	})
+	if err != nil {
+		logger.Error("failed to start dispatcher after all retries", "error", err, "dispatcher_id", o.dispatcherID)
+	} else {
+		logger.Info("started new dispatcher", "dispatcher_id", o.dispatcherID, "project", o.projectConfig.Name)
 	}
 }
 

@@ -5,7 +5,6 @@ import (
 	"maps"
 
 	"dario.cat/mergo"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type (
@@ -59,18 +58,6 @@ func (i *Input) Set(key string, value any) {
 	(*i)[key] = value
 }
 
-func (i *Input) ToProtoBufMap() (map[string]any, error) {
-	return DefaultToProtoMap(*i)
-}
-
-func (i *Input) ToStruct() (*structpb.Struct, error) {
-	m, err := i.ToProtoBufMap()
-	if err != nil {
-		return nil, err
-	}
-	return structpb.NewStruct(m)
-}
-
 func (i *Input) AsMap() map[string]any {
 	if i == nil {
 		return nil
@@ -105,18 +92,6 @@ func (o *Output) Set(key string, value any) {
 	(*o)[key] = value
 }
 
-func (o *Output) ToProtoBufMap() (map[string]any, error) {
-	return DefaultToProtoMap(*o)
-}
-
-func (o *Output) ToStruct() (*structpb.Struct, error) {
-	m, err := o.ToProtoBufMap()
-	if err != nil {
-		return nil, err
-	}
-	return structpb.NewStruct(m)
-}
-
 func (o *Output) AsMap() map[string]any {
 	if o == nil {
 		return nil
@@ -124,4 +99,14 @@ func (o *Output) AsMap() map[string]any {
 	result := make(map[string]any)
 	maps.Copy(result, *o)
 	return result
+}
+
+// DeepCopy creates a deep copy of Input
+func (i *Input) Clone() (*Input, error) {
+	return DeepCopy(i)
+}
+
+// DeepCopy creates a deep copy of Output
+func (o *Output) Clone() (*Output, error) {
+	return DeepCopy(o)
 }

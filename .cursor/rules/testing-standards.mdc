@@ -1,3 +1,4 @@
+
 ---
 description: Comprehensive testing standards and patterns for Compozy Go development - enforces mandatory t.Run patterns, testify usage, and mock standards
 globs:
@@ -19,6 +20,46 @@ category: "Always"
 - MUST use `stretchr/testify` for assertions and mocks
 - **STANDARDIZE ON TESTIFY MOCK:** Replace existing custom mocks with `testify/mock` implementations
 </requirements>
+
+## Anti-Patterns to Avoid
+
+<anti_patterns type="prohibited_patterns">
+**NEVER USE TESTIFY SUITE PATTERNS:**
+- ❌ **PROHIBITED:** `suite.Suite` embedding or any suite-based test structures
+- ❌ **PROHIBITED:** Suite methods like `s.Equal()`, `s.NoError()`, `s.True()`, `s.False()`, `s.T()`
+- ❌ **PROHIBITED:** `testsuite.WorkflowTestSuite` or similar suite embeddings
+- ❌ **PROHIBITED:** Suite lifecycle methods like `SetupTest()`, `TearDownTest()`, `AfterTest()`
+
+**USE DIRECT ASSERTIONS INSTEAD:**
+- ✅ **REQUIRED:** `assert.Equal(t, expected, actual)`
+- ✅ **REQUIRED:** `require.NoError(t, err)`
+- ✅ **REQUIRED:** `assert.True(t, condition)`
+- ✅ **REQUIRED:** Individual test functions with `*testing.T` parameter
+</anti_patterns>
+
+<anti_patterns type="bad_examples">
+```go
+// ❌ NEVER DO THIS - Suite pattern is prohibited
+type MyTestSuite struct {
+    suite.Suite
+    // other fields
+}
+
+func (s *MyTestSuite) TestSomething() {
+    s.Equal("expected", "actual")  // ❌ WRONG
+    s.NoError(err)                 // ❌ WRONG
+    s.T().Run("test", func(t *testing.T) { ... }) // ❌ WRONG
+}
+
+// ✅ DO THIS INSTEAD - Direct test functions
+func TestSomething_Method(t *testing.T) {
+    t.Run("Should behave correctly", func(t *testing.T) {
+        assert.Equal(t, "expected", "actual")  // ✅ CORRECT
+        require.NoError(t, err)                // ✅ CORRECT
+    })
+}
+```
+</anti_patterns>
 
 ## Table-Driven Tests
 

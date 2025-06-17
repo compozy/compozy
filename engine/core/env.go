@@ -7,7 +7,6 @@ import (
 
 	"dario.cat/mergo"
 	"github.com/joho/godotenv"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type EnvMap map[string]string
@@ -49,18 +48,6 @@ func (e *EnvMap) Set(key, value string) {
 		return
 	}
 	(*e)[key] = value
-}
-
-func (e *EnvMap) ToProtoBufMap() (map[string]any, error) {
-	return DefaultToProtoMap(*e)
-}
-
-func (e *EnvMap) ToStruct() (*structpb.Struct, error) {
-	m, err := e.ToProtoBufMap()
-	if err != nil {
-		return nil, err
-	}
-	return structpb.NewStruct(m)
 }
 
 func (e *EnvMap) AsMap() map[string]any {

@@ -77,6 +77,13 @@ func (a *ActionConfig) ShouldUseJSONOutput() bool {
 	return a.JSONMode || a.OutputSchema != nil
 }
 
+func (a *ActionConfig) Clone() (*ActionConfig, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return core.DeepCopy(a)
+}
+
 func FindActionConfig(actions []*ActionConfig, id string) (*ActionConfig, error) {
 	for _, action := range actions {
 		if action.ID == id {

@@ -1,0 +1,35 @@
+name: router-simple-condition
+
+workflow:
+  id: test-router-simple
+  version: "1.0.0"
+  tasks:
+    # Simple router that matches the condition "production" directly
+    # and routes to the "deploy-task" defined in the routes map
+    - id: simple-router
+      type: router
+      action: route_task
+      condition: "production"  # Static condition that matches the route key
+      routes:
+        production: deploy-task  # Route key matches the condition
+      default_route: deploy-task
+    - id: deploy-task
+      type: basic
+      action: process_data
+      with:
+        multiplier: 1.0
+
+input:
+  environment: "production"
+
+expected:
+  workflow_state:
+    status: "SUCCESS"
+    total_tasks: 2  # 1 router + 1 routed task
+    completed_tasks: 2
+  task_states:
+    - name: simple-router
+      status: "SUCCESS"
+    - name: deploy-task
+      status: "SUCCESS"
+      parent: simple-router

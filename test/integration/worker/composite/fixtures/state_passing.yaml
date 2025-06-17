@@ -1,0 +1,34 @@
+name: composite-state-passing
+
+workflow:
+  id: test-composite-state
+  version: "1.0.0"
+  tasks:
+    - id: state-composite
+      type: composite
+      tasks:
+        - id: task1
+          type: basic
+          action: process_message
+          with:
+            message: "Task 1 processing"
+        - id: task2
+          type: basic
+          action: process_message
+          with:
+            message: "Task 2 processing"
+
+input:
+  initial_state: "test-state"
+
+expected:
+  workflow_state:
+    status: SUCCESS
+  task_states:
+    - name: state-composite
+      status: SUCCESS
+      output:
+        progress_info:
+          total_children: 2
+          completed_count: 2
+          failed_count: 0

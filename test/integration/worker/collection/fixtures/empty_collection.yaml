@@ -1,0 +1,34 @@
+name: collection-empty-items
+
+workflow:
+  id: test-collection-empty
+  version: "1.0.0"
+  tasks:
+    - id: process-empty-collection
+      type: collection
+      mode: sequential
+      items: "{{ .workflow.input.test_items }}"
+      task:
+        id: "process-{{ .index }}"
+        type: basic
+        action: process_item
+        with:
+          item: "{{ .item }}"
+        outputs:
+          processed_item: "{{ .output.result }}"
+      outputs:
+        completion_status: "empty_collection_completed"
+
+input:
+  test_items: []
+
+expected:
+  workflow_state:
+    status: "SUCCESS"
+    total_tasks: 1  # Only parent task
+    completed_tasks: 1
+  task_states:
+    - name: process-empty-collection
+      status: "SUCCESS"
+      output:
+        completion_status: "empty_collection_completed"

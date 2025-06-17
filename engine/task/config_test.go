@@ -404,20 +404,20 @@ func Test_TaskConfigValidation(t *testing.T) {
 				Type: TaskTypeParallel,
 				CWD:  taskCWD,
 			},
-			ParallelTask: ParallelTask{
-				Tasks: []Config{
-					{
-						BaseConfig: BaseConfig{
-							ID:    "task1",
-							Type:  TaskTypeBasic,
-							Agent: &agent.Config{ID: "test_agent"},
-							CWD:   taskCWD, // Each sub-task needs a CWD
-						},
-						BasicTask: BasicTask{
-							Action: "test_action",
-						},
+			Tasks: []Config{
+				{
+					BaseConfig: BaseConfig{
+						ID:    "task1",
+						Type:  TaskTypeBasic,
+						Agent: &agent.Config{ID: "test_agent"},
+						CWD:   taskCWD, // Each sub-task needs a CWD
+					},
+					BasicTask: BasicTask{
+						Action: "test_action",
 					},
 				},
+			},
+			ParallelTask: ParallelTask{
 				Strategy: StrategyWaitAll,
 			},
 		}
@@ -514,9 +514,8 @@ func Test_TaskConfigValidation(t *testing.T) {
 				Type: TaskTypeParallel,
 				CWD:  taskCWD,
 			},
-			ParallelTask: ParallelTask{
-				Tasks: []Config{},
-			},
+			Tasks:        []Config{},
+			ParallelTask: ParallelTask{},
 		}
 
 		err := config.Validate()
@@ -590,19 +589,17 @@ func Test_TaskConfigValidation(t *testing.T) {
 				Type: TaskTypeParallel,
 				CWD:  taskCWD,
 			},
-			ParallelTask: ParallelTask{
-				Tasks: []Config{
-					{
-						BaseConfig: BaseConfig{
-							ID:   "duplicate",
-							Type: TaskTypeBasic,
-						},
+			Tasks: []Config{
+				{
+					BaseConfig: BaseConfig{
+						ID:   "duplicate",
+						Type: TaskTypeBasic,
 					},
-					{
-						BaseConfig: BaseConfig{
-							ID:   "duplicate",
-							Type: TaskTypeBasic,
-						},
+				},
+				{
+					BaseConfig: BaseConfig{
+						ID:   "duplicate",
+						Type: TaskTypeBasic,
 					},
 				},
 			},
@@ -620,14 +617,12 @@ func Test_TaskConfigValidation(t *testing.T) {
 				Type: TaskTypeParallel,
 				CWD:  taskCWD,
 			},
-			ParallelTask: ParallelTask{
-				Tasks: []Config{
-					{
-						BaseConfig: BaseConfig{
-							ID:   "invalid",
-							Type: TaskTypeBasic,
-							// Missing required CWD for validation
-						},
+			Tasks: []Config{
+				{
+					BaseConfig: BaseConfig{
+						ID:   "invalid",
+						Type: TaskTypeBasic,
+						// Missing required CWD for validation
 					},
 				},
 			},
@@ -645,23 +640,19 @@ func Test_TaskConfigValidation(t *testing.T) {
 				Type: TaskTypeParallel,
 				CWD:  taskCWD,
 			},
-			ParallelTask: ParallelTask{
-				Tasks: []Config{
-					{
-						BaseConfig: BaseConfig{
-							ID:   "child_task",
-							Type: TaskTypeParallel,
-							CWD:  taskCWD,
-						},
-						ParallelTask: ParallelTask{
-							Tasks: []Config{
-								{
-									BaseConfig: BaseConfig{
-										ID:   "parent_task", // Creates a cycle
-										Type: TaskTypeBasic,
-										CWD:  taskCWD,
-									},
-								},
+			Tasks: []Config{
+				{
+					BaseConfig: BaseConfig{
+						ID:   "child_task",
+						Type: TaskTypeParallel,
+						CWD:  taskCWD,
+					},
+					Tasks: []Config{
+						{
+							BaseConfig: BaseConfig{
+								ID:   "parent_task", // Creates a cycle
+								Type: TaskTypeBasic,
+								CWD:  taskCWD,
 							},
 						},
 					},
@@ -681,17 +672,15 @@ func Test_TaskConfigValidation(t *testing.T) {
 				Type: TaskTypeParallel,
 				CWD:  taskCWD,
 			},
-			ParallelTask: ParallelTask{
-				Tasks: []Config{
-					{
-						BaseConfig: BaseConfig{
-							ID:   "self_ref", // Same ID as parent creates cycle
-							Type: TaskTypeBasic,
-							CWD:  taskCWD,
-						},
-						BasicTask: BasicTask{
-							Action: "test",
-						},
+			Tasks: []Config{
+				{
+					BaseConfig: BaseConfig{
+						ID:   "self_ref", // Same ID as parent creates cycle
+						Type: TaskTypeBasic,
+						CWD:  taskCWD,
+					},
+					BasicTask: BasicTask{
+						Action: "test",
 					},
 				},
 			},
@@ -709,26 +698,22 @@ func Test_TaskConfigValidation(t *testing.T) {
 				Type: TaskTypeParallel,
 				CWD:  taskCWD,
 			},
-			ParallelTask: ParallelTask{
-				Tasks: []Config{
-					{
-						BaseConfig: BaseConfig{
-							ID:   "child_task",
-							Type: TaskTypeParallel,
-							CWD:  taskCWD,
-						},
-						ParallelTask: ParallelTask{
-							Tasks: []Config{
-								{
-									BaseConfig: BaseConfig{
-										ID:   "grandchild_task",
-										Type: TaskTypeBasic,
-										CWD:  taskCWD,
-									},
-									BasicTask: BasicTask{
-										Action: "test",
-									},
-								},
+			Tasks: []Config{
+				{
+					BaseConfig: BaseConfig{
+						ID:   "child_task",
+						Type: TaskTypeParallel,
+						CWD:  taskCWD,
+					},
+					Tasks: []Config{
+						{
+							BaseConfig: BaseConfig{
+								ID:   "grandchild_task",
+								Type: TaskTypeBasic,
+								CWD:  taskCWD,
+							},
+							BasicTask: BasicTask{
+								Action: "test",
 							},
 						},
 					},
@@ -750,16 +735,14 @@ func Test_TaskConfigValidation(t *testing.T) {
 			CollectionConfig: CollectionConfig{
 				Items: `["item1", "item2", "item3"]`,
 			},
-			ParallelTask: ParallelTask{
-				Task: &Config{
-					BaseConfig: BaseConfig{
-						ID:   "template-task",
-						Type: TaskTypeBasic,
-						CWD:  taskCWD,
-					},
-					BasicTask: BasicTask{
-						Action: "process {{ .item }}",
-					},
+			Task: &Config{
+				BaseConfig: BaseConfig{
+					ID:   "template-task",
+					Type: TaskTypeBasic,
+					CWD:  taskCWD,
+				},
+				BasicTask: BasicTask{
+					Action: "process {{ .item }}",
 				},
 			},
 		}
@@ -778,16 +761,14 @@ func Test_TaskConfigValidation(t *testing.T) {
 				Items: `["item1", "item2", "item3"]`,
 				Mode:  CollectionModeSequential,
 			},
-			ParallelTask: ParallelTask{
-				Task: &Config{
-					BaseConfig: BaseConfig{
-						ID:   "template-task",
-						Type: TaskTypeBasic,
-						CWD:  taskCWD,
-					},
-					BasicTask: BasicTask{
-						Action: "process {{ .item }}",
-					},
+			Task: &Config{
+				BaseConfig: BaseConfig{
+					ID:   "template-task",
+					Type: TaskTypeBasic,
+					CWD:  taskCWD,
+				},
+				BasicTask: BasicTask{
+					Action: "process {{ .item }}",
 				},
 			},
 		}
@@ -805,18 +786,6 @@ func Test_TaskConfigValidation(t *testing.T) {
 			CollectionConfig: CollectionConfig{
 				Items: `["item1", "item2", "item3"]`,
 			},
-			ParallelTask: ParallelTask{
-				Task: &Config{
-					BaseConfig: BaseConfig{
-						ID:   "template-task",
-						Type: TaskTypeBasic,
-						CWD:  taskCWD,
-					},
-					BasicTask: BasicTask{
-						Action: "process {{ .item }}",
-					},
-				},
-			},
 		}
 		// Apply defaults
 		config.Default()
@@ -833,10 +802,8 @@ func Test_TaskConfigValidation(t *testing.T) {
 			CollectionConfig: CollectionConfig{
 				Items: "", // Missing items
 			},
-			ParallelTask: ParallelTask{
-				Task: &Config{
-					BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, CWD: taskCWD},
-				},
+			Task: &Config{
+				BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, CWD: taskCWD},
 			},
 		}
 
@@ -856,10 +823,8 @@ func Test_TaskConfigValidation(t *testing.T) {
 				Items: `["item1", "item2"]`,
 				Mode:  "invalid-mode",
 			},
-			ParallelTask: ParallelTask{
-				Task: &Config{
-					BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, CWD: taskCWD},
-				},
+			Task: &Config{
+				BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, CWD: taskCWD},
 			},
 		}
 
@@ -879,10 +844,8 @@ func Test_TaskConfigValidation(t *testing.T) {
 				Items: `["item1", "item2"]`,
 				Batch: -1,
 			},
-			ParallelTask: ParallelTask{
-				Task: &Config{
-					BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, CWD: taskCWD},
-				},
+			Task: &Config{
+				BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, CWD: taskCWD},
 			},
 		}
 
@@ -901,13 +864,11 @@ func Test_TaskConfigValidation(t *testing.T) {
 			CollectionConfig: CollectionConfig{
 				Items: `["item1", "item2"]`,
 			},
-			ParallelTask: ParallelTask{
-				Task: &Config{
-					BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, CWD: taskCWD},
-				},
-				Tasks: []Config{
-					{BaseConfig: BaseConfig{ID: "task1", Type: TaskTypeBasic, CWD: taskCWD}},
-				},
+			Task: &Config{
+				BaseConfig: BaseConfig{ID: "template", Type: TaskTypeBasic, CWD: taskCWD},
+			},
+			Tasks: []Config{
+				{BaseConfig: BaseConfig{ID: "task1", Type: TaskTypeBasic, CWD: taskCWD}},
 			},
 		}
 
@@ -1226,41 +1187,39 @@ func TestCompositeTask(t *testing.T) {
 				Type: TaskTypeComposite,
 				CWD:  cwd,
 			},
-			ParallelTask: ParallelTask{
-				Strategy: StrategyFailFast,
-				Tasks: []Config{
-					{
-						BaseConfig: BaseConfig{
-							ID:   "create-profile",
-							Type: TaskTypeBasic,
-							CWD:  cwd,
-						},
-						BasicTask: BasicTask{
-							Action: "create_profile",
-						},
+			Tasks: []Config{
+				{
+					BaseConfig: BaseConfig{
+						ID:   "create-profile",
+						Type: TaskTypeBasic,
+						CWD:  cwd,
 					},
-					{
-						BaseConfig: BaseConfig{
-							ID:   "send-welcome-email",
-							Type: TaskTypeBasic,
-							CWD:  cwd,
-						},
-						BasicTask: BasicTask{
-							Action: "send_email",
-						},
+					BasicTask: BasicTask{
+						Action: "create_profile",
 					},
-					{
-						BaseConfig: BaseConfig{
-							ID:   "setup-preferences",
-							Type: TaskTypeBasic,
-							CWD:  cwd,
-						},
-						BasicTask: BasicTask{
-							Action: "setup_preferences",
-						},
+				},
+				{
+					BaseConfig: BaseConfig{
+						ID:   "send-welcome-email",
+						Type: TaskTypeBasic,
+						CWD:  cwd,
+					},
+					BasicTask: BasicTask{
+						Action: "send_email",
+					},
+				},
+				{
+					BaseConfig: BaseConfig{
+						ID:   "setup-preferences",
+						Type: TaskTypeBasic,
+						CWD:  cwd,
+					},
+					BasicTask: BasicTask{
+						Action: "setup_preferences",
 					},
 				},
 			},
+			// Composite tasks should not have ParallelTask fields set
 		}
 
 		// Test execution type
@@ -1268,9 +1227,6 @@ func TestCompositeTask(t *testing.T) {
 
 		// Test that it's a composite type
 		assert.Equal(t, TaskTypeComposite, config.Type)
-
-		// Test strategy
-		assert.Equal(t, StrategyFailFast, config.GetStrategy())
 
 		// Validate the configuration
 		err := config.Validate()
@@ -1284,10 +1240,7 @@ func TestCompositeTask(t *testing.T) {
 				Type: TaskTypeComposite,
 				CWD:  cwd,
 			},
-			ParallelTask: ParallelTask{
-				Strategy: StrategyFailFast,
-				Tasks:    []Config{},
-			},
+			Tasks: []Config{},
 		}
 
 		err := config.Validate()
@@ -1302,61 +1255,76 @@ func TestCompositeTask(t *testing.T) {
 				Type: TaskTypeComposite,
 				CWD:  cwd,
 			},
-			ParallelTask: ParallelTask{
-				Tasks: []Config{
-					{
-						BaseConfig: BaseConfig{
-							ID:   "nested-parallel",
-							Type: TaskTypeParallel,
-							CWD:  cwd,
-						},
-						ParallelTask: ParallelTask{
-							Tasks: []Config{
-								{
-									BaseConfig: BaseConfig{
-										ID:   "nested-basic",
-										Type: TaskTypeBasic,
-										CWD:  cwd,
-									},
-									BasicTask: BasicTask{
-										Action: "test",
-									},
-								},
+			Tasks: []Config{
+				{
+					BaseConfig: BaseConfig{
+						ID:   "nested-parallel",
+						Type: TaskTypeParallel,
+						CWD:  cwd,
+					},
+					Tasks: []Config{
+						{
+							BaseConfig: BaseConfig{
+								ID:   "nested-basic",
+								Type: TaskTypeBasic,
+								CWD:  cwd,
+							},
+							BasicTask: BasicTask{
+								Action: "test",
 							},
 						},
 					},
+					// Nested parallel task can have its own strategy
+					ParallelTask: ParallelTask{
+						Strategy: StrategyWaitAll,
+					},
 				},
 			},
+			// Composite tasks should not have ParallelTask fields set
 		}
 
 		err := config.Validate()
 		require.NoError(t, err)
 	})
 
-	t.Run("Should support best effort strategy", func(t *testing.T) {
+	t.Run("Should validate composite tasks run sequentially without strategies", func(t *testing.T) {
 		config := &Config{
 			BaseConfig: BaseConfig{
-				ID:   "composite-with-best-effort",
+				ID:   "sequential-composite",
 				Type: TaskTypeComposite,
 				CWD:  cwd,
 			},
-			ParallelTask: ParallelTask{
-				Strategy: StrategyBestEffort,
-				Tasks: []Config{
-					{
-						BaseConfig: BaseConfig{
-							ID:   "step1",
-							Type: TaskTypeBasic,
-							CWD:  cwd,
-						},
+			Tasks: []Config{
+				{
+					BaseConfig: BaseConfig{
+						ID:   "step1",
+						Type: TaskTypeBasic,
+						CWD:  cwd,
+					},
+					BasicTask: BasicTask{
+						Action: "first_step",
+					},
+				},
+				{
+					BaseConfig: BaseConfig{
+						ID:   "step2",
+						Type: TaskTypeBasic,
+						CWD:  cwd,
+					},
+					BasicTask: BasicTask{
+						Action: "second_step",
 					},
 				},
 			},
+			// Composite tasks should not have ParallelTask fields set
 		}
 
 		err := config.Validate()
 		require.NoError(t, err)
-		assert.Equal(t, StrategyBestEffort, config.GetStrategy())
+
+		// Verify that composite tasks don't have strategy-related behavior
+		assert.Equal(t, TaskTypeComposite, config.Type)
+		assert.Equal(t, ExecutionComposite, config.GetExecType())
 	})
 }
 
@@ -1489,28 +1457,28 @@ func Test_ConfigSerializationWithPublicFields(t *testing.T) {
 			ParallelTask: ParallelTask{
 				Strategy:   StrategyWaitAll,
 				MaxWorkers: 5,
-				Tasks: []Config{
-					{
-						BaseConfig: BaseConfig{
-							ID:       "child-1",
-							Type:     TaskTypeBasic,
-							FilePath: "/project/tasks/child1.yaml",
-							CWD:      CWD,
-						},
-						BasicTask: BasicTask{
-							Action: "process",
-						},
+			},
+			Tasks: []Config{
+				{
+					BaseConfig: BaseConfig{
+						ID:       "child-1",
+						Type:     TaskTypeBasic,
+						FilePath: "/project/tasks/child1.yaml",
+						CWD:      CWD,
 					},
-					{
-						BaseConfig: BaseConfig{
-							ID:       "child-2",
-							Type:     TaskTypeBasic,
-							FilePath: "/project/tasks/child2.yaml",
-							CWD:      CWD,
-						},
-						BasicTask: BasicTask{
-							Action: "transform",
-						},
+					BasicTask: BasicTask{
+						Action: "process",
+					},
+				},
+				{
+					BaseConfig: BaseConfig{
+						ID:       "child-2",
+						Type:     TaskTypeBasic,
+						FilePath: "/project/tasks/child2.yaml",
+						CWD:      CWD,
+					},
+					BasicTask: BasicTask{
+						Action: "transform",
 					},
 				},
 			},
@@ -1535,11 +1503,11 @@ func Test_ConfigSerializationWithPublicFields(t *testing.T) {
 		// Verify child configs
 		assert.Len(t, retrievedConfig.Tasks, 2)
 		for i, childTask := range retrievedConfig.Tasks {
-			assert.Equal(t, originalConfig.ParallelTask.Tasks[i].ID, childTask.ID)
-			assert.Equal(t, originalConfig.ParallelTask.Tasks[i].FilePath, childTask.FilePath)
+			assert.Equal(t, originalConfig.Tasks[i].ID, childTask.ID)
+			assert.Equal(t, originalConfig.Tasks[i].FilePath, childTask.FilePath)
 			assert.NotNil(t, childTask.CWD)
 			assert.Equal(t, originalConfig.Tasks[i].CWD.PathStr(), childTask.CWD.PathStr())
-			assert.Equal(t, originalConfig.ParallelTask.Tasks[i].Action, childTask.Action)
+			assert.Equal(t, originalConfig.Tasks[i].Action, childTask.Action)
 		}
 	})
 }

@@ -1,0 +1,40 @@
+name: collection-sequential-items
+
+workflow:
+  id: test-collection-sequential
+  version: "1.0.0"
+  tasks:
+    - id: process-items-sequential
+      type: collection
+      mode: sequential
+      items: "{{ .workflow.input.test_items }}"
+      task:
+        id: "process-items-sequential-item-{{ .index }}"
+        type: basic
+        action: process_item
+        with:
+          item_name: "{{ .item.name }}"
+          item_value: "{{ .item.value }}"
+          multiplier: 2
+
+input:
+  test_items:
+    - name: "item-1"
+      value: 10
+    - name: "item-2"
+      value: 20
+
+expected:
+  workflow_state:
+    status: "SUCCESS"
+    total_tasks: 3  # 1 parent + 2 children
+    completed_tasks: 3
+  task_states:
+    - name: process-items-sequential
+      status: "SUCCESS"
+    - name: process-items-sequential-item-0
+      status: "SUCCESS"
+      parent: process-items-sequential
+    - name: process-items-sequential-item-1
+      status: "SUCCESS"
+      parent: process-items-sequential

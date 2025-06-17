@@ -1,0 +1,34 @@
+name: composite-child-failure
+
+workflow:
+  id: test-composite-failure
+  version: "1.0.0"
+  tasks:
+    - id: failing-composite
+      type: composite
+      tasks:
+        - id: step1
+          type: basic
+          action: process_message
+          with:
+            message: "Step 1"
+        - id: step2-fail
+          type: basic
+          action: process_message
+          with:
+            message: "error:forced failure"
+
+input:
+  test_data: "failure-test"
+
+expected:
+  workflow_state:
+    status: FAILED
+  task_states:
+    - name: failing-composite
+      status: FAILED
+      output:
+        progress_info:
+          total_children: 2
+          completed_count: 1
+          failed_count: 1
