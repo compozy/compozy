@@ -9,8 +9,17 @@ import (
 )
 
 const (
-	inputKey  = "input"
-	outputKey = "output"
+	inputKey    = "input"
+	outputKey   = "output"
+	statusKey   = "status"
+	errorKey    = "error"
+	idKey       = "id"
+	workflowKey = "workflow"
+	tasksKey    = "tasks"
+	parentKey   = "parent"
+	itemKey     = "item"
+	indexKey    = "index"
+	envKey      = "env"
 )
 
 type ContextBuilder struct{}
@@ -33,31 +42,31 @@ type NormalizationContext struct {
 func (cb *ContextBuilder) BuildContext(ctx *NormalizationContext) map[string]any {
 	cb.buildChildrenIndex(ctx)
 	context := map[string]any{
-		"workflow": cb.buildWorkflowContext(ctx),
-		"tasks":    cb.buildTasksContext(ctx),
+		workflowKey: cb.buildWorkflowContext(ctx),
+		tasksKey:    cb.buildTasksContext(ctx),
 	}
 	if parent := cb.buildParentContext(ctx); parent != nil {
-		context["parent"] = parent
+		context[parentKey] = parent
 	}
 	if ctx.CurrentInput != nil {
 		context[inputKey] = ctx.CurrentInput
 		// Also add item and index at top level for collection tasks
-		if item, exists := (*ctx.CurrentInput)["item"]; exists {
-			context["item"] = item
+		if item, exists := (*ctx.CurrentInput)[itemKey]; exists {
+			context[itemKey] = item
 		}
-		if index, exists := (*ctx.CurrentInput)["index"]; exists {
-			context["index"] = index
+		if index, exists := (*ctx.CurrentInput)[indexKey]; exists {
+			context[indexKey] = index
 		}
 	}
 	if ctx.MergedEnv != nil {
-		context["env"] = ctx.MergedEnv
+		context[envKey] = ctx.MergedEnv
 	}
 	return context
 }
 
 func (cb *ContextBuilder) buildWorkflowContext(ctx *NormalizationContext) map[string]any {
 	workflowContext := map[string]any{
-		"id":      ctx.WorkflowState.WorkflowID,
+		idKey:     ctx.WorkflowState.WorkflowID,
 		inputKey:  ctx.WorkflowState.Input,
 		outputKey: ctx.WorkflowState.Output,
 	}
@@ -92,12 +101,12 @@ func (cb *ContextBuilder) buildSingleTaskContext(
 	ctx *NormalizationContext,
 ) map[string]any {
 	taskContext := map[string]any{
-		"id":     taskID,
-		inputKey: taskState.Input,
-		"status": taskState.Status,
+		idKey:     taskID,
+		inputKey:  taskState.Input,
+		statusKey: taskState.Status,
 	}
 	if taskState.Error != nil {
-		taskContext["error"] = taskState.Error
+		taskContext[errorKey] = taskState.Error
 	}
 	taskContext[outputKey] = cb.buildTaskOutput(taskState, ctx)
 	cb.mergeTaskConfigIfExists(taskContext, taskID, ctx)
@@ -110,7 +119,7 @@ func (cb *ContextBuilder) buildTaskOutput(taskState *task.State, ctx *Normalizat
 		nestedOutput := make(map[string]any)
 		// Include the parent's own output first (if any)
 		if taskState.Output != nil {
-			nestedOutput["output"] = *taskState.Output
+			nestedOutput[outputKey] = *taskState.Output
 		}
 		// Use pre-built children index for O(1) lookup instead of O(n) scan
 		if ctx != nil && ctx.ChildrenIndex != nil {
@@ -120,7 +129,11 @@ func (cb *ContextBuilder) buildTaskOutput(taskState *task.State, ctx *Normalizat
 					if childTaskState, exists := ctx.WorkflowState.Tasks[childTaskID]; exists {
 						// Add child task output to nested structure
 						childOutput := make(map[string]any)
-						childOutput["output"] = cb.buildTaskOutput(childTaskState, ctx) // Recursive call for child
+						childOutput[outputKey] = cb.buildTaskOutput(childTaskState, ctx) // Recursive call for child
+						childOutput[statusKey] = childTaskState.Status
+						if childTaskState.Error != nil {
+							childOutput[errorKey] = childTaskState.Error
+						}
 						nestedOutput[childTaskID] = childOutput
 					}
 				}
@@ -210,8 +223,8 @@ func (cb *ContextBuilder) BuildCollectionContext(
 	cb.buildChildrenIndex(ctx)
 
 	templateContext := map[string]any{
-		"workflow": cb.buildWorkflowContext(ctx),
-		"tasks":    cb.buildTasksContext(ctx),
+		workflowKey: cb.buildWorkflowContext(ctx),
+		tasksKey:    cb.buildTasksContext(ctx),
 	}
 
 	// Add workflow input/output if available

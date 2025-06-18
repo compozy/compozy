@@ -5,355 +5,229 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/compozy/compozy/engine/workflow"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHandleResponse_ShouldUpdateParentStatus(t *testing.T) {
-	tests := []struct {
-		name          string
-		currentStatus core.StatusType
-		newStatus     core.StatusType
-		expected      bool
-	}{
-		{
-			name:          "same status should not update",
-			currentStatus: core.StatusRunning,
-			newStatus:     core.StatusRunning,
-			expected:      false,
-		},
-		{
-			name:          "transition to success should update",
-			currentStatus: core.StatusRunning,
-			newStatus:     core.StatusSuccess,
-			expected:      true,
-		},
-		{
-			name:          "transition to failed should update",
-			currentStatus: core.StatusRunning,
-			newStatus:     core.StatusFailed,
-			expected:      true,
-		},
-		{
-			name:          "from pending to running should update",
-			currentStatus: core.StatusPending,
-			newStatus:     core.StatusRunning,
-			expected:      true,
-		},
-		{
-			name:          "from success to failed should update (terminal to terminal)",
-			currentStatus: core.StatusSuccess,
-			newStatus:     core.StatusFailed,
-			expected:      true,
-		},
-		{
-			name:          "from success to running should not update (terminal to active)",
-			currentStatus: core.StatusSuccess,
-			newStatus:     core.StatusRunning,
-			expected:      false,
-		},
-	}
+	t.Run("Should not update when status is the same", func(t *testing.T) {
+		mockWorkflowRepo := new(store.MockWorkflowRepo)
+		mockTaskRepo := new(store.MockTaskRepo)
+		handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create mock repositories - we don't need them for this pure function test
-			mockWorkflowRepo := &mockWorkflowRepo{}
-			mockTaskRepo := &mockTaskRepo{}
+		result := handleResponse.parentStatusUpdater.ShouldUpdateParentStatus(core.StatusRunning, core.StatusRunning)
+		assert.False(t, result)
+	})
 
-			handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
+	t.Run("Should update when transitioning to success", func(t *testing.T) {
+		mockWorkflowRepo := new(store.MockWorkflowRepo)
+		mockTaskRepo := new(store.MockTaskRepo)
+		handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
 
-			result := handleResponse.parentStatusUpdater.ShouldUpdateParentStatus(tt.currentStatus, tt.newStatus)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
+		result := handleResponse.parentStatusUpdater.ShouldUpdateParentStatus(core.StatusRunning, core.StatusSuccess)
+		assert.True(t, result)
+	})
 
-// idPtr creates a pointer to a core.ID for test convenience
-func idPtr(id string) *core.ID {
-	coreID := core.ID(id)
-	return &coreID
+	t.Run("Should update when transitioning to failed", func(t *testing.T) {
+		mockWorkflowRepo := new(store.MockWorkflowRepo)
+		mockTaskRepo := new(store.MockTaskRepo)
+		handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
+
+		result := handleResponse.parentStatusUpdater.ShouldUpdateParentStatus(core.StatusRunning, core.StatusFailed)
+		assert.True(t, result)
+	})
+
+	t.Run("Should update when transitioning from pending to running", func(t *testing.T) {
+		mockWorkflowRepo := new(store.MockWorkflowRepo)
+		mockTaskRepo := new(store.MockTaskRepo)
+		handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
+
+		result := handleResponse.parentStatusUpdater.ShouldUpdateParentStatus(core.StatusPending, core.StatusRunning)
+		assert.True(t, result)
+	})
+
+	t.Run("Should update when transitioning from success to failed", func(t *testing.T) {
+		mockWorkflowRepo := new(store.MockWorkflowRepo)
+		mockTaskRepo := new(store.MockTaskRepo)
+		handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
+
+		result := handleResponse.parentStatusUpdater.ShouldUpdateParentStatus(core.StatusSuccess, core.StatusFailed)
+		assert.True(t, result)
+	})
+
+	t.Run("Should not update when transitioning from terminal to active", func(t *testing.T) {
+		mockWorkflowRepo := new(store.MockWorkflowRepo)
+		mockTaskRepo := new(store.MockTaskRepo)
+		handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
+
+		result := handleResponse.parentStatusUpdater.ShouldUpdateParentStatus(core.StatusSuccess, core.StatusRunning)
+		assert.False(t, result)
+	})
 }
 
 func TestHandleResponse_UpdateParentStatusIfNeeded(t *testing.T) {
-	tests := []struct {
-		name           string
-		childState     *task.State
-		parentState    *task.State
-		progressInfo   *task.ProgressInfo
-		expectedStatus core.StatusType
-		expectUpdate   bool
-	}{
-		{
-			name: "child task with no parent should not update anything",
-			childState: &task.State{
-				TaskExecID:    core.ID("child-123"),
-				TaskID:        "child-task",
-				Status:        core.StatusSuccess,
-				ParentStateID: nil,
-			},
-			expectUpdate: false,
-		},
-		{
-			name: "non-parallel parent task should not update",
-			childState: &task.State{
-				TaskExecID:    core.ID("child-123"),
-				TaskID:        "child-task",
-				Status:        core.StatusSuccess,
-				ParentStateID: idPtr("parent-456"),
-			},
-			parentState: &task.State{
-				TaskExecID:    core.ID("parent-456"),
-				TaskID:        "parent-task",
-				Status:        core.StatusRunning,
-				ExecutionType: task.ExecutionBasic,
-			},
-			expectUpdate: false,
-		},
-		{
-			name: "wait_all strategy with all children complete should succeed",
-			childState: &task.State{
-				TaskExecID:    core.ID("child-123"),
-				TaskID:        "child-task",
-				Status:        core.StatusSuccess,
-				ParentStateID: idPtr("parent-456"),
-			},
-			parentState: &task.State{
-				TaskExecID:    core.ID("parent-456"),
-				TaskID:        "parent-task",
-				Status:        core.StatusRunning,
-				ExecutionType: task.ExecutionParallel,
-				Input: &core.Input{
-					"_parallel_config": map[string]any{
-						"strategy": string(task.StrategyWaitAll),
-					},
+	t.Run("Should not update when child task has no parent", func(t *testing.T) {
+		mockWorkflowRepo := new(store.MockWorkflowRepo)
+		mockTaskRepo := new(store.MockTaskRepo)
+		handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
+
+		childState := &task.State{
+			TaskExecID:    core.ID("child-123"),
+			TaskID:        "child-task",
+			Status:        core.StatusSuccess,
+			ParentStateID: nil,
+		}
+
+		ctx := context.Background()
+		err := handleResponse.updateParentStatusIfNeeded(ctx, childState)
+
+		require.NoError(t, err)
+		mockTaskRepo.AssertExpectations(t)
+		mockWorkflowRepo.AssertExpectations(t)
+	})
+
+	t.Run("Should not update when parent task is not parallel", func(t *testing.T) {
+		mockWorkflowRepo := new(store.MockWorkflowRepo)
+		mockTaskRepo := new(store.MockTaskRepo)
+
+		parentID := core.ID("parent-456")
+		childState := &task.State{
+			TaskExecID:    core.ID("child-123"),
+			TaskID:        "child-task",
+			Status:        core.StatusSuccess,
+			ParentStateID: &parentID,
+		}
+		parentState := &task.State{
+			TaskExecID:    core.ID("parent-456"),
+			TaskID:        "parent-task",
+			Status:        core.StatusRunning,
+			ExecutionType: task.ExecutionBasic,
+		}
+
+		mockTaskRepo.On("GetState", mock.Anything, parentID).Return(parentState, nil)
+
+		handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
+		ctx := context.Background()
+		err := handleResponse.updateParentStatusIfNeeded(ctx, childState)
+
+		require.NoError(t, err)
+		mockTaskRepo.AssertExpectations(t)
+		mockWorkflowRepo.AssertExpectations(t)
+	})
+
+	t.Run("Should succeed when wait_all strategy has all children complete", func(t *testing.T) {
+		mockWorkflowRepo := new(store.MockWorkflowRepo)
+		mockTaskRepo := new(store.MockTaskRepo)
+
+		parentID := core.ID("parent-456")
+		childState := &task.State{
+			TaskExecID:    core.ID("child-123"),
+			TaskID:        "child-task",
+			Status:        core.StatusSuccess,
+			ParentStateID: &parentID,
+		}
+		parentState := &task.State{
+			TaskExecID:    core.ID("parent-456"),
+			TaskID:        "parent-task",
+			Status:        core.StatusRunning,
+			ExecutionType: task.ExecutionParallel,
+			Input: &core.Input{
+				"_parallel_config": map[string]any{
+					"strategy": string(task.StrategyWaitAll),
 				},
 			},
-			progressInfo: &task.ProgressInfo{
-				TotalChildren:  2,
-				CompletedCount: 2,
-				FailedCount:    0,
-				RunningCount:   0,
-				PendingCount:   0,
-			},
-			expectedStatus: core.StatusSuccess,
-			expectUpdate:   true,
-		},
-		{
-			name: "fail_fast strategy with one failure should fail",
-			childState: &task.State{
-				TaskExecID:    core.ID("child-123"),
-				TaskID:        "child-task",
-				Status:        core.StatusFailed,
-				ParentStateID: idPtr("parent-456"),
-			},
-			parentState: &task.State{
-				TaskExecID:    core.ID("parent-456"),
-				TaskID:        "parent-task",
-				Status:        core.StatusRunning,
-				ExecutionType: task.ExecutionParallel,
-				Input: &core.Input{
-					"_parallel_config": map[string]any{
-						"strategy": string(task.StrategyFailFast),
-					},
+		}
+		progressInfo := &task.ProgressInfo{
+			TotalChildren:  2,
+			CompletedCount: 2,
+			FailedCount:    0,
+			RunningCount:   0,
+			PendingCount:   0,
+		}
+
+		mockTaskRepo.On("GetState", mock.Anything, parentID).Return(parentState, nil)
+		mockTaskRepo.On("GetProgressInfo", mock.Anything, parentState.TaskExecID).Return(progressInfo, nil)
+
+		// Mock the transaction-related calls
+		mockTaskRepo.On("WithTx", mock.Anything, mock.AnythingOfType("func(pgx.Tx) error")).
+			Return(nil).
+			Run(func(args mock.Arguments) {
+				// Execute the transaction function with a nil transaction for testing
+				fn := args.Get(1).(func(pgx.Tx) error)
+				fn(nil)
+			})
+		mockTaskRepo.On("GetStateForUpdate", mock.Anything, mock.Anything, parentState.TaskExecID).
+			Return(parentState, nil)
+		mockTaskRepo.On("UpsertStateWithTx", mock.Anything, mock.Anything, mock.MatchedBy(func(state *task.State) bool {
+			return state.TaskExecID == parentState.TaskExecID && state.Status == core.StatusSuccess
+		})).Return(nil)
+
+		handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
+		ctx := context.Background()
+		err := handleResponse.updateParentStatusIfNeeded(ctx, childState)
+
+		require.NoError(t, err)
+		mockTaskRepo.AssertExpectations(t)
+		mockWorkflowRepo.AssertExpectations(t)
+	})
+
+	t.Run("Should fail when fail_fast strategy has one failure", func(t *testing.T) {
+		mockWorkflowRepo := new(store.MockWorkflowRepo)
+		mockTaskRepo := new(store.MockTaskRepo)
+
+		parentID := core.ID("parent-456")
+		childState := &task.State{
+			TaskExecID:    core.ID("child-123"),
+			TaskID:        "child-task",
+			Status:        core.StatusFailed,
+			ParentStateID: &parentID,
+		}
+		parentState := &task.State{
+			TaskExecID:    core.ID("parent-456"),
+			TaskID:        "parent-task",
+			Status:        core.StatusRunning,
+			ExecutionType: task.ExecutionParallel,
+			Input: &core.Input{
+				"_parallel_config": map[string]any{
+					"strategy": string(task.StrategyFailFast),
 				},
 			},
-			progressInfo: &task.ProgressInfo{
-				TotalChildren:  2,
-				CompletedCount: 0,
-				FailedCount:    1,
-				RunningCount:   1,
-				PendingCount:   0,
-			},
-			expectedStatus: core.StatusFailed,
-			expectUpdate:   true,
-		},
-	}
+		}
+		progressInfo := &task.ProgressInfo{
+			TotalChildren:  2,
+			CompletedCount: 0,
+			FailedCount:    1,
+			RunningCount:   1,
+			PendingCount:   0,
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockWorkflowRepo := &mockWorkflowRepo{}
-			mockTaskRepo := &mockTaskRepo{}
+		mockTaskRepo.On("GetState", mock.Anything, parentID).Return(parentState, nil)
+		mockTaskRepo.On("GetProgressInfo", mock.Anything, parentState.TaskExecID).Return(progressInfo, nil)
 
-			// Set up expectations based on test case
-			if tt.childState.ParentStateID != nil {
-				mockTaskRepo.getStateFunc = func(_ context.Context, taskExecID core.ID) (*task.State, error) {
-					if taskExecID == *tt.childState.ParentStateID {
-						return tt.parentState, nil
-					}
-					return nil, nil
-				}
+		// Mock the transaction-related calls
+		mockTaskRepo.On("WithTx", mock.Anything, mock.AnythingOfType("func(pgx.Tx) error")).
+			Return(nil).
+			Run(func(args mock.Arguments) {
+				// Execute the transaction function with a nil transaction for testing
+				fn := args.Get(1).(func(pgx.Tx) error)
+				fn(nil)
+			})
+		mockTaskRepo.On("GetStateForUpdate", mock.Anything, mock.Anything, parentState.TaskExecID).
+			Return(parentState, nil)
+		mockTaskRepo.On("UpsertStateWithTx", mock.Anything, mock.Anything, mock.MatchedBy(func(state *task.State) bool {
+			return state.TaskExecID == parentState.TaskExecID && state.Status == core.StatusFailed
+		})).Return(nil)
 
-				if tt.expectUpdate && tt.parentState.ExecutionType == task.ExecutionParallel {
-					mockTaskRepo.getProgressInfoFunc = func(_ context.Context, _ core.ID) (*task.ProgressInfo, error) {
-						return tt.progressInfo, nil
-					}
+		handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
+		ctx := context.Background()
+		err := handleResponse.updateParentStatusIfNeeded(ctx, childState)
 
-					mockTaskRepo.upsertStateFunc = func(_ context.Context, state *task.State) error {
-						if state.TaskExecID == tt.parentState.TaskExecID {
-							require.Equal(t, tt.expectedStatus, state.Status)
-						}
-						return nil
-					}
-				}
-			}
-
-			handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
-			ctx := context.Background()
-
-			err := handleResponse.updateParentStatusIfNeeded(ctx, tt.childState)
-			assert.NoError(t, err)
-		})
-	}
-}
-
-// mockTaskRepo is a simple mock implementation for testing
-type mockTaskRepo struct {
-	getStateFunc         func(ctx context.Context, taskExecID core.ID) (*task.State, error)
-	upsertStateFunc      func(ctx context.Context, state *task.State) error
-	getProgressInfoFunc  func(ctx context.Context, parentStateID core.ID) (*task.ProgressInfo, error)
-	getChildByTaskIDFunc func(ctx context.Context, parentStateID core.ID, taskID string) (*task.State, error)
-}
-
-func (m *mockTaskRepo) ListStates(_ context.Context, _ *task.StateFilter) ([]*task.State, error) {
-	return nil, nil
-}
-
-func (m *mockTaskRepo) UpsertState(ctx context.Context, state *task.State) error {
-	if m.upsertStateFunc != nil {
-		return m.upsertStateFunc(ctx, state)
-	}
-	return nil
-}
-
-func (m *mockTaskRepo) GetState(ctx context.Context, taskExecID core.ID) (*task.State, error) {
-	if m.getStateFunc != nil {
-		return m.getStateFunc(ctx, taskExecID)
-	}
-	return nil, nil
-}
-
-func (m *mockTaskRepo) ListTasksInWorkflow(
-	_ context.Context,
-	_ core.ID,
-) (map[string]*task.State, error) {
-	return nil, nil
-}
-
-func (m *mockTaskRepo) ListTasksByStatus(
-	_ context.Context,
-	_ core.ID,
-	_ core.StatusType,
-) ([]*task.State, error) {
-	return nil, nil
-}
-
-func (m *mockTaskRepo) ListTasksByAgent(
-	_ context.Context,
-	_ core.ID,
-	_ string,
-) ([]*task.State, error) {
-	return nil, nil
-}
-
-func (m *mockTaskRepo) ListTasksByTool(
-	_ context.Context,
-	_ core.ID,
-	_ string,
-) ([]*task.State, error) {
-	return nil, nil
-}
-
-func (m *mockTaskRepo) ListChildren(_ context.Context, _ core.ID) ([]*task.State, error) {
-	return nil, nil
-}
-
-func (m *mockTaskRepo) CreateChildStatesInTransaction(
-	_ context.Context,
-	_ core.ID,
-	_ []*task.State,
-) error {
-	return nil
-}
-
-func (m *mockTaskRepo) GetTaskTree(_ context.Context, _ core.ID) ([]*task.State, error) {
-	return nil, nil
-}
-
-func (m *mockTaskRepo) WithTx(_ context.Context, fn func(pgx.Tx) error) error {
-	// For testing, just execute the function with a nil transaction
-	return fn(nil)
-}
-
-func (m *mockTaskRepo) GetStateForUpdate(ctx context.Context, _ pgx.Tx, taskExecID core.ID) (*task.State, error) {
-	// Delegate to regular GetState for testing
-	return m.GetState(ctx, taskExecID)
-}
-
-func (m *mockTaskRepo) UpsertStateWithTx(ctx context.Context, _ pgx.Tx, state *task.State) error {
-	// Delegate to regular UpsertState for testing
-	return m.UpsertState(ctx, state)
-}
-
-func (m *mockTaskRepo) GetProgressInfo(ctx context.Context, parentStateID core.ID) (*task.ProgressInfo, error) {
-	if m.getProgressInfoFunc != nil {
-		return m.getProgressInfoFunc(ctx, parentStateID)
-	}
-	return nil, nil
-}
-
-func (m *mockTaskRepo) GetChildByTaskID(
-	ctx context.Context,
-	parentStateID core.ID,
-	taskID string,
-) (*task.State, error) {
-	if m.getChildByTaskIDFunc != nil {
-		return m.getChildByTaskIDFunc(ctx, parentStateID, taskID)
-	}
-	return nil, nil
-}
-
-// mockWorkflowRepo is a simple mock implementation for testing
-type mockWorkflowRepo struct{}
-
-func (m *mockWorkflowRepo) ListStates(_ context.Context, _ *workflow.StateFilter) ([]*workflow.State, error) {
-	return nil, nil
-}
-
-func (m *mockWorkflowRepo) UpsertState(_ context.Context, _ *workflow.State) error {
-	return nil
-}
-
-func (m *mockWorkflowRepo) UpdateStatus(_ context.Context, _ string, _ core.StatusType) error {
-	return nil
-}
-
-func (m *mockWorkflowRepo) GetState(_ context.Context, _ core.ID) (*workflow.State, error) {
-	return nil, nil
-}
-
-func (m *mockWorkflowRepo) GetStateByID(_ context.Context, _ string) (*workflow.State, error) {
-	return nil, nil
-}
-
-func (m *mockWorkflowRepo) GetStateByTaskID(_ context.Context, _ string, _ string) (*workflow.State, error) {
-	return nil, nil
-}
-
-func (m *mockWorkflowRepo) GetStateByAgentID(_ context.Context, _ string, _ string) (*workflow.State, error) {
-	return nil, nil
-}
-
-func (m *mockWorkflowRepo) GetStateByToolID(_ context.Context, _ string, _ string) (*workflow.State, error) {
-	return nil, nil
-}
-
-func (m *mockWorkflowRepo) CompleteWorkflow(
-	_ context.Context,
-	_ core.ID,
-	_ workflow.OutputTransformer,
-) (*workflow.State, error) {
-	return nil, nil
+		require.NoError(t, err)
+		mockTaskRepo.AssertExpectations(t)
+		mockWorkflowRepo.AssertExpectations(t)
+	})
 }

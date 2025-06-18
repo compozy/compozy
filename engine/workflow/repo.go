@@ -6,7 +6,11 @@ import (
 	"github.com/compozy/compozy/engine/core"
 )
 
-// OutputTransformer transforms workflow output
+// OutputTransformer transforms workflow output from the final state.
+// Returns:
+//   - (*core.Output, nil): Use the transformed output
+//   - (nil, nil): Use default output behavior (state-based output)
+//   - (nil, error): Transformation failed, propagate error
 type OutputTransformer func(state *State) (*core.Output, error)
 
 type StateFilter struct {

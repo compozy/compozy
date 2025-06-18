@@ -84,6 +84,7 @@ func GetSharedTestDB(t *testing.T) *pgxpool.Pool {
 
 // ensureTablesExist runs goose migrations to create the required tables
 func ensureTablesExist(db *pgxpool.Pool) error {
+	ctx := context.Background()
 	// Convert pgxpool to standard sql.DB for goose
 	sqlDB := stdlib.OpenDBFromPool(db)
 	defer sqlDB.Close()
@@ -104,11 +105,10 @@ func ensureTablesExist(db *pgxpool.Pool) error {
 	// Check if goose_db_version table exists
 	var tableExists bool
 	query := `SELECT EXISTS (
-		SELECT 1 FROM information_schema.tables
-		WHERE table_schema = current_schema()
-		AND table_name = 'goose_db_version'
+		SELECT 1 FROM pg_catalog.pg_tables
+		WHERE schemaname = 'public' AND tablename = 'goose_db_version'
 	);`
-	if err := sqlDB.QueryRow(query).Scan(&tableExists); err != nil {
+	if err := sqlDB.QueryRowContext(ctx, query).Scan(&tableExists); err != nil {
 		return fmt.Errorf("failed to check for goose_db_version table: %w", err)
 	}
 

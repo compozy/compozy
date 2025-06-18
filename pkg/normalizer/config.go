@@ -341,7 +341,10 @@ func (n *ConfigNormalizer) NormalizeWorkflowOutput(
 		transformCtx["input"] = *workflowState.Input
 	}
 	// Apply output transformation using the normalizer's template engine
-	transformedOutput := make(core.Output)
+	if len(*outputsConfig) == 0 {
+		return &core.Output{}, nil
+	}
+	transformedOutput := make(core.Output, len(*outputsConfig))
 	for key, value := range *outputsConfig {
 		result, err := n.normalizer.engine.ParseMap(value, transformCtx)
 		if err != nil {

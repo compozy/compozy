@@ -21,14 +21,18 @@ type CompleteWorkflowInput struct {
 
 type CompleteWorkflow struct {
 	workflowRepo wf.Repository
-	workflows    []*wf.Config
+	workflows    map[string]*wf.Config
 	normalizer   *normalizer.ConfigNormalizer
 }
 
 func NewCompleteWorkflow(workflowRepo wf.Repository, workflows []*wf.Config) *CompleteWorkflow {
+	workflowMap := make(map[string]*wf.Config, len(workflows))
+	for _, wf := range workflows {
+		workflowMap[wf.ID] = wf
+	}
 	return &CompleteWorkflow{
 		workflowRepo: workflowRepo,
-		workflows:    workflows,
+		workflows:    workflowMap,
 		normalizer:   normalizer.NewConfigNormalizer(),
 	}
 }
@@ -38,19 +42,28 @@ func (a *CompleteWorkflow) Run(ctx context.Context, input *CompleteWorkflowInput
 	activity.RecordHeartbeat(ctx, "Attempting to complete workflow")
 
 	// Find the workflow config
-	var config *wf.Config
-	for _, wfConfig := range a.workflows {
-		if wfConfig.ID == input.WorkflowID {
-			config = wfConfig
-			break
-		}
+	config, exists := a.workflows[input.WorkflowID]
+	if !exists {
+		return nil, temporal.NewNonRetryableApplicationError(
+			fmt.Sprintf("unknown workflow ID: %s", input.WorkflowID),
+			"unknown_workflow_id",
+			nil,
+		)
 	}
 
 	// Create transformer if outputs are defined
 	var transformer wf.OutputTransformer
-	if config != nil && config.GetOutputs() != nil {
+	if config.GetOutputs() != nil {
 		transformer = func(state *wf.State) (*core.Output, error) {
-			return a.normalizer.NormalizeWorkflowOutput(state, config.GetOutputs())
+			output, err := a.normalizer.NormalizeWorkflowOutput(state, config.GetOutputs())
+			if err != nil {
+				return nil, temporal.NewNonRetryableApplicationError(
+					fmt.Sprintf("failed to normalize workflow output: %v", err),
+					"normalization_failed",
+					err,
+				)
+			}
+			return output, nil
 		}
 	}
 

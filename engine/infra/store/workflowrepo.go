@@ -633,6 +633,7 @@ func (r *WorkflowRepo) processOutputAndUpdateState(
 			transformErr,
 		)
 		finalOutput = r.createWorkflowOutputMap(tasks)
+		*finalStatus = core.StatusFailed
 	}
 	// Convert output to map
 	outputMap, err := r.convertOutputToMap(finalOutput)

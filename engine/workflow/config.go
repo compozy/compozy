@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"text/template"
 
 	"dario.cat/mergo"
 
@@ -104,126 +103,13 @@ func (w *Config) HasSchema() bool {
 }
 
 func (w *Config) Validate() error {
-	v := schema.NewCompositeValidator(
-		schema.NewCWDValidator(w.CWD, w.ID),
-	)
-	if err := v.Validate(); err != nil {
-		return err
-	}
-
-	for i := range w.Tasks {
-		tc := &w.Tasks[i]
-		if err := tc.Validate(); err != nil {
-			return fmt.Errorf("task validation error: %s", err)
-		}
-	}
-
-	for i := range w.Agents {
-		ac := &w.Agents[i]
-		if err := ac.Validate(); err != nil {
-			return fmt.Errorf("agent validation error: %s", err)
-		}
-	}
-
-	for i := range w.Tools {
-		tc := &w.Tools[i]
-		if err := tc.Validate(); err != nil {
-			return fmt.Errorf("tool validation error: %s", err)
-		}
-	}
-
-	for i := range w.MCPs {
-		mc := &w.MCPs[i]
-		if err := mc.Validate(); err != nil {
-			return fmt.Errorf("mcp validation error: %s", err)
-		}
-	}
-
-	if err := w.validateTriggers(); err != nil {
-		return err
-	}
-
-	if err := w.validateOutputs(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (w *Config) validateTriggers() error {
-	seen := map[string]struct{}{}
-	for i := range w.Triggers {
-		trigger := &w.Triggers[i]
-		if trigger.Type != TriggerTypeSignal {
-			return fmt.Errorf("unsupported trigger type: %s", trigger.Type)
-		}
-		if trigger.Name == "" {
-			return fmt.Errorf("trigger name is required")
-		}
-		if _, dup := seen[trigger.Name]; dup {
-			return fmt.Errorf("duplicate trigger name: %s", trigger.Name)
-		}
-		seen[trigger.Name] = struct{}{}
-		if trigger.Schema != nil {
-			if _, err := trigger.Schema.Compile(); err != nil {
-				return fmt.Errorf("invalid trigger schema for %s: %w", trigger.Name, err)
-			}
-		}
-	}
-	return nil
-}
-
-func (w *Config) validateOutputs() error {
-	if w.Outputs == nil {
-		return nil
-	}
-	// Basic validation - check that outputs is a map
-	if len(*w.Outputs) == 0 {
-		return fmt.Errorf("outputs cannot be empty when defined")
-	}
-	// Validate template syntax for each output
-	return validateOutputTemplates(*w.Outputs, "")
-}
-
-// validateOutputTemplates recursively validates template syntax in outputs
-func validateOutputTemplates(data map[string]any, prefix string) error {
-	for key, value := range data {
-		fullKey := key
-		if prefix != "" {
-			fullKey = prefix + "." + key
-		}
-		switch v := value.(type) {
-		case string:
-			if err := validateTemplateString(v); err != nil {
-				return fmt.Errorf("invalid template in outputs.%s: %w", fullKey, err)
-			}
-		case map[string]any:
-			// Recursively validate nested maps
-			if err := validateOutputTemplates(v, fullKey); err != nil {
-				return err
-			}
-			// Other types are passed through without template validation
-		}
-	}
-	return nil
-}
-
-// validateTemplateString validates Go template syntax
-func validateTemplateString(tmpl string) error {
-	// Try to parse the template string
-	_, err := template.New("validation").Parse(tmpl)
-	if err != nil {
-		return fmt.Errorf("invalid template syntax: %w", err)
-	}
-	return nil
+	validator := NewWorkflowValidator(w)
+	return validator.Validate()
 }
 
 func (w *Config) ValidateInput(ctx context.Context, input *core.Input) error {
-	if input == nil {
-		return nil
-	}
-	inputSchema := w.Opts.InputSchema
-	return schema.NewParamsValidator(input, inputSchema, w.ID).Validate(ctx)
+	validator := NewInputValidator(w, input)
+	return validator.Validate(ctx)
 }
 
 // ApplyInputDefaults merges default values from the input schema with the provided input

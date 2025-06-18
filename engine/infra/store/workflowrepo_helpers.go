@@ -43,7 +43,9 @@ func (r *WorkflowRepo) determineWorkflowOutput(
 	transformedOutput, err := outputTransformer(state)
 	if err != nil {
 		// Create error object but don't update DB - let caller handle it
-		*finalStatus = core.StatusFailed
+		if finalStatus != nil {
+			*finalStatus = core.StatusFailed
+		}
 		return nil, fmt.Errorf("workflow output transformation failed: %w", err)
 	}
 	return transformedOutput, nil
