@@ -72,10 +72,7 @@ func (s *Schema) ApplyDefaults(input map[string]any) (map[string]any, error) {
 		input = make(map[string]any)
 	}
 	// Extract defaults from schema properties
-	defaults, err := s.extractDefaults()
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract defaults from schema: %w", err)
-	}
+	defaults := s.extractDefaults()
 	// Create result by merging defaults with input (input takes precedence)
 	result := make(map[string]any)
 	maps.Copy(result, defaults)
@@ -84,7 +81,7 @@ func (s *Schema) ApplyDefaults(input map[string]any) (map[string]any, error) {
 }
 
 // extractDefaults recursively extracts default values from schema properties
-func (s *Schema) extractDefaults() (map[string]any, error) {
+func (s *Schema) extractDefaults() map[string]any {
 	defaults := make(map[string]any)
 	schemaMap := map[string]any(*s)
 	// Check if this is an object schema with properties
@@ -98,7 +95,7 @@ func (s *Schema) extractDefaults() (map[string]any, error) {
 			case Schema:
 				propsMap = map[string]any(v)
 			default:
-				return defaults, nil
+				return defaults
 			}
 			// Extract defaults from each property
 			for propName, propSchema := range propsMap {
@@ -120,5 +117,5 @@ func (s *Schema) extractDefaults() (map[string]any, error) {
 		}
 	}
 
-	return defaults, nil
+	return defaults
 }

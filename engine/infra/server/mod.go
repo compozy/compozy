@@ -91,16 +91,28 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	var cleanupFuncs []func()
 	// Load project and workspace files
 	log := logger.FromContext(s.ctx)
+	setupStart := time.Now()
 	configService := csvc.NewService(log, s.Config.EnvFilePath)
 	projectConfig, workflows, err := configService.LoadProject(s.ctx, s.Config.CWD, s.Config.ConfigFile)
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to load project: %w", err)
 	}
-	// Initialize monitoring service based on project config
-	monitoringService, err := monitoring.NewMonitoringService(s.ctx, projectConfig.MonitoringConfig)
+	log.Debug("Loaded project configuration", "duration", time.Since(setupStart))
+	// Initialize monitoring service with shorter timeout to prevent slow startup
+	monitoringStart := time.Now()
+	monitoringCtx, monitoringCancel := context.WithTimeout(s.ctx, 500*time.Millisecond)
+	monitoringService, err := monitoring.NewMonitoringService(monitoringCtx, projectConfig.MonitoringConfig)
+	monitoringDuration := time.Since(monitoringStart)
 	if err != nil {
-		// Log but don't fail - monitoring is not critical
-		log.Error("Failed to initialize monitoring service", "error", err)
+		// Cancel the context only on error
+		monitoringCancel()
+		if err == context.DeadlineExceeded {
+			log.Warn("Monitoring initialization timed out, continuing without monitoring",
+				"duration", monitoringDuration)
+		} else {
+			log.Error("Failed to initialize monitoring service", "error", err,
+				"duration", monitoringDuration)
+		}
 		// Continue with nil monitoring service
 		s.monitoring = nil
 	} else {
@@ -108,8 +120,12 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 		if monitoringService.IsInitialized() {
 			log.Info("Monitoring service initialized successfully",
 				"enabled", projectConfig.MonitoringConfig.Enabled,
-				"path", projectConfig.MonitoringConfig.Path)
+				"path", projectConfig.MonitoringConfig.Path,
+				"duration", monitoringDuration)
+			// Add both monitoring shutdown and context cancellation to cleanup
 			cleanupFuncs = append(cleanupFuncs, func() {
+				// Cancel the monitoring context during cleanup
+				monitoringCancel()
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				if err := monitoringService.Shutdown(ctx); err != nil {
@@ -117,13 +133,21 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 				}
 			})
 		} else {
-			log.Info("Monitoring is disabled in the configuration")
+			// Cancel context if monitoring is disabled
+			monitoringCancel()
+			log.Info("Monitoring is disabled in the configuration",
+				"duration", monitoringDuration)
 		}
 	}
+	dbStart := time.Now()
+	// Setup database store
+	storeStart := time.Now()
 	store, err := store.SetupStore(s.ctx, s.StoreConfig)
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to setup store: %w", err)
 	}
+	log.Info("Database store initialized", "duration", time.Since(storeStart))
+	log.Debug("Database connection established", "duration", time.Since(dbStart))
 	cleanupFuncs = append(cleanupFuncs, func() {
 		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
 		defer cancel()
@@ -131,10 +155,12 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	})
 	clientConfig := s.TemporalConfig
 	deps := appstate.NewBaseDeps(projectConfig, workflows, store, clientConfig)
+	workerStart := time.Now()
 	worker, err := setupWorker(s.ctx, deps, s.monitoring)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
+	log.Debug("Worker setup completed", "duration", time.Since(workerStart))
 	cleanupFuncs = append(cleanupFuncs, func() {
 		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
 		defer cancel()
@@ -144,7 +170,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to create app state: %w", err)
 	}
-
+	log.Info("Server dependencies setup completed", "total_duration", time.Since(setupStart))
 	return state, cleanupFuncs, nil
 }
 
@@ -154,6 +180,7 @@ func setupWorker(
 	monitoringService *monitoring.Service,
 ) (*worker.Worker, error) {
 	log := logger.FromContext(ctx)
+	workerCreateStart := time.Now()
 	workerConfig := &worker.Config{
 		WorkflowRepo: func() workflow.Repository {
 			return deps.Store.NewWorkflowRepo()
@@ -174,10 +201,13 @@ func setupWorker(
 		log.Error("Failed to create worker", "error", err)
 		return nil, fmt.Errorf("failed to create worker: %w", err)
 	}
+	log.Debug("Worker created", "duration", time.Since(workerCreateStart))
+	setupStartTime := time.Now()
 	if err := worker.Setup(ctx); err != nil {
 		log.Error("Failed to setup worker", "error", err)
 		return nil, fmt.Errorf("failed to setup worker: %w", err)
 	}
+	log.Debug("Worker setup done", "duration", time.Since(setupStartTime))
 	return worker, nil
 }
 

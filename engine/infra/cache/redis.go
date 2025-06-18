@@ -73,8 +73,10 @@ func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 		client = redis.NewClient(opt)
 	}
 
-	// Test connection
-	if err := client.Ping(ctx).Err(); err != nil {
+	// Test connection with configurable timeout
+	pingCtx, pingCancel := context.WithTimeout(ctx, cfg.PingTimeout)
+	defer pingCancel()
+	if err := client.Ping(pingCtx).Err(); err != nil {
 		client.Close()
 		return nil, fmt.Errorf("pinging Redis server: %w", err)
 	}
@@ -245,7 +247,7 @@ func setConfigDefaults(cfg *Config) *Config {
 		cfg.PoolSize = 10
 	}
 	if cfg.DialTimeout == 0 {
-		cfg.DialTimeout = 5 * time.Second
+		cfg.DialTimeout = 2 * time.Second // Reduced from 5s for faster startup
 	}
 	if cfg.ReadTimeout == 0 {
 		cfg.ReadTimeout = 3 * time.Second
@@ -264,6 +266,9 @@ func setConfigDefaults(cfg *Config) *Config {
 	}
 	if cfg.PoolTimeout == 0 {
 		cfg.PoolTimeout = 4 * time.Second
+	}
+	if cfg.PingTimeout == 0 {
+		cfg.PingTimeout = 500 * time.Millisecond
 	}
 	return cfg
 }

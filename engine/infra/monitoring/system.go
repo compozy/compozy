@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
@@ -12,11 +13,18 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
+const (
+	// defaultVersion is the default version when not set via ldflags
+	defaultVersion = "unknown"
+	// defaultCommit is the default commit hash when not set via ldflags
+	defaultCommit = "unknown"
+)
+
 // Build variables to be set via ldflags during compilation
 // Example: go build -ldflags "-X 'github.com/compozy/compozy/engine/infra/monitoring.Version=v1.0.0'"
 var (
-	Version    = "unknown"
-	CommitHash = "unknown"
+	Version    = defaultVersion
+	CommitHash = defaultCommit
 )
 
 var (
@@ -27,7 +35,17 @@ var (
 	startTime             time.Time
 	systemInitOnce        sync.Once
 	systemResetMutex      sync.Mutex
+	// Build info cache with thread safety
+	buildInfoCache      buildInfoData
+	buildInfoOnce       sync.Once
+	buildInfoCacheMutex sync.RWMutex
 )
+
+type buildInfoData struct {
+	version   string
+	commit    string
+	goVersion string
+}
 
 // initSystemMetrics initializes system health metrics
 func initSystemMetrics(ctx context.Context, meter metric.Meter) {
@@ -37,6 +55,9 @@ func initSystemMetrics(ctx context.Context, meter metric.Meter) {
 	}
 	systemInitOnce.Do(func() {
 		var err error
+		// Record start time immediately for accurate uptime
+		startTime = time.Now()
+		// Create gauges first (fast operations)
 		buildInfo, err = meter.Float64ObservableGauge(
 			"compozy_build_info",
 			metric.WithDescription("Build information (value=1)"),
@@ -54,9 +75,7 @@ func initSystemMetrics(ctx context.Context, meter metric.Meter) {
 			log.Error("Failed to create uptime gauge", "error", err)
 			return
 		}
-		// Record start time for uptime calculation
-		startTime = time.Now()
-		// Register callback to observe uptime
+		// Register callbacks (also fast)
 		uptimeRegistration, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
 			uptime := time.Since(startTime).Seconds()
 			o.ObserveFloat64(uptimeGauge, uptime)
@@ -65,9 +84,10 @@ func initSystemMetrics(ctx context.Context, meter metric.Meter) {
 		if err != nil {
 			log.Error("Failed to register uptime callback", "error", err)
 		}
-		// Register callback for build info
-		version, commit, goVersion := getBuildInfo()
+		// Register callback for build info (values loaded dynamically)
 		buildInfoRegistration, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+			// Get build info dynamically to pick up async loaded values
+			version, commit, goVersion := getBuildInfo()
 			o.ObserveFloat64(buildInfo, 1,
 				metric.WithAttributes(
 					attribute.String("version", version),
@@ -80,43 +100,51 @@ func initSystemMetrics(ctx context.Context, meter metric.Meter) {
 		if err != nil {
 			log.Error("Failed to register build info callback", "error", err)
 		}
-		recordBuildInfo(ctx)
+		// Build info will be logged asynchronously when loaded
+		// No need for a separate goroutine here
 	})
 }
 
-// getBuildInfo returns build information with fallback strategies
+// getBuildInfo returns build information with lazy loading and caching
 func getBuildInfo() (version, commit, goVersion string) {
-	// Primary: Use injected build variables
-	version = Version
-	commit = CommitHash
-	// Fallback: Try to get from runtime
-	if info, ok := debug.ReadBuildInfo(); ok {
-		if version == "unknown" && info.Main.Version != "" && info.Main.Version != "(devel)" {
-			version = info.Main.Version
-		}
-		if commit == "unknown" {
-			for _, setting := range info.Settings {
-				if setting.Key == "vcs.revision" {
-					commit = setting.Value
-					break
+	buildInfoOnce.Do(func() {
+		buildInfoCacheMutex.Lock()
+		buildInfoCache = loadBuildInfo()
+		buildInfoCacheMutex.Unlock()
+	})
+	buildInfoCacheMutex.RLock()
+	defer buildInfoCacheMutex.RUnlock()
+	return buildInfoCache.version, buildInfoCache.commit, buildInfoCache.goVersion
+}
+
+// loadBuildInfo loads build information from various sources
+func loadBuildInfo() buildInfoData {
+	version := Version
+	commit := CommitHash
+	// If injected build variables are set to non-default values, use them
+	useLdflags := Version != defaultVersion && CommitHash != defaultCommit
+	// For tests, avoid slow I/O operations
+	if !useLdflags && !testing.Testing() {
+		// Try to get build info from runtime
+		if info, ok := debug.ReadBuildInfo(); ok {
+			if version == defaultVersion && info.Main.Version != "" && info.Main.Version != "(devel)" {
+				version = info.Main.Version
+			}
+			if commit == defaultCommit {
+				for _, setting := range info.Settings {
+					if setting.Key == "vcs.revision" {
+						commit = setting.Value
+						break
+					}
 				}
 			}
 		}
 	}
-	// Go version from runtime
-	goVersion = runtime.Version()
-	return version, commit, goVersion
-}
-
-// recordBuildInfo logs the build info (callback is registered in initSystemMetrics)
-func recordBuildInfo(ctx context.Context) {
-	log := logger.FromContext(ctx)
-	version, commit, goVersion := getBuildInfo()
-	log.Info("System metrics initialized",
-		"version", version,
-		"commit", commit,
-		"go_version", goVersion,
-	)
+	return buildInfoData{
+		version:   version,
+		commit:    commit,
+		goVersion: runtime.Version(),
+	}
 }
 
 // InitSystemMetrics initializes system health metrics and records build info
@@ -146,6 +174,10 @@ func resetSystemMetrics(ctx context.Context) {
 	uptimeGauge = nil
 	startTime = time.Time{}
 	systemInitOnce = sync.Once{}
+	buildInfoCacheMutex.Lock()
+	buildInfoOnce = sync.Once{}
+	buildInfoCache = buildInfoData{}
+	buildInfoCacheMutex.Unlock()
 }
 
 // ResetSystemMetricsForTesting resets the system metrics initialization state for testing
