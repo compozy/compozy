@@ -16,6 +16,9 @@ type MockTaskRepo struct {
 
 func (m *MockTaskRepo) ListStates(ctx context.Context, filter *task.StateFilter) ([]*task.State, error) {
 	args := m.Called(ctx, filter)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).([]*task.State), args.Error(1)
 }
 
