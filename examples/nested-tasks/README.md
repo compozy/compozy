@@ -1,7 +1,6 @@
 # Nested Tasks Example
 
-This example demonstrates the nested container tasks functionality in Compozy, showcasing how
-different task types can be nested within each other.
+This example demonstrates the nested container tasks functionality in Compozy, showcasing how different task types can be nested within each other.
 
 ## What it tests
 
@@ -13,19 +12,26 @@ different task types can be nested within each other.
 ## Task structure
 
 ```
-root_composite (composite)
-├── parallel_section (parallel, wait_all)
-│   ├── task_a (basic - echo tool)
-│   ├── task_b (basic - echo tool)
-│   └── task_c (basic - counter tool)
-├── collection_section (collection, parallel)
-│   └── process-{index} (basic - echo tool for each item)
+root_composite (composite, strategy: fail_fast)
+├── parallel_section (parallel, strategy: wait_all)
+│   ├── task_a (basic)
+│   │   └── tool: echo_tool → message: "Parallel Task A executed"
+│   ├── task_b (basic)
+│   │   └── tool: echo_tool → message: "Parallel Task B executed"
+│   └── task_c (basic)
+│       └── tool: counter_tool → count: 3
+├── collection_section (collection, mode: parallel, strategy: best_effort)
+│   └── process-{index} (basic, for each test_data item)
+│       └── tool: echo_tool → message: "Processing item: {{ .item }} at index {{ .index }}"
 └── nested_composite (composite)
-    ├── nested_parallel (parallel, race)
-    │   ├── race_task_1 (basic - echo tool)
-    │   └── race_task_2 (basic - echo tool)
-    └── final_collection (collection, sequential)
-        └── final-{index} (basic - echo tool for each item)
+    ├── nested_parallel (parallel, strategy: race)
+    │   ├── race_task_1 (basic)
+    │   │   └── tool: echo_tool → message: "Race task 1 - trying to win!"
+    │   └── race_task_2 (basic)
+    │       └── tool: echo_tool → message: "Race task 2 - trying to win!"
+    └── final_collection (collection, mode: sequential, strategy: fail_fast)
+        └── final-{index} (basic, for each static item)
+            └── tool: echo_tool → message: "Final processing: {{ .item }}"
 ```
 
 ## Tools
@@ -44,16 +50,7 @@ Then trigger the workflow via the API or UI to see nested tasks execution in act
 
 ### Trigger via API
 
-```bash
-curl -X POST http://localhost:3001/api/v0/workflows/nested-tasks/executions \
-    -H "Content-Type: application/json" \
-    -d '{
-"input": {
-    "test_data": ["item1", "item2", "item3"],
-      "parallel_count": 3
-    }
-  }'
-```
+See the `api.http` file in this directory for example API requests you can run directly in your editor or with tools like REST Client extensions.
 
 ## Expected behavior
 

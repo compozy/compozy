@@ -16,17 +16,6 @@ config:
   input:
     $ref: local::schemas.#(id=="city_input")
 
-mcps:
-  - id: file_server
-    transport: stdio
-    command: npx
-    args:
-      - -y
-      - "@modelcontextprotocol/server-filesystem"
-      - "./"
-    proto: "2025-03-26"
-    start_timeout: 15s
-
 tools:
   - id: weather_tool
     description: Get the current weather for a specific location

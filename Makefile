@@ -142,7 +142,7 @@ clean-docker:
 	docker compose -f ./cluster/docker-compose.yml down --volumes
 
 reset-docker:
-	make stop-docker
+	make clean-docker
 	make start-docker
 
 rebuild-mcp-proxy:
@@ -181,7 +181,7 @@ migrate-reset:
 
 reset-db:
 	@make reset-docker
-	@make migrate-reset
+	@sleep 2
 	@make migrate-up
 
 # -----------------------------------------------------------------------------

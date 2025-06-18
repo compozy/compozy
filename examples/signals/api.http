@@ -1,0 +1,55 @@
+### Signals API Tests
+### This file contains HTTP requests to test the signals workflows
+### Make sure Compozy is running on localhost:3001 before executing these requests
+
+@baseUrl = http://localhost:3001/api/v0
+
+### -----------------------------------------------------------------------------
+### Execute sender workflow
+### -----------------------------------------------------------------------------
+# @name executeSender
+POST {{baseUrl}}/workflows/sender/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "message": "Hello from sender!"
+  }
+}
+
+### Get sender execution ID from response
+@senderExecId = {{executeSender.response.body.data.exec_id}}
+
+### -----------------------------------------------------------------------------
+### Get sender execution details
+### -----------------------------------------------------------------------------
+GET {{baseUrl}}/executions/workflows/{{senderExecId}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### List all receiver workflow executions
+### -----------------------------------------------------------------------------
+GET {{baseUrl}}/workflows/receiver/executions
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute receiver workflow
+### -----------------------------------------------------------------------------
+# @name executeReceiver
+POST {{baseUrl}}/workflows/receiver/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "message": "Manual start test"
+  }
+}
+
+### Get receiver execution ID from response
+@receiverExecId = {{executeReceiver.response.body.data.exec_id}}
+
+### -----------------------------------------------------------------------------
+### Get receiver execution details
+### -----------------------------------------------------------------------------
+GET {{baseUrl}}/executions/workflows/{{receiverExecId}}
+Accept: application/json
