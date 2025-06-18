@@ -94,6 +94,10 @@ func (cb *ContextBuilder) buildSingleTaskContext(
 	taskContext := map[string]any{
 		"id":     taskID,
 		inputKey: taskState.Input,
+		"status": taskState.Status,
+	}
+	if taskState.Error != nil {
+		taskContext["error"] = taskState.Error
 	}
 	taskContext[outputKey] = cb.buildTaskOutput(taskState, ctx)
 	cb.mergeTaskConfigIfExists(taskContext, taskID, ctx)

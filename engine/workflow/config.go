@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"text/template"
 
 	"dario.cat/mergo"
 
@@ -48,6 +49,7 @@ type Config struct {
 	MCPs        []mcp.Config    `json:"mcps,omitempty"        yaml:"mcps,omitempty"        mapstructure:"mcps,omitempty"`
 	Triggers    []Trigger       `json:"triggers,omitempty"    yaml:"triggers,omitempty"    mapstructure:"triggers,omitempty"`
 	Tasks       []task.Config   `json:"tasks"                 yaml:"tasks"                 mapstructure:"tasks"`
+	Outputs     *core.Input     `json:"outputs,omitempty"     yaml:"outputs,omitempty"     mapstructure:"outputs,omitempty"`
 
 	filePath string
 	CWD      *core.PathCWD
@@ -83,6 +85,10 @@ func (w *Config) GetEnv() core.EnvMap {
 
 func (w *Config) GetInput() *core.Input {
 	return &core.Input{}
+}
+
+func (w *Config) GetOutputs() *core.Input {
+	return w.Outputs
 }
 
 func (w *Config) GetFilePath() string {
@@ -137,6 +143,10 @@ func (w *Config) Validate() error {
 		return err
 	}
 
+	if err := w.validateOutputs(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -159,6 +169,51 @@ func (w *Config) validateTriggers() error {
 				return fmt.Errorf("invalid trigger schema for %s: %w", trigger.Name, err)
 			}
 		}
+	}
+	return nil
+}
+
+func (w *Config) validateOutputs() error {
+	if w.Outputs == nil {
+		return nil
+	}
+	// Basic validation - check that outputs is a map
+	if len(*w.Outputs) == 0 {
+		return fmt.Errorf("outputs cannot be empty when defined")
+	}
+	// Validate template syntax for each output
+	return validateOutputTemplates(*w.Outputs, "")
+}
+
+// validateOutputTemplates recursively validates template syntax in outputs
+func validateOutputTemplates(data map[string]any, prefix string) error {
+	for key, value := range data {
+		fullKey := key
+		if prefix != "" {
+			fullKey = prefix + "." + key
+		}
+		switch v := value.(type) {
+		case string:
+			if err := validateTemplateString(v); err != nil {
+				return fmt.Errorf("invalid template in outputs.%s: %w", fullKey, err)
+			}
+		case map[string]any:
+			// Recursively validate nested maps
+			if err := validateOutputTemplates(v, fullKey); err != nil {
+				return err
+			}
+			// Other types are passed through without template validation
+		}
+	}
+	return nil
+}
+
+// validateTemplateString validates Go template syntax
+func validateTemplateString(tmpl string) error {
+	// Try to parse the template string
+	_, err := template.New("validation").Parse(tmpl)
+	if err != nil {
+		return fmt.Errorf("invalid template syntax: %w", err)
 	}
 	return nil
 }

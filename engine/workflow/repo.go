@@ -6,6 +6,9 @@ import (
 	"github.com/compozy/compozy/engine/core"
 )
 
+// OutputTransformer transforms workflow output
+type OutputTransformer func(state *State) (*core.Output, error)
+
 type StateFilter struct {
 	Status         *core.StatusType `json:"status,omitempty"`
 	WorkflowID     *string          `json:"workflow_id,omitempty"`
@@ -21,5 +24,5 @@ type Repository interface {
 	GetStateByTaskID(ctx context.Context, workflowID, taskID string) (*State, error)
 	GetStateByAgentID(ctx context.Context, workflowID, agentID string) (*State, error)
 	GetStateByToolID(ctx context.Context, workflowID, toolID string) (*State, error)
-	CompleteWorkflow(ctx context.Context, workflowExecID core.ID) (*State, error)
+	CompleteWorkflow(ctx context.Context, workflowExecID core.ID, outputTransformer OutputTransformer) (*State, error)
 }

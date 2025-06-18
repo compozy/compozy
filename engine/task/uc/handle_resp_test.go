@@ -350,6 +350,10 @@ func (m *mockWorkflowRepo) GetStateByToolID(_ context.Context, _ string, _ strin
 	return nil, nil
 }
 
-func (m *mockWorkflowRepo) CompleteWorkflow(_ context.Context, _ core.ID) (*workflow.State, error) {
+func (m *mockWorkflowRepo) CompleteWorkflow(
+	_ context.Context,
+	_ core.ID,
+	_ workflow.OutputTransformer,
+) (*workflow.State, error) {
 	return nil, nil
 }

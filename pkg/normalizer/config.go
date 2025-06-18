@@ -310,3 +310,44 @@ func (n *ConfigNormalizer) NormalizeTaskEnvironment(
 	taskConfig.Env = &baseEnv
 	return nil
 }
+
+// NormalizeWorkflowOutput transforms the workflow output using the outputs configuration
+func (n *ConfigNormalizer) NormalizeWorkflowOutput(
+	workflowState *workflow.State,
+	outputsConfig *core.Input,
+) (*core.Output, error) {
+	if outputsConfig == nil {
+		return nil, nil
+	}
+	// Build context with all task outputs accessible by task ID
+	tasksContext := make(map[string]any)
+	for _, taskState := range workflowState.Tasks {
+		taskContext := map[string]any{
+			"status": taskState.Status,
+		}
+		if taskState.Output != nil {
+			taskContext["output"] = *taskState.Output
+		}
+		if taskState.Error != nil {
+			taskContext["error"] = taskState.Error
+		}
+		tasksContext[taskState.TaskID] = taskContext
+	}
+	// Build transformation context
+	transformCtx := map[string]any{
+		"tasks": tasksContext,
+	}
+	if workflowState.Input != nil {
+		transformCtx["input"] = *workflowState.Input
+	}
+	// Apply output transformation using the normalizer's template engine
+	transformedOutput := make(core.Output)
+	for key, value := range *outputsConfig {
+		result, err := n.normalizer.engine.ParseMap(value, transformCtx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to transform workflow output field %s: %w", key, err)
+		}
+		transformedOutput[key] = result
+	}
+	return &transformedOutput, nil
+}

@@ -101,12 +101,26 @@ func ensureTablesExist(db *pgxpool.Pool) error {
 
 	migrationDir := filepath.Join(projectRoot, "engine", "infra", "store", "migrations")
 
-	// Reset migrations to clean state - this drops all tables and resets goose tracking
-	if err := goose.Reset(sqlDB, migrationDir); err != nil {
-		return fmt.Errorf("failed to reset goose migrations: %w", err)
+	// Check if goose_db_version table exists
+	var tableExists bool
+	query := `SELECT EXISTS (
+		SELECT 1 FROM information_schema.tables
+		WHERE table_schema = current_schema()
+		AND table_name = 'goose_db_version'
+	);`
+	if err := sqlDB.QueryRow(query).Scan(&tableExists); err != nil {
+		return fmt.Errorf("failed to check for goose_db_version table: %w", err)
+	}
+
+	if tableExists {
+		// Table exists, we can safely reset migrations
+		if err := goose.Reset(sqlDB, migrationDir); err != nil {
+			return fmt.Errorf("failed to reset goose migrations: %w", err)
+		}
 	}
 
 	// Run migrations up to the latest version
+	// This will create goose_db_version if it doesn't exist
 	if err := goose.Up(sqlDB, migrationDir); err != nil {
 		return fmt.Errorf("failed to run goose migrations: %w", err)
 	}
