@@ -29,6 +29,7 @@ type Config struct {
 	MaxRetryBackoff time.Duration `json:"max_retry_backoff,omitempty"        yaml:"max_retry_backoff,omitempty"        mapstructure:"max_retry_backoff"`
 	// Health Check
 	PoolTimeout time.Duration `json:"pool_timeout,omitempty"             yaml:"pool_timeout,omitempty"             mapstructure:"pool_timeout"`
+	PingTimeout time.Duration `json:"ping_timeout,omitempty"             yaml:"ping_timeout,omitempty"             mapstructure:"ping_timeout"`
 	// Notification Configuration
 	NotificationBufferSize int `json:"notification_buffer_size,omitempty" yaml:"notification_buffer_size,omitempty" mapstructure:"notification_buffer_size"`
 }
@@ -95,6 +96,9 @@ func (c *Config) validateTimeoutConfig() error {
 	}
 	if c.PoolTimeout < 0 {
 		return fmt.Errorf("cache pool timeout cannot be negative: got %v", c.PoolTimeout)
+	}
+	if c.PingTimeout < 0 {
+		return fmt.Errorf("cache ping timeout cannot be negative: got %v", c.PingTimeout)
 	}
 	return nil
 }

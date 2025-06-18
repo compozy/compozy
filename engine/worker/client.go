@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
 	"go.temporal.io/sdk/client"
@@ -30,10 +31,12 @@ func NewClient(ctx context.Context, cfg *TemporalConfig) (*Client, error) {
 		Namespace: cfg.Namespace,
 		Logger:    log,
 	}
+	dialStart := time.Now()
 	temporalClient, err := client.Dial(options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporal client: %w", err)
 	}
+	log.Debug("Temporal client connected", "duration", time.Since(dialStart))
 	return &Client{
 		Client: temporalClient,
 		config: cfg,

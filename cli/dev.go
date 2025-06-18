@@ -411,6 +411,8 @@ func runAndWatchServer(
 	restartChan chan bool,
 ) error {
 	log := logger.FromContext(ctx)
+	var retryDelay = 500 * time.Millisecond
+	const maxRetryDelay = 30 * time.Second
 	for {
 		// Find available port on each restart in case the original port becomes free
 		availablePort, err := findAvailablePort(scfg.Host, scfg.Port)
@@ -436,6 +438,8 @@ func runAndWatchServer(
 			srv.Shutdown()
 			<-serverErrChan // Wait for shutdown to complete
 			log.Info("Server shut down. Restarting...")
+			// Reset retry delay on successful file-based restart
+			retryDelay = 500 * time.Millisecond
 			// Drain the channel in case of multiple file change events
 			for len(restartChan) > 0 {
 				<-restartChan
@@ -444,9 +448,14 @@ func runAndWatchServer(
 		case err := <-serverErrChan:
 			if err != nil {
 				log.Error("Server stopped with error", "error", err)
-				// Add back-off to prevent tight restart loops on server failures
-				log.Debug("Waiting before retry...")
-				time.Sleep(2 * time.Second)
+				// Use exponential back-off to prevent tight restart loops on server failures
+				log.Debug("Waiting before retry...", "delay", retryDelay)
+				time.Sleep(retryDelay)
+				// Double the delay for next retry, up to maximum
+				retryDelay *= 2
+				if retryDelay > maxRetryDelay {
+					retryDelay = maxRetryDelay
+				}
 				continue // Retry after back-off
 			}
 			log.Info("Server stopped.")

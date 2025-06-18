@@ -296,16 +296,22 @@ func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*Regist
 	service := NewWithTimeout(proxyURL, adminToken, timeout)
 	log.Info("Initialized MCP register with proxy", "proxy_url", proxyURL)
 
-	// Collect all MCPs from all workflows and register them at startup
+	// Collect all MCPs from all workflows
 	allMCPs := CollectWorkflowMCPs(workflows)
 	if len(allMCPs) > 0 {
-		log.Info("Registering MCPs at server startup", "mcp_count", len(allMCPs))
-		if err := service.EnsureMultiple(ctx, allMCPs); err != nil {
-			log.Error("Failed to register some MCPs with proxy at startup", "error", err)
-			// Don't fail server startup if MCP registration fails
-		} else {
-			log.Info("Successfully registered all MCPs at server startup", "count", len(allMCPs))
-		}
+		log.Info("Starting async MCP registration", "mcp_count", len(allMCPs))
+		// Register MCPs asynchronously to avoid blocking server startup
+		go func() {
+			// Use a fresh context with timeout for registration
+			regCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			regLog := logger.FromContext(regCtx)
+			if err := service.EnsureMultiple(regCtx, allMCPs); err != nil {
+				regLog.Error("Failed to register some MCPs with proxy", "error", err)
+			} else {
+				regLog.Info("Successfully registered all MCPs", "count", len(allMCPs))
+			}
+		}()
 	}
 
 	return service, nil

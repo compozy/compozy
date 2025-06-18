@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	interceptorpkg "github.com/compozy/compozy/engine/infra/monitoring/interceptor"
 	"github.com/compozy/compozy/engine/infra/monitoring/middleware"
@@ -43,6 +44,7 @@ func newDisabledService(cfg *Config, initErr error) *Service {
 // NewMonitoringService creates a new monitoring service with Prometheus exporter
 func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
 	log := logger.FromContext(ctx)
+	startTime := time.Now()
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
@@ -53,14 +55,26 @@ func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
 		log.Debug("Monitoring disabled, using no-op meter")
 		return newDisabledService(cfg, nil), nil
 	}
+	// Check for context cancellation early
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	registryStart := time.Now()
 	registry := prom.NewRegistry()
+	log.Debug("Created Prometheus registry", "duration", time.Since(registryStart))
+	exporterStart := time.Now()
 	exporter, err := prometheus.New(prometheus.WithRegisterer(registry))
 	if err != nil {
 		// Return error to let caller decide how to handle monitoring failure
 		return nil, fmt.Errorf("failed to initialize Prometheus exporter: %w", err)
 	}
+	log.Debug("Created Prometheus exporter", "duration", time.Since(exporterStart))
+	providerStart := time.Now()
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
 	meter := provider.Meter("compozy")
+	log.Debug("Created meter provider", "duration", time.Since(providerStart))
 	service := &Service{
 		meter:       meter,
 		exporter:    exporter,
@@ -69,9 +83,23 @@ func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
 		config:      cfg,
 		initialized: true,
 	}
-	// Initialize system health metrics
+	// Check for context cancellation before system metrics
+	select {
+	case <-ctx.Done():
+		// Clean up if context was canceled
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if shutdownErr := provider.Shutdown(shutdownCtx); shutdownErr != nil {
+			log.Debug("Failed to shutdown provider during cancellation", "error", shutdownErr)
+		}
+		return nil, ctx.Err()
+	default:
+	}
+	// Initialize system health metrics synchronously but quickly
+	systemMetricsStart := time.Now()
 	InitSystemMetrics(ctx, meter)
-	log.Info("Monitoring service initialized successfully")
+	log.Debug("Initialized system metrics", "duration", time.Since(systemMetricsStart))
+	log.Info("Monitoring service initialized successfully", "total_duration", time.Since(startTime))
 	return service, nil
 }
 
