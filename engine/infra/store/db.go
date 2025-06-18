@@ -58,13 +58,17 @@ func NewDB(ctx context.Context, cfg *Config) (*DB, error) {
 	config.MaxConns = 20
 	config.MinConns = 2
 	config.HealthCheckPeriod = 30 * time.Second
+	config.ConnConfig.ConnectTimeout = 5 * time.Second // Add connection timeout
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("creating pool: %w", err)
 	}
 
-	if err := pool.Ping(ctx); err != nil {
+	// Ping with timeout to avoid hanging on slow connections
+	pingCtx, pingCancel := context.WithTimeout(ctx, 3*time.Second)
+	defer pingCancel()
+	if err := pool.Ping(pingCtx); err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("pinging database: %w", err)
 	}

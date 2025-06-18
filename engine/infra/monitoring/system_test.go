@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -114,6 +115,10 @@ func TestBuildInfoExtraction(t *testing.T) {
 			Version = origVersion
 			CommitHash = origCommit
 		}()
+		// Clear cache to ensure fresh values
+		buildInfoCacheMutex.Lock()
+		buildInfoCache = nil
+		buildInfoCacheMutex.Unlock()
 		// Set test values
 		Version = "v1.2.3"
 		CommitHash = "abc123"
@@ -130,6 +135,12 @@ func TestBuildInfoExtraction(t *testing.T) {
 			Version = origVersion
 			CommitHash = origCommit
 		}()
+		// Clear cache to ensure fresh values
+		buildInfoCacheMutex.Lock()
+		buildInfoCache = nil
+		buildInfoCacheMutex.Unlock()
+		// Reset the sync.Once to allow reloading
+		buildInfoLoadOnce = sync.Once{}
 		// Set to unknown
 		Version = "unknown"
 		CommitHash = "unknown"
@@ -231,11 +242,18 @@ func TestSpecialCharactersInVersion(t *testing.T) {
 	t.Run("Should handle special characters in version strings", func(t *testing.T) {
 		// Save original values
 		origVersion := Version
+		origCommit := CommitHash
 		defer func() {
 			Version = origVersion
+			CommitHash = origCommit
 		}()
+		// Clear cache to ensure fresh values
+		buildInfoCacheMutex.Lock()
+		buildInfoCache = nil
+		buildInfoCacheMutex.Unlock()
 		// Test with special characters
 		Version = "v1.2.3-beta+build.456"
+		CommitHash = "test123"
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")

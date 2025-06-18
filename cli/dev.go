@@ -444,9 +444,9 @@ func runAndWatchServer(
 		case err := <-serverErrChan:
 			if err != nil {
 				log.Error("Server stopped with error", "error", err)
-				// Add back-off to prevent tight restart loops on server failures
+				// Add shorter back-off to prevent tight restart loops on server failures
 				log.Debug("Waiting before retry...")
-				time.Sleep(2 * time.Second)
+				time.Sleep(500 * time.Millisecond)
 				continue // Retry after back-off
 			}
 			log.Info("Server stopped.")
