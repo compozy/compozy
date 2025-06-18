@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
 	wf "github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/normalizer"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 )
@@ -15,22 +16,59 @@ const CompleteWorkflowLabel = "CompleteWorkflow"
 
 type CompleteWorkflowInput struct {
 	WorkflowExecID core.ID `json:"workflow_exec_id"`
+	WorkflowID     string  `json:"workflow_id"`
 }
 
 type CompleteWorkflow struct {
 	workflowRepo wf.Repository
+	workflows    map[string]*wf.Config
+	normalizer   *normalizer.ConfigNormalizer
 }
 
-func NewCompleteWorkflow(workflowRepo wf.Repository) *CompleteWorkflow {
+func NewCompleteWorkflow(workflowRepo wf.Repository, workflows []*wf.Config) *CompleteWorkflow {
+	workflowMap := make(map[string]*wf.Config, len(workflows))
+	for _, wf := range workflows {
+		workflowMap[wf.ID] = wf
+	}
 	return &CompleteWorkflow{
 		workflowRepo: workflowRepo,
+		workflows:    workflowMap,
+		normalizer:   normalizer.NewConfigNormalizer(),
 	}
 }
 
 func (a *CompleteWorkflow) Run(ctx context.Context, input *CompleteWorkflowInput) (*wf.State, error) {
 	// Add heartbeat to ensure activity stays alive during retries
 	activity.RecordHeartbeat(ctx, "Attempting to complete workflow")
-	state, err := a.workflowRepo.CompleteWorkflow(ctx, input.WorkflowExecID)
+
+	// Find the workflow config
+	config, exists := a.workflows[input.WorkflowID]
+	if !exists {
+		return nil, temporal.NewNonRetryableApplicationError(
+			fmt.Sprintf("unknown workflow ID: %s", input.WorkflowID),
+			"unknown_workflow_id",
+			nil,
+		)
+	}
+
+	// Create transformer if outputs are defined
+	var transformer wf.OutputTransformer
+	if config.GetOutputs() != nil {
+		transformer = func(state *wf.State) (*core.Output, error) {
+			output, err := a.normalizer.NormalizeWorkflowOutput(state, config.GetOutputs())
+			if err != nil {
+				return nil, temporal.NewNonRetryableApplicationError(
+					fmt.Sprintf("failed to normalize workflow output: %v", err),
+					"normalization_failed",
+					err,
+				)
+			}
+			return output, nil
+		}
+	}
+
+	// Complete workflow with optional transformer
+	state, err := a.workflowRepo.CompleteWorkflow(ctx, input.WorkflowExecID, transformer)
 	if err != nil {
 		// Check if this is the specific error indicating tasks are not ready for completion
 		if err == store.ErrWorkflowNotReady {

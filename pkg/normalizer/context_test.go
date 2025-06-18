@@ -174,6 +174,7 @@ func TestContextBuilder_BuildCollectionContext(t *testing.T) {
 							"humidity":    60,
 							"weather":     "sunny",
 						},
+						"status": core.StatusSuccess,
 					},
 					"activities": map[string]any{
 						"id":    "activities",
@@ -181,6 +182,7 @@ func TestContextBuilder_BuildCollectionContext(t *testing.T) {
 						"output": core.Output{
 							"activities": []string{"walking", "sightseeing", "outdoor dining"},
 						},
+						"status": core.StatusSuccess,
 					},
 				},
 				"input": core.Input{"city": "New York"},

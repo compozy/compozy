@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/compozy/compozy/engine/core"
@@ -465,12 +466,19 @@ func (r *WorkflowRepo) determineFinalWorkflowStatus(tasks map[string]*task.State
 // createWorkflowOutputMap builds the output map from all task states
 func (r *WorkflowRepo) createWorkflowOutputMap(tasks map[string]*task.State) map[string]any {
 	outputMap := make(map[string]any)
-	for taskID, taskState := range tasks {
+	// Sort task IDs for deterministic output
+	taskIDs := make([]string, 0, len(tasks))
+	for taskID := range tasks {
+		taskIDs = append(taskIDs, taskID)
+	}
+	sort.Strings(taskIDs)
+	// Process tasks in sorted order
+	for _, taskID := range taskIDs {
+		taskState := tasks[taskID]
 		// Include progress_info for parent tasks to show completion details
 		outputData := map[string]any{
 			"output": taskState.Output,
 		}
-
 		// Add parent-child relationship info for debugging
 		if taskState.ParentStateID != nil {
 			outputData["parent_state_id"] = taskState.ParentStateID.String()
@@ -478,7 +486,6 @@ func (r *WorkflowRepo) createWorkflowOutputMap(tasks map[string]*task.State) map
 		if taskState.ExecutionType == task.ExecutionParallel {
 			outputData["execution_type"] = "parallel"
 		}
-
 		outputMap[taskID] = outputData
 	}
 	return outputMap
@@ -491,20 +498,28 @@ func (r *WorkflowRepo) updateWorkflowStateWithTx(
 	workflowExecID core.ID,
 	outputMap map[string]any,
 	finalStatus core.StatusType,
+	workflowError error,
 ) error {
 	// Convert output map to JSONB
 	outputJSON, err := ToJSONB(outputMap)
 	if err != nil {
 		return fmt.Errorf("marshaling workflow output: %w", err)
 	}
-
+	// Convert error to JSONB if present
+	var errorJSON any
+	if workflowError != nil {
+		errorJSON, err = ToJSONB(core.NewError(workflowError, "OUTPUT_TRANSFORMATION_FAILED", nil))
+		if err != nil {
+			return fmt.Errorf("marshaling workflow error: %w", err)
+		}
+	}
 	// Update the workflow state with the collected outputs and determined status
 	query := `
 		UPDATE workflow_states
-		SET output = $1, status = $2, updated_at = now()
-		WHERE workflow_exec_id = $3
+		SET output = $1, status = $2, error = $3, updated_at = now()
+		WHERE workflow_exec_id = $4
 	`
-	cmdTag, err := tx.Exec(ctx, query, outputJSON, finalStatus, workflowExecID)
+	cmdTag, err := tx.Exec(ctx, query, outputJSON, finalStatus, errorJSON, workflowExecID)
 	if err != nil {
 		return fmt.Errorf("updating workflow output: %w", err)
 	}
@@ -515,55 +530,163 @@ func (r *WorkflowRepo) updateWorkflowStateWithTx(
 }
 
 // CompleteWorkflow collects all task outputs and saves them as workflow output
-func (r *WorkflowRepo) CompleteWorkflow(ctx context.Context, workflowExecID core.ID) (*workflow.State, error) {
+func (r *WorkflowRepo) CompleteWorkflow(
+	ctx context.Context,
+	workflowExecID core.ID,
+	outputTransformer workflow.OutputTransformer,
+) (*workflow.State, error) {
 	var result *workflow.State
 
 	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
-		// Get all task states for this workflow execution
-		tasks, err := r.listTasksInWorkflowWithTx(ctx, tx, workflowExecID)
+		// Lock workflow and check if already completed
+		status, err := r.lockAndCheckWorkflowStatus(ctx, tx, workflowExecID)
 		if err != nil {
-			return fmt.Errorf("failed to get task states: %w", err)
-		}
-
-		// Determine final workflow status based on top-level task states only
-		finalStatus := r.determineFinalWorkflowStatus(tasks)
-		if finalStatus == core.StatusRunning {
-			// Defer completion until every top-level task finishes.
-			return ErrWorkflowNotReady
-		}
-
-		// Create output map from all task states
-		outputMap := r.createWorkflowOutputMap(tasks)
-
-		// Update the workflow state with the collected outputs and determined status
-		if err := r.updateWorkflowStateWithTx(ctx, tx, workflowExecID, outputMap, finalStatus); err != nil {
 			return err
 		}
-
-		// Get the updated workflow state
-		getQuery := `
-			SELECT workflow_exec_id, workflow_id, status, input, output, error
-			FROM workflow_states
-			WHERE workflow_exec_id = $1
-		`
-		stateDB, err := r.getStateDBWithTx(ctx, tx, getQuery, workflowExecID)
+		if status == string(core.StatusSuccess) || status == string(core.StatusFailed) {
+			return nil // Already completed
+		}
+		// Process workflow completion
+		state, err := r.processWorkflowCompletion(ctx, tx, workflowExecID, outputTransformer)
 		if err != nil {
-			return fmt.Errorf("fetching updated workflow state: %w", err)
+			return err
 		}
-
-		state, err := stateDB.ToState()
-		if err != nil {
-			return fmt.Errorf("converting updated workflow state: %w", err)
-		}
-
-		// Populate child task states within the same transaction
-		if err := r.populateTaskStatesWithTx(ctx, tx, state); err != nil {
-			return fmt.Errorf("populating task states: %w", err)
-		}
-
 		result = state
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	// If result is nil, workflow was already completed - fetch current state
+	if result == nil {
+		return r.GetState(ctx, workflowExecID)
+	}
+	return result, nil
+}
 
-	return result, err
+// lockAndCheckWorkflowStatus locks the workflow row and returns its status
+func (r *WorkflowRepo) lockAndCheckWorkflowStatus(
+	ctx context.Context, tx pgx.Tx, workflowExecID core.ID,
+) (string, error) {
+	lockQuery := `
+		SELECT workflow_exec_id, status
+		FROM workflow_states
+		WHERE workflow_exec_id = $1
+		FOR UPDATE
+	`
+	var status string
+	err := tx.QueryRow(ctx, lockQuery, workflowExecID.String()).Scan(&workflowExecID, &status)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", ErrWorkflowNotFound
+		}
+		return "", fmt.Errorf("failed to lock workflow state: %w", err)
+	}
+	return status, nil
+}
+
+// processWorkflowCompletion handles the main completion logic
+func (r *WorkflowRepo) processWorkflowCompletion(
+	ctx context.Context,
+	tx pgx.Tx,
+	workflowExecID core.ID,
+	outputTransformer workflow.OutputTransformer,
+) (*workflow.State, error) {
+	// Get all task states
+	tasks, err := r.listTasksInWorkflowWithTx(ctx, tx, workflowExecID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get task states: %w", err)
+	}
+	// Check if ready to complete
+	finalStatus := r.determineFinalWorkflowStatus(tasks)
+	if finalStatus == core.StatusRunning {
+		return nil, ErrWorkflowNotReady
+	}
+	// Process output and update state
+	if err := r.processOutputAndUpdateState(ctx, tx, workflowExecID, tasks, outputTransformer, &finalStatus); err != nil {
+		return nil, err
+	}
+	// Retrieve updated state
+	return r.retrieveUpdatedWorkflowState(ctx, tx, workflowExecID)
+}
+
+// processOutputAndUpdateState handles output transformation and state update
+func (r *WorkflowRepo) processOutputAndUpdateState(
+	ctx context.Context,
+	tx pgx.Tx,
+	workflowExecID core.ID,
+	tasks map[string]*task.State,
+	outputTransformer workflow.OutputTransformer,
+	finalStatus *core.StatusType,
+) error {
+	// Determine output
+	finalOutput, transformErr := r.determineWorkflowOutput(
+		ctx, tx, workflowExecID, tasks, outputTransformer, finalStatus,
+	)
+	if transformErr != nil {
+		log := logger.FromContext(ctx)
+		log.Warn(
+			"Output transformation failed, using default output",
+			"workflow_exec_id",
+			workflowExecID,
+			"error",
+			transformErr,
+		)
+		finalOutput = r.createWorkflowOutputMap(tasks)
+		*finalStatus = core.StatusFailed
+	}
+	// Convert output to map
+	outputMap, err := r.convertOutputToMap(finalOutput)
+	if err != nil {
+		return err
+	}
+	// Update workflow state
+	return r.updateWorkflowStateWithTx(
+		ctx, tx, workflowExecID, outputMap, *finalStatus, transformErr,
+	)
+}
+
+// convertOutputToMap converts various output types to map[string]any
+func (r *WorkflowRepo) convertOutputToMap(output any) (map[string]any, error) {
+	switch v := output.(type) {
+	case nil:
+		return make(map[string]any), nil
+	case map[string]any:
+		return v, nil
+	case core.Output:
+		return map[string]any(v), nil
+	case *core.Output:
+		if v != nil {
+			return map[string]any(*v), nil
+		}
+		return make(map[string]any), nil
+	default:
+		return nil, fmt.Errorf("unsupported output type %T", output)
+	}
+}
+
+// retrieveUpdatedWorkflowState gets the updated workflow state after completion
+func (r *WorkflowRepo) retrieveUpdatedWorkflowState(
+	ctx context.Context,
+	tx pgx.Tx,
+	workflowExecID core.ID,
+) (*workflow.State, error) {
+	getQuery := `
+		SELECT workflow_exec_id, workflow_id, status, input, output, error
+		FROM workflow_states
+		WHERE workflow_exec_id = $1
+	`
+	stateDB, err := r.getStateDBWithTx(ctx, tx, getQuery, workflowExecID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching updated workflow state: %w", err)
+	}
+	state, err := stateDB.ToState()
+	if err != nil {
+		return nil, fmt.Errorf("converting updated workflow state: %w", err)
+	}
+	// Populate child task states
+	if err := r.populateTaskStatesWithTx(ctx, tx, state); err != nil {
+		return nil, fmt.Errorf("populating task states: %w", err)
+	}
+	return state, nil
 }

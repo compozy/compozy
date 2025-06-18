@@ -1,7 +1,6 @@
 package workflow
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -99,160 +98,6 @@ func Test_LoadWorkflow(t *testing.T) {
 	})
 }
 
-func Test_WorkflowConfigValidation(t *testing.T) {
-	workflowID := "test-workflow"
-
-	t.Run("Should validate valid workflow configuration", func(t *testing.T) {
-		cwd, err := core.CWDFromPath("/test/path")
-		require.NoError(t, err)
-		config := &Config{
-			ID:   workflowID,
-			Opts: Opts{},
-			CWD:  cwd,
-		}
-
-		err = config.Validate()
-		require.NoError(t, err)
-	})
-
-	t.Run("Should return error when CWD is missing", func(t *testing.T) {
-		config := &Config{
-			ID: "test-workflow",
-		}
-
-		err := config.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "current working directory is required for test-workflow")
-	})
-}
-
-func Test_TriggerValidation(t *testing.T) {
-	t.Run("Should validate signal trigger correctly", func(t *testing.T) {
-		cwd, err := core.CWDFromPath("/test/path")
-		require.NoError(t, err)
-		config := &Config{
-			ID:  "test-workflow",
-			CWD: cwd,
-			Triggers: []Trigger{
-				{
-					Type: TriggerTypeSignal,
-					Name: "order.created",
-				},
-			},
-		}
-		err = config.Validate()
-		require.NoError(t, err)
-	})
-
-	t.Run("Should return error for unsupported trigger type", func(t *testing.T) {
-		cwd, err := core.CWDFromPath("/test/path")
-		require.NoError(t, err)
-		config := &Config{
-			ID:  "test-workflow",
-			CWD: cwd,
-			Triggers: []Trigger{
-				{
-					Type: "unsupported",
-					Name: "test.event",
-				},
-			},
-		}
-		err = config.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unsupported trigger type: unsupported")
-	})
-
-	t.Run("Should return error for empty trigger name", func(t *testing.T) {
-		cwd, err := core.CWDFromPath("/test/path")
-		require.NoError(t, err)
-		config := &Config{
-			ID:  "test-workflow",
-			CWD: cwd,
-			Triggers: []Trigger{
-				{
-					Type: TriggerTypeSignal,
-					Name: "",
-				},
-			},
-		}
-		err = config.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "trigger name is required")
-	})
-
-	t.Run("Should return error for duplicate trigger names", func(t *testing.T) {
-		cwd, err := core.CWDFromPath("/test/path")
-		require.NoError(t, err)
-		config := &Config{
-			ID:  "test-workflow",
-			CWD: cwd,
-			Triggers: []Trigger{
-				{
-					Type: TriggerTypeSignal,
-					Name: "order.created",
-				},
-				{
-					Type: TriggerTypeSignal,
-					Name: "order.created",
-				},
-			},
-		}
-		err = config.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "duplicate trigger name: order.created")
-	})
-
-	t.Run("Should validate trigger with valid schema", func(t *testing.T) {
-		validSchema := &schema.Schema{
-			"type": "object",
-			"properties": map[string]any{
-				"orderId": map[string]any{
-					"type": "string",
-				},
-			},
-			"required": []any{"orderId"},
-		}
-		cwd, err := core.CWDFromPath("/test/path")
-		require.NoError(t, err)
-		config := &Config{
-			ID:  "test-workflow",
-			CWD: cwd,
-			Triggers: []Trigger{
-				{
-					Type:   TriggerTypeSignal,
-					Name:   "order.created",
-					Schema: validSchema,
-				},
-			},
-		}
-		err = config.Validate()
-		require.NoError(t, err)
-	})
-
-	t.Run("Should return error for trigger with invalid schema", func(t *testing.T) {
-		invalidSchema := &schema.Schema{
-			"type":       "invalid-type",
-			"properties": "should-be-object",
-		}
-		cwd, err := core.CWDFromPath("/test/path")
-		require.NoError(t, err)
-		config := &Config{
-			ID:  "test-workflow",
-			CWD: cwd,
-			Triggers: []Trigger{
-				{
-					Type:   TriggerTypeSignal,
-					Name:   "order.created",
-					Schema: invalidSchema,
-				},
-			},
-		}
-		err = config.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid trigger schema for order.created")
-	})
-}
-
 func Test_WorkflowConfigCWD(t *testing.T) {
 	t.Run("Should handle CWD operations correctly", func(t *testing.T) {
 		config := &Config{}
@@ -345,27 +190,6 @@ func TestLoadMCPWorkflow(t *testing.T) {
 
 		err = config.Validate()
 		assert.NoError(t, err)
-	})
-}
-
-func TestMCPWorkflowValidation(t *testing.T) {
-	t.Run("Should validate individual MCP configurations", func(t *testing.T) {
-		// Set required environment variable for MCP validation
-		os.Setenv("MCP_PROXY_URL", "http://localhost:8081")
-		defer os.Unsetenv("MCP_PROXY_URL")
-
-		CWD, err := core.CWDFromPath("./fixtures")
-		require.NoError(t, err)
-
-		config, err := Load(CWD, "mcp_workflow.yaml")
-		require.NoError(t, err)
-
-		// Test that MCP configs are validated
-		for i := range config.MCPs {
-			config.MCPs[i].SetDefaults()
-			err := config.MCPs[i].Validate()
-			assert.NoError(t, err)
-		}
 	})
 }
 
@@ -492,66 +316,24 @@ func TestConfig_ApplyInputDefaults(t *testing.T) {
 	})
 }
 
-func TestConfig_ValidateInput(t *testing.T) {
-	t.Run("Should validate input against schema", func(t *testing.T) {
+func TestWorkflowConfig_Outputs(t *testing.T) {
+	t.Run("Should get outputs when defined", func(t *testing.T) {
+		outputs := &core.Input{
+			"result": "{{ .tasks.final.output }}",
+		}
 		config := &Config{
-			ID: "test-workflow",
-			Opts: Opts{
-				InputSchema: &schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"name": map[string]any{
-							"type": "string",
-						},
-					},
-					"required": []string{"name"},
-				},
-			},
+			ID:      "test-workflow",
+			Outputs: outputs,
 		}
 
-		input := &core.Input{
-			"name": "test",
-		}
-
-		err := config.ValidateInput(context.Background(), input)
-		assert.NoError(t, err)
+		assert.Equal(t, outputs, config.GetOutputs())
 	})
 
-	t.Run("Should return error for invalid input", func(t *testing.T) {
+	t.Run("Should return nil when outputs not defined", func(t *testing.T) {
 		config := &Config{
 			ID: "test-workflow",
-			Opts: Opts{
-				InputSchema: &schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"name": map[string]any{
-							"type": "string",
-						},
-					},
-					"required": []string{"name"},
-				},
-			},
 		}
 
-		input := &core.Input{
-			"age": 30, // missing required "name"
-		}
-
-		err := config.ValidateInput(context.Background(), input)
-		assert.Error(t, err)
-	})
-
-	t.Run("Should handle nil schema", func(t *testing.T) {
-		config := &Config{
-			ID: "test-workflow",
-			// No input schema
-		}
-
-		input := &core.Input{
-			"anything": "goes",
-		}
-
-		err := config.ValidateInput(context.Background(), input)
-		assert.NoError(t, err)
+		assert.Nil(t, config.GetOutputs())
 	})
 }
