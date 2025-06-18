@@ -83,13 +83,17 @@ func NewWorker(
 	projectConfig *project.Config,
 	workflows []*wf.Config,
 ) (*Worker, error) {
+	log := logger.FromContext(ctx)
+	workerStart := time.Now()
 	if config == nil {
 		return nil, errors.New("worker config cannot be nil")
 	}
+	clientStart := time.Now()
 	client, err := NewClient(ctx, clientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create worker client: %w", err)
 	}
+	log.Debug("Temporal client created", "duration", time.Since(clientStart))
 	taskQueue := slug.Make(projectConfig.Name)
 	workerOptions := buildWorkerOptions(ctx, config.MonitoringService)
 	worker := client.NewWorker(taskQueue, workerOptions)
@@ -103,14 +107,17 @@ func NewWorker(
 	if err != nil {
 		return nil, fmt.Errorf("failed to created execution manager: %w", err)
 	}
+	cacheStart := time.Now()
 	redisCache, err := cache.SetupCache(ctx, projectConfig.CacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup Redis cache: %w", err)
 	}
+	log.Debug("Redis cache connected", "duration", time.Since(cacheStart))
 	// Create Redis-backed ConfigStore with 24h TTL as per PRD
 	configStore := services.NewRedisConfigStore(redisCache.Redis, 24*time.Hour)
 	configManager := services.NewConfigManager(configStore, nil)
 	// Initialize MCP register and register all MCPs from all workflows
+	mcpStart := time.Now()
 	workflowConfigs := make([]mcp.WorkflowConfig, len(workflows))
 	for i, wf := range workflows {
 		workflowConfigs[i] = wf
@@ -119,6 +126,7 @@ func NewWorker(
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize MCP register: %w", err)
 	}
+	log.Debug("MCP registration scheduled", "setup_duration", time.Since(mcpStart))
 	// Create unique dispatcher ID per server instance to avoid conflicts
 	serverID := core.MustNewID().String()[:8] // Use first 8 chars for readability
 	dispatcherID := fmt.Sprintf("dispatcher-%s-%s", slug.Make(projectConfig.Name), serverID)
@@ -137,6 +145,7 @@ func NewWorker(
 	interceptor.SetConfiguredWorkerCount(1) // Each worker instance represents 1 configured worker
 	// Create lifecycle context for independent operation
 	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
+	log.Debug("Worker initialization completed", "total_duration", time.Since(workerStart))
 	return &Worker{
 		client:          client,
 		config:          config,
@@ -272,36 +281,40 @@ func (o *Worker) TerminateDispatcher(ctx context.Context, reason string) error {
 
 func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 	log := logger.FromContext(ctx)
-	err := retry.Do(ctx, retry.WithMaxRetries(5, retry.NewExponential(1*time.Second)), func(ctx context.Context) error {
-		_, err := o.client.SignalWithStartWorkflow(
-			ctx,
-			o.dispatcherID,
-			DispatcherEventChannel,
-			nil,
-			client.StartWorkflowOptions{
-				ID:                    o.dispatcherID,
-				TaskQueue:             o.taskQueue,
-				WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
-			},
-			DispatcherWorkflow,
-			o.projectConfig.Name,
-		)
-		if err != nil {
-			if _, ok := err.(*serviceerror.WorkflowExecutionAlreadyStarted); ok {
-				log.Debug(
-					"Dispatcher already running",
-					"dispatcher_id",
-					o.dispatcherID,
-					"project",
-					o.projectConfig.Name,
-				)
-				return nil
+	err := retry.Do(
+		ctx,
+		retry.WithMaxRetries(2, retry.NewExponential(50*time.Millisecond)),
+		func(ctx context.Context) error {
+			_, err := o.client.SignalWithStartWorkflow(
+				ctx,
+				o.dispatcherID,
+				DispatcherEventChannel,
+				nil,
+				client.StartWorkflowOptions{
+					ID:                    o.dispatcherID,
+					TaskQueue:             o.taskQueue,
+					WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
+				},
+				DispatcherWorkflow,
+				o.projectConfig.Name,
+			)
+			if err != nil {
+				if _, ok := err.(*serviceerror.WorkflowExecutionAlreadyStarted); ok {
+					log.Debug(
+						"Dispatcher already running",
+						"dispatcher_id",
+						o.dispatcherID,
+						"project",
+						o.projectConfig.Name,
+					)
+					return nil
+				}
+				log.Warn("Failed to start dispatcher, retrying", "error", err, "dispatcher_id", o.dispatcherID)
+				return retry.RetryableError(err)
 			}
-			log.Warn("Failed to start dispatcher, retrying", "error", err, "dispatcher_id", o.dispatcherID)
-			return retry.RetryableError(err)
-		}
-		return nil
-	})
+			return nil
+		},
+	)
 	if err != nil {
 		log.Error("Failed to start dispatcher after all retries", "error", err, "dispatcher_id", o.dispatcherID)
 	} else {
