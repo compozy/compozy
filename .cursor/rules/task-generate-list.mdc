@@ -12,10 +12,9 @@ To guide an AI assistant in creating a detailed, step-by-step task list in Markd
 <output_specification>
 - **Format:** Markdown (`.md`)
 - **Locations:**
-  - **Main task list:** `/tasks/tasks-prd-<feature>.md`
   - **Feature folder:** `/tasks/prd-<feature>/`
+  - **Tasks summary file:** `/tasks/prd-<feature>/_tasks.md`
   - **Individual task files:** `/tasks/prd-<feature>/<num>_task.md`
-  - **Tasks file:** `/tasks/prd-<feature>/_tasks.md`
   - **Complexity report:** `/tasks/prd-<feature>/task-complexity-report.json`
 </output_specification>
 
@@ -25,23 +24,22 @@ To guide an AI assistant in creating a detailed, step-by-step task list in Markd
 1.  **Receive PRD Reference:** The user points the AI to a specific PRD file
 2.  **Verify Tech Spec:** Confirm that a corresponding tech spec document exists (`tasks/prd-<feature>/_techspec.md`). If not, remind the user to create it using [prd-tech-spec.mdc](mdc:.cursor/rules/prd-tech-spec.mdc) before proceeding with task generation.
 3.  **Analyze PRD & Tech Spec:** The AI reads and analyzes both the functional requirements from the PRD and the implementation details from the tech spec document.
-4.  **Phase 1: Generate Parent Tasks:** Based on the combined PRD and tech spec analysis, create the file and generate the main, high-level tasks required to implement the feature. Use your judgement on how many high-level tasks to use. It's likely to be about 5. Present these tasks to the user in the specified format (without sub-tasks yet). Inform the user: "I have generated the high-level tasks based on the PRD and tech spec. Ready to generate the sub-tasks? Respond with 'Go' to proceed."
+4.  **Phase 1: Generate Parent Tasks:** Based on the combined PRD and tech spec analysis, create the `_tasks.md` file in the feature folder with the relevant files section and high-level tasks. Use your judgement on how many high-level tasks to use. It's likely to be about 5. Present these tasks to the user. Inform the user: "I have generated the high-level tasks based on the PRD and tech spec. Ready to generate the sub-tasks? Respond with 'Go' to proceed."
 5.  **Wait for Confirmation:** Pause and wait for the user to respond with "Go".
 6.  **Phase 2: Generate Sub-Tasks:** Once the user confirms, break down each parent task into smaller, actionable sub-tasks necessary to complete the parent task. Ensure sub-tasks logically follow from the parent task and cover the implementation details from both the PRD and tech spec.
 7.  **Phase 3: Analyze Task Complexity:** Use Zen MCP tools to analyze task complexity and identify tasks that need further breakdown. Generate a comprehensive complexity analysis report (typically saved as `task-complexity-report.json`) that includes complexity scores (1-10), recommended number of subtasks, reasoning for complexity assessment, and expansion prompts for each task. Tasks with complexity scores above the threshold (typically 6-7) should be broken down into more granular subtasks to ensure manageable implementation units.
 8.  **Identify Relevant Files:** Based on the tasks, PRD, and tech spec, identify potential files that will need to be created or modified. List these under the `Relevant Files` section, including corresponding test files if applicable. Reference the tech spec's file structure and architectural decisions.
-9.  **Generate Final Output:** Combine the parent tasks, sub-tasks, relevant files, and notes into the final Markdown structure.
-10. **Save Main Task List:** Save the main task list document in the `/tasks/` directory with the filename `tasks-prd-<feature>.md`.
-11. **Create Individual Task Files:** For each parent task, create a separate file in `/tasks/prd-<feature>/<num>_task.md` with:
+9.  **Generate Final Output:** Create the individual task files and update the `_tasks.md` file.
+10. **Create Individual Task Files:** For each parent task, create a separate file in `/tasks/prd-<feature>/<num>_task.md` with:
     - Frontmatter with `status: pending` field
     - Task title and overview
     - Complete list of subtasks for that parent task
     - Implementation details extracted from the tech spec relevant to that task
     - Success criteria
-12. **Create Tasks File:** Generate `_tasks.md` in the feature folder containing:
+11. **Update Tasks Summary:** Ensure the `_tasks.md` file contains:
     - Relevant files section (first)
     - Simple checkbox list of parent tasks (last)
-13. **Save Complexity Report:** Save the complexity analysis as `task-complexity-report.json` in the feature folder.
+12. **Save Complexity Report:** Save the complexity analysis as `task-complexity-report.json` in the feature folder.
 </process_steps>
 
 <complexity_analysis_features>
@@ -55,10 +53,10 @@ To guide an AI assistant in creating a detailed, step-by-step task list in Markd
 
 ## Output Format
 
-### Main Task List Format
-<main_task_list_format>
-The main task list (`tasks-prd-<feature>.md`) follows the existing structure with relevant files and all parent/sub-tasks.
-</main_task_list_format>
+### Tasks Summary File Format
+<tasks_summary_format>
+The tasks summary file (`_tasks.md`) serves as the central index for the feature implementation, containing the relevant files and parent task checklist.
+</tasks_summary_format>
 
 ### Individual Task File Format
 <individual_task_format>
@@ -129,7 +127,7 @@ status: pending  # Options: pending, in-progress, completed, excluded
 The tasks file (`_tasks.md`) must follow this structure:
 
 ```markdown
-# [Feature] Implementation Task Tasks
+# [Feature] Implementation Task Summary
 
 ## Relevant Files
 

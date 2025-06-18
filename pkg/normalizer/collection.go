@@ -343,12 +343,10 @@ func (cn *CollectionNormalizer) applyEnvTemplate(
 	if config.Env == nil {
 		return nil
 	}
-
 	processedEnv, err := engine.ParseMap(*config.Env, itemContext)
 	if err != nil {
 		return fmt.Errorf("failed to apply template to env variables: %w", err)
 	}
-
 	if envMap, ok := processedEnv.(map[string]any); ok {
 		envStrMap := make(map[string]string)
 		for k, v := range envMap {

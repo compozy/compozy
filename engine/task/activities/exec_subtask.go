@@ -59,18 +59,15 @@ func (a *ExecuteSubtask) Run(ctx context.Context, input *ExecuteSubtaskInput) (*
 	if err != nil {
 		return nil, err
 	}
-
 	// Load task config from store
 	taskConfig, err := a.configStore.Get(ctx, input.TaskExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load task config for taskExecID %s: %w", input.TaskExecID, err)
 	}
-
 	// Normalize task configuration
 	if err := a.normalizeTaskConfig(ctx, workflowState, workflowConfig, taskConfig); err != nil {
 		return nil, err
 	}
-
 	// Get child state with retry logic
 	taskState, err := a.getChildStateWithRetry(ctx, input.ParentStateID, taskConfig.ID)
 	if err != nil {
@@ -132,15 +129,11 @@ func (a *ExecuteSubtask) normalizeTaskConfig(
 		return fmt.Errorf("failed to clone workflow config: %w", err)
 	}
 	wcCopy.Tasks = append([]task.Config(nil), wConfig.Tasks...)
-	tcCopy, err := taskConfig.Clone()
-	if err != nil {
-		return fmt.Errorf("failed to clone task config: %w", err)
-	}
 	normalizer := uc.NewNormalizeConfig()
 	normalizeInput := &uc.NormalizeConfigInput{
 		WorkflowState:  wState,
 		WorkflowConfig: wcCopy,
-		TaskConfig:     tcCopy,
+		TaskConfig:     taskConfig,
 	}
 	return normalizer.Execute(ctx, normalizeInput)
 }

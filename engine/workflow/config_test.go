@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -365,5 +366,192 @@ func TestMCPWorkflowValidation(t *testing.T) {
 			err := config.MCPs[i].Validate()
 			assert.NoError(t, err)
 		}
+	})
+}
+
+func TestConfig_ApplyInputDefaults(t *testing.T) {
+	t.Run("Should apply defaults from input schema", func(t *testing.T) {
+		config := &Config{
+			ID: "test-workflow",
+			Opts: Opts{
+				InputSchema: &schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"folder_path": map[string]any{
+							"type": "string",
+						},
+						"include_extensions": map[string]any{
+							"type": "array",
+							"items": map[string]any{
+								"type": "string",
+							},
+							"default": []any{".go", ".yaml", ".yml"},
+						},
+						"exclude_patterns": map[string]any{
+							"type": "array",
+							"items": map[string]any{
+								"type": "string",
+							},
+							"default": []any{"*_test.go", "*.bak", "*.tmp"},
+						},
+						"report_format": map[string]any{
+							"type":    "string",
+							"default": "markdown",
+						},
+					},
+					"required": []string{"folder_path"},
+				},
+			},
+		}
+
+		input := &core.Input{
+			"folder_path": "/path/to/code",
+			// Not providing exclude_patterns, should get default
+		}
+
+		result, err := config.ApplyInputDefaults(input)
+		require.NoError(t, err)
+
+		// Should have user-provided value
+		assert.Equal(t, "/path/to/code", (*result)["folder_path"])
+
+		// Should have default values
+		assert.Equal(t, []any{".go", ".yaml", ".yml"}, (*result)["include_extensions"])
+		assert.Equal(t, []any{"*_test.go", "*.bak", "*.tmp"}, (*result)["exclude_patterns"])
+		assert.Equal(t, "markdown", (*result)["report_format"])
+	})
+
+	t.Run("Should handle nil input schema", func(t *testing.T) {
+		config := &Config{
+			ID: "test-workflow",
+			// No input schema
+		}
+
+		input := &core.Input{
+			"test": "value",
+		}
+
+		result, err := config.ApplyInputDefaults(input)
+		require.NoError(t, err)
+		assert.Equal(t, input, result)
+	})
+
+	t.Run("Should handle nil input", func(t *testing.T) {
+		config := &Config{
+			ID: "test-workflow",
+			Opts: Opts{
+				InputSchema: &schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"default_prop": map[string]any{
+							"type":    "string",
+							"default": "default_value",
+						},
+					},
+				},
+			},
+		}
+
+		result, err := config.ApplyInputDefaults(nil)
+		require.NoError(t, err)
+
+		assert.Equal(t, "default_value", (*result)["default_prop"])
+	})
+
+	t.Run("Should override defaults with user values", func(t *testing.T) {
+		config := &Config{
+			ID: "test-workflow",
+			Opts: Opts{
+				InputSchema: &schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"mode": map[string]any{
+							"type":    "string",
+							"default": "production",
+						},
+						"debug": map[string]any{
+							"type":    "boolean",
+							"default": false,
+						},
+					},
+				},
+			},
+		}
+
+		input := &core.Input{
+			"mode":  "development", // Override default
+			"debug": true,          // Override default
+		}
+
+		result, err := config.ApplyInputDefaults(input)
+		require.NoError(t, err)
+
+		// Should use user-provided values, not defaults
+		assert.Equal(t, "development", (*result)["mode"])
+		assert.Equal(t, true, (*result)["debug"])
+	})
+}
+
+func TestConfig_ValidateInput(t *testing.T) {
+	t.Run("Should validate input against schema", func(t *testing.T) {
+		config := &Config{
+			ID: "test-workflow",
+			Opts: Opts{
+				InputSchema: &schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{
+							"type": "string",
+						},
+					},
+					"required": []string{"name"},
+				},
+			},
+		}
+
+		input := &core.Input{
+			"name": "test",
+		}
+
+		err := config.ValidateInput(context.Background(), input)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should return error for invalid input", func(t *testing.T) {
+		config := &Config{
+			ID: "test-workflow",
+			Opts: Opts{
+				InputSchema: &schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{
+							"type": "string",
+						},
+					},
+					"required": []string{"name"},
+				},
+			},
+		}
+
+		input := &core.Input{
+			"age": 30, // missing required "name"
+		}
+
+		err := config.ValidateInput(context.Background(), input)
+		assert.Error(t, err)
+	})
+
+	t.Run("Should handle nil schema", func(t *testing.T) {
+		config := &Config{
+			ID: "test-workflow",
+			// No input schema
+		}
+
+		input := &core.Input{
+			"anything": "goes",
+		}
+
+		err := config.ValidateInput(context.Background(), input)
+		assert.NoError(t, err)
 	})
 }

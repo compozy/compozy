@@ -69,7 +69,6 @@ func NewLoadBatchConfigs(workflows []*wf.Config) *LoadBatchConfigs {
 
 func (a *LoadBatchConfigs) Run(_ context.Context, input *LoadBatchConfigsInput) (map[string]*task.Config, error) {
 	configs := make(map[string]*task.Config, len(input.TaskIDs))
-
 	for _, taskID := range input.TaskIDs {
 		// Note: LoadTaskConfig UC ignores context (passed as _) and only does in-memory lookups
 		config, err := a.loadTaskConfigUC.Execute(nil, &uc.LoadTaskConfigInput{

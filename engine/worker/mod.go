@@ -358,22 +358,28 @@ func (o *Worker) TriggerWorkflow(
 ) (*WorkflowInput, error) {
 	// Start workflow
 	workflowExecID := core.MustNewID()
+	workflowConfig, err := wf.FindConfig(o.workflows, workflowID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find workflow config: %w", err)
+	}
+	// Apply schema defaults to input before validation and execution
+	mergedInput, err := workflowConfig.ApplyInputDefaults(input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to apply input defaults: %w", err)
+	}
+	// Validate the merged input (with defaults applied)
+	if err := workflowConfig.ValidateInput(ctx, mergedInput); err != nil {
+		return nil, fmt.Errorf("failed to validate workflow params: %w", err)
+	}
 	workflowInput := WorkflowInput{
 		WorkflowID:     workflowID,
 		WorkflowExecID: workflowExecID,
-		Input:          input,
+		Input:          mergedInput, // Use merged input with defaults
 		InitialTaskID:  initTaskID,
 	}
 	options := client.StartWorkflowOptions{
 		ID:        buildWorkflowID(workflowID, workflowInput.WorkflowExecID),
 		TaskQueue: o.taskQueue,
-	}
-	workflowConfig, err := wf.FindConfig(o.workflows, workflowID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find workflow config: %w", err)
-	}
-	if err := workflowConfig.ValidateInput(ctx, input); err != nil {
-		return nil, fmt.Errorf("failed to validate workflow params: %w", err)
 	}
 	// MCPs are already registered at server startup, no need to register per workflow
 	_, err = o.client.ExecuteWorkflow(
