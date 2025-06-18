@@ -108,7 +108,10 @@ func ensureTablesExist(db *pgxpool.Pool) error {
 		WHERE table_schema = current_schema() 
 		AND table_name = 'goose_db_version'
 	);`
-	if err := sqlDB.QueryRow(query).Scan(&tableExists); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if err := sqlDB.QueryRowContext(ctx, query).Scan(&tableExists); err != nil {
 		return fmt.Errorf("failed to check for goose_db_version table: %w", err)
 	}
 

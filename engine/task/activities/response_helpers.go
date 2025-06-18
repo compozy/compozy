@@ -28,7 +28,7 @@ func getFailedChildDetails(ctx context.Context, taskRepo task.Repository, parent
 				if child.Error.Message != "" {
 					errorMsg = child.Error.Message
 				} else if child.Error.Code != "" {
-					errorMsg = string(child.Error.Code)
+					errorMsg = child.Error.Code
 				}
 			}
 			failedDetails = append(failedDetails, fmt.Sprintf("task[%s]: %s", child.TaskID, errorMsg))

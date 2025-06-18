@@ -126,7 +126,7 @@ func NewWorker(
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize MCP register: %w", err)
 	}
-	log.Debug("MCP registration initiated", "duration", time.Since(mcpStart))
+	log.Debug("MCP registration scheduled", "setup_duration", time.Since(mcpStart))
 	// Create unique dispatcher ID per server instance to avoid conflicts
 	serverID := core.MustNewID().String()[:8] // Use first 8 chars for readability
 	dispatcherID := fmt.Sprintf("dispatcher-%s-%s", slug.Make(projectConfig.Name), serverID)

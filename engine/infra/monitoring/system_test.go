@@ -4,7 +4,6 @@ import (
 	"context"
 	"runtime"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -115,10 +114,8 @@ func TestBuildInfoExtraction(t *testing.T) {
 			Version = origVersion
 			CommitHash = origCommit
 		}()
-		// Clear cache to ensure fresh values
-		buildInfoCacheMutex.Lock()
-		buildInfoCache = nil
-		buildInfoCacheMutex.Unlock()
+		// Reset cache and sync.Once for fresh test
+		resetSystemMetrics(t.Context())
 		// Set test values
 		Version = "v1.2.3"
 		CommitHash = "abc123"
@@ -135,12 +132,8 @@ func TestBuildInfoExtraction(t *testing.T) {
 			Version = origVersion
 			CommitHash = origCommit
 		}()
-		// Clear cache to ensure fresh values
-		buildInfoCacheMutex.Lock()
-		buildInfoCache = nil
-		buildInfoCacheMutex.Unlock()
-		// Reset the sync.Once to allow reloading
-		buildInfoLoadOnce = sync.Once{}
+		// Reset cache and sync.Once for fresh test
+		resetSystemMetrics(t.Context())
 		// Set to unknown
 		Version = "unknown"
 		CommitHash = "unknown"
@@ -247,10 +240,8 @@ func TestSpecialCharactersInVersion(t *testing.T) {
 			Version = origVersion
 			CommitHash = origCommit
 		}()
-		// Clear cache to ensure fresh values
-		buildInfoCacheMutex.Lock()
-		buildInfoCache = nil
-		buildInfoCacheMutex.Unlock()
+		// Reset cache and sync.Once for fresh test
+		resetSystemMetrics(t.Context())
 		// Test with special characters
 		Version = "v1.2.3-beta+build.456"
 		CommitHash = "test123"

@@ -35,10 +35,10 @@ var (
 	startTime             time.Time
 	systemInitOnce        sync.Once
 	systemResetMutex      sync.Mutex
-	// Lazy-loaded build info cache
-	buildInfoCache      *buildInfoData
+	// Build info cache with thread safety
+	buildInfoCache      buildInfoData
+	buildInfoOnce       sync.Once
 	buildInfoCacheMutex sync.RWMutex
-	buildInfoLoadOnce   sync.Once
 )
 
 type buildInfoData struct {
@@ -107,46 +107,25 @@ func initSystemMetrics(ctx context.Context, meter metric.Meter) {
 
 // getBuildInfo returns build information with lazy loading and caching
 func getBuildInfo() (version, commit, goVersion string) {
-	// Check cache first
+	buildInfoOnce.Do(func() {
+		buildInfoCacheMutex.Lock()
+		buildInfoCache = loadBuildInfo()
+		buildInfoCacheMutex.Unlock()
+	})
 	buildInfoCacheMutex.RLock()
-	if buildInfoCache != nil {
-		version = buildInfoCache.version
-		commit = buildInfoCache.commit
-		goVersion = buildInfoCache.goVersion
-		buildInfoCacheMutex.RUnlock()
-		return version, commit, goVersion
-	}
-	buildInfoCacheMutex.RUnlock()
+	defer buildInfoCacheMutex.RUnlock()
+	return buildInfoCache.version, buildInfoCache.commit, buildInfoCache.goVersion
+}
+
+// loadBuildInfo loads build information from various sources
+func loadBuildInfo() buildInfoData {
+	version := Version
+	commit := CommitHash
 	// If injected build variables are set to non-default values, use them
 	useLdflags := Version != defaultVersion && CommitHash != defaultCommit
 	// For tests, avoid slow I/O operations
-	if useLdflags || testing.Testing() {
-		buildInfoCacheMutex.Lock()
-		defer buildInfoCacheMutex.Unlock()
-		// Double check after acquiring write lock
-		if buildInfoCache == nil {
-			buildInfoCache = &buildInfoData{
-				version:   Version,
-				commit:    CommitHash,
-				goVersion: runtime.Version(),
-			}
-		}
-		return buildInfoCache.version, buildInfoCache.commit, buildInfoCache.goVersion
-	}
-	// Lazy load build info only when needed (production only, no ldflags)
-	buildInfoLoadOnce.Do(func() {
-		loadBuildInfoAsync()
-	})
-	// Return defaults for now, actual values will be loaded async
-	return Version, CommitHash, runtime.Version()
-}
-
-// loadBuildInfoAsync loads build info in the background to avoid blocking startup
-func loadBuildInfoAsync() {
-	go func() {
-		version := Version
-		commit := CommitHash
-		// This call can be slow, so we do it in a goroutine
+	if !useLdflags && !testing.Testing() {
+		// Try to get build info from runtime
 		if info, ok := debug.ReadBuildInfo(); ok {
 			if version == defaultVersion && info.Main.Version != "" && info.Main.Version != "(devel)" {
 				version = info.Main.Version
@@ -160,23 +139,12 @@ func loadBuildInfoAsync() {
 				}
 			}
 		}
-		buildInfoCacheMutex.Lock()
-		buildInfoCache = &buildInfoData{
-			version:   version,
-			commit:    commit,
-			goVersion: runtime.Version(),
-		}
-		buildInfoCacheMutex.Unlock()
-		// Log build info after it's loaded
-		// Create a background context since the original may be canceled
-		logCtx := context.Background()
-		log := logger.FromContext(logCtx)
-		log.Info("System metrics initialized",
-			"version", version,
-			"commit", commit,
-			"go_version", runtime.Version(),
-		)
-	}()
+	}
+	return buildInfoData{
+		version:   version,
+		commit:    commit,
+		goVersion: runtime.Version(),
+	}
 }
 
 // InitSystemMetrics initializes system health metrics and records build info
@@ -206,9 +174,9 @@ func resetSystemMetrics(ctx context.Context) {
 	uptimeGauge = nil
 	startTime = time.Time{}
 	systemInitOnce = sync.Once{}
-	buildInfoLoadOnce = sync.Once{}
 	buildInfoCacheMutex.Lock()
-	buildInfoCache = nil
+	buildInfoOnce = sync.Once{}
+	buildInfoCache = buildInfoData{}
 	buildInfoCacheMutex.Unlock()
 }
 

@@ -184,7 +184,7 @@ func TestSchema_ApplyDefaults(t *testing.T) {
 	})
 
 	t.Run("Should handle nil schema", func(t *testing.T) {
-		var schema *Schema = nil
+		var schema *Schema
 
 		input := map[string]any{
 			"test": "value",
@@ -254,7 +254,7 @@ func TestSchema_Compile(t *testing.T) {
 	})
 
 	t.Run("Should return nil for nil schema", func(t *testing.T) {
-		var s *Schema = nil
+		var s *Schema
 
 		schema, err := s.Compile()
 		assert.NoError(t, err)
