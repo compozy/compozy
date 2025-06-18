@@ -283,7 +283,7 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 	log := logger.FromContext(ctx)
 	err := retry.Do(
 		ctx,
-		retry.WithMaxRetries(3, retry.NewExponential(200*time.Millisecond)),
+		retry.WithMaxRetries(2, retry.NewExponential(50*time.Millisecond)),
 		func(ctx context.Context) error {
 			_, err := o.client.SignalWithStartWorkflow(
 				ctx,

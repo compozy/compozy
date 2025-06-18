@@ -73,8 +73,8 @@ func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 		client = redis.NewClient(opt)
 	}
 
-	// Test connection with timeout
-	pingCtx, pingCancel := context.WithTimeout(ctx, 2*time.Second)
+	// Test connection with shorter timeout for faster startup
+	pingCtx, pingCancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer pingCancel()
 	if err := client.Ping(pingCtx).Err(); err != nil {
 		client.Close()

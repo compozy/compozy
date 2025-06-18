@@ -140,10 +140,13 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 		}
 	}
 	dbStart := time.Now()
+	// Setup database store
+	storeStart := time.Now()
 	store, err := store.SetupStore(s.ctx, s.StoreConfig)
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to setup store: %w", err)
 	}
+	log.Info("Database store initialized", "duration", time.Since(storeStart))
 	log.Debug("Database connection established", "duration", time.Since(dbStart))
 	cleanupFuncs = append(cleanupFuncs, func() {
 		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
