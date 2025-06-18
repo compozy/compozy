@@ -83,7 +83,7 @@ func (a *Activities) CompleteWorkflow(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := wfacts.NewCompleteWorkflow(a.workflowRepo)
+	act := wfacts.NewCompleteWorkflow(a.workflowRepo, a.workflows)
 	return act.Run(ctx, input)
 }
 

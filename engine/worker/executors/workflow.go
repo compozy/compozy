@@ -64,6 +64,7 @@ func (e *WorkflowExecutor) CompleteWorkflow() func(ctx workflow.Context) (*wf.St
 		actLabel := wfacts.CompleteWorkflowLabel
 		actInput := &wfacts.CompleteWorkflowInput{
 			WorkflowExecID: e.WorkflowExecID,
+			WorkflowID:     e.WorkflowID,
 		}
 		var output *wf.State
 		err := workflow.ExecuteActivity(ctx, actLabel, actInput).Get(ctx, &output)
