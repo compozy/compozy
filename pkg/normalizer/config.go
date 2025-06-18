@@ -48,7 +48,6 @@ func (n *ConfigNormalizer) NormalizeTask(
 	if err != nil {
 		return fmt.Errorf("failed to merge base environments for task %s: %w", taskConfig.ID, err)
 	}
-
 	allTaskConfigsMap := BuildTaskConfigsMap(workflowConfig.Tasks)
 	normCtx := &NormalizationContext{
 		WorkflowState:  workflowState,

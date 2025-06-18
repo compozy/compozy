@@ -171,6 +171,30 @@ func (w *Config) ValidateInput(ctx context.Context, input *core.Input) error {
 	return schema.NewParamsValidator(input, inputSchema, w.ID).Validate(ctx)
 }
 
+// ApplyInputDefaults merges default values from the input schema with the provided input
+func (w *Config) ApplyInputDefaults(input *core.Input) (*core.Input, error) {
+	if w.Opts.InputSchema == nil {
+		// No schema, return input as-is
+		if input == nil {
+			input = &core.Input{}
+		}
+		return input, nil
+	}
+	var inputMap map[string]any
+	if input == nil {
+		inputMap = make(map[string]any)
+	} else {
+		inputMap = *input
+	}
+	// Apply defaults from schema
+	mergedInput, err := w.Opts.InputSchema.ApplyDefaults(inputMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to apply input defaults for workflow %s: %w", w.ID, err)
+	}
+	result := core.Input(mergedInput)
+	return &result, nil
+}
+
 func (w *Config) ValidateOutput(_ context.Context, _ *core.Output) error {
 	// Does not make sense the workflow having a schema
 	return nil

@@ -141,9 +141,9 @@ func TestConfig() *Config {
 
 // IsTestEnvironment detects if we're running in a test environment
 func IsTestEnvironment() bool {
-	// Check if we're running under go test
+	// Check if we're running under go test by looking for the test binary pattern
 	for _, arg := range os.Args {
-		if strings.Contains(arg, "test") || strings.HasSuffix(arg, ".test") {
+		if strings.HasSuffix(arg, ".test") {
 			return true
 		}
 	}
@@ -151,6 +151,14 @@ func IsTestEnvironment() bool {
 	// Check for test-related environment variables
 	if os.Getenv("GO_TEST") == "1" || os.Getenv("TESTING") == "1" {
 		return true
+	}
+
+	// Check if the program name indicates a test binary
+	if len(os.Args) > 0 {
+		progName := os.Args[0]
+		if strings.HasSuffix(progName, ".test") || strings.Contains(progName, "___") {
+			return true
+		}
 	}
 
 	return false
