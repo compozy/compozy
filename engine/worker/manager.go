@@ -7,6 +7,7 @@ import (
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/worker/executors"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 )
 
@@ -16,13 +17,22 @@ import (
 
 type Manager struct {
 	*ContextBuilder
-	*WorkflowExecutor
-	*TaskExecutor
+	*executors.WorkflowExecutor
+	*executors.TaskExecutor
 }
 
 func NewManager(contextBuilder *ContextBuilder) *Manager {
-	workflowExecutor := NewWorkflowExecutor(contextBuilder)
-	taskExecutor := NewTaskExecutor(contextBuilder)
+	// Convert to executors.ContextBuilder
+	executorContextBuilder := &executors.ContextBuilder{
+		Workflows:      contextBuilder.Workflows,
+		ProjectConfig:  contextBuilder.ProjectConfig,
+		WorkflowConfig: contextBuilder.WorkflowConfig,
+		WorkflowInput:  contextBuilder.WorkflowInput,
+	}
+
+	workflowExecutor := executors.NewWorkflowExecutor(executorContextBuilder)
+	taskExecutor := executors.NewTaskExecutor(executorContextBuilder)
+
 	return &Manager{
 		ContextBuilder:   contextBuilder,
 		WorkflowExecutor: workflowExecutor,
