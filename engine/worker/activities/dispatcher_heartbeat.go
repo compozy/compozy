@@ -34,6 +34,13 @@ type DispatcherHeartbeatData struct {
 // DispatcherHeartbeat records a heartbeat for the dispatcher workflow
 func DispatcherHeartbeat(ctx context.Context, cache *cache.Cache, input *DispatcherHeartbeatInput) error {
 	log := logger.FromContext(ctx)
+	// Validate input
+	if input.DispatcherID == "" {
+		return fmt.Errorf("dispatcher ID cannot be empty")
+	}
+	if input.ProjectName == "" {
+		return fmt.Errorf("project name cannot be empty")
+	}
 	log.Debug("Recording dispatcher heartbeat",
 		"dispatcher_id", input.DispatcherID,
 		"project", input.ProjectName,
@@ -165,6 +172,9 @@ func ListActiveDispatchers(
 func RemoveDispatcherHeartbeat(ctx context.Context, cache *cache.Cache, dispatcherID string) error {
 	log := logger.FromContext(ctx)
 	log.Debug("Removing dispatcher heartbeat", "dispatcher_id", dispatcherID)
+	if dispatcherID == "" {
+		return fmt.Errorf("dispatcherID cannot be empty")
+	}
 	if cache == nil {
 		return fmt.Errorf("redis cache not configured")
 	}
