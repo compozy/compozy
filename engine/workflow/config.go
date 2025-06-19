@@ -48,7 +48,7 @@ type Config struct {
 	MCPs        []mcp.Config    `json:"mcps,omitempty"        yaml:"mcps,omitempty"        mapstructure:"mcps,omitempty"`
 	Triggers    []Trigger       `json:"triggers,omitempty"    yaml:"triggers,omitempty"    mapstructure:"triggers,omitempty"`
 	Tasks       []task.Config   `json:"tasks"                 yaml:"tasks"                 mapstructure:"tasks"`
-	Outputs     *core.Input     `json:"outputs,omitempty"     yaml:"outputs,omitempty"     mapstructure:"outputs,omitempty"`
+	Outputs     *core.Output    `json:"outputs,omitempty"     yaml:"outputs,omitempty"     mapstructure:"outputs,omitempty"`
 
 	filePath string
 	CWD      *core.PathCWD
@@ -86,7 +86,7 @@ func (w *Config) GetInput() *core.Input {
 	return &core.Input{}
 }
 
-func (w *Config) GetOutputs() *core.Input {
+func (w *Config) GetOutputs() *core.Output {
 	return w.Outputs
 }
 

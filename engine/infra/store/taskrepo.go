@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -373,6 +374,39 @@ func (r *TaskRepo) ListChildren(ctx context.Context, parentStateID core.ID) ([]*
 	}
 
 	return states, nil
+}
+
+// ListChildrenOutputs retrieves only the outputs of child tasks for performance.
+// This is more efficient than loading full task states when only outputs are needed.
+func (r *TaskRepo) ListChildrenOutputs(ctx context.Context, parentStateID core.ID) (map[string]*core.Output, error) {
+	query := `
+		SELECT task_id, output 
+		FROM task_states 
+		WHERE parent_state_id = $1 AND output IS NOT NULL
+		ORDER BY created_at
+	`
+	rows, err := r.db.Query(ctx, query, parentStateID)
+	if err != nil {
+		return nil, fmt.Errorf("querying child outputs: %w", err)
+	}
+	defer rows.Close()
+	outputs := make(map[string]*core.Output)
+	for rows.Next() {
+		var taskID string
+		var outputJSON []byte
+		if err := rows.Scan(&taskID, &outputJSON); err != nil {
+			return nil, fmt.Errorf("scanning child output: %w", err)
+		}
+		var output core.Output
+		if err := json.Unmarshal(outputJSON, &output); err != nil {
+			return nil, fmt.Errorf("unmarshaling output for task %s: %w", taskID, err)
+		}
+		outputs[taskID] = &output
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating child outputs: %w", err)
+	}
+	return outputs, nil
 }
 
 // GetChildByTaskID retrieves a specific child task state by its parent and task ID.

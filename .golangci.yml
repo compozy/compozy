@@ -101,6 +101,9 @@ linters:
       - linters:
           - lll
         source: "`.*`"
+      - linters:
+          - errcheck
+        path: mock_.*\.go$
     paths:
       - third_party$
       - builtin$

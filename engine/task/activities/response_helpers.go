@@ -153,7 +153,39 @@ func processParentTask(
 	}
 	// Use the ProgressInfo struct directly for consistent JSON serialization
 	(*parentState.Output)["progress_info"] = progressInfo
-
+	// Aggregate child outputs for collection/parallel tasks
+	if taskConfig.Type == task.TaskTypeCollection || taskConfig.Type == task.TaskTypeParallel {
+		childOutputs, err := taskRepo.ListChildrenOutputs(ctx, parentState.TaskExecID)
+		if err != nil {
+			log.Error("Failed to aggregate child outputs",
+				"error", err,
+				"parent_id", parentState.TaskExecID,
+				"task_type", taskConfig.Type)
+			return fmt.Errorf("failed to aggregate child outputs: %w", err)
+		}
+		// Convert to map[string]any
+		outputsMap := make(map[string]any, len(childOutputs))
+		for taskID, output := range childOutputs {
+			if output != nil {
+				outputsMap[taskID] = *output
+			}
+		}
+		// Race condition check: ensure all completed children have outputs
+		expectedCount := progressInfo.CompletedCount
+		if len(outputsMap) < expectedCount {
+			log.Warn("Child outputs not yet visible, retrying",
+				"parent_id", parentState.TaskExecID,
+				"expected", expectedCount,
+				"actual", len(outputsMap))
+			return fmt.Errorf("%s child outputs not yet visible for taskExecID %s: have %d, expected %d",
+				expectedType, parentState.TaskExecID, len(outputsMap), expectedCount)
+		}
+		// Store under "outputs" key to avoid collisions
+		(*parentState.Output)["outputs"] = outputsMap
+		log.Debug("Aggregated child outputs",
+			"parent_id", parentState.TaskExecID,
+			"child_count", len(outputsMap))
+	}
 	if overallStatus == core.StatusFailed {
 		return buildDetailedFailureError(ctx, taskRepo, progressInfo, parentState, taskConfig, expectedType)
 	}

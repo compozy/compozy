@@ -849,32 +849,34 @@ func TestConfigNormalizer_NormalizeTaskOutput(t *testing.T) {
 		)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to transform output field invalid")
+		assert.Contains(t, err.Error(), "failed to transform task output field invalid")
 	})
 
 	t.Run("Should access parallel task outputs correctly", func(t *testing.T) {
 		normalizer := NewConfigNormalizer()
 
-		// Simulate parallel task output structure
+		// Simulate parallel task output structure with nested outputs
 		taskOutput := &core.Output{
-			"sentiment_analysis": map[string]any{
-				"output": map[string]any{
+			"outputs": map[string]any{
+				"sentiment_analysis": map[string]any{
 					"sentiment":  "positive",
 					"confidence": 0.95,
 				},
-			},
-			"keyword_extraction": map[string]any{
-				"output": map[string]any{
+				"keyword_extraction": map[string]any{
 					"keywords": []string{"hello", "world"},
 				},
+			},
+			"progress_info": map[string]any{
+				"completed_count": 2,
+				"total_children":  2,
 			},
 		}
 
 		outputsConfig := &core.Input{
-			// Access nested parallel task outputs
-			"extracted_sentiment": "{{ .output.sentiment_analysis.output.sentiment }}",
-			"confidence_score":    "{{ .output.sentiment_analysis.output.confidence }}",
-			"extracted_keywords":  "{{ .output.keyword_extraction.output.keywords }}",
+			// Access nested parallel task outputs - .output now refers to the child outputs map
+			"extracted_sentiment": "{{ .output.sentiment_analysis.sentiment }}",
+			"confidence_score":    "{{ .output.sentiment_analysis.confidence }}",
+			"extracted_keywords":  "{{ .output.keyword_extraction.keywords }}",
 		}
 
 		workflowState := &workflow.State{

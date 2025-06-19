@@ -1,0 +1,28 @@
+### Weather Agent API Tests
+### This file contains HTTP requests to test the weather agent workflow
+### Make sure Compozy is running on localhost:3001 before executing these requests
+
+@baseUrl = http://localhost:3001/api/v0
+@workflowId = weather
+
+### -----------------------------------------------------------------------------
+### Execute weather workflow
+### -----------------------------------------------------------------------------
+# @name executeWorkflow
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "city": "San Francisco"
+  }
+}
+
+### Get execution ID from response (use this in subsequent requests)
+@execId = {{executeWorkflow.response.body.data.exec_id}}
+
+### -----------------------------------------------------------------------------
+### Get specific execution details
+### -----------------------------------------------------------------------------
+GET {{baseUrl}}/executions/workflows/{{execId}}
+Accept: application/json

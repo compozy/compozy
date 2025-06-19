@@ -1,13 +1,16 @@
 package normalizer
 
 import (
+	"context"
 	"fmt"
+	"sort"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // ConfigNormalizer handles the normalization of configurations along with environment merging.
@@ -279,19 +282,57 @@ func (n *ConfigNormalizer) NormalizeTaskOutput(
 
 	// Create context with current output available
 	transformCtx := n.normalizer.BuildContext(normCtx)
-	transformCtx["output"] = taskOutput
-
-	// Apply output transformation using the normalizer's template engine
-	transformedOutput := make(core.Output)
-	for key, value := range *outputsConfig {
-		result, err := n.normalizer.engine.ParseMap(value, transformCtx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to transform output field %s: %w", key, err)
+	// Special handling for collection/parallel tasks
+	if taskConfig.Type == task.TaskTypeCollection || taskConfig.Type == task.TaskTypeParallel {
+		// Look for the nested outputs map
+		if nestedOutputs, ok := (*taskOutput)["outputs"]; ok {
+			// Use child outputs map as .output in template context
+			transformCtx["output"] = nestedOutputs
+		} else {
+			// Outputs not yet aggregated, use empty map
+			transformCtx["output"] = make(map[string]any)
 		}
-		transformedOutput[key] = result
+		// For parent tasks, also add children context at the top level
+		if taskState, exists := workflowState.Tasks[taskConfig.ID]; exists {
+			if taskState.CanHaveChildren() && normCtx.ChildrenIndex != nil {
+				transformCtx["children"] = n.normalizer.BuildChildrenContext(taskState, normCtx, 0)
+			}
+		}
+	} else {
+		// For regular tasks, use the full output
+		transformCtx["output"] = taskOutput
 	}
+	// Apply output transformation using the normalizer's template engine
+	transformedOutput, err := n.transformOutputFields(*outputsConfig, transformCtx, "task")
+	if err != nil {
+		return nil, err
+	}
+	result := core.Output(transformedOutput)
+	return &result, nil
+}
 
-	return &transformedOutput, nil
+// transformOutputFields applies template transformation to output fields using the normalizer's engine
+func (n *ConfigNormalizer) transformOutputFields(
+	outputsConfig map[string]any,
+	transformCtx map[string]any,
+	contextName string,
+) (map[string]any, error) {
+	// Sort keys to ensure deterministic iteration order for Temporal workflows
+	keys := make([]string, 0, len(outputsConfig))
+	for k := range outputsConfig {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	result := make(map[string]any)
+	for _, key := range keys {
+		value := outputsConfig[key]
+		transformed, err := n.normalizer.engine.ParseMap(value, transformCtx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to transform %s output field %s: %w", contextName, key, err)
+		}
+		result[key] = transformed
+	}
+	return result, nil
 }
 
 // NormalizeTaskEnvironment only merges environments without processing task config templates
@@ -313,44 +354,60 @@ func (n *ConfigNormalizer) NormalizeTaskEnvironment(
 
 // NormalizeWorkflowOutput transforms the workflow output using the outputs configuration
 func (n *ConfigNormalizer) NormalizeWorkflowOutput(
+	ctx context.Context,
 	workflowState *workflow.State,
-	outputsConfig *core.Input,
+	workflowConfig *workflow.Config,
+	outputsConfig *core.Output,
 ) (*core.Output, error) {
 	if outputsConfig == nil {
 		return nil, nil
 	}
-	// Build context with all task outputs accessible by task ID
-	tasksContext := make(map[string]any)
-	for _, taskState := range workflowState.Tasks {
-		taskContext := map[string]any{
-			"status": taskState.Status,
-		}
-		if taskState.Output != nil {
-			taskContext["output"] = *taskState.Output
-		}
-		if taskState.Error != nil {
-			taskContext["error"] = taskState.Error
-		}
-		tasksContext[taskState.TaskID] = taskContext
+	log := logger.FromContext(ctx)
+	// Build complete parent context with all workflow config properties
+	parentConfig, err := core.AsMapDefault(workflowConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert workflow config to map: %w", err)
 	}
-	// Build transformation context
-	transformCtx := map[string]any{
-		"tasks": tasksContext,
+	// Add workflow runtime state
+	parentConfig["input"] = workflowState.Input
+	parentConfig["output"] = workflowState.Output
+	taskConfigs := BuildTaskConfigsMap(workflowConfig.Tasks)
+	normCtx := &NormalizationContext{
+		WorkflowState:  workflowState,
+		WorkflowConfig: workflowConfig,
+		TaskConfigs:    taskConfigs,
+		ParentConfig:   parentConfig,
+		CurrentInput:   workflowState.Input,
+		MergedEnv:      &[]core.EnvMap{workflowConfig.GetEnv()}[0],
 	}
-	if workflowState.Input != nil {
-		transformCtx["input"] = *workflowState.Input
+	transformCtx := n.normalizer.BuildContext(normCtx)
+	transformCtx["status"] = workflowState.Status
+	transformCtx["workflow_id"] = workflowState.WorkflowID
+	transformCtx["workflow_exec_id"] = workflowState.WorkflowExecID
+	if workflowState.Error != nil {
+		transformCtx["error"] = workflowState.Error
 	}
+
+	// Log template processing start at debug level
+	log.Debug("Starting workflow output template processing",
+		"workflow_id", workflowState.WorkflowID,
+		"workflow_exec_id", workflowState.WorkflowExecID,
+		"task_count", len(workflowState.Tasks),
+		"output_fields", len(*outputsConfig))
 	// Apply output transformation using the normalizer's template engine
 	if len(*outputsConfig) == 0 {
 		return &core.Output{}, nil
 	}
-	transformedOutput := make(core.Output, len(*outputsConfig))
-	for key, value := range *outputsConfig {
-		result, err := n.normalizer.engine.ParseMap(value, transformCtx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to transform workflow output field %s: %w", key, err)
-		}
-		transformedOutput[key] = result
+	transformedOutput, err := n.transformOutputFields(outputsConfig.AsMap(), transformCtx, "workflow")
+	if err != nil {
+		log.Error("Failed to transform workflow output",
+			"workflow_id", workflowState.WorkflowID,
+			"error", err)
+		return nil, err
 	}
-	return &transformedOutput, nil
+	log.Debug("Successfully transformed workflow output",
+		"workflow_id", workflowState.WorkflowID,
+		"fields_count", len(transformedOutput))
+	finalOutput := core.Output(transformedOutput)
+	return &finalOutput, nil
 }

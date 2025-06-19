@@ -54,7 +54,7 @@ func (ccb *CollectionConfigBuilder) createConfigsFromTaskTemplate(
 			return nil, fmt.Errorf("failed to deep copy task config for item %d: %w", i, err)
 		}
 		childConfig := *childConfigPtr
-		childConfig.ID = fmt.Sprintf("%s_item_%d", taskConfig.ID, i)
+		// ID will be processed by template engine if it contains templates
 
 		// Ensure child task has access to item context in its With input
 		if childConfig.With == nil {
@@ -108,7 +108,7 @@ func (ccb *CollectionConfigBuilder) createConfigsFromTasksArray(
 				return nil, fmt.Errorf("failed to deep copy task config for item %d, task %d: %w", i, j, err)
 			}
 			childConfig := *childConfigPtr
-			childConfig.ID = fmt.Sprintf("%s_item_%d_task_%d", taskConfig.ID, i, j)
+			// ID will be processed by template engine if it contains templates
 
 			// If child task doesn't have a complete agent config, inherit from parent collection task
 			if childConfig.Agent != nil && taskConfig.Agent != nil {

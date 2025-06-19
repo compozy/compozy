@@ -17,11 +17,7 @@ instructions: |
 mcps:
   - id: file_server
     transport: stdio
-    command: npx
-    args:
-      - -y
-      - "@modelcontextprotocol/server-filesystem"
-      - "./"
+    command: docker mcp gateway run
     proto: "2025-03-26"
     start_timeout: 15s
 

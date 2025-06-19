@@ -18,7 +18,7 @@ func TestCollectionConfigBuilder_CreateChildConfigs(t *testing.T) {
 		t.Parallel()
 		templateConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
-				ID: "template-task",
+				ID: "template-task-{{ .index }}",
 				With: &core.Input{
 					"param": "{{ .item.value }}",
 				},
@@ -54,12 +54,12 @@ func TestCollectionConfigBuilder_CreateChildConfigs(t *testing.T) {
 		require.Len(t, result, 2)
 
 		// Check first child config
-		assert.Equal(t, "collection-task_item_0", result[0].ID)
+		assert.Equal(t, "template-task-0", result[0].ID)
 		assert.Equal(t, "read", result[0].Action)
 		assert.Equal(t, "file1.txt", (*result[0].With)["param"])
 
 		// Check second child config
-		assert.Equal(t, "collection-task_item_1", result[1].ID)
+		assert.Equal(t, "template-task-1", result[1].ID)
 		assert.Equal(t, "write", result[1].Action)
 		assert.Equal(t, "file2.txt", (*result[1].With)["param"])
 	})
@@ -77,7 +77,7 @@ func TestCollectionConfigBuilder_CreateChildConfigs(t *testing.T) {
 			Tasks: []task.Config{
 				{
 					BaseConfig: task.BaseConfig{
-						ID: "task1",
+						ID: "task1-{{ .index }}",
 					},
 					BasicTask: task.BasicTask{
 						Action: "step1-{{ .item }}",
@@ -85,7 +85,7 @@ func TestCollectionConfigBuilder_CreateChildConfigs(t *testing.T) {
 				},
 				{
 					BaseConfig: task.BaseConfig{
-						ID: "task2",
+						ID: "task2-{{ .index }}",
 					},
 					BasicTask: task.BasicTask{
 						Action: "step2-{{ .item }}",
@@ -102,11 +102,11 @@ func TestCollectionConfigBuilder_CreateChildConfigs(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, result, 4) // 2 items × 2 tasks = 4 configs
 
-		// Check the naming pattern
-		assert.Equal(t, "collection-task_item_0_task_0", result[0].ID)
-		assert.Equal(t, "collection-task_item_0_task_1", result[1].ID)
-		assert.Equal(t, "collection-task_item_1_task_0", result[2].ID)
-		assert.Equal(t, "collection-task_item_1_task_1", result[3].ID)
+		// Check the naming pattern - now uses templated IDs
+		assert.Equal(t, "task1-0", result[0].ID)
+		assert.Equal(t, "task2-0", result[1].ID)
+		assert.Equal(t, "task1-1", result[2].ID)
+		assert.Equal(t, "task2-1", result[3].ID)
 
 		// Check actions are templated correctly
 		assert.Equal(t, "step1-itemA", result[0].Action)
@@ -215,7 +215,7 @@ func TestCollectionConfigBuilder_Integration(t *testing.T) {
 		t.Parallel()
 		templateConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
-				ID: "template",
+				ID: "template-{{ .index }}",
 				With: &core.Input{
 					"file":     "{{ .item.path }}",
 					"mode":     "{{ .item.mode }}",
@@ -257,7 +257,7 @@ func TestCollectionConfigBuilder_Integration(t *testing.T) {
 
 		// Verify that each child config has the correct templated values
 		for i, config := range result {
-			assert.Equal(t, fmt.Sprintf("batch-processor_item_%d", i), config.ID)
+			assert.Equal(t, fmt.Sprintf("template-%d", i), config.ID)
 			assert.Equal(t, "process", config.Action)
 
 			expectedPath := filteredItems[i].(map[string]any)["path"]

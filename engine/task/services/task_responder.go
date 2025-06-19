@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/normalizer"
+	"github.com/jackc/pgx/v5"
 )
 
 // -----------------------------------------------------------------------------
@@ -102,7 +103,8 @@ func (s *TaskResponder) processTaskExecutionResult(
 	isSuccess := executionErr == nil && state.Status != core.StatusFailed
 
 	// Apply output transformation if needed
-	if isSuccess {
+	// Skip for collection/parallel tasks as they need children data first
+	if isSuccess && !s.shouldDeferOutputTransformation(input.TaskConfig) {
 		state.UpdateStatus(core.StatusSuccess)
 		if input.TaskConfig.GetOutputs() != nil && state.Output != nil {
 			if err := s.applyOutputTransformation(ctx, input); err != nil {
@@ -258,6 +260,11 @@ func (s *TaskResponder) HandleCollection(
 		return nil, err
 	}
 
+	// Apply deferred output transformation for collection tasks after children are processed
+	if err := s.applyDeferredOutputTransformation(ctx, mainTaskInput); err != nil {
+		return nil, err
+	}
+
 	// Convert to collection response with additional fields
 	return &task.CollectionResponse{
 		MainTaskResponse: mainResponse,
@@ -267,8 +274,107 @@ func (s *TaskResponder) HandleCollection(
 }
 
 // -----------------------------------------------------------------------------
+// Parallel Response Handling
+// -----------------------------------------------------------------------------
+
+type ParallelResponseInput struct {
+	WorkflowConfig   *workflow.Config `json:"workflow_config"`
+	TaskState        *task.State      `json:"task_state"`
+	TaskConfig       *task.Config     `json:"task_config"`
+	ExecutionError   error            `json:"execution_error"`
+	NextTaskOverride *task.Config     `json:"next_task_override,omitempty"`
+}
+
+func (s *TaskResponder) HandleParallel(
+	ctx context.Context,
+	input *ParallelResponseInput,
+) (*task.MainTaskResponse, error) {
+	// Handle the main task response logic first
+	mainTaskInput := &MainTaskResponseInput{
+		WorkflowConfig:   input.WorkflowConfig,
+		TaskState:        input.TaskState,
+		TaskConfig:       input.TaskConfig,
+		ExecutionError:   input.ExecutionError,
+		NextTaskOverride: input.NextTaskOverride,
+	}
+
+	mainResponse, err := s.HandleMainTask(ctx, mainTaskInput)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply deferred output transformation for parallel tasks after children are processed
+	if err := s.applyDeferredOutputTransformation(ctx, mainTaskInput); err != nil {
+		return nil, err
+	}
+
+	return mainResponse, nil
+}
+
+// -----------------------------------------------------------------------------
 // Helper Methods
 // -----------------------------------------------------------------------------
+
+func (s *TaskResponder) shouldDeferOutputTransformation(taskConfig *task.Config) bool {
+	return taskConfig.Type == task.TaskTypeCollection || taskConfig.Type == task.TaskTypeParallel
+}
+
+// applyDeferredOutputTransformation applies output transformation for parent tasks after children are processed
+func (s *TaskResponder) applyDeferredOutputTransformation(
+	ctx context.Context,
+	input *MainTaskResponseInput,
+) error {
+	// Only apply if no execution error and task is not failed
+	if input.ExecutionError != nil || input.TaskState.Status == core.StatusFailed {
+		return nil
+	}
+
+	// Use a transaction to prevent race conditions and ensure atomicity
+	return s.taskRepo.WithTx(ctx, func(tx pgx.Tx) error {
+		// Get the latest state with lock to prevent concurrent modifications
+		latestState, err := s.taskRepo.GetStateForUpdate(ctx, tx, input.TaskState.TaskExecID)
+		if err != nil {
+			return fmt.Errorf("failed to get latest state for update: %w", err)
+		}
+
+		// Use the fresh state for the transformation
+		// Create a new input for the transformation function to avoid side effects
+		transformInput := &MainTaskResponseInput{
+			WorkflowConfig: input.WorkflowConfig,
+			TaskState:      latestState,
+			TaskConfig:     input.TaskConfig,
+		}
+
+		// Ensure the task is marked as successful for the transformation context
+		transformInput.TaskState.UpdateStatus(core.StatusSuccess)
+
+		// Apply output transformation if needed
+		var transformErr error
+		if transformInput.TaskConfig.GetOutputs() != nil && transformInput.TaskState.Output != nil {
+			transformErr = s.applyOutputTransformation(ctx, transformInput)
+		}
+
+		if transformErr != nil {
+			// On transformation failure, mark task as failed and set error
+			transformInput.TaskState.UpdateStatus(core.StatusFailed)
+			s.setErrorState(transformInput.TaskState, transformErr)
+		}
+
+		// Save the updated state (either with transformed output or with failure status)
+		if err := s.taskRepo.UpsertStateWithTx(ctx, tx, transformInput.TaskState); err != nil {
+			if transformErr != nil {
+				return fmt.Errorf(
+					"failed to save state after transformation error: %w (original error: %w)",
+					err,
+					transformErr,
+				)
+			}
+			return fmt.Errorf("failed to save transformed state: %w", err)
+		}
+
+		return transformErr // Return the original transformation error if it occurred
+	})
+}
 
 func (s *TaskResponder) applyOutputTransformationCommon(
 	ctx context.Context,
@@ -438,29 +544,35 @@ func (s *TaskResponder) updateParentStatusIfNeeded(ctx context.Context, childSta
 
 	parentStateID := *childState.ParentStateID
 
-	// Get the parent task to determine the parallel strategy
-	parentState, err := s.taskRepo.GetState(ctx, parentStateID)
-	if err != nil {
-		return fmt.Errorf("failed to get parent state %s: %w", parentStateID, err)
-	}
+	// Use transaction to prevent race conditions when multiple children update parent simultaneously
+	return s.taskRepo.WithTx(ctx, func(tx pgx.Tx) error {
+		// Get the parent task with row lock to prevent concurrent modifications
+		parentState, err := s.taskRepo.GetStateForUpdate(ctx, tx, parentStateID)
+		if err != nil {
+			return fmt.Errorf("failed to get parent state %s for update: %w", parentStateID, err)
+		}
 
-	// Only update parent status for parallel tasks
-	if parentState.ExecutionType != task.ExecutionParallel {
-		return nil
-	}
+		// Only update parent status for parallel tasks
+		if parentState.ExecutionType != task.ExecutionParallel {
+			return nil
+		}
 
-	// Extract strategy from parallel configuration
-	strategy := s.extractParallelStrategy(ctx, parentState, parentStateID)
+		// Extract strategy from parallel configuration
+		strategy, err := s.extractParallelStrategy(ctx, parentState, parentStateID)
+		if err != nil {
+			return fmt.Errorf("failed to extract parallel strategy: %w", err)
+		}
 
-	// Use the shared service to update parent status
-	_, err = s.parentStatusUpdater.UpdateParentStatus(ctx, &UpdateParentStatusInput{
-		ParentStateID: parentStateID,
-		Strategy:      strategy,
-		Recursive:     true,
-		ChildState:    childState,
+		// Use the shared service to update parent status within transaction
+		_, err = s.parentStatusUpdater.UpdateParentStatus(ctx, &UpdateParentStatusInput{
+			ParentStateID: parentStateID,
+			Strategy:      strategy,
+			Recursive:     true,
+			ChildState:    childState,
+		})
+
+		return err
 	})
-
-	return err
 }
 
 // extractParallelStrategy extracts the parallel strategy from parent state input
@@ -469,20 +581,20 @@ func (s *TaskResponder) extractParallelStrategy(
 	ctx context.Context,
 	parentState *task.State,
 	parentStateID core.ID,
-) task.ParallelStrategy {
+) (task.ParallelStrategy, error) {
 	log := logger.FromContext(ctx)
 	// Default strategy
 	defaultStrategy := task.StrategyWaitAll
 
 	// Check if input exists
 	if parentState.Input == nil {
-		return defaultStrategy
+		return defaultStrategy, nil
 	}
 
 	// Get the parallel config field
 	parallelConfigRaw, exists := (*parentState.Input)["_parallel_config"]
 	if !exists {
-		return defaultStrategy
+		return defaultStrategy, nil
 	}
 
 	// Try to unmarshal into our typed struct
@@ -499,7 +611,7 @@ func (s *TaskResponder) extractParallelStrategy(
 				"parent_state_id", parentStateID,
 				"error", err,
 			)
-			return defaultStrategy
+			return "", fmt.Errorf("failed to marshal parallel config: %w", err)
 		}
 	}
 
@@ -510,7 +622,7 @@ func (s *TaskResponder) extractParallelStrategy(
 			"config_type", fmt.Sprintf("%T", parallelConfigRaw),
 			"error", err,
 		)
-		return defaultStrategy
+		return "", fmt.Errorf("failed to unmarshal parallel config: %w", err)
 	}
 
 	// Validate the extracted strategy
@@ -521,8 +633,8 @@ func (s *TaskResponder) extractParallelStrategy(
 				"parent_state_id", parentStateID,
 			)
 		}
-		return defaultStrategy
+		return defaultStrategy, nil
 	}
 
-	return configData.Strategy
+	return configData.Strategy, nil
 }

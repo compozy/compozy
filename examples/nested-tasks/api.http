@@ -1,0 +1,29 @@
+### Nested Tasks API Tests
+### This file contains HTTP requests to test the nested-tasks workflow
+### Make sure Compozy is running on localhost:3001 before executing these requests
+
+@baseUrl = http://localhost:3001/api/v0
+@workflowId = nested-tasks
+
+### -----------------------------------------------------------------------------
+### Execute nested-tasks workflow
+### -----------------------------------------------------------------------------
+# @name executeWorkflow
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "test_data": ["item1", "item2", "item3"],
+    "parallel_count": 3
+  }
+}
+
+### Get execution ID from response (use this in subsequent requests)
+@execId = {{executeWorkflow.response.body.data.exec_id}}
+
+### -----------------------------------------------------------------------------
+### Get specific execution details
+### -----------------------------------------------------------------------------
+GET {{baseUrl}}/executions/workflows/{{execId}}
+Accept: application/json

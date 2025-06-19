@@ -16,6 +16,9 @@ type MockTaskRepo struct {
 
 func (m *MockTaskRepo) ListStates(ctx context.Context, filter *task.StateFilter) ([]*task.State, error) {
 	args := m.Called(ctx, filter)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).([]*task.State), args.Error(1)
 }
 
@@ -78,6 +81,14 @@ func (m *MockTaskRepo) ListChildren(ctx context.Context, parentID core.ID) ([]*t
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]*task.State), args.Error(1)
+}
+
+func (m *MockTaskRepo) ListChildrenOutputs(ctx context.Context, parentID core.ID) (map[string]*core.Output, error) {
+	args := m.Called(ctx, parentID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(map[string]*core.Output), args.Error(1)
 }
 
 func (m *MockTaskRepo) CreateChildStatesInTransaction(

@@ -1,6 +1,7 @@
 package normalizer
 
 import (
+	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -53,7 +54,7 @@ func TestConfigNormalizer_NormalizeWorkflowOutput(t *testing.T) {
 		}
 
 		// Create outputs configuration that transforms workflow output
-		outputsConfig := &core.Input{
+		outputsConfig := &core.Output{
 			// Simple field mapping from task outputs
 			"total_records": "{{ .tasks.data_fetcher.output.records_count }}",
 			"valid_records": "{{ .tasks.data_processor.output.processed_records }}",
@@ -63,8 +64,8 @@ func TestConfigNormalizer_NormalizeWorkflowOutput(t *testing.T) {
 
 			// Workflow input access
 			"source_info": map[string]any{
-				"data_source": "{{ .input.data_source }}",
-				"batch_size":  "{{ .input.batch_size }}",
+				"data_source": "{{ .workflow.input.data_source }}",
+				"batch_size":  "{{ .workflow.input.batch_size }}",
 			},
 
 			// Complex nested object creation combining task outputs
@@ -80,8 +81,15 @@ func TestConfigNormalizer_NormalizeWorkflowOutput(t *testing.T) {
 			"all_tasks_completed": "{{ and (eq .tasks.data_fetcher.status \"SUCCESS\") (eq .tasks.data_processor.status \"SUCCESS\") (eq .tasks.data_validator.status \"SUCCESS\") }}",
 		}
 
+		// Create workflow config for testing
+		workflowConfig := &workflow.Config{
+			ID:    "data-processing-workflow",
+			Tasks: []task.Config{},
+		}
+
 		// Execute workflow output transformation
-		result, err := normalizer.NormalizeWorkflowOutput(workflowState, outputsConfig)
+		ctx := context.Background()
+		result, err := normalizer.NormalizeWorkflowOutput(ctx, workflowState, workflowConfig, outputsConfig)
 
 		// Assertions
 		require.NoError(t, err)
@@ -141,7 +149,7 @@ func TestConfigNormalizer_NormalizeWorkflowOutput(t *testing.T) {
 			},
 		}
 
-		outputsConfig := &core.Input{
+		outputsConfig := &core.Output{
 			// Access successful task output
 			"success_result": "{{ .tasks.success_task.output.result }}",
 
@@ -155,10 +163,17 @@ func TestConfigNormalizer_NormalizeWorkflowOutput(t *testing.T) {
 
 			// Conditional output based on task status
 			"has_failures": "true",
-			"retry_count":  "{{ .input.retry_count }}",
+			"retry_count":  "{{ .workflow.input.retry_count }}",
 		}
 
-		result, err := normalizer.NormalizeWorkflowOutput(workflowState, outputsConfig)
+		// Create workflow config for testing
+		workflowConfig := &workflow.Config{
+			ID:    "workflow-with-errors",
+			Tasks: []task.Config{},
+		}
+
+		ctx := context.Background()
+		result, err := normalizer.NormalizeWorkflowOutput(ctx, workflowState, workflowConfig, outputsConfig)
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -196,7 +211,14 @@ func TestConfigNormalizer_NormalizeWorkflowOutput(t *testing.T) {
 			},
 		}
 
-		result, err := normalizer.NormalizeWorkflowOutput(workflowState, nil)
+		// Create workflow config for testing
+		workflowConfig := &workflow.Config{
+			ID:    "test-workflow",
+			Tasks: []task.Config{},
+		}
+
+		ctx := context.Background()
+		result, err := normalizer.NormalizeWorkflowOutput(ctx, workflowState, workflowConfig, nil)
 
 		require.NoError(t, err)
 		assert.Nil(t, result)
@@ -220,13 +242,20 @@ func TestConfigNormalizer_NormalizeWorkflowOutput(t *testing.T) {
 			},
 		}
 
-		outputsConfig := &core.Input{
+		outputsConfig := &core.Output{
 			"task_result": "{{ .tasks.processor.output.result }}",
 			// Should handle missing input gracefully
-			"workflow_input_exists": "{{ if .input }}true{{ else }}false{{ end }}",
+			"workflow_input_exists": "{{ if .workflow.input }}true{{ else }}false{{ end }}",
 		}
 
-		result, err := normalizer.NormalizeWorkflowOutput(workflowState, outputsConfig)
+		// Create workflow config for testing
+		workflowConfig := &workflow.Config{
+			ID:    "no-input-workflow",
+			Tasks: []task.Config{},
+		}
+
+		ctx := context.Background()
+		result, err := normalizer.NormalizeWorkflowOutput(ctx, workflowState, workflowConfig, outputsConfig)
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -252,12 +281,19 @@ func TestConfigNormalizer_NormalizeWorkflowOutput(t *testing.T) {
 			},
 		}
 
-		outputsConfig := &core.Input{
+		outputsConfig := &core.Output{
 			"valid_field":   "{{ .tasks.test_task.output.result }}",
 			"invalid_field": "{{ .tasks.nonexistent_task.output.value }}", // Should cause error
 		}
 
-		_, err := normalizer.NormalizeWorkflowOutput(workflowState, outputsConfig)
+		// Create workflow config for testing
+		workflowConfig := &workflow.Config{
+			ID:    "error-workflow",
+			Tasks: []task.Config{},
+		}
+
+		ctx := context.Background()
+		_, err := normalizer.NormalizeWorkflowOutput(ctx, workflowState, workflowConfig, outputsConfig)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to transform workflow output field invalid_field")
@@ -304,7 +340,7 @@ func TestConfigNormalizer_NormalizeWorkflowOutput(t *testing.T) {
 			},
 		}
 
-		outputsConfig := &core.Input{
+		outputsConfig := &core.Output{
 			// Access nested parallel task outputs
 			"task1_count": "{{ .tasks.parallel_processor.output.task_1.output.processed_count }}",
 			"task2_count": "{{ .tasks.parallel_processor.output.task_2.output.processed_count }}",
@@ -315,7 +351,7 @@ func TestConfigNormalizer_NormalizeWorkflowOutput(t *testing.T) {
 
 			// Combine input and parallel task outputs
 			"batch_summary": map[string]any{
-				"batch_id":      "{{ .input.batch_id }}",
+				"batch_id":      "{{ .workflow.input.batch_id }}",
 				"total_records": "{{ .tasks.aggregator.output.total_processed }}",
 				"sub_tasks": map[string]any{
 					"task_1_count": "{{ .tasks.parallel_processor.output.task_1.output.processed_count }}",
@@ -324,7 +360,14 @@ func TestConfigNormalizer_NormalizeWorkflowOutput(t *testing.T) {
 			},
 		}
 
-		result, err := normalizer.NormalizeWorkflowOutput(workflowState, outputsConfig)
+		// Create workflow config for testing
+		workflowConfig := &workflow.Config{
+			ID:    "parallel-workflow",
+			Tasks: []task.Config{},
+		}
+
+		ctx := context.Background()
+		result, err := normalizer.NormalizeWorkflowOutput(ctx, workflowState, workflowConfig, outputsConfig)
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -361,12 +404,19 @@ func TestConfigNormalizer_NormalizeWorkflowOutput(t *testing.T) {
 			Tasks: map[string]*task.State{}, // Empty task map
 		}
 
-		outputsConfig := &core.Input{
-			"workflow_status": "{{ .input.status }}",
+		outputsConfig := &core.Output{
+			"workflow_status": "{{ .workflow.input.status }}",
 			"task_count":      "{{ len .tasks }}",
 		}
 
-		result, err := normalizer.NormalizeWorkflowOutput(workflowState, outputsConfig)
+		// Create workflow config for testing
+		workflowConfig := &workflow.Config{
+			ID:    "empty-workflow",
+			Tasks: []task.Config{},
+		}
+
+		ctx := context.Background()
+		result, err := normalizer.NormalizeWorkflowOutput(ctx, workflowState, workflowConfig, outputsConfig)
 
 		require.NoError(t, err)
 		require.NotNil(t, result)

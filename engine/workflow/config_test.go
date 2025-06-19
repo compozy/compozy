@@ -318,7 +318,7 @@ func TestConfig_ApplyInputDefaults(t *testing.T) {
 
 func TestWorkflowConfig_Outputs(t *testing.T) {
 	t.Run("Should get outputs when defined", func(t *testing.T) {
-		outputs := &core.Input{
+		outputs := &core.Output{
 			"result": "{{ .tasks.final.output }}",
 		}
 		config := &Config{
