@@ -255,16 +255,109 @@ func ProcessEventSignal(ctx workflow.Context, signal EventSignal, signalMap map[
 	return executeChildWorkflow(ctx, signal, target, correlationID)
 }
 
+// startDispatcherHeartbeat starts the heartbeat goroutine for the dispatcher
+func startDispatcherHeartbeat(
+	ctx workflow.Context,
+	data *wfacts.GetData,
+	dispatcherID, projectName, serverID string,
+) (workflow.CancelFunc, time.Duration) {
+	log := workflow.GetLogger(ctx)
+	heartbeatInterval := time.Duration(data.ProjectConfig.Opts.DispatcherHeartbeatInterval) * time.Second
+	heartbeatCtx, heartbeatCancel := workflow.WithCancel(ctx)
+	workflow.Go(heartbeatCtx, func(ctx workflow.Context) {
+		log.Debug("Starting dispatcher heartbeat", "interval", heartbeatInterval)
+		for {
+			heartbeatInput := &wkacts.DispatcherHeartbeatInput{
+				DispatcherID: dispatcherID,
+				ProjectName:  projectName,
+				ServerID:     serverID,
+				TTL:          time.Duration(data.ProjectConfig.Opts.DispatcherHeartbeatTTL) * time.Second,
+			}
+			disconnectedCtx, cancel := workflow.NewDisconnectedContext(ctx)
+			ao := workflow.ActivityOptions{StartToCloseTimeout: 10 * time.Second}
+			disconnectedCtx = workflow.WithActivityOptions(disconnectedCtx, ao)
+			if err := workflow.ExecuteActivity(
+				disconnectedCtx,
+				wkacts.DispatcherHeartbeatLabel,
+				heartbeatInput,
+			).Get(disconnectedCtx, nil); err != nil {
+				log.Warn("Failed to send dispatcher heartbeat", "error", err)
+			}
+			cancel()
+			if err := workflow.Sleep(ctx, heartbeatInterval); err != nil {
+				log.Debug("Heartbeat goroutine stopped")
+				return
+			}
+		}
+	})
+	return heartbeatCancel, heartbeatInterval
+}
+
+// handleSignalProcessing handles the main signal processing loop
+func handleSignalProcessing(
+	ctx workflow.Context,
+	signalMap map[string]*CompiledTrigger,
+	heartbeatCancel workflow.CancelFunc,
+	projectName, serverID string,
+) error {
+	log := workflow.GetLogger(ctx)
+	const maxSignalsPerRun = 1000
+	const maxConsecutiveErrors = 10
+	const circuitBreakerDelay = 5 * time.Second
+	signalChan := workflow.GetSignalChannel(ctx, DispatcherEventChannel)
+	processed := 0
+	consecutiveErrors := 0
+	log.Debug("Dispatcher ready to process events", "maxSignalsPerRun", maxSignalsPerRun)
+	for {
+		if ctx.Err() != nil {
+			log.Info("DispatcherWorkflow canceled", "processedEvents", processed)
+			return ctx.Err()
+		}
+		if processed >= maxSignalsPerRun {
+			log.Info("Reaching max signals per run, continuing as new",
+				"processed", processed, "maxSignalsPerRun", maxSignalsPerRun)
+			heartbeatCancel()
+			return workflow.NewContinueAsNewError(ctx, DispatcherWorkflow, projectName, serverID)
+		}
+		if consecutiveErrors >= maxConsecutiveErrors {
+			log.Warn("Too many consecutive errors, implementing backoff",
+				"consecutiveErrors", consecutiveErrors, "maxConsecutiveErrors", maxConsecutiveErrors,
+				"backoffDelay", circuitBreakerDelay)
+			if err := workflow.Sleep(ctx, circuitBreakerDelay); err != nil {
+				log.Debug("Circuit breaker sleep interrupted", "error", err)
+			}
+		}
+		var signal EventSignal
+		ok := signalChan.Receive(ctx, &signal)
+		if !ok {
+			heartbeatCancel()
+			return workflow.NewContinueAsNewError(ctx, DispatcherWorkflow, projectName, serverID)
+		}
+		if ctx.Err() != nil {
+			log.Debug("DispatcherWorkflow canceled while receiving signal")
+			return ctx.Err()
+		}
+		if signal.Name == "" {
+			log.Debug("Skipping empty signal (likely initialization signal)")
+			processed++
+			continue
+		}
+		success := ProcessEventSignal(ctx, signal, signalMap)
+		if success {
+			consecutiveErrors = 0
+		} else {
+			consecutiveErrors++
+		}
+		processed++
+	}
+}
+
 // DispatcherWorkflow handles event routing
 func DispatcherWorkflow(ctx workflow.Context, projectName string, serverID string) error {
 	log := workflow.GetLogger(ctx)
 	log.Info("DispatcherWorkflow started", "project", projectName)
-
-	// Extract dispatcher ID from workflow info
 	workflowInfo := workflow.GetInfo(ctx)
 	dispatcherID := workflowInfo.WorkflowExecution.ID
-
-	// Load workflow configurations
 	var data *wfacts.GetData
 	lao := workflow.LocalActivityOptions{StartToCloseTimeout: 10 * time.Second}
 	ctx = workflow.WithLocalActivityOptions(ctx, lao)
@@ -273,117 +366,13 @@ func DispatcherWorkflow(ctx workflow.Context, projectName string, serverID strin
 	if err != nil {
 		return fmt.Errorf("configuration load failed: %w", err)
 	}
-
-	// Build signal routing map with pre-compiled schemas
 	signalMap, err := BuildSignalRoutingMap(ctx, data)
 	if err != nil {
 		return err
 	}
-
-	// Start heartbeat goroutine
-	heartbeatInterval := 30 * time.Second
-	heartbeatCtx, heartbeatCancel := workflow.WithCancel(ctx)
+	heartbeatCancel, _ := startDispatcherHeartbeat(ctx, data, dispatcherID, projectName, serverID)
 	defer heartbeatCancel()
-
-	workflow.Go(heartbeatCtx, func(ctx workflow.Context) {
-		log.Debug("Starting dispatcher heartbeat", "interval", heartbeatInterval)
-		for {
-			// Send heartbeat
-			heartbeatInput := &wkacts.DispatcherHeartbeatInput{
-				DispatcherID: dispatcherID,
-				ProjectName:  projectName,
-				ServerID:     serverID,
-			}
-
-			// Use disconnected context for heartbeat to ensure it completes even during shutdown
-			disconnectedCtx, cancel := workflow.NewDisconnectedContext(ctx)
-			ao := workflow.ActivityOptions{
-				StartToCloseTimeout: 10 * time.Second,
-			}
-			disconnectedCtx = workflow.WithActivityOptions(disconnectedCtx, ao)
-
-			if err := workflow.ExecuteActivity(
-				disconnectedCtx,
-				wkacts.DispatcherHeartbeatLabel,
-				heartbeatInput,
-			).Get(disconnectedCtx, nil); err != nil {
-				log.Warn("Failed to send dispatcher heartbeat", "error", err)
-			}
-			cancel() // Clean up disconnected context after use
-
-			// Sleep until next heartbeat
-			if err := workflow.Sleep(ctx, heartbeatInterval); err != nil {
-				// Context canceled, stop heartbeat
-				log.Debug("Heartbeat goroutine stopped")
-				return
-			}
-		}
-	})
-
-	// Listen for signals with Continue-As-New protection
-	const maxSignalsPerRun = 1000               // Protect from unbounded history growth
-	const maxConsecutiveErrors = 10             // Circuit breaker threshold
-	const circuitBreakerDelay = 5 * time.Second // Backoff period
-
-	signalChan := workflow.GetSignalChannel(ctx, DispatcherEventChannel)
-	processed := 0
-	consecutiveErrors := 0
-
-	log.Debug("Dispatcher ready to process events", "maxSignalsPerRun", maxSignalsPerRun)
-
-	for {
-		// Check for cancellation before blocking on Receive
-		if ctx.Err() != nil {
-			log.Info("DispatcherWorkflow canceled", "processedEvents", processed)
-			return ctx.Err()
-		}
-		// Protect from unbounded history growth
-		if processed >= maxSignalsPerRun {
-			log.Info("Reaching max signals per run, continuing as new",
-				"processed", processed, "maxSignalsPerRun", maxSignalsPerRun)
-			heartbeatCancel() // Stop heartbeat goroutine before continuing as new
-			return workflow.NewContinueAsNewError(ctx, DispatcherWorkflow, projectName, serverID)
-		}
-		// Circuit breaker: if too many consecutive errors, pause briefly
-		if consecutiveErrors >= maxConsecutiveErrors {
-			log.Warn("Too many consecutive errors, implementing backoff",
-				"consecutiveErrors", consecutiveErrors, "maxConsecutiveErrors", maxConsecutiveErrors,
-				"backoffDelay", circuitBreakerDelay)
-			if err := workflow.Sleep(ctx, circuitBreakerDelay); err != nil {
-				log.Debug("Circuit breaker sleep interrupted", "error", err)
-			}
-			// Note: consecutiveErrors will only reset on successful processing
-		}
-		var signal EventSignal
-		ok := signalChan.Receive(ctx, &signal)
-		if !ok {
-			// Channel closed, restart
-			heartbeatCancel() // Stop heartbeat goroutine before continuing as new
-			return workflow.NewContinueAsNewError(ctx, DispatcherWorkflow, projectName, serverID)
-		}
-		if ctx.Err() != nil {
-			log.Debug("DispatcherWorkflow canceled while receiving signal")
-			return ctx.Err()
-		}
-
-		// Skip empty signals (initialization signals)
-		if signal.Name == "" {
-			log.Debug("Skipping empty signal (likely initialization signal)")
-			processed++
-			continue
-		}
-		// Process the event signal
-		success := ProcessEventSignal(ctx, signal, signalMap)
-
-		if success {
-			// Reset consecutive errors on successful processing
-			consecutiveErrors = 0
-		} else {
-			// Count failures (unknown signals, validation errors) toward error count
-			consecutiveErrors++
-		}
-		processed++
-	}
+	return handleSignalProcessing(ctx, signalMap, heartbeatCancel, projectName, serverID)
 }
 
 // -----------------------------------------------------------------------------

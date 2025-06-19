@@ -238,7 +238,11 @@ func (o *Worker) Setup(_ context.Context) error {
 	// Track running worker for monitoring
 	interceptor.IncrementRunningWorkers(context.Background())
 	// Register dispatcher for health monitoring
-	monitoring.RegisterDispatcher(context.Background(), o.dispatcherID, 2*time.Minute)
+	monitoring.RegisterDispatcher(
+		context.Background(),
+		o.dispatcherID,
+		time.Duration(o.projectConfig.Opts.DispatcherStaleThreshold)*time.Second,
+	)
 	// Ensure dispatcher is running with independent lifecycle context
 	go o.ensureDispatcherRunning(o.lifecycleCtx)
 	return nil
@@ -387,7 +391,7 @@ func (o *Worker) HealthCheck(ctx context.Context) error {
 	// Check dispatcher health by verifying recent heartbeat
 	if o.dispatcherID != "" && o.activities != nil {
 		input := &wkacts.ListActiveDispatchersInput{
-			StaleThreshold: 2 * time.Minute,
+			StaleThreshold: time.Duration(o.projectConfig.Opts.DispatcherStaleThreshold) * time.Second,
 		}
 		output, err := o.activities.ListActiveDispatchers(ctx, input)
 		if err != nil {

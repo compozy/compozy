@@ -25,23 +25,26 @@ type RuntimeConfig struct {
 }
 
 type Opts struct {
-	core.GlobalOpts `json:",inline" yaml:",inline" mapstructure:",squash"`
+	core.GlobalOpts             `    json:",inline"                                 yaml:",inline"                                 mapstructure:",squash"`
+	MaxNestingDepth             int `json:"max_nesting_depth,omitempty"             yaml:"max_nesting_depth,omitempty"             mapstructure:"max_nesting_depth"`
+	DispatcherHeartbeatInterval int `json:"dispatcher_heartbeat_interval,omitempty" yaml:"dispatcher_heartbeat_interval,omitempty" mapstructure:"dispatcher_heartbeat_interval"`
+	DispatcherHeartbeatTTL      int `json:"dispatcher_heartbeat_ttl,omitempty"      yaml:"dispatcher_heartbeat_ttl,omitempty"      mapstructure:"dispatcher_heartbeat_ttl"`
+	DispatcherStaleThreshold    int `json:"dispatcher_stale_threshold,omitempty"    yaml:"dispatcher_stale_threshold,omitempty"    mapstructure:"dispatcher_stale_threshold"`
 }
 
 type Config struct {
-	Name             string                  `json:"name"                        yaml:"name"                        mapstructure:"name"`
-	Version          string                  `json:"version"                     yaml:"version"                     mapstructure:"version"`
-	Description      string                  `json:"description"                 yaml:"description"                 mapstructure:"description"`
-	Author           core.Author             `json:"author"                      yaml:"author"                      mapstructure:"author"`
-	Workflows        []*WorkflowSourceConfig `json:"workflows"                   yaml:"workflows"                   mapstructure:"workflows"`
-	Models           []*core.ProviderConfig  `json:"models"                      yaml:"models"                      mapstructure:"models"`
-	Schemas          []schema.Schema         `json:"schemas"                     yaml:"schemas"                     mapstructure:"schemas"`
-	Opts             Opts                    `json:"config"                      yaml:"config"                      mapstructure:"config"`
-	Runtime          RuntimeConfig           `json:"runtime"                     yaml:"runtime"                     mapstructure:"runtime"`
-	CacheConfig      *cache.Config           `json:"cache,omitempty"             yaml:"cache,omitempty"             mapstructure:"cache"`
-	AutoLoad         *autoload.Config        `json:"autoload,omitempty"          yaml:"autoload,omitempty"          mapstructure:"autoload,omitempty"`
-	MonitoringConfig *monitoring.Config      `json:"monitoring,omitempty"        yaml:"monitoring,omitempty"        mapstructure:"monitoring"`
-	MaxNestingDepth  int                     `json:"max_nesting_depth,omitempty" yaml:"max_nesting_depth,omitempty" mapstructure:"max_nesting_depth"`
+	Name             string                  `json:"name"                 yaml:"name"                 mapstructure:"name"`
+	Version          string                  `json:"version"              yaml:"version"              mapstructure:"version"`
+	Description      string                  `json:"description"          yaml:"description"          mapstructure:"description"`
+	Author           core.Author             `json:"author"               yaml:"author"               mapstructure:"author"`
+	Workflows        []*WorkflowSourceConfig `json:"workflows"            yaml:"workflows"            mapstructure:"workflows"`
+	Models           []*core.ProviderConfig  `json:"models"               yaml:"models"               mapstructure:"models"`
+	Schemas          []schema.Schema         `json:"schemas"              yaml:"schemas"              mapstructure:"schemas"`
+	Opts             Opts                    `json:"config"               yaml:"config"               mapstructure:"config"`
+	Runtime          RuntimeConfig           `json:"runtime"              yaml:"runtime"              mapstructure:"runtime"`
+	CacheConfig      *cache.Config           `json:"cache,omitempty"      yaml:"cache,omitempty"      mapstructure:"cache"`
+	AutoLoad         *autoload.Config        `json:"autoload,omitempty"   yaml:"autoload,omitempty"   mapstructure:"autoload,omitempty"`
+	MonitoringConfig *monitoring.Config      `json:"monitoring,omitempty" yaml:"monitoring,omitempty" mapstructure:"monitoring"`
 
 	filePath           string
 	CWD                *core.PathCWD `json:"CWD,omitempty" yaml:"CWD,omitempty" mapstructure:"CWD,omitempty"`
@@ -178,7 +181,39 @@ func (p *Config) Clone() (*Config, error) {
 	return core.DeepCopy(p)
 }
 
-func Load(ctx context.Context, cwd *core.PathCWD, path string, envFilePath string) (*Config, error) {
+// setIntConfigFromEnv sets an integer configuration value from environment variable if valid
+func setIntConfigFromEnv(envKey string, currentValue *int, defaultValue int, log logger.Logger) {
+	if *currentValue <= 0 {
+		*currentValue = defaultValue
+	}
+	if envValue := os.Getenv(envKey); envValue != "" {
+		if envInt, err := strconv.Atoi(envValue); err == nil {
+			if envInt > 0 {
+				*currentValue = envInt
+			} else {
+				log.Warn("Invalid environment variable",
+					"key", envKey, "value", envValue,
+					"error", "must be positive integer",
+					"using", *currentValue)
+			}
+		} else {
+			log.Warn("Invalid environment variable",
+				"key", envKey, "value", envValue,
+				"error", err, "using", *currentValue)
+		}
+	}
+}
+
+// configureDispatcherOptions sets dispatcher-related configuration options from environment
+func configureDispatcherOptions(config *Config, log logger.Logger) {
+	setIntConfigFromEnv("MAX_NESTING_DEPTH", &config.Opts.MaxNestingDepth, 20, log)
+	setIntConfigFromEnv("DISPATCHER_HEARTBEAT_INTERVAL", &config.Opts.DispatcherHeartbeatInterval, 30, log)
+	setIntConfigFromEnv("DISPATCHER_HEARTBEAT_TTL", &config.Opts.DispatcherHeartbeatTTL, 300, log)
+	setIntConfigFromEnv("DISPATCHER_STALE_THRESHOLD", &config.Opts.DispatcherStaleThreshold, 120, log)
+}
+
+// loadAndPrepareConfig loads and prepares the configuration file
+func loadAndPrepareConfig(ctx context.Context, cwd *core.PathCWD, path string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err
@@ -195,12 +230,18 @@ func Load(ctx context.Context, cwd *core.PathCWD, path string, envFilePath strin
 	if config.CWD == nil {
 		config.CWD = cwd
 	}
-	// Set autoload defaults if autoload config exists
 	if config.AutoLoad != nil {
 		config.AutoLoad.SetDefaults()
 	}
-	// Load monitoring config with environment variable precedence
 	config.MonitoringConfig, err = monitoring.LoadWithEnv(ctx, config.MonitoringConfig)
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
+func Load(ctx context.Context, cwd *core.PathCWD, path string, envFilePath string) (*Config, error) {
+	config, err := loadAndPrepareConfig(ctx, cwd, path)
 	if err != nil {
 		return nil, err
 	}
@@ -214,29 +255,7 @@ func Load(ctx context.Context, cwd *core.PathCWD, path string, envFilePath strin
 		return nil, err
 	}
 	config.SetEnv(env)
-	// Set max nesting depth: config file value -> environment variable -> default
-	const defaultMaxNestingDepth = 20
 	log := logger.FromContext(ctx)
-	if config.MaxNestingDepth <= 0 {
-		config.MaxNestingDepth = defaultMaxNestingDepth
-	}
-	// Environment variable takes precedence if valid
-	if envValue := os.Getenv("MAX_NESTING_DEPTH"); envValue != "" {
-		if envInt, err := strconv.Atoi(envValue); err == nil {
-			if envInt > 0 {
-				config.MaxNestingDepth = envInt
-			} else {
-				log.Warn("Invalid MAX_NESTING_DEPTH environment variable",
-					"value", envValue,
-					"error", "must be positive integer",
-					"using", config.MaxNestingDepth)
-			}
-		} else {
-			log.Warn("Invalid MAX_NESTING_DEPTH environment variable",
-				"value", envValue,
-				"error", err,
-				"using", config.MaxNestingDepth)
-		}
-	}
+	configureDispatcherOptions(config, log)
 	return config, nil
 }

@@ -10,6 +10,7 @@ import (
 	"go.temporal.io/sdk/testsuite"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/worker"
 	wf "github.com/compozy/compozy/engine/workflow"
@@ -58,13 +59,29 @@ func TestDispatcherWorkflow_SuccessfulDispatch(t *testing.T) {
 			},
 		}
 
+		// Create a mock project config with default heartbeat settings
+		mockProjectConfig := &project.Config{
+			Name: "test-project",
+			Opts: project.Opts{
+				DispatcherHeartbeatInterval: 30,
+				DispatcherHeartbeatTTL:      300,
+				DispatcherStaleThreshold:    120,
+			},
+		}
+
 		// Create a GetData activity instance for testing
-		getData := &wfacts.GetData{Workflows: mockWorkflows}
+		getData := &wfacts.GetData{
+			ProjectConfig: mockProjectConfig,
+			Workflows:     mockWorkflows,
+		}
 
 		// Register the activity with the test environment using the correct activity label
 		env.RegisterActivityWithOptions(getData.Run, activity.RegisterOptions{Name: wfacts.GetDataLabel})
 		env.OnActivity(wfacts.GetDataLabel, mock.Anything, mock.Anything).
-			Return(&wfacts.GetData{Workflows: mockWorkflows}, nil)
+			Return(&wfacts.GetData{
+				ProjectConfig: mockProjectConfig,
+				Workflows:     mockWorkflows,
+			}, nil)
 
 		// Expect exactly one child workflow to be started
 		env.OnWorkflow("CompozyWorkflow", mock.Anything, mock.Anything).Return(nil, nil).Once()
@@ -75,7 +92,7 @@ func TestDispatcherWorkflow_SuccessfulDispatch(t *testing.T) {
 		// Execute the workflow in a goroutine to avoid hanging
 		go func() {
 			defer close(workflowFinished)
-			env.ExecuteWorkflow(worker.DispatcherWorkflow, "test-project")
+			env.ExecuteWorkflow(worker.DispatcherWorkflow, "test-project", "test-server")
 		}()
 
 		// Use RegisterDelayedCallback for more reliable timing
@@ -119,13 +136,29 @@ func TestDispatcherWorkflow_UnknownSignal(t *testing.T) {
 			},
 		}
 
+		// Create a mock project config with default heartbeat settings
+		mockProjectConfig := &project.Config{
+			Name: "test-project",
+			Opts: project.Opts{
+				DispatcherHeartbeatInterval: 30,
+				DispatcherHeartbeatTTL:      300,
+				DispatcherStaleThreshold:    120,
+			},
+		}
+
 		// Create a GetData activity instance for testing
-		getData := &wfacts.GetData{Workflows: mockWorkflows}
+		getData := &wfacts.GetData{
+			ProjectConfig: mockProjectConfig,
+			Workflows:     mockWorkflows,
+		}
 
 		// Register the activity with the test environment using the correct activity label
 		env.RegisterActivityWithOptions(getData.Run, activity.RegisterOptions{Name: wfacts.GetDataLabel})
 		env.OnActivity(wfacts.GetDataLabel, mock.Anything, mock.Anything).
-			Return(&wfacts.GetData{Workflows: mockWorkflows}, nil)
+			Return(&wfacts.GetData{
+				ProjectConfig: mockProjectConfig,
+				Workflows:     mockWorkflows,
+			}, nil)
 
 		// No expectations for child workflows since unknown signals should not trigger any
 		env.RegisterWorkflow(worker.DispatcherWorkflow)
@@ -135,7 +168,7 @@ func TestDispatcherWorkflow_UnknownSignal(t *testing.T) {
 		// Execute the workflow in a goroutine to avoid hanging
 		go func() {
 			defer close(workflowFinished)
-			env.ExecuteWorkflow(worker.DispatcherWorkflow, "test-project")
+			env.ExecuteWorkflow(worker.DispatcherWorkflow, "test-project", "test-server")
 		}()
 
 		// Use RegisterDelayedCallback for more reliable timing

@@ -17,9 +17,10 @@ const DispatcherHeartbeatLabel = "DispatcherHeartbeat"
 
 // DispatcherHeartbeatInput contains the input for the heartbeat activity
 type DispatcherHeartbeatInput struct {
-	DispatcherID string `json:"dispatcher_id"`
-	ProjectName  string `json:"project_name"`
-	ServerID     string `json:"server_id"`
+	DispatcherID string        `json:"dispatcher_id"`
+	ProjectName  string        `json:"project_name"`
+	ServerID     string        `json:"server_id"`
+	TTL          time.Duration `json:"ttl,omitempty"` // Optional: custom TTL, fallback to default if not provided
 }
 
 // DispatcherHeartbeatData represents the heartbeat data stored in Redis
@@ -51,9 +52,13 @@ func DispatcherHeartbeat(ctx context.Context, cache *cache.Cache, input *Dispatc
 	if err != nil {
 		return fmt.Errorf("failed to marshal heartbeat data: %w", err)
 	}
-	// Store in Redis with 5 minute TTL
+	// Store in Redis with configurable TTL (default 5 minutes)
+	// TTL should be significantly longer than heartbeat interval to handle network delays
 	key := fmt.Sprintf("dispatcher:heartbeat:%s", input.DispatcherID)
 	ttl := 5 * time.Minute
+	if input.TTL > 0 {
+		ttl = input.TTL
+	}
 	err = cache.Redis.Set(ctx, key, string(jsonData), ttl).Err()
 	if err != nil {
 		return fmt.Errorf("failed to store heartbeat in Redis: %w", err)

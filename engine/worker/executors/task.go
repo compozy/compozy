@@ -106,8 +106,8 @@ func (e *TaskExecutor) HandleExecution(
 		currentDepth = depth[0]
 	}
 	maxDepth := 20 // default fallback
-	if e.ProjectConfig != nil && e.ProjectConfig.MaxNestingDepth > 0 {
-		maxDepth = e.ProjectConfig.MaxNestingDepth
+	if e.ProjectConfig != nil && e.ProjectConfig.Opts.MaxNestingDepth > 0 {
+		maxDepth = e.ProjectConfig.Opts.MaxNestingDepth
 	}
 	if currentDepth >= maxDepth {
 		return nil, fmt.Errorf("maximum nesting depth reached: %d (limit: %d)", currentDepth, maxDepth)

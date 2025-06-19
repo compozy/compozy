@@ -255,7 +255,7 @@ workflows:
 		cfg, err := Load(t.Context(), cwd, configPath, "")
 		require.NoError(t, err)
 		// Verify default max nesting depth
-		assert.Equal(t, 20, cfg.MaxNestingDepth)
+		assert.Equal(t, 20, cfg.Opts.MaxNestingDepth)
 	})
 
 	t.Run("Should load max nesting depth from YAML", func(t *testing.T) {
@@ -265,7 +265,8 @@ workflows:
 		configContent := `
 name: test-project
 version: 0.1.0
-max_nesting_depth: 50
+config:
+  max_nesting_depth: 50
 workflows:
   - source: ./workflow.yaml
 `
@@ -281,7 +282,7 @@ workflows:
 		cfg, err := Load(t.Context(), cwd, configPath, "")
 		require.NoError(t, err)
 		// Verify configured max nesting depth
-		assert.Equal(t, 50, cfg.MaxNestingDepth)
+		assert.Equal(t, 50, cfg.Opts.MaxNestingDepth)
 	})
 
 	t.Run("Should give precedence to environment variable", func(t *testing.T) {
@@ -293,7 +294,8 @@ workflows:
 		configContent := `
 name: test-project
 version: 0.1.0
-max_nesting_depth: 50
+config:
+  max_nesting_depth: 50
 workflows:
   - source: ./workflow.yaml
 `
@@ -309,7 +311,7 @@ workflows:
 		cfg, err := Load(t.Context(), cwd, configPath, "")
 		require.NoError(t, err)
 		// Verify environment variable took precedence
-		assert.Equal(t, 100, cfg.MaxNestingDepth)
+		assert.Equal(t, 100, cfg.Opts.MaxNestingDepth)
 	})
 
 	t.Run("Should use YAML value when environment variable is invalid", func(t *testing.T) {
@@ -321,7 +323,8 @@ workflows:
 		configContent := `
 name: test-project
 version: 0.1.0
-max_nesting_depth: 75
+config:
+  max_nesting_depth: 75
 workflows:
   - source: ./workflow.yaml
 `
@@ -337,7 +340,7 @@ workflows:
 		cfg, err := Load(t.Context(), cwd, configPath, "")
 		require.NoError(t, err)
 		// Should keep YAML value since env var is invalid
-		assert.Equal(t, 75, cfg.MaxNestingDepth)
+		assert.Equal(t, 75, cfg.Opts.MaxNestingDepth)
 	})
 
 	t.Run("Should use default when environment variable is negative", func(t *testing.T) {
@@ -364,6 +367,6 @@ workflows:
 		cfg, err := Load(t.Context(), cwd, configPath, "")
 		require.NoError(t, err)
 		// Should use default since negative values are invalid
-		assert.Equal(t, 20, cfg.MaxNestingDepth)
+		assert.Equal(t, 20, cfg.Opts.MaxNestingDepth)
 	})
 }
