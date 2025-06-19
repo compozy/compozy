@@ -2,7 +2,10 @@
     "imports": {
         "test-tool": "./test_tool.ts",
         "echo-tool": "./echo_tool.ts",
-        "format-code": "./format_code.ts"
+        "format-code": "./format_code.ts",
+        "console-log-tool": "./console_log_tool.ts",
+        "plain-text-tool": "./plain_text_tool.ts",
+        "broken-tool": "./broken_tool.ts"
     },
     "tasks": {
         "test": "deno test --allow-all",

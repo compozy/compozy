@@ -12,8 +12,8 @@ type Config struct {
 	BackoffMaxElapsedTime  time.Duration
 	WorkerFilePerm         os.FileMode
 	DenoPermissions        []string
-	StderrBufferSize       int
-	JSONBufferSize         int
+	ToolExecutionTimeout   time.Duration
+	DenoNoCheck            bool
 }
 
 // Option is a function that configures the RuntimeManager
@@ -54,17 +54,17 @@ func WithDenoPermissions(permissions []string) Option {
 	}
 }
 
-// WithStderrBufferSize sets the stderr buffer size
-func WithStderrBufferSize(size int) Option {
+// WithToolExecutionTimeout sets the tool execution timeout
+func WithToolExecutionTimeout(timeout time.Duration) Option {
 	return func(c *Config) {
-		c.StderrBufferSize = size
+		c.ToolExecutionTimeout = timeout
 	}
 }
 
-// WithJSONBufferSize sets the JSON buffer size
-func WithJSONBufferSize(size int) Option {
+// WithDenoNoCheck sets whether to use --no-check flag
+func WithDenoNoCheck(noCheck bool) Option {
 	return func(c *Config) {
-		c.JSONBufferSize = size
+		c.DenoNoCheck = noCheck
 	}
 }
 
@@ -82,13 +82,13 @@ func DefaultConfig() *Config {
 		BackoffInitialInterval: 100 * time.Millisecond,
 		BackoffMaxInterval:     5 * time.Second,
 		BackoffMaxElapsedTime:  30 * time.Second,
-		WorkerFilePerm:         0600,
+		WorkerFilePerm:         0700,
 		DenoPermissions: []string{
 			"--allow-net",
 			"--allow-env",
 		},
-		StderrBufferSize: 8192,
-		JSONBufferSize:   1024,
+		ToolExecutionTimeout: 60 * time.Second,
+		DenoNoCheck:          true, // Default to true for performance
 	}
 }
 
@@ -97,13 +97,13 @@ func TestConfig() *Config {
 		BackoffInitialInterval: 10 * time.Millisecond,
 		BackoffMaxInterval:     100 * time.Millisecond,
 		BackoffMaxElapsedTime:  1 * time.Second, // Much shorter for tests
-		WorkerFilePerm:         0600,
+		WorkerFilePerm:         0700,
 		DenoPermissions: []string{
 			"--allow-read",
 			"--allow-net",
 			"--allow-env",
 		},
-		StderrBufferSize: 1024,
-		JSONBufferSize:   512,
+		ToolExecutionTimeout: 5 * time.Second, // Shorter timeout for tests
+		DenoNoCheck:          true,
 	}
 }

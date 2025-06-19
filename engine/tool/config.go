@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"dario.cat/mergo"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/ref"
 	"github.com/tmc/langchaingo/llms"
 )
@@ -21,6 +23,7 @@ type Config struct {
 	ID           string         `json:"id,omitempty"          yaml:"id,omitempty"          mapstructure:"id,omitempty"`
 	Description  string         `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description,omitempty"`
 	Execute      string         `json:"execute,omitempty"     yaml:"execute,omitempty"     mapstructure:"execute,omitempty"`
+	Timeout      string         `json:"timeout,omitempty"     yaml:"timeout,omitempty"     mapstructure:"timeout,omitempty"`
 	InputSchema  *schema.Schema `json:"input,omitempty"       yaml:"input,omitempty"       mapstructure:"input,omitempty"`
 	OutputSchema *schema.Schema `json:"output,omitempty"      yaml:"output,omitempty"      mapstructure:"output,omitempty"`
 	With         *core.Input    `json:"with,omitempty"        yaml:"with,omitempty"        mapstructure:"with,omitempty"`
@@ -65,6 +68,29 @@ func (t *Config) GetEnv() core.EnvMap {
 	return *t.Env
 }
 
+// GetTimeout returns the tool-specific timeout with fallback to global timeout
+func (t *Config) GetTimeout(globalTimeout time.Duration) (time.Duration, error) {
+	if t.Timeout == "" {
+		return globalTimeout, nil
+	}
+	timeout, err := time.ParseDuration(t.Timeout)
+	if err != nil {
+		// Log warning for debugging
+		// Note: We can't get activity context here, so using context.Background()
+		logger.FromContext(context.Background()).Warn(
+			"Invalid tool timeout format",
+			"tool_id", t.ID,
+			"configured_timeout", t.Timeout,
+			"error", err,
+		)
+		return 0, fmt.Errorf("invalid tool timeout '%s': %w", t.Timeout, err)
+	}
+	if timeout <= 0 {
+		return 0, fmt.Errorf("tool timeout must be positive, got: %v", timeout)
+	}
+	return timeout, nil
+}
+
 func (t *Config) GetInput() *core.Input {
 	if t.With == nil {
 		return &core.Input{}
@@ -82,7 +108,19 @@ func (t *Config) Validate() error {
 		schema.NewCWDValidator(t.CWD, t.ID),
 		NewExecuteValidator(t),
 	)
-	return v.Validate()
+	if err := v.Validate(); err != nil {
+		return err
+	}
+	if t.Timeout != "" {
+		timeout, err := time.ParseDuration(t.Timeout)
+		if err != nil {
+			return fmt.Errorf("invalid timeout format '%s': %w", t.Timeout, err)
+		}
+		if timeout <= 0 {
+			return fmt.Errorf("timeout must be positive, got: %v", timeout)
+		}
+	}
+	return nil
 }
 
 func (t *Config) ValidateInput(ctx context.Context, input *core.Input) error {

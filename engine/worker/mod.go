@@ -76,6 +76,32 @@ func buildWorkerOptions(ctx context.Context, monitoringService *monitoring.Servi
 	return options
 }
 
+func buildRuntimeManager(
+	ctx context.Context,
+	projectRoot string,
+	projectConfig *project.Config,
+) (*runtime.Manager, error) {
+	log := logger.FromContext(ctx)
+	// Build runtime options from project config
+	var rtOpts []runtime.Option
+	if len(projectConfig.Runtime.Permissions) > 0 {
+		rtOpts = append(rtOpts, runtime.WithDenoPermissions(projectConfig.Runtime.Permissions))
+	}
+	// Check for tool execution timeout from environment
+	if timeoutStr := os.Getenv("TOOL_EXECUTION_TIMEOUT"); timeoutStr != "" {
+		timeout, err := time.ParseDuration(timeoutStr)
+		if err != nil {
+			log.Warn("Invalid TOOL_EXECUTION_TIMEOUT value, using default", "value", timeoutStr, "error", err)
+		} else if timeout <= 0 {
+			log.Warn("Ignoring non-positive TOOL_EXECUTION_TIMEOUT", "value", timeout)
+		} else {
+			rtOpts = append(rtOpts, runtime.WithToolExecutionTimeout(timeout))
+			log.Debug("Using custom tool execution timeout", "timeout", timeout)
+		}
+	}
+	return runtime.NewRuntimeManager(ctx, projectRoot, rtOpts...)
+}
+
 func NewWorker(
 	ctx context.Context,
 	config *Config,
@@ -98,12 +124,7 @@ func NewWorker(
 	workerOptions := buildWorkerOptions(ctx, config.MonitoringService)
 	worker := client.NewWorker(taskQueue, workerOptions)
 	projectRoot := projectConfig.GetCWD().PathStr()
-	// Build runtime options from project config
-	var rtOpts []runtime.Option
-	if len(projectConfig.Runtime.Permissions) > 0 {
-		rtOpts = append(rtOpts, runtime.WithDenoPermissions(projectConfig.Runtime.Permissions))
-	}
-	rtManager, err := runtime.NewRuntimeManager(ctx, projectRoot, rtOpts...)
+	rtManager, err := buildRuntimeManager(ctx, projectRoot, projectConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to created execution manager: %w", err)
 	}

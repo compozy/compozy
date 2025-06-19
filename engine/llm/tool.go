@@ -68,12 +68,17 @@ func (t *InternalTool) validateOutput(ctx context.Context, output *core.Output) 
 	return t.config.ValidateOutput(ctx, output)
 }
 
-// executeTool executes the tool with the runtime manager
+// executeTool executes the tool with the runtime manager using tool-specific timeout
 func (t *InternalTool) executeTool(ctx context.Context, input *core.Input) (*core.Output, error) {
 	toolExecID := core.MustNewID()
 	env := core.EnvMap{}
 	if t.env != nil {
 		env = *t.env
 	}
-	return t.runtime.ExecuteTool(ctx, t.config.ID, toolExecID, input, env)
+	globalTimeout := t.runtime.GetGlobalTimeout()
+	toolTimeout, err := t.config.GetTimeout(globalTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tool timeout: %w", err)
+	}
+	return t.runtime.ExecuteToolWithTimeout(ctx, t.config.ID, toolExecID, input, env, toolTimeout)
 }
