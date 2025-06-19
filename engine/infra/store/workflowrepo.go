@@ -536,7 +536,6 @@ func (r *WorkflowRepo) CompleteWorkflow(
 	outputTransformer workflow.OutputTransformer,
 ) (*workflow.State, error) {
 	var result *workflow.State
-
 	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
 		// Lock workflow and check if already completed
 		status, err := r.lockAndCheckWorkflowStatus(ctx, tx, workflowExecID)
@@ -625,13 +624,14 @@ func (r *WorkflowRepo) processOutputAndUpdateState(
 	)
 	if transformErr != nil {
 		log := logger.FromContext(ctx)
-		log.Warn(
-			"Output transformation failed, using default output",
+		log.Error(
+			"Output transformation failed - workflow will be marked as failed",
 			"workflow_exec_id",
 			workflowExecID,
 			"error",
 			transformErr,
 		)
+		// Use default output when transformation fails
 		finalOutput = r.createWorkflowOutputMap(tasks)
 		*finalStatus = core.StatusFailed
 	}
@@ -640,7 +640,7 @@ func (r *WorkflowRepo) processOutputAndUpdateState(
 	if err != nil {
 		return err
 	}
-	// Update workflow state
+	// Update workflow state with error if transformation failed
 	return r.updateWorkflowStateWithTx(
 		ctx, tx, workflowExecID, outputMap, *finalStatus, transformErr,
 	)

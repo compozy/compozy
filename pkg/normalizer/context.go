@@ -20,7 +20,10 @@ const (
 	itemKey     = "item"
 	indexKey    = "index"
 	envKey      = "env"
+	childrenKey = "children"
 )
+
+const maxContextDepth = 10 // Prevent excessive recursion
 
 type ContextBuilder struct{}
 
@@ -65,21 +68,22 @@ func (cb *ContextBuilder) BuildContext(ctx *NormalizationContext) map[string]any
 }
 
 func (cb *ContextBuilder) buildWorkflowContext(ctx *NormalizationContext) map[string]any {
-	workflowContext := map[string]any{
-		idKey:     ctx.WorkflowState.WorkflowID,
-		inputKey:  ctx.WorkflowState.Input,
-		outputKey: ctx.WorkflowState.Output,
-	}
+	var workflowContext map[string]any
 	if ctx.WorkflowConfig != nil {
-		wfMap, err := core.AsMapDefault(ctx.WorkflowConfig)
-		if err == nil {
-			for k, v := range wfMap {
-				if k != inputKey && k != outputKey { // Don't override runtime state
-					workflowContext[k] = v
-				}
-			}
+		// Start with config properties
+		var err error
+		workflowContext, err = core.AsMapDefault(ctx.WorkflowConfig)
+		if err != nil {
+			workflowContext = make(map[string]any)
 		}
 	}
+	if workflowContext == nil {
+		workflowContext = make(map[string]any)
+	}
+	// Overwrite/add runtime properties, which is safer and clearer
+	workflowContext[idKey] = ctx.WorkflowState.WorkflowID
+	workflowContext[inputKey] = ctx.WorkflowState.Input
+	workflowContext[outputKey] = ctx.WorkflowState.Output
 	return workflowContext
 }
 
@@ -108,12 +112,19 @@ func (cb *ContextBuilder) buildSingleTaskContext(
 	if taskState.Error != nil {
 		taskContext[errorKey] = taskState.Error
 	}
-	taskContext[outputKey] = cb.buildTaskOutput(taskState, ctx)
+	taskContext[outputKey] = cb.buildTaskOutput(taskState, ctx, 0)
+	if taskState.CanHaveChildren() && ctx.ChildrenIndex != nil {
+		taskContext[childrenKey] = cb.BuildChildrenContext(taskState, ctx, 0)
+	}
 	cb.mergeTaskConfigIfExists(taskContext, taskID, ctx)
 	return taskContext
 }
 
-func (cb *ContextBuilder) buildTaskOutput(taskState *task.State, ctx *NormalizationContext) any {
+func (cb *ContextBuilder) buildTaskOutput(taskState *task.State, ctx *NormalizationContext, depth int) any {
+	// Prevent unbounded recursion
+	if depth >= maxContextDepth {
+		return nil
+	}
 	if taskState.CanHaveChildren() {
 		// For parent tasks (parallel or collection), build nested output structure with child task outputs
 		nestedOutput := make(map[string]any)
@@ -129,7 +140,11 @@ func (cb *ContextBuilder) buildTaskOutput(taskState *task.State, ctx *Normalizat
 					if childTaskState, exists := ctx.WorkflowState.Tasks[childTaskID]; exists {
 						// Add child task output to nested structure
 						childOutput := make(map[string]any)
-						childOutput[outputKey] = cb.buildTaskOutput(childTaskState, ctx) // Recursive call for child
+						childOutput[outputKey] = cb.buildTaskOutput(
+							childTaskState,
+							ctx,
+							depth+1,
+						) // Recursive call with depth
 						childOutput[statusKey] = childTaskState.Status
 						if childTaskState.Error != nil {
 							childOutput[errorKey] = childTaskState.Error
@@ -144,7 +159,7 @@ func (cb *ContextBuilder) buildTaskOutput(taskState *task.State, ctx *Normalizat
 	if taskState.Output != nil {
 		return *taskState.Output
 	}
-	return nil
+	return core.Output{}
 }
 
 func (cb *ContextBuilder) mergeTaskConfigIfExists(
@@ -205,7 +220,74 @@ func (cb *ContextBuilder) buildParentContext(ctx *NormalizationContext) map[stri
 	return nil
 }
 
-// BuildCollectionContext builds template context specifically for collection task processing
+func (cb *ContextBuilder) BuildChildrenContext(
+	parentState *task.State,
+	ctx *NormalizationContext,
+	depth int,
+) map[string]any {
+	if depth >= maxContextDepth {
+		return make(map[string]any)
+	}
+	children := make(map[string]any)
+	parentExecID := string(parentState.TaskExecID)
+	if childTaskIDs, exists := ctx.ChildrenIndex[parentExecID]; exists {
+		for _, childTaskID := range childTaskIDs {
+			if childState, exists := ctx.WorkflowState.Tasks[childTaskID]; exists {
+				children[childTaskID] = cb.buildChildContextWithoutParent(
+					childTaskID,
+					childState,
+					ctx,
+					depth+1,
+				)
+			}
+		}
+	}
+	return children
+}
+
+func (cb *ContextBuilder) buildChildContextWithoutParent(
+	taskID string,
+	taskState *task.State,
+	ctx *NormalizationContext,
+	depth int,
+) map[string]any {
+	taskContext := map[string]any{
+		idKey:     taskID,
+		inputKey:  taskState.Input,
+		statusKey: taskState.Status,
+	}
+	if taskState.Error != nil {
+		taskContext[errorKey] = taskState.Error
+	}
+	// Ensure output key is always present for consistency
+	if taskState.Output != nil {
+		taskContext[outputKey] = *taskState.Output
+	} else {
+		taskContext[outputKey] = core.Output{}
+	}
+	if taskState.CanHaveChildren() && ctx.ChildrenIndex != nil {
+		taskContext[childrenKey] = cb.BuildChildrenContext(taskState, ctx, depth)
+	}
+	if ctx.TaskConfigs != nil {
+		if taskConfig, exists := ctx.TaskConfigs[taskID]; exists {
+			cb.mergeTaskConfigWithoutParent(taskContext, taskConfig)
+		}
+	}
+	return taskContext
+}
+
+func (cb *ContextBuilder) mergeTaskConfigWithoutParent(taskContext map[string]any, taskConfig *task.Config) {
+	taskConfigMap, err := taskConfig.AsMap()
+	if err != nil {
+		return
+	}
+	for k, v := range taskConfigMap {
+		if k != inputKey && k != outputKey && k != parentKey {
+			taskContext[k] = v
+		}
+	}
+}
+
 func (cb *ContextBuilder) BuildCollectionContext(
 	workflowState *workflow.State,
 	taskConfig *task.Config,

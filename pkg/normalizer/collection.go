@@ -170,6 +170,9 @@ func (cn *CollectionNormalizer) ApplyTemplateToConfig(
 		return nil, fmt.Errorf("failed to clone config: %w", err)
 	}
 	engine := tplengine.NewEngine(tplengine.FormatText)
+	if err := cn.applyIDTemplate(newConfig, itemContext, engine); err != nil {
+		return nil, err
+	}
 	if err := cn.applyActionTemplate(newConfig, itemContext, engine); err != nil {
 		return nil, err
 	}
@@ -186,6 +189,22 @@ func (cn *CollectionNormalizer) ApplyTemplateToConfig(
 		return nil, err
 	}
 	return newConfig, nil
+}
+
+// applyIDTemplate applies template to the ID field
+func (cn *CollectionNormalizer) applyIDTemplate(
+	config *task.Config,
+	itemContext map[string]any,
+	engine *tplengine.TemplateEngine,
+) error {
+	if config.ID != "" {
+		processedID, err := engine.RenderString(config.ID, itemContext)
+		if err != nil {
+			return fmt.Errorf("failed to apply template to ID: %w", err)
+		}
+		config.ID = processedID
+	}
+	return nil
 }
 
 // applyActionTemplate applies template to the action field

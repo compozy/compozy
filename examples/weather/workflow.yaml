@@ -222,5 +222,37 @@ tasks:
     $use: agent(resource::agent::#(id=='file_reader'))
     action: list_saved_files
     final: true
-    on_success:
-      next: log_completion
+
+outputs:
+  city: "{{ .workflow.input.city }}"
+  weather_summary:
+    temperature: "{{ .tasks.weather.output.temperature }}"
+    humidity: "{{ .tasks.weather.output.humidity }}"
+    description: "{{ .tasks.weather.output.description }}"
+    timestamp: "{{ .tasks.weather.output.timestamp }}"
+  recommendations:
+    activities: "{{ .tasks.activities.output.activities }}"
+    clothing: "{{ .tasks.clothing.output.save_data.clothing }}"
+  analysis:
+    activity_children: "{{ .tasks.activity_analysis.children }}"
+    clothing_children: "{{ .tasks.clothing_validation.children }}"
+    first_activity_analysis: '{{ if .tasks.activity_analysis.children }}{{ if index .tasks.activity_analysis.children
+      "analyze-activity-0" }}{{ (index .tasks.activity_analysis.children "analyze-activity-0").output
+      | toJson }}{{ else }}null{{ end }}{{ else }}null{{ end }}'
+    first_clothing_validation: '{{ if .tasks.clothing_validation.children }}{{ if index .tasks.clothing_validation.children
+      "validate-clothing-0" }}{{ (index .tasks.clothing_validation.children "validate-clothing-0").output
+      | toJson }}{{ else }}null{{ end }}{{ else }}null{{ end }}'
+  data_persistence:
+    files_saved: "{{ .tasks.save_results.output | toJson }}"
+    verification_completed: "{{ .tasks.verify_saved_files.output | toJson }}"
+    save_tasks_children: "{{ .tasks.save_results.children | toJson }}"
+  execution_summary:
+    total_tasks_completed: "{{ len .tasks }}"
+    workflow_status: '{{ .status | default "completed" }}'
+    collections_with_children:
+      activity_analysis_child_count: "{{ if .tasks.activity_analysis.children }}{{ len .tasks.activity_analysis.children\
+        \ }}{{ else }}0{{ end }}"
+      clothing_validation_child_count: "{{ if .tasks.clothing_validation.children }}{{ len .tasks.clothing_validation.children\
+        \ }}{{ else }}0{{ end }}"
+      composite_child_count: "{{ if .tasks.save_results.children }}{{ len .tasks.save_results.children\
+        \ }}{{ else }}0{{ end }}"

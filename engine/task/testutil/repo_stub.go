@@ -91,6 +91,23 @@ func (r *InMemoryRepo) ListChildren(_ context.Context, parentStateID core.ID) ([
 	return children, nil
 }
 
+// ListChildrenOutputs retrieves only the outputs of child tasks for performance
+func (r *InMemoryRepo) ListChildrenOutputs(_ context.Context, parentStateID core.ID) (map[string]*core.Output, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	outputs := make(map[string]*core.Output)
+	for _, state := range r.states {
+		if state.ParentStateID != nil && *state.ParentStateID == parentStateID && state.Output != nil {
+			// Return a copy of the output to prevent race conditions
+			outputCopy := *state.Output
+			outputs[state.TaskID] = &outputCopy
+		}
+	}
+
+	return outputs, nil
+}
+
 // GetChildByTaskID retrieves a specific child task state by its parent and task ID
 func (r *InMemoryRepo) GetChildByTaskID(_ context.Context, parentStateID core.ID, taskID string) (*task.State, error) {
 	r.mu.RLock()

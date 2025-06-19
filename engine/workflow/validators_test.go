@@ -255,7 +255,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 	t.Run("Should validate valid template syntax", func(t *testing.T) {
 		config := &Config{
 			ID: "test-workflow",
-			Outputs: &core.Input{
+			Outputs: &core.Output{
 				"summary": "{{ .tasks.process_data.output.summary }}",
 				"count":   "{{ .tasks.count_items.output.total }}",
 			},
@@ -268,7 +268,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 	t.Run("Should reject invalid template syntax", func(t *testing.T) {
 		config := &Config{
 			ID: "test-workflow",
-			Outputs: &core.Input{
+			Outputs: &core.Output{
 				"summary": "{{ .tasks.process_data.output.summary",
 			},
 		}
@@ -281,7 +281,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 	t.Run("Should validate nested outputs with templates", func(t *testing.T) {
 		config := &Config{
 			ID: "test-workflow",
-			Outputs: &core.Input{
+			Outputs: &core.Output{
 				"results": map[string]any{
 					"processed": "{{ .tasks.process.output.data }}",
 					"stats": map[string]any{
@@ -299,7 +299,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 	t.Run("Should reject nested invalid templates", func(t *testing.T) {
 		config := &Config{
 			ID: "test-workflow",
-			Outputs: &core.Input{
+			Outputs: &core.Output{
 				"results": map[string]any{
 					"data": map[string]any{
 						"bad": "{{ unclosed template",
@@ -316,7 +316,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 	t.Run("Should allow non-template strings", func(t *testing.T) {
 		config := &Config{
 			ID: "test-workflow",
-			Outputs: &core.Input{
+			Outputs: &core.Output{
 				"message": "This is a plain string",
 				"number":  42,
 				"boolean": true,
@@ -339,7 +339,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 	t.Run("Should fail validation with empty outputs", func(t *testing.T) {
 		config := &Config{
 			ID:      "test-workflow",
-			Outputs: &core.Input{},
+			Outputs: &core.Output{},
 		}
 		validator := NewOutputsValidator(config)
 		err := validator.Validate()
@@ -349,7 +349,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 
 	t.Run("Should fail validation with invalid template syntax in outputs", func(t *testing.T) {
 		cwd, _ := setupTest(t, "basic_workflow.yaml")
-		outputs := &core.Input{
+		outputs := &core.Output{
 			"result": "{{ .tasks[ }}",
 		}
 		config := &Config{
@@ -366,7 +366,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 	t.Run("Should validate template strings in arrays", func(t *testing.T) {
 		config := &Config{
 			ID: "test-workflow",
-			Outputs: &core.Input{
+			Outputs: &core.Output{
 				"results": []any{
 					"{{ .task1.result }}",
 					"{{ .task2.result }}",
@@ -382,7 +382,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 	t.Run("Should reject invalid template syntax in arrays", func(t *testing.T) {
 		config := &Config{
 			ID: "test-workflow",
-			Outputs: &core.Input{
+			Outputs: &core.Output{
 				"results": []any{
 					"{{ .task1.result }}",
 					"{{ .task2.result",
@@ -398,7 +398,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 	t.Run("Should validate nested objects in arrays", func(t *testing.T) {
 		config := &Config{
 			ID: "test-workflow",
-			Outputs: &core.Input{
+			Outputs: &core.Output{
 				"items": []any{
 					map[string]any{
 						"name":  "{{ .task.name }}",
@@ -419,7 +419,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 	t.Run("Should reject invalid templates in nested objects within arrays", func(t *testing.T) {
 		config := &Config{
 			ID: "test-workflow",
-			Outputs: &core.Input{
+			Outputs: &core.Output{
 				"items": []any{
 					map[string]any{
 						"name": "{{ .task.name",
@@ -436,7 +436,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 	t.Run("Should validate nested arrays", func(t *testing.T) {
 		config := &Config{
 			ID: "test-workflow",
-			Outputs: &core.Input{
+			Outputs: &core.Output{
 				"matrix": []any{
 					[]any{"{{ .row1.col1 }}", "{{ .row1.col2 }}"},
 					[]any{"{{ .row2.col1 }}", "static"},
@@ -451,7 +451,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 	t.Run("Should reject invalid templates in nested arrays", func(t *testing.T) {
 		config := &Config{
 			ID: "test-workflow",
-			Outputs: &core.Input{
+			Outputs: &core.Output{
 				"matrix": []any{
 					[]any{"{{ .row1.col1 }}", "{{ .row1.col2"},
 				},

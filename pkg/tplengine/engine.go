@@ -184,33 +184,43 @@ func (e *TemplateEngine) ParseMap(value any, data map[string]any) (any, error) {
 	case string:
 		return e.parseStringValue(v, data)
 	case map[string]any:
-		result := make(map[string]any, len(v))
-		for k, val := range v {
-			parsedVal, err := e.ParseMap(val, data)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse template in map key %s: %w", k, err)
-			}
-			result[k] = parsedVal
-		}
-		return result, nil
+		return e.parseMapType(v, data)
+	case core.Output:
+		return e.parseMapType(map[string]any(v), data)
+	case core.Input:
+		return e.parseMapType(map[string]any(v), data)
 	case []any:
-		result := make([]any, len(v))
-		for i, val := range v {
-			parsedVal, err := e.ParseMap(val, data)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse template in array index %d: %w", i, err)
-			}
-			result[i] = parsedVal
-		}
-		return result, nil
+		return e.parseArrayType(v, data)
 	default:
-		// Convert boolean values to strings for non-template cases
-		if boolVal, ok := v.(bool); ok {
-			return fmt.Sprintf("%t", boolVal), nil
-		}
-		// For other types (int, float, etc.), return as is
+		// For other types (int, float, bool, etc.), return as is
 		return v, nil
 	}
+}
+
+// parseMapType handles parsing of map-like types
+func (e *TemplateEngine) parseMapType(m map[string]any, data map[string]any) (map[string]any, error) {
+	result := make(map[string]any, len(m))
+	for k, val := range m {
+		parsedVal, err := e.ParseMap(val, data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse template in map key %s: %w", k, err)
+		}
+		result[k] = parsedVal
+	}
+	return result, nil
+}
+
+// parseArrayType handles parsing of array types
+func (e *TemplateEngine) parseArrayType(arr []any, data map[string]any) ([]any, error) {
+	result := make([]any, len(arr))
+	for i, val := range arr {
+		parsedVal, err := e.ParseMap(val, data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse template in array index %d: %w", i, err)
+		}
+		result[i] = parsedVal
+	}
+	return result, nil
 }
 
 func (e *TemplateEngine) ParseMapWithFilter(value any, data map[string]any, filter func(k string) bool) (any, error) {
@@ -267,14 +277,14 @@ func (e *TemplateEngine) parseStringValue(v string, data map[string]any) (any, e
 	// Handle simple object references to preserve object types
 	if e.isSimpleObjectReference(v) {
 		if obj := e.extractObjectFromContext(v, data); obj != nil {
-			return e.convertObjectToString(obj)
+			return e.prepareValueForTemplate(obj)
 		}
 	}
 
 	return e.renderAndProcessTemplate(v, data)
 }
 
-func (e *TemplateEngine) convertObjectToString(obj any) (any, error) {
+func (e *TemplateEngine) prepareValueForTemplate(obj any) (any, error) {
 	// Convert values to strings for configuration processing
 	switch val := obj.(type) {
 	case bool:
@@ -459,78 +469,34 @@ func (e *TemplateEngine) preprocessContext(ctx map[string]any) map[string]any {
 }
 
 // preprocessTemplateForHyphens converts template expressions with hyphens to use index syntax
+// This function processes dot-path expressions within templates, even inside conditionals
 func (e *TemplateEngine) preprocessTemplateForHyphens(templateStr string) string {
-	// More comprehensive regex to match templates inside {{ }} including conditionals
+	// Find all template expressions
 	re := regexp.MustCompile(`{{[^}]*}}`)
 
 	return re.ReplaceAllStringFunc(templateStr, func(match string) string {
 		// Extract the content between {{ and }}
 		content := strings.TrimSpace(match[2 : len(match)-2])
 
-		// Find all dot-path patterns that might contain hyphens
+		// Find dot-path patterns that contain hyphens
+		// This regex looks for dot-paths that may contain hyphens
 		pathPattern := regexp.MustCompile(`(\.[a-zA-Z_][a-zA-Z0-9_-]*(?:\.[a-zA-Z_][a-zA-Z0-9_-]*)*)`)
 
 		processedContent := pathPattern.ReplaceAllStringFunc(content, func(pathMatch string) string {
-			// Only process if it starts with a dot (field reference)
-			if !strings.HasPrefix(pathMatch, ".") {
+			// Only process if it contains hyphens
+			if !strings.Contains(pathMatch, "-") {
 				return pathMatch
 			}
 
 			// Split the path into segments
 			pathSegments := strings.Split(pathMatch[1:], ".") // Remove leading dot
 
-			// Check if any segment contains a hyphen
-			hasHyphen := false
+			// Convert entire path to index syntax for safety
+			result := "index ."
 			for _, segment := range pathSegments {
-				if strings.Contains(segment, "-") {
-					hasHyphen = true
-					break
-				}
+				result += fmt.Sprintf(` %q`, segment)
 			}
-
-			// If no hyphens, return as is
-			if !hasHyphen {
-				return pathMatch
-			}
-
-			// Convert to index syntax: .tasks.task-name.output becomes (index .tasks "task-name" "output")
-			// Find the first segment with a hyphen and convert everything from there to index syntax
-			indexStart := -1
-			for i, segment := range pathSegments {
-				if strings.Contains(segment, "-") {
-					indexStart = i - 1 // Include the parent segment
-					if indexStart < 0 {
-						indexStart = 0
-					}
-					break
-				}
-			}
-
-			if indexStart == -1 {
-				// This shouldn't happen since we checked for hyphens, but just in case
-				return pathMatch
-			}
-
-			// Build the result
-			var result string
-			if indexStart == 0 {
-				// Convert the entire path to index syntax
-				result = "index ."
-				for _, segment := range pathSegments {
-					result += fmt.Sprintf(` %q`, segment)
-				}
-				result = "(" + result + ")"
-			} else {
-				// Keep the first part as dot notation, convert the rest to index
-				result = "." + strings.Join(pathSegments[:indexStart], ".")
-				indexPart := "index " + result
-				for _, segment := range pathSegments[indexStart:] {
-					indexPart += fmt.Sprintf(` %q`, segment)
-				}
-				result = "(" + indexPart + ")"
-			}
-
-			return result
+			return "(" + result + ")"
 		})
 
 		return "{{ " + processedContent + " }}"

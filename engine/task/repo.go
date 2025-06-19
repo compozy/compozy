@@ -45,6 +45,7 @@ type Repository interface {
 	GetChildByTaskID(ctx context.Context, parentStateID core.ID, taskID string) (*State, error)
 	CreateChildStatesInTransaction(ctx context.Context, parentStateID core.ID, childStates []*State) error
 	GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*State, error)
+	ListChildrenOutputs(ctx context.Context, parentStateID core.ID) (map[string]*core.Output, error)
 
 	// Progress aggregation operations
 	GetProgressInfo(ctx context.Context, parentStateID core.ID) (*ProgressInfo, error)

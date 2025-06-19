@@ -50,8 +50,8 @@ func (a *GetParallelResponse) Run(
 
 	executionError := a.processParallelTask(ctx, input, taskConfig)
 
-	// Handle main task response
-	response, err := a.taskResponder.HandleMainTask(ctx, &services.MainTaskResponseInput{
+	// Use TaskResponder to handle the parallel response
+	response, err := a.taskResponder.HandleParallel(ctx, &services.ParallelResponseInput{
 		WorkflowConfig: input.WorkflowConfig,
 		TaskState:      input.ParentState,
 		TaskConfig:     taskConfig,

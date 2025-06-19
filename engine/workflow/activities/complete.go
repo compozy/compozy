@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
 	wf "github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/normalizer"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
@@ -40,6 +41,7 @@ func NewCompleteWorkflow(workflowRepo wf.Repository, workflows []*wf.Config) *Co
 func (a *CompleteWorkflow) Run(ctx context.Context, input *CompleteWorkflowInput) (*wf.State, error) {
 	// Add heartbeat to ensure activity stays alive during retries
 	activity.RecordHeartbeat(ctx, "Attempting to complete workflow")
+	log := logger.FromContext(ctx)
 
 	// Find the workflow config
 	config, exists := a.workflows[input.WorkflowID]
@@ -55,8 +57,12 @@ func (a *CompleteWorkflow) Run(ctx context.Context, input *CompleteWorkflowInput
 	var transformer wf.OutputTransformer
 	if config.GetOutputs() != nil {
 		transformer = func(state *wf.State) (*core.Output, error) {
-			output, err := a.normalizer.NormalizeWorkflowOutput(state, config.GetOutputs())
+			output, err := a.normalizer.NormalizeWorkflowOutput(ctx, state, config, config.GetOutputs())
 			if err != nil {
+				log.Error("Output transformation failed",
+					"workflow_id", state.WorkflowID,
+					"workflow_exec_id", state.WorkflowExecID,
+					"error", err)
 				return nil, temporal.NewNonRetryableApplicationError(
 					fmt.Sprintf("failed to normalize workflow output: %v", err),
 					"normalization_failed",

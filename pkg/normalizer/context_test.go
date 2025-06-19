@@ -247,7 +247,7 @@ func TestContextBuilder_BuildTaskOutput(t *testing.T) {
 			},
 		}
 
-		result := contextBuilder.buildTaskOutput(taskState, ctx)
+		result := contextBuilder.buildTaskOutput(taskState, ctx, 0)
 
 		expected := core.Output{
 			"result": "success",
@@ -267,8 +267,8 @@ func TestContextBuilder_BuildTaskOutput(t *testing.T) {
 			Output:        nil,
 		}
 
-		result := contextBuilder.buildTaskOutput(taskState, ctx)
-		assert.Nil(t, result)
+		result := contextBuilder.buildTaskOutput(taskState, ctx, 0)
+		assert.Equal(t, core.Output{}, result)
 	})
 
 	t.Run("Should handle parallel execution task with nested outputs", func(t *testing.T) {
@@ -303,7 +303,7 @@ func TestContextBuilder_BuildTaskOutput(t *testing.T) {
 			},
 		}
 
-		result := contextBuilder.buildTaskOutput(parentTaskState, ctx)
+		result := contextBuilder.buildTaskOutput(parentTaskState, ctx, 0)
 
 		resultMap := result.(map[string]any)
 		assert.Equal(t, core.Output{"parentResult": "parent-success"}, resultMap["output"])
@@ -327,7 +327,7 @@ func TestContextBuilder_BuildTaskOutput(t *testing.T) {
 			},
 		}
 
-		result := contextBuilder.buildTaskOutput(taskState, ctx)
+		result := contextBuilder.buildTaskOutput(taskState, ctx, 0)
 
 		resultMap := result.(map[string]any)
 		assert.Equal(t, core.Output{"result": "parallel-success"}, resultMap["output"])
