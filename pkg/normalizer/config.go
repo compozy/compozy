@@ -3,6 +3,7 @@ package normalizer
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -302,16 +303,36 @@ func (n *ConfigNormalizer) NormalizeTaskOutput(
 		transformCtx["output"] = taskOutput
 	}
 	// Apply output transformation using the normalizer's template engine
-	transformedOutput := make(core.Output)
-	for key, value := range *outputsConfig {
-		result, err := n.normalizer.engine.ParseMap(value, transformCtx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to transform output field %s: %w", key, err)
-		}
-		transformedOutput[key] = result
+	transformedOutput, err := n.transformOutputFields(*outputsConfig, transformCtx, "task")
+	if err != nil {
+		return nil, err
 	}
+	result := core.Output(transformedOutput)
+	return &result, nil
+}
 
-	return &transformedOutput, nil
+// transformOutputFields applies template transformation to output fields using the normalizer's engine
+func (n *ConfigNormalizer) transformOutputFields(
+	outputsConfig map[string]any,
+	transformCtx map[string]any,
+	contextName string,
+) (map[string]any, error) {
+	// Sort keys to ensure deterministic iteration order for Temporal workflows
+	keys := make([]string, 0, len(outputsConfig))
+	for k := range outputsConfig {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	result := make(map[string]any)
+	for _, key := range keys {
+		value := outputsConfig[key]
+		transformed, err := n.normalizer.engine.ParseMap(value, transformCtx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to transform %s output field %s: %w", contextName, key, err)
+		}
+		result[key] = transformed
+	}
+	return result, nil
 }
 
 // NormalizeTaskEnvironment only merges environments without processing task config templates
@@ -377,17 +398,12 @@ func (n *ConfigNormalizer) NormalizeWorkflowOutput(
 	if len(*outputsConfig) == 0 {
 		return &core.Output{}, nil
 	}
-	transformedOutput := make(map[string]any)
-	for key, value := range outputsConfig.AsMap() {
-		result, err := n.normalizer.engine.ParseMap(value, transformCtx)
-		if err != nil {
-			log.Error("Failed to transform workflow output field",
-				"field", key,
-				"workflow_id", workflowState.WorkflowID,
-				"error", err)
-			return nil, fmt.Errorf("failed to transform workflow output field %s: %w", key, err)
-		}
-		transformedOutput[key] = result
+	transformedOutput, err := n.transformOutputFields(outputsConfig.AsMap(), transformCtx, "workflow")
+	if err != nil {
+		log.Error("Failed to transform workflow output",
+			"workflow_id", workflowState.WorkflowID,
+			"error", err)
+		return nil, err
 	}
 	log.Debug("Successfully transformed workflow output",
 		"workflow_id", workflowState.WorkflowID,

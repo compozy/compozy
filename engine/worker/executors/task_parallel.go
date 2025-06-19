@@ -151,9 +151,9 @@ func (e *ParallelTaskExecutor) setupParallelExecution(
 		}
 	}
 	tasksLen := len(childStates)
-	if tasksLen > math.MaxInt32 {
-		return nil, nil, nil, 0, fmt.Errorf("too many tasks: %d exceeds maximum of %d", tasksLen, math.MaxInt32)
+	if int64(tasksLen) > math.MaxInt32 {
+		return nil, nil, nil, 0, fmt.Errorf("too many tasks: %d", tasksLen)
 	}
-	numTasks := int32(tasksLen)
+	numTasks := int32(tasksLen) // #nosec G115 - overflow check above
 	return pState, childStates, childCfgs, numTasks, nil
 }

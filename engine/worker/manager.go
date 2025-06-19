@@ -23,12 +23,12 @@ type Manager struct {
 
 func NewManager(contextBuilder *ContextBuilder) *Manager {
 	// Convert to executors.ContextBuilder
-	executorContextBuilder := &executors.ContextBuilder{
-		Workflows:      contextBuilder.Workflows,
-		ProjectConfig:  contextBuilder.ProjectConfig,
-		WorkflowConfig: contextBuilder.WorkflowConfig,
-		WorkflowInput:  contextBuilder.WorkflowInput,
-	}
+	executorContextBuilder := executors.NewContextBuilder(
+		contextBuilder.Workflows,
+		contextBuilder.ProjectConfig,
+		contextBuilder.WorkflowConfig,
+		contextBuilder.WorkflowInput,
+	)
 
 	workflowExecutor := executors.NewWorkflowExecutor(executorContextBuilder)
 	taskExecutor := executors.NewTaskExecutor(executorContextBuilder)

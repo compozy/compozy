@@ -49,6 +49,14 @@ func getServerConfig(ctx context.Context, cmd *cobra.Command, envFilePath string
 	if availablePort != port {
 		log.Info("Port unavailable, using alternative port", "requested_port", port, "available_port", availablePort)
 	}
+	// Set max nesting depth from flag as environment variable if not already set
+	maxNestingDepth, err := cmd.Flags().GetInt("max-nesting-depth")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get max-nesting-depth flag: %w", err)
+	}
+	if os.Getenv("MAX_NESTING_DEPTH") == "" {
+		os.Setenv("MAX_NESTING_DEPTH", fmt.Sprintf("%d", maxNestingDepth))
+	}
 
 	serverConfig := &server.Config{
 		CWD:         CWD,
@@ -203,6 +211,9 @@ func DevCmd() *cobra.Command {
 	cmd.Flags().Bool("log-source", false, "Include source file and line in logs")
 	cmd.Flags().Bool("debug", false, "Enable debug mode (sets log level to debug)")
 	cmd.Flags().Bool("watch", false, "Enable file watcher to restart server on change")
+
+	// Task execution configuration flags
+	cmd.Flags().Int("max-nesting-depth", 20, "Maximum task nesting depth allowed (env: MAX_NESTING_DEPTH)")
 
 	// Set debug flag to override log level
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {

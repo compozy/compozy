@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
 
 	"dario.cat/mergo"
 	"github.com/compozy/compozy/engine/autoload"
@@ -11,6 +13,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 type WorkflowSourceConfig struct {
@@ -26,18 +29,19 @@ type Opts struct {
 }
 
 type Config struct {
-	Name             string                  `json:"name"                 yaml:"name"                 mapstructure:"name"`
-	Version          string                  `json:"version"              yaml:"version"              mapstructure:"version"`
-	Description      string                  `json:"description"          yaml:"description"          mapstructure:"description"`
-	Author           core.Author             `json:"author"               yaml:"author"               mapstructure:"author"`
-	Workflows        []*WorkflowSourceConfig `json:"workflows"            yaml:"workflows"            mapstructure:"workflows"`
-	Models           []*core.ProviderConfig  `json:"models"               yaml:"models"               mapstructure:"models"`
-	Schemas          []schema.Schema         `json:"schemas"              yaml:"schemas"              mapstructure:"schemas"`
-	Opts             Opts                    `json:"config"               yaml:"config"               mapstructure:"config"`
-	Runtime          RuntimeConfig           `json:"runtime"              yaml:"runtime"              mapstructure:"runtime"`
-	CacheConfig      *cache.Config           `json:"cache,omitempty"      yaml:"cache,omitempty"      mapstructure:"cache"`
-	AutoLoad         *autoload.Config        `json:"autoload,omitempty"   yaml:"autoload,omitempty"   mapstructure:"autoload,omitempty"`
-	MonitoringConfig *monitoring.Config      `json:"monitoring,omitempty" yaml:"monitoring,omitempty" mapstructure:"monitoring"`
+	Name             string                  `json:"name"                        yaml:"name"                        mapstructure:"name"`
+	Version          string                  `json:"version"                     yaml:"version"                     mapstructure:"version"`
+	Description      string                  `json:"description"                 yaml:"description"                 mapstructure:"description"`
+	Author           core.Author             `json:"author"                      yaml:"author"                      mapstructure:"author"`
+	Workflows        []*WorkflowSourceConfig `json:"workflows"                   yaml:"workflows"                   mapstructure:"workflows"`
+	Models           []*core.ProviderConfig  `json:"models"                      yaml:"models"                      mapstructure:"models"`
+	Schemas          []schema.Schema         `json:"schemas"                     yaml:"schemas"                     mapstructure:"schemas"`
+	Opts             Opts                    `json:"config"                      yaml:"config"                      mapstructure:"config"`
+	Runtime          RuntimeConfig           `json:"runtime"                     yaml:"runtime"                     mapstructure:"runtime"`
+	CacheConfig      *cache.Config           `json:"cache,omitempty"             yaml:"cache,omitempty"             mapstructure:"cache"`
+	AutoLoad         *autoload.Config        `json:"autoload,omitempty"          yaml:"autoload,omitempty"          mapstructure:"autoload,omitempty"`
+	MonitoringConfig *monitoring.Config      `json:"monitoring,omitempty"        yaml:"monitoring,omitempty"        mapstructure:"monitoring"`
+	MaxNestingDepth  int                     `json:"max_nesting_depth,omitempty" yaml:"max_nesting_depth,omitempty" mapstructure:"max_nesting_depth"`
 
 	filePath           string
 	CWD                *core.PathCWD `json:"CWD,omitempty" yaml:"CWD,omitempty" mapstructure:"CWD,omitempty"`
@@ -210,5 +214,29 @@ func Load(ctx context.Context, cwd *core.PathCWD, path string, envFilePath strin
 		return nil, err
 	}
 	config.SetEnv(env)
+	// Set max nesting depth: config file value -> environment variable -> default
+	const defaultMaxNestingDepth = 20
+	log := logger.FromContext(ctx)
+	if config.MaxNestingDepth <= 0 {
+		config.MaxNestingDepth = defaultMaxNestingDepth
+	}
+	// Environment variable takes precedence if valid
+	if envValue := os.Getenv("MAX_NESTING_DEPTH"); envValue != "" {
+		if envInt, err := strconv.Atoi(envValue); err == nil {
+			if envInt > 0 {
+				config.MaxNestingDepth = envInt
+			} else {
+				log.Warn("Invalid MAX_NESTING_DEPTH environment variable",
+					"value", envValue,
+					"error", "must be positive integer",
+					"using", config.MaxNestingDepth)
+			}
+		} else {
+			log.Warn("Invalid MAX_NESTING_DEPTH environment variable",
+				"value", envValue,
+				"error", err,
+				"using", config.MaxNestingDepth)
+		}
+	}
 	return config, nil
 }

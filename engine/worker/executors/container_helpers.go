@@ -1,6 +1,8 @@
 package executors
 
 import (
+	"math"
+	"sort"
 	"sync/atomic"
 	"time"
 
@@ -10,6 +12,12 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	tkacts "github.com/compozy/compozy/engine/task/activities"
+)
+
+const (
+	// MaxConcurrentChildTasks limits the number of concurrent child workflow goroutines
+	// to prevent exhausting the deterministic scheduler
+	MaxConcurrentChildTasks = 100
 )
 
 // ContainerHelpers provides shared functionality for container tasks (parallel, collection, composite)
@@ -73,7 +81,7 @@ func (h *ContainerHelpers) executeChild(
 				},
 			}
 			activityCtx := workflow.WithActivityOptions(ctx, activityOpts)
-			err = workflow.ExecuteActivity(activityCtx, "UpdateChildState", updateInput).Get(activityCtx, nil)
+			err = workflow.ExecuteActivity(activityCtx, tkacts.UpdateChildStateLabel, updateInput).Get(activityCtx, nil)
 			if err != nil {
 				log.Error("Failed to update child state after nested task completion",
 					"child_task_id", childState.TaskID, "final_status", finalState.Status, "error", err)
@@ -130,12 +138,10 @@ func (h *ContainerHelpers) shouldCompleteParallelTask(
 	completed, failed, total int32,
 ) bool {
 	switch strategy {
-	case task.StrategyWaitAll:
+	case task.StrategyWaitAll, task.StrategyBestEffort:
 		return (completed + failed) >= total
 	case task.StrategyFailFast:
 		return failed > 0 || completed >= total
-	case task.StrategyBestEffort:
-		return (completed + failed) >= total
 	case task.StrategyRace:
 		// Race terminates on first result, either success or failure
 		return completed > 0 || failed > 0
@@ -155,11 +161,25 @@ func (h *ContainerHelpers) executeChildrenInParallel(
 	completed, failed *int32,
 ) {
 	log := workflow.GetLogger(ctx)
+	// Sort child states by TaskID to ensure deterministic replay
+	sort.Slice(childStates, func(i, j int) bool {
+		return childStates[i].TaskID < childStates[j].TaskID
+	})
+	// Create semaphore to limit concurrent executions
+	sem := workflow.NewSemaphore(ctx, MaxConcurrentChildTasks)
 	for i := range childStates {
 		childState := childStates[i]
 		// Capture variables by value to avoid race conditions in goroutines
 		cs := childState
 		workflow.Go(ctx, func(gCtx workflow.Context) {
+			// Acquire semaphore slot
+			if err := sem.Acquire(gCtx, 1); err != nil {
+				log.Error("Failed to acquire semaphore for child task",
+					"child_task_id", cs.TaskID,
+					"error", err)
+				return
+			}
+			defer sem.Release(1)
 			if gCtx.Err() != nil {
 				return // canceled before start
 			}
@@ -212,6 +232,10 @@ func (h *ContainerHelpers) executeChildrenSequentially(
 	completed, failed *int32,
 ) error {
 	log := workflow.GetLogger(ctx)
+	// Sort child states by TaskID to ensure deterministic replay
+	sort.Slice(childStates, func(i, j int) bool {
+		return childStates[i].TaskID < childStates[j].TaskID
+	})
 	// Process child tasks sequentially
 	for i, childState := range childStates {
 		log.Debug("Executing child task sequentially",
@@ -235,6 +259,12 @@ func (h *ContainerHelpers) executeChildrenSequentially(
 				log.Debug("Stopping execution due to FailFast strategy",
 					"task_id", taskConfig.ID,
 					"failed_at_index", i)
+				// Mark remaining tasks as skipped to ensure awaitStrategyCompletion works correctly
+				remainingInt := len(childStates) - i - 1
+				if remainingInt > 0 && remainingInt <= math.MaxInt32 {
+					remaining := int32(remainingInt)
+					atomic.AddInt32(failed, remaining)
+				}
 				break
 			}
 		} else {
@@ -249,6 +279,12 @@ func (h *ContainerHelpers) executeChildrenSequentially(
 				log.Debug("Stopping execution due to Race strategy",
 					"task_id", taskConfig.ID,
 					"succeeded_at_index", i)
+				// Mark remaining tasks as completed to ensure awaitStrategyCompletion works correctly
+				remainingInt := len(childStates) - i - 1
+				if remainingInt > 0 && remainingInt <= math.MaxInt32 {
+					remaining := int32(remainingInt)
+					atomic.AddInt32(completed, remaining)
+				}
 				break
 			}
 		}

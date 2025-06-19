@@ -58,7 +58,15 @@ func (e *TaskExecutor) ExecuteFirstTask() func(ctx workflow.Context) (task.Respo
 func (e *TaskExecutor) ExecuteTasks(response task.Response) func(ctx workflow.Context) (task.Response, error) {
 	return func(ctx workflow.Context) (task.Response, error) {
 		log := workflow.GetLogger(ctx)
+		if response == nil {
+			log.Error("Received nil response")
+			return nil, fmt.Errorf("received nil response")
+		}
 		taskConfig := response.GetNextTask()
+		if taskConfig == nil {
+			log.Info("No next task to execute")
+			return nil, nil
+		}
 		taskID := taskConfig.ID
 		ctx = e.BuildTaskContext(ctx, taskID)
 		// Sleep if needed
@@ -97,8 +105,12 @@ func (e *TaskExecutor) HandleExecution(
 	if len(depth) > 0 {
 		currentDepth = depth[0]
 	}
-	if currentDepth > 20 { // max_nesting_depth from config
-		return nil, fmt.Errorf("maximum nesting depth exceeded: %d", currentDepth)
+	maxDepth := 20 // default fallback
+	if e.ProjectConfig != nil && e.ProjectConfig.MaxNestingDepth > 0 {
+		maxDepth = e.ProjectConfig.MaxNestingDepth
+	}
+	if currentDepth >= maxDepth {
+		return nil, fmt.Errorf("maximum nesting depth reached: %d (limit: %d)", currentDepth, maxDepth)
 	}
 	var response task.Response
 	var err error
@@ -125,8 +137,18 @@ func (e *TaskExecutor) HandleExecution(
 		log.Error("Failed to execute task", "task_id", taskID, "depth", currentDepth, "error", err)
 		return nil, err
 	}
+	// Validate response and state before accessing
+	if response == nil {
+		log.Error("Nil response returned from task execution", "task_id", taskID)
+		return nil, fmt.Errorf("nil response returned for task %s", taskID)
+	}
+	state := response.GetState()
+	if state == nil {
+		log.Error("Nil state in task response", "task_id", taskID)
+		return nil, fmt.Errorf("nil state returned for task %s", taskID)
+	}
 	log.Debug("Task executed successfully",
-		"status", response.GetState().Status,
+		"status", state.Status,
 		"task_id", taskID,
 		"depth", currentDepth,
 	)
@@ -134,7 +156,7 @@ func (e *TaskExecutor) HandleExecution(
 }
 
 func (e *TaskExecutor) sleepTask(ctx workflow.Context, taskConfig *task.Config) error {
-	executor := NewTaskSleepExecutor(e.ContextBuilder, taskConfig)
+	executor := NewTaskSleepExecutor(e.ContextBuilder)
 	_, err := executor.Execute(ctx, taskConfig)
 	if err != nil {
 		return err

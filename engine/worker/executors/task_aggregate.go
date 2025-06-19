@@ -16,7 +16,7 @@ func NewTaskAggregateExecutor(contextBuilder *ContextBuilder) *TaskAggregateExec
 }
 
 func (e *TaskAggregateExecutor) Execute(ctx workflow.Context, taskConfig *task.Config) (task.Response, error) {
-	var response *task.MainTaskResponse
+	response := &task.MainTaskResponse{}
 	actLabel := tkacts.ExecuteAggregateLabel
 	actInput := tkacts.ExecuteAggregateInput{
 		WorkflowID:     e.WorkflowID,

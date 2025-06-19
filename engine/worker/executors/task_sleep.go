@@ -8,11 +8,10 @@ import (
 
 type TaskSleepExecutor struct {
 	*ContextBuilder
-	taskConfig *task.Config
 }
 
-func NewTaskSleepExecutor(contextBuilder *ContextBuilder, taskConfig *task.Config) *TaskSleepExecutor {
-	return &TaskSleepExecutor{ContextBuilder: contextBuilder, taskConfig: taskConfig}
+func NewTaskSleepExecutor(contextBuilder *ContextBuilder) *TaskSleepExecutor {
+	return &TaskSleepExecutor{ContextBuilder: contextBuilder}
 }
 
 func (e *TaskSleepExecutor) Execute(ctx workflow.Context, taskConfig *task.Config) (*task.Response, error) {
@@ -31,22 +30,9 @@ func (e *TaskSleepExecutor) Execute(ctx workflow.Context, taskConfig *task.Confi
 		log.Info("Sleep skipped due to zero duration")
 		return nil, nil
 	}
-	timerDone := false
 	timer := workflow.NewTimer(ctx, sleepDuration)
-	for !timerDone {
-		// Check cancellation before each iteration
-		if temporal.IsCanceledError(ctx.Err()) {
-			log.Info("Sleep interrupted by cancellation")
-			return nil, workflow.ErrCanceled
-		}
-		sel := workflow.NewSelector(ctx)
-		sel.AddFuture(timer, func(workflow.Future) { timerDone = true })
-		sel.Select(ctx)
-		// Check again after select
-		if temporal.IsCanceledError(ctx.Err()) {
-			log.Info("Sleep interrupted by cancellation")
-			return nil, workflow.ErrCanceled
-		}
+	if err := timer.Get(ctx, nil); err != nil {
+		return nil, err
 	}
 	return nil, nil
 }

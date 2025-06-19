@@ -849,7 +849,7 @@ func TestConfigNormalizer_NormalizeTaskOutput(t *testing.T) {
 		)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to transform output field invalid")
+		assert.Contains(t, err.Error(), "failed to transform task output field invalid")
 	})
 
 	t.Run("Should access parallel task outputs correctly", func(t *testing.T) {
