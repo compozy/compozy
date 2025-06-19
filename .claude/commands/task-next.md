@@ -26,7 +26,7 @@ Find and start the next available task automatically.
 **Development Workflow:**
 • Use `/project:analyze-changes` during development for code review
 • Use `/project:rules-check` to validate against project standards
-• Run `make lint` and `make test-all` frequently
+• Run `make lint` and `make test` frequently
 • Complete with `/project:task-review` when ready
 
 **Usage:** `/task:next`

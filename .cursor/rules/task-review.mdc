@@ -25,9 +25,9 @@ alwaysApply: false
 **FIRST:** Verify the implementation aligns with requirements:
 </mandatory_step>
 
-- **Task Definition:** Review the specific task file (e.g., `tasks/prd-monitoring/[task_number]_task.md`)
-- **PRD Alignment:** Check against the Product Requirements Document (`tasks/prd-monitoring/_prd.md`)
-- **Tech Spec Compliance:** Ensure implementation follows the Technical Specification (`tasks/prd-monitoring/_techspec.md`)
+- **Task Definition:** Review the specific task file (e.g., `tasks/prd-[feature-slug]/[task_number]_task.md`)
+- **PRD Alignment:** Check against the Product Requirements Document (`tasks/prd-[feature-slug]/_prd.md`)
+- **Tech Spec Compliance:** Ensure implementation follows the Technical Specification (`tasks/prd-[feature-slug]/_techspec.md`)
 
 ```
 Verify that task [task_number] implementation fully satisfies:
@@ -66,7 +66,7 @@ Use the criteria from [`review-checklist.mdc`](mdc:.cursor/rules/review-checklis
     - Testing requirements: `.cursor/rules/testing-standards.mdc`
     - API standards: `.cursor/rules/api-standards.mdc`
     - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test-all` before completing ANY subtask
+- **MUST** run `make lint` and `make test` before completing parent tasks
 - **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
 **Enforcement:** Violating these standards results in immediate task rejection.
 </critical>

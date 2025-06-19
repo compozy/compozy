@@ -3,7 +3,7 @@ Complete the full **Task Review & Completion** workflow from task-review.mdc for
 **Steps Performed:**
 • **Step 2:** Rules Analysis & Code Review with Zen MCP
 • **Step 3:** Fix all identified issues  
-• **Step 4:** Pre-commit validation (`make lint`, `make test-all`)
+• **Step 4:** Pre-commit validation (`make lint`, `make test`)
 • **Step 5:** Git commit with proper message format
 • **Step 6:** Update task checkboxes to mark complete
 

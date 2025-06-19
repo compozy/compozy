@@ -6,15 +6,15 @@ alwaysApply: false
 # Rule: Generating a Product Requirements Document (PRD)
 
 <goal>
-To guide an AI assistant in creating a detailed Product Requirements Document (PRD) in Markdown format, based on an initial user prompt. The PRD should be comprehensive, covering both functional requirements and implementation planning, suitable for developers and stakeholders to understand and execute the feature development.
+To guide an AI assistant in creating a detailed Product Requirements Document (PRD) in Markdown format, based on an initial user prompt. The PRD should be comprehensive, focusing on user needs, functional requirements, and business goals to clearly define *what* to build and *why*.
 </goal>
 
 ## Template Reference
 
 <template_reference>
-**ALWAYS use the standardized PRD template:** @_prd-template.md
+**ALWAYS use the standardized PRD template:** tasks/docs/_prd-template.md
 
-This template provides a comprehensive structure that balances requirements gathering with implementation planning, ensuring consistency across all PRDs in the project.
+This template provides a comprehensive structure that balances requirements gathering with rollout planning, ensuring consistency across all PRDs in the project.
 </template_reference>
 
 ## Process
@@ -22,8 +22,8 @@ This template provides a comprehensive structure that balances requirements gath
 <process_workflow>
 1. **Receive Initial Prompt:** The user provides a brief description or request for a new feature or functionality.
 2. **Ask Clarifying Questions:** Before writing the PRD, the AI *must* ask clarifying questions to gather sufficient detail. Focus on understanding the "what" and "why" of the feature, user needs, and success criteria.
-3. **Generate Comprehensive PRD:** Based on the initial prompt and the user's answers, generate a PRD using the template structure that covers both requirements and implementation planning.
-4. **Create Feature Folder:** Create a feature folder `./tasks/prd-[feature-name]/`.
+3. **Generate Comprehensive PRD (Functionality-Focused):** Using the template, produce a PRD that captures user and business requirements plus high-level product scope **without including low-level technical design or implementation details** – those belong in the Tech Spec.
+4. **Create Feature Folder:** Instruct to create a feature folder `./tasks/prd-[feature-slug]/`.
 5. **Save PRD:** Save the generated document as `_prd.md` inside the feature folder.
 </process_workflow>
 
@@ -47,10 +47,11 @@ The AI should adapt its questions based on the prompt and template sections. Her
 - "Can you describe the key actions a user should be able to perform?"
 - "What data does this feature need to display or manipulate?"
 
-**Technical Considerations:**
+**Technical Constraints (acceptance criteria only – describe *what* must be met, not *how* to meet it):**
 - "Are there any existing systems this needs to integrate with?"
-- "What are the performance or security requirements?"
-- "Are there any technical constraints or dependencies?"
+- "What are the performance thresholds or security requirements? (e.g., must handle X users, must comply with Y standard)"
+- "Are there any technical constraints that limit what can be built?"
+- Note: Capture only acceptance-criteria level thresholds; defer solution approaches to Tech Spec
 
 **Scope & Planning:**
 - "What should this feature NOT do (non-goals)?"
@@ -78,14 +79,13 @@ The generated PRD MUST follow the template structure from @_prd-template.md:
 3. **User Stories:** Detailed narratives covering primary and edge case scenarios
 4. **Core Features:** Main functionality with detailed functional requirements
 5. **User Experience:** User journeys, flows, UI/UX considerations, and accessibility
-6. **Technical Architecture:** System components, data models, APIs, infrastructure
+6. **High-Level Technical Constraints:** Integration points, compliance mandates, performance thresholds (avoid architectural diagrams or code-level solutions)
 7. **Non-Goals (Out of Scope):** Clear boundaries and excluded features
-8. **Development Roadmap:** Phased approach with MVP and enhancement stages
-9. **Logical Dependency Chain:** Build order and incremental delivery strategy
-10. **Success Metrics:** Measurable outcomes for user engagement and business impact
-11. **Risks and Mitigations:** Potential challenges and response strategies
-12. **Open Questions:** Unresolved items requiring further clarification
-13. **Appendix:** Supporting materials, research, and reference documentation
+8. **Phased Rollout Plan:** User-facing milestones with MVP and enhancement stages
+9. **Success Metrics:** Measurable outcomes for user engagement and business impact
+10. **Risks and Mitigations:** Potential challenges and response strategies
+11. **Open Questions:** Unresolved items requiring further clarification
+12. **Appendix:** Supporting materials, research, and reference documentation
 </prd_structure_requirements>
 
 ## Content Guidelines
@@ -102,16 +102,26 @@ The generated PRD MUST follow the template structure from @_prd-template.md:
 - "Users should be able to..."
 - Number requirements for easy reference
 
-**Implementation Focus:** Balance user needs with practical development:
-- Consider MVP vs. full feature scope
-- Plan for incremental delivery
-- Address technical dependencies
-- Identify critical path features
+**Delivery Considerations (high-level only):** Balance user needs with practical rollout:
+- Consider MVP vs. full feature scope from a user value perspective
+- Plan for incremental delivery of user value
+- Identify which features deliver the most user/business value first
+- Note: Detailed technical sequencing and dependencies belong in the Tech Spec
+
+**Separation of Concerns:**
+- Keep the PRD centered on *what* the product should achieve, not *how* it will be built
+- Capture only high-level technical constraints (e.g., required throughput, compliance mandates); defer architectural or code-level solutions to the Tech Spec
+- If detailed design ideas arise, note them as TODOs for the Tech Spec author or move them to an appendix reference rather than the main PRD body
+
+**Document Size Guidelines:**
+- Target a maximum length of ~3,000 words (≈7–8 pages)
+- Prefer concise bullet points, tables, and links to external references over verbose narrative paragraphs
+- Offload large data sets, research studies, or extended examples to appendices or separate reference documents to keep the core PRD lightweight
 </content_guidelines>
 
 <output_specification>
 - **Format:** Markdown (`.md`)
-- **Location:** `./tasks/prd-[feature-name]/`
+- **Location:** `./tasks/prd-[feature-slug]/`
 - **Filename:** `_prd.md`
 - **Template:** Use @_prd-template.md structure
 </output_specification>
@@ -122,7 +132,7 @@ The generated PRD MUST follow the template structure from @_prd-template.md:
 1. **DO NOT** start implementing the PRD immediately
 2. **ALWAYS** ask clarifying questions first to gather comprehensive information
 3. **USE** the standardized template structure for consistency
-4. **FOCUS** on both user requirements and implementation planning
+4. **FOCUS** on comprehensive user and business requirements; defer implementation planning to the Tech Spec
 5. **ENSURE** the PRD is actionable for both development and project management
 6. **ITERATE** on the PRD based on user feedback and additional clarification
 </workflow_instructions>
@@ -134,9 +144,11 @@ Before finalizing the PRD, ensure:
 - [ ] All template sections are completed with relevant information
 - [ ] User stories cover primary flows and edge cases
 - [ ] Functional requirements are numbered and specific
-- [ ] Technical considerations address integration and dependencies
-- [ ] Development roadmap shows clear phases and dependencies
+- [ ] High-level constraints (e.g., required integrations, compliance) are defined
+- [ ] Phased rollout plan shows clear user-facing milestones and product-level dependencies
 - [ ] Success metrics are measurable and relevant
 - [ ] Risks are identified with mitigation strategies
 - [ ] Open questions capture any remaining uncertainties
+- [ ] Document is ≤ 3,000 words (core sections) – move overflow to Appendix
+- [ ] No technical implementation details or architecture decisions included
 </quality_checklist>

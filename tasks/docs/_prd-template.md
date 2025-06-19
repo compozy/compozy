@@ -38,15 +38,17 @@
 - UI/UX considerations and design requirements
 - Accessibility requirements]
 
-## Technical Architecture
+## High-Level Technical Constraints
 
-[Outline the technical implementation details:
+[Capture only top-level constraints and considerations (avoid design solutions – those belong in the Tech Spec):
 
-- System components and their interactions
-- Data models and storage requirements
-- APIs and integrations needed
-- Infrastructure and deployment requirements
-- Security considerations]
+- Required external integrations or existing systems to interface with
+- Compliance, regulatory, or security mandates
+- Performance / scalability targets (e.g., expected TPS, latency upper bounds)
+- Data sensitivity / privacy considerations
+- Any non-negotiable technology or protocol requirements
+
+Implementation details will be addressed in the accompanying Technical Specification.]
 
 ## Non-Goals (Out of Scope)
 
@@ -56,24 +58,14 @@
 - Future considerations that are out of scope
 - Boundaries and limitations]
 
-## Development Roadmap
+## Phased Rollout Plan
 
-[Break down the development process into phases:
+[Break down the feature release into user-facing milestones:
 
-- MVP requirements and core functionality
-- Phase 1: Foundation and basic features
-- Phase 2: Enhanced functionality
-- Phase 3: Advanced features and optimizations
-- Success criteria for each phase]
-
-## Logical Dependency Chain
-
-[Define the logical order of development:
-
-- Which features need to be built first (foundation)
-- Dependencies between features
-- Critical path to getting a usable/visible frontend
-- How to build incrementally for continuous value delivery]
+- **MVP:** The minimum set of features to deliver initial user value
+- **Phase 2:** Enhanced functionality and additional user features
+- **Phase 3:** Advanced features and optimizations
+- Success criteria for each phase from a user/business perspective]
 
 ## Success Metrics
 
@@ -82,32 +74,33 @@
 - User engagement metrics
 - Performance benchmarks
 - Business impact indicators
-- Technical quality measures]
+- Quality attributes (e.g., system availability, response time targets)]
 
 ## Risks and Mitigations
 
-[Identify potential risks and how they'll be addressed:
+[Identify potential non-technical (product, business, market) risks and how they'll be addressed:
 
-- Technical challenges and complexity
-- Resource and timeline constraints
 - User adoption risks
-- Integration and compatibility issues
-- Mitigation strategies for each risk]
+- Market competition or timing risks
+- Resource and timeline constraints from a business perspective
+- Mitigation strategies for each risk
+
+(Note: Technical implementation risks will be detailed in the Tech Spec.)]
 
 ## Open Questions
 
 [List any remaining questions or areas needing further clarification:
 
-- Unresolved technical decisions
 - Unclear requirements or edge cases
-- Dependencies on external factors
-- Research needed before implementation]
+- Questions about user needs or business goals
+- Dependencies on external business factors
+- Areas requiring design or user research]
 
 ## Appendix
 
 [Include any additional information:
 
 - Research findings and user feedback
-- Technical specifications and diagrams
 - Design mockups and wireframes
-- Reference materials and benchmarks]
+- Reference materials and benchmarks
+- Market analysis or competitive research]

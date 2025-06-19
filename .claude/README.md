@@ -11,17 +11,19 @@ Commands are organized by workflow phase:
 ├── commands/
 │   ├── prd-clarify.md          # PRD clarification questions
 │   ├── prd-generate.md         # Generate PRD from template
-│   ├── techspec-generate.md    # Generate technical specification
+│   ├── prd-techspec.md         # Generate technical specification
 │   ├── tasks-parent.md         # Generate high-level tasks
 │   ├── tasks-subtasks.md       # Break down into subtasks
 │   ├── tasks-complexity.md     # Analyze task complexity
 │   ├── task-start.md           # Start next task with proper setup
 │   ├── task-next.md            # Find and start next available task automatically
 │   ├── task-review.md          # Complete task review & completion workflow
-│   ├── rules-check.md          # Check code against project rules
-│   ├── analyze-file.md         # Analyze current file changes
-│   ├── analyze-changes.md      # Analyze work in progress changes
-│   └── analyze-folder.md       # Analyze specific folder
+│   ├── session-start.md        # Start new development session
+│   ├── session-current.md      # Show current session status
+│   ├── session-update.md       # Update session with progress
+│   ├── session-end.md          # End current session
+│   ├── session-list.md         # List all sessions
+│   └── session-help.md         # Session management help
 └── README.md                   # This file
 ```
 
@@ -37,7 +39,7 @@ Commands are organized by workflow phase:
 /project:prd-generate <feature-name>
 
 # Create technical specification
-/project:techspec-generate <feature-name>
+/project:prd-techspec <feature-name>
 ```
 
 ### 2. Task Planning Workflow
@@ -66,20 +68,26 @@ Commands are organized by workflow phase:
 /project:task-review <task-number>
 ```
 
-### 4. Development Workflow
+### 4. Session Management Workflow
 
 ```bash
-# Check code against project rules
-/project:rules-check [file-path]
+# Start new development session
+/project:session-start
 
-# Analyze current file with unstaged changes
-/project:analyze-file
+# Check current session status
+/project:session-current
 
-# Analyze work in progress changes
-/project:analyze-changes
+# Update session with progress
+/project:session-update
 
-# Analyze specific folder
-/project:analyze-folder engine/infra/monitoring
+# End current session
+/project:session-end
+
+# List all sessions
+/project:session-list
+
+# Session management help
+/project:session-help
 ```
 
 ## Command Details
@@ -99,9 +107,9 @@ Commands are organized by workflow phase:
 - **Based on:** `prd-create.mdc` process workflow
 - **Usage:** After answering clarifying questions
 - **Output:** `tasks/prd-<feature-name>/_prd.md`
-- **Next Step:** Run `/project:techspec-generate`
+- **Next Step:** Run `/project:prd-techspec`
 
-#### `/project:techspec-generate <feature-name>`
+#### `/project:prd-techspec <feature-name>`
 
 - **Purpose:** Create technical specification document
 - **Based on:** `prd-tech-spec.mdc` complete workflow
@@ -168,54 +176,47 @@ Commands are organized by workflow phase:
 - **Process:**
     - Rules Analysis & Code Review with Zen MCP
     - Fix all identified issues
-    - Pre-commit validation (`make lint`, `make test-all`)
+    - Pre-commit validation (`make lint`, `make test`)
     - Git commit with proper message format
     - Update task checkboxes to mark complete
 
-### Development Commands
+### Session Management Commands
 
-#### `/project:rules-check [file-path]`
+#### `/project:session-start`
 
-- **Purpose:** Analyze code against all project standards
-- **Based on:** All `.cursor/rules/` files
-- **Usage:** Check specific file or current selection
-- **Checks:**
-    - Go coding standards (function length, error handling, constructor patterns)
-    - Architecture compliance (dependency direction, interface usage)
-    - Testing patterns (`t.Run("Should...")`, testify/mock usage)
-    - API standards (Swagger docs, response formats)
-    - Security requirements (no secrets in logs, input validation)
+- **Purpose:** Start new development session with proper context
+- **Usage:** Beginning of work session
+- **Process:** Initialize session tracking and set up development context
 
-#### `/project:analyze-file`
+#### `/project:session-current`
 
-- **Purpose:** Analyze current file with unstaged changes
-- **Based on:** All `.cursor/rules/` files + Zen MCP codereview tool
-- **Usage:** Analyze the currently open file with git diff
-- **Process:**
-    - Reads current file with unstaged changes
-    - Applies go-coding-standards, architecture, testing-standards rules
-    - Uses Zen MCP for deep analysis and refactoring suggestions
+- **Purpose:** Show current session status and progress
+- **Usage:** Check what's currently being worked on
+- **Output:** Current session details and progress status
 
-#### `/project:analyze-changes`
+#### `/project:session-update`
 
-- **Purpose:** Analyze current work in progress changes
-- **Based on:** All `.cursor/rules/` files + Zen MCP codereview tool
-- **Usage:** Review all modified files in current working directory
-- **Process:**
-    - Gets modified files from `git diff --name-only` (staged + unstaged)
-    - Filters out non-relevant files (generated, vendor, etc.)
-    - Focuses on files related to current scope of work
-    - Provides actionable improvements before committing
+- **Purpose:** Update session with progress and notes
+- **Usage:** Log progress during development
+- **Process:** Track completed work and update session state
 
-#### `/project:analyze-folder <folder-path>`
+#### `/project:session-end`
 
-- **Purpose:** Analyze specific folder/directory
-- **Based on:** project-structure, architecture, testing-standards rules
-- **Usage:** `/project:analyze-folder engine/infra/monitoring`
-- **Process:**
-    - Reads all Go files in directory recursively
-    - Architectural review and package cohesion analysis
-    - Identifies refactoring opportunities
+- **Purpose:** End current session with summary
+- **Usage:** Conclude work session
+- **Process:** Summarize work completed and clean up session state
+
+#### `/project:session-list`
+
+- **Purpose:** List all development sessions
+- **Usage:** Review session history
+- **Output:** List of all sessions with status and progress
+
+#### `/project:session-help`
+
+- **Purpose:** Show session management help and usage
+- **Usage:** Learn about session management features
+- **Output:** Detailed help for session commands
 
 ## Usage Examples
 
@@ -227,7 +228,7 @@ Commands are organized by workflow phase:
 # Answer questions...
 
 /project:prd-generate monitoring-system
-/project:techspec-generate monitoring-system
+/project:prd-techspec monitoring-system
 
 # 2. Plan implementation
 /project:tasks-parent monitoring-system
@@ -237,36 +238,46 @@ Commands are organized by workflow phase:
 /project:tasks-complexity monitoring-system
 
 # 3. Implement and complete tasks
+/project:session-start
 /project:task-next
 # ... implement the task ...
 
 /project:task-review 1
+/project:session-end
 ```
 
-### Development Workflow
+### Session-Based Development
 
 ```bash
-# Check code against project standards
-/project:rules-check src/engine/agent/service.go
+# Start work session
+/project:session-start
 
-# Analyze current file changes with Zen MCP
-/project:analyze-file
+# Check current work
+/project:session-current
 
-# Analyze work in progress changes
-/project:analyze-changes
+# Work on tasks
+/project:task-next
+# ... implementation work ...
 
-# Deep analysis of specific folder
-/project:analyze-folder engine/infra/monitoring
+# Update progress
+/project:session-update
+
+# Complete and end session
+/project:task-review 1
+/project:session-end
 ```
 
-### Quick Task Review
+### Task Management Workflow
 
 ```bash
+# Find next task automatically
+/project:task-next
+
 # Review specific task implementation
 /project:task-review 3
 
-# Complete after fixes
-/project:task-complete 3
+# Check all sessions
+/project:session-list
 ```
 
 ## Integration with Project Standards
@@ -287,6 +298,7 @@ These commands enforce compliance with:
 - **Quality:** Built-in code review and validation workflows
 - **Efficiency:** One-command access to complex multi-step processes
 - **Compliance:** Automatic adherence to established patterns and rules
+- **Session Tracking:** Organized development sessions with progress tracking
 - **Documentation:** Self-documenting workflow with clear next steps
 
 ## Notes
@@ -295,4 +307,5 @@ These commands enforce compliance with:
 - All commands reference specific sections in `.cursor/rules/` files
 - Zen MCP integration provides enhanced analysis capabilities
 - Commands are designed for sequential workflow execution
+- Session management helps organize development work
 - Each command includes clear next-step guidance

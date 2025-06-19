@@ -120,15 +120,6 @@ test:
 test-nocache:
 	gotestsum --format pkgname -- -race -count=1 -parallel=8 ./...
 
-test-all:
-	gotestsum --format pkgname -- -race -parallel=8 ./...
-
-test-worker:
-	gotestsum --format pkgname -- -race -parallel=16 $(shell go list ./... | grep -v '$(E2E_TESTS)')
-
-test-no-worker:
-	gotestsum --format pkgname -- -race -parallel=16 $(shell go list ./... | grep -v '$(E2E_TESTS)')
-
 # -----------------------------------------------------------------------------
 # Docker & Database Management
 # -----------------------------------------------------------------------------

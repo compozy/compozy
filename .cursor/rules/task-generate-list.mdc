@@ -12,25 +12,25 @@ To guide an AI assistant in creating a detailed, step-by-step task list in Markd
 <output_specification>
 - **Format:** Markdown (`.md`)
 - **Locations:**
-  - **Feature folder:** `/tasks/prd-<feature>/`
-  - **Tasks summary file:** `/tasks/prd-<feature>/_tasks.md`
-  - **Individual task files:** `/tasks/prd-<feature>/<num>_task.md`
-  - **Complexity report:** `/tasks/prd-<feature>/task-complexity-report.json`
+  - **Feature folder:** `/tasks/prd-[feature-slug]/`
+  - **Tasks summary file:** `/tasks/prd-[feature-slug]/_tasks.md`
+  - **Individual task files:** `/tasks/prd-[feature-slug]/<num>_task.md`
+  - **Complexity report:** `/tasks/prd-[feature-slug]/task-complexity-report.json`
 </output_specification>
 
 ## Process
 
 <process_steps>
 1.  **Receive PRD Reference:** The user points the AI to a specific PRD file
-2.  **Verify Tech Spec:** Confirm that a corresponding tech spec document exists (`tasks/prd-<feature>/_techspec.md`). If not, remind the user to create it using [prd-tech-spec.mdc](mdc:.cursor/rules/prd-tech-spec.mdc) before proceeding with task generation.
+2.  **Verify Tech Spec:** Confirm that a corresponding tech spec document exists (`tasks/prd-[feature-slug]/_techspec.md`). If not, remind the user to create it using [prd-tech-spec.mdc](mdc:.cursor/rules/prd-tech-spec.mdc) before proceeding with task generation.
 3.  **Analyze PRD & Tech Spec:** The AI reads and analyzes both the functional requirements from the PRD and the implementation details from the tech spec document.
-4.  **Phase 1: Generate Parent Tasks:** Based on the combined PRD and tech spec analysis, create the `_tasks.md` file in the feature folder with the relevant files section and high-level tasks. Use your judgement on how many high-level tasks to use. It's likely to be about 5. Present these tasks to the user. Inform the user: "I have generated the high-level tasks based on the PRD and tech spec. Ready to generate the sub-tasks? Respond with 'Go' to proceed."
-5.  **Wait for Confirmation:** Pause and wait for the user to respond with "Go".
-6.  **Phase 2: Generate Sub-Tasks:** Once the user confirms, break down each parent task into smaller, actionable sub-tasks necessary to complete the parent task. Ensure sub-tasks logically follow from the parent task and cover the implementation details from both the PRD and tech spec.
-7.  **Phase 3: Analyze Task Complexity:** Use Zen MCP tools to analyze task complexity and identify tasks that need further breakdown. Generate a comprehensive complexity analysis report (typically saved as `task-complexity-report.json`) that includes complexity scores (1-10), recommended number of subtasks, reasoning for complexity assessment, and expansion prompts for each task. Tasks with complexity scores above the threshold (typically 6-7) should be broken down into more granular subtasks to ensure manageable implementation units.
-8.  **Identify Relevant Files:** Based on the tasks, PRD, and tech spec, identify potential files that will need to be created or modified. List these under the `Relevant Files` section, including corresponding test files if applicable. Reference the tech spec's file structure and architectural decisions.
+4.  **Phase 1: Generate Parent Tasks:** Based on the combined PRD and tech spec analysis, create the `_tasks.md` file in the feature folder with the relevant files section and high-level tasks. Use your judgement on how many high-level tasks to use. Present these tasks to the user.
+5.  **Phase 2: Analyze Task Complexity:** Use Zen MCP tools to analyze the parent tasks' complexity. Generate a comprehensive complexity analysis report (typically saved as `task-complexity-report.json`) that includes complexity scores (1-10), recommended number of subtasks, reasoning for complexity assessment, and expansion prompts for each task. Tasks with complexity scores above the threshold (typically 6-7) should be broken down into more granular subtasks.
+6.  **Wait for Confirmation:** Present the complexity analysis to the user and inform them: "I have generated the high-level tasks and analyzed their complexity. Ready to generate the sub-tasks based on this analysis? Respond with 'Go' to proceed."
+7.  **Phase 3: Generate Sub-Tasks:** Once the user confirms, break down each parent task into smaller, actionable sub-tasks based on the complexity analysis results. Ensure sub-tasks logically follow from the parent task and cover the implementation details from both the PRD and tech spec.
+8.  **Identify Relevant Files:** Based on the tasks, PRD, and tech spec, identify potential files that will need to be created or modified. Include files identified in the Tech Spec's Impact Analysis section as affected components. List these under the `Relevant Files` section, including corresponding test files if applicable. Reference the tech spec's file structure and architectural decisions.
 9.  **Generate Final Output:** Create the individual task files and update the `_tasks.md` file.
-10. **Create Individual Task Files:** For each parent task, create a separate file in `/tasks/prd-<feature>/<num>_task.md` with:
+10. **Create Individual Task Files:** For each parent task, create a separate file in `/tasks/prd-[feature-slug]/<num>_task.md` with:
     - Frontmatter with `status: pending` field
     - Task title and overview
     - Complete list of subtasks for that parent task
@@ -77,8 +77,6 @@ status: pending  # Options: pending, in-progress, completed, excluded
 
 # Task X.0: [Parent Task Title]
 
-**Note:** The `<task_context>` XML block provides semantic context for AI agents to automatically identify which project rules and patterns apply to the task without explicitly listing them. This enables intelligent rule selection based on the domain, type, scope, complexity, and dependencies of the work.
-
 ## Overview
 [Brief description of what this task accomplishes]
 
@@ -92,16 +90,11 @@ status: pending  # Options: pending, in-progress, completed, excluded
 
 [Extract relevant sections from the tech spec that apply to this task]
 
-### [Relevant Technical Section]
-[Technical details, code examples, specifications]
-
-### [Another Relevant Section]
-[More implementation guidance]
-
 ## Success Criteria
 - [Clear definition of when this task is complete]
 - [Measurable outcomes]
 - [Quality requirements]
+- [Components impacted by this task per Tech Spec Impact Analysis]
 
 <critical>
 **MANDATORY REQUIREMENTS:**
@@ -114,7 +107,7 @@ status: pending  # Options: pending, in-progress, completed, excluded
   - Testing requirements: `.cursor/rules/testing-standards.mdc`
   - API standards: `.cursor/rules/api-standards.mdc`
   - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test-all` before completing ANY subtask
+- **MUST** run `make lint` and `make test` before completing parent tasks
 - **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
 
 **Enforcement:** Violating these standards results in immediate task rejection.

@@ -21,7 +21,7 @@ make dev
 make test
 
 # Run all tests including E2E
-make test-all
+make test
 
 # Format and lint code (ALWAYS run before committing)
 make fmt && make lint

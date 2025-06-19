@@ -20,7 +20,7 @@ Start working on task $ARGUMENTS with proper setup and context.
 **Development Workflow:**
 • Use `/project:analyze-changes` during development for code review
 • Use `/project:rules-check` to validate against project standards
-• Run `make lint` and `make test-all` frequently
+• Run `make lint` and `make test` frequently
 • Complete with `/project:task-review` when ready
 
 **Usage:** `/task:start <task-number>`

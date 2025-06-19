@@ -19,12 +19,12 @@ Guidelines for managing task lists in markdown files to track progress on comple
 - Stop after each sub‑task and wait for the user's go‑ahead.
 </completion_protocol>
 
-<critical type="before_subtask_completion">
-Before complete any subtasks, you need to run `make lint` and `make test-all` to ensure what you create didn't broke anything.
-</critical>
-
 <critical type="before_parent_task_completion">
-Before completing the parent task (when ALL sub-tasks are [x]), you MUST follow the [task-review.mdc](mdc:.cursor/rules/task-review.mdc) workflow to ensure quality and review. This workflow is only required for parent tasks, not individual sub-tasks.
+Before completing the parent task (when ALL sub-tasks are [x]), you MUST:
+1. Run `make lint` and `make test` to ensure the implementation is correct
+2. Follow the [task-review.mdc](mdc:.cursor/rules/task-review.mdc) workflow to ensure quality and review
+
+This comprehensive validation is required for parent tasks, not individual sub-tasks.
 </critical>
 
 ## Task List Maintenance
@@ -64,7 +64,7 @@ When working with task lists, the AI must:
   - Testing requirements: [Testing Standards](mdc:.cursor/rules/testing-standards.mdc)
   - API standards: [API Development Standards](mdc:.cursor/rules/api-standards.mdc)
   - Security & quality: [Quality and Security Standards](mdc:.cursor/rules/quality-security.mdc)
-- **MUST** run `make lint` and `make test-all` before completing ANY subtask
+- **MUST** run `make lint` and `make test` before completing parent tasks
 - **MUST** follow [task-review.mdc](mdc:.cursor/rules/task-review.mdc) workflow for parent tasks
 **Enforcement:** Violating these standards results in immediate task rejection.
 </critical>
