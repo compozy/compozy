@@ -19,29 +19,66 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// getBasicServerFlags extracts basic server configuration flags
+func getBasicServerFlags(cmd *cobra.Command) (host string, port int, cors bool, configFile string, err error) {
+	if port, err = cmd.Flags().GetInt("port"); err != nil {
+		return "", 0, false, "", fmt.Errorf("failed to get port flag: %w", err)
+	}
+	if host, err = cmd.Flags().GetString("host"); err != nil {
+		return "", 0, false, "", fmt.Errorf("failed to get host flag: %w", err)
+	}
+	if cors, err = cmd.Flags().GetBool("cors"); err != nil {
+		return "", 0, false, "", fmt.Errorf("failed to get cors flag: %w", err)
+	}
+	if configFile, err = cmd.Flags().GetString("config"); err != nil {
+		return "", 0, false, "", fmt.Errorf("failed to get config flag: %w", err)
+	}
+	return host, port, cors, configFile, nil
+}
+
+// setEnvironmentVariablesFromFlags sets environment variables from command flags if not already set
+func setEnvironmentVariablesFromFlags(cmd *cobra.Command) error {
+	maxNestingDepth, err := cmd.Flags().GetInt("max-nesting-depth")
+	if err != nil {
+		return fmt.Errorf("failed to get max-nesting-depth flag: %w", err)
+	}
+	if os.Getenv("MAX_NESTING_DEPTH") == "" {
+		os.Setenv("MAX_NESTING_DEPTH", fmt.Sprintf("%d", maxNestingDepth))
+	}
+	dispatcherHeartbeatInterval, err := cmd.Flags().GetInt("dispatcher-heartbeat-interval")
+	if err != nil {
+		return fmt.Errorf("failed to get dispatcher-heartbeat-interval flag: %w", err)
+	}
+	if os.Getenv("DISPATCHER_HEARTBEAT_INTERVAL") == "" {
+		os.Setenv("DISPATCHER_HEARTBEAT_INTERVAL", fmt.Sprintf("%d", dispatcherHeartbeatInterval))
+	}
+	dispatcherHeartbeatTTL, err := cmd.Flags().GetInt("dispatcher-heartbeat-ttl")
+	if err != nil {
+		return fmt.Errorf("failed to get dispatcher-heartbeat-ttl flag: %w", err)
+	}
+	if os.Getenv("DISPATCHER_HEARTBEAT_TTL") == "" {
+		os.Setenv("DISPATCHER_HEARTBEAT_TTL", fmt.Sprintf("%d", dispatcherHeartbeatTTL))
+	}
+	dispatcherStaleThreshold, err := cmd.Flags().GetInt("dispatcher-stale-threshold")
+	if err != nil {
+		return fmt.Errorf("failed to get dispatcher-stale-threshold flag: %w", err)
+	}
+	if os.Getenv("DISPATCHER_STALE_THRESHOLD") == "" {
+		os.Setenv("DISPATCHER_STALE_THRESHOLD", fmt.Sprintf("%d", dispatcherStaleThreshold))
+	}
+	return nil
+}
+
 func getServerConfig(ctx context.Context, cmd *cobra.Command, envFilePath string) (*server.Config, error) {
 	log := logger.FromContext(ctx)
-	port, err := cmd.Flags().GetInt("port")
+	host, port, cors, configFile, err := getBasicServerFlags(cmd)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get port flag: %w", err)
-	}
-	host, err := cmd.Flags().GetString("host")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get host flag: %w", err)
-	}
-	cors, err := cmd.Flags().GetBool("cors")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get cors flag: %w", err)
-	}
-	configFile, err := cmd.Flags().GetString("config")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get config flag: %w", err)
+		return nil, err
 	}
 	CWD, _, err := utils.GetConfigCWD(cmd)
 	if err != nil {
 		return nil, err
 	}
-	// Find available port starting from requested port
 	availablePort, err := findAvailablePort(host, port)
 	if err != nil {
 		return nil, fmt.Errorf("no free port found near %d: %w", port, err)
@@ -49,24 +86,17 @@ func getServerConfig(ctx context.Context, cmd *cobra.Command, envFilePath string
 	if availablePort != port {
 		log.Info("Port unavailable, using alternative port", "requested_port", port, "available_port", availablePort)
 	}
-	// Set max nesting depth from flag as environment variable if not already set
-	maxNestingDepth, err := cmd.Flags().GetInt("max-nesting-depth")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get max-nesting-depth flag: %w", err)
+	if err := setEnvironmentVariablesFromFlags(cmd); err != nil {
+		return nil, err
 	}
-	if os.Getenv("MAX_NESTING_DEPTH") == "" {
-		os.Setenv("MAX_NESTING_DEPTH", fmt.Sprintf("%d", maxNestingDepth))
-	}
-
-	serverConfig := &server.Config{
+	return &server.Config{
 		CWD:         CWD,
 		Host:        host,
 		Port:        availablePort,
 		CORSEnabled: cors,
 		ConfigFile:  configFile,
 		EnvFilePath: envFilePath,
-	}
-	return serverConfig, nil
+	}, nil
 }
 
 func getDatabaseConfig(cmd *cobra.Command) (*store.Config, error) {
@@ -243,6 +273,14 @@ func DevCmd() *cobra.Command {
 
 	// Task execution configuration flags
 	cmd.Flags().Int("max-nesting-depth", 20, "Maximum task nesting depth allowed (env: MAX_NESTING_DEPTH)")
+
+	// Dispatcher heartbeat configuration flags
+	cmd.Flags().Int("dispatcher-heartbeat-interval", 30,
+		"Dispatcher heartbeat interval in seconds (env: DISPATCHER_HEARTBEAT_INTERVAL)")
+	cmd.Flags().
+		Int("dispatcher-heartbeat-ttl", 300, "Dispatcher heartbeat TTL in seconds (env: DISPATCHER_HEARTBEAT_TTL)")
+	cmd.Flags().
+		Int("dispatcher-stale-threshold", 120, "Dispatcher stale threshold in seconds (env: DISPATCHER_STALE_THRESHOLD)")
 
 	// Set debug flag to override log level
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {

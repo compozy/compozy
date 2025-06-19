@@ -121,6 +121,7 @@ func createTestActivities(
 		configStore,
 		nil, // signalDispatcher - not needed for basic test
 		configManager,
+		nil, // redisCache - not needed for basic test
 	)
 }
 
