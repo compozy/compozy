@@ -12,7 +12,7 @@ import (
 	tkrouter "github.com/compozy/compozy/engine/task/router"
 	toolrouter "github.com/compozy/compozy/engine/tool/router"
 	wfrouter "github.com/compozy/compozy/engine/workflow/router"
-	schrouter "github.com/compozy/compozy/engine/workflow/schedule/router"
+	schedulerouter "github.com/compozy/compozy/engine/workflow/schedule/router"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
@@ -126,7 +126,7 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 	tkrouter.Register(apiBase)
 	agentrouter.Register(apiBase)
 	toolrouter.Register(apiBase)
-	schrouter.Register(apiBase)
+	schedulerouter.Register(apiBase)
 
 	log := logger.FromContext(ctx)
 	log.Info("Completed route registration",

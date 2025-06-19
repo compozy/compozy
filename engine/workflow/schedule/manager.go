@@ -466,17 +466,51 @@ func (m *manager) UpdateSchedule(ctx context.Context, workflowID string, update 
 	scheduleID := m.scheduleID(workflowID)
 	handle := m.client.ScheduleClient().GetHandle(ctx, scheduleID)
 
-	// Get current schedule description to store original values
+	// Get current schedule description
+	desc, err := m.getScheduleDescription(ctx, handle)
+	if err != nil {
+		return err
+	}
+
+	// Log the API override operation
+	m.logAPIOverrideOperation(log, update)
+
+	// Prepare override values
+	values, err := m.prepareOverrideValues(desc, update)
+	if err != nil {
+		return err
+	}
+
+	// Store the override in cache
+	m.overrideCache.SetOverride(workflowID, values)
+
+	// Update in Temporal
+	if err := m.updateScheduleInTemporal(ctx, handle, update); err != nil {
+		// Remove override on failure
+		m.overrideCache.ClearOverride(workflowID)
+		return fmt.Errorf("failed to update schedule %s: %w", workflowID, err)
+	}
+	return nil
+}
+
+// getScheduleDescription gets the schedule description and handles errors
+func (m *manager) getScheduleDescription(
+	ctx context.Context,
+	handle client.ScheduleHandle,
+) (*client.ScheduleDescription, error) {
 	desc, err := handle.Describe(ctx)
 	if err != nil {
 		// Check if this is a "not found" error
 		if strings.Contains(err.Error(), "workflow not found") || strings.Contains(err.Error(), "not found") {
-			return ErrScheduleNotFound
+			return nil, ErrScheduleNotFound
 		}
-		return fmt.Errorf("failed to describe schedule before update: %w", err)
+		return nil, fmt.Errorf("failed to describe schedule before update: %w", err)
 	}
+	return desc, nil
+}
 
-	// Log API override operation
+// logAPIOverrideOperation logs the API override operation with appropriate actions
+func (m *manager) logAPIOverrideOperation(log logger.Logger, update UpdateRequest) {
 	var actions []string
 	if update.Enabled != nil {
 		if *update.Enabled {
@@ -497,8 +531,13 @@ func (m *manager) UpdateSchedule(ctx context.Context, workflowID string, update 
 	log.Warn("Schedule modified via API",
 		"action", action,
 		"will_revert_on_reload", true)
+}
 
-	// Prepare override values with original YAML values
+// prepareOverrideValues prepares the override values from current state and update request
+func (m *manager) prepareOverrideValues(
+	desc *client.ScheduleDescription,
+	update UpdateRequest,
+) (map[string]any, error) {
 	values := make(map[string]any)
 
 	// Store original values from current Temporal state
@@ -516,36 +555,66 @@ func (m *manager) UpdateSchedule(ctx context.Context, workflowID string, update 
 	}
 	if update.Cron != nil {
 		// Validate cron expression before storing
-		parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-		if _, err := parser.Parse(*update.Cron); err != nil {
-			return fmt.Errorf("invalid cron expression '%s': %w", *update.Cron, err)
+		if err := m.validateCronExpression(*update.Cron); err != nil {
+			return nil, err
 		}
 		values["cron"] = *update.Cron
 	}
 
-	// Store the override in cache
-	m.overrideCache.SetOverride(workflowID, values)
+	return values, nil
+}
 
-	// Update in Temporal
-	err = handle.Update(ctx, client.ScheduleUpdateOptions{
+// validateCronExpression validates a cron expression
+func (m *manager) validateCronExpression(cronExpr string) error {
+	// Check if it's an @every expression
+	if strings.HasPrefix(cronExpr, "@every ") {
+		durationStr := strings.TrimPrefix(cronExpr, "@every ")
+		_, err := time.ParseDuration(durationStr)
+		if err != nil {
+			return fmt.Errorf("invalid @every duration '%s': %w", durationStr, err)
+		}
+		return nil
+	}
+
+	// Compozy uses 6-field cron expressions with seconds support:
+	// Format: "second minute hour day-of-month month day-of-week"
+	parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	if _, err := parser.Parse(cronExpr); err != nil {
+		// Provide more specific error message for field count issues
+		fields := len(strings.Fields(cronExpr))
+		if fields != 6 {
+			return fmt.Errorf(
+				"invalid cron expression '%s': expected 6 fields (second minute hour day month weekday), got %d fields",
+				cronExpr,
+				fields,
+			)
+		}
+		return fmt.Errorf("invalid cron expression '%s': %w", cronExpr, err)
+	}
+	return nil
+}
+
+// updateScheduleInTemporal updates the schedule in Temporal
+func (m *manager) updateScheduleInTemporal(
+	ctx context.Context,
+	handle client.ScheduleHandle,
+	update UpdateRequest,
+) error {
+	return handle.Update(ctx, client.ScheduleUpdateOptions{
 		DoUpdate: func(schedule client.ScheduleUpdateInput) (*client.ScheduleUpdate, error) {
 			if update.Enabled != nil {
 				schedule.Description.Schedule.State.Paused = !*update.Enabled
 			}
 			if update.Cron != nil {
-				schedule.Description.Schedule.Spec.CronExpressions = []string{*update.Cron}
+				// Temporal requires 7 fields, so append year if needed
+				cronExpr := EnsureTemporalCron(*update.Cron)
+				schedule.Description.Schedule.Spec.CronExpressions = []string{cronExpr}
 			}
 			return &client.ScheduleUpdate{
 				Schedule: &schedule.Description.Schedule,
 			}, nil
 		},
 	})
-	if err != nil {
-		// Remove override on failure
-		m.overrideCache.ClearOverride(workflowID)
-		return fmt.Errorf("failed to update schedule %s: %w", workflowID, err)
-	}
-	return nil
 }
 
 // DeleteSchedule removes a schedule from Temporal

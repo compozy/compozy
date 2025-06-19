@@ -1,4 +1,4 @@
-package schrouter
+package schedulerouter
 
 import "github.com/gin-gonic/gin"
 

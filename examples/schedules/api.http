@@ -1,0 +1,83 @@
+### Schedules API Tests
+### Make sure Compozy is running on localhost:3001 before executing these requests
+
+@baseUrl = http://localhost:3001/api/v0
+@workflowId = hello-scheduler
+
+### -----------------------------------------------------------------------------
+### List all schedules
+### -----------------------------------------------------------------------------
+GET {{baseUrl}}/schedules
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Get specific schedule details
+### -----------------------------------------------------------------------------
+GET {{baseUrl}}/schedules/{{workflowId}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Disable the schedule
+### -----------------------------------------------------------------------------
+PATCH {{baseUrl}}/schedules/{{workflowId}}
+Content-Type: application/json
+
+{
+  "enabled": false
+}
+
+### -----------------------------------------------------------------------------
+### Enable the schedule
+### -----------------------------------------------------------------------------
+PATCH {{baseUrl}}/schedules/{{workflowId}}
+Content-Type: application/json
+
+{
+  "enabled": true
+}
+
+### -----------------------------------------------------------------------------
+### Update cron expression (every 30 seconds)
+### -----------------------------------------------------------------------------
+PATCH {{baseUrl}}/schedules/{{workflowId}}
+Content-Type: application/json
+
+{
+  "cron": "*/30 * * * * *"
+}
+
+### -----------------------------------------------------------------------------
+### Update cron expression (every 2 minutes at 0 seconds)
+### -----------------------------------------------------------------------------
+PATCH {{baseUrl}}/schedules/{{workflowId}}
+Content-Type: application/json
+
+{
+  "cron": "0 */2 * * * *"
+}
+
+### -----------------------------------------------------------------------------
+### Reset to original cron (every minute at 0 seconds)
+### -----------------------------------------------------------------------------
+PATCH {{baseUrl}}/schedules/{{workflowId}}
+Content-Type: application/json
+
+{
+  "cron": "0 * * * * *"
+}
+
+### -----------------------------------------------------------------------------
+### Manually trigger the workflow (outside of schedule)
+### -----------------------------------------------------------------------------
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {}
+}
+
+### -----------------------------------------------------------------------------
+### Delete the schedule
+### -----------------------------------------------------------------------------
+DELETE {{baseUrl}}/schedules/{{workflowId}}
+Accept: application/json

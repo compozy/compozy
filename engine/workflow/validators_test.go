@@ -547,7 +547,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			ID:  "test-workflow",
 			CWD: cwd,
 			Schedule: &Schedule{
-				Cron:          "0 9 * * 1-5",
+				Cron:          "0 0 9 * * 1-5",
 				Timezone:      "America/New_York",
 				Enabled:       &enabled,
 				Jitter:        "5m",
@@ -597,7 +597,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 				InputSchema: inputSchema,
 			},
 			Schedule: &Schedule{
-				Cron: "0 9 * * *",
+				Cron: "0 0 9 * * *",
 				Input: map[string]any{
 					"name":  "test",
 					"count": 42,
@@ -628,7 +628,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 				InputSchema: inputSchema,
 			},
 			Schedule: &Schedule{
-				Cron: "0 9 * * *",
+				Cron: "0 0 9 * * *",
 				Input: map[string]any{
 					// Missing required "name" field
 					"other": "value",
@@ -659,7 +659,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 				InputSchema: inputSchema,
 			},
 			Schedule: &Schedule{
-				Cron: "0 9 * * *",
+				Cron: "0 0 9 * * *",
 				// No input specified - should fail because "name" is required
 			},
 		}
@@ -688,7 +688,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 				InputSchema: inputSchema,
 			},
 			Schedule: &Schedule{
-				Cron: "0 9 * * *",
+				Cron: "0 0 9 * * *",
 				// No input specified - should pass because default is provided
 			},
 		}

@@ -1,4 +1,4 @@
-package schrouter
+package schedulerouter
 
 import (
 	"time"
@@ -10,7 +10,7 @@ import (
 type ScheduleInfoResponse struct {
 	WorkflowID    string             `json:"workflow_id"               example:"daily-report"`
 	ScheduleID    string             `json:"schedule_id"               example:"schedule-my-project-daily-report"`
-	Cron          string             `json:"cron"                      example:"0 9 * * 1-5"`
+	Cron          string             `json:"cron"                      example:"0 0 9 * * 1-5"`
 	Timezone      string             `json:"timezone"                  example:"America/New_York"`
 	Enabled       bool               `json:"enabled"                   example:"true"`
 	IsOverride    bool               `json:"is_override"               example:"false"`
@@ -29,5 +29,5 @@ type ScheduleListResponse struct {
 // UpdateScheduleRequest represents the API request for updating a schedule
 type UpdateScheduleRequest struct {
 	Enabled *bool   `json:"enabled" example:"false"`
-	Cron    *string `json:"cron"    example:"0 */10 * * *"`
+	Cron    *string `json:"cron"    example:"0 0 */10 * * *"`
 }

@@ -47,7 +47,7 @@ func TestScheduleMetrics_RecordOperation(t *testing.T) {
 		metrics := NewMetrics(ctx, meter)
 
 		// Act & Assert - Should not panic
-		metrics.RecordOperation(ctx, "create", "success", "test-project")
+		metrics.RecordOperation(ctx, OperationCreate, OperationStatusSuccess, "test-project")
 	})
 
 	t.Run("Should handle nil instruments gracefully", func(_ *testing.T) {
@@ -56,7 +56,7 @@ func TestScheduleMetrics_RecordOperation(t *testing.T) {
 		metrics := NewMetrics(ctx, nil)
 
 		// Act & Assert - Should not panic
-		metrics.RecordOperation(ctx, "create", "success", "test-project")
+		metrics.RecordOperation(ctx, OperationCreate, OperationStatusSuccess, "test-project")
 	})
 }
 
@@ -171,7 +171,7 @@ func TestMetricsInitialization(t *testing.T) {
 		assert.NotNil(t, metrics1)
 		assert.NotNil(t, metrics2)
 		// Both should work without issues
-		metrics1.RecordOperation(ctx, "create", "success", "project1")
-		metrics2.RecordOperation(ctx, "update", "failure", "project2")
+		metrics1.RecordOperation(ctx, OperationCreate, OperationStatusSuccess, "project1")
+		metrics2.RecordOperation(ctx, OperationUpdate, OperationStatusFailure, "project2")
 	})
 }

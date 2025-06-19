@@ -90,7 +90,7 @@ func TestReconcileSchedules(t *testing.T) {
 			{
 				ID: "scheduled-workflow",
 				Schedule: &workflow.Schedule{
-					Cron:          "0 */5 * * *",
+					Cron:          "0 0 */5 * * *",
 					Timezone:      "UTC",
 					Enabled:       &enabled,
 					OverlapPolicy: workflow.OverlapSkip,
@@ -135,7 +135,7 @@ func TestReconcileSchedules(t *testing.T) {
 		mockHandle.On("Describe", ctx).Return(&client.ScheduleDescription{
 			Schedule: client.Schedule{
 				Spec: &client.ScheduleSpec{
-					CronExpressions: []string{"0 */10 * * *"}, // Different from new config
+					CronExpressions: []string{"0 0 */10 * * *"}, // Different from new config
 					TimeZoneName:    "UTC",
 				},
 				State: &client.ScheduleState{
@@ -152,7 +152,7 @@ func TestReconcileSchedules(t *testing.T) {
 			{
 				ID: "workflow-1",
 				Schedule: &workflow.Schedule{
-					Cron:          "0 */5 * * *", // Changed from */10 to */5
+					Cron:          "0 0 */5 * * *", // Changed from */10 to */5
 					Timezone:      "UTC",
 					Enabled:       &enabled,
 					OverlapPolicy: workflow.OverlapSkip,
@@ -219,6 +219,19 @@ func TestUpdateSchedule(t *testing.T) {
 		// Create mock handle
 		mockHandle := &mocks.ScheduleHandle{}
 		mockClient.scheduleClient.On("GetHandle", ctx, scheduleID).Return(mockHandle)
+		// Mock describe to get current schedule state
+		mockHandle.On("Describe", ctx).Return(&client.ScheduleDescription{
+			Schedule: client.Schedule{
+				Spec: &client.ScheduleSpec{
+					CronExpressions: []string{"0 0 */5 * * *"},
+					TimeZoneName:    "UTC",
+				},
+				State: &client.ScheduleState{
+					Paused: true, // Currently paused, will be enabled
+				},
+			},
+			Info: client.ScheduleInfo{},
+		}, nil).Once()
 		// Mock update
 		mockHandle.On("Update", ctx, mock.Anything).
 			Return(nil).Once()
@@ -252,6 +265,19 @@ func TestUpdateSchedule(t *testing.T) {
 		// Create mock handle
 		mockHandle := &mocks.ScheduleHandle{}
 		mockClient.scheduleClient.On("GetHandle", ctx, scheduleID).Return(mockHandle)
+		// Mock describe to get current schedule state
+		mockHandle.On("Describe", ctx).Return(&client.ScheduleDescription{
+			Schedule: client.Schedule{
+				Spec: &client.ScheduleSpec{
+					CronExpressions: []string{"0 0 */5 * * *"},
+					TimeZoneName:    "UTC",
+				},
+				State: &client.ScheduleState{
+					Paused: true,
+				},
+			},
+			Info: client.ScheduleInfo{},
+		}, nil).Once()
 		// Mock update failure
 		mockHandle.On("Update", ctx, mock.Anything).
 			Return(assert.AnError).Once()
@@ -277,7 +303,7 @@ func TestUpdateSchedule(t *testing.T) {
 		workflowID := "workflow-1"
 		scheduleID := "schedule-test-project-workflow-1"
 		enabled := false
-		cronOverride := "0 */10 * * *"
+		cronOverride := "0 0 */10 * * *"
 		updateReq := UpdateRequest{
 			Enabled: &enabled,
 			Cron:    &cronOverride,
@@ -285,6 +311,19 @@ func TestUpdateSchedule(t *testing.T) {
 		// Create mock handle
 		mockHandle := &mocks.ScheduleHandle{}
 		mockClient.scheduleClient.On("GetHandle", ctx, scheduleID).Return(mockHandle)
+		// Mock describe to get current schedule state
+		mockHandle.On("Describe", ctx).Return(&client.ScheduleDescription{
+			Schedule: client.Schedule{
+				Spec: &client.ScheduleSpec{
+					CronExpressions: []string{"0 0 */5 * * *"},
+					TimeZoneName:    "UTC",
+				},
+				State: &client.ScheduleState{
+					Paused: true,
+				},
+			},
+			Info: client.ScheduleInfo{},
+		}, nil).Once()
 		// Mock update
 		mockHandle.On("Update", ctx, mock.Anything).
 			Return(nil).Once()
@@ -320,6 +359,19 @@ func TestUpdateSchedule(t *testing.T) {
 		// Create mock handle - update should not be called
 		mockHandle := &mocks.ScheduleHandle{}
 		mockClient.scheduleClient.On("GetHandle", ctx, scheduleID).Return(mockHandle)
+		// Mock describe to get current schedule state (called before validation)
+		mockHandle.On("Describe", ctx).Return(&client.ScheduleDescription{
+			Schedule: client.Schedule{
+				Spec: &client.ScheduleSpec{
+					CronExpressions: []string{"0 0 */5 * * *"},
+					TimeZoneName:    "UTC",
+				},
+				State: &client.ScheduleState{
+					Paused: false,
+				},
+			},
+			Info: client.ScheduleInfo{},
+		}, nil).Once()
 		// Execute update
 		err := m.UpdateSchedule(ctx, workflowID, updateReq)
 		require.Error(t, err)
@@ -421,7 +473,7 @@ func TestListSchedules(t *testing.T) {
 		mockHandle.On("Describe", ctx).Return(&client.ScheduleDescription{
 			Schedule: client.Schedule{
 				Spec: &client.ScheduleSpec{
-					CronExpressions: []string{"0 */5 * * *"},
+					CronExpressions: []string{"0 0 */5 * * *"},
 					TimeZoneName:    "UTC",
 				},
 				State: &client.ScheduleState{
@@ -435,7 +487,7 @@ func TestListSchedules(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, schedules, 1)
 		assert.Equal(t, "workflow-1", schedules[0].WorkflowID)
-		assert.Equal(t, "0 */5 * * *", schedules[0].Cron)
+		assert.Equal(t, "0 0 */5 * * *", schedules[0].Cron)
 		assert.True(t, schedules[0].Enabled)
 		// Verify all expectations
 		mockClient.scheduleClient.AssertExpectations(t)
@@ -480,7 +532,7 @@ func TestGetSchedule(t *testing.T) {
 		mockHandle.On("Describe", ctx).Return(&client.ScheduleDescription{
 			Schedule: client.Schedule{
 				Spec: &client.ScheduleSpec{
-					CronExpressions: []string{"0 */5 * * *"},
+					CronExpressions: []string{"0 0 */5 * * *"},
 					TimeZoneName:    "UTC",
 				},
 				State: &client.ScheduleState{
@@ -495,7 +547,7 @@ func TestGetSchedule(t *testing.T) {
 		require.NotNil(t, info)
 		assert.Equal(t, workflowID, info.WorkflowID)
 		assert.Equal(t, scheduleID, info.ScheduleID)
-		assert.Equal(t, "0 */5 * * *", info.Cron)
+		assert.Equal(t, "0 0 */5 * * *", info.Cron)
 		assert.True(t, info.Enabled)
 		// Verify all expectations
 		mockClient.scheduleClient.AssertExpectations(t)
@@ -546,6 +598,20 @@ func TestManager_OverrideTracking(t *testing.T) {
 		mockHandle := &mocks.ScheduleHandle{}
 		mockClient.scheduleClient.On("GetHandle", ctx, scheduleID).Return(mockHandle)
 
+		// Mock describe to get current schedule state
+		mockHandle.On("Describe", ctx).Return(&client.ScheduleDescription{
+			Schedule: client.Schedule{
+				Spec: &client.ScheduleSpec{
+					CronExpressions: []string{"0 0 */5 * * *"},
+					TimeZoneName:    "UTC",
+				},
+				State: &client.ScheduleState{
+					Paused: true,
+				},
+			},
+			Info: client.ScheduleInfo{},
+		}, nil).Once()
+
 		// Mock successful update
 		mockHandle.On("Update", ctx, mock.Anything).Return(nil).Once()
 
@@ -591,7 +657,7 @@ func TestManager_OverrideTracking(t *testing.T) {
 			{
 				ID: "test-workflow",
 				Schedule: &workflow.Schedule{
-					Cron:    "0 */5 * * *",
+					Cron:    "0 0 */5 * * *",
 					Enabled: &enabled,
 				},
 			},
@@ -636,7 +702,7 @@ func TestManager_ConfigurationReload(t *testing.T) {
 			{
 				ID: "reload-workflow",
 				Schedule: &workflow.Schedule{
-					Cron:    "0 */5 * * *",
+					Cron:    "0 0 */5 * * *",
 					Enabled: &enabled,
 				},
 			},

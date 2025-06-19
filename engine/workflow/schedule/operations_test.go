@@ -70,7 +70,7 @@ func TestGetScheduleInfo(t *testing.T) {
 		mockHandle.On("Describe", ctx).Return(&client.ScheduleDescription{
 			Schedule: client.Schedule{
 				Spec: &client.ScheduleSpec{
-					CronExpressions: []string{"0 */5 * * *"},
+					CronExpressions: []string{"0 0 */5 * * *"},
 					TimeZoneName:    "America/New_York",
 				},
 				State: &client.ScheduleState{
@@ -92,7 +92,7 @@ func TestGetScheduleInfo(t *testing.T) {
 		// Verify extracted information
 		assert.Equal(t, "workflow-1", info.WorkflowID)
 		assert.Equal(t, scheduleID, info.ScheduleID)
-		assert.Equal(t, "0 */5 * * *", info.Cron)
+		assert.Equal(t, "0 0 */5 * * *", info.Cron)
 		assert.Equal(t, "America/New_York", info.Timezone)
 		assert.True(t, info.Enabled)
 		assert.Equal(t, nextRun, info.NextRunTime)
@@ -120,7 +120,7 @@ func TestGetScheduleInfo(t *testing.T) {
 		mockHandle.On("Describe", ctx).Return(&client.ScheduleDescription{
 			Schedule: client.Schedule{
 				Spec: &client.ScheduleSpec{
-					CronExpressions: []string{"0 */5 * * *"},
+					CronExpressions: []string{"0 0 */5 * * *"},
 				},
 				State: &client.ScheduleState{
 					Paused: true,
@@ -154,7 +154,7 @@ func TestCreateSchedule(t *testing.T) {
 		wf := &workflow.Config{
 			ID: "workflow-1",
 			Schedule: &workflow.Schedule{
-				Cron:          "0 */5 * * *",
+				Cron:          "0 0 */5 * * *",
 				Timezone:      "America/New_York",
 				Enabled:       &enabled,
 				Jitter:        "30s",
@@ -182,7 +182,7 @@ func TestCreateSchedule(t *testing.T) {
 		require.NoError(t, err)
 		// Verify captured options
 		assert.Equal(t, scheduleID, capturedOptions.ID)
-		assert.Equal(t, "0 */5 * * *", capturedOptions.Spec.CronExpressions[0])
+		assert.Equal(t, "0 0 */5 * * * *", capturedOptions.Spec.CronExpressions[0])
 		assert.Equal(t, "America/New_York", capturedOptions.Spec.TimeZoneName)
 		assert.NotNil(t, capturedOptions.Spec.Jitter)
 		assert.Equal(t, 30*time.Second, capturedOptions.Spec.Jitter)
@@ -193,9 +193,14 @@ func TestCreateSchedule(t *testing.T) {
 		// Verify workflow action
 		action := capturedOptions.Action.(*client.ScheduleWorkflowAction)
 		assert.Equal(t, "workflow-1", action.ID)
-		assert.Equal(t, "workflow-1", action.Workflow)
+		assert.Equal(t, "CompozyWorkflow", action.Workflow)
 		assert.Equal(t, "test-project", action.TaskQueue)
-		assert.Equal(t, []any{wf.Schedule.Input}, action.Args)
+		expectedTriggerInput := map[string]any{
+			"workflow_id":      "workflow-1",
+			"workflow_exec_id": "",
+			"input":            wf.Schedule.Input,
+		}
+		assert.Equal(t, []any{expectedTriggerInput}, action.Args)
 		// Verify memo
 		assert.Equal(t, "test-project", capturedOptions.Memo["project_id"])
 		assert.Equal(t, "workflow-1", capturedOptions.Memo["workflow_id"])
@@ -216,7 +221,7 @@ func TestCreateSchedule(t *testing.T) {
 		wf := &workflow.Config{
 			ID: "workflow-1",
 			Schedule: &workflow.Schedule{
-				Cron:    "0 */5 * * *",
+				Cron:    "0 0 */5 * * *",
 				Enabled: &enabled,
 			},
 		}
@@ -256,7 +261,7 @@ func TestUpdateScheduleOperation(t *testing.T) {
 		wf := &workflow.Config{
 			ID: "workflow-1",
 			Schedule: &workflow.Schedule{
-				Cron:          "0 */5 * * *",
+				Cron:          "0 0 */5 * * *",
 				Timezone:      "UTC",
 				Enabled:       &enabled,
 				OverlapPolicy: workflow.OverlapSkip,
@@ -265,11 +270,11 @@ func TestUpdateScheduleOperation(t *testing.T) {
 		scheduleID := "schedule-test-project-workflow-1"
 		mockHandle := &mocks.ScheduleHandle{}
 		mockClient.scheduleClient.On("GetHandle", ctx, scheduleID).Return(mockHandle)
-		// Mock describe - everything matches
+		// Mock describe - everything matches (with 7-field format from Temporal)
 		mockHandle.On("Describe", ctx).Return(&client.ScheduleDescription{
 			Schedule: client.Schedule{
 				Spec: &client.ScheduleSpec{
-					CronExpressions: []string{"0 */5 * * *"},
+					CronExpressions: []string{"0 0 */5 * * * *"}, // 7-field format
 					TimeZoneName:    "UTC",
 				},
 				State: &client.ScheduleState{
@@ -299,7 +304,7 @@ func TestUpdateScheduleOperation(t *testing.T) {
 		wf := &workflow.Config{
 			ID: "workflow-1",
 			Schedule: &workflow.Schedule{
-				Cron:          "0 */10 * * *",     // Changed
+				Cron:          "0 0 */10 * * *",   // Changed
 				Timezone:      "America/New_York", // Changed
 				Enabled:       &enabled,
 				OverlapPolicy: workflow.OverlapAllow, // Changed
@@ -312,7 +317,7 @@ func TestUpdateScheduleOperation(t *testing.T) {
 		mockHandle.On("Describe", ctx).Return(&client.ScheduleDescription{
 			Schedule: client.Schedule{
 				Spec: &client.ScheduleSpec{
-					CronExpressions: []string{"0 */5 * * *"},
+					CronExpressions: []string{"0 0 */5 * * *"},
 					TimeZoneName:    "UTC",
 				},
 				State: &client.ScheduleState{

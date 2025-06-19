@@ -3,6 +3,7 @@ package schedule
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/engine/workflow"
@@ -11,8 +12,30 @@ import (
 	"go.temporal.io/sdk/client"
 )
 
-// Operation status constants for metrics
+// EnsureTemporalCron ensures the cron expression is in Temporal's expected format.
+// Temporal requires 7 fields for seconds support, so we append year if needed.
+// Returns the converted cron expression.
+func EnsureTemporalCron(cronExpr string) string {
+	// @every syntax is supported by Temporal directly
+	if strings.HasPrefix(cronExpr, "@every ") {
+		return cronExpr
+	}
+	// Convert 6-field to 7-field by adding year
+	fields := strings.Fields(cronExpr)
+	if len(fields) == 6 {
+		return cronExpr + " *"
+	}
+	return cronExpr
+}
+
+// Operation constants for metrics
 const (
+	// Operation types
+	OperationCreate = "create"
+	OperationUpdate = "update"
+	OperationDelete = "delete"
+
+	// Operation status
 	OperationStatusSuccess = "success"
 	OperationStatusFailure = "failure"
 )
@@ -100,20 +123,54 @@ func (m *manager) getScheduleInfo(
 	return info, nil
 }
 
-// createSchedule creates a new schedule in Temporal
-func (m *manager) createSchedule(ctx context.Context, scheduleID string, wf *workflow.Config) error {
-	log := logger.FromContext(ctx).With("schedule_id", scheduleID, "workflow_id", wf.ID)
+// validateCronForSchedule validates cron expression for schedule creation
+func (m *manager) validateCronForSchedule(wf *workflow.Config, log logger.Logger) error {
+	// Compozy supports two formats:
+	// 1. @every syntax for intervals: "@every 15s", "@every 1h30m"
+	// 2. 6-field cron expressions with seconds:
+	//    Format: "second minute hour day-of-month month day-of-week"
+	//    Example: "0 0 9 * * 1-5" (Every weekday at 9:00:00 AM)
+	//    Note: When sending to Temporal, we automatically append year field
 
-	// Record operation metrics
-	operation := "create"
-	status := OperationStatusFailure // Assume failure, will be set to success on completion
-	if m.metrics != nil {
-		defer func() {
-			m.metrics.RecordOperation(ctx, operation, status, m.projectID)
-		}()
+	// Check if it's an @every expression
+	if strings.HasPrefix(wf.Schedule.Cron, "@every ") {
+		// Extract duration string after "@every "
+		durationStr := strings.TrimPrefix(wf.Schedule.Cron, "@every ")
+		_, err := time.ParseDuration(durationStr)
+		if err != nil {
+			log.Error("Schedule validation failed - invalid @every duration",
+				"workflow_id", wf.ID,
+				"cron", wf.Schedule.Cron,
+				"error", err)
+			return fmt.Errorf("invalid @every duration '%s': %w", durationStr, err)
+		}
+		return nil
 	}
-	// Parse cron expression
-	cronSpec, err := cron.ParseStandard(wf.Schedule.Cron)
+
+	// Parse as 6 or 7-field cron expression
+	fields := len(strings.Fields(wf.Schedule.Cron))
+	var parser cron.Parser
+	switch fields {
+	case 6:
+		// 6-field format: second minute hour day month weekday
+		parser = cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	case 7:
+		// 7-field format: second minute hour day month weekday year
+		parser = cron.NewParser(
+			cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
+		)
+	default:
+		log.Error("Schedule validation failed - incorrect field count",
+			"workflow_id", wf.ID,
+			"cron", wf.Schedule.Cron,
+			"expected_fields", "6 or 7",
+			"actual_fields", fields)
+		return fmt.Errorf(
+			"invalid cron expression: expected 6 or 7 fields (second minute hour day month weekday [year]), got %d fields",
+			fields,
+		)
+	}
+	_, err := parser.Parse(wf.Schedule.Cron)
 	if err != nil {
 		log.Error("Schedule validation failed",
 			"workflow_id", wf.ID,
@@ -121,10 +178,30 @@ func (m *manager) createSchedule(ctx context.Context, scheduleID string, wf *wor
 			"cron", wf.Schedule.Cron)
 		return fmt.Errorf("invalid cron expression: %w", err)
 	}
-	_ = cronSpec // Just for validation
+	return nil
+}
+
+// createSchedule creates a new schedule in Temporal
+func (m *manager) createSchedule(ctx context.Context, scheduleID string, wf *workflow.Config) error {
+	log := logger.FromContext(ctx).With("schedule_id", scheduleID, "workflow_id", wf.ID)
+
+	// Record operation metrics
+	operation := OperationCreate
+	status := OperationStatusFailure // Assume failure, will be set to success on completion
+	if m.metrics != nil {
+		defer func() {
+			m.metrics.RecordOperation(ctx, operation, status, m.projectID)
+		}()
+	}
+	// Validate cron expression
+	if err := m.validateCronForSchedule(wf, log); err != nil {
+		return err
+	}
 	// Build schedule specification
+	// Ensure cron expression is in Temporal's expected format
+	cronExpr := EnsureTemporalCron(wf.Schedule.Cron)
 	spec := client.ScheduleSpec{
-		CronExpressions: []string{wf.Schedule.Cron},
+		CronExpressions: []string{cronExpr},
 	}
 	// Set timezone
 	if wf.Schedule.Timezone != "" {
@@ -154,16 +231,19 @@ func (m *manager) createSchedule(ctx context.Context, scheduleID string, wf *wor
 	// Build schedule action (workflow to run)
 	action := &client.ScheduleWorkflowAction{
 		ID:                       wf.ID,
-		Workflow:                 wf.ID, // Workflow type name
+		Workflow:                 "CompozyWorkflow", // All workflows use the generic CompozyWorkflow type
 		TaskQueue:                m.taskQueue,
 		WorkflowExecutionTimeout: 0, // Use server default
 		WorkflowRunTimeout:       0, // Use server default
 		WorkflowTaskTimeout:      0, // Use server default
 	}
-	// Set workflow input
-	if wf.Schedule.Input != nil {
-		action.Args = []any{wf.Schedule.Input}
+	// Set workflow input - create TriggerInput for CompozyWorkflow
+	triggerInput := map[string]any{
+		"workflow_id":      wf.ID,
+		"workflow_exec_id": "", // Will be generated by the workflow
+		"input":            wf.Schedule.Input,
 	}
+	action.Args = []any{triggerInput}
 	// Note: Overlap policy is handled differently in SDK v1.34.0
 	// It's set during trigger operations rather than during creation
 	if wf.Schedule.OverlapPolicy != "" && wf.Schedule.OverlapPolicy != workflow.OverlapSkip {
@@ -205,7 +285,7 @@ func (m *manager) updateSchedule(ctx context.Context, scheduleID string, wf *wor
 	log := logger.FromContext(ctx).With("schedule_id", scheduleID, "workflow_id", wf.ID)
 
 	// Record operation metrics
-	operation := "update"
+	operation := OperationUpdate
 	status := OperationStatusFailure // Assume failure, will be set to success on completion
 	if m.metrics != nil {
 		defer func() {
@@ -229,7 +309,9 @@ func (m *manager) updateSchedule(ctx context.Context, scheduleID string, wf *wor
 	err = handle.Update(ctx, client.ScheduleUpdateOptions{
 		DoUpdate: func(input client.ScheduleUpdateInput) (*client.ScheduleUpdate, error) {
 			// Update spec
-			input.Description.Schedule.Spec.CronExpressions = []string{wf.Schedule.Cron}
+			// Ensure cron expression is in Temporal's expected format
+			cronExpr := EnsureTemporalCron(wf.Schedule.Cron)
+			input.Description.Schedule.Spec.CronExpressions = []string{cronExpr}
 			input.Description.Schedule.Spec.TimeZoneName = expectedTimezone
 			// Update jitter
 			if wf.Schedule.Jitter != "" {
@@ -251,13 +333,17 @@ func (m *manager) updateSchedule(ctx context.Context, scheduleID string, wf *wor
 			// Note: Overlap policy is not updated in SDK v1.34.0
 			// Update enabled state
 			input.Description.Schedule.State.Paused = !expectedEnabled
-			// Update action (workflow input)
+			// Update action (workflow input and type)
 			if action, ok := input.Description.Schedule.Action.(*client.ScheduleWorkflowAction); ok {
-				if wf.Schedule.Input != nil {
-					action.Args = []any{wf.Schedule.Input}
-				} else {
-					action.Args = nil
+				// Update workflow type to CompozyWorkflow
+				action.Workflow = "CompozyWorkflow"
+				// Create TriggerInput for CompozyWorkflow
+				triggerInput := map[string]any{
+					"workflow_id":      wf.ID,
+					"workflow_exec_id": "", // Will be generated by the workflow
+					"input":            wf.Schedule.Input,
 				}
+				action.Args = []any{triggerInput}
 			}
 			return &client.ScheduleUpdate{
 				Schedule: &input.Description.Schedule,
@@ -277,7 +363,7 @@ func (m *manager) deleteSchedule(ctx context.Context, scheduleID string) error {
 	log := logger.FromContext(ctx).With("schedule_id", scheduleID)
 
 	// Record operation metrics
-	operation := "delete"
+	operation := OperationDelete
 	status := OperationStatusFailure // Assume failure, will be set to success on completion
 	if m.metrics != nil {
 		defer func() {
@@ -307,7 +393,9 @@ func (m *manager) checkScheduleNeedsUpdate(
 	currentSpec := desc.Schedule.Spec
 
 	// Check cron expression
-	if len(currentSpec.CronExpressions) == 0 || currentSpec.CronExpressions[0] != wf.Schedule.Cron {
+	// Convert YAML cron to Temporal format for comparison
+	expectedCron := EnsureTemporalCron(wf.Schedule.Cron)
+	if len(currentSpec.CronExpressions) == 0 || currentSpec.CronExpressions[0] != expectedCron {
 		needsUpdate = true
 	}
 

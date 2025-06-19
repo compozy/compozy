@@ -1,4 +1,4 @@
-package schrouter
+package schedulerouter
 
 import (
 	"bytes"
@@ -112,7 +112,7 @@ func TestListSchedules(t *testing.T) {
 			{
 				WorkflowID:    "workflow-1",
 				ScheduleID:    "schedule-test-project-workflow-1",
-				Cron:          "0 */5 * * *",
+				Cron:          "0 0 */5 * * *",
 				Timezone:      "UTC",
 				Enabled:       true,
 				IsOverride:    false,
@@ -123,12 +123,12 @@ func TestListSchedules(t *testing.T) {
 			{
 				WorkflowID: "workflow-2",
 				ScheduleID: "schedule-test-project-workflow-2",
-				Cron:       "0 9 * * 1-5",
+				Cron:       "0 0 9 * * 1-5",
 				Timezone:   "America/New_York",
 				Enabled:    false,
 				IsOverride: true,
 				YAMLConfig: &workflow.Schedule{
-					Cron:    "0 9 * * 1-5",
+					Cron:    "0 0 9 * * 1-5",
 					Enabled: &enabled,
 				},
 			},
@@ -205,7 +205,7 @@ func TestGetSchedule(t *testing.T) {
 		scheduleInfo := &schedule.Info{
 			WorkflowID:    "workflow-1",
 			ScheduleID:    "schedule-test-project-workflow-1",
-			Cron:          "0 */5 * * *",
+			Cron:          "0 0 */5 * * *",
 			Timezone:      "UTC",
 			Enabled:       true,
 			IsOverride:    false,
@@ -264,7 +264,7 @@ func TestUpdateSchedule(t *testing.T) {
 		updatedInfo := &schedule.Info{
 			WorkflowID:    "workflow-1",
 			ScheduleID:    "schedule-test-project-workflow-1",
-			Cron:          "0 */5 * * *",
+			Cron:          "0 0 */5 * * *",
 			Timezone:      "UTC",
 			Enabled:       false,
 			IsOverride:    true,
@@ -316,7 +316,7 @@ func TestUpdateSchedule(t *testing.T) {
 	})
 	t.Run("Should update schedule with cron only", func(t *testing.T) {
 		router, mockManager := setupTest(t)
-		cronValue := "0 */10 * * *"
+		cronValue := "0 0 */10 * * *"
 		updateReq := schedule.UpdateRequest{
 			Cron: &cronValue,
 		}

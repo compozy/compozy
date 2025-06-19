@@ -11,12 +11,13 @@ import (
 func TestValidateSchedule(t *testing.T) {
 	t.Run("Should validate valid cron expressions", func(t *testing.T) {
 		validCrons := []string{
-			"0 9 * * 1-5", // 9 AM weekdays
-			"0 * * * *",   // Every hour
-			"0 2 * * 0",   // 2 AM every Sunday
-			"*/5 * * * *", // Every 5 minutes
-			"0 0 1 * *",   // First day of month
-			"30 3 15 * *", // 3:30 AM on 15th of month
+			"0 0 9 * * 1-5",  // 9 AM weekdays
+			"0 0 * * * *",    // Every hour
+			"0 0 2 * * 0",    // 2 AM every Sunday
+			"0 */5 * * * *",  // Every 5 minutes
+			"0 0 0 1 * *",    // First day of month
+			"0 30 3 15 * *",  // 3:30 AM on 15th of month
+			"*/30 * * * * *", // Every 30 seconds
 		}
 		for _, cron := range validCrons {
 			schedule := &Schedule{Cron: cron}
@@ -27,12 +28,13 @@ func TestValidateSchedule(t *testing.T) {
 	t.Run("Should reject invalid cron expressions", func(t *testing.T) {
 		invalidCrons := []string{
 			"invalid",
-			"* * * *",    // Missing field
-			"60 * * * *", // Invalid minute
-			"* 25 * * *", // Invalid hour
-			"* * 32 * *", // Invalid day
-			"* * * 13 *", // Invalid month
-			"* * * * 8",  // Invalid weekday
+			"* * * * *",    // Missing seconds field
+			"60 * * * * *", // Invalid second
+			"* 60 * * * *", // Invalid minute
+			"* * 25 * * *", // Invalid hour
+			"* * * 32 * *", // Invalid day
+			"* * * * 13 *", // Invalid month
+			"* * * * * 8",  // Invalid weekday
 		}
 		for _, cron := range invalidCrons {
 			schedule := &Schedule{Cron: cron}
@@ -55,7 +57,7 @@ func TestValidateSchedule(t *testing.T) {
 		}
 		for _, tz := range validTimezones {
 			schedule := &Schedule{
-				Cron:     "0 9 * * *",
+				Cron:     "0 0 9 * * *",
 				Timezone: tz,
 			}
 			err := ValidateSchedule(schedule)
@@ -71,7 +73,7 @@ func TestValidateSchedule(t *testing.T) {
 		}
 		for _, tz := range invalidTimezones {
 			schedule := &Schedule{
-				Cron:     "0 9 * * *",
+				Cron:     "0 0 9 * * *",
 				Timezone: tz,
 			}
 			err := ValidateSchedule(schedule)
@@ -91,7 +93,7 @@ func TestValidateSchedule(t *testing.T) {
 		}
 		for _, policy := range validPolicies {
 			schedule := &Schedule{
-				Cron:          "0 9 * * *",
+				Cron:          "0 0 9 * * *",
 				OverlapPolicy: policy,
 			}
 			err := ValidateSchedule(schedule)
@@ -106,7 +108,7 @@ func TestValidateSchedule(t *testing.T) {
 		}
 		for _, policy := range invalidPolicies {
 			schedule := &Schedule{
-				Cron:          "0 9 * * *",
+				Cron:          "0 0 9 * * *",
 				OverlapPolicy: policy,
 			}
 			err := ValidateSchedule(schedule)
@@ -127,7 +129,7 @@ func TestValidateSchedule(t *testing.T) {
 		}
 		for _, jitter := range validJitters {
 			schedule := &Schedule{
-				Cron:   "0 9 * * *",
+				Cron:   "0 0 9 * * *",
 				Jitter: jitter,
 			}
 			err := ValidateSchedule(schedule)
@@ -143,7 +145,7 @@ func TestValidateSchedule(t *testing.T) {
 		}
 		for _, jitter := range invalidJitters {
 			schedule := &Schedule{
-				Cron:   "0 9 * * *",
+				Cron:   "0 0 9 * * *",
 				Jitter: jitter,
 			}
 			err := ValidateSchedule(schedule)
@@ -159,7 +161,7 @@ func TestValidateSchedule(t *testing.T) {
 		yesterday := now.Add(-24 * time.Hour)
 		// Valid: start before end
 		schedule := &Schedule{
-			Cron:    "0 9 * * *",
+			Cron:    "0 0 9 * * *",
 			StartAt: &now,
 			EndAt:   &tomorrow,
 		}
@@ -167,21 +169,21 @@ func TestValidateSchedule(t *testing.T) {
 		assert.NoError(t, err)
 		// Valid: only start time
 		schedule = &Schedule{
-			Cron:    "0 9 * * *",
+			Cron:    "0 0 9 * * *",
 			StartAt: &now,
 		}
 		err = ValidateSchedule(schedule)
 		assert.NoError(t, err)
 		// Valid: only end time
 		schedule = &Schedule{
-			Cron:  "0 9 * * *",
+			Cron:  "0 0 9 * * *",
 			EndAt: &tomorrow,
 		}
 		err = ValidateSchedule(schedule)
 		assert.NoError(t, err)
 		// Invalid: start after end
 		schedule = &Schedule{
-			Cron:    "0 9 * * *",
+			Cron:    "0 0 9 * * *",
 			StartAt: &tomorrow,
 			EndAt:   &yesterday,
 		}
@@ -192,7 +194,7 @@ func TestValidateSchedule(t *testing.T) {
 	t.Run("Should handle DST transitions in timezones", func(t *testing.T) {
 		// Test with a timezone that has DST
 		schedule := &Schedule{
-			Cron:     "0 2 * * *", // 2 AM - problematic during spring DST transition
+			Cron:     "0 0 2 * * *", // 2 AM - problematic during spring DST transition
 			Timezone: "America/New_York",
 		}
 		err := ValidateSchedule(schedule)
@@ -204,7 +206,7 @@ func TestValidateSchedule(t *testing.T) {
 		now := time.Now()
 		future := now.Add(30 * 24 * time.Hour)
 		schedule := &Schedule{
-			Cron:          "0 9 * * 1-5",
+			Cron:          "0 0 9 * * 1-5",
 			Timezone:      "America/New_York",
 			Enabled:       &enabled,
 			Jitter:        "5m",

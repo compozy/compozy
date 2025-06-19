@@ -1,4 +1,4 @@
-package schrouter
+package schedulerouter
 
 import (
 	"errors"
@@ -63,7 +63,6 @@ func getScheduleManager(c *gin.Context) (schedule.Manager, bool) {
 //	@Success		200	{object}	router.Response{data=ScheduleListResponse}		"Schedules retrieved successfully"
 //	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/schedules [get]
-//	@Security		BearerAuth
 func listSchedules(c *gin.Context) {
 	scheduleManager, ok := getScheduleManager(c)
 	if !ok {
@@ -102,7 +101,6 @@ func listSchedules(c *gin.Context) {
 //	@Failure		404			{object}	router.Response{error=router.ErrorInfo}	"Schedule not found"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/schedules/{workflow_id} [get]
-//	@Security		BearerAuth
 func getSchedule(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
 	if workflowID == "" {
@@ -148,7 +146,6 @@ func getSchedule(c *gin.Context) {
 //	@Failure		404			{object}	router.Response{error=router.ErrorInfo}	"Schedule not found"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/schedules/{workflow_id} [patch]
-//	@Security		BearerAuth
 func updateSchedule(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
 	if workflowID == "" {
@@ -226,7 +223,6 @@ func updateSchedule(c *gin.Context) {
 //	@Failure		404			{object}	router.Response{error=router.ErrorInfo}	"Schedule not found"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/schedules/{workflow_id} [delete]
-//	@Security		BearerAuth
 func deleteSchedule(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
 	if workflowID == "" {

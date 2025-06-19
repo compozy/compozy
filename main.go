@@ -24,6 +24,9 @@
 //	@tag.name			tools
 //	@tag.description	Tool management operations
 
+//	@tag.name			schedules
+//	@tag.description	Schedule management operations
+
 //	@tag.name			Operations
 //	@tag.description	Operational endpoints for monitoring and health
 
@@ -33,6 +36,7 @@ import (
 	"os"
 
 	"github.com/compozy/compozy/cli"
+	_ "github.com/compozy/compozy/engine/workflow/schedule/router" // Import for swagger docs
 )
 
 func main() {
