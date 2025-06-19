@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	tkacts "github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/task/services"
+	wkacts "github.com/compozy/compozy/engine/worker/activities"
 	wf "github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gosimple/slug"
@@ -57,6 +58,7 @@ type Worker struct {
 	redisCache    *cache.Cache
 	mcpRegister   *mcp.RegisterService
 	dispatcherID  string // Track dispatcher ID for cleanup
+	serverID      string // Server ID for this worker instance
 
 	// Lifecycle management
 	lifecycleCtx    context.Context
@@ -162,6 +164,7 @@ func NewWorker(
 		configStore,
 		signalDispatcher,
 		configManager,
+		redisCache,
 	)
 	// Set configured worker count for monitoring
 	interceptor.SetConfiguredWorkerCount(1) // Each worker instance represents 1 configured worker
@@ -180,6 +183,7 @@ func NewWorker(
 		redisCache:      redisCache,
 		mcpRegister:     mcpRegister,
 		dispatcherID:    dispatcherID,
+		serverID:        serverID,
 		lifecycleCtx:    lifecycleCtx,
 		lifecycleCancel: lifecycleCancel,
 	}, nil
@@ -219,12 +223,22 @@ func (o *Worker) Setup(_ context.Context) error {
 		o.activities.LoadCompositeConfigsActivity,
 		activity.RegisterOptions{Name: tkacts.LoadCompositeConfigsLabel},
 	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.DispatcherHeartbeat,
+		activity.RegisterOptions{Name: wkacts.DispatcherHeartbeatLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.ListActiveDispatchers,
+		activity.RegisterOptions{Name: wkacts.ListActiveDispatchersLabel},
+	)
 	err := o.worker.Start()
 	if err != nil {
 		return err
 	}
 	// Track running worker for monitoring
 	interceptor.IncrementRunningWorkers(context.Background())
+	// Register dispatcher for health monitoring
+	monitoring.RegisterDispatcher(context.Background(), o.dispatcherID, 2*time.Minute)
 	// Ensure dispatcher is running with independent lifecycle context
 	go o.ensureDispatcherRunning(o.lifecycleCtx)
 	return nil
@@ -234,6 +248,11 @@ func (o *Worker) Stop(ctx context.Context) {
 	log := logger.FromContext(ctx)
 	// Track worker stopping for monitoring
 	interceptor.DecrementRunningWorkers(ctx)
+	// Record dispatcher stop event for monitoring
+	if o.dispatcherID != "" {
+		interceptor.StopDispatcher(ctx, o.dispatcherID)
+		monitoring.UnregisterDispatcher(ctx, o.dispatcherID)
+	}
 	// Cancel lifecycle context to stop background operations
 	if o.lifecycleCancel != nil {
 		o.lifecycleCancel()
@@ -243,6 +262,14 @@ func (o *Worker) Stop(ctx context.Context) {
 		log.Info("Terminating instance dispatcher", "dispatcher_id", o.dispatcherID)
 		if err := o.client.TerminateWorkflow(ctx, o.dispatcherID, "", "server shutdown"); err != nil {
 			log.Error("Failed to terminate dispatcher", "error", err, "dispatcher_id", o.dispatcherID)
+		}
+		// Clean up heartbeat entry with background context to ensure completion
+		if o.activities != nil && o.redisCache != nil {
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := o.activities.RemoveDispatcherHeartbeat(cleanupCtx, o.dispatcherID); err != nil {
+				log.Error("Failed to remove dispatcher heartbeat", "error", err, "dispatcher_id", o.dispatcherID)
+			}
 		}
 	}
 	o.worker.Stop()
@@ -319,6 +346,7 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 				},
 				DispatcherWorkflow,
 				o.projectConfig.Name,
+				o.serverID,
 			)
 			if err != nil {
 				if _, ok := err.(*serviceerror.WorkflowExecutionAlreadyStarted); ok {
@@ -329,11 +357,14 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 						"project",
 						o.projectConfig.Name,
 					)
+					// Dispatcher is already running, no need to record start metrics
 					return nil
 				}
 				log.Warn("Failed to start dispatcher, retrying", "error", err, "dispatcher_id", o.dispatcherID)
 				return retry.RetryableError(err)
 			}
+			// Successfully started new dispatcher
+			interceptor.StartDispatcher(ctx, o.dispatcherID)
 			return nil
 		},
 	)
@@ -346,16 +377,44 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 
 // HealthCheck performs a comprehensive health check including cache connectivity
 func (o *Worker) HealthCheck(ctx context.Context) error {
+	log := logger.FromContext(ctx)
 	// Check Redis cache health
 	if o.redisCache != nil {
 		if err := o.redisCache.HealthCheck(ctx); err != nil {
 			return fmt.Errorf("redis cache health check failed: %w", err)
 		}
 	}
+	// Check dispatcher health by verifying recent heartbeat
+	if o.dispatcherID != "" && o.activities != nil {
+		input := &wkacts.ListActiveDispatchersInput{
+			StaleThreshold: 2 * time.Minute,
+		}
+		output, err := o.activities.ListActiveDispatchers(ctx, input)
+		if err != nil {
+			log.Warn("Failed to check dispatcher health", "error", err)
+		} else {
+			// Check if our dispatcher is in the list and not stale
+			found := false
+			for _, dispatcher := range output.Dispatchers {
+				if dispatcher.DispatcherID == o.dispatcherID {
+					found = true
+					if dispatcher.IsStale {
+						log.Warn("Dispatcher is stale",
+							"dispatcher_id", o.dispatcherID,
+							"stale_duration", dispatcher.StaleDuration)
+					}
+					break
+				}
+			}
+			if !found {
+				log.Warn("Dispatcher not found in active list", "dispatcher_id", o.dispatcherID)
+			}
+		}
+	}
 	// Check MCP proxy health if configured
 	if err := o.checkMCPProxyHealth(ctx); err != nil {
 		// Log error but don't fail health check since MCP proxy is optional
-		fmt.Printf("Warning: MCP proxy health check failed: %v\n", err)
+		log.Warn("MCP proxy health check failed", "error", err)
 	}
 	return nil
 }

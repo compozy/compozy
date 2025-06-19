@@ -3,11 +3,13 @@ package worker
 import (
 	"context"
 
+	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
 	tkfacts "github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/task/services"
+	wkacts "github.com/compozy/compozy/engine/worker/activities"
 	"github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 )
@@ -21,6 +23,7 @@ type Activities struct {
 	configStore      services.ConfigStore
 	signalDispatcher services.SignalDispatcher
 	configManager    *services.ConfigManager
+	redisCache       *cache.Cache
 }
 
 func NewActivities(
@@ -32,6 +35,7 @@ func NewActivities(
 	configStore services.ConfigStore,
 	signalDispatcher services.SignalDispatcher,
 	configManager *services.ConfigManager,
+	redisCache *cache.Cache,
 ) *Activities {
 	return &Activities{
 		projectConfig:    projectConfig,
@@ -42,6 +46,7 @@ func NewActivities(
 		configStore:      configStore,
 		signalDispatcher: signalDispatcher,
 		configManager:    configManager,
+		redisCache:       redisCache,
 	}
 }
 
@@ -337,4 +342,23 @@ func (a *Activities) ExecuteSignalTask(
 		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
+}
+
+// -----------------------------------------------------------------------------
+// Dispatcher Activities
+// -----------------------------------------------------------------------------
+
+func (a *Activities) DispatcherHeartbeat(ctx context.Context, input *wkacts.DispatcherHeartbeatInput) error {
+	return wkacts.DispatcherHeartbeat(ctx, a.redisCache, input)
+}
+
+func (a *Activities) ListActiveDispatchers(
+	ctx context.Context,
+	input *wkacts.ListActiveDispatchersInput,
+) (*wkacts.ListActiveDispatchersOutput, error) {
+	return wkacts.ListActiveDispatchers(ctx, a.redisCache, input)
+}
+
+func (a *Activities) RemoveDispatcherHeartbeat(ctx context.Context, dispatcherID string) error {
+	return wkacts.RemoveDispatcherHeartbeat(ctx, a.redisCache, dispatcherID)
 }

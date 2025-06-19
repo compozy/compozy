@@ -13,6 +13,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task/services"
+	wkacts "github.com/compozy/compozy/engine/worker/activities"
 	wf "github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 )
@@ -255,9 +256,13 @@ func ProcessEventSignal(ctx workflow.Context, signal EventSignal, signalMap map[
 }
 
 // DispatcherWorkflow handles event routing
-func DispatcherWorkflow(ctx workflow.Context, projectName string) error {
+func DispatcherWorkflow(ctx workflow.Context, projectName string, serverID string) error {
 	log := workflow.GetLogger(ctx)
 	log.Info("DispatcherWorkflow started", "project", projectName)
+
+	// Extract dispatcher ID from workflow info
+	workflowInfo := workflow.GetInfo(ctx)
+	dispatcherID := workflowInfo.WorkflowExecution.ID
 
 	// Load workflow configurations
 	var data *wfacts.GetData
@@ -274,6 +279,47 @@ func DispatcherWorkflow(ctx workflow.Context, projectName string) error {
 	if err != nil {
 		return err
 	}
+
+	// Start heartbeat goroutine
+	heartbeatInterval := 30 * time.Second
+	heartbeatCtx, heartbeatCancel := workflow.WithCancel(ctx)
+	defer heartbeatCancel()
+
+	workflow.Go(heartbeatCtx, func(ctx workflow.Context) {
+		log.Debug("Starting dispatcher heartbeat", "interval", heartbeatInterval)
+		for {
+			// Send heartbeat
+			heartbeatInput := &wkacts.DispatcherHeartbeatInput{
+				DispatcherID: dispatcherID,
+				ProjectName:  projectName,
+				ServerID:     serverID,
+			}
+
+			// Use disconnected context for heartbeat to ensure it completes even during shutdown
+			disconnectedCtx, cancel := workflow.NewDisconnectedContext(ctx)
+			ao := workflow.ActivityOptions{
+				StartToCloseTimeout: 10 * time.Second,
+			}
+			disconnectedCtx = workflow.WithActivityOptions(disconnectedCtx, ao)
+
+			if err := workflow.ExecuteActivity(
+				disconnectedCtx,
+				wkacts.DispatcherHeartbeatLabel,
+				heartbeatInput,
+			).Get(disconnectedCtx, nil); err != nil {
+				log.Warn("Failed to send dispatcher heartbeat", "error", err)
+			}
+			cancel() // Clean up disconnected context after use
+
+			// Sleep until next heartbeat
+			if err := workflow.Sleep(ctx, heartbeatInterval); err != nil {
+				// Context canceled, stop heartbeat
+				log.Debug("Heartbeat goroutine stopped")
+				return
+			}
+		}
+	})
+
 	// Listen for signals with Continue-As-New protection
 	const maxSignalsPerRun = 1000               // Protect from unbounded history growth
 	const maxConsecutiveErrors = 10             // Circuit breaker threshold
@@ -295,7 +341,8 @@ func DispatcherWorkflow(ctx workflow.Context, projectName string) error {
 		if processed >= maxSignalsPerRun {
 			log.Info("Reaching max signals per run, continuing as new",
 				"processed", processed, "maxSignalsPerRun", maxSignalsPerRun)
-			return workflow.NewContinueAsNewError(ctx, DispatcherWorkflow, projectName)
+			heartbeatCancel() // Stop heartbeat goroutine before continuing as new
+			return workflow.NewContinueAsNewError(ctx, DispatcherWorkflow, projectName, serverID)
 		}
 		// Circuit breaker: if too many consecutive errors, pause briefly
 		if consecutiveErrors >= maxConsecutiveErrors {
@@ -311,7 +358,8 @@ func DispatcherWorkflow(ctx workflow.Context, projectName string) error {
 		ok := signalChan.Receive(ctx, &signal)
 		if !ok {
 			// Channel closed, restart
-			return workflow.NewContinueAsNewError(ctx, DispatcherWorkflow, projectName)
+			heartbeatCancel() // Stop heartbeat goroutine before continuing as new
+			return workflow.NewContinueAsNewError(ctx, DispatcherWorkflow, projectName, serverID)
 		}
 		if ctx.Err() != nil {
 			log.Debug("DispatcherWorkflow canceled while receiving signal")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel/attribute"
@@ -24,11 +25,18 @@ var (
 	callbackRegistration       metric.Registration
 	initOnce                   sync.Once
 	metricsMutex               sync.RWMutex
+	// Dispatcher-specific metrics
+	dispatcherActive         metric.Int64UpDownCounter
+	dispatcherHeartbeatTotal metric.Int64Counter
+	dispatcherLifecycleTotal metric.Int64Counter
+	dispatcherUptimeSeconds  metric.Float64ObservableGauge
+	dispatcherUptimeCallback metric.Registration
+	dispatcherStartTimes     sync.Map // map[string]time.Time for tracking uptime per dispatcher
 )
 
 // resetMetrics is used for testing purposes only
 func resetMetrics(ctx context.Context) {
-	// Unregister callback if it exists
+	// Unregister callbacks if they exist
 	if callbackRegistration != nil {
 		err := callbackRegistration.Unregister()
 		if err != nil {
@@ -37,6 +45,20 @@ func resetMetrics(ctx context.Context) {
 		}
 		callbackRegistration = nil
 	}
+	if dispatcherUptimeCallback != nil {
+		err := dispatcherUptimeCallback.Unregister()
+		if err != nil {
+			log := logger.FromContext(ctx)
+			log.Debug(
+				"Failed to unregister dispatcher uptime callback during reset",
+				"error",
+				err,
+				"component",
+				"temporal_metrics",
+			)
+		}
+		dispatcherUptimeCallback = nil
+	}
 	workflowStartedTotal = nil
 	workflowCompletedTotal = nil
 	workflowFailedTotal = nil
@@ -44,6 +66,12 @@ func resetMetrics(ctx context.Context) {
 	workersRunning = nil
 	workersConfigured = nil
 	configuredWorkerCountValue.Store(0)
+	// Reset dispatcher metrics
+	dispatcherActive = nil
+	dispatcherHeartbeatTotal = nil
+	dispatcherLifecycleTotal = nil
+	dispatcherUptimeSeconds = nil
+	dispatcherStartTimes = sync.Map{}
 	initOnce = sync.Once{}
 }
 
@@ -55,6 +83,143 @@ func ResetMetricsForTesting(ctx context.Context) {
 	resetMetrics(ctx)
 }
 
+// initWorkflowMetrics initializes workflow-related metrics
+func initWorkflowMetrics(meter metric.Meter, log logger.Logger) error {
+	var err error
+	workflowStartedTotal, err = meter.Int64Counter(
+		"compozy_temporal_workflow_started_total",
+		metric.WithDescription("Started workflows"),
+	)
+	if err != nil {
+		log.Error("Failed to create workflow started counter", "error", err, "component", "temporal_metrics")
+		return err
+	}
+	workflowCompletedTotal, err = meter.Int64Counter(
+		"compozy_temporal_workflow_completed_total",
+		metric.WithDescription("Completed workflows"),
+	)
+	if err != nil {
+		log.Error("Failed to create workflow completed counter", "error", err, "component", "temporal_metrics")
+		return err
+	}
+	workflowFailedTotal, err = meter.Int64Counter(
+		"compozy_temporal_workflow_failed_total",
+		metric.WithDescription("Failed workflows"),
+	)
+	if err != nil {
+		log.Error("Failed to create workflow failed counter", "error", err, "component", "temporal_metrics")
+		return err
+	}
+	workflowTaskDuration, err = meter.Float64Histogram(
+		"compozy_temporal_workflow_duration_seconds",
+		metric.WithDescription("Workflow execution time"),
+		metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
+	)
+	if err != nil {
+		log.Error("Failed to create workflow task duration histogram", "error", err, "component", "temporal_metrics")
+		return err
+	}
+	return nil
+}
+
+// initWorkerMetrics initializes worker-related metrics
+func initWorkerMetrics(meter metric.Meter, log logger.Logger) error {
+	var err error
+	workersRunning, err = meter.Int64UpDownCounter(
+		"compozy_temporal_workers_running_total",
+		metric.WithDescription("Currently running workers"),
+	)
+	if err != nil {
+		log.Error("Failed to create workers running counter", "error", err, "component", "temporal_metrics")
+		return err
+	}
+	workersConfigured, err = meter.Int64ObservableGauge(
+		"compozy_temporal_workers_configured_total",
+		metric.WithDescription("Configured workers per instance"),
+	)
+	if err != nil {
+		log.Error("Failed to create workers configured gauge", "error", err, "component", "temporal_metrics")
+		return err
+	}
+	// Register the callback only once during initialization
+	callbackRegistration, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		o.ObserveInt64(workersConfigured, configuredWorkerCountValue.Load())
+		return nil
+	}, workersConfigured)
+	if err != nil {
+		log.Error(
+			"Failed to register callback for workers configured gauge",
+			"error",
+			err,
+			"component",
+			"temporal_metrics",
+		)
+		return err
+	}
+	return nil
+}
+
+// initDispatcherMetrics initializes dispatcher-related metrics
+func initDispatcherMetrics(meter metric.Meter, log logger.Logger) error {
+	var err error
+	dispatcherActive, err = meter.Int64UpDownCounter(
+		"compozy_dispatcher_active_total",
+		metric.WithDescription("Currently active dispatchers"),
+	)
+	if err != nil {
+		log.Error("Failed to create dispatcher active counter", "error", err, "component", "temporal_metrics")
+		return err
+	}
+	dispatcherHeartbeatTotal, err = meter.Int64Counter(
+		"compozy_dispatcher_heartbeat_total",
+		metric.WithDescription("Total dispatcher heartbeats"),
+	)
+	if err != nil {
+		log.Error("Failed to create dispatcher heartbeat counter", "error", err, "component", "temporal_metrics")
+		return err
+	}
+	dispatcherLifecycleTotal, err = meter.Int64Counter(
+		"compozy_dispatcher_lifecycle_events_total",
+		metric.WithDescription("Total dispatcher lifecycle events"),
+	)
+	if err != nil {
+		log.Error("Failed to create dispatcher lifecycle counter", "error", err, "component", "temporal_metrics")
+		return err
+	}
+	dispatcherUptimeSeconds, err = meter.Float64ObservableGauge(
+		"compozy_dispatcher_uptime_seconds",
+		metric.WithDescription("Dispatcher uptime in seconds"),
+	)
+	if err != nil {
+		log.Error("Failed to create dispatcher uptime gauge", "error", err, "component", "temporal_metrics")
+		return err
+	}
+	// Register dispatcher uptime callback
+	dispatcherUptimeCallback, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		now := time.Now()
+		dispatcherStartTimes.Range(func(key, value any) bool {
+			dispatcherID, ok := key.(string)
+			if !ok {
+				return true // Skip invalid key
+			}
+			startTime, ok := value.(time.Time)
+			if !ok {
+				return true // Skip invalid value
+			}
+			uptime := now.Sub(startTime).Seconds()
+			o.ObserveFloat64(dispatcherUptimeSeconds, uptime,
+				metric.WithAttributes(attribute.String("dispatcher_id", dispatcherID)))
+			return true
+		})
+		return nil
+	}, dispatcherUptimeSeconds)
+	if err != nil {
+		log.Error("Failed to register dispatcher uptime callback", "error", err, "component", "temporal_metrics")
+		return err
+	}
+	return nil
+}
+
 func initMetrics(ctx context.Context, meter metric.Meter) {
 	// Skip initialization if meter is nil
 	if meter == nil {
@@ -64,70 +229,14 @@ func initMetrics(ctx context.Context, meter metric.Meter) {
 	metricsMutex.Lock()
 	defer metricsMutex.Unlock()
 	initOnce.Do(func() {
-		var err error
-		workflowStartedTotal, err = meter.Int64Counter(
-			"compozy_temporal_workflow_started_total",
-			metric.WithDescription("Started workflows"),
-		)
-		if err != nil {
-			log.Error("Failed to create workflow started counter", "error", err, "component", "temporal_metrics")
-		}
-		workflowCompletedTotal, err = meter.Int64Counter(
-			"compozy_temporal_workflow_completed_total",
-			metric.WithDescription("Completed workflows"),
-		)
-		if err != nil {
-			log.Error("Failed to create workflow completed counter", "error", err, "component", "temporal_metrics")
-		}
-		workflowFailedTotal, err = meter.Int64Counter(
-			"compozy_temporal_workflow_failed_total",
-			metric.WithDescription("Failed workflows"),
-		)
-		if err != nil {
-			log.Error("Failed to create workflow failed counter", "error", err, "component", "temporal_metrics")
-		}
-		workflowTaskDuration, err = meter.Float64Histogram(
-			"compozy_temporal_workflow_duration_seconds",
-			metric.WithDescription("Workflow execution time"),
-			metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
-		)
-		if err != nil {
-			log.Error(
-				"Failed to create workflow task duration histogram",
-				"error",
-				err,
-				"component",
-				"temporal_metrics",
-			)
-		}
-		workersRunning, err = meter.Int64UpDownCounter(
-			"compozy_temporal_workers_running_total",
-			metric.WithDescription("Currently running workers"),
-		)
-		if err != nil {
-			log.Error("Failed to create workers running counter", "error", err, "component", "temporal_metrics")
-		}
-		workersConfigured, err = meter.Int64ObservableGauge(
-			"compozy_temporal_workers_configured_total",
-			metric.WithDescription("Configured workers per instance"),
-		)
-		if err != nil {
-			log.Error("Failed to create workers configured gauge", "error", err, "component", "temporal_metrics")
+		if err := initWorkflowMetrics(meter, log); err != nil {
 			return
 		}
-		// Register the callback only once during initialization
-		callbackRegistration, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
-			o.ObserveInt64(workersConfigured, configuredWorkerCountValue.Load())
-			return nil
-		}, workersConfigured)
-		if err != nil {
-			log.Error(
-				"Failed to register callback for workers configured gauge",
-				"error",
-				err,
-				"component",
-				"temporal_metrics",
-			)
+		if err := initWorkerMetrics(meter, log); err != nil {
+			return
+		}
+		if err := initDispatcherMetrics(meter, log); err != nil {
+			return
 		}
 	})
 }
@@ -265,4 +374,61 @@ func DecrementRunningWorkers(ctx context.Context) {
 	if workersRunning != nil {
 		workersRunning.Add(ctx, -1)
 	}
+}
+
+// StartDispatcher records dispatcher start event and tracks uptime
+func StartDispatcher(ctx context.Context, dispatcherID string) {
+	metricsMutex.RLock()
+	defer metricsMutex.RUnlock()
+	if dispatcherActive != nil {
+		dispatcherActive.Add(ctx, 1, metric.WithAttributes(attribute.String("dispatcher_id", dispatcherID)))
+	}
+	if dispatcherLifecycleTotal != nil {
+		dispatcherLifecycleTotal.Add(ctx, 1,
+			metric.WithAttributes(
+				attribute.String("dispatcher_id", dispatcherID),
+				attribute.String("event", "start")))
+	}
+	// Track start time for uptime calculation
+	dispatcherStartTimes.Store(dispatcherID, time.Now())
+}
+
+// StopDispatcher records dispatcher stop event and removes uptime tracking
+func StopDispatcher(ctx context.Context, dispatcherID string) {
+	metricsMutex.RLock()
+	defer metricsMutex.RUnlock()
+	if dispatcherActive != nil {
+		dispatcherActive.Add(ctx, -1, metric.WithAttributes(attribute.String("dispatcher_id", dispatcherID)))
+	}
+	if dispatcherLifecycleTotal != nil {
+		dispatcherLifecycleTotal.Add(ctx, 1,
+			metric.WithAttributes(
+				attribute.String("dispatcher_id", dispatcherID),
+				attribute.String("event", "stop")))
+	}
+	// Remove start time tracking
+	dispatcherStartTimes.Delete(dispatcherID)
+}
+
+// RecordDispatcherHeartbeat records a dispatcher heartbeat event
+func RecordDispatcherHeartbeat(ctx context.Context, dispatcherID string) {
+	metricsMutex.RLock()
+	defer metricsMutex.RUnlock()
+	if dispatcherHeartbeatTotal != nil {
+		dispatcherHeartbeatTotal.Add(ctx, 1, metric.WithAttributes(attribute.String("dispatcher_id", dispatcherID)))
+	}
+}
+
+// RecordDispatcherRestart records dispatcher restart event
+func RecordDispatcherRestart(ctx context.Context, dispatcherID string) {
+	metricsMutex.RLock()
+	defer metricsMutex.RUnlock()
+	if dispatcherLifecycleTotal != nil {
+		dispatcherLifecycleTotal.Add(ctx, 1,
+			metric.WithAttributes(
+				attribute.String("dispatcher_id", dispatcherID),
+				attribute.String("event", "restart")))
+	}
+	// Update start time for uptime calculation
+	dispatcherStartTimes.Store(dispatcherID, time.Now())
 }
