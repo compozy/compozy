@@ -127,7 +127,8 @@ func (rm *Manager) ExecuteToolWithTimeout(
 	}
 	defer pipes.cleanup()
 
-	if err := rm.writeRequestWithTimeout(ctxWithTimeout, pipes.stdin, toolID, toolExecID, input, env, timeout); err != nil {
+	err = rm.writeRequestWithTimeout(ctxWithTimeout, pipes.stdin, toolID, toolExecID, input, env, timeout)
+	if err != nil {
 		return nil, &ToolExecutionError{
 			ToolID:     toolID,
 			ToolExecID: toolExecID.String(),

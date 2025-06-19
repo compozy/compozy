@@ -90,11 +90,12 @@ func buildRuntimeManager(
 	// Check for tool execution timeout from environment
 	if timeoutStr := os.Getenv("TOOL_EXECUTION_TIMEOUT"); timeoutStr != "" {
 		timeout, err := time.ParseDuration(timeoutStr)
-		if err != nil {
+		switch {
+		case err != nil:
 			log.Warn("Invalid TOOL_EXECUTION_TIMEOUT value, using default", "value", timeoutStr, "error", err)
-		} else if timeout <= 0 {
+		case timeout <= 0:
 			log.Warn("Ignoring non-positive TOOL_EXECUTION_TIMEOUT", "value", timeout)
-		} else {
+		default:
 			rtOpts = append(rtOpts, runtime.WithToolExecutionTimeout(timeout))
 			log.Debug("Using custom tool execution timeout", "timeout", timeout)
 		}

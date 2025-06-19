@@ -96,8 +96,8 @@ func (b *promptBuilder) ShouldUseStructuredOutput(
 	}
 
 	// Check if any tool has output schema
-	for _, tool := range tools {
-		if tool.OutputSchema != nil {
+	for i := range tools {
+		if tools[i].OutputSchema != nil {
 			return true
 		}
 	}
