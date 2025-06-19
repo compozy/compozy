@@ -93,7 +93,14 @@ func copyFixturesNoT(srcDir, dstDir string) {
 	copyFileNoT(denoConfigSrc, denoConfigDst)
 
 	// Copy tool files
-	tools := []string{"test_tool.ts", "echo_tool.ts", "format_code.ts"}
+	tools := []string{
+		"test_tool.ts",
+		"echo_tool.ts",
+		"format_code.ts",
+		"console_log_tool.ts",
+		"plain_text_tool.ts",
+		"broken_tool.ts",
+	}
 	for _, tool := range tools {
 		src := filepath.Join(srcPath, tool)
 		dst := filepath.Join(dstDir, tool)

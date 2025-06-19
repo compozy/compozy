@@ -164,7 +164,8 @@ func (o *llmOrchestrator) buildToolDefinitions(
 ) ([]llmadapter.ToolDefinition, error) {
 	var definitions []llmadapter.ToolDefinition
 
-	for _, toolConfig := range tools {
+	for i := range tools {
+		toolConfig := &tools[i]
 		// Find the tool in registry
 		tool, found := o.config.ToolRegistry.Find(ctx, toolConfig.ID)
 		if !found {

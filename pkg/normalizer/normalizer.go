@@ -182,8 +182,8 @@ func (n *Normalizer) NormalizeAgentConfig(
 	if err := n.NormalizeAgentActions(config, ctx, actionID); err != nil {
 		return fmt.Errorf("failed to normalize agent actions: %w", err)
 	}
-	for _, toolConfig := range config.Tools {
-		if err := n.NormalizeToolConfig(&toolConfig, ctx); err != nil {
+	for i := range config.Tools {
+		if err := n.NormalizeToolConfig(&config.Tools[i], ctx); err != nil {
 			return fmt.Errorf("failed to normalize tool config: %w", err)
 		}
 	}

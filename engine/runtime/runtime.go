@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
@@ -30,6 +31,12 @@ var bufferPool = sync.Pool{
 		return bytes.NewBuffer(make([]byte, 0, 1024))
 	},
 }
+
+// Constants for output formatting
+const (
+	// PrimitiveValueKey is the key used when wrapping primitive values in output
+	PrimitiveValueKey = "value"
+)
 
 // NewRuntimeManager initializes a RuntimeManager
 func NewRuntimeManager(ctx context.Context, projectRoot string, options ...Option) (*Manager, error) {
@@ -71,18 +78,33 @@ func NewRuntimeManager(ctx context.Context, projectRoot string, options ...Optio
 // Public Methods
 // -----
 
-// ExecuteTool runs a tool by executing the compiled binary
-func (rm *Manager) ExecuteTool(
+// ExecuteToolWithTimeout runs a tool with a custom timeout
+func (rm *Manager) ExecuteToolWithTimeout(
 	ctx context.Context,
 	toolID string,
 	toolExecID core.ID,
 	input *core.Input,
 	env core.EnvMap,
+	timeout time.Duration,
 ) (*core.Output, error) {
 	log := logger.FromContext(ctx)
 	if err := rm.validateInputs(toolID, toolExecID, input, env); err != nil {
 		return nil, err
 	}
+
+	// Validate timeout is positive
+	if timeout <= 0 {
+		return nil, &ToolExecutionError{
+			ToolID:     toolID,
+			ToolExecID: toolExecID.String(),
+			Operation:  "validate_timeout",
+			Err:        fmt.Errorf("timeout must be positive, got: %v", timeout),
+		}
+	}
+
+	// Create a context with timeout to enforce at the host level
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 
 	workerPath, err := rm.getWorkerPath()
 	if err != nil {
@@ -94,7 +116,7 @@ func (rm *Manager) ExecuteTool(
 		}
 	}
 
-	cmd, pipes, err := rm.setupCommand(ctx, workerPath, env)
+	cmd, pipes, err := rm.setupCommand(ctxWithTimeout, workerPath, env)
 	if err != nil {
 		return nil, &ToolExecutionError{
 			ToolID:     toolID,
@@ -105,7 +127,8 @@ func (rm *Manager) ExecuteTool(
 	}
 	defer pipes.cleanup()
 
-	if err := rm.writeRequest(ctx, pipes.stdin, toolID, toolExecID, input, env); err != nil {
+	err = rm.writeRequestWithTimeout(ctxWithTimeout, pipes.stdin, toolID, toolExecID, input, env, timeout)
+	if err != nil {
 		return nil, &ToolExecutionError{
 			ToolID:     toolID,
 			ToolExecID: toolExecID.String(),
@@ -114,16 +137,42 @@ func (rm *Manager) ExecuteTool(
 		}
 	}
 
-	response, err := rm.readResponse(ctx, cmd, pipes, toolID, toolExecID)
+	response, err := rm.readResponse(ctxWithTimeout, cmd, pipes, toolID, toolExecID)
 	if err != nil {
+		// Check if the error was due to timeout
+		if ctxWithTimeout.Err() == context.DeadlineExceeded {
+			return nil, &ToolExecutionError{
+				ToolID:     toolID,
+				ToolExecID: toolExecID.String(),
+				Operation:  "tool_timeout",
+				Err:        fmt.Errorf("tool execution exceeded timeout of %s", timeout),
+			}
+		}
 		return nil, err
 	}
 
 	log.Debug("Tool execution completed successfully",
 		"tool_id", toolID,
 		"exec_id", toolExecID.String(),
+		"timeout", timeout,
 	)
 	return response, nil
+}
+
+// ExecuteTool runs a tool by executing the compiled binary using global timeout
+func (rm *Manager) ExecuteTool(
+	ctx context.Context,
+	toolID string,
+	toolExecID core.ID,
+	input *core.Input,
+	env core.EnvMap,
+) (*core.Output, error) {
+	return rm.ExecuteToolWithTimeout(ctx, toolID, toolExecID, input, env, rm.config.ToolExecutionTimeout)
+}
+
+// GetGlobalTimeout returns the global tool execution timeout
+func (rm *Manager) GetGlobalTimeout() time.Duration {
+	return rm.config.ToolExecutionTimeout
 }
 
 // -----
@@ -190,7 +239,10 @@ func (rm *Manager) setupCommand(
 	log := logger.FromContext(ctx)
 	// Create deno run command with configurable permissions
 	args := append([]string{"run"}, rm.config.DenoPermissions...)
-	args = append(args, []string{"--quiet", "--no-check"}...)
+	args = append(args, "--quiet")
+	if rm.config.DenoNoCheck {
+		args = append(args, "--no-check")
+	}
 	args = append(args, workerPath)
 
 	log.Debug("Setting up Deno command",
@@ -200,8 +252,21 @@ func (rm *Manager) setupCommand(
 	cmd := exec.CommandContext(ctx, "deno", args...)
 	cmd.Dir = rm.projectRoot
 
-	cmd.Env = os.Environ()
+	// Build environment variables with explicit precedence
+	mergedEnv := make(map[string]string)
+	// Start with parent process environment
+	for _, e := range os.Environ() {
+		if parts := strings.SplitN(e, "=", 2); len(parts) == 2 {
+			mergedEnv[parts[0]] = parts[1]
+		}
+	}
+	// Override with tool-specific environment variables
 	for k, v := range env {
+		mergedEnv[k] = v
+	}
+	// Convert back to slice for exec.Cmd
+	cmd.Env = make([]string, 0, len(mergedEnv))
+	for k, v := range mergedEnv {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 	}
 
@@ -233,14 +298,15 @@ func (rm *Manager) setupCommand(
 	return cmd, &cmdPipes{stdin: stdin, stdout: stdout, stderr: stderr}, nil
 }
 
-// writeRequest writes the JSON request to the process stdin
-func (rm *Manager) writeRequest(
+// writeRequestWithTimeout writes the JSON request to the process stdin with custom timeout
+func (rm *Manager) writeRequestWithTimeout(
 	ctx context.Context,
 	stdin io.WriteCloser,
 	toolID string,
 	toolExecID core.ID,
 	input *core.Input,
 	env core.EnvMap,
+	timeout time.Duration,
 ) error {
 	log := logger.FromContext(ctx)
 	if input == nil {
@@ -265,6 +331,7 @@ func (rm *Manager) writeRequest(
 		"tool_exec_id": toolExecID.String(),
 		"input":        input,
 		"env":          env,
+		"timeout_ms":   int(timeout.Milliseconds()),
 	}
 
 	if err := json.NewEncoder(buf).Encode(request); err != nil {
@@ -274,6 +341,7 @@ func (rm *Manager) writeRequest(
 	log.Debug("Sending request to Deno process",
 		"tool_id", toolID,
 		"request_length", buf.Len(),
+		"timeout", timeout,
 	)
 
 	if _, err := stdin.Write(buf.Bytes()); err != nil {
@@ -296,8 +364,11 @@ func (rm *Manager) readResponse(
 	var stderrBuf bytes.Buffer
 	stderrDone := make(chan struct{})
 
+	// Configure stderr scanner with larger buffer to prevent hangs
 	go func() {
 		stderrScanner := bufio.NewScanner(pipes.stderr)
+		// Set buffer size to 1MB with max token size of 10MB
+		stderrScanner.Buffer(make([]byte, 0, 1<<20), 10<<20)
 		for stderrScanner.Scan() {
 			stderrBuf.WriteString(stderrScanner.Text() + "\n")
 		}
@@ -307,8 +378,10 @@ func (rm *Manager) readResponse(
 		close(stderrDone)
 	}()
 
-	// Read all stdout content
-	responseBytes, err := io.ReadAll(pipes.stdout)
+	// Read stdout content with size limit to prevent OOM
+	const maxResponseSize = 10 << 20 // 10 MB
+	limitedReader := &io.LimitedReader{R: pipes.stdout, N: maxResponseSize}
+	responseBytes, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return nil, &ToolExecutionError{
 			ToolID:     toolID,
@@ -318,21 +391,66 @@ func (rm *Manager) readResponse(
 		}
 	}
 
-	// Filter out Deno error messages from stdout
-	responseBytes = rm.filterDenoMessages(ctx, responseBytes)
+	// Check if we hit the size limit
+	if limitedReader.N == 0 {
+		return nil, &ToolExecutionError{
+			ToolID:     toolID,
+			ToolExecID: toolExecID.String(),
+			Operation:  "read_response",
+			Err:        fmt.Errorf("response exceeds maximum size of %d bytes", maxResponseSize),
+		}
+	}
 
 	<-stderrDone
 
-	if err := cmd.Wait(); err != nil {
+	// Wait for process to complete
+	processErr := cmd.Wait()
+
+	// Try to parse response regardless of exit code
+	response, parseErr := rm.parseResponse(ctx, responseBytes, toolID, toolExecID, stderrBuf.String())
+
+	// If we successfully parsed a response, return it even if process had non-zero exit
+	if parseErr == nil && response != nil {
+		if processErr != nil {
+			log.Debug("Process exited with error but response was valid",
+				"tool_id", toolID,
+				"exit_error", processErr,
+				"stderr", stderrBuf.String(),
+			)
+		}
+		return response, nil
+	}
+
+	// If we couldn't parse response and process failed, return process error
+	if processErr != nil {
 		return nil, &ToolExecutionError{
 			ToolID:     toolID,
 			ToolExecID: toolExecID.String(),
 			Operation:  "process_exit",
-			Err:        fmt.Errorf("process failed: %w, stderr: %s", err, stderrBuf.String()),
+			Err:        fmt.Errorf("process failed: %w, stderr: %s", processErr, stderrBuf.String()),
 		}
 	}
 
-	return rm.parseResponse(ctx, responseBytes, toolID, toolExecID, stderrBuf.String())
+	// If process succeeded but we couldn't parse response, return parse error
+	return nil, parseErr
+}
+
+// toolResponse is the structure of the response from the Deno process
+type toolResponse struct {
+	Result json.RawMessage `json:"result"`
+	Error  *struct {
+		Message    string `json:"message"`
+		Name       string `json:"name"`
+		Stack      string `json:"stack"`
+		ToolID     string `json:"tool_id"`
+		ToolExecID string `json:"tool_exec_id"`
+		Timestamp  string `json:"timestamp"`
+	} `json:"error"`
+	Metadata struct {
+		ToolID        string `json:"tool_id"`
+		ToolExecID    string `json:"tool_exec_id"`
+		ExecutionTime int64  `json:"execution_time"`
+	} `json:"metadata"`
 }
 
 // parseResponse parses the JSON response from the deno process
@@ -353,52 +471,18 @@ func (rm *Manager) parseResponse(
 		}
 	}
 
-	// Log basic response info for debugging
 	log.Debug("Received response from Deno process",
 		"tool_id", toolID,
 		"response_length", len(responseBytes),
 	)
 
-	// Check if response starts with expected JSON characters
-	responseStr := string(responseBytes)
-	trimmed := strings.TrimSpace(responseStr)
-	if !strings.HasPrefix(trimmed, "{") {
-		return nil, &ToolExecutionError{
-			ToolID:     toolID,
-			ToolExecID: toolExecID.String(),
-			Operation:  "parse_response",
-			Err: fmt.Errorf("response does not start with JSON object, got: %q (first 100 chars), stderr: %s",
-				trimmed[:minInt(100, len(trimmed))], stderr),
-		}
+	// Decode the JSON response
+	response, err := rm.decodeResponse(ctx, responseBytes, toolID, toolExecID, stderr)
+	if err != nil {
+		return nil, err
 	}
 
-	var response struct {
-		Result *core.Output `json:"result"`
-		Error  *struct {
-			Message    string `json:"message"`
-			Name       string `json:"name"`
-			Stack      string `json:"stack"`
-			ToolID     string `json:"tool_id"`
-			ToolExecID string `json:"tool_exec_id"`
-			Timestamp  string `json:"timestamp"`
-		} `json:"error"`
-		Metadata struct {
-			ToolID        string `json:"tool_id"`
-			ToolExecID    string `json:"tool_exec_id"`
-			ExecutionTime int64  `json:"execution_time"`
-		} `json:"metadata"`
-	}
-
-	if err := json.Unmarshal([]byte(trimmed), &response); err != nil {
-		return nil, &ToolExecutionError{
-			ToolID:     toolID,
-			ToolExecID: toolExecID.String(),
-			Operation:  "decode_response",
-			Err: fmt.Errorf("failed to decode JSON response: %w, response: %s, stderr: %s",
-				err, trimmed, stderr),
-		}
-	}
-
+	// Handle error response
 	if response.Error != nil {
 		return nil, &ToolExecutionError{
 			ToolID:     toolID,
@@ -408,7 +492,38 @@ func (rm *Manager) parseResponse(
 		}
 	}
 
-	if response.Result == nil {
+	// Process the result
+	return rm.processResult(response.Result, toolID, toolExecID)
+}
+
+// decodeResponse decodes the JSON response
+func (rm *Manager) decodeResponse(
+	_ context.Context,
+	responseBytes []byte,
+	toolID string,
+	toolExecID core.ID,
+	stderr string,
+) (*toolResponse, error) {
+	var response toolResponse
+
+	decoder := json.NewDecoder(bytes.NewReader(responseBytes))
+	if err := decoder.Decode(&response); err != nil {
+		return nil, &ToolExecutionError{
+			ToolID:     toolID,
+			ToolExecID: toolExecID.String(),
+			Operation:  "decode_response",
+			Err: fmt.Errorf("failed to decode JSON response: %w, response length: %d, stderr: %s",
+				err, len(responseBytes), stderr),
+		}
+	}
+
+	return &response, nil
+}
+
+// processResult processes the raw result and converts it to core.Output
+func (rm *Manager) processResult(result json.RawMessage, toolID string, toolExecID core.ID) (*core.Output, error) {
+	// Check if result field is present
+	if len(result) == 0 {
 		return nil, &ToolExecutionError{
 			ToolID:     toolID,
 			ToolExecID: toolExecID.String(),
@@ -417,7 +532,35 @@ func (rm *Manager) parseResponse(
 		}
 	}
 
-	return response.Result, nil
+	// Parse the raw JSON message to get the actual result
+	var resultValue any
+	if err := json.Unmarshal(result, &resultValue); err != nil {
+		return nil, &ToolExecutionError{
+			ToolID:     toolID,
+			ToolExecID: toolExecID.String(),
+			Operation:  "parse_result",
+			Err:        fmt.Errorf("failed to parse result: %w", err),
+		}
+	}
+
+	// Convert the result to core.Output
+	output := rm.convertToOutput(resultValue)
+	return output, nil
+}
+
+// convertToOutput converts any result type to core.Output
+func (rm *Manager) convertToOutput(result any) *core.Output {
+	// If it's already a map, try to convert it directly
+	if m, ok := result.(map[string]any); ok {
+		output := core.Output(m)
+		return &output
+	}
+
+	// For any other type (string, number, bool, array, null), wrap it in an object
+	output := core.Output{
+		PrimitiveValueKey: result,
+	}
+	return &output
 }
 
 // -----
@@ -439,96 +582,12 @@ func isValidToolID(toolID string) bool {
 		return false
 	}
 
-	// Prevent directory traversal
-	if strings.Contains(toolID, "..") {
+	// Prevent directory traversal and absolute paths
+	if strings.Contains(toolID, "..") || strings.HasPrefix(toolID, "/") {
 		return false
 	}
 
 	return true
-}
-
-// minInt returns the minimum of two integers
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// filterDenoMessages removes Deno error/warning messages from output to extract clean JSON
-func (rm *Manager) filterDenoMessages(ctx context.Context, output []byte) []byte {
-	log := logger.FromContext(ctx)
-	lines := strings.Split(string(output), "\n")
-	var cleanLines []string
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		// Skip empty lines
-		if trimmed == "" {
-			continue
-		}
-
-		// Skip common Deno error/warning message patterns
-		if rm.isDenoMessage(trimmed) {
-			log.Debug("Filtered Deno message", "message", trimmed)
-			continue
-		}
-
-		// Keep lines that look like JSON or other valid output
-		cleanLines = append(cleanLines, line)
-	}
-
-	return []byte(strings.Join(cleanLines, "\n"))
-}
-
-// isDenoMessage checks if a line is a Deno error/warning message
-func (rm *Manager) isDenoMessage(line string) bool {
-	// Common Deno error message patterns that start with 'C'
-	denoPatterns := []string{
-		"Config file must be a member of the workspace",
-		"Cannot resolve module",
-		"Cannot load module",
-		"Compilation failed",
-		"Check file://",
-		"Compile file://",
-		"Cache",
-		"Cannot find module",
-		"Could not resolve",
-		"Compiling",
-		"Config file",
-		"Cannot access",
-		"Cannot read",
-		"Cannot write",
-		"Connection error",
-	}
-
-	// Also check for other common Deno messages
-	otherPatterns := []string{
-		"error: ",
-		"warning: ",
-		"Unsupported compiler options",
-		"The following options were ignored:",
-		"Download ",
-		"Local: ",
-		"Visit ",
-	}
-
-	// Check if line starts with any known Deno error pattern
-	for _, pattern := range denoPatterns {
-		if strings.HasPrefix(line, pattern) {
-			return true
-		}
-	}
-
-	// Check if line contains other Deno message patterns
-	for _, pattern := range otherPatterns {
-		if strings.Contains(line, pattern) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // -----
@@ -551,7 +610,9 @@ func Compile(projectRoot string) error {
 		return nil
 	}
 
-	if err := os.WriteFile(outputPath, []byte(workerTemplate), 0600); err != nil {
+	// Use 0700 since the file has a shebang and should be executable
+	// #nosec G306 - File needs executable permissions due to shebang
+	if err := os.WriteFile(outputPath, []byte(workerTemplate), 0700); err != nil {
 		return fmt.Errorf("failed to write compozy_worker.ts: %w", err)
 	}
 

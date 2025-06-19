@@ -172,6 +172,31 @@ func getOpenAIConfig(cmd *cobra.Command) (string, error) {
 	return apiKey, nil
 }
 
+func getToolExecutionTimeout(cmd *cobra.Command) (time.Duration, error) {
+	timeout, err := cmd.Flags().GetDuration("tool-execution-timeout")
+	if err != nil {
+		return 0, fmt.Errorf("failed to get tool-execution-timeout flag: %w", err)
+	}
+
+	// Use env var as fallback if flag was not explicitly set
+	if !cmd.Flags().Changed("tool-execution-timeout") {
+		if envTimeout := os.Getenv("TOOL_EXECUTION_TIMEOUT"); envTimeout != "" {
+			parsedTimeout, err := time.ParseDuration(envTimeout)
+			if err != nil {
+				return 0, fmt.Errorf("failed to parse TOOL_EXECUTION_TIMEOUT: %w", err)
+			}
+			timeout = parsedTimeout
+		}
+	}
+
+	// Validate timeout is positive
+	if timeout <= 0 {
+		return 0, fmt.Errorf("tool execution timeout must be positive, got %v", timeout)
+	}
+
+	return timeout, nil
+}
+
 // DevCmd returns the dev command
 func DevCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -204,6 +229,10 @@ func DevCmd() *cobra.Command {
 
 	// OpenAI configuration flags
 	cmd.Flags().String("openai-api-key", "", "OpenAI API key (env: OPENAI_API_KEY)")
+
+	// Tool execution configuration flags
+	cmd.Flags().
+		Duration("tool-execution-timeout", 60*time.Second, "Tool execution timeout (env: TOOL_EXECUTION_TIMEOUT)")
 
 	// Logging configuration flags
 	cmd.Flags().String("log-level", "info", "Log level (debug, info, warn, error)")
@@ -338,6 +367,17 @@ func handleDevCmd(cmd *cobra.Command, _ []string) error {
 		if err := os.Setenv("OPENAI_API_KEY", openaiAPIKey); err != nil {
 			return fmt.Errorf("failed to set OPENAI_API_KEY environment variable: %w", err)
 		}
+	}
+
+	// Get tool execution timeout
+	toolTimeout, err := getToolExecutionTimeout(cmd)
+	if err != nil {
+		return err
+	}
+
+	// Set tool execution timeout as environment variable
+	if err := os.Setenv("TOOL_EXECUTION_TIMEOUT", toolTimeout.String()); err != nil {
+		return fmt.Errorf("failed to set TOOL_EXECUTION_TIMEOUT environment variable: %w", err)
 	}
 
 	watch, err := cmd.Flags().GetBool("watch")

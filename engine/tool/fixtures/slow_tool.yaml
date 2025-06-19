@@ -1,0 +1,11 @@
+resource: tool
+id: heavy-analysis-tool
+description: "Analyzes large datasets - needs extended time"
+execute: "./format.ts"
+timeout: 10m
+
+input:
+  type: object
+  properties:
+    dataset:
+      type: string
