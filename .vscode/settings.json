@@ -1,0 +1,31 @@
+{
+    "deno.enable": true,
+    "deno.lint": true,
+    "deno.codeLens.test": true,
+    "javascript.preferences.importModuleSpecifier": "relative",
+    "typescript.preferences.importModuleSpecifier": "relative",
+    "javascript.updateImportsOnFileMove.enabled": "always",
+    "typescript.updateImportsOnFileMove.enabled": "always",
+    "testing.automaticallyOpenPeekView": "never",
+    "deno.internalDebug": true,
+    "makefile.makefilePath": "./Makefile",
+    "protoc": {
+        "path": "/opt/homebrew/bin/protoc",
+        "options": ["--proto_path=${workspaceRoot}/proto"],
+        "compile_on_save": false
+    },
+    "[proto3]": {
+        "editor.formatOnSave": false,
+        "editor.formatOnType": false
+    },
+    "[proto]": {
+        "editor.formatOnSave": false,
+        "editor.formatOnType": false
+    },
+    "[typescript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[javascript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    }
+}

@@ -1,0 +1,38 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Workflows",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}",
+            "args": [
+                "dev",
+                "--env-file",
+                ".env",
+                "--cwd",
+                "${input:exampleFolder}",
+                "--debug",
+                "--watch"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Debug Tests (workflow)",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "program": "${workspaceFolder}/engine/workflow",
+            "args": ["-test.v"]
+        }
+    ],
+    "inputs": [
+        {
+            "id": "exampleFolder",
+            "description": "Select example folder",
+            "type": "pickString",
+            "options": ["examples/weather", "examples/nested-tasks", "examples/signals"]
+        }
+    ]
+}

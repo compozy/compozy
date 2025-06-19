@@ -38,7 +38,6 @@ sessions/
 
 # IDE-specific files
 .idea/
-.vscode/
 *.sublime-project
 *.sublime-workspace
 
@@ -68,7 +67,6 @@ node_modules/
 # Environment variables
 # Editor directories and files
 .idea
-.vscode
 *.suo
 *.ntvs*
 *.njsproj
