@@ -15,7 +15,8 @@ import (
 type contextKey string
 
 const (
-	StateKey contextKey = "app_state"
+	StateKey           contextKey = "app_state"
+	ScheduleManagerKey string     = "scheduleManager"
 )
 
 type BaseDeps struct {
@@ -41,8 +42,9 @@ func NewBaseDeps(
 
 type State struct {
 	BaseDeps
-	CWD    *core.PathCWD
-	Worker *worker.Worker
+	CWD        *core.PathCWD
+	Worker     *worker.Worker
+	Extensions map[string]any
 }
 
 func NewState(deps BaseDeps, worker *worker.Worker) (*State, error) {
@@ -54,9 +56,10 @@ func NewState(deps BaseDeps, worker *worker.Worker) (*State, error) {
 		return nil, fmt.Errorf("project config must have a valid CWD")
 	}
 	return &State{
-		CWD:      cwd,
-		BaseDeps: deps,
-		Worker:   worker,
+		CWD:        cwd,
+		BaseDeps:   deps,
+		Worker:     worker,
+		Extensions: make(map[string]any),
 	}, nil
 }
 

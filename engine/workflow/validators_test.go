@@ -525,3 +525,190 @@ func TestOutputsValidator_CompatibilityWithGoTemplates(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestScheduleValidator_Validate(t *testing.T) {
+	t.Run("Should pass validation when schedule is nil", func(t *testing.T) {
+		cwd, err := core.CWDFromPath("/test/path")
+		require.NoError(t, err)
+		config := &Config{
+			ID:       "test-workflow",
+			CWD:      cwd,
+			Schedule: nil,
+		}
+		validator := NewScheduleValidator(config)
+		err = validator.Validate()
+		assert.NoError(t, err)
+	})
+	t.Run("Should validate schedule configuration", func(t *testing.T) {
+		cwd, err := core.CWDFromPath("/test/path")
+		require.NoError(t, err)
+		enabled := true
+		config := &Config{
+			ID:  "test-workflow",
+			CWD: cwd,
+			Schedule: &Schedule{
+				Cron:          "0 9 * * 1-5",
+				Timezone:      "America/New_York",
+				Enabled:       &enabled,
+				Jitter:        "5m",
+				OverlapPolicy: OverlapSkip,
+			},
+		}
+		validator := NewScheduleValidator(config)
+		err = validator.Validate()
+		assert.NoError(t, err)
+	})
+	t.Run("Should fail with invalid cron expression", func(t *testing.T) {
+		cwd, err := core.CWDFromPath("/test/path")
+		require.NoError(t, err)
+		config := &Config{
+			ID:  "test-workflow",
+			CWD: cwd,
+			Schedule: &Schedule{
+				Cron: "invalid cron",
+			},
+		}
+		validator := NewScheduleValidator(config)
+		err = validator.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "schedule validation error")
+		assert.Contains(t, err.Error(), "invalid cron expression")
+	})
+	t.Run("Should validate schedule input against workflow input schema", func(t *testing.T) {
+		cwd, err := core.CWDFromPath("/test/path")
+		require.NoError(t, err)
+		// Create a test schema that requires a "name" field
+		inputSchema := &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{
+					"type": "string",
+				},
+				"count": map[string]any{
+					"type": "number",
+				},
+			},
+			"required": []string{"name"},
+		}
+		config := &Config{
+			ID:  "test-workflow",
+			CWD: cwd,
+			Opts: Opts{
+				InputSchema: inputSchema,
+			},
+			Schedule: &Schedule{
+				Cron: "0 9 * * *",
+				Input: map[string]any{
+					"name":  "test",
+					"count": 42,
+				},
+			},
+		}
+		validator := NewScheduleValidator(config)
+		err = validator.Validate()
+		assert.NoError(t, err)
+	})
+	t.Run("Should fail when schedule input violates workflow input schema", func(t *testing.T) {
+		cwd, err := core.CWDFromPath("/test/path")
+		require.NoError(t, err)
+		// Create a test schema that requires a "name" field
+		inputSchema := &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{
+					"type": "string",
+				},
+			},
+			"required": []string{"name"},
+		}
+		config := &Config{
+			ID:  "test-workflow",
+			CWD: cwd,
+			Opts: Opts{
+				InputSchema: inputSchema,
+			},
+			Schedule: &Schedule{
+				Cron: "0 9 * * *",
+				Input: map[string]any{
+					// Missing required "name" field
+					"other": "value",
+				},
+			},
+		}
+		validator := NewScheduleValidator(config)
+		err = validator.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "schedule input validation error")
+	})
+	t.Run("Should fail when schedule has no input but workflow requires it", func(t *testing.T) {
+		cwd, err := core.CWDFromPath("/test/path")
+		require.NoError(t, err)
+		inputSchema := &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{
+					"type": "string",
+				},
+			},
+			"required": []string{"name"},
+		}
+		config := &Config{
+			ID:  "test-workflow",
+			CWD: cwd,
+			Opts: Opts{
+				InputSchema: inputSchema,
+			},
+			Schedule: &Schedule{
+				Cron: "0 9 * * *",
+				// No input specified - should fail because "name" is required
+			},
+		}
+		validator := NewScheduleValidator(config)
+		err = validator.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "schedule input validation error")
+	})
+	t.Run("Should pass when schedule has no input but schema has defaults", func(t *testing.T) {
+		cwd, err := core.CWDFromPath("/test/path")
+		require.NoError(t, err)
+		inputSchema := &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{
+					"type":    "string",
+					"default": "default-name",
+				},
+			},
+			"required": []string{"name"},
+		}
+		config := &Config{
+			ID:  "test-workflow",
+			CWD: cwd,
+			Opts: Opts{
+				InputSchema: inputSchema,
+			},
+			Schedule: &Schedule{
+				Cron: "0 9 * * *",
+				// No input specified - should pass because default is provided
+			},
+		}
+		validator := NewScheduleValidator(config)
+		err = validator.Validate()
+		assert.NoError(t, err)
+	})
+	t.Run("Should be integrated into workflow validation", func(t *testing.T) {
+		cwd, err := core.CWDFromPath("/test/path")
+		require.NoError(t, err)
+		config := &Config{
+			ID:  "test-workflow",
+			CWD: cwd,
+			Schedule: &Schedule{
+				Cron: "invalid cron expression",
+			},
+		}
+		// Test through the main workflow validator
+		err = config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "schedule validation error")
+	})
+}
