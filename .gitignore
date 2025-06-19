@@ -76,3 +76,6 @@ node_modules/
 
 # Local configuration files
 *.local.json
+
+# Added by Task Master AI
+.vscode

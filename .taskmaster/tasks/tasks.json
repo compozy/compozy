@@ -1,0 +1,151 @@
+{
+    "master": {
+        "tasks": [],
+        "metadata": {
+            "created": "2025-06-19T20:27:36.903Z",
+            "updated": "2025-06-19T20:27:36.903Z",
+            "description": "Tasks for master context"
+        }
+    },
+    "memory": {
+        "tasks": [
+            {
+                "id": 1,
+                "title": "Implement Enhanced Memory Domain Foundation",
+                "description": "Create the core memory interfaces, data models, and Redis-backed storage with async operations support",
+                "details": "Define Memory, MemoryStore, and DistributedLock interfaces with async operations. Implement MemoryResource, PriorityBlock, TokenAllocation, and FlushingStrategy data models. Create redisStore with AppendMessageAsync, ReadMessagesAsync, CountMessagesAsync, TrimMessagesAsync, ReplaceMessagesAsync, and SetExpirationAsync methods. Implement redisDistributedLock using SET NX EX pattern with automatic refresh mechanism. Use existing Redis pool from engine/infra/store with memory: namespace prefix.",
+                "testStrategy": "Unit tests for all interfaces with in-memory fake implementations. Integration tests with Redis behind build tag. Test distributed lock acquire/release/refresh cycles and concurrent access patterns.",
+                "priority": "high",
+                "dependencies": [],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 2,
+                "title": "Implement Priority-Based Token Management System",
+                "description": "Build the priority-aware token counting and eviction system with token allocation constraints",
+                "details": "Create PriorityMemoryManager with EvictWithPriority method that enforces lower of ratio-based vs fixed token limits. Implement calculateEffectiveTokenLimits to handle interaction between priority_blocks and token_allocation. Build message grouping by priority and eviction algorithms that preserve priority 0 (critical) content. Add token counting integration with model-specific tokenizers. Support optional priority configuration with fallback to standard FIFO eviction.",
+                "testStrategy": "Unit tests with various priority configurations and token allocation scenarios. Test edge cases where token_allocation ratios conflict with priority block max_tokens. Verify priority 0 content is never evicted regardless of token pressure.",
+                "priority": "high",
+                "dependencies": [1],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 3,
+                "title": "Implement Hybrid Flushing Strategy with Rule-Based Summarization",
+                "description": "Create intelligent memory management with deterministic summarization for context continuity",
+                "details": "Build HybridFlushingStrategy with ShouldFlush and FlushMessages methods. Implement RuleBasedSummarizer that combines first message and N most recent messages for continuity. Add optimized flush checking using message count estimates to avoid performance bottlenecks. Create FlushResult structure with summarization metrics. Support configurable summarization parameters (trigger thresholds, summary size, oldest percent). Implement token savings calculation and summary preservation.",
+                "testStrategy": "Unit tests for rule-based summarization with different message distributions. Test flush optimization with count-based triggers. Verify summary quality and token savings calculations. Performance tests for flush checking overhead.",
+                "priority": "high",
+                "dependencies": [1, 2],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 4,
+                "title": "Create Fixed Configuration Resolution System",
+                "description": "Implement the three-tier agent memory configuration system with proper YAML parsing and validation",
+                "details": "Build ConfigurationResolver with ResolveMemoryConfig method supporting Level 1 (direct memory ID), Level 2 (simple multi-memory with memory: true), and Level 3 (advanced configuration). Implement parseAdvancedMemoryConfig for full MemoryReference objects. Add smart defaults (read-write mode, required memory_key validation). Create ConfigValidator for memory ID existence checks. Support AgentConfig with interface{} types for flexible YAML parsing. Add comprehensive error messages for configuration issues.",
+                "testStrategy": "Unit tests for all three configuration levels with correct YAML parsing. Test validation of memory ID references. Verify error handling for invalid configurations. Test smart defaults application and backward compatibility.",
+                "priority": "high",
+                "dependencies": [1],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 5,
+                "title": "Build Memory Registry and Resource Loading System",
+                "description": "Create project-level memory resource management with loading, validation, and lookup capabilities",
+                "details": "Implement MemoryRegistry with resource storage and ID-based lookup. Create MemoryResourceLoader for parsing memory definitions from project config and separate YAML files. Add resource validation for priority blocks, token allocation, and flushing strategies. Support memory resource files in memories/ directory. Implement resource versioning and description fields. Add project-level isolation and multi-tenant safety with key sanitization using character whitelist [a-zA-Z0-9-_.:].",
+                "testStrategy": "Unit tests for resource loading from various file formats. Test validation of complex memory configurations. Integration tests with project configuration system. Test key sanitization and namespacing with compozy:{project_id}:memory:{user_key} pattern.",
+                "priority": "medium",
+                "dependencies": [1, 4],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 6,
+                "title": "Implement Async-Safe Memory Instance Management",
+                "description": "Create thread-safe memory instances with distributed locking and async operations",
+                "details": "Build AsyncSafeMemoryInstance wrapping memory operations with distributed locking. Implement withLockRefresh for automatic TTL extension during long operations. Create performFlushAsync combining priority eviction and hybrid flushing. Add optimized AppendAsync with count-based flush checking. Implement ReadAsync, LenAsync, and GetTokenCountAsync methods. Support memory key template evaluation using tplengine. Add MemoryHealth diagnostic information with priority breakdown and flush metrics.",
+                "testStrategy": "Unit tests with mock distributed locks and stores. Integration tests for concurrent access patterns. Test lock refresh mechanism under various operation durations. Performance benchmarks for async operation latency. Test memory health reporting accuracy.",
+                "priority": "high",
+                "dependencies": [1, 2, 3],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 7,
+                "title": "Create Memory Manager Factory and Template Engine Integration",
+                "description": "Build the central memory management system with key template evaluation and instance lifecycle",
+                "details": "Implement MemoryManager as factory for memory instances with template evaluation. Integrate tplengine for memory key template processing supporting workflow context variables (workflow.id, workflow.input.*, user.id, session.id, project.id, agent.id, timestamp). Add instance caching and lifecycle management scoped to workflow execution. Implement access mode enforcement (read-only prevents modifications). Create error handling that returns proper errors instead of panics. Support memory initialization from persistence on first access.",
+                "testStrategy": "Unit tests for template evaluation with various context variables. Test instance caching and lifecycle management. Verify access mode enforcement prevents unauthorized modifications. Integration tests with tplengine and Redis persistence.",
+                "priority": "medium",
+                "dependencies": [5, 6],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 8,
+                "title": "Integrate Enhanced Memory System with Agent Runtime",
+                "description": "Update agent configuration and runtime to support the new memory system with async operations",
+                "details": "Extend agent router to resolve enhanced memory configurations using ConfigurationResolver. Update agent constructor to accept memory references and validate configurations. Create agent memory adapter for dependency injection into LLM orchestrator. Add support for multiple memory references per agent with different access modes. Implement configuration migration logic for backward compatibility. Add agent-level memory metrics and error handling.",
+                "testStrategy": "Unit tests for agent configuration resolution with all three complexity levels. Integration tests with existing agent runtime. Test configuration migration and backward compatibility. Verify proper error propagation from memory operations.",
+                "priority": "medium",
+                "dependencies": [4, 7],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 9,
+                "title": "Update LLM Orchestrator for Async Memory Operations",
+                "description": "Modify the LLM orchestrator to use async memory operations and inject conversation history",
+                "details": "Update LLM orchestrator to accept Memory interface via dependency injection. Convert memory operations to async patterns with proper error handling. Implement conversation history loading before prompt generation. Add message appending after LLM responses. Support multiple memory instances per agent with different access modes. Integrate with existing prompt building and response handling. Add memory operation tracing and metrics collection.",
+                "testStrategy": "Unit tests with mock Memory interface. Integration tests with real memory instances. Test async operation error handling and timeout scenarios. Verify conversation history is properly included in prompts. Performance tests for memory operation overhead.",
+                "priority": "medium",
+                "dependencies": [6, 8],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 10,
+                "title": "Implement Privacy Controls and Data Protection",
+                "description": "Add privacy flags, redaction policies, and selective persistence controls for sensitive data",
+                "details": "Implement message-level privacy flags for non-persistable content. Add synchronous redaction before data leaves process boundaries using configurable regex patterns. Create privacy policy configuration at memory resource level. Implement selective persistence controls that honor privacy flags. Add logging when sensitive data is excluded from persistence. Support redaction patterns for SSN, credit cards, and custom patterns. Ensure privacy controls work with async operations.",
+                "testStrategy": "Unit tests for redaction pattern matching and privacy flag enforcement. Test selective persistence with various privacy configurations. Verify sensitive data logging and exclusion. Integration tests with Redis persistence layer.",
+                "priority": "medium",
+                "dependencies": [6],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 11,
+                "title": "Add Monitoring, Metrics, and Observability",
+                "description": "Implement comprehensive monitoring for memory operations, performance, and health",
+                "details": "Add Prometheus metrics for memory operations: memory_messages_total, memory_trim_total, memory_flush_total, memory_operation_latency_seconds, memory_lock_acquire_total, memory_lock_contention_total, memory_lock_duration_seconds, memory_lock_refresh_total, memory_tokens_saved_total, memory_priority_distribution, memory_config_resolution_total, memory_flush_optimization_hits_total. Implement structured logging with async operation tracing. Create Grafana dashboard for memory visualization. Add health check endpoints for memory system status.",
+                "testStrategy": "Unit tests for metrics collection accuracy. Integration tests with Prometheus and Grafana. Test metric collection under various load scenarios. Verify dashboard functionality and alert configurations.",
+                "priority": "low",
+                "dependencies": [6, 9],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 12,
+                "title": "Create Documentation, Examples, and Performance Testing",
+                "description": "Develop comprehensive documentation, usage examples, and performance validation for the memory system",
+                "details": "Create developer documentation for all three configuration levels with YAML examples. Build end-to-end workflow examples demonstrating memory sharing between agents. Document memory key template variables and sanitization rules. Create performance benchmarking suite for async operations, priority processing, and hybrid flushing. Add migration guide from stateless to memory-enabled agents. Document best practices for memory resource design, key templates, and multi-tenant patterns. Create troubleshooting guide for common configuration issues.",
+                "testStrategy": "Validate all documentation examples work correctly. Performance benchmarks meet <50ms latency requirements. Load testing with concurrent agents and memory sharing. End-to-end integration tests covering all features. User acceptance testing with different configuration complexity levels.",
+                "priority": "low",
+                "dependencies": [8, 9, 10, 11],
+                "status": "pending",
+                "subtasks": []
+            }
+        ],
+        "metadata": {
+            "created": "2025-06-19T21:03:39.101Z",
+            "updated": "2025-06-19T21:03:39.101Z",
+            "description": "Tag created on 6/19/2025"
+        }
+    }
+}
