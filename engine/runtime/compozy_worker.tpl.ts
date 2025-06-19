@@ -4,6 +4,28 @@
 
 const encoder = new TextEncoder();
 
+// Redirect all console output methods to stderr to prevent stdout pollution
+// This ensures that tool console calls don't interfere with JSON response parsing
+
+// Store the original console.error to use for redirecting other methods
+const originalError = console.error;
+
+console.log = (...args: unknown[]): void => {
+    originalError("[LOG]", ...args);
+};
+console.debug = (...args: unknown[]): void => {
+    originalError("[DEBUG]", ...args);
+};
+console.info = (...args: unknown[]): void => {
+    originalError("[INFO]", ...args);
+};
+console.warn = (...args: unknown[]): void => {
+    originalError("[WARN]", ...args);
+};
+console.error = (...args: unknown[]): void => {
+    originalError("[ERROR]", ...args);
+};
+
 // Utility function to validate tool IDs
 function isValidToolId(toolId: string): boolean {
     const validPattern = /^[a-zA-Z0-9_\/.-]+$/;
@@ -38,19 +60,21 @@ async function executeWithTimeout(
 
 // Main execution logic
 async function main() {
-    const decoder = new TextDecoder();
+    const decoder = new TextDecoder("utf-8", { stream: true });
     let inputText = "";
 
     // Read input from stdin
     for await (const chunk of Deno.stdin.readable) {
-        inputText += decoder.decode(chunk);
+        inputText += decoder.decode(chunk, { stream: true });
     }
+    // Decode any remaining bytes
+    inputText += decoder.decode();
 
     let req;
     try {
         req = JSON.parse(inputText.trim());
     } catch (err) {
-        console.error("Failed to parse JSON input:", err);
+        originalError("Failed to parse JSON input:", err);
         Deno.stdout.write(encoder.encode(JSON.stringify({
             error: {
                 message: "Invalid JSON input",
@@ -61,7 +85,7 @@ async function main() {
         Deno.exit(1);
     }
 
-    const { tool_id, tool_exec_id, input, env } = req;
+    const { tool_id, tool_exec_id, input, env, timeout_ms } = req;
 
     // Validate tool_id
     if (!tool_id || typeof tool_id !== "string" || !isValidToolId(tool_id)) {
@@ -113,8 +137,9 @@ async function main() {
             );
         }
 
-        // Execute tool
-        const result = await executeWithTimeout(toolFn, input, 60000);
+        // Execute tool with configurable timeout (default to 60 seconds if not provided)
+        const timeoutMs = timeout_ms || 60000;
+        const result = await executeWithTimeout(toolFn, input, timeoutMs);
 
         // Write output
         Deno.stdout.write(encoder.encode(JSON.stringify({
@@ -142,13 +167,13 @@ async function main() {
                 }
             }
         } catch (cleanupErr) {
-            console.error("Error during environment cleanup:", cleanupErr);
+            originalError("Error during environment cleanup:", cleanupErr);
         }
     }
 }
 
 // Run main
 main().catch((err) => {
-    console.error("Fatal error:", err);
+    originalError("Fatal error:", err);
     Deno.exit(1);
 });
