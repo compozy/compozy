@@ -16,6 +16,21 @@ status: pending
 
 Implement secure API key generation, hashing, and validation service using Argon2 with constant-time comparison. This service provides the cryptographic foundation for secure multi-tenant authentication.
 
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>
+
 ## Subtasks
 
 - [ ] 4.1 Implement secure 32-character random API key generation with 'cmpz\_' prefix
@@ -42,6 +57,13 @@ Create APIKeyService in engine/infra/auth:
 
 Use golang.org/x/crypto/argon2 with secure parameters: time=1, memory=64\*1024, threads=4, keyLen=32.
 
+### Relevant Files
+
+- `engine/auth/apikey/service.go` - Main API key service with generation and validation
+- `engine/auth/crypto.go` - Cryptographic utilities for hashing and comparison
+- `engine/auth/validation.go` - Key validation and context retrieval logic
+- `engine/auth/audit.go` - Audit logging for security events
+
 ## Success Criteria
 
 - API keys generated with cryptographically secure randomness
@@ -52,18 +74,3 @@ Use golang.org/x/crypto/argon2 with secure parameters: time=1, memory=64\*1024, 
 - Rate limiting configuration properly associated with API keys
 - Comprehensive audit logging captures all security-relevant events
 - Performance optimized through efficient prefix-based database lookups
-
-<critical>
-**MANDATORY REQUIREMENTS:**
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-    - Architecture patterns: `.cursor/rules/architecture.mdc`
-    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-    - Testing requirements: `.cursor/rules/testing-standards.mdc`
-    - API standards: `.cursor/rules/api-standards.mdc`
-    - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test` before completing ANY subtask
-- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>

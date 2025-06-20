@@ -50,7 +50,7 @@ graph TD
 
 ### Domain Mapping
 
-- **Primary Domain**: `engine/infra/auth` - Authentication middleware, organization management, and data access control
+- **Primary Domain**: `engine/auth` - Authentication middleware, API routes, use cases, organization management, and data access control
 - **Related Domains**:
     - `engine/infra/store` - Multi-tenant data access patterns
     - `engine/workflow` - Temporal namespace integration
@@ -59,14 +59,16 @@ graph TD
 
 ### Component Responsibilities
 
-| Component            | Responsibility                          | Domain            |
-| -------------------- | --------------------------------------- | ----------------- |
-| OrganizationService  | CRUD operations, namespace provisioning | engine/infra/auth |
-| UserService          | User lifecycle, role management         | engine/infra/auth |
-| APIKeyService        | Key generation, validation, lifecycle   | engine/infra/auth |
-| AuthMiddleware       | API key authentication                  | engine/infra/auth |
-| OrgContextMiddleware | Organization context injection          | engine/infra/auth |
-| TemporalDispatcher   | Namespace-aware workflow routing        | engine/workflow   |
+| Component            | Responsibility                          | Domain          |
+| -------------------- | --------------------------------------- | --------------- |
+| OrgService           | CRUD operations, namespace provisioning | engine/auth     |
+| UserService          | User lifecycle, role management         | engine/auth     |
+| APIKeyService        | Key generation, validation, lifecycle   | engine/auth     |
+| AuthMiddleware       | API key authentication                  | engine/auth     |
+| OrgContextMiddleware | Organization context injection          | engine/auth     |
+| APIRoutes            | API routes                              | engine/auth     |
+| UseCases             | Use cases                               | engine/auth     |
+| TemporalDispatcher   | Namespace-aware workflow routing        | engine/workflow |
 
 ## 3. Technical Design
 
@@ -626,7 +628,7 @@ func (m *RateLimitMiddleware) RateLimit() gin.HandlerFunc {
 
 ```go
 // Namespace provisioning with exponential backoff retry
-func (s *OrganizationService) provisionTemporalNamespace(ctx context.Context, namespace string) error {
+func (s *OrgService) provisionTemporalNamespace(ctx context.Context, namespace string) error {
     return retry.Do(func() error {
         return s.temporal.CreateNamespace(ctx, namespace)
     },
@@ -649,11 +651,11 @@ type ErrorResponse struct {
 ### Unit Testing
 
 ```go
-func TestOrganizationService_Create(t *testing.T) {
+func TestOrgService_Create(t *testing.T) {
     t.Run("Should create organization with namespace", func(t *testing.T) {
         mockRepo := &MockOrgRepository{}
         mockTemporal := &MockTemporalClient{}
-        service := NewOrganizationService(mockRepo, mockTemporal, nil)
+        service := NewOrgService(mockRepo, mockTemporal, nil)
 
         req := &CreateOrganizationRequest{Name: "Test Org"}
         org, err := service.CreateOrganization(context.Background(), req)
@@ -685,7 +687,7 @@ func TestOrganizationService_Create(t *testing.T) {
 
 ```go
 // Organization metrics
-func (s *OrganizationService) RecordMetrics(org *Organization) {
+func (s *OrgService) RecordMetrics(org *Organization) {
     metrics.Counter("organizations.total").Inc()
     metrics.Gauge("organizations.active").Set(float64(s.getActiveCount()))
 }
@@ -742,16 +744,28 @@ require (
 
 ## 11. Migration Strategy
 
-### Database Schema Evolution
+### Development Mode Approach
+
+Since Compozy is in active development/alpha phase, we can modify existing database migrations directly without backwards compatibility concerns:
+
+- **Modify Existing Migrations**: Update current migration files to include `org_id` columns from the start
+- **No Data Migration Required**: Development databases can be recreated from scratch
+- **Direct Schema Changes**: Add multi-tenant columns and indexes to existing table definitions
+- **Clean Migration History**: Maintain a clean migration sequence without ALTER TABLE statements
+
+### Multi-Tenant Schema Integration
 
 ```sql
--- Add org_id to existing tables
-ALTER TABLE workflows ADD COLUMN org_id UUID;
-ALTER TABLE tasks ADD COLUMN org_id UUID;
-ALTER TABLE workflow_states ADD COLUMN org_id UUID;
-ALTER TABLE task_states ADD COLUMN org_id UUID;
+-- Update existing table definitions to include org_id from creation
+CREATE TABLE workflows (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID NOT NULL REFERENCES organizations(id),
+    name VARCHAR(255) NOT NULL,
+    -- existing columns...
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
--- Create indexes for multi-tenant queries
+-- Create composite indexes for optimal multi-tenant queries
 CREATE INDEX idx_workflows_org_created ON workflows(org_id, created_at);
 CREATE INDEX idx_tasks_org_created ON tasks(org_id, created_at);
 ```
@@ -760,7 +774,7 @@ CREATE INDEX idx_tasks_org_created ON tasks(org_id, created_at);
 
 ```go
 // Initialize system organization for admin operations
-func InitializeSystemOrganization(ctx context.Context, service *OrganizationService) error {
+func InitializeSystemOrganization(ctx context.Context, service *OrgService) error {
     systemOrg := &Organization{
         ID:                core.ParseID("00000000-0000-0000-0000-000000000000"),
         Name:              "system",
@@ -771,11 +785,12 @@ func InitializeSystemOrganization(ctx context.Context, service *OrganizationServ
 }
 ```
 
-### Rollback Strategy
+### Development Flexibility
 
-- **Feature Flags**: Gradual rollout with ability to disable multi-tenant features
-- **Database Rollback**: Reversible migrations for org_id columns
-- **API Versioning**: Maintain v0 API compatibility during transition
+- **Direct Migration Updates**: Modify existing migration files to include multi-tenant schema from the beginning
+- **Database Recreation**: Development and test environments can be fully recreated with new schema
+- **No Legacy Support**: Focus on optimal design without backwards compatibility constraints
+- **Clean Architecture**: Build multi-tenant support as a core architectural component
 
 ## 12. Future Enhancements
 

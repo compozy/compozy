@@ -16,6 +16,21 @@ status: pending
 
 Implement Temporal namespace isolation with organization-aware workflow routing and dispatcher updates. This task ensures complete workflow execution isolation between organizations.
 
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>
+
 ## Subtasks
 
 - [ ] 9.1 Modify TemporalDispatcher to route workflows based on organization context
@@ -42,6 +57,14 @@ Update Temporal integration in engine/workflow:
 
 Use Temporal client with namespace switching based on organization context from middleware.
 
+### Relevant Files
+
+- `engine/workflow/dispatcher.go` - Updated with organization-aware routing
+- `engine/workflow/executor.go` - Namespace-specific workflow execution
+- `engine/workflow/scheduler.go` - Updated scheduler with namespace awareness
+- `engine/workflow/signal_handler.go` - Namespace-aware signal handling
+- `engine/workflow/worker_config.go` - Multi-namespace worker configuration
+
 ## Success Criteria
 
 - Workflow dispatcher properly routes based on organization context
@@ -52,18 +75,3 @@ Use Temporal client with namespace switching based on organization context from 
 - Worker configuration supports multiple namespaces efficiently
 - Namespace provisioning automated for seamless organization onboarding
 - Error handling provides clear feedback for namespace issues
-
-<critical>
-**MANDATORY REQUIREMENTS:**
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-    - Architecture patterns: `.cursor/rules/architecture.mdc`
-    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-    - Testing requirements: `.cursor/rules/testing-standards.mdc`
-    - API standards: `.cursor/rules/api-standards.mdc`
-    - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test` before completing ANY subtask
-- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>

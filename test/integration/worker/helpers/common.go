@@ -24,6 +24,9 @@ import (
 	"github.com/compozy/compozy/engine/workflow"
 )
 
+// TestOrgID is the default organization ID used in integration tests
+var TestOrgID = core.ID("00000000-0000-0000-0000-000000000000")
+
 // TestConfigStore implements services.ConfigStore for testing
 type TestConfigStore struct {
 	mu       sync.RWMutex
@@ -501,6 +504,7 @@ func ExecuteWorkflowAndGetState(
 	temporalInput := worker.WorkflowInput{
 		WorkflowID:     fixture.Workflow.ID,
 		WorkflowExecID: workflowExecID,
+		OrgID:          TestOrgID,
 		Input:          workflowInput,
 		InitialTaskID:  FindInitialTaskID(fixture),
 	}

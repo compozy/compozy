@@ -10,6 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	// TestOrgID is a constant UUID for test organization ID
+	TestOrgID = "00000000-0000-0000-0000-000000000000"
+)
+
 // -----
 // Mock Database Utilities
 // -----
@@ -93,9 +98,9 @@ func (w *WorkflowStateRowBuilder) CreateWorkflowStateRows(
 	inputData []byte,
 ) *pgxmock.Rows {
 	return w.mock.NewRows([]string{
-		"workflow_exec_id", "workflow_id", "status", "input", "output", "error",
+		"workflow_exec_id", "workflow_id", "org_id", "status", "input", "output", "error",
 	}).AddRow(
-		workflowExecID, workflowID, status, inputData, nil, nil,
+		workflowExecID, workflowID, TestOrgID, status, inputData, nil, nil,
 	)
 }
 
@@ -112,7 +117,7 @@ func (m *MockSetup) NewTaskStateRowBuilder() *TaskStateRowBuilder {
 // CreateEmptyTaskStateRows creates empty mock rows for task states
 func (t *TaskStateRowBuilder) CreateEmptyTaskStateRows() *pgxmock.Rows {
 	return t.mock.NewRows([]string{
-		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
+		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id", "org_id",
 		"component", "status", "execution_type", "parent_state_id", "agent_id", "action_id", "tool_id",
 		"input", "output", "error", "created_at", "updated_at",
 	})
@@ -129,6 +134,7 @@ func (t *TaskStateRowBuilder) CreateTaskStateRows(
 	var component core.ComponentType
 	var actionID any
 	var executionType = "basic"
+	orgID := TestOrgID
 
 	switch {
 	case agentID != nil:
@@ -144,11 +150,11 @@ func (t *TaskStateRowBuilder) CreateTaskStateRows(
 
 	now := time.Now()
 	return t.mock.NewRows([]string{
-		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
+		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id", "org_id",
 		"component", "status", "execution_type", "parent_state_id", "agent_id", "action_id", "tool_id",
 		"input", "output", "error", "created_at", "updated_at",
 	}).AddRow(
-		taskExecID, taskID, workflowExecID, workflowID,
+		taskExecID, taskID, workflowExecID, workflowID, orgID,
 		component, status, executionType, nil, agentID, actionID, toolID, inputData,
 		nil, nil, now, now,
 	)
@@ -165,6 +171,7 @@ func (t *TaskStateRowBuilder) CreateTaskStateRowsWithExecution(
 	// Determine component type and action_id based on provided IDs
 	var component core.ComponentType
 	var actionID any
+	orgID := TestOrgID
 
 	switch {
 	case agentID != nil:
@@ -178,7 +185,7 @@ func (t *TaskStateRowBuilder) CreateTaskStateRowsWithExecution(
 		actionID = DefaultActionID // Task components may have actions
 	}
 	columns := []string{
-		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
+		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id", "org_id",
 		"component", "status", "execution_type", "parent_state_id",
 		"agent_id", "action_id", "tool_id", "input", "output",
 		"error", "created_at", "updated_at",
@@ -186,7 +193,7 @@ func (t *TaskStateRowBuilder) CreateTaskStateRowsWithExecution(
 
 	now := time.Now()
 	values := []any{
-		taskExecID, taskID, workflowExecID, workflowID,
+		taskExecID, taskID, workflowExecID, workflowID, orgID,
 		component, status, executionType, nil,
 		agentID, actionID, toolID, inputData, nil,
 		nil, now, now,

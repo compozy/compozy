@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 ---
 
 <task_context>
@@ -16,16 +16,31 @@ status: pending
 
 Implement repository interfaces and PostgreSQL implementations for Organization, User, and APIKey entities with organization-scoped queries. This layer provides data access with built-in multi-tenant isolation.
 
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>
+
 ## Subtasks
 
-- [ ] 3.1 Create OrgRepository interface with CRUD operations, FindByName, and UpdateStatus methods
-- [ ] 3.2 Create UserRepository interface with organization-scoped queries, FindByEmail, and UpdateRole methods
-- [ ] 3.3 Create APIKeyRepository interface with FindByPrefix, ValidateKey, and organization-scoped listing
-- [ ] 3.4 Implement PostgreSQL implementations using pgx with prepared statements for all repositories
-- [ ] 3.5 Ensure all queries include org_id filtering where applicable for data isolation
-- [ ] 3.6 Add transaction support using store.TransactionManager for atomic operations
-- [ ] 3.7 Implement proper error handling with domain-specific errors following project patterns
-- [ ] 3.8 Configure connection pooling with organization-aware patterns for optimal performance
+- [x] 3.1 Create OrgRepository interface with CRUD operations, FindByName, and UpdateStatus methods
+- [x] 3.2 Create UserRepository interface with organization-scoped queries, FindByEmail, and UpdateRole methods
+- [x] 3.3 Create APIKeyRepository interface with FindByPrefix, ValidateKey, and organization-scoped listing
+- [x] 3.4 Implement PostgreSQL implementations using pgx with prepared statements for all repositories
+- [x] 3.5 Ensure all queries include org_id filtering where applicable for data isolation
+- [x] 3.6 Add transaction support using store.TransactionManager for atomic operations
+- [x] 3.7 Implement proper error handling with domain-specific errors following project patterns
+- [x] 3.8 Configure connection pooling with organization-aware patterns for optimal performance
 
 ## Implementation Details
 
@@ -42,6 +57,14 @@ Create repository layer in engine/infra/store:
 
 Implement repository pattern with interfaces for testability.
 
+### Relevant Files
+
+- `engine/auth/org/repository.go` - Organization repository interface and PostgreSQL implementation
+- `engine/auth/user/repository.go` - User repository interface and PostgreSQL implementation
+- `engine/auth/apikey/repository.go` - APIKey repository interface and PostgreSQL implementation
+- `engine/infra/store/transaction.go` - Transaction manager integration
+- `engine/infra/store/errors.go` - Domain-specific error types
+
 ## Success Criteria
 
 - Repository interfaces properly defined with organization-scoped operations
@@ -51,18 +74,3 @@ Implement repository pattern with interfaces for testability.
 - Error handling follows project standards with appropriate error types
 - Connection pooling configured for multi-tenant workloads
 - Repository pattern supports easy testing with mock implementations
-
-<critical>
-**MANDATORY REQUIREMENTS:**
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-    - Architecture patterns: `.cursor/rules/architecture.mdc`
-    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-    - Testing requirements: `.cursor/rules/testing-standards.mdc`
-    - API standards: `.cursor/rules/api-standards.mdc`
-    - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test` before completing ANY subtask
-- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>

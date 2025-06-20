@@ -92,18 +92,18 @@ func (r Role) HasPermission(permission string) bool {
 	}
 }
 
-// UserStatus represents the status of a user
-type UserStatus string
+// Status represents the status of a user
+type Status string
 
 const (
 	// StatusActive indicates the user is active
-	StatusActive UserStatus = "active"
+	StatusActive Status = "active"
 	// StatusSuspended indicates the user is suspended
-	StatusSuspended UserStatus = "suspended"
+	StatusSuspended Status = "suspended"
 )
 
 // IsValid checks if the user status is valid
-func (s UserStatus) IsValid() bool {
+func (s Status) IsValid() bool {
 	switch s {
 	case StatusActive, StatusSuspended:
 		return true
@@ -114,13 +114,13 @@ func (s UserStatus) IsValid() bool {
 
 // User represents a user in the multi-tenant system
 type User struct {
-	ID        core.ID    `json:"id"         db:"id"`
-	OrgID     core.ID    `json:"org_id"     db:"org_id"`
-	Email     string     `json:"email"      db:"email"`
-	Role      Role       `json:"role"       db:"role"`
-	Status    UserStatus `json:"status"     db:"status"`
-	CreatedAt time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at" db:"updated_at"`
+	ID        core.ID   `json:"id"         db:"id"`
+	OrgID     core.ID   `json:"org_id"     db:"org_id"`
+	Email     string    `json:"email"      db:"email"`
+	Role      Role      `json:"role"       db:"role"`
+	Status    Status    `json:"status"     db:"status"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // NewUser creates a new user with the given details

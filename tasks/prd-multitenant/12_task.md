@@ -16,6 +16,21 @@ status: pending
 
 Conduct comprehensive security audit, implement performance optimizations, and validate multi-tenant isolation. This final task ensures the system meets all security and performance requirements.
 
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>
+
 ## Subtasks
 
 - [ ] 12.1 Conduct security audit focusing on cross-organization data leakage prevention
@@ -42,6 +57,14 @@ Security and performance validation:
 
 Target metrics: <50ms auth latency, <200ms API response time, 0 cross-org data leakage.
 
+### Relevant Files
+
+- `test/integration/auth/security_audit_test.go` - Security audit and penetration testing
+- `test/integration/auth/performance_test.go` - Performance benchmarking and load testing
+- `test/integration/auth/isolation_test.go` - Cross-organization data isolation validation
+- `engine/auth/audit_logger.go` - Enhanced audit logging for security events
+- `scripts/security_audit.sh` - Automated security audit script
+
 ## Success Criteria
 
 - Security audit confirms zero cross-organization data leakage
@@ -52,18 +75,3 @@ Target metrics: <50ms auth latency, <200ms API response time, 0 cross-org data l
 - API key security validated against timing attacks with sufficient entropy
 - Audit logging captures all security-relevant events
 - Load testing demonstrates system stability with concurrent multi-tenant usage
-
-<critical>
-**MANDATORY REQUIREMENTS:**
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-    - Architecture patterns: `.cursor/rules/architecture.mdc`
-    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-    - Testing requirements: `.cursor/rules/testing-standards.mdc`
-    - API standards: `.cursor/rules/api-standards.mdc`
-    - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test` before completing ANY subtask
-- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
@@ -30,6 +31,7 @@ func TestTaskRepo_UpsertState(t *testing.T) {
 	ctx := context.Background()
 	workflowID := "wf1"
 	workflowExecID := core.ID("exec1")
+	orgID := core.ID("00000000-0000-0000-0000-000000000000")
 	agentID := "agent1"
 	actionID := "default_action"
 	state := &task.State{
@@ -39,6 +41,7 @@ func TestTaskRepo_UpsertState(t *testing.T) {
 		Status:         core.StatusPending,
 		WorkflowID:     workflowID,
 		WorkflowExecID: workflowExecID,
+		OrgID:          orgID,
 		ExecutionType:  task.ExecutionBasic,
 		AgentID:        &agentID,
 		ActionID:       &actionID,
@@ -52,7 +55,7 @@ func TestTaskRepo_UpsertState(t *testing.T) {
 
 	queries := mockSetup.NewQueryExpectations()
 	queries.ExpectTaskStateQueryForUpsert([]any{
-		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, state.Component, state.Status,
+		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, state.OrgID, state.Component, state.Status,
 		state.ExecutionType, (*string)(nil), state.AgentID, state.ActionID, state.ToolID, inputJSON,
 		expectedOutputJSON,
 		expectedErrorJSON,
@@ -70,6 +73,7 @@ func TestTaskRepo_CreateChildStatesInTransaction(t *testing.T) {
 		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
 			parentStateID := core.ID("parent-exec-123")
 			workflowExecID := core.ID("exec1")
+			orgID := core.ID("00000000-0000-0000-0000-000000000000")
 
 			// Create child states to insert
 			childStates := []*task.State{
@@ -79,6 +83,10 @@ func TestTaskRepo_CreateChildStatesInTransaction(t *testing.T) {
 				task.CreateToolSubTaskState(
 					"child2", core.ID("child2-exec"), "wf1", workflowExecID,
 					&parentStateID, "tool1", &core.Input{"task": "subtask2"}),
+			}
+			// Set OrgID on child states
+			for _, child := range childStates {
+				child.OrgID = orgID
 			}
 
 			dataBuilder := utils.NewDataBuilder()
@@ -96,7 +104,7 @@ func TestTaskRepo_CreateChildStatesInTransaction(t *testing.T) {
 			mockSetup.Mock.ExpectExec("INSERT INTO task_states").
 				WithArgs(
 					childStates[0].TaskExecID, childStates[0].TaskID, childStates[0].WorkflowExecID,
-					childStates[0].WorkflowID, childStates[0].Component, childStates[0].Status,
+					childStates[0].WorkflowID, childStates[0].OrgID, childStates[0].Component, childStates[0].Status,
 					childStates[0].ExecutionType, &parentStateIDStr, childStates[0].AgentID,
 					childStates[0].ActionID, (*string)(nil), input1JSON, nilJSON, nilJSON,
 				).WillReturnResult(pgxmock.NewResult("INSERT", 1))
@@ -105,7 +113,7 @@ func TestTaskRepo_CreateChildStatesInTransaction(t *testing.T) {
 			mockSetup.Mock.ExpectExec("INSERT INTO task_states").
 				WithArgs(
 					childStates[1].TaskExecID, childStates[1].TaskID, childStates[1].WorkflowExecID,
-					childStates[1].WorkflowID, childStates[1].Component, childStates[1].Status,
+					childStates[1].WorkflowID, childStates[1].OrgID, childStates[1].Component, childStates[1].Status,
 					childStates[1].ExecutionType, &parentStateIDStr, (*string)(nil), (*string)(nil),
 					childStates[1].ToolID, input2JSON, nilJSON, nilJSON,
 				).WillReturnResult(pgxmock.NewResult("INSERT", 1))
@@ -124,11 +132,16 @@ func TestTaskRepo_CreateChildStatesInTransaction(t *testing.T) {
 		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
 			parentStateID := core.ID("parent-exec-456")
 			workflowExecID := core.ID("exec2")
+			orgID := core.ID("00000000-0000-0000-0000-000000000000")
 
 			childStates := []*task.State{
 				task.CreateAgentSubTaskState(
 					"child1", core.ID("child1-exec"), "wf2", workflowExecID,
 					&parentStateID, "agent1", "action1", &core.Input{"task": "subtask1"}),
+			}
+			// Set OrgID on child states
+			for _, child := range childStates {
+				child.OrgID = orgID
 			}
 
 			dataBuilder := utils.NewDataBuilder()
@@ -145,7 +158,7 @@ func TestTaskRepo_CreateChildStatesInTransaction(t *testing.T) {
 			mockSetup.Mock.ExpectExec("INSERT INTO task_states").
 				WithArgs(
 					childStates[0].TaskExecID, childStates[0].TaskID, childStates[0].WorkflowExecID,
-					childStates[0].WorkflowID, childStates[0].Component, childStates[0].Status,
+					childStates[0].WorkflowID, childStates[0].OrgID, childStates[0].Component, childStates[0].Status,
 					childStates[0].ExecutionType, &parentStateIDStr, childStates[0].AgentID,
 					childStates[0].ActionID, (*string)(nil), inputJSON, nilJSON, nilJSON,
 				).WillReturnError(fmt.Errorf("database error"))
@@ -252,8 +265,10 @@ func TestTaskRepo_GetParallelStateEquivalent(t *testing.T) {
 
 			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 			childRows := taskRowBuilder.CreateEmptyTaskStateRows().
-				AddRow("child-exec-456", "child-task", "exec1", "wf1", core.ComponentAgent, core.StatusPending,
-					task.ExecutionBasic, parentExecID, "agent1", "action1", nil, inputData, nil, nil, nil, nil)
+				AddRow("child-exec-456", "child-task", "exec1", "wf1", "00000000-0000-0000-0000-000000000000",
+					core.ComponentAgent, core.StatusPending,
+					task.ExecutionBasic, parentExecID, "agent1", "action1", nil, inputData, nil, nil,
+					time.Now(), time.Now())
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
 				WithArgs(childExecID).
@@ -319,10 +334,14 @@ func TestTaskRepo_ListTasksInWorkflow(t *testing.T) {
 
 			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 			taskRows := taskRowBuilder.CreateEmptyTaskStateRows().
-				AddRow("task_exec1", "task1", "exec1", "wf1", core.ComponentAgent, core.StatusPending,
-					task.ExecutionBasic, nil, agentID, "default_action", nil, nil, nil, nil, nil, nil).
-				AddRow("task_exec2", "task2", "exec1", "wf1", core.ComponentTool, core.StatusRunning,
-					task.ExecutionBasic, nil, nil, nil, toolID, nil, nil, nil, nil, nil)
+				AddRow("task_exec1", "task1", "exec1", "wf1", "00000000-0000-0000-0000-000000000000",
+					core.ComponentAgent, core.StatusPending,
+					task.ExecutionBasic, nil, agentID, "default_action", nil, nil, nil, nil,
+					time.Now(), time.Now()).
+				AddRow("task_exec2", "task2", "exec1", "wf1", "00000000-0000-0000-0000-000000000000",
+					core.ComponentTool, core.StatusRunning,
+					task.ExecutionBasic, nil, nil, nil, toolID, nil, nil, nil,
+					time.Now(), time.Now())
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
 				WithArgs(workflowExecID).
@@ -630,8 +649,10 @@ func TestTaskRepo_ListStatesWithExecutionTypeFilter(t *testing.T) {
 
 			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 			taskRows := taskRowBuilder.CreateEmptyTaskStateRows().
-				AddRow("child-exec-1", "child1", "exec1", "wf1", core.ComponentAgent, core.StatusPending,
-					task.ExecutionBasic, parentStateID, "agent1", "action1", nil, nil, nil, nil, nil, nil)
+				AddRow("child-exec-1", "child1", "exec1", "wf1", "00000000-0000-0000-0000-000000000000",
+					core.ComponentAgent, core.StatusPending,
+					task.ExecutionBasic, parentStateID, "agent1", "action1", nil, nil, nil, nil,
+					time.Now(), time.Now())
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
 				WithArgs(parentStateID, task.ExecutionBasic).

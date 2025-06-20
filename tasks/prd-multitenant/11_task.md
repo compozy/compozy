@@ -16,6 +16,21 @@ status: pending
 
 Implement comprehensive CLI commands for organization, user, and API key management with intuitive workflows. This provides command-line access to all multi-tenant management operations.
 
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>
+
 ## Subtasks
 
 - [ ] 11.1 Create organization commands: create, list, show, update, delete
@@ -42,6 +57,14 @@ Create CLI commands using cobra:
 
 Commands: 'compozy org create', 'compozy user add', 'compozy apikey create' with intuitive flag structure.
 
+### Relevant Files
+
+- `engine/auth/commands/org.go` - Organization CLI commands
+- `engine/auth/commands/user.go` - User CLI commands
+- `engine/auth/commands/apikey.go` - API key CLI commands
+- `engine/auth/commands/config.go` - CLI configuration management
+- `cli/auth.go` - Main CLI entry point that imports and registers auth commands
+
 ## Success Criteria
 
 - All organization management commands functional with proper validation
@@ -52,18 +75,3 @@ Commands: 'compozy org create', 'compozy user add', 'compozy apikey create' with
 - Output formatting supports both human-readable and machine-readable formats
 - Interactive prompts prevent accidental destructive operations
 - Progress indicators provide feedback for long-running operations
-
-<critical>
-**MANDATORY REQUIREMENTS:**
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-    - Architecture patterns: `.cursor/rules/architecture.mdc`
-    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-    - Testing requirements: `.cursor/rules/testing-standards.mdc`
-    - API standards: `.cursor/rules/api-standards.mdc`
-    - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test` before completing ANY subtask
-- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>

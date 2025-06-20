@@ -11,19 +11,19 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// APIKeyStatus represents the status of an API key
-type APIKeyStatus string
+// Status represents the status of an API key
+type Status string
 
 const (
 	// StatusActive indicates the API key is active
-	StatusActive APIKeyStatus = "active"
+	StatusActive Status = "active"
 	// StatusRevoked indicates the API key has been revoked
-	StatusRevoked APIKeyStatus = "revoked"
+	StatusRevoked Status = "revoked"
 	// StatusExpired indicates the API key has expired.
 	// Note: This status is typically set by a background job that cleans up
 	// keys where ExpiresAt is in the past. The IsActive() method provides the
 	// real-time validity check.
-	StatusExpired APIKeyStatus = "expired"
+	StatusExpired Status = "expired"
 )
 
 const (
@@ -31,10 +31,12 @@ const (
 	KeyLength = 32
 	// KeyPrefix is the prefix for all API keys
 	KeyPrefix = "cmpz_"
+	// KeyPrefixDisplayLength is the number of characters to include after the prefix for display/lookup
+	KeyPrefixDisplayLength = 8
 )
 
 // IsValid checks if the API key status is valid
-func (s APIKeyStatus) IsValid() bool {
+func (s Status) IsValid() bool {
 	switch s {
 	case StatusActive, StatusRevoked, StatusExpired:
 		return true
@@ -45,18 +47,18 @@ func (s APIKeyStatus) IsValid() bool {
 
 // APIKey represents an API key for authentication
 type APIKey struct {
-	ID               core.ID      `json:"id"                     db:"id"`
-	UserID           core.ID      `json:"user_id"                db:"user_id"`
-	OrgID            core.ID      `json:"org_id"                 db:"org_id"`
-	KeyHash          string       `json:"-"                      db:"key_hash"` // Never expose the hash
-	KeyPrefix        string       `json:"key_prefix"             db:"key_prefix"`
-	Name             string       `json:"name"                   db:"name"`
-	ExpiresAt        *time.Time   `json:"expires_at,omitempty"   db:"expires_at"`
-	RateLimitPerHour int          `json:"rate_limit_per_hour"    db:"rate_limit_per_hour"`
-	LastUsedAt       *time.Time   `json:"last_used_at,omitempty" db:"last_used_at"`
-	Status           APIKeyStatus `json:"status"                 db:"status"`
-	CreatedAt        time.Time    `json:"created_at"             db:"created_at"`
-	UpdatedAt        time.Time    `json:"updated_at"             db:"updated_at"`
+	ID               core.ID    `json:"id"                     db:"id"`
+	UserID           core.ID    `json:"user_id"                db:"user_id"`
+	OrgID            core.ID    `json:"org_id"                 db:"org_id"`
+	KeyHash          string     `json:"-"                      db:"key_hash"` // Never expose the hash
+	KeyPrefix        string     `json:"key_prefix"             db:"key_prefix"`
+	Name             string     `json:"name"                   db:"name"`
+	ExpiresAt        *time.Time `json:"expires_at,omitempty"   db:"expires_at"`
+	RateLimitPerHour int        `json:"rate_limit_per_hour"    db:"rate_limit_per_hour"`
+	LastUsedAt       *time.Time `json:"last_used_at,omitempty" db:"last_used_at"`
+	Status           Status     `json:"status"                 db:"status"`
+	CreatedAt        time.Time  `json:"created_at"             db:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"             db:"updated_at"`
 	// Key is the actual API key value, only populated when creating a new key
 	Key string `json:"key,omitempty"          db:"-"`
 	// Role is populated from the associated user, not stored in the API key table
@@ -112,7 +114,7 @@ func Generate(userID, orgID core.ID, name string) (string, *APIKey, error) {
 	}
 	// Set the hash and prefix
 	apiKey.KeyHash = string(keyHash)
-	apiKey.KeyPrefix = plainTextKey[:len(KeyPrefix)+8] // e.g., cmpz_xxxxxxxx
+	apiKey.KeyPrefix = plainTextKey[:len(KeyPrefix)+KeyPrefixDisplayLength] // e.g., cmpz_xxxxxxxx
 	return plainTextKey, apiKey, nil
 }
 
@@ -222,4 +224,17 @@ func (k *APIKey) HasPermission(permission string) bool {
 		return false
 	}
 	return k.Role.HasPermission(permission)
+}
+
+// ExtractPrefix extracts the prefix from a full API key
+func ExtractPrefix(fullKey string) (string, error) {
+	expectedPrefixLength := len(KeyPrefix) + KeyPrefixDisplayLength
+	if len(fullKey) < expectedPrefixLength {
+		return "", fmt.Errorf("invalid API key format: too short")
+	}
+	if fullKey[:len(KeyPrefix)] != KeyPrefix {
+		return "", fmt.Errorf("invalid API key format: missing prefix")
+	}
+	// Return the prefix part (e.g., "cmpz_xxxxxxxx")
+	return fullKey[:expectedPrefixLength], nil
 }

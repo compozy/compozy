@@ -15,7 +15,7 @@ import (
 func TestAPIKeyStatus_IsValid(t *testing.T) {
 	tests := []struct {
 		name   string
-		status APIKeyStatus
+		status Status
 		want   bool
 	}{
 		{
@@ -35,7 +35,7 @@ func TestAPIKeyStatus_IsValid(t *testing.T) {
 		},
 		{
 			name:   "Should reject invalid status",
-			status: APIKeyStatus("invalid"),
+			status: Status("invalid"),
 			want:   false,
 		},
 	}
@@ -327,7 +327,7 @@ func TestAPIKey_Validate(t *testing.T) {
 			KeyPrefix:        "cmpz_abcd",
 			Name:             "Test Key",
 			RateLimitPerHour: 3600,
-			Status:           APIKeyStatus("invalid"),
+			Status:           Status("invalid"),
 		}
 		err := key.Validate()
 		assert.Error(t, err)

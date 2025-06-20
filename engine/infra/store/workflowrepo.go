@@ -205,19 +205,20 @@ func (r *WorkflowRepo) UpsertState(ctx context.Context, state *workflow.State) e
 
 	query := `
 		INSERT INTO workflow_states (
-			workflow_exec_id, workflow_id, status, input, output, error
-		) VALUES ($1, $2, $3, $4, $5, $6)
+			workflow_exec_id, workflow_id, org_id, status, input, output, error
+		) VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (workflow_exec_id) DO UPDATE SET
 			workflow_id = $2,
-			status = $3,
-			input = $4,
-			output = $5,
-			error = $6,
+			org_id = $3,
+			status = $4,
+			input = $5,
+			output = $6,
+			error = $7,
 			updated_at = now()
 	`
 
 	_, err = r.db.Exec(ctx, query,
-		state.WorkflowExecID, state.WorkflowID, state.Status,
+		state.WorkflowExecID, state.WorkflowID, state.OrgID, state.Status,
 		input, output, errJSON,
 	)
 	if err != nil {
@@ -257,7 +258,7 @@ func (r *WorkflowRepo) GetState(ctx context.Context, workflowExecID core.ID) (*w
 
 	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
-			SELECT workflow_exec_id, workflow_id, status, input, output, error
+			SELECT workflow_exec_id, workflow_id, org_id, status, input, output, error
 			FROM workflow_states
 			WHERE workflow_exec_id = $1
 		`
@@ -294,7 +295,7 @@ func (r *WorkflowRepo) GetStateByID(ctx context.Context, workflowID string) (*wo
 
 	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
-			SELECT workflow_exec_id, workflow_id, status, input, output, error
+			SELECT workflow_exec_id, workflow_id, org_id, status, input, output, error
 			FROM workflow_states
 			WHERE workflow_id = $1
 			LIMIT 1
@@ -330,7 +331,7 @@ func (r *WorkflowRepo) GetStateByTaskID(
 	var result *workflow.State
 	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
-			SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error
+			SELECT w.workflow_exec_id, w.workflow_id, w.org_id, w.status, w.input, w.output, w.error
 			FROM workflow_states w
 			JOIN task_states t ON w.workflow_exec_id = t.workflow_exec_id
 			WHERE w.workflow_id = $1 AND t.task_id = $2
@@ -366,7 +367,7 @@ func (r *WorkflowRepo) GetStateByAgentID(
 
 	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
-			SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error
+			SELECT w.workflow_exec_id, w.workflow_id, w.org_id, w.status, w.input, w.output, w.error
 			FROM workflow_states w
 			JOIN task_states t ON w.workflow_exec_id = t.workflow_exec_id
 			WHERE w.workflow_id = $1 AND t.agent_id = $2
@@ -409,7 +410,7 @@ func (r *WorkflowRepo) GetStateByToolID(
 
 	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
-			SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error
+			SELECT w.workflow_exec_id, w.workflow_id, w.org_id, w.status, w.input, w.output, w.error
 			FROM workflow_states w
 			JOIN task_states t ON w.workflow_exec_id = t.workflow_exec_id
 			WHERE w.workflow_id = $1 AND t.tool_id = $2

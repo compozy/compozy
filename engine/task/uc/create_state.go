@@ -74,6 +74,7 @@ func (uc *CreateState) createBasicState(
 	stateInput := task.CreateStateInput{
 		WorkflowID:     input.WorkflowConfig.ID,
 		WorkflowExecID: input.WorkflowState.WorkflowExecID,
+		OrgID:          input.WorkflowState.OrgID,
 		TaskID:         input.TaskConfig.ID,
 		TaskExecID:     taskExecID,
 	}

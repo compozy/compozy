@@ -137,7 +137,7 @@ func TestRole_HasPermission(t *testing.T) {
 func TestUserStatus_IsValid(t *testing.T) {
 	tests := []struct {
 		name   string
-		status UserStatus
+		status Status
 		want   bool
 	}{
 		{
@@ -152,7 +152,7 @@ func TestUserStatus_IsValid(t *testing.T) {
 		},
 		{
 			name:   "Should reject invalid status",
-			status: UserStatus("invalid"),
+			status: Status("invalid"),
 			want:   false,
 		},
 	}
@@ -356,7 +356,7 @@ func TestUser_Validate(t *testing.T) {
 			OrgID:  orgID,
 			Email:  "john@example.com",
 			Role:   RoleOrgCustomer,
-			Status: UserStatus("invalid"),
+			Status: Status("invalid"),
 		}
 		err := user.Validate()
 		assert.Error(t, err)

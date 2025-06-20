@@ -16,6 +16,21 @@ status: pending
 
 Implement user lifecycle management with role-based permissions and organization-scoped operations. This service manages user accounts within the multi-tenant system with proper access control.
 
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>
+
 ## Subtasks
 
 - [ ] 6.1 Implement user CRUD operations with organization context validation
@@ -42,6 +57,13 @@ Create UserService in engine/infra/auth:
 
 Implement permission matrix: admin (global), manager (org-wide), customer (read/execute only).
 
+### Relevant Files
+
+- `engine/auth/user/service.go` - Main user service with lifecycle and role management
+- `engine/auth/permissions.go` - Role-based permission checking and validation
+- `engine/auth/bulk_operations.go` - Bulk user operations for organization management
+- `engine/auth/activity_tracker.go` - User activity tracking and audit logging
+
 ## Success Criteria
 
 - User operations properly scoped to organization boundaries
@@ -52,18 +74,3 @@ Implement permission matrix: admin (global), manager (org-wide), customer (read/
 - User-organization associations properly validated
 - Bulk operations enable efficient organization management
 - Activity tracking provides comprehensive audit trail
-
-<critical>
-**MANDATORY REQUIREMENTS:**
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-    - Architecture patterns: `.cursor/rules/architecture.mdc`
-    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-    - Testing requirements: `.cursor/rules/testing-standards.mdc`
-    - API standards: `.cursor/rules/api-standards.mdc`
-    - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test` before completing ANY subtask
-- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>

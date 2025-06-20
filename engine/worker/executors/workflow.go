@@ -26,6 +26,7 @@ func (e *WorkflowExecutor) TriggerWorkflow() func(ctx workflow.Context) (*wf.Sta
 		actInput := &wfacts.TriggerInput{
 			WorkflowID:     e.WorkflowID,
 			WorkflowExecID: e.WorkflowExecID,
+			OrgID:          e.OrgID,
 			Input:          e.Input,
 			InitialTaskID:  e.InitialTaskID,
 		}

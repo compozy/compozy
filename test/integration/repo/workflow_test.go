@@ -23,6 +23,7 @@ func TestWorkflowRepo_UpsertState(t *testing.T) {
 	state := &workflow.State{
 		WorkflowID:     "wf1",
 		WorkflowExecID: core.ID("exec1"),
+		OrgID:          core.ID("00000000-0000-0000-0000-000000000000"),
 		Status:         core.StatusPending,
 		Input:          &core.Input{"key": "value"},
 		Tasks:          make(map[string]*task.State),
@@ -35,7 +36,7 @@ func TestWorkflowRepo_UpsertState(t *testing.T) {
 
 	queries := mockSetup.NewQueryExpectations()
 	queries.ExpectWorkflowStateQueryForUpsert([]any{
-		state.WorkflowExecID, state.WorkflowID, state.Status,
+		state.WorkflowExecID, state.WorkflowID, state.OrgID, state.Status,
 		inputJSON,
 		expectedOutputJSON,
 		expectedErrorJSON,
@@ -72,7 +73,7 @@ func TestWorkflowRepo_GetState(t *testing.T) {
 
 	// Expect workflow query
 	queries.ExpectWorkflowStateQuery(
-		"SELECT workflow_exec_id, workflow_id, status, input, output, error FROM workflow_states",
+		"SELECT workflow_exec_id, workflow_id, org_id, status, input, output, error FROM workflow_states",
 		[]any{workflowExecID},
 		workflowRows,
 	)
@@ -119,7 +120,7 @@ func TestWorkflowRepo_GetState_WithTasks(t *testing.T) {
 
 	// Expect workflow query
 	queries.ExpectWorkflowStateQuery(
-		"SELECT workflow_exec_id, workflow_id, status, input, output, error FROM workflow_states",
+		"SELECT workflow_exec_id, workflow_id, org_id, status, input, output, error FROM workflow_states",
 		[]any{workflowExecID},
 		workflowRows,
 	)
@@ -156,7 +157,7 @@ func TestWorkflowRepo_GetState_NotFound(t *testing.T) {
 	tx := mockSetup.NewTransactionExpectations()
 	tx.ExpectBegin()
 
-	mockSetup.Mock.ExpectQuery("SELECT workflow_exec_id, workflow_id, status, input, output, error FROM workflow_states").
+	mockSetup.Mock.ExpectQuery("SELECT workflow_exec_id, workflow_id, org_id, status, input, output, error FROM workflow_states").
 		WithArgs(workflowExecID).
 		WillReturnError(pgx.ErrNoRows)
 
@@ -201,7 +202,7 @@ func TestWorkflowRepo_GetStateByID(t *testing.T) {
 
 			workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
 			queries.ExpectWorkflowStateQuery(
-				"SELECT workflow_exec_id, workflow_id, status, input, output, error FROM workflow_states",
+				"SELECT workflow_exec_id, workflow_id, org_id, status, input, output, error FROM workflow_states",
 				[]any{workflowID},
 				workflowRows,
 			)
@@ -237,7 +238,7 @@ func TestWorkflowRepo_GetStateByTaskID(t *testing.T) {
 
 			workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
 			queries.ExpectWorkflowStateQuery(
-				"SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error FROM workflow_states w",
+				"SELECT w.workflow_exec_id, w.workflow_id, w.org_id, w.status, w.input, w.output, w.error FROM workflow_states w",
 				[]any{workflowID, taskID},
 				workflowRows,
 			)
@@ -272,7 +273,7 @@ func TestWorkflowRepo_GetStateByAgentID(t *testing.T) {
 
 			workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
 			queries.ExpectWorkflowStateQuery(
-				"SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error FROM workflow_states w",
+				"SELECT w.workflow_exec_id, w.workflow_id, w.org_id, w.status, w.input, w.output, w.error FROM workflow_states w",
 				[]any{workflowID, agentID},
 				workflowRows,
 			)
@@ -307,7 +308,7 @@ func TestWorkflowRepo_GetStateByToolID(t *testing.T) {
 
 			workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
 			queries.ExpectWorkflowStateQuery(
-				"SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error FROM workflow_states w",
+				"SELECT w.workflow_exec_id, w.workflow_id, w.org_id, w.status, w.input, w.output, w.error FROM workflow_states w",
 				[]any{workflowID, toolID},
 				workflowRows,
 			)

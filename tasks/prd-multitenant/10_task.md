@@ -16,6 +16,21 @@ status: pending
 
 Implement comprehensive REST API endpoints for organization, user, and API key management with proper validation and error handling. This provides the external interface for multi-tenant operations.
 
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>
+
 ## Subtasks
 
 - [ ] 10.1 Create organization endpoints: POST/GET/PUT/DELETE /api/v0/organizations
@@ -42,6 +57,15 @@ Create API handlers in engine/api:
 
 Implement Gin router with middleware chain: auth -> rate limit -> org context -> handler.
 
+### Relevant Files
+
+- `engine/auth/uc/organization_uc.go` - Organization use cases for business logic orchestration
+- `engine/auth/uc/user_uc.go` - User use cases for business logic orchestration
+- `engine/auth/uc/apikey_uc.go` - API key use cases for business logic orchestration
+- `engine/auth/router/organizations.go` - Organization management API endpoints
+- `engine/auth/router/users.go` - User management API endpoints
+- `engine/auth/router/api_keys.go` - API key management endpoints
+
 ## Success Criteria
 
 - All CRUD endpoints properly implemented for organizations, users, and API keys
@@ -52,18 +76,3 @@ Implement Gin router with middleware chain: auth -> rate limit -> org context ->
 - HTTP status codes accurately reflect operation results
 - Error responses provide clear, actionable feedback
 - Middleware chain ensures proper authentication and context
-
-<critical>
-**MANDATORY REQUIREMENTS:**
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-    - Architecture patterns: `.cursor/rules/architecture.mdc`
-    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-    - Testing requirements: `.cursor/rules/testing-standards.mdc`
-    - API standards: `.cursor/rules/api-standards.mdc`
-    - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test` before completing ANY subtask
-- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>

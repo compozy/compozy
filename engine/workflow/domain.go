@@ -18,6 +18,7 @@ const StateKey = "workflowState"
 type State struct {
 	WorkflowID     string                 `json:"workflow_id"      db:"workflow_id"`
 	WorkflowExecID core.ID                `json:"workflow_exec_id" db:"workflow_exec_id"`
+	OrgID          core.ID                `json:"org_id"           db:"org_id"`
 	Status         core.StatusType        `json:"status"           db:"status"`
 	Input          *core.Input            `json:"input"            db:"input"`
 	Output         *core.Output           `json:"output"           db:"output"`
@@ -29,6 +30,7 @@ type State struct {
 type StateDB struct {
 	WorkflowID     string          `db:"workflow_id"`
 	WorkflowExecID core.ID         `db:"workflow_exec_id"`
+	OrgID          core.ID         `db:"org_id"`
 	Status         core.StatusType `db:"status"`
 	InputRaw       []byte          `db:"input"`
 	OutputRaw      []byte          `db:"output"`
@@ -42,6 +44,7 @@ func (sdb *StateDB) ToState() (*State, error) {
 	state := &State{
 		WorkflowID:     sdb.WorkflowID,
 		WorkflowExecID: sdb.WorkflowExecID,
+		OrgID:          sdb.OrgID,
 		Status:         sdb.Status,
 		Tasks:          make(map[string]*task.State),
 	}
@@ -76,11 +79,12 @@ func (sdb *StateDB) ToState() (*State, error) {
 	return state, nil
 }
 
-func NewState(workflowID string, workflowExecID core.ID, input *core.Input) *State {
+func NewState(workflowID string, workflowExecID core.ID, orgID core.ID, input *core.Input) *State {
 	return &State{
 		Status:         core.StatusRunning,
 		WorkflowID:     workflowID,
 		WorkflowExecID: workflowExecID,
+		OrgID:          orgID,
 		Input:          input,
 		Tasks:          make(map[string]*task.State),
 		Output:         nil,

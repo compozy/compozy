@@ -35,6 +35,7 @@ type State struct {
 	TaskExecID     core.ID            `json:"task_exec_id"     db:"task_exec_id"`
 	WorkflowID     string             `json:"workflow_id"      db:"workflow_id"`
 	WorkflowExecID core.ID            `json:"workflow_exec_id" db:"workflow_exec_id"`
+	OrgID          core.ID            `json:"org_id"           db:"org_id"`
 
 	// Parent-child relationship for hierarchical tasks
 	ParentStateID *core.ID `json:"parent_state_id,omitempty" db:"parent_state_id"`
@@ -66,6 +67,7 @@ type StateDB struct {
 	TaskExecID     core.ID            `db:"task_exec_id"`
 	WorkflowID     string             `db:"workflow_id"`
 	WorkflowExecID core.ID            `db:"workflow_exec_id"`
+	OrgID          core.ID            `db:"org_id"`
 	ParentStateID  sql.NullString     `db:"parent_state_id"`
 	ExecutionType  ExecutionType      `db:"execution_type"`
 	AgentIDRaw     sql.NullString     `db:"agent_id"`
@@ -85,6 +87,7 @@ func (sdb *StateDB) ToState() (*State, error) {
 		TaskExecID:     sdb.TaskExecID,
 		WorkflowID:     sdb.WorkflowID,
 		WorkflowExecID: sdb.WorkflowExecID,
+		OrgID:          sdb.OrgID,
 		Status:         sdb.Status,
 		Component:      sdb.Component,
 		ExecutionType:  sdb.ExecutionType,
@@ -402,6 +405,7 @@ func CreateState(input *CreateStateInput, result *PartialState) *State {
 		Status:         core.StatusPending,
 		WorkflowID:     input.WorkflowID,
 		WorkflowExecID: input.WorkflowExecID,
+		OrgID:          input.OrgID,
 		ParentStateID:  result.ParentStateID,
 		ExecutionType:  result.ExecutionType,
 		Input:          result.Input,

@@ -16,6 +16,21 @@ status: pending
 
 Implement organization lifecycle management service with Temporal namespace provisioning and transaction handling. This service orchestrates the complete organization setup process with rollback capabilities.
 
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>
+
 ## Subtasks
 
 - [ ] 5.1 Implement CreateOrganization with atomic database + Temporal namespace creation
@@ -42,6 +57,13 @@ Create OrganizationService in engine/infra/auth:
 
 Implement retry.Do with 3 attempts, exponential backoff starting at 500ms, max delay 5s.
 
+### Relevant Files
+
+- `engine/auth/org/service.go` - Main organization service with lifecycle management
+- `engine/auth/temporal_integration.go` - Temporal namespace provisioning and management
+- `engine/auth/transaction_handler.go` - Multi-step transaction handling with rollback
+- `engine/auth/config.go` - Auth configuration including retry settings
+
 ## Success Criteria
 
 - Organization creation process is atomic with proper rollback handling
@@ -52,18 +74,3 @@ Implement retry.Do with 3 attempts, exponential backoff starting at 500ms, max d
 - Error handling provides clear feedback for different failure scenarios
 - Organization validation prevents duplicate or invalid entries
 - Temporal client integration supports all required namespace operations
-
-<critical>
-**MANDATORY REQUIREMENTS:**
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-    - Architecture patterns: `.cursor/rules/architecture.mdc`
-    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-    - Testing requirements: `.cursor/rules/testing-standards.mdc`
-    - API standards: `.cursor/rules/api-standards.mdc`
-    - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test` before completing ANY subtask
-- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>

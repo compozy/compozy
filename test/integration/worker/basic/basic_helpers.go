@@ -68,6 +68,7 @@ func executeWorkflowAndGetState(
 	temporalInput := worker.WorkflowInput{
 		WorkflowID:     fixture.Workflow.ID,
 		WorkflowExecID: workflowExecID,
+		OrgID:          helpers.TestOrgID,
 		Input:          workflowInput,
 		InitialTaskID:  findInitialTaskID(fixture),
 	}

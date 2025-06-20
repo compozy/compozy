@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 ---
 
 <task_context>
@@ -10,45 +10,11 @@ status: pending
 <dependencies>database</dependencies>
 </task_context>
 
-# Task 1.0: Database Schema and Migration Setup
+# Task 1.0: Database Schema Design and Migration
 
 ## Overview
 
-Create database schema for multi-tenant entities including organizations, users, and api_keys tables with proper indexes and foreign key relationships. This establishes the foundational data layer for complete multi-tenant isolation.
-
-## Subtasks
-
-- [ ] 1.1 Create organizations table with UUID primary key, name (unique), temporal_namespace (unique), status enum, and timestamps
-- [ ] 1.2 Create users table with org_id foreign key, email unique within organization scope, role enum, status enum, and timestamps
-- [ ] 1.3 Create api_keys table with user_id and org_id foreign keys, key_hash, name, optional expires_at, rate_limit_per_hour, and timestamps
-- [ ] 1.4 Add org_id foreign keys to existing tables (workflows, tasks, schedules, workflow_states, task_states)
-- [ ] 1.5 Create composite indexes (org_id, created_at) on all major tables for optimal multi-tenant query performance
-- [ ] 1.6 Implement partial unique indexes for email uniqueness within organization scope
-- [ ] 1.7 Configure pgx driver with proper connection pooling settings
-
-<CRITICAL>you don't need to use ALTER TABLE, you can modify the schemas directly, because we are in the development phase</CRITICAL>
-
-## Implementation Details
-
-Create PostgreSQL migrations for:
-
-1. **organizations table**: id UUID, name string unique, temporal_namespace string unique, status enum, created_at/updated_at
-2. **users table**: id UUID, org_id UUID FK, email string, role enum, status enum, timestamps
-3. **api_keys table**: id UUID, user_id UUID FK, org_id UUID FK, key_hash string, name string, expires_at nullable, rate_limit_per_hour int, created_at/last_used_at, status enum
-4. **Add org_id foreign keys** to existing tables: workflows, tasks, schedules, workflow_states, task_states
-5. **Create composite indexes**: (org_id, created_at) on all major tables
-6. **Ensure email uniqueness** within organization scope using partial unique indexes
-
-Use pgx driver with proper connection pooling configuration.
-
-## Success Criteria
-
-- All migration files created and executable
-- Foreign key constraints properly enforced
-- Composite indexes improve query performance for organization-filtered queries
-- Email uniqueness enforced within organization boundaries only
-- Database schema supports complete multi-tenant data isolation
-- Connection pooling configured for optimal performance
+Design PostgreSQL database schema for multi-tenant system with Organizations, Users, and APIKeys tables. This foundation enables secure, isolated data storage with proper relationships and constraints.
 
 <critical>
 **MANDATORY REQUIREMENTS:**
@@ -64,3 +30,46 @@ Use pgx driver with proper connection pooling configuration.
 - **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
 **Enforcement:** Violating these standards results in immediate task rejection.
 </critical>
+
+## Subtasks
+
+- [x] 1.1 Create Organizations table with ID, Name, TemporalNamespace, Status (active/suspended), CreatedAt, UpdatedAt
+- [x] 1.2 Create Users table with ID, OrgID, Email, Role (admin/manager/customer), Status, CreatedAt, UpdatedAt
+- [x] 1.3 Create APIKeys table with ID, UserID, OrgID, Hash, Name, ExpiresAt, RateLimitPerHour, CreatedAt, UpdatedAt, Status
+- [x] 1.4 Create migration with proper foreign key constraints and cascade behavior
+- [x] 1.5 Add composite indexes for performance: (org_id, created_at), (user_id, org_id), etc.
+- [x] 1.6 Add unique constraints: email per organization, organization name globally, API key prefix
+- [x] 1.7 Design role-based access control schema with permission mapping
+- [x] 1.8 Update existing tables (workflows, tasks, schedules) to include org_id column
+
+## Implementation Details
+
+Design PostgreSQL schema in migrations:
+
+1. **Organizations table** with ID, Name, TemporalNamespace, Status (active/suspended), timestamps
+2. **Users table** with ID, OrgID, Email, Role (admin/manager/customer), Status, timestamps
+3. **APIKeys table** with ID, UserID, OrgID, Hash, Name, ExpiresAt, RateLimitPerHour, timestamps, Status
+4. **Foreign key constraints** with proper cascade behavior
+5. **Composite indexes** for performance: (org_id, created_at), (user_id, org_id)
+6. **Unique constraints**: email per organization, organization name globally
+7. **Role-based access control** schema with permission mapping
+8. **Update existing tables** (workflows, tasks, schedules) with org_id column
+
+Use UUIDs for all primary keys. Implement soft deletes with deleted_at timestamp.
+
+### Relevant Files
+
+- `engine/infra/store/migrations/[timestamp]_add_multitenant_schema.sql` - Database migration for multi-tenant tables
+- `engine/infra/store/migrations/[timestamp]_update_existing_tables_for_multitenancy.sql` - Migration to add org_id to existing tables
+- `engine/infra/store/schema.sql` - Updated schema with all table definitions
+
+## Success Criteria
+
+- Database schema supports complete multi-tenant isolation with proper relationships
+- Foreign key constraints ensure referential integrity
+- Composite indexes optimize organization-scoped queries
+- Unique constraints prevent data conflicts within tenant boundaries
+- Role-based access control schema enables fine-grained permissions
+- Existing tables properly updated for multi-tenant support without data loss
+- Migration scripts are reversible and tested
+- Schema design supports future scalability requirements

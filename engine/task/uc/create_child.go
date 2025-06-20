@@ -139,6 +139,7 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 		childStateInput := &task.CreateStateInput{
 			WorkflowID:     parentState.WorkflowID,
 			WorkflowExecID: parentState.WorkflowExecID,
+			OrgID:          parentState.OrgID,
 			TaskID:         childConfig.ID,
 			TaskExecID:     childTaskExecID,
 		}

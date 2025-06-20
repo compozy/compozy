@@ -55,10 +55,11 @@ type Repository interface {
 // Enhanced State Creation Functions
 // -----------------------------------------------------------------------------
 
-// CreateStateInput remains the same
+// CreateStateInput includes org ID for multi-tenant support
 type CreateStateInput struct {
 	WorkflowID     string  `json:"workflow_id"`
 	WorkflowExecID core.ID `json:"workflow_exec_id"`
+	OrgID          core.ID `json:"org_id"`
 	TaskID         string  `json:"task_id"`
 	TaskExecID     core.ID `json:"task_exec_id"`
 }

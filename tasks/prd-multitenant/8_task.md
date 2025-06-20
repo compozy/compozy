@@ -16,6 +16,21 @@ status: pending
 
 Implement organization-scoped data access patterns and update existing repositories for multi-tenant support. This task ensures complete data isolation between organizations at the repository level.
 
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>
+
 ## Subtasks
 
 - [ ] 8.1 Add org_id filtering to all existing queries (workflows, tasks, schedules)
@@ -42,6 +57,14 @@ Update existing repositories in engine/infra/store:
 
 Ensure all queries use composite indexes (org_id, created_at) for performance.
 
+### Relevant Files
+
+- `engine/infra/store/workflow_repository.go` - Updated with organization-scoped queries
+- `engine/infra/store/task_repository.go` - Updated with organization-scoped queries
+- `engine/infra/store/schedule_repository.go` - Updated with organization-scoped queries
+- `engine/infra/store/organization_context.go` - Helper for automatic query filtering
+- `engine/infra/store/query_filters.go` - Organization filtering utilities
+
 ## Success Criteria
 
 - All existing queries properly filtered by org_id
@@ -52,18 +75,3 @@ Ensure all queries use composite indexes (org_id, created_at) for performance.
 - All CRUD operations properly scoped to organization
 - Query performance optimized through proper index usage
 - Error handling prevents information leakage between organizations
-
-<critical>
-**MANDATORY REQUIREMENTS:**
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-    - Architecture patterns: `.cursor/rules/architecture.mdc`
-    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-    - Testing requirements: `.cursor/rules/testing-standards.mdc`
-    - API standards: `.cursor/rules/api-standards.mdc`
-    - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test` before completing ANY subtask
-- **MUST** follow `.cursor/rules/task-completion.mdc` workflow for parent tasks
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>

@@ -127,28 +127,29 @@ func (r *TaskRepo) buildUpsertArgs(state *task.State) (string, []any, error) {
 
 	query := `
 		INSERT INTO task_states (
-			task_exec_id, task_id, workflow_exec_id, workflow_id, component, status,
+			task_exec_id, task_id, workflow_exec_id, workflow_id, org_id, component, status,
 			execution_type, parent_state_id, agent_id, action_id, tool_id, input, output, error
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		ON CONFLICT (task_exec_id) DO UPDATE SET
 			task_id = $2,
 			workflow_exec_id = $3,
 			workflow_id = $4,
-			component = $5,
-			status = $6,
-			execution_type = $7,
-			parent_state_id = $8,
-			agent_id = $9,
-			action_id = $10,
-			tool_id = $11,
-			input = $12,
-			output = $13,
-			error = $14,
+			org_id = $5,
+			component = $6,
+			status = $7,
+			execution_type = $8,
+			parent_state_id = $9,
+			agent_id = $10,
+			action_id = $11,
+			tool_id = $12,
+			input = $13,
+			output = $14,
+			error = $15,
 			updated_at = now()
 	`
 
 	args := []any{
-		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID,
+		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, state.OrgID,
 		state.Component, state.Status, state.ExecutionType, parentStateID,
 		state.AgentID, state.ActionID, state.ToolID,
 		input, output, errJSON,
