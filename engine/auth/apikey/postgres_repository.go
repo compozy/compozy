@@ -8,10 +8,8 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // postgresRepository implements Repository using PostgreSQL
@@ -36,6 +34,7 @@ func scanAPIKey(scannable interface{ Scan(dest ...any) error }) (*APIKey, error)
 		&apiKey.Name,
 		&apiKey.Status,
 		&apiKey.ExpiresAt,
+		&apiKey.RateLimitPerHour,
 		&apiKey.LastUsedAt,
 		&apiKey.CreatedAt,
 		&apiKey.UpdatedAt,
@@ -52,8 +51,11 @@ func scanAPIKey(scannable interface{ Scan(dest ...any) error }) (*APIKey, error)
 // Create creates a new API key
 func (r *postgresRepository) Create(ctx context.Context, apiKey *APIKey) error {
 	query := `
-		INSERT INTO api_keys (id, org_id, user_id, key_prefix, key_hash, name, status, expires_at, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO api_keys (
+			id, org_id, user_id, key_prefix, key_hash, name, 
+			status, expires_at, rate_limit_per_hour, created_at, updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 	_, err := r.db.Exec(ctx, query,
 		apiKey.ID,
@@ -64,6 +66,7 @@ func (r *postgresRepository) Create(ctx context.Context, apiKey *APIKey) error {
 		apiKey.Name,
 		apiKey.Status,
 		apiKey.ExpiresAt,
+		apiKey.RateLimitPerHour,
 		apiKey.CreatedAt,
 		apiKey.UpdatedAt,
 	)
@@ -76,7 +79,8 @@ func (r *postgresRepository) Create(ctx context.Context, apiKey *APIKey) error {
 // GetByID retrieves an API key by its ID within an organization
 func (r *postgresRepository) GetByID(ctx context.Context, orgID, keyID core.ID) (*APIKey, error) {
 	query := `
-		SELECT id, org_id, user_id, key_prefix, key_hash, name, status, expires_at, last_used_at, created_at, updated_at
+		SELECT id, org_id, user_id, key_prefix, key_hash, name, status, 
+		       expires_at, rate_limit_per_hour, last_used_at, created_at, updated_at
 		FROM api_keys
 		WHERE org_id = $1 AND id = $2
 	`
@@ -93,7 +97,8 @@ func (r *postgresRepository) GetByID(ctx context.Context, orgID, keyID core.ID) 
 // GetByPrefix retrieves an API key by its key_prefix within an organization
 func (r *postgresRepository) GetByPrefix(ctx context.Context, orgID core.ID, prefix string) (*APIKey, error) {
 	query := `
-		SELECT id, org_id, user_id, key_prefix, key_hash, name, status, expires_at, last_used_at, created_at, updated_at
+		SELECT id, org_id, user_id, key_prefix, key_hash, name, status, 
+		       expires_at, rate_limit_per_hour, last_used_at, created_at, updated_at
 		FROM api_keys
 		WHERE org_id = $1 AND key_prefix = $2
 	`
@@ -147,7 +152,8 @@ func (r *postgresRepository) Delete(ctx context.Context, orgID, keyID core.ID) e
 // List retrieves API keys within an organization with pagination
 func (r *postgresRepository) List(ctx context.Context, orgID core.ID, limit, offset int) ([]*APIKey, error) {
 	query := `
-		SELECT id, org_id, user_id, key_prefix, key_hash, name, status, expires_at, last_used_at, created_at, updated_at
+		SELECT id, org_id, user_id, key_prefix, key_hash, name, status, 
+		       expires_at, rate_limit_per_hour, last_used_at, created_at, updated_at
 		FROM api_keys
 		WHERE org_id = $1
 		ORDER BY created_at DESC
@@ -179,7 +185,8 @@ func (r *postgresRepository) ListByUser(
 	limit, offset int,
 ) ([]*APIKey, error) {
 	query := `
-		SELECT id, org_id, user_id, key_prefix, key_hash, name, status, expires_at, last_used_at, created_at, updated_at
+		SELECT id, org_id, user_id, key_prefix, key_hash, name, status, 
+		       expires_at, rate_limit_per_hour, last_used_at, created_at, updated_at
 		FROM api_keys
 		WHERE org_id = $1 AND user_id = $2
 		ORDER BY created_at DESC
@@ -207,7 +214,8 @@ func (r *postgresRepository) ListByUser(
 // ListActive retrieves active API keys within an organization
 func (r *postgresRepository) ListActive(ctx context.Context, orgID core.ID, limit, offset int) ([]*APIKey, error) {
 	query := `
-		SELECT id, org_id, user_id, key_prefix, key_hash, name, status, expires_at, last_used_at, created_at, updated_at
+		SELECT id, org_id, user_id, key_prefix, key_hash, name, status, 
+		       expires_at, rate_limit_per_hour, last_used_at, created_at, updated_at
 		FROM api_keys
 		WHERE org_id = $1 AND status = $2 AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
 		ORDER BY created_at DESC
@@ -230,59 +238,6 @@ func (r *postgresRepository) ListActive(ctx context.Context, orgID core.ID, limi
 		return nil, fmt.Errorf("error iterating API key rows: %w", err)
 	}
 	return apiKeys, nil
-}
-
-// ValidateKey validates an API key by checking its hash and status
-func (r *postgresRepository) ValidateKey(ctx context.Context, orgID core.ID, plainTextKey string) (*APIKey, error) {
-	// Extract prefix from the plain text key
-	prefix, err := ExtractPrefix(plainTextKey)
-	if err != nil {
-		// Return generic error to prevent information leakage
-		return nil, ErrInvalidAPIKey
-	}
-	// Get the API key by prefix
-	apiKey, err := r.GetByPrefix(ctx, orgID, prefix)
-	if err != nil {
-		// Return generic error to prevent information leakage about key existence
-		return nil, ErrInvalidAPIKey
-	}
-	// Validate bcrypt cost to prevent DoS attacks
-	cost, err := bcrypt.Cost([]byte(apiKey.KeyHash))
-	if err != nil {
-		return nil, ErrInvalidAPIKey
-	}
-	if cost < 10 || cost > 12 {
-		// Log potential security issue
-		log := logger.FromContext(ctx)
-		log.With("api_key_id", apiKey.ID, "cost", cost).
-			Error("API key hash cost outside allowed range (10-12)")
-		return nil, ErrInvalidAPIKey
-	}
-	// Check if the key is active
-	if apiKey.Status != StatusActive {
-		// Return generic error to prevent status enumeration
-		return nil, ErrInvalidAPIKey
-	}
-	// Check if the key has expired
-	if apiKey.ExpiresAt != nil && apiKey.ExpiresAt.Before(time.Now().UTC()) {
-		// Return generic error to prevent expiration status leakage
-		return nil, ErrInvalidAPIKey
-	}
-	// Verify the key hash
-	err = bcrypt.CompareHashAndPassword([]byte(apiKey.KeyHash), []byte(plainTextKey))
-	if err != nil {
-		return nil, ErrInvalidAPIKey
-	}
-	// Update last used timestamp atomically with validation
-	if err := r.ValidateAndUpdateLastUsed(ctx, orgID, apiKey.ID); err != nil {
-		// If the atomic update fails, the key might have been revoked/expired
-		// between our initial check and the update - return error to prevent race condition
-		log := logger.FromContext(ctx)
-		log.With("api_key_id", apiKey.ID, "error", err).
-			Warn("API key validation failed during atomic update")
-		return nil, ErrInvalidAPIKey
-	}
-	return apiKey, nil
 }
 
 // UpdateStatus updates the status of an API key
@@ -386,7 +341,8 @@ func (r *postgresRepository) FindByPrefix(
 		return nil, errors.New("search pattern must be at least 4 characters")
 	}
 	query := `
-		SELECT id, org_id, user_id, key_prefix, key_hash, name, status, expires_at, last_used_at, created_at, updated_at
+		SELECT id, org_id, user_id, key_prefix, key_hash, name, status, 
+		       expires_at, rate_limit_per_hour, last_used_at, created_at, updated_at
 		FROM api_keys
 		WHERE org_id = $1 AND key_prefix ILIKE $2
 		ORDER BY key_prefix
@@ -408,6 +364,25 @@ func (r *postgresRepository) FindByPrefix(
 		return nil, fmt.Errorf("error iterating API key rows: %w", err)
 	}
 	return apiKeys, nil
+}
+
+// FindByExactPrefix finds a single API key by its exact prefix across all organizations
+func (r *postgresRepository) FindByExactPrefix(ctx context.Context, prefix string) (*APIKey, error) {
+	query := `
+		SELECT id, org_id, user_id, key_prefix, key_hash, name, status, 
+		       expires_at, rate_limit_per_hour, last_used_at, created_at, updated_at
+		FROM api_keys
+		WHERE key_prefix = $1
+		LIMIT 1
+	`
+	apiKey, err := scanAPIKey(r.db.QueryRow(ctx, query, prefix))
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, ErrAPIKeyNotFound
+		}
+		return nil, fmt.Errorf("failed to find API key by exact prefix: %w", err)
+	}
+	return apiKey, nil
 }
 
 // WithTx returns a repository instance that uses the given transaction

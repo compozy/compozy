@@ -1,14 +1,11 @@
 package apikey
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"time"
 
 	"github.com/compozy/compozy/engine/auth/user"
 	"github.com/compozy/compozy/engine/core"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // Status represents the status of an API key
@@ -27,12 +24,12 @@ const (
 )
 
 const (
-	// KeyLength is the length of the generated API key in bytes
-	KeyLength = 32
+	// KeyLength is the length of the generated API key in bytes before encoding
+	KeyLength = 16 // 16 bytes = 32 hex characters
 	// KeyPrefix is the prefix for all API keys
 	KeyPrefix = "cmpz_"
-	// KeyPrefixDisplayLength is the number of characters to include after the prefix for display/lookup
-	KeyPrefixDisplayLength = 8
+	// KeyPrefixLookupLength is the number of characters to include after the prefix for database lookups
+	KeyPrefixLookupLength = 12
 )
 
 // IsValid checks if the API key status is valid
@@ -91,31 +88,6 @@ func NewAPIKey(userID, orgID core.ID, name string) (*APIKey, error) {
 		CreatedAt:        now,
 		UpdatedAt:        now,
 	}, nil
-}
-
-// Generate creates a new APIKey with a secure random key, returning the plaintext key and the entity for persistence.
-// The plaintext key should only be shown to the user once and never stored.
-func Generate(userID, orgID core.ID, name string) (string, *APIKey, error) {
-	// Create the base API key entity
-	apiKey, err := NewAPIKey(userID, orgID, name)
-	if err != nil {
-		return "", nil, err
-	}
-	// Generate a secure random key
-	rawKeyBytes := make([]byte, KeyLength)
-	if _, err := rand.Read(rawKeyBytes); err != nil {
-		return "", nil, fmt.Errorf("failed to generate random key: %w", err)
-	}
-	plainTextKey := KeyPrefix + base64.URLEncoding.EncodeToString(rawKeyBytes)
-	// Hash the key using bcrypt
-	keyHash, err := bcrypt.GenerateFromPassword([]byte(plainTextKey), bcrypt.DefaultCost)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to hash key: %w", err)
-	}
-	// Set the hash and prefix
-	apiKey.KeyHash = string(keyHash)
-	apiKey.KeyPrefix = plainTextKey[:len(KeyPrefix)+KeyPrefixDisplayLength] // e.g., cmpz_xxxxxxxx
-	return plainTextKey, apiKey, nil
 }
 
 // ValidateAPIKeyName validates the API key name
@@ -226,15 +198,15 @@ func (k *APIKey) HasPermission(permission string) bool {
 	return k.Role.HasPermission(permission)
 }
 
-// ExtractPrefix extracts the prefix from a full API key
+// ExtractPrefix extracts the prefix from a full API key for database lookups
 func ExtractPrefix(fullKey string) (string, error) {
-	expectedPrefixLength := len(KeyPrefix) + KeyPrefixDisplayLength
+	expectedPrefixLength := len(KeyPrefix) + KeyPrefixLookupLength
 	if len(fullKey) < expectedPrefixLength {
 		return "", fmt.Errorf("invalid API key format: too short")
 	}
 	if fullKey[:len(KeyPrefix)] != KeyPrefix {
 		return "", fmt.Errorf("invalid API key format: missing prefix")
 	}
-	// Return the prefix part (e.g., "cmpz_xxxxxxxx")
+	// Return the prefix part (e.g., "cmpz_xxxxxxxxxxxx" - 12 chars after prefix)
 	return fullKey[:expectedPrefixLength], nil
 }

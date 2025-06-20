@@ -26,8 +26,6 @@ type Repository interface {
 	ListByUser(ctx context.Context, orgID, userID core.ID, limit, offset int) ([]*APIKey, error)
 	// ListActive retrieves active API keys within an organization
 	ListActive(ctx context.Context, orgID core.ID, limit, offset int) ([]*APIKey, error)
-	// ValidateKey validates an API key by checking its hash and status
-	ValidateKey(ctx context.Context, orgID core.ID, plainTextKey string) (*APIKey, error)
 	// UpdateStatus updates the status of an API key
 	UpdateStatus(ctx context.Context, orgID, keyID core.ID, status Status) error
 	// UpdateLastUsed updates the last used timestamp of an API key
@@ -42,6 +40,9 @@ type Repository interface {
 	CountByUser(ctx context.Context, orgID, userID core.ID) (int64, error)
 	// FindByPrefix searches for API keys by prefix pattern within an organization
 	FindByPrefix(ctx context.Context, orgID core.ID, prefixPattern string) ([]*APIKey, error)
+	// FindByExactPrefix finds a single API key by its exact prefix across all organizations
+	// This is used for API key validation where we don't know the organization yet
+	FindByExactPrefix(ctx context.Context, prefix string) (*APIKey, error)
 	// WithTx returns a repository instance that uses the given transaction
 	WithTx(tx pgx.Tx) Repository
 }

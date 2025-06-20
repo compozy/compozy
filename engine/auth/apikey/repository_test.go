@@ -44,6 +44,7 @@ func TestPostgresRepository_Create(t *testing.T) {
 				testKey.Name,
 				testKey.Status,
 				testKey.ExpiresAt,
+				testKey.RateLimitPerHour,
 				testKey.CreatedAt,
 				testKey.UpdatedAt,
 			).
@@ -66,8 +67,8 @@ func TestPostgresRepository_GetByID(t *testing.T) {
 		now := time.Now()
 		expiresAt := now.Add(30 * 24 * time.Hour)
 		var nilTime *time.Time
-		rows := mockPool.NewRows([]string{"id", "org_id", "user_id", "key_prefix", "key_hash", "name", "status", "expires_at", "last_used_at", "created_at", "updated_at"}).
-			AddRow(keyID, orgID, core.MustNewID(), "cmpz_test", "$2a$10$dummyhash", "Test Key", apikey.StatusActive, &expiresAt, nilTime, now, now)
+		rows := mockPool.NewRows([]string{"id", "org_id", "user_id", "key_prefix", "key_hash", "name", "status", "expires_at", "rate_limit_per_hour", "last_used_at", "created_at", "updated_at"}).
+			AddRow(keyID, orgID, core.MustNewID(), "cmpz_test", "$2a$10$dummyhash", "Test Key", apikey.StatusActive, &expiresAt, 3600, nilTime, now, now)
 		mockPool.ExpectQuery("SELECT (.+) FROM api_keys WHERE org_id = \\$1 AND id = \\$2").
 			WithArgs(orgID, keyID).
 			WillReturnRows(rows)
@@ -110,8 +111,8 @@ func TestPostgresRepository_GetByPrefix(t *testing.T) {
 		keyID := core.MustNewID()
 		now := time.Now()
 		var nilTime *time.Time
-		rows := mockPool.NewRows([]string{"id", "org_id", "user_id", "key_prefix", "key_hash", "name", "status", "expires_at", "last_used_at", "created_at", "updated_at"}).
-			AddRow(keyID, orgID, core.MustNewID(), "cmpz_test", "$2a$10$dummyhash", "Test Key", apikey.StatusActive, nilTime, nilTime, now, now)
+		rows := mockPool.NewRows([]string{"id", "org_id", "user_id", "key_prefix", "key_hash", "name", "status", "expires_at", "rate_limit_per_hour", "last_used_at", "created_at", "updated_at"}).
+			AddRow(keyID, orgID, core.MustNewID(), "cmpz_test", "$2a$10$dummyhash", "Test Key", apikey.StatusActive, nilTime, 3600, nilTime, now, now)
 		mockPool.ExpectQuery("SELECT (.+) FROM api_keys WHERE org_id = \\$1 AND key_prefix = \\$2").
 			WithArgs(orgID, "cmpz_test").
 			WillReturnRows(rows)
@@ -212,9 +213,9 @@ func TestPostgresRepository_List(t *testing.T) {
 		orgID := core.MustNewID()
 		now := time.Now()
 		var nilTime *time.Time
-		rows := mockPool.NewRows([]string{"id", "org_id", "user_id", "key_prefix", "key_hash", "name", "status", "expires_at", "last_used_at", "created_at", "updated_at"}).
-			AddRow(core.MustNewID(), orgID, core.MustNewID(), "cmpz_key1", "$2a$10$hash1", "Key 1", apikey.StatusActive, nilTime, nilTime, now, now).
-			AddRow(core.MustNewID(), orgID, core.MustNewID(), "cmpz_key2", "$2a$10$hash2", "Key 2", apikey.StatusActive, nilTime, nilTime, now, now)
+		rows := mockPool.NewRows([]string{"id", "org_id", "user_id", "key_prefix", "key_hash", "name", "status", "expires_at", "rate_limit_per_hour", "last_used_at", "created_at", "updated_at"}).
+			AddRow(core.MustNewID(), orgID, core.MustNewID(), "cmpz_key1", "$2a$10$hash1", "Key 1", apikey.StatusActive, nilTime, 3600, nilTime, now, now).
+			AddRow(core.MustNewID(), orgID, core.MustNewID(), "cmpz_key2", "$2a$10$hash2", "Key 2", apikey.StatusActive, nilTime, 3600, nilTime, now, now)
 		mockPool.ExpectQuery("SELECT (.+) FROM api_keys WHERE org_id = \\$1 ORDER BY created_at DESC LIMIT \\$2 OFFSET \\$3").
 			WithArgs(orgID, 10, 0).
 			WillReturnRows(rows)
@@ -238,9 +239,9 @@ func TestPostgresRepository_ListByUser(t *testing.T) {
 		userID := core.MustNewID()
 		now := time.Now()
 		var nilTime *time.Time
-		rows := mockPool.NewRows([]string{"id", "org_id", "user_id", "key_prefix", "key_hash", "name", "status", "expires_at", "last_used_at", "created_at", "updated_at"}).
-			AddRow(core.MustNewID(), orgID, userID, "cmpz_user1", "$2a$10$hash1", "User Key 1", apikey.StatusActive, nilTime, nilTime, now, now).
-			AddRow(core.MustNewID(), orgID, userID, "cmpz_user2", "$2a$10$hash2", "User Key 2", apikey.StatusActive, nilTime, nilTime, now, now)
+		rows := mockPool.NewRows([]string{"id", "org_id", "user_id", "key_prefix", "key_hash", "name", "status", "expires_at", "rate_limit_per_hour", "last_used_at", "created_at", "updated_at"}).
+			AddRow(core.MustNewID(), orgID, userID, "cmpz_user1", "$2a$10$hash1", "User Key 1", apikey.StatusActive, nilTime, 3600, nilTime, now, now).
+			AddRow(core.MustNewID(), orgID, userID, "cmpz_user2", "$2a$10$hash2", "User Key 2", apikey.StatusActive, nilTime, 3600, nilTime, now, now)
 		mockPool.ExpectQuery("SELECT (.+) FROM api_keys WHERE org_id = \\$1 AND user_id = \\$2 ORDER BY created_at DESC LIMIT \\$3 OFFSET \\$4").
 			WithArgs(orgID, userID, 10, 0).
 			WillReturnRows(rows)
@@ -263,8 +264,8 @@ func TestPostgresRepository_ListActive(t *testing.T) {
 		orgID := core.MustNewID()
 		now := time.Now()
 		var nilTime *time.Time
-		rows := mockPool.NewRows([]string{"id", "org_id", "user_id", "key_prefix", "key_hash", "name", "status", "expires_at", "last_used_at", "created_at", "updated_at"}).
-			AddRow(core.MustNewID(), orgID, core.MustNewID(), "cmpz_active1", "$2a$10$hash1", "Active Key 1", apikey.StatusActive, nilTime, nilTime, now, now)
+		rows := mockPool.NewRows([]string{"id", "org_id", "user_id", "key_prefix", "key_hash", "name", "status", "expires_at", "rate_limit_per_hour", "last_used_at", "created_at", "updated_at"}).
+			AddRow(core.MustNewID(), orgID, core.MustNewID(), "cmpz_active1", "$2a$10$hash1", "Active Key 1", apikey.StatusActive, nilTime, 3600, nilTime, now, now)
 		mockPool.ExpectQuery("SELECT (.+) FROM api_keys WHERE org_id = \\$1 AND status = \\$2 AND \\(expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP\\) ORDER BY created_at DESC LIMIT \\$3 OFFSET \\$4").
 			WithArgs(orgID, apikey.StatusActive, 10, 0).
 			WillReturnRows(rows)
@@ -380,9 +381,9 @@ func TestPostgresRepository_FindByPrefix(t *testing.T) {
 		orgID := core.MustNewID()
 		now := time.Now()
 		var nilTime *time.Time
-		rows := mockPool.NewRows([]string{"id", "org_id", "user_id", "key_prefix", "key_hash", "name", "status", "expires_at", "last_used_at", "created_at", "updated_at"}).
-			AddRow(core.MustNewID(), orgID, core.MustNewID(), "cmpz_test1", "$2a$10$hash1", "Test Key 1", apikey.StatusActive, nilTime, nilTime, now, now).
-			AddRow(core.MustNewID(), orgID, core.MustNewID(), "cmpz_test2", "$2a$10$hash2", "Test Key 2", apikey.StatusActive, nilTime, nilTime, now, now)
+		rows := mockPool.NewRows([]string{"id", "org_id", "user_id", "key_prefix", "key_hash", "name", "status", "expires_at", "rate_limit_per_hour", "last_used_at", "created_at", "updated_at"}).
+			AddRow(core.MustNewID(), orgID, core.MustNewID(), "cmpz_test1", "$2a$10$hash1", "Test Key 1", apikey.StatusActive, nilTime, 3600, nilTime, now, now).
+			AddRow(core.MustNewID(), orgID, core.MustNewID(), "cmpz_test2", "$2a$10$hash2", "Test Key 2", apikey.StatusActive, nilTime, 3600, nilTime, now, now)
 		mockPool.ExpectQuery("SELECT (.+) FROM api_keys WHERE org_id = \\$1 AND key_prefix ILIKE \\$2 ORDER BY key_prefix").
 			WithArgs(orgID, "%test%").
 			WillReturnRows(rows)
