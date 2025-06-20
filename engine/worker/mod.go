@@ -311,6 +311,11 @@ func (o *Worker) GetClient() client.Client {
 	return o.client
 }
 
+// GetWorkerClient exposes the wrapped worker client
+func (o *Worker) GetWorkerClient() *Client {
+	return o.client
+}
+
 // GetDispatcherID returns this worker's unique dispatcher ID
 func (o *Worker) GetDispatcherID() string {
 	return o.dispatcherID

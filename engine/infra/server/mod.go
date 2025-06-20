@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -17,31 +18,86 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/engine/workflow/schedule"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/sethvargo/go-retry"
 )
 
+// Timeout constants for server operations
+const (
+	monitoringInitTimeout     = 500 * time.Millisecond
+	monitoringShutdownTimeout = 5 * time.Second
+	dbShutdownTimeout         = 30 * time.Second
+	workerShutdownTimeout     = 30 * time.Second
+	serverShutdownTimeout     = 5 * time.Second
+	scheduleRetryMaxDuration  = 5 * time.Minute
+	scheduleRetryBaseDelay    = 1 * time.Second
+	scheduleRetryMaxDelay     = 30 * time.Second
+	scheduleRetryMaxAttempts  = 20 // ~5 minutes with exponential backoff
+)
+
+type reconciliationStatus struct {
+	mu           sync.RWMutex
+	completed    bool
+	lastAttempt  time.Time
+	lastError    error
+	attemptCount int
+	nextRetryAt  time.Time
+}
+
+func (rs *reconciliationStatus) isReady() bool {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+	return rs.completed
+}
+
+func (rs *reconciliationStatus) getStatus() (bool, time.Time, int, error) {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+	return rs.completed, rs.lastAttempt, rs.attemptCount, rs.lastError
+}
+
+func (rs *reconciliationStatus) setCompleted() {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	rs.completed = true
+	rs.lastAttempt = time.Now()
+	rs.lastError = nil
+}
+
+func (rs *reconciliationStatus) setError(err error, nextRetry time.Time) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	rs.lastAttempt = time.Now()
+	rs.lastError = err
+	rs.attemptCount++
+	rs.nextRetryAt = nextRetry
+}
+
 type Server struct {
-	Config         *Config
-	TemporalConfig *worker.TemporalConfig
-	StoreConfig    *store.Config
-	router         *gin.Engine
-	monitoring     *monitoring.Service
-	ctx            context.Context
-	cancel         context.CancelFunc
-	httpServer     *http.Server
-	shutdownChan   chan struct{}
+	Config              *Config
+	TemporalConfig      *worker.TemporalConfig
+	StoreConfig         *store.Config
+	router              *gin.Engine
+	monitoring          *monitoring.Service
+	ctx                 context.Context
+	cancel              context.CancelFunc
+	httpServer          *http.Server
+	shutdownChan        chan struct{}
+	reconciliationState *reconciliationStatus
 }
 
 func NewServer(ctx context.Context, config *Config, tConfig *worker.TemporalConfig, sConfig *store.Config) *Server {
 	serverCtx, cancel := context.WithCancel(ctx)
 	return &Server{
-		Config:         config,
-		TemporalConfig: tConfig,
-		StoreConfig:    sConfig,
-		ctx:            serverCtx,
-		cancel:         cancel,
-		shutdownChan:   make(chan struct{}, 1),
+		Config:              config,
+		TemporalConfig:      tConfig,
+		StoreConfig:         sConfig,
+		ctx:                 serverCtx,
+		cancel:              cancel,
+		shutdownChan:        make(chan struct{}, 1),
+		reconciliationState: &reconciliationStatus{},
 	}
 }
 
@@ -64,7 +120,7 @@ func (s *Server) buildRouter(state *appstate.State) error {
 		monitoringPath := state.ProjectConfig.MonitoringConfig.Path
 		r.GET(monitoringPath, gin.WrapH(s.monitoring.ExporterHandler()))
 	}
-	if err := RegisterRoutes(s.ctx, r, state); err != nil {
+	if err := RegisterRoutes(s.ctx, r, state, s); err != nil {
 		return err
 	}
 	s.router = r
@@ -100,7 +156,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	log.Debug("Loaded project configuration", "duration", time.Since(setupStart))
 	// Initialize monitoring service with shorter timeout to prevent slow startup
 	monitoringStart := time.Now()
-	monitoringCtx, monitoringCancel := context.WithTimeout(s.ctx, 500*time.Millisecond)
+	monitoringCtx, monitoringCancel := context.WithTimeout(s.ctx, monitoringInitTimeout)
 	monitoringService, err := monitoring.NewMonitoringService(monitoringCtx, projectConfig.MonitoringConfig)
 	monitoringDuration := time.Since(monitoringStart)
 	if err != nil {
@@ -126,7 +182,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 			cleanupFuncs = append(cleanupFuncs, func() {
 				// Cancel the monitoring context during cleanup
 				monitoringCancel()
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), monitoringShutdownTimeout)
 				defer cancel()
 				if err := monitoringService.Shutdown(ctx); err != nil {
 					log.Error("Failed to shutdown monitoring service", "error", err)
@@ -139,7 +195,6 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 				"duration", monitoringDuration)
 		}
 	}
-	dbStart := time.Now()
 	// Setup database store
 	storeStart := time.Now()
 	store, err := store.SetupStore(s.ctx, s.StoreConfig)
@@ -147,9 +202,8 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 		return nil, cleanupFuncs, fmt.Errorf("failed to setup store: %w", err)
 	}
 	log.Info("Database store initialized", "duration", time.Since(storeStart))
-	log.Debug("Database connection established", "duration", time.Since(dbStart))
 	cleanupFuncs = append(cleanupFuncs, func() {
-		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
+		ctx, cancel := context.WithTimeout(s.ctx, dbShutdownTimeout)
 		defer cancel()
 		store.DB.Close(ctx)
 	})
@@ -162,7 +216,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	}
 	log.Debug("Worker setup completed", "duration", time.Since(workerStart))
 	cleanupFuncs = append(cleanupFuncs, func() {
-		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
+		ctx, cancel := context.WithTimeout(s.ctx, workerShutdownTimeout)
 		defer cancel()
 		worker.Stop(ctx)
 	})
@@ -170,6 +224,8 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to create app state: %w", err)
 	}
+	// Initialize schedule manager
+	s.initializeScheduleManager(state, worker, workflows)
 	log.Info("Server dependencies setup completed", "total_duration", time.Since(setupStart))
 	return state, cleanupFuncs, nil
 }
@@ -244,10 +300,9 @@ func (s *Server) createHTTPServer() *http.Server {
 func (s *Server) startServer(srv *http.Server) {
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log := logger.FromContext(s.ctx)
-		log.Error("Server failed to start",
-			"error", err,
-		)
-		os.Exit(1)
+		log.Error("Server failed to start, initiating shutdown", "error", err)
+		// Trigger graceful shutdown instead of exiting abruptly
+		s.Shutdown()
 	}
 }
 
@@ -264,7 +319,7 @@ func (s *Server) handleGracefulShutdown(srv *http.Server, cleanupFuncs []func())
 	// Clean up dependencies first
 	s.cleanup(cleanupFuncs)
 	s.cancel()
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), serverShutdownTimeout)
 	defer shutdownCancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("server shutdown failed: %w", err)
@@ -275,4 +330,94 @@ func (s *Server) handleGracefulShutdown(srv *http.Server, cleanupFuncs []func())
 
 func (s *Server) Shutdown() {
 	s.shutdownChan <- struct{}{}
+}
+
+// GetReconciliationStatus returns the current reconciliation status
+func (s *Server) GetReconciliationStatus() (bool, time.Time, int, error) {
+	return s.reconciliationState.getStatus()
+}
+
+// IsReconciliationReady returns whether the initial reconciliation has completed
+func (s *Server) IsReconciliationReady() bool {
+	return s.reconciliationState.isReady()
+}
+
+func (s *Server) initializeScheduleManager(state *appstate.State, worker *worker.Worker, workflows []*workflow.Config) {
+	log := logger.FromContext(s.ctx)
+
+	// Create schedule manager with metrics if monitoring is available
+	var scheduleManager schedule.Manager
+	if s.monitoring != nil && s.monitoring.IsInitialized() {
+		scheduleManager = schedule.NewManagerWithMetrics(
+			s.ctx,
+			worker.GetWorkerClient(),
+			state.ProjectConfig.Name,
+			s.monitoring.Meter(),
+		)
+		log.Debug("Schedule manager initialized with metrics")
+	} else {
+		scheduleManager = schedule.NewManager(worker.GetWorkerClient(), state.ProjectConfig.Name)
+		log.Debug("Schedule manager initialized without metrics")
+	}
+
+	state.Extensions[appstate.ScheduleManagerKey] = scheduleManager
+	// Run schedule reconciliation in background with retry logic
+	go s.runReconciliationWithRetry(scheduleManager, workflows, log)
+}
+
+func (s *Server) runReconciliationWithRetry(
+	scheduleManager schedule.Manager,
+	workflows []*workflow.Config,
+	log logger.Logger,
+) {
+	startTime := time.Now()
+
+	err := retry.Do(
+		s.ctx,
+		retry.WithMaxRetries(scheduleRetryMaxAttempts, retry.NewExponential(scheduleRetryBaseDelay)),
+		func(ctx context.Context) error {
+			reconcileStart := time.Now()
+			err := scheduleManager.ReconcileSchedules(ctx, workflows)
+
+			if err == nil {
+				// Success
+				s.reconciliationState.setCompleted()
+				log.Info("Schedule reconciliation completed successfully",
+					"duration", time.Since(reconcileStart),
+					"total_duration", time.Since(startTime))
+				return nil
+			}
+
+			// Check if error is due to context cancellation
+			if ctx.Err() == context.Canceled {
+				log.Info("Schedule reconciliation canceled during server shutdown")
+				return err // Don't retry on cancellation
+			}
+
+			// Log the retry attempt
+			log.Warn("Schedule reconciliation failed, will retry",
+				"error", err,
+				"elapsed", time.Since(startTime))
+
+			// Track the error for status reporting
+			s.reconciliationState.setError(err, time.Now().Add(scheduleRetryBaseDelay))
+
+			// Return retryable error to continue retrying
+			return retry.RetryableError(err)
+		},
+	)
+
+	// Handle final result
+	if err != nil {
+		if s.ctx.Err() == context.Canceled {
+			log.Info("Schedule reconciliation canceled during server shutdown")
+		} else {
+			finalErr := fmt.Errorf("schedule reconciliation failed after maximum retries: %w", err)
+			s.reconciliationState.setError(finalErr, time.Time{})
+			log.Error("Schedule reconciliation exhausted retries",
+				"error", err,
+				"duration", time.Since(startTime),
+				"max_attempts", scheduleRetryMaxAttempts)
+		}
+	}
 }

@@ -337,3 +337,42 @@ func TestWorkflowConfig_Outputs(t *testing.T) {
 		assert.Nil(t, config.GetOutputs())
 	})
 }
+
+func TestWorkflowConfig_ScheduleDefaults(t *testing.T) {
+	t.Run("Should set schedule defaults when schedule exists", func(t *testing.T) {
+		config := &Config{
+			Schedule: &Schedule{
+				Cron: "0 9 * * *",
+				// Enabled and OverlapPolicy not set
+			},
+		}
+		config.SetDefaults()
+		// Check defaults were applied
+		require.NotNil(t, config.Schedule.Enabled)
+		assert.True(t, *config.Schedule.Enabled)
+		assert.Equal(t, OverlapSkip, config.Schedule.OverlapPolicy)
+	})
+	t.Run("Should not override existing schedule values", func(t *testing.T) {
+		enabled := false
+		config := &Config{
+			Schedule: &Schedule{
+				Cron:          "0 9 * * *",
+				Enabled:       &enabled,
+				OverlapPolicy: OverlapAllow,
+			},
+		}
+		config.SetDefaults()
+		// Check existing values were preserved
+		require.NotNil(t, config.Schedule.Enabled)
+		assert.False(t, *config.Schedule.Enabled)
+		assert.Equal(t, OverlapAllow, config.Schedule.OverlapPolicy)
+	})
+	t.Run("Should not panic when schedule is nil", func(t *testing.T) {
+		config := &Config{
+			Schedule: nil,
+		}
+		assert.NotPanics(t, func() {
+			config.SetDefaults()
+		})
+	})
+}

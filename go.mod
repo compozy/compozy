@@ -34,6 +34,7 @@ require (
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.64.0
 	github.com/redis/go-redis/v9 v9.10.0
+	github.com/robfig/cron/v3 v3.0.0
 	github.com/segmentio/ksuid v1.0.4
 	github.com/sethvargo/go-retry v0.3.0
 	github.com/spf13/cobra v1.9.1
