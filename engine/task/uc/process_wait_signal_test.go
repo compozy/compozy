@@ -311,7 +311,11 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 		evaluator.On("Evaluate", ctx, taskConfig.Condition, mock.AnythingOfType("map[string]interface {}")).
 			Return(false, errors.New("CEL evaluation error"))
 		// Expect task state to be updated to FAILED
-		taskRepo.On("UpsertState", ctx, mock.AnythingOfType("*task.State")).Return(nil)
+		taskRepo.On("UpsertState", ctx, mock.MatchedBy(func(state *task.State) bool {
+			return state.Status == core.StatusFailed &&
+				state.Error != nil &&
+				state.Error.Code == "CONDITION_EVAL_ERROR"
+		})).Return(nil)
 		// Create use case
 		uc := NewProcessWaitSignal(taskRepo, configStore, evaluator)
 		// Act
@@ -319,7 +323,7 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, output)
-		assert.Contains(t, err.Error(), "condition evaluation failed")
+		assert.Equal(t, "condition evaluation failed", err.Error())
 		// Verify mocks
 		taskRepo.AssertExpectations(t)
 		configStore.AssertExpectations(t)

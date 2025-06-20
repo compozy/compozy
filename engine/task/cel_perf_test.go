@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -256,7 +257,7 @@ func TestCELEvaluator_StressTest(t *testing.T) {
 				},
 				"data": map[string]any{
 					"type":    "important",
-					"content": string(make([]byte, 200)), // 200 character string
+					"content": strings.Repeat("test content ", 17), // ~200 character string
 				},
 			},
 		},

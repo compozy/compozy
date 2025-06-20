@@ -6,7 +6,13 @@ echo "Running Docker Compose Environments:"
 echo "===================================="
 
 # Get all docker compose projects
-projects=$(docker ps --format "table {{.Label \"com.docker.compose.project\"}}" | tail -n +2 | sort -u | grep -v "^$")
+# Check if any containers are running first
+if ! docker ps -q > /dev/null 2>&1; then
+    projects=""
+else
+    # Use direct format without table headers to avoid parsing issues
+    projects=$(docker ps --format "{{.Label \"com.docker.compose.project\"}}" 2> /dev/null | grep -v "^$" | sort -u || true)
+fi
 
 if [ -z "$projects" ]; then
     echo "No active Docker Compose projects found."

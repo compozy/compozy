@@ -104,8 +104,8 @@ func (uc *ProcessWaitSignal) Execute(
 		if updateErr := uc.taskRepo.UpsertState(ctx, taskState); updateErr != nil {
 			log.Error("Failed to update task state to FAILED", "error", updateErr)
 		}
-		// Return error directly instead of wrapping in output
-		return nil, fmt.Errorf("condition evaluation failed: %w", err)
+		// Return error without original error details to prevent double wrapping
+		return nil, fmt.Errorf("condition evaluation failed")
 	}
 	// Prepare output
 	output := &ProcessWaitSignalOutput{
