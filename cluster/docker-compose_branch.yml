@@ -1,0 +1,295 @@
+# To use specific versions and database configuration, create a .env file with:
+# Database Configuration
+# DB_HOST=localhost
+# DB_PORT=5432
+# DB_USER=postgres
+# DB_PASSWORD=postgres
+# DB_NAME=compozy
+#
+# Temporal Database Configuration
+# TEMPORAL_DB_HOST=localhost
+# TEMPORAL_DB_PORT=5433
+# TEMPORAL_DB_USER=temporal
+# TEMPORAL_DB_PASSWORD=temporal
+# TEMPORAL_DB_NAME=temporal
+#
+# Redis Configuration
+# REDIS_HOST=localhost
+# REDIS_PORT=6379
+# REDIS_PASSWORD=redis_secret
+# REDIS_VERSION=7.2-alpine
+# REDIS_MAXMEMORY=512mb
+# REDIS_MAXMEMORY_POLICY=allkeys-lru
+#
+# Temporal Configuration
+# TEMPORAL_POSTGRESQL_VERSION=15-alpine
+# TEMPORAL_VERSION=1.28.0
+# TEMPORAL_UI_VERSION=2.45.0
+# TEMPORAL_ADMINTOOLS_VERSION=1.28.0
+# TEMPORAL_HOST=localhost
+# TEMPORAL_PORT=7233
+# TEMPORAL_UI_PORT=8080
+# TEMPORAL_NAMESPACE=default
+#
+# Project Isolation
+# COMPOSE_PROJECT_NAME=compozy
+
+name: ${COMPOSE_PROJECT_NAME:-compozy}
+
+services:
+  # Redis for caching, config storage, and pub/sub
+  redis:
+    container_name: ${COMPOSE_PROJECT_NAME:-compozy}_redis
+    image: redis:${REDIS_VERSION:-7.2-alpine}
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - app-network
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis-dev.conf:/usr/local/etc/redis/redis.conf:ro
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis_secret}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secret}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # PostgreSQL for Temporal
+  temporal-postgresql:
+    container_name: ${COMPOSE_PROJECT_NAME:-compozy}_temporal_postgresql
+    image: postgres:${TEMPORAL_POSTGRESQL_VERSION:-15-alpine}
+    environment:
+      POSTGRES_USER: ${TEMPORAL_DB_USER:-temporal}
+      POSTGRES_PASSWORD: ${TEMPORAL_DB_PASSWORD:-temporal}
+      POSTGRES_DB: temporal
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    networks:
+      - app-network
+    ports:
+      - "${TEMPORAL_DB_PORT:-5433}:5432" # Different port to avoid conflicts
+    volumes:
+      - temporal_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TEMPORAL_DB_USER:-temporal}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # PostgreSQL for the application
+  app-postgresql:
+    container_name: ${COMPOSE_PROJECT_NAME:-compozy}_app_postgresql
+    image: postgres:${TEMPORAL_POSTGRESQL_VERSION:-15-alpine}
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-compozy}
+    networks:
+      - app-network
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - app_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # PostgreSQL dedicated for testing (no cleanup needed!)
+  test-postgresql:
+    container_name: ${COMPOSE_PROJECT_NAME:-compozy}_test_postgresql
+    image: postgres:${TEMPORAL_POSTGRESQL_VERSION:-15-alpine}
+    environment:
+      POSTGRES_USER: ${TEST_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${TEST_DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${TEST_DB_NAME:-compozy_test}
+    networks:
+      - app-network
+    ports:
+      - "${TEST_DB_PORT:-5434}:5432" # Different port for test database
+    volumes:
+      - test_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TEST_DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  temporal:
+    container_name: ${COMPOSE_PROJECT_NAME:-compozy}_temporal
+    image: temporalio/auto-setup:${TEMPORAL_VERSION:-latest}
+    depends_on:
+      temporal-postgresql:
+        condition: service_healthy
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432 # This is the internal port, not the exposed one
+      - POSTGRES_USER=${TEMPORAL_DB_USER:-temporal}
+      - POSTGRES_PWD=${TEMPORAL_DB_PASSWORD:-temporal}
+      - POSTGRES_SEEDS=temporal-postgresql
+      - DBNAME=temporal
+      - POSTGRES_INIT_DB=temporal
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - TEMPORAL_HOST=temporal:7233 # Internal reference, not external
+      - TEMPORAL_CLI_HOST=temporal:7233
+      - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+      - PROMETHEUS_ENDPOINT=0.0.0.0:${TEMPORAL_METRICS_PORT:-8000}
+      - SKIP_DB_CREATE=false
+      - SKIP_SCHEMA_SETUP=false
+    networks:
+      - app-network
+    ports:
+      - "${TEMPORAL_PORT:-7233}:7233" # Temporal gRPC endpoint
+      - "${TEMPORAL_METRICS_PORT:-8000}:8000" # Temporal Prometheus metrics
+    volumes:
+      - ./temporal-dev.yaml:/etc/temporal/config/dynamicconfig/development-sql.yaml
+    healthcheck:
+      test:
+        - "CMD"
+        - "temporal"
+        - "workflow"
+        - "list"
+        - "--namespace"
+        - "${TEMPORAL_NAMESPACE:-default}"
+        - "--address"
+        - "temporal:7233"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  temporal-admin-tools:
+    container_name: ${COMPOSE_PROJECT_NAME:-compozy}_temporal_admin_tools
+    image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION:-1.24.2}
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      - TEMPORAL_HOST=temporal:7233 # Internal reference
+      - TEMPORAL_CLI_HOST=temporal:7233
+      - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+    networks:
+      - app-network
+    stdin_open: true
+    tty: true
+
+  temporal-ui:
+    container_name: ${COMPOSE_PROJECT_NAME:-compozy}_temporal_ui
+    image: temporalio/ui:${TEMPORAL_UI_VERSION:-latest}
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000,http://localhost:${TEMPORAL_UI_PORT:-8080}
+      - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+    networks:
+      - app-network
+    ports:
+      - "${TEMPORAL_UI_PORT:-8080}:8080" # Temporal Web UI
+
+  # MCP Proxy for development
+  mcp-proxy:
+    container_name: ${COMPOSE_PROJECT_NAME:-compozy}_mcp_proxy
+    build:
+      context: ..
+      dockerfile: cluster/mcpproxy.Dockerfile
+    environment:
+      - MCP_PROXY_HOST=0.0.0.0
+      - MCP_PROXY_PORT=8081
+      - MCP_PROXY_BASE_URL=http://localhost:${MCP_PROXY_PORT:-8081}
+    networks:
+      - app-network
+    ports:
+      - "${MCP_PROXY_PORT:-8081}:8081" # MCP Proxy HTTP API
+    healthcheck:
+      test:
+        ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Prometheus for metrics collection
+  prometheus:
+    container_name: ${COMPOSE_PROJECT_NAME:-compozy}_prometheus
+    image: prom/prometheus:v2.52.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-lifecycle"
+    networks:
+      - app-network
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    healthcheck:
+      test:
+        ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Grafana for metrics visualization
+  grafana:
+    container_name: ${COMPOSE_PROJECT_NAME:-compozy}_grafana
+    image: grafana/grafana:10.4.3
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - app-network
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1",
+        ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+networks:
+  app-network:
+    driver: bridge
+    name: ${COMPOSE_PROJECT_NAME:-compozy}_network
+
+volumes:
+  redis_data:
+    driver: local
+    name: ${COMPOSE_PROJECT_NAME:-compozy}_redis_data
+  temporal_postgres_data:
+    driver: local
+    name: ${COMPOSE_PROJECT_NAME:-compozy}_temporal_postgres_data
+  app_postgres_data:
+    driver: local
+    name: ${COMPOSE_PROJECT_NAME:-compozy}_app_postgres_data
+  test_postgres_data:
+    driver: local
+    name: ${COMPOSE_PROJECT_NAME:-compozy}_test_postgres_data
+  prometheus_data:
+    driver: local
+    name: ${COMPOSE_PROJECT_NAME:-compozy}_prometheus_data
+  grafana_data:
+    driver: local
+    name: ${COMPOSE_PROJECT_NAME:-compozy}_grafana_data

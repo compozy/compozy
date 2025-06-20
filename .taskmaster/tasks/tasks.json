@@ -147,5 +147,124 @@
             "updated": "2025-06-19T21:03:39.101Z",
             "description": "Tag created on 6/19/2025"
         }
+    },
+    "taskwait": {
+        "tasks": [
+            {
+                "id": 1,
+                "title": "Implement WaitTaskConfig Structure",
+                "description": "Create the WaitTaskConfig struct extending BaseConfig with wait-specific fields following established Compozy patterns",
+                "details": "Implement WaitTaskConfig struct in engine/task/ directory:\n\n```go\ntype WaitTaskConfig struct {\n    BaseConfig                                    // Standard task configuration\n    WaitFor      string         `yaml:\"wait_for\"`      // REQUIRED: Signal name to wait for\n    Condition    string         `yaml:\"condition\"`     // REQUIRED: CEL expression\n    Processor    *ProcessorSpec `yaml:\"processor\"`     // Optional: Signal processing task\n    OnTimeout    string         `yaml:\"on_timeout\"`    // Optional: Timeout routing\n}\n\ntype ProcessorSpec struct {\n    BaseConfig                                    // Inherit timeout, retries, etc.\n    ID       string            `yaml:\"id\"`\n    Type     string            `yaml:\"type\"`       // basic, docker, wasm\n    Use      string            `yaml:\"$use\"`       // Tool reference\n    With     map[string]any    `yaml:\"with\"`       // Input parameters\n}\n```\n\nAdd TaskTypeWait to the Type enum. Ensure proper YAML/JSON marshaling tags and mapstructure support for configuration parsing.",
+                "testStrategy": "Unit tests for struct validation, YAML parsing, and BaseConfig inheritance. Test required field validation and optional field handling.",
+                "priority": "high",
+                "dependencies": [],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 2,
+                "title": "Define Core Interfaces",
+                "description": "Create interface definitions following Interface Segregation Principle for signal processing, condition evaluation, and storage",
+                "details": "Define interfaces in separate files following ISP:\n\n```go\ntype SignalProcessor interface {\n    Process(ctx context.Context, signal *SignalEnvelope) (*ProcessorOutput, error)\n}\n\ntype ConditionEvaluator interface {\n    Evaluate(ctx context.Context, expression string, context map[string]any) (bool, error)\n}\n\ntype SignalStorage interface {\n    IsDuplicate(ctx context.Context, signalID string) (bool, error)\n    MarkProcessed(ctx context.Context, signalID string) error\n    Close() error\n}\n\ntype WaitTaskExecutor interface {\n    Execute(ctx context.Context, config *WaitTaskConfig) (*WaitTaskResult, error)\n}\n```\n\nCreate SignalEnvelope and related data structures with proper JSON tags and validation.",
+                "testStrategy": "Interface compliance tests, mock implementations using testify/mock, and contract testing for each interface.",
+                "priority": "high",
+                "dependencies": [1],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 3,
+                "title": "Implement CEL-Based Condition Evaluator",
+                "description": "Create secure CEL expression evaluator with resource limits and proper error handling",
+                "details": "Implement CELEvaluator struct:\n\n```go\ntype CELEvaluator struct {\n    env     cel.Env\n    options []cel.EnvOption\n}\n\nfunc NewCELEvaluator() (*CELEvaluator, error) {\n    env, err := cel.NewEnv(\n        cel.Types(&SignalEnvelope{}, &ProcessorOutput{}),\n        cel.Declarations(\n            decls.NewVar(\"signal\", decls.NewObjectType(\"SignalEnvelope\")),\n            decls.NewVar(\"processor\", decls.NewObjectType(\"ProcessorOutput\")),\n        ),\n        cel.CostLimit(1000),\n        cel.OptimizeRegex(library.BoundedRegexComplexity(100)),\n    )\n    return &CELEvaluator{env: *env}, err\n}\n```\n\nImplement Evaluate method with context timeout, cost tracking, and proper error handling using fmt.Errorf internally and core.NewError at boundaries.",
+                "testStrategy": "Unit tests for valid/invalid CEL expressions, cost limit enforcement, timeout handling, and security constraint validation. Test with various signal payload structures.",
+                "priority": "high",
+                "dependencies": [2],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 4,
+                "title": "Implement Redis Signal Storage",
+                "description": "Create Redis-based signal storage for deduplication with proper resource management",
+                "details": "Implement RedisSignalStorage:\n\n```go\ntype RedisSignalStorage struct {\n    client redis.Client\n    ttl    time.Duration\n}\n\nfunc NewRedisSignalStorage(client redis.Client, ttl time.Duration) *RedisSignalStorage {\n    if ttl == 0 {\n        ttl = 24 * time.Hour // Default TTL\n    }\n    return &RedisSignalStorage{client: client, ttl: ttl}\n}\n```\n\nImplement IsDuplicate, MarkProcessed, and Close methods with proper error handling. Use key pattern 'wait_signal:{signalID}' for Redis keys.",
+                "testStrategy": "Integration tests with Redis testcontainer, unit tests with Redis mock, TTL verification, and concurrent access testing.",
+                "priority": "medium",
+                "dependencies": [2],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 5,
+                "title": "Create Signal Processing Activity",
+                "description": "Implement Temporal Activity for non-deterministic signal processing operations",
+                "details": "Implement SignalProcessingActivity:\n\n```go\ntype SignalProcessingActivity struct {\n    processor  SignalProcessor\n    evaluator  ConditionEvaluator\n    storage    SignalStorage\n    logger     log.Logger\n}\n\nfunc (a *SignalProcessingActivity) ProcessSignal(\n    ctx context.Context,\n    config *WaitTaskConfig,\n    signal *SignalEnvelope,\n) (*SignalProcessingResult, error) {\n    // Check duplicates, process signal, evaluate condition\n    // Return SignalProcessingResult with ShouldContinue flag\n}\n```\n\nHandle deduplication, optional processor execution, condition evaluation, and structured logging. Use dependency injection pattern.",
+                "testStrategy": "Unit tests with mocked dependencies, integration tests with real Redis, duplicate signal handling tests, and processor failure scenarios.",
+                "priority": "high",
+                "dependencies": [3, 4],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 6,
+                "title": "Implement Wait Task Workflow",
+                "description": "Create deterministic Temporal workflow for wait task orchestration with signal handling and timeout management",
+                "details": "Implement WaitTaskWorkflow:\n\n```go\ntype WaitTaskWorkflow struct {\n    activityOptions workflow.LocalActivityOptions\n}\n\nfunc (w *WaitTaskWorkflow) Execute(ctx workflow.Context, config *WaitTaskConfig) (*WaitTaskResult, error) {\n    signalCh := workflow.GetSignalChannel(ctx, config.WaitFor)\n    timeout := workflow.NewTimer(ctx, config.ParsedTimeout)\n    \n    // Main event loop with selector\n    for {\n        selector := workflow.NewSelector(ctx)\n        selector.AddReceive(signalCh, handleSignal)\n        selector.AddFuture(timeout, handleTimeout)\n        selector.Select(ctx)\n    }\n}\n```\n\nImplement deterministic workflow logic with proper signal channel handling, timeout management, and activity execution.",
+                "testStrategy": "Temporal workflow unit tests, signal reception tests, timeout handling tests, and workflow state validation.",
+                "priority": "high",
+                "dependencies": [5],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 7,
+                "title": "Create Wait Task Service Layer",
+                "description": "Implement service layer with dependency injection for wait task coordination",
+                "details": "Implement WaitTaskService:\n\n```go\ntype WaitTaskService struct {\n    executor  WaitTaskExecutor\n    evaluator ConditionEvaluator\n    storage   SignalStorage\n    logger    log.Logger\n}\n\nfunc NewWaitTaskService(\n    executor WaitTaskExecutor,\n    evaluator ConditionEvaluator,\n    storage SignalStorage,\n    logger log.Logger,\n) *WaitTaskService {\n    return &WaitTaskService{...}\n}\n```\n\nImplement ExecuteWaitTask method with proper error handling using core.NewError at domain boundaries. Include resource cleanup in Close method.",
+                "testStrategy": "Service layer unit tests with mocked dependencies, error handling validation, and resource cleanup verification.",
+                "priority": "medium",
+                "dependencies": [6],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 8,
+                "title": "Implement Task Factory and Registration",
+                "description": "Create factory pattern for wait task creation and registration with task registry",
+                "details": "Implement WaitTaskFactory:\n\n```go\ntype WaitTaskFactory struct {\n    celEvaluator    ConditionEvaluator\n    signalStorage   SignalStorage\n    signalProcessor SignalProcessor\n    logger          log.Logger\n}\n\nfunc NewWaitTaskFactory(...) *WaitTaskFactory {\n    return &WaitTaskFactory{...}\n}\n\nfunc (f *WaitTaskFactory) CreateWaitTask() TaskConfig {\n    return &WaitTaskConfig{}\n}\n\nfunc RegisterWaitTask(registry TaskRegistry, factory *WaitTaskFactory) {\n    registry.RegisterTaskType(\"wait\", factory.CreateWaitTask)\n}\n```\n\nAvoid init() patterns, use constructor-based dependency injection.",
+                "testStrategy": "Factory creation tests, task registration validation, and dependency injection verification.",
+                "priority": "medium",
+                "dependencies": [7],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 9,
+                "title": "Add Configuration Validation",
+                "description": "Implement comprehensive validation for wait task configuration with proper error handling",
+                "details": "Implement validation functions:\n\n```go\nfunc validateConfiguration(config *WaitTaskConfig) error {\n    if config.WaitFor == \"\" {\n        return fmt.Errorf(\"wait_for field is required\")\n    }\n    \n    if config.Condition == \"\" {\n        return fmt.Errorf(\"condition field is required\")\n    }\n    \n    // Validate CEL expression syntax\n    evaluator, err := NewCELEvaluator()\n    if err != nil {\n        return fmt.Errorf(\"failed to create CEL evaluator: %w\", err)\n    }\n    \n    _, issues := evaluator.env.Compile(config.Condition)\n    if issues != nil && issues.Err() != nil {\n        return fmt.Errorf(\"invalid CEL condition: %w\", issues.Err())\n    }\n    \n    return nil\n}\n```\n\nValidate required fields, CEL expression syntax, timeout values, and processor configuration.",
+                "testStrategy": "Validation unit tests for all error cases, valid configuration acceptance tests, and CEL expression validation tests.",
+                "priority": "medium",
+                "dependencies": [8],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 10,
+                "title": "Create Comprehensive Test Suite",
+                "description": "Implement complete test coverage including unit tests, integration tests, and end-to-end scenarios",
+                "details": "Create comprehensive test suite:\n\n1. Unit tests using testify/mock for all components\n2. Integration tests with Redis testcontainer\n3. Temporal workflow testing with test suite\n4. End-to-end scenarios:\n   - Basic approval workflow\n   - Signal processing with processor\n   - Timeout handling\n   - Duplicate signal handling\n   - Error scenarios\n\n```go\nfunc TestWaitTaskIntegration(t *testing.T) {\n    t.Run(\"Should complete end-to-end wait task flow\", func(t *testing.T) {\n        // Set up test environment with real Redis and CEL\n        // Execute complete workflow\n        // Verify results and state transitions\n    })\n}\n```\n\nInclude performance tests for signal processing latency and concurrent signal handling.",
+                "testStrategy": "Achieve >90% code coverage, validate all error paths, test concurrent scenarios, and verify resource cleanup. Include benchmarks for performance validation.",
+                "priority": "medium",
+                "dependencies": [9],
+                "status": "pending",
+                "subtasks": []
+            }
+        ],
+        "metadata": {
+            "created": "2025-06-19T23:30:04.718Z",
+            "updated": "2025-06-19T23:33:26.937Z",
+            "description": "Tasks for taskwait context"
+        }
     }
 }

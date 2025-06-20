@@ -35,6 +35,7 @@ sessions/
 # Environment configuration.
 .env
 .envrc
+.env.*
 
 # IDE-specific files
 .idea/
