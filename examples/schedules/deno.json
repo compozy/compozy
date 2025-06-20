@@ -1,0 +1,11 @@
+{
+    "imports": {
+        "echo_tool": "./echo_tool.ts"
+    },
+    "fmt": {
+        "indentWidth": 4,
+        "useTabs": false,
+        "lineWidth": 100,
+        "singleQuote": false
+    }
+}

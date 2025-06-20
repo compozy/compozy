@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"dario.cat/mergo"
 
@@ -23,10 +24,44 @@ const (
 	TriggerTypeSignal TriggerType = "signal"
 )
 
+// OverlapPolicy defines how scheduled workflows handle overlapping executions
+type OverlapPolicy string
+
+const (
+	// OverlapSkip skips the new execution if the previous one is still running
+	OverlapSkip OverlapPolicy = "skip"
+	// OverlapAllow allows multiple executions to run concurrently
+	OverlapAllow OverlapPolicy = "allow"
+	// OverlapBufferOne buffers one execution to run after the current one completes
+	OverlapBufferOne OverlapPolicy = "buffer_one"
+	// OverlapCancelOther cancels the running execution and starts a new one
+	OverlapCancelOther OverlapPolicy = "cancel_other"
+)
+
 type Trigger struct {
 	Type   TriggerType    `json:"type"             yaml:"type"             mapstructure:"type"`
 	Name   string         `json:"name"             yaml:"name"             mapstructure:"name"`
 	Schema *schema.Schema `json:"schema,omitempty" yaml:"schema,omitempty" mapstructure:"schema,omitempty"`
+}
+
+// Schedule defines when and how a workflow should be executed automatically
+type Schedule struct {
+	// Cron expression for scheduling (required)
+	Cron string `yaml:"cron"                     json:"cron"                     validate:"required,cron"`
+	// Timezone for schedule execution (optional, default UTC)
+	Timezone string `yaml:"timezone,omitempty"       json:"timezone,omitempty"`
+	// Whether the schedule is enabled (optional, default true)
+	Enabled *bool `yaml:"enabled,omitempty"        json:"enabled,omitempty"`
+	// Random delay to add to execution time (optional)
+	Jitter string `yaml:"jitter,omitempty"         json:"jitter,omitempty"`
+	// Policy for handling overlapping executions (optional, default skip)
+	OverlapPolicy OverlapPolicy `yaml:"overlap_policy,omitempty" json:"overlap_policy,omitempty"`
+	// Start date for the schedule (optional)
+	StartAt *time.Time `yaml:"start_at,omitempty"       json:"start_at,omitempty"`
+	// End date for the schedule (optional)
+	EndAt *time.Time `yaml:"end_at,omitempty"         json:"end_at,omitempty"`
+	// Default input values for scheduled runs (optional)
+	Input map[string]any `yaml:"input,omitempty"          json:"input,omitempty"`
 }
 
 type Opts struct {
@@ -49,6 +84,7 @@ type Config struct {
 	Triggers    []Trigger       `json:"triggers,omitempty"    yaml:"triggers,omitempty"    mapstructure:"triggers,omitempty"`
 	Tasks       []task.Config   `json:"tasks"                 yaml:"tasks"                 mapstructure:"tasks"`
 	Outputs     *core.Output    `json:"outputs,omitempty"     yaml:"outputs,omitempty"     mapstructure:"outputs,omitempty"`
+	Schedule    *Schedule       `json:"schedule,omitempty"    yaml:"schedule,omitempty"    mapstructure:"schedule,omitempty"`
 
 	filePath string
 	CWD      *core.PathCWD
@@ -166,6 +202,15 @@ func (w *Config) GetID() string {
 }
 
 func (w *Config) SetDefaults() {
+	if w.Schedule != nil {
+		if w.Schedule.Enabled == nil {
+			enabled := true
+			w.Schedule.Enabled = &enabled
+		}
+		if w.Schedule.OverlapPolicy == "" {
+			w.Schedule.OverlapPolicy = OverlapSkip
+		}
+	}
 	for i := range w.MCPs {
 		w.MCPs[i].SetDefaults()
 	}

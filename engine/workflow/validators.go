@@ -30,6 +30,7 @@ func (v *Validator) Validate() error {
 		NewMCPsValidator(v.config),
 		NewTriggersValidator(v.config),
 		NewOutputsValidator(v.config),
+		NewScheduleValidator(v.config),
 	)
 	return validator.Validate()
 }
@@ -255,4 +256,48 @@ func (v *InputValidator) Validate(ctx context.Context) error {
 	}
 	inputSchema := v.config.Opts.InputSchema
 	return schema.NewParamsValidator(v.input, inputSchema, v.config.ID).Validate(ctx)
+}
+
+// -----------------------------------------------------------------------------
+// ScheduleValidator - Validates workflow schedule configuration
+// -----------------------------------------------------------------------------
+
+type ScheduleValidator struct {
+	config *Config
+}
+
+func NewScheduleValidator(config *Config) *ScheduleValidator {
+	return &ScheduleValidator{config: config}
+}
+
+func (v *ScheduleValidator) Validate() error {
+	// Skip validation if no schedule is configured
+	if v.config.Schedule == nil {
+		return nil
+	}
+	// Validate the schedule configuration
+	if err := ValidateSchedule(v.config.Schedule); err != nil {
+		return fmt.Errorf("schedule validation error: %w", err)
+	}
+	// Validate schedule input against workflow input schema if present
+	if v.config.Opts.InputSchema != nil {
+		// Use schedule input if provided, otherwise use an empty map.
+		// This ensures validation catches missing required inputs without defaults.
+		inputData := v.config.Schedule.Input
+		if inputData == nil {
+			inputData = make(map[string]any)
+		}
+		// Apply defaults from schema before validation
+		mergedInput, err := v.config.Opts.InputSchema.ApplyDefaults(inputData)
+		if err != nil {
+			return fmt.Errorf("failed to apply schedule input defaults: %w", err)
+		}
+		input := core.Input(mergedInput)
+		validator := NewInputValidator(v.config, &input)
+		// Use background context for schema validation
+		if err := validator.Validate(context.Background()); err != nil {
+			return fmt.Errorf("schedule input validation error: %w", err)
+		}
+	}
+	return nil
 }

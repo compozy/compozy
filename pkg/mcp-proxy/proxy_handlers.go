@@ -232,8 +232,16 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 // @Success 200 {string} string "HTTP stream"
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 404 {object} map[string]interface{} "MCP not found"
-// @Router /{name}/stream [any]
-// @Router /{name}/stream/{path} [any]
+// @Router /{name}/stream [get]
+// @Router /{name}/stream [post]
+// @Router /{name}/stream [put]
+// @Router /{name}/stream [patch]
+// @Router /{name}/stream [delete]
+// @Router /{name}/stream/{path} [get]
+// @Router /{name}/stream/{path} [post]
+// @Router /{name}/stream/{path} [put]
+// @Router /{name}/stream/{path} [patch]
+// @Router /{name}/stream/{path} [delete]
 func (p *ProxyHandlers) StreamableHTTPProxyHandler(c *gin.Context) {
 	log := logger.FromContext(c.Request.Context())
 	name := c.Param("name")

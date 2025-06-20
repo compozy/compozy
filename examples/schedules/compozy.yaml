@@ -1,0 +1,12 @@
+name: schedules
+version: 0.1.0
+description: Simple example demonstrating scheduled workflows
+
+workflows:
+  - source: ./hello-scheduler.yaml
+
+runtime:
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-env

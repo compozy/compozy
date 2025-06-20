@@ -1,0 +1,71 @@
+# Grafana alerting rules for Compozy schedules
+groups:
+  - name: compozy_schedule_alerts
+    interval: 30s
+    rules:
+      - alert: ScheduleReconciliationFailure
+        expr: increase(compozy_schedule_operations_total{status="failure"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          component: schedule
+        annotations:
+          summary: "Schedule operation failures detected"
+          description: "{{ $labels.operation }} operations are failing for project {{ $labels.project }}. {{ $value }} failures in the last 5 minutes."
+          
+      - alert: ScheduleReconciliationHighDuration
+        expr: histogram_quantile(0.95, rate(compozy_schedule_reconcile_duration_seconds_bucket[5m])) > 30
+        for: 2m
+        labels:
+          severity: warning
+          component: schedule
+        annotations:
+          summary: "Schedule reconciliation taking too long"
+          description: "95th percentile reconciliation time is {{ $value }}s for project {{ $labels.project }}, which exceeds the 30s threshold."
+          
+      - alert: ScheduleReconciliationStuck
+        expr: compozy_schedule_reconcile_inflight > 0
+        for: 5m
+        labels:
+          severity: critical
+          component: schedule
+        annotations:
+          summary: "Schedule reconciliation appears stuck"
+          description: "Reconciliation has been in-flight for more than 5 minutes for project {{ $labels.project }}. This may indicate a stuck process."
+          
+      - alert: HighScheduleOperationFailureRate
+        expr: |
+          sum by(operation, project) (rate(compozy_schedule_operations_total{status="failure"}[5m]))
+          /
+          sum by(operation, project) (rate(compozy_schedule_operations_total[5m]))
+          > 0.1
+        for: 3m
+        labels:
+          severity: critical
+          component: schedule
+        annotations:
+          summary: "High schedule operation failure rate"
+          description: "{{ $labels.operation }} operations have a failure rate of {{ $value | humanizePercentage }} for project {{ $labels.project }}, which exceeds the 10% threshold."
+
+  - name: compozy_schedule_capacity
+    interval: 60s
+    rules:
+      - alert: TooManyScheduledWorkflows
+        expr: sum(compozy_scheduled_workflows_total) by (project) > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: schedule
+        annotations:
+          summary: "High number of scheduled workflows"
+          description: "Project {{ $labels.project }} has {{ $value }} scheduled workflows, which may impact performance."
+          
+      - alert: ScheduleMetricsUnavailable
+        expr: up{job="compozy"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: schedule
+        annotations:
+          summary: "Schedule metrics unavailable"
+          description: "Compozy metrics endpoint is down, schedule monitoring is not available."
