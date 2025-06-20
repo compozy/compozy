@@ -3,8 +3,10 @@ package uc
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 )
@@ -77,4 +79,65 @@ func NewResumeExecution(worker *worker.Worker, workflowExecID core.ID) *ResumeEx
 
 func (uc *ResumeExecution) Execute(_ context.Context) error {
 	return fmt.Errorf("not implemented")
+}
+
+// -----------------------------------------------------------------------------
+// SendSignalToExecution
+// -----------------------------------------------------------------------------
+
+type SendSignalToExecution struct {
+	worker         *worker.Worker
+	workflowRepo   workflow.Repository
+	workflowExecID core.ID
+	signalName     string
+	payload        core.Input
+}
+
+func NewSendSignalToExecution(
+	worker *worker.Worker,
+	workflowExecID core.ID,
+	signalName string,
+	payload core.Input,
+) *SendSignalToExecution {
+	return &SendSignalToExecution{
+		worker:         worker,
+		workflowRepo:   worker.WorkflowRepo(),
+		workflowExecID: workflowExecID,
+		signalName:     signalName,
+		payload:        payload,
+	}
+}
+
+func (uc *SendSignalToExecution) Execute(ctx context.Context) error {
+	// Get workflow state to retrieve workflowID
+	state, err := uc.workflowRepo.GetState(ctx, uc.workflowExecID)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow state: %w", err)
+	}
+	if state == nil {
+		return fmt.Errorf("workflow state not found for execution %s", uc.workflowExecID)
+	}
+
+	// Create signal envelope
+	signal := &task.SignalEnvelope{
+		Metadata: task.SignalMetadata{
+			SignalID:      core.MustNewID().String(),
+			ReceivedAtUTC: time.Now().UTC(),
+			WorkflowID:    state.WorkflowID,
+			Source:        "api",
+		},
+		Payload: uc.payload,
+	}
+
+	// Build the workflow ID for Temporal (workflow_id + "-" + exec_id)
+	temporalWorkflowID := fmt.Sprintf("%s-%s", state.WorkflowID, uc.workflowExecID.String())
+
+	// Send signal to workflow using Temporal client
+	return uc.worker.GetClient().SignalWorkflow(
+		ctx,
+		temporalWorkflowID,
+		"", // empty run ID means current run
+		uc.signalName,
+		signal,
+	)
 }

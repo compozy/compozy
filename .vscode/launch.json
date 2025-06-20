@@ -32,7 +32,12 @@
             "id": "exampleFolder",
             "description": "Select example folder",
             "type": "pickString",
-            "options": ["examples/weather", "examples/nested-tasks", "examples/signals"]
+            "options": [
+                "examples/weather",
+                "examples/nested-tasks",
+                "examples/signals",
+                "examples/wait-task"
+            ]
         }
     ]
 }

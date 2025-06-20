@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/project"
@@ -24,6 +25,7 @@ type Activities struct {
 	signalDispatcher services.SignalDispatcher
 	configManager    *services.ConfigManager
 	redisCache       *cache.Cache
+	celEvaluator     task.ConditionEvaluator
 }
 
 func NewActivities(
@@ -37,6 +39,12 @@ func NewActivities(
 	configManager *services.ConfigManager,
 	redisCache *cache.Cache,
 ) *Activities {
+	// Create CEL evaluator once for reuse across all activity executions
+	celEvaluator, err := task.NewCELEvaluator()
+	if err != nil {
+		// This is a critical initialization error
+		panic(fmt.Sprintf("failed to create CEL evaluator: %v", err))
+	}
 	return &Activities{
 		projectConfig:    projectConfig,
 		workflows:        workflows,
@@ -47,6 +55,7 @@ func NewActivities(
 		signalDispatcher: signalDispatcher,
 		configManager:    configManager,
 		redisCache:       redisCache,
+		celEvaluator:     celEvaluator,
 	}
 }
 
@@ -341,6 +350,49 @@ func (a *Activities) ExecuteSignalTask(
 		a.signalDispatcher,
 		a.projectConfig.CWD,
 	)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) ExecuteWaitTask(
+	ctx context.Context,
+	input *tkfacts.ExecuteWaitInput,
+) (*task.MainTaskResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewExecuteWait(
+		a.workflows,
+		a.workflowRepo,
+		a.taskRepo,
+		a.configStore,
+		a.projectConfig.CWD,
+	)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) NormalizeWaitProcessor(
+	ctx context.Context,
+	input *tkfacts.NormalizeWaitProcessorInput,
+) (*task.Config, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewNormalizeWaitProcessor(
+		a.workflows,
+		a.workflowRepo,
+	)
+	return act.Run(ctx, input)
+}
+
+func (a *Activities) EvaluateCondition(
+	ctx context.Context,
+	input *tkfacts.EvaluateConditionInput,
+) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	// Use the shared CEL evaluator instance
+	act := tkfacts.NewEvaluateCondition(a.celEvaluator)
 	return act.Run(ctx, input)
 }
 

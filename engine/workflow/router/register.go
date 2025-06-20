@@ -51,6 +51,10 @@ func Register(apiBase *gin.RouterGroup) {
 			// Cancel workflow execution
 			workflowExecGroup.POST("/:exec_id/cancel", cancelExecution)
 
+			// POST /api/v0/executions/workflows/:exec_id/signals
+			// Send signal to workflow execution
+			workflowExecGroup.POST("/:exec_id/signals", sendSignalToExecution)
+
 			// TODO: implement logs route
 			// GET /api/v0/executions/workflows/:exec_id/logs
 			// Get logs for a workflow execution

@@ -1,141 +1,270 @@
 {
-    "tasks": [
-        {
-            "id": 1,
-            "title": "Database Schema and Migration Setup",
-            "description": "Create database schema for multi-tenant entities including organizations, users, and api_keys tables with proper indexes and foreign key relationships",
-            "details": "Create PostgreSQL migrations for:\n1. organizations table (id UUID, name string unique, temporal_namespace string unique, status enum, created_at/updated_at)\n2. users table (id UUID, org_id UUID FK, email string, role enum, status enum, timestamps)\n3. api_keys table (id UUID, user_id UUID FK, org_id UUID FK, key_hash string, name string, expires_at nullable, rate_limit_per_hour int, created_at/last_used_at, status enum)\n4. Add org_id foreign keys to existing tables: workflows, tasks, schedules, workflow_states, task_states\n5. Create composite indexes: (org_id, created_at) on all major tables\n6. Ensure email uniqueness within organization scope using partial unique indexes\n\nUse pgx driver with proper connection pooling configuration.",
-            "testStrategy": "Create integration tests verifying schema creation, foreign key constraints, and index performance. Test migration rollback scenarios and validate unique constraints work correctly within organization scope.",
-            "priority": "high",
-            "dependencies": [],
-            "status": "pending",
-            "subtasks": []
-        },
-        {
-            "id": 2,
-            "title": "Core Domain Entities and Types",
-            "description": "Implement core domain entities for Organization, User, and APIKey with proper validation and business logic",
-            "details": "Create domain entities in engine/core:\n1. Organization struct with ID, Name, TemporalNamespace, Status (active/suspended), timestamps\n2. User struct with ID, OrgID, Email, Role (admin/manager/customer), Status, timestamps\n3. APIKey struct with ID, UserID, OrgID, Hash, Name, ExpiresAt, RateLimitPerHour, timestamps, Status\n4. Role enum with proper permission mapping\n5. OrganizationStatus enum with state transitions\n6. Validation methods for email format, organization name uniqueness\n7. Business logic for namespace generation: 'compozy-{org-slug}'\n8. ID generation using core.NewID() for consistency\n\nImplement proper JSON marshaling/unmarshaling with struct tags.",
-            "testStrategy": "Unit tests for entity validation, business logic methods, JSON serialization/deserialization, and enum value validation. Test edge cases for namespace generation and email validation.",
-            "priority": "high",
-            "dependencies": [1],
-            "status": "pending",
-            "subtasks": []
-        },
-        {
-            "id": 3,
-            "title": "Repository Layer Implementation",
-            "description": "Implement repository interfaces and PostgreSQL implementations for Organization, User, and APIKey entities with organization-scoped queries",
-            "details": "Create repository layer in engine/infra/store:\n1. OrgRepository interface with CRUD operations, FindByName, UpdateStatus methods\n2. UserRepository interface with organization-scoped queries, FindByEmail, UpdateRole methods\n3. APIKeyRepository interface with FindByPrefix, ValidateKey, organization-scoped listing\n4. PostgreSQL implementations using pgx with prepared statements\n5. All queries must include org_id filtering where applicable\n6. Transaction support using store.TransactionManager\n7. Proper error handling with domain-specific errors\n8. Connection pooling with organization-aware patterns\n\nImplement repository pattern with interfaces for testability.",
-            "testStrategy": "Integration tests with test database, verify organization isolation, test transaction rollback scenarios, validate query performance with indexes, and test concurrent access patterns.",
-            "priority": "high",
-            "dependencies": [2],
-            "status": "pending",
-            "subtasks": []
-        },
-        {
-            "id": 4,
-            "title": "API Key Security Service",
-            "description": "Implement secure API key generation, hashing, and validation service using Argon2 with constant-time comparison",
-            "details": "Create APIKeyService in engine/infra/auth:\n1. Generate 32-character random API keys with 'cmpz_' prefix\n2. Implement Argon2 hashing with salt generation for secure storage\n3. Constant-time comparison using subtle.ConstantTimeCompare to prevent timing attacks\n4. Key validation with organization and user context retrieval\n5. Support for key expiration checking\n6. Rate limiting configuration per API key\n7. Audit logging for key generation, validation attempts, and security events\n8. Key prefix extraction for efficient database lookups\n\nUse golang.org/x/crypto/argon2 with secure parameters: time=1, memory=64*1024, threads=4, keyLen=32.",
-            "testStrategy": "Security-focused testing including timing attack resistance, hash collision testing, key generation entropy validation, and penetration testing for authentication bypass attempts.",
-            "priority": "high",
-            "dependencies": [3],
-            "status": "pending",
-            "subtasks": []
-        },
-        {
-            "id": 5,
-            "title": "Organization Management Service",
-            "description": "Implement organization lifecycle management service with Temporal namespace provisioning and transaction handling",
-            "details": "Create OrganizationService in engine/infra/auth:\n1. CreateOrganization with atomic database + Temporal namespace creation\n2. Temporal namespace provisioning with retry logic and exponential backoff\n3. Organization status management (provisioning -> active -> suspended)\n4. Transaction handling for multi-step operations\n5. Namespace naming: 'org-{org-slug}-{short-uuid}' format\n6. Error handling with proper rollback on Temporal failures\n7. Organization validation and uniqueness checking\n8. Integration with Temporal client for namespace management\n\nImplement retry.Do with 3 attempts, exponential backoff starting at 500ms, max delay 5s.",
-            "testStrategy": "Test organization creation flow, Temporal namespace provisioning failures and rollback, concurrent organization creation, and namespace naming collision handling.",
-            "priority": "high",
-            "dependencies": [4],
-            "status": "pending",
-            "subtasks": []
-        },
-        {
-            "id": 6,
-            "title": "User Management Service",
-            "description": "Implement user lifecycle management with role-based permissions and organization-scoped operations",
-            "details": "Create UserService in engine/infra/auth:\n1. User CRUD operations with organization context\n2. Role management (admin/manager/customer) with permission validation\n3. Email uniqueness validation within organization scope\n4. User status management (active/suspended)\n5. Role-based permission checking for operations\n6. User-organization association validation\n7. Bulk user operations for organization management\n8. User activity tracking and audit logging\n\nImplement permission matrix: admin (global), manager (org-wide), customer (read/execute only).",
-            "testStrategy": "Test role-based access control, email uniqueness within organizations, user status transitions, and permission validation for different user roles.",
-            "priority": "medium",
-            "dependencies": [5],
-            "status": "pending",
-            "subtasks": []
-        },
-        {
-            "id": 7,
-            "title": "Authentication and Authorization Middleware",
-            "description": "Implement Gin middleware for API key authentication, organization context injection, and rate limiting",
-            "details": "Create middleware in engine/infra/auth:\n1. AuthMiddleware for Bearer token extraction and API key validation\n2. OrgContextMiddleware for organization context injection into request context\n3. RateLimitMiddleware using in-memory rate limiter with golang.org/x/time/rate\n4. Proper error responses following project standard format\n5. Context propagation with apiKey, user, organization, and userRole\n6. Rate limiting per API key with configurable limits (100 req/sec, burst 20)\n7. Security headers and audit logging\n8. Graceful error handling with appropriate HTTP status codes\n\nUse sync.RWMutex for thread-safe rate limiter map with cleanup goroutine.",
-            "testStrategy": "Test authentication flows, rate limiting enforcement, context propagation, concurrent request handling, and security edge cases like malformed tokens.",
-            "priority": "high",
-            "dependencies": [6],
-            "status": "pending",
-            "subtasks": []
-        },
-        {
-            "id": 8,
-            "title": "Multi-Tenant Data Access Layer",
-            "description": "Implement organization-scoped data access patterns and update existing repositories for multi-tenant support",
-            "details": "Update existing repositories in engine/infra/store:\n1. Add org_id filtering to all existing queries (workflows, tasks, schedules)\n2. Create OrganizationContext helper for automatic query filtering\n3. Update WorkflowRepository, TaskRepository, ScheduleRepository with organization scope\n4. Implement middleware integration for automatic organization context injection\n5. Prevent cross-organization data access at repository level\n6. Update all CRUD operations to include org_id\n7. Optimize queries with proper index usage\n8. Error handling that doesn't leak cross-organization information\n\nEnsure all queries use composite indexes (org_id, created_at) for performance.",
-            "testStrategy": "Verify complete data isolation between organizations, test query performance with organization filtering, validate no cross-organization data leakage, and test concurrent multi-tenant access.",
-            "priority": "high",
-            "dependencies": [7],
-            "status": "pending",
-            "subtasks": []
-        },
-        {
-            "id": 9,
-            "title": "Temporal Namespace Integration",
-            "description": "Implement Temporal namespace isolation with organization-aware workflow routing and dispatcher updates",
-            "details": "Update Temporal integration in engine/workflow:\n1. Modify TemporalDispatcher to route workflows based on organization context\n2. Update workflow execution to use organization-specific namespaces\n3. Implement namespace-aware signal handling\n4. Update scheduler to execute workflows in correct namespaces\n5. Maintain organization context throughout workflow execution\n6. Update worker configuration for multi-namespace support\n7. Implement namespace provisioning automation\n8. Error handling for namespace-related failures\n\nUse Temporal client with namespace switching based on organization context from middleware.",
-            "testStrategy": "Test workflow execution in correct namespaces, verify signal isolation between organizations, test scheduler namespace routing, and validate worker multi-namespace handling.",
-            "priority": "high",
-            "dependencies": [8],
-            "status": "pending",
-            "subtasks": []
-        },
-        {
-            "id": 10,
-            "title": "REST API Endpoints",
-            "description": "Implement comprehensive REST API endpoints for organization, user, and API key management with proper validation and error handling",
-            "details": "Create API handlers in engine/api:\n1. Organization endpoints: POST/GET/PUT/DELETE /api/v0/organizations\n2. User endpoints: POST/GET/PUT/DELETE /api/v0/organizations/{org_id}/users\n3. API key endpoints: POST/GET/PUT/DELETE /api/v0/users/{user_id}/api-keys\n4. Proper request validation using github.com/go-playground/validator/v10\n5. Consistent response format: {\"data\": {...}, \"message\": \"...\"}\n6. Role-based access control for each endpoint\n7. Pagination support for list endpoints\n8. Proper HTTP status codes and error responses\n\nImplement Gin router with middleware chain: auth -> rate limit -> org context -> handler.",
-            "testStrategy": "API integration tests covering all CRUD operations, role-based access validation, request/response format validation, error handling, and pagination functionality.",
-            "priority": "medium",
-            "dependencies": [9],
-            "status": "pending",
-            "subtasks": []
-        },
-        {
-            "id": 11,
-            "title": "CLI Command Implementation",
-            "description": "Implement comprehensive CLI commands for organization, user, and API key management with intuitive workflows",
-            "details": "Create CLI commands using cobra:\n1. Organization commands: create, list, show, update, delete\n2. User commands: add, list, show, update, remove with org and role flags\n3. API key commands: create, list, show, update, revoke with user association\n4. Proper flag validation and help text\n5. Configuration file support for API endpoint and authentication\n6. Output formatting (table, JSON) with --output flag\n7. Interactive prompts for destructive operations\n8. Progress indicators for long-running operations\n\nCommands: 'compozy org create', 'compozy user add', 'compozy apikey create' with intuitive flag structure.",
-            "testStrategy": "CLI integration tests, command flag validation, output format testing, interactive prompt testing, and end-to-end workflow validation.",
-            "priority": "medium",
-            "dependencies": [10],
-            "status": "pending",
-            "subtasks": []
-        },
-        {
-            "id": 12,
-            "title": "Security Audit and Performance Optimization",
-            "description": "Conduct comprehensive security audit, implement performance optimizations, and validate multi-tenant isolation",
-            "details": "Security and performance validation:\n1. Security audit focusing on cross-organization data leakage prevention\n2. Penetration testing for authentication bypass attempts\n3. Performance benchmarking with organization-filtered queries\n4. Database query optimization and index usage analysis\n5. Rate limiting effectiveness testing under load\n6. API key security validation (timing attacks, entropy)\n7. Audit logging implementation for security events\n8. Load testing with multiple organizations and concurrent users\n\nTarget metrics: <50ms auth latency, <200ms API response time, 0 cross-org data leakage.",
-            "testStrategy": "Automated security testing, performance benchmarking, load testing with realistic multi-tenant scenarios, and comprehensive audit trail validation.",
-            "priority": "high",
-            "dependencies": [11],
-            "status": "pending",
-            "subtasks": []
+    "master": {
+        "tasks": [],
+        "metadata": {
+            "created": "2025-06-19T20:27:36.903Z",
+            "updated": "2025-06-19T20:27:36.903Z",
+            "description": "Tasks for master context"
         }
-    ],
-    "metadata": {
-        "created": "2025-06-20T03:13:35.779Z",
-        "updated": "2025-06-20T03:18:28.746Z",
-        "description": "Tasks for multitenant context"
+    },
+    "memory": {
+        "tasks": [
+            {
+                "id": 1,
+                "title": "Implement Enhanced Memory Domain Foundation",
+                "description": "Create the core memory interfaces, data models, and Redis-backed storage with async operations support",
+                "details": "Define Memory, MemoryStore, and DistributedLock interfaces with async operations. Implement MemoryResource, PriorityBlock, TokenAllocation, and FlushingStrategy data models. Create redisStore with AppendMessageAsync, ReadMessagesAsync, CountMessagesAsync, TrimMessagesAsync, ReplaceMessagesAsync, and SetExpirationAsync methods. Implement redisDistributedLock using SET NX EX pattern with automatic refresh mechanism. Use existing Redis pool from engine/infra/store with memory: namespace prefix.",
+                "testStrategy": "Unit tests for all interfaces with in-memory fake implementations. Integration tests with Redis behind build tag. Test distributed lock acquire/release/refresh cycles and concurrent access patterns.",
+                "priority": "high",
+                "dependencies": [],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 2,
+                "title": "Implement Priority-Based Token Management System",
+                "description": "Build the priority-aware token counting and eviction system with token allocation constraints",
+                "details": "Create PriorityMemoryManager with EvictWithPriority method that enforces lower of ratio-based vs fixed token limits. Implement calculateEffectiveTokenLimits to handle interaction between priority_blocks and token_allocation. Build message grouping by priority and eviction algorithms that preserve priority 0 (critical) content. Add token counting integration with model-specific tokenizers. Support optional priority configuration with fallback to standard FIFO eviction.",
+                "testStrategy": "Unit tests with various priority configurations and token allocation scenarios. Test edge cases where token_allocation ratios conflict with priority block max_tokens. Verify priority 0 content is never evicted regardless of token pressure.",
+                "priority": "high",
+                "dependencies": [1],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 3,
+                "title": "Implement Hybrid Flushing Strategy with Rule-Based Summarization",
+                "description": "Create intelligent memory management with deterministic summarization for context continuity",
+                "details": "Build HybridFlushingStrategy with ShouldFlush and FlushMessages methods. Implement RuleBasedSummarizer that combines first message and N most recent messages for continuity. Add optimized flush checking using message count estimates to avoid performance bottlenecks. Create FlushResult structure with summarization metrics. Support configurable summarization parameters (trigger thresholds, summary size, oldest percent). Implement token savings calculation and summary preservation.",
+                "testStrategy": "Unit tests for rule-based summarization with different message distributions. Test flush optimization with count-based triggers. Verify summary quality and token savings calculations. Performance tests for flush checking overhead.",
+                "priority": "high",
+                "dependencies": [1, 2],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 4,
+                "title": "Create Fixed Configuration Resolution System",
+                "description": "Implement the three-tier agent memory configuration system with proper YAML parsing and validation",
+                "details": "Build ConfigurationResolver with ResolveMemoryConfig method supporting Level 1 (direct memory ID), Level 2 (simple multi-memory with memory: true), and Level 3 (advanced configuration). Implement parseAdvancedMemoryConfig for full MemoryReference objects. Add smart defaults (read-write mode, required memory_key validation). Create ConfigValidator for memory ID existence checks. Support AgentConfig with interface{} types for flexible YAML parsing. Add comprehensive error messages for configuration issues.",
+                "testStrategy": "Unit tests for all three configuration levels with correct YAML parsing. Test validation of memory ID references. Verify error handling for invalid configurations. Test smart defaults application and backward compatibility.",
+                "priority": "high",
+                "dependencies": [1],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 5,
+                "title": "Build Memory Registry and Resource Loading System",
+                "description": "Create project-level memory resource management with loading, validation, and lookup capabilities",
+                "details": "Implement MemoryRegistry with resource storage and ID-based lookup. Create MemoryResourceLoader for parsing memory definitions from project config and separate YAML files. Add resource validation for priority blocks, token allocation, and flushing strategies. Support memory resource files in memories/ directory. Implement resource versioning and description fields. Add project-level isolation and multi-tenant safety with key sanitization using character whitelist [a-zA-Z0-9-_.:].",
+                "testStrategy": "Unit tests for resource loading from various file formats. Test validation of complex memory configurations. Integration tests with project configuration system. Test key sanitization and namespacing with compozy:{project_id}:memory:{user_key} pattern.",
+                "priority": "medium",
+                "dependencies": [1, 4],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 6,
+                "title": "Implement Async-Safe Memory Instance Management",
+                "description": "Create thread-safe memory instances with distributed locking and async operations",
+                "details": "Build AsyncSafeMemoryInstance wrapping memory operations with distributed locking. Implement withLockRefresh for automatic TTL extension during long operations. Create performFlushAsync combining priority eviction and hybrid flushing. Add optimized AppendAsync with count-based flush checking. Implement ReadAsync, LenAsync, and GetTokenCountAsync methods. Support memory key template evaluation using tplengine. Add MemoryHealth diagnostic information with priority breakdown and flush metrics.",
+                "testStrategy": "Unit tests with mock distributed locks and stores. Integration tests for concurrent access patterns. Test lock refresh mechanism under various operation durations. Performance benchmarks for async operation latency. Test memory health reporting accuracy.",
+                "priority": "high",
+                "dependencies": [1, 2, 3],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 7,
+                "title": "Create Memory Manager Factory and Template Engine Integration",
+                "description": "Build the central memory management system with key template evaluation and instance lifecycle",
+                "details": "Implement MemoryManager as factory for memory instances with template evaluation. Integrate tplengine for memory key template processing supporting workflow context variables (workflow.id, workflow.input.*, user.id, session.id, project.id, agent.id, timestamp). Add instance caching and lifecycle management scoped to workflow execution. Implement access mode enforcement (read-only prevents modifications). Create error handling that returns proper errors instead of panics. Support memory initialization from persistence on first access.",
+                "testStrategy": "Unit tests for template evaluation with various context variables. Test instance caching and lifecycle management. Verify access mode enforcement prevents unauthorized modifications. Integration tests with tplengine and Redis persistence.",
+                "priority": "medium",
+                "dependencies": [5, 6],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 8,
+                "title": "Integrate Enhanced Memory System with Agent Runtime",
+                "description": "Update agent configuration and runtime to support the new memory system with async operations",
+                "details": "Extend agent router to resolve enhanced memory configurations using ConfigurationResolver. Update agent constructor to accept memory references and validate configurations. Create agent memory adapter for dependency injection into LLM orchestrator. Add support for multiple memory references per agent with different access modes. Implement configuration migration logic for backward compatibility. Add agent-level memory metrics and error handling.",
+                "testStrategy": "Unit tests for agent configuration resolution with all three complexity levels. Integration tests with existing agent runtime. Test configuration migration and backward compatibility. Verify proper error propagation from memory operations.",
+                "priority": "medium",
+                "dependencies": [4, 7],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 9,
+                "title": "Update LLM Orchestrator for Async Memory Operations",
+                "description": "Modify the LLM orchestrator to use async memory operations and inject conversation history",
+                "details": "Update LLM orchestrator to accept Memory interface via dependency injection. Convert memory operations to async patterns with proper error handling. Implement conversation history loading before prompt generation. Add message appending after LLM responses. Support multiple memory instances per agent with different access modes. Integrate with existing prompt building and response handling. Add memory operation tracing and metrics collection.",
+                "testStrategy": "Unit tests with mock Memory interface. Integration tests with real memory instances. Test async operation error handling and timeout scenarios. Verify conversation history is properly included in prompts. Performance tests for memory operation overhead.",
+                "priority": "medium",
+                "dependencies": [6, 8],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 10,
+                "title": "Implement Privacy Controls and Data Protection",
+                "description": "Add privacy flags, redaction policies, and selective persistence controls for sensitive data",
+                "details": "Implement message-level privacy flags for non-persistable content. Add synchronous redaction before data leaves process boundaries using configurable regex patterns. Create privacy policy configuration at memory resource level. Implement selective persistence controls that honor privacy flags. Add logging when sensitive data is excluded from persistence. Support redaction patterns for SSN, credit cards, and custom patterns. Ensure privacy controls work with async operations.",
+                "testStrategy": "Unit tests for redaction pattern matching and privacy flag enforcement. Test selective persistence with various privacy configurations. Verify sensitive data logging and exclusion. Integration tests with Redis persistence layer.",
+                "priority": "medium",
+                "dependencies": [6],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 11,
+                "title": "Add Monitoring, Metrics, and Observability",
+                "description": "Implement comprehensive monitoring for memory operations, performance, and health",
+                "details": "Add Prometheus metrics for memory operations: memory_messages_total, memory_trim_total, memory_flush_total, memory_operation_latency_seconds, memory_lock_acquire_total, memory_lock_contention_total, memory_lock_duration_seconds, memory_lock_refresh_total, memory_tokens_saved_total, memory_priority_distribution, memory_config_resolution_total, memory_flush_optimization_hits_total. Implement structured logging with async operation tracing. Create Grafana dashboard for memory visualization. Add health check endpoints for memory system status.",
+                "testStrategy": "Unit tests for metrics collection accuracy. Integration tests with Prometheus and Grafana. Test metric collection under various load scenarios. Verify dashboard functionality and alert configurations.",
+                "priority": "low",
+                "dependencies": [6, 9],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 12,
+                "title": "Create Documentation, Examples, and Performance Testing",
+                "description": "Develop comprehensive documentation, usage examples, and performance validation for the memory system",
+                "details": "Create developer documentation for all three configuration levels with YAML examples. Build end-to-end workflow examples demonstrating memory sharing between agents. Document memory key template variables and sanitization rules. Create performance benchmarking suite for async operations, priority processing, and hybrid flushing. Add migration guide from stateless to memory-enabled agents. Document best practices for memory resource design, key templates, and multi-tenant patterns. Create troubleshooting guide for common configuration issues.",
+                "testStrategy": "Validate all documentation examples work correctly. Performance benchmarks meet <50ms latency requirements. Load testing with concurrent agents and memory sharing. End-to-end integration tests covering all features. User acceptance testing with different configuration complexity levels.",
+                "priority": "low",
+                "dependencies": [8, 9, 10, 11],
+                "status": "pending",
+                "subtasks": []
+            }
+        ],
+        "metadata": {
+            "created": "2025-06-19T21:03:39.101Z",
+            "updated": "2025-06-19T21:03:39.101Z",
+            "description": "Tag created on 6/19/2025"
+        }
+    },
+    "taskwait": {
+        "tasks": [
+            {
+                "id": 1,
+                "title": "Implement WaitTaskConfig Structure",
+                "description": "Create the WaitTaskConfig struct extending BaseConfig with wait-specific fields following established Compozy patterns",
+                "details": "Implement WaitTaskConfig struct in engine/task/ directory:\n\n```go\ntype WaitTaskConfig struct {\n    BaseConfig                                    // Standard task configuration\n    WaitFor      string         `yaml:\"wait_for\"`      // REQUIRED: Signal name to wait for\n    Condition    string         `yaml:\"condition\"`     // REQUIRED: CEL expression\n    Processor    *ProcessorSpec `yaml:\"processor\"`     // Optional: Signal processing task\n    OnTimeout    string         `yaml:\"on_timeout\"`    // Optional: Timeout routing\n}\n\ntype ProcessorSpec struct {\n    BaseConfig                                    // Inherit timeout, retries, etc.\n    ID       string            `yaml:\"id\"`\n    Type     string            `yaml:\"type\"`       // basic, docker, wasm\n    Use      string            `yaml:\"$use\"`       // Tool reference\n    With     map[string]any    `yaml:\"with\"`       // Input parameters\n}\n```\n\nAdd TaskTypeWait to the Type enum. Ensure proper YAML/JSON marshaling tags and mapstructure support for configuration parsing.",
+                "testStrategy": "Unit tests for struct validation, YAML parsing, and BaseConfig inheritance. Test required field validation and optional field handling.",
+                "priority": "high",
+                "dependencies": [],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 2,
+                "title": "Define Core Interfaces",
+                "description": "Create interface definitions following Interface Segregation Principle for signal processing, condition evaluation, and storage",
+                "details": "Define interfaces in separate files following ISP:\n\n```go\ntype SignalProcessor interface {\n    Process(ctx context.Context, signal *SignalEnvelope) (*ProcessorOutput, error)\n}\n\ntype ConditionEvaluator interface {\n    Evaluate(ctx context.Context, expression string, context map[string]any) (bool, error)\n}\n\ntype SignalStorage interface {\n    IsDuplicate(ctx context.Context, signalID string) (bool, error)\n    MarkProcessed(ctx context.Context, signalID string) error\n    Close() error\n}\n\ntype WaitTaskExecutor interface {\n    Execute(ctx context.Context, config *WaitTaskConfig) (*WaitTaskResult, error)\n}\n```\n\nCreate SignalEnvelope and related data structures with proper JSON tags and validation.",
+                "testStrategy": "Interface compliance tests, mock implementations using testify/mock, and contract testing for each interface.",
+                "priority": "high",
+                "dependencies": [1],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 3,
+                "title": "Implement CEL-Based Condition Evaluator",
+                "description": "Create secure CEL expression evaluator with resource limits and proper error handling",
+                "details": "Implement CELEvaluator struct:\n\n```go\ntype CELEvaluator struct {\n    env     cel.Env\n    options []cel.EnvOption\n}\n\nfunc NewCELEvaluator() (*CELEvaluator, error) {\n    env, err := cel.NewEnv(\n        cel.Types(&SignalEnvelope{}, &ProcessorOutput{}),\n        cel.Declarations(\n            decls.NewVar(\"signal\", decls.NewObjectType(\"SignalEnvelope\")),\n            decls.NewVar(\"processor\", decls.NewObjectType(\"ProcessorOutput\")),\n        ),\n        cel.CostLimit(1000),\n        cel.OptimizeRegex(library.BoundedRegexComplexity(100)),\n    )\n    return &CELEvaluator{env: *env}, err\n}\n```\n\nImplement Evaluate method with context timeout, cost tracking, and proper error handling using fmt.Errorf internally and core.NewError at boundaries.",
+                "testStrategy": "Unit tests for valid/invalid CEL expressions, cost limit enforcement, timeout handling, and security constraint validation. Test with various signal payload structures.",
+                "priority": "high",
+                "dependencies": [2],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 4,
+                "title": "Implement Redis Signal Storage",
+                "description": "Create Redis-based signal storage for deduplication with proper resource management",
+                "details": "Implement RedisSignalStorage:\n\n```go\ntype RedisSignalStorage struct {\n    client redis.Client\n    ttl    time.Duration\n}\n\nfunc NewRedisSignalStorage(client redis.Client, ttl time.Duration) *RedisSignalStorage {\n    if ttl == 0 {\n        ttl = 24 * time.Hour // Default TTL\n    }\n    return &RedisSignalStorage{client: client, ttl: ttl}\n}\n```\n\nImplement IsDuplicate, MarkProcessed, and Close methods with proper error handling. Use key pattern 'wait_signal:{signalID}' for Redis keys.",
+                "testStrategy": "Integration tests with Redis testcontainer, unit tests with Redis mock, TTL verification, and concurrent access testing.",
+                "priority": "medium",
+                "dependencies": [2],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 5,
+                "title": "Create Signal Processing Activity",
+                "description": "Implement Temporal Activity for non-deterministic signal processing operations",
+                "details": "Implement SignalProcessingActivity:\n\n```go\ntype SignalProcessingActivity struct {\n    processor  SignalProcessor\n    evaluator  ConditionEvaluator\n    storage    SignalStorage\n    logger     log.Logger\n}\n\nfunc (a *SignalProcessingActivity) ProcessSignal(\n    ctx context.Context,\n    config *WaitTaskConfig,\n    signal *SignalEnvelope,\n) (*SignalProcessingResult, error) {\n    // Check duplicates, process signal, evaluate condition\n    // Return SignalProcessingResult with ShouldContinue flag\n}\n```\n\nHandle deduplication, optional processor execution, condition evaluation, and structured logging. Use dependency injection pattern.",
+                "testStrategy": "Unit tests with mocked dependencies, integration tests with real Redis, duplicate signal handling tests, and processor failure scenarios.",
+                "priority": "high",
+                "dependencies": [3, 4],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 6,
+                "title": "Implement Wait Task Workflow",
+                "description": "Create deterministic Temporal workflow for wait task orchestration with signal handling and timeout management",
+                "details": "Implement WaitTaskWorkflow:\n\n```go\ntype WaitTaskWorkflow struct {\n    activityOptions workflow.LocalActivityOptions\n}\n\nfunc (w *WaitTaskWorkflow) Execute(ctx workflow.Context, config *WaitTaskConfig) (*WaitTaskResult, error) {\n    signalCh := workflow.GetSignalChannel(ctx, config.WaitFor)\n    timeout := workflow.NewTimer(ctx, config.ParsedTimeout)\n    \n    // Main event loop with selector\n    for {\n        selector := workflow.NewSelector(ctx)\n        selector.AddReceive(signalCh, handleSignal)\n        selector.AddFuture(timeout, handleTimeout)\n        selector.Select(ctx)\n    }\n}\n```\n\nImplement deterministic workflow logic with proper signal channel handling, timeout management, and activity execution.",
+                "testStrategy": "Temporal workflow unit tests, signal reception tests, timeout handling tests, and workflow state validation.",
+                "priority": "high",
+                "dependencies": [5],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 7,
+                "title": "Create Wait Task Service Layer",
+                "description": "Implement service layer with dependency injection for wait task coordination",
+                "details": "Implement WaitTaskService:\n\n```go\ntype WaitTaskService struct {\n    executor  WaitTaskExecutor\n    evaluator ConditionEvaluator\n    storage   SignalStorage\n    logger    log.Logger\n}\n\nfunc NewWaitTaskService(\n    executor WaitTaskExecutor,\n    evaluator ConditionEvaluator,\n    storage SignalStorage,\n    logger log.Logger,\n) *WaitTaskService {\n    return &WaitTaskService{...}\n}\n```\n\nImplement ExecuteWaitTask method with proper error handling using core.NewError at domain boundaries. Include resource cleanup in Close method.",
+                "testStrategy": "Service layer unit tests with mocked dependencies, error handling validation, and resource cleanup verification.",
+                "priority": "medium",
+                "dependencies": [6],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 8,
+                "title": "Implement Task Factory and Registration",
+                "description": "Create factory pattern for wait task creation and registration with task registry",
+                "details": "Implement WaitTaskFactory:\n\n```go\ntype WaitTaskFactory struct {\n    celEvaluator    ConditionEvaluator\n    signalStorage   SignalStorage\n    signalProcessor SignalProcessor\n    logger          log.Logger\n}\n\nfunc NewWaitTaskFactory(...) *WaitTaskFactory {\n    return &WaitTaskFactory{...}\n}\n\nfunc (f *WaitTaskFactory) CreateWaitTask() TaskConfig {\n    return &WaitTaskConfig{}\n}\n\nfunc RegisterWaitTask(registry TaskRegistry, factory *WaitTaskFactory) {\n    registry.RegisterTaskType(\"wait\", factory.CreateWaitTask)\n}\n```\n\nAvoid init() patterns, use constructor-based dependency injection.",
+                "testStrategy": "Factory creation tests, task registration validation, and dependency injection verification.",
+                "priority": "medium",
+                "dependencies": [7],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 9,
+                "title": "Add Configuration Validation",
+                "description": "Implement comprehensive validation for wait task configuration with proper error handling",
+                "details": "Implement validation functions:\n\n```go\nfunc validateConfiguration(config *WaitTaskConfig) error {\n    if config.WaitFor == \"\" {\n        return fmt.Errorf(\"wait_for field is required\")\n    }\n    \n    if config.Condition == \"\" {\n        return fmt.Errorf(\"condition field is required\")\n    }\n    \n    // Validate CEL expression syntax\n    evaluator, err := NewCELEvaluator()\n    if err != nil {\n        return fmt.Errorf(\"failed to create CEL evaluator: %w\", err)\n    }\n    \n    _, issues := evaluator.env.Compile(config.Condition)\n    if issues != nil && issues.Err() != nil {\n        return fmt.Errorf(\"invalid CEL condition: %w\", issues.Err())\n    }\n    \n    return nil\n}\n```\n\nValidate required fields, CEL expression syntax, timeout values, and processor configuration.",
+                "testStrategy": "Validation unit tests for all error cases, valid configuration acceptance tests, and CEL expression validation tests.",
+                "priority": "medium",
+                "dependencies": [8],
+                "status": "pending",
+                "subtasks": []
+            },
+            {
+                "id": 10,
+                "title": "Create Comprehensive Test Suite",
+                "description": "Implement complete test coverage including unit tests, integration tests, and end-to-end scenarios",
+                "details": "Create comprehensive test suite:\n\n1. Unit tests using testify/mock for all components\n2. Integration tests with Redis testcontainer\n3. Temporal workflow testing with test suite\n4. End-to-end scenarios:\n   - Basic approval workflow\n   - Signal processing with processor\n   - Timeout handling\n   - Duplicate signal handling\n   - Error scenarios\n\n```go\nfunc TestWaitTaskIntegration(t *testing.T) {\n    t.Run(\"Should complete end-to-end wait task flow\", func(t *testing.T) {\n        // Set up test environment with real Redis and CEL\n        // Execute complete workflow\n        // Verify results and state transitions\n    })\n}\n```\n\nInclude performance tests for signal processing latency and concurrent signal handling.",
+                "testStrategy": "Achieve >90% code coverage, validate all error paths, test concurrent scenarios, and verify resource cleanup. Include benchmarks for performance validation.",
+                "priority": "medium",
+                "dependencies": [9],
+                "status": "pending",
+                "subtasks": []
+            }
+        ],
+        "metadata": {
+            "created": "2025-06-19T23:30:04.718Z",
+            "updated": "2025-06-19T23:33:26.937Z",
+            "description": "Tasks for taskwait context"
+        }
     }
 }

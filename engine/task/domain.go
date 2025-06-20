@@ -1,6 +1,7 @@
 package task
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -21,6 +22,7 @@ const (
 	ExecutionParallel   ExecutionType = "parallel"
 	ExecutionCollection ExecutionType = "collection"
 	ExecutionComposite  ExecutionType = "composite"
+	ExecutionWait       ExecutionType = "wait"
 )
 
 // -----------------------------------------------------------------------------
@@ -438,4 +440,60 @@ func CreateParentState(input *CreateStateInput, result *PartialState) *State {
 		result.ExecutionType = ExecutionParallel
 	}
 	return CreateState(input, result)
+}
+
+// -----------------------------------------------------------------------------
+// Wait Task Types
+// -----------------------------------------------------------------------------
+
+// SignalProcessor handles signal processing logic
+type SignalProcessor interface {
+	Process(ctx context.Context, signal *SignalEnvelope) (*ProcessorOutput, error)
+}
+
+// ConditionEvaluator evaluates CEL expressions safely
+type ConditionEvaluator interface {
+	Evaluate(ctx context.Context, expression string, data map[string]any) (bool, error)
+}
+
+// WaitTaskExecutor defines the main execution interface
+type WaitTaskExecutor interface {
+	Execute(ctx context.Context, config *Config) (*WaitTaskResult, error)
+}
+
+// SignalEnvelope contains signal data and metadata
+type SignalEnvelope struct {
+	Payload  map[string]any `json:"payload"`  // User-provided data
+	Metadata SignalMetadata `json:"metadata"` // System-generated
+}
+
+// SignalMetadata provides system-level signal information
+type SignalMetadata struct {
+	SignalID      string    `json:"signal_id"`       // UUID for deduplication
+	ReceivedAtUTC time.Time `json:"received_at_utc"` // Server timestamp
+	WorkflowID    string    `json:"workflow_id"`     // Target workflow
+	Source        string    `json:"source"`          // Signal source
+}
+
+// ProcessorOutput contains processor task results
+type ProcessorOutput struct {
+	Output any         `json:"output"`
+	Error  *core.Error `json:"error,omitempty"`
+}
+
+// WaitTaskResult contains workflow output
+type WaitTaskResult struct {
+	Status          string           `json:"status"`
+	Signal          *SignalEnvelope  `json:"signal,omitempty"`
+	ProcessorOutput *ProcessorOutput `json:"processor_output,omitempty"`
+	NextTask        string           `json:"next_task,omitempty"`
+	CompletedAt     time.Time        `json:"completed_at"`
+}
+
+// SignalProcessingResult contains activity output
+type SignalProcessingResult struct {
+	ShouldContinue  bool             `json:"should_continue"`
+	Signal          *SignalEnvelope  `json:"signal"`
+	ProcessorOutput *ProcessorOutput `json:"processor_output"`
+	Reason          string           `json:"reason"`
 }
