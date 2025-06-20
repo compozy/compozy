@@ -55,6 +55,7 @@ func TestScheduleIDGeneration(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "my-project",
 			taskQueue:     "my-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		// Test schedule ID generation
@@ -77,6 +78,7 @@ func TestReconcileSchedules(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		// Mock empty existing schedules - List returns an iterator
@@ -116,6 +118,7 @@ func TestReconcileSchedules(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		// Mock existing schedule - List returns an iterator
@@ -173,6 +176,7 @@ func TestReconcileSchedules(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		// Mock existing schedule that should be deleted
@@ -198,6 +202,46 @@ func TestReconcileSchedules(t *testing.T) {
 		mockClient.scheduleClient.AssertExpectations(t)
 		mockHandle.AssertExpectations(t)
 	})
+	t.Run("Should handle partial failures gracefully", func(t *testing.T) {
+		ctx := context.Background()
+		mockClient := NewMockClient()
+		m := &manager{
+			client:        mockClient.AsWorkerClient(),
+			projectID:     "test-project",
+			taskQueue:     "test-project",
+			config:        DefaultConfig(),
+			overrideCache: NewOverrideCache(),
+		}
+		// Mock iterator that fails (simulating Temporal connectivity issues)
+		mockClient.scheduleClient.On("List", ctx, mock.Anything).
+			Return(nil, errors.New("temporal connection failed")).Once()
+
+		// Workflows with schedules (desired state should still be built)
+		enabled := true
+		workflows := []*workflow.Config{
+			{
+				ID: "workflow-1",
+				Schedule: &workflow.Schedule{
+					Cron:    "0 0 */5 * * *",
+					Enabled: &enabled,
+				},
+			},
+		}
+
+		// Mock create handle for new schedule (since existing schedules failed to list)
+		mockHandle := &mocks.ScheduleHandle{}
+		mockHandle.On("GetID").Return("schedule-test-project-workflow-1")
+		mockClient.scheduleClient.On("Create", ctx, mock.Anything).
+			Return(mockHandle, nil).Once()
+
+		// Execute reconciliation - should proceed despite listing failure
+		err := m.ReconcileSchedules(ctx, workflows)
+		require.NoError(t, err)
+
+		// Verify create was called (since no existing schedules were found)
+		mockClient.scheduleClient.AssertExpectations(t)
+		mockHandle.AssertExpectations(t)
+	})
 }
 
 func TestUpdateSchedule(t *testing.T) {
@@ -208,6 +252,7 @@ func TestUpdateSchedule(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		workflowID := "workflow-1"
@@ -254,6 +299,7 @@ func TestUpdateSchedule(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		workflowID := "workflow-1"
@@ -298,6 +344,7 @@ func TestUpdateSchedule(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		workflowID := "workflow-1"
@@ -348,6 +395,7 @@ func TestUpdateSchedule(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		workflowID := "workflow-1"
@@ -395,6 +443,7 @@ func TestDeleteSchedule(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		workflowID := "workflow-1"
@@ -456,6 +505,7 @@ func TestListSchedules(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		// Mock iterator returning schedules
@@ -500,6 +550,7 @@ func TestListSchedules(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		// Mock list error
@@ -522,6 +573,7 @@ func TestGetSchedule(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		workflowID := "workflow-1"
@@ -560,6 +612,7 @@ func TestGetSchedule(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		workflowID := "workflow-1"
@@ -586,6 +639,7 @@ func TestManager_OverrideTracking(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 
@@ -642,6 +696,7 @@ func TestManager_OverrideTracking(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 
@@ -687,6 +742,7 @@ func TestManager_ConfigurationReload(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 
@@ -728,6 +784,7 @@ func TestManager_PeriodicReconciliationValidation(t *testing.T) {
 	t.Run("Should validate positive interval", func(t *testing.T) {
 		ctx := context.Background()
 		m := &manager{
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 
@@ -747,7 +804,9 @@ func TestManager_PeriodicReconciliationValidation(t *testing.T) {
 	})
 
 	t.Run("Should handle stop when not started", func(_ *testing.T) {
-		m := &manager{}
+		m := &manager{
+			config: DefaultConfig(),
+		}
 
 		// Should not panic
 		m.StopPeriodicReconciliation()

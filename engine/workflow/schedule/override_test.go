@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/engine/workflow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -302,5 +303,48 @@ func TestOverrideCache_CronOverrides(t *testing.T) {
 		assert.Equal(t, false, override.Values["enabled"])
 		assert.Equal(t, "0 */10 * * *", override.Values["cron"])
 		assert.True(t, override.ModifiedAt.Before(time.Now().Add(time.Second)))
+	})
+}
+
+func TestOverrideCache_SetOverrideWithSchedule(t *testing.T) {
+	t.Run("Should store and retrieve override with original schedule", func(t *testing.T) {
+		cache := NewOverrideCache()
+		workflowID := "test-workflow"
+		values := map[string]any{"enabled": false, "cron": "0 */10 * * *"}
+		enabled := true
+		originalSchedule := &workflow.Schedule{
+			Cron:     "0 0 */5 * * *",
+			Enabled:  &enabled,
+			Timezone: "UTC",
+			Input:    map[string]any{"key": "value"},
+		}
+
+		cache.SetOverrideWithSchedule(workflowID, values, originalSchedule)
+
+		override, exists := cache.GetOverride(workflowID)
+		require.True(t, exists)
+		assert.Equal(t, workflowID, override.WorkflowID)
+		assert.Equal(t, false, override.Values["enabled"])
+		assert.Equal(t, "0 */10 * * *", override.Values["cron"])
+		assert.NotNil(t, override.OriginalSchedule)
+		assert.Equal(t, "0 0 */5 * * *", override.OriginalSchedule.Cron)
+		assert.Equal(t, true, *override.OriginalSchedule.Enabled)
+		assert.Equal(t, "UTC", override.OriginalSchedule.Timezone)
+		assert.Equal(t, map[string]any{"key": "value"}, override.OriginalSchedule.Input)
+		assert.True(t, override.ModifiedAt.Before(time.Now().Add(time.Second)))
+	})
+
+	t.Run("Should handle nil original schedule", func(t *testing.T) {
+		cache := NewOverrideCache()
+		workflowID := "test-workflow"
+		values := map[string]any{"enabled": false}
+
+		cache.SetOverrideWithSchedule(workflowID, values, nil)
+
+		override, exists := cache.GetOverride(workflowID)
+		require.True(t, exists)
+		assert.Equal(t, workflowID, override.WorkflowID)
+		assert.Equal(t, false, override.Values["enabled"])
+		assert.Nil(t, override.OriginalSchedule)
 	})
 }

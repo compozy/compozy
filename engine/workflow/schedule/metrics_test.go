@@ -135,41 +135,22 @@ func TestReconciliationTracker(t *testing.T) {
 	})
 }
 
-func TestResetMetricsForTesting(t *testing.T) {
-	t.Run("Should reset metrics state", func(t *testing.T) {
+func TestMetricsInstanceIsolation(t *testing.T) {
+	t.Run("Should allow multiple metric instances with different meters", func(t *testing.T) {
 		// Arrange
 		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
-		meter := noop.NewMeterProvider().Meter("test")
+		meter1 := noop.NewMeterProvider().Meter("test1")
+		meter2 := noop.NewMeterProvider().Meter("test2")
 
-		// Initialize metrics
-		_ = NewMetrics(ctx, meter)
-
-		// Act
-		ResetMetricsForTesting()
-
-		// Assert - Should be able to initialize again
-		metrics := NewMetrics(ctx, meter)
-		assert.NotNil(t, metrics)
-	})
-}
-
-func TestMetricsInitialization(t *testing.T) {
-	// Reset state before test
-	ResetMetricsForTesting()
-	defer ResetMetricsForTesting()
-
-	t.Run("Should initialize metrics only once", func(t *testing.T) {
-		// Arrange
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
-		meter := noop.NewMeterProvider().Meter("test")
-
-		// Act - Create multiple instances
-		metrics1 := NewMetrics(ctx, meter)
-		metrics2 := NewMetrics(ctx, meter)
+		// Act - Create multiple instances with different meters
+		metrics1 := NewMetrics(ctx, meter1)
+		metrics2 := NewMetrics(ctx, meter2)
 
 		// Assert
 		assert.NotNil(t, metrics1)
 		assert.NotNil(t, metrics2)
+		assert.Equal(t, meter1, metrics1.meter)
+		assert.Equal(t, meter2, metrics2.meter)
 		// Both should work without issues
 		metrics1.RecordOperation(ctx, OperationCreate, OperationStatusSuccess, "project1")
 		metrics2.RecordOperation(ctx, OperationUpdate, OperationStatusFailure, "project2")

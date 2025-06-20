@@ -3,9 +3,12 @@ package schedule
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/robfig/cron/v3"
@@ -20,12 +23,22 @@ func EnsureTemporalCron(cronExpr string) string {
 	if strings.HasPrefix(cronExpr, "@every ") {
 		return cronExpr
 	}
-	// Convert 6-field to 7-field by adding year
+	// Convert cron expression to 7-field format for Temporal
 	fields := strings.Fields(cronExpr)
-	if len(fields) == 6 {
+	switch len(fields) {
+	case 5:
+		// Standard 5-field cron (minute hour day month weekday) - add seconds and year
+		return "0 " + cronExpr + " *"
+	case 6:
+		// 6-field cron with seconds - add year
 		return cronExpr + " *"
+	case 7:
+		// Already in Temporal format
+		return cronExpr
+	default:
+		// Return as-is, let Temporal handle the validation error
+		return cronExpr
 	}
-	return cronExpr
 }
 
 // Operation constants for metrics
@@ -38,26 +51,132 @@ const (
 	// Operation status
 	OperationStatusSuccess = "success"
 	OperationStatusFailure = "failure"
+
+	// Default timezone
+	DefaultTimezone = "UTC"
 )
 
+// isValidYearField validates the year field in a 7-field cron expression
+func isValidYearField(yearField string) bool {
+	// Allow wildcard
+	if yearField == "*" {
+		return true
+	}
+	// Handle step values (e.g., */2, 2024-2030/2)
+	if strings.Contains(yearField, "/") {
+		return isValidStepYearField(yearField)
+	}
+	// Handle ranges (e.g., 2024-2030)
+	if strings.Contains(yearField, "-") {
+		return isValidRangeYearField(yearField)
+	}
+	// Handle comma-separated values (e.g., 2024,2025,2026)
+	if strings.Contains(yearField, ",") {
+		return isValidListYearField(yearField)
+	}
+	// Handle single year
+	return isValidSingleYear(yearField)
+}
+
+// isValidSingleYear validates a single year value
+func isValidSingleYear(yearStr string) bool {
+	matched, err := regexp.MatchString(`^\d{4}$`, yearStr)
+	if err != nil || !matched {
+		return false
+	}
+	year, err := strconv.Atoi(yearStr)
+	if err != nil {
+		return false
+	}
+	return year >= 1970 && year <= 3000
+}
+
+// isValidRangeYearField validates year ranges (e.g., 2024-2030)
+func isValidRangeYearField(yearField string) bool {
+	matched, err := regexp.MatchString(`^\d{4}-\d{4}$`, yearField)
+	if err != nil || !matched {
+		return false
+	}
+	parts := strings.Split(yearField, "-")
+	startYear, err1 := strconv.Atoi(parts[0])
+	endYear, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	return startYear >= 1970 && endYear <= 3000 && startYear <= endYear
+}
+
+// isValidListYearField validates comma-separated years (e.g., 2024,2025,2026)
+func isValidListYearField(yearField string) bool {
+	matched, err := regexp.MatchString(`^\d{4}(,\d{4})*$`, yearField)
+	if err != nil || !matched {
+		return false
+	}
+	years := strings.Split(yearField, ",")
+	for _, yearStr := range years {
+		if !isValidSingleYear(yearStr) {
+			return false
+		}
+	}
+	return true
+}
+
+// isValidStepYearField validates step values (e.g., */2, 2024-2030/2)
+func isValidStepYearField(yearField string) bool {
+	parts := strings.Split(yearField, "/")
+	if len(parts) != 2 {
+		return false
+	}
+	// Validate step value
+	step, err := strconv.Atoi(parts[1])
+	if err != nil || step <= 0 {
+		return false
+	}
+	// Validate base pattern
+	base := parts[0]
+	if base == "*" {
+		return true
+	}
+	// Recursively validate the base part without step
+	return isValidYearField(base)
+}
+
 // listSchedulesByPrefix lists all schedules with the given prefix
+// REQUIRES: Temporal Advanced Visibility to be enabled for Query functionality
+// The Query parameter uses Temporal's search attributes which requires Advanced Visibility
+// to filter schedules by ScheduleId prefix efficiently
 func (m *manager) listSchedulesByPrefix(ctx context.Context, prefix string) (map[string]client.ScheduleHandle, error) {
 	log := logger.FromContext(ctx)
 	schedules := make(map[string]client.ScheduleHandle)
 	// Create iterator for listing schedules
 	iter, err := m.client.ScheduleClient().List(ctx, client.ScheduleListOptions{
-		PageSize: 100,
+		PageSize: m.config.PageSize,
 		Query:    fmt.Sprintf("ScheduleId STARTS_WITH %q", prefix),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create schedule iterator: %w", err)
 	}
-	// Iterate through all schedules
+	// Iterate through all schedules with error tracking to prevent infinite loops
+	const maxConsecutiveErrors = 5
+	consecutiveErrors := 0
 	for iter.HasNext() {
 		schedule, err := iter.Next()
 		if err != nil {
-			return nil, fmt.Errorf("failed to list schedules: %w", err)
+			consecutiveErrors++
+			log.Warn("Failed to retrieve schedule from iterator",
+				"error", err,
+				"consecutive_errors", consecutiveErrors)
+			// Break if we hit too many consecutive errors to prevent infinite loops
+			if consecutiveErrors >= maxConsecutiveErrors {
+				log.Error("Too many consecutive iterator errors, aborting iteration",
+					"consecutive_errors", consecutiveErrors,
+					"schedules_found", len(schedules))
+				break
+			}
+			continue
 		}
+		// Reset consecutive error counter on successful iteration
+		consecutiveErrors = 0
 		scheduleID := schedule.ID
 		handle := m.client.ScheduleClient().GetHandle(ctx, scheduleID)
 		schedules[scheduleID] = handle
@@ -95,18 +214,38 @@ func (m *manager) getScheduleInfo(
 	override, hasOverride := m.overrideCache.GetOverride(workflowID)
 	if hasOverride {
 		info.IsOverride = true
-		// Create YAMLConfig from override values if available
-		info.YAMLConfig = &workflow.Schedule{}
+		// Use the stored original schedule if available
+		if override.OriginalSchedule != nil {
+			info.YAMLConfig = override.OriginalSchedule
+		} else {
+			// Fallback to reconstructing from values for backwards compatibility
+			info.YAMLConfig = &workflow.Schedule{}
 
-		// Set original YAML values from override cache or defaults
-		if cronVal, ok := override.Values["original_cron"].(string); ok {
-			info.YAMLConfig.Cron = cronVal
-		}
-		if enabledVal, ok := override.Values["original_enabled"].(bool); ok {
-			info.YAMLConfig.Enabled = &enabledVal
-		}
-		if timezoneVal, ok := override.Values["original_timezone"].(string); ok {
-			info.YAMLConfig.Timezone = timezoneVal
+			// Set original YAML values from override cache or defaults
+			if cronVal, ok := override.Values["original_cron"].(string); ok {
+				info.YAMLConfig.Cron = cronVal
+			}
+			if enabledVal, ok := override.Values["original_enabled"].(bool); ok {
+				info.YAMLConfig.Enabled = &enabledVal
+			}
+			if timezoneVal, ok := override.Values["original_timezone"].(string); ok {
+				info.YAMLConfig.Timezone = timezoneVal
+			}
+			if jitterVal, ok := override.Values["original_jitter"].(string); ok {
+				info.YAMLConfig.Jitter = jitterVal
+			}
+			if overlapPolicyVal, ok := override.Values["original_overlap_policy"].(string); ok {
+				info.YAMLConfig.OverlapPolicy = workflow.OverlapPolicy(overlapPolicyVal)
+			}
+			if startAtVal, ok := override.Values["original_start_at"].(time.Time); ok {
+				info.YAMLConfig.StartAt = &startAtVal
+			}
+			if endAtVal, ok := override.Values["original_end_at"].(time.Time); ok {
+				info.YAMLConfig.EndAt = &endAtVal
+			}
+			if inputVal, ok := override.Values["original_input"].(map[string]any); ok {
+				info.YAMLConfig.Input = inputVal
+			}
 		}
 	}
 
@@ -123,62 +262,90 @@ func (m *manager) getScheduleInfo(
 	return info, nil
 }
 
-// validateCronForSchedule validates cron expression for schedule creation
-func (m *manager) validateCronForSchedule(wf *workflow.Config, log logger.Logger) error {
-	// Compozy supports two formats:
-	// 1. @every syntax for intervals: "@every 15s", "@every 1h30m"
-	// 2. 6-field cron expressions with seconds:
-	//    Format: "second minute hour day-of-month month day-of-week"
-	//    Example: "0 0 9 * * 1-5" (Every weekday at 9:00:00 AM)
-	//    Note: When sending to Temporal, we automatically append year field
-
+// ValidateCronExpression validates a cron expression with optional logging context
+// Compozy supports two formats:
+//  1. @every syntax for intervals: "@every 15s", "@every 1h30m"
+//  2. 6-field cron expressions with seconds:
+//     Format: "second minute hour day-of-month month day-of-week"
+//     Example: "0 0 9 * * 1-5" (Every weekday at 9:00:00 AM)
+//     Note: When sending to Temporal, we automatically append year field
+func ValidateCronExpression(cronExpr string, workflowID string, log logger.Logger) error {
 	// Check if it's an @every expression
-	if strings.HasPrefix(wf.Schedule.Cron, "@every ") {
-		// Extract duration string after "@every "
-		durationStr := strings.TrimPrefix(wf.Schedule.Cron, "@every ")
+	if strings.HasPrefix(cronExpr, "@every ") {
+		durationStr := strings.TrimPrefix(cronExpr, "@every ")
 		_, err := time.ParseDuration(durationStr)
 		if err != nil {
-			log.Error("Schedule validation failed - invalid @every duration",
-				"workflow_id", wf.ID,
-				"cron", wf.Schedule.Cron,
-				"error", err)
+			if log != nil {
+				log.Error("Schedule validation failed - invalid @every duration",
+					"workflow_id", workflowID,
+					"cron", cronExpr,
+					"error", err)
+			}
 			return fmt.Errorf("invalid @every duration '%s': %w", durationStr, err)
 		}
 		return nil
 	}
-
 	// Parse as 6 or 7-field cron expression
-	fields := len(strings.Fields(wf.Schedule.Cron))
-	var parser cron.Parser
+	fields := len(strings.Fields(cronExpr))
 	switch fields {
 	case 6:
 		// 6-field format: second minute hour day month weekday
-		parser = cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+		parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+		if _, err := parser.Parse(cronExpr); err != nil {
+			if log != nil {
+				log.Error("Schedule validation failed",
+					"workflow_id", workflowID,
+					"error", err,
+					"cron", cronExpr)
+			}
+			return fmt.Errorf("invalid 6-field cron expression '%s': %w", cronExpr, err)
+		}
 	case 7:
 		// 7-field format: second minute hour day month weekday year
-		parser = cron.NewParser(
-			cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
-		)
+		// Parse first 6 fields with standard parser
+		parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+		cronFields := strings.Fields(cronExpr)
+		sixFields := strings.Join(cronFields[:6], " ")
+		if _, err := parser.Parse(sixFields); err != nil {
+			if log != nil {
+				log.Error("Schedule validation failed",
+					"workflow_id", workflowID,
+					"error", err,
+					"cron", cronExpr)
+			}
+			return fmt.Errorf("invalid 7-field cron expression '%s': %w", cronExpr, err)
+		}
+		// Validate year field (7th field) - should be * or a valid year range
+		yearField := cronFields[6]
+		if !isValidYearField(yearField) {
+			if log != nil {
+				log.Error("Schedule validation failed - invalid year field",
+					"workflow_id", workflowID,
+					"cron", cronExpr,
+					"year_field", yearField)
+			}
+			return fmt.Errorf("invalid year field in cron expression '%s': %s", cronExpr, yearField)
+		}
 	default:
-		log.Error("Schedule validation failed - incorrect field count",
-			"workflow_id", wf.ID,
-			"cron", wf.Schedule.Cron,
-			"expected_fields", "6 or 7",
-			"actual_fields", fields)
+		if log != nil {
+			log.Error("Schedule validation failed - incorrect field count",
+				"workflow_id", workflowID,
+				"cron", cronExpr,
+				"expected_fields", "6 or 7",
+				"actual_fields", fields)
+		}
 		return fmt.Errorf(
-			"invalid cron expression: expected 6 or 7 fields (second minute hour day month weekday [year]), got %d fields",
+			"invalid cron expression '%s': expected 6 or 7 fields (second minute hour day month weekday [year]), got %d fields",
+			cronExpr,
 			fields,
 		)
 	}
-	_, err := parser.Parse(wf.Schedule.Cron)
-	if err != nil {
-		log.Error("Schedule validation failed",
-			"workflow_id", wf.ID,
-			"error", err,
-			"cron", wf.Schedule.Cron)
-		return fmt.Errorf("invalid cron expression: %w", err)
-	}
 	return nil
+}
+
+// validateCronForSchedule validates cron expression for schedule creation
+func (m *manager) validateCronForSchedule(wf *workflow.Config, log logger.Logger) error {
+	return ValidateCronExpression(wf.Schedule.Cron, wf.ID, log)
 }
 
 // createSchedule creates a new schedule in Temporal
@@ -207,7 +374,7 @@ func (m *manager) createSchedule(ctx context.Context, scheduleID string, wf *wor
 	if wf.Schedule.Timezone != "" {
 		spec.TimeZoneName = wf.Schedule.Timezone
 	} else {
-		spec.TimeZoneName = "UTC"
+		spec.TimeZoneName = DefaultTimezone
 	}
 	// Handle jitter
 	if wf.Schedule.Jitter != "" {
@@ -231,7 +398,7 @@ func (m *manager) createSchedule(ctx context.Context, scheduleID string, wf *wor
 	// Build schedule action (workflow to run)
 	action := &client.ScheduleWorkflowAction{
 		ID:                       wf.ID,
-		Workflow:                 "CompozyWorkflow", // All workflows use the generic CompozyWorkflow type
+		Workflow:                 worker.CompozyWorkflowName, // Use constant workflow type name
 		TaskQueue:                m.taskQueue,
 		WorkflowExecutionTimeout: 0, // Use server default
 		WorkflowRunTimeout:       0, // Use server default
@@ -292,6 +459,10 @@ func (m *manager) updateSchedule(ctx context.Context, scheduleID string, wf *wor
 			m.metrics.RecordOperation(ctx, operation, status, m.projectID)
 		}()
 	}
+	// Validate cron expression before attempting update
+	if err := m.validateCronForSchedule(wf, log); err != nil {
+		return err
+	}
 	handle := m.client.ScheduleClient().GetHandle(ctx, scheduleID)
 	// Get current description to check if update is needed
 	desc, err := handle.Describe(ctx)
@@ -336,7 +507,7 @@ func (m *manager) updateSchedule(ctx context.Context, scheduleID string, wf *wor
 			// Update action (workflow input and type)
 			if action, ok := input.Description.Schedule.Action.(*client.ScheduleWorkflowAction); ok {
 				// Update workflow type to CompozyWorkflow
-				action.Workflow = "CompozyWorkflow"
+				action.Workflow = worker.CompozyWorkflowName
 				// Create TriggerInput for CompozyWorkflow
 				triggerInput := map[string]any{
 					"workflow_id":      wf.ID,
@@ -392,32 +563,79 @@ func (m *manager) checkScheduleNeedsUpdate(
 ) (needsUpdate bool, expectedTimezone string, expectedEnabled bool) {
 	currentSpec := desc.Schedule.Spec
 
-	// Check cron expression
-	// Convert YAML cron to Temporal format for comparison
-	expectedCron := EnsureTemporalCron(wf.Schedule.Cron)
-	if len(currentSpec.CronExpressions) == 0 || currentSpec.CronExpressions[0] != expectedCron {
-		needsUpdate = true
-	}
+	// Check core schedule properties
+	needsUpdate = m.checkCronNeedsUpdate(currentSpec, wf) ||
+		m.checkTimezoneNeedsUpdate(currentSpec, wf) ||
+		m.checkEnabledStateNeedsUpdate(desc, wf) ||
+		m.checkJitterNeedsUpdate(currentSpec, wf) ||
+		m.checkStartEndTimesNeedsUpdate(currentSpec, wf)
 
-	// Check timezone
+	// Set expected values for return
 	expectedTimezone = wf.Schedule.Timezone
 	if expectedTimezone == "" {
-		expectedTimezone = "UTC"
+		expectedTimezone = DefaultTimezone
 	}
-	if currentSpec.TimeZoneName != expectedTimezone {
-		needsUpdate = true
+	expectedEnabled = true
+	if wf.Schedule.Enabled != nil {
+		expectedEnabled = *wf.Schedule.Enabled
 	}
 
-	// Check enabled state
-	expectedEnabled = true
+	return needsUpdate, expectedTimezone, expectedEnabled
+}
+
+// checkCronNeedsUpdate checks if cron expression needs updating
+func (m *manager) checkCronNeedsUpdate(currentSpec *client.ScheduleSpec, wf *workflow.Config) bool {
+	expectedCron := EnsureTemporalCron(wf.Schedule.Cron)
+	return len(currentSpec.CronExpressions) == 0 || currentSpec.CronExpressions[0] != expectedCron
+}
+
+// checkTimezoneNeedsUpdate checks if timezone needs updating
+func (m *manager) checkTimezoneNeedsUpdate(currentSpec *client.ScheduleSpec, wf *workflow.Config) bool {
+	expectedTimezone := wf.Schedule.Timezone
+	if expectedTimezone == "" {
+		expectedTimezone = DefaultTimezone
+	}
+	// Treat empty timezone as UTC to handle schedules created before defaults were enforced
+	currentTimezone := currentSpec.TimeZoneName
+	if currentTimezone == "" {
+		currentTimezone = DefaultTimezone
+	}
+	return currentTimezone != expectedTimezone
+}
+
+// checkEnabledStateNeedsUpdate checks if enabled state needs updating
+func (m *manager) checkEnabledStateNeedsUpdate(desc *client.ScheduleDescription, wf *workflow.Config) bool {
+	expectedEnabled := true
 	if wf.Schedule.Enabled != nil {
 		expectedEnabled = *wf.Schedule.Enabled
 	}
 	isCurrentlyPaused := desc.Schedule.State.Paused
 	shouldBePaused := !expectedEnabled
-	if isCurrentlyPaused != shouldBePaused {
-		needsUpdate = true
-	}
+	return isCurrentlyPaused != shouldBePaused
+}
 
-	return needsUpdate, expectedTimezone, expectedEnabled
+// checkJitterNeedsUpdate checks if jitter needs updating
+func (m *manager) checkJitterNeedsUpdate(currentSpec *client.ScheduleSpec, wf *workflow.Config) bool {
+	expectedJitter := time.Duration(0)
+	if wf.Schedule.Jitter != "" {
+		if jitter, err := time.ParseDuration(wf.Schedule.Jitter); err == nil {
+			expectedJitter = jitter
+		}
+	}
+	return currentSpec.Jitter != expectedJitter
+}
+
+// checkStartEndTimesNeedsUpdate checks if start/end times need updating
+func (m *manager) checkStartEndTimesNeedsUpdate(currentSpec *client.ScheduleSpec, wf *workflow.Config) bool {
+	// Check start time
+	if (wf.Schedule.StartAt == nil && !currentSpec.StartAt.IsZero()) ||
+		(wf.Schedule.StartAt != nil && !currentSpec.StartAt.Equal(*wf.Schedule.StartAt)) {
+		return true
+	}
+	// Check end time
+	if (wf.Schedule.EndAt == nil && !currentSpec.EndAt.IsZero()) ||
+		(wf.Schedule.EndAt != nil && !currentSpec.EndAt.Equal(*wf.Schedule.EndAt)) {
+		return true
+	}
+	return false
 }

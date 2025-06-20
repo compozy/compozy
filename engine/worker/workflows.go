@@ -7,6 +7,9 @@ import (
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 )
 
+// CompozyWorkflowName is the Temporal workflow type name for all Compozy workflows
+const CompozyWorkflowName = "CompozyWorkflow"
+
 type WorkflowInput = wfacts.TriggerInput
 
 func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) (*wf.State, error) {

@@ -21,6 +21,7 @@ func TestListSchedulesByPrefix(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		// Mock iterator
@@ -60,6 +61,7 @@ func TestGetScheduleInfo(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		scheduleID := "schedule-test-project-workflow-1"
@@ -110,6 +112,7 @@ func TestGetScheduleInfo(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		// Set up the override
@@ -146,6 +149,7 @@ func TestCreateSchedule(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		enabled := true
@@ -215,6 +219,7 @@ func TestCreateSchedule(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		enabled := false
@@ -255,6 +260,7 @@ func TestUpdateScheduleOperation(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		enabled := true
@@ -298,6 +304,7 @@ func TestUpdateScheduleOperation(t *testing.T) {
 			client:        mockClient.AsWorkerClient(),
 			projectID:     "test-project",
 			taskQueue:     "test-project",
+			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
 		}
 		enabled := true
@@ -335,4 +342,156 @@ func TestUpdateScheduleOperation(t *testing.T) {
 		mockClient.scheduleClient.AssertExpectations(t)
 		mockHandle.AssertExpectations(t)
 	})
+}
+
+func TestIsValidYearField(t *testing.T) {
+	tests := []struct {
+		name        string
+		yearField   string
+		expected    bool
+		description string
+	}{
+		{"wildcard", "*", true, "Should accept wildcard"},
+		{"single_year_valid", "2024", true, "Should accept valid single year"},
+		{"single_year_invalid_range", "1900", false, "Should reject year below 1970"},
+		{"single_year_invalid_future", "3001", false, "Should reject year above 3000"},
+		{"range_valid", "2024-2030", true, "Should accept valid year range"},
+		{"range_invalid_order", "2030-2024", false, "Should reject reversed year range"},
+		{"list_valid", "2024,2025,2026", true, "Should accept valid year list"},
+		{"list_invalid", "2024,1900,2026", false, "Should reject list with invalid year"},
+		{"step_wildcard", "*/2", true, "Should accept wildcard with step"},
+		{"step_range", "2024-2030/2", true, "Should accept range with step"},
+		{"invalid_format", "abcd", false, "Should reject non-numeric year"},
+		{"three_digit", "999", false, "Should reject three-digit year"},
+		{"five_digit", "12345", false, "Should reject five-digit year"},
+		{"empty", "", false, "Should reject empty string"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isValidYearField(tt.yearField)
+			assert.Equal(t, tt.expected, result, tt.description)
+		})
+	}
+}
+
+func TestCheckScheduleNeedsUpdate_ComprehensiveProperties(t *testing.T) {
+	startTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	endTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	enabled := true
+
+	tests := []struct {
+		name           string
+		currentSpec    *client.ScheduleSpec
+		currentState   *client.ScheduleState
+		workflowConfig *workflow.Config
+		expectUpdate   bool
+		description    string
+	}{
+		{
+			name: "Should detect jitter change",
+			currentSpec: &client.ScheduleSpec{
+				CronExpressions: []string{"0 0 9 * * 1-5 *"},
+				TimeZoneName:    "UTC",
+				Jitter:          time.Duration(0),
+				StartAt:         time.Time{},
+				EndAt:           time.Time{},
+			},
+			currentState: &client.ScheduleState{Paused: false},
+			workflowConfig: &workflow.Config{
+				Schedule: &workflow.Schedule{
+					Cron:     "0 0 9 * * 1-5",
+					Timezone: "UTC",
+					Enabled:  &enabled,
+					Jitter:   "30s",
+				},
+			},
+			expectUpdate: true,
+			description:  "Should detect when jitter changes",
+		},
+		{
+			name: "Should detect start time change",
+			currentSpec: &client.ScheduleSpec{
+				CronExpressions: []string{"0 0 9 * * 1-5 *"},
+				TimeZoneName:    "UTC",
+				Jitter:          time.Duration(0),
+				StartAt:         time.Time{},
+				EndAt:           time.Time{},
+			},
+			currentState: &client.ScheduleState{Paused: false},
+			workflowConfig: &workflow.Config{
+				Schedule: &workflow.Schedule{
+					Cron:     "0 0 9 * * 1-5",
+					Timezone: "UTC",
+					Enabled:  &enabled,
+					StartAt:  &startTime,
+				},
+			},
+			expectUpdate: true,
+			description:  "Should detect when start time is added",
+		},
+		{
+			name: "Should detect end time change",
+			currentSpec: &client.ScheduleSpec{
+				CronExpressions: []string{"0 0 9 * * 1-5 *"},
+				TimeZoneName:    "UTC",
+				Jitter:          time.Duration(0),
+				StartAt:         time.Time{},
+				EndAt:           time.Time{},
+			},
+			currentState: &client.ScheduleState{Paused: false},
+			workflowConfig: &workflow.Config{
+				Schedule: &workflow.Schedule{
+					Cron:     "0 0 9 * * 1-5",
+					Timezone: "UTC",
+					Enabled:  &enabled,
+					EndAt:    &endTime,
+				},
+			},
+			expectUpdate: true,
+			description:  "Should detect when end time is added",
+		},
+		{
+			name: "Should not update when all properties match",
+			currentSpec: &client.ScheduleSpec{
+				CronExpressions: []string{"0 0 9 * * 1-5 *"},
+				TimeZoneName:    "UTC",
+				Jitter:          30 * time.Second,
+				StartAt:         startTime,
+				EndAt:           endTime,
+			},
+			currentState: &client.ScheduleState{Paused: false},
+			workflowConfig: &workflow.Config{
+				Schedule: &workflow.Schedule{
+					Cron:     "0 0 9 * * 1-5",
+					Timezone: "UTC",
+					Enabled:  &enabled,
+					Jitter:   "30s",
+					StartAt:  &startTime,
+					EndAt:    &endTime,
+				},
+			},
+			expectUpdate: false,
+			description:  "Should not update when all properties match",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			m := &manager{}
+			desc := &client.ScheduleDescription{
+				Schedule: client.Schedule{
+					Spec:  tt.currentSpec,
+					State: tt.currentState,
+				},
+			}
+
+			// Act
+			needsUpdate, _, _ := m.checkScheduleNeedsUpdate(desc, tt.workflowConfig)
+
+			// Assert
+			assert.Equal(t, tt.expectUpdate, needsUpdate, tt.description)
+		})
+	}
 }
