@@ -40,8 +40,9 @@ type BaseConfig struct {
 	FilePath string        `json:"file_path,omitempty"  yaml:"file_path,omitempty"  mapstructure:"file_path,omitempty"`
 	CWD      *core.PathCWD `json:"CWD,omitempty"        yaml:"CWD,omitempty"        mapstructure:"CWD,omitempty"`
 	// Composite and Paralle tasks
-	Timeout string `json:"timeout,omitempty"    yaml:"timeout,omitempty"    mapstructure:"timeout,omitempty"`
-	Retries int    `json:"retries,omitempty"    yaml:"retries,omitempty"    mapstructure:"retries,omitempty"`
+	Timeout   string `json:"timeout,omitempty"    yaml:"timeout,omitempty"    mapstructure:"timeout,omitempty"`
+	Retries   int    `json:"retries,omitempty"    yaml:"retries,omitempty"    mapstructure:"retries,omitempty"`
+	Condition string `json:"condition,omitempty"  yaml:"condition,omitempty"  mapstructure:"condition,omitempty"`
 }
 
 // -----------------------------------------------------------------------------
@@ -58,6 +59,7 @@ const (
 	TaskTypeAggregate  Type = "aggregate"
 	TaskTypeComposite  Type = "composite"
 	TaskTypeSignal     Type = "signal"
+	TaskTypeWait       Type = "wait"
 )
 
 // -----------------------------------------------------------------------------
@@ -73,8 +75,7 @@ type BasicTask struct {
 // -----------------------------------------------------------------------------
 
 type RouterTask struct {
-	Condition string         `json:"condition,omitempty" yaml:"condition,omitempty" mapstructure:"condition,omitempty"`
-	Routes    map[string]any `json:"routes,omitempty"    yaml:"routes,omitempty"    mapstructure:"routes,omitempty"`
+	Routes map[string]any `json:"routes,omitempty" yaml:"routes,omitempty" mapstructure:"routes,omitempty"`
 }
 
 // -----------------------------------------------------------------------------
@@ -187,6 +188,16 @@ type SignalConfig struct {
 }
 
 // -----------------------------------------------------------------------------
+// Wait Task
+// -----------------------------------------------------------------------------
+
+type WaitTask struct {
+	WaitFor   string  `json:"wait_for,omitempty"   yaml:"wait_for,omitempty"   mapstructure:"wait_for,omitempty"`
+	Processor *Config `json:"processor,omitempty"  yaml:"processor,omitempty"  mapstructure:"processor,omitempty"`
+	OnTimeout string  `json:"on_timeout,omitempty" yaml:"on_timeout,omitempty" mapstructure:"on_timeout,omitempty"`
+}
+
+// -----------------------------------------------------------------------------
 // Config
 // -----------------------------------------------------------------------------
 
@@ -196,6 +207,7 @@ type Config struct {
 	ParallelTask     `         json:",inline"        yaml:",inline"        mapstructure:",squash"`
 	CollectionConfig `         json:",inline"        yaml:",inline"        mapstructure:",squash"`
 	SignalTask       `         json:",inline"        yaml:",inline"        mapstructure:",squash"`
+	WaitTask         `         json:",inline"        yaml:",inline"        mapstructure:",squash"`
 	BaseConfig       `         json:",inline"        yaml:",inline"        mapstructure:",squash"`
 	Tasks            []Config `json:"tasks"          yaml:"tasks"          mapstructure:"tasks"`
 	Task             *Config  `json:"task,omitempty" yaml:"task,omitempty" mapstructure:"task,omitempty"`
@@ -296,6 +308,77 @@ func (t *Config) Validate() error {
 			return err
 		}
 	}
+	// Validate wait task specific fields
+	if t.Type == TaskTypeWait {
+		if err := t.validateWaitTask(); err != nil {
+			return fmt.Errorf("invalid wait task '%s': %w", t.ID, err)
+		}
+	}
+	return nil
+}
+
+// validateWaitTask performs comprehensive validation for wait task configuration
+func (t *Config) validateWaitTask() error {
+	// Required field validation
+	if t.WaitFor == "" {
+		return fmt.Errorf("wait_for field is required")
+	}
+	if t.Condition == "" {
+		return fmt.Errorf("condition field is required")
+	}
+	// CEL expression syntax validation
+	if err := t.validateWaitCondition(); err != nil {
+		return fmt.Errorf("invalid condition: %w", err)
+	}
+	// Timeout validation
+	if err := t.validateWaitTimeout(); err != nil {
+		return fmt.Errorf("invalid timeout: %w", err)
+	}
+	// Processor configuration validation
+	if t.Processor != nil {
+		if err := t.validateWaitProcessor(); err != nil {
+			return fmt.Errorf("invalid processor configuration: %w", err)
+		}
+	}
+	return nil
+}
+
+// validateWaitCondition validates the CEL expression syntax
+func (t *Config) validateWaitCondition() error {
+	evaluator, err := NewCELEvaluator()
+	if err != nil {
+		return fmt.Errorf("failed to create CEL evaluator: %w", err)
+	}
+	return evaluator.ValidateExpression(t.Condition)
+}
+
+// validateWaitTimeout validates the timeout value if specified
+func (t *Config) validateWaitTimeout() error {
+	if t.Timeout == "" {
+		return nil // Timeout is optional
+	}
+	duration, err := core.ParseHumanDuration(t.Timeout)
+	if err != nil {
+		return fmt.Errorf("invalid timeout format '%s': %w", t.Timeout, err)
+	}
+	if duration <= 0 {
+		return fmt.Errorf("timeout must be positive, got %v", duration)
+	}
+	return nil
+}
+
+// validateWaitProcessor validates the processor configuration
+func (t *Config) validateWaitProcessor() error {
+	if t.Processor.ID == "" {
+		return fmt.Errorf("processor ID is required")
+	}
+	if t.Processor.Type == "" {
+		return fmt.Errorf("processor type is required")
+	}
+	// Recursively validate the processor configuration
+	if err := t.Processor.Validate(); err != nil {
+		return fmt.Errorf("processor validation failed: %w", err)
+	}
 	return nil
 }
 
@@ -364,6 +447,8 @@ func (t *Config) GetExecType() ExecutionType {
 		executionType = ExecutionBasic
 	case TaskTypeSignal:
 		executionType = ExecutionBasic
+	case TaskTypeWait:
+		executionType = ExecutionWait
 	default:
 		executionType = ExecutionBasic
 	}

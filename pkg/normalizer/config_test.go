@@ -154,12 +154,11 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 	t.Run("Should handle router task condition normalization", func(t *testing.T) {
 		routerTask := &task.Config{
 			BaseConfig: task.BaseConfig{
-				ID:   "validation-task",
-				Type: task.TaskTypeRouter,
-			},
-			RouterTask: task.RouterTask{
+				ID:        "validation-task",
+				Type:      task.TaskTypeRouter,
 				Condition: `{{ eq .tasks.validator.output.status "valid" }}`,
 			},
+			RouterTask: task.RouterTask{},
 		}
 
 		workflowState := &workflow.State{

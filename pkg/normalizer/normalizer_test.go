@@ -234,12 +234,11 @@ func TestNormalizer_NormalizeTaskConfig(t *testing.T) {
 	t.Run("Should handle condition field normalization", func(t *testing.T) {
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
-				ID:   "router-task",
-				Type: task.TaskTypeRouter,
-			},
-			RouterTask: task.RouterTask{
+				ID:        "router-task",
+				Type:      task.TaskTypeRouter,
 				Condition: `{{ eq .tasks.validator.output.status "valid" }}`,
 			},
+			RouterTask: task.RouterTask{},
 		}
 
 		ctx := &NormalizationContext{
@@ -704,5 +703,173 @@ func TestNormalizer_ErrorHandling(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "outpu")
 		assert.Contains(t, err.Error(), "failed to normalize task config")
+	})
+}
+
+func TestNormalizer_NormalizeTaskConfigWithSignal(t *testing.T) {
+	n := New()
+
+	t.Run("Should normalize task config with signal context", func(t *testing.T) {
+		// Create a task config with signal template
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-processor",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					"message": "Processing signal: {{ .signal.payload.status }}",
+					"data":    "{{ .signal.payload.data }}",
+				},
+			},
+		}
+
+		// Create signal data
+		signal := &task.SignalEnvelope{
+			Metadata: task.SignalMetadata{
+				SignalID:   "test-signal",
+				WorkflowID: "test-workflow",
+				Source:     "test-source",
+			},
+			Payload: map[string]any{
+				"status": "ready",
+				"data":   "test-data",
+			},
+		}
+
+		// Create normalization context
+		ctx := &NormalizationContext{
+			WorkflowState: &workflow.State{
+				WorkflowID:     "test-workflow",
+				WorkflowExecID: "exec-123",
+				Input:          &core.Input{},
+				Output:         &core.Output{},
+			},
+			WorkflowConfig: &workflow.Config{
+				ID: "test-workflow",
+			},
+			TaskConfigs: make(map[string]*task.Config),
+		}
+
+		// Normalize with signal context
+		err := n.NormalizeTaskConfigWithSignal(taskConfig, ctx, signal)
+		require.NoError(t, err)
+
+		// Verify signal templates were resolved
+		assert.Equal(t, "Processing signal: ready", (*taskConfig.With)["message"])
+		assert.Equal(t, "test-data", (*taskConfig.With)["data"])
+	})
+
+	t.Run("Should handle missing signal properties gracefully", func(t *testing.T) {
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-processor",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					"message": "Signal received with other: {{ .signal.payload.other }}",
+				},
+			},
+		}
+
+		signal := &task.SignalEnvelope{
+			Payload: map[string]any{
+				"other": "value",
+			},
+		}
+
+		ctx := &NormalizationContext{
+			WorkflowState: &workflow.State{
+				WorkflowID: "test-workflow",
+				Input:      &core.Input{},
+				Output:     &core.Output{},
+			},
+			WorkflowConfig: &workflow.Config{
+				ID: "test-workflow",
+			},
+			TaskConfigs: make(map[string]*task.Config),
+		}
+
+		err := n.NormalizeTaskConfigWithSignal(taskConfig, ctx, signal)
+		require.NoError(t, err)
+
+		// Should access available property
+		assert.Equal(t, "Signal received with other: value", (*taskConfig.With)["message"])
+	})
+
+	t.Run("Should handle nil signal gracefully", func(t *testing.T) {
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-processor",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					"message": "Static message",
+				},
+			},
+		}
+
+		ctx := &NormalizationContext{
+			WorkflowState: &workflow.State{
+				WorkflowID: "test-workflow",
+				Input:      &core.Input{},
+				Output:     &core.Output{},
+			},
+			WorkflowConfig: &workflow.Config{
+				ID: "test-workflow",
+			},
+			TaskConfigs: make(map[string]*task.Config),
+		}
+
+		err := n.NormalizeTaskConfigWithSignal(taskConfig, ctx, nil)
+		require.NoError(t, err)
+
+		// Should preserve static content
+		assert.Equal(t, "Static message", (*taskConfig.With)["message"])
+	})
+
+	t.Run("Should handle nil config gracefully", func(t *testing.T) {
+		signal := &task.SignalEnvelope{}
+		ctx := &NormalizationContext{}
+
+		err := n.NormalizeTaskConfigWithSignal(nil, ctx, signal)
+		require.NoError(t, err)
+	})
+
+	t.Run("Should preserve existing With values after normalization", func(t *testing.T) {
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-processor",
+				Type: task.TaskTypeBasic,
+				With: &core.Input{
+					"static":   "unchanged",
+					"dynamic":  "{{ .signal.payload.status }}",
+					"existing": "preserved",
+				},
+			},
+		}
+
+		signal := &task.SignalEnvelope{
+			Payload: map[string]any{
+				"status": "active",
+			},
+		}
+
+		ctx := &NormalizationContext{
+			WorkflowState: &workflow.State{
+				WorkflowID: "test-workflow",
+				Input:      &core.Input{},
+				Output:     &core.Output{},
+			},
+			WorkflowConfig: &workflow.Config{
+				ID: "test-workflow",
+			},
+			TaskConfigs: make(map[string]*task.Config),
+		}
+
+		err := n.NormalizeTaskConfigWithSignal(taskConfig, ctx, signal)
+		require.NoError(t, err)
+
+		// Should have normalized dynamic content
+		assert.Equal(t, "active", (*taskConfig.With)["dynamic"])
+		// Should preserve static content
+		assert.Equal(t, "unchanged", (*taskConfig.With)["static"])
+		assert.Equal(t, "preserved", (*taskConfig.With)["existing"])
 	})
 }

@@ -2,6 +2,7 @@ package normalizer
 
 import (
 	"fmt"
+	"maps"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -73,6 +74,10 @@ func (n *Normalizer) normalizeRegularTaskConfig(config *task.Config, ctx *Normal
 	existingWith := config.With
 
 	parsed, err := n.engine.ParseMapWithFilter(configMap, context, func(k string) bool {
+		// Skip processor field for wait tasks - it contains signal templates that need deferred evaluation
+		if config.Type == task.TaskTypeWait && k == "processor" {
+			return true
+		}
 		return k == "agent" || k == "tool" || k == "outputs" || k == outputKey
 	})
 	if err != nil {
@@ -87,15 +92,64 @@ func (n *Normalizer) normalizeRegularTaskConfig(config *task.Config, ctx *Normal
 		// Check for aliasing to prevent concurrent map iteration and write panic
 		if existingWith != config.With {
 			// Merge existing values into normalized values (existing takes precedence)
-			for key, value := range *existingWith {
-				(*config.With)[key] = value
-			}
+			maps.Copy((*config.With), *existingWith)
 		}
 	} else if existingWith != nil {
 		// If normalization cleared With but we had existing values, restore them
 		config.With = existingWith
 	}
 
+	return nil
+}
+
+// NormalizeTaskConfigWithSignal normalizes a task config with signal context
+// This is specifically for wait task processors that need signal data during normalization
+func (n *Normalizer) NormalizeTaskConfigWithSignal(
+	config *task.Config,
+	ctx *NormalizationContext,
+	signal any,
+) error {
+	if config == nil {
+		return nil
+	}
+	// Build the full normalization context
+	context := n.BuildContext(ctx)
+	// Add signal data to the context (convert to map for template engine)
+	if signal != nil {
+		signalMap, err := core.AsMapDefault(signal)
+		if err != nil {
+			return fmt.Errorf("failed to convert signal to map: %w", err)
+		}
+		context["signal"] = signalMap
+	} else {
+		context["signal"] = nil
+	}
+	// Convert config to map for template processing
+	configMap, err := config.AsMap()
+	if err != nil {
+		return fmt.Errorf("failed to convert task config to map: %w", err)
+	}
+	// Preserve existing With values before normalization
+	existingWith := config.With
+	// Parse all templates with the signal-augmented context
+	parsed, err := n.engine.ParseMap(configMap, context)
+	if err != nil {
+		return fmt.Errorf("failed to normalize task config with signal context: %w", err)
+	}
+	if err := config.FromMap(parsed); err != nil {
+		return fmt.Errorf("failed to update task config from normalized map: %w", err)
+	}
+	// Merge existing With values back into the normalized config
+	if existingWith != nil && config.With != nil {
+		// Check for aliasing to prevent concurrent map iteration and write panic
+		if existingWith != config.With {
+			// Merge existing values into normalized values (existing takes precedence)
+			maps.Copy((*config.With), *existingWith)
+		}
+	} else if existingWith != nil {
+		// If normalization cleared With but we had existing values, restore them
+		config.With = existingWith
+	}
 	return nil
 }
 

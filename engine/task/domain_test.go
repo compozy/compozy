@@ -3,6 +3,7 @@ package task
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/stretchr/testify/assert"
@@ -216,5 +217,199 @@ func TestState_HelperMethods_EdgeCases(t *testing.T) {
 		state := &State{ParentStateID: &parentID}
 		result := state.GetParentID()
 		assert.Same(t, &parentID, result, "GetParentID should return the same pointer")
+	})
+}
+
+func TestSignalEnvelope_JSONMarshaling(t *testing.T) {
+	t.Run("Should marshal and unmarshal SignalEnvelope correctly", func(t *testing.T) {
+		envelope := &SignalEnvelope{
+			Payload: map[string]any{
+				"action": "approve",
+				"user":   "john.doe",
+				"data": map[string]any{
+					"amount": 1000.50,
+					"reason": "budget approval",
+				},
+			},
+			Metadata: SignalMetadata{
+				SignalID:      "signal-123",
+				ReceivedAtUTC: time.Now().UTC(),
+				WorkflowID:    "workflow-456",
+				Source:        "web-ui",
+			},
+		}
+		data, err := json.Marshal(envelope)
+		require.NoError(t, err)
+		var unmarshaled SignalEnvelope
+		err = json.Unmarshal(data, &unmarshaled)
+		require.NoError(t, err)
+		assert.Equal(t, envelope.Payload["action"], unmarshaled.Payload["action"])
+		assert.Equal(t, envelope.Payload["user"], unmarshaled.Payload["user"])
+		assert.Equal(t, envelope.Metadata.SignalID, unmarshaled.Metadata.SignalID)
+		assert.Equal(t, envelope.Metadata.WorkflowID, unmarshaled.Metadata.WorkflowID)
+		assert.Equal(t, envelope.Metadata.Source, unmarshaled.Metadata.Source)
+		assert.WithinDuration(t, envelope.Metadata.ReceivedAtUTC, unmarshaled.Metadata.ReceivedAtUTC, time.Millisecond)
+	})
+	t.Run("Should handle empty payload", func(t *testing.T) {
+		envelope := &SignalEnvelope{
+			Payload: map[string]any{},
+			Metadata: SignalMetadata{
+				SignalID:      "signal-empty",
+				ReceivedAtUTC: time.Now().UTC(),
+				WorkflowID:    "workflow-789",
+				Source:        "api",
+			},
+		}
+		data, err := json.Marshal(envelope)
+		require.NoError(t, err)
+		var unmarshaled SignalEnvelope
+		err = json.Unmarshal(data, &unmarshaled)
+		require.NoError(t, err)
+		assert.NotNil(t, unmarshaled.Payload)
+		assert.Empty(t, unmarshaled.Payload)
+		assert.Equal(t, envelope.Metadata.SignalID, unmarshaled.Metadata.SignalID)
+	})
+}
+
+func TestProcessorOutput_JSONMarshaling(t *testing.T) {
+	t.Run("Should marshal ProcessorOutput with successful result", func(t *testing.T) {
+		output := &ProcessorOutput{
+			Output: map[string]any{
+				"valid": true,
+				"score": 0.95,
+			},
+			Error: nil,
+		}
+		data, err := json.Marshal(output)
+		require.NoError(t, err)
+		var unmarshaled ProcessorOutput
+		err = json.Unmarshal(data, &unmarshaled)
+		require.NoError(t, err)
+		outputMap, ok := unmarshaled.Output.(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, true, outputMap["valid"])
+		assert.InDelta(t, 0.95, outputMap["score"], 0.001)
+		assert.Nil(t, unmarshaled.Error)
+	})
+	t.Run("Should marshal ProcessorOutput with error", func(t *testing.T) {
+		output := &ProcessorOutput{
+			Output: nil,
+			Error: core.NewError(
+				&core.Error{Message: "validation failed: invalid input format"},
+				"VALIDATION_FAILED",
+				map[string]any{"context": "test"},
+			),
+		}
+		data, err := json.Marshal(output)
+		require.NoError(t, err)
+		var unmarshaled ProcessorOutput
+		err = json.Unmarshal(data, &unmarshaled)
+		require.NoError(t, err)
+		assert.Nil(t, unmarshaled.Output)
+		require.NotNil(t, unmarshaled.Error)
+		assert.Contains(t, unmarshaled.Error.Message, "validation failed: invalid input format")
+	})
+}
+
+func TestWaitTaskResult_JSONMarshaling(t *testing.T) {
+	t.Run("Should marshal WaitTaskResult with successful completion", func(t *testing.T) {
+		completedAt := time.Now().UTC()
+		result := &WaitTaskResult{
+			Status: "success",
+			Signal: &SignalEnvelope{
+				Payload: map[string]any{"approved": true},
+				Metadata: SignalMetadata{
+					SignalID:      "sig-001",
+					ReceivedAtUTC: completedAt,
+					WorkflowID:    "wf-001",
+					Source:        "api",
+				},
+			},
+			ProcessorOutput: &ProcessorOutput{
+				Output: map[string]any{"processed": true},
+				Error:  nil,
+			},
+			NextTask:    "process_approval",
+			CompletedAt: completedAt,
+		}
+		data, err := json.Marshal(result)
+		require.NoError(t, err)
+		var unmarshaled WaitTaskResult
+		err = json.Unmarshal(data, &unmarshaled)
+		require.NoError(t, err)
+		assert.Equal(t, "success", unmarshaled.Status)
+		assert.NotNil(t, unmarshaled.Signal)
+		assert.NotNil(t, unmarshaled.ProcessorOutput)
+		assert.Equal(t, "process_approval", unmarshaled.NextTask)
+		assert.WithinDuration(t, completedAt, unmarshaled.CompletedAt, time.Millisecond)
+	})
+	t.Run("Should marshal WaitTaskResult with timeout", func(t *testing.T) {
+		completedAt := time.Now().UTC()
+		result := &WaitTaskResult{
+			Status:      "timeout",
+			NextTask:    "handle_timeout",
+			CompletedAt: completedAt,
+		}
+		data, err := json.Marshal(result)
+		require.NoError(t, err)
+		var unmarshaled WaitTaskResult
+		err = json.Unmarshal(data, &unmarshaled)
+		require.NoError(t, err)
+		assert.Equal(t, "timeout", unmarshaled.Status)
+		assert.Nil(t, unmarshaled.Signal)
+		assert.Nil(t, unmarshaled.ProcessorOutput)
+		assert.Equal(t, "handle_timeout", unmarshaled.NextTask)
+	})
+}
+
+func TestSignalProcessingResult_JSONMarshaling(t *testing.T) {
+	t.Run("Should marshal SignalProcessingResult when condition is met", func(t *testing.T) {
+		result := &SignalProcessingResult{
+			ShouldContinue: true,
+			Signal: &SignalEnvelope{
+				Payload: map[string]any{"status": "approved"},
+				Metadata: SignalMetadata{
+					SignalID:      "sig-002",
+					ReceivedAtUTC: time.Now().UTC(),
+					WorkflowID:    "wf-002",
+					Source:        "webhook",
+				},
+			},
+			ProcessorOutput: &ProcessorOutput{
+				Output: map[string]any{"valid": true},
+				Error:  nil,
+			},
+			Reason: "condition_met",
+		}
+		data, err := json.Marshal(result)
+		require.NoError(t, err)
+		var unmarshaled SignalProcessingResult
+		err = json.Unmarshal(data, &unmarshaled)
+		require.NoError(t, err)
+		assert.True(t, unmarshaled.ShouldContinue)
+		assert.Equal(t, "condition_met", unmarshaled.Reason)
+		assert.NotNil(t, unmarshaled.Signal)
+		assert.NotNil(t, unmarshaled.ProcessorOutput)
+	})
+	t.Run("Should handle duplicate signal result", func(t *testing.T) {
+		result := &SignalProcessingResult{
+			ShouldContinue: false,
+			Reason:         "duplicate",
+			Signal: &SignalEnvelope{
+				Payload: map[string]any{},
+				Metadata: SignalMetadata{
+					SignalID: "sig-duplicate",
+				},
+			},
+		}
+		data, err := json.Marshal(result)
+		require.NoError(t, err)
+		var unmarshaled SignalProcessingResult
+		err = json.Unmarshal(data, &unmarshaled)
+		require.NoError(t, err)
+		assert.False(t, unmarshaled.ShouldContinue)
+		assert.Equal(t, "duplicate", unmarshaled.Reason)
+		assert.NotNil(t, unmarshaled.Signal)
+		assert.Nil(t, unmarshaled.ProcessorOutput)
 	})
 }

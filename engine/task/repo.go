@@ -71,8 +71,13 @@ func CreateAndPersistState(
 	result *PartialState,
 ) (*State, error) {
 	var state *State
-	switch result.ExecutionType {
-	case ExecutionBasic, ExecutionRouter:
+	// Handle empty execution type by defaulting to basic
+	executionType := result.ExecutionType
+	if executionType == "" {
+		executionType = ExecutionBasic
+	}
+	switch executionType {
+	case ExecutionBasic, ExecutionRouter, ExecutionWait:
 		state = CreateBasicState(input, result)
 	case ExecutionParallel, ExecutionCollection, ExecutionComposite:
 		state = CreateParentState(input, result)
