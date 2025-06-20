@@ -126,7 +126,7 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, output)
 		assert.False(t, output.ConditionMet)
-		assert.Contains(t, output.Error, "expected signal 'approval_signal', got 'wrong_signal'")
+		assert.Empty(t, output.Error)
 		// Verify mocks
 		taskRepo.AssertExpectations(t)
 		configStore.AssertExpectations(t)
@@ -310,6 +310,8 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 		configStore.On("Get", ctx, taskExecID.String()).Return(taskConfig, nil)
 		evaluator.On("Evaluate", ctx, taskConfig.Condition, mock.AnythingOfType("map[string]interface {}")).
 			Return(false, errors.New("CEL evaluation error"))
+		// Expect task state to be updated to FAILED
+		taskRepo.On("UpsertState", ctx, mock.AnythingOfType("*task.State")).Return(nil)
 		// Create use case
 		uc := NewProcessWaitSignal(taskRepo, configStore, evaluator)
 		// Act

@@ -3,6 +3,7 @@ package activities
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -70,6 +71,10 @@ func (a *ExecuteWait) Run(ctx context.Context, input *ExecuteWaitInput) (*task.M
 	taskType := taskConfig.Type
 	if taskType != task.TaskTypeWait {
 		return nil, fmt.Errorf("unsupported task type: %s", taskType)
+	}
+	// Validate WaitFor signal name
+	if strings.TrimSpace(taskConfig.WaitFor) == "" {
+		return nil, fmt.Errorf("wait task must define a non-empty wait_for signal")
 	}
 	// Create task state
 	taskState, err := a.createStateUC.Execute(ctx, &uc.CreateStateInput{

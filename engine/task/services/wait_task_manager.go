@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -46,29 +47,47 @@ func (m *WaitTaskManager) UpdateWaitTaskStatus(
 	if err != nil {
 		return fmt.Errorf("failed to get task state: %w", err)
 	}
-	// Update task state
-	taskState.Status = status
+	// Create a copy to avoid race conditions if the repo stores pointers
+	updatedState := &task.State{
+		Component:      taskState.Component,
+		Status:         status, // Update status
+		TaskID:         taskState.TaskID,
+		TaskExecID:     taskState.TaskExecID,
+		WorkflowID:     taskState.WorkflowID,
+		WorkflowExecID: taskState.WorkflowExecID,
+		ParentStateID:  taskState.ParentStateID,
+		ExecutionType:  taskState.ExecutionType,
+		AgentID:        taskState.AgentID,
+		ActionID:       taskState.ActionID,
+		ToolID:         taskState.ToolID,
+		Input:          taskState.Input,
+		Output:         taskState.Output,
+		Error:          taskState.Error,
+		CreatedAt:      taskState.CreatedAt,
+		UpdatedAt:      time.Now(),
+	}
+	// Update output if provided
 	if output != nil {
-		taskState.Output = output
+		updatedState.Output = output
 	}
 	// Persist updated state
-	if err := m.taskRepo.UpsertState(ctx, taskState); err != nil {
+	if err := m.taskRepo.UpsertState(ctx, updatedState); err != nil {
 		return fmt.Errorf("failed to update task state: %w", err)
 	}
 	// Update parent if this is a child task
-	if taskState.ParentStateID != nil {
+	if updatedState.ParentStateID != nil {
 		log.Debug("Updating parent state after wait task status change",
-			"parentStateID", taskState.ParentStateID,
+			"parentStateID", updatedState.ParentStateID,
 			"childStatus", status)
 		// Update parent status after child status change
 		if _, err := m.parentUpdater.UpdateParentStatus(ctx, &UpdateParentStatusInput{
-			ParentStateID: *taskState.ParentStateID,
+			ParentStateID: *updatedState.ParentStateID,
 			Strategy:      task.StrategyWaitAll, // Default strategy for wait tasks
 			Recursive:     true,
-			ChildState:    taskState,
+			ChildState:    updatedState,
 		}); err != nil {
 			log.Error("Failed to update parent state",
-				"parentStateID", taskState.ParentStateID,
+				"parentStateID", updatedState.ParentStateID,
 				"error", err)
 			// Don't fail the operation, parent update is best-effort
 		}

@@ -43,7 +43,6 @@ func GenerateUniqueTestID(testName string) string {
 
 var (
 	envLoadOnce sync.Once
-	envLoadErr  error
 )
 
 // loadBranchEnv loads the branch-specific environment file if available
@@ -101,7 +100,8 @@ func loadBranchEnv() error {
 // It automatically loads branch-specific environment if available
 func GetTestEnvOrDefault(key, defaultValue string) string {
 	envLoadOnce.Do(func() {
-		envLoadErr = loadBranchEnv()
+		// Ignore error - if we can't load branch env, fall back to defaults
+		_ = loadBranchEnv() //nolint:errcheck // Branch env is optional
 	})
 	if value := os.Getenv(key); value != "" {
 		return value

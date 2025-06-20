@@ -30,7 +30,7 @@ func (m *MockConfigStore) Get(ctx context.Context, taskExecID string) (*task.Con
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*task.Config), args.Error(1) //nolint:errcheck,forcetypeassert
+	return args.Get(0).(*task.Config), args.Error(1) //nolint:errcheck,forcetypeassert // Mock type assertion is safe
 }
 
 // Delete mocks the Delete method
@@ -51,7 +51,7 @@ func (m *MockConfigStore) GetMetadata(ctx context.Context, key string) ([]byte, 
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]byte), args.Error(1) //nolint:errcheck,forcetypeassert
+	return args.Get(0).([]byte), args.Error(1) //nolint:errcheck,forcetypeassert // Mock type assertion is safe
 }
 
 // DeleteMetadata mocks the DeleteMetadata method

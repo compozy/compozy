@@ -73,9 +73,9 @@ func (uc *ProcessWaitSignal) Execute(
 		log.Debug("Signal does not match expected signal",
 			"expected", taskConfig.WaitFor,
 			"received", input.SignalName)
+		// Return false without error - mismatched signals are a normal flow
 		return &ProcessWaitSignalOutput{
 			ConditionMet: false,
-			Error:        fmt.Sprintf("expected signal '%s', got '%s'", taskConfig.WaitFor, input.SignalName),
 		}, nil
 	}
 	// Build context for evaluation
@@ -91,6 +91,19 @@ func (uc *ProcessWaitSignal) Execute(
 		log.Error("Failed to evaluate condition",
 			"condition", taskConfig.Condition,
 			"error", err)
+		// Update task state to FAILED
+		taskState.Status = core.StatusFailed
+		taskState.Error = core.NewError(
+			fmt.Errorf("condition evaluation failed: %v", err),
+			"CONDITION_EVAL_ERROR",
+			map[string]any{
+				"condition": taskConfig.Condition,
+				"error":     err.Error(),
+			},
+		)
+		if updateErr := uc.taskRepo.UpsertState(ctx, taskState); updateErr != nil {
+			log.Error("Failed to update task state to FAILED", "error", updateErr)
+		}
 		// Return error directly instead of wrapping in output
 		return nil, fmt.Errorf("condition evaluation failed: %w", err)
 	}

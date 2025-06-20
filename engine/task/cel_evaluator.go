@@ -9,6 +9,7 @@ import (
 	"github.com/google/cel-go/cel"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // CELEvaluatorOption configures CEL evaluator
@@ -69,10 +70,21 @@ func NewCELEvaluator(opts ...CELEvaluatorOption) (*CELEvaluator, error) {
 	return evaluator, nil
 }
 
+// normalizeExpression normalizes a CEL expression for better cache hit rate
+func normalizeExpression(expression string) string {
+	// Trim whitespace
+	normalized := strings.TrimSpace(expression)
+	// Replace multiple spaces with single space
+	normalized = strings.Join(strings.Fields(normalized), " ")
+	return normalized
+}
+
 // getProgram retrieves a compiled program from cache or compiles and caches it
 func (c *CELEvaluator) getProgram(expression string) (cel.Program, error) {
+	// Normalize expression for better cache hit rate
+	cacheKey := normalizeExpression(expression)
 	// Try to get from cache
-	if program, found := c.programCache.Get(expression); found {
+	if program, found := c.programCache.Get(cacheKey); found {
 		return program, nil
 	}
 	// Not in cache, compile it
@@ -88,7 +100,7 @@ func (c *CELEvaluator) getProgram(expression string) (cel.Program, error) {
 		return nil, fmt.Errorf("failed to create CEL program: %w", err)
 	}
 	// Store in cache with cost of 1
-	c.programCache.Set(expression, program, 1)
+	c.programCache.Set(cacheKey, program, 1)
 	// Wait for the value to be processed
 	c.programCache.Wait()
 	return program, nil
@@ -111,15 +123,27 @@ func (c *CELEvaluator) Evaluate(ctx context.Context, expression string, data map
 	if err != nil {
 		return false, fmt.Errorf("CEL evaluation failed: %w", err)
 	}
-	// CEL handles cost limits automatically, but we can still check for reporting
+	// Log CEL evaluation cost for monitoring
 	if details != nil {
-		if cost := details.ActualCost(); cost != nil && *cost > c.costLimit {
+		if cost := details.ActualCost(); cost != nil && c.costLimit > 0 {
+			// Log cost metrics for monitoring and optimization
+			costRatio := float64(*cost) / float64(c.costLimit)
+			if costRatio > 0.8 {
+				// Warn when approaching cost limit (80% threshold)
+				log := logger.FromContext(ctx)
+				log.Warn("CEL expression approaching cost limit",
+					"cost", *cost,
+					"limit", c.costLimit,
+					"ratio_percent", costRatio*100)
+			}
 			// This should not happen as CEL would have errored, but keep for safety
-			return false, core.NewError(
-				fmt.Errorf("CEL expression exceeded cost limit: %d", *cost),
-				"CEL_COST_EXCEEDED",
-				map[string]any{"cost": *cost, "limit": c.costLimit},
-			)
+			if *cost > c.costLimit {
+				return false, core.NewError(
+					fmt.Errorf("CEL expression exceeded cost limit: %d", *cost),
+					"CEL_COST_EXCEEDED",
+					map[string]any{"cost": *cost, "limit": c.costLimit},
+				)
+			}
 		}
 	}
 	result, ok := out.Value().(bool)
