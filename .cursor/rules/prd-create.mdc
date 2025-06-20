@@ -21,10 +21,28 @@ This template provides a comprehensive structure that balances requirements gath
 
 <process_workflow>
 1. **Receive Initial Prompt:** The user provides a brief description or request for a new feature or functionality.
+
 2. **Ask Clarifying Questions:** Before writing the PRD, the AI *must* ask clarifying questions to gather sufficient detail. Focus on understanding the "what" and "why" of the feature, user needs, and success criteria.
-3. **Generate Comprehensive PRD (Functionality-Focused):** Using the template, produce a PRD that captures user and business requirements plus high-level product scope **without including low-level technical design or implementation details** – those belong in the Tech Spec.
-4. **Create Feature Folder:** Instruct to create a feature folder `./tasks/prd-[feature-slug]/`.
-5. **Save PRD:** Save the generated document as `_prd.md` inside the feature folder.
+
+**MANDATORY PLANNING STEPS:**
+3. **Create PRD Planning with Zen Planner:** Use zen's planner tool to create a comprehensive PRD development plan:
+   - Analyze the enriched feature specification requirements
+   - Break down PRD creation into logical planning steps
+   - Identify key sections that need focused attention
+   - Plan resource allocation and approach for each section
+   - Document assumptions and dependencies that will guide PRD creation
+
+4. **Validate Planning with Consensus:** Use zen's consensus tool with o3 and gemini 2.5 models:
+   - Present the detailed PRD planning approach to both expert models
+   - Request critical analysis of the planning strategy
+   - Gather feedback on plan completeness and effectiveness
+   - Incorporate consensus recommendations into final planning approach
+   - Proceed only after receiving aligned approval from both expert models
+
+**PRD CREATION WORKFLOW:**
+5. **Generate Comprehensive PRD (Functionality-Focused):** Using the template, produce a PRD that captures user and business requirements plus high-level product scope **without including low-level technical design or implementation details** – those belong in the Tech Spec.
+6. **Create Feature Folder:** Instruct to create a feature folder `./tasks/prd-[feature-slug]/`.
+7. **Save PRD:** Save the generated document as `_prd.md` inside the feature folder.
 </process_workflow>
 
 ## Clarifying Questions (Examples)
@@ -129,18 +147,28 @@ The generated PRD MUST follow the template structure from @_prd-template.md:
 ## Workflow Instructions
 
 <workflow_instructions>
-1. **DO NOT** start implementing the PRD immediately
-2. **ALWAYS** ask clarifying questions first to gather comprehensive information
-3. **USE** the standardized template structure for consistency
-4. **FOCUS** on comprehensive user and business requirements; defer implementation planning to the Tech Spec
-5. **ENSURE** the PRD is actionable for both development and project management
-6. **ITERATE** on the PRD based on user feedback and additional clarification
+1. **ALWAYS** ask clarifying questions first to gather comprehensive information
+2. **MUST THEN** use zen's planner tool to create comprehensive PRD development plan
+3. **MUST VALIDATE** planning approach using zen's consensus tool with o3 and gemini 2.5 models
+4. **DO NOT** proceed to PRD creation without completing both mandatory planning steps
+5. **USE** the standardized template structure for consistency
+6. **FOCUS** on comprehensive user and business requirements; defer implementation planning to the Tech Spec
+7. **ENSURE** the PRD is actionable for both development and project management
+8. **ITERATE** on the PRD based on user feedback and additional clarification
 </workflow_instructions>
 
 ## Quality Checklist
 
 <quality_checklist>
 Before finalizing the PRD, ensure:
+
+**Planning Validation:**
+- [ ] Used zen's planner tool to create comprehensive PRD development plan
+- [ ] Validated planning approach with zen's consensus tool using o3 and gemini 2.5 models
+- [ ] Incorporated consensus recommendations into final planning approach
+- [ ] Received aligned approval from both expert models before proceeding
+
+**PRD Content Quality:**
 - [ ] All template sections are completed with relevant information
 - [ ] User stories cover primary flows and edge cases
 - [ ] Functional requirements are numbered and specific
