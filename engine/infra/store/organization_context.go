@@ -175,7 +175,7 @@ func isValidOrganizationID(id core.ID) bool {
 	if len(idStr) == 27 {
 		// Simple check for KSUID format - all base62 characters
 		for _, c := range idStr {
-			if !((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+			if (c < '0' || c > '9') && (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') {
 				return false
 			}
 		}
