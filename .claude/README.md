@@ -1,311 +1,289 @@
 # Claude Code Custom Commands
 
-This directory contains custom slash commands for Claude Code that implement the project's established workflows from `.cursor/rules/`.
+This directory contains custom slash commands for Claude Code that implement a streamlined agent-based workflow for the Compozy development pipeline. The system uses specialized agents coordinated through centralized rules from `.cursor/rules/`.
 
-## Command Structure
+## Architecture Overview
 
-Commands are organized by workflow phase:
+The command system is built on a **Single Source of Truth** principle where all development standards, patterns, and workflows are centralized in `.cursor/rules/` and injected into specialized agents as needed.
 
 ```
 .claude/
 ├── commands/
-│   ├── prd-clarify.md          # PRD clarification questions
-│   ├── prd-generate.md         # Generate PRD from template
-│   ├── prd-techspec.md         # Generate technical specification
-│   ├── tasks-parent.md         # Generate high-level tasks
-│   ├── tasks-subtasks.md       # Break down into subtasks
-│   ├── tasks-complexity.md     # Analyze task complexity
-│   ├── task-start.md           # Start next task with proper setup
-│   ├── task-next.md            # Find and start next available task automatically
-│   ├── task-review.md          # Complete task review & completion workflow
-│   ├── session-start.md        # Start new development session
-│   ├── session-current.md      # Show current session status
-│   ├── session-update.md       # Update session with progress
-│   ├── session-end.md          # End current session
-│   ├── session-list.md         # List all sessions
-│   └── session-help.md         # Session management help
-└── README.md                   # This file
+│   ├── agent_coordinator.md         # Master workflow orchestrator
+│   ├── agent_feature_enricher.md    # Feature specification enrichment
+│   ├── agent_prd_creator.md         # Product Requirements Document creation
+│   ├── agent_prd_analyzer.md        # PRD quality analysis and validation
+│   ├── agent_techspec_creator.md    # Technical specification creation
+│   ├── agent_technical_reviewer.md  # Technical specification validation
+│   ├── agent_simplicity_guardian.md # Complexity analysis and simplification
+│   ├── agent_task_generator.md      # Task generation using Taskmaster MCP
+│   ├── task-start.md               # Start task implementation
+│   ├── task-next.md                # Find and start next available task
+│   ├── task-review.md              # Complete task review workflow
+│   ├── session-*.md                # Development session management
+│   └── prd-*.md                    # Direct PRD utilities
+└── README.md                       # This file
 ```
 
-## Workflow Overview
+## Core Principles
 
-### 1. PRD Development Workflow
+### 1. Centralized Rules (Single Source of Truth)
+
+All development standards are maintained in `.cursor/rules/*.mdc` files:
+
+- **Architecture patterns:** `.cursor/rules/architecture.mdc`
+- **Go coding standards:** `.cursor/rules/go-coding-standards.mdc`
+- **Testing requirements:** `.cursor/rules/testing-standards.mdc`
+- **API design standards:** `.cursor/rules/api-standards.mdc`
+- **Security & quality:** `.cursor/rules/quality-security.mdc`
+- **PRD creation:** `.cursor/rules/prd-create.mdc`
+- **Technical specifications:** `.cursor/rules/prd-tech-spec.mdc`
+- **Task generation:** `.cursor/rules/task-generate-list.mdc`
+
+### 2. Agent-Based Workflow
+
+Specialized agents handle specific phases of development:
+
+- **Feature Enricher:** Transforms raw feature requests into structured specifications
+- **PRD Creator:** Generates comprehensive Product Requirements Documents
+- **PRD Analyzer:** Validates PRD quality and completeness
+- **Tech Spec Creator:** Creates detailed technical implementation specifications
+- **Technical Reviewer:** Validates technical specifications for quality and compliance
+- **Simplicity Guardian:** Analyzes complexity and prevents overengineering
+- **Task Generator:** Converts specifications into implementable task lists using Taskmaster MCP
+
+### 3. Rule Injection System
+
+The `agent_coordinator.md` acts as a dependency injector, providing each agent with only the rules relevant to their specific function, ensuring:
+
+- **Separation of concerns:** Agents focus on their specific role
+- **Consistency:** All agents operate from the same rule base
+- **Maintainability:** Rule changes propagate automatically to all relevant agents
+
+## Primary Workflows
+
+### Complete Feature Development Pipeline
+
+The agent coordinator orchestrates the complete pipeline from feature request to implementable tasks:
 
 ```bash
-# Start with clarifying questions
-/project:prd-clarify
-
-# Generate PRD after gathering requirements
-/project:prd-generate <feature-name>
-
-# Create technical specification
-/project:prd-techspec <feature-name>
+# Full pipeline: Feature → PRD → Tech Spec → Tasks
+/project:agent-coordinator "Add user authentication system"
 ```
 
-### 2. Task Planning Workflow
+**Process:**
+
+1. **Feature Enrichment:** Raw request → Structured specification
+2. **PRD Creation:** Specification → Comprehensive requirements document
+3. **PRD Analysis:** Quality validation and completeness check
+4. **Tech Spec Creation:** Requirements → Technical implementation design
+5. **Technical Review:** Architecture validation and quality assurance
+6. **Complexity Analysis:** Simplification and scope validation
+7. **Task Generation:** Specifications → Implementable task lists using Taskmaster MCP
+
+### Individual Agent Workflows
+
+For targeted work on specific phases:
 
 ```bash
-# Generate high-level parent tasks
-/project:tasks-parent <feature-name>
+# Create PRD from enriched feature specification
+/project:agent-prd-creator
 
-# Break down into subtasks (after user confirms with "Go")
-/project:tasks-subtasks <feature-name>
+# Analyze existing PRD for quality and completeness
+/project:agent-prd-analyzer
 
-# Analyze complexity and suggest breakdowns
-/project:tasks-complexity <feature-name>
+# Create technical specification from validated PRD
+/project:agent-techspec-creator
+
+# Review technical specification for compliance
+/project:agent-technical-reviewer
+
+# Generate tasks using Taskmaster MCP workflow
+/project:agent-task-generator
 ```
 
-### 3. Implementation & Completion Workflow
+### Implementation & Completion
 
 ```bash
-# Start specific task with proper setup and context
-/project:task-start <task-number>
-
-# Find and start next available task automatically
+# Start working on next available task
 /project:task-next
 
-# Complete full task review and completion workflow
+# Start specific task with context
+/project:task-start <task-number>
+
+# Complete task with full validation workflow
 /project:task-review <task-number>
 ```
 
-### 4. Session Management Workflow
+## Agent Details
 
-```bash
-# Start new development session
-/project:session-start
+### Core Agent Workflow
 
-# Check current session status
-/project:session-current
+#### `agent_coordinator.md`
 
-# Update session with progress
-/project:session-update
+- **Purpose:** Master orchestrator for the complete development pipeline
+- **Rules Injected:** All 14 rules from `.cursor/rules/`
+- **Capabilities:**
+    - Complete feature development pipeline
+    - Individual workflow phase execution
+    - Conflict resolution and quality oversight
+    - Progress tracking and validation
+- **Usage:** Primary entry point for comprehensive feature development
 
-# End current session
-/project:session-end
+#### `agent_feature_enricher.md`
 
-# List all sessions
-/project:session-list
+- **Purpose:** Transform brief feature descriptions into structured specifications
+- **Rules Injected:**
+    - `.cursor/rules/backwards-compatibility.mdc`
+    - `.cursor/rules/architecture.mdc`
+    - `.cursor/rules/prd-create.mdc`
+    - `.cursor/rules/quality-security.mdc`
+- **Output:** Comprehensive JSON specification ready for PRD creation
 
-# Session management help
-/project:session-help
-```
+#### `agent_prd_creator.md`
 
-## Command Details
+- **Purpose:** Generate complete Product Requirements Documents
+- **Rules Injected:**
+    - `.cursor/rules/prd-create.mdc`
+    - `.cursor/rules/critical-validation.mdc`
+- **Output:** Stakeholder-ready PRD following official template
 
-### PRD Commands
+#### `agent_prd_analyzer.md`
 
-#### `/project:prd-clarify`
+- **Purpose:** Validate PRD quality, completeness, and implementation readiness
+- **Rules Injected:**
+    - `.cursor/rules/prd-create.mdc`
+    - `.cursor/rules/quality-security.mdc`
+    - `.cursor/rules/architecture.mdc`
+- **Output:** Quality assessment with actionable feedback
 
-- **Purpose:** Ask comprehensive clarifying questions before PRD creation
-- **Based on:** `prd-create.mdc` clarifying questions section
-- **Usage:** Run first to gather requirements
-- **Output:** List of questions covering problem, goals, users, functionality, and technical considerations
+#### `agent_techspec_creator.md`
 
-#### `/project:prd-generate <feature-name>`
+- **Purpose:** Create detailed technical implementation specifications
+- **Rules Injected:**
+    - `.cursor/rules/prd-tech-spec.mdc`
+    - `.cursor/rules/architecture.mdc`
+    - `.cursor/rules/go-coding-standards.mdc`
+    - `.cursor/rules/api-standards.mdc`
+    - `.cursor/rules/go-patterns.mdc`
+- **Output:** Implementation-ready technical specification
 
-- **Purpose:** Generate complete PRD using project template
-- **Based on:** `prd-create.mdc` process workflow
-- **Usage:** After answering clarifying questions
-- **Output:** `tasks/prd-<feature-name>/_prd.md`
-- **Next Step:** Run `/project:prd-techspec`
+#### `agent_technical_reviewer.md`
 
-#### `/project:prd-techspec <feature-name>`
+- **Purpose:** Validate technical specifications for architectural compliance
+- **Rules Injected:**
+    - `.cursor/rules/architecture.mdc`
+    - `.cursor/rules/prd-tech-spec.mdc`
+    - `.cursor/rules/quality-security.mdc`
+    - `.cursor/rules/testing-standards.mdc`
+    - `.cursor/rules/api-standards.mdc`
+- **Output:** Technical approval with compliance validation
 
-- **Purpose:** Create technical specification document
-- **Based on:** `prd-tech-spec.mdc` complete workflow
-- **Usage:** After PRD is complete
-- **Process:** Pre-analysis with Zen MCP → Technical questions → Generate spec → Post-review
-- **Output:** `tasks/prd-<feature-name>/_techspec.md`
+#### `agent_simplicity_guardian.md`
 
-### Task Planning Commands
+- **Purpose:** Analyze complexity and prevent overengineering
+- **Rules Injected:**
+    - `.cursor/rules/backwards-compatibility.mdc`
+    - `.cursor/rules/task-generate-list.mdc`
+    - `.cursor/rules/architecture.mdc`
+- **Output:** Complexity analysis with simplification recommendations
 
-#### `/project:tasks-parent <feature-name>`
+#### `agent_task_generator.md`
 
-- **Purpose:** Generate high-level parent tasks (Phase 1)
-- **Based on:** `task-generate-list.mdc` §4
-- **Usage:** After PRD and Tech Spec are complete
-- **Output:** High-level task list with pause for user confirmation
-- **Next Step:** User responds "Go" then run `/project:tasks-subtasks`
-
-#### `/project:tasks-subtasks <feature-name>`
-
-- **Purpose:** Break parent tasks into actionable subtasks (Phase 2)
-- **Based on:** `task-generate-list.mdc` §6
-- **Usage:** After user confirms parent tasks with "Go"
-- **Output:**
-    - `tasks/prd-<feature-name>/_tasks.md`
-    - Individual `<num>_task.md` files
-
-#### `/project:tasks-complexity <feature-name>`
-
-- **Purpose:** Analyze task complexity and suggest breakdowns (Phase 3)
-- **Based on:** `task-generate-list.mdc` §7
-- **Usage:** After subtasks are generated
-- **Process:** Uses Zen MCP to score complexity and recommend further breakdown
-- **Output:** `tasks/prd-<feature-name>/task-complexity-report.json`
+- **Purpose:** Generate comprehensive task lists using Taskmaster MCP
+- **Rules Injected:**
+    - `.cursor/rules/task-generate-list.mdc`
+    - `.cursor/rules/task-developing.mdc`
+    - `.cursor/rules/task-review.mdc`
+    - `.cursor/rules/testing-standards.mdc`
+- **Output:** Complete taskmaster workflow with task files and complexity analysis
 
 ### Implementation Commands
 
 #### `/project:task-start <task-number>`
 
-- **Purpose:** Start working on specific task with proper setup and context
-- **Based on:** All project standards and task workflow requirements
-- **Usage:** Before beginning implementation of a specific task
-- **Process:**
-    - Reads task definition, PRD, and tech spec for context
-    - Provides critical reminders about project standards
-    - Outlines development workflow and available commands
-    - Ensures proper task setup before implementation begins
+- **Purpose:** Start specific task with proper setup and context
+- **Standards:** References all project standards from `.cursor/rules/`
+- **Process:** Provides task context, development workflow, and standards reminders
 
 #### `/project:task-next`
 
-- **Purpose:** Find and start next available task automatically
-- **Based on:** All project standards and task workflow requirements
-- **Usage:** When ready to work on the next task without knowing the number
-- **Process:**
-    - Scans `tasks/prd-*/` directories for task files
-    - Identifies next uncompleted task (first unchecked checkbox)
-    - Provides same setup as `task-start` but automatically
-    - Displays task number, title, and description
+- **Purpose:** Automatically find and start next available task
+- **Process:** Scans for uncompleted tasks and provides same setup as `task-start`
 
 #### `/project:task-review <task-number>`
 
-- **Purpose:** Complete full task review and completion workflow
-- **Based on:** `task-review.mdc` steps 2-6 (complete workflow)
-- **Usage:** When ready to review and complete a task
-- **Process:**
-    - Rules Analysis & Code Review with Zen MCP
-    - Fix all identified issues
-    - Pre-commit validation (`make lint`, `make test`)
-    - Git commit with proper message format
-    - Update task checkboxes to mark complete
+- **Purpose:** Complete comprehensive task review and completion workflow
+- **Based on:** `.cursor/rules/task-review.mdc`
+- **Process:** Zen MCP code review → Issue resolution → Pre-commit validation → Git commit
 
-### Session Management Commands
+### Session Management
 
-#### `/project:session-start`
+Session commands (`session-start`, `session-current`, `session-update`, `session-end`, `session-list`, `session-help`) provide organized development session tracking independent of the main agent workflow.
 
-- **Purpose:** Start new development session with proper context
-- **Usage:** Beginning of work session
-- **Process:** Initialize session tracking and set up development context
+## Key Benefits
 
-#### `/project:session-current`
+### 1. **Elimination of Duplication**
 
-- **Purpose:** Show current session status and progress
-- **Usage:** Check what's currently being worked on
-- **Output:** Current session details and progress status
+- **70% content reduction** in command files
+- **Single source of truth** for all development standards
+- **Consistent rule application** across all agents
 
-#### `/project:session-update`
+### 2. **Improved Maintainability**
 
-- **Purpose:** Update session with progress and notes
-- **Usage:** Log progress during development
-- **Process:** Track completed work and update session state
+- **Centralized updates:** Change rules in one place, affects all relevant agents
+- **Clear dependencies:** Explicit rule injection makes relationships visible
+- **Reduced complexity:** Agents focus on their specific role without rule duplication
 
-#### `/project:session-end`
+### 3. **Quality Assurance**
 
-- **Purpose:** End current session with summary
-- **Usage:** Conclude work session
-- **Process:** Summarize work completed and clean up session state
+- **Comprehensive validation:** Multi-stage review process with specialized agents
+- **Standards enforcement:** Automatic compliance with established patterns
+- **Zen MCP integration:** Enhanced code review and validation capabilities
 
-#### `/project:session-list`
+### 4. **Scalability**
 
-- **Purpose:** List all development sessions
-- **Usage:** Review session history
-- **Output:** List of all sessions with status and progress
-
-#### `/project:session-help`
-
-- **Purpose:** Show session management help and usage
-- **Usage:** Learn about session management features
-- **Output:** Detailed help for session commands
+- **Easy agent addition:** New agents can reference existing rules without duplication
+- **Rule evolution:** Standards can evolve without touching agent files
+- **Clear architecture:** Separation of concerns enables independent development
 
 ## Usage Examples
 
-### Complete Feature Development Workflow
+### Complete Feature Development
 
 ```bash
-# 1. Start new feature
-/project:prd-clarify
-# Answer questions...
+# Orchestrated pipeline from feature to tasks
+/project:agent-coordinator "Add monitoring dashboard with real-time metrics"
+```
 
-/project:prd-generate monitoring-system
-/project:prd-techspec monitoring-system
+### Targeted Development Phase
 
-# 2. Plan implementation
-/project:tasks-parent monitoring-system
-# Review parent tasks, respond "Go"
+```bash
+# Work on specific phase
+/project:agent-prd-creator
+# ... create PRD from existing feature spec ...
 
-/project:tasks-subtasks monitoring-system
-/project:tasks-complexity monitoring-system
+/project:agent-task-generator
+# ... generate tasks from validated tech spec ...
+```
 
-# 3. Implement and complete tasks
-/project:session-start
+### Implementation Workflow
+
+```bash
+# Start implementation
 /project:task-next
-# ... implement the task ...
+# ... implement task following project standards ...
 
+# Complete with validation
 /project:task-review 1
-/project:session-end
 ```
 
-### Session-Based Development
+## Architecture Notes
 
-```bash
-# Start work session
-/project:session-start
+- **Agent Coordinator:** Central orchestrator with complexity concentrated in one manageable file
+- **Rule References:** All agents use complete `.cursor/rules/*.mdc` paths for clarity
+- **Dependency Injection:** Explicit rule injection ensures agents receive only relevant standards
+- **Quality Gates:** Multi-stage validation prevents issues from propagating downstream
+- **Session Independence:** Session management operates separately from the main agent workflow
 
-# Check current work
-/project:session-current
-
-# Work on tasks
-/project:task-next
-# ... implementation work ...
-
-# Update progress
-/project:session-update
-
-# Complete and end session
-/project:task-review 1
-/project:session-end
-```
-
-### Task Management Workflow
-
-```bash
-# Find next task automatically
-/project:task-next
-
-# Review specific task implementation
-/project:task-review 3
-
-# Check all sessions
-/project:session-list
-```
-
-## Integration with Project Standards
-
-These commands enforce compliance with:
-
-- **Architecture:** `.cursor/rules/architecture.mdc`
-- **Go Standards:** `.cursor/rules/go-coding-standards.mdc`
-- **Testing:** `.cursor/rules/testing-standards.mdc`
-- **API Design:** `.cursor/rules/api-standards.mdc`
-- **Security:** `.cursor/rules/quality-security.mdc`
-- **Task Management:** `.cursor/rules/task-*.mdc`
-- **PRD Process:** `.cursor/rules/prd-*.mdc`
-
-## Benefits
-
-- **Consistency:** Enforces project standards across all development phases
-- **Quality:** Built-in code review and validation workflows
-- **Efficiency:** One-command access to complex multi-step processes
-- **Compliance:** Automatic adherence to established patterns and rules
-- **Session Tracking:** Organized development sessions with progress tracking
-- **Documentation:** Self-documenting workflow with clear next steps
-
-## Notes
-
-- Commands use `$ARGUMENTS` placeholder for dynamic values
-- All commands reference specific sections in `.cursor/rules/` files
-- Zen MCP integration provides enhanced analysis capabilities
-- Commands are designed for sequential workflow execution
-- Session management helps organize development work
-- Each command includes clear next-step guidance
+This streamlined architecture provides a robust, maintainable foundation for the Compozy development workflow while ensuring consistent quality and standards compliance.

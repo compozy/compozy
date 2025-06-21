@@ -3,47 +3,102 @@ status: pending
 ---
 
 <task_context>
-<domain>engine/agent</domain>
-<type>integration</type>
+<domain>engine/memory</domain>
+<type>implementation</type>
 <scope>configuration</scope>
-<complexity>high</complexity>
-<dependencies>task_1</dependencies>
+<complexity>medium</complexity>
+<dependencies>task_1,task_2,task_3</dependencies>
 </task_context>
 
-# Task 4.0: Create Fixed Configuration Resolution System
+# Task 4.0: Build Memory Registry and Resource Loading System
 
 ## Overview
 
-Implement the three-tier agent memory configuration system with proper YAML parsing and validation. This system provides progressive complexity from ultra-simple single-line setup to fully customizable multi-memory configurations while maintaining clear validation and error messages.
+Extend the existing `engine/autoload/registry.go` to support memory resources as first-class project entities. The ConfigRegistry already provides thread-safe storage, duplicate detection, and integration with AutoLoader - we just need to add memory resource support following the established patterns.
 
 ## Subtasks
 
-- [ ] 4.1 Build ConfigurationResolver with ResolveMemoryConfig method
-- [ ] 4.2 Implement parseAdvancedMemoryConfig for full MemoryReference objects
-- [ ] 4.3 Add smart defaults and memory_key validation
-- [ ] 4.4 Create ConfigValidator for memory ID existence checks
-- [ ] 4.5 Support AgentConfig with interface{} types for flexible YAML parsing
+- [ ] 4.1 Add ConfigMemory constant to core.ConfigType enum
+- [ ] 4.2 Update registry's extractResourceType to recognize memory configs
+- [ ] 4.3 Create memory.Config struct implementing Configurable interface
+- [ ] 4.4 Update AutoLoader to scan memories/ directory
+- [ ] 4.5 Add memory-specific validation following existing patterns
 
 ## Implementation Details
 
-Create `ConfigurationResolver` supporting three configuration levels:
+**1. Add to `engine/core/config.go`:**
 
-**Level 1**: Direct memory ID (`memory: "customer-support-context"`)
-**Level 2**: Simple multi-memory (`memory: true` + `memories: [...]` + `memory_key`)  
-**Level 3**: Advanced configuration (`memories: [{id, mode, key}]`)
+```go
+const (
+    // ... existing types ...
+    ConfigMemory ConfigType = "memory"
+)
+```
 
-The resolver must handle YAML parsing correctly by detecting configuration levels through field type examination. Level 2 requires `memory: true` combined with string array in `memories` field. Level 3 uses full reference objects with validation.
+**2. Update `engine/autoload/registry.go` extractResourceType():**
 
-Add comprehensive error messages for configuration issues, smart defaults (read-write mode), and required memory_key validation for simplified patterns.
+```go
+resourceTypeMap := map[string]string{
+    // ... existing mappings ...
+    "*memory.Config": string(core.ConfigMemory),
+    "memory.Config":  string(core.ConfigMemory),
+}
+```
+
+**3. Create `engine/memory/config.go` implementing Configurable:**
+
+```go
+type Config struct {
+    Resource    string                `json:"resource,omitempty" yaml:"resource,omitempty"`
+    ID          string                `json:"id" yaml:"id" validate:"required"`
+    Type        string                `json:"type" yaml:"type" validate:"required,oneof=context summary"`
+    Allocations []AllocationConfig    `json:"allocations,omitempty" yaml:"allocations,omitempty"`
+    Flushing    *FlushingConfig       `json:"flushing,omitempty" yaml:"flushing,omitempty"`
+    Version     string                `json:"version,omitempty" yaml:"version,omitempty"`
+    Description string                `json:"description,omitempty" yaml:"description,omitempty"`
+}
+
+// Implement Configurable interface
+func (c *Config) GetResource() string { return "memory" }
+func (c *Config) GetID() string { return c.ID }
+```
+
+The existing ConfigRegistry will automatically:
+
+- Handle thread-safe storage and retrieval
+- Detect and prevent duplicate memory IDs
+- Integrate with AutoLoader for memories/ directory scanning
+- Provide case-insensitive lookups
+
+Key sanitization and tenant isolation should be implemented in the memory package's business logic, not in the registry, maintaining proper separation of concerns.
+
+# Relevant Files
+
+## Core Implementation Files
+
+- `engine/autoload/registry.go` - Extend existing ConfigRegistry
+- `engine/autoload/loader.go` - Integrate memory loading with AutoLoader
+- `engine/memory/config.go` - Memory resource config implementing Configurable
+- `engine/memory/types.go` - Memory resource data models
+- `engine/core/config.go` - Add ConfigMemory type constant
+
+## Test Files
+
+- `engine/autoload/registry_test.go` - Extend with memory resource tests
+- `engine/memory/config_test.go` - Memory configuration tests
+
+## Configuration Files
+
+- `memories/customer-support.yaml` - Example memory resource file
 
 ## Success Criteria
 
-- All three configuration levels work with correct YAML parsing
-- Level detection logic properly identifies patterns through field types
-- Memory ID validation ensures referenced memories exist in project config
-- Smart defaults applied correctly (read-write mode for simplified configs)
-- Error handling provides helpful validation messages for configuration issues
-- Backward compatibility maintained with existing configurations
+- Memory resources load correctly from both project config and separate files
+- Complex memory configurations validate properly (allocations, flushing)
+- Resource versioning and descriptions support project documentation
+- Key sanitization ensures Redis compatibility and multi-tenant security
+- Project-level isolation prevents cross-project memory access
+- Integration with project configuration system works seamlessly
 
 <critical>
 **MANDATORY REQUIREMENTS:**

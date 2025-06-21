@@ -3,54 +3,107 @@ status: pending
 ---
 
 <task_context>
-<domain>engine/memory</domain>
+<domain>engine/infra/monitoring</domain>
 <type>implementation</type>
-<scope>middleware</scope>
-<complexity>medium</complexity>
-<dependencies>task_6</dependencies>
+<scope>performance</scope>
+<complexity>low</complexity>
+<dependencies>task_1,task_2,task_5,task_6</dependencies>
 </task_context>
 
-# Task 10.0: Implement Privacy Controls and Data Protection
+# Task 10.0: Add Monitoring, Metrics, and Observability
 
 ## Overview
 
-Add privacy flags, redaction policies, and selective persistence controls for sensitive data. This system ensures compliance with privacy regulations while protecting sensitive information in conversation memory.
+Implement comprehensive monitoring for memory operations, performance, and health. This system provides visibility into memory usage patterns, performance characteristics, and operational health for production deployments.
 
 ## Subtasks
 
-- [ ] 10.1 Implement message-level privacy flags for non-persistable content
-- [ ] 10.2 Add synchronous redaction before data leaves process boundaries
-- [ ] 10.3 Create privacy policy configuration at memory resource level
-- [ ] 10.4 Implement selective persistence controls that honor privacy flags
-- [ ] 10.5 Add logging when sensitive data is excluded from persistence
+- [ ] 11.1 Add Prometheus metrics for memory operations and performance
+- [ ] 11.2 Implement structured logging with async operation tracing
+- [ ] 11.3 Extend existing Grafana dashboard with memory visualization panels
+- [ ] 11.4 Add health check endpoints for memory system status
+- [ ] 11.5 Create alerting rules for memory system health
 
 ## Implementation Details
 
-Implement privacy controls that work seamlessly with async memory operations:
+**Integration with Existing Monitoring Infrastructure**:
 
-**Message-level privacy flags**: Extend message structure to include privacy metadata
-**Synchronous redaction**: Apply configurable regex patterns before persistence
-**Privacy policies**: Configure redaction rules at memory resource level
-**Selective persistence**: Honor privacy flags in Redis storage layer
-**Privacy logging**: Log when sensitive data is excluded for audit purposes
+Extend the existing monitoring service (`engine/infra/monitoring/monitoring.go`) with memory-specific metrics:
 
-Support configurable redaction patterns:
+- **Metric Registration**: Register metrics through existing `Service.meter` using OpenTelemetry patterns
+- **Prometheus Integration**: Metrics automatically exported via existing Prometheus exporter
+- **Namespace Convention**: Use "compozy" namespace consistent with existing metrics
 
-- SSN: `\b\d{3}-\d{2}-\d{4}\b`
-- Credit cards: `\b\d{4}-\d{4}-\d{4}-\d{4}\b`
-- Custom patterns defined per memory resource
+**Memory-Specific Metrics** (following existing patterns):
 
-Ensure privacy controls integrate with async operations without performance impact.
+```go
+// Counter metrics (similar to existing patterns)
+- memory_messages_total{memory_id, project}
+- memory_tokens_total{memory_id, project}
+- memory_trim_total{memory_id, strategy, project}
+- memory_flush_total{memory_id, type, project}
+- memory_lock_acquire_total{memory_id, project}
+- memory_lock_contention_total{memory_id, project}
+- memory_tokens_saved_total{memory_id, strategy, project}
+- memory_temporal_activities_total{memory_id, activity_type, project}
+- memory_config_resolution_total{pattern, project}
+
+// Histogram metrics (for latencies)
+- memory_operation_latency_seconds{operation, memory_id, project}
+
+// Gauge metrics (for current state)
+- memory_goroutine_pool_active{memory_id, project}
+```
+
+**Structured Logging Integration**:
+
+- Use existing `pkg/logger` patterns with context propagation
+- Add memory-specific fields: `memory_id`, `operation`, `tokens_used`
+- Leverage existing async operation tracing patterns
+
+**Grafana Dashboard Extension**:
+
+- Extend existing `cluster/grafana/dashboards/compozy-monitoring.json`
+- Add new memory panel section (not a separate dashboard)
+- Follow existing dashboard structure and variable patterns
+- Include token usage visualizations and flushing metrics
+- Reuse existing dashboard variables and template queries
+
+**Health Check Integration**:
+
+- Add memory health status to existing health endpoint
+- Follow existing health check patterns from monitoring service
+- Report Redis connectivity and memory system readiness
+
+This provides comprehensive visibility while maximally reusing existing monitoring infrastructure and maintaining consistency with established patterns.
+
+# Relevant Files
+
+## Core Implementation Files
+
+- `engine/memory/metrics.go` - Memory system metrics and monitoring
+- `engine/infra/monitoring/memory_interceptor.go` - Memory monitoring interceptor
+- `engine/memory/interfaces.go` - Enhanced Memory interface with metrics operations
+
+## Test Files
+
+- `engine/memory/metrics_test.go` - Memory metrics and monitoring tests
+- `test/integration/monitoring/memory_test.go` - Memory monitoring integration tests
+
+## Configuration Files
+
+- `cluster/grafana/dashboards/compozy-monitoring.json` - Extended with memory panels (existing file)
 
 ## Success Criteria
 
-- Message-level privacy flags prevent sensitive data persistence
-- Regex redaction patterns work accurately with configurable rules
-- Privacy policies configure correctly at memory resource level
-- Selective persistence honors privacy flags in Redis layer
-- Privacy exclusion logging provides audit trail for compliance
-- Privacy controls work seamlessly with async memory operations
-- Performance impact of privacy processing remains minimal
+- Prometheus metrics collection provides comprehensive memory system visibility
+- Structured logging enables async operation tracing and debugging
+- Extended Grafana dashboard visualizes memory health, performance, and usage patterns
+- Health check endpoints report memory system status accurately
+- Metrics collection accuracy validated under various load scenarios
+- Dashboard extension maintains consistency with existing monitoring patterns
+- Integration with existing monitoring service validated
+- No new monitoring infrastructure components required
 
 <critical>
 **MANDATORY REQUIREMENTS:**

@@ -1,7 +1,9 @@
 ---
 description: Comprehensive architectural standards and design principles following SOLID principles, Clean Architecture, and DRY practices for building maintainable, scalable software
+globs:
 alwaysApply: true
 ---
+# Architecture & Design Principles
 # Architecture & Design Principles
 
 <goal>
@@ -106,10 +108,15 @@ engine/
 
 <layer_separation>
 **Layer Separation:**
-- **Domain Layer** (`engine/core/`): Business entities and rules
-- **Application Layer** (`engine/{agent,task,tool,workflow}/`): Use cases and orchestration
-- **Infrastructure Layer** (`engine/infra/`): External concerns (DB, HTTP, etc.)
-- **Runtime Layer** (`engine/runtime/`): Execution environment
+- **Domain Layer** (`engine/core/`): Shared business entities, value objects, and cross-domain primitives
+- **Application Layer** (`engine/{agent,task,tool,workflow}/`): Domain-specific business logic, use cases, and port interfaces (repositories, external services)
+- **Infrastructure Layer** (`engine/infra/`): External concerns (DB, HTTP, etc.) and adapter implementations
+- **Runtime Layer** (`engine/runtime/`): Execution environment and system orchestration
+
+**Interface Ownership Clarification:**
+- **Port Interfaces** (e.g., Repository, ExternalService): Defined in Application Layer packages where they're used
+- **Domain Entities**: Defined in Domain Layer (`engine/core/`) for cross-domain sharing
+- **Adapter Implementations**: Defined in Infrastructure Layer, implementing Application Layer interfaces
 </layer_separation>
 
 <dependency_flow>

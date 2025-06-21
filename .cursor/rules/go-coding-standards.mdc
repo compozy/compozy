@@ -1,9 +1,7 @@
 ---
-description: Go coding standards covering project structure, code style, error handling, and dependency patterns for Compozy
-globs: ["**/*.go", "**/go.mod", "**/go.sum"]
-alwaysApply: false
-type: auto_attached
-applies_to: ["go_development", "backend_development"]
+description:
+globs:
+alwaysApply: true
 ---
 # Go Coding Standards
 

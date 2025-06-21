@@ -10,49 +10,117 @@ status: pending
 <dependencies>task_1,task_2,task_3</dependencies>
 </task_context>
 
-# Task 6.0: Implement Async-Safe Memory Instance Management
+# Task 6.0: Implement Memory Instance with Existing Infrastructure
 
 ## Overview
 
-Create thread-safe memory instances with distributed locking and async operations. This system orchestrates all memory features (priorities, flushing, locking) into a cohesive async-safe interface that supports concurrent agent access while maintaining data consistency.
+Create thread-safe memory instances using the existing `cache.LockManager` for distributed locking and Temporal for async operations. This follows the established patterns in the codebase where async operations are implemented as Temporal activities rather than using external job queues.
 
 ## Subtasks
 
-- [ ] 6.1 Build AsyncSafeMemoryInstance wrapping memory operations with distributed locking
-- [ ] 6.2 Implement withLockRefresh for automatic TTL extension during long operations
-- [ ] 6.3 Create performFlushAsync combining priority eviction and hybrid flushing
-- [ ] 6.4 Add optimized AppendAsync with count-based flush checking
-- [ ] 6.5 Implement diagnostic methods and MemoryHealth reporting
+- [ ] 6.1 Create MemoryInstance using existing cache.LockManager interface
+- [ ] 6.2 Implement memory operations with distributed locking patterns
+- [ ] 6.3 Create Temporal activities for async flush operations
+- [ ] 6.4 Follow Redis patterns from engine/task/services/redis_store.go
+- [ ] 6.5 Add health checks following existing patterns
 
 ## Implementation Details
 
-Build `AsyncSafeMemoryInstance` as the orchestrating component that combines:
+**1. Memory Instance Structure:**
 
-- Distributed locking for cluster-safe operations
-- Priority-based token management (from Task 2)
-- Hybrid flushing strategy (from Task 3)
-- Optimized flush checking using message counts
+```go
+type MemoryInstance struct {
+    lockManager cache.LockManager  // Use existing interface
+    redis       *cache.Redis       // Follow existing Redis patterns
+    config      *Config
+    projectID   string
+    // ... other fields
+}
+```
 
-Key features:
+**2. Distributed Locking Pattern (from existing code):**
 
-- `AppendAsync()` with distributed locking and automatic flush checking
-- `withLockRefresh()` spawning goroutines for lock TTL extension
-- `performFlushAsync()` integrating priority eviction + hybrid flushing
-- Lock refresh mechanism with 15s intervals for 30s TTL locks
-- Memory key template evaluation using tplengine
-- `MemoryHealth` diagnostics with priority breakdown and flush metrics
+```go
+func (m *MemoryInstance) Append(ctx context.Context, messages []Message) error {
+    // Acquire lock using existing LockManager
+    lock, err := m.lockManager.Acquire(ctx, m.getLockKey(), 30*time.Second)
+    if err != nil {
+        return fmt.Errorf("failed to acquire lock: %w", err)
+    }
+    defer lock.Release(ctx)
 
-The system must handle long operations gracefully with automatic lock refresh while maintaining optimal performance through count-based flush triggers.
+    // Perform append operation
+    // Check flush conditions
+    // Trigger Temporal workflow if needed
+}
+```
+
+**3. Temporal Activity for Async Flush:**
+
+```go
+// In engine/memory/activities/flush.go
+type FlushMemoryInput struct {
+    ProjectID  string
+    MemoryID   string
+    Strategy   string
+}
+
+func (a *FlushMemory) Run(ctx context.Context, input *FlushMemoryInput) error {
+    // Implement flush logic following CompleteWorkflow pattern
+    activity.RecordHeartbeat(ctx, "Flushing memory")
+    // ... flush implementation
+}
+```
+
+**4. Redis Patterns (following redis_store.go):**
+
+- Use key prefixes for namespacing
+- Implement TTL management
+- Follow existing error handling patterns
+- Use atomic operations where needed
+
+**5. Health Checks:**
+
+```go
+func (m *MemoryInstance) HealthCheck(ctx context.Context) error {
+    // Follow existing health check patterns
+    return m.redis.HealthCheck(ctx)
+}
+```
+
+The implementation reuses existing infrastructure:
+
+- `cache.LockManager` for distributed locking (extends existing implementation)
+- Temporal activities for async operations (follows existing patterns)
+- Existing Redis patterns with proper key management
+- Standard error handling with `core.NewError`
+
+# Relevant Files
+
+## Core Implementation Files
+
+- `engine/memory/instance.go` - MemoryInstance with distributed locking
+- `engine/memory/interfaces.go` - Memory interface with async operations
+- `engine/memory/activities/flush.go` - Temporal activities for async operations
+- `engine/infra/cache/lock_manager.go` - Existing LockManager to use
+- `engine/task/services/redis_store.go` - Redis patterns to follow
+
+## Test Files
+
+- `engine/memory/instance_test.go` - Async-safe operations and locking tests
+- `engine/memory/activities/flush_test.go` - Temporal activity tests
+- `test/integration/memory/concurrent_test.go` - Concurrent access pattern tests
 
 ## Success Criteria
 
 - Async-safe operations work correctly under concurrent access patterns
-- Distributed locking prevents data loss during multi-agent scenarios
-- Lock refresh mechanism extends TTL automatically for long operations
-- Priority eviction and hybrid flushing integrate seamlessly
+- Distributed locking with existing LockManager prevents data loss
+- Token counting with tiktoken-go provides accurate measurements
+- Flush operations via Temporal activities integrate with existing patterns
 - Optimized flush checking avoids performance bottlenecks
-- Memory health reporting provides accurate diagnostic information
+- Memory health reporting follows existing health check patterns
 - Template evaluation works with all workflow context variables
+- Integration maintains consistency with existing architecture
 
 <critical>
 **MANDATORY REQUIREMENTS:**

@@ -1,7 +1,7 @@
 ---
-description: "Mandatory task completion workflow using Zen MCP for code review and validation"
-globs: []
-alwaysApply: false
+description:
+globs:
+alwaysApply: true
 ---
 # Task Completion Workflow with Zen MCP
 

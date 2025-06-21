@@ -1,7 +1,7 @@
 ---
-description: Defines consistent section comment formatting standards for Go code organization
-globs: ["**/*.go"]
-alwaysApply: false
+description:
+globs:
+alwaysApply: true
 ---
 <comment_formatting_rule>
 - Use section comments with dashes for visual separation:

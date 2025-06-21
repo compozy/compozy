@@ -4,9 +4,9 @@ This directory contains the complete task breakdown for implementing Memory as a
 
 ## Task Overview
 
-**Total Tasks**: 35 (8 parent tasks + 27 subtasks)  
-**Estimated Duration**: 5-6 weeks  
-**Complexity Distribution**: 4 high complexity (7-10), 3 medium (4-6), 28 low (1-3)
+**Total Tasks**: 45 (10 parent tasks + 35 subtasks)  
+**Estimated Duration**: 6-7 weeks  
+**Complexity Distribution**: 5 high complexity (7-10), 4 medium (4-6), 36 low (1-3)
 
 ## Parent Tasks
 
@@ -18,13 +18,15 @@ This directory contains the complete task breakdown for implementing Memory as a
 
 ### Phase 2: Core Implementation (Weeks 2-3)
 
-- **Task 3.0**: Priority-Based Token Management and Hybrid Flushing Implementation
+- **Task 3.0**: Token Management and Hybrid Flushing Implementation
 - **Task 5.0**: Memory Manager with Async-Safe Instance Management
+- **Task 13.0**: Implement Priority-Based Token Eviction
 
 ### Phase 3: Integration (Weeks 3-4)
 
 - **Task 6.0**: Agent Runtime and LLM Orchestrator Memory Integration
 - **Task 7.0**: Advanced Features and Performance Optimization
+- **Task 14.0**: Implement Memory Resource Cleanup
 
 ### Phase 4: Quality & Polish (Weeks 4-5)
 
@@ -40,10 +42,12 @@ This directory contains the complete task breakdown for implementing Memory as a
 
 ### Advanced Memory Management
 
-- **Priority-based token management** with priority blocks (0=critical, 1=important, 2+=optional)
+- **Token-based memory management** with FIFO eviction strategy
+- **Priority-based token eviction** for preserving critical content during token pressure
 - **Hybrid flushing strategy** with rule-based summarization for context continuity
-- **Token allocation ratios** interacting with priority constraints (lower value wins)
+- **Token allocation ratios** for budget distribution (system, short_term, long_term)
 - **Async-first operations** with distributed Redis locking for cluster safety
+- **Active memory cleanup** on workflow termination with TTL-based fallback
 
 ### Production Features
 
@@ -56,9 +60,11 @@ This directory contains the complete task breakdown for implementing Memory as a
 
 1. **Task 1.0** → Memory interfaces enable all subsequent development
 2. **Task 2.0** → Redis implementation required for persistence and locking
-3. **Task 3.0** → Priority and flushing features integrate into memory operations
-4. **Task 5.0** → Memory manager orchestrates all features for runtime usage
-5. **Task 6.0** → Agent integration validates end-to-end functionality
+3. **Task 3.0** → Token management and flushing features integrate into memory operations
+4. **Task 13.0** → Priority-based eviction builds on token management
+5. **Task 5.0** → Memory manager orchestrates all features for runtime usage
+6. **Task 6.0** → Agent integration validates end-to-end functionality
+7. **Task 14.0** → Cleanup mechanisms ensure proper resource management
 
 ## Configuration Examples
 

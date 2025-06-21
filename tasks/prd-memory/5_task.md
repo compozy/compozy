@@ -5,44 +5,79 @@ status: pending
 <task_context>
 <domain>engine/memory</domain>
 <type>implementation</type>
-<scope>configuration</scope>
-<complexity>medium</complexity>
-<dependencies>task_1,task_4</dependencies>
+<scope>core_feature</scope>
+<complexity>high</complexity>
+<dependencies>task_1,task_2,task_4</dependencies>
 </task_context>
 
-# Task 5.0: Build Memory Registry and Resource Loading System
+# Task 5.0: Implement Async-Safe Memory Instance Management
 
 ## Overview
 
-Create project-level memory resource management with loading, validation, and lookup capabilities. This system manages memory resources as first-class project entities with support for separate YAML files, versioning, and multi-tenant safety.
+Create thread-safe memory instances with distributed locking and async operations. This system orchestrates all memory features (token management, flushing, locking) into a cohesive async-safe interface that supports concurrent agent access while maintaining data consistency.
 
 ## Subtasks
 
-- [ ] 5.1 Implement MemoryRegistry with resource storage and ID-based lookup
-- [ ] 5.2 Create MemoryResourceLoader for parsing memory definitions
-- [ ] 5.3 Add resource validation for priority blocks, token allocation, and flushing strategies
-- [ ] 5.4 Support memory resource files in memories/ directory
-- [ ] 5.5 Add project-level isolation and key sanitization
+- [ ] 6.1 Build AsyncSafeMemoryInstance using existing LockManager from engine/infra/cache
+- [ ] 6.2 Integrate with Temporal workflows for async operations
+- [ ] 6.3 Create performFlushAsync as Temporal activity for background processing
+- [ ] 6.4 Use existing Redis patterns from engine/task/services/redis_store.go
+- [ ] 6.5 Implement diagnostic methods following existing health check patterns
 
 ## Implementation Details
 
-Implement `MemoryRegistry` as the central repository for memory resources with ID-based lookup and validation. Create `MemoryResourceLoader` that can parse memory definitions from:
+Build `AsyncSafeMemoryInstance` as the orchestrating component that combines:
 
-- Project configuration (`compozy.yaml` memories section)
-- Separate YAML files (`memories/customer-support.yaml`)
+- Distributed locking using existing `LockManager` from `engine/infra/cache/lock_manager.go`
+- Token-based memory management with tiktoken-go (from Task 2)
+- Hybrid flushing strategy using Temporal activities for async processing
+- Optimized flush checking using message counts
 
-Add comprehensive validation for enhanced memory configurations including priority blocks, token allocation ratios, and flushing strategies. Support resource versioning and description fields for documentation.
+Key features:
 
-Implement multi-tenant safety with key sanitization using character whitelist `[a-zA-Z0-9-_\.:]`, length limits (max 512 chars), and automatic namespacing pattern: `compozy:{project_id}:memory:{user_key}`.
+- `Append()` with distributed locking using existing `RedisLockManager`
+- Use existing lock patterns with automatic renewal from `lock_manager.go`
+- `performFlushAsync()` implemented as Temporal activity following existing patterns
+- Follow existing Redis store patterns from `engine/task/services/redis_store.go`
+- Memory key template evaluation using existing tplengine
+- `MemoryHealth` diagnostics following existing health check patterns
+
+**Integration with Existing Infrastructure**:
+
+- Use `cache.LockManager` interface for distributed locking
+- Implement async operations as Temporal activities (see `engine/workflow/activities/`)
+- Follow existing Redis patterns with TTL management
+- Use existing context propagation and error handling patterns
+- Leverage existing monitoring and metrics infrastructure
+
+The system must follow the existing async patterns in the codebase, using Temporal for workflow orchestration rather than introducing new async libraries. This maintains consistency with the current architecture.
+
+# Relevant Files
+
+## Core Implementation Files
+
+- `engine/memory/instance.go` - AsyncSafeMemoryInstance with distributed locking
+- `engine/memory/interfaces.go` - Memory interface with async operations
+- `engine/memory/activities.go` - Temporal activities for async operations
+- `engine/infra/cache/lock_manager.go` - Existing LockManager to use
+- `engine/task/services/redis_store.go` - Redis patterns to follow
+
+## Test Files
+
+- `engine/memory/instance_test.go` - Async-safe operations and locking tests
+- `engine/memory/activities_test.go` - Temporal activity tests
+- `test/integration/memory/concurrent_test.go` - Concurrent access pattern tests
 
 ## Success Criteria
 
-- Memory resources load correctly from both project config and separate files
-- Complex memory configurations validate properly (priorities, allocations, flushing)
-- Resource versioning and descriptions support project documentation
-- Key sanitization ensures Redis compatibility and multi-tenant security
-- Project-level isolation prevents cross-project memory access
-- Integration with project configuration system works seamlessly
+- Async-safe operations work correctly under concurrent access patterns
+- Distributed locking with existing LockManager prevents data loss
+- Token counting with tiktoken-go provides accurate measurements
+- Hybrid flushing via Temporal activities integrates with existing patterns
+- Optimized flush checking avoids performance bottlenecks
+- Memory health reporting follows existing health check patterns
+- Template evaluation works with all workflow context variables
+- Integration maintains consistency with existing architecture
 
 <critical>
 **MANDATORY REQUIREMENTS:**

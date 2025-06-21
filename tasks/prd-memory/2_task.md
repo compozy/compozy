@@ -10,42 +10,84 @@ status: pending
 <dependencies>task_1</dependencies>
 </task_context>
 
-# Task 2.0: Implement Priority-Based Token Management System
+# Task 2.0: Implement Token Management and Flushing System
 
 ## Overview
 
-Build the priority-aware token counting and eviction system with token allocation constraints. This system ensures critical content (priority 0) is preserved while intelligently managing token budgets through configurable priority levels and allocation ratios.
+Build the comprehensive token management system with FIFO eviction and hybrid flushing strategy. This system manages token budgets through accurate counting, intelligent eviction, and rule-based summarization to maintain conversation context while respecting memory constraints.
 
 ## Subtasks
 
-- [ ] 2.1 Create PriorityMemoryManager with EvictWithPriority method
-- [ ] 2.2 Implement calculateEffectiveTokenLimits for priority/allocation interaction
-- [ ] 2.3 Build message grouping by priority and eviction algorithms
-- [ ] 2.4 Add token counting integration with model-specific tokenizers
-- [ ] 2.5 Support optional priority configuration with FIFO fallback
+- [ ] 2.1 Create TokenMemoryManager with standard FIFO eviction
+- [ ] 2.2 Integrate tiktoken-go for accurate token counting
+- [ ] 2.3 Build HybridFlushingStrategy with rule-based summarization
+- [ ] 2.4 Implement optimized flush checking using message count estimates
+- [ ] 2.5 Create Temporal activities for background flush processing
+- [ ] 2.6 Support configurable token allocation ratios and flushing parameters
 
 ## Implementation Details
 
-Create `PriorityMemoryManager` that enforces the PRD rule: "enforce the lower of the two values" when both token_allocation ratios and priority block max_tokens are configured.
+Create a unified token management and flushing system that:
 
-The system must:
+**Token Management**:
 
-- Preserve priority 0 (critical) content regardless of token pressure
-- Group messages by priority levels (0=critical, 1=important, 2+=optional)
-- Calculate effective token limits by comparing ratio-based budgets vs fixed max_tokens
-- Evict from lowest priority first while respecting effective limits
-- Map content types to allocation categories (system, short_term, long_term)
+- Count tokens accurately using tiktoken-go library
+- Support multiple model encodings (o200k_base, cl100k_base, p50k_base)
+- Evict oldest messages first when token limit is reached
+- Support configurable token allocation ratios (system, short_term, long_term)
+- Cache token counts per message to avoid re-tokenization
 
-Integrate with existing model registry for accurate token calculations using model-specific tokenizers.
+**Hybrid Flushing Strategy**:
+
+- Implement rule-based summarization (first message + N recent messages)
+- Use optimized flush checking based on message count estimates
+- Summarize oldest X% of messages when threshold is reached
+- Preserve recent context for conversation continuity
+- Calculate token savings from summarization
+
+**Background Processing**:
+
+- **NO ASYNQ**: Use Temporal activities for async flush operations
+- Follow existing Temporal patterns from `engine/workflow/activities/`
+- Use workflow.ExecuteActivity for background processing with proper context
+- Activity heartbeats for long-running flush operations
+- Temporal retry policies for fault tolerance
+- Avoid blocking main memory operations
+
+**Library Integration**:
+
+- Use **tiktoken-go** for all token counting operations (not duplicated)
+- Leverage existing Temporal infrastructure for background tasks
+- Follow existing activity patterns for error handling and retries
+- Use `temporal.NewNonRetryableApplicationError` for permanent failures
+
+# Relevant Files
+
+## Core Implementation Files
+
+- `engine/memory/token_manager.go` - Token-based memory management and FIFO eviction
+- `engine/memory/flush_strategy.go` - Hybrid flushing with rule-based summarization
+- `engine/memory/activities/flush.go` - Temporal activity for background flushing
+- `engine/memory/types.go` - TokenAllocation and FlushingStrategy data models
+
+## Test Files
+
+- `engine/memory/token_manager_test.go` - Token allocation and FIFO eviction tests
+- `engine/memory/flush_strategy_test.go` - Hybrid flushing and summarization tests
+- `engine/memory/activities/flush_test.go` - Temporal activity tests
 
 ## Success Criteria
 
-- Priority-based eviction preserves critical content under all token pressure scenarios
-- Effective token limits correctly implement "lower of two values" rule
-- Message grouping by priority works with configurable priority blocks
-- Token counting integration provides accurate model-specific calculations
-- Optional priority configuration falls back to standard FIFO eviction
-- Edge cases where ratios conflict with max_tokens are handled correctly
+- FIFO eviction works correctly under token pressure scenarios
+- Token counting provides accurate model-specific calculations using tiktoken-go
+- Hybrid flushing maintains context continuity through intelligent summarization
+- Rule-based summarization provides deterministic, cost-effective context preservation
+- Optimized flush checking avoids performance bottlenecks on high-volume scenarios
+- Temporal activities handle background flush operations without blocking
+- Token allocation ratios correctly distribute available token budget
+- Summary quality preserves essential context (first + recent messages)
+- Token savings calculations accurately reflect flush effectiveness
+- Configurable parameters allow tuning for different conversation patterns
 
 <critical>
 **MANDATORY REQUIREMENTS:**

@@ -1,10 +1,12 @@
 # Memory as a Shared Resource – Technical Specification
 
-**Document Version**: 1.0  
-**Last Updated**: {{DATE}}  
+**Document Version**: 2.0  
+**Last Updated**: 2025-06-21  
 **Author**: Tech Spec Creator Agent  
-**Status**: Draft  
+**Status**: Updated - Aligned with Existing Architecture  
 **Related PRD**: tasks/prd-memory/\_prd.md
+
+> **Architecture Alignment Note**: This specification has been updated to maximize reuse of existing Compozy infrastructure. The memory system extends existing components rather than duplicating functionality, using only tiktoken-go as an additional dependency.
 
 ---
 
@@ -13,13 +15,29 @@
 This specification describes how to introduce **project-level, shareable conversation memory** to Compozy.  
 The solution adds a new `engine/memory` domain that exposes:
 
-1. A **Memory Registry** that loads `memory` resources from project configuration and provides runtime lookup with enhanced developer experience.
-2. A **Memory Manager** that instantiates **Redis-backed, token-managed memory instances** with async operations, priority-based token management, and hybrid flushing strategies.
-3. **Distributed Redis locking for cluster-wide safety** combined with async-safe instance management to guarantee safe memory operations.
-4. **Enhanced Agent Configuration** supporting three complexity levels from ultra-simple to fully customizable.
-5. Minimal changes to the **Agent Runtime** and **LLM Orchestrator** so agents receive a resolved `Memory` interface via dependency injection with async operations.
+1. **Extends existing Autoload Registry** with memory resource loading and runtime lookup capabilities
+2. A **Memory Manager** that instantiates **Redis-backed, token-managed memory instances** using existing Redis infrastructure
+3. **Reuses existing LockManager** from `engine/infra/cache` for cluster-wide safety with memory operations
+4. **Enhanced Agent Configuration** supporting three complexity levels from ultra-simple to fully customizable
+5. Minimal changes to the **Agent Runtime** and **LLM Orchestrator** using Temporal activities for async operations
 
-The design follows Clean Architecture principles, provides progressive complexity for developer experience, and respects existing project standards with async-first operations.
+The design follows Clean Architecture principles, provides progressive complexity for developer experience, and maximally reuses existing infrastructure components.
+
+### Infrastructure Reuse Summary
+
+This memory system is designed to **extend rather than duplicate** existing Compozy infrastructure:
+
+| Component               | Existing Infrastructure Used                         | Benefit                                        |
+| ----------------------- | ---------------------------------------------------- | ---------------------------------------------- |
+| **Redis Operations**    | `engine/infra/store` Redis pool                      | No new Redis connections or configurations     |
+| **Distributed Locking** | `engine/infra/cache/LockManager` (Redlock algorithm) | Proven cluster-safe locking, no new libraries  |
+| **Async Processing**    | Temporal activities in `engine/worker`               | Consistent async patterns, no asynq dependency |
+| **Resource Management** | `engine/autoload/ConfigRegistry`                     | Unified resource loading, no new registry      |
+| **Circuit Breaker**     | Pattern from `engine/worker/dispatcher.go`           | Reuse existing `circuitBreakerDelay` constant  |
+| **Error Handling**      | `core.NewError` patterns                             | Consistent error codes and handling            |
+| **Template Processing** | Existing `tplengine`                                 | Key template evaluation using existing engine  |
+
+**New Dependencies**: Only `tiktoken-go` for accurate token counting
 
 ---
 
@@ -27,32 +45,34 @@ The design follows Clean Architecture principles, provides progressive complexit
 
 ### Domain Placement
 
-| Layer              | Package / Path               | Responsibility                                                 |
-| ------------------ | ---------------------------- | -------------------------------------------------------------- |
-| **Domain**         | `engine/memory`              | Core memory interfaces, token eviction, priority management    |
-| **Infrastructure** | `engine/infra/store`         | Redis client (re-used)                                         |
-| **Application**    | `engine/memory/manager`      | Runtime instance management, locking, configuration resolution |
-| **Integration**    | `engine/agent`, `engine/llm` | Resolve memory references, enforce modes, async operations     |
+| Layer              | Package / Path               | Responsibility                                           |
+| ------------------ | ---------------------------- | -------------------------------------------------------- |
+| **Domain**         | `engine/memory`              | Core memory interfaces, token eviction, token management |
+| **Infrastructure** | `engine/infra/store`         | Redis client (existing, reused)                          |
+| **Infrastructure** | `engine/infra/cache`         | LockManager (existing, reused)                           |
+| **Infrastructure** | `engine/autoload`            | ConfigRegistry (existing, extended for memory resources) |
+| **Application**    | `engine/memory/manager`      | Runtime instance management, configuration resolution    |
+| **Integration**    | `engine/agent`, `engine/llm` | Resolve memory references, enforce modes                 |
+| **Integration**    | `engine/worker/activities`   | Temporal activities for async memory operations          |
 
 ### Component Overview
 
-1. **MemoryResourceLoader** – loads & validates memory resources during project bootstrap with priority and flushing configurations.
-2. **MemoryRegistry** – stores loaded resources and resolves by ID.
-3. **MemoryStore (Redis)** – persistence-agnostic interface with Redis implementation providing async `AppendMessage`, `ReadMessages`, `CountMessages`, `TrimMessages`, `ReplaceMessages` operations.
-4. **MemoryInstance** – cluster-safe handle that uses distributed locking, priority-aware token counting, hybrid flushing, and delegates to MemoryStore.
-5. **DistributedLock (Redis)** – Redis-based locking using `SET NX EX` pattern for cluster coordination with automatic refresh mechanism.
-6. **MemoryManager** – factory that (a) evaluates key templates using `tplengine`, (b) creates or fetches `MemoryInstance`s, (c) enforces read-only mode, (d) resolves simplified agent configurations, (e) returns proper errors instead of panics.
-7. **Agent Memory Adapter** – lightweight wrapper injected into `LLM Orchestrator` so prompts include history from resolved memory with async operations.
-8. **Configuration Resolver** – handles three levels of agent memory configuration complexity with validation and smart defaults.
+1. **MemoryResourceLoader** – loads & validates memory resources during project bootstrap, registers with existing `autoload.ConfigRegistry`
+2. **MemoryStore (Redis)** – persistence interface with Redis implementation using existing `infra/store` Redis pool
+3. **MemoryInstance** – cluster-safe handle that uses existing `cache.LockManager`, token counting, hybrid flushing
+4. **MemoryManager** – factory that (a) evaluates key templates using `tplengine`, (b) creates or fetches `MemoryInstance`s, (c) enforces read-only mode, (d) resolves simplified agent configurations
+5. **Memory Activities** – Temporal activities in `worker/activities` for async operations (append, read, flush)
+6. **Agent Memory Adapter** – lightweight wrapper injected into `LLM Orchestrator` that uses Temporal activities
+7. **Configuration Resolver** – handles three levels of agent memory configuration complexity with validation and smart defaults
 
 Data Flow (high-level):
 
 ```
-Agent --> LLM Orchestrator --> MemoryManager -> MemoryInstance --> DistributedLock
-                                           ^                      |        |
-                                           |<---------------------+        v
-                                                                       MemoryStore (Redis)
-                                                                       [Priority + Hybrid Flushing]
+Agent --> LLM Orchestrator --> Temporal Activity --> MemoryManager -> MemoryInstance --> LockManager
+                                                                  ^                   |        |
+                                                                  |<------------------+        v
+                                                                                         MemoryStore (Redis)
+                                                                                         [Token Management + Hybrid Flushing]
 ```
 
 ---
@@ -62,47 +82,34 @@ Agent --> LLM Orchestrator --> MemoryManager -> MemoryInstance --> DistributedLo
 ### Core Interfaces
 
 ```go
-// Memory abstracts async read/write conversation history operations.
+// Memory abstracts read/write conversation history operations.
 type Memory interface {
-    // Async operations (primary interface)
-    AppendAsync(ctx context.Context, msg llm.Message) error
-    ReadAsync(ctx context.Context) ([]llm.Message, error)
-    LenAsync(ctx context.Context) (int, error)
+    // Core operations
+    Append(ctx context.Context, msg llm.Message) error
+    Read(ctx context.Context) ([]llm.Message, error)
+    Len(ctx context.Context) (int, error)
 
     // Diagnostic operations
-    GetTokenCountAsync(ctx context.Context) (int, error)
-    GetMemoryHealthAsync(ctx context.Context) (*MemoryHealth, error)
+    GetTokenCount(ctx context.Context) (int, error)
+    GetMemoryHealth(ctx context.Context) (*MemoryHealth, error)
 }
 
-// MemoryStore provides persistence-agnostic async message storage operations.
+// MemoryStore provides persistence-agnostic message storage operations.
 type MemoryStore interface {
-    AppendMessageAsync(ctx context.Context, key string, msg llm.Message) error
-    ReadMessagesAsync(ctx context.Context, key string) ([]llm.Message, error)
-    CountMessagesAsync(ctx context.Context, key string) (int, error)
-    TrimMessagesAsync(ctx context.Context, key string, keepCount int) error
-    ReplaceMessagesAsync(ctx context.Context, key string, messages []llm.Message) error
-    SetExpirationAsync(ctx context.Context, key string, ttl time.Duration) error
-
-    // Hybrid flushing support
-    SummarizeAndFlushAsync(ctx context.Context, key string, config FlushConfig) (*FlushResult, error)
+    AppendMessage(ctx context.Context, key string, msg llm.Message) error
+    ReadMessages(ctx context.Context, key string) ([]llm.Message, error)
+    CountMessages(ctx context.Context, key string) (int, error)
+    TrimMessages(ctx context.Context, key string, keepCount int) error
+    ReplaceMessages(ctx context.Context, key string, messages []llm.Message) error
+    SetExpiration(ctx context.Context, key string, ttl time.Duration) error
 }
 
-// DistributedLock provides cluster-safe locking for memory operations.
-type DistributedLock interface {
-    Acquire(ctx context.Context, key string, ttl time.Duration) (LockHandle, error)
-}
-
-// LockHandle represents an acquired distributed lock with refresh capability.
-type LockHandle interface {
-    Release(ctx context.Context) error
-    Refresh(ctx context.Context, ttl time.Duration) error
-}
+// Note: We reuse existing cache.LockManager and cache.Lock interfaces from engine/infra/cache
 
 // MemoryHealth provides diagnostic information about memory state.
 type MemoryHealth struct {
     TokenCount      int                    `json:"token_count"`
     MessageCount    int                    `json:"message_count"`
-    PriorityBreakdown map[int]int          `json:"priority_breakdown,omitempty"`
     LastFlush       *time.Time             `json:"last_flush,omitempty"`
     FlushStrategy   string                 `json:"flush_strategy"`
 }
@@ -119,9 +126,6 @@ type MemoryResource struct {
     MaxTokens   int     `yaml:"max_tokens,omitempty"`
     MaxRatio    float64 `yaml:"max_context_ratio,omitempty"`
 
-    // Priority-based token management (optional)
-    PriorityBlocks []PriorityBlock `yaml:"priority_blocks,omitempty"`
-
     // Token allocation ratios (optional)
     TokenAllocation *TokenAllocation `yaml:"token_allocation,omitempty"`
 
@@ -132,13 +136,6 @@ type MemoryResource struct {
         Type string        `yaml:"type"` // redis
         TTL  time.Duration `yaml:"ttl"`
     } `yaml:"persistence"`
-}
-
-// PriorityBlock defines content types and their priority levels
-type PriorityBlock struct {
-    Priority     int      `yaml:"priority"`     // 0=critical, 1=important, 2+=optional
-    ContentTypes []string `yaml:"content_types"`
-    MaxTokens    int      `yaml:"max_tokens,omitempty"`
 }
 
 // TokenAllocation defines how tokens are distributed across memory types
@@ -293,110 +290,246 @@ func (r *ConfigurationResolver) parseAdvancedMemoryConfig(memoriesInterface []in
 }
 ```
 
-### Priority and Token Management Integration
+### Token Management Integration
 
 ```go
-// PriorityMemoryManager handles token eviction with priority awareness
-type PriorityMemoryManager struct {
+// TokenMemoryManager handles token counting and FIFO eviction
+type TokenMemoryManager struct {
     resource      *MemoryResource
-    tokenCounter  TokenCounter
+    tokenCounter  TokenCounter  // Uses tiktoken-go for accurate counting
 }
 
-func (p *PriorityMemoryManager) EvictWithPriority(ctx context.Context, messages []llm.Message) ([]llm.Message, error) {
-    if len(p.resource.PriorityBlocks) == 0 {
-        // No priority configuration - use standard token eviction
-        return p.standardEviction(ctx, messages)
+func (t *TokenMemoryManager) EvictMessages(ctx context.Context, messages []llm.Message) ([]llm.Message, error) {
+    // Calculate total tokens using tiktoken-go
+    totalTokens := 0
+    tokenCounts := make([]int, len(messages))
+
+    for i, msg := range messages {
+        count, err := t.tokenCounter.CountTokens(msg.Content)
+        if err != nil {
+            return nil, fmt.Errorf("failed to count tokens: %w", err)
+        }
+        tokenCounts[i] = count
+        totalTokens += count
     }
 
-    // Calculate effective token limits (enforces lower of ratio-based vs fixed limits)
-    effectiveLimits := p.calculateEffectiveTokenLimits()
+    // Check if eviction is needed
+    maxTokens := t.getMaxTokens()
+    if totalTokens <= maxTokens {
+        return messages, nil
+    }
 
-    // Group messages by priority
-    priorityGroups := p.groupMessagesByPriority(messages)
-
-    // Evict from lowest priority first, respecting effective token limits
-    for priority := p.getMaxPriority(); priority >= 2; priority-- {
-        if p.isUnderTokenLimit(messages) {
-            break
-        }
-        maxTokensForPriority := effectiveLimits[priority]
-        messages = p.evictFromPriorityWithLimits(messages, priority, maxTokensForPriority)
+    // FIFO eviction - remove oldest messages until under limit
+    for totalTokens > maxTokens && len(messages) > 0 {
+        totalTokens -= tokenCounts[0]
+        messages = messages[1:]
+        tokenCounts = tokenCounts[1:]
     }
 
     return messages, nil
 }
 
-// calculateEffectiveTokenLimits implements the PRD rule: "enforce the lower of the two values"
-func (p *PriorityMemoryManager) calculateEffectiveTokenLimits() map[int]int {
-    totalTokens := p.resource.MaxTokens
-    if totalTokens == 0 && p.resource.MaxRatio > 0 {
+func (t *TokenMemoryManager) getMaxTokens() int {
+    if t.resource.MaxTokens > 0 {
+        return t.resource.MaxTokens
+    }
+    if t.resource.MaxRatio > 0 {
         // Calculate based on context ratio (would need model context size)
-        totalTokens = int(float64(4096) * p.resource.MaxRatio) // default 4K context
+        return int(float64(4096) * t.resource.MaxRatio) // default 4K context
     }
+    return 4000 // default
+}
 
-    effectiveLimits := make(map[int]int)
+// TokenCounter interface for tiktoken-go integration
+type TokenCounter interface {
+    CountTokens(text string) (int, error)
+    GetEncoding() string
+}
 
-    // If no token allocation configured, use priority block max_tokens directly
-    if p.resource.TokenAllocation == nil {
-        for _, block := range p.resource.PriorityBlocks {
-            if block.MaxTokens > 0 {
-                effectiveLimits[block.Priority] = block.MaxTokens
-            } else {
-                // No limit specified for this priority
-                effectiveLimits[block.Priority] = totalTokens
-            }
+// TiktokenCounter implements TokenCounter using tiktoken-go
+type TiktokenCounter struct {
+    encoding *tiktoken.Encoding
+}
+
+func NewTiktokenCounter(model string) (*TiktokenCounter, error) {
+    encoding, err := tiktoken.EncodingForModel(model)
+    if err != nil {
+        // Fall back to a default encoding
+        encoding, err = tiktoken.GetEncoding("cl100k_base")
+        if err != nil {
+            return nil, err
         }
-        return effectiveLimits
     }
+    return &TiktokenCounter{encoding: encoding}, nil
+}
 
-    // Calculate budgets from token_allocation ratios
-    allocation := p.resource.TokenAllocation
-    shortTermBudget := int(float64(totalTokens) * allocation.ShortTerm)
-    longTermBudget := int(float64(totalTokens) * allocation.LongTerm)
-    systemBudget := int(float64(totalTokens) * allocation.System)
+func (tc *TiktokenCounter) CountTokens(text string) (int, error) {
+    tokens := tc.encoding.Encode(text, nil, nil)
+    return len(tokens), nil
+}
+```
 
-    // Map allocation categories to priorities (simplified mapping for example)
-    allocationBudgets := map[string]int{
-        "short_term": shortTermBudget,
-        "long_term":  longTermBudget,
-        "system":     systemBudget,
-    }
+### Circuit Breaker for Memory Operations
 
-    // For each priority block, enforce the lower of allocation budget vs max_tokens
-    for _, block := range p.resource.PriorityBlocks {
-        // Map content types to allocation categories (implementation would be more sophisticated)
-        allocationCategory := p.mapContentTypesToAllocation(block.ContentTypes)
-        ratioBudget := allocationBudgets[allocationCategory]
+```go
+// MemoryCircuitBreaker protects memory operations from cascading failures
+type MemoryCircuitBreaker struct {
+    manager         *MemoryManager
+    failureCount    atomic.Int32
+    lastFailureTime atomic.Int64
+    state           atomic.Int32 // 0=closed, 1=open, 2=half-open
+}
 
-        // Enforce the lower of the two values, as per PRD requirement
-        if block.MaxTokens > 0 && block.MaxTokens < ratioBudget {
-            effectiveLimits[block.Priority] = block.MaxTokens
+const (
+    circuitClosed    int32 = 0
+    circuitOpen      int32 = 1
+    circuitHalfOpen  int32 = 2
+
+    maxFailures      = 5
+    circuitBreakerDelay = 5 * time.Second // Reuse existing pattern from dispatcher.go
+)
+
+func (cb *MemoryCircuitBreaker) Execute(ctx context.Context, fn func() error) error {
+    state := cb.state.Load()
+
+    switch state {
+    case circuitOpen:
+        // Check if we should transition to half-open
+        lastFailure := time.Unix(0, cb.lastFailureTime.Load())
+        if time.Since(lastFailure) > circuitBreakerDelay {
+            cb.state.CompareAndSwap(circuitOpen, circuitHalfOpen)
+            cb.failureCount.Store(0)
         } else {
-            effectiveLimits[block.Priority] = ratioBudget
+            return ErrCircuitBreakerOpen
         }
     }
 
-    return effectiveLimits
+    // Execute the function
+    err := fn()
+
+    if err != nil {
+        failures := cb.failureCount.Add(1)
+        cb.lastFailureTime.Store(time.Now().UnixNano())
+
+        if failures >= maxFailures {
+            cb.state.Store(circuitOpen)
+            log.Warn("Circuit breaker opened", "failures", failures)
+        }
+        return err
+    }
+
+    // Success - reset failure count
+    if state == circuitHalfOpen {
+        cb.state.Store(circuitClosed)
+        log.Info("Circuit breaker closed after recovery")
+    }
+    cb.failureCount.Store(0)
+
+    return nil
 }
 
-func (p *PriorityMemoryManager) mapContentTypesToAllocation(contentTypes []string) string {
-    // Simplified mapping - real implementation would be more sophisticated
-    for _, contentType := range contentTypes {
-        switch contentType {
-        case "system_prompt", "user_profile":
-            return "system"
-        case "recent_context", "important_facts":
-            return "short_term"
-        case "historical_messages":
-            return "long_term"
+// Integration with MemoryInstance
+func (m *MemoryInstance) AppendWithCircuitBreaker(ctx context.Context, msg llm.Message) error {
+    return m.circuitBreaker.Execute(ctx, func() error {
+        return m.Append(ctx, msg)
+    })
+}
+```
+
+### Priority-Based Eviction Implementation
+
+```go
+// MessagePriority defines priority levels for messages
+type MessagePriority int
+
+const (
+    PriorityLow    MessagePriority = 0
+    PriorityNormal MessagePriority = 1
+    PriorityHigh   MessagePriority = 2
+    PrioritySystem MessagePriority = 3 // System messages never evicted
+)
+
+// PriorityEvictionManager handles priority-based message eviction
+type PriorityEvictionManager struct {
+    tokenCounter TokenCounter
+    maxTokens    int
+}
+
+func (p *PriorityEvictionManager) EvictByPriority(ctx context.Context, messages []llm.Message) ([]llm.Message, error) {
+    // Group messages by priority
+    priorityGroups := make(map[MessagePriority][]llm.Message)
+    tokensByPriority := make(map[MessagePriority]int)
+
+    for _, msg := range messages {
+        priority := extractPriority(msg)
+        priorityGroups[priority] = append(priorityGroups[priority], msg)
+
+        tokens, err := p.tokenCounter.CountTokens(msg.Content)
+        if err != nil {
+            return nil, fmt.Errorf("failed to count tokens: %w", err)
+        }
+        tokensByPriority[priority] += tokens
+    }
+
+    totalTokens := 0
+    for _, tokens := range tokensByPriority {
+        totalTokens += tokens
+    }
+
+    // If under limit, return all messages
+    if totalTokens <= p.maxTokens {
+        return messages, nil
+    }
+
+    // Evict starting from lowest priority
+    result := make([]llm.Message, 0, len(messages))
+    currentTokens := totalTokens
+
+    // Always keep system messages
+    result = append(result, priorityGroups[PrioritySystem]...)
+    currentTokens -= tokensByPriority[PrioritySystem]
+
+    // Add messages by priority until we exceed limit
+    for priority := PriorityHigh; priority >= PriorityLow; priority-- {
+        groupMsgs := priorityGroups[priority]
+        groupTokens := tokensByPriority[priority]
+
+        if currentTokens <= p.maxTokens {
+            // We have room for all messages at this priority
+            result = append(result, groupMsgs...)
+        } else if currentTokens - groupTokens < p.maxTokens {
+            // We need to partially include this priority group
+            // Use FIFO within the priority group
+            for i := len(groupMsgs) - 1; i >= 0; i-- {
+                msgTokens, _ := p.tokenCounter.CountTokens(groupMsgs[i].Content)
+                if currentTokens - msgTokens >= p.maxTokens {
+                    currentTokens -= msgTokens
+                } else {
+                    result = append(result, groupMsgs[i])
+                }
+            }
+        } else {
+            // Skip entire priority group
+            currentTokens -= groupTokens
         }
     }
-    return "short_term" // default
+
+    return result, nil
 }
 
-func (p *PriorityMemoryManager) evictFromPriorityWithLimits(messages []llm.Message, priority int, maxTokensForPriority int) []llm.Message {
-    // Evict from this priority level while respecting effective token limits
-    return p.evictMessagesFromPriority(messages, priority, maxTokensForPriority)
+func extractPriority(msg llm.Message) MessagePriority {
+    // Check for priority markers in message metadata
+    if priority, ok := msg.Metadata["priority"].(int); ok {
+        return MessagePriority(priority)
+    }
+
+    // System messages get highest priority
+    if msg.Role == "system" {
+        return PrioritySystem
+    }
+
+    // Default to normal priority
+    return PriorityNormal
 }
 ```
 
@@ -540,70 +673,70 @@ type FlushResult struct {
 }
 ```
 
-### Optimized Async-Safe Memory Operations
+### Memory Operations with Existing Infrastructure
+
+**Reused Components**:
+
+- **cache.LockManager** from `engine/infra/cache` for distributed locking (already uses Redlock algorithm)
+- **Temporal Activities** for async operations instead of custom async implementations
+- **tiktoken-go** for accurate token counting (only new library needed)
 
 ```go
-// AsyncSafeMemoryInstance wraps memory operations with distributed locking and optimization
-type AsyncSafeMemoryInstance struct {
-    store        MemoryStore
-    lock         DistributedLock
-    key          string
-    resource     *MemoryResource
-    priorityMgr  *PriorityMemoryManager
+// MemoryInstance wraps memory operations with distributed locking
+type MemoryInstance struct {
+    store         MemoryStore
+    lockManager   cache.LockManager     // Reuse existing LockManager
+    key           string
+    resource      *MemoryResource
+    tokenMgr      *TokenMemoryManager   // Uses tiktoken-go
     flushStrategy *HybridFlushingStrategy
+    temporalClient client.Client        // For scheduling flush activities
 }
 
-func (m *AsyncSafeMemoryInstance) AppendAsync(ctx context.Context, msg llm.Message) error {
-    lockHandle, err := m.lock.Acquire(ctx, m.key, 30*time.Second)
+func (m *MemoryInstance) Append(ctx context.Context, msg llm.Message) error {
+    // Using existing LockManager for distributed locking
+    lock, err := m.lockManager.Acquire(ctx, fmt.Sprintf("memory:%s", m.key), 30*time.Second)
     if err != nil {
         return fmt.Errorf("failed to acquire lock: %w", err)
     }
-    defer lockHandle.Release(ctx)
+    defer lock.Release(ctx)
 
-    // Use lock refresh for potentially long operations
-    return m.withLockRefresh(ctx, lockHandle, func() error {
-        // Append message
-        if err := m.store.AppendMessageAsync(ctx, m.key, msg); err != nil {
-            return fmt.Errorf("failed to append message: %w", err)
+    // Append message
+    if err := m.store.AppendMessage(ctx, m.key, msg); err != nil {
+        return fmt.Errorf("failed to append message: %w", err)
+    }
+
+    // Optimized flush check - use count instead of reading all messages
+    messageCount, err := m.store.CountMessages(ctx, m.key)
+    if err != nil {
+        return fmt.Errorf("failed to get message count for flush check: %w", err)
+    }
+
+    // Quick check if flush might be needed
+    if m.flushStrategy.ShouldCheckFlush(ctx, messageCount) {
+        // Schedule flush via Temporal activity
+        wo := client.StartWorkflowOptions{
+            ID:        fmt.Sprintf("memory-flush-%s-%d", m.key, time.Now().Unix()),
+            TaskQueue: "memory-operations",
         }
 
-        // Optimized flush check - use count instead of reading all messages
-        messageCount, err := m.store.CountMessagesAsync(ctx, m.key)
+        _, err := m.temporalClient.ExecuteWorkflow(ctx, wo, "MemoryFlushWorkflow", m.key, m.resource.ID)
         if err != nil {
-            return fmt.Errorf("failed to get message count for flush check: %w", err)
+            // Log error but don't fail the append operation
+            log.Error("failed to schedule flush workflow", "error", err)
         }
+    }
 
-        // Quick check if flush might be needed
-        if m.flushStrategy.ShouldCheckFlush(ctx, messageCount) {
-            // Only read messages when likely near threshold
-            messages, err := m.store.ReadMessagesAsync(ctx, m.key)
-            if err != nil {
-                return fmt.Errorf("failed to read messages for flush check: %w", err)
-            }
-
-            shouldFlush, err := m.flushStrategy.ShouldFlush(ctx, len(messages), 0, m.getMaxTokens())
-            if err != nil {
-                return fmt.Errorf("failed to check flush condition: %w", err)
-            }
-
-            if shouldFlush {
-                return m.performFlushAsync(ctx, messages)
-            }
-        }
-
-        return nil
-    })
+    return nil
 }
 
 func (m *AsyncSafeMemoryInstance) performFlushAsync(ctx context.Context, messages []llm.Message) error {
-    // Apply priority-based eviction if configured
-    if len(m.resource.PriorityBlocks) > 0 {
-        evictedMessages, err := m.priorityMgr.EvictWithPriority(ctx, messages)
-        if err != nil {
-            return fmt.Errorf("priority eviction failed: %w", err)
-        }
-        messages = evictedMessages
+    // Apply token-based FIFO eviction
+    evictedMessages, err := m.tokenMgr.EvictMessages(ctx, messages)
+    if err != nil {
+        return fmt.Errorf("token eviction failed: %w", err)
     }
+    messages = evictedMessages
 
     // Apply hybrid flushing strategy
     flushResult, err := m.flushStrategy.FlushMessages(ctx, messages)
@@ -615,41 +748,133 @@ func (m *AsyncSafeMemoryInstance) performFlushAsync(ctx context.Context, message
     return m.store.ReplaceMessagesAsync(ctx, m.key, flushResult.Messages)
 }
 
-// withLockRefresh spawns a goroutine that refreshes the lock TTL every (TTL/2) seconds
-func (m *AsyncSafeMemoryInstance) withLockRefresh(ctx context.Context, lockHandle LockHandle, operation func() error) error {
-    // Create a context for the refresh goroutine
-    refreshCtx, cancel := context.WithCancel(ctx)
-    defer cancel()
+// MemoryFlushActivity processes memory flush tasks as a Temporal activity
+type MemoryFlushActivity struct {
+    manager     *MemoryManager
+    lockManager cache.LockManager
+}
 
-    // Start lock refresh goroutine
-    refreshDone := make(chan struct{})
-    go func() {
-        defer close(refreshDone)
-        ticker := time.NewTicker(15 * time.Second) // refresh every 15s for 30s TTL
-        defer ticker.Stop()
+func (a *MemoryFlushActivity) FlushMemory(ctx context.Context, key string, resourceID string) error {
+    // Acquire lock for flush operation
+    lock, err := a.lockManager.Acquire(ctx, fmt.Sprintf("memory-flush:%s", key), 5*time.Minute)
+    if err != nil {
+        return temporal.NewApplicationError("failed to acquire flush lock", "LOCK_FAILED", err)
+    }
+    defer lock.Release(ctx)
 
-        for {
-            select {
-            case <-refreshCtx.Done():
-                return
-            case <-ticker.C:
-                if err := lockHandle.Refresh(refreshCtx, 30*time.Second); err != nil {
-                    // Log refresh failure but don't interrupt main operation
-                    // The operation might complete before lock expires
-                    return
-                }
+    // Get memory instance and perform flush
+    instance, err := a.manager.GetInstance(ctx, resourceID, key)
+    if err != nil {
+        return fmt.Errorf("failed to get memory instance: %w", err)
+    }
+
+    // Read messages and perform flush
+    messages, err := instance.store.ReadMessages(ctx, key)
+    if err != nil {
+        return fmt.Errorf("failed to read messages for flush: %w", err)
+    }
+
+    // Apply token eviction and hybrid flushing
+    return instance.performFlush(ctx, messages)
+}
+
+// Register activity with Temporal worker
+func RegisterMemoryActivities(w worker.Worker, manager *MemoryManager, lockManager cache.LockManager) {
+    activity := &MemoryFlushActivity{
+        manager:     manager,
+        lockManager: lockManager,
+    }
+    w.RegisterActivity(activity.FlushMemory)
+}
+```
+
+### Minimal Agent Integration Changes
+
+```go
+// agent/runtime.go - Minimal changes to existing agent runtime
+type Runtime struct {
+    // Existing fields...
+    memory Memory // Add memory interface
+}
+
+// Small update to NewRuntime to accept memory
+func NewRuntime(config *Config, memory Memory) *Runtime {
+    return &Runtime{
+        // Existing initialization...
+        memory: memory,
+    }
+}
+
+// agent/router.go - Add memory resolution to existing router
+func (r *Router) resolveMemory(ctx context.Context, agentConfig *Config) (Memory, error) {
+    // Use existing ConfigurationResolver
+    resolver := &ConfigurationResolver{
+        registry: r.autoloadRegistry, // Reuse existing registry
+    }
+
+    memoryRefs, err := resolver.ResolveMemoryConfig(agentConfig)
+    if err != nil {
+        return nil, err
+    }
+
+    if len(memoryRefs) == 0 {
+        return nil, nil // No memory configured
+    }
+
+    // Get memory from manager
+    return r.memoryManager.GetMemory(ctx, memoryRefs[0])
+}
+```
+
+### Minimal Orchestrator Integration Changes
+
+```go
+// llm/orchestrator.go - Minimal changes to use memory
+type Orchestrator struct {
+    // Existing fields...
+    memoryActivity MemoryActivity // Add memory activity client
+}
+
+// Small update to prompt building to include memory
+func (o *Orchestrator) buildPrompt(ctx context.Context, agent *agent.Runtime) (string, error) {
+    var prompt strings.Builder
+
+    // Existing prompt building...
+
+    // Add memory context if available
+    if agent.memory != nil {
+        // Use Temporal activity for async read
+        var messages []llm.Message
+        err := workflow.ExecuteActivity(ctx, o.memoryActivity.ReadMemory, agent.memory.Key()).Get(ctx, &messages)
+        if err != nil {
+            log.Warn("Failed to read memory", "error", err)
+            // Continue without memory - non-blocking
+        } else if len(messages) > 0 {
+            prompt.WriteString("\n\nConversation History:\n")
+            for _, msg := range messages {
+                prompt.WriteString(fmt.Sprintf("%s: %s\n", msg.Role, msg.Content))
             }
         }
-    }()
+    }
 
-    // Execute main operation
-    err := operation()
+    return prompt.String(), nil
+}
 
-    // Cancel refresh and wait for cleanup
-    cancel()
-    <-refreshDone
+// After getting response, save to memory
+func (o *Orchestrator) processResponse(ctx context.Context, agent *agent.Runtime, response llm.Message) error {
+    // Existing response processing...
 
-    return err
+    // Save to memory if available (non-blocking)
+    if agent.memory != nil {
+        // Use Temporal activity for async append
+        err := workflow.ExecuteActivity(ctx, o.memoryActivity.AppendMemory, agent.memory.Key(), response).Get(ctx, nil)
+        if err != nil {
+            log.Warn("Failed to save to memory", "error", err)
+            // Continue - memory failure doesn't block agent
+        }
+    }
+
+    return nil
 }
 ```
 
@@ -672,6 +897,86 @@ var DefaultTokenAllocation = &TokenAllocation{
 
 // Applied when no priority blocks are configured
 var DefaultPriorityBehavior = "standard_fifo_eviction"
+
+// MemoryCleanupManager handles resource cleanup and expiration
+type MemoryCleanupManager struct {
+    store       MemoryStore
+    lockManager cache.LockManager
+    temporal    client.Client
+}
+
+// StartCleanupWorker runs periodic cleanup tasks
+func (m *MemoryCleanupManager) StartCleanupWorker(ctx context.Context) {
+    ticker := time.NewTicker(30 * time.Minute)
+    defer ticker.Stop()
+
+    for {
+        select {
+        case <-ctx.Done():
+            return
+        case <-ticker.C:
+            if err := m.performCleanup(ctx); err != nil {
+                log.Error("Cleanup failed", "error", err)
+            }
+        }
+    }
+}
+
+func (m *MemoryCleanupManager) performCleanup(ctx context.Context) error {
+    // Schedule cleanup via Temporal for reliability
+    wo := client.StartWorkflowOptions{
+        ID:        fmt.Sprintf("memory-cleanup-%d", time.Now().Unix()),
+        TaskQueue: "memory-operations",
+    }
+
+    _, err := m.temporal.ExecuteWorkflow(ctx, wo, "MemoryCleanupWorkflow")
+    return err
+}
+
+// MemoryCleanupActivity performs actual cleanup as a Temporal activity
+type MemoryCleanupActivity struct {
+    store       MemoryStore
+    lockManager cache.LockManager
+}
+
+func (a *MemoryCleanupActivity) CleanupExpiredMemories(ctx context.Context) error {
+    // This would scan Redis for expired memory keys and clean them up
+    // Implementation depends on Redis key patterns used
+
+    pattern := "compozy:*:memory:*"
+    keys, err := a.store.ScanKeys(ctx, pattern)
+    if err != nil {
+        return fmt.Errorf("failed to scan keys: %w", err)
+    }
+
+    cleaned := 0
+    for _, key := range keys {
+        // Check if key has TTL set and is close to expiration
+        ttl, err := a.store.GetTTL(ctx, key)
+        if err != nil {
+            log.Warn("Failed to get TTL", "key", key, "error", err)
+            continue
+        }
+
+        // If TTL is negative, key has no expiration - check last access time
+        if ttl < 0 {
+            lastAccess, err := a.store.GetLastAccess(ctx, key)
+            if err != nil {
+                continue
+            }
+
+            // Clean up memories not accessed in 30 days
+            if time.Since(lastAccess) > 30*24*time.Hour {
+                if err := a.store.Delete(ctx, key); err == nil {
+                    cleaned++
+                }
+            }
+        }
+    }
+
+    log.Info("Memory cleanup completed", "cleaned", cleaned)
+    return nil
+}
 
 // Key sanitization rules for Redis compatibility and security
 func SanitizeMemoryKey(userKey string, projectID string) string {
@@ -698,7 +1003,10 @@ _No new HTTP endpoints required_. Memory metrics will be exposed via the existin
 
 | Integration | Purpose                        | Approach                                                                                        |
 | ----------- | ------------------------------ | ----------------------------------------------------------------------------------------------- |
-| Redis       | Message persistence & locking  | Use existing `infra/store` Redis pool with `memory:` namespace prefix, async operations         |
+| Redis       | Message persistence            | Use existing `infra/store` Redis pool with `memory:` namespace prefix                           |
+| LockManager | Distributed locking            | Use existing `cache.LockManager` for all memory locking needs                                   |
+| Autoload    | Resource registration          | Extend existing `autoload.ConfigRegistry` to register memory resources                          |
+| Temporal    | Async operations               | Use Temporal activities for async memory operations (append, read, flush)                       |
 | tplengine   | Key template evaluation        | Injected into `MemoryManager` for configuration resolution                                      |
 | LLM Models  | Token counting & summarization | Integrate with existing model registry for token calculations and rule-based summary generation |
 
@@ -706,14 +1014,16 @@ _No new HTTP endpoints required_. Memory metrics will be exposed via the existin
 
 ## Impact Analysis
 
-| Affected Component        | Impact Type           | Description & Risk                                    | Action                                          |
-| ------------------------- | --------------------- | ----------------------------------------------------- | ----------------------------------------------- |
-| `engine/agent`            | API Change (internal) | Agents now accept enhanced memory config patterns     | Update constructor, add config resolver & tests |
-| `engine/llm/orchestrator` | Code Change           | Must load history from async `Memory` interface       | Inject dependency, convert to async operations  |
-| Redis cluster             | Performance           | Additional operations for priorities, flushing, locks | Monitor ops/sec, add TTL, capacity planning     |
-| Project Configuration     | Schema Change         | Enhanced memory resource schema with new fields       | Update validation, migration guide              |
+| Affected Component        | Impact Type           | Description & Risk                                     | Action                                          |
+| ------------------------- | --------------------- | ------------------------------------------------------ | ----------------------------------------------- |
+| `engine/agent`            | API Change (internal) | Agents now accept enhanced memory config patterns      | Update constructor, add config resolver & tests |
+| `engine/llm/orchestrator` | Code Change           | Must load history from `Memory` interface via activity | Inject dependency, use Temporal activities      |
+| `engine/worker`           | New Activities        | Add memory-related Temporal activities                 | Create new activities, register with worker     |
+| `engine/autoload`         | Extension             | Registry extended to handle memory resources           | Add memory resource type to registry            |
+| Redis cluster             | Performance           | Additional operations for memory storage               | Monitor ops/sec, add TTL, capacity planning     |
+| Project Configuration     | Schema Change         | Enhanced memory resource schema with new fields        | Update validation, migration guide              |
 
-Risk level is **Medium** – async changes require careful integration, but architectural impact is contained.
+Risk level is **Low** – leveraging existing infrastructure minimizes integration complexity.
 
 ---
 
@@ -721,30 +1031,33 @@ Risk level is **Medium** – async changes require careful integration, but arch
 
 ### Unit
 
-- `MemoryInstance.AppendAsync/ReadAsync/LenAsync` with in-memory fake store and mock distributed lock
-- Priority-based token eviction with various priority configurations and token allocation constraints
+- `MemoryInstance.Append/Read/Len` with in-memory fake store and mock LockManager
+- Token-based FIFO eviction with tiktoken-go integration
 - Hybrid flushing strategy with rule-based summarization and different message distributions
 - Configuration resolution for all three complexity levels with correct YAML parsing
 - Key template evaluation edge cases with sanitization
 - Read-only enforcement returns errors (not panics)
-- Distributed lock acquire/release/retry logic with refresh mechanism
+- LockManager integration with existing cache.Lock interface
+- Temporal activity tests for memory operations
 - Optimized flush checking with message count-based triggers
 
 ### Integration
 
 - Redis backed tests in `test/integration/memory` behind build tag `integration`
-- End-to-end agent workflow using memory with all features enabled
-- Multi-agent concurrent access with priorities and flushing
+- End-to-end agent workflow using memory with all features enabled via Temporal
+- Multi-agent concurrent access with token management and flushing
 - Configuration migration testing for all three configuration patterns
-- Performance testing with async operations under load
-- Lock contention and refresh mechanism testing
+- Temporal activity integration tests with memory operations
+- Lock contention testing with existing LockManager
+- ConfigRegistry integration tests for memory resources
 
 ### Performance
 
-- Async operation latency benchmarks
-- Priority processing overhead measurement with token allocation
+- Memory operation latency benchmarks via Temporal activities
+- Token counting performance with tiktoken-go
 - Hybrid flushing performance impact with rule-based summarization
-- Lock contention analysis under concurrent load with refresh mechanism
+- Lock contention analysis under concurrent load with LockManager
+- Temporal activity throughput benchmarks
 - Message count vs. full read optimization validation
 
 Coverage goals: 85% for `engine/memory` with focus on configuration resolution and async operations.
@@ -753,38 +1066,58 @@ Coverage goals: 85% for `engine/memory` with focus on configuration resolution a
 
 ## Development Sequencing
 
-1. **Enhanced Memory Domain Foundation**  
-   a. Define enhanced `Memory`, `MemoryStore`, `DistributedLock` interfaces with async operations (fixed interface without contradictory methods)
-   b. Implement `redisStore` with async methods in `engine/infra/store` (reuse existing pool) including `ReplaceMessagesAsync`
-   c. Implement `redisDistributedLock` using `SET NX EX` pattern with lock refresh mechanism
-   d. Create priority management and flushing strategy components with rule-based summarization
+### Phase 1: Memory Domain Foundation (Reuse Existing Infrastructure)
 
-2. **Fixed Configuration Resolution System**  
-   a. Implement corrected three-tier configuration resolver with proper YAML parsing
-   b. Add enhanced data models for priority blocks and flushing strategies
+1. **Core Interfaces**  
+   a. Define `Memory` and `MemoryStore` interfaces
+   b. Implement `redisStore` using existing `engine/infra/store` Redis pool
+   c. Create token management and flushing strategy components with rule-based summarization
+   d. Integrate tiktoken-go for accurate token counting (only new dependency)
+
+### Phase 2: Infrastructure Integration (Extend, Don't Duplicate)
+
+1. **Registry Extension**  
+   a. Extend existing `autoload.ConfigRegistry` to support memory resource type
+   b. Create MemoryResourceLoader that registers with existing ConfigRegistry
+2. **Manager Implementation**  
+   a. Implement MemoryManager that uses existing `cache.LockManager`
+   b. Integrate with existing `tplengine` for key template evaluation
+3. **Async Operations**  
+   a. Create Temporal activities for async memory operations (follow existing patterns)
+   b. Register activities with existing Temporal worker infrastructure
+
+### Phase 3: Configuration Resolution System (Leverage Existing Patterns)
+
+1. **Configuration System**  
+   a. Implement three-tier configuration resolver with proper YAML parsing
+   b. Add enhanced data models for token allocation and flushing strategies
    c. Create smart defaults and configuration migration logic
-   d. Add comprehensive unit tests for all configuration patterns with correct mappings
+   d. Add comprehensive unit tests for all configuration patterns
 
-3. **Enhanced Memory Implementation**  
-   a. Integrate priority-based token management with token allocation constraints into `MemoryInstance.AppendAsync`
+### Phase 4: Memory Implementation (Integrate with Existing Infrastructure)
+
+1. **Core Memory Features**  
+   a. Integrate token-based FIFO management with tiktoken-go into `MemoryInstance`
    b. Implement hybrid flushing strategy with rule-based summarization
-   c. Add async-safe operations with distributed locking and refresh mechanism
+   c. Use existing `cache.LockManager` for distributed locking
    d. Create diagnostic and health monitoring capabilities
-   e. Implement optimized flush checking to avoid performance bottlenecks
+2. **Optimizations**  
+   a. Implement circuit breaker using existing pattern from `dispatcher.go`
+   b. Implement optimized flush checking with existing Temporal workflows
+   c. Add priority-based eviction with system message protection
 
-4. **Agent & Orchestrator Integration**  
-   a. Extend agent router to resolve enhanced memory configurations correctly
-   b. Update LLM orchestrator to use async memory operations
-   c. Pass enhanced `Memory` handle with priority and flushing support
-   d. Proper error handling throughout async integration points
+### Phase 5: Agent & Orchestrator Integration (Minimal Changes)
 
-5. **Advanced Features & Performance**  
-   a. Implement token allocation ratios and advanced priority features with proper interaction rules
-   b. Add performance optimizations for async operations
-   c. Create comprehensive monitoring and observability
-   d. Performance benchmarking and optimization
+1. **Integration Points**  
+   a. Extend agent router to resolve enhanced memory configurations
+   b. Update LLM orchestrator to use memory via Temporal activities
+   c. Pass `Memory` handle with token management and flushing support
+   d. Proper error handling using existing `core.NewError` patterns
 
-6. **Documentation & Examples** – Complete documentation with examples for all configuration levels, async patterns, and cluster deployment considerations.
+### Phase 6: Documentation & Monitoring (Extend Existing Systems)
+
+1. **Documentation** – Complete documentation with examples for all configuration levels, Temporal patterns, and cluster deployment considerations
+2. **Monitoring** – Extend existing Grafana dashboard and metrics collection
 
 ---
 
@@ -792,21 +1125,24 @@ Coverage goals: 85% for `engine/memory` with focus on configuration resolution a
 
 Enhanced Metrics (Prometheus):
 
-- `memory_messages_total{memory_id, priority}` – total messages appended by priority level
-- `memory_trim_total{memory_id, strategy}` – total trim operations by strategy (priority/hybrid)
+- `memory_messages_total{memory_id}` – total messages appended
+- `memory_trim_total{memory_id, strategy}` – total trim operations by strategy (fifo/hybrid)
 - `memory_flush_total{memory_id, type}` – total flush operations (summary/eviction)
-- `memory_operation_latency_seconds{operation, memory_id}` – async operation latency distribution
-- `memory_lock_acquire_total{memory_id}` – distributed lock acquisitions
-- `memory_lock_contention_total{memory_id}` – lock acquisition failures/retries
-- `memory_lock_duration_seconds{memory_id}` – lock hold time distribution
-- `memory_lock_refresh_total{memory_id}` – lock refresh operations
+- `memory_operation_latency_seconds{operation, memory_id}` – operation latency distribution
+- `memory_tokens_total{memory_id}` – current token count in memory
 - `memory_tokens_saved_total{memory_id, strategy}` – tokens saved through flushing strategies
-- `memory_priority_distribution{memory_id, priority}` – message distribution across priority levels
+- `memory_temporal_activity_total{activity, status}` – Temporal activity metrics
 - `memory_config_resolution_total{pattern}` – configuration pattern usage (simple/multi/advanced)
 - `memory_flush_optimization_hits_total{memory_id}` – count-based flush check optimizations
 
-Logs: structured via `pkg/logger` with async operation tracing.  
-Grafana: enhanced `memory` dashboard with priority and flushing visualizations in `cluster/grafana/dashboards`.
+**Infrastructure Reuse Notes**:
+
+- Lock metrics are already tracked by existing LockManager implementation
+- Temporal activity metrics are automatically collected by existing Temporal infrastructure
+- Redis metrics are already monitored via existing monitoring stack
+
+Logs: structured via `pkg/logger` with async operation tracing (reuses existing logging infrastructure).  
+Grafana: memory metrics will be added to existing `compozy-monitoring.json` dashboard rather than creating a separate dashboard.
 
 ---
 
@@ -814,31 +1150,55 @@ Grafana: enhanced `memory` dashboard with priority and flushing visualizations i
 
 ### Key Decisions
 
-- **Async-first operations** eliminate blocking during memory access, improving concurrent agent performance.
-- **Priority-based token management** with token allocation constraints ensures critical content preservation while maintaining intelligent eviction.
-- **Hybrid flushing with rule-based summarization** maintains context continuity while managing token budgets effectively and ensuring predictable behavior.
-- **Corrected three-tier configuration system** provides progressive complexity from simple to advanced use cases with proper YAML parsing.
-- **Distributed Redis locks with refresh mechanism** ensure cluster-safe operations with automatic TTL extension for long operations.
-- **Optimized flush checking** uses message count estimates to avoid performance bottlenecks on every append.
-- **Rule-based summarization for v1** provides deterministic, cost-effective context preservation.
+- **Reuse existing infrastructure** maximizes code reuse and minimizes new dependencies
+- **Temporal activities for async** leverages existing async patterns instead of custom implementations
+- **Existing LockManager** provides proven distributed locking without new libraries
+- **Extend ConfigRegistry** rather than creating new registry reduces code duplication
+- **Token-based FIFO management** with tiktoken-go ensures accurate token counting and predictable eviction behavior
+- **Hybrid flushing with rule-based summarization** maintains context continuity while managing token budgets effectively
+- **Three-tier configuration system** provides progressive complexity from simple to advanced use cases
+- **Optimized flush checking** uses message count estimates to avoid performance bottlenecks
+- **Rule-based summarization for v1** provides deterministic, cost-effective context preservation
 
 ### Known Risks
 
-- **Async complexity** in integration points → mitigate with comprehensive testing and clear async patterns.
-- **Priority processing overhead** → mitigate with efficient grouping algorithms and optional features.
-- **Configuration confusion** with multiple patterns → mitigate with corrected parsing logic, clear documentation and validation messages.
-- **Lock contention** under high concurrency → mitigate with exponential backoff, reasonable lock TTLs, and refresh mechanism.
-- **Redis traffic increase** from enhanced features → monitor with metrics and implement optimized flush checking for high-volume scenarios.
-- **Token allocation conflicts** with priority blocks → resolved by defining clear precedence rules (lower of ratio-based vs. fixed limits).
+- **Temporal activity complexity** → mitigate with comprehensive testing and clear activity patterns
+- **Configuration confusion** with multiple patterns → mitigate with clear documentation and validation messages
+- **Lock contention** under high concurrency → mitigate with existing LockManager retry mechanisms and proven Redlock algorithm
+- **Redis traffic increase** from memory features → monitor with metrics and implement optimized flush checking
+- **Token counting accuracy** → tiktoken-go provides OpenAI-compatible counting but may need updates for new models
+
+### Risk Mitigation Through Infrastructure Reuse
+
+By reusing existing infrastructure components, we've significantly reduced implementation risks:
+
+- **No new Redis setup** - leverages battle-tested `infra/store` configuration
+- **No new async patterns** - uses proven Temporal activity patterns from existing workers
+- **No new locking implementation** - relies on existing LockManager with Redlock algorithm
+- **No new registry system** - extends existing ConfigRegistry with established patterns
 
 ### Standards Compliance
 
-- Follows Clean Architecture; enhanced `engine/memory` domain maintains separation of concerns.
-- Uses required libraries (`go-redis/v9`, `go-playground/validator/v10`) with async patterns.
-- Error handling via wrapped errors with context (no panics).
-- Testing strategy aligns with `testing-standards.mdc` with async operation coverage.
-- Distributed design supports multi-replica deployments with enhanced concurrent safety.
-- Progressive complexity supports both simple and advanced use cases without overwhelming developers.
-- Key sanitization ensures Redis compatibility and multi-tenant security.
+- Follows Clean Architecture; `engine/memory` domain maintains separation of concerns
+- Maximally reuses existing infrastructure (ConfigRegistry, LockManager, Redis pool, Temporal)
+- Uses required libraries (`go-redis/v9`, `go-playground/validator/v10`)
+- Error handling via wrapped errors with context (no panics)
+- Testing strategy aligns with `testing-standards.mdc`
+- Distributed design supports multi-replica deployments using existing patterns
+- Progressive complexity supports both simple and advanced use cases
+- Key sanitization ensures Redis compatibility and multi-tenant security
+
+### Library Dependencies
+
+The implementation requires only ONE additional Go library:
+
+- **tiktoken-go** (`github.com/pkoukk/tiktoken-go`) - Accurate token counting for OpenAI models
+
+All other functionality leverages existing infrastructure:
+
+- Distributed locking: existing `cache.LockManager`
+- Async operations: existing Temporal infrastructure
+- Redis operations: existing `infra/store` Redis pool
+- Configuration management: existing `autoload.ConfigRegistry`
 
 ---

@@ -14,14 +14,14 @@ status: pending
 
 ## Overview
 
-Create the core memory interfaces, data models, and Redis-backed storage with async operations support. This establishes the foundation for the entire memory system with enhanced features including priority management, hybrid flushing, and distributed locking capabilities.
+Create the core memory interfaces, data models, and extend existing Redis infrastructure with memory-specific operations. This establishes the foundation for the entire memory system with enhanced features including token management, hybrid flushing, and leveraging existing distributed locking capabilities.
 
 ## Subtasks
 
-- [ ] 1.1 Define Memory, MemoryStore, and DistributedLock interfaces with async operations
-- [ ] 1.2 Implement MemoryResource, PriorityBlock, TokenAllocation, and FlushingStrategy data models
-- [ ] 1.3 Create redisStore with async methods (AppendMessageAsync, ReadMessagesAsync, etc.)
-- [ ] 1.4 Implement redisDistributedLock using SET NX EX pattern with automatic refresh
+- [ ] 1.1 Define Memory, MemoryStore interfaces with async operations
+- [ ] 1.2 Implement MemoryResource, TokenAllocation, and FlushingStrategy data models
+- [ ] 1.3 Extend existing `engine/infra/cache/redis.go` with memory-specific methods
+- [ ] 1.4 Create memory-specific wrapper around existing `engine/infra/cache/lock_manager.go`
 - [ ] 1.5 Add comprehensive unit and integration tests for all interfaces
 
 ## Implementation Details
@@ -30,26 +30,54 @@ Define the core `Memory` interface with async operations as the primary interfac
 
 ```go
 type Memory interface {
-    AppendAsync(ctx context.Context, msg llm.Message) error
-    ReadAsync(ctx context.Context) ([]llm.Message, error)
-    LenAsync(ctx context.Context) (int, error)
-    GetTokenCountAsync(ctx context.Context) (int, error)
-    GetMemoryHealthAsync(ctx context.Context) (*MemoryHealth, error)
+    Append(ctx context.Context, msg llm.Message) error
+    Read(ctx context.Context) ([]llm.Message, error)
+    Len(ctx context.Context) (int, error)
+    GetTokenCount(ctx context.Context) (int, error)
+    GetMemoryHealth(ctx context.Context) (*MemoryHealth, error)
 }
 ```
 
-Implement MemoryStore interface for persistence-agnostic operations and DistributedLock for cluster-safe operations. Create enhanced data models supporting priority blocks, token allocation ratios, and flushing strategies.
+Implement MemoryStore interface for persistence-agnostic operations. Create enhanced data models supporting token allocation ratios and flushing strategies.
 
-Use existing Redis pool from `engine/infra/store` with `memory:` namespace prefix. Implement Redis distributed locking using `SET NX EX` pattern with automatic refresh mechanism for long operations.
+**Key Architecture Decisions**:
+
+- **REUSE EXISTING**: Extend `engine/infra/cache/redis.go` RedisInterface with memory-specific operations
+- **LEVERAGE EXISTING**: Use existing `engine/infra/cache/lock_manager.go` LockManager with memory-specific wrapper
+- **NO NEW REDIS**: Do not create new Redis client implementations - extend existing infrastructure
+- **NO REDSYNC**: Use existing LockManager with Lua scripts for distributed locking
+- Follow existing patterns for Redis operations (Pipeline, Lua scripts)
+- Integrate **tiktoken-go** (`github.com/pkoukk/tiktoken-go`) for accurate token counting
+
+# Relevant Files
+
+## Core Implementation Files
+
+- `engine/memory/interfaces.go` - Core Memory, MemoryStore interfaces
+- `engine/memory/types.go` - MemoryResource, TokenAllocation, FlushingStrategy data models
+- `engine/memory/store.go` - Memory-specific store wrapper using existing Redis infrastructure
+- `engine/memory/lock.go` - Memory-specific lock wrapper around existing LockManager
+
+## Existing Infrastructure to Extend
+
+- `engine/infra/cache/redis.go` - Extend RedisInterface with memory-specific operations
+- `engine/infra/cache/lock_manager.go` - Use existing distributed locking with Lua scripts
+
+## Test Files
+
+- `engine/memory/interfaces_test.go` - Interface tests with in-memory fakes
+- `test/integration/memory/redis_test.go` - Redis integration tests
 
 ## Success Criteria
 
 - All core interfaces defined with async operations support
-- Enhanced data models support priority management and hybrid flushing
-- Redis store implementation with distributed locking capability
+- Enhanced data models support token management and hybrid flushing
+- Extended Redis infrastructure supports memory-specific operations
+- Existing distributed locking works for memory operations
+- Token counting integrated with tiktoken-go for accurate measurements
 - Unit tests with in-memory fake implementations achieve >85% coverage
 - Integration tests with Redis validate concurrent access patterns
-- Lock acquire/release/refresh cycles work correctly under load
+- Lock acquire/release cycles work correctly under load with existing LockManager
 
 <critical>
 **MANDATORY REQUIREMENTS:**
