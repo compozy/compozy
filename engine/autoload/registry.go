@@ -189,8 +189,10 @@ func extractResourceType(v reflect.Value, typeName string) string {
 		"*tool.Config":     string(core.ConfigTool),
 		"*mcp.Config":      string(core.ConfigMCP),
 		"*project.Config":  string(core.ConfigProject),
+		"*memory.Config":   string(core.ConfigMemory), // Added for memory.Config
 		"task.Config":      string(core.ConfigTask),
 		"task.BaseConfig":  string(core.ConfigTask),
+		"memory.Config":    string(core.ConfigMemory), // Added for memory.Config by value
 	}
 	if rt, ok := resourceTypeMap[typeName]; ok {
 		return rt
