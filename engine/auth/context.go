@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/auth/org"
 	"github.com/compozy/compozy/engine/auth/user"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -42,9 +43,14 @@ func (m *OrgContextMiddleware) InjectOrgContext() gin.HandlerFunc {
 
 // Context injection functions
 
-// WithOrganization adds the organization to the context
+// WithOrganization adds the organization to the context and also sets the organization ID for store filtering
 func WithOrganization(ctx context.Context, organization *org.Organization) context.Context {
-	return context.WithValue(ctx, contextKeyOrg, organization)
+	ctx = context.WithValue(ctx, contextKeyOrg, organization)
+	// Also set the organization ID for store filtering
+	if organization != nil {
+		ctx = store.WithOrganizationID(ctx, organization.ID)
+	}
+	return ctx
 }
 
 // WithOrgID adds the organization ID to the context

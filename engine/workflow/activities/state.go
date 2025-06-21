@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 )
@@ -14,6 +15,7 @@ const UpdateStateLabel = "UpdateWorkflowState"
 type UpdateStateInput struct {
 	WorkflowID     string          `json:"workflow_id"`
 	WorkflowExecID core.ID         `json:"workflow_exec_id"`
+	OrgID          core.ID         `json:"org_id"`
 	Status         core.StatusType `json:"status"`
 	Error          *core.Error     `json:"error"`
 	Output         *core.Output    `json:"output"`
@@ -33,6 +35,9 @@ func NewUpdateState(workflowRepo workflow.Repository, taskRepo task.Repository) 
 
 func (a *UpdateState) Run(ctx context.Context, input *UpdateStateInput) error {
 	workflowExecID := input.WorkflowExecID
+
+	// Add organization context to ensure proper filtering
+	ctx = store.WithOrganizationID(ctx, input.OrgID)
 
 	// Update workflow state
 	state, err := a.workflowRepo.GetState(ctx, workflowExecID)

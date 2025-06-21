@@ -2,8 +2,11 @@ package worker
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/cache"
+	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
@@ -67,6 +70,8 @@ func (a *Activities) TriggerWorkflow(ctx context.Context, input *wfacts.TriggerI
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// Add organization context to activity context
+	ctx = store.WithOrganizationID(ctx, input.OrgID)
 	act := wfacts.NewTrigger(a.workflows, a.workflowRepo)
 	return act.Run(ctx, input)
 }
@@ -76,6 +81,8 @@ func (a *Activities) UpdateWorkflowState(ctx context.Context, input *wfacts.Upda
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	// Add organization context to activity context using OrgID from input
+	ctx = store.WithOrganizationID(ctx, input.OrgID)
 	act := wfacts.NewUpdateState(a.workflowRepo, a.taskRepo)
 	return act.Run(ctx, input)
 }
@@ -88,6 +95,12 @@ func (a *Activities) CompleteWorkflow(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// Establish organization context from workflow
+	ctx, err := a.establishOrgContextFromWorkflow(ctx, input.WorkflowExecID)
+	if err != nil {
+		return nil, err
+	}
+
 	act := wfacts.NewCompleteWorkflow(a.workflowRepo, a.workflows)
 	return act.Run(ctx, input)
 }
@@ -96,6 +109,43 @@ func (a *Activities) CompleteWorkflow(
 // Task
 // -----------------------------------------------------------------------------
 
+// establishOrgContextFromWorkflow is a helper that establishes organization context
+// for task activities by extracting the org ID from the workflow
+func (a *Activities) establishOrgContextFromWorkflow(
+	ctx context.Context,
+	workflowExecID core.ID,
+) (context.Context, error) {
+	// Type assert to get concrete store implementation for internal helper access
+	workflowRepo, ok := a.workflowRepo.(*store.WorkflowRepo)
+	if !ok {
+		return nil, fmt.Errorf("workflow repository is not a store.WorkflowRepo implementation")
+	}
+	return store.EstablishOrgContextFromWorkflow(ctx, workflowRepo, workflowExecID)
+}
+
+// establishOrgContextFromTask is a helper that establishes organization context
+// for task activities by extracting the org ID from the task execution ID
+func (a *Activities) establishOrgContextFromTask(ctx context.Context, taskExecID core.ID) (context.Context, error) {
+	// Type assert to get concrete store implementation for internal helper access
+	taskRepo, ok := a.taskRepo.(*store.TaskRepo)
+	if !ok {
+		return nil, fmt.Errorf("task repository is not a store.TaskRepo implementation")
+	}
+	return store.EstablishOrgContextFromTask(ctx, taskRepo, taskExecID)
+}
+
+// establishOrgContextFromParentState is a helper that establishes organization context
+// from a parent task state directly (most efficient - no DB query needed)
+func (a *Activities) establishOrgContextFromParentState(
+	ctx context.Context,
+	parentState *task.State,
+) (context.Context, error) {
+	if parentState == nil {
+		return nil, fmt.Errorf("parent state is required for organization context")
+	}
+	return store.WithOrganizationID(ctx, parentState.OrgID), nil
+}
+
 func (a *Activities) ExecuteBasicTask(
 	ctx context.Context,
 	input *tkfacts.ExecuteBasicInput,
@@ -103,6 +153,12 @@ func (a *Activities) ExecuteBasicTask(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// Establish organization context from workflow
+	ctx, err := a.establishOrgContextFromWorkflow(ctx, input.WorkflowExecID)
+	if err != nil {
+		return nil, err
+	}
+
 	act := tkfacts.NewExecuteBasic(
 		a.workflows,
 		a.workflowRepo,
@@ -121,6 +177,12 @@ func (a *Activities) ExecuteRouterTask(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// Establish organization context from workflow
+	ctx, err := a.establishOrgContextFromWorkflow(ctx, input.WorkflowExecID)
+	if err != nil {
+		return nil, err
+	}
+
 	act := tkfacts.NewExecuteRouter(
 		a.workflows,
 		a.workflowRepo,
@@ -138,6 +200,12 @@ func (a *Activities) CreateParallelState(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// Establish organization context from workflow
+	ctx, err := a.establishOrgContextFromWorkflow(ctx, input.WorkflowExecID)
+	if err != nil {
+		return nil, err
+	}
+
 	act := tkfacts.NewCreateParallelState(
 		a.workflows,
 		a.workflowRepo,
@@ -155,6 +223,12 @@ func (a *Activities) ExecuteSubtask(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// Establish organization context from workflow
+	ctx, err := a.establishOrgContextFromWorkflow(ctx, input.WorkflowExecID)
+	if err != nil {
+		return nil, err
+	}
+
 	act := tkfacts.NewExecuteSubtask(
 		a.workflows,
 		a.workflowRepo,
@@ -172,6 +246,12 @@ func (a *Activities) GetParallelResponse(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// Establish organization context from parent state (most efficient)
+	ctx, err := a.establishOrgContextFromParentState(ctx, input.ParentState)
+	if err != nil {
+		return nil, err
+	}
+
 	act := tkfacts.NewGetParallelResponse(a.workflowRepo, a.taskRepo, a.configStore)
 	return act.Run(ctx, input)
 }
@@ -183,6 +263,12 @@ func (a *Activities) GetProgress(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// Establish organization context from parent state ID
+	ctx, err := a.establishOrgContextFromTask(ctx, input.ParentStateID)
+	if err != nil {
+		return nil, err
+	}
+
 	act := tkfacts.NewGetProgress(a.taskRepo)
 	return act.Run(ctx, input)
 }
@@ -194,6 +280,12 @@ func (a *Activities) UpdateParentStatus(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// Establish organization context from parent state ID
+	ctx, err := a.establishOrgContextFromTask(ctx, input.ParentStateID)
+	if err != nil {
+		return nil, err
+	}
+
 	act := tkfacts.NewUpdateParentStatus(a.taskRepo)
 	return act.Run(ctx, input)
 }
@@ -205,6 +297,17 @@ func (a *Activities) UpdateChildState(
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	// Extract task_exec_id and establish organization context
+	taskExecIDStr, ok := input["task_exec_id"].(string)
+	if !ok {
+		return fmt.Errorf("task_exec_id is required and must be a string")
+	}
+	taskExecID := core.ID(taskExecIDStr)
+	ctx, err := a.establishOrgContextFromTask(ctx, taskExecID)
+	if err != nil {
+		return err
+	}
+
 	act := tkfacts.NewUpdateChildState(a.taskRepo)
 	return act.Run(ctx, input)
 }
@@ -216,6 +319,12 @@ func (a *Activities) CreateCollectionState(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// Establish organization context from workflow
+	ctx, err := a.establishOrgContextFromWorkflow(ctx, input.WorkflowExecID)
+	if err != nil {
+		return nil, err
+	}
+
 	act := tkfacts.NewCreateCollectionState(
 		a.workflows,
 		a.workflowRepo,
@@ -233,6 +342,12 @@ func (a *Activities) GetCollectionResponse(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// Establish organization context from parent state (most efficient)
+	ctx, err := a.establishOrgContextFromParentState(ctx, input.ParentState)
+	if err != nil {
+		return nil, err
+	}
+
 	act := tkfacts.NewGetCollectionResponse(a.workflowRepo, a.taskRepo, a.configStore)
 	return act.Run(ctx, input)
 }
@@ -244,6 +359,12 @@ func (a *Activities) ListChildStates(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// Establish organization context from parent task execution ID
+	ctx, err := a.establishOrgContextFromTask(ctx, input.ParentTaskExecID)
+	if err != nil {
+		return nil, err
+	}
+
 	act := tkfacts.NewListChildStates(a.taskRepo)
 	return act.Run(ctx, input)
 }
@@ -255,6 +376,12 @@ func (a *Activities) ExecuteAggregateTask(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// Establish organization context from workflow
+	ctx, err := a.establishOrgContextFromWorkflow(ctx, input.WorkflowExecID)
+	if err != nil {
+		return nil, err
+	}
+
 	act := tkfacts.NewExecuteAggregate(
 		a.workflows,
 		a.workflowRepo,
@@ -272,6 +399,12 @@ func (a *Activities) CreateCompositeState(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// Establish organization context from workflow
+	ctx, err := a.establishOrgContextFromWorkflow(ctx, input.WorkflowExecID)
+	if err != nil {
+		return nil, err
+	}
+
 	act := tkfacts.NewCreateCompositeState(
 		a.workflows,
 		a.workflowRepo,
@@ -289,6 +422,12 @@ func (a *Activities) GetCompositeResponse(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// Establish organization context from parent state (most efficient)
+	ctx, err := a.establishOrgContextFromParentState(ctx, input.ParentState)
+	if err != nil {
+		return nil, err
+	}
+
 	act := tkfacts.NewGetCompositeResponse(a.workflowRepo, a.taskRepo, a.configStore)
 	return act.Run(ctx, input)
 }
@@ -333,6 +472,12 @@ func (a *Activities) ExecuteSignalTask(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// Establish organization context from workflow
+	ctx, err := a.establishOrgContextFromWorkflow(ctx, input.WorkflowExecID)
+	if err != nil {
+		return nil, err
+	}
+
 	act := tkfacts.NewExecuteSignal(
 		a.workflows,
 		a.workflowRepo,

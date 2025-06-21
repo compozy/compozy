@@ -62,6 +62,7 @@ func (m *Manager) BuildErrHandler(ctx workflow.Context) func(err error) error {
 		statusInput := &wfacts.UpdateStateInput{
 			WorkflowID:     m.WorkflowID,
 			WorkflowExecID: m.WorkflowExecID,
+			OrgID:          m.OrgID,
 			Status:         core.StatusFailed,
 			Error:          core.NewError(err, "workflow_execution_error", nil),
 		}
@@ -95,6 +96,7 @@ func (m *Manager) CancelCleanup(ctx workflow.Context) {
 	statusInput := &wfacts.UpdateStateInput{
 		WorkflowID:     m.WorkflowID,
 		WorkflowExecID: m.WorkflowExecID,
+		OrgID:          m.OrgID,
 		Status:         core.StatusCanceled,
 	}
 	if err := workflow.ExecuteActivity(

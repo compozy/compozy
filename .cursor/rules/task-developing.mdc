@@ -1,7 +1,7 @@
 ---
-description: Guidelines for managing task lists and implementing sequential sub-task completion workflow
-globs: ['**/tasks/*.md', '**/tasks/**/*.md', '**/*tasks*.md', '**/*task-list*.md']
-alwaysApply: false
+description:
+globs:
+alwaysApply: true
 ---
 # Task List Management
 
@@ -9,8 +9,8 @@ Guidelines for managing task lists in markdown files to track progress on comple
 
 ## Task Implementation
 
-<workflow type="sequential">
-- **One sub-task at a time:** Do **NOT** start the next sub‑task until you ask the user for permission and they say "yes" or "y"
+<workflow type="parallel">
+- **MUST**: you need to identify which subtasks/files you can work in parallel, and spin up multiple agents to speed up the development
 </workflow>
 
 <completion_protocol>

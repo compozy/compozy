@@ -1,15 +1,19 @@
-
 ---
 description: Comprehensive testing standards and patterns for Compozy Go development - enforces mandatory t.Run patterns, testify usage, and mock standards
 globs:
-  - "**/*_test.go"
-  - "**/test/**/*.go"
-alwaysApply: true
-priority: high
-tags: ["testing", "go", "standards", "mocks", "testify"]
-category: "Always"
+alwaysApply: false
 ---
-# Testing Standards
+# Testing Standards for Compozy Go Development
+
+## Core Testing Requirements
+
+<requirements type="mandatory">
+**MANDATORY testing patterns for all Go code:**
+- Use `t.Run("Should describe expected behavior")` pattern for all tests
+- Use `stretchr/testify` for assertions and mocks
+- Follow table-driven test patterns when appropriate
+- Achieve >85% coverage for business logic packages
+</requirements>
 
 ## Testing Requirements
 
@@ -149,3 +153,37 @@ func TestService_Method(t *testing.T) {
 - **Mock Assertions:** When using mocks, always call `mockService.AssertExpectations(t)` to verify all expected calls were made
 - **Mock Cleanup:** Use `mock.AnythingOfType()` and `mock.Anything` for flexible parameter matching
 </patterns>
+
+## Test Coverage Requirements
+
+<coverage_requirements type="unified">
+**Unified Coverage Standard:**
+- **Business Logic Packages**: All code in `engine/{agent,task,tool,workflow}/` must achieve ≥80% test coverage
+- **Exported Functions**: All exported functions across the codebase must have meaningful tests (not just presence tests)
+- **Coverage Focus**: Prioritize testing business logic paths over trivial getters/setters
+- **Quality Gate**: Use coverage reports to identify gaps in business logic, not just check for test existence
+</coverage_requirements>
+
+## Architectural Testing
+
+<architectural_testing type="mandatory">
+**MANDATORY: Architecture Constraint Validation**
+- **Dependency Direction**: Test that dependencies flow inward toward domain
+- **Layer Violations**: Prevent direct dependencies between Infrastructure and Domain layers
+- **Circular Dependencies**: Automated detection of package cycles
+- **Interface Compliance**: Verify adapters properly implement port interfaces
+
+**Implementation Pattern:**
+```go
+func TestArchitecturalConstraints(t *testing.T) {
+    t.Run("Should enforce dependency direction", func(t *testing.T) {
+        // Test that engine/infra doesn't import engine/core directly
+        // Test that engine/core doesn't import any other engine packages
+    })
+
+    t.Run("Should prevent circular dependencies", func(t *testing.T) {
+        // Use go list or similar to detect cycles
+    })
+}
+```
+</architectural_testing>

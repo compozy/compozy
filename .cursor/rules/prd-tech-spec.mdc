@@ -13,7 +13,6 @@ To guide an AI assistant in creating detailed Technical Specification (Tech Spec
 
 <template_reference>
 **ALWAYS use the standardized Tech Spec template:** tasks/docs/_techspec-template.md
-
 This template provides a comprehensive structure for technical specifications, ensuring consistency across all technical documentation in the project.
 </template_reference>
 

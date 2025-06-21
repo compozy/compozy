@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/monitoring/interceptor"
+	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
@@ -459,6 +460,11 @@ func (o *Worker) TriggerWorkflow(
 	input *core.Input,
 	initTaskID string,
 ) (*WorkflowInput, error) {
+	// Extract organization ID from store context (avoiding auth import)
+	orgID, ok := store.GetOrganizationIDFromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("organization ID not found in context")
+	}
 	// Start workflow
 	workflowExecID := core.MustNewID()
 	workflowConfig, err := wf.FindConfig(o.workflows, workflowID)
@@ -477,6 +483,7 @@ func (o *Worker) TriggerWorkflow(
 	workflowInput := WorkflowInput{
 		WorkflowID:     workflowID,
 		WorkflowExecID: workflowExecID,
+		OrgID:          orgID,
 		Input:          mergedInput, // Use merged input with defaults
 		InitialTaskID:  initTaskID,
 	}

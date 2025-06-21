@@ -33,6 +33,8 @@ func executeWorkflowAndGetState(
 	dbHelper *helpers.DatabaseHelper,
 ) *workflow.State {
 	ctx := context.Background()
+	// Add organization ID to context for multi-tenant support
+	ctx = store.WithOrganizationID(ctx, helpers.TestOrgID)
 
 	// Create repositories using the pool
 	taskRepo := store.NewTaskRepo(dbHelper.GetPool())
