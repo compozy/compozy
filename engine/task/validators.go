@@ -123,6 +123,8 @@ func (v *TypeValidator) Validate() error {
 		return v.validateCompositeTask()
 	case TaskTypeSignal:
 		return v.validateSignalTask()
+	case TaskTypeWait:
+		return v.validateWaitTask()
 	default:
 		return fmt.Errorf("invalid task type: %s", v.config.Type)
 	}
@@ -364,5 +366,20 @@ func (v *TypeValidator) validateSignalTask() error {
 	if v.config.Tool != nil {
 		return fmt.Errorf("signal tasks cannot have a tool")
 	}
+	return nil
+}
+
+func (v *TypeValidator) validateWaitTask() error {
+	// Wait tasks should not have action, agent, or tool
+	if v.config.Action != "" {
+		return fmt.Errorf("wait tasks cannot have an action field")
+	}
+	if v.config.Agent != nil {
+		return fmt.Errorf("wait tasks cannot have an agent")
+	}
+	if v.config.Tool != nil {
+		return fmt.Errorf("wait tasks cannot have a tool")
+	}
+	// Additional wait task validation is handled in Config.validateWaitTask()
 	return nil
 }

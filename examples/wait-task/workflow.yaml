@@ -1,0 +1,66 @@
+id: wait-task
+version: 0.1.0
+description: Simple workflow demonstrating wait task functionality
+
+config:
+  input:
+    type: object
+    properties:
+      initial_message:
+        type: string
+        default: "Starting wait task demo"
+      wait_condition:
+        type: string
+        default: 'signal.status == "ready"'
+      signal_name:
+        type: string
+        default: "ready_signal"
+
+tools:
+  - id: echo_tool
+    description: Simple echo tool for testing
+    execute: ./echo_tool.ts
+    input:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Message to echo
+      required:
+        - message
+
+tasks:
+  # Initial task before waiting
+  - id: initial_step
+    type: basic
+    $use: tool(local::tools.#(id="echo_tool"))
+    with:
+      message: "{{ .workflow.input.initial_message }}"
+    on_success:
+      next: wait_for_ready
+
+  # Wait task that waits for a signal with condition
+  - id: wait_for_ready
+    type: wait
+    wait_for: "ready_signal"
+    condition: 'signal.payload.status == "ready"'
+    timeout: "5m"
+    processor:
+      $use: tool(local::tools.#(id="echo_tool"))
+      with:
+        message: "Processing signal: {{ .signal.payload.status }}"
+    on_success:
+      next: final_step
+
+  # Final task after condition is met
+  - id: final_step
+    type: basic
+    $use: tool(local::tools.#(id="echo_tool"))
+    with:
+      message: "Wait condition satisfied! Signal received from wait task."
+
+outputs:
+  result: "Wait task demo completed"
+  initial_output: "{{ .tasks.initial_step.output }}"
+  wait_output: "{{ .tasks.wait_for_ready.output }}"
+  final_output: "{{ if .tasks.final_step }}{{ .tasks.final_step.output }}{{ else }}null{{ end }}"

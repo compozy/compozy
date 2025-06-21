@@ -3,13 +3,14 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,12 +28,25 @@ func createTaskConfig(id string, taskType task.Type) task.Config {
 func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 	t.Run("Should store parallel metadata successfully", func(t *testing.T) {
 		// Arrange
-		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore, nil)
-
 		parentStateID := core.MustNewID()
 		child1 := createTaskConfig("child1", task.TaskTypeBasic)
 		child2 := createTaskConfig("child2", task.TaskTypeBasic)
+
+		// Create expected metadata
+		expectedMetadata := ParallelTaskMetadata{
+			ParentStateID: parentStateID,
+			ChildConfigs:  []task.Config{child1, child2},
+			Strategy:      string(task.StrategyWaitAll),
+			MaxWorkers:    2,
+		}
+		expectedBytes, _ := json.Marshal(expectedMetadata)
+
+		configStore := NewMockConfigStore()
+		// Set up mock expectations
+		configStore.On("SaveMetadata", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		configStore.On("GetMetadata", mock.Anything, mock.Anything).Return(expectedBytes, nil)
+
+		cm := NewConfigManager(configStore, nil)
 
 		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
@@ -172,10 +186,28 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 	t.Run("Should store collection metadata successfully", func(t *testing.T) {
 		// Arrange
-		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore, nil)
-
 		parentStateID := core.MustNewID()
+
+		configStore := NewMockConfigStore()
+		// We'll mock the GetMetadata to return a pre-defined metadata
+		// that matches what would be saved
+		storedMeta := CollectionTaskMetadata{
+			ParentStateID: parentStateID,
+			ChildConfigs:  []task.Config{}, // Will be populated by PrepareCollectionConfigs
+			Strategy:      "wait_all",
+			MaxWorkers:    0,
+			ItemCount:     3,
+			SkippedCount:  0,
+			Mode:          "parallel",
+			BatchSize:     0,
+		}
+		storedBytes, _ := json.Marshal(storedMeta)
+
+		// Set up mock expectations
+		configStore.On("SaveMetadata", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		configStore.On("GetMetadata", mock.Anything, mock.Anything).Return(storedBytes, nil)
+
+		cm := NewConfigManager(configStore, nil)
 		workflowState := &workflow.State{
 			WorkflowExecID: core.MustNewID(),
 			WorkflowID:     "test-workflow",
@@ -306,10 +338,38 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 func TestConfigManager_LoadParallelTaskMetadata(t *testing.T) {
 	t.Run("Should load parallel metadata successfully", func(t *testing.T) {
 		// Arrange
-		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore, nil)
-
 		parentStateID := core.MustNewID()
+
+		// Create expected metadata that matches what will be saved
+		expectedMetadata := ParallelTaskMetadata{
+			ParentStateID: parentStateID,
+			ChildConfigs: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "child1",
+						Type: task.TaskTypeBasic,
+						CWD:  func() *core.PathCWD { cwd, _ := core.CWDFromPath("/tmp"); return cwd }(),
+					},
+				},
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "child2",
+						Type: task.TaskTypeBasic,
+						CWD:  func() *core.PathCWD { cwd, _ := core.CWDFromPath("/tmp"); return cwd }(),
+					},
+				},
+			},
+			Strategy:   string(task.StrategyWaitAll),
+			MaxWorkers: 2,
+		}
+		expectedBytes, _ := json.Marshal(expectedMetadata)
+
+		configStore := NewMockConfigStore()
+		// Set up mock expectations
+		configStore.On("SaveMetadata", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		configStore.On("GetMetadata", mock.Anything, mock.Anything).Return(expectedBytes, nil)
+
+		cm := NewConfigManager(configStore, nil)
 		CWD, _ := core.CWDFromPath("/tmp")
 		originalTaskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -346,6 +406,8 @@ func TestConfigManager_LoadParallelTaskMetadata(t *testing.T) {
 	t.Run("Should fail when metadata not found", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
+		// Mock GetMetadata to return error for missing metadata
+		configStore.On("GetMetadata", mock.Anything, mock.Anything).Return(nil, errors.New("metadata not found"))
 		cm := NewConfigManager(configStore, nil)
 		parentStateID := core.MustNewID()
 
@@ -361,10 +423,31 @@ func TestConfigManager_LoadParallelTaskMetadata(t *testing.T) {
 func TestConfigManager_LoadCollectionTaskMetadata(t *testing.T) {
 	t.Run("Should load collection metadata successfully", func(t *testing.T) {
 		// Arrange
-		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore, nil)
-
 		parentStateID := core.MustNewID()
+
+		// Create expected metadata with actual child configs that would be generated
+		cwdForExpected, _ := core.CWDFromPath("/tmp")
+		expectedChildConfigs := []task.Config{
+			{BaseConfig: task.BaseConfig{ID: "test-collection-0", Type: task.TaskTypeBasic, CWD: cwdForExpected}},
+			{BaseConfig: task.BaseConfig{ID: "test-collection-1", Type: task.TaskTypeBasic, CWD: cwdForExpected}},
+		}
+		expectedMetadata := CollectionTaskMetadata{
+			ParentStateID: parentStateID,
+			ChildConfigs:  expectedChildConfigs,
+			Strategy:      "wait_all",
+			MaxWorkers:    1, // Sequential mode
+			ItemCount:     2,
+			SkippedCount:  0,
+			Mode:          "sequential",
+			BatchSize:     0,
+		}
+		expectedBytes, _ := json.Marshal(expectedMetadata)
+
+		configStore := NewMockConfigStore()
+		// Set up mock expectations for collection metadata
+		configStore.On("SaveMetadata", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		configStore.On("GetMetadata", mock.Anything, mock.Anything).Return(expectedBytes, nil)
+		cm := NewConfigManager(configStore, nil)
 		workflowState := &workflow.State{
 			WorkflowExecID: core.MustNewID(),
 			WorkflowID:     "test-workflow",
@@ -409,6 +492,8 @@ func TestConfigManager_LoadCollectionTaskMetadata(t *testing.T) {
 	t.Run("Should fail when metadata not found", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
+		// Mock GetMetadata to return error for missing metadata
+		configStore.On("GetMetadata", mock.Anything, mock.Anything).Return(nil, errors.New("metadata not found"))
 		cm := NewConfigManager(configStore, nil)
 		parentStateID := core.MustNewID()
 
@@ -425,6 +510,8 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 	t.Run("Should handle collection with filter that removes all items", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
+		// Set up mock expectations for empty collection metadata
+		configStore.On("SaveMetadata", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		cm := NewConfigManager(configStore, nil)
 
 		parentStateID := core.MustNewID()
@@ -467,6 +554,21 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 	t.Run("Should handle parallel task with batch size in collection mode", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
+		// Set up mock expectations for collection metadata with batch
+		configStore.On("SaveMetadata", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		// Mock for LoadCollectionTaskMetadata call
+		metadataWithBatch := CollectionTaskMetadata{
+			ParentStateID: core.MustNewID(),
+			ChildConfigs:  []task.Config{},
+			Strategy:      "wait_all",
+			MaxWorkers:    2, // Should use batch size as MaxWorkers
+			ItemCount:     3,
+			SkippedCount:  0,
+			Mode:          "sequential",
+			BatchSize:     2,
+		}
+		metadataBytes, _ := json.Marshal(metadataWithBatch)
+		configStore.On("GetMetadata", mock.Anything, mock.Anything).Return(metadataBytes, nil)
 		cm := NewConfigManager(configStore, nil)
 
 		parentStateID := core.MustNewID()
@@ -512,10 +614,16 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 func TestConfigManager_TaskConfigOperations(t *testing.T) {
 	t.Run("Should save and delete task config successfully", func(t *testing.T) {
 		configStore := NewMockConfigStore()
+		// Set up mock expectations for Save, Get, and Delete operations
+		configStore.On("Save", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		taskConfig := createTaskConfig("test-task", task.TaskTypeBasic)
+		configStore.On("Get", mock.Anything, mock.Anything).Return(&taskConfig, nil).Once()
+		configStore.On("Delete", mock.Anything, mock.Anything).Return(nil)
+		configStore.On("Get", mock.Anything, mock.Anything).Return(nil, errors.New("not found"))
+
 		cm := NewConfigManager(configStore, nil)
 		ctx := context.Background()
 		taskExecID := core.MustNewID()
-		taskConfig := createTaskConfig("test-task", task.TaskTypeBasic)
 		err := cm.SaveTaskConfig(ctx, taskExecID, &taskConfig)
 		require.NoError(t, err)
 		savedConfig, err := configStore.Get(ctx, string(taskExecID))
@@ -526,59 +634,4 @@ func TestConfigManager_TaskConfigOperations(t *testing.T) {
 		_, err = configStore.Get(ctx, string(taskExecID))
 		assert.Error(t, err)
 	})
-}
-
-// NewMockConfigStore creates a simple in-memory mock config store for testing
-func NewMockConfigStore() *MockConfigStore {
-	return &MockConfigStore{
-		store: make(map[string]*task.Config),
-	}
-}
-
-type MockConfigStore struct {
-	store    map[string]*task.Config
-	metadata map[string][]byte
-}
-
-func (m *MockConfigStore) Save(_ context.Context, taskExecID string, config *task.Config) error {
-	m.store[taskExecID] = config
-	return nil
-}
-
-func (m *MockConfigStore) Get(_ context.Context, taskExecID string) (*task.Config, error) {
-	config, exists := m.store[taskExecID]
-	if !exists {
-		return nil, fmt.Errorf("configuration not found for task ID: %s", taskExecID)
-	}
-	return config, nil
-}
-
-func (m *MockConfigStore) Delete(_ context.Context, taskExecID string) error {
-	delete(m.store, taskExecID)
-	return nil
-}
-
-func (m *MockConfigStore) SaveMetadata(_ context.Context, key string, data []byte) error {
-	if m.metadata == nil {
-		m.metadata = make(map[string][]byte)
-	}
-	m.metadata[key] = data
-	return nil
-}
-
-func (m *MockConfigStore) GetMetadata(_ context.Context, key string) ([]byte, error) {
-	data, exists := m.metadata[key]
-	if !exists {
-		return nil, fmt.Errorf("metadata not found for key: %s", key)
-	}
-	return data, nil
-}
-
-func (m *MockConfigStore) DeleteMetadata(_ context.Context, key string) error {
-	delete(m.metadata, key)
-	return nil
-}
-
-func (m *MockConfigStore) Close() error {
-	return nil
 }

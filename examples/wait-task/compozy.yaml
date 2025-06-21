@@ -1,0 +1,12 @@
+name: wait-task
+version: 0.1.0
+description: Simple example demonstrating wait task functionality
+
+workflows:
+  - source: ./workflow.yaml
+
+runtime:
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-env

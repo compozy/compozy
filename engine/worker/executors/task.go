@@ -16,6 +16,7 @@ type TaskExecutor struct {
 	routerExecutor    *TaskRouterExecutor
 	aggregateExecutor *TaskAggregateExecutor
 	signalExecutor    *TaskSignalExecutor
+	waitExecutor      *TaskWaitExecutor
 	// Container task executors
 	parallelExecutor   *ParallelTaskExecutor
 	collectionExecutor *CollectionTaskExecutor
@@ -28,6 +29,7 @@ func NewTaskExecutor(contextBuilder *ContextBuilder) *TaskExecutor {
 	e.routerExecutor = NewTaskRouterExecutor(contextBuilder)
 	e.aggregateExecutor = NewTaskAggregateExecutor(contextBuilder)
 	e.signalExecutor = NewTaskSignalExecutor(contextBuilder)
+	e.waitExecutor = NewTaskWaitExecutor(contextBuilder, e.HandleExecution)
 
 	// Initialize container task executors
 	containerHelpers := NewContainerHelpers(contextBuilder, e.HandleExecution)
@@ -93,6 +95,9 @@ func (e *TaskExecutor) ExecuteTasks(response task.Response) func(ctx workflow.Co
 	}
 }
 
+// HandleExecution dispatches task execution to the appropriate executor based on task type
+//
+//nolint:gocyclo // This is a dispatcher function with necessary complexity
 func (e *TaskExecutor) HandleExecution(
 	ctx workflow.Context,
 	taskConfig *task.Config,
@@ -115,6 +120,11 @@ func (e *TaskExecutor) HandleExecution(
 	var response task.Response
 	var err error
 
+	// Handle empty task type by defaulting to basic
+	if taskType == "" {
+		taskType = task.TaskTypeBasic
+	}
+
 	switch taskType {
 	case task.TaskTypeBasic:
 		response, err = e.basicExecutor.Execute(ctx, taskConfig)
@@ -130,7 +140,18 @@ func (e *TaskExecutor) HandleExecution(
 		response, err = e.compositeExecutor.Execute(ctx, taskConfig, currentDepth)
 	case task.TaskTypeSignal:
 		response, err = e.signalExecutor.Execute(ctx, taskConfig)
+	case task.TaskTypeWait:
+		response, err = e.waitExecutor.Execute(ctx, taskConfig)
 	default:
+		log.Error(
+			"Unsupported execution type encountered",
+			"task_type",
+			taskType,
+			"task_id",
+			taskID,
+			"type_length",
+			len(string(taskType)),
+		)
 		return nil, fmt.Errorf("unsupported execution type: %s", taskType)
 	}
 	if err != nil {

@@ -1,0 +1,64 @@
+### Wait Task API Tests
+### This file contains HTTP requests to test the wait-task workflow
+### Make sure Compozy is running on localhost:3001 before executing these requests
+
+@baseUrl = http://localhost:3001/api/v0
+@workflowId = wait-task
+
+### -----------------------------------------------------------------------------
+### Execute wait-task workflow
+### -----------------------------------------------------------------------------
+# @name executeWorkflow
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "initial_message": "Starting wait task demo",
+    "wait_condition": "signal.status == \"ready\"",
+    "signal_name": "ready_signal"
+  }
+}
+
+### Get execution ID from response (use this in subsequent requests)
+@execId = {{executeWorkflow.response.body.data.exec_id}}
+
+### -----------------------------------------------------------------------------
+### Send signal that WILL NOT trigger the condition (status != "ready")
+### -----------------------------------------------------------------------------
+POST {{baseUrl}}/executions/workflows/{{execId}}/signals
+Content-Type: application/json
+
+{
+  "signal_name": "ready_signal",
+  "payload": {
+    "status": "pending",
+    "message": "Still processing..."
+  }
+}
+
+### -----------------------------------------------------------------------------
+### Send signal that WILL trigger the wait condition (status == "ready")
+### -----------------------------------------------------------------------------
+POST {{baseUrl}}/executions/workflows/{{execId}}/signals
+Content-Type: application/json
+
+{
+  "signal_name": "ready_signal",
+  "payload": {
+    "status": "ready",
+    "message": "System is ready to proceed"
+  }
+}
+
+### -----------------------------------------------------------------------------
+### Get specific execution details
+### -----------------------------------------------------------------------------
+GET {{baseUrl}}/executions/workflows/{{execId}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### List all executions for this workflow
+### -----------------------------------------------------------------------------
+GET {{baseUrl}}/workflows/{{workflowId}}/executions
+Accept: application/json

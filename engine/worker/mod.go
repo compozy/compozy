@@ -201,6 +201,12 @@ func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterActivity(o.activities.ExecuteRouterTask)
 	o.worker.RegisterActivity(o.activities.ExecuteAggregateTask)
 	o.worker.RegisterActivity(o.activities.ExecuteSignalTask)
+	o.worker.RegisterActivity(o.activities.ExecuteWaitTask)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.NormalizeWaitProcessor,
+		activity.RegisterOptions{Name: tkacts.NormalizeWaitProcessorLabel},
+	)
+	o.worker.RegisterActivity(o.activities.EvaluateCondition)
 	o.worker.RegisterActivity(o.activities.ExecuteSubtask)
 	o.worker.RegisterActivity(o.activities.CreateParallelState)
 	o.worker.RegisterActivity(o.activities.GetParallelResponse)

@@ -3,49 +3,86 @@ status: pending
 ---
 
 <task_context>
-<domain>engine/memory</domain>
-<type>implementation</type>
-<scope>core_feature</scope>
+<domain>engine/agent</domain>
+<type>integration</type>
+<scope>configuration</scope>
 <complexity>high</complexity>
 <dependencies>task_1,task_2</dependencies>
 </task_context>
 
-# Task 3.0: Implement Hybrid Flushing Strategy with Rule-Based Summarization
+# Task 3.0: Create Fixed Configuration Resolution System
 
 ## Overview
 
-Create intelligent memory management with deterministic summarization for context continuity. This system maintains conversation flow while effectively managing token budgets through rule-based summarization that ensures predictable costs and performance.
+Extend the existing `engine/agent/config.go` to support three-tier memory configuration system. This follows the established pattern where each config type (task, workflow, agent) implements the `core.Config` interface. The agent config already exists and implements the interface - we just need to add memory-specific fields and validation.
 
 ## Subtasks
 
-- [ ] 3.1 Build HybridFlushingStrategy with ShouldFlush and FlushMessages methods
-- [ ] 3.2 Implement RuleBasedSummarizer combining first and N recent messages
-- [ ] 3.3 Add optimized flush checking using message count estimates
-- [ ] 3.4 Create FlushResult structure with summarization metrics
-- [ ] 3.5 Support configurable summarization parameters and token savings calculation
+- [ ] 3.1 Add memory configuration fields to existing AgentConfig struct
+- [ ] 3.2 Implement memory configuration parsing within existing Validate() method
+- [ ] 3.3 Add memory validation to agent validators following existing patterns
+- [ ] 3.4 Support three-tier configuration resolution through field detection
+- [ ] 3.5 Test all configuration levels with existing test patterns
 
 ## Implementation Details
 
-Implement `HybridFlushingStrategy` as the default flushing approach using rule-based summarization for v1. The strategy combines first message and N most recent messages to form summaries, providing context continuity while avoiding LLM costs.
+Extend the existing `engine/agent/config.go` by adding memory fields:
 
-Key components:
+```go
+type Config struct {
+    // ... existing fields ...
 
-- `ShouldFlush()` with optimized checking using count estimates to avoid performance bottlenecks
-- `FlushMessages()` that summarizes oldest X% of messages and preserves recent context
-- `RuleBasedSummarizer` with deterministic message combination (first + last N messages)
-- Configurable parameters: trigger thresholds, summary size, oldest percent to summarize
-- Token savings calculation and summary preservation in memory
+    // Memory configuration - supports three levels
+    Memory     any             `json:"memory,omitempty"     yaml:"memory,omitempty"     mapstructure:"memory,omitempty"`
+    Memories   []any           `json:"memories,omitempty"   yaml:"memories,omitempty"   mapstructure:"memories,omitempty"`
+    MemoryKey  string          `json:"memory_key,omitempty" yaml:"memory_key,omitempty" mapstructure:"memory_key,omitempty"`
 
-The system must implement optimized flush checking using message count-based triggers to avoid expensive token counting on every append operation.
+    // ... rest of existing fields ...
+}
+```
+
+**Configuration Levels**:
+
+- **Level 1**: `memory: "customer-support-context"` (string type)
+- **Level 2**: `memory: true` + `memories: ["id1", "id2"]` + optional `memory_key`
+- **Level 3**: `memories: [{id: "id1", mode: "append", key: "custom"}]`
+
+The existing `Validate()` method should be extended to:
+
+- Detect configuration level based on field types
+- Parse memory configuration into normalized format
+- Validate memory IDs exist in the project (via registry lookup)
+- Apply defaults (read-write mode for simplified configs)
+- Use existing `schema.NewCompositeValidator` pattern
+
+Memory validation should be added to `engine/agent/validators.go` following the existing `ActionsValidator` pattern. This maintains consistency with how other validations are structured in the agent package.
+
+# Relevant Files
+
+## Core Implementation Files
+
+- `engine/agent/config.go` - Extend existing agent config with memory fields
+- `engine/agent/validators.go` - Add memory-specific validation rules
+- `engine/memory/types.go` - Memory configuration data models
+- `engine/core/config.go` - Config interface to implement
+
+## Test Files
+
+- `engine/agent/config_test.go` - Extend with memory configuration tests
+- `engine/agent/validators_test.go` - Add memory validation tests
+
+## Configuration Files
+
+- `memories/customer-support.yaml` - Example memory resource file
 
 ## Success Criteria
 
-- Hybrid flushing maintains context continuity through intelligent summarization
-- Rule-based summarization provides deterministic, cost-effective context preservation
-- Optimized flush checking avoids performance bottlenecks on high-volume scenarios
-- Summary quality preserves essential context (first + recent messages)
-- Token savings calculations accurately reflect flush effectiveness
-- Configurable parameters allow tuning for different conversation patterns
+- All three configuration levels work with correct YAML parsing
+- Level detection logic properly identifies patterns through field types
+- Memory ID validation ensures referenced memories exist in project config
+- Smart defaults applied correctly (read-write mode for simplified configs)
+- Error handling provides helpful validation messages for configuration issues
+- Backward compatibility maintained with existing configurations
 
 <critical>
 **MANDATORY REQUIREMENTS:**

@@ -3,50 +3,91 @@ status: pending
 ---
 
 <task_context>
-<domain>engine/llm</domain>
-<type>integration</type>
-<scope>core_feature</scope>
+<domain>engine/memory</domain>
+<type>implementation</type>
+<scope>middleware</scope>
 <complexity>medium</complexity>
-<dependencies>task_6,task_8</dependencies>
+<dependencies>task_7,task_8</dependencies>
 </task_context>
 
-# Task 9.0: Update LLM Orchestrator for Async Memory Operations
+# Task 9.0: Implement Privacy Controls and Data Protection
 
 ## Overview
 
-Modify the LLM orchestrator to use async memory operations and inject conversation history. This integration enables the orchestrator to work with the enhanced memory system while maintaining optimal performance through async patterns.
+Add privacy flags, redaction policies, and selective persistence controls for sensitive data. This system ensures compliance with privacy regulations while protecting sensitive information in conversation memory.
 
 ## Subtasks
 
-- [ ] 9.1 Update LLM orchestrator to accept Memory interface via dependency injection
-- [ ] 9.2 Convert memory operations to async patterns with proper error handling
-- [ ] 9.3 Implement conversation history loading before prompt generation
-- [ ] 9.4 Add message appending after LLM responses
-- [ ] 9.5 Add memory operation tracing and metrics collection
+- [ ] 9.1 Implement message-level privacy flags for non-persistable content
+- [ ] 9.2 Add synchronous redaction before data leaves process boundaries
+- [ ] 9.3 Create privacy policy configuration at memory resource level
+- [ ] 9.4 Implement selective persistence controls that honor privacy flags
+- [ ] 9.5 Add logging when sensitive data is excluded from persistence
 
 ## Implementation Details
 
-Update the LLM orchestrator to accept `Memory` interface instances via dependency injection from the agent runtime. Convert all memory operations to async patterns with proper context propagation and error handling.
+Implement privacy controls that work seamlessly with async memory operations:
 
-Key integration points:
+**Message-level privacy flags**: Extend message structure to include privacy metadata
+**Synchronous redaction**: Apply configurable regex patterns before persistence
+**Privacy policies**: Configure redaction rules at memory resource level
+**Selective persistence**: Honor privacy flags in Redis storage layer
+**Privacy logging**: Log when sensitive data is excluded for audit purposes
 
-- Load conversation history using `ReadAsync()` before prompt generation
-- Append user messages and LLM responses using `AppendAsync()`
-- Support multiple memory instances per agent with different access modes
-- Integrate with existing prompt building and response handling
-- Add memory operation tracing for observability
+Support configurable redaction patterns:
 
-The orchestrator must handle async operation timeouts, errors, and cancellation scenarios gracefully while maintaining performance.
+- SSN: `\b\d{3}-\d{2}-\d{4}\b`
+- Credit cards: `\b\d{4}-\d{4}-\d{4}-\d{4}\b`
+- Custom patterns defined per memory resource
+
+**Integration with Existing Architecture**:
+
+- **Error Handling**: Use existing `core.NewError` pattern with new error codes:
+    - `ErrCodePrivacyRedaction = "PRIVACY_REDACTION_ERROR"`
+    - `ErrCodePrivacyPolicy = "PRIVACY_POLICY_ERROR"`
+    - `ErrCodePrivacyValidation = "PRIVACY_VALIDATION_ERROR"`
+- **Circuit Breaker**: Implement using existing pattern from `engine/worker/dispatcher.go`:
+    - Use `maxConsecutiveErrors` counter (10) for redaction failures
+    - Apply exponential backoff with `circuitBreakerDelay` (5 seconds)
+    - Reset counter on successful operations
+    - Log errors using structured logging via `pkg/logger`
+- **Async Processing**: Process redaction synchronously before Temporal activity execution
+- **Distributed Locking**: Use existing `cache.LockManager` interface for concurrent access control
+- **Redis Integration**: Leverage existing Redis infrastructure from `engine/infra/cache`
+
+**Security Patterns**:
+
+- Follow existing validation patterns from `engine/workflow/activities`
+- Use deterministic error handling without exposing sensitive data
+- Implement audit logging using structured logging patterns
+- Integrate with existing monitoring service for privacy metrics
+
+Ensure privacy controls integrate with async operations without performance impact.
+
+This ensures compliance with data protection regulations and provides users with control over their memory data.
+
+# Relevant Files
+
+## Core Implementation Files
+
+- `engine/memory/privacy.go` - Privacy controls and data protection
+- `engine/memory/interfaces.go` - Enhanced Memory interface with privacy operations
+- `engine/memory/types.go` - Privacy and data protection data models
+
+## Test Files
+
+- `engine/memory/privacy_test.go` - Privacy controls and data protection tests
 
 ## Success Criteria
 
-- Memory interface integration works via dependency injection
-- Async operations handle errors and timeouts correctly
-- Conversation history loads properly before prompt generation
-- Message appending works for both user and LLM responses
-- Multiple memory instances per agent work with access mode restrictions
-- Memory operation tracing provides observability into performance
-- Performance tests show <50ms overhead for memory operations
+- Message-level privacy flags prevent sensitive data persistence
+- Regex redaction patterns work accurately with configurable rules
+- Privacy policies configure correctly at memory resource level
+- Selective persistence honors privacy flags in Redis layer
+- Privacy exclusion logging provides audit trail for compliance
+- Privacy controls work seamlessly with async memory operations
+- Performance impact of privacy processing remains minimal
+- Integration with existing error handling and circuit breaker patterns
 
 <critical>
 **MANDATORY REQUIREMENTS:**

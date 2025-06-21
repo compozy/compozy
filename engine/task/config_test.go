@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/ref"
 	"github.com/compozy/compozy/pkg/utils"
 	"github.com/goccy/go-yaml"
@@ -379,12 +380,12 @@ func Test_TaskConfigValidation(t *testing.T) {
 	t.Run("Should validate valid router task", func(t *testing.T) {
 		config := &Config{
 			BaseConfig: BaseConfig{
-				ID:   taskID,
-				Type: TaskTypeRouter,
-				CWD:  taskCWD,
+				ID:        taskID,
+				Type:      TaskTypeRouter,
+				CWD:       taskCWD,
+				Condition: "test-condition",
 			},
 			RouterTask: RouterTask{
-				Condition: "test-condition",
 				Routes: map[string]any{
 					"route1": map[string]any{
 						"id": "next1",
@@ -1509,5 +1510,658 @@ func Test_ConfigSerializationWithPublicFields(t *testing.T) {
 			assert.Equal(t, originalConfig.Tasks[i].CWD.PathStr(), childTask.CWD.PathStr())
 			assert.Equal(t, originalConfig.Tasks[i].Action, childTask.Action)
 		}
+	})
+}
+
+func TestWaitTaskConfig_YAMLParsing(t *testing.T) {
+	t.Run("Should parse minimal wait task configuration", func(t *testing.T) {
+		yamlContent := `
+id: wait-for-approval
+type: wait
+wait_for: approval_signal
+condition: '{{ eq .signal.status "approved" }}'
+timeout: 1h
+on_success:
+  next: approved_task
+on_error:
+  next: rejected_task
+`
+		var config Config
+		err := yaml.Unmarshal([]byte(yamlContent), &config)
+		require.NoError(t, err)
+		assert.Equal(t, "wait-for-approval", config.ID)
+		assert.Equal(t, TaskTypeWait, config.Type)
+		assert.Equal(t, "approval_signal", config.WaitFor)
+		assert.Equal(t, `{{ eq .signal.status "approved" }}`, config.Condition)
+		assert.Equal(t, "1h", config.Timeout)
+		assert.NotNil(t, config.OnSuccess)
+		assert.Equal(t, "approved_task", *config.OnSuccess.Next)
+		assert.NotNil(t, config.OnError)
+		assert.Equal(t, "rejected_task", *config.OnError.Next)
+	})
+	t.Run("Should parse wait task with processor configuration", func(t *testing.T) {
+		yamlContent := `
+id: wait-with-processor
+type: wait
+wait_for: data_signal
+condition: '{{ and (.processor.output.valid) (gt .processor.output.score 0.8) }}'
+processor:
+  id: validate_data
+  type: basic
+  $use: tool(local::tools.#(id=="validator"))
+  with:
+    input_data: "{{ .signal.payload }}"
+    threshold: 0.8
+timeout: 2h
+on_timeout: timeout_handler
+on_success:
+  next: process_data
+on_error:
+  next: handle_error
+`
+		var config Config
+		err := yaml.Unmarshal([]byte(yamlContent), &config)
+		require.NoError(t, err)
+		assert.Equal(t, "wait-with-processor", config.ID)
+		assert.Equal(t, TaskTypeWait, config.Type)
+		assert.Equal(t, "data_signal", config.WaitFor)
+		assert.Equal(t, `{{ and (.processor.output.valid) (gt .processor.output.score 0.8) }}`, config.Condition)
+		assert.Equal(t, "timeout_handler", config.OnTimeout)
+		require.NotNil(t, config.Processor)
+		assert.Equal(t, "validate_data", config.Processor.ID)
+		assert.Equal(t, TaskTypeBasic, config.Processor.Type)
+		assert.NotNil(t, config.Processor.With)
+		inputData := (*config.Processor.With)["input_data"]
+		threshold := (*config.Processor.With)["threshold"]
+		assert.Equal(t, "{{ .signal.payload }}", inputData)
+		assert.Equal(t, float64(0.8), threshold)
+	})
+	t.Run("Should serialize wait task configuration to YAML", func(t *testing.T) {
+		config := Config{
+			BaseConfig: BaseConfig{
+				ID:        "wait-task",
+				Type:      TaskTypeWait,
+				Timeout:   "30m",
+				Condition: `{{ eq .signal.action "continue" }}`,
+			},
+			WaitTask: WaitTask{
+				WaitFor:   "user_signal",
+				OnTimeout: "handle_timeout",
+			},
+		}
+		data, err := yaml.Marshal(&config)
+		require.NoError(t, err)
+		yamlStr := string(data)
+		assert.Contains(t, yamlStr, "id: wait-task")
+		assert.Contains(t, yamlStr, "type: wait")
+		assert.Contains(t, yamlStr, "wait_for: user_signal")
+		assert.Contains(t, yamlStr, `condition: "{{ eq .signal.action \"continue\" }}"`)
+		assert.Contains(t, yamlStr, "timeout: 30m")
+		assert.Contains(t, yamlStr, "on_timeout: handle_timeout")
+	})
+	t.Run("Should handle processor with BaseConfig fields", func(t *testing.T) {
+		yamlContent := `
+id: wait-processor-timeout
+type: wait
+wait_for: processing_signal
+condition: '{{ .processor.output.success }}'
+processor:
+  id: processor_with_timeout
+  type: basic
+  timeout: 10s
+  retries: 3
+  $use: tool(local::tools.#(id=="processor"))
+`
+		var config Config
+		err := yaml.Unmarshal([]byte(yamlContent), &config)
+		require.NoError(t, err)
+		require.NotNil(t, config.Processor)
+		assert.Equal(t, "processor_with_timeout", config.Processor.ID)
+		assert.Equal(t, "10s", config.Processor.Timeout)
+		assert.Equal(t, 3, config.Processor.Retries)
+	})
+}
+
+func TestWaitTaskConfig_GetExecType(t *testing.T) {
+	t.Run("Should return ExecutionWait for wait task type", func(t *testing.T) {
+		config := Config{
+			BaseConfig: BaseConfig{
+				Type: TaskTypeWait,
+			},
+		}
+		execType := config.GetExecType()
+		assert.Equal(t, ExecutionWait, execType)
+	})
+}
+
+func TestConfig_validateWaitTask(t *testing.T) {
+	t.Run("Should validate basic wait task configuration", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+			WaitTask: WaitTask{
+				WaitFor: "approval_signal",
+			},
+		}
+		err := config.validateWaitTask()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should require wait_for field", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+		}
+		err := config.validateWaitTask()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "wait_for field is required")
+	})
+
+	t.Run("Should require condition field", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:   "test-wait",
+				Type: TaskTypeWait,
+				CWD:  CWD,
+				// Missing Condition field
+			},
+			WaitTask: WaitTask{
+				WaitFor: "approval_signal",
+			},
+		}
+		err := config.validateWaitTask()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "condition field is required")
+	})
+
+	t.Run("Should validate CEL expression syntax", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status ==`, // Invalid syntax
+			},
+			WaitTask: WaitTask{
+				WaitFor: "approval_signal",
+			},
+		}
+		err := config.validateWaitTask()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid condition")
+	})
+
+	t.Run("Should validate timeout format", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Timeout:   "invalid-timeout",
+				Condition: `signal.payload.status == "approved"`,
+			},
+			WaitTask: WaitTask{
+				WaitFor: "approval_signal",
+			},
+		}
+		err := config.validateWaitTask()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid timeout")
+	})
+
+	t.Run("Should validate positive timeout value", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Timeout:   "0s",
+				Condition: `signal.payload.status == "approved"`,
+			},
+			WaitTask: WaitTask{
+				WaitFor: "approval_signal",
+			},
+		}
+		err := config.validateWaitTask()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "timeout must be positive")
+	})
+
+	t.Run("Should accept valid timeout values", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		testCases := []string{"1h", "30m", "5s", "2 hours", "10 minutes"}
+		for _, timeout := range testCases {
+			config := &Config{
+				BaseConfig: BaseConfig{
+					ID:        "test-wait",
+					Type:      TaskTypeWait,
+					CWD:       CWD,
+					Timeout:   timeout,
+					Condition: `signal.payload.status == "approved"`,
+				},
+				WaitTask: WaitTask{
+					WaitFor: "approval_signal",
+				},
+			}
+			err := config.validateWaitTask()
+			assert.NoError(t, err, "timeout %s should be valid", timeout)
+		}
+	})
+
+	t.Run("Should validate processor configuration", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+			WaitTask: WaitTask{
+				WaitFor: "approval_signal",
+				Processor: &Config{
+					BaseConfig: BaseConfig{
+						// Missing ID and Type
+						CWD: CWD,
+					},
+				},
+			},
+		}
+		err := config.validateWaitTask()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "processor ID is required")
+	})
+
+	t.Run("Should validate processor type", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+			WaitTask: WaitTask{
+				WaitFor: "approval_signal",
+				Processor: &Config{
+					BaseConfig: BaseConfig{
+						ID:  "processor1",
+						CWD: CWD,
+						// Missing Type
+					},
+				},
+			},
+		}
+		err := config.validateWaitTask()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "processor type is required")
+	})
+
+	t.Run("Should validate complete processor configuration", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+			WaitTask: WaitTask{
+				WaitFor: "approval_signal",
+				Processor: &Config{
+					BaseConfig: BaseConfig{
+						ID:   "processor1",
+						Type: TaskTypeBasic,
+						CWD:  CWD,
+					},
+				},
+			},
+		}
+		err := config.validateWaitTask()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should allow optional timeout", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+				// No timeout specified
+			},
+			WaitTask: WaitTask{
+				WaitFor: "approval_signal",
+			},
+		}
+		err := config.validateWaitTask()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should allow optional processor", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+			WaitTask: WaitTask{
+				WaitFor: "approval_signal",
+				// No processor specified
+			},
+		}
+		err := config.validateWaitTask()
+		assert.NoError(t, err)
+	})
+}
+
+func TestConfig_validateWaitCondition(t *testing.T) {
+	t.Run("Should validate valid CEL expressions", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+		}
+		validExpressions := []string{
+			`signal.payload.status == "approved"`,
+			`signal.payload.value > 100`,
+			`has(signal.payload.field) && signal.payload.field != ""`,
+			`processor.output.valid && processor.output.score > 0.8`,
+			`size(signal.payload.items) > 0`,
+		}
+		for _, expr := range validExpressions {
+			config.Condition = expr
+			err := config.validateWaitCondition()
+			assert.NoError(t, err, "expression should be valid: %s", expr)
+		}
+	})
+
+	t.Run("Should reject invalid CEL expressions", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+		}
+		invalidExpressions := []string{
+			`signal.payload.status ==`,       // Incomplete expression
+			`signal.payload.status == `,      // Missing value
+			`invalid syntax here`,            // Invalid syntax
+			`signal.payload.status = "test"`, // Assignment instead of comparison
+		}
+		for _, expr := range invalidExpressions {
+			config.Condition = expr
+			err := config.validateWaitCondition()
+			assert.Error(t, err, "expression should be invalid: %s", expr)
+		}
+	})
+}
+
+func TestConfig_validateWaitTimeout(t *testing.T) {
+	t.Run("Should accept empty timeout", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+		}
+		err := config.validateWaitTimeout()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should validate duration formats", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+		}
+		validTimeouts := []string{
+			"1s", "30s", "5m", "1h", "2h30m",
+			"1 second", "30 seconds", "5 minutes", "1 hour", "2 hours",
+		}
+		for _, timeout := range validTimeouts {
+			config.Timeout = timeout
+			err := config.validateWaitTimeout()
+			assert.NoError(t, err, "timeout should be valid: %s", timeout)
+		}
+	})
+
+	t.Run("Should reject invalid timeout formats", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+		}
+		invalidTimeouts := []string{
+			"invalid", "1x", "abc", "-1s", "0s",
+		}
+		for _, timeout := range invalidTimeouts {
+			config.Timeout = timeout
+			err := config.validateWaitTimeout()
+			assert.Error(t, err, "timeout should be invalid: %s", timeout)
+		}
+	})
+}
+
+func TestConfig_validateWaitProcessor(t *testing.T) {
+	t.Run("Should require processor ID", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+			WaitTask: WaitTask{
+				Processor: &Config{
+					BaseConfig: BaseConfig{
+						Type: TaskTypeBasic,
+						CWD:  CWD,
+					},
+				},
+			},
+		}
+		err := config.validateWaitProcessor()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "processor ID is required")
+	})
+
+	t.Run("Should require processor type", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+			WaitTask: WaitTask{
+				Processor: &Config{
+					BaseConfig: BaseConfig{
+						ID:  "processor1",
+						CWD: CWD,
+					},
+				},
+			},
+		}
+		err := config.validateWaitProcessor()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "processor type is required")
+	})
+
+	t.Run("Should validate processor configuration recursively", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+			WaitTask: WaitTask{
+				Processor: &Config{
+					BaseConfig: BaseConfig{
+						ID:   "processor1",
+						Type: TaskTypeBasic,
+						CWD:  CWD,
+					},
+				},
+			},
+		}
+		err := config.validateWaitProcessor()
+		assert.NoError(t, err)
+	})
+}
+
+func TestConfig_Validate_WaitTaskIntegration(t *testing.T) {
+	t.Run("Should integrate wait task validation with main Validate method", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+			WaitTask: WaitTask{
+				WaitFor: "approval_signal",
+			},
+		}
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should propagate wait task validation errors", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+			// Missing required fields
+		}
+		err := config.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid wait task")
+	})
+}
+
+func TestTypeValidator_validateWaitTask(t *testing.T) {
+	t.Run("Should reject wait task with action field", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+			BasicTask: BasicTask{
+				Action: "some_action", // Should not be allowed
+			},
+			WaitTask: WaitTask{
+				WaitFor: "approval_signal",
+			},
+		}
+		validator := NewTaskTypeValidator(config)
+		err := validator.validateWaitTask()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "wait tasks cannot have an action field")
+	})
+
+	t.Run("Should reject wait task with agent", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+				Agent:     &agent.Config{}, // Should not be allowed
+			},
+			WaitTask: WaitTask{
+				WaitFor: "approval_signal",
+			},
+		}
+		validator := NewTaskTypeValidator(config)
+		err := validator.validateWaitTask()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "wait tasks cannot have an agent")
+	})
+
+	t.Run("Should reject wait task with tool", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+				Tool:      &tool.Config{}, // Should not be allowed
+			},
+			WaitTask: WaitTask{
+				WaitFor: "approval_signal",
+			},
+		}
+		validator := NewTaskTypeValidator(config)
+		err := validator.validateWaitTask()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "wait tasks cannot have a tool")
+	})
+
+	t.Run("Should accept valid wait task", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+			},
+			WaitTask: WaitTask{
+				WaitFor: "approval_signal",
+			},
+		}
+		validator := NewTaskTypeValidator(config)
+		err := validator.validateWaitTask()
+		assert.NoError(t, err)
 	})
 }
