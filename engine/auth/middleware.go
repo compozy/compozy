@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"strings"
 
 	"github.com/compozy/compozy/engine/auth/apikey"
@@ -11,34 +12,30 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// contextKey is a type for context keys to avoid collisions
-type contextKey string
+// APIKeyValidator interface for dependency injection
+type APIKeyValidator interface {
+	ValidateKey(ctx context.Context, keyStr string) (*apikey.APIKey, *user.User, *org.Organization, error)
+}
 
-const (
-	// Context keys for authenticated entities
-	contextKeyAPIKey      contextKey = "auth_api_key"
-	contextKeyUser        contextKey = "auth_user"
-	contextKeyOrg         contextKey = "auth_org"
-	contextKeyUserRole    contextKey = "auth_user_role"
-	contextKeyOrgID       contextKey = "auth_org_id"
-	contextKeyUserID      contextKey = "auth_user_id"
-	contextKeyRequestInfo contextKey = "auth_request_info"
-)
-
-// AuthMiddleware handles API key authentication for all protected routes
-type AuthMiddleware struct {
-	apiKeyService *apikey.Service
+// Middleware handles API key authentication for all protected routes
+type Middleware struct {
+	apiKeyService APIKeyValidator
 }
 
 // NewAuthMiddleware creates a new authentication middleware instance
-func NewAuthMiddleware(apiKeyService *apikey.Service) *AuthMiddleware {
-	return &AuthMiddleware{
+func NewAuthMiddleware(apiKeyService APIKeyValidator) *Middleware {
+	return &Middleware{
 		apiKeyService: apiKeyService,
 	}
 }
 
+// NewAuthMiddlewareWithService creates a new authentication middleware instance with the concrete service
+func NewAuthMiddlewareWithService(apiKeyService *apikey.Service) *Middleware {
+	return NewAuthMiddleware(apiKeyService)
+}
+
 // Authenticate is the Gin middleware handler for API key authentication
-func (m *AuthMiddleware) Authenticate() gin.HandlerFunc {
+func (m *Middleware) Authenticate() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		log := logger.FromContext(c.Request.Context())
 		// Extract Bearer token from Authorization header
@@ -56,6 +53,11 @@ func (m *AuthMiddleware) Authenticate() gin.HandlerFunc {
 			return
 		}
 		apiKeyStr := strings.TrimSpace(parts[1])
+		if apiKeyStr == "" {
+			log.Debug("Empty API key provided")
+			SendUnauthorizedError(c, "Invalid Authorization header: empty token")
+			return
+		}
 		// Add request info to context for audit logging
 		requestInfo := &apikey.RequestInfo{
 			IPAddress: c.ClientIP(),
@@ -89,12 +91,10 @@ func (m *AuthMiddleware) Authenticate() gin.HandlerFunc {
 			SendForbiddenError(c, "Organization is not active")
 			return
 		}
-		// Store authenticated entities directly in request context
+		// Store authenticated entities in request context
+		// Note: IDs and roles are now accessed via the objects themselves
 		ctx = WithOrganization(ctx, organization)
-		ctx = WithOrgID(ctx, organization.ID)
 		ctx = WithUser(ctx, usr)
-		ctx = WithUserID(ctx, usr.ID)
-		ctx = WithUserRole(ctx, usr.Role)
 		ctx = WithAPIKey(ctx, key)
 		c.Request = c.Request.WithContext(ctx)
 		// Log successful authentication

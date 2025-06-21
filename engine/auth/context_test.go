@@ -29,13 +29,17 @@ func TestContextFunctions(t *testing.T) {
 		assert.Equal(t, org.ID, retrieved.ID)
 		assert.Equal(t, org.Name, retrieved.Name)
 	})
-	t.Run("Should store and retrieve org ID from context", func(t *testing.T) {
-		// Create test org ID
+	t.Run("Should derive org ID from organization object", func(t *testing.T) {
+		// Create test organization
 		orgID := core.MustNewID()
-		// Store in context
+		org := &org.Organization{
+			ID:   orgID,
+			Name: "Test Org",
+		}
+		// Store organization in context
 		ctx := context.Background()
-		ctx = auth.WithOrgID(ctx, orgID)
-		// Retrieve from context
+		ctx = auth.WithOrganization(ctx, org)
+		// Retrieve org ID from context
 		retrieved, ok := auth.OrgIDFromContext(ctx)
 		assert.True(t, ok)
 		assert.Equal(t, orgID, retrieved)
@@ -58,24 +62,34 @@ func TestContextFunctions(t *testing.T) {
 		assert.Equal(t, usr.ID, retrieved.ID)
 		assert.Equal(t, usr.Email, retrieved.Email)
 	})
-	t.Run("Should store and retrieve user ID from context", func(t *testing.T) {
-		// Create test user ID
+	t.Run("Should derive user ID from user object", func(t *testing.T) {
+		// Create test user
 		userID := core.MustNewID()
-		// Store in context
+		usr := &user.User{
+			ID:    userID,
+			Email: "test@example.com",
+			Role:  user.RoleOrgAdmin,
+		}
+		// Store user in context
 		ctx := context.Background()
-		ctx = auth.WithUserID(ctx, userID)
-		// Retrieve from context
+		ctx = auth.WithUser(ctx, usr)
+		// Retrieve user ID from context
 		retrieved, ok := auth.UserIDFromContext(ctx)
 		assert.True(t, ok)
 		assert.Equal(t, userID, retrieved)
 	})
-	t.Run("Should store and retrieve user role from context", func(t *testing.T) {
-		// Create test role
+	t.Run("Should derive user role from user object", func(t *testing.T) {
+		// Create test user with role
 		role := user.RoleOrgManager
-		// Store in context
+		usr := &user.User{
+			ID:    core.MustNewID(),
+			Email: "test@example.com",
+			Role:  role,
+		}
+		// Store user in context
 		ctx := context.Background()
-		ctx = auth.WithUserRole(ctx, role)
-		// Retrieve from context
+		ctx = auth.WithUser(ctx, usr)
+		// Retrieve user role from context
 		retrieved, ok := auth.UserRoleFromContext(ctx)
 		assert.True(t, ok)
 		assert.Equal(t, role, retrieved)
@@ -117,10 +131,19 @@ func TestContextFunctions(t *testing.T) {
 		orgID := core.MustNewID()
 		userID := core.MustNewID()
 		role := user.RoleOrgAdmin
+		// Create actual objects since IDs are now derived from objects
+		testOrg := &org.Organization{
+			ID:   orgID,
+			Name: "Test Org",
+		}
+		testUser := &user.User{
+			ID:   userID,
+			Role: role,
+		}
 		ctx := context.Background()
-		ctx = auth.WithOrgID(ctx, orgID)
-		ctx = auth.WithUserID(ctx, userID)
-		ctx = auth.WithUserRole(ctx, role)
+		// Store the actual objects instead of just IDs
+		ctx = auth.WithOrganization(ctx, testOrg)
+		ctx = auth.WithUser(ctx, testUser)
 		// These should not panic
 		assert.NotPanics(t, func() {
 			gotOrgID := auth.MustGetOrgID(ctx)

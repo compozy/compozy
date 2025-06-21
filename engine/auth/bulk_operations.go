@@ -42,7 +42,7 @@ func (s *BulkOperationsService) SuspendUsers(
 	ctx context.Context,
 	orgID, executorID core.ID,
 	userIDs []core.ID,
-	reason string,
+	_ string, // reason parameter kept for future audit requirements
 ) (*BulkOperationResult, error) {
 	log := logger.FromContext(ctx)
 	log.With(
@@ -86,11 +86,19 @@ func (s *BulkOperationsService) SuspendUsers(
 	// Track activity for successful operations
 	for _, userID := range userIDs {
 		if !failedUsers[userID] {
-			oldStatus := "active" // default
+			oldStatus := string(user.StatusActive) // default
 			if status, ok := userStates[userID]; ok {
 				oldStatus = string(status)
 			}
-			if trackErr := s.activityTracker.TrackUserStatusChange(ctx, orgID, executorID, userID, oldStatus, "suspended"); trackErr != nil {
+			trackErr := s.activityTracker.TrackUserStatusChange(
+				ctx,
+				orgID,
+				executorID,
+				userID,
+				oldStatus,
+				string(user.StatusSuspended),
+			)
+			if trackErr != nil {
 				log.With("user_id", userID, "error", trackErr).Warn("Failed to track user suspension activity")
 			}
 		}
@@ -146,11 +154,19 @@ func (s *BulkOperationsService) ActivateUsers(
 	// Track activity for successful operations
 	for _, userID := range userIDs {
 		if !failedUsers[userID] {
-			oldStatus := "suspended" // default
+			oldStatus := string(user.StatusSuspended) // default
 			if status, ok := userStates[userID]; ok {
 				oldStatus = string(status)
 			}
-			if trackErr := s.activityTracker.TrackUserStatusChange(ctx, orgID, executorID, userID, oldStatus, "active"); trackErr != nil {
+			trackErr := s.activityTracker.TrackUserStatusChange(
+				ctx,
+				orgID,
+				executorID,
+				userID,
+				oldStatus,
+				string(user.StatusActive),
+			)
+			if trackErr != nil {
 				log.With("user_id", userID, "error", trackErr).Warn("Failed to track user activation activity")
 			}
 		}
@@ -248,7 +264,10 @@ func (s *BulkOperationsService) UpdateUserRoles(
 		}
 		result.SuccessfulUsers++
 		// Track activity
-		if trackErr := s.activityTracker.TrackUserRoleChange(ctx, orgID, executorID, update.UserID, string(currentUser.Role), string(update.NewRole)); trackErr != nil {
+		oldRole := string(currentUser.Role)
+		newRole := string(update.NewRole)
+		trackErr := s.activityTracker.TrackUserRoleChange(ctx, orgID, executorID, update.UserID, oldRole, newRole)
+		if trackErr != nil {
 			log.With("user_id", update.UserID, "error", trackErr).Warn("Failed to track user role change activity")
 		}
 	}

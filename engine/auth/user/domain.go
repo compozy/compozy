@@ -50,6 +50,13 @@ const (
 	PermAPIKeyWrite = "apikey:write"
 )
 
+// Bulk operation types
+const (
+	BulkOpSuspend  = "suspend"
+	BulkOpActivate = "activate"
+	BulkOpDelete   = "delete"
+)
+
 // IsValid checks if the role is valid
 func (r Role) IsValid() bool {
 	switch r {

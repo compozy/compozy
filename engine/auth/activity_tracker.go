@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/compozy/compozy/engine/auth/user"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -143,9 +144,9 @@ func (t *ActivityTracker) TrackUserStatusChange(
 	oldStatus, newStatus string,
 ) error {
 	activityType := ActivityUserUpdated
-	if newStatus == "suspended" {
+	if newStatus == string(user.StatusSuspended) {
 		activityType = ActivityUserSuspended
-	} else if newStatus == "active" && oldStatus == "suspended" {
+	} else if newStatus == string(user.StatusActive) && oldStatus == string(user.StatusSuspended) {
 		activityType = ActivityUserActivated
 	}
 	return t.TrackActivity(ctx, &Activity{

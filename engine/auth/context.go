@@ -10,6 +10,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// contextKey is a type for context keys to avoid collisions
+type contextKey string
+
+const (
+	// Context keys for authenticated entities
+	contextKeyAPIKey      contextKey = "auth_api_key" // #nosec G101 - not a credential
+	contextKeyUser        contextKey = "auth_user"
+	contextKeyOrg         contextKey = "auth_org"
+	contextKeyRequestInfo contextKey = "auth_request_info"
+)
+
 // OrgContextMiddleware is deprecated as context injection is now handled by AuthMiddleware
 // Deprecated: Use AuthMiddleware which now handles all context injection
 type OrgContextMiddleware struct{}
@@ -37,8 +48,10 @@ func WithOrganization(ctx context.Context, organization *org.Organization) conte
 }
 
 // WithOrgID adds the organization ID to the context
-func WithOrgID(ctx context.Context, orgID core.ID) context.Context {
-	return context.WithValue(ctx, contextKeyOrgID, orgID)
+// Deprecated: Organization ID is now accessible via OrganizationFromContext().ID
+func WithOrgID(ctx context.Context, _ core.ID) context.Context {
+	// No longer stores ID separately - maintained for backward compatibility
+	return ctx
 }
 
 // WithUser adds the user to the context
@@ -47,13 +60,17 @@ func WithUser(ctx context.Context, usr *user.User) context.Context {
 }
 
 // WithUserID adds the user ID to the context
-func WithUserID(ctx context.Context, userID core.ID) context.Context {
-	return context.WithValue(ctx, contextKeyUserID, userID)
+// Deprecated: User ID is now accessible via UserFromContext().ID
+func WithUserID(ctx context.Context, _ core.ID) context.Context {
+	// No longer stores ID separately - maintained for backward compatibility
+	return ctx
 }
 
 // WithUserRole adds the user role to the context
-func WithUserRole(ctx context.Context, role user.Role) context.Context {
-	return context.WithValue(ctx, contextKeyUserRole, role)
+// Deprecated: User role is now accessible via UserFromContext().Role
+func WithUserRole(ctx context.Context, _ user.Role) context.Context {
+	// No longer stores role separately - maintained for backward compatibility
+	return ctx
 }
 
 // WithAPIKey adds the API key to the context
@@ -71,8 +88,11 @@ func OrganizationFromContext(ctx context.Context) (*org.Organization, bool) {
 
 // OrgIDFromContext retrieves the organization ID from context
 func OrgIDFromContext(ctx context.Context) (core.ID, bool) {
-	orgID, ok := ctx.Value(contextKeyOrgID).(core.ID)
-	return orgID, ok
+	org, ok := OrganizationFromContext(ctx)
+	if !ok || org == nil {
+		return "", false
+	}
+	return org.ID, true
 }
 
 // UserFromContext retrieves the user from context
@@ -83,14 +103,20 @@ func UserFromContext(ctx context.Context) (*user.User, bool) {
 
 // UserIDFromContext retrieves the user ID from context
 func UserIDFromContext(ctx context.Context) (core.ID, bool) {
-	userID, ok := ctx.Value(contextKeyUserID).(core.ID)
-	return userID, ok
+	usr, ok := UserFromContext(ctx)
+	if !ok || usr == nil {
+		return "", false
+	}
+	return usr.ID, true
 }
 
 // UserRoleFromContext retrieves the user role from context
 func UserRoleFromContext(ctx context.Context) (user.Role, bool) {
-	role, ok := ctx.Value(contextKeyUserRole).(user.Role)
-	return role, ok
+	usr, ok := UserFromContext(ctx)
+	if !ok || usr == nil {
+		return "", false
+	}
+	return usr.Role, true
 }
 
 // APIKeyFromContext retrieves the API key from context

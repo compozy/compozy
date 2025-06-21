@@ -71,7 +71,7 @@ func (m *SecurityHeadersMiddleware) AddSecurityHeaders() gin.HandlerFunc {
 			c.Header("Content-Security-Policy", m.contentSecurityPolicy)
 		}
 		// Remove server header to avoid exposing server information
-		c.Header("Server", "")
+		c.Writer.Header().Del("Server")
 		// Add cache control for sensitive endpoints
 		if c.Request.Method != "GET" || isAuthenticatedEndpoint(c) {
 			c.Header("Cache-Control", "no-store, no-cache, must-revalidate, private")

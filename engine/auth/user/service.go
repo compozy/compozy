@@ -96,51 +96,105 @@ func (s *Service) GetUserByEmail(ctx context.Context, orgID core.ID, email strin
 
 // UpdateUser updates an existing user
 func (s *Service) UpdateUser(ctx context.Context, orgID, userID core.ID, req *UpdateUserRequest) (*User, error) {
-	log := logger.FromContext(ctx)
 	// Get existing user
 	user, err := s.repo.GetByID(ctx, orgID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
-	// Track if any changes were made
-	updated := false
-	// Update email if provided
-	if req.Email != nil && *req.Email != user.Email {
-		// Validate email
-		if err := ValidateEmail(*req.Email); err != nil {
-			return nil, fmt.Errorf("invalid email: %w", err)
-		}
-		// Check if email is already taken
-		existingUser, err := s.repo.GetByEmail(ctx, orgID, *req.Email)
-		if err != nil && err != ErrUserNotFound {
-			return nil, fmt.Errorf("failed to check email uniqueness: %w", err)
-		}
-		if existingUser != nil && existingUser.ID != userID {
-			return nil, fmt.Errorf("email '%s' is already taken", *req.Email)
-		}
-		user.Email = strings.ToLower(strings.TrimSpace(*req.Email))
-		updated = true
-	}
-	// Update role if provided
-	if req.Role != nil && *req.Role != user.Role {
-		if !req.Role.IsValid() {
-			return nil, fmt.Errorf("invalid role: %s", *req.Role)
-		}
-		user.Role = *req.Role
-		updated = true
-	}
-	// Update status if provided
-	if req.Status != nil && *req.Status != user.Status {
-		if !req.Status.IsValid() {
-			return nil, fmt.Errorf("invalid status: %s", *req.Status)
-		}
-		user.Status = *req.Status
-		updated = true
+	// Apply updates
+	updated, err := s.applyUserUpdates(ctx, orgID, userID, user, req)
+	if err != nil {
+		return nil, err
 	}
 	// Only update if changes were made
 	if !updated {
 		return user, nil
 	}
+	return s.persistUserUpdate(ctx, orgID, userID, user)
+}
+
+// applyUserUpdates applies the requested updates to the user object
+func (s *Service) applyUserUpdates(
+	ctx context.Context,
+	orgID, userID core.ID,
+	user *User,
+	req *UpdateUserRequest,
+) (bool, error) {
+	updated := false
+	// Update email if provided
+	if emailUpdated, err := s.updateUserEmail(ctx, orgID, userID, user, req.Email); err != nil {
+		return false, err
+	} else if emailUpdated {
+		updated = true
+	}
+	// Update role if provided
+	if roleUpdated, err := s.updateUserRole(user, req.Role); err != nil {
+		return false, err
+	} else if roleUpdated {
+		updated = true
+	}
+	// Update status if provided
+	if statusUpdated, err := s.updateUserStatus(user, req.Status); err != nil {
+		return false, err
+	} else if statusUpdated {
+		updated = true
+	}
+	return updated, nil
+}
+
+// updateUserEmail updates the user's email if provided and different
+func (s *Service) updateUserEmail(
+	ctx context.Context,
+	orgID, userID core.ID,
+	user *User,
+	newEmail *string,
+) (bool, error) {
+	if newEmail == nil || *newEmail == user.Email {
+		return false, nil
+	}
+	// Validate email
+	if err := ValidateEmail(*newEmail); err != nil {
+		return false, fmt.Errorf("invalid email: %w", err)
+	}
+	// Check if email is already taken
+	existingUser, err := s.repo.GetByEmail(ctx, orgID, *newEmail)
+	if err != nil && err != ErrUserNotFound {
+		return false, fmt.Errorf("failed to check email uniqueness: %w", err)
+	}
+	if existingUser != nil && existingUser.ID != userID {
+		return false, fmt.Errorf("email '%s' is already taken", *newEmail)
+	}
+	user.Email = strings.ToLower(strings.TrimSpace(*newEmail))
+	return true, nil
+}
+
+// updateUserRole updates the user's role if provided and different
+func (s *Service) updateUserRole(user *User, newRole *Role) (bool, error) {
+	if newRole == nil || *newRole == user.Role {
+		return false, nil
+	}
+	if !newRole.IsValid() {
+		return false, fmt.Errorf("invalid role: %s", *newRole)
+	}
+	user.Role = *newRole
+	return true, nil
+}
+
+// updateUserStatus updates the user's status if provided and different
+func (s *Service) updateUserStatus(user *User, newStatus *Status) (bool, error) {
+	if newStatus == nil || *newStatus == user.Status {
+		return false, nil
+	}
+	if !newStatus.IsValid() {
+		return false, fmt.Errorf("invalid status: %s", *newStatus)
+	}
+	user.Status = *newStatus
+	return true, nil
+}
+
+// persistUserUpdate persists the updated user to the database
+func (s *Service) persistUserUpdate(ctx context.Context, orgID, userID core.ID, user *User) (*User, error) {
+	log := logger.FromContext(ctx)
 	user.UpdatedAt = time.Now().UTC()
 	log.With(
 		"user_id", userID,
@@ -259,24 +313,10 @@ func (s *Service) ExecuteBulkOperation(
 	req *BulkUserOperation,
 ) ([]BulkOperationError, error) {
 	log := logger.FromContext(ctx)
-	if len(req.UserIDs) == 0 {
-		return nil, fmt.Errorf("no user IDs provided")
-	}
-	// Validate operation before starting transaction
-	switch req.Operation {
-	case "suspend", "activate", "delete":
-		// Valid operations
-	default:
-		return nil, fmt.Errorf("unsupported operation: %s", req.Operation)
-	}
-	// De-duplicate user IDs
-	uniqueIDs := make(map[core.ID]struct{})
-	for _, id := range req.UserIDs {
-		uniqueIDs[id] = struct{}{}
-	}
-	userIDs := make([]core.ID, 0, len(uniqueIDs))
-	for id := range uniqueIDs {
-		userIDs = append(userIDs, id)
+	// Validate and prepare operation
+	userIDs, err := s.prepareBulkOperation(req)
+	if err != nil {
+		return nil, err
 	}
 	log.With(
 		"org_id", orgID,
@@ -285,45 +325,172 @@ func (s *Service) ExecuteBulkOperation(
 	).Info("Executing bulk user operation")
 	// Execute operation in a transaction for atomicity
 	var errors []BulkOperationError
-	err := s.withTransaction(ctx, func(txCtx context.Context, tx pgx.Tx) error {
+	err = s.withTransaction(ctx, func(txCtx context.Context, tx pgx.Tx) error {
 		txRepo := s.repo.WithTx(tx)
-		for _, userID := range userIDs {
-			// Verify user exists in organization
-			user, err := txRepo.GetByID(txCtx, orgID, userID)
-			if err != nil {
-				if err == ErrUserNotFound {
-					log.With("user_id", userID).Warn("User not found, marking as failed")
-					errors = append(errors, BulkOperationError{
-						UserID: userID,
-						Error:  ErrUserNotFound,
-					})
-					continue
-				}
-				return fmt.Errorf("failed to get user %s: %w", userID, err)
-			}
-			// Execute operation based on type
-			switch req.Operation {
-			case "suspend":
-				if user.Status != StatusSuspended {
-					if err := txRepo.UpdateStatus(txCtx, orgID, userID, StatusSuspended); err != nil {
-						return fmt.Errorf("failed to suspend user %s: %w", userID, err)
-					}
-				}
-			case "activate":
-				if user.Status != StatusActive {
-					if err := txRepo.UpdateStatus(txCtx, orgID, userID, StatusActive); err != nil {
-						return fmt.Errorf("failed to activate user %s: %w", userID, err)
-					}
-				}
-			case "delete":
-				if err := txRepo.Delete(txCtx, orgID, userID); err != nil {
-					return fmt.Errorf("failed to delete user %s: %w", userID, err)
-				}
-			}
-		}
-		return nil
+		return s.executeBulkOperationInTransaction(txCtx, orgID, req.Operation, userIDs, txRepo, &errors)
 	})
 	return errors, err
+}
+
+// prepareBulkOperation validates and prepares the bulk operation request
+func (s *Service) prepareBulkOperation(req *BulkUserOperation) ([]core.ID, error) {
+	if len(req.UserIDs) == 0 {
+		return nil, fmt.Errorf("no user IDs provided")
+	}
+	// Validate operation
+	if err := s.validateBulkOperation(req.Operation); err != nil {
+		return nil, err
+	}
+	// De-duplicate user IDs
+	return s.deduplicateUserIDs(req.UserIDs), nil
+}
+
+// validateBulkOperation validates the bulk operation type
+func (s *Service) validateBulkOperation(operation string) error {
+	switch operation {
+	case BulkOpSuspend, BulkOpActivate, BulkOpDelete:
+		return nil
+	default:
+		return fmt.Errorf("unsupported operation: %s", operation)
+	}
+}
+
+// deduplicateUserIDs removes duplicate user IDs from the slice
+func (s *Service) deduplicateUserIDs(userIDs []core.ID) []core.ID {
+	uniqueIDs := make(map[core.ID]struct{})
+	for _, id := range userIDs {
+		uniqueIDs[id] = struct{}{}
+	}
+	result := make([]core.ID, 0, len(uniqueIDs))
+	for id := range uniqueIDs {
+		result = append(result, id)
+	}
+	return result
+}
+
+// executeBulkOperationInTransaction executes the bulk operation within a transaction
+func (s *Service) executeBulkOperationInTransaction(
+	txCtx context.Context,
+	orgID core.ID,
+	operation string,
+	userIDs []core.ID,
+	txRepo interface {
+		GetByID(context.Context, core.ID, core.ID) (*User, error)
+		UpdateStatus(context.Context, core.ID, core.ID, Status) error
+		Delete(context.Context, core.ID, core.ID) error
+	},
+	errors *[]BulkOperationError,
+) error {
+	for _, userID := range userIDs {
+		user, err := s.getUserForBulkOperation(txCtx, orgID, userID, txRepo, errors)
+		if err != nil {
+			return err
+		}
+		if user == nil {
+			continue // User not found, error already added to errors slice
+		}
+		// Execute operation based on type
+		if err := s.executeSingleBulkOperation(txCtx, orgID, userID, operation, user, txRepo); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// getUserForBulkOperation retrieves a user for bulk operation, handling not found cases
+func (s *Service) getUserForBulkOperation(
+	txCtx context.Context,
+	orgID, userID core.ID,
+	txRepo interface {
+		GetByID(context.Context, core.ID, core.ID) (*User, error)
+	},
+	errors *[]BulkOperationError,
+) (*User, error) {
+	log := logger.FromContext(txCtx)
+	user, err := txRepo.GetByID(txCtx, orgID, userID)
+	if err != nil {
+		if err == ErrUserNotFound {
+			log.With("user_id", userID).Warn("User not found, marking as failed")
+			*errors = append(*errors, BulkOperationError{
+				UserID: userID,
+				Error:  ErrUserNotFound,
+			})
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get user %s: %w", userID, err)
+	}
+	return user, nil
+}
+
+// executeSingleBulkOperation executes a single operation on a user
+func (s *Service) executeSingleBulkOperation(
+	txCtx context.Context,
+	orgID, userID core.ID,
+	operation string,
+	user *User,
+	txRepo interface {
+		UpdateStatus(context.Context, core.ID, core.ID, Status) error
+		Delete(context.Context, core.ID, core.ID) error
+	},
+) error {
+	switch operation {
+	case BulkOpSuspend:
+		return s.executeSuspendOperation(txCtx, orgID, userID, user, txRepo)
+	case BulkOpActivate:
+		return s.executeActivateOperation(txCtx, orgID, userID, user, txRepo)
+	case BulkOpDelete:
+		return s.executeDeleteOperation(txCtx, orgID, userID, txRepo)
+	default:
+		return fmt.Errorf("unsupported operation: %s", operation)
+	}
+}
+
+// executeSuspendOperation suspends a user if not already suspended
+func (s *Service) executeSuspendOperation(
+	txCtx context.Context,
+	orgID, userID core.ID,
+	user *User,
+	txRepo interface {
+		UpdateStatus(context.Context, core.ID, core.ID, Status) error
+	},
+) error {
+	if user.Status != StatusSuspended {
+		if err := txRepo.UpdateStatus(txCtx, orgID, userID, StatusSuspended); err != nil {
+			return fmt.Errorf("failed to suspend user %s: %w", userID, err)
+		}
+	}
+	return nil
+}
+
+// executeActivateOperation activates a user if not already active
+func (s *Service) executeActivateOperation(
+	txCtx context.Context,
+	orgID, userID core.ID,
+	user *User,
+	txRepo interface {
+		UpdateStatus(context.Context, core.ID, core.ID, Status) error
+	},
+) error {
+	if user.Status != StatusActive {
+		if err := txRepo.UpdateStatus(txCtx, orgID, userID, StatusActive); err != nil {
+			return fmt.Errorf("failed to activate user %s: %w", userID, err)
+		}
+	}
+	return nil
+}
+
+// executeDeleteOperation deletes a user
+func (s *Service) executeDeleteOperation(
+	txCtx context.Context,
+	orgID, userID core.ID,
+	txRepo interface {
+		Delete(context.Context, core.ID, core.ID) error
+	},
+) error {
+	if err := txRepo.Delete(txCtx, orgID, userID); err != nil {
+		return fmt.Errorf("failed to delete user %s: %w", userID, err)
+	}
+	return nil
 }
 
 // CheckPermission checks if a user has a specific permission
