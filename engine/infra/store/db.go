@@ -137,6 +137,7 @@ func (db *DB) WithTx(ctx context.Context, fn func(pgx.Tx) error) error {
 		} else {
 			if commitErr := tx.Commit(ctx); commitErr != nil {
 				log.Error("Failed to commit transaction", "error", commitErr)
+				err = commitErr
 			}
 		}
 	}()

@@ -1,8 +1,8 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     email VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL DEFAULT 'org_member',
     status VARCHAR(50) NOT NULL DEFAULT 'active',
@@ -36,8 +36,8 @@ INSERT INTO users (
     created_at,
     updated_at
 ) VALUES (
-    '00000000-0000-0000-0000-000000000001'::UUID,
-    '00000000-0000-0000-0000-000000000000'::UUID,
+    'system-admin',
+    'system',
     'system@compozy.local',
     'system_admin',
     'active',

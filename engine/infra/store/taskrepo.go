@@ -19,16 +19,18 @@ var ErrTaskNotFound = fmt.Errorf("task state not found")
 
 // TaskRepo implements the task.Repository interface.
 type TaskRepo struct {
-	db    DBInterface
-	dbPtr *DB // Keep reference to concrete DB for transaction operations
+	db          DBInterface
+	dbPtr       *DB // Keep reference to concrete DB for transaction operations
+	queryFilter *QueryFilters
 }
 
 func NewTaskRepo(db DBInterface) *TaskRepo {
 	// Try to get concrete DB for transaction support
 	dbPtr, _ := db.(*DB) //nolint:errcheck // intentionally ignored for test compatibility
 	return &TaskRepo{
-		db:    db,
-		dbPtr: dbPtr,
+		db:          db,
+		dbPtr:       dbPtr,
+		queryFilter: NewQueryFilters(),
 	}
 }
 
@@ -37,6 +39,12 @@ func (r *TaskRepo) ListStates(ctx context.Context, filter *task.StateFilter) ([]
 	sb := squirrel.Select("*").
 		From("task_states").
 		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply organization filtering first
+	sb, err := r.queryFilter.ApplyOrgFilter(ctx, sb)
+	if err != nil {
+		return nil, fmt.Errorf("applying organization filter: %w", err)
+	}
 
 	sb = r.applyStateFilter(sb, filter)
 
@@ -130,7 +138,7 @@ func (r *TaskRepo) buildUpsertArgs(state *task.State) (string, []any, error) {
 			task_exec_id, task_id, workflow_exec_id, workflow_id, org_id, component, status,
 			execution_type, parent_state_id, agent_id, action_id, tool_id, input, output, error
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-		ON CONFLICT (task_exec_id) DO UPDATE SET
+		ON CONFLICT (task_exec_id, org_id) DO UPDATE SET
 			task_id = $2,
 			workflow_exec_id = $3,
 			workflow_id = $4,
@@ -160,6 +168,11 @@ func (r *TaskRepo) buildUpsertArgs(state *task.State) (string, []any, error) {
 
 // UpsertState inserts or updates a task state (supports both basic and parallel execution).
 func (r *TaskRepo) UpsertState(ctx context.Context, state *task.State) error {
+	// SECURITY: Enforce organization ID from context, not from input
+	// This prevents cross-tenant data writes if caller forgets to validate
+	contextOrgID := MustGetOrganizationID(ctx)
+	state.OrgID = contextOrgID // Overwrite with trusted value from context
+
 	query, args, err := r.buildUpsertArgs(state)
 	if err != nil {
 		return err
@@ -175,14 +188,24 @@ func (r *TaskRepo) UpsertState(ctx context.Context, state *task.State) error {
 
 // GetState retrieves a task state by its task execution ID.
 func (r *TaskRepo) GetState(ctx context.Context, taskExecID core.ID) (*task.State, error) {
-	query := `
-		SELECT *
-		FROM task_states
-		WHERE task_exec_id = $1
-	`
+	sb := squirrel.Select("*").
+		From("task_states").
+		Where(squirrel.Eq{"task_exec_id": taskExecID}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply organization filtering
+	sb, err := r.queryFilter.ApplyOrgFilter(ctx, sb)
+	if err != nil {
+		return nil, fmt.Errorf("applying organization filter: %w", err)
+	}
+
+	query, args, err := sb.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("building query: %w", err)
+	}
 
 	var stateDB task.StateDB
-	err := pgxscan.Get(ctx, r.db, &stateDB, query, taskExecID)
+	err = pgxscan.Get(ctx, r.db, &stateDB, query, args...)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrTaskNotFound
@@ -196,15 +219,25 @@ func (r *TaskRepo) GetState(ctx context.Context, taskExecID core.ID) (*task.Stat
 // GetStateForUpdate retrieves a task state by its task execution ID with row-level locking.
 // This method should be used within a transaction when concurrent updates are expected.
 func (r *TaskRepo) GetStateForUpdate(ctx context.Context, tx pgx.Tx, taskExecID core.ID) (*task.State, error) {
-	query := `
-		SELECT *
-		FROM task_states
-		WHERE task_exec_id = $1
-		FOR UPDATE
-	`
+	sb := squirrel.Select("*").
+		From("task_states").
+		Where(squirrel.Eq{"task_exec_id": taskExecID}).
+		Suffix("FOR UPDATE").
+		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply organization filtering
+	sb, err := r.queryFilter.ApplyOrgFilter(ctx, sb)
+	if err != nil {
+		return nil, fmt.Errorf("applying organization filter: %w", err)
+	}
+
+	query, args, err := sb.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("building query: %w", err)
+	}
 
 	var stateDB task.StateDB
-	err := pgxscan.Get(ctx, tx, &stateDB, query, taskExecID)
+	err = pgxscan.Get(ctx, tx, &stateDB, query, args...)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrTaskNotFound
@@ -245,14 +278,24 @@ func (r *TaskRepo) WithTx(ctx context.Context, fn func(pgx.Tx) error) error {
 
 // ListTasksInWorkflow retrieves all task states for a workflow execution.
 func (r *TaskRepo) ListTasksInWorkflow(ctx context.Context, workflowExecID core.ID) (map[string]*task.State, error) {
-	query := `
-		SELECT *
-		FROM task_states
-		WHERE workflow_exec_id = $1
-	`
+	sb := squirrel.Select("*").
+		From("task_states").
+		Where(squirrel.Eq{"workflow_exec_id": workflowExecID}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply organization filtering
+	sb, err := r.queryFilter.ApplyOrgFilter(ctx, sb)
+	if err != nil {
+		return nil, fmt.Errorf("applying organization filter: %w", err)
+	}
+
+	query, args, err := sb.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("building query: %w", err)
+	}
 
 	var statesDB []*task.StateDB
-	if err := pgxscan.Select(ctx, r.db, &statesDB, query, workflowExecID); err != nil {
+	if err := pgxscan.Select(ctx, r.db, &statesDB, query, args...); err != nil {
 		return nil, fmt.Errorf("scanning states: %w", err)
 	}
 
@@ -274,14 +317,25 @@ func (r *TaskRepo) ListTasksByStatus(
 	workflowExecID core.ID,
 	status core.StatusType,
 ) ([]*task.State, error) {
-	query := `
-		SELECT *
-		FROM task_states
-		WHERE workflow_exec_id = $1 AND status = $2
-	`
+	sb := squirrel.Select("*").
+		From("task_states").
+		Where(squirrel.Eq{"workflow_exec_id": workflowExecID}).
+		Where(squirrel.Eq{"status": status}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply organization filtering
+	sb, err := r.queryFilter.ApplyOrgFilter(ctx, sb)
+	if err != nil {
+		return nil, fmt.Errorf("applying organization filter: %w", err)
+	}
+
+	query, args, err := sb.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("building query: %w", err)
+	}
 
 	var statesDB []*task.StateDB
-	if err := pgxscan.Select(ctx, r.db, &statesDB, query, workflowExecID, status); err != nil {
+	if err := pgxscan.Select(ctx, r.db, &statesDB, query, args...); err != nil {
 		return nil, fmt.Errorf("scanning states: %w", err)
 	}
 
@@ -303,14 +357,25 @@ func (r *TaskRepo) ListTasksByAgent(
 	workflowExecID core.ID,
 	agentID string,
 ) ([]*task.State, error) {
-	query := `
-		SELECT *
-		FROM task_states
-		WHERE workflow_exec_id = $1 AND agent_id = $2
-	`
+	sb := squirrel.Select("*").
+		From("task_states").
+		Where(squirrel.Eq{"workflow_exec_id": workflowExecID}).
+		Where(squirrel.Eq{"agent_id": agentID}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply organization filtering
+	sb, err := r.queryFilter.ApplyOrgFilter(ctx, sb)
+	if err != nil {
+		return nil, fmt.Errorf("applying organization filter: %w", err)
+	}
+
+	query, args, err := sb.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("building query: %w", err)
+	}
 
 	var statesDB []*task.StateDB
-	if err := pgxscan.Select(ctx, r.db, &statesDB, query, workflowExecID, agentID); err != nil {
+	if err := pgxscan.Select(ctx, r.db, &statesDB, query, args...); err != nil {
 		return nil, fmt.Errorf("scanning states: %w", err)
 	}
 
@@ -328,14 +393,25 @@ func (r *TaskRepo) ListTasksByAgent(
 
 // ListTasksByTool retrieves task states by tool ID.
 func (r *TaskRepo) ListTasksByTool(ctx context.Context, workflowExecID core.ID, toolID string) ([]*task.State, error) {
-	query := `
-		SELECT *
-		FROM task_states
-		WHERE workflow_exec_id = $1 AND tool_id = $2
-	`
+	sb := squirrel.Select("*").
+		From("task_states").
+		Where(squirrel.Eq{"workflow_exec_id": workflowExecID}).
+		Where(squirrel.Eq{"tool_id": toolID}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply organization filtering
+	sb, err := r.queryFilter.ApplyOrgFilter(ctx, sb)
+	if err != nil {
+		return nil, fmt.Errorf("applying organization filter: %w", err)
+	}
+
+	query, args, err := sb.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("building query: %w", err)
+	}
 
 	var statesDB []*task.StateDB
-	if err := pgxscan.Select(ctx, r.db, &statesDB, query, workflowExecID, toolID); err != nil {
+	if err := pgxscan.Select(ctx, r.db, &statesDB, query, args...); err != nil {
 		return nil, fmt.Errorf("scanning states: %w", err)
 	}
 
@@ -353,15 +429,25 @@ func (r *TaskRepo) ListTasksByTool(ctx context.Context, workflowExecID core.ID, 
 
 // ListChildren retrieves all child tasks for a given parent task.
 func (r *TaskRepo) ListChildren(ctx context.Context, parentStateID core.ID) ([]*task.State, error) {
-	query := `
-		SELECT *
-		FROM task_states
-		WHERE parent_state_id = $1
-		ORDER BY created_at
-	`
+	sb := squirrel.Select("*").
+		From("task_states").
+		Where(squirrel.Eq{"parent_state_id": parentStateID}).
+		OrderBy("created_at").
+		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply organization filtering
+	sb, err := r.queryFilter.ApplyOrgFilter(ctx, sb)
+	if err != nil {
+		return nil, fmt.Errorf("applying organization filter: %w", err)
+	}
+
+	query, args, err := sb.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("building query: %w", err)
+	}
 
 	var statesDB []*task.StateDB
-	if err := pgxscan.Select(ctx, r.db, &statesDB, query, parentStateID); err != nil {
+	if err := pgxscan.Select(ctx, r.db, &statesDB, query, args...); err != nil {
 		return nil, fmt.Errorf("scanning child states: %w", err)
 	}
 
@@ -380,13 +466,25 @@ func (r *TaskRepo) ListChildren(ctx context.Context, parentStateID core.ID) ([]*
 // ListChildrenOutputs retrieves only the outputs of child tasks for performance.
 // This is more efficient than loading full task states when only outputs are needed.
 func (r *TaskRepo) ListChildrenOutputs(ctx context.Context, parentStateID core.ID) (map[string]*core.Output, error) {
-	query := `
-		SELECT task_id, output 
-		FROM task_states 
-		WHERE parent_state_id = $1 AND output IS NOT NULL
-		ORDER BY created_at
-	`
-	rows, err := r.db.Query(ctx, query, parentStateID)
+	sb := squirrel.Select("task_id", "output").
+		From("task_states").
+		Where(squirrel.Eq{"parent_state_id": parentStateID}).
+		Where("output IS NOT NULL").
+		OrderBy("created_at").
+		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply organization filtering
+	sb, err := r.queryFilter.ApplyOrgFilter(ctx, sb)
+	if err != nil {
+		return nil, fmt.Errorf("applying organization filter: %w", err)
+	}
+
+	query, args, err := sb.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("building query: %w", err)
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("querying child outputs: %w", err)
 	}
@@ -412,16 +510,29 @@ func (r *TaskRepo) ListChildrenOutputs(ctx context.Context, parentStateID core.I
 
 // GetChildByTaskID retrieves a specific child task state by its parent and task ID.
 func (r *TaskRepo) GetChildByTaskID(ctx context.Context, parentStateID core.ID, taskID string) (*task.State, error) {
-	query := `
-		SELECT *
-		FROM task_states
-		WHERE parent_state_id = $1 AND task_id = $2
-		ORDER BY created_at DESC
-		LIMIT 1
-	`
+	sb := squirrel.Select("*").
+		From("task_states").
+		Where(squirrel.Eq{
+			"parent_state_id": parentStateID,
+			"task_id":         taskID,
+		}).
+		OrderBy("created_at DESC").
+		Limit(1).
+		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply organization filtering
+	sb, err := r.queryFilter.ApplyOrgFilter(ctx, sb)
+	if err != nil {
+		return nil, fmt.Errorf("applying organization filter: %w", err)
+	}
+
+	query, args, err := sb.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("building query: %w", err)
+	}
 
 	var stateDB task.StateDB
-	err := pgxscan.Get(ctx, r.db, &stateDB, query, parentStateID, taskID)
+	err = pgxscan.Get(ctx, r.db, &stateDB, query, args...)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrTaskNotFound
@@ -434,26 +545,31 @@ func (r *TaskRepo) GetChildByTaskID(ctx context.Context, parentStateID core.ID, 
 
 // GetTaskTree retrieves a complete task hierarchy starting from the root using PostgreSQL CTE.
 func (r *TaskRepo) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*task.State, error) {
+	orgID, ok := GetOrganizationIDFromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("organization ID not found in context")
+	}
+
 	query := `
 		WITH RECURSIVE task_tree AS (
 			-- Base case: start with the root task
-			SELECT task_exec_id, task_id, workflow_exec_id, workflow_id, component,
+			SELECT task_exec_id, task_id, workflow_exec_id, workflow_id, org_id, component,
 				   status, execution_type, parent_state_id, agent_id, action_id, tool_id,
 				   input, output, error, created_at, updated_at, 0 as depth
 			FROM task_states
-			WHERE task_exec_id = $1
+			WHERE task_exec_id = $1 AND org_id = $2
 
 			UNION ALL
 
 			-- Recursive case: find all children
-			SELECT ts.task_exec_id, ts.task_id, ts.workflow_exec_id, ts.workflow_id, ts.component,
+			SELECT ts.task_exec_id, ts.task_id, ts.workflow_exec_id, ts.workflow_id, ts.org_id, ts.component,
 				   ts.status, ts.execution_type, ts.parent_state_id, ts.agent_id, ts.action_id, ts.tool_id,
 				   ts.input, ts.output, ts.error, ts.created_at, ts.updated_at, tt.depth + 1
 			FROM task_states ts
 			INNER JOIN task_tree tt ON ts.parent_state_id = tt.task_exec_id
-			WHERE tt.depth < 100
+			WHERE tt.depth < 100 AND ts.org_id = $2
 		)
-		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id, component,
+		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id, org_id, component,
 			   status, execution_type, parent_state_id, agent_id, action_id, tool_id,
 			   input, output, error, created_at, updated_at
 		FROM task_tree
@@ -461,7 +577,7 @@ func (r *TaskRepo) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*tas
 	`
 
 	var statesDB []*task.StateDB
-	if err := pgxscan.Select(ctx, r.db, &statesDB, query, rootStateID); err != nil {
+	if err := pgxscan.Select(ctx, r.db, &statesDB, query, rootStateID, orgID); err != nil {
 		return nil, fmt.Errorf("scanning task tree: %w", err)
 	}
 
@@ -479,10 +595,15 @@ func (r *TaskRepo) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*tas
 
 // GetProgressInfo aggregates progress information for a parent task using SQL
 func (r *TaskRepo) GetProgressInfo(ctx context.Context, parentStateID core.ID) (*task.ProgressInfo, error) {
+	orgID, ok := GetOrganizationIDFromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("organization ID not found in context")
+	}
+
 	statusQuery := `
 		SELECT status, COUNT(*) as status_count
 		FROM task_states
-		WHERE parent_state_id = $1
+		WHERE parent_state_id = $1 AND org_id = $2
 		GROUP BY status
 	`
 
@@ -490,7 +611,7 @@ func (r *TaskRepo) GetProgressInfo(ctx context.Context, parentStateID core.ID) (
 		StatusCounts: make(map[core.StatusType]int),
 	}
 
-	statusRows, err := r.db.Query(ctx, statusQuery, parentStateID)
+	statusRows, err := r.db.Query(ctx, statusQuery, parentStateID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query status counts: %w", err)
 	}
@@ -544,6 +665,13 @@ func (r *TaskRepo) CreateChildStatesInTransaction(
 	childStates []*task.State,
 ) (err error) {
 	log := logger.FromContext(ctx)
+
+	// SECURITY: Enforce organization ID from context for all child states
+	contextOrgID := MustGetOrganizationID(ctx)
+	for _, childState := range childStates {
+		childState.OrgID = contextOrgID // Overwrite with trusted value from context
+	}
+
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
@@ -587,6 +715,10 @@ func (r *TaskRepo) CreateChildStatesInTransaction(
 
 // UpsertStateWithTx inserts/updates a state within an existing transaction
 func (r *TaskRepo) UpsertStateWithTx(ctx context.Context, tx pgx.Tx, state *task.State) error {
+	// SECURITY: Enforce organization ID from context, not from input
+	contextOrgID := MustGetOrganizationID(ctx)
+	state.OrgID = contextOrgID // Overwrite with trusted value from context
+
 	query, args, err := r.buildUpsertArgs(state)
 	if err != nil {
 		return err
@@ -598,4 +730,38 @@ func (r *TaskRepo) UpsertStateWithTx(ctx context.Context, tx pgx.Tx, state *task
 	}
 
 	return nil
+}
+
+// getOrganizationID gets the organization ID for a task without applying organization filtering.
+//
+// SECURITY WARNING: This method intentionally bypasses tenant isolation and should ONLY be used by
+// trusted internal services (e.g., workflow schedulers, activity workers) to establish an
+// organization context from a task execution ID. It MUST NOT be exposed to end-user-facing APIs,
+// as it could leak information about the existence of tasks in other organizations.
+//
+// This method exists solely for internal context establishment and should be used with extreme caution.
+// Any caller must ensure the task execution ID comes from a trusted source and not from user input.
+//
+// This method is unexported (private) to prevent misuse outside the store package.
+func (r *TaskRepo) getOrganizationID(ctx context.Context, taskExecID core.ID) (core.ID, error) {
+	query := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).
+		Select("org_id").
+		From("task_states").
+		Where(squirrel.Eq{"task_exec_id": taskExecID})
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return "", fmt.Errorf("building query: %w", err)
+	}
+
+	var orgID core.ID
+	err = r.db.QueryRow(ctx, sql, args...).Scan(&orgID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrTaskNotFound
+		}
+		return "", fmt.Errorf("querying task organization ID: %w", err)
+	}
+
+	return orgID, nil
 }

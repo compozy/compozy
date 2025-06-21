@@ -1,7 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS organizations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     temporal_namespace VARCHAR(255) NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'provisioning',
@@ -32,7 +32,7 @@ INSERT INTO organizations (
     created_at,
     updated_at
 ) VALUES (
-    '00000000-0000-0000-0000-000000000000'::UUID,
+    'system',
     'system',
     'compozy-system',
     'active',

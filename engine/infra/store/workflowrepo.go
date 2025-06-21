@@ -23,13 +23,52 @@ var ErrWorkflowNotReady = fmt.Errorf("workflow not ready for completion")
 
 // WorkflowRepo implements the workflow.Repository interface.
 type WorkflowRepo struct {
-	db       DBInterface
-	taskRepo *TaskRepo
+	db          DBInterface
+	taskRepo    *TaskRepo
+	queryFilter *QueryFilters
 }
 
 func NewWorkflowRepo(db DBInterface) *WorkflowRepo {
 	taskRepo := NewTaskRepo(db)
-	return &WorkflowRepo{db: db, taskRepo: taskRepo}
+	return &WorkflowRepo{
+		db:          db,
+		taskRepo:    taskRepo,
+		queryFilter: NewQueryFilters(),
+	}
+}
+
+// getOrganizationID gets the organization ID for a workflow without applying organization filtering.
+//
+// SECURITY WARNING: This method intentionally bypasses tenant isolation and should ONLY be used by
+// trusted internal services (e.g., workflow schedulers, activity workers) to establish an
+// organization context from a workflow execution ID. It MUST NOT be exposed to end-user-facing APIs,
+// as it could leak information about the existence of workflows in other organizations.
+//
+// This method exists solely for internal context establishment and should be used with extreme caution.
+// Any caller must ensure the workflow execution ID comes from a trusted source and not from user input.
+//
+// This method is unexported (private) to prevent misuse outside the store package.
+func (r *WorkflowRepo) getOrganizationID(ctx context.Context, workflowExecID core.ID) (core.ID, error) {
+	query := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).
+		Select("org_id").
+		From("workflow_states").
+		Where(squirrel.Eq{"workflow_exec_id": workflowExecID})
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return "", fmt.Errorf("building query: %w", err)
+	}
+
+	var orgID core.ID
+	err = r.db.QueryRow(ctx, sql, args...).Scan(&orgID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrWorkflowNotFound
+		}
+		return "", fmt.Errorf("querying workflow organization ID: %w", err)
+	}
+
+	return orgID, nil
 }
 
 // withTransaction executes a function within a database transaction
@@ -85,14 +124,24 @@ func (r *WorkflowRepo) listTasksInWorkflowWithTx(
 	tx pgx.Tx,
 	workflowExecID core.ID,
 ) (map[string]*task.State, error) {
-	query := `
-		SELECT *
-		FROM task_states
-		WHERE workflow_exec_id = $1
-	`
+	sb := squirrel.Select("*").
+		From("task_states").
+		Where(squirrel.Eq{"workflow_exec_id": workflowExecID}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply organization filtering
+	sb, err := r.queryFilter.ApplyOrgFilter(ctx, sb)
+	if err != nil {
+		return nil, fmt.Errorf("applying organization filter: %w", err)
+	}
+
+	query, args, err := sb.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("building query: %w", err)
+	}
 
 	var statesDB []*task.StateDB
-	if err := pgxscan.Select(ctx, tx, &statesDB, query, workflowExecID); err != nil {
+	if err := pgxscan.Select(ctx, tx, &statesDB, query, args...); err != nil {
 		return nil, fmt.Errorf("scanning task states: %w", err)
 	}
 
@@ -138,10 +187,16 @@ func (r *WorkflowRepo) ListStates(
 	filter *workflow.StateFilter,
 ) ([]*workflow.State, error) {
 	sb := squirrel.Select(
-		"workflow_exec_id", "workflow_id", "status", "input", "output", "error",
+		"workflow_exec_id", "workflow_id", "org_id", "status", "input", "output", "error",
 	).
 		From("workflow_states").
 		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply organization filtering first
+	sb, err := r.queryFilter.ApplyOrgFilter(ctx, sb)
+	if err != nil {
+		return nil, fmt.Errorf("applying organization filter: %w", err)
+	}
 
 	if filter != nil {
 		if filter.Status != nil {
@@ -190,6 +245,11 @@ func (r *WorkflowRepo) ListStates(
 
 // UpsertState inserts or updates a workflow state.
 func (r *WorkflowRepo) UpsertState(ctx context.Context, state *workflow.State) error {
+	// SECURITY: Enforce organization ID from context, not from input
+	// This prevents cross-tenant data writes if caller forgets to validate
+	contextOrgID := MustGetOrganizationID(ctx)
+	state.OrgID = contextOrgID // Overwrite with trusted value from context
+
 	input, err := ToJSONB(state.Input)
 	if err != nil {
 		return fmt.Errorf("marshaling input: %w", err)
@@ -207,13 +267,13 @@ func (r *WorkflowRepo) UpsertState(ctx context.Context, state *workflow.State) e
 		INSERT INTO workflow_states (
 			workflow_exec_id, workflow_id, org_id, status, input, output, error
 		) VALUES ($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT (workflow_exec_id) DO UPDATE SET
-			workflow_id = $2,
-			org_id = $3,
-			status = $4,
-			input = $5,
-			output = $6,
-			error = $7,
+		ON CONFLICT (workflow_exec_id, org_id) 
+		DO UPDATE SET
+			workflow_id = EXCLUDED.workflow_id,
+			status = EXCLUDED.status,
+			input = EXCLUDED.input,
+			output = EXCLUDED.output,
+			error = EXCLUDED.error,
 			updated_at = now()
 	`
 
@@ -234,13 +294,14 @@ func (r *WorkflowRepo) UpdateStatus(
 	workflowExecID string,
 	status core.StatusType,
 ) error {
-	query := `
-		UPDATE workflow_states
-		SET status = $1, updated_at = now()
-		WHERE workflow_exec_id = $2
-	`
+	ub := squirrel.Update("workflow_states").
+		Set("status", status).
+		SetMap(squirrel.Eq{"updated_at": squirrel.Expr("now()")}).
+		Where(squirrel.Eq{"workflow_exec_id": workflowExecID}).
+		PlaceholderFormat(squirrel.Dollar)
 
-	cmdTag, err := r.db.Exec(ctx, query, status, workflowExecID)
+	// Apply organization filtering to prevent cross-org updates
+	cmdTag, err := r.queryFilter.ExecuteOrgFilteredUpdate(ctx, r.db, ub)
 	if err != nil {
 		return fmt.Errorf("updating workflow status: %w", err)
 	}
@@ -257,16 +318,27 @@ func (r *WorkflowRepo) GetState(ctx context.Context, workflowExecID core.ID) (*w
 	var result *workflow.State
 
 	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
-		query := `
-			SELECT workflow_exec_id, workflow_id, org_id, status, input, output, error
-			FROM workflow_states
-			WHERE workflow_exec_id = $1
-		`
+		sb := squirrel.Select("workflow_exec_id", "workflow_id", "org_id", "status", "input", "output", "error").
+			From("workflow_states").
+			Where(squirrel.Eq{"workflow_exec_id": workflowExecID}).
+			PlaceholderFormat(squirrel.Dollar)
+
+		// Apply organization filtering
+		sb, err := r.queryFilter.ApplyOrgFilter(ctx, sb)
+		if err != nil {
+			return fmt.Errorf("applying organization filter: %w", err)
+		}
+
+		query, args, err := sb.ToSql()
+		if err != nil {
+			return fmt.Errorf("building query: %w", err)
+		}
+
 		stateDB, err := r.getStateDBWithTx(
 			ctx,
 			tx,
 			query,
-			workflowExecID,
+			args...,
 		)
 		if err != nil {
 			return err
@@ -294,14 +366,24 @@ func (r *WorkflowRepo) GetStateByID(ctx context.Context, workflowID string) (*wo
 	var result *workflow.State
 
 	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
-		query := `
-			SELECT workflow_exec_id, workflow_id, org_id, status, input, output, error
-			FROM workflow_states
-			WHERE workflow_id = $1
-			LIMIT 1
-		`
+		sb := squirrel.Select("workflow_exec_id", "workflow_id", "org_id", "status", "input", "output", "error").
+			From("workflow_states").
+			Where(squirrel.Eq{"workflow_id": workflowID}).
+			Limit(1).
+			PlaceholderFormat(squirrel.Dollar)
 
-		stateDB, err := r.getStateDBWithTx(ctx, tx, query, workflowID)
+		// Apply organization filtering
+		sb, err := r.queryFilter.ApplyOrgFilter(ctx, sb)
+		if err != nil {
+			return fmt.Errorf("applying organization filter: %w", err)
+		}
+
+		query, args, err := sb.ToSql()
+		if err != nil {
+			return fmt.Errorf("building query: %w", err)
+		}
+
+		stateDB, err := r.getStateDBWithTx(ctx, tx, query, args...)
 		if err != nil {
 			return err
 		}
@@ -330,14 +412,29 @@ func (r *WorkflowRepo) GetStateByTaskID(
 ) (*workflow.State, error) {
 	var result *workflow.State
 	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
-		query := `
-			SELECT w.workflow_exec_id, w.workflow_id, w.org_id, w.status, w.input, w.output, w.error
-			FROM workflow_states w
-			JOIN task_states t ON w.workflow_exec_id = t.workflow_exec_id
-			WHERE w.workflow_id = $1 AND t.task_id = $2
-		`
+		sb := squirrel.Select(
+			"w.workflow_exec_id", "w.workflow_id", "w.org_id",
+			"w.status", "w.input", "w.output", "w.error",
+		).
+			From("workflow_states w").
+			Join("task_states t ON w.workflow_exec_id = t.workflow_exec_id").
+			Where(squirrel.Eq{"w.workflow_id": workflowID}).
+			Where(squirrel.Eq{"t.task_id": taskID}).
+			PlaceholderFormat(squirrel.Dollar)
 
-		stateDB, err := r.getStateDBWithTx(ctx, tx, query, workflowID, taskID)
+		// Apply organization filtering on both workflow_states and task_states tables
+		orgID, err := r.queryFilter.GetOrgID(ctx)
+		if err != nil {
+			return fmt.Errorf("getting organization ID: %w", err)
+		}
+		sb = sb.Where(squirrel.Eq{"w.org_id": orgID}).Where(squirrel.Eq{"t.org_id": orgID})
+
+		query, args, err := sb.ToSql()
+		if err != nil {
+			return fmt.Errorf("building query: %w", err)
+		}
+
+		stateDB, err := r.getStateDBWithTx(ctx, tx, query, args...)
 		if err != nil {
 			return err
 		}
@@ -366,19 +463,33 @@ func (r *WorkflowRepo) GetStateByAgentID(
 	var result *workflow.State
 
 	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
-		query := `
-			SELECT w.workflow_exec_id, w.workflow_id, w.org_id, w.status, w.input, w.output, w.error
-			FROM workflow_states w
-			JOIN task_states t ON w.workflow_exec_id = t.workflow_exec_id
-			WHERE w.workflow_id = $1 AND t.agent_id = $2
-		`
+		sb := squirrel.Select(
+			"w.workflow_exec_id", "w.workflow_id", "w.org_id",
+			"w.status", "w.input", "w.output", "w.error",
+		).
+			From("workflow_states w").
+			Join("task_states t ON w.workflow_exec_id = t.workflow_exec_id").
+			Where(squirrel.Eq{"w.workflow_id": workflowID}).
+			Where(squirrel.Eq{"t.agent_id": agentID}).
+			PlaceholderFormat(squirrel.Dollar)
+
+		// Apply organization filtering on both workflow_states and task_states tables
+		orgID, err := r.queryFilter.GetOrgID(ctx)
+		if err != nil {
+			return fmt.Errorf("getting organization ID: %w", err)
+		}
+		sb = sb.Where(squirrel.Eq{"w.org_id": orgID}).Where(squirrel.Eq{"t.org_id": orgID})
+
+		query, args, err := sb.ToSql()
+		if err != nil {
+			return fmt.Errorf("building query: %w", err)
+		}
 
 		stateDB, err := r.getStateDBWithTx(
 			ctx,
 			tx,
 			query,
-			workflowID,
-			agentID,
+			args...,
 		)
 		if err != nil {
 			return err
@@ -409,19 +520,33 @@ func (r *WorkflowRepo) GetStateByToolID(
 	var result *workflow.State
 
 	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
-		query := `
-			SELECT w.workflow_exec_id, w.workflow_id, w.org_id, w.status, w.input, w.output, w.error
-			FROM workflow_states w
-			JOIN task_states t ON w.workflow_exec_id = t.workflow_exec_id
-			WHERE w.workflow_id = $1 AND t.tool_id = $2
-		`
+		sb := squirrel.Select(
+			"w.workflow_exec_id", "w.workflow_id", "w.org_id",
+			"w.status", "w.input", "w.output", "w.error",
+		).
+			From("workflow_states w").
+			Join("task_states t ON w.workflow_exec_id = t.workflow_exec_id").
+			Where(squirrel.Eq{"w.workflow_id": workflowID}).
+			Where(squirrel.Eq{"t.tool_id": toolID}).
+			PlaceholderFormat(squirrel.Dollar)
+
+		// Apply organization filtering on both workflow_states and task_states tables
+		orgID, err := r.queryFilter.GetOrgID(ctx)
+		if err != nil {
+			return fmt.Errorf("getting organization ID: %w", err)
+		}
+		sb = sb.Where(squirrel.Eq{"w.org_id": orgID}).Where(squirrel.Eq{"t.org_id": orgID})
+
+		query, args, err := sb.ToSql()
+		if err != nil {
+			return fmt.Errorf("building query: %w", err)
+		}
 
 		stateDB, err := r.getStateDBWithTx(
 			ctx,
 			tx,
 			query,
-			workflowID,
-			toolID,
+			args...,
 		)
 		if err != nil {
 			return err
@@ -514,13 +639,29 @@ func (r *WorkflowRepo) updateWorkflowStateWithTx(
 			return fmt.Errorf("marshaling workflow error: %w", err)
 		}
 	}
-	// Update the workflow state with the collected outputs and determined status
-	query := `
-		UPDATE workflow_states
-		SET output = $1, status = $2, error = $3, updated_at = now()
-		WHERE workflow_exec_id = $4
-	`
-	cmdTag, err := tx.Exec(ctx, query, outputJSON, finalStatus, errorJSON, workflowExecID)
+
+	// Use squirrel query builder with organization filtering
+	ub := squirrel.Update("workflow_states").
+		Set("output", outputJSON).
+		Set("status", finalStatus).
+		Set("error", errorJSON).
+		Set("updated_at", squirrel.Expr("NOW()")).
+		Where(squirrel.Eq{"workflow_exec_id": workflowExecID}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply organization filtering to prevent cross-org updates
+	orgID, err := r.queryFilter.GetOrgID(ctx)
+	if err != nil {
+		return fmt.Errorf("getting organization ID for update: %w", err)
+	}
+	ub = ub.Where(squirrel.Eq{"org_id": orgID})
+
+	query, args, err := ub.ToSql()
+	if err != nil {
+		return fmt.Errorf("building update query: %w", err)
+	}
+
+	cmdTag, err := tx.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("updating workflow output: %w", err)
 	}
@@ -568,14 +709,25 @@ func (r *WorkflowRepo) CompleteWorkflow(
 func (r *WorkflowRepo) lockAndCheckWorkflowStatus(
 	ctx context.Context, tx pgx.Tx, workflowExecID core.ID,
 ) (string, error) {
-	lockQuery := `
-		SELECT workflow_exec_id, status
-		FROM workflow_states
-		WHERE workflow_exec_id = $1
-		FOR UPDATE
-	`
+	sb := squirrel.Select("workflow_exec_id", "status").
+		From("workflow_states").
+		Where(squirrel.Eq{"workflow_exec_id": workflowExecID}).
+		Suffix("FOR UPDATE").
+		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply organization filtering to prevent cross-org locking
+	sb, err := r.queryFilter.ApplyOrgFilter(ctx, sb)
+	if err != nil {
+		return "", fmt.Errorf("applying organization filter: %w", err)
+	}
+
+	lockQuery, args, err := sb.ToSql()
+	if err != nil {
+		return "", fmt.Errorf("building lock query: %w", err)
+	}
+
 	var status string
-	err := tx.QueryRow(ctx, lockQuery, workflowExecID.String()).Scan(&workflowExecID, &status)
+	err = tx.QueryRow(ctx, lockQuery, args...).Scan(&workflowExecID, &status)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return "", ErrWorkflowNotFound
@@ -672,12 +824,23 @@ func (r *WorkflowRepo) retrieveUpdatedWorkflowState(
 	tx pgx.Tx,
 	workflowExecID core.ID,
 ) (*workflow.State, error) {
-	getQuery := `
-		SELECT workflow_exec_id, workflow_id, status, input, output, error
-		FROM workflow_states
-		WHERE workflow_exec_id = $1
-	`
-	stateDB, err := r.getStateDBWithTx(ctx, tx, getQuery, workflowExecID)
+	sb := squirrel.Select("workflow_exec_id", "workflow_id", "org_id", "status", "input", "output", "error").
+		From("workflow_states").
+		Where(squirrel.Eq{"workflow_exec_id": workflowExecID}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply organization filtering
+	sb, err := r.queryFilter.ApplyOrgFilter(ctx, sb)
+	if err != nil {
+		return nil, fmt.Errorf("applying organization filter: %w", err)
+	}
+
+	getQuery, args, err := sb.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("building get query: %w", err)
+	}
+
+	stateDB, err := r.getStateDBWithTx(ctx, tx, getQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("fetching updated workflow state: %w", err)
 	}

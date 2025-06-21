@@ -20,10 +20,12 @@ func TestWorkflowRepo_UpsertState(t *testing.T) {
 
 	repo := store.NewWorkflowRepo(mockSetup.Mock)
 	ctx := context.Background()
+	// Add organization ID to context for multi-tenant support
+	ctx = store.WithOrganizationID(ctx, testOrgID)
 	state := &workflow.State{
 		WorkflowID:     "wf1",
 		WorkflowExecID: core.ID("exec1"),
-		OrgID:          core.ID("00000000-0000-0000-0000-000000000000"),
+		OrgID:          testOrgID,
 		Status:         core.StatusPending,
 		Input:          &core.Input{"key": "value"},
 		Tasks:          make(map[string]*task.State),
@@ -36,7 +38,7 @@ func TestWorkflowRepo_UpsertState(t *testing.T) {
 
 	queries := mockSetup.NewQueryExpectations()
 	queries.ExpectWorkflowStateQueryForUpsert([]any{
-		state.WorkflowExecID, state.WorkflowID, state.OrgID, state.Status,
+		state.WorkflowExecID, state.WorkflowID, testOrgID, state.Status,
 		inputJSON,
 		expectedOutputJSON,
 		expectedErrorJSON,
@@ -53,6 +55,8 @@ func TestWorkflowRepo_GetState(t *testing.T) {
 
 	repo := store.NewWorkflowRepo(mockSetup.Mock)
 	ctx := context.Background()
+	// Add organization ID to context for multi-tenant support
+	ctx = store.WithOrganizationID(ctx, testOrgID)
 	workflowExecID := core.ID("exec1")
 
 	dataBuilder := utils.NewDataBuilder()
@@ -74,7 +78,7 @@ func TestWorkflowRepo_GetState(t *testing.T) {
 	// Expect workflow query
 	queries.ExpectWorkflowStateQuery(
 		"SELECT workflow_exec_id, workflow_id, org_id, status, input, output, error FROM workflow_states",
-		[]any{workflowExecID},
+		[]any{workflowExecID, testOrgID},
 		workflowRows,
 	)
 
@@ -100,6 +104,8 @@ func TestWorkflowRepo_GetState_WithTasks(t *testing.T) {
 
 	repo := store.NewWorkflowRepo(mockSetup.Mock)
 	ctx := context.Background()
+	// Add organization ID to context for multi-tenant support
+	ctx = store.WithOrganizationID(ctx, testOrgID)
 	workflowExecID := core.ID("exec1")
 
 	dataBuilder := utils.NewDataBuilder()
@@ -121,7 +127,7 @@ func TestWorkflowRepo_GetState_WithTasks(t *testing.T) {
 	// Expect workflow query
 	queries.ExpectWorkflowStateQuery(
 		"SELECT workflow_exec_id, workflow_id, org_id, status, input, output, error FROM workflow_states",
-		[]any{workflowExecID},
+		[]any{workflowExecID, testOrgID},
 		workflowRows,
 	)
 
@@ -152,13 +158,15 @@ func TestWorkflowRepo_GetState_NotFound(t *testing.T) {
 
 	repo := store.NewWorkflowRepo(mockSetup.Mock)
 	ctx := context.Background()
+	// Add organization ID to context for multi-tenant support
+	ctx = store.WithOrganizationID(ctx, testOrgID)
 	workflowExecID := core.ID("exec1")
 
 	tx := mockSetup.NewTransactionExpectations()
 	tx.ExpectBegin()
 
 	mockSetup.Mock.ExpectQuery("SELECT workflow_exec_id, workflow_id, org_id, status, input, output, error FROM workflow_states").
-		WithArgs(workflowExecID).
+		WithArgs(workflowExecID, testOrgID).
 		WillReturnError(pgx.ErrNoRows)
 
 	tx.ExpectRollback()
@@ -179,6 +187,8 @@ func testSimpleWorkflowGet(
 
 	repo := store.NewWorkflowRepo(mockSetup.Mock)
 	ctx := context.Background()
+	// Add organization ID to context for multi-tenant support
+	ctx = store.WithOrganizationID(ctx, testOrgID)
 
 	t.Run(testName, func(_ *testing.T) {
 		setupAndRun(mockSetup, repo, ctx)
@@ -203,7 +213,7 @@ func TestWorkflowRepo_GetStateByID(t *testing.T) {
 			workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
 			queries.ExpectWorkflowStateQuery(
 				"SELECT workflow_exec_id, workflow_id, org_id, status, input, output, error FROM workflow_states",
-				[]any{workflowID},
+				[]any{workflowID, testOrgID},
 				workflowRows,
 			)
 
@@ -239,7 +249,12 @@ func TestWorkflowRepo_GetStateByTaskID(t *testing.T) {
 			workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
 			queries.ExpectWorkflowStateQuery(
 				"SELECT w.workflow_exec_id, w.workflow_id, w.org_id, w.status, w.input, w.output, w.error FROM workflow_states w",
-				[]any{workflowID, taskID},
+				[]any{
+					workflowID,
+					taskID,
+					testOrgID,
+					testOrgID,
+				},
 				workflowRows,
 			)
 
@@ -274,7 +289,12 @@ func TestWorkflowRepo_GetStateByAgentID(t *testing.T) {
 			workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
 			queries.ExpectWorkflowStateQuery(
 				"SELECT w.workflow_exec_id, w.workflow_id, w.org_id, w.status, w.input, w.output, w.error FROM workflow_states w",
-				[]any{workflowID, agentID},
+				[]any{
+					workflowID,
+					agentID,
+					testOrgID,
+					testOrgID,
+				},
 				workflowRows,
 			)
 
@@ -309,7 +329,12 @@ func TestWorkflowRepo_GetStateByToolID(t *testing.T) {
 			workflowRows := workflowRowBuilder.CreateWorkflowStateRows("exec1", "wf1", core.StatusPending, nil)
 			queries.ExpectWorkflowStateQuery(
 				"SELECT w.workflow_exec_id, w.workflow_id, w.org_id, w.status, w.input, w.output, w.error FROM workflow_states w",
-				[]any{workflowID, toolID},
+				[]any{
+					workflowID,
+					toolID,
+					testOrgID,
+					testOrgID,
+				},
 				workflowRows,
 			)
 
@@ -332,12 +357,14 @@ func TestWorkflowRepo_UpdateStatus(t *testing.T) {
 
 	repo := store.NewWorkflowRepo(mockSetup.Mock)
 	ctx := context.Background()
+	// Add organization ID to context for multi-tenant support
+	ctx = store.WithOrganizationID(ctx, testOrgID)
 	workflowExecID := "exec1"
 	newStatus := core.StatusRunning
 
 	// Expect the update query with 1 row affected (success)
 	mockSetup.Mock.ExpectExec("UPDATE workflow_states").
-		WithArgs(newStatus, workflowExecID).
+		WithArgs(newStatus, workflowExecID, testOrgID).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
 	err := repo.UpdateStatus(ctx, workflowExecID, newStatus)
@@ -351,12 +378,14 @@ func TestWorkflowRepo_UpdateStatus_NotFound(t *testing.T) {
 
 	repo := store.NewWorkflowRepo(mockSetup.Mock)
 	ctx := context.Background()
+	// Add organization ID to context for multi-tenant support
+	ctx = store.WithOrganizationID(ctx, testOrgID)
 	workflowExecID := "nonexistent"
 	newStatus := core.StatusRunning
 
 	// Expect the update query with 0 rows affected (not found)
 	mockSetup.Mock.ExpectExec("UPDATE workflow_states").
-		WithArgs(newStatus, workflowExecID).
+		WithArgs(newStatus, workflowExecID, testOrgID).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 
 	err := repo.UpdateStatus(ctx, workflowExecID, newStatus)

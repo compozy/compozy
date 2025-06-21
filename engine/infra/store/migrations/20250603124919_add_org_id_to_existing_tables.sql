@@ -3,11 +3,11 @@
 
 -- Add org_id to workflow_states table
 ALTER TABLE workflow_states
-ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+ADD COLUMN IF NOT EXISTS org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
 
 -- Set default org_id for existing records to system organization
 UPDATE workflow_states
-SET org_id = '00000000-0000-0000-0000-000000000000'::UUID
+SET org_id = 'system'
 WHERE org_id IS NULL;
 
 -- Make org_id NOT NULL after setting defaults
@@ -16,11 +16,11 @@ ALTER COLUMN org_id SET NOT NULL;
 
 -- Add org_id to task_states table
 ALTER TABLE task_states
-ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+ADD COLUMN IF NOT EXISTS org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
 
 -- Set default org_id for existing records to system organization
 UPDATE task_states
-SET org_id = '00000000-0000-0000-0000-000000000000'::UUID
+SET org_id = 'system'
 WHERE org_id IS NULL;
 
 -- Make org_id NOT NULL after setting defaults

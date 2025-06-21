@@ -1,9 +1,13 @@
 package store
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
+
+	"github.com/georgysavva/scany/v2/pgxscan"
+	"github.com/jackc/pgx/v5"
 )
 
 // ToJSONB marshals a value to JSONB-compatible bytes, returning nil for nil input.
@@ -37,4 +41,9 @@ func FromJSONB[T any](src []byte, dst **T) error {
 	}
 	*dst = &target
 	return nil
+}
+
+// ScanRows scans rows into a destination using pgxscan
+func ScanRows(_ context.Context, rows pgx.Rows, dst any) error {
+	return pgxscan.ScanAll(dst, rows)
 }

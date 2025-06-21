@@ -25,7 +25,7 @@ import (
 )
 
 // TestOrgID is the default organization ID used in integration tests
-var TestOrgID = core.ID("00000000-0000-0000-0000-000000000000")
+var TestOrgID = core.ID("system")
 
 // TestConfigStore implements services.ConfigStore for testing
 type TestConfigStore struct {
@@ -461,6 +461,8 @@ func ExecuteWorkflowAndGetState(
 	agentConfig *agent.Config,
 ) *workflow.State {
 	ctx := context.Background()
+	// Add organization ID to context for multi-tenant support
+	ctx = store.WithOrganizationID(ctx, TestOrgID)
 
 	// Create test suite and worker
 	testSuite := testsuite.WorkflowTestSuite{}

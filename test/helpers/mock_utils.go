@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	// TestOrgID is a constant UUID for test organization ID
-	TestOrgID = "00000000-0000-0000-0000-000000000000"
+	// TestOrgID is a constant organization ID for testing
+	TestOrgID = "system"
 )
 
 // -----
@@ -232,7 +232,19 @@ func (q *QueryExpectations) ExpectTaskStateQuery(
 	rows *pgxmock.Rows,
 ) *QueryExpectations {
 	q.mock.ExpectQuery("SELECT \\*").
-		WithArgs(workflowExecID).
+		WithArgs(workflowExecID, core.ID(TestOrgID)).
+		WillReturnRows(rows)
+	return q
+}
+
+// ExpectTaskStateQueryWithOrgID expects a task state query with specific org ID
+func (q *QueryExpectations) ExpectTaskStateQueryWithOrgID(
+	workflowExecID core.ID,
+	orgID core.ID,
+	rows *pgxmock.Rows,
+) *QueryExpectations {
+	q.mock.ExpectQuery("SELECT \\*").
+		WithArgs(workflowExecID, orgID).
 		WillReturnRows(rows)
 	return q
 }

@@ -29,9 +29,10 @@ func TestTaskRepo_UpsertState(t *testing.T) {
 
 	repo := store.NewTaskRepo(mockSetup.Mock)
 	ctx := context.Background()
+	// Add organization ID to context for multi-tenant support
+	ctx = store.WithOrganizationID(ctx, testOrgID)
 	workflowID := "wf1"
 	workflowExecID := core.ID("exec1")
-	orgID := core.ID("00000000-0000-0000-0000-000000000000")
 	agentID := "agent1"
 	actionID := "default_action"
 	state := &task.State{
@@ -41,7 +42,7 @@ func TestTaskRepo_UpsertState(t *testing.T) {
 		Status:         core.StatusPending,
 		WorkflowID:     workflowID,
 		WorkflowExecID: workflowExecID,
-		OrgID:          orgID,
+		OrgID:          testOrgID,
 		ExecutionType:  task.ExecutionBasic,
 		AgentID:        &agentID,
 		ActionID:       &actionID,
@@ -55,7 +56,7 @@ func TestTaskRepo_UpsertState(t *testing.T) {
 
 	queries := mockSetup.NewQueryExpectations()
 	queries.ExpectTaskStateQueryForUpsert([]any{
-		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, state.OrgID, state.Component, state.Status,
+		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, testOrgID, state.Component, state.Status,
 		state.ExecutionType, (*string)(nil), state.AgentID, state.ActionID, state.ToolID, inputJSON,
 		expectedOutputJSON,
 		expectedErrorJSON,
@@ -73,7 +74,6 @@ func TestTaskRepo_CreateChildStatesInTransaction(t *testing.T) {
 		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
 			parentStateID := core.ID("parent-exec-123")
 			workflowExecID := core.ID("exec1")
-			orgID := core.ID("00000000-0000-0000-0000-000000000000")
 
 			// Create child states to insert
 			childStates := []*task.State{
@@ -84,9 +84,9 @@ func TestTaskRepo_CreateChildStatesInTransaction(t *testing.T) {
 					"child2", core.ID("child2-exec"), "wf1", workflowExecID,
 					&parentStateID, "tool1", &core.Input{"task": "subtask2"}),
 			}
-			// Set OrgID on child states
+			// Set OrgID on child states (will be overwritten by repo method)
 			for _, child := range childStates {
-				child.OrgID = orgID
+				child.OrgID = testOrgID
 			}
 
 			dataBuilder := utils.NewDataBuilder()
@@ -132,7 +132,7 @@ func TestTaskRepo_CreateChildStatesInTransaction(t *testing.T) {
 		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
 			parentStateID := core.ID("parent-exec-456")
 			workflowExecID := core.ID("exec2")
-			orgID := core.ID("00000000-0000-0000-0000-000000000000")
+			// OrgID will be set from context by the repository method
 
 			childStates := []*task.State{
 				task.CreateAgentSubTaskState(
@@ -141,7 +141,7 @@ func TestTaskRepo_CreateChildStatesInTransaction(t *testing.T) {
 			}
 			// Set OrgID on child states
 			for _, child := range childStates {
-				child.OrgID = orgID
+				child.OrgID = testOrgID
 			}
 
 			dataBuilder := utils.NewDataBuilder()
@@ -184,6 +184,8 @@ func testTaskGet(
 
 	repo := store.NewTaskRepo(mockSetup.Mock)
 	ctx := context.Background()
+	// Add organization ID to context for multi-tenant support
+	ctx = store.WithOrganizationID(ctx, testOrgID)
 
 	t.Run(testName, func(_ *testing.T) {
 		setupAndRun(mockSetup, repo, ctx)
@@ -208,7 +210,7 @@ func TestTaskRepo_GetState(t *testing.T) {
 			)
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(taskExecID).
+				WithArgs(taskExecID, testOrgID).
 				WillReturnRows(taskRows)
 
 			state, err := repo.GetState(ctx, taskExecID)
@@ -239,7 +241,7 @@ func TestTaskRepo_GetParallelStateEquivalent(t *testing.T) {
 			)
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(parentExecID).
+				WithArgs(parentExecID, testOrgID).
 				WillReturnRows(parentRows)
 
 			state, err := repo.GetState(ctx, parentExecID)
@@ -265,13 +267,13 @@ func TestTaskRepo_GetParallelStateEquivalent(t *testing.T) {
 
 			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 			childRows := taskRowBuilder.CreateEmptyTaskStateRows().
-				AddRow("child-exec-456", "child-task", "exec1", "wf1", "00000000-0000-0000-0000-000000000000",
+				AddRow("child-exec-456", "child-task", "exec1", "wf1", "testOrgID",
 					core.ComponentAgent, core.StatusPending,
 					task.ExecutionBasic, parentExecID, "agent1", "action1", nil, inputData, nil, nil,
 					time.Now(), time.Now())
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(childExecID).
+				WithArgs(childExecID, testOrgID).
 				WillReturnRows(childRows)
 
 			state, err := repo.GetState(ctx, childExecID)
@@ -296,7 +298,7 @@ func TestTaskRepo_GetState_NotFound(t *testing.T) {
 			taskExecID := core.ID("task_exec1")
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(taskExecID).
+				WithArgs(taskExecID, testOrgID).
 				WillReturnError(pgx.ErrNoRows)
 
 			_, err := repo.GetState(ctx, taskExecID)
@@ -316,6 +318,8 @@ func testTaskList(
 
 	repo := store.NewTaskRepo(mockSetup.Mock)
 	ctx := context.Background()
+	// Add organization ID to context for multi-tenant support
+	ctx = store.WithOrganizationID(ctx, testOrgID)
 
 	t.Run(testName, func(_ *testing.T) {
 		setupAndRun(mockSetup, repo, ctx)
@@ -334,17 +338,17 @@ func TestTaskRepo_ListTasksInWorkflow(t *testing.T) {
 
 			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 			taskRows := taskRowBuilder.CreateEmptyTaskStateRows().
-				AddRow("task_exec1", "task1", "exec1", "wf1", "00000000-0000-0000-0000-000000000000",
+				AddRow("task_exec1", "task1", "exec1", "wf1", "testOrgID",
 					core.ComponentAgent, core.StatusPending,
 					task.ExecutionBasic, nil, agentID, "default_action", nil, nil, nil, nil,
 					time.Now(), time.Now()).
-				AddRow("task_exec2", "task2", "exec1", "wf1", "00000000-0000-0000-0000-000000000000",
+				AddRow("task_exec2", "task2", "exec1", "wf1", "testOrgID",
 					core.ComponentTool, core.StatusRunning,
 					task.ExecutionBasic, nil, nil, nil, toolID, nil, nil, nil,
 					time.Now(), time.Now())
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(workflowExecID).
+				WithArgs(workflowExecID, testOrgID).
 				WillReturnRows(taskRows)
 
 			states, err := repo.ListTasksInWorkflow(ctx, workflowExecID)
@@ -375,7 +379,7 @@ func TestTaskRepo_ListTasksByStatus(t *testing.T) {
 			)
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(workflowExecID, status).
+				WithArgs(workflowExecID, status, testOrgID).
 				WillReturnRows(taskRows)
 
 			states, err := repo.ListTasksByStatus(ctx, workflowExecID, status)
@@ -402,7 +406,7 @@ func TestTaskRepo_ListTasksByAgent(t *testing.T) {
 			)
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(workflowExecID, agentID).
+				WithArgs(workflowExecID, agentID, testOrgID).
 				WillReturnRows(taskRows)
 
 			states, err := repo.ListTasksByAgent(ctx, workflowExecID, agentID)
@@ -429,7 +433,7 @@ func TestTaskRepo_ListTasksByTool(t *testing.T) {
 			)
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(workflowExecID, toolID).
+				WithArgs(workflowExecID, toolID, testOrgID).
 				WillReturnRows(taskRows)
 
 			states, err := repo.ListTasksByTool(ctx, workflowExecID, toolID)
@@ -458,7 +462,7 @@ func TestTaskRepo_ListStates(t *testing.T) {
 			)
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(core.StatusPending, core.ID("exec1")).
+				WithArgs(testOrgID, core.StatusPending, core.ID("exec1")).
 				WillReturnRows(taskRows)
 
 			states, err := repo.ListStates(ctx, filter)
@@ -490,7 +494,7 @@ func TestTaskRepo_ListChildren(t *testing.T) {
 			)
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(parentStateID).
+				WithArgs(parentStateID, testOrgID).
 				WillReturnRows(childRows)
 
 			children, err := repo.ListChildren(ctx, parentStateID)
@@ -517,7 +521,7 @@ func TestTaskRepo_ListChildren(t *testing.T) {
 			})
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(parentStateID).
+				WithArgs(parentStateID, testOrgID).
 				WillReturnRows(emptyRows)
 
 			children, err := repo.ListChildren(ctx, parentStateID)
@@ -546,7 +550,7 @@ func TestTaskRepo_ListChildren(t *testing.T) {
 
 			// Test ListChildren
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(parentStateID).
+				WithArgs(parentStateID, testOrgID).
 				WillReturnRows(childRows)
 
 			children, err := repo.ListChildren(ctx, parentStateID)
@@ -567,7 +571,7 @@ func TestTaskRepo_ListChildren(t *testing.T) {
 			)
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(parentStateID).
+				WithArgs(testOrgID, parentStateID).
 				WillReturnRows(childRowsCopy)
 
 			filter := &task.StateFilter{ParentStateID: &parentStateID}
@@ -597,7 +601,7 @@ func TestTaskRepo_ListStatesWithExecutionTypeFilter(t *testing.T) {
 			)
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(task.ExecutionParallel).
+				WithArgs(testOrgID, task.ExecutionParallel).
 				WillReturnRows(taskRows)
 
 			states, err := repo.ListStates(ctx, filter)
@@ -624,7 +628,7 @@ func TestTaskRepo_ListStatesWithExecutionTypeFilter(t *testing.T) {
 			)
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(task.ExecutionBasic).
+				WithArgs(testOrgID, task.ExecutionBasic).
 				WillReturnRows(taskRows)
 
 			states, err := repo.ListStates(ctx, filter)
@@ -649,13 +653,13 @@ func TestTaskRepo_ListStatesWithExecutionTypeFilter(t *testing.T) {
 
 			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
 			taskRows := taskRowBuilder.CreateEmptyTaskStateRows().
-				AddRow("child-exec-1", "child1", "exec1", "wf1", "00000000-0000-0000-0000-000000000000",
+				AddRow("child-exec-1", "child1", "exec1", "wf1", "testOrgID",
 					core.ComponentAgent, core.StatusPending,
 					task.ExecutionBasic, parentStateID, "agent1", "action1", nil, nil, nil, nil,
 					time.Now(), time.Now())
 
 			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(parentStateID, task.ExecutionBasic).
+				WithArgs(testOrgID, parentStateID, task.ExecutionBasic).
 				WillReturnRows(taskRows)
 
 			states, err := repo.ListStates(ctx, filter)
@@ -677,34 +681,34 @@ func TestTaskRepo_GetTaskTree(t *testing.T) {
 
 			// Create hierarchical task tree with root and children
 			treeRows := mockSetup.Mock.NewRows([]string{
-				"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
+				"task_exec_id", "task_id", "workflow_exec_id", "workflow_id", "org_id",
 				"component", "status", "execution_type", "parent_state_id",
 				"agent_id", "action_id", "tool_id", "input", "output", "error",
 				"created_at", "updated_at",
 			}).AddRow(
 				// Root task (depth 0)
-				"root-exec-123", "root-task", "exec1", "wf1",
+				"root-exec-123", "root-task", "exec1", "wf1", testOrgID,
 				core.ComponentTask, core.StatusRunning, task.ExecutionParallel, nil,
 				nil, nil, nil, nil, nil, nil, nil, nil,
 			).AddRow(
 				// Child task 1 (depth 1)
-				"child1-exec-456", "child1", "exec1", "wf1",
+				"child1-exec-456", "child1", "exec1", "wf1", testOrgID,
 				core.ComponentAgent, core.StatusPending, task.ExecutionBasic, rootStateID,
 				nil, nil, nil, nil, nil, nil, nil, nil,
 			).AddRow(
 				// Child task 2 (depth 1)
-				"child2-exec-789", "child2", "exec1", "wf1",
+				"child2-exec-789", "child2", "exec1", "wf1", testOrgID,
 				core.ComponentAgent, core.StatusSuccess, task.ExecutionBasic, rootStateID,
 				nil, nil, nil, nil, nil, nil, nil, nil,
 			).AddRow(
 				// Grandchild task (depth 2)
-				"grandchild-exec-999", "grandchild", "exec1", "wf1",
+				"grandchild-exec-999", "grandchild", "exec1", "wf1", testOrgID,
 				core.ComponentTool, core.StatusRunning, task.ExecutionBasic, core.ID("child1-exec-456"),
 				nil, nil, nil, nil, nil, nil, nil, nil,
 			)
 
 			mockSetup.Mock.ExpectQuery("WITH RECURSIVE task_tree").
-				WithArgs(rootStateID).
+				WithArgs(rootStateID, testOrgID).
 				WillReturnRows(treeRows)
 
 			tree, err := repo.GetTaskTree(ctx, rootStateID)
@@ -737,18 +741,18 @@ func TestTaskRepo_GetTaskTree(t *testing.T) {
 
 			// Create single row for root task only
 			singleRow := mockSetup.Mock.NewRows([]string{
-				"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
+				"task_exec_id", "task_id", "workflow_exec_id", "workflow_id", "org_id",
 				"component", "status", "execution_type", "parent_state_id",
 				"agent_id", "action_id", "tool_id", "input", "output", "error",
 				"created_at", "updated_at",
 			}).AddRow(
-				"lonely-root-123", "lonely-task", "exec1", "wf1",
+				"lonely-root-123", "lonely-task", "exec1", "wf1", testOrgID,
 				core.ComponentTask, core.StatusSuccess, task.ExecutionBasic, nil,
 				nil, nil, nil, nil, nil, nil, nil, nil,
 			)
 
 			mockSetup.Mock.ExpectQuery("WITH RECURSIVE task_tree").
-				WithArgs(rootStateID).
+				WithArgs(rootStateID, testOrgID).
 				WillReturnRows(singleRow)
 
 			tree, err := repo.GetTaskTree(ctx, rootStateID)
@@ -767,14 +771,14 @@ func TestTaskRepo_GetTaskTree(t *testing.T) {
 
 			// Mock empty result set
 			emptyRows := mockSetup.Mock.NewRows([]string{
-				"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
+				"task_exec_id", "task_id", "workflow_exec_id", "workflow_id", "org_id",
 				"component", "status", "execution_type", "parent_state_id",
 				"agent_id", "action_id", "tool_id", "input", "output", "error",
 				"created_at", "updated_at",
 			})
 
 			mockSetup.Mock.ExpectQuery("WITH RECURSIVE task_tree").
-				WithArgs(nonExistentRootID).
+				WithArgs(nonExistentRootID, testOrgID).
 				WillReturnRows(emptyRows)
 
 			tree, err := repo.GetTaskTree(ctx, nonExistentRootID)
@@ -799,7 +803,7 @@ func TestTaskRepo_GetProgressInfo(t *testing.T) {
 				AddRow(string(core.StatusRunning), 1)
 
 			mockSetup.Mock.ExpectQuery("SELECT status").
-				WithArgs(parentStateID).
+				WithArgs(parentStateID, testOrgID).
 				WillReturnRows(statusRows)
 
 			progressInfo, err := repo.GetProgressInfo(ctx, parentStateID)
@@ -836,7 +840,7 @@ func TestTaskRepo_GetProgressInfo(t *testing.T) {
 			})
 
 			mockSetup.Mock.ExpectQuery("SELECT status").
-				WithArgs(parentStateID).
+				WithArgs(parentStateID, testOrgID).
 				WillReturnRows(emptyStatusRows)
 
 			progressInfo, err := repo.GetProgressInfo(ctx, parentStateID)
@@ -862,7 +866,7 @@ func TestTaskRepo_GetProgressInfo(t *testing.T) {
 			}).AddRow(string(core.StatusSuccess), 2)
 
 			mockSetup.Mock.ExpectQuery("SELECT status").
-				WithArgs(parentStateID).
+				WithArgs(parentStateID, testOrgID).
 				WillReturnRows(allCompletedStatusRows)
 
 			progressInfo, err := repo.GetProgressInfo(ctx, parentStateID)
