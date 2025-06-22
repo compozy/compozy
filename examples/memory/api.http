@@ -1,0 +1,112 @@
+### Memory Demo API Tests
+### Simple conversational agent that remembers user information
+### Click each request in order to test the complete memory flow
+### Make sure Compozy is running on localhost:3001 before executing these requests
+
+@baseUrl = http://localhost:3001/api/v0
+@workflowId = memory-demo
+
+### =============================================================================
+### STEP 1: John introduces himself
+### =============================================================================
+# @name johnIntro
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "john_doe",
+    "message": "Hi, I'm John and I live in San Francisco"
+  }
+}
+
+### Get execution ID from John's intro
+@execId1 = {{johnIntro.response.body.data.exec_id}}
+
+### View John's introduction result
+GET {{baseUrl}}/executions/workflows/{{execId1}}
+Accept: application/json
+
+### =============================================================================
+### STEP 2: John asks where he lives (should remember San Francisco)
+### =============================================================================
+# @name johnRecall
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "john_doe",
+    "message": "Where do I live?"
+  }
+}
+
+### Get execution ID from John's recall
+@execId2 = {{johnRecall.response.body.data.exec_id}}
+
+### View John's recall result
+GET {{baseUrl}}/executions/workflows/{{execId2}}
+Accept: application/json
+
+### =============================================================================
+### STEP 3: Jane introduces herself
+### =============================================================================
+# @name janeIntro
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "jane_smith",
+    "message": "Hello, my name is Jane and I'm from New York"
+  }
+}
+
+### Get execution ID from Jane's intro
+@execId3 = {{janeIntro.response.body.data.exec_id}}
+
+### View Jane's introduction result
+GET {{baseUrl}}/executions/workflows/{{execId3}}
+Accept: application/json
+
+### =============================================================================
+### STEP 4: Jane asks where she lives (should remember New York)
+### =============================================================================
+# @name janeRecall
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "jane_smith",
+    "message": "Where do I live?"
+  }
+}
+
+### Get execution ID from Jane's recall
+@execId4 = {{janeRecall.response.body.data.exec_id}}
+
+### View Jane's recall result
+GET {{baseUrl}}/executions/workflows/{{execId4}}
+Accept: application/json
+
+### =============================================================================
+### STEP 5: John asks again to verify memory persistence
+### =============================================================================
+# @name johnVerify
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "john_doe",
+    "message": "What city am I from again?"
+  }
+}
+
+### Get execution ID from John's verification
+@execId5 = {{johnVerify.response.body.data.exec_id}}
+
+### View John's verification result
+GET {{baseUrl}}/executions/workflows/{{execId5}}
+Accept: application/json

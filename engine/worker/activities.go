@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/infra/cache"
+	"github.com/compozy/compozy/engine/memory"
+	memacts "github.com/compozy/compozy/engine/memory/activities"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
@@ -13,6 +15,8 @@ import (
 	wkacts "github.com/compozy/compozy/engine/worker/activities"
 	"github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
+	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 type Activities struct {
@@ -26,6 +30,10 @@ type Activities struct {
 	configManager    *services.ConfigManager
 	redisCache       *cache.Cache
 	celEvaluator     task.ConditionEvaluator
+	memoryManager    *memory.Manager
+	memoryActivities *memacts.MemoryActivities
+	templateEngine   *tplengine.TemplateEngine
+	logger           logger.Logger
 }
 
 func NewActivities(
@@ -38,6 +46,8 @@ func NewActivities(
 	signalDispatcher services.SignalDispatcher,
 	configManager *services.ConfigManager,
 	redisCache *cache.Cache,
+	memoryManager *memory.Manager,
+	templateEngine *tplengine.TemplateEngine,
 ) *Activities {
 	// Create CEL evaluator once for reuse across all activity executions
 	celEvaluator, err := task.NewCELEvaluator()
@@ -45,6 +55,10 @@ func NewActivities(
 		// This is a critical initialization error
 		panic(fmt.Sprintf("failed to create CEL evaluator: %v", err))
 	}
+	// Create logger for activities
+	log := logger.NewForTests() // TODO: Use proper logger from config
+	// Create memory activities instance
+	memoryActivities := memacts.NewMemoryActivities(memoryManager, log)
 	return &Activities{
 		projectConfig:    projectConfig,
 		workflows:        workflows,
@@ -56,6 +70,10 @@ func NewActivities(
 		configManager:    configManager,
 		redisCache:       redisCache,
 		celEvaluator:     celEvaluator,
+		memoryManager:    memoryManager,
+		memoryActivities: memoryActivities,
+		templateEngine:   templateEngine,
+		logger:           log,
 	}
 }
 
@@ -119,6 +137,9 @@ func (a *Activities) ExecuteBasicTask(
 		a.runtime,
 		a.configStore,
 		a.projectConfig.CWD,
+		a.memoryManager,
+		a.templateEngine,
+		a.projectConfig,
 	)
 	return act.Run(ctx, input)
 }
@@ -413,4 +434,24 @@ func (a *Activities) ListActiveDispatchers(
 
 func (a *Activities) RemoveDispatcherHeartbeat(ctx context.Context, dispatcherID string) error {
 	return wkacts.RemoveDispatcherHeartbeat(ctx, a.redisCache, dispatcherID)
+}
+
+// -----------------------------------------------------------------------------
+// Memory Activities
+// -----------------------------------------------------------------------------
+
+func (a *Activities) FlushMemory(
+	ctx context.Context,
+	input memory.FlushMemoryActivityInput,
+) (*memory.FlushMemoryActivityOutput, error) {
+	// Delegate to the memory activities implementation
+	return a.memoryActivities.FlushMemory(ctx, input)
+}
+
+func (a *Activities) ClearFlushPendingFlag(
+	ctx context.Context,
+	input memory.ClearFlushPendingFlagInput,
+) error {
+	// Delegate to the memory activities implementation
+	return a.memoryActivities.ClearFlushPendingFlag(ctx, input)
 }

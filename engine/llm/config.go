@@ -26,6 +26,8 @@ type Config struct {
 	EnableToolCaching      bool
 	// LLM factory for creating clients
 	LLMFactory llmadapter.Factory
+	// Memory provider for agent memory support
+	MemoryProvider MemoryProvider
 }
 
 // DefaultConfig returns a default configuration
@@ -97,6 +99,13 @@ func WithToolCaching(enabled bool) Option {
 func WithLLMFactory(factory llmadapter.Factory) Option {
 	return func(c *Config) {
 		c.LLMFactory = factory
+	}
+}
+
+// WithMemoryProvider sets the memory provider for agent memory support
+func WithMemoryProvider(provider MemoryProvider) Option {
+	return func(c *Config) {
+		c.MemoryProvider = provider
 	}
 }
 

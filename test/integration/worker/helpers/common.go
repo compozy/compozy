@@ -397,6 +397,8 @@ func CreateTestActivities(
 		nil, // signalDispatcher - not needed for test
 		configManager,
 		nil, // redisCache - not needed for test
+		nil, // memoryManager - not needed for test
+		nil, // templateEngine - not needed for test
 	)
 }
 

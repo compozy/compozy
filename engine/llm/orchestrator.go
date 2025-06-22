@@ -31,6 +31,7 @@ type OrchestratorConfig struct {
 	PromptBuilder  PromptBuilder
 	RuntimeManager *runtime.Manager
 	LLMFactory     llmadapter.Factory
+	MemoryProvider MemoryProvider // Optional: provides memory instances for agents
 }
 
 // Implementation of LLMOrchestrator
@@ -48,11 +49,89 @@ func NewOrchestrator(config OrchestratorConfig) Orchestrator {
 // Execute processes an LLM request end-to-end
 func (o *llmOrchestrator) Execute(ctx context.Context, request Request) (*core.Output, error) {
 	log := logger.FromContext(ctx)
-	// Validate input
 	if err := o.validateInput(ctx, request); err != nil {
 		return nil, NewValidationError(err, "request", request)
 	}
-	// Create LLM client using factory
+	return o.executeWithValidatedRequest(ctx, request, log)
+}
+
+func (o *llmOrchestrator) executeWithValidatedRequest(
+	ctx context.Context,
+	request Request,
+	log logger.Logger,
+) (*core.Output, error) {
+	memories := o.prepareMemoryContext(ctx, request, log)
+	llmClient, err := o.createLLMClient(request)
+	if err != nil {
+		return nil, err
+	}
+	defer o.closeLLMClient(llmClient, log)
+	return o.executeWithClient(ctx, request, memories, llmClient, log)
+}
+
+func (o *llmOrchestrator) executeWithClient(
+	ctx context.Context,
+	request Request,
+	memories map[string]Memory,
+	llmClient llmadapter.LLMClient,
+	log logger.Logger,
+) (*core.Output, error) {
+	llmReq, err := o.buildLLMRequest(ctx, request, memories)
+	if err != nil {
+		return nil, err
+	}
+	response, err := o.generateLLMResponse(ctx, llmClient, &llmReq, request)
+	if err != nil {
+		return nil, err
+	}
+	output, err := o.processResponse(ctx, response, request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process LLM response: %w", err)
+	}
+	o.storeResponseInMemoryAsync(ctx, memories, response, llmReq.Messages, request, log)
+	return output, nil
+}
+
+func (o *llmOrchestrator) generateLLMResponse(
+	ctx context.Context,
+	llmClient llmadapter.LLMClient,
+	llmReq *llmadapter.LLMRequest,
+	request Request,
+) (*llmadapter.LLMResponse, error) {
+	response, err := llmClient.GenerateContent(ctx, llmReq)
+	if err != nil {
+		return nil, NewLLMError(err, ErrCodeLLMGeneration, map[string]any{
+			"agent":  request.Agent.ID,
+			"action": request.Action.ID,
+		})
+	}
+	return response, nil
+}
+
+func (o *llmOrchestrator) prepareMemoryContext(
+	ctx context.Context,
+	request Request,
+	log logger.Logger,
+) map[string]Memory {
+	if o.config.MemoryProvider == nil || len(request.Agent.GetResolvedMemoryReferences()) == 0 {
+		return nil
+	}
+	log.Debug("Resolving memory instances for agent", "agent_id", request.Agent.ID)
+	memories := make(map[string]Memory)
+	for _, ref := range request.Agent.GetResolvedMemoryReferences() {
+		memory, err := o.config.MemoryProvider.GetMemory(ctx, ref.ID, ref.Key)
+		if err != nil {
+			log.Warn("Failed to get memory instance", "memory_id", ref.ID, "error", err)
+			continue
+		}
+		if memory != nil {
+			memories[ref.ID] = memory
+		}
+	}
+	return memories
+}
+
+func (o *llmOrchestrator) createLLMClient(request Request) (llmadapter.LLMClient, error) {
 	factory := o.config.LLMFactory
 	if factory == nil {
 		factory = llmadapter.NewDefaultFactory()
@@ -64,69 +143,127 @@ func (o *llmOrchestrator) Execute(ctx context.Context, request Request) (*core.O
 			"model":    request.Agent.Config.Model,
 		})
 	}
-	defer func() {
-		if closeErr := llmClient.Close(); closeErr != nil {
-			log.Error("Failed to close LLM client", "error", closeErr)
-		}
-	}()
-	// Build prompt
+	return llmClient, nil
+}
+
+func (o *llmOrchestrator) closeLLMClient(llmClient llmadapter.LLMClient, log logger.Logger) {
+	if closeErr := llmClient.Close(); closeErr != nil {
+		log.Error("Failed to close LLM client", "error", closeErr)
+	}
+}
+
+func (o *llmOrchestrator) buildLLMRequest(
+	ctx context.Context,
+	request Request,
+	memories map[string]Memory,
+) (llmadapter.LLMRequest, error) {
+	promptData, err := o.buildPromptData(ctx, request)
+	if err != nil {
+		return llmadapter.LLMRequest{}, err
+	}
+	toolDefs, err := o.buildToolDefinitions(ctx, request.Agent.Tools)
+	if err != nil {
+		return llmadapter.LLMRequest{}, NewLLMError(err, "TOOL_DEFINITIONS_ERROR", map[string]any{
+			"agent": request.Agent.ID,
+		})
+	}
+	messages := o.buildMessages(ctx, promptData.enhancedPrompt, memories)
+	return llmadapter.LLMRequest{
+		SystemPrompt: request.Agent.Instructions,
+		Messages:     messages,
+		Tools:        toolDefs,
+		Options: llmadapter.CallOptions{
+			Temperature:      0.7,
+			UseJSONMode:      request.Action.JSONMode || (promptData.shouldUseStructured && len(toolDefs) == 0),
+			StructuredOutput: promptData.shouldUseStructured,
+		},
+	}, nil
+}
+
+type promptBuildData struct {
+	enhancedPrompt      string
+	shouldUseStructured bool
+}
+
+func (o *llmOrchestrator) buildPromptData(ctx context.Context, request Request) (*promptBuildData, error) {
 	basePrompt, err := o.config.PromptBuilder.Build(ctx, request.Action)
 	if err != nil {
 		return nil, NewLLMError(err, "PROMPT_BUILD_ERROR", map[string]any{
 			"action": request.Action.ID,
 		})
 	}
-	// Determine if structured output should be used
 	shouldUseStructured := o.config.PromptBuilder.ShouldUseStructuredOutput(
 		string(request.Agent.Config.Provider),
 		request.Action,
 		request.Agent.Tools,
 	)
-	// Enhance prompt for structured output if needed
-	enhancedPrompt := basePrompt
-	if shouldUseStructured {
-		enhancedPrompt = o.config.PromptBuilder.EnhanceForStructuredOutput(
-			ctx,
-			basePrompt,
-			request.Action.OutputSchema,
-			len(request.Agent.Tools) > 0,
-		)
-	}
-	// Build tool definitions for LLM
-	toolDefs, err := o.buildToolDefinitions(ctx, request.Agent.Tools)
-	if err != nil {
-		return nil, NewLLMError(err, "TOOL_DEFINITIONS_ERROR", map[string]any{
-			"agent": request.Agent.ID,
-		})
-	}
-	// Prepare LLM request
-	llmReq := llmadapter.LLMRequest{
-		SystemPrompt: request.Agent.Instructions,
-		Messages: []llmadapter.Message{
-			{Role: "user", Content: enhancedPrompt},
-		},
-		Tools: toolDefs,
-		Options: llmadapter.CallOptions{
-			Temperature:      0.7, // TODO: make configurable via agent/action config
-			UseJSONMode:      request.Action.JSONMode || (shouldUseStructured && len(toolDefs) == 0),
-			StructuredOutput: shouldUseStructured,
-		},
-	}
-	// Generate content
-	response, err := llmClient.GenerateContent(ctx, &llmReq)
-	if err != nil {
-		return nil, NewLLMError(err, ErrCodeLLMGeneration, map[string]any{
-			"agent":  request.Agent.ID,
-			"action": request.Action.ID,
-		})
-	}
-	// Process response
-	output, err := o.processResponse(ctx, response, request)
-	if err != nil {
-		return nil, fmt.Errorf("failed to process LLM response: %w", err)
-	}
+	enhancedPrompt := o.enhancePromptIfNeeded(ctx, basePrompt, shouldUseStructured, request)
+	return &promptBuildData{
+		enhancedPrompt:      enhancedPrompt,
+		shouldUseStructured: shouldUseStructured,
+	}, nil
+}
 
-	return output, nil
+func (o *llmOrchestrator) enhancePromptIfNeeded(
+	ctx context.Context,
+	basePrompt string,
+	shouldUseStructured bool,
+	request Request,
+) string {
+	if !shouldUseStructured {
+		return basePrompt
+	}
+	return o.config.PromptBuilder.EnhanceForStructuredOutput(
+		ctx,
+		basePrompt,
+		request.Action.OutputSchema,
+		len(request.Agent.Tools) > 0,
+	)
+}
+
+func (o *llmOrchestrator) buildMessages(
+	ctx context.Context,
+	enhancedPrompt string,
+	memories map[string]Memory,
+) []llmadapter.Message {
+	messages := []llmadapter.Message{{
+		Role:    "user",
+		Content: enhancedPrompt,
+	}}
+	if len(memories) > 0 {
+		messages = PrepareMemoryContext(ctx, memories, messages)
+	}
+	return messages
+}
+
+func (o *llmOrchestrator) storeResponseInMemoryAsync(
+	_ context.Context,
+	memories map[string]Memory,
+	response *llmadapter.LLMResponse,
+	messages []llmadapter.Message,
+	request Request,
+	log logger.Logger,
+) {
+	if len(memories) == 0 || response.Content == "" {
+		return
+	}
+	go func() {
+		bgCtx := context.Background()
+		assistantMsg := llmadapter.Message{
+			Role:    "assistant",
+			Content: response.Content,
+		}
+		err := StoreResponseInMemory(
+			bgCtx,
+			memories,
+			request.Agent.GetResolvedMemoryReferences(),
+			assistantMsg,
+			messages[len(messages)-1],
+		)
+		if err != nil {
+			log.Error("Failed to store response in memory", "error", err)
+		}
+	}()
 }
 
 // validateInput validates the input request
@@ -200,19 +337,23 @@ func (o *llmOrchestrator) processResponse(
 	response *llmadapter.LLMResponse,
 	request Request,
 ) (*core.Output, error) {
-	// If there are tool calls, execute them
 	if len(response.ToolCalls) > 0 {
 		return o.executeToolCalls(ctx, response.ToolCalls, request)
 	}
+	return o.parseContentResponse(ctx, response.Content, request.Action)
+}
 
-	// Parse the content response
-	output, err := o.parseContent(ctx, response.Content, request.Action)
+func (o *llmOrchestrator) parseContentResponse(
+	ctx context.Context,
+	content string,
+	action *agent.ActionConfig,
+) (*core.Output, error) {
+	output, err := o.parseContent(ctx, content, action)
 	if err != nil {
 		return nil, NewLLMError(err, ErrCodeInvalidResponse, map[string]any{
-			"content": response.Content,
+			"content": content,
 		})
 	}
-
 	return output, nil
 }
 

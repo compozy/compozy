@@ -43,7 +43,7 @@ func NewExecuteSubtask(
 ) *ExecuteSubtask {
 	return &ExecuteSubtask{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
-		executeTaskUC:  uc.NewExecuteTask(runtime),
+		executeTaskUC:  uc.NewExecuteTask(runtime, nil, nil), // Subtasks don't need memory manager
 		taskResponder:  services.NewTaskResponder(workflowRepo, taskRepo),
 		taskRepo:       taskRepo,
 		configStore:    configStore,
@@ -74,7 +74,10 @@ func (a *ExecuteSubtask) Run(ctx context.Context, input *ExecuteSubtaskInput) (*
 		return nil, err
 	}
 	output, executionError := a.executeTaskUC.Execute(ctx, &uc.ExecuteTaskInput{
-		TaskConfig: taskConfig,
+		TaskConfig:     taskConfig,
+		WorkflowState:  workflowState,
+		WorkflowConfig: workflowConfig,
+		ProjectConfig:  nil, // Subtasks don't use memory operations
 	})
 
 	// Update task status and output based on execution result

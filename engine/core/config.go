@@ -35,6 +35,7 @@ const (
 	ConfigAgent    ConfigType = "agent"
 	ConfigTool     ConfigType = "tool"
 	ConfigMCP      ConfigType = "mcp"
+	ConfigMemory   ConfigType = "memory" // Added for memory resources
 )
 
 func AsMapDefault(config any) (map[string]any, error) {

@@ -69,6 +69,7 @@ func NewService(ctx context.Context, runtime *runtime.Manager, agent *agent.Conf
 		PromptBuilder:  promptBuilder,
 		RuntimeManager: runtime,
 		LLMFactory:     config.LLMFactory,
+		MemoryProvider: config.MemoryProvider,
 	}
 	llmOrchestrator := NewOrchestrator(orchestratorConfig)
 	return &Service{
