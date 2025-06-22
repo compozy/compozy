@@ -18,11 +18,11 @@ Create thread-safe memory instances with distributed locking and async operation
 
 ## Subtasks
 
-- [ ] 6.1 Build AsyncSafeMemoryInstance using existing LockManager from engine/infra/cache
-- [ ] 6.2 Integrate with Temporal workflows for async operations
-- [ ] 6.3 Create performFlushAsync as Temporal activity for background processing
-- [ ] 6.4 Use existing Redis patterns from engine/task/services/redis_store.go
-- [ ] 6.5 Implement diagnostic methods following existing health check patterns
+- [ ] 5.1 Build AsyncSafeMemoryInstance using existing LockManager from engine/infra/cache
+- [ ] 5.2 Integrate with Temporal workflows for async operations
+- [ ] 5.3 Create performFlushAsync as Temporal activity for background processing
+- [ ] 5.4 Use existing Redis patterns from engine/task/services/redis_store.go
+- [ ] 5.5 Implement diagnostic methods following existing health check patterns
 
 ## Implementation Details
 

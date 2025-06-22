@@ -1,0 +1,173 @@
+id: memory-task-demo
+version: 0.1.0
+description: Direct memory task operations for user session management
+
+config:
+  input:
+    type: object
+    properties:
+      user_id:
+        type: string
+        description: Unique identifier for the user
+        default: "user_456"
+      session_id:
+        type: string
+        description: Session identifier
+        default: "session_abc"
+      action:
+        type: string
+        description: Action to perform
+        enum:
+          - "initialize"
+          - "update_profile"
+          - "get_stats"
+          - "cleanup"
+        default: "initialize"
+      user_data:
+        type: object
+        description: User profile data
+        properties:
+          name:
+            type: string
+            default: "Alice"
+          email:
+            type: string
+            default: "alice@example.com"
+          preferences:
+            type: object
+            properties:
+              theme:
+                type: string
+                default: "dark"
+              language:
+                type: string
+                default: "en"
+    required:
+      - user_id
+      - session_id
+      - action
+
+resources:
+  memories:
+    - id: user_memory
+      type: memory
+
+tasks:
+  # Read existing user data
+  - id: read_user_data
+    type: memory
+    operation: read
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:profile"
+    on_success:
+      next: process_action
+
+  # Route based on action type
+  - id: process_action
+    type: router
+    routes:
+      initialize: initialize_user
+      update_profile: update_user_profile
+      get_stats: get_memory_stats
+      cleanup: cleanup_user_data
+    strategy: "exact"
+
+  # Initialize new user profile
+  - id: initialize_user
+    type: memory
+    operation: write
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:profile"
+    payload:
+      role: "system"
+      content: |
+        User Profile Initialized:
+        Name: {{ .workflow.input.user_data.name }}
+        Email: {{ .workflow.input.user_data.email }}
+        Theme: {{ .workflow.input.user_data.preferences.theme }}
+        Language: {{ .workflow.input.user_data.preferences.language }}
+        Created: {{ now | date "2006-01-02 15:04:05" }}
+    on_success:
+      next: add_session_data
+
+  # Add session information
+  - id: add_session_data
+    type: memory
+    operation: append
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:sessions"
+    payload:
+      role: "user"
+      content: |
+        Session {{ .workflow.input.session_id }} started at {{ now | date "15:04:05" }}
+    on_success:
+      next: complete
+
+  # Update existing user profile
+  - id: update_user_profile
+    type: memory
+    operation: append
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:profile"
+    payload:
+      role: "assistant"
+      content: |
+        Profile Updated:
+        {% if .workflow.input.user_data.name %}Name: {{ .workflow.input.user_data.name }}{% endif %}
+        {% if .workflow.input.user_data.email %}Email: {{ .workflow.input.user_data.email }}{% endif %}
+        Updated: {{ now | date "2006-01-02 15:04:05" }}
+    on_success:
+      next: complete
+
+  # Get memory statistics
+  - id: get_memory_stats
+    type: memory
+    operation: stats
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:*"
+    stats_config:
+      include_content: true
+      group_by: "user"
+    on_success:
+      next: get_health_check
+
+  # Check memory health
+  - id: get_health_check
+    type: memory
+    operation: health
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:profile"
+    health_config:
+      include_stats: true
+      check_connectivity: true
+    on_success:
+      next: complete
+
+  # Cleanup user data
+  - id: cleanup_user_data
+    type: memory
+    operation: clear
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:*"
+    clear_config:
+      confirm: true
+      backup: true
+    on_success:
+      next: complete
+
+  # Final completion task
+  - id: complete
+    type: basic
+    final: true
+
+outputs:
+  action_performed: "{{ .workflow.input.action }}"
+  user_id: "{{ .workflow.input.user_id }}"
+  session_id: "{{ .workflow.input.session_id }}"
+  read_result: "{{ if .tasks.read_user_data.output }}{{ .tasks.read_user_data.output }}{{ else }}null{{\
+    \ end }}"
+  stats_result: "{{ if .tasks.get_memory_stats.output }}{{ .tasks.get_memory_stats.output }}{{ else }}null{{\
+    \ end }}"
+  health_result: "{{ if .tasks.get_health_check.output }}{{ .tasks.get_health_check.output }}{{ else }}null{{\
+    \ end }}"
+  completion_time: "{{ now | date '2006-01-02 15:04:05' }}"

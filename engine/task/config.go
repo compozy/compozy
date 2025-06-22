@@ -60,6 +60,7 @@ const (
 	TaskTypeComposite  Type = "composite"
 	TaskTypeSignal     Type = "signal"
 	TaskTypeWait       Type = "wait"
+	TaskTypeMemory     Type = "memory"
 )
 
 // -----------------------------------------------------------------------------
@@ -198,6 +199,61 @@ type WaitTask struct {
 }
 
 // -----------------------------------------------------------------------------
+// Memory Task
+// -----------------------------------------------------------------------------
+
+type MemoryOpType string
+
+const (
+	MemoryOpRead   MemoryOpType = "read"
+	MemoryOpWrite  MemoryOpType = "write"
+	MemoryOpAppend MemoryOpType = "append"
+	MemoryOpDelete MemoryOpType = "delete"
+	MemoryOpFlush  MemoryOpType = "flush"
+	MemoryOpHealth MemoryOpType = "health"
+	MemoryOpClear  MemoryOpType = "clear"
+	MemoryOpStats  MemoryOpType = "stats"
+)
+
+type MemoryTask struct {
+	Operation   MemoryOpType `json:"operation"     yaml:"operation"     mapstructure:"operation"`
+	MemoryRef   string       `json:"memory_ref"    yaml:"memory_ref"    mapstructure:"memory_ref"`
+	KeyTemplate string       `json:"key_template"  yaml:"key_template"  mapstructure:"key_template"`
+	Payload     any          `json:"payload"       yaml:"payload"       mapstructure:"payload,omitempty"`
+	// Performance controls
+	BatchSize int `json:"batch_size"    yaml:"batch_size"    mapstructure:"batch_size,omitempty"`
+	MaxKeys   int `json:"max_keys"      yaml:"max_keys"      mapstructure:"max_keys,omitempty"`
+	// Operation-specific configs
+	FlushConfig  *FlushConfig  `json:"flush_config"  yaml:"flush_config"  mapstructure:"flush_config,omitempty"`
+	HealthConfig *HealthConfig `json:"health_config" yaml:"health_config" mapstructure:"health_config,omitempty"`
+	StatsConfig  *StatsConfig  `json:"stats_config"  yaml:"stats_config"  mapstructure:"stats_config,omitempty"`
+	ClearConfig  *ClearConfig  `json:"clear_config"  yaml:"clear_config"  mapstructure:"clear_config,omitempty"`
+}
+
+type FlushConfig struct {
+	Strategy  string  `json:"strategy"  yaml:"strategy"  mapstructure:"strategy"`
+	MaxKeys   int     `json:"max_keys"  yaml:"max_keys"  mapstructure:"max_keys"`
+	DryRun    bool    `json:"dry_run"   yaml:"dry_run"   mapstructure:"dry_run"`
+	Force     bool    `json:"force"     yaml:"force"     mapstructure:"force"`
+	Threshold float64 `json:"threshold" yaml:"threshold" mapstructure:"threshold"`
+}
+
+type HealthConfig struct {
+	IncludeStats      bool `json:"include_stats"      yaml:"include_stats"      mapstructure:"include_stats"`
+	CheckConnectivity bool `json:"check_connectivity" yaml:"check_connectivity" mapstructure:"check_connectivity"`
+}
+
+type StatsConfig struct {
+	IncludeContent bool   `json:"include_content" yaml:"include_content" mapstructure:"include_content"`
+	GroupBy        string `json:"group_by"        yaml:"group_by"        mapstructure:"group_by"`
+}
+
+type ClearConfig struct {
+	Confirm bool `json:"confirm" yaml:"confirm" mapstructure:"confirm"`
+	Backup  bool `json:"backup"  yaml:"backup"  mapstructure:"backup"`
+}
+
+// -----------------------------------------------------------------------------
 // Config
 // -----------------------------------------------------------------------------
 
@@ -208,6 +264,7 @@ type Config struct {
 	CollectionConfig `         json:",inline"        yaml:",inline"        mapstructure:",squash"`
 	SignalTask       `         json:",inline"        yaml:",inline"        mapstructure:",squash"`
 	WaitTask         `         json:",inline"        yaml:",inline"        mapstructure:",squash"`
+	MemoryTask       `         json:",inline"        yaml:",inline"        mapstructure:",squash"`
 	BaseConfig       `         json:",inline"        yaml:",inline"        mapstructure:",squash"`
 	Tasks            []Config `json:"tasks"          yaml:"tasks"          mapstructure:"tasks"`
 	Task             *Config  `json:"task,omitempty" yaml:"task,omitempty" mapstructure:"task,omitempty"`
@@ -314,6 +371,12 @@ func (t *Config) Validate() error {
 			return fmt.Errorf("invalid wait task '%s': %w", t.ID, err)
 		}
 	}
+	// Validate memory task specific fields
+	if t.Type == TaskTypeMemory {
+		if err := t.validateMemoryTask(); err != nil {
+			return fmt.Errorf("invalid memory task '%s': %w", t.ID, err)
+		}
+	}
 	return nil
 }
 
@@ -378,6 +441,89 @@ func (t *Config) validateWaitProcessor() error {
 	// Recursively validate the processor configuration
 	if err := t.Processor.Validate(); err != nil {
 		return fmt.Errorf("processor validation failed: %w", err)
+	}
+	return nil
+}
+
+// validateMemoryTask performs comprehensive validation for memory task configuration
+func (t *Config) validateMemoryTask() error {
+	// Required field validation
+	if err := t.validateMemoryRequiredFields(); err != nil {
+		return err
+	}
+	// Validate operation type
+	if err := t.validateMemoryOperation(); err != nil {
+		return err
+	}
+	// Validate performance limits
+	if err := t.validateMemoryLimits(); err != nil {
+		return err
+	}
+	// Operation-specific validation
+	return t.validateMemoryOperationSpecific()
+}
+
+func (t *Config) validateMemoryRequiredFields() error {
+	if t.Operation == "" {
+		return fmt.Errorf("operation field is required")
+	}
+	if t.MemoryRef == "" {
+		return fmt.Errorf("memory_ref field is required")
+	}
+	if t.KeyTemplate == "" {
+		return fmt.Errorf("key_template field is required")
+	}
+	return nil
+}
+
+func (t *Config) validateMemoryOperation() error {
+	switch t.Operation {
+	case MemoryOpRead, MemoryOpWrite, MemoryOpAppend, MemoryOpDelete,
+		MemoryOpFlush, MemoryOpHealth, MemoryOpClear, MemoryOpStats:
+		return nil
+	default:
+		return fmt.Errorf(
+			"invalid operation '%s', must be one of: read, write, append, delete, flush, health, clear, stats",
+			t.Operation,
+		)
+	}
+}
+
+func (t *Config) validateMemoryLimits() error {
+	if t.MaxKeys < 0 {
+		return fmt.Errorf("max_keys cannot be negative")
+	}
+	if t.MaxKeys > 50000 {
+		return fmt.Errorf("max_keys cannot exceed 50,000 for safety")
+	}
+	if t.BatchSize < 0 {
+		return fmt.Errorf("batch_size cannot be negative")
+	}
+	if t.BatchSize > 10000 {
+		return fmt.Errorf("batch_size cannot exceed 10,000 for safety")
+	}
+	return nil
+}
+
+func (t *Config) validateMemoryOperationSpecific() error {
+	switch t.Operation {
+	case MemoryOpWrite, MemoryOpAppend:
+		if t.Payload == nil {
+			return fmt.Errorf("%s operation requires payload", t.Operation)
+		}
+	case MemoryOpFlush:
+		if t.FlushConfig != nil {
+			if t.FlushConfig.MaxKeys < 0 {
+				return fmt.Errorf("flush max_keys cannot be negative")
+			}
+			if t.FlushConfig.Threshold < 0 || t.FlushConfig.Threshold > 1 {
+				return fmt.Errorf("flush threshold must be between 0 and 1")
+			}
+		}
+	case MemoryOpClear:
+		if t.ClearConfig == nil || !t.ClearConfig.Confirm {
+			return fmt.Errorf("clear operation requires confirm flag to be true")
+		}
 	}
 	return nil
 }
@@ -449,6 +595,8 @@ func (t *Config) GetExecType() ExecutionType {
 		executionType = ExecutionBasic
 	case TaskTypeWait:
 		executionType = ExecutionWait
+	case TaskTypeMemory:
+		executionType = ExecutionBasic
 	default:
 		executionType = ExecutionBasic
 	}

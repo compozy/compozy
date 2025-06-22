@@ -332,6 +332,7 @@ func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterActivity(o.activities.ExecuteAggregateTask)
 	o.worker.RegisterActivity(o.activities.ExecuteSignalTask)
 	o.worker.RegisterActivity(o.activities.ExecuteWaitTask)
+	o.worker.RegisterActivity(o.activities.ExecuteMemoryTask)
 	o.worker.RegisterActivityWithOptions(
 		o.activities.NormalizeWaitProcessor,
 		activity.RegisterOptions{Name: tkacts.NormalizeWaitProcessorLabel},

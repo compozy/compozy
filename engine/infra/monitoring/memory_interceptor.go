@@ -34,7 +34,7 @@ func (m *MemoryMonitoringInterceptor) GetInstance(
 	instance, err := m.wrapped.GetInstance(ctx, ref, workflowContext)
 
 	duration := time.Since(start)
-	memory.RecordMemoryOperation(ctx, "get_instance", ref.ID, projectID, duration)
+	memory.RecordMemoryOp(ctx, "get_instance", ref.ID, projectID, duration)
 
 	if err != nil {
 		memory.UpdateHealthState(ref.ID, false, 1)

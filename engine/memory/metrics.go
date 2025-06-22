@@ -382,8 +382,8 @@ func RecordMemoryLockContention(ctx context.Context, memoryID string, projectID 
 	}
 }
 
-// RecordMemoryOperation records the latency of a memory operation
-func RecordMemoryOperation(
+// RecordMemoryOp records the latency of a memory operation
+func RecordMemoryOp(
 	ctx context.Context,
 	operation string,
 	memoryID string,

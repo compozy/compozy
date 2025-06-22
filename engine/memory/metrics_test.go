@@ -120,7 +120,7 @@ func TestRecordMemoryMessage(t *testing.T) {
 	})
 }
 
-func TestRecordMemoryOperation(t *testing.T) {
+func TestRecordMemoryOp(t *testing.T) {
 	t.Run("Should record operation latency", func(t *testing.T) {
 		ctx := context.Background()
 		reader := sdkmetric.NewManualReader()
@@ -132,7 +132,7 @@ func TestRecordMemoryOperation(t *testing.T) {
 		InitMemoryMetrics(ctx, meter)
 
 		// Record an operation
-		RecordMemoryOperation(ctx, "append", "mem-123", "proj-456", 100*time.Millisecond)
+		RecordMemoryOp(ctx, "append", "mem-123", "proj-456", 100*time.Millisecond)
 
 		// Read metrics
 		rm := metricdata.ResourceMetrics{}

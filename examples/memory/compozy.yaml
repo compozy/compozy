@@ -4,6 +4,7 @@ description: Simple conversational agent that remembers user information using m
 
 workflows:
   - source: ./workflow.yaml
+  - source: ./memory-task-workflow.yaml
 
 models:
   - provider: groq

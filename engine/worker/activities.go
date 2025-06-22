@@ -391,6 +391,25 @@ func (a *Activities) ExecuteWaitTask(
 	return act.Run(ctx, input)
 }
 
+func (a *Activities) ExecuteMemoryTask(
+	ctx context.Context,
+	input *tkfacts.ExecuteMemoryInput,
+) (*task.MainTaskResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewExecuteMemory(
+		a.workflows,
+		a.workflowRepo,
+		a.taskRepo,
+		a.configStore,
+		a.memoryManager,
+		a.projectConfig.CWD,
+		a.templateEngine,
+	)
+	return act.Run(ctx, input)
+}
+
 func (a *Activities) NormalizeWaitProcessor(
 	ctx context.Context,
 	input *tkfacts.NormalizeWaitProcessorInput,

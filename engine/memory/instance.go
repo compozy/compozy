@@ -155,7 +155,7 @@ func (mi *Instance) performPostAppendOperations(ctx context.Context) {
 }
 
 func (mi *Instance) recordSuccessfulAppend(ctx context.Context, start time.Time) {
-	RecordMemoryOperation(ctx, "append", mi.id, mi.projectID, time.Since(start))
+	RecordMemoryOp(ctx, "append", mi.id, mi.projectID, time.Since(start))
 	UpdateHealthState(mi.id, true, 0)
 }
 
@@ -174,7 +174,7 @@ func (mi *Instance) acquireAppendLock(ctx context.Context, start time.Time) (cac
 	if err != nil {
 		mi.log.Error("Failed to acquire lock for append", "error", err)
 		RecordMemoryLockContention(ctx, mi.id, mi.projectID)
-		RecordMemoryOperation(ctx, "append", mi.id, mi.projectID, time.Since(start))
+		RecordMemoryOp(ctx, "append", mi.id, mi.projectID, time.Since(start))
 		return nil, fmt.Errorf("failed to acquire lock for append on memory %s: %w", mi.id, err)
 	}
 	return lock, nil
@@ -219,7 +219,7 @@ func (mi *Instance) appendWithRedisStore(
 ) error {
 	if err := redisStore.AppendMessagesWithMetadata(ctx, mi.id, []llm.Message{msg}, tokenCount); err != nil {
 		mi.log.Error("Failed to append message to store", "error", err)
-		RecordMemoryOperation(ctx, "append", mi.id, mi.projectID, time.Since(start))
+		RecordMemoryOp(ctx, "append", mi.id, mi.projectID, time.Since(start))
 		return fmt.Errorf("failed to append message to store for memory %s: %w", mi.id, err)
 	}
 	return nil
@@ -234,7 +234,7 @@ func (mi *Instance) appendWithGenericStore(
 	// Use atomic append with token count to prevent race conditions
 	if err := mi.store.AppendMessageWithTokenCount(ctx, mi.id, msg, tokenCount); err != nil {
 		mi.log.Error("Failed to append message to store", "error", err)
-		RecordMemoryOperation(ctx, "append", mi.id, mi.projectID, time.Since(start))
+		RecordMemoryOp(ctx, "append", mi.id, mi.projectID, time.Since(start))
 		return fmt.Errorf("failed to append message to store for memory %s: %w", mi.id, err)
 	}
 	return nil
@@ -354,11 +354,11 @@ func (mi *Instance) Read(ctx context.Context) ([]llm.Message, error) {
 	messages, err := mi.store.ReadMessages(ctx, mi.id)
 	if err != nil {
 		mi.log.Error("Failed to read messages from store", "error", err)
-		RecordMemoryOperation(ctx, "read", mi.id, mi.projectID, time.Since(start))
+		RecordMemoryOp(ctx, "read", mi.id, mi.projectID, time.Since(start))
 		UpdateHealthState(mi.id, false, 1)
 		return nil, fmt.Errorf("failed to read messages from store for memory %s: %w", mi.id, err)
 	}
-	RecordMemoryOperation(ctx, "read", mi.id, mi.projectID, time.Since(start))
+	RecordMemoryOp(ctx, "read", mi.id, mi.projectID, time.Since(start))
 	UpdateHealthState(mi.id, true, 0)
 	return messages, nil
 }
@@ -475,7 +475,7 @@ func (mi *Instance) Clear(ctx context.Context) error {
 	if err != nil {
 		mi.log.Error("Failed to acquire lock for clear", "error", err)
 		RecordMemoryLockContention(ctx, mi.id, mi.projectID)
-		RecordMemoryOperation(ctx, "clear", mi.id, mi.projectID, time.Since(start))
+		RecordMemoryOp(ctx, "clear", mi.id, mi.projectID, time.Since(start))
 		return fmt.Errorf("failed to acquire lock for clear on memory %s: %w", mi.id, err)
 	}
 	defer func() {
@@ -486,7 +486,7 @@ func (mi *Instance) Clear(ctx context.Context) error {
 
 	if err := mi.store.DeleteMessages(ctx, mi.id); err != nil {
 		mi.log.Error("Failed to delete messages from store", "error", err)
-		RecordMemoryOperation(ctx, "clear", mi.id, mi.projectID, time.Since(start))
+		RecordMemoryOp(ctx, "clear", mi.id, mi.projectID, time.Since(start))
 		UpdateHealthState(mi.id, false, 1)
 		return fmt.Errorf("failed to delete messages from store for memory %s: %w", mi.id, err)
 	}
@@ -500,7 +500,7 @@ func (mi *Instance) Clear(ctx context.Context) error {
 	UpdateTokenUsageState(mi.id, 0, int64(mi.resourceConfig.MaxTokens))
 
 	// Record successful clear
-	RecordMemoryOperation(ctx, "clear", mi.id, mi.projectID, time.Since(start))
+	RecordMemoryOp(ctx, "clear", mi.id, mi.projectID, time.Since(start))
 	UpdateHealthState(mi.id, true, 0)
 
 	return nil
@@ -653,7 +653,7 @@ func (mi *Instance) handleLimitsOnlyFlush(
 			finalTokens,
 		)
 	}
-	RecordMemoryOperation(ctx, "flush_check", mi.id, mi.projectID, time.Since(start))
+	RecordMemoryOp(ctx, "flush_check", mi.id, mi.projectID, time.Since(start))
 	return &FlushMemoryActivityOutput{
 		MessageCount: len(finalMessages),
 		TokenCount:   finalTokens,
@@ -800,7 +800,7 @@ func (mi *Instance) completeFlushOperation(
 	summaryGenerated bool,
 	start time.Time,
 ) {
-	RecordMemoryOperation(ctx, "flush_complete", mi.id, mi.projectID, time.Since(start))
+	RecordMemoryOp(ctx, "flush_complete", mi.id, mi.projectID, time.Since(start))
 	flushType := "simple_fifo"
 	if summaryGenerated {
 		flushType = "hybrid_summary"

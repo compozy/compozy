@@ -41,14 +41,14 @@ This directory contains Grafana alerting rules for the Compozy system. The rules
 
 ### Operation Alerts (`compozy_memory_operations`)
 
-#### MemoryOperationFailures (Warning)
+#### MemoryOpFailures (Warning)
 
 - **Condition**: > 5 operation failures in 5 minutes
 - **Severity**: Warning
 - **Description**: High rate of memory operation failures
 - **Action**: Check error logs, verify storage backend health
 
-#### MemoryOperationLatencyHigh (Warning)
+#### MemoryOpLatencyHigh (Warning)
 
 - **Condition**: 95th percentile latency > 5 seconds for 3 minutes
 - **Severity**: Warning
