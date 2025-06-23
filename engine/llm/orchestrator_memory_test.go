@@ -2,8 +2,8 @@ package llm
 
 import (
 	"context"
+	"sync"
 	"testing"
-	"time"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -11,6 +11,42 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
+
+// testAsyncHook provides synchronization for async operations in tests
+type testAsyncHook struct {
+	wg     sync.WaitGroup
+	mu     sync.Mutex
+	errors []error
+}
+
+func newTestAsyncHook() *testAsyncHook {
+	return &testAsyncHook{
+		errors: make([]error, 0),
+	}
+}
+
+func (h *testAsyncHook) OnMemoryStoreComplete(err error) {
+	h.mu.Lock()
+	if err != nil {
+		h.errors = append(h.errors, err)
+	}
+	h.mu.Unlock()
+	h.wg.Done()
+}
+
+func (h *testAsyncHook) expectMemoryStore() {
+	h.wg.Add(1)
+}
+
+func (h *testAsyncHook) wait() {
+	h.wg.Wait()
+}
+
+func (h *testAsyncHook) getErrors() []error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]error{}, h.errors...)
+}
 
 // Mock LLM client for testing
 type MockLLMClient struct {
@@ -56,7 +92,7 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 		mockFactory := &MockLLMFactory{}
 		mockClient := &MockLLMClient{}
 
-		orchestrator := NewOrchestrator(OrchestratorConfig{
+		orchestrator := NewOrchestrator(&OrchestratorConfig{
 			ToolRegistry:   mockRegistry,
 			PromptBuilder:  mockPromptBuilder,
 			LLMFactory:     mockFactory,
@@ -115,12 +151,14 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 		mockClient := &MockLLMClient{}
 		mockMemoryProvider := &mockMemoryProvider{}
 		mockMemory := &mockMemory{id: "test-memory"}
+		asyncHook := newTestAsyncHook()
 
-		orchestrator := NewOrchestrator(OrchestratorConfig{
+		orchestrator := NewOrchestrator(&OrchestratorConfig{
 			ToolRegistry:   mockRegistry,
 			PromptBuilder:  mockPromptBuilder,
 			LLMFactory:     mockFactory,
 			MemoryProvider: mockMemoryProvider,
+			AsyncHook:      asyncHook,
 		})
 
 		// Setup request with memory references
@@ -157,6 +195,7 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 		mockMemory.On("Read", ctx).Return(memoryMessages, nil)
 
 		// Expect messages to be stored asynchronously after response
+		asyncHook.expectMemoryStore() // Signal that we expect one memory store operation
 		mockMemory.On("Append", mock.Anything, mock.MatchedBy(func(msg Message) bool {
 			return msg.Role == MessageRoleUser && msg.Content == "What did we talk about last time?"
 		})).Return(nil)
@@ -187,8 +226,12 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, output)
 
-		// Wait a bit for async memory storage (in real test would use sync mechanism)
-		time.Sleep(100 * time.Millisecond)
+		// Wait for async memory storage to complete
+		asyncHook.wait()
+
+		// Check if any errors occurred during async operations
+		errors := asyncHook.getErrors()
+		assert.Empty(t, errors, "No errors should occur during async memory storage")
 
 		// Verify expectations
 		mockMemoryProvider.AssertExpectations(t)
@@ -206,7 +249,7 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 		mockClient := &MockLLMClient{}
 		mockMemoryProvider := &mockMemoryProvider{}
 
-		orchestrator := NewOrchestrator(OrchestratorConfig{
+		orchestrator := NewOrchestrator(&OrchestratorConfig{
 			ToolRegistry:   mockRegistry,
 			PromptBuilder:  mockPromptBuilder,
 			LLMFactory:     mockFactory,

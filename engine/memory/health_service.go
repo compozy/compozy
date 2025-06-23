@@ -50,11 +50,8 @@ type TokenUsageHealth struct {
 }
 
 // NewHealthService creates a new memory health service
-func NewHealthService(manager *Manager, log logger.Logger) *HealthService {
-	if log == nil {
-		log = logger.NewForTests()
-	}
-
+func NewHealthService(ctx context.Context, manager *Manager) *HealthService {
+	log := logger.FromContext(ctx)
 	return &HealthService{
 		manager:       manager,
 		checkInterval: 30 * time.Second, // Check every 30 seconds
@@ -322,21 +319,67 @@ func (mhs *HealthService) checkInstanceHealth(_ context.Context, memoryID string
 		return false
 	}
 
-	// This is a simple check - in a real implementation, you might want to
-	// actually create an instance and test basic operations
-	// For now, we'll consider an instance healthy if it's been recently active
+	// For now, we consider an instance healthy based on its recent activity
+	// and basic connectivity checks. Since we can't easily access the actual
+	// instance without proper workflow context, we'll rely on the health state
+	// tracking that's updated when instances perform operations.
+
+	// Check if the instance has been recently active
 	if state, exists := memoryHealthStates.Load(memoryID); exists {
 		if healthState, ok := state.(*HealthState); ok {
 			healthState.mu.RLock()
 			timeSinceCheck := time.Since(healthState.LastHealthCheck)
+			isHealthy := healthState.IsHealthy
+			consecutiveFailures := healthState.ConsecutiveFailures
 			healthState.mu.RUnlock()
 
-			// Consider healthy if checked within the last 5 minutes
-			return timeSinceCheck < 5*time.Minute
+			// Consider unhealthy if:
+			// 1. The instance is marked as unhealthy
+			// 2. Not checked in over 5 minutes
+			// 3. Has too many consecutive failures
+			if !isHealthy {
+				mhs.log.Debug("Instance marked as unhealthy",
+					"memory_id", memoryID,
+					"consecutive_failures", consecutiveFailures)
+				return false
+			}
+
+			if timeSinceCheck > 5*time.Minute {
+				mhs.log.Debug("Instance inactive for too long",
+					"memory_id", memoryID,
+					"time_since_check", timeSinceCheck)
+				return false
+			}
+
+			if consecutiveFailures > 3 {
+				mhs.log.Debug("Too many consecutive failures",
+					"memory_id", memoryID,
+					"failures", consecutiveFailures)
+				return false
+			}
+
+			// Check Redis connectivity if available
+			if mhs.manager.baseRedisClient != nil {
+				// baseRedisClient is already of type cache.RedisInterface
+				pingCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				defer cancel()
+				if err := mhs.manager.baseRedisClient.Ping(pingCtx).Err(); err != nil {
+					mhs.log.Debug("Instance Redis connectivity check failed",
+						"instance_id", memoryID,
+						"error", err,
+					)
+					return false
+				}
+			}
+
+			return true
 		}
 	}
 
-	return true // Default to healthy for new instances
+	// If we don't have health state for this instance, default to healthy
+	// This allows new instances to be considered healthy until proven otherwise
+	mhs.log.Debug("No health state found for instance, defaulting to healthy", "memory_id", memoryID)
+	return true
 }
 
 // SetCheckInterval sets the health check interval

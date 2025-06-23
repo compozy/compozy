@@ -168,32 +168,6 @@ func TestRedisMemoryStore_AppendMessagesBatch(t *testing.T) {
 	assert.Equal(t, msgs, messages)
 }
 
-func TestRedisMemoryStore_TrimMessages(t *testing.T) {
-	store, s, ctx := setupRedisTestStore(t)
-	defer s.Close()
-
-	key := "testTrim"
-	for i := 0; i < 5; i++ {
-		err := store.AppendMessage(ctx, key, llm.Message{Role: "user", Content: fmt.Sprintf("Msg %d", i)})
-		require.NoError(t, err)
-	}
-
-	err := store.TrimMessages(ctx, key, 2) // Keep last 2
-	require.NoError(t, err)
-
-	messages, err := store.ReadMessages(ctx, key)
-	require.NoError(t, err)
-	require.Len(t, messages, 2)
-	assert.Equal(t, "Msg 3", messages[0].Content)
-	assert.Equal(t, "Msg 4", messages[1].Content)
-
-	err = store.TrimMessages(ctx, key, 0) // Keep 0 (delete all)
-	require.NoError(t, err)
-	messages, err = store.ReadMessages(ctx, key)
-	require.NoError(t, err)
-	assert.Len(t, messages, 0)
-}
-
 func TestRedisMemoryStore_ReplaceMessages(t *testing.T) {
 	store, s, ctx := setupRedisTestStore(t)
 	defer s.Close()

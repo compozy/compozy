@@ -157,11 +157,64 @@ func TestPrivacyManager_CircuitBreaker(t *testing.T) {
 		}
 		err := pm.RegisterPolicy("test-resource", policy)
 		require.NoError(t, err)
-		pm.consecutiveErrors = pm.maxConsecutiveErrors // Simulate max errors reached
+		// Simulate max errors reached with proper locking
+		pm.mu.Lock()
+		pm.consecutiveErrors = pm.maxConsecutiveErrors
+		pm.mu.Unlock()
 		msg := llm.Message{Role: llm.MessageRoleUser, Content: "Test"}
 		_, err = pm.RedactMessage(context.Background(), "test-resource", msg)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "circuit breaker open")
+	})
+	t.Run("Should reset consecutive errors on successful redaction", func(t *testing.T) {
+		pm := NewPrivacyManager()
+		policy := &PrivacyPolicyConfig{
+			RedactPatterns: []string{`\d+`},
+		}
+		err := pm.RegisterPolicy("test-resource", policy)
+		require.NoError(t, err)
+		// Set some errors
+		pm.mu.Lock()
+		pm.consecutiveErrors = 5
+		pm.mu.Unlock()
+		// Successful redaction should reset counter
+		msg := llm.Message{Role: llm.MessageRoleUser, Content: "Test 123"}
+		_, err = pm.RedactMessage(context.Background(), "test-resource", msg)
+		assert.NoError(t, err)
+		// Check counter was reset
+		pm.mu.RLock()
+		assert.Equal(t, 0, pm.consecutiveErrors)
+		pm.mu.RUnlock()
+	})
+	t.Run("Should track circuit breaker status", func(t *testing.T) {
+		pm := NewPrivacyManager()
+		// Initially closed
+		isOpen, errors, maxErrors := pm.GetCircuitBreakerStatus()
+		assert.False(t, isOpen)
+		assert.Equal(t, 0, errors)
+		assert.Equal(t, 10, maxErrors)
+		// Set errors to trigger open state
+		pm.mu.Lock()
+		pm.consecutiveErrors = pm.maxConsecutiveErrors
+		pm.mu.Unlock()
+		// Should be open
+		isOpen, errors, maxErrors = pm.GetCircuitBreakerStatus()
+		assert.True(t, isOpen)
+		assert.Equal(t, 10, errors)
+		assert.Equal(t, 10, maxErrors)
+	})
+	t.Run("Should reset circuit breaker manually", func(t *testing.T) {
+		pm := NewPrivacyManager()
+		// Set some errors
+		pm.mu.Lock()
+		pm.consecutiveErrors = 8
+		pm.mu.Unlock()
+		// Reset circuit breaker
+		pm.ResetCircuitBreaker()
+		// Check it was reset
+		isOpen, errors, _ := pm.GetCircuitBreakerStatus()
+		assert.False(t, isOpen)
+		assert.Equal(t, 0, errors)
 	})
 }
 

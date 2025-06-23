@@ -40,7 +40,6 @@ var (
 
 	// State tracking
 	memoryMetricsOnce  sync.Once
-	memoryMetricsMutex sync.RWMutex
 	memoryPoolStates   sync.Map // map[string]*PoolState
 	memoryTokenStates  sync.Map // map[string]*TokenState
 	memoryHealthStates sync.Map // map[string]*HealthState
@@ -78,8 +77,6 @@ func InitMemoryMetrics(ctx context.Context, meter metric.Meter) {
 		return
 	}
 	log := logger.FromContext(ctx)
-	memoryMetricsMutex.Lock()
-	defer memoryMetricsMutex.Unlock()
 	memoryMetricsOnce.Do(func() {
 		performMetricsInitialization(meter, log)
 	})
@@ -460,22 +457,32 @@ func RecordCircuitBreakerTrip(ctx context.Context, memoryID string, projectID st
 
 // UpdateGoroutinePoolState updates the goroutine pool state for a memory instance
 func UpdateGoroutinePoolState(memoryID string, activeCount int64, maxPoolSize int64) {
-	state := &PoolState{
+	value, _ := memoryPoolStates.LoadOrStore(memoryID, &PoolState{
 		MemoryID:    memoryID,
 		ActiveCount: activeCount,
 		MaxPoolSize: maxPoolSize,
+	})
+	if state, ok := value.(*PoolState); ok {
+		state.mu.Lock()
+		state.ActiveCount = activeCount
+		state.MaxPoolSize = maxPoolSize
+		state.mu.Unlock()
 	}
-	memoryPoolStates.Store(memoryID, state)
 }
 
 // UpdateTokenUsageState updates the token usage state for a memory instance
 func UpdateTokenUsageState(memoryID string, tokensUsed int64, maxTokens int64) {
-	state := &TokenState{
+	value, _ := memoryTokenStates.LoadOrStore(memoryID, &TokenState{
 		MemoryID:   memoryID,
 		TokensUsed: tokensUsed,
 		MaxTokens:  maxTokens,
+	})
+	if state, ok := value.(*TokenState); ok {
+		state.mu.Lock()
+		state.TokensUsed = tokensUsed
+		state.MaxTokens = maxTokens
+		state.mu.Unlock()
 	}
-	memoryTokenStates.Store(memoryID, state)
 }
 
 // UpdateHealthState updates the health state for a memory instance

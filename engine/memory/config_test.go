@@ -38,6 +38,14 @@ func TestMemoryConfig_Validate(t *testing.T) {
 		assert.Contains(t, err.Error(), "resource field must be 'memory'")
 	})
 
+	t.Run("Empty resource field", func(t *testing.T) {
+		cfg := &Config{Resource: "", ID: "test-mem", Type: TokenBasedMemory, Persistence: validPersistence}
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "resource field must be 'memory'")
+		assert.Contains(t, err.Error(), "got ''")
+	})
+
 	t.Run("Invalid persistence TTL format", func(t *testing.T) {
 		cfg := &Config{
 			Resource:    "memory",
@@ -130,16 +138,90 @@ func TestMemoryConfig_Validate(t *testing.T) {
 		assert.Contains(t, err.Error(), "flushing.summary_tokens (0) must be > 0")
 	})
 
-	t.Run("TokenBasedMemory with no token limits (should be a warning, not error)", func(t *testing.T) {
+	t.Run("TokenBasedMemory with no limits should error", func(t *testing.T) {
 		cfg := &Config{
 			Resource:    "memory",
 			ID:          "test-mem-no-token-limit",
 			Type:        TokenBasedMemory,
 			Persistence: validPersistence,
-			// MaxTokens: 0, MaxContextRatio: 0 by default
+			// MaxTokens: 0, MaxContextRatio: 0, MaxMessages: 0 by default
 		}
 		err := cfg.Validate()
-		assert.NoError(t, err) // Currently logs a warning, doesn't error out
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "token_based memory must have at least one limit configured")
+	})
+
+	t.Run("TokenBasedMemory with MaxTokens only should be valid", func(t *testing.T) {
+		cfg := &Config{
+			Resource:    "memory",
+			ID:          "test-mem-max-tokens",
+			Type:        TokenBasedMemory,
+			MaxTokens:   1000,
+			Persistence: validPersistence,
+		}
+		err := cfg.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("TokenBasedMemory with MaxContextRatio only should be valid", func(t *testing.T) {
+		cfg := &Config{
+			Resource:        "memory",
+			ID:              "test-mem-max-context-ratio",
+			Type:            TokenBasedMemory,
+			MaxContextRatio: 0.8,
+			Persistence:     validPersistence,
+		}
+		err := cfg.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("TokenBasedMemory with MaxMessages only should be valid", func(t *testing.T) {
+		cfg := &Config{
+			Resource:    "memory",
+			ID:          "test-mem-max-messages",
+			Type:        TokenBasedMemory,
+			MaxMessages: 100,
+			Persistence: validPersistence,
+		}
+		err := cfg.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("TokenBasedMemory with multiple limits should be valid", func(t *testing.T) {
+		cfg := &Config{
+			Resource:        "memory",
+			ID:              "test-mem-multiple-limits",
+			Type:            TokenBasedMemory,
+			MaxTokens:       1000,
+			MaxContextRatio: 0.8,
+			MaxMessages:     100,
+			Persistence:     validPersistence,
+		}
+		err := cfg.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Non-TokenBasedMemory types should not require token limits", func(t *testing.T) {
+		// MessageCountBasedMemory without token limits should be valid
+		cfg1 := &Config{
+			Resource:    "memory",
+			ID:          "test-mem-message-count",
+			Type:        MessageCountBasedMemory,
+			MaxMessages: 50,
+			Persistence: validPersistence,
+		}
+		err1 := cfg1.Validate()
+		assert.NoError(t, err1)
+
+		// BufferMemory without any limits should be valid
+		cfg2 := &Config{
+			Resource:    "memory",
+			ID:          "test-mem-buffer",
+			Type:        BufferMemory,
+			Persistence: validPersistence,
+		}
+		err2 := cfg2.Validate()
+		assert.NoError(t, err2)
 	})
 
 	// Test core.Configurable methods

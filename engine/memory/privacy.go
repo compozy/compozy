@@ -29,7 +29,6 @@ type PrivacyManager struct {
 	mu                   sync.RWMutex
 	consecutiveErrors    int
 	maxConsecutiveErrors int
-	circuitBreakerDelay  int
 }
 
 // NewPrivacyManager creates a new privacy manager
@@ -38,7 +37,6 @@ func NewPrivacyManager() *PrivacyManager {
 		policies:             make(map[string]*PrivacyPolicyConfig),
 		compiledPatterns:     make(map[string][]*regexp.Regexp),
 		maxConsecutiveErrors: 10,
-		circuitBreakerDelay:  5, // seconds
 	}
 }
 
@@ -75,8 +73,46 @@ func (pm *PrivacyManager) RegisterPolicy(resourceID string, policy *PrivacyPolic
 	return nil
 }
 
+// applyRedactionPatterns applies redaction patterns to content
+func (pm *PrivacyManager) applyRedactionPatterns(
+	content string,
+	patterns []*regexp.Regexp,
+	redactionString string,
+) (string, error) {
+	redactedContent := content
+	for _, pattern := range patterns {
+		if pattern == nil {
+			err := core.NewError(
+				fmt.Errorf("nil pattern encountered"),
+				ErrCodePrivacyRedaction,
+				nil,
+			)
+			pm.mu.Lock()
+			pm.consecutiveErrors++
+			pm.mu.Unlock()
+			return "", err
+		}
+		var redactionErr error
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					redactionErr = fmt.Errorf("regex panic: %v", r)
+				}
+			}()
+			redactedContent = pattern.ReplaceAllString(redactedContent, redactionString)
+		}()
+		if redactionErr != nil {
+			pm.mu.Lock()
+			pm.consecutiveErrors++
+			pm.mu.Unlock()
+			return "", core.NewError(redactionErr, ErrCodePrivacyRedaction, nil)
+		}
+	}
+	return redactedContent, nil
+}
+
 // RedactMessage applies privacy redaction to a message
-func (pm *PrivacyManager) RedactMessage(_ context.Context, resourceID string, msg llm.Message) (llm.Message, error) {
+func (pm *PrivacyManager) RedactMessage(ctx context.Context, resourceID string, msg llm.Message) (llm.Message, error) {
 	pm.mu.RLock()
 	policy, exists := pm.policies[resourceID]
 	patterns := pm.compiledPatterns[resourceID]
@@ -86,27 +122,55 @@ func (pm *PrivacyManager) RedactMessage(_ context.Context, resourceID string, ms
 		return msg, nil
 	}
 	// Apply circuit breaker logic
-	if pm.consecutiveErrors >= pm.maxConsecutiveErrors {
+	pm.mu.RLock()
+	currentErrors := pm.consecutiveErrors
+	pm.mu.RUnlock()
+	if currentErrors >= pm.maxConsecutiveErrors {
 		return msg, core.NewError(
 			fmt.Errorf("privacy redaction circuit breaker open"),
 			ErrCodePrivacyRedaction,
-			map[string]any{"consecutive_errors": pm.consecutiveErrors},
+			map[string]any{"consecutive_errors": currentErrors},
 		)
 	}
+	// Defer panic recovery and error handling
+	var redactionErr error
+	defer func() {
+		if r := recover(); r != nil {
+			redactionErr = core.NewError(
+				fmt.Errorf("panic during redaction: %v", r),
+				ErrCodePrivacyRedaction,
+				map[string]any{"panic": r, "resource_id": resourceID},
+			)
+		}
+		// Update error counter based on result
+		pm.mu.Lock()
+		if redactionErr != nil {
+			pm.consecutiveErrors++
+			// Log error for monitoring
+			if ctx != nil {
+				log := logger.FromContext(ctx)
+				log.Error("privacy redaction failed",
+					"error", redactionErr,
+					"resource_id", resourceID,
+					"consecutive_errors", pm.consecutiveErrors,
+				)
+			}
+		} else {
+			pm.consecutiveErrors = 0
+		}
+		pm.mu.Unlock()
+	}()
 	// Get redaction string
 	redactionString := policy.DefaultRedactionString
 	if redactionString == "" {
 		redactionString = DefaultRedactionString
 	}
 	// Apply redaction patterns
-	redactedContent := msg.Content
-	for _, pattern := range patterns {
-		redactedContent = pattern.ReplaceAllString(redactedContent, redactionString)
+	redactedContent, err := pm.applyRedactionPatterns(msg.Content, patterns, redactionString)
+	if err != nil {
+		redactionErr = err
+		return msg, err
 	}
-	// Reset error counter on success
-	pm.mu.Lock()
-	pm.consecutiveErrors = 0
-	pm.mu.Unlock()
 	return llm.Message{
 		Role:    msg.Role,
 		Content: redactedContent,
@@ -148,6 +212,20 @@ func (pm *PrivacyManager) LogPrivacyExclusion(
 		logData[k] = v
 	}
 	log.Info("Privacy exclusion applied", logData)
+}
+
+// GetCircuitBreakerStatus returns the current circuit breaker status
+func (pm *PrivacyManager) GetCircuitBreakerStatus() (isOpen bool, consecutiveErrors int, maxErrors int) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	return pm.consecutiveErrors >= pm.maxConsecutiveErrors, pm.consecutiveErrors, pm.maxConsecutiveErrors
+}
+
+// ResetCircuitBreaker resets the circuit breaker error counter
+func (pm *PrivacyManager) ResetCircuitBreaker() {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	pm.consecutiveErrors = 0
 }
 
 // ValidatePrivacyPolicy validates a privacy policy configuration

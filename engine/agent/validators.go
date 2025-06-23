@@ -7,6 +7,11 @@ import (
 	// "github.com/compozy/compozy/engine/autoload" // Will be needed for registry lookup later
 )
 
+const (
+	MemoryModeReadWrite = "read-write"
+	MemoryModeReadOnly  = "read-only"
+)
+
 // -----------------------------------------------------------------------------
 // ActionsValidator
 // -----------------------------------------------------------------------------
@@ -74,12 +79,14 @@ func (v *MemoryValidator) Validate() error {
 			// Also should be caught by struct validation on MemoryReference
 			return fmt.Errorf("memory reference for ID '%s' (index %d) has an empty key template", ref.ID, i)
 		}
-		if ref.Mode != "read-write" && ref.Mode != "read-only" {
+		if ref.Mode != MemoryModeReadWrite && ref.Mode != MemoryModeReadOnly {
 			return fmt.Errorf(
-				"memory reference for ID '%s' (index %d) has invalid mode '%s'; must be 'read-write' or 'read-only'",
+				"memory reference for ID '%s' (index %d) has invalid mode '%s'; must be '%s' or '%s'",
 				ref.ID,
 				i,
 				ref.Mode,
+				MemoryModeReadWrite,
+				MemoryModeReadOnly,
 			)
 		}
 

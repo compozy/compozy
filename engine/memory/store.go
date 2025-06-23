@@ -77,19 +77,19 @@ const (
 		local max_len = tonumber(ARGV[1])
 		local token_incr = tonumber(ARGV[2])
 		local msg_count = 0
-		
+
 		-- Append messages
 		for i = 3, #ARGV do
 			redis.call('RPUSH', list_key, ARGV[i])
 			msg_count = msg_count + 1
 		end
-		
+
 		-- Update metadata
 		if token_incr > 0 then
 			redis.call('HINCRBY', meta_key, 'token_count', token_incr)
 		end
 		redis.call('HINCRBY', meta_key, 'message_count', msg_count)
-		
+
 		-- Trim if needed
 		if max_len > 0 then
 			redis.call('LTRIM', list_key, -max_len, -1)
@@ -97,7 +97,7 @@ const (
 			local new_len = redis.call('LLEN', list_key)
 			redis.call('HSET', meta_key, 'message_count', new_len)
 		end
-		
+
 		return redis.call('LLEN', list_key)
 	`
 
@@ -114,26 +114,26 @@ const (
 		local ttl_ms = tonumber(ARGV[1])
 		local new_token_count = tonumber(ARGV[2])
 		local msg_count = 0
-		
+
 		-- Delete existing list
 		redis.call('DEL', list_key)
-		
+
 		-- Add new messages
 		for i = 3, #ARGV do
 			redis.call('RPUSH', list_key, ARGV[i])
 			msg_count = msg_count + 1
 		end
-		
+
 		-- Update metadata
 		redis.call('HSET', meta_key, 'token_count', new_token_count)
 		redis.call('HSET', meta_key, 'message_count', msg_count)
-		
+
 		-- Set TTL if needed
 		if ttl_ms > 0 then
 			redis.call('PEXPIRE', list_key, ttl_ms)
 			redis.call('PEXPIRE', meta_key, ttl_ms)
 		end
-		
+
 		return "OK"
 	`
 
@@ -148,19 +148,19 @@ const (
 		local meta_key = KEYS[2]
 		local keep_count = tonumber(ARGV[1])
 		local new_token_count = tonumber(ARGV[2])
-		
+
 		-- Trim messages
 		if keep_count == 0 then
 			redis.call('LTRIM', list_key, 1, 0)
 		else
 			redis.call('LTRIM', list_key, -keep_count, -1)
 		end
-		
+
 		-- Update metadata
 		local new_len = redis.call('LLEN', list_key)
 		redis.call('HSET', meta_key, 'message_count', new_len)
 		redis.call('HSET', meta_key, 'token_count', new_token_count)
-		
+
 		return new_len
 	`
 
@@ -335,29 +335,6 @@ func (s *RedisMemoryStore) CountMessages(ctx context.Context, key string) (int, 
 		return 0, fmt.Errorf("failed to count messages in redis for key %s: %w", fKey, err)
 	}
 	return int(count), nil
-}
-
-// TrimMessages removes messages from the store to keep only `keepCount` newest messages.
-// Note: This method doesn't update metadata. The caller must recalculate
-// and update token count after trimming using SetTokenCount.
-func (s *RedisMemoryStore) TrimMessages(ctx context.Context, key string, keepCount int) error {
-	if keepCount < 0 {
-		return errors.New("keepCount must be non-negative")
-	}
-	fKey := s.fullKey(key)
-	// LTRIM works by specifying the new start and end indexes of the list.
-	// To keep the last 'keepCount' items, we LTRIM from -keepCount to -1.
-	// If keepCount is 0, it means delete all, so LTRIM key 1 0.
-	var err error
-	if keepCount == 0 {
-		err = s.client.LTrim(ctx, fKey, 1, 0).Err()
-	} else {
-		err = s.client.LTrim(ctx, fKey, int64(-keepCount), -1).Err()
-	}
-	if err != nil {
-		return fmt.Errorf("failed to trim messages in redis for key %s: %w", fKey, err)
-	}
-	return nil
 }
 
 // ReplaceMessages replaces all messages for a key with a new set of messages.

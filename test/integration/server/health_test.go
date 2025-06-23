@@ -1,25 +1,25 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/compozy/compozy/engine/infra/server"
 	"github.com/compozy/compozy/engine/memory"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHealthEndpointWithMemoryIntegration(t *testing.T) {
-	// Reset global health service for clean test
+	ctx := context.Background()
 	memory.ResetGlobalHealthServiceForTesting()
 
 	t.Run("Should include memory health when global service is available", func(t *testing.T) {
 		// Initialize global memory health service with nil manager (realistic scenario)
-		log := logger.NewForTests()
-		healthService := memory.InitializeGlobalHealthService(nil, log)
+		healthService := memory.InitializeGlobalHealthService(ctx, nil)
 		require.NotNil(t, healthService)
 
 		// Register some test memory instances
@@ -31,7 +31,7 @@ func TestHealthEndpointWithMemoryIntegration(t *testing.T) {
 		router := gin.New()
 
 		// Register health endpoint
-		router.GET("/health", createHealthHandler(nil, "v1.0.0"))
+		router.GET("/health", server.CreateHealthHandler(nil, "v1.0.0"))
 
 		// Create test request
 		req := httptest.NewRequest("GET", "/health", http.NoBody)
@@ -63,7 +63,7 @@ func TestHealthEndpointWithMemoryIntegration(t *testing.T) {
 		router := gin.New()
 
 		// Register health endpoint
-		router.GET("/health", createHealthHandler(nil, "v1.0.0"))
+		router.GET("/health", server.CreateHealthHandler(nil, "v1.0.0"))
 
 		// Create test request
 		req := httptest.NewRequest("GET", "/health", http.NoBody)
@@ -85,8 +85,7 @@ func TestHealthEndpointWithMemoryIntegration(t *testing.T) {
 		memory.ResetGlobalHealthServiceForTesting()
 
 		// Initialize global memory health service
-		log := logger.NewForTests()
-		healthService := memory.InitializeGlobalHealthService(nil, log)
+		healthService := memory.InitializeGlobalHealthService(ctx, nil)
 		require.NotNil(t, healthService)
 
 		// Don't register any instances (this makes memory system unhealthy)
@@ -96,7 +95,7 @@ func TestHealthEndpointWithMemoryIntegration(t *testing.T) {
 		router := gin.New()
 
 		// Register health endpoint
-		router.GET("/health", createHealthHandler(nil, "v1.0.0"))
+		router.GET("/health", server.CreateHealthHandler(nil, "v1.0.0"))
 
 		// Create test request
 		req := httptest.NewRequest("GET", "/health", http.NoBody)
@@ -118,13 +117,13 @@ func TestHealthEndpointWithMemoryIntegration(t *testing.T) {
 }
 
 func TestMemoryHealthRoutesRegistration(t *testing.T) {
+	ctx := context.Background()
 	t.Run("Should register memory health routes when global service is available", func(t *testing.T) {
 		// Reset global health service for clean test
 		memory.ResetGlobalHealthServiceForTesting()
 
 		// Initialize global memory health service
-		log := logger.NewForTests()
-		healthService := memory.InitializeGlobalHealthService(nil, log)
+		healthService := memory.InitializeGlobalHealthService(ctx, nil)
 		require.NotNil(t, healthService)
 
 		// Register a test instance

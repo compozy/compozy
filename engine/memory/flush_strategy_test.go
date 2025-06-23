@@ -2,11 +2,13 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -162,6 +164,74 @@ func TestHybridFlushingStrategy_ShouldFlush(t *testing.T) {
 	})
 }
 
+func TestHybridFlushingStrategy_ShouldFlushByCount(t *testing.T) {
+	ctx := context.Background()
+	mockCounter, _ := NewTiktokenCounter(defaultEncoding)
+	memCfg := &Resource{Type: TokenBasedMemory, MaxTokens: 100}
+	tm, _ := NewTokenMemoryManager(memCfg, mockCounter, logger.NewForTests())
+
+	flushCfg := &FlushingStrategyConfig{Type: HybridSummaryFlushing, SummarizeThreshold: 0.8}
+	hfs, _ := NewHybridFlushingStrategy(flushCfg, NewRuleBasedSummarizer(mockCounter, 1, 1), tm)
+
+	t.Run("Should not flush if below threshold", func(t *testing.T) {
+		// 79 tokens, MaxTokens 100, Threshold 0.8 (80 tokens)
+		assert.False(t, hfs.ShouldFlushByCount(ctx, 79, 79))
+	})
+
+	t.Run("Should flush if at or above threshold", func(t *testing.T) {
+		assert.True(t, hfs.ShouldFlushByCount(ctx, 80, 80))
+		assert.True(t, hfs.ShouldFlushByCount(ctx, 90, 90))
+	})
+
+	t.Run("Should use MaxContextRatio if MaxTokens is zero", func(t *testing.T) {
+		memCfgRatio := &Resource{
+			Type:             TokenBasedMemory,
+			MaxContextRatio:  0.01,
+			ModelContextSize: 4096,
+		} // 0.01 * 4096 = ~41 tokens
+		tmRatio, _ := NewTokenMemoryManager(memCfgRatio, mockCounter, logger.NewForTests())
+		hfsRatio, _ := NewHybridFlushingStrategy(flushCfg, NewRuleBasedSummarizer(mockCounter, 1, 1), tmRatio)
+
+		// Threshold is 0.8 * 40 = 32.0 exactly
+		assert.False(t, hfsRatio.ShouldFlushByCount(ctx, 31, 31))
+		assert.True(t, hfsRatio.ShouldFlushByCount(ctx, 32, 32))
+	})
+
+	t.Run("Should return false if config is nil", func(t *testing.T) {
+		hfsNilCfg := &HybridFlushingStrategy{
+			config:       nil,
+			summarizer:   NewRuleBasedSummarizer(mockCounter, 1, 1),
+			tokenManager: tm,
+		}
+		assert.False(t, hfsNilCfg.ShouldFlushByCount(ctx, 100, 100))
+	})
+
+	t.Run("Should behave identically to ShouldFlush", func(t *testing.T) {
+		// Test that both methods return the same results for various inputs
+		testCases := []struct {
+			tokenCount   int
+			messageCount int
+		}{
+			{tokenCount: 50, messageCount: 10},
+			{tokenCount: 79, messageCount: 20},
+			{tokenCount: 80, messageCount: 30},
+			{tokenCount: 100, messageCount: 40},
+		}
+
+		for _, tc := range testCases {
+			// Create dummy messages for ShouldFlush
+			messages := make([]MessageWithTokens, tc.messageCount)
+
+			shouldFlushResult := hfs.ShouldFlush(ctx, messages, tc.tokenCount)
+			shouldFlushByCountResult := hfs.ShouldFlushByCount(ctx, tc.messageCount, tc.tokenCount)
+
+			assert.Equal(t, shouldFlushResult, shouldFlushByCountResult,
+				"ShouldFlush and ShouldFlushByCount should return same result for tokens=%d, messages=%d",
+				tc.tokenCount, tc.messageCount)
+		}
+	})
+}
+
 func TestHybridFlushingStrategy_FlushMessages(t *testing.T) {
 	ctx := context.Background()
 	mockCounter, _ := NewTiktokenCounter(defaultEncoding)
@@ -238,4 +308,44 @@ func TestCalculateTotalTokens(t *testing.T) {
 	assert.Equal(t, 18, calculateTotalTokens(messages))
 	assert.Equal(t, 0, calculateTotalTokens([]MessageWithTokens{}))
 	assert.Equal(t, 0, calculateTotalTokens(nil))
+}
+
+func TestRuleBasedSummarizer_TokenFallbackRatio(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a mock token counter that always fails
+	mockCounter := &MockTokenCounter{}
+	mockCounter.On("CountTokens", mock.Anything, mock.AnythingOfType("string")).
+		Return(0, errors.New("token counting failed"))
+
+	t.Run("Should use default fallback ratio of 3", func(t *testing.T) {
+		summarizer := NewRuleBasedSummarizer(mockCounter, 1, 1)
+		assert.Equal(t, 3, summarizer.TokenFallbackRatio)
+
+		// Test with 60 character content should return 20 tokens (60/3)
+		content := "This is a test content with exactly sixty characters long!!!"
+		assert.Equal(t, 60, len(content))
+		tokenCount := summarizer.getTokenCount(ctx, content)
+		assert.Equal(t, 20, tokenCount)
+	})
+
+	t.Run("Should use custom fallback ratio", func(t *testing.T) {
+		customRatio := 5
+		summarizer := NewRuleBasedSummarizerWithOptions(mockCounter, 1, 1, customRatio)
+		assert.Equal(t, customRatio, summarizer.TokenFallbackRatio)
+
+		// Test with 50 character content should return 10 tokens (50/5)
+		content := "This is test content with fifty characters ok!!!!!"
+		assert.Equal(t, 50, len(content))
+		tokenCount := summarizer.getTokenCount(ctx, content)
+		assert.Equal(t, 10, tokenCount)
+	})
+
+	t.Run("Should use default when invalid ratio provided", func(t *testing.T) {
+		summarizer := NewRuleBasedSummarizerWithOptions(mockCounter, 1, 1, 0) // Invalid ratio
+		assert.Equal(t, 3, summarizer.TokenFallbackRatio)                     // Should default to 3
+
+		summarizer2 := NewRuleBasedSummarizerWithOptions(mockCounter, 1, 1, -1) // Invalid ratio
+		assert.Equal(t, 3, summarizer2.TokenFallbackRatio)                      // Should default to 3
+	})
 }

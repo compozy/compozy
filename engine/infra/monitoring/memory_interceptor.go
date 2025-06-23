@@ -12,13 +12,13 @@ import (
 
 // MemoryMonitoringInterceptor wraps memory operations with monitoring
 type MemoryMonitoringInterceptor struct {
-	wrapped *memory.Manager
+	*memory.Manager
 }
 
 // NewMemoryMonitoringInterceptor creates a new memory monitoring interceptor
 func NewMemoryMonitoringInterceptor(manager *memory.Manager) *MemoryMonitoringInterceptor {
 	return &MemoryMonitoringInterceptor{
-		wrapped: manager,
+		Manager: manager,
 	}
 }
 
@@ -31,7 +31,7 @@ func (m *MemoryMonitoringInterceptor) GetInstance(
 	start := time.Now()
 	projectID := getProjectIDFromContext(ctx)
 
-	instance, err := m.wrapped.GetInstance(ctx, ref, workflowContext)
+	instance, err := m.Manager.GetInstance(ctx, ref, workflowContext)
 
 	duration := time.Since(start)
 	memory.RecordMemoryOp(ctx, "get_instance", ref.ID, projectID, duration)
@@ -56,10 +56,8 @@ const defaultProjectID = "unknown"
 
 // getProjectIDFromContext extracts project ID from context
 func getProjectIDFromContext(ctx context.Context) string {
-	// This is a placeholder - in real implementation, extract from context
-	// based on your application's context structure
-	if projectID, ok := ctx.Value("project_id").(string); ok {
-		return projectID
+	if projectName, err := core.GetProjectName(ctx); err == nil {
+		return projectName
 	}
 	return defaultProjectID
 }

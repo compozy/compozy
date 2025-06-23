@@ -65,39 +65,29 @@ func (ml *memoryLock) Resource() string {
 // This depends on the actual cache.LockManager implementation.
 // For now, this is a placeholder; specific metric access would need casting
 // or the cache.LockManager interface would need to expose metrics.
+func copyLockMetrics(src *cache.LockMetrics) *cache.LockMetrics {
+	return &cache.LockMetrics{
+		AcquisitionsTotal:  src.AcquisitionsTotal,
+		AcquisitionsFailed: src.AcquisitionsFailed,
+		ReleasesTotal:      src.ReleasesTotal,
+		ReleasesFailed:     src.ReleasesFailed,
+		RefreshesTotal:     src.RefreshesTotal,
+		RefreshesFailed:    src.RefreshesFailed,
+		AcquisitionTime:    src.AcquisitionTime,
+	}
+}
+
 func (m *LockManager) GetMetrics() (*cache.LockMetrics, error) {
 	switch mp := m.internalLockManager.(type) {
 	case interface{ GetMetrics() cache.LockMetrics }:
-		// Get the metrics value (returns by value)
 		metricsValue := mp.GetMetrics()
-		// Create a new LockMetrics without copying the mutex
-		metrics := &cache.LockMetrics{
-			AcquisitionsTotal:  metricsValue.AcquisitionsTotal,
-			AcquisitionsFailed: metricsValue.AcquisitionsFailed,
-			ReleasesTotal:      metricsValue.ReleasesTotal,
-			ReleasesFailed:     metricsValue.ReleasesFailed,
-			RefreshesTotal:     metricsValue.RefreshesTotal,
-			RefreshesFailed:    metricsValue.RefreshesFailed,
-			AcquisitionTime:    metricsValue.AcquisitionTime,
-		}
-		return metrics, nil
+		return copyLockMetrics(&metricsValue), nil
 	case interface{ GetMetrics() *cache.LockMetrics }:
-		// Get the metrics pointer (returns by pointer)
 		metricsPtr := mp.GetMetrics()
 		if metricsPtr == nil {
 			return nil, fmt.Errorf("underlying lock manager returned nil metrics")
 		}
-		// Create a new LockMetrics without copying the mutex
-		metrics := &cache.LockMetrics{
-			AcquisitionsTotal:  metricsPtr.AcquisitionsTotal,
-			AcquisitionsFailed: metricsPtr.AcquisitionsFailed,
-			ReleasesTotal:      metricsPtr.ReleasesTotal,
-			ReleasesFailed:     metricsPtr.ReleasesFailed,
-			RefreshesTotal:     metricsPtr.RefreshesTotal,
-			RefreshesFailed:    metricsPtr.RefreshesFailed,
-			AcquisitionTime:    metricsPtr.AcquisitionTime,
-		}
-		return metrics, nil
+		return copyLockMetrics(metricsPtr), nil
 	default:
 		return nil, fmt.Errorf("underlying lock manager does not provide GetMetrics method")
 	}

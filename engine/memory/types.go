@@ -1,6 +1,10 @@
 package memory
 
-import "time"
+import (
+	"fmt"
+	"math"
+	"time"
+)
 
 // Type defines the type of memory strategy being used.
 type Type string
@@ -74,6 +78,18 @@ type TokenAllocation struct {
 	System float64 `yaml:"system"                 json:"system"                 validate:"gte=0,lte=1"`
 	// UserDefined is a map for additional custom allocations if needed.
 	UserDefined map[string]float64 `yaml:"user_defined,omitempty" json:"user_defined,omitempty"`
+}
+
+// Validate ensures all token allocation percentages sum to 1.0
+func (ta *TokenAllocation) Validate() error {
+	sum := ta.ShortTerm + ta.LongTerm + ta.System
+	for _, v := range ta.UserDefined {
+		sum += v
+	}
+	if math.Abs(sum-1.0) > 0.001 { // Allow small floating point errors
+		return fmt.Errorf("token allocation percentages must sum to 1.0, got %f", sum)
+	}
+	return nil
 }
 
 // FlushingStrategyConfig holds the configuration for how memory is flushed or trimmed.

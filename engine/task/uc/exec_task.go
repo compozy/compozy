@@ -104,7 +104,10 @@ func (uc *ExecuteTask) executeAgent(
 	var llmOpts []llm.Option
 
 	// Integrate memory resolver if memory manager is available
-	if uc.memoryManager != nil && uc.templateEngine != nil && input.WorkflowState != nil {
+	hasMemoryDependencies := uc.memoryManager != nil && uc.templateEngine != nil
+	hasWorkflowContext := input.WorkflowState != nil
+
+	if hasMemoryDependencies && hasWorkflowContext {
 		// Build workflow context for template evaluation
 		workflowContext := buildWorkflowContext(
 			input.WorkflowState,
@@ -126,9 +129,8 @@ func (uc *ExecuteTask) executeAgent(
 		log.Warn("Agent has memory configuration but memory manager not available",
 			"agent_id", agentConfig.ID,
 			"memory_count", len(agentConfig.GetResolvedMemoryReferences()),
-			"memory_manager_nil", uc.memoryManager == nil,
-			"template_engine_nil", uc.templateEngine == nil,
-			"workflow_state_nil", input.WorkflowState == nil,
+			"has_memory_dependencies", hasMemoryDependencies,
+			"has_workflow_context", hasWorkflowContext,
 		)
 	}
 

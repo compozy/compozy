@@ -3,8 +3,6 @@ package memory
 import (
 	"context"
 	"sync"
-
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 var (
@@ -14,12 +12,12 @@ var (
 )
 
 // InitializeGlobalHealthService initializes the global memory health service
-func InitializeGlobalHealthService(manager *Manager, log logger.Logger) *HealthService {
+func InitializeGlobalHealthService(ctx context.Context, manager *Manager) *HealthService {
 	healthServiceOnce.Do(func() {
 		healthServiceMu.Lock()
 		defer healthServiceMu.Unlock()
 
-		globalHealthService = NewHealthService(manager, log)
+		globalHealthService = NewHealthService(ctx, manager)
 	})
 
 	return globalHealthService

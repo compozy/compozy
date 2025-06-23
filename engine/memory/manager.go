@@ -382,7 +382,9 @@ func sanitizeUserKey(userDefinedKey string) string {
 	}
 	sKey := sanitized.String()
 	if len(sKey) > 200 {
-		sKey = sKey[:200]
+		prefix := sKey[:150]
+		hash := sha256.Sum256([]byte(sKey))
+		sKey = fmt.Sprintf("%s_%s", prefix, hex.EncodeToString(hash[:8]))
 	}
 	return sKey
 }

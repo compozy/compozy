@@ -4,13 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/cache" // For cache.Lock
 	"github.com/compozy/compozy/engine/llm"         // For llm.Message
 	"github.com/compozy/compozy/pkg/logger"         // Standard logger
 	"go.temporal.io/sdk/client"                     // For Temporal client
+)
+
+// Constants for memory operations
+const (
+	tokenMigrationLockSuffix = ":token_migration"
 )
 
 // Typed errors for robust error handling
@@ -34,6 +39,7 @@ type Instance struct {
 	privacyManager    *PrivacyManager         // Privacy controls and data protection
 	log               logger.Logger
 	asyncLogger       *AsyncOperationLogger // Structured logging for async operations
+	tokenCounter      TokenCounter          // Added for token counting
 }
 
 // NewInstanceOptions holds options for creating a Instance.
@@ -108,6 +114,7 @@ func NewInstance(opts *NewInstanceOptions) (*Instance, error) {
 		privacyManager:    privacyManager,
 		log:               instanceLogger,
 		asyncLogger:       NewAsyncOperationLogger(instanceLogger),
+		tokenCounter:      opts.TokenManager.tokenCounter,
 	}
 
 	// Register with global health service
@@ -393,7 +400,7 @@ func (mi *Instance) GetTokenCount(ctx context.Context) (int, error) {
 	mi.log.Info("Token count metadata not found, performing migration", "memory_id", mi.id)
 
 	// Acquire lock for migration to ensure atomicity
-	migrationLockKey := mi.id + ":token_migration"
+	migrationLockKey := mi.id + tokenMigrationLockSuffix
 	lock, err := mi.lockManager.Acquire(ctx, migrationLockKey, 30*time.Second)
 	if err != nil {
 		return 0, fmt.Errorf("failed to acquire lock for token count migration: %w", err)
@@ -520,6 +527,182 @@ func (mi *Instance) HealthCheck(ctx context.Context) error {
 	}
 	// Could also check lock manager connectivity if it has a similar ping/health method.
 	mi.log.Debug("HealthCheck passed")
+	return nil
+}
+
+// PerformHealthCheck performs a comprehensive health check on the memory instance
+func (mi *Instance) PerformHealthCheck(ctx context.Context) error {
+	// Test Redis connectivity
+	if err := mi.checkRedisConnectivity(ctx); err != nil {
+		return err
+	}
+
+	// Test basic operations
+	if err := mi.checkBasicOperations(ctx); err != nil {
+		return err
+	}
+
+	// Test lock operations
+	if err := mi.checkLockOperations(ctx); err != nil {
+		return err
+	}
+
+	// Test token operations
+	if err := mi.checkTokenOperations(ctx); err != nil {
+		return err
+	}
+
+	// Test metadata operations
+	if err := mi.checkMetadataOperations(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// checkRedisConnectivity verifies Redis is accessible
+func (mi *Instance) checkRedisConnectivity(ctx context.Context) error {
+	if redisStore, ok := mi.store.(*RedisMemoryStore); ok {
+		if err := redisStore.client.Ping(ctx).Err(); err != nil {
+			return fmt.Errorf("redis ping failed: %w", err)
+		}
+	}
+	return nil
+}
+
+// checkBasicOperations tests read/write operations
+func (mi *Instance) checkBasicOperations(ctx context.Context) error {
+	testKey := fmt.Sprintf("__health_check__:%s:test", mi.id)
+
+	// Test read (might not exist)
+	_, readErr := mi.store.ReadMessages(ctx, testKey)
+	// Ignore errors from initial read as key may not exist
+	if readErr != nil {
+		mi.log.Debug("Initial read returned error (expected if key doesn't exist)", "error", readErr)
+	}
+
+	// Test write
+	testMsg := llm.Message{
+		Role:    "system",
+		Content: "health check test message",
+	}
+	if err := mi.store.AppendMessage(ctx, testKey, testMsg); err != nil {
+		return fmt.Errorf("write operation failed: %w", err)
+	}
+
+	// Test read after write
+	messages, err := mi.store.ReadMessages(ctx, testKey)
+	if err != nil {
+		return fmt.Errorf("read operation failed: %w", err)
+	}
+
+	if len(messages) == 0 || messages[0].Content != testMsg.Content {
+		return fmt.Errorf("read value mismatch")
+	}
+
+	// Clean up
+	if err := mi.store.DeleteMessages(ctx, testKey); err != nil {
+		mi.log.Debug("Failed to cleanup test key", "error", err)
+		// Not critical for health check
+	}
+	return nil
+}
+
+// checkLockOperations tests lock acquisition and release
+func (mi *Instance) checkLockOperations(ctx context.Context) error {
+	lockKey := fmt.Sprintf("__health_lock__:%s", mi.id)
+
+	// Try to acquire lock
+	lock, err := mi.lockManager.Acquire(ctx, lockKey, 5*time.Second)
+	if err != nil {
+		return fmt.Errorf("lock acquisition failed: %w", err)
+	}
+
+	// Release lock
+	if err := lock.Release(ctx); err != nil {
+		return fmt.Errorf("lock release failed: %w", err)
+	}
+
+	return nil
+}
+
+// checkTokenOperations validates token tracking works
+func (mi *Instance) checkTokenOperations(ctx context.Context) error {
+	// Simulate a small token usage by appending a message
+	testKey := fmt.Sprintf("__health_token__:%s", mi.id)
+	testMsg := llm.Message{
+		Role:    "system",
+		Content: "token test message",
+	}
+
+	// Count tokens in the test message
+	msgTokens, err := mi.tokenCounter.CountTokens(ctx, testMsg.Content)
+	if err != nil {
+		return fmt.Errorf("failed to count tokens: %w", err)
+	}
+
+	// Append message with token count
+	if err := mi.store.AppendMessageWithTokenCount(ctx, testKey, testMsg, msgTokens); err != nil {
+		return fmt.Errorf("failed to append message with token count: %w", err)
+	}
+
+	// Verify token count increased (if using metadata)
+	newTokenCount, err := mi.store.GetTokenCount(ctx, testKey)
+	if err != nil {
+		// Not all stores support metadata, so this is not critical
+		mi.log.Debug("Token metadata not supported", "error", err)
+	} else if newTokenCount != msgTokens {
+		return fmt.Errorf("token tracking not working properly: expected %d, got %d", msgTokens, newTokenCount)
+	}
+
+	// Clean up
+	if err := mi.store.DeleteMessages(ctx, testKey); err != nil {
+		mi.log.Debug("Failed to cleanup test key", "error", err)
+		// Not critical for health check
+	}
+	return nil
+}
+
+// checkMetadataOperations verifies metadata storage works
+func (mi *Instance) checkMetadataOperations(ctx context.Context) error {
+	metaKey := fmt.Sprintf("__health_meta__:%s", mi.id)
+
+	// Test setting token count
+	testTokenCount := 100
+	if err := mi.store.SetTokenCount(ctx, metaKey, testTokenCount); err != nil {
+		return fmt.Errorf("metadata write failed: %w", err)
+	}
+
+	// Read back
+	count, err := mi.store.GetTokenCount(ctx, metaKey)
+	if err != nil {
+		return fmt.Errorf("metadata read failed: %w", err)
+	}
+
+	if count != testTokenCount {
+		return fmt.Errorf("metadata value mismatch: expected %d, got %d", testTokenCount, count)
+	}
+
+	// Test increment
+	if err := mi.store.IncrementTokenCount(ctx, metaKey, 50); err != nil {
+		return fmt.Errorf("metadata increment failed: %w", err)
+	}
+
+	// Verify increment
+	count, err = mi.store.GetTokenCount(ctx, metaKey)
+	if err != nil {
+		return fmt.Errorf("metadata read after increment failed: %w", err)
+	}
+
+	if count != testTokenCount+50 {
+		return fmt.Errorf("metadata increment mismatch: expected %d, got %d", testTokenCount+50, count)
+	}
+
+	// Clean up - delete associated messages (metadata gets cleaned with messages)
+	if err := mi.store.DeleteMessages(ctx, metaKey); err != nil {
+		mi.log.Debug("Failed to cleanup test key", "error", err)
+		// Not critical for health check
+	}
 	return nil
 }
 
@@ -849,7 +1032,8 @@ func (mi *Instance) AppendWithPrivacy(ctx context.Context, msg llm.Message, meta
 		if err != nil {
 			mi.log.Error("Failed to apply redaction", "error", err)
 			// Record circuit breaker trip if it's a circuit breaker error
-			if strings.Contains(err.Error(), "circuit breaker open") {
+			var coreErr *core.Error
+			if errors.As(err, &coreErr) && coreErr.Code == ErrCodePrivacyRedaction {
 				RecordCircuitBreakerTrip(ctx, mi.id, mi.projectID)
 			}
 			return fmt.Errorf("failed to apply redaction: %w", err)
@@ -889,10 +1073,8 @@ func (mi *Instance) shouldScheduleFlush(ctx context.Context) bool {
 	}
 	// Check if we've reached the flush threshold
 	if mi.flushingStrategy != nil {
-		// Create a dummy slice with the correct length for the strategy check
-		// The content of messages doesn't matter, only the count and total tokens
-		dummyMessages := make([]MessageWithTokens, messageCount)
-		if mi.flushingStrategy.ShouldFlush(ctx, dummyMessages, tokenCount) {
+		// Use the optimized count-based method instead of creating dummy arrays
+		if mi.flushingStrategy.ShouldFlushByCount(ctx, messageCount, tokenCount) {
 			mi.log.Debug("Flush threshold reached", "token_count", tokenCount, "message_count", messageCount)
 			return true
 		}
@@ -910,19 +1092,3 @@ func (mi *Instance) isFlushPending(ctx context.Context) (bool, error) {
 func (mi *Instance) MarkFlushPending(ctx context.Context, pending bool) error {
 	return mi.store.MarkFlushPending(ctx, mi.id, pending)
 }
-
-// This would typically live in a different file, e.g., memory_workflows.go
-// func FlushMemoryWorkflow(ctx workflow.Context,
-//	input activities.FlushMemoryActivityInput) (*activities.FlushMemoryActivityOutput, error) {
-// 	ao := workflow.ActivityOptions{
-// 		StartToCloseTimeout: 10 * time.Minute, // Example timeout
-// 		RetryPolicy: &temporal.RetryPolicy{
-// 			MaximumAttempts: 3,
-// 		},
-// 	}
-// 	ctx = workflow.WithActivityOptions(ctx, ao)
-// 	var result activities.FlushMemoryActivityOutput
-// 	err := workflow.ExecuteActivity(ctx, "FlushMemory", input).Get(ctx, &result)
-// 	// "FlushMemory" is the activity func name
-// 	return &result, err
-// }

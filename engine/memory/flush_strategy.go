@@ -26,6 +26,9 @@ type RuleBasedSummarizer struct {
 	// For example:
 	KeepFirstNMessages int // Number of initial messages to always keep (e.g. system prompts)
 	KeepLastNMessages  int // Number of recent messages to keep for continuity
+	// Fallback token estimation ratio when token counting fails
+	// Lower values are more conservative for non-English content
+	TokenFallbackRatio int // Characters per token ratio (default: 3)
 }
 
 // NewRuleBasedSummarizer creates a new summarizer.
@@ -40,6 +43,29 @@ func NewRuleBasedSummarizer(counter TokenCounter, keepFirstN, keepLastN int) *Ru
 		tokenCounter:       counter,
 		KeepFirstNMessages: keepFirstN,
 		KeepLastNMessages:  keepLastN,
+		TokenFallbackRatio: 3, // Conservative default for better cross-language support
+	}
+}
+
+// NewRuleBasedSummarizerWithOptions creates a new summarizer with custom token fallback ratio.
+func NewRuleBasedSummarizerWithOptions(
+	counter TokenCounter,
+	keepFirstN, keepLastN, fallbackRatio int,
+) *RuleBasedSummarizer {
+	if keepFirstN < 0 {
+		keepFirstN = 0
+	}
+	if keepLastN < 0 {
+		keepLastN = 1 // Keep at least one recent message if summarization occurs
+	}
+	if fallbackRatio <= 0 {
+		fallbackRatio = 3 // Conservative default
+	}
+	return &RuleBasedSummarizer{
+		tokenCounter:       counter,
+		KeepFirstNMessages: keepFirstN,
+		KeepLastNMessages:  keepLastN,
+		TokenFallbackRatio: fallbackRatio,
 	}
 }
 
@@ -166,7 +192,13 @@ func (rbs *RuleBasedSummarizer) canFitLastMessage(
 func (rbs *RuleBasedSummarizer) getTokenCount(ctx context.Context, content string) int {
 	tokens, err := rbs.tokenCounter.CountTokens(ctx, content)
 	if err != nil {
-		return len(content) / 4 // fallback estimate
+		// Use configurable fallback ratio for better cross-language support
+		// Most languages have higher character-to-token ratios than English
+		fallbackRatio := rbs.TokenFallbackRatio
+		if fallbackRatio <= 0 {
+			fallbackRatio = 3 // Conservative default
+		}
+		return len(content) / fallbackRatio
 	}
 	return tokens
 }
@@ -275,6 +307,39 @@ func (hfs *HybridFlushingStrategy) ShouldFlush(
 	// Could add message count based threshold too if needed
 	// logger.Debugf(ctx, "ShouldFlush: NO. Total tokens %d < threshold (%.2f of %d)",
 	//	currentTotalTokens, hfs.config.SummarizeThreshold, effectiveMaxTokens)
+	return false
+}
+
+// ShouldFlushByCount checks if flushing is needed based on message and token counts.
+// This is an optimized version that doesn't require allocating message arrays.
+func (hfs *HybridFlushingStrategy) ShouldFlushByCount(
+	_ context.Context,
+	messageCount int, //nolint:revive // Reserved for future message count based thresholds
+	currentTotalTokens int,
+) bool {
+	if hfs.config == nil {
+		return false
+	}
+
+	// Determine effective max tokens for threshold calculation
+	effectiveMaxTokens := hfs.tokenManager.config.MaxTokens
+	if effectiveMaxTokens == 0 && hfs.tokenManager.config.MaxContextRatio > 0 {
+		modelContextSize := hfs.tokenManager.config.ModelContextSize
+		if modelContextSize == 0 {
+			modelContextSize = 4096 // Default fallback
+		}
+		effectiveMaxTokens = int(float64(modelContextSize) * hfs.tokenManager.config.MaxContextRatio)
+	}
+
+	if effectiveMaxTokens > 0 && hfs.config.SummarizeThreshold > 0 {
+		thresholdTokens := int(float64(effectiveMaxTokens) * hfs.config.SummarizeThreshold)
+		if currentTotalTokens >= thresholdTokens {
+			return true
+		}
+	}
+
+	// Could add message count based threshold too if needed
+	// The messageCount parameter is available here for future use
 	return false
 }
 

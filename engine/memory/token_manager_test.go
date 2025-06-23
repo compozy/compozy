@@ -176,12 +176,8 @@ func TestTokenMemoryManager_GetManagedMessages(t *testing.T) {
 		{Content: "Test sentence."},   // 3 tokens, kept
 		{Content: "This is too long"}, // 4 tokens, would be evicted if processed first
 	}
-	// If processed in order:
-	// 1. "Hello world" (2t) - total 2t
-	// 2. "Test sentence." (3t) - total 5t
-	// This test case seems to be wrong in the comment. The GetManagedMessages will calculate all first.
 	// Total tokens = 2 + 3 + 4 = 9. MaxTokens = 5.
-	// Evict "Hello world" (2t) -> remaining 7t.
+	// FIFO eviction: Evict "Hello world" (2t) -> remaining 7t.
 	// Evict "Test sentence." (3t) -> remaining 4t.
 	// Keeps "This is too long" (4t).
 
@@ -208,18 +204,22 @@ func TestTokenMemoryManager_EnforceLimitsWithPriority(t *testing.T) {
 		{
 			MessageWithTokens: MessageWithTokens{Message: llm.Message{Content: "Critical Sys Msg"}, TokenCount: 3},
 			Priority:          0,
+			OriginalIndex:     -1, // Unset - will be assigned by EnforceLimitsWithPriority
 		}, // Keep
 		{
 			MessageWithTokens: MessageWithTokens{Message: llm.Message{Content: "Low Prio Old"}, TokenCount: 3},
 			Priority:          2,
+			OriginalIndex:     -1, // Unset - will be assigned by EnforceLimitsWithPriority
 		}, // Evict this (3 tokens)
 		{
 			MessageWithTokens: MessageWithTokens{Message: llm.Message{Content: "Normal Prio"}, TokenCount: 3},
 			Priority:          1,
+			OriginalIndex:     -1, // Unset - will be assigned by EnforceLimitsWithPriority
 		}, // Keep
 		{
 			MessageWithTokens: MessageWithTokens{Message: llm.Message{Content: "Low Prio New"}, TokenCount: 3},
 			Priority:          2,
+			OriginalIndex:     -1, // Unset - will be assigned by EnforceLimitsWithPriority
 		}, // Evict this (another 2 from this one)
 	}
 	// Expected after sorting for eviction (Prio DESC, Original Index ASC):

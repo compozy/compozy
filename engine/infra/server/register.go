@@ -20,7 +20,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-func createHealthHandler(server *Server, version string) gin.HandlerFunc {
+func CreateHealthHandler(server *Server, version string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ready := true
 		healthStatus := "healthy"
@@ -138,7 +138,7 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 	})
 
 	// Health check endpoint with readiness probe
-	router.GET("/health", createHealthHandler(server, version))
+	router.GET("/health", CreateHealthHandler(server, version))
 
 	// Register all component routers
 	wfrouter.Register(apiBase)

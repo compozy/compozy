@@ -206,7 +206,7 @@ func (tmm *TokenMemoryManager) GetManagedMessages(
 type MessageWithPriorityAndTokens struct {
 	MessageWithTokens
 	Priority      int // Lower number means higher priority (e.g., 0 is critical)
-	OriginalIndex int // Track original position for order restoration
+	OriginalIndex int // Track original position for order restoration (-1 if unset)
 }
 
 // EnforceLimitsWithPriority applies token limits considering message priorities.
@@ -224,7 +224,7 @@ func (tmm *TokenMemoryManager) EnforceLimitsWithPriority(
 
 	// Set original indices if not already set
 	for i := range messages {
-		if messages[i].OriginalIndex == 0 {
+		if messages[i].OriginalIndex == -1 {
 			messages[i].OriginalIndex = i
 		}
 	}

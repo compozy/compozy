@@ -82,8 +82,13 @@ func (m *MockMemoryStore) CountMessages(ctx context.Context, key string) (int, e
 	return args.Int(0), args.Error(1)
 }
 
-func (m *MockMemoryStore) TrimMessages(ctx context.Context, key string, keepCount int) error {
-	args := m.Called(ctx, key, keepCount)
+func (m *MockMemoryStore) TrimMessagesWithMetadata(
+	ctx context.Context,
+	key string,
+	keepCount int,
+	newTokenCount int,
+) error {
+	args := m.Called(ctx, key, keepCount, newTokenCount)
 	return args.Error(0)
 }
 
@@ -184,7 +189,7 @@ func TestMockMemoryStore(t *testing.T) {
 	mockStore.On("AppendMessages", ctx, key, msgs).Return(nil)
 	mockStore.On("ReadMessages", ctx, key).Return(msgs, nil)
 	mockStore.On("CountMessages", ctx, key).Return(1, nil)
-	mockStore.On("TrimMessages", ctx, key, 5).Return(nil)
+	mockStore.On("TrimMessagesWithMetadata", ctx, key, 5, 0).Return(nil)
 	mockStore.On("ReplaceMessages", ctx, key, msgs).Return(nil)
 	mockStore.On("SetExpiration", ctx, key, time.Hour).Return(nil)
 	mockStore.On("GetKeyTTL", ctx, key).Return(time.Hour, nil)
@@ -198,7 +203,7 @@ func TestMockMemoryStore(t *testing.T) {
 	count, err := mockStore.CountMessages(ctx, key)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, count)
-	assert.NoError(t, mockStore.TrimMessages(ctx, key, 5))
+	assert.NoError(t, mockStore.TrimMessagesWithMetadata(ctx, key, 5, 0))
 	assert.NoError(t, mockStore.ReplaceMessages(ctx, key, msgs))
 	assert.NoError(t, mockStore.SetExpiration(ctx, key, time.Hour))
 	ttl, err := mockStore.GetKeyTTL(ctx, key)

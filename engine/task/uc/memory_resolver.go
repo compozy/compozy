@@ -29,7 +29,7 @@ func (m *memoryResolverAdapter) GetID() string {
 	return m.memory.GetID()
 }
 
-// Use memory.memory.ManagerInterface directly
+// Use memory.ManagerInterface directly
 
 // MemoryResolver provides memory instances for agents during task execution.
 // It implements the llm.MemoryProvider interface.
@@ -79,7 +79,7 @@ func (r *MemoryResolver) GetMemory(ctx context.Context, memoryID string, keyTemp
 		ID:          memoryID,
 		Key:         keyTemplate,
 		ResolvedKey: resolvedKey,
-		Mode:        "read-write", // Default mode
+		Mode:        "read-write", // TODO: Get mode from agent memory configuration
 	}
 
 	// Get the memory instance from the manager
@@ -146,14 +146,8 @@ func (r *MemoryResolver) ResolveAgentMemories(ctx context.Context, agent *agent.
 
 		if memory != nil {
 			memories[localMemoryRefs[i].ID] = memory
-			// Store the resolved key in the local copy for potential logging
-			// The resolved key is ephemeral for this execution only
-			resolvedKey, err := r.resolveKey(ctx, localMemoryRefs[i].Key)
-			if err != nil {
-				log.Warn("Failed to resolve memory key", "error", err)
-				resolvedKey = localMemoryRefs[i].Key // Fallback to unresolved key
-			}
-			localMemoryRefs[i].ResolvedKey = resolvedKey
+			// The resolved key was already computed in GetMemory
+			// and is available in the memory instance if needed for logging
 		}
 	}
 

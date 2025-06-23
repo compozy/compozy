@@ -75,6 +75,13 @@ func (ma *MemoryActivities) FlushMemory(
 			err,
 		)
 	}
+	if memInstance == nil {
+		return nil, temporal.NewNonRetryableApplicationError(
+			"memory instance is nil",
+			"INSTANCE_NOT_FOUND",
+			nil,
+		)
+	}
 	activity.RecordHeartbeat(ctx, "Memory instance retrieved, delegating to instance flush method")
 	// Cast to FlushableMemory to access the PerformFlush method
 	flushable, ok := memInstance.(memory.FlushableMemory)
@@ -164,8 +171,3 @@ func (ma *MemoryActivities) ClearFlushPendingFlag(
 	}
 	return nil
 }
-
-// Helper function (should be in memory package or a common place)
-// func MessagesWithTokensToLLMMessages(mwt []MessageWithTokens) []llm.Message { ... }
-// For now, it's assumed to exist in the memory package.
-// Add it to memory/types.go or a new memory/utils.go if it doesn't.

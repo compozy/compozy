@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,8 +14,8 @@ import (
 
 func TestNewHealthService(t *testing.T) {
 	t.Run("Should create health service with default values", func(t *testing.T) {
-		log := logger.NewForTests()
-		service := NewHealthService(nil, log)
+		ctx := context.Background()
+		service := NewHealthService(ctx, nil)
 
 		assert.NotNil(t, service)
 		assert.Equal(t, 30*time.Second, service.checkInterval)
@@ -25,7 +24,8 @@ func TestNewHealthService(t *testing.T) {
 	})
 
 	t.Run("Should handle nil logger", func(t *testing.T) {
-		service := NewHealthService(nil, nil)
+		ctx := context.Background()
+		service := NewHealthService(ctx, nil)
 
 		assert.NotNil(t, service)
 		assert.NotNil(t, service.log)
@@ -34,7 +34,8 @@ func TestNewHealthService(t *testing.T) {
 
 func TestHealthService_RegisterUnregister(t *testing.T) {
 	t.Run("Should register and unregister instances", func(t *testing.T) {
-		service := NewHealthService(nil, logger.NewForTests())
+		ctx := context.Background()
+		service := NewHealthService(ctx, nil)
 
 		// Register instance
 		service.RegisterInstance("test-memory-1")
@@ -58,7 +59,8 @@ func TestHealthService_RegisterUnregister(t *testing.T) {
 
 func TestHealthService_OverallHealth(t *testing.T) {
 	t.Run("Should return unhealthy when manager is nil even with registered instances", func(t *testing.T) {
-		service := NewHealthService(nil, logger.NewForTests())
+		ctx := context.Background()
+		service := NewHealthService(ctx, nil)
 
 		// Register multiple instances
 		service.RegisterInstance("memory-1")
@@ -66,7 +68,6 @@ func TestHealthService_OverallHealth(t *testing.T) {
 		service.RegisterInstance("memory-3")
 
 		// Get overall health
-		ctx := context.Background()
 		health := service.GetOverallHealth(ctx)
 
 		// Without a manager, the service cannot collect instance health
@@ -79,9 +80,9 @@ func TestHealthService_OverallHealth(t *testing.T) {
 	})
 
 	t.Run("Should return unhealthy when no instances registered", func(t *testing.T) {
-		service := NewHealthService(nil, logger.NewForTests())
-
 		ctx := context.Background()
+		service := NewHealthService(ctx, nil)
+
 		health := service.GetOverallHealth(ctx)
 
 		assert.False(t, health.Healthy)
@@ -93,7 +94,8 @@ func TestHealthService_OverallHealth(t *testing.T) {
 	})
 
 	t.Run("Should handle mix of healthy and unhealthy instances", func(t *testing.T) {
-		service := NewHealthService(nil, logger.NewForTests())
+		ctx := context.Background()
+		service := NewHealthService(ctx, nil)
 
 		// Register instances
 		service.RegisterInstance("healthy-memory")
@@ -110,7 +112,6 @@ func TestHealthService_OverallHealth(t *testing.T) {
 			}
 		}
 
-		ctx := context.Background()
 		health := service.GetOverallHealth(ctx)
 
 		// With nil manager, system is always unhealthy
@@ -125,7 +126,8 @@ func TestHealthService_OverallHealth(t *testing.T) {
 
 func TestHealthService_TokenUsage(t *testing.T) {
 	t.Run("Should track token usage state even without manager", func(t *testing.T) {
-		service := NewHealthService(nil, logger.NewForTests())
+		ctx := context.Background()
+		service := NewHealthService(ctx, nil)
 
 		// Register instance
 		service.RegisterInstance("memory-with-tokens")
@@ -154,7 +156,6 @@ func TestHealthService_TokenUsage(t *testing.T) {
 		tokenState.mu.RUnlock()
 
 		// Note: When manager is nil, instance health is not collected
-		ctx := context.Background()
 		health := service.GetOverallHealth(ctx)
 		assert.Empty(t, health.InstanceHealth, "Instance health not collected without manager")
 	})
@@ -162,7 +163,8 @@ func TestHealthService_TokenUsage(t *testing.T) {
 
 func TestMemoryHealthService_Configuration(t *testing.T) {
 	t.Run("Should allow configuration of intervals", func(t *testing.T) {
-		service := NewHealthService(nil, logger.NewForTests())
+		ctx := context.Background()
+		service := NewHealthService(ctx, nil)
 
 		// Set custom intervals
 		service.SetCheckInterval(60 * time.Second)
@@ -175,7 +177,8 @@ func TestMemoryHealthService_Configuration(t *testing.T) {
 
 func TestMemoryHealthService_StartStop(t *testing.T) {
 	t.Run("Should start and stop health monitoring", func(_ *testing.T) {
-		service := NewHealthService(nil, logger.NewForTests())
+		ctx := context.Background()
+		service := NewHealthService(ctx, nil)
 
 		// Set a short interval for testing
 		service.SetCheckInterval(100 * time.Millisecond)
@@ -198,7 +201,8 @@ func TestMemoryHealthService_StartStop(t *testing.T) {
 
 func TestMemoryHealthService_HealthCheck(t *testing.T) {
 	t.Run("Should perform health checks and update states", func(t *testing.T) {
-		service := NewHealthService(nil, logger.NewForTests())
+		ctx := context.Background()
+		service := NewHealthService(ctx, nil)
 
 		// Register instance
 		service.RegisterInstance("test-memory")
@@ -212,7 +216,6 @@ func TestMemoryHealthService_HealthCheck(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 
 		// Perform health check
-		ctx := context.Background()
 		service.performHealthCheck(ctx)
 
 		// Check if last checked time was updated

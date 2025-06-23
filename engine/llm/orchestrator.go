@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -12,6 +13,12 @@ import (
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/logger"
 )
+
+// AsyncHook provides hooks for monitoring async operations
+type AsyncHook interface {
+	// OnMemoryStoreComplete is called when async memory storage completes
+	OnMemoryStoreComplete(err error)
+}
 
 // Orchestrator coordinates LLM interactions, tool calls, and response processing
 type Orchestrator interface {
@@ -32,6 +39,7 @@ type OrchestratorConfig struct {
 	RuntimeManager *runtime.Manager
 	LLMFactory     llmadapter.Factory
 	MemoryProvider MemoryProvider // Optional: provides memory instances for agents
+	AsyncHook      AsyncHook      // Optional: hook for monitoring async operations
 }
 
 // Implementation of LLMOrchestrator
@@ -40,9 +48,9 @@ type llmOrchestrator struct {
 }
 
 // NewOrchestrator creates a new LLM orchestrator
-func NewOrchestrator(config OrchestratorConfig) Orchestrator {
+func NewOrchestrator(config *OrchestratorConfig) Orchestrator {
 	return &llmOrchestrator{
-		config: config,
+		config: *config,
 	}
 }
 
@@ -113,12 +121,13 @@ func (o *llmOrchestrator) prepareMemoryContext(
 	request Request,
 	log logger.Logger,
 ) map[string]Memory {
-	if o.config.MemoryProvider == nil || len(request.Agent.GetResolvedMemoryReferences()) == 0 {
+	memoryRefs := request.Agent.GetResolvedMemoryReferences()
+	if o.config.MemoryProvider == nil || len(memoryRefs) == 0 {
 		return nil
 	}
 	log.Debug("Resolving memory instances for agent", "agent_id", request.Agent.ID)
 	memories := make(map[string]Memory)
-	for _, ref := range request.Agent.GetResolvedMemoryReferences() {
+	for _, ref := range memoryRefs {
 		memory, err := o.config.MemoryProvider.GetMemory(ctx, ref.ID, ref.Key)
 		if err != nil {
 			log.Warn("Failed to get memory instance", "memory_id", ref.ID, "error", err)
@@ -237,7 +246,7 @@ func (o *llmOrchestrator) buildMessages(
 }
 
 func (o *llmOrchestrator) storeResponseInMemoryAsync(
-	_ context.Context,
+	ctx context.Context,
 	memories map[string]Memory,
 	response *llmadapter.LLMResponse,
 	messages []llmadapter.Message,
@@ -248,7 +257,12 @@ func (o *llmOrchestrator) storeResponseInMemoryAsync(
 		return
 	}
 	go func() {
-		bgCtx := context.Background()
+		// Create a detached context with timeout to prevent goroutine leaks
+		// context.WithoutCancel preserves values from the parent context
+		// while allowing the goroutine to continue even if the parent is canceled
+		bgCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+
 		assistantMsg := llmadapter.Message{
 			Role:    "assistant",
 			Content: response.Content,
@@ -261,7 +275,16 @@ func (o *llmOrchestrator) storeResponseInMemoryAsync(
 			messages[len(messages)-1],
 		)
 		if err != nil {
-			log.Error("Failed to store response in memory", "error", err)
+			log.Error("Failed to store response in memory",
+				"error", err,
+				"agent_id", request.Agent.ID,
+				"action_id", request.Action.ID)
+			// Consider sending to a metrics/alerting system
+			// Example: metrics.RecordMemoryStorageFailure(request.Agent.ID, err)
+		}
+		// Call async hook if configured
+		if o.config.AsyncHook != nil {
+			o.config.AsyncHook.OnMemoryStoreComplete(err)
 		}
 	}()
 }

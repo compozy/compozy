@@ -133,7 +133,7 @@ func (c *Config) Validate() error {
 }
 
 func (c *Config) validateResource() error {
-	if c.Resource != string(core.ConfigMemory) && c.Resource != "" { // Allow empty if it defaults
+	if c.Resource != string(core.ConfigMemory) {
 		return fmt.Errorf(
 			"memory config ID '%s': resource field must be '%s', got '%s'",
 			c.ID,
@@ -244,9 +244,15 @@ func (c *Config) validateLocking() error {
 }
 
 func (c *Config) validateTokenBased() error {
-	// If type is token_based, either MaxTokens or MaxContextRatio should ideally be set.
-	// Warning: token_based memory without MaxTokens/MaxContextRatio
-	// This might be valid if MaxMessages provides fallback
+	if c.Type == TokenBasedMemory {
+		if c.MaxTokens <= 0 && c.MaxContextRatio <= 0 && c.MaxMessages <= 0 {
+			return fmt.Errorf(
+				"memory config ID '%s': token_based memory must have at least one limit configured "+
+					"(max_tokens, max_context_ratio, or max_messages)",
+				c.ID,
+			)
+		}
+	}
 	return nil
 }
 

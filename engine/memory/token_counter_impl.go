@@ -81,21 +81,55 @@ func (tc *TiktokenCounter) GetEncoding() string {
 	return tc.encodingName
 }
 
+// modelToEncodingMap maps common model names to their encoding names
+var modelToEncodingMap = map[string]string{
+	// GPT-4 and variants
+	"gpt-4":               "cl100k_base",
+	"gpt-4-0314":          "cl100k_base",
+	"gpt-4-0613":          "cl100k_base",
+	"gpt-4-32k":           "cl100k_base",
+	"gpt-4-32k-0314":      "cl100k_base",
+	"gpt-4-32k-0613":      "cl100k_base",
+	"gpt-4-turbo":         "cl100k_base",
+	"gpt-4-turbo-preview": "cl100k_base",
+
+	// GPT-3.5-turbo
+	"gpt-3.5-turbo":          "cl100k_base",
+	"gpt-3.5-turbo-0301":     "cl100k_base",
+	"gpt-3.5-turbo-0613":     "cl100k_base",
+	"gpt-3.5-turbo-16k":      "cl100k_base",
+	"gpt-3.5-turbo-16k-0613": "cl100k_base",
+
+	// Older models
+	"text-davinci-003": "p50k_base",
+	"text-davinci-002": "p50k_base",
+	"text-davinci-001": "p50k_base",
+	"text-curie-001":   "p50k_base",
+	"text-babbage-001": "p50k_base",
+	"text-ada-001":     "p50k_base",
+	"davinci":          "p50k_base",
+	"curie":            "p50k_base",
+	"babbage":          "p50k_base",
+	"ada":              "p50k_base",
+
+	// Code models
+	"code-davinci-002": "p50k_base",
+	"code-davinci-001": "p50k_base",
+	"code-cushman-002": "p50k_base",
+	"code-cushman-001": "p50k_base",
+}
+
 // getEncodingNameForModel returns the encoding name for a given model.
-// This is a workaround since tiktoken-go doesn't expose the encoding name directly.
+// Uses tiktoken-go's EncodingForModel to leverage its built-in model mappings,
+// falling back to default encoding for unknown models.
 func getEncodingNameForModel(model string) string {
-	// Known model to encoding mappings
-	switch model {
-	case "gpt-4", "gpt-4-32k", "gpt-4-turbo", "gpt-3.5-turbo":
-		return "cl100k_base"
-	case "gpt2", "text-davinci-002", "text-davinci-003":
-		return "p50k_base"
-	case "davinci", "curie", "babbage", "ada":
-		return "r50k_base"
-	default:
-		// Default to cl100k_base for unknown models
-		return defaultEncoding
+	// First check our explicit mapping
+	if encoding, ok := modelToEncodingMap[model]; ok {
+		return encoding
 	}
+	// For unknown models, fall back to the most common modern encoding
+	// cl100k_base is used by GPT-4, GPT-3.5-turbo, and most recent models
+	return defaultEncoding
 }
 
 // Utility function to create a default token counter, useful for tests or fallbacks.

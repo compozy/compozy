@@ -4,8 +4,7 @@ Simple YAML structure validation for alerting rules.
 This script checks basic YAML syntax and alert structure without external dependencies.
 """
 
-import json
-import re
+import sys
 
 def validate_yaml_structure(filename):
     """Validate basic YAML structure and alert rules."""
@@ -70,10 +69,10 @@ def main():
     
     if all_valid:
         print("✓ All alert files validated successfully")
-        exit(0)
+        sys.exit(0)
     else:
         print("✗ Some validations failed")
-        exit(1)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

@@ -1394,7 +1394,7 @@
             "targets": [
                 {
                     "datasource": "Prometheus",
-                    "expr": "avg by (memory_id) (compozy_memory_tokens_used{memory_id=~\".*\"} / compozy_memory_tokens_used{memory_id=~\".*\",max_tokens!=\"0\"} * 100)",
+                    "expr": "avg by (memory_id) (usage_percentage{__name__=\"compozy_memory_tokens_used\",memory_id=~\".*\"})",
                     "interval": "",
                     "legendFormat": "{{memory_id}}",
                     "refId": "A"

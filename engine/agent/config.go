@@ -131,8 +131,13 @@ func (a *Config) isLevel3MemoryConfig() ([]any, bool) {
 	if !ok || len(memoriesList) == 0 {
 		return nil, false
 	}
-	_, firstIsMap := memoriesList[0].(map[string]any)
-	return memoriesList, firstIsMap
+	// Ensure all elements are maps for Level 3
+	for _, item := range memoriesList {
+		if _, isMap := item.(map[string]any); !isMap {
+			return memoriesList, false
+		}
+	}
+	return memoriesList, true
 }
 
 func (a *Config) checkLevel3ConflictingFields() error {

@@ -26,6 +26,7 @@ type ClearFlushPendingFlagInput struct {
 
 // Memory defines the core interface for interaction with a memory instance.
 // All operations are designed to be async-first.
+// Implementations should be thread-safe for concurrent access.
 type Memory interface {
 	// Append adds a message to the memory.
 	Append(ctx context.Context, msg llm.Message) error
@@ -77,9 +78,9 @@ type Store interface {
 	ReadMessages(ctx context.Context, key string) ([]llm.Message, error)
 	// CountMessages returns the number of messages for a given key.
 	CountMessages(ctx context.Context, key string) (int, error)
-	// TrimMessages removes messages from the store to keep only `keepCount` newest messages.
-	// For FIFO eviction, this would remove from the start of the list.
-	TrimMessages(ctx context.Context, key string, keepCount int) error
+	// TrimMessagesWithMetadata trims messages and updates metadata atomically.
+	// This ensures token count and message count stay consistent after trimming.
+	TrimMessagesWithMetadata(ctx context.Context, key string, keepCount int, newTokenCount int) error
 	// ReplaceMessages replaces all messages for a key with a new set of messages.
 	// Useful for operations like summarization where the history is rewritten.
 	ReplaceMessages(ctx context.Context, key string, messages []llm.Message) error
