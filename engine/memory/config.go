@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compozy/compozy/engine/core" // For core.PathCWD and other core types if needed
-	// "github.com/compozy/compozy/engine/schema" // For validation if complex rules are needed
+	"github.com/compozy/compozy/engine/core"
+	memcore "github.com/compozy/compozy/engine/memory/core"
 )
 
 // Config defines the structure for a memory resource configuration.
@@ -24,7 +24,7 @@ type Config struct {
 
 	// Type indicates the primary management strategy (e.g., token_based).
 	// This refers to memory.MemoryType defined in types.go
-	Type Type `json:"type" yaml:"type" validate:"required,oneof=token_based message_count_based buffer"`
+	Type memcore.Type `json:"type" yaml:"type" validate:"required,oneof=token_based message_count_based buffer"`
 
 	// MaxTokens is the hard limit on the number of tokens this memory can hold.
 	MaxTokens int `json:"max_tokens,omitempty"        yaml:"max_tokens,omitempty"        validate:"omitempty,gt=0"`
@@ -35,22 +35,22 @@ type Config struct {
 
 	// TokenAllocation defines how the token budget is distributed if applicable.
 	// Refers to memory.TokenAllocation defined in types.go
-	TokenAllocation *TokenAllocation `json:"token_allocation,omitempty" yaml:"token_allocation,omitempty"`
+	TokenAllocation *memcore.TokenAllocation `json:"token_allocation,omitempty" yaml:"token_allocation,omitempty"`
 	// FlushingStrategy defines how memory is managed when limits are approached or reached.
-	// Refers to memory.FlushingStrategyConfig defined in types.go
-	Flushing *FlushingStrategyConfig `json:"flushing,omitempty"         yaml:"flushing,omitempty"` // Renamed from FlushingStrategy in PRD to avoid conflict with the struct type
+	// Refers to memcore.FlushingStrategyConfig defined in types.go
+	Flushing *memcore.FlushingStrategyConfig `json:"flushing,omitempty"         yaml:"flushing,omitempty"` // Renamed from FlushingStrategy in PRD to avoid conflict with the struct type
 
 	// Persistence defines how memory instances are persisted.
-	// Refers to memory.PersistenceConfig defined in types.go
-	Persistence PersistenceConfig `json:"persistence" yaml:"persistence" validate:"required"`
+	// Refers to memcore.PersistenceConfig defined in types.go
+	Persistence memcore.PersistenceConfig `json:"persistence" yaml:"persistence" validate:"required"`
 
 	// PrivacyPolicy defines how sensitive data within this memory resource should be handled.
-	// Refers to memory.PrivacyPolicyConfig defined in types.go
-	PrivacyPolicy *PrivacyPolicyConfig `json:"privacy_policy,omitempty" yaml:"privacy_policy,omitempty"`
+	// Refers to memcore.PrivacyPolicyConfig defined in types.go
+	PrivacyPolicy *memcore.PrivacyPolicyConfig `json:"privacy_policy,omitempty" yaml:"privacy_policy,omitempty"`
 
 	// Locking defines lock timeout settings for memory operations.
-	// Refers to memory.LockConfig defined in types.go
-	Locking *LockConfig `json:"locking,omitempty" yaml:"locking,omitempty"`
+	// Refers to memcore.LockConfig defined in types.go
+	Locking *memcore.LockConfig `json:"locking,omitempty" yaml:"locking,omitempty"`
 
 	// --- Fields for core.Configurable / core.Config compatibility ---
 	filePath string        `json:"-" yaml:"-"`
@@ -155,14 +155,14 @@ func (c *Config) validatePersistence() error {
 				err,
 			)
 		}
-		if parsedTTL <= 0 && c.Persistence.Type != InMemoryPersistence {
+		if parsedTTL <= 0 && c.Persistence.Type != memcore.InMemoryPersistence {
 			return fmt.Errorf(
 				"memory config ID '%s': persistence.ttl must be positive, got '%s'",
 				c.ID,
 				c.Persistence.TTL,
 			)
 		}
-	} else if c.Persistence.Type != InMemoryPersistence {
+	} else if c.Persistence.Type != memcore.InMemoryPersistence {
 		return fmt.Errorf(
 			"memory config ID '%s': persistence.ttl is required for persistence type '%s'",
 			c.ID, c.Persistence.Type)
@@ -186,7 +186,7 @@ func (c *Config) validateTokenAllocation() error {
 }
 
 func (c *Config) validateFlushing() error {
-	if c.Flushing == nil || c.Flushing.Type != HybridSummaryFlushing {
+	if c.Flushing == nil || c.Flushing.Type != memcore.HybridSummaryFlushing {
 		return nil
 	}
 	if c.Flushing.SummarizeThreshold <= 0 || c.Flushing.SummarizeThreshold > 1 {
@@ -244,7 +244,7 @@ func (c *Config) validateLocking() error {
 }
 
 func (c *Config) validateTokenBased() error {
-	if c.Type == TokenBasedMemory {
+	if c.Type == memcore.TokenBasedMemory {
 		if c.MaxTokens <= 0 && c.MaxContextRatio <= 0 && c.MaxMessages <= 0 {
 			return fmt.Errorf(
 				"memory config ID '%s': token_based memory must have at least one limit configured "+

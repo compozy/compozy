@@ -3,13 +3,17 @@ package memory
 import (
 	"time"
 
+	memcore "github.com/compozy/compozy/engine/memory/core"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
 
 // FlushMemoryWorkflow orchestrates the memory flushing process.
 // It executes the FlushMemory activity with appropriate retry policies and timeouts.
-func FlushMemoryWorkflow(ctx workflow.Context, input FlushMemoryActivityInput) (*FlushMemoryActivityOutput, error) {
+func FlushMemoryWorkflow(
+	ctx workflow.Context,
+	input memcore.FlushMemoryActivityInput,
+) (*memcore.FlushMemoryActivityOutput, error) {
 	// Configure activity options
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: 10 * time.Minute, // Allow enough time for large memory flushes
@@ -40,7 +44,7 @@ func FlushMemoryWorkflow(ctx workflow.Context, input FlushMemoryActivityInput) (
 				StartToCloseTimeout: 1 * time.Minute,
 			})
 			// Clear the flush pending flag using the cleanup activity
-			cleanupInput := ClearFlushPendingFlagInput{
+			cleanupInput := memcore.ClearFlushPendingFlagInput{
 				MemoryInstanceKey: input.MemoryInstanceKey,
 				MemoryResourceID:  input.MemoryResourceID,
 				ProjectID:         input.ProjectID,
@@ -53,7 +57,7 @@ func FlushMemoryWorkflow(ctx workflow.Context, input FlushMemoryActivityInput) (
 	}()
 
 	// Execute the flush activity
-	var result FlushMemoryActivityOutput
+	var result memcore.FlushMemoryActivityOutput
 	workflowErr = workflow.ExecuteActivity(ctx, "FlushMemory", input).Get(ctx, &result)
 	if workflowErr != nil {
 		return nil, workflowErr

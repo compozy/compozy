@@ -7,7 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/llm"
-	"github.com/compozy/compozy/engine/memory"
+	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -22,12 +22,12 @@ func (m *mockMemoryManager) GetInstance(
 	ctx context.Context,
 	memRef core.MemoryReference,
 	workflowCtx map[string]any,
-) (memory.Memory, error) {
+) (memcore.Memory, error) {
 	args := m.Called(ctx, memRef, workflowCtx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(memory.Memory), args.Error(1)
+	return args.Get(0).(memcore.Memory), args.Error(1)
 }
 
 type mockMemory struct {
@@ -58,12 +58,12 @@ func (m *mockMemory) GetTokenCount(ctx context.Context) (int, error) {
 	return args.Int(0), args.Error(1)
 }
 
-func (m *mockMemory) GetMemoryHealth(ctx context.Context) (*memory.Health, error) {
+func (m *mockMemory) GetMemoryHealth(ctx context.Context) (*memcore.Health, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*memory.Health), args.Error(1)
+	return args.Get(0).(*memcore.Health), args.Error(1)
 }
 
 func (m *mockMemory) Clear(ctx context.Context) error {
@@ -75,7 +75,7 @@ func (m *mockMemory) GetID() string {
 	return m.id
 }
 
-func (m *mockMemory) AppendWithPrivacy(ctx context.Context, msg llm.Message, metadata memory.PrivacyMetadata) error {
+func (m *mockMemory) AppendWithPrivacy(ctx context.Context, msg llm.Message, metadata memcore.PrivacyMetadata) error {
 	args := m.Called(ctx, msg, metadata)
 	return args.Error(0)
 }

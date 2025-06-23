@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/memory"
+	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
@@ -28,7 +28,7 @@ type ExecuteBasic struct {
 	createStateUC  *uc.CreateState
 	executeUC      *uc.ExecuteTask
 	taskResponder  *services.TaskResponder
-	memoryManager  memory.ManagerInterface
+	memoryManager  memcore.ManagerInterface
 	templateEngine *tplengine.TemplateEngine
 	projectConfig  *project.Config
 }
@@ -41,7 +41,7 @@ func NewExecuteBasic(
 	runtime *runtime.Manager,
 	configStore services.ConfigStore,
 	cwd *core.PathCWD,
-	memoryManager memory.ManagerInterface,
+	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
 	projectConfig *project.Config,
 ) *ExecuteBasic {

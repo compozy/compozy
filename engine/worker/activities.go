@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/memory"
 	memacts "github.com/compozy/compozy/engine/memory/activities"
+	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
@@ -461,15 +462,15 @@ func (a *Activities) RemoveDispatcherHeartbeat(ctx context.Context, dispatcherID
 
 func (a *Activities) FlushMemory(
 	ctx context.Context,
-	input memory.FlushMemoryActivityInput,
-) (*memory.FlushMemoryActivityOutput, error) {
+	input memcore.FlushMemoryActivityInput,
+) (*memcore.FlushMemoryActivityOutput, error) {
 	// Delegate to the memory activities implementation
 	return a.memoryActivities.FlushMemory(ctx, input)
 }
 
 func (a *Activities) ClearFlushPendingFlag(
 	ctx context.Context,
-	input memory.ClearFlushPendingFlagInput,
+	input memcore.ClearFlushPendingFlagInput,
 ) error {
 	// Delegate to the memory activities implementation
 	return a.memoryActivities.ClearFlushPendingFlag(ctx, input)

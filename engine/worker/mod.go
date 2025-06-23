@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/memory"
 	memacts "github.com/compozy/compozy/engine/memory/activities"
+	"github.com/compozy/compozy/engine/memory/privacy"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
@@ -289,7 +290,7 @@ func setupMemoryManager(
 		log.Warn("Resource registry not provided, memory features will be disabled")
 		return nil, nil
 	}
-	privacyManager := memory.NewPrivacyManager()
+	privacyManager := privacy.NewManager()
 	memoryManagerOpts := &memory.ManagerOptions{
 		ResourceRegistry:  config.ResourceRegistry,
 		TplEngine:         templateEngine,

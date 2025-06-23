@@ -7,14 +7,14 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/llm"
-	"github.com/compozy/compozy/engine/memory"
+	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
-// memoryResolverAdapter adapts a full memory.Memory to the llm.Memory interface
+// memoryResolverAdapter adapts a full memcore.Memory to the llm.Memory interface
 type memoryResolverAdapter struct {
-	memory memory.Memory
+	memory memcore.Memory
 }
 
 func (m *memoryResolverAdapter) Append(ctx context.Context, msg llm.Message) error {
@@ -34,14 +34,14 @@ func (m *memoryResolverAdapter) GetID() string {
 // MemoryResolver provides memory instances for agents during task execution.
 // It implements the llm.MemoryProvider interface.
 type MemoryResolver struct {
-	memoryManager   memory.ManagerInterface
+	memoryManager   memcore.ManagerInterface
 	templateEngine  *tplengine.TemplateEngine
 	workflowContext map[string]any
 }
 
 // NewMemoryResolver creates a new memory resolver
 func NewMemoryResolver(
-	memoryManager memory.ManagerInterface,
+	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
 	workflowContext map[string]any,
 ) *MemoryResolver {

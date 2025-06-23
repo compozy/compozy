@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/memory"
+	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
@@ -35,7 +35,7 @@ func NewExecuteMemory(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
-	memoryManager memory.ManagerInterface,
+	memoryManager memcore.ManagerInterface,
 	cwd *core.PathCWD,
 	templateEngine *tplengine.TemplateEngine,
 ) *ExecuteMemory {

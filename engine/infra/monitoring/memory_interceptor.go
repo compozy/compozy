@@ -6,6 +6,8 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/memory"
+	memcore "github.com/compozy/compozy/engine/memory/core"
+	"github.com/compozy/compozy/engine/memory/metrics"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -27,19 +29,19 @@ func (m *MemoryMonitoringInterceptor) GetInstance(
 	ctx context.Context,
 	ref core.MemoryReference,
 	workflowContext map[string]any,
-) (memory.Memory, error) {
+) (memcore.Memory, error) {
 	start := time.Now()
 	projectID := getProjectIDFromContext(ctx)
 
 	instance, err := m.Manager.GetInstance(ctx, ref, workflowContext)
 
 	duration := time.Since(start)
-	memory.RecordMemoryOp(ctx, "get_instance", ref.ID, projectID, duration)
+	metrics.RecordMemoryOp(ctx, ref.ID, projectID, "get_instance", duration, 0, err)
 
 	if err != nil {
-		memory.UpdateHealthState(ref.ID, false, 1)
+		metrics.UpdateHealthState(ref.ID, false, 1)
 	} else {
-		memory.UpdateHealthState(ref.ID, true, 0)
+		metrics.UpdateHealthState(ref.ID, true, 0)
 	}
 
 	return instance, err
@@ -47,7 +49,7 @@ func (m *MemoryMonitoringInterceptor) GetInstance(
 
 // InitializeMemoryMonitoring initializes memory-specific monitoring
 func InitializeMemoryMonitoring(ctx context.Context, meter metric.Meter) {
-	memory.InitMemoryMetrics(ctx, meter)
+	metrics.InitMemoryMetrics(ctx, meter)
 	log := logger.FromContext(ctx)
 	log.Info("Memory monitoring initialized")
 }

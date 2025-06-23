@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/engine/memory/metrics"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -113,7 +114,7 @@ func (mhs *HealthService) collectInstanceHealth(health *SystemHealth) (totalInst
 		if !ok {
 			return true
 		}
-		state, ok := value.(*HealthState)
+		state, ok := value.(*metrics.HealthState)
 		if !ok {
 			return true
 		}
@@ -129,13 +130,13 @@ func (mhs *HealthService) collectInstanceHealth(health *SystemHealth) (totalInst
 }
 
 // buildInstanceHealth creates an InstanceHealth object for a specific memory instance
-func (mhs *HealthService) buildInstanceHealth(memoryID string, state *HealthState) *InstanceHealth {
+func (mhs *HealthService) buildInstanceHealth(memoryID string, state *metrics.HealthState) *InstanceHealth {
 	// Read state fields under lock to prevent races
-	state.mu.RLock()
+	state.Mu.RLock()
 	healthy := state.IsHealthy
 	lastCheck := state.LastHealthCheck
 	failures := state.ConsecutiveFailures
-	state.mu.RUnlock()
+	state.Mu.RUnlock()
 
 	instanceHealth := &InstanceHealth{
 		MemoryID:            memoryID,
@@ -161,16 +162,16 @@ func (mhs *HealthService) setInstanceHealthStatus(instanceHealth *InstanceHealth
 
 // addTokenUsageInfo adds token usage information to instance health if available
 func (mhs *HealthService) addTokenUsageInfo(instanceHealth *InstanceHealth, memoryID string) {
-	tokenState, exists := memoryTokenStates.Load(memoryID)
+	tokenState, exists := metrics.MemoryTokenStates.Load(memoryID)
 	if !exists {
 		return
 	}
-	ts, ok := tokenState.(*TokenState)
+	ts, ok := tokenState.(*metrics.TokenState)
 	if !ok {
 		return
 	}
-	ts.mu.RLock()
-	defer ts.mu.RUnlock()
+	ts.Mu.RLock()
+	defer ts.Mu.RUnlock()
 	var usagePercentage float64
 	var nearLimit bool
 	if ts.MaxTokens > 0 {
@@ -212,17 +213,17 @@ func (mhs *HealthService) GetInstanceHealth(memoryID string) (*InstanceHealth, b
 		return nil, false
 	}
 
-	state, ok := value.(*HealthState)
+	state, ok := value.(*metrics.HealthState)
 	if !ok {
 		return nil, false
 	}
 
 	// Read state fields under lock to prevent races
-	state.mu.RLock()
+	state.Mu.RLock()
 	healthy := state.IsHealthy
 	lastCheck := state.LastHealthCheck
 	failures := state.ConsecutiveFailures
-	state.mu.RUnlock()
+	state.Mu.RUnlock()
 
 	instanceHealth := &InstanceHealth{
 		MemoryID:            memoryID,
@@ -240,7 +241,7 @@ func (mhs *HealthService) GetInstanceHealth(memoryID string) (*InstanceHealth, b
 
 // RegisterInstance registers a memory instance for health monitoring
 func (mhs *HealthService) RegisterInstance(memoryID string) {
-	state := &HealthState{
+	state := &metrics.HealthState{
 		MemoryID:            memoryID,
 		IsHealthy:           true,
 		LastHealthCheck:     time.Now(),
@@ -285,7 +286,7 @@ func (mhs *HealthService) performHealthCheck(ctx context.Context) {
 			return true
 		}
 
-		state, ok := value.(*HealthState)
+		state, ok := value.(*metrics.HealthState)
 		if !ok {
 			return true
 		}
@@ -293,7 +294,7 @@ func (mhs *HealthService) performHealthCheck(ctx context.Context) {
 		// Perform health check (this could be expanded to actually ping the instance)
 		healthy := mhs.checkInstanceHealth(checkCtx, memoryID)
 
-		state.mu.Lock()
+		state.Mu.Lock()
 		state.LastHealthCheck = time.Now()
 		if healthy {
 			state.IsHealthy = true
@@ -304,10 +305,10 @@ func (mhs *HealthService) performHealthCheck(ctx context.Context) {
 		}
 		// Capture the failures count before releasing the lock
 		failures := state.ConsecutiveFailures
-		state.mu.Unlock()
+		state.Mu.Unlock()
 
 		// Update the global health state
-		UpdateHealthState(memoryID, healthy, failures)
+		metrics.UpdateHealthState(memoryID, healthy, failures)
 
 		return true
 	})
@@ -325,13 +326,13 @@ func (mhs *HealthService) checkInstanceHealth(_ context.Context, memoryID string
 	// tracking that's updated when instances perform operations.
 
 	// Check if the instance has been recently active
-	if state, exists := memoryHealthStates.Load(memoryID); exists {
-		if healthState, ok := state.(*HealthState); ok {
-			healthState.mu.RLock()
+	if state, exists := metrics.MemoryHealthStates.Load(memoryID); exists {
+		if healthState, ok := state.(*metrics.HealthState); ok {
+			healthState.Mu.RLock()
 			timeSinceCheck := time.Since(healthState.LastHealthCheck)
 			isHealthy := healthState.IsHealthy
 			consecutiveFailures := healthState.ConsecutiveFailures
-			healthState.mu.RUnlock()
+			healthState.Mu.RUnlock()
 
 			// Consider unhealthy if:
 			// 1. The instance is marked as unhealthy

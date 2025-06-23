@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"maps"
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
@@ -111,10 +112,7 @@ func (aol *AsyncOperationLogger) LogFlushOperation(
 	}
 
 	// Merge with provided metadata
-	for k, v := range metadata {
-		baseMetadata[k] = v
-	}
-
+	maps.Copy(baseMetadata, metadata)
 	aol.LogAsyncOperationStart(ctx, "memory_flush", memoryID, baseMetadata)
 }
 

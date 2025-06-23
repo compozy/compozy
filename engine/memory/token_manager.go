@@ -6,23 +6,23 @@ import (
 	"sort"
 
 	"github.com/compozy/compozy/engine/llm"
+	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
-// MessageWithTokens associates a message with its token count.
-type MessageWithTokens struct {
-	llm.Message
-	TokenCount int
-}
-
 // MessagesWithTokensToLLMMessages converts a slice of MessageWithTokens back to llm.Message.
-func MessagesWithTokensToLLMMessages(mwt []MessageWithTokens) []llm.Message {
+func MessagesWithTokensToLLMMessages(mwt []memcore.MessageWithTokens) []llm.Message {
 	if mwt == nil {
 		return nil
 	}
 	msgs := make([]llm.Message, len(mwt))
 	for i, msgWithToken := range mwt {
-		msgs[i] = msgWithToken.Message
+		if msg, ok := msgWithToken.Message.(llm.Message); ok {
+			msgs[i] = msg
+		} else {
+			// Handle unexpected type - should not happen if properly structured
+			msgs[i] = llm.Message{Role: "system", Content: "Invalid message type"}
+		}
 	}
 	return msgs
 }
@@ -30,13 +30,13 @@ func MessagesWithTokensToLLMMessages(mwt []MessageWithTokens) []llm.Message {
 // LLMMessagesToMessagesWithTokens is a helper primarily for testing or initial setup,
 // as TokenMemoryManager.CalculateMessagesWithTokens is the main way to create MessageWithTokens.
 // This version assumes token counts are unknown (set to 0).
-func LLMMessagesToMessagesWithTokens(msgs []llm.Message) []MessageWithTokens {
+func LLMMessagesToMessagesWithTokens(msgs []llm.Message) []memcore.MessageWithTokens {
 	if msgs == nil {
 		return nil
 	}
-	mwt := make([]MessageWithTokens, len(msgs))
+	mwt := make([]memcore.MessageWithTokens, len(msgs))
 	for i, msg := range msgs {
-		mwt[i] = MessageWithTokens{Message: msg, TokenCount: 0} // TokenCount would be calculated later
+		mwt[i] = memcore.MessageWithTokens{Message: msg, TokenCount: 0} // TokenCount would be calculated later
 	}
 	return mwt
 }
@@ -44,13 +44,17 @@ func LLMMessagesToMessagesWithTokens(msgs []llm.Message) []MessageWithTokens {
 // TokenMemoryManager orchestrates token counting, eviction, and allocation for a memory instance.
 // It does not directly interact with the MemoryStore but operates on slices of messages.
 type TokenMemoryManager struct {
-	config       *Resource     // The configuration for the memory resource this manager serves
-	tokenCounter TokenCounter  // The utility to count tokens
-	log          logger.Logger // Logger for warnings and debug info
+	config       *memcore.Resource    // The configuration for the memory resource this manager serves
+	tokenCounter memcore.TokenCounter // The utility to count tokens
+	log          logger.Logger        // Logger for warnings and debug info
 }
 
 // NewTokenMemoryManager creates a new token manager.
-func NewTokenMemoryManager(config *Resource, counter TokenCounter, log logger.Logger) (*TokenMemoryManager, error) {
+func NewTokenMemoryManager(
+	config *memcore.Resource,
+	counter memcore.TokenCounter,
+	log logger.Logger,
+) (*TokenMemoryManager, error) {
 	if config == nil {
 		return nil, fmt.Errorf("memory resource config cannot be nil")
 	}
@@ -82,8 +86,8 @@ func NewTokenMemoryManager(config *Resource, counter TokenCounter, log logger.Lo
 func (tmm *TokenMemoryManager) CalculateMessagesWithTokens(
 	ctx context.Context,
 	messages []llm.Message,
-) ([]MessageWithTokens, int, error) {
-	processedMessages := make([]MessageWithTokens, len(messages))
+) ([]memcore.MessageWithTokens, int, error) {
+	processedMessages := make([]memcore.MessageWithTokens, len(messages))
 	totalTokens := 0
 	for i, msg := range messages {
 		// In a more advanced scenario, msg.Metadata might already have a pre-calculated token count.
@@ -95,7 +99,7 @@ func (tmm *TokenMemoryManager) CalculateMessagesWithTokens(
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to count tokens for message %d: %w", i, err)
 		}
-		processedMessages[i] = MessageWithTokens{Message: msg, TokenCount: count}
+		processedMessages[i] = memcore.MessageWithTokens{Message: msg, TokenCount: count}
 		totalTokens += count
 	}
 	return processedMessages, totalTokens, nil
@@ -106,9 +110,9 @@ func (tmm *TokenMemoryManager) CalculateMessagesWithTokens(
 // Returns the potentially reduced set of messages and the new total token count.
 func (tmm *TokenMemoryManager) EnforceLimits(
 	_ context.Context,
-	messages []MessageWithTokens,
+	messages []memcore.MessageWithTokens,
 	currentTotalTokens int,
-) ([]MessageWithTokens, int, error) {
+) ([]memcore.MessageWithTokens, int, error) {
 	// Determine effective max tokens
 	effectiveMaxTokens := tmm.config.MaxTokens
 	if effectiveMaxTokens == 0 && tmm.config.MaxContextRatio > 0 {
@@ -152,9 +156,9 @@ func (tmm *TokenMemoryManager) EnforceLimits(
 // if they fit their allocation, even if older).
 func (tmm *TokenMemoryManager) ApplyTokenAllocation(
 	_ context.Context,
-	messages []MessageWithTokens,
+	messages []memcore.MessageWithTokens,
 	currentTotalTokens int,
-) ([]MessageWithTokens, int, error) {
+) ([]memcore.MessageWithTokens, int, error) {
 	if tmm.config.TokenAllocation == nil {
 		return messages, currentTotalTokens, nil // No allocation defined
 	}
@@ -192,7 +196,12 @@ func (tmm *TokenMemoryManager) GetManagedMessages(
 	// Convert back to []llm.Message
 	resultMessages := make([]llm.Message, len(finalMessagesWithTokens))
 	for i, mwt := range finalMessagesWithTokens {
-		resultMessages[i] = mwt.Message
+		if msg, ok := mwt.Message.(llm.Message); ok {
+			resultMessages[i] = msg
+		} else {
+			// Handle unexpected type - should not happen if properly structured
+			resultMessages[i] = llm.Message{Role: "system", Content: "Invalid message type"}
+		}
 	}
 
 	return resultMessages, finalTotalTokens, nil
@@ -204,7 +213,7 @@ func (tmm *TokenMemoryManager) GetManagedMessages(
 
 // MessageWithPriorityAndTokens extends MessageWithTokens with a priority level.
 type MessageWithPriorityAndTokens struct {
-	MessageWithTokens
+	memcore.MessageWithTokens
 	Priority      int // Lower number means higher priority (e.g., 0 is critical)
 	OriginalIndex int // Track original position for order restoration (-1 if unset)
 }

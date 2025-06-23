@@ -6,7 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/llm"
-	"github.com/compozy/compozy/engine/memory"
+	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
@@ -20,12 +20,12 @@ type ExecuteMemoryOperationInput struct {
 }
 
 type ExecuteMemoryOperation struct {
-	memoryManager  memory.ManagerInterface
+	memoryManager  memcore.ManagerInterface
 	templateEngine *tplengine.TemplateEngine
 }
 
 func NewExecuteMemoryOperation(
-	memoryManager memory.ManagerInterface,
+	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
 ) *ExecuteMemoryOperation {
 	return &ExecuteMemoryOperation{
@@ -97,7 +97,7 @@ func (uc *ExecuteMemoryOperation) Execute(
 
 func (uc *ExecuteMemoryOperation) executeRead(
 	ctx context.Context,
-	mem memory.Memory,
+	mem memcore.Memory,
 	key string,
 ) (*core.Output, error) {
 	messages, err := mem.Read(ctx)
@@ -121,13 +121,13 @@ func (uc *ExecuteMemoryOperation) executeRead(
 
 // MemoryTransaction provides transactional operations for memory modifications
 type MemoryTransaction struct {
-	mem     memory.Memory
+	mem     memcore.Memory
 	backup  []llm.Message
 	cleared bool
 }
 
 // NewMemoryTransaction creates a new memory transaction
-func NewMemoryTransaction(mem memory.Memory) *MemoryTransaction {
+func NewMemoryTransaction(mem memcore.Memory) *MemoryTransaction {
 	return &MemoryTransaction{
 		mem: mem,
 	}
@@ -194,7 +194,7 @@ func (t *MemoryTransaction) ApplyMessages(ctx context.Context, messages []llm.Me
 
 func (uc *ExecuteMemoryOperation) executeWrite(
 	ctx context.Context,
-	mem memory.Memory,
+	mem memcore.Memory,
 	key string,
 	payload any,
 	mergedInput *core.Input,
@@ -246,7 +246,7 @@ func (uc *ExecuteMemoryOperation) executeWrite(
 
 func (uc *ExecuteMemoryOperation) executeAppend(
 	ctx context.Context,
-	mem memory.Memory,
+	mem memcore.Memory,
 	key string,
 	payload any,
 	mergedInput *core.Input,
@@ -282,7 +282,7 @@ func (uc *ExecuteMemoryOperation) executeAppend(
 
 func (uc *ExecuteMemoryOperation) executeDelete(
 	ctx context.Context,
-	mem memory.Memory,
+	mem memcore.Memory,
 	key string,
 ) (*core.Output, error) {
 	// Clear all messages (delete operation)
@@ -297,13 +297,13 @@ func (uc *ExecuteMemoryOperation) executeDelete(
 
 func (uc *ExecuteMemoryOperation) executeFlush(
 	ctx context.Context,
-	mem memory.Memory,
+	mem memcore.Memory,
 	key string,
 	config *task.FlushConfig,
 ) (*core.Output, error) {
 	log := logger.FromContext(ctx)
 	// Check if memory implements FlushableMemory interface
-	flushableMem, ok := mem.(memory.FlushableMemory)
+	flushableMem, ok := mem.(memcore.FlushableMemory)
 	if !ok {
 		return nil, fmt.Errorf("memory instance does not support flush operations")
 	}
@@ -385,7 +385,7 @@ func (uc *ExecuteMemoryOperation) executeFlush(
 
 func (uc *ExecuteMemoryOperation) executeHealth(
 	ctx context.Context,
-	mem memory.Memory,
+	mem memcore.Memory,
 	key string,
 	config *task.HealthConfig,
 ) (*core.Output, error) {
@@ -418,7 +418,7 @@ func (uc *ExecuteMemoryOperation) executeHealth(
 
 func (uc *ExecuteMemoryOperation) executeClear(
 	ctx context.Context,
-	mem memory.Memory,
+	mem memcore.Memory,
 	key string,
 	config *task.ClearConfig,
 ) (*core.Output, error) {
@@ -447,7 +447,7 @@ func (uc *ExecuteMemoryOperation) executeClear(
 
 func (uc *ExecuteMemoryOperation) executeStats(
 	ctx context.Context,
-	mem memory.Memory,
+	mem memcore.Memory,
 	key string,
 	config *task.StatsConfig,
 ) (*core.Output, error) {

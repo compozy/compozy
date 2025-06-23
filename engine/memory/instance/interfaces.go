@@ -1,0 +1,71 @@
+package instance
+
+import (
+	"context"
+	"time"
+
+	"github.com/compozy/compozy/engine/llm"
+	"github.com/compozy/compozy/engine/memory/core"
+)
+
+// Instance represents a memory instance with all its components
+type Instance interface {
+	core.Memory
+	core.FlushableMemory
+
+	// Additional instance-specific methods
+	GetResource() *core.Resource
+	GetStore() core.Store
+	GetTokenCounter() core.TokenCounter
+	GetMetrics() Metrics
+	GetLockManager() LockManager
+}
+
+// Metrics provides metrics and telemetry for memory operations
+type Metrics interface {
+	// RecordAppend records metrics for an append operation
+	RecordAppend(ctx context.Context, duration time.Duration, tokenCount int, err error)
+	// RecordRead records metrics for a read operation
+	RecordRead(ctx context.Context, duration time.Duration, messageCount int, err error)
+	// RecordFlush records metrics for a flush operation
+	RecordFlush(ctx context.Context, duration time.Duration, messagesFlushed int, err error)
+	// RecordTokenCount records the current token count
+	RecordTokenCount(ctx context.Context, count int)
+	// RecordMessageCount records the current message count
+	RecordMessageCount(ctx context.Context, count int)
+}
+
+// LockManager handles distributed locking for memory operations
+type LockManager interface {
+	// AcquireAppendLock acquires a lock for append operations
+	AcquireAppendLock(ctx context.Context, key string) (UnlockFunc, error)
+	// AcquireClearLock acquires a lock for clear operations
+	AcquireClearLock(ctx context.Context, key string) (UnlockFunc, error)
+	// AcquireFlushLock acquires a lock for flush operations
+	AcquireFlushLock(ctx context.Context, key string) (UnlockFunc, error)
+}
+
+// UnlockFunc is a function that releases a lock
+type UnlockFunc func() error
+
+// FlushStrategy defines the interface for different flushing strategies
+type FlushStrategy interface {
+	// ShouldFlush determines if a flush should be triggered based on current state
+	ShouldFlush(tokenCount, messageCount int, config *core.Resource) bool
+	// PerformFlush executes the flush operation
+	PerformFlush(
+		ctx context.Context,
+		messages []llm.Message,
+		config *core.Resource,
+	) (*core.FlushMemoryActivityOutput, error)
+	// GetType returns the strategy type
+	GetType() core.FlushingStrategyType
+}
+
+// EvictionPolicy defines the interface for message eviction strategies
+type EvictionPolicy interface {
+	// SelectMessagesToEvict selects which messages should be evicted
+	SelectMessagesToEvict(messages []llm.Message, targetCount int) []llm.Message
+	// GetType returns the policy type
+	GetType() string
+}

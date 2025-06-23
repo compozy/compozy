@@ -7,7 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/llm"
-	"github.com/compozy/compozy/engine/memory"
+	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
@@ -26,13 +26,13 @@ type ExecuteTaskInput struct {
 
 type ExecuteTask struct {
 	runtime        *runtime.Manager
-	memoryManager  memory.ManagerInterface
+	memoryManager  memcore.ManagerInterface
 	templateEngine *tplengine.TemplateEngine
 }
 
 func NewExecuteTask(
 	runtime *runtime.Manager,
-	memoryManager memory.ManagerInterface,
+	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
 ) *ExecuteTask {
 	return &ExecuteTask{
