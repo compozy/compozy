@@ -11,11 +11,49 @@ import (
 
 // loadMemoryConfig loads and validates a memory configuration by ID
 func (mm *Manager) loadMemoryConfig(resourceID string) (*memcore.Resource, error) {
-	// TODO: Implement proper config loading once registry interface is stable
-	return nil, memcore.NewConfigError(
-		fmt.Sprintf("memory resource '%s' not implemented yet", resourceID),
-		fmt.Errorf("config loading not implemented"),
-	)
+	// Use existing autoload.ConfigRegistry - no new dependencies needed
+	config, err := mm.resourceRegistry.Get("memory", resourceID)
+	if err != nil {
+		return nil, memcore.NewConfigError(
+			fmt.Sprintf("memory resource '%s' not found in registry", resourceID),
+			err,
+		)
+	}
+	// Type assert to expected memory config type
+	memConfig, ok := config.(*Config)
+	if !ok {
+		return nil, memcore.NewConfigError(
+			fmt.Sprintf("invalid config type for memory resource '%s'", resourceID),
+			fmt.Errorf("expected *memory.Config, got %T", config),
+		)
+	}
+	// Convert Config to memcore.Resource
+	return mm.configToResource(memConfig), nil
+}
+
+// configToResource converts a memory Config to a memcore.Resource
+func (mm *Manager) configToResource(config *Config) *memcore.Resource {
+	return &memcore.Resource{
+		ID:               config.ID,
+		Description:      config.Description,
+		Type:             config.Type,
+		Model:            "", // Not directly mapped from config
+		ModelContextSize: 0,  // Not directly mapped from config
+		MaxTokens:        config.MaxTokens,
+		MaxMessages:      config.MaxMessages,
+		MaxContextRatio:  config.MaxContextRatio,
+		EvictionPolicy:   "", // Not directly mapped from config
+		TokenAllocation:  config.TokenAllocation,
+		FlushingStrategy: config.Flushing,
+		Persistence:      config.Persistence,
+		AppendTTL:        "", // Not directly mapped from config
+		ClearTTL:         "", // Not directly mapped from config
+		FlushTTL:         "", // Not directly mapped from config
+		PrivacyPolicy:    config.PrivacyPolicy,
+		TokenCounter:     "", // Not directly mapped from config
+		Metadata:         nil,
+		DisableFlush:     false, // Not directly mapped from config
+	}
 }
 
 // resolveMemoryKey evaluates the memory key template and returns the resolved key
@@ -24,15 +62,32 @@ func (mm *Manager) resolveMemoryKey(
 	keyTemplate string,
 	workflowContextData map[string]any,
 ) (string, string) {
-	// TODO: Implement template evaluation once template engine interface is stable
-	sanitizedKey := mm.sanitizeKey(keyTemplate)
-	projectIDVal := ""
+	// Use existing pkg/tplengine - no new dependencies needed
+	result, err := mm.tplEngine.ProcessString(keyTemplate, workflowContextData)
+	if err != nil {
+		// Fall back to sanitizing the template as-is with warning
+		mm.log.Warn("Failed to evaluate key template",
+			"template", keyTemplate,
+			"error", err)
+		sanitizedKey := mm.sanitizeKey(keyTemplate)
+		projectIDVal := extractProjectID(workflowContextData)
+		return sanitizedKey, projectIDVal
+	}
+	// Sanitize the resolved key and extract project ID
+	resolvedKey := result.Text
+	sanitizedKey := mm.sanitizeKey(resolvedKey)
+	projectIDVal := extractProjectID(workflowContextData)
+	return sanitizedKey, projectIDVal
+}
+
+// extractProjectID extracts project ID from workflow context data
+func extractProjectID(workflowContextData map[string]any) string {
 	if projectID, ok := workflowContextData["project.id"]; ok {
 		if projectIDStr, ok := projectID.(string); ok {
-			projectIDVal = projectIDStr
+			return projectIDStr
 		}
 	}
-	return sanitizedKey, projectIDVal
+	return ""
 }
 
 // sanitizeKey creates a safe, deterministic key for Redis storage
