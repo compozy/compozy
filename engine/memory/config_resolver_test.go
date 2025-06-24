@@ -565,3 +565,82 @@ func TestExtractProjectID(t *testing.T) {
 		assert.Empty(t, projectID)
 	})
 }
+
+func TestManager_configToResource(t *testing.T) {
+	t.Run("Should properly map config to resource with TTL fields", func(t *testing.T) {
+		manager := &Manager{}
+
+		// Create config with locking TTL fields
+		config := &Config{
+			ID:              "test-memory",
+			Description:     "Test memory configuration",
+			Type:            memcore.TokenBasedMemory,
+			MaxTokens:       2000,
+			MaxMessages:     50,
+			MaxContextRatio: 0.7,
+			Locking: &memcore.LockConfig{
+				AppendTTL: "15s",
+				ClearTTL:  "30s",
+				FlushTTL:  "2m",
+			},
+			Persistence: memcore.PersistenceConfig{
+				Type: memcore.RedisPersistence,
+				TTL:  "48h",
+			},
+		}
+
+		result := manager.configToResource(config)
+
+		// Verify basic fields are mapped correctly
+		assert.Equal(t, config.ID, result.ID)
+		assert.Equal(t, config.Description, result.Description)
+		assert.Equal(t, config.Type, result.Type)
+		assert.Equal(t, config.MaxTokens, result.MaxTokens)
+		assert.Equal(t, config.MaxMessages, result.MaxMessages)
+		assert.Equal(t, config.MaxContextRatio, result.MaxContextRatio)
+		assert.Equal(t, config.Persistence, result.Persistence)
+
+		// Verify TTL fields are properly mapped from locking config
+		assert.Equal(t, "15s", result.AppendTTL)
+		assert.Equal(t, "30s", result.ClearTTL)
+		assert.Equal(t, "2m", result.FlushTTL)
+
+		// Verify fields that are intentionally not mapped from config have expected values
+		assert.Empty(t, result.Model, "Model should be empty - not specified in memory config")
+		assert.Zero(t, result.ModelContextSize, "ModelContextSize should be 0 - not specified in memory config")
+		assert.Empty(
+			t,
+			result.EvictionPolicy,
+			"EvictionPolicy should be empty - determined by memory type and flushing strategy",
+		)
+		assert.Empty(t, result.TokenCounter, "TokenCounter should be empty - determined at runtime")
+		assert.Nil(t, result.Metadata, "Metadata should be nil - not stored in config")
+		assert.False(t, result.DisableFlush, "DisableFlush should be false - flush enabled by default")
+	})
+
+	t.Run("Should handle nil locking config gracefully", func(t *testing.T) {
+		manager := &Manager{}
+
+		config := &Config{
+			ID:        "test-memory",
+			Type:      memcore.TokenBasedMemory,
+			MaxTokens: 1000,
+			Locking:   nil, // No locking config
+			Persistence: memcore.PersistenceConfig{
+				Type: memcore.RedisPersistence,
+				TTL:  "24h",
+			},
+		}
+
+		result := manager.configToResource(config)
+
+		// Verify TTL fields are empty when locking config is nil
+		assert.Empty(t, result.AppendTTL)
+		assert.Empty(t, result.ClearTTL)
+		assert.Empty(t, result.FlushTTL)
+
+		// Verify other fields still work
+		assert.Equal(t, config.ID, result.ID)
+		assert.Equal(t, config.Type, result.Type)
+	})
+}

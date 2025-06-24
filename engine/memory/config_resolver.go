@@ -33,27 +33,31 @@ func (mm *Manager) loadMemoryConfig(resourceID string) (*memcore.Resource, error
 
 // configToResource converts a memory Config to a memcore.Resource
 func (mm *Manager) configToResource(config *Config) *memcore.Resource {
-	return &memcore.Resource{
+	resource := &memcore.Resource{
 		ID:               config.ID,
 		Description:      config.Description,
 		Type:             config.Type,
-		Model:            "", // Not directly mapped from config
-		ModelContextSize: 0,  // Not directly mapped from config
+		Model:            "", // Model not specified in memory config
+		ModelContextSize: 0,  // Model context size not specified in memory config
 		MaxTokens:        config.MaxTokens,
 		MaxMessages:      config.MaxMessages,
 		MaxContextRatio:  config.MaxContextRatio,
-		EvictionPolicy:   "", // Not directly mapped from config
+		EvictionPolicy:   "", // Eviction policy determined by memory type and flushing strategy
 		TokenAllocation:  config.TokenAllocation,
 		FlushingStrategy: config.Flushing,
 		Persistence:      config.Persistence,
-		AppendTTL:        "", // Not directly mapped from config
-		ClearTTL:         "", // Not directly mapped from config
-		FlushTTL:         "", // Not directly mapped from config
 		PrivacyPolicy:    config.PrivacyPolicy,
-		TokenCounter:     "", // Not directly mapped from config
-		Metadata:         nil,
-		DisableFlush:     false, // Not directly mapped from config
+		TokenCounter:     "",    // Token counter determined at runtime
+		Metadata:         nil,   // Metadata not stored in config
+		DisableFlush:     false, // Flush enabled by default
 	}
+	// Map TTL fields from locking configuration if present
+	if config.Locking != nil {
+		resource.AppendTTL = config.Locking.AppendTTL
+		resource.ClearTTL = config.Locking.ClearTTL
+		resource.FlushTTL = config.Locking.FlushTTL
+	}
+	return resource
 }
 
 // resolveMemoryKey evaluates the memory key template and returns the resolved key
@@ -62,6 +66,7 @@ func (mm *Manager) resolveMemoryKey(
 	keyTemplate string,
 	workflowContextData map[string]any,
 ) (string, string) {
+	var keyToSanitize string
 	// Use existing pkg/tplengine - no new dependencies needed
 	result, err := mm.tplEngine.ProcessString(keyTemplate, workflowContextData)
 	if err != nil {
@@ -69,13 +74,12 @@ func (mm *Manager) resolveMemoryKey(
 		mm.log.Warn("Failed to evaluate key template",
 			"template", keyTemplate,
 			"error", err)
-		sanitizedKey := mm.sanitizeKey(keyTemplate)
-		projectIDVal := extractProjectID(workflowContextData)
-		return sanitizedKey, projectIDVal
+		keyToSanitize = keyTemplate
+	} else {
+		keyToSanitize = result.Text
 	}
-	// Sanitize the resolved key and extract project ID
-	resolvedKey := result.Text
-	sanitizedKey := mm.sanitizeKey(resolvedKey)
+	// Sanitize the key (either resolved or fallback) and extract project ID
+	sanitizedKey := mm.sanitizeKey(keyToSanitize)
 	projectIDVal := extractProjectID(workflowContextData)
 	return sanitizedKey, projectIDVal
 }
