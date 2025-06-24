@@ -375,7 +375,7 @@ type slowPrivacyManager struct {
 func (m *slowPrivacyManager) ApplyPrivacyControls(
 	ctx context.Context,
 	msg llm.Message,
-	resourceID string,
+	_ string,
 	metadata memcore.PrivacyMetadata,
 ) (llm.Message, memcore.PrivacyMetadata, error) {
 	select {
@@ -386,7 +386,7 @@ func (m *slowPrivacyManager) ApplyPrivacyControls(
 	}
 }
 
-func (m *slowPrivacyManager) RedactContent(content string, patterns []string, defaultRedaction string) (string, error) {
+func (m *slowPrivacyManager) RedactContent(content string, _ []string, _ string) (string, error) {
 	time.Sleep(m.delay)
 	return content, nil
 }
@@ -399,9 +399,9 @@ type failingPrivacyManager struct {
 }
 
 func (m *failingPrivacyManager) ApplyPrivacyControls(
-	ctx context.Context,
+	_ context.Context,
 	msg llm.Message,
-	resourceID string,
+	_ string,
 	metadata memcore.PrivacyMetadata,
 ) (llm.Message, memcore.PrivacyMetadata, error) {
 	attempt := atomic.AddInt32(&m.attempts, 1)
@@ -417,9 +417,9 @@ type alwaysFailingPrivacyManager struct {
 }
 
 func (m *alwaysFailingPrivacyManager) ApplyPrivacyControls(
-	ctx context.Context,
+	_ context.Context,
 	msg llm.Message,
-	resourceID string,
+	_ string,
 	metadata memcore.PrivacyMetadata,
 ) (llm.Message, memcore.PrivacyMetadata, error) {
 	return msg, metadata, errors.New("permanent error")
@@ -500,10 +500,10 @@ type panickingPrivacyManager struct {
 }
 
 func (m *panickingPrivacyManager) ApplyPrivacyControls(
-	ctx context.Context,
-	msg llm.Message,
-	resourceID string,
-	metadata memcore.PrivacyMetadata,
+	_ context.Context,
+	_ llm.Message,
+	_ string,
+	_ memcore.PrivacyMetadata,
 ) (llm.Message, memcore.PrivacyMetadata, error) {
 	panic("simulated panic")
 }

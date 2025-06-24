@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	memcore "github.com/compozy/compozy/engine/memory/core"
+	"github.com/compozy/compozy/engine/memory/tokens"
 )
 
 // loadMemoryConfig loads and validates a memory configuration by ID
@@ -114,16 +115,62 @@ func (mm *Manager) registerPrivacyPolicy(resourceCfg *memcore.Resource) error {
 
 // getOrCreateTokenCounter retrieves or creates a token counter for the given model
 func (mm *Manager) getOrCreateTokenCounter(model string) (memcore.TokenCounter, error) {
+	return mm.getOrCreateTokenCounterWithConfig(model, nil)
+}
+
+// getOrCreateTokenCounterWithConfig retrieves or creates a token counter for
+// the given model and optional provider config
+func (mm *Manager) getOrCreateTokenCounterWithConfig(
+	model string,
+	providerConfig *memcore.TokenProviderConfig,
+) (memcore.TokenCounter, error) {
+	// Determine cache key based on configuration
+	var cacheKey string
+	if providerConfig != nil {
+		// Include provider info in cache key for unified counters
+		keyHash := ""
+		if providerConfig.APIKey != "" {
+			// Use SHA-256 hash of the API key to guarantee uniqueness
+			hasher := sha256.New()
+			hasher.Write([]byte(providerConfig.APIKey))
+			// Use first 16 characters of hex hash for cache key (sufficient for uniqueness)
+			keyHash = ":" + hex.EncodeToString(hasher.Sum(nil))[:16]
+		}
+		cacheKey = fmt.Sprintf("unified-counter:%s:%s%s", providerConfig.Provider, providerConfig.Model, keyHash)
+	} else {
+		cacheKey = fmt.Sprintf("token-counter:%s", model)
+	}
 	// Try to get from cache first
 	if mm.componentCache != nil {
-		cacheKey := fmt.Sprintf("token-counter:%s", model)
 		if cached, found := mm.componentCache.Get(cacheKey); found {
-			if counter, ok := cached.(*CacheableTiktokenCounter); ok {
-				return counter.TiktokenCounter, nil
+			if providerConfig != nil {
+				if counter, ok := cached.(*CacheableUnifiedCounter); ok {
+					return counter.UnifiedTokenCounter, nil
+				}
+			} else {
+				if counter, ok := cached.(*CacheableTiktokenCounter); ok {
+					return counter.TiktokenCounter, nil
+				}
 			}
 		}
 	}
-	// Create new token counter
+	// Create new token counter based on configuration
+	if providerConfig != nil {
+		// Create API key resolver
+		keyResolver := tokens.NewAPIKeyResolver(mm.log)
+		// Resolve provider configuration with API key from environment
+		tokensProviderConfig := keyResolver.ResolveProviderConfig(providerConfig)
+		cacheableCounter, err := NewCacheableUnifiedCounter(tokensProviderConfig, model)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create unified counter: %w", err)
+		}
+		// Store in cache if available
+		if mm.componentCache != nil {
+			mm.componentCache.Set(cacheableCounter.GetCacheKey(), cacheableCounter)
+		}
+		return cacheableCounter.UnifiedTokenCounter, nil
+	}
+	// Create traditional tiktoken counter
 	cacheableCounter, err := NewCacheableTiktokenCounter(model)
 	if err != nil {
 		return nil, err

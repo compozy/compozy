@@ -95,9 +95,12 @@ type Resource struct {
 	// Advanced configuration
 	// TokenCounter specifies a custom token counting implementation.
 	// If not set, defaults to the model's standard tokenizer.
-	TokenCounter string `yaml:"token_counter,omitempty" json:"token_counter,omitempty"`
+	TokenCounter string `yaml:"token_counter,omitempty"  json:"token_counter,omitempty"`
+	// TokenProvider configures multi-provider token counting with API-based counting.
+	// If not set, defaults to tiktoken-based counting.
+	TokenProvider *TokenProviderConfig `yaml:"token_provider,omitempty" json:"token_provider,omitempty"`
 	// Metadata allows for custom key-value pairs specific to the application.
-	Metadata map[string]any `yaml:"metadata,omitempty"      json:"metadata,omitempty"`
+	Metadata map[string]any `yaml:"metadata,omitempty"       json:"metadata,omitempty"`
 
 	// DisableFlush completely disables automatic flushing for this resource.
 	DisableFlush bool `yaml:"disable_flush,omitempty" json:"disable_flush,omitempty"`
@@ -116,6 +119,17 @@ type PrivacyPolicyConfig struct {
 	NonPersistableMessageTypes []string `yaml:"non_persistable_message_types,omitempty" json:"non_persistable_message_types,omitempty"`
 	// DefaultRedactionString is the string to replace redacted content with. Defaults to "[REDACTED]".
 	DefaultRedactionString string `yaml:"default_redaction_string,omitempty"      json:"default_redaction_string,omitempty"`
+}
+
+// TokenProviderConfig defines configuration for multi-provider token counting
+type TokenProviderConfig struct {
+	Provider  string            `yaml:"provider"              json:"provider"`              // "openai", "anthropic", etc.
+	Model     string            `yaml:"model"                 json:"model"`                 // Model name
+	APIKey    string            `yaml:"api_key,omitempty"     json:"api_key,omitempty"`     // API key for real-time counting (can be env var reference like ${OPENAI_API_KEY})
+	APIKeyEnv string            `yaml:"api_key_env,omitempty" json:"api_key_env,omitempty"` // Environment variable name containing the API key
+	Endpoint  string            `yaml:"endpoint,omitempty"    json:"endpoint,omitempty"`    // Optional custom endpoint
+	Fallback  string            `yaml:"fallback"              json:"fallback"`              // Fallback strategy
+	Settings  map[string]string `yaml:"settings,omitempty"    json:"settings,omitempty"`    // Provider-specific settings
 }
 
 // String returns the string representation of Type.

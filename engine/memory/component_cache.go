@@ -1,6 +1,8 @@
 package memory
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/memory/tokens"
@@ -94,4 +96,65 @@ func (ctc *CacheableTiktokenCounter) EstimateCost() int64 {
 	// TiktokenCounter is relatively lightweight, mainly contains encoding tables
 	// Estimate around 1MB for the encoding data and associated structures
 	return 1 << 20 // 1 MB
+}
+
+// CacheableUnifiedCounter wraps UnifiedTokenCounter for caching
+type CacheableUnifiedCounter struct {
+	*tokens.UnifiedTokenCounter
+	provider string
+	model    string
+	apiKey   string // Used only for cache key generation (not logged)
+}
+
+// NewCacheableUnifiedCounter creates a new cacheable unified token counter
+func NewCacheableUnifiedCounter(
+	providerConfig *tokens.ProviderConfig,
+	fallbackModel string,
+) (*CacheableUnifiedCounter, error) {
+	// Create fallback counter
+	fallback, err := tokens.NewTiktokenCounter(fallbackModel)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create fallback counter: %w", err)
+	}
+	// Create unified counter
+	counter, err := tokens.NewUnifiedTokenCounter(providerConfig, fallback, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create unified counter: %w", err)
+	}
+	provider := "tiktoken"
+	model := fallbackModel
+	apiKey := ""
+	if providerConfig != nil {
+		provider = providerConfig.Provider
+		model = providerConfig.Model
+		apiKey = providerConfig.APIKey
+	}
+	return &CacheableUnifiedCounter{
+		UnifiedTokenCounter: counter,
+		provider:            provider,
+		model:               model,
+		apiKey:              apiKey,
+	}, nil
+}
+
+// GetCacheKey returns a unique cache key for this unified counter
+func (cuc *CacheableUnifiedCounter) GetCacheKey() string {
+	// Include provider and model, but not API key for privacy
+	// Use hash of API key for uniqueness without exposing the key
+	keyHash := ""
+	if cuc.apiKey != "" {
+		// Use SHA-256 hash of the API key to guarantee uniqueness
+		hasher := sha256.New()
+		hasher.Write([]byte(cuc.apiKey))
+		// Use first 16 characters of hex hash for cache key (sufficient for uniqueness)
+		keyHash = ":" + hex.EncodeToString(hasher.Sum(nil))[:16]
+	}
+	return fmt.Sprintf("unified-counter:%s:%s%s", cuc.provider, cuc.model, keyHash)
+}
+
+// EstimateCost returns the approximate memory cost of this unified counter
+func (cuc *CacheableUnifiedCounter) EstimateCost() int64 {
+	// UnifiedTokenCounter contains both alembica RealTokenCounter and tiktoken fallback
+	// Estimate around 2MB for both components and associated structures
+	return 2 << 20 // 2 MB
 }

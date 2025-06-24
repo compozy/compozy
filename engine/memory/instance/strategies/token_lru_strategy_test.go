@@ -133,25 +133,26 @@ func TestTokenAwareLRUStrategy_PerformFlush(t *testing.T) {
 	})
 
 	t.Run("Should flush messages based on token cost efficiency", func(t *testing.T) {
+		// Use a very small MaxTokens to ensure flush is needed
 		config := &core.Resource{
 			Type:      core.TokenBasedMemory,
-			MaxTokens: 1000,
+			MaxTokens: 30, // Small limit to force flush
 		}
 
 		messages := []llm.Message{
-			{Role: llm.MessageRoleUser, Content: "Short"}, // Low token count
+			{Role: llm.MessageRoleUser, Content: "Short"}, // Low token count (~6)
 			{
 				Role:    llm.MessageRoleAssistant,
 				Content: "Much longer message with many more tokens that should be evicted first",
-			}, // High token count
+			}, // High token count (~22)
 			{
 				Role:    llm.MessageRoleUser,
 				Content: "Medium length message",
-			}, // Medium token count
+			}, // Medium token count (~10)
 			{
 				Role:    llm.MessageRoleAssistant,
 				Content: "Brief",
-			}, // Low token count
+			}, // Low token count (~6)
 		}
 
 		result, err := strategy.PerformFlush(context.Background(), messages, config)

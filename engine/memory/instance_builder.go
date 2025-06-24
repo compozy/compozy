@@ -239,7 +239,11 @@ func (dl *distributedLock) Unlock(ctx context.Context) error {
 // createTokenManager creates a token manager for the given resource configuration
 func (mm *Manager) createTokenManager(resourceCfg *memcore.Resource) (*TokenMemoryManager, error) {
 	model := DefaultTokenCounterModel
-	tokenCounter, err := mm.getOrCreateTokenCounter(model)
+	if resourceCfg.Model != "" {
+		model = resourceCfg.Model
+	}
+	// Use provider configuration if available
+	tokenCounter, err := mm.getOrCreateTokenCounterWithConfig(model, resourceCfg.TokenProvider)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to create token counter for resource '%s' with model '%s': %w",
@@ -351,7 +355,11 @@ func (mm *Manager) createMemoryInstance(
 	components *memoryComponents,
 ) (memcore.Memory, error) {
 	// Build token counter for this instance
-	tokenCounter, err := mm.getOrCreateTokenCounter(resourceCfg.Model)
+	model := resourceCfg.Model
+	if model == "" {
+		model = DefaultTokenCounterModel
+	}
+	tokenCounter, err := mm.getOrCreateTokenCounterWithConfig(model, resourceCfg.TokenProvider)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token counter: %w", err)
 	}

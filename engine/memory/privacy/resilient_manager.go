@@ -124,19 +124,17 @@ func (rm *ResilientManager) ApplyPrivacyControls(
 		if err == errors.ErrCircuitOpen {
 			metrics.RecordCircuitBreakerTrip(ctx, resourceID, "")
 		}
+		// Resilience patterns failed - use fallback
+		return rm.handleResilienceFailure(ctx, msg, resourceID, metadata, err)
 	}
-	// Record operation latency
+	// Now it's safe to access result since runner.Run has completed successfully
 	opType := "privacy_apply"
 	if result.metadata.RedactionApplied {
 		opType = "privacy_redaction"
 		// Record redaction operation
 		metrics.RecordRedactionOperation(ctx, resourceID, 1, "")
 	}
-	metrics.RecordMemoryOp(ctx, resourceID, "", opType, duration, 0, err)
-	if err != nil {
-		// Resilience patterns failed - use fallback
-		return rm.handleResilienceFailure(ctx, msg, resourceID, metadata, err)
-	}
+	metrics.RecordMemoryOp(ctx, resourceID, "", opType, duration, 0, result.err)
 	return result.message, result.metadata, result.err
 }
 
@@ -148,7 +146,7 @@ func (rm *ResilientManager) RedactContent(content string, patterns []string, def
 	// Create a context with timeout for the operation
 	ctx, cancel := context.WithTimeout(context.Background(), rm.config.TimeoutDuration*2)
 	defer cancel()
-	err := rm.runner.Run(ctx, func(ctx context.Context) (runErr error) {
+	err := rm.runner.Run(ctx, func(_ context.Context) (runErr error) {
 		// Recover from panics and convert to errors
 		defer func() {
 			if r := recover(); r != nil {
@@ -183,7 +181,7 @@ func (rm *ResilientManager) RedactContent(content string, patterns []string, def
 
 // handleResilienceFailure handles failures when resilience patterns fail
 func (rm *ResilientManager) handleResilienceFailure(
-	ctx context.Context,
+	_ context.Context,
 	msg llm.Message,
 	resourceID string,
 	metadata memcore.PrivacyMetadata,
@@ -206,7 +204,7 @@ func (rm *ResilientManager) GetCircuitBreakerStatus() (isOpen bool, consecutiveE
 	// we return a simplified view based on whether the circuit is allowing requests
 	testCtx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
-	err := rm.runner.Run(testCtx, func(ctx context.Context) error {
+	err := rm.runner.Run(testCtx, func(_ context.Context) error {
 		return nil
 	})
 	isOpen = err != nil

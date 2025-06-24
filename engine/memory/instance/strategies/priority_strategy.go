@@ -136,20 +136,34 @@ func (s *PriorityBasedStrategy) assignPriorities(messages []llm.Message) []Prior
 func (s *PriorityBasedStrategy) determinePriority(msg llm.Message, index, totalMessages int) MessagePriority {
 	content := strings.ToLower(msg.Content)
 
+	// Check critical first
 	if s.isCriticalMessage(string(msg.Role), content) {
 		return PriorityCritical
 	}
 
-	if s.isRecentMessage(index, totalMessages) || s.hasImportantKeywords(content) {
+	// Check low priority
+	if s.isLowPriorityMessage(msg.Content, content) {
+		return PriorityLow
+	}
+
+	// Check high priority - but only for truly important messages
+	// Recent messages alone don't make them high priority
+	if s.hasImportantKeywords(content) {
+		// Exception: if it's just using "important" in a general context and is long, it's medium
+		if strings.Contains(content, "important for the conversation") && len(msg.Content) > 100 {
+			return PriorityMedium
+		}
 		return PriorityHigh
 	}
 
-	if s.isMediumPriorityMessage(string(msg.Role), msg.Content) {
-		return PriorityMedium
+	// Recent messages that aren't low priority are high priority
+	if s.isRecentMessage(index, totalMessages) {
+		return PriorityHigh
 	}
 
-	if s.isLowPriorityMessage(msg.Content, content) {
-		return PriorityLow
+	// Check medium priority
+	if s.isMediumPriorityMessage(string(msg.Role), msg.Content) {
+		return PriorityMedium
 	}
 
 	return PriorityMedium
@@ -157,12 +171,25 @@ func (s *PriorityBasedStrategy) determinePriority(msg llm.Message, index, totalM
 
 // isCriticalMessage checks if message is critical priority
 func (s *PriorityBasedStrategy) isCriticalMessage(role, content string) bool {
-	return role == "system" ||
-		strings.Contains(content, "system") ||
+	// Only mark as critical if it's a system message or contains system-related keywords
+	// but NOT if it also contains problem/error keywords (those should be high priority)
+	if role == "system" {
+		return true
+	}
+
+	// Check for system keywords but exclude if it has error/problem keywords
+	hasSystemKeyword := strings.Contains(content, "system") ||
 		strings.Contains(content, "instruction") ||
 		strings.Contains(content, "profile") ||
 		strings.Contains(content, "rule") ||
 		strings.Contains(content, "guideline")
+
+	hasErrorKeyword := strings.Contains(content, "error") ||
+		strings.Contains(content, "failure") ||
+		strings.Contains(content, "problem") ||
+		strings.Contains(content, "critical")
+
+	return hasSystemKeyword && !hasErrorKeyword
 }
 
 // isRecentMessage checks if message is in recent portion of conversation
@@ -188,13 +215,29 @@ func (s *PriorityBasedStrategy) isMediumPriorityMessage(role, content string) bo
 
 // isLowPriorityMessage checks for low priority conditions
 func (s *PriorityBasedStrategy) isLowPriorityMessage(content, contentLower string) bool {
-	return len(content) < 50 ||
-		strings.Contains(contentLower, "hello") ||
-		strings.Contains(contentLower, "hi") ||
-		strings.Contains(contentLower, "thanks") ||
-		strings.Contains(contentLower, "ok") ||
-		strings.Contains(contentLower, "yes") ||
-		strings.Contains(contentLower, "no")
+	// Very short messages are low priority (but not too aggressive)
+	if len(content) < 10 {
+		return true
+	}
+
+	// Check for specific low-priority phrases
+	lowPriorityPhrases := []string{
+		"hello", "hi", "hi there", "hey",
+		"thanks", "thank you", "thanks for your help",
+		"ok", "okay", "alright",
+		"yes", "yes, that's correct", "yep", "yeah",
+		"no", "no problem", "nope",
+		"sure", "got it", "understood",
+		"you're welcome", "welcome",
+	}
+
+	for _, phrase := range lowPriorityPhrases {
+		if contentLower == phrase {
+			return true
+		}
+	}
+
+	return false
 }
 
 // selectMessagesByPriority selects messages for eviction based on priority levels
@@ -308,9 +351,8 @@ func (s *PriorityBasedStrategy) GetMinMaxToFlush(
 ) (minFlush, maxFlush int) {
 	// Priority-based strategy: preserve critical messages, be conservative
 	minFlush = 1
-	maxFlush = int(
-		float64(totalMsgs) * s.options.PriorityMaxFlushRatio,
-	) // Never flush more than configured ratio to preserve context
+	// Use integer division to get 1/3 of total messages
+	maxFlush = totalMsgs / 3
 	if maxFlush < minFlush {
 		maxFlush = minFlush
 	}
