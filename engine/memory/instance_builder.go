@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/cache"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/instance"
+	"github.com/compozy/compozy/engine/memory/instance/eviction"
 	"github.com/compozy/compozy/engine/memory/instance/strategies"
 	"github.com/compozy/compozy/engine/memory/store"
 	"github.com/compozy/compozy/pkg/logger"
@@ -19,6 +20,7 @@ type memoryComponents struct {
 	lockManager      *instance.LockManagerImpl
 	tokenManager     *TokenMemoryManager
 	flushingStrategy instance.FlushStrategy
+	evictionPolicy   instance.EvictionPolicy
 }
 
 // buildMemoryComponents creates all the necessary components for a memory instance
@@ -39,11 +41,13 @@ func (mm *Manager) buildMemoryComponents(
 	if err != nil {
 		return nil, err
 	}
+	evictionPolicy := mm.createEvictionPolicy(resourceCfg)
 	return &memoryComponents{
 		store:            redisStore,
 		lockManager:      lockManager,
 		tokenManager:     tokenManager,
 		flushingStrategy: flushingStrategy,
+		evictionPolicy:   evictionPolicy,
 	}, nil
 }
 
@@ -333,6 +337,13 @@ func (mm *Manager) createStrategyOptions(resourceCfg *memcore.Resource) *strateg
 	return opts
 }
 
+// createEvictionPolicy creates an eviction policy for the given resource configuration
+func (mm *Manager) createEvictionPolicy(_ *memcore.Resource) instance.EvictionPolicy {
+	// For now, default to FIFO eviction policy
+	// In the future, this can be made configurable through resource configuration
+	return eviction.CreateOrDefault("fifo")
+}
+
 // createMemoryInstance creates the final memory instance with all components
 func (mm *Manager) createMemoryInstance(
 	sanitizedKey, projectIDVal string,
@@ -354,6 +365,7 @@ func (mm *Manager) createMemoryInstance(
 		WithLockManager(components.lockManager).
 		WithTokenCounter(tokenCounter).
 		WithFlushingStrategy(components.flushingStrategy).
+		WithEvictionPolicy(components.evictionPolicy).
 		WithTemporalClient(mm.temporalClient).
 		WithTemporalTaskQueue(mm.temporalTaskQueue).
 		WithPrivacyManager(mm.privacyManager).

@@ -20,6 +20,7 @@ type memoryInstance struct {
 	lockManager       LockManager
 	tokenCounter      core.TokenCounter
 	flushingStrategy  FlushStrategy
+	evictionPolicy    EvictionPolicy
 	temporalClient    client.Client
 	temporalTaskQueue string
 	privacyManager    any
@@ -41,6 +42,7 @@ func NewMemoryInstance(opts *BuilderOptions) (Instance, error) {
 		lockManager:       opts.LockManager,
 		tokenCounter:      opts.TokenCounter,
 		flushingStrategy:  opts.FlushingStrategy,
+		evictionPolicy:    opts.EvictionPolicy,
 		temporalClient:    opts.TemporalClient,
 		temporalTaskQueue: opts.TemporalTaskQueue,
 		privacyManager:    opts.PrivacyManager,
@@ -72,6 +74,10 @@ func (mi *memoryInstance) GetMetrics() Metrics {
 
 func (mi *memoryInstance) GetLockManager() LockManager {
 	return mi.lockManager
+}
+
+func (mi *memoryInstance) GetEvictionPolicy() EvictionPolicy {
+	return mi.evictionPolicy
 }
 
 func (mi *memoryInstance) Append(ctx context.Context, msg llm.Message) error {

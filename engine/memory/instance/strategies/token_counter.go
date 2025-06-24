@@ -63,7 +63,7 @@ func (tc *GPTTokenCounter) CountTokens(message llm.Message) int {
 	roleOverhead := 2      // Role field overhead
 	structureOverhead := 3 // JSON structure overhead
 	if message.Role == llm.MessageRoleSystem {
-		structureOverhead += 1 // System messages have slightly more overhead
+		structureOverhead++ // System messages have slightly more overhead
 	}
 	return baseTokens + roleOverhead + structureOverhead
 }
@@ -79,17 +79,17 @@ func (tc *GPTTokenCounter) CountTokensInContent(content string) int {
 	// Adjust for common patterns
 	if len(content) < 10 {
 		// Very short text tends to be less efficient
-		tokenCount = max(1, tokenCount)
+		tokenCount = maxInt(1, tokenCount)
 	} else if len(content) > 1000 {
 		// Long text tends to be more efficient
 		tokenCount = int(float64(tokenCount) * 0.9)
 	}
 
-	return max(1, tokenCount)
+	return maxInt(1, tokenCount)
 }
 
-// max returns the larger of two integers
-func max(a, b int) int {
+// maxInt returns the larger of two integers
+func maxInt(a, b int) int {
 	if a > b {
 		return a
 	}

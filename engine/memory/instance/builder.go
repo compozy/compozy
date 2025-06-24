@@ -18,6 +18,7 @@ type BuilderOptions struct {
 	LockManager       LockManager
 	TokenCounter      core.TokenCounter
 	FlushingStrategy  FlushStrategy
+	EvictionPolicy    EvictionPolicy // Policy for selecting messages to evict
 	TemporalClient    client.Client
 	TemporalTaskQueue string
 	PrivacyManager    any // Will be properly typed when privacy is migrated
@@ -81,6 +82,12 @@ func (b *Builder) WithTokenCounter(tc core.TokenCounter) *Builder {
 // WithFlushingStrategy sets the flushing strategy
 func (b *Builder) WithFlushingStrategy(fs FlushStrategy) *Builder {
 	b.opts.FlushingStrategy = fs
+	return b
+}
+
+// WithEvictionPolicy sets the eviction policy
+func (b *Builder) WithEvictionPolicy(ep EvictionPolicy) *Builder {
+	b.opts.EvictionPolicy = ep
 	return b
 }
 
