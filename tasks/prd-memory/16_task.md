@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 ---
 
 <task_context>
@@ -18,10 +18,10 @@ Implement template evaluation in `resolveMemoryKey` function by integrating with
 
 ## Subtasks
 
-- [ ] 16.1 Implement template evaluation using existing `pkg/tplengine`
-- [ ] 16.2 Add fallback to sanitization when template evaluation fails
-- [ ] 16.3 Add unit tests for template resolution with various contexts
-- [ ] 16.4 Add edge case handling (invalid templates, missing variables)
+- [x] 16.1 Implement template evaluation using existing `pkg/tplengine`
+- [x] 16.2 Add fallback to sanitization when template evaluation fails
+- [x] 16.3 Add unit tests for template resolution with various contexts
+- [x] 16.4 Add edge case handling (invalid templates, missing variables)
 
 ## Implementation Details
 

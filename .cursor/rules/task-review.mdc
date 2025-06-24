@@ -15,7 +15,7 @@ alwaysApply: true
 2. **Rules Analysis & Code Review** - Analyze applicable rules and perform comprehensive review
 3. **Issue Resolution** - Address all identified problems
 4. **Pre-Commit Validation** - Final validation before commit
-5. **Git Commit** - Commit with detailed validation summary
+5. **Git Commit** - Commit with detailed validation summary ⚠️ **(JUST AFTER USER CONFIRM THAT IS DONE)**
 6. **Task Completion** - Mark task as complete only after successful commit
 </workflow_overview>
 
@@ -127,7 +127,7 @@ Execute codereview validation for task [task_number]:
 - Validate test coverage and error handling
 - Confirm no code duplication or logic redundancy
 
-## 5. Git Commit
+## 5. Git Commit ⚠️ JUST AFTER USER CONFIRM IS DONE
 
 ```bash
 git add .

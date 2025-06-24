@@ -86,7 +86,13 @@ func (mi *memoryInstance) Append(ctx context.Context, msg llm.Message) error {
 		return fmt.Errorf("failed to acquire lock for append on memory %s: %w", mi.id, err)
 	}
 	defer func() {
-		_ = lock() //nolint:errcheck // TODO: Consider logging lock release errors
+		if err := lock(); err != nil {
+			mi.logger.Error("Failed to release lock",
+				"error", err,
+				"operation", "append",
+				"memory_id", mi.id,
+				"context", "memory_append_operation")
+		}
 	}()
 	tokenCount, err := mi.tokenCounter.CountTokens(ctx, msg.Content)
 	if err != nil {

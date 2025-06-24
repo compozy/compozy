@@ -34,6 +34,12 @@ const (
 	TimeBased FlushingStrategyType = "time_based"
 	// FIFOFlushing is an alias for SimpleFIFOFlushing.
 	FIFOFlushing FlushingStrategyType = "fifo"
+	// LRUFlushing uses Least Recently Used eviction with ARC algorithm.
+	LRUFlushing FlushingStrategyType = "lru"
+	// TokenAwareLRUFlushing uses token-cost-aware LRU eviction.
+	TokenAwareLRUFlushing FlushingStrategyType = "token_aware_lru" // #nosec G101
+	// PriorityBasedFlushing evicts messages based on priority levels.
+	PriorityBasedFlushing FlushingStrategyType = "priority_based"
 )
 
 // Resource holds the static configuration for a memory resource,
@@ -213,7 +219,7 @@ func (ta *TokenAllocation) Validate() error {
 // FlushingStrategyConfig holds the configuration for how memory is flushed or trimmed.
 type FlushingStrategyConfig struct {
 	// Type is the kind of flushing strategy to apply (e.g., hybrid_summary).
-	Type FlushingStrategyType `yaml:"type"                               json:"type"                               validate:"required,oneof=hybrid_summary simple_fifo"`
+	Type FlushingStrategyType `yaml:"type"                               json:"type"                               validate:"required,oneof=hybrid_summary simple_fifo lru token_aware_lru priority_based"`
 	// SummarizeThreshold is the percentage of MaxTokens/MaxMessages at which summarization should trigger.
 	// E.g., 0.8 means trigger summarization when memory is 80% full. Only for hybrid_summary.
 	SummarizeThreshold float64 `yaml:"summarize_threshold,omitempty"      json:"summarize_threshold,omitempty"      validate:"omitempty,gt=0,lte=1"`
@@ -285,6 +291,12 @@ func (f FlushingStrategyType) String() string {
 		return "fifo"
 	case SimpleFIFOFlushing:
 		return "simple_fifo"
+	case LRUFlushing:
+		return "lru"
+	case TokenAwareLRUFlushing:
+		return "token_aware_lru"
+	case PriorityBasedFlushing:
+		return "priority_based"
 	default:
 		return "unknown"
 	}
@@ -293,7 +305,15 @@ func (f FlushingStrategyType) String() string {
 // IsValid returns true if the FlushingStrategyType is a valid strategy.
 func (f FlushingStrategyType) IsValid() bool {
 	switch f {
-	case TokenCountFlushing, MessageCountFlushing, HybridSummaryFlushing, TimeBased, FIFOFlushing, SimpleFIFOFlushing:
+	case TokenCountFlushing,
+		MessageCountFlushing,
+		HybridSummaryFlushing,
+		TimeBased,
+		FIFOFlushing,
+		SimpleFIFOFlushing,
+		LRUFlushing,
+		TokenAwareLRUFlushing,
+		PriorityBasedFlushing:
 		return true
 	default:
 		return false

@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/cache"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/instance"
+	"github.com/compozy/compozy/engine/memory/instance/strategies"
 	"github.com/compozy/compozy/engine/memory/store"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -17,7 +18,7 @@ type memoryComponents struct {
 	store            memcore.Store
 	lockManager      *instance.LockManagerImpl
 	tokenManager     *TokenMemoryManager
-	flushingStrategy *HybridFlushingStrategy
+	flushingStrategy instance.FlushStrategy
 }
 
 // buildMemoryComponents creates all the necessary components for a memory instance
@@ -254,40 +255,82 @@ func (mm *Manager) createTokenManager(resourceCfg *memcore.Resource) (*TokenMemo
 func (mm *Manager) createFlushingStrategy(
 	resourceCfg *memcore.Resource,
 	tokenManager *TokenMemoryManager,
-) (*HybridFlushingStrategy, error) {
-	var summarizer MessageSummarizer
-	if resourceCfg.FlushingStrategy != nil && resourceCfg.FlushingStrategy.Type == memcore.HybridSummaryFlushing {
-		tokenCounter, err := mm.getOrCreateTokenCounter(DefaultTokenCounterModel)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create token counter for summarizer: %w", err)
+) (instance.FlushStrategy, error) {
+	factory := strategies.NewStrategyFactory()
+
+	// Determine strategy configuration
+	var strategyConfig *memcore.FlushingStrategyConfig
+	if resourceCfg.FlushingStrategy != nil {
+		strategyConfig = resourceCfg.FlushingStrategy
+	} else {
+		// Default to FIFO strategy
+		strategyConfig = &memcore.FlushingStrategyConfig{
+			Type:               memcore.SimpleFIFOFlushing,
+			SummarizeThreshold: 0.8,
 		}
-		summarizer = NewRuleBasedSummarizer(tokenCounter, 1, 1)
 	}
-	flushingStrategy, err := NewHybridFlushingStrategy(resourceCfg.FlushingStrategy, summarizer, tokenManager)
+
+	// Validate strategy configuration
+	if err := factory.ValidateStrategyConfig(strategyConfig); err != nil {
+		return nil, fmt.Errorf("invalid strategy configuration for resource '%s': %w", resourceCfg.ID, err)
+	}
+
+	// Handle legacy HybridSummaryFlushing strategy
+	if strategyConfig.Type == memcore.HybridSummaryFlushing {
+		return mm.createLegacyHybridStrategy(resourceCfg, tokenManager, strategyConfig)
+	}
+
+	// Create strategy options based on resource configuration
+	opts := mm.createStrategyOptions(resourceCfg)
+
+	// Create strategy using factory
+	strategy, err := factory.CreateStrategy(strategyConfig, opts)
 	if err != nil {
-		if resourceCfg.FlushingStrategy == nil {
-			return mm.createDefaultFlushingStrategy(resourceCfg, tokenManager)
-		}
 		return nil, fmt.Errorf("failed to create flushing strategy for resource '%s': %w", resourceCfg.ID, err)
+	}
+
+	return strategy, nil
+}
+
+// createLegacyHybridStrategy creates the legacy HybridFlushingStrategy for backward compatibility
+func (mm *Manager) createLegacyHybridStrategy(
+	resourceCfg *memcore.Resource,
+	tokenManager *TokenMemoryManager,
+	strategyConfig *memcore.FlushingStrategyConfig,
+) (instance.FlushStrategy, error) {
+	var summarizer MessageSummarizer
+	tokenCounter, err := mm.getOrCreateTokenCounter(DefaultTokenCounterModel)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create token counter for summarizer: %w", err)
+	}
+	summarizer = NewRuleBasedSummarizer(tokenCounter, 1, 1)
+
+	flushingStrategy, err := NewHybridFlushingStrategy(strategyConfig, summarizer, tokenManager)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create hybrid flushing strategy for resource '%s': %w", resourceCfg.ID, err)
 	}
 	return flushingStrategy, nil
 }
 
-// createDefaultFlushingStrategy creates a default FIFO flushing strategy when none is configured
-func (mm *Manager) createDefaultFlushingStrategy(
-	resourceCfg *memcore.Resource,
-	tokenManager *TokenMemoryManager,
-) (*HybridFlushingStrategy, error) {
-	defaultFlushCfg := &memcore.FlushingStrategyConfig{Type: memcore.SimpleFIFOFlushing}
-	flushingStrategy, err := NewHybridFlushingStrategy(defaultFlushCfg, nil, tokenManager)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to create default flushing strategy for resource '%s': %w",
-			resourceCfg.ID,
-			err,
-		)
+// createStrategyOptions creates strategy options based on resource configuration
+func (mm *Manager) createStrategyOptions(resourceCfg *memcore.Resource) *strategies.StrategyOptions {
+	opts := strategies.GetDefaultStrategyOptions()
+
+	// Configure based on resource type and limits
+	if resourceCfg.MaxTokens > 0 {
+		opts.MaxTokens = resourceCfg.MaxTokens
 	}
-	return flushingStrategy, nil
+
+	if resourceCfg.MaxMessages > 0 {
+		opts.CacheSize = resourceCfg.MaxMessages
+	}
+
+	// Set threshold from flushing strategy config if available
+	if resourceCfg.FlushingStrategy != nil && resourceCfg.FlushingStrategy.SummarizeThreshold > 0 {
+		opts.DefaultThreshold = resourceCfg.FlushingStrategy.SummarizeThreshold
+	}
+
+	return opts
 }
 
 // createMemoryInstance creates the final memory instance with all components

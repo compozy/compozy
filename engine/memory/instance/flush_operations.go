@@ -124,7 +124,12 @@ func (f *FlushOperations) PerformFlush(
 		return nil, err
 	}
 	defer func() {
-		_ = unlock() //nolint:errcheck // Ignore unlock errors in defer
+		if err := unlock(); err != nil {
+			f.operations.logger.Error("Failed to release flush lock",
+				"error", err,
+				"instance_id", f.instanceID,
+				"operation", "flush_lock_release")
+		}
 	}()
 
 	// Check if already pending
@@ -145,7 +150,12 @@ func (f *FlushOperations) PerformFlush(
 	}
 	defer func() {
 		// Always clear the pending flag
-		_ = f.markFlushPending(ctx, false) //nolint:errcheck // TODO: Consider logging flush cleanup errors
+		if err := f.markFlushPending(ctx, false); err != nil {
+			f.operations.logger.Error("Failed to clear flush pending flag during cleanup",
+				"error", err,
+				"instance_id", f.instanceID,
+				"operation", "flush_cleanup")
+		}
 	}()
 
 	// Execute the flush

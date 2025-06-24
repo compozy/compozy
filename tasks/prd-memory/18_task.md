@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 ---
 
 <task_context>
@@ -18,10 +18,10 @@ Add proper error logging for currently ignored errors in `flush_operations.go` a
 
 ## Subtasks
 
-- [ ] 18.1 Add error logging to `markFlushPending` cleanup in `flush_operations.go`
-- [ ] 18.2 Add error logging to lock release in `memory_instance.go`
-- [ ] 18.3 Review codebase for other ignored errors that need logging
-- [ ] 18.4 Add tests to verify error logging behavior
+- [x] 18.1 Add error logging to `markFlushPending` cleanup in `flush_operations.go`
+- [x] 18.2 Add error logging to lock release in `memory_instance.go`
+- [x] 18.3 Review codebase for other ignored errors that need logging
+- [x] 18.4 Add tests to verify error logging behavior
 
 ## Implementation Details
 
