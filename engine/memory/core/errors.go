@@ -59,6 +59,15 @@ var (
 	// ErrLockTimeout is returned when lock acquisition times out
 	ErrLockTimeout = fmt.Errorf("lock acquisition timeout")
 
+	// ErrLockAcquisitionFailed is returned when lock could not be acquired
+	ErrLockAcquisitionFailed = fmt.Errorf("lock could not be acquired")
+
+	// ErrAppendLockFailed is returned when append lock acquisition fails
+	ErrAppendLockFailed = fmt.Errorf("failed to acquire append lock")
+
+	// ErrFlushLockFailed is returned when flush lock acquisition fails
+	ErrFlushLockFailed = fmt.Errorf("failed to acquire flush lock")
+
 	// ErrInvalidConfiguration is returned when configuration is invalid
 	ErrInvalidConfiguration = fmt.Errorf("invalid configuration")
 )

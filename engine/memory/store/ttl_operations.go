@@ -26,6 +26,7 @@ func NewTTLOperations(keyManager *KeyManager, client any) *TTLOperations {
 // SetExpiration sets the TTL for a given key
 func (t *TTLOperations) SetExpiration(ctx context.Context, key string, ttl time.Duration) error {
 	fKey := t.keyManager.FullKey(key)
+	metaKey := t.keyManager.MetadataKey(key)
 	if ttl <= 0 { // Redis EXPIRE with 0 or negative deletes the key or removes TTL. Be specific.
 		// To remove TTL, use PERSIST. For this method, assume positive TTL means set, non-positive means error or no-op.
 		return errors.New("TTL must be a positive duration to set expiration")
@@ -39,10 +40,20 @@ func (t *TTLOperations) SetExpiration(ctx context.Context, key string, ttl time.
 		return fmt.Errorf("invalid client type for TTL operations")
 	}
 
+	// Set TTL on both the main key and metadata key
 	_, err := client.Expire(ctx, fKey, ttl).Result()
 	if err != nil {
 		return fmt.Errorf("failed to set expiration for key %s: %w", fKey, err)
 	}
+
+	// Also set TTL on metadata key
+	_, err = client.Expire(ctx, metaKey, ttl).Result()
+	if err != nil {
+		// Log but don't fail if metadata key doesn't exist yet
+		// It will be created with TTL when first metadata is set
+		return nil
+	}
+
 	return nil
 }
 

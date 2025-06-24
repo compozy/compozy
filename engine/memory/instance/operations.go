@@ -2,6 +2,7 @@ package instance
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/compozy/compozy/engine/llm"
@@ -48,8 +49,10 @@ func (o *Operations) AppendMessage(ctx context.Context, msg llm.Message) error {
 		o.metrics.RecordAppend(ctx, time.Since(start), 0, err)
 		return err
 	}
+	var lockReleaseErr error
 	defer func() {
 		if unlockErr := unlock(); unlockErr != nil {
+			lockReleaseErr = unlockErr
 			o.logger.Error("Failed to release append lock", "error", unlockErr, "instance_id", o.instanceID)
 		}
 	}()
@@ -60,6 +63,9 @@ func (o *Operations) AppendMessage(ctx context.Context, msg llm.Message) error {
 	// Append to store
 	if err := o.store.AppendMessage(ctx, o.instanceID, msg); err != nil {
 		o.metrics.RecordAppend(ctx, time.Since(start), tokenCount, err)
+		if lockReleaseErr != nil {
+			return fmt.Errorf("failed to append message: %w (also failed to release lock: %v)", err, lockReleaseErr)
+		}
 		return err
 	}
 
@@ -70,6 +76,9 @@ func (o *Operations) AppendMessage(ctx context.Context, msg llm.Message) error {
 	}
 
 	o.metrics.RecordAppend(ctx, time.Since(start), tokenCount, nil)
+	if lockReleaseErr != nil {
+		return fmt.Errorf("operation completed but failed to release lock: %w", lockReleaseErr)
+	}
 	return nil
 }
 
@@ -83,8 +92,10 @@ func (o *Operations) AppendMessageWithTokenCount(ctx context.Context, msg llm.Me
 		o.metrics.RecordAppend(ctx, time.Since(start), 0, err)
 		return err
 	}
+	var lockReleaseErr error
 	defer func() {
 		if unlockErr := unlock(); unlockErr != nil {
+			lockReleaseErr = unlockErr
 			o.logger.Error("Failed to release append lock", "error", unlockErr, "instance_id", o.instanceID)
 		}
 	}()
@@ -100,7 +111,20 @@ func (o *Operations) AppendMessageWithTokenCount(ctx context.Context, msg llm.Me
 	}
 
 	o.metrics.RecordAppend(ctx, time.Since(start), tokenCount, err)
-	return err
+	if err != nil && lockReleaseErr != nil {
+		return fmt.Errorf(
+			"failed to append message with token count: %w (also failed to release lock: %v)",
+			err,
+			lockReleaseErr,
+		)
+	}
+	if err != nil {
+		return err
+	}
+	if lockReleaseErr != nil {
+		return fmt.Errorf("operation completed but failed to release lock: %w", lockReleaseErr)
+	}
+	return nil
 }
 
 // ReadMessages retrieves all messages
@@ -129,8 +153,10 @@ func (o *Operations) ClearMessages(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	var lockReleaseErr error
 	defer func() {
 		if unlockErr := unlock(); unlockErr != nil {
+			lockReleaseErr = unlockErr
 			o.logger.Error("Failed to release clear lock", "error", unlockErr, "instance_id", o.instanceID)
 		}
 	}()
@@ -145,7 +171,16 @@ func (o *Operations) ClearMessages(ctx context.Context) error {
 		}
 	}
 
-	return err
+	if err != nil && lockReleaseErr != nil {
+		return fmt.Errorf("failed to clear messages: %w (also failed to release lock: %v)", err, lockReleaseErr)
+	}
+	if err != nil {
+		return err
+	}
+	if lockReleaseErr != nil {
+		return fmt.Errorf("operation completed but failed to release lock: %w", lockReleaseErr)
+	}
+	return nil
 }
 
 // GetMessageCount returns the number of messages
@@ -177,31 +212,79 @@ func (o *Operations) GetTokenCount(ctx context.Context) (int, error) {
 	return tokenCount, nil
 }
 
-// calculateTokenCount calculates tokens for a single message
-func (o *Operations) calculateTokenCount(ctx context.Context, msg llm.Message) int {
+// estimateTokenCount provides a consistent fallback token estimation
+func (o *Operations) estimateTokenCount(text string) int {
+	// Rough estimate: 4 characters per token (common for most tokenizers)
+	tokens := len(text) / 4
+	// Ensure at least 1 token for non-empty text
+	if tokens == 0 && text != "" {
+		tokens = 1
+	}
+	return tokens
+}
+
+// calculateTokenCountWithFallback safely counts tokens with consistent fallback logic
+func (o *Operations) calculateTokenCountWithFallback(ctx context.Context, text string, description string) int {
 	if o.tokenCounter == nil {
-		return len(msg.Content) / 4 // Rough estimate
+		return o.estimateTokenCount(text)
 	}
-
-	count, err := o.tokenCounter.CountTokens(ctx, msg.Content)
+	count, err := o.tokenCounter.CountTokens(ctx, text)
 	if err != nil {
-		// Fallback to rough estimate
-		return len(msg.Content) / 4
+		o.logger.Warn("Failed to count tokens, using fallback estimation",
+			"error", err, "text_type", description, "instance_id", o.instanceID)
+		return o.estimateTokenCount(text)
 	}
-
 	return count
 }
 
-// calculateTokensFromMessages calculates total tokens from all messages
+// calculateTokenCount calculates tokens for a single message including role and structure overhead
+func (o *Operations) calculateTokenCount(ctx context.Context, msg llm.Message) int {
+	// Count content tokens with consistent fallback
+	contentCount := o.calculateTokenCountWithFallback(ctx, msg.Content, "content")
+
+	// Count role tokens with consistent fallback
+	roleCount := o.calculateTokenCountWithFallback(ctx, string(msg.Role), "role")
+
+	// Add structure overhead for message formatting
+	structureOverhead := 2
+	return contentCount + roleCount + structureOverhead
+}
+
+// calculateTokensFromMessages calculates total tokens from all messages with caching optimization
 func (o *Operations) calculateTokensFromMessages(ctx context.Context) (int, error) {
 	messages, err := o.store.ReadMessages(ctx, o.instanceID)
 	if err != nil {
 		return 0, err
 	}
 
+	// Use caching to reduce redundant token counting calls
+	contentCache := make(map[string]int)
+	roleCache := make(map[string]int)
+
 	totalTokens := 0
 	for _, msg := range messages {
-		totalTokens += o.calculateTokenCount(ctx, msg)
+		// Count content tokens with caching
+		var contentCount int
+		if count, exists := contentCache[msg.Content]; exists {
+			contentCount = count
+		} else {
+			contentCount = o.calculateTokenCountWithFallback(ctx, msg.Content, "content")
+			contentCache[msg.Content] = contentCount
+		}
+
+		// Count role tokens with caching
+		roleStr := string(msg.Role)
+		var roleCount int
+		if count, exists := roleCache[roleStr]; exists {
+			roleCount = count
+		} else {
+			roleCount = o.calculateTokenCountWithFallback(ctx, roleStr, "role")
+			roleCache[roleStr] = roleCount
+		}
+
+		// Add structure overhead and accumulate
+		structureOverhead := 2
+		totalTokens += contentCount + roleCount + structureOverhead
 	}
 
 	// Update the metadata for future use

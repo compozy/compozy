@@ -155,13 +155,16 @@ func (c *Config) validatePersistence() error {
 				err,
 			)
 		}
-		if parsedTTL <= 0 && c.Persistence.Type != memcore.InMemoryPersistence {
+		// TTL "0" means no expiration, which is valid
+		if parsedTTL < 0 && c.Persistence.Type != memcore.InMemoryPersistence {
 			return fmt.Errorf(
-				"memory config ID '%s': persistence.ttl must be positive, got '%s'",
+				"memory config ID '%s': persistence.ttl must be non-negative, got '%s'",
 				c.ID,
 				c.Persistence.TTL,
 			)
 		}
+		// Store the parsed TTL for runtime use
+		c.Persistence.ParsedTTL = parsedTTL
 	} else if c.Persistence.Type != memcore.InMemoryPersistence {
 		return fmt.Errorf(
 			"memory config ID '%s': persistence.ttl is required for persistence type '%s'",

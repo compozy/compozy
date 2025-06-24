@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 // Test core business logic without complex external dependencies
@@ -20,6 +21,9 @@ func TestMemoryInstance_BusinessLogic(t *testing.T) {
 		mockLockManager := &mockLockManager{}
 		mockFlushStrategy := &mockFlushStrategy{}
 		unlockFunc := func() error { return nil }
+
+		// Create synchronization channel for async operations
+		flushCheckDone := make(chan bool, 1)
 
 		// Create instance with minimal setup
 		instance := &memoryInstance{
@@ -38,18 +42,30 @@ func TestMemoryInstance_BusinessLogic(t *testing.T) {
 		// Setup expectations for main flow
 		mockLockManager.On("AcquireAppendLock", ctx, "test-id").Return(unlockFunc, nil)
 		mockTokenCounter.On("CountTokens", ctx, "Hello world").Return(5, nil)
-		mockStore.On("AppendMessageWithTokenCount", ctx, "test-id", msg, 5).Return(nil)
+		mockTokenCounter.On("CountTokens", ctx, "user").Return(1, nil)
+		mockStore.On("AppendMessageWithTokenCount", ctx, "test-id", msg, 8).Return(nil)
 
-		// Setup expectations for async checkFlushTrigger goroutine
-		mockStore.On("GetTokenCount", ctx, "test-id").Return(5, nil)
-		mockStore.On("GetMessageCount", ctx, "test-id").Return(1, nil)
-		mockFlushStrategy.On("ShouldFlush", 5, 1, (*core.Resource)(nil)).Return(false)
+		// Setup expectations for async checkFlushTrigger goroutine with channel notification
+		mockStore.On("GetTokenCount", mock.Anything, "test-id").Return(8, nil).Run(func(_ mock.Arguments) {
+			// Signal that the async operation has started
+			select {
+			case flushCheckDone <- true:
+			default:
+			}
+		})
+		mockStore.On("GetMessageCount", mock.Anything, "test-id").Return(1, nil)
+		mockFlushStrategy.On("ShouldFlush", 8, 1, (*core.Resource)(nil)).Return(false)
 
 		// Execute
 		err := instance.Append(ctx, msg)
 
-		// Wait a bit for the async goroutine to complete
-		time.Sleep(10 * time.Millisecond)
+		// Wait for async goroutine to complete using channel
+		select {
+		case <-flushCheckDone:
+			// Async operation completed
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("Async flush check did not complete within timeout")
+		}
 
 		// Verify
 		assert.NoError(t, err)
@@ -223,7 +239,8 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 
 		mockLockManager.On("AcquireAppendLock", ctx, "test-id").Return(unlockFunc, nil)
 		mockTokenCounter.On("CountTokens", ctx, "test").Return(3, nil)
-		mockStore.On("AppendMessageWithTokenCount", ctx, "test-id", msg, 3).Return(assert.AnError)
+		mockTokenCounter.On("CountTokens", ctx, "user").Return(1, nil)
+		mockStore.On("AppendMessageWithTokenCount", ctx, "test-id", msg, 6).Return(assert.AnError)
 
 		err := instance.Append(ctx, msg)
 
@@ -244,6 +261,9 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 
 		mockFlushStrategy := &mockFlushStrategy{}
 
+		// Create synchronization channel for async operations
+		flushCheckDone := make(chan bool, 1)
+
 		instance := &memoryInstance{
 			id:               "test-id",
 			store:            mockStore,
@@ -259,20 +279,32 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 
 		mockLockManager.On("AcquireAppendLock", ctx, "test-id").Return(failingUnlockFunc, nil)
 		mockTokenCounter.On("CountTokens", ctx, "test").Return(3, nil)
-		mockStore.On("AppendMessageWithTokenCount", ctx, "test-id", msg, 3).Return(nil)
+		mockTokenCounter.On("CountTokens", ctx, "user").Return(1, nil)
+		mockStore.On("AppendMessageWithTokenCount", ctx, "test-id", msg, 6).Return(nil)
 
-		// Setup expectations for async checkFlushTrigger goroutine
-		mockStore.On("GetTokenCount", ctx, "test-id").Return(3, nil)
-		mockStore.On("GetMessageCount", ctx, "test-id").Return(1, nil)
-		mockFlushStrategy.On("ShouldFlush", 3, 1, (*core.Resource)(nil)).Return(false)
+		// Setup expectations for async checkFlushTrigger goroutine with channel notification
+		mockStore.On("GetTokenCount", mock.Anything, "test-id").Return(6, nil).Run(func(_ mock.Arguments) {
+			// Signal that the async operation has started
+			select {
+			case flushCheckDone <- true:
+			default:
+			}
+		})
+		mockStore.On("GetMessageCount", mock.Anything, "test-id").Return(1, nil)
+		mockFlushStrategy.On("ShouldFlush", 6, 1, (*core.Resource)(nil)).Return(false)
 
 		err := instance.Append(ctx, msg)
 
 		// Should succeed despite lock release failure
 		assert.NoError(t, err)
 
-		// Give time for async goroutine to complete
-		time.Sleep(10 * time.Millisecond)
+		// Wait for async goroutine to complete using channel
+		select {
+		case <-flushCheckDone:
+			// Async operation completed
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("Async flush check did not complete within timeout")
+		}
 
 		mockStore.AssertExpectations(t)
 		mockTokenCounter.AssertExpectations(t)

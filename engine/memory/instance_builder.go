@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -28,7 +29,9 @@ func (mm *Manager) buildMemoryComponents(
 	resourceCfg *memcore.Resource,
 	projectIDVal string,
 ) (*memoryComponents, error) {
-	redisStore := store.NewRedisMemoryStore(mm.baseRedisClient, "")
+	// Build the key prefix with namespace: compozy:{project_id}:memory
+	keyPrefix := fmt.Sprintf("compozy:%s:memory", projectIDVal)
+	redisStore := store.NewRedisMemoryStore(mm.baseRedisClient, keyPrefix)
 	lockManager, err := mm.createLockManager(projectIDVal, resourceCfg)
 	if err != nil {
 		return nil, err
@@ -53,7 +56,7 @@ func (mm *Manager) buildMemoryComponents(
 
 // createLockManager creates a memory lock manager with project namespacing and TTL configuration
 //
-//nolint:unparam // error return is intentional for future extensibility and consistency
+
 func (mm *Manager) createLockManager(
 	projectIDVal string,
 	resourceCfg *memcore.Resource,
@@ -66,36 +69,30 @@ func (mm *Manager) createLockManager(
 	if resourceCfg != nil {
 		// Parse TTL durations from resource configuration
 		if resourceCfg.AppendTTL != "" {
-			if ttl, err := time.ParseDuration(resourceCfg.AppendTTL); err == nil {
-				lockManager = lockManager.WithAppendTTL(ttl)
-			} else {
-				mm.log.Warn("Invalid append TTL format, using default",
-					"resource_id", resourceCfg.ID,
-					"append_ttl", resourceCfg.AppendTTL,
-					"error", err)
+			ttl, err := time.ParseDuration(resourceCfg.AppendTTL)
+			if err != nil {
+				return nil, fmt.Errorf("invalid append TTL format for resource %s: %q: %w",
+					resourceCfg.ID, resourceCfg.AppendTTL, err)
 			}
+			lockManager = lockManager.WithAppendTTL(ttl)
 		}
 
 		if resourceCfg.ClearTTL != "" {
-			if ttl, err := time.ParseDuration(resourceCfg.ClearTTL); err == nil {
-				lockManager = lockManager.WithClearTTL(ttl)
-			} else {
-				mm.log.Warn("Invalid clear TTL format, using default",
-					"resource_id", resourceCfg.ID,
-					"clear_ttl", resourceCfg.ClearTTL,
-					"error", err)
+			ttl, err := time.ParseDuration(resourceCfg.ClearTTL)
+			if err != nil {
+				return nil, fmt.Errorf("invalid clear TTL format for resource %s: %q: %w",
+					resourceCfg.ID, resourceCfg.ClearTTL, err)
 			}
+			lockManager = lockManager.WithClearTTL(ttl)
 		}
 
 		if resourceCfg.FlushTTL != "" {
-			if ttl, err := time.ParseDuration(resourceCfg.FlushTTL); err == nil {
-				lockManager = lockManager.WithFlushTTL(ttl)
-			} else {
-				mm.log.Warn("Invalid flush TTL format, using default",
-					"resource_id", resourceCfg.ID,
-					"flush_ttl", resourceCfg.FlushTTL,
-					"error", err)
+			ttl, err := time.ParseDuration(resourceCfg.FlushTTL)
+			if err != nil {
+				return nil, fmt.Errorf("invalid flush TTL format for resource %s: %q: %w",
+					resourceCfg.ID, resourceCfg.FlushTTL, err)
 			}
+			lockManager = lockManager.WithFlushTTL(ttl)
 		}
 	}
 
@@ -194,8 +191,18 @@ func (lma *lockManagerAdapter) waitForRetry(
 func (lma *lockManagerAdapter) formatAcquisitionError(lockKey string, maxRetries int, lastErr error) error {
 	lma.log.Error("Failed to acquire distributed lock after retries",
 		"key", lockKey, "max_retries", maxRetries, "error", lastErr)
-	return fmt.Errorf("failed to acquire distributed lock for key %s after %d attempts: %w",
+
+	// Wrap with appropriate core error type
+	wrappedErr := fmt.Errorf("failed to acquire distributed lock for key %s after %d attempts: %w",
 		lockKey, maxRetries+1, lastErr)
+
+	// Check if the underlying error is ErrLockNotAcquired from cache layer
+	if errors.Is(lastErr, cache.ErrLockNotAcquired) {
+		// Wrap with our core lock acquisition error
+		return fmt.Errorf("%w: %v", memcore.ErrLockAcquisitionFailed, wrappedErr)
+	}
+
+	return wrappedErr
 }
 
 // wrapLock wraps a cache.Lock to implement instance.Lock interface

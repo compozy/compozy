@@ -35,6 +35,7 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 		// Create manager with registry
 		manager := &Manager{
 			resourceRegistry: registry,
+			log:              logger.NewForTests(),
 		}
 
 		// Call loadMemoryConfig
@@ -91,6 +92,7 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 		// Create manager with registry
 		manager := &Manager{
 			resourceRegistry: registry,
+			log:              logger.NewForTests(),
 		}
 
 		// Call loadMemoryConfig
@@ -162,6 +164,7 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 				// Create manager
 				manager := &Manager{
 					resourceRegistry: registry,
+					log:              logger.NewForTests(),
 				}
 
 				// Load config
@@ -199,6 +202,7 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 		// Create manager
 		manager := &Manager{
 			resourceRegistry: registry,
+			log:              logger.NewForTests(),
 		}
 
 		// Test different case variations
@@ -258,6 +262,7 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 		// Create manager
 		manager := &Manager{
 			resourceRegistry: registry,
+			log:              logger.NewForTests(),
 		}
 
 		// Load and verify complex config
@@ -568,7 +573,9 @@ func TestExtractProjectID(t *testing.T) {
 
 func TestManager_configToResource(t *testing.T) {
 	t.Run("Should properly map config to resource with TTL fields", func(t *testing.T) {
-		manager := &Manager{}
+		manager := &Manager{
+			log: logger.NewForTests(),
+		}
 
 		// Create config with locking TTL fields
 		config := &Config{
@@ -619,7 +626,9 @@ func TestManager_configToResource(t *testing.T) {
 	})
 
 	t.Run("Should handle nil locking config gracefully", func(t *testing.T) {
-		manager := &Manager{}
+		manager := &Manager{
+			log: logger.NewForTests(),
+		}
 
 		config := &Config{
 			ID:        "test-memory",

@@ -227,7 +227,7 @@ func TestCreateLockManager_TTLConfiguration(t *testing.T) {
 		require.NotNil(t, lockManager)
 	})
 
-	t.Run("Should use defaults for invalid TTL formats", func(t *testing.T) {
+	t.Run("Should return error for invalid TTL formats", func(t *testing.T) {
 		mockCacheLockManager := &MockCacheLockManager{}
 
 		manager := &Manager{
@@ -238,13 +238,34 @@ func TestCreateLockManager_TTLConfiguration(t *testing.T) {
 		resourceCfg := &memcore.Resource{
 			ID:        "test-resource",
 			AppendTTL: "invalid-duration",
-			ClearTTL:  "also-invalid",
-			FlushTTL:  "15x", // Invalid format
 		}
 
 		lockManager, err := manager.createLockManager("test-project", resourceCfg)
-		require.NoError(t, err)
-		require.NotNil(t, lockManager)
+		require.Error(t, err)
+		require.Nil(t, lockManager)
+		require.Contains(t, err.Error(), "invalid append TTL format")
+
+		// Test clear TTL error
+		resourceCfg = &memcore.Resource{
+			ID:       "test-resource",
+			ClearTTL: "also-invalid",
+		}
+
+		lockManager, err = manager.createLockManager("test-project", resourceCfg)
+		require.Error(t, err)
+		require.Nil(t, lockManager)
+		require.Contains(t, err.Error(), "invalid clear TTL format")
+
+		// Test flush TTL error
+		resourceCfg = &memcore.Resource{
+			ID:       "test-resource",
+			FlushTTL: "15x", // Invalid format
+		}
+
+		lockManager, err = manager.createLockManager("test-project", resourceCfg)
+		require.Error(t, err)
+		require.Nil(t, lockManager)
+		require.Contains(t, err.Error(), "invalid flush TTL format")
 	})
 
 	t.Run("Should handle nil resource configuration", func(t *testing.T) {

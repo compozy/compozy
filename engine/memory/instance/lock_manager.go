@@ -2,8 +2,11 @@ package instance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
+
+	memcore "github.com/compozy/compozy/engine/memory/core"
 )
 
 // Locker defines the interface for locking operations
@@ -76,6 +79,10 @@ func (lm *LockManagerImpl) AcquireAppendLock(ctx context.Context, key string) (U
 	lockKey := fmt.Sprintf("%s:append_lock", key)
 	lock, err := lm.locker.Lock(ctx, lockKey, lm.ttls.append)
 	if err != nil {
+		// Check if this is a lock acquisition failure and wrap with core error
+		if errors.Is(err, memcore.ErrLockAcquisitionFailed) {
+			return nil, fmt.Errorf("%w: %v", memcore.ErrAppendLockFailed, err)
+		}
 		return nil, fmt.Errorf("failed to acquire append lock: %w", err)
 	}
 
@@ -98,6 +105,10 @@ func (lm *LockManagerImpl) AcquireFlushLock(ctx context.Context, key string) (Un
 	lockKey := fmt.Sprintf("%s:flush_lock", key)
 	lock, err := lm.locker.Lock(ctx, lockKey, lm.ttls.flush)
 	if err != nil {
+		// Check if this is a lock acquisition failure and wrap with core error
+		if errors.Is(err, memcore.ErrLockAcquisitionFailed) {
+			return nil, fmt.Errorf("%w: %v", memcore.ErrFlushLockFailed, err)
+		}
 		return nil, fmt.Errorf("failed to acquire flush lock: %w", err)
 	}
 

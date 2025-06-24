@@ -58,6 +58,13 @@ func (mm *Manager) configToResource(config *Config) *memcore.Resource {
 		resource.ClearTTL = config.Locking.ClearTTL
 		resource.FlushTTL = config.Locking.FlushTTL
 	}
+	// Set the parsed TTL from persistence config
+	resource.Persistence.ParsedTTL = config.Persistence.ParsedTTL
+	// Debug log
+	mm.log.Debug("Config to resource conversion",
+		"config_ttl", config.Persistence.TTL,
+		"parsed_ttl", config.Persistence.ParsedTTL,
+		"resource_id", resource.ID)
 	return resource
 }
 
