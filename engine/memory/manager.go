@@ -28,23 +28,24 @@ type Manager struct {
 	baseRedisClient   cache.RedisInterface      // The global Redis client (for creating Store)
 	temporalClient    client.Client             // Temporal client for scheduling activities
 	temporalTaskQueue string                    // Default task queue for memory activities
-	privacyManager    *privacy.Manager          // Privacy controls and data protection
+	privacyManager    privacy.ManagerInterface  // Privacy controls and data protection
 	log               logger.Logger             // Logger following the project standard with log.FromContext(ctx)
 	componentCache    *componentCache           // Component cache for performance optimization
 }
 
 // ManagerOptions holds options for creating a Manager.
 type ManagerOptions struct {
-	ResourceRegistry      *autoload.ConfigRegistry
-	TplEngine             *tplengine.TemplateEngine
-	BaseLockManager       cache.LockManager
-	BaseRedisClient       cache.RedisInterface
-	TemporalClient        client.Client
-	TemporalTaskQueue     string
-	PrivacyManager        *privacy.Manager // Optional: if nil, a new one will be created
-	Logger                logger.Logger
-	ComponentCacheConfig  *ComponentCacheConfig // Optional: if nil, default config will be used
-	DisableComponentCache bool                  // Optional: disable component caching entirely
+	ResourceRegistry        *autoload.ConfigRegistry
+	TplEngine               *tplengine.TemplateEngine
+	BaseLockManager         cache.LockManager
+	BaseRedisClient         cache.RedisInterface
+	TemporalClient          client.Client
+	TemporalTaskQueue       string
+	PrivacyManager          privacy.ManagerInterface  // Optional: if nil, a new one will be created
+	PrivacyResilienceConfig *privacy.ResilienceConfig // Optional: if provided, creates resilient privacy manager
+	Logger                  logger.Logger
+	ComponentCacheConfig    *ComponentCacheConfig // Optional: if nil, default config will be used
+	DisableComponentCache   bool                  // Optional: disable component caching entirely
 }
 
 // NewManager creates a new Manager.
@@ -53,7 +54,7 @@ func NewManager(opts *ManagerOptions) (*Manager, error) {
 		return nil, err
 	}
 	setDefaultManagerOptions(opts)
-	privacyManager := getOrCreatePrivacyManager(opts.PrivacyManager)
+	privacyManager := getOrCreatePrivacyManager(opts.PrivacyManager, opts.PrivacyResilienceConfig, opts.Logger)
 	cache := createComponentCache(opts)
 	return &Manager{
 		resourceRegistry:  opts.ResourceRegistry,

@@ -38,11 +38,22 @@ func setDefaultManagerOptions(opts *ManagerOptions) {
 }
 
 // getOrCreatePrivacyManager gets existing privacy manager or creates a new one
-func getOrCreatePrivacyManager(existing *privacy.Manager) *privacy.Manager {
+// If resilience config is provided, creates a resilient manager
+func getOrCreatePrivacyManager(
+	existing privacy.ManagerInterface,
+	resilienceConfig *privacy.ResilienceConfig,
+	log logger.Logger,
+) privacy.ManagerInterface {
 	if existing != nil {
 		return existing
 	}
-	return privacy.NewManager()
+	// Create base manager
+	baseManager := privacy.NewManager()
+	// If resilience config provided, wrap with resilient manager
+	if resilienceConfig != nil {
+		return privacy.NewResilientManager(resilienceConfig, log)
+	}
+	return baseManager
 }
 
 // createComponentCache creates a component cache if not disabled

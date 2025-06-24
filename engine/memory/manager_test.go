@@ -2,9 +2,12 @@ package memory
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/compozy/compozy/engine/memory/privacy"
 )
 
 // Simplified manager test focusing on basic functionality
@@ -51,3 +54,64 @@ func TestNewManager_Validation(t *testing.T) {
 }
 
 // Manager GetInstance tests require complex mocking, skipping for basic coverage
+
+// TestManager_ResilienceConfig tests resilience configuration handling
+func TestManager_ResilienceConfig(t *testing.T) {
+	t.Run("Should validate resilience config", func(t *testing.T) {
+		tests := []struct {
+			name    string
+			config  *privacy.ResilienceConfig
+			wantErr bool
+		}{
+			{
+				name: "valid config",
+				config: &privacy.ResilienceConfig{
+					TimeoutDuration:             100 * time.Millisecond,
+					ErrorPercentThresholdToOpen: 50,
+					MinimumRequestToOpen:        10,
+					WaitDurationInOpenState:     5 * time.Second,
+					RetryTimes:                  3,
+					RetryWaitBase:               50 * time.Millisecond,
+				},
+				wantErr: false,
+			},
+			{
+				name:    "nil config",
+				config:  nil,
+				wantErr: true,
+			},
+			{
+				name: "invalid timeout",
+				config: &privacy.ResilienceConfig{
+					TimeoutDuration:             0,
+					ErrorPercentThresholdToOpen: 50,
+					MinimumRequestToOpen:        10,
+					WaitDurationInOpenState:     5 * time.Second,
+					RetryTimes:                  3,
+					RetryWaitBase:               50 * time.Millisecond,
+				},
+				wantErr: true,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				err := privacy.ValidateConfig(tt.config)
+				if tt.wantErr {
+					assert.Error(t, err)
+				} else {
+					assert.NoError(t, err)
+				}
+			})
+		}
+	})
+	t.Run("Should use default resilience config", func(t *testing.T) {
+		config := privacy.DefaultResilienceConfig()
+		require.NotNil(t, config)
+		assert.Equal(t, 100*time.Millisecond, config.TimeoutDuration)
+		assert.Equal(t, 50, config.ErrorPercentThresholdToOpen)
+		assert.Equal(t, 10, config.MinimumRequestToOpen)
+		assert.Equal(t, 5*time.Second, config.WaitDurationInOpenState)
+		assert.Equal(t, 3, config.RetryTimes)
+		assert.Equal(t, 50*time.Millisecond, config.RetryWaitBase)
+	})
+}
