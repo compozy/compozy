@@ -21,6 +21,28 @@ func (tc *TypeConverter) ConvertToSlice(value any) []any {
 	if value == nil {
 		return []any{}
 	}
+
+	// Handle slice types
+	if result := tc.convertSliceTypes(value); result != nil {
+		return result
+	}
+
+	// Handle map types
+	if result := tc.convertMapTypes(value); result != nil {
+		return result
+	}
+
+	// Handle string types (including range expressions)
+	if result := tc.convertStringTypes(value); result != nil {
+		return result
+	}
+
+	// Handle primitive types
+	return tc.convertPrimitiveTypes(value)
+}
+
+// convertSliceTypes handles conversion of slice types
+func (tc *TypeConverter) convertSliceTypes(value any) []any {
 	switch v := value.(type) {
 	case []any:
 		return v
@@ -42,8 +64,13 @@ func (tc *TypeConverter) ConvertToSlice(value any) []any {
 			result[i] = f
 		}
 		return result
-	case map[string]any:
-		// For maps, create items with key and value
+	}
+	return nil
+}
+
+// convertMapTypes handles conversion of map types
+func (tc *TypeConverter) convertMapTypes(value any) []any {
+	if v, ok := value.(map[string]any); ok {
 		result := make([]any, 0, len(v))
 		for k, val := range v {
 			result = append(result, map[string]any{
@@ -52,25 +79,32 @@ func (tc *TypeConverter) ConvertToSlice(value any) []any {
 			})
 		}
 		return result
-	case string:
-		// Try to parse as a range expression
+	}
+	return nil
+}
+
+// convertStringTypes handles conversion of string types including range expressions
+func (tc *TypeConverter) convertStringTypes(value any) []any {
+	if v, ok := value.(string); ok {
 		if rangeItems := tc.parseRangeExpression(v); rangeItems != nil {
 			return rangeItems
 		}
-		// Single string becomes single item slice
 		return []any{v}
+	}
+	return nil
+}
+
+// convertPrimitiveTypes handles conversion of primitive types
+func (tc *TypeConverter) convertPrimitiveTypes(value any) []any {
+	switch value.(type) {
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-		// Single number becomes single item slice
-		return []any{v}
+		return []any{value}
 	case float32, float64:
-		// Single float becomes single item slice
-		return []any{v}
+		return []any{value}
 	case bool:
-		// Single bool becomes single item slice
-		return []any{v}
+		return []any{value}
 	default:
-		// For any other type, wrap it in a slice
-		return []any{v}
+		return []any{value}
 	}
 }
 

@@ -1,7 +1,6 @@
 package task2
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/agent"
@@ -11,7 +10,6 @@ import (
 	"github.com/compozy/compozy/engine/task2/wait"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 // ConfigOrchestrator handles the orchestration of normalization processes
@@ -254,56 +252,6 @@ func (o *ConfigOrchestrator) NormalizeTaskOutput(
 	transformer := o.factory.CreateOutputTransformer()
 	// Transform the output
 	return transformer.TransformOutput(taskOutput, outputsConfig, normCtx, taskConfig)
-}
-
-// NormalizeWorkflowOutput transforms the workflow output using the outputs configuration
-func (o *ConfigOrchestrator) NormalizeWorkflowOutput(
-	ctx context.Context,
-	workflowState *workflow.State,
-	workflowConfig *workflow.Config,
-	outputsConfig *core.Output,
-) (*core.Output, error) {
-	if outputsConfig == nil {
-		return nil, nil
-	}
-	log := logger.FromContext(ctx)
-	// Build complete parent context with all workflow config properties
-	parentConfig, err := core.AsMapDefault(workflowConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert workflow config to map: %w", err)
-	}
-	// Add workflow runtime state
-	parentConfig["input"] = workflowState.Input
-	parentConfig["output"] = workflowState.Output
-	taskConfigs := BuildTaskConfigsMap(workflowConfig.Tasks)
-	normCtx := &shared.NormalizationContext{
-		WorkflowState:  workflowState,
-		WorkflowConfig: workflowConfig,
-		TaskConfigs:    taskConfigs,
-		ParentConfig:   parentConfig,
-		CurrentInput:   workflowState.Input,
-		MergedEnv:      &[]core.EnvMap{workflowConfig.GetEnv()}[0],
-	}
-	// Log template processing start at debug level
-	log.Debug("Starting workflow output template processing",
-		"workflow_id", workflowState.WorkflowID,
-		"workflow_exec_id", workflowState.WorkflowExecID,
-		"task_count", len(workflowState.Tasks),
-		"output_fields", len(*outputsConfig))
-	// Get output transformer
-	transformer := o.factory.CreateOutputTransformer()
-	// Transform the output
-	transformedOutput, err := transformer.TransformWorkflowOutput(workflowState, outputsConfig, normCtx)
-	if err != nil {
-		log.Error("Failed to transform workflow output",
-			"workflow_id", workflowState.WorkflowID,
-			"error", err)
-		return nil, err
-	}
-	log.Debug("Successfully transformed workflow output",
-		"workflow_id", workflowState.WorkflowID,
-		"fields_count", len(*transformedOutput))
-	return transformedOutput, nil
 }
 
 // NormalizeTaskWithSignal normalizes a task config with signal context (for wait tasks)

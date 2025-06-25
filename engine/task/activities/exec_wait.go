@@ -56,7 +56,10 @@ func (a *ExecuteWait) Run(ctx context.Context, input *ExecuteWaitInput) (*task.M
 		return nil, err
 	}
 	// Normalize task config
-	normalizer := uc.NewNormalizeConfig()
+	normalizer, err := uc.NewNormalizeConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create normalizer: %w", err)
+	}
 	normalizeInput := &uc.NormalizeConfigInput{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,

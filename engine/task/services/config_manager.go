@@ -7,8 +7,11 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task2"
+	"github.com/compozy/compozy/engine/task2/collection"
+	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/normalizer"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // ParallelTaskMetadata represents metadata for parallel tasks
@@ -50,18 +53,23 @@ type CollectionMetadata struct {
 type ConfigManager struct {
 	cwd                  *core.PathCWD
 	configStore          ConfigStore
-	collectionNormalizer *normalizer.CollectionNormalizer
-	configBuilder        *normalizer.CollectionConfigBuilder
-	contextBuilder       *normalizer.ContextBuilder
+	collectionNormalizer *collection.Normalizer
+	contextBuilder       *shared.ContextBuilder
 }
 
 func NewConfigManager(configStore ConfigStore, cwd *core.PathCWD) *ConfigManager {
+	contextBuilder, err := shared.NewContextBuilder()
+	if err != nil {
+		panic(fmt.Sprintf("failed to create context builder: %v", err))
+	}
+	engine := tplengine.NewEngine(tplengine.FormatJSON)
+	templateEngineAdapter := task2.NewTemplateEngineAdapter(engine)
+	collectionNormalizer := collection.NewNormalizer(templateEngineAdapter, contextBuilder)
 	return &ConfigManager{
 		cwd:                  cwd,
 		configStore:          configStore,
-		collectionNormalizer: normalizer.NewCollectionNormalizer(),
-		configBuilder:        normalizer.NewCollectionConfigBuilder(),
-		contextBuilder:       normalizer.NewContextBuilder(),
+		collectionNormalizer: collectionNormalizer,
+		contextBuilder:       contextBuilder,
 	}
 }
 
@@ -131,6 +139,7 @@ func (cm *ConfigManager) PrepareCollectionConfigs(
 	parentStateID core.ID,
 	taskConfig *task.Config,
 	workflowState *workflow.State,
+	workflowConfig *workflow.Config,
 ) (*CollectionMetadata, error) {
 	// Validate inputs
 	if err := cm.validateCollectionInputs(ctx, parentStateID, taskConfig, workflowState); err != nil {
@@ -138,16 +147,16 @@ func (cm *ConfigManager) PrepareCollectionConfigs(
 	}
 
 	// Process collection items
-	templateContext := cm.contextBuilder.BuildCollectionContext(workflowState, taskConfig)
+	templateContext := cm.contextBuilder.BuildCollectionContext(workflowState, workflowConfig, taskConfig)
 	filteredItems, skippedCount, err := cm.processCollectionItems(ctx, taskConfig, templateContext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to process collection items for parent %s: %w", parentStateID, err)
 	}
 
-	// Create child configs
-	childConfigs, err := cm.configBuilder.CreateChildConfigs(taskConfig, filteredItems, templateContext)
+	// Create child configs from filtered items
+	childConfigs, err := cm.createChildConfigs(taskConfig, filteredItems, templateContext)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create child configs for parent %s: %w", parentStateID, err)
+		return nil, err
 	}
 
 	// Handle empty collections
@@ -416,4 +425,48 @@ func (cm *ConfigManager) handleEmptyCollection(
 		Mode:         string(taskConfig.GetMode()),
 		BatchSize:    taskConfig.Batch,
 	}, nil
+}
+
+// createChildConfigs creates child configs from collection items
+func (cm *ConfigManager) createChildConfigs(
+	taskConfig *task.Config,
+	filteredItems []any,
+	templateContext map[string]any,
+) ([]task.Config, error) {
+	var childConfigs []task.Config
+	engine := tplengine.NewEngine(tplengine.FormatJSON)
+	templateEngineAdapter := task2.NewTemplateEngineAdapter(engine)
+	configBuilder := collection.NewConfigBuilder(templateEngineAdapter)
+
+	for i, item := range filteredItems {
+		itemContext := cm.collectionNormalizer.CreateItemContext(templateContext, &taskConfig.CollectionConfig, item, i)
+		childConfig, err := configBuilder.BuildTaskConfig(
+			&taskConfig.CollectionConfig,
+			taskConfig,
+			item,
+			i,
+			itemContext,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create child config for item %d: %w", i, err)
+		}
+
+		// Process the With field templates using the item context
+		if childConfig.With != nil {
+			processedWith, err := templateEngineAdapter.ParseValue(*childConfig.With, itemContext)
+			if err != nil {
+				return nil, fmt.Errorf("failed to process child config templates for item %d: %w", i, err)
+			}
+			if processedMap, ok := processedWith.(map[string]any); ok {
+				processedInput := core.Input(processedMap)
+				childConfig.With = &processedInput
+			} else {
+				return nil, fmt.Errorf("expected map[string]any for processed With field, got %T", processedWith)
+			}
+		}
+
+		childConfigs = append(childConfigs, *childConfig)
+	}
+
+	return childConfigs, nil
 }

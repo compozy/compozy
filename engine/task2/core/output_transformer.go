@@ -7,7 +7,6 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/shared"
-	"github.com/compozy/compozy/engine/workflow"
 )
 
 // OutputTransformer handles output normalization and transformation
@@ -63,36 +62,6 @@ func (ot *OutputTransformer) TransformOutput(
 	}
 	result := core.Output(transformedOutput)
 	return &result, nil
-}
-
-// TransformWorkflowOutput transforms workflow output based on the outputs configuration
-func (ot *OutputTransformer) TransformWorkflowOutput(
-	workflowState *workflow.State,
-	outputsConfig *core.Output,
-	ctx *shared.NormalizationContext,
-) (*core.Output, error) {
-	if outputsConfig == nil {
-		return nil, nil
-	}
-	// Build transformation context
-	transformCtx := ctx.BuildTemplateContext()
-	// Add workflow-specific fields
-	transformCtx["status"] = workflowState.Status
-	transformCtx["workflow_id"] = workflowState.WorkflowID
-	transformCtx["workflow_exec_id"] = workflowState.WorkflowExecID
-	if workflowState.Error != nil {
-		transformCtx["error"] = workflowState.Error
-	}
-	// Apply output transformation
-	if len(*outputsConfig) == 0 {
-		return &core.Output{}, nil
-	}
-	transformedOutput, err := ot.transformOutputFields(outputsConfig.AsMap(), transformCtx, "workflow")
-	if err != nil {
-		return nil, err
-	}
-	finalOutput := core.Output(transformedOutput)
-	return &finalOutput, nil
 }
 
 // transformOutputFields applies template transformation to output fields

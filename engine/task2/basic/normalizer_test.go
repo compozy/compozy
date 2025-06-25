@@ -53,6 +53,11 @@ func (m *MockTemplateEngine) ParseMap(data map[string]any, vars map[string]any) 
 	return args.Get(0).(map[string]any), args.Error(1)
 }
 
+func (m *MockTemplateEngine) ParseValue(value any, vars map[string]any) (any, error) {
+	args := m.Called(value, vars)
+	return args.Get(0), args.Error(1)
+}
+
 func TestNormalizer_Type(t *testing.T) {
 	t.Run("Should return TaskTypeBasic", func(t *testing.T) {
 		mockEngine := &MockTemplateEngine{}

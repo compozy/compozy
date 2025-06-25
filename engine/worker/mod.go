@@ -230,6 +230,10 @@ func (o *Worker) Setup(_ context.Context) error {
 		activity.RegisterOptions{Name: tkacts.LoadCompositeConfigsLabel},
 	)
 	o.worker.RegisterActivityWithOptions(
+		o.activities.LoadCollectionConfigsActivity,
+		activity.RegisterOptions{Name: tkacts.LoadCollectionConfigsLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
 		o.activities.DispatcherHeartbeat,
 		activity.RegisterOptions{Name: wkacts.DispatcherHeartbeatLabel},
 	)

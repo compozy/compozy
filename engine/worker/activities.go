@@ -335,6 +335,17 @@ func (a *Activities) LoadCompositeConfigsActivity(
 	return act.Run(ctx, input)
 }
 
+func (a *Activities) LoadCollectionConfigsActivity(
+	ctx context.Context,
+	input *tkfacts.LoadCollectionConfigsInput,
+) (map[string]*task.Config, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	act := tkfacts.NewLoadCollectionConfigs(a.configManager)
+	return act.Run(ctx, input)
+}
+
 func (a *Activities) ExecuteSignalTask(
 	ctx context.Context,
 	input *tkfacts.ExecuteSignalInput,

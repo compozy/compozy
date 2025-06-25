@@ -71,6 +71,7 @@ func (a *CreateCollectionState) Run(ctx context.Context, input *CreateCollection
 		state.TaskExecID,
 		input.TaskConfig,
 		workflowState,
+		workflowConfig,
 	)
 	if err != nil {
 		return nil, err

@@ -84,3 +84,8 @@ func (a *TemplateEngineAdapter) ParseMap(data map[string]any, vars map[string]an
 	}
 	return nil, nil
 }
+
+// ParseValue implements shared.TemplateEngine
+func (a *TemplateEngineAdapter) ParseValue(value any, vars map[string]any) (any, error) {
+	return a.engine.ParseMap(value, vars)
+}

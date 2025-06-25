@@ -53,6 +53,11 @@ func (n *Normalizer) Normalize(config *task.Config, ctx *shared.NormalizationCon
 	if err != nil {
 		return fmt.Errorf("failed to convert task config to map: %w", err)
 	}
+	// Store the task field before normalization to preserve it
+	var childTaskConfig *task.Config
+	if config.Task != nil {
+		childTaskConfig = config.Task
+	}
 	// Normalize the collection task fields (excluding collection-specific fields)
 	parsed, err := n.templateEngine.ParseMapWithFilter(configMap, context, func(k string) bool {
 		// Skip fields that need special handling
@@ -65,6 +70,12 @@ func (n *Normalizer) Normalize(config *task.Config, ctx *shared.NormalizationCon
 	// Update config from normalized map
 	if err := config.FromMap(parsed); err != nil {
 		return fmt.Errorf("failed to update task config from normalized map: %w", err)
+	}
+	// Restore the task field to ensure it's not modified during normalization
+	// The task field contains templates with {{ .item }} references that
+	// should only be processed at runtime when collection items are available
+	if childTaskConfig != nil {
+		config.Task = childTaskConfig
 	}
 	// Note: Collection-specific normalization (items expansion, filtering) happens at runtime
 	// during task execution, not during config normalization phase
@@ -81,23 +92,12 @@ func (n *Normalizer) ExpandCollectionItems(
 	if config.Items == "" {
 		return nil, fmt.Errorf("collection config: items field is required")
 	}
-	// For simple template expressions, process the template string first
+	// For template expressions, use ParseValue to preserve object structure
 	if tplengine.HasTemplate(config.Items) {
-		processed, err := n.templateEngine.Process(config.Items, templateContext)
+		// ParseValue preserves the object structure when evaluating templates
+		itemsValue, err := n.templateEngine.ParseValue(config.Items, templateContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate items expression: %w", err)
-		}
-		// Parse the processed result to get the actual value
-		result, err := n.templateEngine.ProcessString(processed, templateContext)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse items result: %w", err)
-		}
-		// Use the JSON result if available
-		var itemsValue any
-		if result.JSON != nil {
-			itemsValue = result.JSON
-		} else {
-			itemsValue = result.Text
 		}
 		// Convert to a slice of items
 		items := n.converter.ConvertToSlice(itemsValue)

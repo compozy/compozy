@@ -212,6 +212,9 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 			WorkflowExecID: core.MustNewID(),
 			WorkflowID:     "test-workflow",
 		}
+		workflowConfig := &workflow.Config{
+			ID: "test-workflow",
+		}
 		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -233,7 +236,13 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 		}
 
 		// Act
-		metadata, err := cm.PrepareCollectionConfigs(context.Background(), parentStateID, taskConfig, workflowState)
+		metadata, err := cm.PrepareCollectionConfigs(
+			context.Background(),
+			parentStateID,
+			taskConfig,
+			workflowState,
+			workflowConfig,
+		)
 
 		// Assert
 		require.NoError(t, err)
@@ -269,7 +278,13 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 		taskConfig.Type = task.TaskTypeCollection
 
 		// Act
-		_, err := cm.PrepareCollectionConfigs(context.Background(), "", taskConfig, workflowState)
+		_, err := cm.PrepareCollectionConfigs(
+			context.Background(),
+			"",
+			taskConfig,
+			workflowState,
+			&workflow.Config{ID: "test-workflow"},
+		)
 
 		// Assert
 		require.Error(t, err)
@@ -284,7 +299,13 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 		workflowState := &workflow.State{}
 
 		// Act
-		_, err := cm.PrepareCollectionConfigs(context.Background(), parentStateID, nil, workflowState)
+		_, err := cm.PrepareCollectionConfigs(
+			context.Background(),
+			parentStateID,
+			nil,
+			workflowState,
+			&workflow.Config{ID: "test-workflow"},
+		)
 
 		// Assert
 		require.Error(t, err)
@@ -306,7 +327,13 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 		taskConfig.Type = task.TaskTypeBasic
 
 		// Act
-		_, err := cm.PrepareCollectionConfigs(context.Background(), parentStateID, taskConfig, workflowState)
+		_, err := cm.PrepareCollectionConfigs(
+			context.Background(),
+			parentStateID,
+			taskConfig,
+			workflowState,
+			&workflow.Config{ID: "test-workflow"},
+		)
 
 		// Assert
 		require.Error(t, err)
@@ -327,7 +354,13 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 		taskConfig.Type = task.TaskTypeCollection
 
 		// Act
-		_, err := cm.PrepareCollectionConfigs(context.Background(), parentStateID, taskConfig, nil)
+		_, err := cm.PrepareCollectionConfigs(
+			context.Background(),
+			parentStateID,
+			taskConfig,
+			nil,
+			&workflow.Config{ID: "test-workflow"},
+		)
 
 		// Assert
 		require.Error(t, err)
@@ -473,7 +506,13 @@ func TestConfigManager_LoadCollectionTaskMetadata(t *testing.T) {
 		}
 
 		// Store the metadata first
-		_, err := cm.PrepareCollectionConfigs(context.Background(), parentStateID, originalTaskConfig, workflowState)
+		_, err := cm.PrepareCollectionConfigs(
+			context.Background(),
+			parentStateID,
+			originalTaskConfig,
+			workflowState,
+			&workflow.Config{ID: "test-workflow"},
+		)
 		require.NoError(t, err)
 
 		// Act
@@ -541,7 +580,13 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 		}
 
 		// Act
-		metadata, err := cm.PrepareCollectionConfigs(context.Background(), parentStateID, taskConfig, workflowState)
+		metadata, err := cm.PrepareCollectionConfigs(
+			context.Background(),
+			parentStateID,
+			taskConfig,
+			workflowState,
+			&workflow.Config{ID: "test-workflow"},
+		)
 
 		// Assert
 		require.NoError(t, err)
@@ -598,7 +643,13 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 		}
 
 		// Act
-		metadata, err := cm.PrepareCollectionConfigs(context.Background(), parentStateID, taskConfig, workflowState)
+		metadata, err := cm.PrepareCollectionConfigs(
+			context.Background(),
+			parentStateID,
+			taskConfig,
+			workflowState,
+			&workflow.Config{ID: "test-workflow"},
+		)
 
 		// Assert
 		require.NoError(t, err)

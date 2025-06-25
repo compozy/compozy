@@ -129,7 +129,10 @@ func (a *ExecuteSubtask) normalizeTaskConfig(
 		return fmt.Errorf("failed to clone workflow config: %w", err)
 	}
 	wcCopy.Tasks = append([]task.Config(nil), wConfig.Tasks...)
-	normalizer := uc.NewNormalizeConfig()
+	normalizer, err := uc.NewNormalizeConfig()
+	if err != nil {
+		return fmt.Errorf("failed to create normalizer: %w", err)
+	}
 	normalizeInput := &uc.NormalizeConfigInput{
 		WorkflowState:  wState,
 		WorkflowConfig: wcCopy,

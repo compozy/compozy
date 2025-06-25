@@ -55,7 +55,10 @@ func (a *ExecuteSignal) Run(ctx context.Context, input *ExecuteSignalInput) (*ta
 		return nil, err
 	}
 	// Normalize task config
-	normalizer := uc.NewNormalizeConfig()
+	normalizer, err := uc.NewNormalizeConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create normalizer: %w", err)
+	}
 	normalizeInput := &uc.NormalizeConfigInput{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,

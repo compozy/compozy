@@ -165,6 +165,10 @@ func RegisterCommonActivities(env *testsuite.TestWorkflowEnvironment, activities
 		activities.LoadCompositeConfigsActivity,
 		activity.RegisterOptions{Name: tkacts.LoadCompositeConfigsLabel},
 	)
+	env.RegisterActivityWithOptions(
+		activities.LoadCollectionConfigsActivity,
+		activity.RegisterOptions{Name: tkacts.LoadCollectionConfigsLabel},
+	)
 }
 
 // CreateBasicAgentConfig creates a basic agent configuration for testing

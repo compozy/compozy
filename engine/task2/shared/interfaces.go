@@ -15,6 +15,7 @@ type TemplateEngine interface {
 	ProcessString(templateStr string, context map[string]any) (*ProcessResult, error)
 	ParseMapWithFilter(data map[string]any, vars map[string]any, filter func(string) bool) (map[string]any, error)
 	ParseMap(data map[string]any, vars map[string]any) (map[string]any, error)
+	ParseValue(value any, vars map[string]any) (any, error)
 }
 
 // TaskNormalizer defines the contract for task-specific normalization

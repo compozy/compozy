@@ -61,7 +61,10 @@ func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*ta
 		return nil, err
 	}
 	// Normalize task config
-	normalizer := uc.NewNormalizeConfig()
+	normalizer, err := uc.NewNormalizeConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create normalizer: %w", err)
+	}
 	normalizeInput := &uc.NormalizeConfigInput{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,

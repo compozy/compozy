@@ -8,10 +8,64 @@ import (
 	"github.com/compozy/compozy/engine/infra/store"
 	wf "github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
-	"github.com/compozy/compozy/pkg/normalizer"
+	"github.com/compozy/compozy/pkg/tplengine"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 )
+
+// TemplateEngineAdapter adapts tplengine to workflow.TemplateEngine interface
+type TemplateEngineAdapter struct {
+	engine *tplengine.TemplateEngine
+}
+
+func (tea *TemplateEngineAdapter) Process(template string, context map[string]any) (any, error) {
+	result, err := tea.engine.ProcessString(template, context)
+	if err != nil {
+		return nil, err
+	}
+	// Return JSON parsed value for JSON format, otherwise return text
+	if result.JSON != nil {
+		return result.JSON, nil
+	}
+	return result.Text, nil
+}
+
+func (tea *TemplateEngineAdapter) ProcessMap(
+	templateMap map[string]any,
+	context map[string]any,
+) (map[string]any, error) {
+	result, err := tea.engine.ParseMap(templateMap, context)
+	if err != nil {
+		return nil, err
+	}
+	// ParseMap returns any, need to type assert to map[string]any
+	if resultMap, ok := result.(map[string]any); ok {
+		return resultMap, nil
+	}
+	return nil, fmt.Errorf("ParseMap result is not a map[string]any, got %T", result)
+}
+
+// NormalizationContextAdapter creates a normalization context from workflow state
+type NormalizationContextAdapter struct {
+	workflowState  *wf.State
+	workflowConfig *wf.Config
+}
+
+func (nca *NormalizationContextAdapter) BuildTemplateContext() map[string]any {
+	context := map[string]any{
+		"env":              make(map[string]any),
+		"workflow":         nca.workflowState,
+		"config":           nca.workflowConfig,
+		"tasks":            nca.workflowState.Tasks,
+		"workflow_id":      nca.workflowState.WorkflowID,
+		"workflow_exec_id": nca.workflowState.WorkflowExecID,
+	}
+	// Add workflow environment if available
+	if envMap := nca.workflowConfig.GetEnv(); envMap != nil {
+		context["env"] = envMap.AsMap()
+	}
+	return context
+}
 
 const CompleteWorkflowLabel = "CompleteWorkflow"
 
@@ -21,9 +75,9 @@ type CompleteWorkflowInput struct {
 }
 
 type CompleteWorkflow struct {
-	workflowRepo wf.Repository
-	workflows    map[string]*wf.Config
-	normalizer   *normalizer.ConfigNormalizer
+	workflowRepo      wf.Repository
+	workflows         map[string]*wf.Config
+	outputTransformer *wf.OutputNormalizer
 }
 
 func NewCompleteWorkflow(workflowRepo wf.Repository, workflows []*wf.Config) *CompleteWorkflow {
@@ -31,10 +85,13 @@ func NewCompleteWorkflow(workflowRepo wf.Repository, workflows []*wf.Config) *Co
 	for _, wf := range workflows {
 		workflowMap[wf.ID] = wf
 	}
+	// Create template engine for output transformation
+	engine := tplengine.NewEngine(tplengine.FormatJSON)
+	templateEngineAdapter := &TemplateEngineAdapter{engine: engine}
 	return &CompleteWorkflow{
-		workflowRepo: workflowRepo,
-		workflows:    workflowMap,
-		normalizer:   normalizer.NewConfigNormalizer(),
+		workflowRepo:      workflowRepo,
+		workflows:         workflowMap,
+		outputTransformer: wf.NewOutputNormalizer(templateEngineAdapter),
 	}
 }
 
@@ -57,7 +114,12 @@ func (a *CompleteWorkflow) Run(ctx context.Context, input *CompleteWorkflowInput
 	var transformer wf.OutputTransformer
 	if config.GetOutputs() != nil {
 		transformer = func(state *wf.State) (*core.Output, error) {
-			output, err := a.normalizer.NormalizeWorkflowOutput(ctx, state, config, config.GetOutputs())
+			// Create normalization context
+			normCtx := &NormalizationContextAdapter{
+				workflowState:  state,
+				workflowConfig: config,
+			}
+			output, err := a.outputTransformer.TransformWorkflowOutput(state, config.GetOutputs(), normCtx)
 			if err != nil {
 				log.Error("Output transformation failed",
 					"workflow_id", state.WorkflowID,
