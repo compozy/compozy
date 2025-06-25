@@ -9,7 +9,8 @@ import (
 
 // PriorityEvictionPolicy implements a priority-based eviction strategy
 type PriorityEvictionPolicy struct {
-	name string
+	name              string
+	importantKeywords []string
 }
 
 // MessagePriority represents the priority level for eviction
@@ -36,10 +37,31 @@ type messageWithPriority struct {
 	index         int
 }
 
+// getDefaultPriorityKeywords returns the default list of priority keywords
+func getDefaultPriorityKeywords() []string {
+	return []string{
+		"error", "critical", "important", "warning",
+		"failed", "exception", "issue", "problem",
+		"urgent", "key", "essential", "required",
+	}
+}
+
 // NewPriorityEvictionPolicy creates a new priority-based eviction policy
 func NewPriorityEvictionPolicy() *PriorityEvictionPolicy {
 	return &PriorityEvictionPolicy{
-		name: "priority",
+		name:              "priority",
+		importantKeywords: getDefaultPriorityKeywords(),
+	}
+}
+
+// NewPriorityEvictionPolicyWithKeywords creates a new priority-based eviction policy with custom keywords
+func NewPriorityEvictionPolicyWithKeywords(keywords []string) *PriorityEvictionPolicy {
+	if len(keywords) == 0 {
+		keywords = getDefaultPriorityKeywords()
+	}
+	return &PriorityEvictionPolicy{
+		name:              "priority",
+		importantKeywords: keywords,
 	}
 }
 
@@ -112,13 +134,8 @@ func (p *PriorityEvictionPolicy) extractPriority(msg llm.Message) MessagePriorit
 
 // containsImportantKeywords checks if content contains important keywords
 func (p *PriorityEvictionPolicy) containsImportantKeywords(content string) bool {
-	importantKeywords := []string{
-		"error", "critical", "important", "warning",
-		"failed", "exception", "issue", "problem",
-		"urgent", "key", "essential", "required",
-	}
 	lowerContent := strings.ToLower(content)
-	for _, keyword := range importantKeywords {
+	for _, keyword := range p.importantKeywords {
 		if strings.Contains(lowerContent, keyword) {
 			return true
 		}

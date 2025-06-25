@@ -9,7 +9,8 @@ import (
 
 // StrategyFactory creates flush strategies based on configuration
 type StrategyFactory struct {
-	strategies map[core.FlushingStrategyType]StrategyConstructor
+	strategies       map[core.FlushingStrategyType]StrategyConstructor
+	coreTokenCounter core.TokenCounter // System-level token counter for dependency injection
 }
 
 // StrategyConstructor is a function type for creating strategies
@@ -36,12 +37,21 @@ type StrategyOptions struct {
 	PriorityConservativePercent   float64 // Conservative fallback percentage (default: 0.75)
 	PriorityRecentThreshold       float64 // Recent message threshold (default: 0.8)
 	PriorityMaxFlushRatio         float64 // Maximum flush ratio (default: 0.33)
+
+	// Token estimation strategy for fallback counting
+	TokenEstimationStrategy core.TokenEstimationStrategy // Default: EnglishEstimation
 }
 
 // NewStrategyFactory creates a new strategy factory with all registered strategies
 func NewStrategyFactory() *StrategyFactory {
+	return NewStrategyFactoryWithTokenCounter(nil)
+}
+
+// NewStrategyFactoryWithTokenCounter creates a new strategy factory with a core token counter
+func NewStrategyFactoryWithTokenCounter(coreTokenCounter core.TokenCounter) *StrategyFactory {
 	factory := &StrategyFactory{
-		strategies: make(map[core.FlushingStrategyType]StrategyConstructor),
+		strategies:       make(map[core.FlushingStrategyType]StrategyConstructor),
+		coreTokenCounter: coreTokenCounter,
 	}
 
 	// Register all available strategies
@@ -61,6 +71,11 @@ func (f *StrategyFactory) registerDefaultStrategies() {
 				threshold = config.SummarizeThreshold
 			} else if opts != nil && opts.DefaultThreshold > 0 {
 				threshold = opts.DefaultThreshold
+			}
+
+			// Use core token counter if available, otherwise use default strategy counter
+			if f.coreTokenCounter != nil {
+				return NewFIFOStrategyWithTokenCounter(threshold, f.coreTokenCounter), nil
 			}
 			return NewFIFOStrategy(threshold), nil
 		},
@@ -82,13 +97,8 @@ func (f *StrategyFactory) registerDefaultStrategies() {
 		},
 	)
 
-	// Register Priority-Based strategy
-	f.Register(
-		core.PriorityBasedFlushing,
-		func(config *core.FlushingStrategyConfig, opts *StrategyOptions) (instance.FlushStrategy, error) {
-			return NewPriorityBasedStrategy(config, opts), nil
-		},
-	)
+	// Priority-based eviction is now handled by EvictionPolicy, not FlushStrategy
+	// Use SimpleFIFOFlushing with PriorityEviction policy instead of PriorityBasedFlushing
 }
 
 // Register adds a new strategy constructor to the factory
@@ -102,10 +112,10 @@ func (f *StrategyFactory) CreateStrategy(
 	opts *StrategyOptions,
 ) (instance.FlushStrategy, error) {
 	if config == nil {
-		// Default to FIFO strategy
-		return f.CreateStrategy(&core.FlushingStrategyConfig{
+		// Use default FIFO strategy configuration
+		config = &core.FlushingStrategyConfig{
 			Type: core.SimpleFIFOFlushing,
-		}, opts)
+		}
 	}
 
 	constructor, exists := f.strategies[config.Type]
@@ -182,7 +192,7 @@ func (f *StrategyFactory) ValidateStrategyConfig(config *core.FlushingStrategyCo
 	}
 
 	// Validate threshold for strategies that use it
-	if config.SummarizeThreshold > 0 && (config.SummarizeThreshold <= 0 || config.SummarizeThreshold > 1) {
+	if config.SummarizeThreshold != 0 && (config.SummarizeThreshold <= 0 || config.SummarizeThreshold > 1) {
 		return fmt.Errorf("summarize threshold must be between 0 and 1, got %f", config.SummarizeThreshold)
 	}
 

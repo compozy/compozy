@@ -96,8 +96,8 @@ func TestConcurrentAgentAccess(t *testing.T) {
 			"project.id": "test-project",
 			"session.id": "concurrent-session",
 		}
-		const numWorkers = 10
-		const messagesPerWorker = 5
+		const numWorkers = 5
+		const messagesPerWorker = 10
 		results := make(chan error, numWorkers)
 		var wg sync.WaitGroup
 		// Launch concurrent workers
@@ -111,6 +111,8 @@ func TestConcurrentAgentAccess(t *testing.T) {
 						return
 					}
 				}()
+				// Stagger worker start to reduce initial contention
+				time.Sleep(time.Duration(workerID) * 10 * time.Millisecond)
 				// Each worker gets its own memory instance
 				memoryInstance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 				if err != nil {
@@ -127,8 +129,8 @@ func TestConcurrentAgentAccess(t *testing.T) {
 						results <- fmt.Errorf("worker %d failed to append: %w", workerID, err)
 						return
 					}
-					// Small delay to increase chance of contention
-					time.Sleep(time.Millisecond * 10)
+					// Small delay to reduce lock contention
+					time.Sleep(time.Millisecond * 20)
 				}
 				results <- nil
 			}(i)

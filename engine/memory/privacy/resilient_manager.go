@@ -48,14 +48,16 @@ func DefaultResilienceConfig() *ResilienceConfig {
 }
 
 // NewResilientManager creates a new resilient privacy manager
-func NewResilientManager(config *ResilienceConfig, log logger.Logger) *ResilientManager {
+func NewResilientManager(baseManager ManagerInterface, config *ResilienceConfig, log logger.Logger) *ResilientManager {
 	if config == nil {
 		config = DefaultResilienceConfig()
 	}
 	if log == nil {
 		log = logger.NewForTests() // Use test logger for no-op behavior
 	}
-	baseManager := NewManager()
+	if baseManager == nil {
+		baseManager = NewManager()
+	}
 	// Create circuit breaker middleware
 	cbMiddleware := circuitbreaker.NewMiddleware(circuitbreaker.Config{
 		ErrorPercentThresholdToOpen:        config.ErrorPercentThresholdToOpen,

@@ -50,7 +50,7 @@ config:
 resources:
   memories:
     - id: user_memory
-      type: memory
+      source: ./memory/user_memory.yaml
 
 tasks:
   # Read existing user data

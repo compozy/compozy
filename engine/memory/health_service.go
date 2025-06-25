@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -162,12 +163,8 @@ func (mhs *HealthService) setInstanceHealthStatus(instanceHealth *InstanceHealth
 
 // addTokenUsageInfo adds token usage information to instance health if available
 func (mhs *HealthService) addTokenUsageInfo(instanceHealth *InstanceHealth, memoryID string) {
-	tokenState, exists := metrics.MemoryTokenStates.Load(memoryID)
+	ts, exists := metrics.GetDefaultState().GetTokenState(memoryID)
 	if !exists {
-		return
-	}
-	ts, ok := tokenState.(*metrics.TokenState)
-	if !ok {
 		return
 	}
 	ts.Mu.RLock()
@@ -308,14 +305,14 @@ func (mhs *HealthService) performHealthCheck(ctx context.Context) {
 		state.Mu.Unlock()
 
 		// Update the global health state
-		metrics.UpdateHealthState(memoryID, healthy, failures)
+		metrics.GetDefaultState().UpdateHealthState(memoryID, healthy, failures)
 
 		return true
 	})
 }
 
 // checkInstanceHealth performs a health check on a specific instance
-func (mhs *HealthService) checkInstanceHealth(_ context.Context, memoryID string) bool {
+func (mhs *HealthService) checkInstanceHealth(ctx context.Context, memoryID string) bool {
 	if mhs.manager == nil {
 		return false
 	}
@@ -326,60 +323,117 @@ func (mhs *HealthService) checkInstanceHealth(_ context.Context, memoryID string
 	// tracking that's updated when instances perform operations.
 
 	// Check if the instance has been recently active
-	if state, exists := metrics.MemoryHealthStates.Load(memoryID); exists {
-		if healthState, ok := state.(*metrics.HealthState); ok {
-			healthState.Mu.RLock()
-			timeSinceCheck := time.Since(healthState.LastHealthCheck)
-			isHealthy := healthState.IsHealthy
-			consecutiveFailures := healthState.ConsecutiveFailures
-			healthState.Mu.RUnlock()
+	if healthState, exists := metrics.GetDefaultState().GetHealthState(memoryID); exists {
+		healthState.Mu.RLock()
+		timeSinceCheck := time.Since(healthState.LastHealthCheck)
+		isHealthy := healthState.IsHealthy
+		consecutiveFailures := healthState.ConsecutiveFailures
+		healthState.Mu.RUnlock()
 
-			// Consider unhealthy if:
-			// 1. The instance is marked as unhealthy
-			// 2. Not checked in over 5 minutes
-			// 3. Has too many consecutive failures
-			if !isHealthy {
-				mhs.log.Debug("Instance marked as unhealthy",
-					"memory_id", memoryID,
-					"consecutive_failures", consecutiveFailures)
-				return false
-			}
-
-			if timeSinceCheck > 5*time.Minute {
-				mhs.log.Debug("Instance inactive for too long",
-					"memory_id", memoryID,
-					"time_since_check", timeSinceCheck)
-				return false
-			}
-
-			if consecutiveFailures > 3 {
-				mhs.log.Debug("Too many consecutive failures",
-					"memory_id", memoryID,
-					"failures", consecutiveFailures)
-				return false
-			}
-
-			// Check Redis connectivity if available
-			if mhs.manager.baseRedisClient != nil {
-				// baseRedisClient is already of type cache.RedisInterface
-				pingCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-				defer cancel()
-				if err := mhs.manager.baseRedisClient.Ping(pingCtx).Err(); err != nil {
-					mhs.log.Debug("Instance Redis connectivity check failed",
-						"instance_id", memoryID,
-						"error", err,
-					)
-					return false
-				}
-			}
-
-			return true
+		// Consider unhealthy if:
+		// 1. The instance is marked as unhealthy
+		// 2. Not checked in over 5 minutes
+		// 3. Has too many consecutive failures
+		if !isHealthy {
+			mhs.log.Debug("Instance marked as unhealthy",
+				"memory_id", memoryID,
+				"consecutive_failures", consecutiveFailures)
+			return false
 		}
+
+		if timeSinceCheck > 5*time.Minute {
+			mhs.log.Debug("Instance inactive for too long",
+				"memory_id", memoryID,
+				"time_since_check", timeSinceCheck)
+			return false
+		}
+
+		if consecutiveFailures > 3 {
+			mhs.log.Debug("Too many consecutive failures",
+				"memory_id", memoryID,
+				"failures", consecutiveFailures)
+			return false
+		}
+
+		// Perform comprehensive operational health checks
+		if !mhs.performOperationalChecks(ctx, memoryID) {
+			return false
+		}
+
+		return true
 	}
 
 	// If we don't have health state for this instance, default to healthy
 	// This allows new instances to be considered healthy until proven otherwise
 	mhs.log.Debug("No health state found for instance, defaulting to healthy", "memory_id", memoryID)
+	return true
+}
+
+// performOperationalChecks performs comprehensive operational health checks
+func (mhs *HealthService) performOperationalChecks(ctx context.Context, memoryID string) bool {
+	// Check Redis connectivity and operations if available
+	if mhs.manager.baseRedisClient != nil {
+		// 1. Basic connectivity check
+		pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		if err := mhs.manager.baseRedisClient.Ping(pingCtx).Err(); err != nil {
+			mhs.log.Debug("Instance Redis connectivity check failed",
+				"memory_id", memoryID,
+				"error", err)
+			return false
+		}
+		// 2. Test basic read/write operations
+		testKey := fmt.Sprintf("health:check:%s:%d", memoryID, time.Now().UnixNano())
+		testValue := "health-check-value"
+		// Write test with timeout
+		writeCtx, writeCancel := context.WithTimeout(ctx, 2*time.Second)
+		defer writeCancel()
+		if err := mhs.manager.baseRedisClient.Set(writeCtx, testKey, testValue, 10*time.Second).Err(); err != nil {
+			mhs.log.Debug("Health check write operation failed",
+				"memory_id", memoryID,
+				"error", err)
+			return false
+		}
+		// Read test with timeout
+		readCtx, readCancel := context.WithTimeout(ctx, 2*time.Second)
+		defer readCancel()
+		val, err := mhs.manager.baseRedisClient.Get(readCtx, testKey).Result()
+		if err != nil || val != testValue {
+			mhs.log.Debug("Health check read operation failed",
+				"memory_id", memoryID,
+				"error", err,
+				"expected", testValue,
+				"got", val)
+			return false
+		}
+		// Cleanup test key
+		delCtx, delCancel := context.WithTimeout(ctx, 1*time.Second)
+		defer delCancel()
+		_ = mhs.manager.baseRedisClient.Del(delCtx, testKey)
+	}
+	// 3. Test lock operations if lock manager is available
+	if mhs.manager.baseLockManager != nil {
+		lockKey := fmt.Sprintf("health:lock:%s:%d", memoryID, time.Now().UnixNano())
+		lockCtx, lockCancel := context.WithTimeout(ctx, 3*time.Second)
+		defer lockCancel()
+		lock, err := mhs.manager.baseLockManager.Acquire(lockCtx, lockKey, 5*time.Second)
+		if err != nil {
+			mhs.log.Debug("Health check lock acquisition failed",
+				"memory_id", memoryID,
+				"error", err)
+			return false
+		}
+		// Release the lock
+		releaseCtx, releaseCancel := context.WithTimeout(ctx, 1*time.Second)
+		defer releaseCancel()
+		if err := lock.Release(releaseCtx); err != nil {
+			mhs.log.Debug("Health check lock release failed",
+				"memory_id", memoryID,
+				"error", err)
+			return false
+		}
+	}
+	mhs.log.Debug("Operational health checks passed", "memory_id", memoryID)
 	return true
 }
 

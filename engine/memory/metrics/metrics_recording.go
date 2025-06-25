@@ -102,41 +102,6 @@ func RecordMemoryOp(
 	memoryOperationLatency.Record(ctx, latency.Seconds(), metric.WithAttributes(attributes...))
 }
 
-// RecordTemporalActivity records metrics for Temporal activities
-func RecordTemporalActivity(ctx context.Context, memoryID string, activityType string, projectID string) {
-	if memoryTemporalActivities == nil {
-		return
-	}
-	memoryTemporalActivities.Add(ctx, 1, metric.WithAttributes(
-		attribute.String("memory_id", memoryID),
-		attribute.String("activity_type", activityType),
-		attribute.String("project_id", projectID),
-	))
-}
-
-// RecordConfigResolution records metrics for config resolutions
-func RecordConfigResolution(ctx context.Context, pattern string, projectID string) {
-	if memoryConfigResolution == nil {
-		return
-	}
-	memoryConfigResolution.Add(ctx, 1, metric.WithAttributes(
-		attribute.String("pattern", pattern),
-		attribute.String("project_id", projectID),
-	))
-}
-
-// RecordPrivacyExclusion records metrics for privacy exclusions
-func RecordPrivacyExclusion(ctx context.Context, memoryID string, reason string, projectID string) {
-	if memoryPrivacyExclusions == nil {
-		return
-	}
-	memoryPrivacyExclusions.Add(ctx, 1, metric.WithAttributes(
-		attribute.String("memory_id", memoryID),
-		attribute.String("reason", reason),
-		attribute.String("project_id", projectID),
-	))
-}
-
 // RecordRedactionOperation records metrics for redaction operations
 func RecordRedactionOperation(ctx context.Context, memoryID string, fieldCount int64, projectID string) {
 	if memoryRedactionOperations == nil {

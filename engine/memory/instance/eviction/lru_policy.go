@@ -1,8 +1,8 @@
 package eviction
 
 import (
-	"crypto/sha256"
 	"fmt"
+	"hash/fnv"
 	"sort"
 	"sync"
 	"time"
@@ -105,9 +105,9 @@ func (p *LRUEvictionPolicy) getLastAccessTime(msg llm.Message) time.Time {
 // generateMessageID creates a unique identifier for a message
 func (p *LRUEvictionPolicy) generateMessageID(msg llm.Message) string {
 	// Use content hash for consistent ID generation
-	h := sha256.New()
+	h := fnv.New64a()
 	fmt.Fprintf(h, "%v:%s", msg.Role, msg.Content)
-	return fmt.Sprintf("%x", h.Sum(nil))
+	return fmt.Sprintf("%d", h.Sum64())
 }
 
 // ClearAccessHistory clears all access time records

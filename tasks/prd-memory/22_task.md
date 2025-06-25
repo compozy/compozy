@@ -1,5 +1,6 @@
 ---
-status: pending
+status: completed
+completed_date: 2025-06-25
 ---
 
 <task_context>
@@ -18,12 +19,12 @@ Replace the current tiktoken-only token counting with a unified multi-provider t
 
 ## Subtasks
 
-- [ ] 22.1 Add alembica library dependency to go.mod
-- [ ] 22.2 Implement unified token counter with multi-provider support
-- [ ] 22.3 Add provider registry and configuration system
-- [ ] 22.4 Implement intelligent fallback to tiktoken when API unavailable
-- [ ] 22.5 Add comprehensive tests for all provider types
-- [ ] 22.6 Update memory configuration to support provider selection
+- [x] 22.1 Add alembica library dependency to go.mod
+- [x] 22.2 Implement unified token counter with multi-provider support
+- [x] 22.3 Add provider registry and configuration system
+- [x] 22.4 Implement intelligent fallback to tiktoken when API unavailable
+- [x] 22.5 Add comprehensive tests for all provider types
+- [x] 22.6 Update memory configuration to support provider selection
 
 ## Implementation Details
 

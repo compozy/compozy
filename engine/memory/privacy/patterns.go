@@ -1,24 +1,43 @@
 package privacy
 
-// CommonRedactionPatterns contains commonly used redaction patterns
-var CommonRedactionPatterns = map[string]string{
-	"ssn":         `\b\d{3}-\d{2}-\d{4}\b`,
-	"credit_card": `\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b`,
-	"email":       `\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b`,
-	"phone":       `\b(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b`,
-	"ip_address":  `\b(?:\d{1,3}\.){3}\d{1,3}\b`,
+import (
+	"fmt"
+	"regexp"
+
+	memcore "github.com/compozy/compozy/engine/memory/core"
+)
+
+// ValidateRedactionPattern validates a regex pattern for safety and correctness
+// It checks for valid regex syntax and potential ReDoS vulnerabilities
+func ValidateRedactionPattern(pattern string) error {
+	// First check if it's a valid regex
+	if _, err := regexp.Compile(pattern); err != nil {
+		return memcore.NewMemoryError(
+			memcore.ErrCodePrivacyValidation,
+			fmt.Sprintf("invalid regex pattern '%s'", pattern),
+			err,
+		).WithContext("pattern", pattern)
+	}
+	// Then check for ReDoS vulnerabilities using the existing function
+	if err := validateRedactionPattern(pattern); err != nil {
+		return memcore.NewMemoryError(
+			memcore.ErrCodePrivacyValidation,
+			fmt.Sprintf("unsafe regex pattern '%s'", pattern),
+			err,
+		).WithContext("pattern", pattern)
+	}
+	return nil
 }
 
-// BuildRedactionPattern builds a redaction pattern from common patterns
-func BuildRedactionPattern(patterns ...string) []string {
-	var result []string
-	for _, p := range patterns {
-		if pattern, ok := CommonRedactionPatterns[p]; ok {
-			result = append(result, pattern)
-		} else {
-			// Assume it's a custom pattern
-			result = append(result, p)
+// ValidateRedactionPatterns validates multiple regex patterns
+func ValidateRedactionPatterns(patterns []string) error {
+	for _, pattern := range patterns {
+		if pattern == "" {
+			continue // Skip empty patterns
+		}
+		if err := ValidateRedactionPattern(pattern); err != nil {
+			return err
 		}
 	}
-	return result
+	return nil
 }

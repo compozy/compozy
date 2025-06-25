@@ -50,21 +50,6 @@ func initCounterMetrics(meter metric.Meter, log logger.Logger) error {
 		{"compozy_memory_lock_contention_total", "Total number of memory lock contentions", &memoryLockContentionTotal},
 		{"compozy_memory_tokens_saved_total", "Total number of tokens saved by trimming", &memoryTokensSavedTotal},
 		{
-			"compozy_memory_temporal_activities_total",
-			"Total number of Temporal activities for memory",
-			&memoryTemporalActivities,
-		},
-		{
-			"compozy_memory_config_resolution_total",
-			"Total number of memory config resolutions",
-			&memoryConfigResolution,
-		},
-		{
-			"compozy_memory_privacy_exclusions_total",
-			"Total number of messages excluded due to privacy",
-			&memoryPrivacyExclusions,
-		},
-		{
 			"compozy_memory_redaction_operations_total",
 			"Total number of redaction operations",
 			&memoryRedactionOperations,
@@ -153,14 +138,13 @@ func registerGoroutinePoolCallback(meter metric.Meter, log logger.Logger) error 
 	var err error
 	goroutinePoolCallback, err = meter.RegisterCallback(
 		func(_ context.Context, observer metric.Observer) error {
-			MemoryPoolStates.Range(func(_, value any) bool {
-				if state, ok := value.(*PoolState); ok {
-					state.Mu.RLock()
-					observer.ObserveInt64(memoryGoroutinePoolActive, state.ActiveCount, metric.WithAttributes(
-						attribute.String("memory_id", state.MemoryID),
-						attribute.Int64("max_pool_size", state.MaxPoolSize),
+			GetDefaultState().RangePoolStates(func(_, value any) bool {
+				if poolState, ok := value.(*PoolState); ok {
+					poolState.Mu.RLock()
+					observer.ObserveInt64(memoryGoroutinePoolActive, poolState.ActiveCount, metric.WithAttributes(
+						attribute.String("memory_id", poolState.MemoryID),
 					))
-					state.Mu.RUnlock()
+					poolState.Mu.RUnlock()
 				}
 				return true
 			})
@@ -182,7 +166,7 @@ func registerTokensUsedCallback(meter metric.Meter, log logger.Logger) error {
 	var err error
 	tokensUsedCallback, err = meter.RegisterCallback(
 		func(_ context.Context, observer metric.Observer) error {
-			MemoryTokenStates.Range(func(_, value any) bool {
+			GetDefaultState().RangeTokenStates(func(_, value any) bool {
 				if state, ok := value.(*TokenState); ok {
 					state.Mu.RLock()
 					observer.ObserveInt64(memoryTokensUsedGauge, state.TokensUsed, metric.WithAttributes(
@@ -211,7 +195,7 @@ func registerHealthStatusCallback(meter metric.Meter, log logger.Logger) error {
 	var err error
 	healthStatusCallback, err = meter.RegisterCallback(
 		func(_ context.Context, observer metric.Observer) error {
-			MemoryHealthStates.Range(func(_, value any) bool {
+			GetDefaultState().RangeHealthStates(func(_, value any) bool {
 				if state, ok := value.(*HealthState); ok {
 					state.Mu.RLock()
 					healthValue := int64(0)
@@ -243,9 +227,7 @@ func resetMemoryMetrics(_ context.Context) {
 	defer memoryResetMutex.Unlock()
 
 	// Reset state maps
-	MemoryPoolStates = sync.Map{}
-	MemoryTokenStates = sync.Map{}
-	MemoryHealthStates = sync.Map{}
+	GetDefaultState().Clear()
 
 	// Unregister callbacks
 	if goroutinePoolCallback != nil {
@@ -269,9 +251,6 @@ func resetMemoryMetrics(_ context.Context) {
 	memoryLockAcquireTotal = nil
 	memoryLockContentionTotal = nil
 	memoryTokensSavedTotal = nil
-	memoryTemporalActivities = nil
-	memoryConfigResolution = nil
-	memoryPrivacyExclusions = nil
 	memoryRedactionOperations = nil
 	memoryCircuitBreakerTrips = nil
 	memoryOperationLatency = nil

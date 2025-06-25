@@ -233,3 +233,103 @@ func TestPriorityEvictionPolicy_GetType(t *testing.T) {
 		assert.Equal(t, "priority", policy.GetType())
 	})
 }
+
+func TestPriorityEvictionPolicy_NewPriorityEvictionPolicyWithKeywords(t *testing.T) {
+	t.Run("Should create policy with custom keywords", func(t *testing.T) {
+		customKeywords := []string{"bug", "fix", "deadline"}
+		policy := NewPriorityEvictionPolicyWithKeywords(customKeywords)
+		require.NotNil(t, policy)
+		assert.Equal(t, "priority", policy.GetType())
+		assert.Equal(t, customKeywords, policy.importantKeywords)
+	})
+
+	t.Run("Should use default keywords when empty list provided", func(t *testing.T) {
+		policy := NewPriorityEvictionPolicyWithKeywords([]string{})
+		require.NotNil(t, policy)
+		assert.Equal(t, getDefaultPriorityKeywords(), policy.importantKeywords)
+	})
+
+	t.Run("Should use default keywords when nil provided", func(t *testing.T) {
+		policy := NewPriorityEvictionPolicyWithKeywords(nil)
+		require.NotNil(t, policy)
+		assert.Equal(t, getDefaultPriorityKeywords(), policy.importantKeywords)
+	})
+}
+
+func TestPriorityEvictionPolicy_customKeywords(t *testing.T) {
+	t.Run("Should use custom keywords for priority detection", func(t *testing.T) {
+		customKeywords := []string{"security", "vulnerability", "breach"}
+		policy := NewPriorityEvictionPolicyWithKeywords(customKeywords)
+
+		testCases := []struct {
+			name     string
+			content  string
+			expected bool
+		}{
+			{"Should detect security keyword", "Security issue found", true},
+			{"Should detect vulnerability keyword", "Vulnerability assessment", true},
+			{"Should detect breach keyword", "Data breach detected", true},
+			{"Should ignore default keywords", "Critical error occurred", false},
+			{"Should ignore default keywords", "Important warning", false},
+			{"Should ignore non-matching content", "Normal message", false},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				result := policy.containsImportantKeywords(tc.content)
+				assert.Equal(t, tc.expected, result, "Content: %s", tc.content)
+			})
+		}
+	})
+
+	t.Run("Should respect case insensitivity", func(t *testing.T) {
+		customKeywords := []string{"bug", "fix", "urgent"}
+		policy := NewPriorityEvictionPolicyWithKeywords(customKeywords)
+
+		testCases := []struct {
+			content  string
+			expected bool
+		}{
+			{"Found a BUG in the system", true},
+			{"Need to fix this issue", true},
+			{"This is urgent!", true},
+			{"This is URGENT!", true},
+			{"bug report submitted", true},
+			{"Normal message", false},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.content, func(t *testing.T) {
+				result := policy.containsImportantKeywords(tc.content)
+				assert.Equal(t, tc.expected, result)
+			})
+		}
+	})
+}
+
+func TestPriorityEvictionPolicy_customKeywordsPriority(t *testing.T) {
+	t.Run("Should prioritize messages with custom keywords during eviction", func(t *testing.T) {
+		customKeywords := []string{"bug", "deadline"}
+		policy := NewPriorityEvictionPolicyWithKeywords(customKeywords)
+
+		messages := []llm.Message{
+			{Role: llm.MessageRoleUser, Content: "Normal user message"},
+			{Role: llm.MessageRoleUser, Content: "Found a bug in the code"},
+			{Role: llm.MessageRoleUser, Content: "Another normal message"},
+			{Role: llm.MessageRoleUser, Content: "Deadline approaching fast"},
+		}
+
+		// Keep only 2 messages
+		evicted := policy.SelectMessagesToEvict(messages, 2)
+		require.Len(t, evicted, 2)
+
+		// Should evict normal messages, keep ones with custom keywords
+		evictedContents := []string{evicted[0].Content, evicted[1].Content}
+		assert.Contains(t, evictedContents, "Normal user message")
+		assert.Contains(t, evictedContents, "Another normal message")
+
+		// Important messages should not be evicted
+		assert.NotContains(t, evictedContents, "Found a bug in the code")
+		assert.NotContains(t, evictedContents, "Deadline approaching fast")
+	})
+}

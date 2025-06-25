@@ -313,18 +313,4 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 	})
 }
 
-func TestFlushOperations_ErrorLogging(t *testing.T) {
-	t.Run("Should log error when flush pending flag cleanup fails", func(t *testing.T) {
-		// This test would need to be implemented with proper mocking
-		// of the flush operations and store to test the cleanup error logging
-		// For now, we verify the structure is in place
-		assert.True(t, true, "Error logging structure is in place")
-	})
-
-	t.Run("Should log error when flush lock release fails", func(t *testing.T) {
-		// This test would need to be implemented with proper mocking
-		// of the flush operations and lock manager to test the lock release error logging
-		// For now, we verify the structure is in place
-		assert.True(t, true, "Error logging structure is in place")
-	})
-}
+// TODO: Implement TestFlushOperations_ErrorLogging when flush operations are integrated

@@ -39,9 +39,9 @@ func (m *MemoryMonitoringInterceptor) GetInstance(
 	metrics.RecordMemoryOp(ctx, ref.ID, projectID, "get_instance", duration, 0, err)
 
 	if err != nil {
-		metrics.UpdateHealthState(ref.ID, false, 1)
+		metrics.GetDefaultState().UpdateHealthState(ref.ID, false, 1)
 	} else {
-		metrics.UpdateHealthState(ref.ID, true, 0)
+		metrics.GetDefaultState().UpdateHealthState(ref.ID, true, 0)
 	}
 
 	return instance, err

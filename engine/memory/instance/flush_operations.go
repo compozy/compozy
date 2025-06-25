@@ -264,14 +264,24 @@ func (f *FlushOperations) createFlushInput() FlushMemoryActivityInput {
 }
 
 // calculateTokenCount calculates tokens for a message
-func (f *FlushOperations) calculateTokenCount(_ context.Context, msg llm.Message) int {
+func (f *FlushOperations) calculateTokenCount(ctx context.Context, msg llm.Message) int {
 	// Delegate to operations
 	if f.operations != nil {
-		// This would use the operations token counting logic
-		// For now, return a rough estimate
-		return len(msg.Content) / 4
+		return f.operations.calculateTokenCount(ctx, msg)
 	}
-	return len(msg.Content) / 4
+	// Fallback if operations not available
+	return f.estimateTokenCount(msg.Content)
+}
+
+// estimateTokenCount provides a fallback token estimation
+func (f *FlushOperations) estimateTokenCount(text string) int {
+	// Rough estimate: 4 characters per token (common for most tokenizers)
+	tokens := len(text) / 4
+	// Ensure at least 1 token for non-empty text
+	if tokens == 0 && text != "" {
+		tokens = 1
+	}
+	return tokens
 }
 
 // FlushMemoryActivityInput defines the input for flush activities

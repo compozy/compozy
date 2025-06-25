@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/llm"
+	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/instance"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -296,4 +297,90 @@ func (m *mockEvictionPolicy) SelectMessagesToEvict(messages []llm.Message, targe
 
 func (m *mockEvictionPolicy) GetType() string {
 	return m.name
+}
+
+func TestCreatePolicyWithConfig(t *testing.T) {
+	t.Run("Should create priority policy with custom keywords", func(t *testing.T) {
+		config := &memcore.EvictionPolicyConfig{
+			Type:             memcore.PriorityEviction,
+			PriorityKeywords: []string{"security", "vulnerability", "breach"},
+		}
+
+		policy := CreatePolicyWithConfig(config)
+		require.NotNil(t, policy)
+		assert.Equal(t, "priority", policy.GetType())
+
+		// Verify it uses custom keywords
+		priorityPolicy, ok := policy.(*PriorityEvictionPolicy)
+		require.True(t, ok)
+		assert.Equal(t, config.PriorityKeywords, priorityPolicy.importantKeywords)
+	})
+
+	t.Run("Should create priority policy with default keywords when config is nil", func(t *testing.T) {
+		policy := CreatePolicyWithConfig(nil)
+		require.NotNil(t, policy)
+		assert.Equal(t, "fifo", policy.GetType()) // Default to FIFO when config is nil
+	})
+
+	t.Run("Should create priority policy with default keywords when keywords are empty", func(t *testing.T) {
+		config := &memcore.EvictionPolicyConfig{
+			Type:             memcore.PriorityEviction,
+			PriorityKeywords: []string{},
+		}
+
+		policy := CreatePolicyWithConfig(config)
+		require.NotNil(t, policy)
+
+		priorityPolicy, ok := policy.(*PriorityEvictionPolicy)
+		require.True(t, ok)
+		assert.Equal(t, getDefaultPriorityKeywords(), priorityPolicy.importantKeywords)
+	})
+
+	t.Run("Should create LRU policy", func(t *testing.T) {
+		config := &memcore.EvictionPolicyConfig{Type: memcore.LRUEviction}
+		policy := CreatePolicyWithConfig(config)
+		require.NotNil(t, policy)
+		assert.Equal(t, "lru", policy.GetType())
+	})
+
+	t.Run("Should create FIFO policy", func(t *testing.T) {
+		config := &memcore.EvictionPolicyConfig{Type: memcore.FIFOEviction}
+		policy := CreatePolicyWithConfig(config)
+		require.NotNil(t, policy)
+		assert.Equal(t, "fifo", policy.GetType())
+	})
+
+	t.Run("Should default to FIFO for unknown policy type", func(t *testing.T) {
+		config := &memcore.EvictionPolicyConfig{Type: "unknown"}
+		policy := CreatePolicyWithConfig(config)
+		require.NotNil(t, policy)
+		assert.Equal(t, "fifo", policy.GetType())
+	})
+
+	t.Run("Should create functional priority policy with custom keywords", func(t *testing.T) {
+		config := &memcore.EvictionPolicyConfig{
+			Type:             memcore.PriorityEviction,
+			PriorityKeywords: []string{"bug", "deadline"},
+		}
+
+		policy := CreatePolicyWithConfig(config)
+
+		messages := []llm.Message{
+			{Role: llm.MessageRoleUser, Content: "Normal message"},
+			{Role: llm.MessageRoleUser, Content: "Found a bug here"},
+			{Role: llm.MessageRoleUser, Content: "Another normal message"},
+			{Role: llm.MessageRoleUser, Content: "Deadline is tomorrow"},
+		}
+
+		// Keep only 2 messages
+		evicted := policy.SelectMessagesToEvict(messages, 2)
+		require.Len(t, evicted, 2)
+
+		// Should evict normal messages, keep important ones
+		evictedContents := []string{evicted[0].Content, evicted[1].Content}
+		assert.Contains(t, evictedContents, "Normal message")
+		assert.Contains(t, evictedContents, "Another normal message")
+		assert.NotContains(t, evictedContents, "Found a bug here")
+		assert.NotContains(t, evictedContents, "Deadline is tomorrow")
+	})
 }

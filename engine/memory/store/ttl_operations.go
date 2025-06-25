@@ -2,21 +2,28 @@ package store
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
+// RedisClient defines the Redis operations needed for TTL management
+type RedisClient interface {
+	Expire(ctx context.Context, key string, expiration time.Duration) *redis.BoolCmd
+	TTL(ctx context.Context, key string) *redis.DurationCmd
+	Set(ctx context.Context, key string, value any, expiration time.Duration) *redis.StatusCmd
+	Get(ctx context.Context, key string) *redis.StringCmd
+}
+
 // TTLOperations handles TTL and expiration-related operations for Redis memory store
 type TTLOperations struct {
 	keyManager *KeyManager
-	client     any // Will be cast to cache.RedisInterface when needed
+	client     RedisClient
 }
 
 // NewTTLOperations creates a new TTL operations handler
-func NewTTLOperations(keyManager *KeyManager, client any) *TTLOperations {
+func NewTTLOperations(keyManager *KeyManager, client RedisClient) *TTLOperations {
 	return &TTLOperations{
 		keyManager: keyManager,
 		client:     client,
@@ -28,30 +35,22 @@ func (t *TTLOperations) SetExpiration(ctx context.Context, key string, ttl time.
 	fKey := t.keyManager.FullKey(key)
 	metaKey := t.keyManager.MetadataKey(key)
 	if ttl <= 0 { // Redis EXPIRE with 0 or negative deletes the key or removes TTL. Be specific.
-		// To remove TTL, use PERSIST. For this method, assume positive TTL means set, non-positive means error or no-op.
-		return errors.New("TTL must be a positive duration to set expiration")
-	}
-
-	// Type assert to get the client
-	client, ok := t.client.(interface {
-		Expire(ctx context.Context, key string, expiration time.Duration) *redis.BoolCmd
-	})
-	if !ok {
-		return fmt.Errorf("invalid client type for TTL operations")
+		// Redis EXPIRE with 0 deletes the key immediately
+		// For TTL removal, use a separate method or make this behavior explicit
+		return fmt.Errorf("TTL must be positive to set expiration, got %v", ttl)
 	}
 
 	// Set TTL on both the main key and metadata key
-	_, err := client.Expire(ctx, fKey, ttl).Result()
+	_, err := t.client.Expire(ctx, fKey, ttl).Result()
 	if err != nil {
 		return fmt.Errorf("failed to set expiration for key %s: %w", fKey, err)
 	}
 
 	// Also set TTL on metadata key
-	_, err = client.Expire(ctx, metaKey, ttl).Result()
+	_, err = t.client.Expire(ctx, metaKey, ttl).Result()
 	if err != nil {
-		// Log but don't fail if metadata key doesn't exist yet
-		// It will be created with TTL when first metadata is set
-		return nil
+		// Metadata key TTL failure should be logged but not fatal
+		return fmt.Errorf("failed to set expiration for metadata key %s: %w", metaKey, err)
 	}
 
 	return nil
@@ -61,29 +60,19 @@ func (t *TTLOperations) SetExpiration(ctx context.Context, key string, ttl time.
 func (t *TTLOperations) GetKeyTTL(ctx context.Context, key string) (time.Duration, error) {
 	fKey := t.keyManager.FullKey(key)
 
-	// Type assert to get the client
-	client, ok := t.client.(interface {
-		TTL(ctx context.Context, key string) *redis.DurationCmd
-	})
-	if !ok {
-		return 0, fmt.Errorf("invalid client type for TTL operations")
-	}
-
-	ttl, err := client.TTL(ctx, fKey).Result()
+	ttl, err := t.client.TTL(ctx, fKey).Result()
 	if err == redis.Nil {
 		return -2 * time.Second, nil // Key does not exist, consistent with redis.TTL behavior for non-existent keys
 	}
 	if err != nil {
 		return 0, fmt.Errorf("failed to get TTL for key %s: %w", fKey, err)
 	}
-	// Redis returns -2 for non-existent keys and -1 for keys without expiry
-	// The TTL command returns time.Duration, but miniredis might return it differently
-	// Normalize special values
-	if ttl == -2*time.Nanosecond {
-		return -2 * time.Second, nil
-	}
-	if ttl == -1*time.Nanosecond {
-		return -1 * time.Second, nil
+	// Normalize Redis TTL special values to standard durations
+	switch ttl {
+	case -2 * time.Nanosecond:
+		return -2 * time.Second, nil // Key does not exist
+	case -1 * time.Nanosecond:
+		return -1 * time.Second, nil // Key exists but has no expiry
 	}
 	return ttl, nil
 }
@@ -92,15 +81,7 @@ func (t *TTLOperations) GetKeyTTL(ctx context.Context, key string) (time.Duratio
 func (t *TTLOperations) SetLastFlushed(ctx context.Context, key string, timestamp time.Time) error {
 	lastFlushedKey := t.keyManager.LastFlushedKey(key)
 
-	// Type assert to get the client
-	client, ok := t.client.(interface {
-		Set(ctx context.Context, key string, value any, expiration time.Duration) *redis.StatusCmd
-	})
-	if !ok {
-		return fmt.Errorf("invalid client type for TTL operations")
-	}
-
-	_, err := client.Set(ctx, lastFlushedKey, timestamp.Unix(), 0).Result()
+	_, err := t.client.Set(ctx, lastFlushedKey, timestamp.Unix(), 0).Result()
 	if err != nil {
 		return fmt.Errorf("failed to set last flushed timestamp for key %s: %w", key, err)
 	}
@@ -111,15 +92,7 @@ func (t *TTLOperations) SetLastFlushed(ctx context.Context, key string, timestam
 func (t *TTLOperations) GetLastFlushed(ctx context.Context, key string) (time.Time, error) {
 	lastFlushedKey := t.keyManager.LastFlushedKey(key)
 
-	// Type assert to get the client
-	client, ok := t.client.(interface {
-		Get(ctx context.Context, key string) *redis.StringCmd
-	})
-	if !ok {
-		return time.Time{}, fmt.Errorf("invalid client type for TTL operations")
-	}
-
-	result, err := client.Get(ctx, lastFlushedKey).Result()
+	result, err := t.client.Get(ctx, lastFlushedKey).Result()
 	if err == redis.Nil {
 		return time.Time{}, nil // Not found
 	}
@@ -139,15 +112,7 @@ func (t *TTLOperations) GetLastFlushed(ctx context.Context, key string) (time.Ti
 func (t *TTLOperations) GetExpiration(ctx context.Context, key string) (time.Time, error) {
 	expirationKey := t.keyManager.ExpirationKey(key)
 
-	// Type assert to get the client
-	client, ok := t.client.(interface {
-		Get(ctx context.Context, key string) *redis.StringCmd
-	})
-	if !ok {
-		return time.Time{}, fmt.Errorf("invalid client type for TTL operations")
-	}
-
-	result, err := client.Get(ctx, expirationKey).Result()
+	result, err := t.client.Get(ctx, expirationKey).Result()
 	if err == redis.Nil {
 		return time.Time{}, nil // Not found
 	}

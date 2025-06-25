@@ -90,7 +90,7 @@ func (mm *Manager) GetInstance(
 	if err != nil {
 		return nil, err
 	}
-	instance, err := mm.createMemoryInstance(sanitizedKey, projectIDVal, resourceCfg, components)
+	instance, err := mm.createMemoryInstance(ctx, sanitizedKey, projectIDVal, resourceCfg, components)
 	if err != nil {
 		return nil, err
 	}

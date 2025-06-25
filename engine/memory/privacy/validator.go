@@ -1,9 +1,6 @@
 package privacy
 
 import (
-	"fmt"
-	"regexp"
-
 	memcore "github.com/compozy/compozy/engine/memory/core"
 )
 
@@ -26,22 +23,15 @@ func (v *Validator) ValidatePolicy(policy *memcore.PrivacyPolicyConfig) error {
 
 // ValidateRedactionPatterns validates all redaction patterns in a policy
 func (v *Validator) ValidateRedactionPatterns(patterns []string) error {
+	// Use the common validation function from patterns.go but wrap errors
+	// in memcore.NewMemoryError for consistent error handling in validator context
 	for _, pattern := range patterns {
-		// First check for ReDoS vulnerability
-		if err := validateRedactionPattern(pattern); err != nil {
-			return memcore.NewMemoryError(
-				memcore.ErrCodePrivacyValidation,
-				fmt.Sprintf("unsafe regex pattern: %s", pattern),
-				err,
-			).WithContext("pattern", pattern)
+		if pattern == "" {
+			continue // Skip empty patterns
 		}
-		// Then try to compile it
-		if _, err := regexp.Compile(pattern); err != nil {
-			return memcore.NewMemoryError(
-				memcore.ErrCodePrivacyValidation,
-				fmt.Sprintf("invalid regex pattern: %s", pattern),
-				err,
-			).WithContext("pattern", pattern)
+		if err := ValidateRedactionPattern(pattern); err != nil {
+			// ValidateRedactionPattern already returns memcore.NewMemoryError
+			return err
 		}
 	}
 	return nil

@@ -1,6 +1,7 @@
 package instance
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/memory/core"
@@ -116,7 +117,7 @@ func (b *Builder) WithLogger(log logger.Logger) *Builder {
 }
 
 // Validate validates the builder options
-func (b *Builder) Validate() error {
+func (b *Builder) Validate(ctx context.Context) error {
 	if b.opts.InstanceID == "" {
 		return fmt.Errorf("instance ID cannot be empty")
 	}
@@ -142,14 +143,14 @@ func (b *Builder) Validate() error {
 		b.opts.TemporalTaskQueue = "memory-operations" // Default task queue
 	}
 	if b.opts.Logger == nil {
-		b.opts.Logger = logger.NewForTests() // Default to test logger if none provided
+		b.opts.Logger = logger.FromContext(ctx) // Default to test logger if none provided
 	}
 	return nil
 }
 
 // Build creates the memory instance
-func (b *Builder) Build() (Instance, error) {
-	if err := b.Validate(); err != nil {
+func (b *Builder) Build(ctx context.Context) (Instance, error) {
+	if err := b.Validate(ctx); err != nil {
 		return nil, err
 	}
 	return NewMemoryInstance(b.opts)

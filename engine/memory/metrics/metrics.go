@@ -6,43 +6,44 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
+// OpenTelemetry metric instruments for memory subsystem monitoring
 var (
-	// Counter metrics
-	memoryMessagesTotal       metric.Int64Counter
-	memoryTokensTotal         metric.Int64Counter
-	memoryTrimTotal           metric.Int64Counter
-	memoryFlushTotal          metric.Int64Counter
-	memoryLockAcquireTotal    metric.Int64Counter
+	// memoryMessagesTotal tracks the total number of messages processed by memory instances
+	memoryMessagesTotal metric.Int64Counter
+	// memoryTokensTotal tracks the total number of tokens consumed across all operations
+	memoryTokensTotal metric.Int64Counter
+	// memoryTrimTotal tracks the total number of memory trim operations
+	memoryTrimTotal metric.Int64Counter
+	// memoryFlushTotal tracks the total number of memory flush operations
+	memoryFlushTotal metric.Int64Counter
+	// memoryLockAcquireTotal tracks the total number of lock acquisition attempts
+	memoryLockAcquireTotal metric.Int64Counter
+	// memoryLockContentionTotal tracks the total number of lock contention events
 	memoryLockContentionTotal metric.Int64Counter
-	memoryTokensSavedTotal    metric.Int64Counter
-	memoryTemporalActivities  metric.Int64Counter
-	memoryConfigResolution    metric.Int64Counter
-	memoryPrivacyExclusions   metric.Int64Counter
+	// memoryTokensSavedTotal tracks the total number of tokens saved through memory optimization
+	memoryTokensSavedTotal metric.Int64Counter
+	// memoryRedactionOperations tracks the total number of redaction operations performed
 	memoryRedactionOperations metric.Int64Counter
+	// memoryCircuitBreakerTrips tracks the total number of circuit breaker trip events
 	memoryCircuitBreakerTrips metric.Int64Counter
 
-	// Histogram metrics
+	// memoryOperationLatency measures the latency distribution of memory operations
 	memoryOperationLatency metric.Float64Histogram
 
-	// Gauge metrics
+	// memoryGoroutinePoolActive tracks the number of active goroutines in memory pools
 	memoryGoroutinePoolActive metric.Int64ObservableGauge
-	memoryTokensUsedGauge     metric.Int64ObservableGauge
-	memoryHealthStatusGauge   metric.Int64ObservableGauge
+	// memoryTokensUsedGauge tracks the current token usage across memory instances
+	memoryTokensUsedGauge metric.Int64ObservableGauge
+	// memoryHealthStatusGauge tracks the health status of memory instances (0=unhealthy, 1=healthy)
+	memoryHealthStatusGauge metric.Int64ObservableGauge
 
-	// Callbacks
+	// goroutinePoolCallback manages the callback registration for goroutine pool metrics
 	goroutinePoolCallback metric.Registration
-	tokensUsedCallback    metric.Registration
-	healthStatusCallback  metric.Registration
+	// tokensUsedCallback manages the callback registration for token usage metrics
+	tokensUsedCallback metric.Registration
+	// healthStatusCallback manages the callback registration for health status metrics
+	healthStatusCallback metric.Registration
 
-	// State tracking
-	memoryMetricsOnce  sync.Once
-	MemoryPoolStates   sync.Map // map[string]*PoolState
-	MemoryTokenStates  sync.Map // map[string]*TokenState
-	MemoryHealthStates sync.Map // map[string]*HealthState
-	memoryResetMutex   sync.Mutex
+	memoryMetricsOnce sync.Once
+	memoryResetMutex  sync.Mutex
 )
-
-// Metric functions and state management are now in:
-// - metrics_init.go: Initialization functions
-// - metrics_recording.go: Recording functions
-// - metrics_state.go: State structures and management

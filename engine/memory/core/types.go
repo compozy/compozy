@@ -38,8 +38,7 @@ const (
 	LRUFlushing FlushingStrategyType = "lru"
 	// TokenAwareLRUFlushing uses token-cost-aware LRU eviction.
 	TokenAwareLRUFlushing FlushingStrategyType = "token_aware_lru" // #nosec G101
-	// PriorityBasedFlushing evicts messages based on priority levels.
-	PriorityBasedFlushing FlushingStrategyType = "priority_based"
+	// Note: PriorityBasedFlushing removed - use EvictionPolicyConfig with PriorityEviction instead
 )
 
 // Resource holds the static configuration for a memory resource,
@@ -66,9 +65,8 @@ type Resource struct {
 	// Example: 0.8 means use at most 80% of the model's context window.
 	MaxContextRatio float64 `yaml:"max_context_ratio,omitempty" json:"max_context_ratio,omitempty" validate:"omitempty,gt=0,lte=1"`
 
-	// EvictionPolicy defines the strategy for removing messages when limits are reached.
-	// Common values: "FIFO" (First In First Out), "Priority" (based on message importance).
-	EvictionPolicy string `yaml:"eviction_policy,omitempty" json:"eviction_policy,omitempty" validate:"omitempty,oneof=FIFO Priority"`
+	// EvictionPolicyConfig defines how messages are selected for eviction when limits are reached.
+	EvictionPolicyConfig *EvictionPolicyConfig `yaml:"eviction_policy,omitempty" json:"eviction_policy,omitempty"`
 
 	// TokenAllocation defines how the token budget is distributed if applicable.
 	TokenAllocation *TokenAllocation `yaml:"token_allocation,omitempty"  json:"token_allocation,omitempty"`
@@ -152,19 +150,41 @@ const (
 	// DefaultMaxMessages is the default maximum number of messages if not specified
 	DefaultMaxMessages = 100
 	// DefaultEvictionPolicy is FIFO by default
-	DefaultEvictionPolicy = "FIFO"
+	DefaultEvictionPolicy = FIFOEviction
 	// DefaultFlushingStrategy is simple FIFO by default
 	DefaultFlushingStrategy = SimpleFIFOFlushing
 )
 
 // Validate validates the Resource configuration
 func (r *Resource) Validate() error {
+	if err := r.validateBasicFields(); err != nil {
+		return err
+	}
+	if err := r.validateMemoryTypeConstraints(); err != nil {
+		return err
+	}
+	if err := r.validateContextRatio(); err != nil {
+		return err
+	}
+	if err := r.validateEvictionPolicy(); err != nil {
+		return err
+	}
+	return r.validateTTLFormats()
+}
+
+// validateBasicFields validates required basic fields
+func (r *Resource) validateBasicFields() error {
 	if r.ID == "" {
 		return fmt.Errorf("resource ID is required")
 	}
 	if r.Type == "" {
 		return fmt.Errorf("resource type is required")
 	}
+	return nil
+}
+
+// validateMemoryTypeConstraints validates memory type specific constraints
+func (r *Resource) validateMemoryTypeConstraints() error {
 	switch r.Type {
 	case TokenBasedMemory:
 		if r.MaxTokens == 0 && r.MaxContextRatio == 0 {
@@ -179,8 +199,44 @@ func (r *Resource) Validate() error {
 	default:
 		return fmt.Errorf("invalid memory type: %s", r.Type)
 	}
+	return nil
+}
+
+// validateContextRatio validates max_context_ratio value
+func (r *Resource) validateContextRatio() error {
 	if r.MaxContextRatio > 1 {
 		return fmt.Errorf("max_context_ratio must be between 0 and 1")
+	}
+	return nil
+}
+
+// validateEvictionPolicy validates eviction policy configuration
+func (r *Resource) validateEvictionPolicy() error {
+	if r.EvictionPolicyConfig != nil {
+		if err := r.EvictionPolicyConfig.Validate(); err != nil {
+			return fmt.Errorf("eviction policy validation failed: %w", err)
+		}
+	}
+	return nil
+}
+
+// validateTTLFormats validates TTL format strings
+func (r *Resource) validateTTLFormats() error {
+	if err := r.validateSingleTTL("AppendTTL", r.AppendTTL); err != nil {
+		return err
+	}
+	if err := r.validateSingleTTL("ClearTTL", r.ClearTTL); err != nil {
+		return err
+	}
+	return r.validateSingleTTL("FlushTTL", r.FlushTTL)
+}
+
+// validateSingleTTL validates a single TTL field
+func (r *Resource) validateSingleTTL(fieldName, ttlValue string) error {
+	if ttlValue != "" {
+		if _, err := time.ParseDuration(ttlValue); err != nil {
+			return fmt.Errorf("invalid %s format: %w", fieldName, err)
+		}
 	}
 	return nil
 }
@@ -202,6 +258,16 @@ func (r *Resource) GetEffectiveMaxMessages() int {
 		return r.MaxMessages
 	}
 	return DefaultMaxMessages
+}
+
+// GetEffectiveEvictionPolicy returns the effective eviction policy configuration
+func (r *Resource) GetEffectiveEvictionPolicy() *EvictionPolicyConfig {
+	if r.EvictionPolicyConfig != nil {
+		return r.EvictionPolicyConfig
+	}
+	return &EvictionPolicyConfig{
+		Type: DefaultEvictionPolicy,
+	}
 }
 
 // TokenAllocation defines percentages for distributing a token budget
@@ -231,9 +297,10 @@ func (ta *TokenAllocation) Validate() error {
 }
 
 // FlushingStrategyConfig holds the configuration for how memory is flushed or trimmed.
+// This config is responsible only for WHEN and HOW MUCH to flush.
 type FlushingStrategyConfig struct {
 	// Type is the kind of flushing strategy to apply (e.g., hybrid_summary).
-	Type FlushingStrategyType `yaml:"type"                               json:"type"                               validate:"required,oneof=hybrid_summary simple_fifo lru token_aware_lru priority_based"`
+	Type FlushingStrategyType `yaml:"type"                               json:"type"                               validate:"required,oneof=hybrid_summary simple_fifo lru token_aware_lru"`
 	// SummarizeThreshold is the percentage of MaxTokens/MaxMessages at which summarization should trigger.
 	// E.g., 0.8 means trigger summarization when memory is 80% full. Only for hybrid_summary.
 	SummarizeThreshold float64 `yaml:"summarize_threshold,omitempty"      json:"summarize_threshold,omitempty"      validate:"omitempty,gt=0,lte=1"`
@@ -242,6 +309,47 @@ type FlushingStrategyConfig struct {
 	// SummarizeOldestPercent is the percentage of the oldest messages to summarize. Only for hybrid_summary.
 	// E.g., 0.3 means summarize the oldest 30% of messages.
 	SummarizeOldestPercent float64 `yaml:"summarize_oldest_percent,omitempty" json:"summarize_oldest_percent,omitempty" validate:"omitempty,gt=0,lte=1"`
+}
+
+// EvictionPolicyType defines the type of eviction policy to use.
+type EvictionPolicyType string
+
+const (
+	// FIFOEviction evicts oldest messages first
+	FIFOEviction EvictionPolicyType = "fifo"
+	// LRUEviction evicts least recently used messages first
+	LRUEviction EvictionPolicyType = "lru"
+	// PriorityEviction evicts messages based on priority levels
+	PriorityEviction EvictionPolicyType = "priority"
+)
+
+// IsValid checks if the eviction policy type is valid
+func (e EvictionPolicyType) IsValid() bool {
+	switch e {
+	case FIFOEviction, LRUEviction, PriorityEviction:
+		return true
+	default:
+		return false
+	}
+}
+
+// EvictionPolicyConfig holds the configuration for which messages to evict.
+// This config is responsible only for WHICH messages to select for eviction.
+type EvictionPolicyConfig struct {
+	// Type is the kind of eviction policy to apply (e.g., priority, lru, fifo).
+	Type EvictionPolicyType `yaml:"type"                        json:"type"                        validate:"required,oneof=fifo lru priority"`
+	// PriorityKeywords is a list of keywords that elevate message priority. Only for priority eviction.
+	// Messages containing these keywords are marked as high priority and evicted later.
+	// If not specified, uses default keywords: error, critical, important, warning, etc.
+	PriorityKeywords []string `yaml:"priority_keywords,omitempty" json:"priority_keywords,omitempty"`
+}
+
+// Validate validates the eviction policy configuration
+func (e *EvictionPolicyConfig) Validate() error {
+	if !e.Type.IsValid() {
+		return fmt.Errorf("invalid eviction policy type: %s", e.Type)
+	}
+	return nil
 }
 
 // PersistenceType defines the backend used for storing memory.
@@ -309,8 +417,7 @@ func (f FlushingStrategyType) String() string {
 		return "lru"
 	case TokenAwareLRUFlushing:
 		return "token_aware_lru"
-	case PriorityBasedFlushing:
-		return "priority_based"
+	// PriorityBasedFlushing removed - use EvictionPolicyConfig instead
 	default:
 		return "unknown"
 	}
@@ -326,8 +433,7 @@ func (f FlushingStrategyType) IsValid() bool {
 		FIFOFlushing,
 		SimpleFIFOFlushing,
 		LRUFlushing,
-		TokenAwareLRUFlushing,
-		PriorityBasedFlushing:
+		TokenAwareLRUFlushing:
 		return true
 	default:
 		return false

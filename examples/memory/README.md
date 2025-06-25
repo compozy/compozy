@@ -35,9 +35,11 @@ Demonstrates direct memory operations:
 
 ## Memory Configuration
 
-The example includes one memory resource:
+The example includes multiple memory resources:
 
 - **`user_memory`**: Stores user conversation history and personal information (max 2000 tokens)
+- **`privacy_example`**: Demonstrates privacy-aware memory with regex patterns for sensitive data redaction
+- **`token_provider_example`**: Shows multi-provider token counting with API-based counting (OpenAI, Anthropic, Google, etc.)
 
 ## Running the example
 
@@ -208,7 +210,9 @@ Make sure you have these environment variables set:
 
 - `workflow.yaml` - Agent-based memory workflow
 - `memory-task-workflow.yaml` - Direct memory task workflow
-- `memory/user_memory.yaml` - Shared memory resource configuration
+- `memory/user_memory.yaml` - Basic memory resource configuration
+- `memory/privacy_example.yaml` - Privacy-aware memory with data redaction
+- `memory/token_provider_example.yaml` - Multi-provider token counting example
 - `memory_tool.ts` - Tool for agent-based memory operations
 - `api.http` - Example API requests for testing both workflows
 

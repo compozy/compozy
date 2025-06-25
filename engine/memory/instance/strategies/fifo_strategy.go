@@ -7,18 +7,44 @@ import (
 	"github.com/compozy/compozy/engine/memory/core"
 )
 
+// Constants for FIFO strategy configuration
+const (
+	defaultThresholdPercent = 0.8  // Default threshold for triggering flush
+	targetCapacityPercent   = 0.5  // Target capacity after flush (50%)
+	minFlushPercent         = 0.05 // Minimum percentage of messages to flush (5%)
+	maxFlushPercent         = 0.75 // Maximum percentage of messages to flush (75%)
+	defaultRemovalRatio     = 0.25 // Default removal ratio when no max configured (25%)
+)
+
 // FIFOStrategy implements a simple First-In-First-Out flushing strategy
 type FIFOStrategy struct {
-	thresholdPercent float64 // Percentage of max capacity that triggers flush
+	thresholdPercent float64           // Percentage of max capacity that triggers flush
+	tokenCounter     core.TokenCounter // Token counter for accurate counting
 }
 
 // NewFIFOStrategy creates a new FIFO flushing strategy
 func NewFIFOStrategy(thresholdPercent float64) *FIFOStrategy {
 	if thresholdPercent <= 0 || thresholdPercent > 1 {
-		thresholdPercent = 0.8 // Default to 80%
+		thresholdPercent = defaultThresholdPercent
+	}
+	// Use a simple token counter adapter for backward compatibility
+	return &FIFOStrategy{
+		thresholdPercent: thresholdPercent,
+		tokenCounter:     NewSimpleTokenCounterAdapter(),
+	}
+}
+
+// NewFIFOStrategyWithTokenCounter creates a new FIFO flushing strategy with custom token counter
+func NewFIFOStrategyWithTokenCounter(thresholdPercent float64, tokenCounter core.TokenCounter) *FIFOStrategy {
+	if thresholdPercent <= 0 || thresholdPercent > 1 {
+		thresholdPercent = defaultThresholdPercent
+	}
+	if tokenCounter == nil {
+		tokenCounter = NewSimpleTokenCounterAdapter()
 	}
 	return &FIFOStrategy{
 		thresholdPercent: thresholdPercent,
+		tokenCounter:     tokenCounter,
 	}
 }
 
@@ -57,7 +83,7 @@ func (s *FIFOStrategy) ShouldFlush(tokenCount, messageCount int, config *core.Re
 
 // PerformFlush executes the flush operation
 func (s *FIFOStrategy) PerformFlush(
-	_ context.Context, // ctx - unused
+	ctx context.Context,
 	messages []llm.Message,
 	config *core.Resource,
 ) (*core.FlushMemoryActivityOutput, error) {
@@ -81,18 +107,35 @@ func (s *FIFOStrategy) PerformFlush(
 		}, nil
 	}
 
-	// Calculate tokens in messages to be removed
+	// Optimize token counting - only count tokens for messages we need
 	tokensFlushed := 0
+	remainingTokens := 0
+
+	// Count tokens for messages being removed
 	for i := 0; i < messagesToRemove; i++ {
-		// Rough estimate - would use actual token counter in real implementation
-		tokensFlushed += len(messages[i].Content) / 4
+		count, err := s.tokenCounter.CountTokens(ctx, messages[i].Content)
+		if err != nil {
+			// Fall back to estimation on error
+			count = len(messages[i].Content) / 4
+		}
+		tokensFlushed += count
+	}
+
+	// Count tokens for remaining messages
+	for i := messagesToRemove; i < len(messages); i++ {
+		count, err := s.tokenCounter.CountTokens(ctx, messages[i].Content)
+		if err != nil {
+			// Fall back to estimation on error
+			count = len(messages[i].Content) / 4
+		}
+		remainingTokens += count
 	}
 
 	return &core.FlushMemoryActivityOutput{
 		Success:          true,
 		SummaryGenerated: false,
 		MessageCount:     len(messages) - messagesToRemove,
-		TokenCount:       tokensFlushed, // This should be total remaining tokens
+		TokenCount:       remainingTokens, // Fixed: returns remaining tokens, not flushed tokens
 	}, nil
 }
 
@@ -103,27 +146,66 @@ func (s *FIFOStrategy) GetType() core.FlushingStrategyType {
 
 // calculateMessagesToRemove determines how many messages to remove
 func (s *FIFOStrategy) calculateMessagesToRemove(currentCount int, config *core.Resource) int {
-	// Remove enough messages to get back to 50% capacity
-	targetPercent := 0.5
-
+	// Remove enough messages to get back to target capacity
 	if config.MaxMessages > 0 {
-		targetCount := int(float64(config.MaxMessages) * targetPercent)
+		targetCount := int(float64(config.MaxMessages) * targetCapacityPercent)
 		if currentCount > targetCount {
 			return currentCount - targetCount
 		}
+		// If already under target, don't remove any
+		return 0
 	}
 
-	// Default: remove 25% of messages
-	return currentCount / 4
+	// Default: remove default percentage of messages
+	return int(float64(currentCount) * defaultRemovalRatio)
 }
 
 // GetMinMaxToFlush returns the min/max number of messages to flush for this strategy
 func (s *FIFOStrategy) GetMinMaxToFlush(
 	_ context.Context, // ctx - unused
-	_ int, // totalMsgs - unused
-	_ int, // currentTokens - unused
-	_ int, // maxTokens - unused
+	totalMsgs int,
+	currentTokens int,
+	maxTokens int,
 ) (minFlush, maxFlush int) {
-	// Implementation of GetMinMaxToFlush method
-	return 0, 0 // Placeholder return, actual implementation needed
+	// Validate inputs
+	if totalMsgs <= 0 || maxTokens <= 0 || currentTokens < 0 {
+		return 0, 0
+	}
+
+	// Calculate minimum flush to avoid micro-flushes
+	minFlush = int(float64(totalMsgs) * minFlushPercent)
+	if minFlush < 1 && totalMsgs > 0 {
+		minFlush = 1
+	}
+
+	// Calculate maximum flush based on target capacity
+	if currentTokens > maxTokens {
+		// Need to flush to get under limit
+		targetTokens := int(float64(maxTokens) * targetCapacityPercent)
+		tokensToFlush := currentTokens - targetTokens
+
+		// Estimate messages to flush based on average token count
+		avgTokensPerMsg := currentTokens / totalMsgs
+		if avgTokensPerMsg > 0 {
+			maxFlush = tokensToFlush / avgTokensPerMsg
+		} else {
+			maxFlush = int(float64(totalMsgs) * defaultRemovalRatio)
+		}
+
+		// Ensure we don't flush more than max allowed percentage
+		maxAllowed := int(float64(totalMsgs) * maxFlushPercent)
+		if maxFlush > maxAllowed {
+			maxFlush = maxAllowed
+		}
+	} else {
+		// Not over limit, but prepare for a moderate flush
+		maxFlush = int(float64(totalMsgs) * defaultRemovalRatio)
+	}
+
+	// Ensure min <= max
+	if minFlush > maxFlush {
+		minFlush = maxFlush
+	}
+
+	return minFlush, maxFlush
 }

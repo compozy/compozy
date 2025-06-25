@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	memcore "github.com/compozy/compozy/engine/memory/core"
+	"github.com/compozy/compozy/engine/memory/privacy"
 	"github.com/compozy/compozy/engine/memory/tokens"
 )
 
@@ -29,28 +30,53 @@ func (mm *Manager) loadMemoryConfig(resourceID string) (*memcore.Resource, error
 		)
 	}
 	// Convert Config to memcore.Resource
-	return mm.configToResource(memConfig), nil
+	resource, err := mm.configToResource(memConfig)
+	if err != nil {
+		return nil, err
+	}
+	return resource, nil
 }
 
 // configToResource converts a memory Config to a memcore.Resource
-func (mm *Manager) configToResource(config *Config) *memcore.Resource {
+func (mm *Manager) configToResource(config *Config) (*memcore.Resource, error) {
+	// Resolve privacy policy patterns if present
+	var privacyPolicy *memcore.PrivacyPolicyConfig
+	if config.PrivacyPolicy != nil {
+		privacyPolicy = &memcore.PrivacyPolicyConfig{
+			NonPersistableMessageTypes: config.PrivacyPolicy.NonPersistableMessageTypes,
+			DefaultRedactionString:     config.PrivacyPolicy.DefaultRedactionString,
+		}
+		// Validate and use regex patterns directly
+		if len(config.PrivacyPolicy.RedactPatterns) > 0 {
+			if err := privacy.ValidateRedactionPatterns(config.PrivacyPolicy.RedactPatterns); err != nil {
+				return nil, memcore.NewConfigError(
+					fmt.Sprintf("invalid redaction patterns in privacy policy for resource '%s'", config.ID),
+					err,
+				)
+			}
+			privacyPolicy.RedactPatterns = config.PrivacyPolicy.RedactPatterns
+			mm.log.Debug("Using redaction patterns",
+				"patterns", config.PrivacyPolicy.RedactPatterns)
+		}
+	}
 	resource := &memcore.Resource{
-		ID:               config.ID,
-		Description:      config.Description,
-		Type:             config.Type,
-		Model:            "", // Model not specified in memory config
-		ModelContextSize: 0,  // Model context size not specified in memory config
-		MaxTokens:        config.MaxTokens,
-		MaxMessages:      config.MaxMessages,
-		MaxContextRatio:  config.MaxContextRatio,
-		EvictionPolicy:   "", // Eviction policy determined by memory type and flushing strategy
-		TokenAllocation:  config.TokenAllocation,
-		FlushingStrategy: config.Flushing,
-		Persistence:      config.Persistence,
-		PrivacyPolicy:    config.PrivacyPolicy,
-		TokenCounter:     "",    // Token counter determined at runtime
-		Metadata:         nil,   // Metadata not stored in config
-		DisableFlush:     false, // Flush enabled by default
+		ID:                   config.ID,
+		Description:          config.Description,
+		Type:                 config.Type,
+		Model:                "", // Model not specified in memory config
+		ModelContextSize:     0,  // Model context size not specified in memory config
+		MaxTokens:            config.MaxTokens,
+		MaxMessages:          config.MaxMessages,
+		MaxContextRatio:      config.MaxContextRatio,
+		EvictionPolicyConfig: nil, // Eviction policy determined by memory type and flushing strategy
+		TokenAllocation:      config.TokenAllocation,
+		FlushingStrategy:     config.Flushing,
+		Persistence:          config.Persistence,
+		PrivacyPolicy:        privacyPolicy,
+		TokenCounter:         "",                   // Token counter determined at runtime
+		TokenProvider:        config.TokenProvider, // Map TokenProvider configuration
+		Metadata:             nil,                  // Metadata not stored in config
+		DisableFlush:         false,                // Flush enabled by default
 	}
 	// Map TTL fields from locking configuration if present
 	if config.Locking != nil {
@@ -65,7 +91,7 @@ func (mm *Manager) configToResource(config *Config) *memcore.Resource {
 		"config_ttl", config.Persistence.TTL,
 		"parsed_ttl", config.Persistence.ParsedTTL,
 		"resource_id", resource.ID)
-	return resource
+	return resource, nil
 }
 
 // resolveMemoryKey evaluates the memory key template and returns the resolved key

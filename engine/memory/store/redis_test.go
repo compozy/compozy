@@ -35,13 +35,6 @@ func setupTestRedis(t *testing.T) (*redisTestClient, func()) {
 	}
 }
 
-// createTestRedisStore creates a test Redis store (currently unused)
-// func createTestRedisStore(t *testing.T) *RedisMemoryStore {
-//	client, cleanup := setupTestRedis(t)
-//	t.Cleanup(cleanup)
-//	return NewRedisMemoryStore(client, "")
-// }
-
 func TestRedisMemoryStore_AppendMessage(t *testing.T) {
 	client, cleanup := setupTestRedis(t)
 	defer cleanup()

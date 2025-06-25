@@ -2,10 +2,17 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
+	"github.com/compozy/compozy/engine/infra/cache"
+	"github.com/compozy/compozy/engine/memory/metrics"
 )
 
 func TestNewHealthService(t *testing.T) {
@@ -76,6 +83,141 @@ func TestHealthService_GetOverallHealth(t *testing.T) {
 		assert.NotNil(t, health)
 		assert.NotZero(t, health.LastChecked)
 		assert.NotNil(t, health.InstanceHealth)
+	})
+}
+
+// MockLock implements cache.Lock interface for testing
+type MockLock struct {
+	mock.Mock
+}
+
+func (m *MockLock) Release(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockLock) Refresh(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockLock) Resource() string {
+	args := m.Called()
+	return args.String(0)
+}
+
+func (m *MockLock) IsHeld() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
+
+// MockLockManager implements cache.LockManager interface for testing
+type MockLockManager struct {
+	mock.Mock
+}
+
+func (m *MockLockManager) Acquire(ctx context.Context, key string, ttl time.Duration) (cache.Lock, error) {
+	args := m.Called(ctx, key, ttl)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(cache.Lock), args.Error(1)
+}
+
+func TestHealthService_performOperationalChecks(t *testing.T) {
+	t.Run("Should perform comprehensive health checks with Redis and Lock", func(t *testing.T) {
+		ctx := context.Background()
+		// Setup miniredis
+		s := miniredis.RunT(t)
+		client := redis.NewClient(&redis.Options{Addr: s.Addr()})
+		// Setup lock manager mock
+		lockManager := new(MockLockManager)
+		lockMock := new(MockLock)
+		// Create manager with Redis and lock manager
+		manager := &Manager{
+			baseRedisClient: client,
+			baseLockManager: lockManager,
+		}
+		service := NewHealthService(ctx, manager)
+		memoryID := "test-memory-1"
+		// Set up lock manager expectations
+		lockManager.On("Acquire", mock.Anything, mock.AnythingOfType("string"), 5*time.Second).Return(lockMock, nil)
+		lockMock.On("Release", mock.Anything).Return(nil)
+		// Perform health check
+		healthy := service.performOperationalChecks(ctx, memoryID)
+		assert.True(t, healthy)
+		// Verify lock expectations
+		lockManager.AssertExpectations(t)
+		lockMock.AssertExpectations(t)
+	})
+	t.Run("Should fail when Redis connectivity fails", func(t *testing.T) {
+		ctx := context.Background()
+		// Create a manager with no Redis client to simulate connection failure
+		manager := &Manager{
+			baseRedisClient: nil,
+		}
+		service := NewHealthService(ctx, manager)
+		memoryID := "test-memory-2"
+		// Perform health check - should pass when Redis is nil
+		healthy := service.performOperationalChecks(ctx, memoryID)
+		assert.True(t, healthy)
+	})
+	t.Run("Should fail when lock acquisition fails", func(t *testing.T) {
+		ctx := context.Background()
+		// Setup miniredis
+		s := miniredis.RunT(t)
+		client := redis.NewClient(&redis.Options{Addr: s.Addr()})
+		lockManager := new(MockLockManager)
+		manager := &Manager{
+			baseRedisClient: client,
+			baseLockManager: lockManager,
+		}
+		service := NewHealthService(ctx, manager)
+		memoryID := "test-memory-5"
+		// Set up lock manager to fail
+		lockManager.On("Acquire", mock.Anything, mock.AnythingOfType("string"), 5*time.Second).
+			Return(nil, errors.New("lock failed"))
+		// Perform health check
+		healthy := service.performOperationalChecks(ctx, memoryID)
+		assert.False(t, healthy)
+		lockManager.AssertExpectations(t)
+	})
+	t.Run("Should pass when only Redis is available (no lock manager)", func(t *testing.T) {
+		ctx := context.Background()
+		// Setup miniredis
+		s := miniredis.RunT(t)
+		client := redis.NewClient(&redis.Options{Addr: s.Addr()})
+		manager := &Manager{
+			baseRedisClient: client,
+			baseLockManager: nil, // No lock manager
+		}
+		service := NewHealthService(ctx, manager)
+		memoryID := "test-memory-6"
+		// Perform health check
+		healthy := service.performOperationalChecks(ctx, memoryID)
+		assert.True(t, healthy)
+	})
+}
+
+func TestHealthService_checkInstanceHealth(t *testing.T) {
+	t.Run("Should check instance health with operational checks", func(t *testing.T) {
+		ctx := context.Background()
+		// Setup miniredis
+		s := miniredis.RunT(t)
+		client := redis.NewClient(&redis.Options{Addr: s.Addr()})
+		manager := &Manager{
+			baseRedisClient: client,
+		}
+		service := NewHealthService(ctx, manager)
+		memoryID := "test-memory-check"
+		// Initialize health state
+		metricsState := metrics.GetDefaultState()
+		metricsState.UpdateHealthState(memoryID, true, 0)
+		// Perform health check
+		healthy := service.checkInstanceHealth(ctx, memoryID)
+		assert.True(t, healthy)
+		// Clean up
+		metricsState.DeleteHealthState(memoryID)
 	})
 }
 

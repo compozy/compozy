@@ -51,7 +51,7 @@ func getOrCreatePrivacyManager(
 	baseManager := privacy.NewManager()
 	// If resilience config provided, wrap with resilient manager
 	if resilienceConfig != nil {
-		return privacy.NewResilientManager(resilienceConfig, log)
+		return privacy.NewResilientManager(baseManager, resilienceConfig, log)
 	}
 	return baseManager
 }

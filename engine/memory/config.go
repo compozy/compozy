@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"dario.cat/mergo"
 	"github.com/compozy/compozy/engine/core"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 )
@@ -51,6 +52,10 @@ type Config struct {
 	// Locking defines lock timeout settings for memory operations.
 	// Refers to memcore.LockConfig defined in types.go
 	Locking *memcore.LockConfig `json:"locking,omitempty" yaml:"locking,omitempty"`
+
+	// TokenProvider configures multi-provider token counting with API-based counting.
+	// Refers to memcore.TokenProviderConfig defined in types.go
+	TokenProvider *memcore.TokenProviderConfig `json:"token_provider,omitempty" yaml:"token_provider,omitempty"`
 
 	// --- Fields for core.Configurable / core.Config compatibility ---
 	filePath string        `json:"-" yaml:"-"`
@@ -181,10 +186,13 @@ func (c *Config) validateTokenAllocation() error {
 	for _, v := range c.TokenAllocation.UserDefined {
 		sum += v
 	}
-	// Allow some floating point inaccuracies, e.g. sum between 0.999 and 1.001 if sum is meant to be 1.0
-	// Or, if sum can be less than 1.0 (meaning some tokens are unallocated explicitly)
-	// Commented out: token allocation sum validation
-	// Sum > 1.0 might be allowed with user-defined allocations
+	const tolerance = 0.001
+	if sum < 1.0-tolerance || sum > 1.0+tolerance {
+		return fmt.Errorf(
+			"memory config ID '%s': token allocation sum (%.3f) must be approximately 1.0",
+			c.ID, sum,
+		)
+	}
 	return nil
 }
 
@@ -315,8 +323,6 @@ func (c *Config) HasSchema() bool {
 }
 
 func (c *Config) Merge(other any) error {
-	// Merging memory resource definitions might be complex or not desired.
-	// For now, return error or implement simple field override if needed.
 	otherConfig, ok := other.(*Config)
 	if !ok {
 		return fmt.Errorf("cannot merge memory.Config with type %T", other)
@@ -324,16 +330,9 @@ func (c *Config) Merge(other any) error {
 	if c.ID != otherConfig.ID && otherConfig.ID != "" {
 		return fmt.Errorf("cannot merge memory configs with different IDs: '%s' and '%s'", c.ID, otherConfig.ID)
 	}
-	// Implement field-by-field merge logic if necessary, e.g. using mergo
-	// For now, a simple override or error. Let's do a basic merge.
-	if otherConfig.Description != "" {
-		c.Description = otherConfig.Description
+	if err := mergo.Merge(c, otherConfig, mergo.WithOverride); err != nil {
+		return fmt.Errorf("failed to merge memory configs: %w", err)
 	}
-	if otherConfig.Version != "" {
-		c.Version = otherConfig.Version
-	}
-	// ... etc. for all fields. This is simplistic. Mergo would be better.
-	// For resource definitions, merging might not be a common use case beyond overrides.
 	return nil
 }
 

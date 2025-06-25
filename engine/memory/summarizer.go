@@ -256,7 +256,7 @@ func (rbs *RuleBasedSummarizer) truncateUsingTokenizer(
 }
 
 func (rbs *RuleBasedSummarizer) truncateUsingCharacterEstimate(summaryStr string, targetTokenCount int) string {
-	targetChars := targetTokenCount * 4
+	targetChars := targetTokenCount * rbs.TokenFallbackRatio
 	if len(summaryStr) > targetChars {
 		return summaryStr[:targetChars-3] + "..."
 	}

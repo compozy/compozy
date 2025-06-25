@@ -271,7 +271,12 @@ func (mm *Manager) createFlushingStrategy(
 	resourceCfg *memcore.Resource,
 	tokenManager *TokenMemoryManager,
 ) (instance.FlushStrategy, error) {
-	factory := strategies.NewStrategyFactory()
+	// Create factory with core token counter for proper dependency injection
+	var coreTokenCounter memcore.TokenCounter
+	if tokenManager != nil {
+		coreTokenCounter = tokenManager.GetTokenCounter()
+	}
+	factory := strategies.NewStrategyFactoryWithTokenCounter(coreTokenCounter)
 
 	// Determine strategy configuration
 	var strategyConfig *memcore.FlushingStrategyConfig
@@ -349,14 +354,15 @@ func (mm *Manager) createStrategyOptions(resourceCfg *memcore.Resource) *strateg
 }
 
 // createEvictionPolicy creates an eviction policy for the given resource configuration
-func (mm *Manager) createEvictionPolicy(_ *memcore.Resource) instance.EvictionPolicy {
-	// For now, default to FIFO eviction policy
-	// In the future, this can be made configurable through resource configuration
-	return eviction.CreateOrDefault("fifo")
+func (mm *Manager) createEvictionPolicy(resourceCfg *memcore.Resource) instance.EvictionPolicy {
+	// Use configured eviction policy or get default
+	evictionConfig := resourceCfg.GetEffectiveEvictionPolicy()
+	return eviction.CreatePolicyWithConfig(evictionConfig)
 }
 
 // createMemoryInstance creates the final memory instance with all components
 func (mm *Manager) createMemoryInstance(
+	ctx context.Context,
 	sanitizedKey, projectIDVal string,
 	resourceCfg *memcore.Resource,
 	components *memoryComponents,
@@ -385,10 +391,10 @@ func (mm *Manager) createMemoryInstance(
 		WithTemporalTaskQueue(mm.temporalTaskQueue).
 		WithPrivacyManager(mm.privacyManager).
 		WithLogger(mm.log)
-	if err := instanceBuilder.Validate(); err != nil {
+	if err := instanceBuilder.Validate(ctx); err != nil {
 		return nil, fmt.Errorf("instance builder validation failed: %w", err)
 	}
-	memInstance, err := instanceBuilder.Build()
+	memInstance, err := instanceBuilder.Build(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build memory instance: %w", err)
 	}

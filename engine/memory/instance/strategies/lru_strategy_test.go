@@ -3,7 +3,6 @@ package strategies
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/memory/core"
@@ -17,9 +16,8 @@ func TestLRUStrategy_NewLRUStrategy(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, strategy)
-		assert.NotNil(t, strategy.cache)
 		assert.NotNil(t, strategy.flushDecision)
-		assert.NotNil(t, strategy.messageAccess)
+		assert.NotNil(t, strategy.tokenCounter)
 		assert.Equal(t, 0.8, strategy.flushDecision.GetThreshold())
 	})
 
@@ -37,12 +35,12 @@ func TestLRUStrategy_NewLRUStrategy(t *testing.T) {
 		assert.Equal(t, 0.7, strategy.flushDecision.GetThreshold())
 	})
 
-	t.Run("Should use default cache size when invalid size provided", func(t *testing.T) {
+	t.Run("Should use default options when none provided", func(t *testing.T) {
 		strategy, err := NewLRUStrategy(nil, nil)
 
 		require.NoError(t, err)
 		require.NotNil(t, strategy)
-		assert.NotNil(t, strategy.cache)
+		assert.NotNil(t, strategy.options)
 	})
 }
 
@@ -138,10 +136,11 @@ func TestLRUStrategy_PerformFlush(t *testing.T) {
 		assert.Equal(t, 0, result.TokenCount)
 	})
 
-	t.Run("Should flush oldest messages based on LRU order", func(t *testing.T) {
+	t.Run("Should flush messages using ristretto LRU eviction", func(t *testing.T) {
 		config := &core.Resource{
-			Type:      core.TokenBasedMemory,
-			MaxTokens: 1000,
+			Type:        core.TokenBasedMemory,
+			MaxTokens:   1000,
+			MaxMessages: 10, // Target will be 60% = 6 messages
 		}
 
 		messages := []llm.Message{
@@ -149,21 +148,20 @@ func TestLRUStrategy_PerformFlush(t *testing.T) {
 			{Role: llm.MessageRoleAssistant, Content: "Second message"},
 			{Role: llm.MessageRoleUser, Content: "Third message"},
 			{Role: llm.MessageRoleAssistant, Content: "Fourth message"},
+			{Role: llm.MessageRoleUser, Content: "Fifth message"},
+			{Role: llm.MessageRoleAssistant, Content: "Sixth message"},
+			{Role: llm.MessageRoleUser, Content: "Seventh message"},
+			{Role: llm.MessageRoleAssistant, Content: "Eighth message"},
 		}
-
-		// Simulate message access patterns
-		now := time.Now()
-		strategy.messageAccess[0] = now.Add(-4 * time.Minute) // Oldest access
-		strategy.messageAccess[1] = now.Add(-2 * time.Minute)
-		strategy.messageAccess[2] = now.Add(-3 * time.Minute)
-		strategy.messageAccess[3] = now.Add(-1 * time.Minute) // Most recent access
 
 		result, err := strategy.PerformFlush(context.Background(), messages, config)
 
 		require.NoError(t, err)
 		assert.True(t, result.Success)
 		assert.False(t, result.SummaryGenerated)
-		assert.Greater(t, len(messages), result.MessageCount) // Some messages should be flushed
+		// With MaxMessages=10 and 60% target, should keep around 6 messages
+		assert.LessOrEqual(t, result.MessageCount, 6)
+		assert.Greater(t, result.MessageCount, 0)
 	})
 
 	t.Run("Should calculate target flush count correctly", func(t *testing.T) {

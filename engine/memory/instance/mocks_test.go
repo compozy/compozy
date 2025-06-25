@@ -225,4 +225,6 @@ func (m *mockFlushStrategy) GetType() core.FlushingStrategyType {
 	return args.Get(0).(core.FlushingStrategyType)
 }
 
-// We'll skip temporal client testing for now to focus on business logic
+// NOTE: Temporal client mocking is complex due to the extensive interface.
+// For unit tests, we focus on builder validation logic.
+// Full temporal client integration is tested in integration tests.

@@ -5,31 +5,33 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/memory/core"
-	"github.com/dgraph-io/ristretto"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 // TokenAwareLRUStrategy implements a token-cost-aware LRU flushing strategy
 type TokenAwareLRUStrategy struct {
-	cache         *ristretto.Cache[int, MessageWithTokens]
+	cache         *lru.Cache[int, MessageWithTokens]
 	config        *core.FlushingStrategyConfig
 	flushDecision *FlushDecisionEngine
-	tokenCounter  TokenCounter
+	tokenCounter  core.TokenCounter
 	options       *StrategyOptions
 	maxTokens     int64
 	mu            sync.RWMutex
 }
 
-// MessageWithTokens wraps a message with its token count for cost calculation
+// MessageWithTokens wraps a message with its token count and access time for cost calculation
 type MessageWithTokens struct {
 	Message    llm.Message
 	TokenCount int
 	Index      int
+	LastAccess time.Time
 }
 
-// NewTokenAwareLRUStrategy creates a new token-aware LRU strategy using ristretto
+// NewTokenAwareLRUStrategy creates a new token-aware LRU strategy using hashicorp/golang-lru
 func NewTokenAwareLRUStrategy(
 	config *core.FlushingStrategyConfig,
 	options *StrategyOptions,
@@ -44,15 +46,21 @@ func NewTokenAwareLRUStrategy(
 		maxTokens = 4000 // Default token capacity
 	}
 
-	// Create ristretto cache with token-based cost awareness
-	// The cost function will use the actual token count of each message
-	cache, err := ristretto.NewCache(&ristretto.Config[int, MessageWithTokens]{
-		NumCounters: int64(maxTokens), // One counter per token for fine-grained tracking
-		MaxCost:     int64(maxTokens), // Total token budget
-		BufferItems: 64,               // Standard buffer size
-	})
+	// Create LRU cache for tracking message access patterns
+	// We'll track tokens separately from the LRU cache
+	cacheSize := options.CacheSize
+	if cacheSize <= 0 {
+		cacheSize = 1000 // Default cache size
+	}
+	// Enforce maximum cache size to prevent excessive memory usage
+	const maxCacheSize = 10000
+	if cacheSize > maxCacheSize {
+		cacheSize = maxCacheSize
+	}
+
+	cache, err := lru.New[int, MessageWithTokens](cacheSize)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create ristretto cache for token-aware LRU strategy: %w", err)
+		return nil, fmt.Errorf("failed to create LRU cache for token-aware LRU strategy: %w", err)
 	}
 
 	thresholdPercent := 0.8 // Default to 80%
@@ -60,11 +68,20 @@ func NewTokenAwareLRUStrategy(
 		thresholdPercent = config.SummarizeThreshold
 	}
 
+	// Create token counter with fallback estimation
+	baseCounter := NewGPTTokenCounterAdapter()
+	estimationStrategy := options.TokenEstimationStrategy
+	if estimationStrategy == "" {
+		estimationStrategy = core.EnglishEstimation
+	}
+	tokenEstimator := core.NewTokenEstimator(estimationStrategy)
+	tokenCounter := core.NewTokenCounterWithFallback(baseCounter, tokenEstimator)
+
 	return &TokenAwareLRUStrategy{
 		cache:         cache,
 		config:        config,
 		flushDecision: NewFlushDecisionEngine(thresholdPercent),
-		tokenCounter:  NewGPTTokenCounter(),
+		tokenCounter:  tokenCounter,
 		options:       options,
 		maxTokens:     int64(maxTokens),
 	}, nil
@@ -133,12 +150,22 @@ func (s *TokenAwareLRUStrategy) GetType() core.FlushingStrategyType {
 // convertMessagesToTokenAware converts messages to token-aware format
 func (s *TokenAwareLRUStrategy) convertMessagesToTokenAware(messages []llm.Message) []MessageWithTokens {
 	result := make([]MessageWithTokens, len(messages))
+	ctx := context.Background()
+	now := time.Now()
+
 	for i, msg := range messages {
-		tokenCount := s.tokenCounter.CountTokens(msg)
+		tokenCount, err := s.tokenCounter.CountTokens(ctx, msg.Content)
+		if err != nil {
+			// TokenCounter should handle fallback internally
+			tokenCount = 0
+		}
+
+		// Initialize with current time, will be updated from cache if exists
 		result[i] = MessageWithTokens{
 			Message:    msg,
 			TokenCount: tokenCount,
 			Index:      i,
+			LastAccess: now.Add(time.Duration(-len(messages)+i) * time.Millisecond), // Preserve order
 		}
 	}
 	return result
@@ -146,17 +173,18 @@ func (s *TokenAwareLRUStrategy) convertMessagesToTokenAware(messages []llm.Messa
 
 // populateCache adds messages to the LRU cache for access tracking
 func (s *TokenAwareLRUStrategy) populateCache(messages []MessageWithTokens) {
-	// Clear existing cache
-	s.cache.Clear()
-
-	// Add messages in order, simulating access pattern
+	// Update cache with messages, preserving existing access patterns
 	// Use token count as the cost for each message
 	for i, msgWithTokens := range messages {
-		s.cache.Set(i, msgWithTokens, int64(msgWithTokens.TokenCount))
+		// Check if message already exists in cache to preserve access time
+		if existing, found := s.cache.Get(i); found {
+			msgWithTokens.LastAccess = existing.LastAccess
+		}
+		s.cache.Add(i, msgWithTokens)
 	}
 }
 
-// evictByTokenCost evicts messages based on token cost and LRU order
+// evictByTokenCost evicts messages based on combined token cost and recency score
 func (s *TokenAwareLRUStrategy) evictByTokenCost(
 	messages []MessageWithTokens,
 	targetTokens int,
@@ -167,27 +195,27 @@ func (s *TokenAwareLRUStrategy) evictByTokenCost(
 		return []MessageWithTokens{}, messages
 	}
 
-	// For token-aware LRU, we should evict based on token cost efficiency
-	// Sort messages by token cost (descending) to evict high-cost messages first
-	sortedMessages := make([]MessageWithTokens, len(messages))
-	copy(sortedMessages, messages)
+	// Calculate scores for each message
+	scoredMessages := s.scoreMessages(messages)
 
-	// Sort by token count descending (evict high token messages first)
-	sort.Slice(sortedMessages, func(i, j int) bool {
-		return sortedMessages[i].TokenCount > sortedMessages[j].TokenCount
+	// Sort by score descending (evict high-score messages first)
+	sort.Slice(scoredMessages, func(i, j int) bool {
+		return scoredMessages[i].score > scoredMessages[j].score
 	})
 
 	evicted = make([]MessageWithTokens, 0)
 	remaining = make([]MessageWithTokens, 0)
 	remainingTokens := currentTokens
 
-	// Evict messages starting with highest token count until we reach target
-	for _, msg := range sortedMessages {
-		if remainingTokens <= targetTokens {
-			remaining = append(remaining, msg)
+	// Evict messages starting with highest score until we reach target
+	for _, scored := range scoredMessages {
+		tokensAfterEviction := remainingTokens - scored.msg.TokenCount
+
+		if remainingTokens > targetTokens && tokensAfterEviction >= 0 {
+			evicted = append(evicted, scored.msg)
+			remainingTokens = tokensAfterEviction
 		} else {
-			evicted = append(evicted, msg)
-			remainingTokens -= msg.TokenCount
+			remaining = append(remaining, scored.msg)
 		}
 	}
 
@@ -199,7 +227,7 @@ func (s *TokenAwareLRUStrategy) evictByTokenCost(
 	return evicted, remaining
 }
 
-// evictByMessageCount evicts messages to reach target message count
+// evictByMessageCount evicts messages to reach target message count using token-aware LRU scoring
 func (s *TokenAwareLRUStrategy) evictByMessageCount(
 	messages []MessageWithTokens,
 	targetCount int,
@@ -208,19 +236,25 @@ func (s *TokenAwareLRUStrategy) evictByMessageCount(
 		return []MessageWithTokens{}, messages
 	}
 
-	// For message-based eviction, prioritize evicting high-token messages
-	// Sort by token count descending (evict high token messages first)
-	sortedMessages := make([]MessageWithTokens, len(messages))
-	copy(sortedMessages, messages)
+	// Use the same scoring approach as evictByTokenCost for consistency
+	scoredMessages := s.scoreMessages(messages)
 
-	sort.Slice(sortedMessages, func(i, j int) bool {
-		return sortedMessages[i].TokenCount > sortedMessages[j].TokenCount
+	// Sort by score descending (evict high-score messages first)
+	sort.Slice(scoredMessages, func(i, j int) bool {
+		return scoredMessages[i].score > scoredMessages[j].score
 	})
 
 	// Evict messages until we reach target count
 	numToEvict := len(messages) - targetCount
-	evicted = sortedMessages[:numToEvict]
-	remaining = sortedMessages[numToEvict:]
+	evicted = make([]MessageWithTokens, numToEvict)
+	remaining = make([]MessageWithTokens, targetCount)
+
+	for i := 0; i < numToEvict; i++ {
+		evicted[i] = scoredMessages[i].msg
+	}
+	for i := 0; i < targetCount; i++ {
+		remaining[i] = scoredMessages[numToEvict+i].msg
+	}
 
 	// Restore original order for remaining messages
 	sort.Slice(remaining, func(i, j int) bool {
@@ -289,10 +323,79 @@ func (s *TokenAwareLRUStrategy) GetMinMaxToFlush(
 		}
 	}
 
-	// Ensure maxFlush is at least 2 for normal cases to pass test expectations
-	if totalMsgs > 3 && maxFlush == 1 {
-		maxFlush = 2
+	return minFlush, maxFlush
+}
+
+// scoredMessage holds a message with its eviction score
+type scoredMessage struct {
+	msg   MessageWithTokens
+	score float64
+}
+
+// scoreMessages calculates eviction scores for all messages
+func (s *TokenAwareLRUStrategy) scoreMessages(messages []MessageWithTokens) []scoredMessage {
+	scoredMessages := make([]scoredMessage, len(messages))
+
+	// Find min/max values for normalization
+	minTokens, maxTokens, oldestTime, newestTime := s.findMinMaxValues(messages)
+
+	// Calculate combined scores
+	for i, msg := range messages {
+		score := s.calculateEvictionScore(msg, minTokens, maxTokens, oldestTime, newestTime)
+		scoredMessages[i] = scoredMessage{msg: msg, score: score}
 	}
 
-	return minFlush, maxFlush
+	return scoredMessages
+}
+
+// findMinMaxValues finds min/max values for token count and access time
+func (s *TokenAwareLRUStrategy) findMinMaxValues(messages []MessageWithTokens) (int, int, time.Time, time.Time) {
+	if len(messages) == 0 {
+		return 0, 0, time.Time{}, time.Time{}
+	}
+
+	minTokens, maxTokens := messages[0].TokenCount, messages[0].TokenCount
+	oldestTime, newestTime := messages[0].LastAccess, messages[0].LastAccess
+
+	for _, msg := range messages[1:] {
+		if msg.TokenCount < minTokens {
+			minTokens = msg.TokenCount
+		}
+		if msg.TokenCount > maxTokens {
+			maxTokens = msg.TokenCount
+		}
+		if msg.LastAccess.Before(oldestTime) {
+			oldestTime = msg.LastAccess
+		}
+		if msg.LastAccess.After(newestTime) {
+			newestTime = msg.LastAccess
+		}
+	}
+
+	return minTokens, maxTokens, oldestTime, newestTime
+}
+
+// calculateEvictionScore calculates a combined score for eviction priority
+func (s *TokenAwareLRUStrategy) calculateEvictionScore(
+	msg MessageWithTokens,
+	minTokens, maxTokens int,
+	oldestTime, newestTime time.Time,
+) float64 {
+	// Normalize token count (0-1, higher tokens = higher score)
+	tokenScore := 0.0
+	if maxTokens > minTokens {
+		tokenScore = float64(msg.TokenCount-minTokens) / float64(maxTokens-minTokens)
+	}
+
+	// Normalize age (0-1, older = higher score)
+	ageScore := 0.0
+	ageRange := newestTime.Sub(oldestTime)
+	if ageRange > 0 {
+		ageScore = 1.0 - (msg.LastAccess.Sub(oldestTime).Seconds() / ageRange.Seconds())
+	}
+
+	// Combined score with weights
+	tokenWeight := 0.6
+	ageWeight := 0.4
+	return tokenWeight*tokenScore + ageWeight*ageScore
 }

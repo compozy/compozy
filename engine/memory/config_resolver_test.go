@@ -596,7 +596,8 @@ func TestManager_configToResource(t *testing.T) {
 			},
 		}
 
-		result := manager.configToResource(config)
+		result, err := manager.configToResource(config)
+		require.NoError(t, err)
 
 		// Verify basic fields are mapped correctly
 		assert.Equal(t, config.ID, result.ID)
@@ -615,10 +616,10 @@ func TestManager_configToResource(t *testing.T) {
 		// Verify fields that are intentionally not mapped from config have expected values
 		assert.Empty(t, result.Model, "Model should be empty - not specified in memory config")
 		assert.Zero(t, result.ModelContextSize, "ModelContextSize should be 0 - not specified in memory config")
-		assert.Empty(
+		assert.Nil(
 			t,
-			result.EvictionPolicy,
-			"EvictionPolicy should be empty - determined by memory type and flushing strategy",
+			result.EvictionPolicyConfig,
+			"EvictionPolicyConfig should be nil - determined by memory type and flushing strategy",
 		)
 		assert.Empty(t, result.TokenCounter, "TokenCounter should be empty - determined at runtime")
 		assert.Nil(t, result.Metadata, "Metadata should be nil - not stored in config")
@@ -641,7 +642,8 @@ func TestManager_configToResource(t *testing.T) {
 			},
 		}
 
-		result := manager.configToResource(config)
+		result, err := manager.configToResource(config)
+		require.NoError(t, err)
 
 		// Verify TTL fields are empty when locking config is nil
 		assert.Empty(t, result.AppendTTL)

@@ -81,6 +81,11 @@ func NewTokenMemoryManager(
 	}, nil
 }
 
+// GetTokenCounter returns the core token counter for dependency injection
+func (tmm *TokenMemoryManager) GetTokenCounter() memcore.TokenCounter {
+	return tmm.tokenCounter
+}
+
 // CalculateMessagesWithTokens processes a slice of messages to determine their token counts.
 // It caches token counts on the MessageWithTokens struct.
 func (tmm *TokenMemoryManager) CalculateMessagesWithTokens(

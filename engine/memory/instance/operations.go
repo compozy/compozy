@@ -143,6 +143,9 @@ func (o *Operations) ReadMessages(ctx context.Context) ([]llm.Message, error) {
 	}
 
 	o.metrics.RecordRead(ctx, time.Since(start), messageCount, err)
+	if err == nil {
+		o.metrics.RecordTokenCount(ctx, totalTokens)
+	}
 	return messages, err
 }
 

@@ -21,7 +21,7 @@ import (
 // TestResilientManager_NewResilientManager tests the creation of a resilient manager
 func TestResilientManager_NewResilientManager(t *testing.T) {
 	t.Run("Should create with default config when nil", func(t *testing.T) {
-		rm := NewResilientManager(nil, nil)
+		rm := NewResilientManager(nil, nil, nil)
 		require.NotNil(t, rm)
 		require.NotNil(t, rm.ManagerInterface)
 		require.NotNil(t, rm.runner)
@@ -44,7 +44,7 @@ func TestResilientManager_NewResilientManager(t *testing.T) {
 			RetryTimes:                  5,
 			RetryWaitBase:               100 * time.Millisecond,
 		}
-		rm := NewResilientManager(config, logger.NewForTests())
+		rm := NewResilientManager(nil, config, logger.NewForTests())
 		require.NotNil(t, rm)
 		assert.Equal(t, config, rm.config)
 	})
@@ -61,7 +61,7 @@ func TestResilientManager_ApplyPrivacyControls(t *testing.T) {
 			RetryTimes:                  3,
 			RetryWaitBase:               10 * time.Millisecond,
 		}
-		rm := NewResilientManager(config, logger.NewForTests())
+		rm := NewResilientManager(nil, config, logger.NewForTests())
 		ctx := context.Background()
 		msg := llm.Message{
 			Role:    llm.MessageRoleUser,
@@ -84,7 +84,7 @@ func TestResilientManager_ApplyPrivacyControls(t *testing.T) {
 			RetryTimes:                  0, // No retries for this test
 			RetryWaitBase:               10 * time.Millisecond,
 		}
-		rm := NewResilientManager(config, logger.NewForTests())
+		rm := NewResilientManager(nil, config, logger.NewForTests())
 		// Override the base manager with a slow implementation
 		rm.ManagerInterface = &slowPrivacyManager{ManagerInterface: NewManager(), delay: 200 * time.Millisecond}
 		ctx := context.Background()
@@ -108,7 +108,7 @@ func TestResilientManager_ApplyPrivacyControls(t *testing.T) {
 			RetryTimes:                  3,
 			RetryWaitBase:               10 * time.Millisecond,
 		}
-		rm := NewResilientManager(config, logger.NewForTests())
+		rm := NewResilientManager(nil, config, logger.NewForTests())
 		// Override with a failing manager that succeeds after 2 attempts
 		failingManager := &failingPrivacyManager{ManagerInterface: NewManager(), failuresBeforeSuccess: 2}
 		rm.ManagerInterface = failingManager
@@ -133,7 +133,7 @@ func TestResilientManager_ApplyPrivacyControls(t *testing.T) {
 			RetryTimes:                  0, // No retries to speed up test
 			RetryWaitBase:               10 * time.Millisecond,
 		}
-		rm := NewResilientManager(config, logger.NewForTests())
+		rm := NewResilientManager(nil, config, logger.NewForTests())
 		// Override with always failing manager
 		rm.ManagerInterface = &alwaysFailingPrivacyManager{ManagerInterface: NewManager()}
 		ctx := context.Background()
@@ -156,7 +156,7 @@ func TestResilientManager_ApplyPrivacyControls(t *testing.T) {
 func TestResilientManager_RedactContent(t *testing.T) {
 	t.Run("Should redact content successfully", func(t *testing.T) {
 		config := DefaultResilienceConfig()
-		rm := NewResilientManager(config, logger.NewForTests())
+		rm := NewResilientManager(nil, config, logger.NewForTests())
 		content := "My SSN is 123-45-6789 and email is test@example.com"
 		patterns := []string{`\d{3}-\d{2}-\d{4}`, `\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b`}
 		result, err := rm.RedactContent(content, patterns, "[REDACTED]")
@@ -172,7 +172,7 @@ func TestResilientManager_RedactContent(t *testing.T) {
 			RetryTimes:                  0,
 			RetryWaitBase:               10 * time.Millisecond,
 		}
-		rm := NewResilientManager(config, logger.NewForTests())
+		rm := NewResilientManager(nil, config, logger.NewForTests())
 		// Override with slow redaction
 		rm.ManagerInterface = &slowPrivacyManager{ManagerInterface: NewManager(), delay: 100 * time.Millisecond}
 		content := "My SSN is 123-45-6789"
@@ -194,7 +194,7 @@ func TestResilientManager_UpdateConfig(t *testing.T) {
 			RetryTimes:                  3,
 			RetryWaitBase:               50 * time.Millisecond,
 		}
-		rm := NewResilientManager(initialConfig, logger.NewForTests())
+		rm := NewResilientManager(nil, initialConfig, logger.NewForTests())
 		newConfig := &ResilienceConfig{
 			TimeoutDuration:             200 * time.Millisecond,
 			ErrorPercentThresholdToOpen: 75,
@@ -338,7 +338,7 @@ func TestResilientManager_ConcurrentRequests(t *testing.T) {
 			RetryTimes:                  1,
 			RetryWaitBase:               10 * time.Millisecond,
 		}
-		rm := NewResilientManager(config, logger.NewForTests())
+		rm := NewResilientManager(nil, config, logger.NewForTests())
 		ctx := context.Background()
 		concurrency := 10
 		var wg sync.WaitGroup
@@ -436,7 +436,7 @@ func TestResilientManager_CircuitBreakerIntegration(t *testing.T) {
 			RetryTimes:                  0, // No retries for this test
 			RetryWaitBase:               10 * time.Millisecond,
 		}
-		rm := NewResilientManager(config, logger.NewForTests())
+		rm := NewResilientManager(nil, config, logger.NewForTests())
 		// Override with failing manager
 		rm.ManagerInterface = &alwaysFailingPrivacyManager{ManagerInterface: NewManager()}
 		ctx := context.Background()
@@ -469,7 +469,7 @@ func TestResilientManager_CircuitBreakerIntegration(t *testing.T) {
 func TestResilientManager_EdgeCases(t *testing.T) {
 	t.Run("Should handle context cancellation", func(t *testing.T) {
 		config := DefaultResilienceConfig()
-		rm := NewResilientManager(config, logger.NewForTests())
+		rm := NewResilientManager(nil, config, logger.NewForTests())
 		// Create a canceled context
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
@@ -481,7 +481,7 @@ func TestResilientManager_EdgeCases(t *testing.T) {
 	})
 	t.Run("Should handle panic in underlying manager", func(t *testing.T) {
 		config := DefaultResilienceConfig()
-		rm := NewResilientManager(config, logger.NewForTests())
+		rm := NewResilientManager(nil, config, logger.NewForTests())
 		// Override with panicking manager
 		rm.ManagerInterface = &panickingPrivacyManager{ManagerInterface: NewManager()}
 		ctx := context.Background()
@@ -512,7 +512,7 @@ func (m *panickingPrivacyManager) ApplyPrivacyControls(
 func TestResilientManager_PerformanceBaseline(t *testing.T) {
 	t.Run("Should have minimal overhead for successful operations", func(t *testing.T) {
 		config := DefaultResilienceConfig()
-		rm := NewResilientManager(config, logger.NewForTests())
+		rm := NewResilientManager(nil, config, logger.NewForTests())
 		ctx := context.Background()
 		msg := llm.Message{Role: llm.MessageRoleUser, Content: strings.Repeat("test ", 100)}
 		metadata := memcore.PrivacyMetadata{}

@@ -167,7 +167,7 @@ func TestTokenAwareLRUStrategy_PerformFlush(t *testing.T) {
 	t.Run("Should respect token limits when flushing", func(t *testing.T) {
 		config := &core.Resource{
 			Type:      core.TokenBasedMemory,
-			MaxTokens: 500,
+			MaxTokens: 100, // Lower limit to ensure we exceed it
 		}
 
 		// Create messages that exceed token limit
@@ -175,9 +175,12 @@ func TestTokenAwareLRUStrategy_PerformFlush(t *testing.T) {
 		for i := range messages {
 			messages[i] = llm.Message{
 				Role:    llm.MessageRoleUser,
-				Content: "This is a test message with some content",
+				Content: "This is a test message with some content", // ~10 tokens each
 			}
 		}
+		// 20 messages * 10 tokens = 200 tokens total
+		// Target is 50% of 100 = 50 tokens
+		// Should evict messages to get close to 50 tokens
 
 		result, err := strategy.PerformFlush(context.Background(), messages, config)
 
@@ -185,6 +188,9 @@ func TestTokenAwareLRUStrategy_PerformFlush(t *testing.T) {
 		assert.True(t, result.Success)
 		// Should reduce messages to fit within token budget
 		assert.Less(t, result.MessageCount, len(messages))
+		// Token count should be close to target (50 tokens = ~5 messages)
+		assert.LessOrEqual(t, result.TokenCount, 60)    // Allow some margin
+		assert.GreaterOrEqual(t, result.TokenCount, 40) // But not too low
 	})
 
 	t.Run("Should handle message-based configuration", func(t *testing.T) {
@@ -270,10 +276,12 @@ func TestTokenAwareLRUStrategy_TokenCalculation(t *testing.T) {
 
 		// Convert to MessageWithTokens
 		msgWithTokens := make([]MessageWithTokens, len(messages))
+		ctx := context.Background()
 		for i, msg := range messages {
+			tokenCount, _ := strategy.tokenCounter.CountTokens(ctx, msg.Content)
 			msgWithTokens[i] = MessageWithTokens{
 				Message:    msg,
-				TokenCount: strategy.tokenCounter.CountTokens(msg),
+				TokenCount: tokenCount,
 				Index:      i,
 			}
 		}

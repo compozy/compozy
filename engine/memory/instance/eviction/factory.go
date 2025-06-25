@@ -5,6 +5,7 @@ import (
 	"sort"
 	"sync"
 
+	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/instance"
 )
 
@@ -128,4 +129,22 @@ func RegisterPolicy(name string, creator func() instance.EvictionPolicy) error {
 // CreateOrDefault creates a policy using the default factory or returns FIFO if not found
 func CreateOrDefault(policyType string) instance.EvictionPolicy {
 	return DefaultPolicyFactory.CreateOrDefault(policyType)
+}
+
+// CreatePolicyWithConfig creates an eviction policy with proper eviction configuration
+func CreatePolicyWithConfig(config *memcore.EvictionPolicyConfig) instance.EvictionPolicy {
+	if config == nil {
+		return NewFIFOEvictionPolicy()
+	}
+	switch config.Type {
+	case memcore.PriorityEviction:
+		return NewPriorityEvictionPolicyWithKeywords(config.PriorityKeywords)
+	case memcore.LRUEviction:
+		return NewLRUEvictionPolicy()
+	case memcore.FIFOEviction:
+		return NewFIFOEvictionPolicy()
+	default:
+		// Default to FIFO if unknown policy type
+		return NewFIFOEvictionPolicy()
+	}
 }
