@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"dario.cat/mergo"
@@ -63,6 +64,9 @@ type Config struct {
 	CWD      *core.PathCWD `json:"-" yaml:"-"`
 	// Env      *core.EnvMap  `json:"-" yaml:"-"` // Not typically needed for resource definitions
 	// With     *core.Input   `json:"-" yaml:"-"` // Not typically needed for resource definitions
+	// ttlManager holds a cached instance of TTLManager for efficient lock TTL retrieval
+	ttlManager     *TTLManager `json:"-" yaml:"-"`
+	ttlManagerOnce sync.Once   `json:"-" yaml:"-"`
 }
 
 // --- Implementation for core.Configurable pattern ---
@@ -331,22 +335,29 @@ func (tm *TTLManager) GetFlushTTL() time.Duration {
 	return tm.flushTTL
 }
 
+// initTTLManager lazily initializes the TTLManager instance once.
+func (c *Config) initTTLManager() {
+	c.ttlManagerOnce.Do(func() {
+		c.ttlManager = NewTTLManager(c.Locking, c.ID)
+	})
+}
+
 // GetAppendLockTTL returns the lock TTL for append operations with a default fallback.
 func (c *Config) GetAppendLockTTL() time.Duration {
-	tm := NewTTLManager(c.Locking, c.ID)
-	return tm.GetAppendTTL()
+	c.initTTLManager()
+	return c.ttlManager.GetAppendTTL()
 }
 
 // GetClearLockTTL returns the lock TTL for clear operations with a default fallback.
 func (c *Config) GetClearLockTTL() time.Duration {
-	tm := NewTTLManager(c.Locking, c.ID)
-	return tm.GetClearTTL()
+	c.initTTLManager()
+	return c.ttlManager.GetClearTTL()
 }
 
 // GetFlushLockTTL returns the lock TTL for flush operations with a default fallback.
 func (c *Config) GetFlushLockTTL() time.Duration {
-	tm := NewTTLManager(c.Locking, c.ID)
-	return tm.GetFlushTTL()
+	c.initTTLManager()
+	return c.ttlManager.GetFlushTTL()
 }
 
 // --- Methods below are part of core.Config but might not be fully relevant for a simple resource definition ---
@@ -397,6 +408,27 @@ func (c *Config) FromMap(data any) error {
 	if err != nil {
 		return err
 	}
-	*c = *parsedConfig // Replace current config with parsed one
+	// Save the sync fields that shouldn't be overwritten
+	ttlManager := c.ttlManager
+	// Manually copy fields to avoid copying sync.Once
+	c.Resource = parsedConfig.Resource
+	c.ID = parsedConfig.ID
+	c.Description = parsedConfig.Description
+	c.Version = parsedConfig.Version
+	c.Type = parsedConfig.Type
+	c.MaxTokens = parsedConfig.MaxTokens
+	c.MaxMessages = parsedConfig.MaxMessages
+	c.MaxContextRatio = parsedConfig.MaxContextRatio
+	c.TokenAllocation = parsedConfig.TokenAllocation
+	c.Flushing = parsedConfig.Flushing
+	c.Persistence = parsedConfig.Persistence
+	c.PrivacyPolicy = parsedConfig.PrivacyPolicy
+	c.Locking = parsedConfig.Locking
+	c.TokenProvider = parsedConfig.TokenProvider
+	c.filePath = parsedConfig.filePath
+	c.CWD = parsedConfig.CWD
+	// Restore the cached ttlManager if it was already initialized
+	c.ttlManager = ttlManager
+	// ttlManagerOnce is not copied to preserve its state
 	return nil
 }

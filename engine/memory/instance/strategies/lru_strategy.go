@@ -272,45 +272,22 @@ func (s *LRUStrategy) updateCacheAfterEviction(
 	// Clear the cache and repopulate with remaining messages
 	s.cache.Purge()
 
-	// Build a map for O(1) message lookup by content and index comparison
-	messageToOrigIndex := make(map[string]int)
-	for idx := range remainingIndices {
-		// Use message content with index for uniqueness to handle duplicate messages
-		key := fmt.Sprintf("%d:%s:%s", idx, messages[idx].Role, messages[idx].Content)
-		messageToOrigIndex[key] = idx
+	// Create a mapping from new index to original index for remaining messages
+	newToOrigIndex := make([]int, len(remainingMessages))
+	newIdx := 0
+	for origIdx := range messages {
+		if remainingIndices[origIdx] {
+			newToOrigIndex[newIdx] = origIdx
+			newIdx++
+		}
 	}
 
-	// Rebuild cache with new indices for remaining messages
-	for newIdx, msg := range remainingMessages {
-		// Find the original index by matching content and checking all remaining indices
-		var origIdx int
-		found := false
-		for candidateIdx := range remainingIndices {
-			candidateKey := fmt.Sprintf(
-				"%d:%s:%s",
-				candidateIdx,
-				messages[candidateIdx].Role,
-				messages[candidateIdx].Content,
-			)
-			if messages[candidateIdx].Role == msg.Role && messages[candidateIdx].Content == msg.Content {
-				if _, exists := messageToOrigIndex[candidateKey]; exists {
-					origIdx = candidateIdx
-					found = true
-					// Remove from map to handle duplicate messages correctly
-					delete(messageToOrigIndex, candidateKey)
-					break
-				}
-			}
-		}
-
-		if found {
-			if accessTime, exists := accessTimeMap[origIdx]; exists {
-				s.cache.Add(newIdx, accessTime)
-			} else {
-				s.cache.Add(newIdx, time.Now())
-			}
+	// Rebuild cache with new indices
+	for newIdx := range remainingMessages {
+		origIdx := newToOrigIndex[newIdx]
+		if accessTime, exists := accessTimeMap[origIdx]; exists {
+			s.cache.Add(newIdx, accessTime)
 		} else {
-			// Fallback for messages without original index
 			s.cache.Add(newIdx, time.Now())
 		}
 	}

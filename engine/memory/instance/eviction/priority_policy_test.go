@@ -1,6 +1,7 @@
 package eviction
 
 import (
+	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/llm"
@@ -332,4 +333,51 @@ func TestPriorityEvictionPolicy_customKeywordsPriority(t *testing.T) {
 		assert.NotContains(t, evictedContents, "Found a bug in the code")
 		assert.NotContains(t, evictedContents, "Deadline approaching fast")
 	})
+}
+
+func TestPriorityEvictionPolicy_TokenEstimation(t *testing.T) {
+	t.Run("Should use default token estimator", func(t *testing.T) {
+		policy := NewPriorityEvictionPolicy()
+		msg := llm.Message{
+			Role:    llm.MessageRoleUser,
+			Content: "This is a test message", // 22 chars / 4 = 5 tokens + role overhead
+		}
+		tokens := policy.estimateTokens(msg)
+		// 5 tokens for content + 6 for role "user" and overhead
+		assert.Greater(t, tokens, 0)
+		assert.LessOrEqual(t, tokens, 15) // Reasonable upper bound
+	})
+
+	t.Run("Should support custom token estimator", func(t *testing.T) {
+		// Create a mock token estimator that returns a fixed value
+		mockEstimator := &mockTokenEstimator{fixedTokens: 100}
+
+		policy := NewPriorityEvictionPolicy()
+		policy = policy.WithTokenEstimator(mockEstimator)
+
+		msg := llm.Message{
+			Role:    llm.MessageRoleAssistant,
+			Content: "Any content",
+		}
+		tokens := policy.estimateTokens(msg)
+		// 100 tokens from mock + role overhead
+		assert.Equal(t, 111, tokens) // 100 + 11 (len("assistant") + 2)
+	})
+
+	t.Run("Should not override with nil estimator", func(t *testing.T) {
+		policy := NewPriorityEvictionPolicy()
+		originalEstimator := policy.tokenEstimator
+
+		policy = policy.WithTokenEstimator(nil)
+		assert.Equal(t, originalEstimator, policy.tokenEstimator)
+	})
+}
+
+// mockTokenEstimator is a test helper that returns a fixed token count
+type mockTokenEstimator struct {
+	fixedTokens int
+}
+
+func (m *mockTokenEstimator) EstimateTokens(_ context.Context, _ string) int {
+	return m.fixedTokens
 }

@@ -282,7 +282,8 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 		mockTokenCounter.On("CountTokens", ctx, "user").Return(1, nil)
 		mockStore.On("AppendMessageWithTokenCount", ctx, "test-id", msg, 6).Return(nil)
 
-		// Setup expectations for async checkFlushTrigger goroutine with channel notification
+		// The checkFlushTrigger is called before lock release check,
+		// so these expectations should be set
 		mockStore.On("GetTokenCount", mock.Anything, "test-id").Return(6, nil).Run(func(_ mock.Arguments) {
 			// Signal that the async operation has started
 			select {
@@ -313,4 +314,4 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 	})
 }
 
-// TODO: Implement TestFlushOperations_ErrorLogging when flush operations are integrated
+// TODO: Implement TestFlushHandler_ErrorLogging when flush handler is integrated

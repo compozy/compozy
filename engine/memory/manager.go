@@ -30,7 +30,6 @@ type Manager struct {
 	temporalTaskQueue string                    // Default task queue for memory activities
 	privacyManager    privacy.ManagerInterface  // Privacy controls and data protection
 	log               logger.Logger             // Logger following the project standard with log.FromContext(ctx)
-	componentCache    *componentCache           // Component cache for performance optimization
 }
 
 // ManagerOptions holds options for creating a Manager.
@@ -43,9 +42,7 @@ type ManagerOptions struct {
 	TemporalTaskQueue       string
 	PrivacyManager          privacy.ManagerInterface  // Optional: if nil, a new one will be created
 	PrivacyResilienceConfig *privacy.ResilienceConfig // Optional: if provided, creates resilient privacy manager
-	Logger                  logger.Logger
-	ComponentCacheConfig    *ComponentCacheConfig // Optional: if nil, default config will be used
-	DisableComponentCache   bool                  // Optional: disable component caching entirely
+	Logger                  logger.Logger             // Optional: if nil, a new one will be created
 }
 
 // NewManager creates a new Manager.
@@ -55,7 +52,6 @@ func NewManager(opts *ManagerOptions) (*Manager, error) {
 	}
 	setDefaultManagerOptions(opts)
 	privacyManager := getOrCreatePrivacyManager(opts.PrivacyManager, opts.PrivacyResilienceConfig, opts.Logger)
-	cache := createComponentCache(opts)
 	return &Manager{
 		resourceRegistry:  opts.ResourceRegistry,
 		tplEngine:         opts.TplEngine,
@@ -65,7 +61,6 @@ func NewManager(opts *ManagerOptions) (*Manager, error) {
 		temporalTaskQueue: opts.TemporalTaskQueue,
 		privacyManager:    privacyManager,
 		log:               opts.Logger,
-		componentCache:    cache,
 	}, nil
 }
 

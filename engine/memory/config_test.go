@@ -141,3 +141,123 @@ func TestConfig_LockTTLMethods(t *testing.T) {
 		assert.Equal(t, 5*time.Minute, result)
 	})
 }
+
+func TestConfig_FromMap_ProjectStandard(t *testing.T) {
+	// Test that FromMap properly uses mapstructure tags to map fields
+	t.Run("Should map fields using mapstructure tags", func(t *testing.T) {
+		// Simulate the exact structure that autoloader provides
+		yamlMap := map[string]any{
+			"resource":     "memory",
+			"id":           "user_memory",
+			"description":  "User conversation history",
+			"version":      "0.1.0",
+			"type":         "token_based",
+			"max_tokens":   2000,
+			"max_messages": 50,
+			"flushing": map[string]any{
+				"type":      "simple_fifo",
+				"threshold": 0.8,
+			},
+			"persistence": map[string]any{
+				"ttl": "168h",
+			},
+			"privacy_policy": map[string]any{
+				"redact_patterns":          []string{"\\b\\d{3}-\\d{2}-\\d{4}\\b"},
+				"default_redaction_string": "[REDACTED]",
+			},
+		}
+
+		// Create config and convert from map
+		config := &Config{}
+		err := config.FromMap(yamlMap)
+		require.NoError(t, err)
+
+		// Verify all fields were properly mapped
+		assert.Equal(t, "memory", config.Resource)
+		assert.Equal(t, "user_memory", config.ID)
+		assert.Equal(t, "User conversation history", config.Description)
+		assert.Equal(t, "0.1.0", config.Version)
+		assert.Equal(t, memcore.TokenBasedMemory, config.Type)
+		assert.Equal(t, 2000, config.MaxTokens)
+		assert.Equal(t, 50, config.MaxMessages)
+
+		// Verify nested structures
+		require.NotNil(t, config.Flushing)
+		assert.Equal(t, memcore.SimpleFIFOFlushing, config.Flushing.Type)
+
+		assert.Equal(t, "168h", config.Persistence.TTL)
+
+		require.NotNil(t, config.PrivacyPolicy)
+		assert.Len(t, config.PrivacyPolicy.RedactPatterns, 1)
+		assert.Equal(t, "[REDACTED]", config.PrivacyPolicy.DefaultRedactionString)
+	})
+
+	t.Run("Should validate after FromMap", func(t *testing.T) {
+		yamlMap := map[string]any{
+			"resource":   "memory",
+			"id":         "test_memory",
+			"type":       "token_based",
+			"max_tokens": 1000,
+			"persistence": map[string]any{
+				"ttl": "24h",
+			},
+		}
+
+		config := &Config{}
+		err := config.FromMap(yamlMap)
+		require.NoError(t, err)
+
+		// Validate should pass
+		err = config.Validate()
+		assert.NoError(t, err)
+	})
+}
+
+func TestConfig_LazyTTLManagerInitialization(t *testing.T) {
+	t.Run("Should initialize TTLManager lazily and reuse same instance", func(t *testing.T) {
+		cfg := &Config{
+			ID: "test-memory",
+			Locking: &memcore.LockConfig{
+				AppendTTL: "30s",
+				ClearTTL:  "60s",
+				FlushTTL:  "90s",
+			},
+		}
+		// First call should initialize the TTLManager
+		ttl1 := cfg.GetAppendLockTTL()
+		assert.Equal(t, 30*time.Second, ttl1)
+		assert.NotNil(t, cfg.ttlManager)
+		// Store reference to the ttlManager
+		firstManager := cfg.ttlManager
+		// Subsequent calls should reuse the same TTLManager instance
+		ttl2 := cfg.GetClearLockTTL()
+		assert.Equal(t, 60*time.Second, ttl2)
+		assert.Same(t, firstManager, cfg.ttlManager)
+		ttl3 := cfg.GetFlushLockTTL()
+		assert.Equal(t, 90*time.Second, ttl3)
+		assert.Same(t, firstManager, cfg.ttlManager)
+	})
+	t.Run("Should handle concurrent access safely", func(t *testing.T) {
+		cfg := &Config{
+			ID: "test-memory",
+			Locking: &memcore.LockConfig{
+				AppendTTL: "30s",
+			},
+		}
+		// Run multiple goroutines to test concurrent initialization
+		done := make(chan bool, 10)
+		for i := 0; i < 10; i++ {
+			go func() {
+				ttl := cfg.GetAppendLockTTL()
+				assert.Equal(t, 30*time.Second, ttl)
+				done <- true
+			}()
+		}
+		// Wait for all goroutines to complete
+		for i := 0; i < 10; i++ {
+			<-done
+		}
+		// Verify only one TTLManager was created
+		assert.NotNil(t, cfg.ttlManager)
+	})
+}

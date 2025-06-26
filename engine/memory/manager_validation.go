@@ -55,21 +55,3 @@ func getOrCreatePrivacyManager(
 	}
 	return baseManager
 }
-
-// createComponentCache creates a component cache if not disabled
-func createComponentCache(opts *ManagerOptions) *componentCache {
-	if opts.DisableComponentCache {
-		return nil
-	}
-	cacheConfig := opts.ComponentCacheConfig
-	if cacheConfig == nil {
-		defaultConfig := DefaultComponentCacheConfig()
-		cacheConfig = &defaultConfig
-	}
-	cache, err := newComponentCache(*cacheConfig)
-	if err != nil {
-		opts.Logger.Warn("Failed to create component cache, proceeding without cache", "error", err)
-		return nil
-	}
-	return cache
-}

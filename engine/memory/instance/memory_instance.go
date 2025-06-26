@@ -7,7 +7,6 @@ import (
 
 	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/memory/core"
-	"github.com/compozy/compozy/engine/memory/store"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.temporal.io/sdk/client"
 )
@@ -259,66 +258,17 @@ func (mi *memoryInstance) AppendWithPrivacy(ctx context.Context, msg llm.Message
 }
 
 func (mi *memoryInstance) PerformFlush(ctx context.Context) (*core.FlushMemoryActivityOutput, error) {
-	start := time.Now()
-	lock, err := mi.lockManager.AcquireFlushLock(ctx, mi.id)
-	if err != nil {
-		return nil, fmt.Errorf("failed to acquire lock for flush on memory %s: %w", mi.id, err)
+	// Create flush handler with necessary dependencies
+	flushHandler := &FlushHandler{
+		instanceID:       mi.id,
+		store:            mi.store,
+		lockManager:      mi.lockManager,
+		flushingStrategy: mi.flushingStrategy,
+		logger:           mi.logger,
+		metrics:          mi.metrics,
+		resourceConfig:   mi.resourceConfig,
 	}
-	defer func() {
-		if unlockErr := lock(); unlockErr != nil {
-			mi.logger.Error("Failed to release flush lock", "error", unlockErr, "memory_id", mi.id)
-		}
-	}()
-	// Check if flush is already pending
-	if flushStore, ok := mi.store.(core.FlushStateStore); ok {
-		isPending, err := flushStore.IsFlushPending(ctx, mi.id)
-		if err != nil {
-			mi.metrics.RecordFlush(ctx, time.Since(start), 0, err)
-			return nil, err
-		}
-		if isPending {
-			mi.metrics.RecordFlush(ctx, time.Since(start), 0, core.ErrFlushAlreadyPending)
-			return nil, core.ErrFlushAlreadyPending
-		}
-		// Mark flush as pending
-		if err := flushStore.MarkFlushPending(ctx, mi.id, true); err != nil {
-			mi.metrics.RecordFlush(ctx, time.Since(start), 0, err)
-			return nil, err
-		}
-		defer func() {
-			// Always clear the pending flag
-			if err := flushStore.MarkFlushPending(ctx, mi.id, false); err != nil {
-				mi.logger.Error("Failed to clear flush pending flag", "error", err, "memory_id", mi.id)
-			}
-		}()
-	}
-	messages, err := mi.Read(ctx)
-	if err != nil {
-		mi.metrics.RecordFlush(ctx, time.Since(start), 0, err)
-		return nil, fmt.Errorf("failed to read messages for flush: %w", err)
-	}
-	output, err := mi.flushingStrategy.PerformFlush(ctx, messages, mi.resourceConfig)
-	if err != nil {
-		mi.metrics.RecordFlush(ctx, time.Since(start), len(messages), err)
-		return nil, fmt.Errorf("failed to perform flush: %w", err)
-	}
-	// If flush was successful and we need to remove messages
-	if output.Success && output.MessageCount < len(messages) {
-		// Check if store supports atomic operations
-		atomicStore, ok := mi.store.(store.AtomicStore)
-		if ok {
-			// Trim messages to keep only the remaining ones
-			err = atomicStore.TrimMessagesWithMetadata(ctx, mi.id, output.MessageCount, output.TokenCount)
-			if err != nil {
-				mi.logger.Error("Failed to trim messages after flush", "error", err, "memory_id", mi.id)
-				return nil, fmt.Errorf("failed to trim messages after flush: %w", err)
-			}
-		} else {
-			mi.logger.Warn("Store doesn't support atomic trim operations", "memory_id", mi.id)
-		}
-	}
-	mi.metrics.RecordFlush(ctx, time.Since(start), len(messages), nil)
-	return output, nil
+	return flushHandler.PerformFlush(ctx)
 }
 
 func (mi *memoryInstance) MarkFlushPending(ctx context.Context, pending bool) error {

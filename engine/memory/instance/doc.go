@@ -5,7 +5,7 @@
 // Core Components:
 //   - Builder: Fluent interface for creating memory instances
 //   - Operations: Handles append, read, clear operations with proper locking
-//   - FlushOperations: Manages memory flushing and Temporal workflow integration
+//   - FlushHandler: Manages memory flushing with retry logic
 //   - HealthChecker: Provides health checks and diagnostics
 //   - LockManager: Distributed locking for concurrent operations
 //   - MetricsCollector: Collects operational metrics

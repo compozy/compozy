@@ -1,16 +1,19 @@
 package eviction
 
 import (
+	"context"
 	"sort"
 	"strings"
 
 	"github.com/compozy/compozy/engine/llm"
+	memcore "github.com/compozy/compozy/engine/memory/core"
 )
 
 // PriorityEvictionPolicy implements a priority-based eviction strategy
 type PriorityEvictionPolicy struct {
 	name              string
 	importantKeywords []string
+	tokenEstimator    memcore.TokenEstimator
 }
 
 // MessagePriority represents the priority level for eviction
@@ -51,6 +54,7 @@ func NewPriorityEvictionPolicy() *PriorityEvictionPolicy {
 	return &PriorityEvictionPolicy{
 		name:              "priority",
 		importantKeywords: getDefaultPriorityKeywords(),
+		tokenEstimator:    memcore.NewTokenEstimator(memcore.EnglishEstimation),
 	}
 }
 
@@ -62,6 +66,7 @@ func NewPriorityEvictionPolicyWithKeywords(keywords []string) *PriorityEvictionP
 	return &PriorityEvictionPolicy{
 		name:              "priority",
 		importantKeywords: keywords,
+		tokenEstimator:    memcore.NewTokenEstimator(memcore.EnglishEstimation),
 	}
 }
 
@@ -143,13 +148,21 @@ func (p *PriorityEvictionPolicy) containsImportantKeywords(content string) bool 
 	return false
 }
 
-// estimateTokens provides a rough token count estimate
+// estimateTokens provides a token count estimate using the project's token estimator
 func (p *PriorityEvictionPolicy) estimateTokens(msg llm.Message) int {
-	// Simple estimation: ~4 characters per token
-	contentLength := len(msg.Content)
-	// Role overhead varies by role length: system=6, assistant=9, user=4, tool=4
+	// Use the token estimator for content
+	contentTokens := p.tokenEstimator.EstimateTokens(context.Background(), msg.Content)
+	// Add role overhead based on role length
 	roleOverhead := len(string(msg.Role)) + 2 // Role plus formatting overhead
-	return (contentLength / 4) + roleOverhead
+	return contentTokens + roleOverhead
+}
+
+// WithTokenEstimator sets a custom token estimator
+func (p *PriorityEvictionPolicy) WithTokenEstimator(estimator memcore.TokenEstimator) *PriorityEvictionPolicy {
+	if estimator != nil {
+		p.tokenEstimator = estimator
+	}
+	return p
 }
 
 // GetType returns the policy type

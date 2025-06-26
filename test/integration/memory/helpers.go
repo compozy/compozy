@@ -129,11 +129,6 @@ func (env *TestEnvironment) setupMemoryManager(t *testing.T) {
 		TemporalTaskQueue: "test-memory-queue",
 		PrivacyManager:    privacyManager,
 		Logger:            env.logger,
-		ComponentCacheConfig: &memory.ComponentCacheConfig{
-			MaxCost:     10 << 20, // 10MB for tests
-			NumCounters: 1e5,      // 100k counters
-			BufferItems: 64,
-		},
 	}
 	// Create memory manager
 	var err error
@@ -221,6 +216,11 @@ func (env *TestEnvironment) addTestMemoryConfigs() {
 				Flushing: &memcore.FlushingStrategyConfig{
 					Type:               memcore.SimpleFIFOFlushing,
 					SummarizeThreshold: 0.5, // Aggressive flushing at 50%
+				},
+				Locking: &memcore.LockConfig{
+					AppendTTL: "30s",
+					ClearTTL:  "60s",
+					FlushTTL:  "120s",
 				},
 			},
 		},

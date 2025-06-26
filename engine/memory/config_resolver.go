@@ -141,40 +141,6 @@ func (mm *Manager) loadMemoryConfig(resourceID string) (*memcore.Resource, error
 	return builder.Build()
 }
 
-// CacheKeyBuilder provides consistent cache key generation
-type CacheKeyBuilder struct {
-	namespace string
-}
-
-// NewCacheKeyBuilder creates a new cache key builder
-func NewCacheKeyBuilder(namespace string) *CacheKeyBuilder {
-	return &CacheKeyBuilder{namespace: namespace}
-}
-
-// ForTokenCounter generates a cache key for token counters
-func (b *CacheKeyBuilder) ForTokenCounter(model string) string {
-	return fmt.Sprintf("%s:token-counter:%s", b.namespace, model)
-}
-
-// ForUnifiedCounter generates a cache key for unified counters
-func (b *CacheKeyBuilder) ForUnifiedCounter(provider, model, apiKeyHash string) string {
-	if apiKeyHash != "" {
-		return fmt.Sprintf("%s:unified-counter:%s:%s:%s", b.namespace, provider, model, apiKeyHash)
-	}
-	return fmt.Sprintf("%s:unified-counter:%s:%s", b.namespace, provider, model)
-}
-
-// HashAPIKey creates a hash of an API key for cache key generation
-func (b *CacheKeyBuilder) HashAPIKey(apiKey string) string {
-	if apiKey == "" {
-		return ""
-	}
-	hasher := sha256.New()
-	hasher.Write([]byte(apiKey))
-	// Use first 32 characters for sufficient uniqueness
-	return hex.EncodeToString(hasher.Sum(nil))[:32]
-}
-
 // resolveMemoryKey evaluates the memory key template and returns the resolved key
 func (mm *Manager) resolveMemoryKey(
 	_ context.Context,
@@ -240,50 +206,32 @@ func (mm *Manager) getOrCreateTokenCounterWithConfig(
 	model string,
 	providerConfig *memcore.TokenProviderConfig,
 ) (memcore.TokenCounter, error) {
-	// Use centralized cache key builder
-	keyBuilder := NewCacheKeyBuilder("memory")
-
-	// Generate cache key based on configuration
-	var cacheKey string
+	// Create new counter directly without caching
 	if providerConfig != nil {
-		apiKeyHash := keyBuilder.HashAPIKey(providerConfig.APIKey)
-		cacheKey = keyBuilder.ForUnifiedCounter(providerConfig.Provider, providerConfig.Model, apiKeyHash)
-	} else {
-		cacheKey = keyBuilder.ForTokenCounter(model)
+		return mm.createUnifiedCounter(model, providerConfig)
 	}
-
-	// Try to get from cache first
-	if mm.componentCache != nil {
-		if cached, found := mm.componentCache.Get(cacheKey); found {
-			// Extract the appropriate counter type
-			if providerConfig != nil {
-				if counter, ok := cached.(*CacheableUnifiedCounter); ok {
-					return counter.UnifiedTokenCounter, nil
-				}
-			} else {
-				if counter, ok := cached.(*CacheableTiktokenCounter); ok {
-					return counter.TiktokenCounter, nil
-				}
-			}
-		}
-	}
-
-	// Create new counter if not cached
-	if providerConfig != nil {
-		return mm.createUnifiedCounter(model, providerConfig, cacheKey)
-	}
-	return mm.createTiktokenCounter(model, cacheKey)
+	return mm.createTiktokenCounter(model)
 }
 
 // createUnifiedCounter creates a new unified token counter
 func (mm *Manager) createUnifiedCounter(
 	model string,
 	providerConfig *memcore.TokenProviderConfig,
-	cacheKey string,
 ) (memcore.TokenCounter, error) {
 	keyResolver := tokens.NewAPIKeyResolver(mm.log)
 	tokensProviderConfig := keyResolver.ResolveProviderConfig(providerConfig)
-	cacheableCounter, err := NewCacheableUnifiedCounter(tokensProviderConfig, model)
+	// Create fallback counter
+	fallback, err := tokens.NewTiktokenCounter(model)
+	if err != nil {
+		return nil, &Error{
+			Type:       ErrorTypeCache,
+			Operation:  "create_fallback_counter",
+			ResourceID: model,
+			Cause:      err,
+		}
+	}
+	// Create unified counter
+	counter, err := tokens.NewUnifiedTokenCounter(tokensProviderConfig, fallback, mm.log)
 	if err != nil {
 		return nil, &Error{
 			Type:       ErrorTypeCache,
@@ -292,16 +240,12 @@ func (mm *Manager) createUnifiedCounter(
 			Cause:      err,
 		}
 	}
-	// Store in cache if available
-	if mm.componentCache != nil {
-		mm.componentCache.Set(cacheKey, cacheableCounter)
-	}
-	return cacheableCounter.UnifiedTokenCounter, nil
+	return counter, nil
 }
 
 // createTiktokenCounter creates a new tiktoken counter
-func (mm *Manager) createTiktokenCounter(model, cacheKey string) (memcore.TokenCounter, error) {
-	cacheableCounter, err := NewCacheableTiktokenCounter(model)
+func (mm *Manager) createTiktokenCounter(model string) (memcore.TokenCounter, error) {
+	counter, err := tokens.NewTiktokenCounter(model)
 	if err != nil {
 		return nil, &Error{
 			Type:       ErrorTypeCache,
@@ -310,11 +254,7 @@ func (mm *Manager) createTiktokenCounter(model, cacheKey string) (memcore.TokenC
 			Cause:      err,
 		}
 	}
-	// Store in cache if available
-	if mm.componentCache != nil {
-		mm.componentCache.Set(cacheKey, cacheableCounter)
-	}
-	return cacheableCounter.TiktokenCounter, nil
+	return counter, nil
 }
 
 // createConfigFromMap efficiently creates a Config from a map
