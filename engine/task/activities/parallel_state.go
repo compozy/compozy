@@ -32,13 +32,16 @@ func NewCreateParallelState(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	cwd *core.PathCWD,
-) *CreateParallelState {
-	configManager := services.NewConfigManager(configStore, cwd)
+) (*CreateParallelState, error) {
+	configManager, err := services.NewConfigManager(configStore, cwd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config manager: %w", err)
+	}
 	return &CreateParallelState{
 		loadWorkflowUC:     uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:      uc.NewCreateState(taskRepo, configManager),
 		createChildTasksUC: uc.NewCreateChildTasksUC(taskRepo, configManager),
-	}
+	}, nil
 }
 
 func (a *CreateParallelState) Run(ctx context.Context, input *CreateParallelStateInput) (*task.State, error) {

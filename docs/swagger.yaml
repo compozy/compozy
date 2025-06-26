@@ -567,6 +567,13 @@ definitions:
   schema.Schema:
     additionalProperties: {}
     type: object
+  task.ClearConfig:
+    properties:
+      backup:
+        type: boolean
+      confirm:
+        type: boolean
+    type: object
   task.CollectionMode:
     enum:
       - parallel
@@ -585,6 +592,11 @@ definitions:
         $ref: '#/definitions/agent.Config'
       batch:
         type: integer
+      batch_size:
+        description: Performance controls
+        type: integer
+      clear_config:
+        $ref: '#/definitions/task.ClearConfig'
       condition:
         type: string
       config:
@@ -598,6 +610,12 @@ definitions:
         type: string
       final:
         type: boolean
+      flush_config:
+        allOf:
+          - $ref: '#/definitions/task.FlushConfig'
+        description: Operation-specific configs
+      health_config:
+        $ref: '#/definitions/task.HealthConfig'
       id:
         type: string
       index_var:
@@ -608,8 +626,14 @@ definitions:
         type: string
       items:
         type: string
+      key_template:
+        type: string
+      max_keys:
+        type: integer
       max_workers:
         type: integer
+      memory_ref:
+        type: string
       mode:
         $ref: '#/definitions/task.CollectionMode'
       on_error:
@@ -620,10 +644,13 @@ definitions:
         description: Task configuration
       on_timeout:
         type: string
+      operation:
+        $ref: '#/definitions/task.MemoryOpType'
       output:
         $ref: '#/definitions/schema.Schema'
       outputs:
         $ref: '#/definitions/core.Input'
+      payload: {}
       processor:
         $ref: '#/definitions/task.Config'
       resource:
@@ -637,6 +664,8 @@ definitions:
         $ref: '#/definitions/task.SignalConfig'
       sleep:
         type: string
+      stats_config:
+        $ref: '#/definitions/task.StatsConfig'
       strategy:
         $ref: '#/definitions/task.ParallelStrategy'
       task:
@@ -673,6 +702,46 @@ definitions:
       - ExecutionCollection
       - ExecutionComposite
       - ExecutionWait
+  task.FlushConfig:
+    properties:
+      dry_run:
+        type: boolean
+      force:
+        type: boolean
+      max_keys:
+        type: integer
+      strategy:
+        type: string
+      threshold:
+        type: number
+    type: object
+  task.HealthConfig:
+    properties:
+      check_connectivity:
+        type: boolean
+      include_stats:
+        type: boolean
+    type: object
+  task.MemoryOpType:
+    enum:
+      - read
+      - write
+      - append
+      - delete
+      - flush
+      - health
+      - clear
+      - stats
+    type: string
+    x-enum-varnames:
+      - MemoryOpRead
+      - MemoryOpWrite
+      - MemoryOpAppend
+      - MemoryOpDelete
+      - MemoryOpFlush
+      - MemoryOpHealth
+      - MemoryOpClear
+      - MemoryOpStats
   task.ParallelStrategy:
     enum:
       - wait_all
@@ -740,6 +809,13 @@ definitions:
       workflow_id:
         type: string
     type: object
+  task.StatsConfig:
+    properties:
+      group_by:
+        type: string
+      include_content:
+        type: boolean
+    type: object
   task.Type:
     enum:
       - basic
@@ -750,6 +826,7 @@ definitions:
       - composite
       - signal
       - wait
+      - memory
     type: string
     x-enum-varnames:
       - TaskTypeBasic
@@ -760,6 +837,7 @@ definitions:
       - TaskTypeComposite
       - TaskTypeSignal
       - TaskTypeWait
+      - TaskTypeMemory
   time.Duration:
     enum:
       - -9223372036854775808

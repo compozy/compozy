@@ -10,9 +10,12 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
+	"github.com/compozy/compozy/engine/task2"
+	task2core "github.com/compozy/compozy/engine/task2/core"
+	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
-	"github.com/compozy/compozy/pkg/normalizer"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // -----------------------------------------------------------------------------
@@ -28,18 +31,26 @@ type HandleResponseInput struct {
 }
 
 type HandleResponse struct {
-	workflowRepo        workflow.Repository
-	taskRepo            task.Repository
-	normalizer          *normalizer.ConfigNormalizer
-	parentStatusUpdater *services.ParentStatusUpdater
+	workflowRepo                workflow.Repository
+	taskRepo                    task.Repository
+	parentStatusUpdater         *services.ParentStatusUpdater
+	successTransitionNormalizer *task2core.SuccessTransitionNormalizer
+	errorTransitionNormalizer   *task2core.ErrorTransitionNormalizer
+	outputTransformer           *task2core.OutputTransformer
 }
 
 func NewHandleResponse(workflowRepo workflow.Repository, taskRepo task.Repository) *HandleResponse {
+	// Create template engine for task2 normalizers
+	engine := tplengine.NewEngine(tplengine.FormatJSON)
+	templateEngineAdapter := task2.NewTemplateEngineAdapter(engine)
+
 	return &HandleResponse{
-		workflowRepo:        workflowRepo,
-		taskRepo:            taskRepo,
-		normalizer:          normalizer.NewConfigNormalizer(),
-		parentStatusUpdater: services.NewParentStatusUpdater(taskRepo),
+		workflowRepo:                workflowRepo,
+		taskRepo:                    taskRepo,
+		parentStatusUpdater:         services.NewParentStatusUpdater(taskRepo),
+		successTransitionNormalizer: task2core.NewSuccessTransitionNormalizer(templateEngineAdapter),
+		errorTransitionNormalizer:   task2core.NewErrorTransitionNormalizer(templateEngineAdapter),
+		outputTransformer:           task2core.NewOutputTransformer(templateEngineAdapter),
 	}
 }
 
@@ -151,11 +162,23 @@ func (uc *HandleResponse) applyOutputTransformation(ctx context.Context, input *
 	if err != nil {
 		return fmt.Errorf("failed to get workflow state for output transformation: %w", err)
 	}
-	output, err := uc.normalizer.NormalizeTaskOutput(
+	// Build task configs map for context
+	taskConfigs := task2.BuildTaskConfigsMap(input.WorkflowConfig.Tasks)
+
+	// Create normalization context with proper Variables
+	contextBuilder, err := shared.NewContextBuilder()
+	if err != nil {
+		return fmt.Errorf("failed to create context builder: %w", err)
+	}
+	normCtx := contextBuilder.BuildContext(workflowState, input.WorkflowConfig, input.TaskConfig)
+	normCtx.TaskConfigs = taskConfigs
+	normCtx.CurrentInput = input.TaskConfig.With
+	normCtx.MergedEnv = input.TaskConfig.Env
+
+	output, err := uc.outputTransformer.TransformOutput(
 		input.TaskState.Output,
 		input.TaskConfig.GetOutputs(),
-		workflowState,
-		input.WorkflowConfig,
+		normCtx,
 		input.TaskConfig,
 	)
 	if err != nil {
@@ -183,102 +206,62 @@ func (uc *HandleResponse) normalizeTransitions(
 	ctx context.Context,
 	input *HandleResponseInput,
 ) (*core.SuccessTransition, *core.ErrorTransition, error) {
-	workflowExecID := input.TaskState.WorkflowExecID
-	workflowConfig := input.WorkflowConfig
-	taskConfig := input.TaskConfig
-	tasks := workflowConfig.Tasks
-	allTaskConfigs := normalizer.BuildTaskConfigsMap(tasks)
-	workflowState, err := uc.workflowRepo.GetState(ctx, workflowExecID)
+	workflowState, err := uc.workflowRepo.GetState(ctx, input.TaskState.WorkflowExecID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get workflow state: %w", err)
 	}
-	err = uc.normalizer.NormalizeTaskEnvironment(workflowConfig, taskConfig)
+
+	// Create normalization context for task2 with proper Variables
+	contextBuilder, err := shared.NewContextBuilder()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to normalize base environment: %w", err)
+		return nil, nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
-	normalizedOnSuccess, err := uc.normalizeSuccessTransition(
-		taskConfig.OnSuccess,
-		workflowState,
-		workflowConfig,
-		allTaskConfigs,
-		taskConfig.Env,
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to normalize success transition: %w", err)
+	normCtx := contextBuilder.BuildContext(workflowState, input.WorkflowConfig, input.TaskConfig)
+	normCtx.CurrentInput = input.TaskState.Input
+
+	// Normalize success transition
+	var normalizedOnSuccess *core.SuccessTransition
+	if input.TaskConfig.OnSuccess != nil {
+		// Create a copy to avoid mutating the original
+		successCopy := &core.SuccessTransition{
+			Next: input.TaskConfig.OnSuccess.Next,
+			With: input.TaskConfig.OnSuccess.With,
+		}
+		if input.TaskConfig.OnSuccess.With != nil {
+			withCopy := make(core.Input)
+			maps.Copy(withCopy, *input.TaskConfig.OnSuccess.With)
+			successCopy.With = &withCopy
+		}
+
+		err = uc.successTransitionNormalizer.Normalize(successCopy, normCtx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to normalize success transition: %w", err)
+		}
+		normalizedOnSuccess = successCopy
 	}
-	normalizedOnError, err := uc.normalizeErrorTransition(
-		taskConfig.OnError,
-		workflowState,
-		workflowConfig,
-		allTaskConfigs,
-		taskConfig.Env,
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to normalize error transition: %w", err)
+
+	// Normalize error transition
+	var normalizedOnError *core.ErrorTransition
+	if input.TaskConfig.OnError != nil {
+		// Create a copy to avoid mutating the original
+		errorCopy := &core.ErrorTransition{
+			Next: input.TaskConfig.OnError.Next,
+			With: input.TaskConfig.OnError.With,
+		}
+		if input.TaskConfig.OnError.With != nil {
+			withCopy := make(core.Input)
+			maps.Copy(withCopy, *input.TaskConfig.OnError.With)
+			errorCopy.With = &withCopy
+		}
+
+		err = uc.errorTransitionNormalizer.Normalize(errorCopy, normCtx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to normalize error transition: %w", err)
+		}
+		normalizedOnError = errorCopy
 	}
+
 	return normalizedOnSuccess, normalizedOnError, nil
-}
-
-func (uc *HandleResponse) normalizeSuccessTransition(
-	transition *core.SuccessTransition,
-	workflowState *workflow.State,
-	workflowConfig *workflow.Config,
-	allTaskConfigs map[string]*task.Config,
-	baseEnv *core.EnvMap,
-) (*core.SuccessTransition, error) {
-	if transition == nil {
-		return nil, nil
-	}
-	normalizedTransition := &core.SuccessTransition{
-		Next: transition.Next,
-		With: transition.With,
-	}
-	if transition.With != nil {
-		withCopy := make(core.Input)
-		maps.Copy(withCopy, *transition.With)
-		normalizedTransition.With = &withCopy
-	}
-	if err := uc.normalizer.NormalizeSuccessTransition(
-		normalizedTransition,
-		workflowState,
-		workflowConfig,
-		allTaskConfigs,
-		baseEnv,
-	); err != nil {
-		return nil, err
-	}
-	return normalizedTransition, nil
-}
-
-func (uc *HandleResponse) normalizeErrorTransition(
-	transition *core.ErrorTransition,
-	workflowState *workflow.State,
-	workflowConfig *workflow.Config,
-	allTaskConfigs map[string]*task.Config,
-	baseEnv *core.EnvMap,
-) (*core.ErrorTransition, error) {
-	if transition == nil {
-		return nil, nil
-	}
-	normalizedTransition := &core.ErrorTransition{
-		Next: transition.Next,
-		With: transition.With,
-	}
-	if transition.With != nil {
-		withCopy := make(core.Input)
-		maps.Copy(withCopy, *transition.With)
-		normalizedTransition.With = &withCopy
-	}
-	if err := uc.normalizer.NormalizeErrorTransition(
-		normalizedTransition,
-		workflowState,
-		workflowConfig,
-		allTaskConfigs,
-		baseEnv,
-	); err != nil {
-		return nil, err
-	}
-	return normalizedTransition, nil
 }
 
 // updateParentStatusIfNeeded updates the parent task status when a child task completes

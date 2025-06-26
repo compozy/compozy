@@ -9,8 +9,11 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
+	"github.com/compozy/compozy/engine/task2"
+	task2core "github.com/compozy/compozy/engine/task2/core"
+	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/normalizer"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 const ExecuteAggregateLabel = "ExecuteAggregateTask"
@@ -33,13 +36,16 @@ func NewExecuteAggregate(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	cwd *core.PathCWD,
-) *ExecuteAggregate {
-	configManager := services.NewConfigManager(configStore, cwd)
+) (*ExecuteAggregate, error) {
+	configManager, err := services.NewConfigManager(configStore, cwd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config manager: %w", err)
+	}
 	return &ExecuteAggregate{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:  uc.NewCreateState(taskRepo, configManager),
 		taskResponder:  services.NewTaskResponder(workflowRepo, taskRepo),
-	}
+	}, nil
 }
 
 func (a *ExecuteAggregate) Run(ctx context.Context, input *ExecuteAggregateInput) (*task.MainTaskResponse, error) {
@@ -60,7 +66,10 @@ func (a *ExecuteAggregate) Run(ctx context.Context, input *ExecuteAggregateInput
 		return nil, err
 	}
 	// Normalize task config
-	normalizer := uc.NewNormalizeConfig()
+	normalizer, err := uc.NewNormalizeConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create normalizer: %w", err)
+	}
 	normalizeInput := &uc.NormalizeConfigInput{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
@@ -144,13 +153,28 @@ func (a *ExecuteAggregate) executeAggregate(
 	// For aggregate tasks, we don't have actual task output, just template processing
 	// Create an empty output to trigger the transformation
 	emptyOutput := &core.Output{}
-	// Use ConfigNormalizer to process outputs with template engine
-	configNormalizer := normalizer.NewConfigNormalizer()
-	processedOutput, err := configNormalizer.NormalizeTaskOutput(
+	// Use task2 output transformer to process outputs with template engine
+	engine := tplengine.NewEngine(tplengine.FormatJSON)
+	templateEngineAdapter := task2.NewTemplateEngineAdapter(engine)
+	outputTransformer := task2core.NewOutputTransformer(templateEngineAdapter)
+
+	// Build task configs map for context
+	taskConfigs := task2.BuildTaskConfigsMap(workflowConfig.Tasks)
+
+	// Create normalization context with proper Variables
+	contextBuilder, err := shared.NewContextBuilder()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create context builder: %w", err)
+	}
+	normCtx := contextBuilder.BuildContext(workflowState, workflowConfig, taskConfig)
+	normCtx.TaskConfigs = taskConfigs
+	normCtx.CurrentInput = taskConfig.With
+	normCtx.MergedEnv = taskConfig.Env
+
+	processedOutput, err := outputTransformer.TransformOutput(
 		emptyOutput,
 		taskConfig.Outputs,
-		workflowState,
-		workflowConfig,
+		normCtx,
 		taskConfig,
 	)
 	if err != nil {

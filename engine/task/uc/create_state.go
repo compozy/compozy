@@ -103,6 +103,7 @@ func (uc *CreateState) prepareChildConfigsIfNeeded(
 			state.TaskExecID,
 			input.TaskConfig,
 			input.WorkflowState,
+			input.WorkflowConfig,
 		)
 		if err != nil {
 			return err

@@ -111,6 +111,22 @@ func (e *CollectionTaskExecutor) HandleCollectionTask(
 	if err != nil {
 		return fmt.Errorf("failed to list child states: %w", err)
 	}
+	// Load child configs from collection metadata
+	var childCfgs map[string]*task.Config
+	if len(childStates) > 0 {
+		childIDs := make([]string, len(childStates))
+		for i, st := range childStates {
+			childIDs[i] = st.TaskID
+		}
+		// Use LoadCollectionConfigs activity for collection tasks
+		err = workflow.ExecuteActivity(ctx, tkacts.LoadCollectionConfigsLabel, &tkacts.LoadCollectionConfigsInput{
+			ParentTaskExecID: cState.TaskExecID,
+			TaskIDs:          childIDs,
+		}).Get(ctx, &childCfgs)
+		if err != nil {
+			return fmt.Errorf("failed to load child configs: %w", err)
+		}
+	}
 	// Check for overflow before converting
 	childStatesLen := len(childStates)
 	if childStatesLen > math.MaxInt32 {
@@ -137,12 +153,32 @@ func (e *CollectionTaskExecutor) HandleCollectionTask(
 	mode := taskConfig.GetMode()
 	switch mode {
 	case task.CollectionModeSequential:
-		return e.handleCollectionSequential(ctx, cState, taskConfig, childStates, &completed, &failed, depth)
+		return e.handleCollectionSequential(ctx, cState, taskConfig, childStates, childCfgs, &completed, &failed, depth)
 	case task.CollectionModeParallel:
-		return e.handleCollectionParallel(ctx, cState, taskConfig, childStates, &completed, &failed, childCount, depth)
+		return e.handleCollectionParallel(
+			ctx,
+			cState,
+			taskConfig,
+			childStates,
+			childCfgs,
+			&completed,
+			&failed,
+			childCount,
+			depth,
+		)
 	default:
 		// Default to parallel for backward compatibility
-		return e.handleCollectionParallel(ctx, cState, taskConfig, childStates, &completed, &failed, childCount, depth)
+		return e.handleCollectionParallel(
+			ctx,
+			cState,
+			taskConfig,
+			childStates,
+			childCfgs,
+			&completed,
+			&failed,
+			childCount,
+			depth,
+		)
 	}
 }
 
@@ -152,17 +188,15 @@ func (e *CollectionTaskExecutor) handleCollectionParallel(
 	cState *task.State,
 	taskConfig *task.Config,
 	childStates []*task.State,
+	childCfgs map[string]*task.Config,
 	completed, failed *int32,
 	childCount int32,
 	depth int,
 ) error {
 	log := workflow.GetLogger(ctx)
-	// For collection tasks, all children use the parent's task template
-	// Collection child TaskIDs are dynamically generated (e.g., activity_analysis_item_0)
-	// and don't exist as separate tasks in the workflow config
-	// Execute child tasks using executeChild helper
-	e.executeChildrenInParallel(ctx, cState, childStates, func(_ *task.State) *task.Config {
-		return taskConfig.Task
+	// Use the loaded child configs instead of the template
+	e.executeChildrenInParallel(ctx, cState, childStates, func(cs *task.State) *task.Config {
+		return childCfgs[cs.TaskID]
 	}, taskConfig, depth, completed, failed)
 	// Wait for tasks to complete based on strategy
 	err := e.awaitStrategyCompletion(ctx, taskConfig.GetStrategy(), completed, failed, childCount)
@@ -185,15 +219,14 @@ func (e *CollectionTaskExecutor) handleCollectionSequential(
 	cState *task.State,
 	taskConfig *task.Config,
 	childStates []*task.State,
+	childCfgs map[string]*task.Config,
 	completed, failed *int32,
 	depth int,
 ) error {
 	log := workflow.GetLogger(ctx)
-	// For collection tasks, all children use the parent's task template
-	// Collection child TaskIDs are dynamically generated (e.g., activity_analysis_item_0)
-	// and don't exist as separate tasks in the workflow config
-	err := e.executeChildrenSequentially(ctx, cState, childStates, func(_ *task.State) *task.Config {
-		return taskConfig.Task
+	// Use the loaded child configs instead of the template
+	err := e.executeChildrenSequentially(ctx, cState, childStates, func(cs *task.State) *task.Config {
+		return childCfgs[cs.TaskID]
 	}, taskConfig, taskConfig.GetStrategy(), depth, completed, failed)
 	if err != nil {
 		return err

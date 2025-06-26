@@ -44,8 +44,11 @@ func NewExecuteBasic(
 	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
 	projectConfig *project.Config,
-) *ExecuteBasic {
-	configManager := services.NewConfigManager(configStore, cwd)
+) (*ExecuteBasic, error) {
+	configManager, err := services.NewConfigManager(configStore, cwd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config manager: %w", err)
+	}
 	return &ExecuteBasic{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:  uc.NewCreateState(taskRepo, configManager),
@@ -54,7 +57,7 @@ func NewExecuteBasic(
 		memoryManager:  memoryManager,
 		templateEngine: templateEngine,
 		projectConfig:  projectConfig,
-	}
+	}, nil
 }
 
 func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task.MainTaskResponse, error) {
@@ -67,7 +70,10 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 		return nil, err
 	}
 	// Normalize task config
-	normalizer := uc.NewNormalizeConfig()
+	normalizer, err := uc.NewNormalizeConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create normalizer: %w", err)
+	}
 	normalizeInput := &uc.NormalizeConfigInput{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,

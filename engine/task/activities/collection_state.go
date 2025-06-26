@@ -33,14 +33,17 @@ func NewCreateCollectionState(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	cwd *core.PathCWD,
-) *CreateCollectionState {
-	configManager := services.NewConfigManager(configStore, cwd)
+) (*CreateCollectionState, error) {
+	configManager, err := services.NewConfigManager(configStore, cwd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config manager: %w", err)
+	}
 	return &CreateCollectionState{
 		loadWorkflowUC:     uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:      uc.NewCreateState(taskRepo, configManager),
 		configManager:      configManager,
 		createChildTasksUC: uc.NewCreateChildTasksUC(taskRepo, configManager),
-	}
+	}, nil
 }
 
 func (a *CreateCollectionState) Run(ctx context.Context, input *CreateCollectionStateInput) (*task.State, error) {
@@ -71,6 +74,7 @@ func (a *CreateCollectionState) Run(ctx context.Context, input *CreateCollection
 		state.TaskExecID,
 		input.TaskConfig,
 		workflowState,
+		workflowConfig,
 	)
 	if err != nil {
 		return nil, err

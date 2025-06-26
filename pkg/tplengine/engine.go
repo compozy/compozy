@@ -285,18 +285,9 @@ func (e *TemplateEngine) parseStringValue(v string, data map[string]any) (any, e
 }
 
 func (e *TemplateEngine) prepareValueForTemplate(obj any) (any, error) {
-	// Convert values to strings for configuration processing
+	// For simple object references, preserve the original type
+	// Only convert to string when necessary for template processing
 	switch val := obj.(type) {
-	case bool:
-		return fmt.Sprintf("%t", val), nil
-	case int:
-		return fmt.Sprintf("%d", val), nil
-	case int64:
-		return fmt.Sprintf("%d", val), nil
-	case float64:
-		return fmt.Sprintf("%g", val), nil
-	case float32:
-		return fmt.Sprintf("%g", val), nil
 	case *core.Output:
 		// Dereference core.Output to map[string]any for template processing
 		if val != nil {
@@ -307,6 +298,7 @@ func (e *TemplateEngine) prepareValueForTemplate(obj any) (any, error) {
 		// Return core.Output as map[string]any for template processing
 		return map[string]any(val), nil
 	default:
+		// Return the value as-is to preserve its type
 		return obj, nil
 	}
 }

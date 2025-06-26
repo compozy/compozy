@@ -123,7 +123,7 @@ func CreateTestProjectConfig(_ *TestFixture, projectName string) *project.Config
 }
 
 // CreateTestConfigManager creates a test config manager
-func CreateTestConfigManager(configStore *TestConfigStore) *services.ConfigManager {
+func CreateTestConfigManager(configStore *TestConfigStore) (*services.ConfigManager, error) {
 	return services.NewConfigManager(configStore, nil)
 }
 
@@ -164,6 +164,10 @@ func RegisterCommonActivities(env *testsuite.TestWorkflowEnvironment, activities
 	env.RegisterActivityWithOptions(
 		activities.LoadCompositeConfigsActivity,
 		activity.RegisterOptions{Name: tkacts.LoadCompositeConfigsLabel},
+	)
+	env.RegisterActivityWithOptions(
+		activities.LoadCollectionConfigsActivity,
+		activity.RegisterOptions{Name: tkacts.LoadCollectionConfigsLabel},
 	)
 }
 
@@ -374,7 +378,7 @@ func CreateParallelAgentConfig() *agent.Config {
 
 // CreateTestActivities creates activity instances for testing
 func CreateTestActivities(
-	_ *testing.T,
+	t *testing.T,
 	taskRepo *store.TaskRepo,
 	workflowRepo *store.WorkflowRepo,
 	fixture *TestFixture,
@@ -385,7 +389,8 @@ func CreateTestActivities(
 ) *worker.Activities {
 	projectConfig := CreateTestProjectConfig(fixture, projectName)
 	workflows := createTestWorkflowConfigs(fixture, agentConfig)
-	configManager := CreateTestConfigManager(configStore)
+	configManager, err := CreateTestConfigManager(configStore)
+	require.NoError(t, err)
 
 	return worker.NewActivities(
 		projectConfig,

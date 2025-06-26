@@ -3687,6 +3687,17 @@ const docTemplate = `{
             "type": "object",
             "additionalProperties": {}
         },
+        "task.ClearConfig": {
+            "type": "object",
+            "properties": {
+                "backup": {
+                    "type": "boolean"
+                },
+                "confirm": {
+                    "type": "boolean"
+                }
+            }
+        },
         "task.CollectionMode": {
             "type": "string",
             "enum": [
@@ -3713,6 +3724,13 @@ const docTemplate = `{
                 "batch": {
                     "type": "integer"
                 },
+                "batch_size": {
+                    "description": "Performance controls",
+                    "type": "integer"
+                },
+                "clear_config": {
+                    "$ref": "#/definitions/task.ClearConfig"
+                },
                 "condition": {
                     "type": "string"
                 },
@@ -3732,6 +3750,17 @@ const docTemplate = `{
                 "final": {
                     "type": "boolean"
                 },
+                "flush_config": {
+                    "description": "Operation-specific configs",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.FlushConfig"
+                        }
+                    ]
+                },
+                "health_config": {
+                    "$ref": "#/definitions/task.HealthConfig"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -3747,8 +3776,17 @@ const docTemplate = `{
                 "items": {
                     "type": "string"
                 },
+                "key_template": {
+                    "type": "string"
+                },
+                "max_keys": {
+                    "type": "integer"
+                },
                 "max_workers": {
                     "type": "integer"
+                },
+                "memory_ref": {
+                    "type": "string"
                 },
                 "mode": {
                     "$ref": "#/definitions/task.CollectionMode"
@@ -3767,12 +3805,16 @@ const docTemplate = `{
                 "on_timeout": {
                     "type": "string"
                 },
+                "operation": {
+                    "$ref": "#/definitions/task.MemoryOpType"
+                },
                 "output": {
                     "$ref": "#/definitions/schema.Schema"
                 },
                 "outputs": {
                     "$ref": "#/definitions/core.Input"
                 },
+                "payload": {},
                 "processor": {
                     "$ref": "#/definitions/task.Config"
                 },
@@ -3791,6 +3833,9 @@ const docTemplate = `{
                 },
                 "sleep": {
                     "type": "string"
+                },
+                "stats_config": {
+                    "$ref": "#/definitions/task.StatsConfig"
                 },
                 "strategy": {
                     "$ref": "#/definitions/task.ParallelStrategy"
@@ -3839,6 +3884,60 @@ const docTemplate = `{
                 "ExecutionCollection",
                 "ExecutionComposite",
                 "ExecutionWait"
+            ]
+        },
+        "task.FlushConfig": {
+            "type": "object",
+            "properties": {
+                "dry_run": {
+                    "type": "boolean"
+                },
+                "force": {
+                    "type": "boolean"
+                },
+                "max_keys": {
+                    "type": "integer"
+                },
+                "strategy": {
+                    "type": "string"
+                },
+                "threshold": {
+                    "type": "number"
+                }
+            }
+        },
+        "task.HealthConfig": {
+            "type": "object",
+            "properties": {
+                "check_connectivity": {
+                    "type": "boolean"
+                },
+                "include_stats": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "task.MemoryOpType": {
+            "type": "string",
+            "enum": [
+                "read",
+                "write",
+                "append",
+                "delete",
+                "flush",
+                "health",
+                "clear",
+                "stats"
+            ],
+            "x-enum-varnames": [
+                "MemoryOpRead",
+                "MemoryOpWrite",
+                "MemoryOpAppend",
+                "MemoryOpDelete",
+                "MemoryOpFlush",
+                "MemoryOpHealth",
+                "MemoryOpClear",
+                "MemoryOpStats"
             ]
         },
         "task.ParallelStrategy": {
@@ -3940,6 +4039,17 @@ const docTemplate = `{
                 }
             }
         },
+        "task.StatsConfig": {
+            "type": "object",
+            "properties": {
+                "group_by": {
+                    "type": "string"
+                },
+                "include_content": {
+                    "type": "boolean"
+                }
+            }
+        },
         "task.Type": {
             "type": "string",
             "enum": [
@@ -3950,7 +4060,8 @@ const docTemplate = `{
                 "aggregate",
                 "composite",
                 "signal",
-                "wait"
+                "wait",
+                "memory"
             ],
             "x-enum-varnames": [
                 "TaskTypeBasic",
@@ -3960,7 +4071,8 @@ const docTemplate = `{
                 "TaskTypeAggregate",
                 "TaskTypeComposite",
                 "TaskTypeSignal",
-                "TaskTypeWait"
+                "TaskTypeWait",
+                "TaskTypeMemory"
             ]
         },
         "time.Duration": {

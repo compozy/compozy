@@ -35,14 +35,17 @@ func NewExecuteSignal(
 	configStore services.ConfigStore,
 	signalDispatcher services.SignalDispatcher,
 	cwd *core.PathCWD,
-) *ExecuteSignal {
-	configManager := services.NewConfigManager(configStore, cwd)
+) (*ExecuteSignal, error) {
+	configManager, err := services.NewConfigManager(configStore, cwd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config manager: %w", err)
+	}
 	return &ExecuteSignal{
 		loadWorkflowUC:   uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:    uc.NewCreateState(taskRepo, configManager),
 		taskResponder:    services.NewTaskResponder(workflowRepo, taskRepo),
 		signalDispatcher: signalDispatcher,
-	}
+	}, nil
 }
 
 func (a *ExecuteSignal) Run(ctx context.Context, input *ExecuteSignalInput) (*task.MainTaskResponse, error) {
@@ -55,7 +58,10 @@ func (a *ExecuteSignal) Run(ctx context.Context, input *ExecuteSignalInput) (*ta
 		return nil, err
 	}
 	// Normalize task config
-	normalizer := uc.NewNormalizeConfig()
+	normalizer, err := uc.NewNormalizeConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create normalizer: %w", err)
+	}
 	normalizeInput := &uc.NormalizeConfigInput{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,

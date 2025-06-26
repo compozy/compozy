@@ -258,12 +258,16 @@ func setupRedisAndConfig(
 	}
 	log.Debug("Redis cache connected", "duration", time.Since(cacheStart))
 	configStore := services.NewRedisConfigStore(redisCache.Redis, 24*time.Hour)
-	configManager := services.NewConfigManager(configStore, nil)
+	configManager, err := services.NewConfigManager(configStore, nil)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to create config manager: %w", err)
+	}
 	return redisCache, configStore, configManager, nil
 }
 
 // setupMCPRegister initializes MCP registration for workflows
 func setupMCPRegister(ctx context.Context, workflows []*wf.Config, log logger.Logger) (*mcp.RegisterService, error) {
+	// Initialize MCP register and register all MCPs from all workflows
 	mcpStart := time.Now()
 	workflowConfigs := make([]mcp.WorkflowConfig, len(workflows))
 	for i, wf := range workflows {
@@ -361,6 +365,10 @@ func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterActivityWithOptions(
 		o.activities.LoadCompositeConfigsActivity,
 		activity.RegisterOptions{Name: tkacts.LoadCompositeConfigsLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.LoadCollectionConfigsActivity,
+		activity.RegisterOptions{Name: tkacts.LoadCollectionConfigsLabel},
 	)
 	o.worker.RegisterActivityWithOptions(
 		o.activities.DispatcherHeartbeat,
