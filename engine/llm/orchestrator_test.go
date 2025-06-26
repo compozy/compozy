@@ -88,11 +88,12 @@ func (m *MockPromptBuilder) ShouldUseStructuredOutput(
 }
 
 func (m *MockPromptBuilder) EnhanceForStructuredOutput(
+	ctx context.Context,
 	basePrompt string,
 	outputSchema *schema.Schema,
 	hasTools bool,
 ) string {
-	args := m.Called(basePrompt, outputSchema, hasTools)
+	args := m.Called(ctx, basePrompt, outputSchema, hasTools)
 	return args.String(0)
 }
 

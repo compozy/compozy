@@ -1,0 +1,292 @@
+### Memory Demo API Tests
+### Simple conversational agent that remembers user information
+### Click each request in order to test the complete memory flow
+### Make sure Compozy is running on localhost:3001 before executing these requests
+
+@baseUrl = http://localhost:3001/api/v0
+@workflowId = memory-demo
+
+### =============================================================================
+### STEP 1: John introduces himself
+### =============================================================================
+# @name johnIntro
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "john_doe",
+    "message": "Hi, I'm John and I live in San Francisco"
+  }
+}
+
+### Get execution ID from John's intro
+@execId1 = {{johnIntro.response.body.data.exec_id}}
+
+### View John's introduction result
+GET {{baseUrl}}/executions/workflows/{{execId1}}
+Accept: application/json
+
+### =============================================================================
+### STEP 2: John asks where he lives (should remember San Francisco)
+### =============================================================================
+# @name johnRecall
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "john_doe",
+    "message": "Where do I live?"
+  }
+}
+
+### Get execution ID from John's recall
+@execId2 = {{johnRecall.response.body.data.exec_id}}
+
+### View John's recall result
+GET {{baseUrl}}/executions/workflows/{{execId2}}
+Accept: application/json
+
+### =============================================================================
+### STEP 3: Jane introduces herself
+### =============================================================================
+# @name janeIntro
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "jane_smith",
+    "message": "Hello, my name is Jane and I'm from New York"
+  }
+}
+
+### Get execution ID from Jane's intro
+@execId3 = {{janeIntro.response.body.data.exec_id}}
+
+### View Jane's introduction result
+GET {{baseUrl}}/executions/workflows/{{execId3}}
+Accept: application/json
+
+### =============================================================================
+### STEP 4: Jane asks where she lives (should remember New York)
+### =============================================================================
+# @name janeRecall
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "jane_smith",
+    "message": "Where do I live?"
+  }
+}
+
+### Get execution ID from Jane's recall
+@execId4 = {{janeRecall.response.body.data.exec_id}}
+
+### View Jane's recall result
+GET {{baseUrl}}/executions/workflows/{{execId4}}
+Accept: application/json
+
+### =============================================================================
+### STEP 5: John asks again to verify memory persistence
+### =============================================================================
+# @name johnVerify
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "john_doe",
+    "message": "What city am I from again?"
+  }
+}
+
+### Get execution ID from John's verification
+@execId5 = {{johnVerify.response.body.data.exec_id}}
+
+### View John's verification result
+GET {{baseUrl}}/executions/workflows/{{execId5}}
+Accept: application/json
+
+### =============================================================================
+### MEMORY TASK WORKFLOW TESTS
+### Direct memory operations using memory task type
+### =============================================================================
+
+@memoryTaskWorkflowId = memory-task-demo
+
+### =============================================================================
+### STEP 6: Initialize Alice's user profile
+### =============================================================================
+# @name aliceInit
+POST {{baseUrl}}/workflows/{{memoryTaskWorkflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "alice_123",
+    "session_id": "session_001",
+    "action": "initialize",
+    "user_data": {
+      "name": "Alice",
+      "email": "alice@example.com",
+      "preferences": {
+        "theme": "dark",
+        "language": "en"
+      }
+    }
+  }
+}
+
+### Get execution ID from Alice's initialization
+@execId6 = {{aliceInit.response.body.data.exec_id}}
+
+### View Alice's initialization result
+GET {{baseUrl}}/executions/workflows/{{execId6}}
+Accept: application/json
+
+### =============================================================================
+### STEP 7: Update Alice's profile
+### =============================================================================
+# @name aliceUpdate
+POST {{baseUrl}}/workflows/{{memoryTaskWorkflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "alice_123",
+    "session_id": "session_002",
+    "action": "update_profile",
+    "user_data": {
+      "email": "alice.new@example.com"
+    }
+  }
+}
+
+### Get execution ID from Alice's update
+@execId7 = {{aliceUpdate.response.body.data.exec_id}}
+
+### View Alice's update result
+GET {{baseUrl}}/executions/workflows/{{execId7}}
+Accept: application/json
+
+### =============================================================================
+### STEP 8: Get memory statistics for Alice
+### =============================================================================
+# @name aliceStats
+POST {{baseUrl}}/workflows/{{memoryTaskWorkflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "alice_123",
+    "session_id": "session_003",
+    "action": "get_stats"
+  }
+}
+
+### Get execution ID from Alice's stats
+@execId8 = {{aliceStats.response.body.data.exec_id}}
+
+### View Alice's stats result
+GET {{baseUrl}}/executions/workflows/{{execId8}}
+Accept: application/json
+
+### =============================================================================
+### STEP 9: Cleanup Alice's data
+### =============================================================================
+# @name aliceCleanup
+POST {{baseUrl}}/workflows/{{memoryTaskWorkflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "alice_123",
+    "session_id": "session_004",
+    "action": "cleanup"
+  }
+}
+
+### Get execution ID from Alice's cleanup
+@execId9 = {{aliceCleanup.response.body.data.exec_id}}
+
+### View Alice's cleanup result
+GET {{baseUrl}}/executions/workflows/{{execId9}}
+Accept: application/json
+
+### =============================================================================
+### STEP 10: Test Flush operation
+### =============================================================================
+# @name aliceFlush
+POST {{baseUrl}}/workflows/{{memoryTaskWorkflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "alice_123",
+    "session_id": "session_005",
+    "action": "flush"
+  }
+}
+
+### Get execution ID from Alice's flush
+@execId10 = {{aliceFlush.response.body.data.exec_id}}
+
+### View Alice's flush result
+GET {{baseUrl}}/executions/workflows/{{execId10}}
+Accept: application/json
+
+### =============================================================================
+### STEP 11: Test Delete operation
+### =============================================================================
+# @name aliceDelete
+POST {{baseUrl}}/workflows/{{memoryTaskWorkflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "alice_123",
+    "session_id": "session_006",
+    "action": "delete"
+  }
+}
+
+### Get execution ID from Alice's delete
+@execId11 = {{aliceDelete.response.body.data.exec_id}}
+
+### View Alice's delete result
+GET {{baseUrl}}/executions/workflows/{{execId11}}
+Accept: application/json
+
+### =============================================================================
+### STEP 12: Test Bob with different data
+### =============================================================================
+# @name bobInit
+POST {{baseUrl}}/workflows/{{memoryTaskWorkflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "bob_456",
+    "session_id": "session_001",
+    "action": "initialize",
+    "user_data": {
+      "name": "Bob",
+      "email": "bob@company.com",
+      "preferences": {
+        "theme": "light",
+        "language": "es"
+      }
+    }
+  }
+}
+
+### Get execution ID from Bob's initialization
+@execId12 = {{bobInit.response.body.data.exec_id}}
+
+### View Bob's initialization result
+GET {{baseUrl}}/executions/workflows/{{execId12}}
+Accept: application/json

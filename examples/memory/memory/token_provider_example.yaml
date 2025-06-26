@@ -1,0 +1,75 @@
+# Example Memory Configuration with TokenProvider
+# This demonstrates how to configure multi-provider token counting
+
+resource: memory
+id: multi-provider-example
+description: Memory with multi-provider token counting support
+version: 1.0.0
+
+key: "provider:{{.session_id}}"
+
+type: token_based
+max_tokens: 8000
+max_messages: 100
+
+flushing_strategy:
+  type: simple_fifo
+  threshold: 0.8
+
+# Token Provider Configuration
+# Enables accurate token counting using provider-specific APIs
+token_provider:
+  # Provider options: openai, anthropic, google, cohere, deepseek
+  provider: openai
+
+  # Model name for token counting
+  model: gpt-4
+
+  # API Key Configuration (choose one method):
+  # Method 1: Direct API key (not recommended for production)
+  # api_key: "sk-..."
+  # Method 2: Environment variable name
+  api_key_env: OPENAI_API_KEY
+
+  # Method 3: Inline environment variable reference
+  # api_key: "${OPENAI_API_KEY}"
+  # Optional: Provider-specific settings
+  settings:
+    # Custom settings if needed
+    timeout: "30s"
+
+# Persistence Configuration
+persistence:
+  ttl: 24h
+
+# Example configurations for other providers:
+
+# Anthropic Configuration
+# token_provider:
+#   provider: anthropic
+#   model: claude-3-haiku
+#   api_key_env: ANTHROPIC_API_KEY
+
+# Google Configuration
+# token_provider:
+#   provider: google
+#   model: gemini-pro
+#   api_key_env: GOOGLE_API_KEY
+
+# Cohere Configuration
+# token_provider:
+#   provider: cohere
+#   model: command
+#   api_key_env: COHERE_API_KEY
+
+# DeepSeek Configuration
+# token_provider:
+#   provider: deepseek
+#   model: deepseek-v2
+#   api_key_env: DEEPSEEK_API_KEY
+
+# Notes:
+# - If no API key is provided, the system falls back to tiktoken
+# - The fallback ensures the system continues to work without API access
+# - API-based counting provides more accurate results for each provider
+# - Environment variables are the recommended way to provide API keys

@@ -35,6 +35,7 @@ const (
 	ConfigAgent    ConfigType = "agent"
 	ConfigTool     ConfigType = "tool"
 	ConfigMCP      ConfigType = "mcp"
+	ConfigMemory   ConfigType = "memory" // Added for memory resources
 )
 
 func AsMapDefault(config any) (map[string]any, error) {
@@ -55,6 +56,7 @@ func FromMapDefault[T any](data any) (T, error) {
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		WeaklyTypedInput: true,
 		Result:           &config,
+		TagName:          "mapstructure", // Use mapstructure tags as per project standard
 	})
 	if err != nil {
 		return config, err

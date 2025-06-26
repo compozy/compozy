@@ -1,0 +1,21 @@
+resource: memory
+id: user_memory
+description: User conversation history and personal information
+version: 0.1.0
+
+key: "user:{{.user_id}}"
+
+type: token_based
+max_tokens: 2000
+max_messages: 50
+
+flushing:
+  type: simple_fifo
+  threshold: 0.8
+
+persistence:
+  ttl: 168h  # 7 days
+
+privacy_policy:
+  retention_days: 30
+  encrypt_at_rest: true

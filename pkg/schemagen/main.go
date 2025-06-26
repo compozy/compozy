@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/mcp"
+	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
@@ -57,6 +58,7 @@ func GenerateParserSchemas(outDir string) error {
 		{"agent", &agent.Config{}},
 		{"project", &project.Config{}},
 		{"mcp", &mcp.Config{}},
+		{"memory", &memory.Config{}},
 		{"task", &task.Config{}},
 		{"tool", &tool.Config{}},
 		{"workflow", &workflow.Config{}},

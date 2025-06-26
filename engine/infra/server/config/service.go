@@ -14,7 +14,11 @@ import (
 
 // Service defines the contract for configuration loading and processing
 type Service interface {
-	LoadProject(ctx context.Context, cwd string, file string) (*project.Config, []*workflow.Config, error)
+	LoadProject(
+		ctx context.Context,
+		cwd string,
+		file string,
+	) (*project.Config, []*workflow.Config, *autoload.ConfigRegistry, error)
 }
 
 // service is the concrete implementation of the Service interface
@@ -33,10 +37,10 @@ func (s *service) LoadProject(
 	ctx context.Context,
 	cwd string,
 	file string,
-) (*project.Config, []*workflow.Config, error) {
+) (*project.Config, []*workflow.Config, *autoload.ConfigRegistry, error) {
 	pCWD, err := core.CWDFromPath(cwd)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	s.log.Info("Starting compozy server")
 	s.log.Debug("Loading config file", "config_file", file)
@@ -44,12 +48,12 @@ func (s *service) LoadProject(
 	projectConfig, err := project.Load(ctx, pCWD, file, s.envFilePath)
 	if err != nil {
 		s.log.Error("Failed to load project config", "error", err)
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	if err := projectConfig.Validate(); err != nil {
 		s.log.Error("Invalid project config", "error", err)
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Create shared configuration registry
@@ -61,14 +65,14 @@ func (s *service) LoadProject(
 		autoLoader := autoload.New(pCWD.PathStr(), projectConfig.AutoLoad, configRegistry)
 		if err := autoLoader.Load(ctx); err != nil {
 			s.log.Error("AutoLoad failed", "error", err)
-			return nil, nil, fmt.Errorf("autoload failed: %w", err)
+			return nil, nil, nil, fmt.Errorf("autoload failed: %w", err)
 		}
 	}
 
 	globalScope, err := projectConfig.AsMap()
 	if err != nil {
 		s.log.Error("Failed to convert project config to map", "error", err)
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Load workflows from sources with registry-aware evaluator
@@ -89,8 +93,8 @@ func (s *service) LoadProject(
 	workflows, err := workflow.WorkflowsFromProject(projectConfig, ev)
 	if err != nil {
 		s.log.Error("Failed to load workflows", "error", err)
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return projectConfig, workflows, nil
+	return projectConfig, workflows, configRegistry, nil
 }

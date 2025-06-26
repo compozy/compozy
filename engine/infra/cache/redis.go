@@ -31,6 +31,18 @@ type RedisInterface interface {
 	PSubscribe(ctx context.Context, patterns ...string) *redis.PubSub
 	Eval(ctx context.Context, script string, keys []string, args ...any) *redis.Cmd
 	Pipeline() redis.Pipeliner
+	// List operations
+	LRange(ctx context.Context, key string, start, stop int64) *redis.StringSliceCmd
+	LLen(ctx context.Context, key string) *redis.IntCmd
+	LTrim(ctx context.Context, key string, start, stop int64) *redis.StatusCmd
+	RPush(ctx context.Context, key string, values ...any) *redis.IntCmd
+	// Hash operations
+	HSet(ctx context.Context, key string, values ...any) *redis.IntCmd
+	HGet(ctx context.Context, key, field string) *redis.StringCmd
+	HIncrBy(ctx context.Context, key, field string, incr int64) *redis.IntCmd
+	HDel(ctx context.Context, key string, fields ...string) *redis.IntCmd
+	// Transaction operations
+	TxPipeline() redis.Pipeliner
 	Close() error
 }
 
@@ -198,6 +210,51 @@ func (r *Redis) Eval(ctx context.Context, script string, keys []string, args ...
 // Pipeline returns a pipeline for batching commands
 func (r *Redis) Pipeline() redis.Pipeliner {
 	return r.client.Pipeline()
+}
+
+// LRange returns a range of elements from a list
+func (r *Redis) LRange(ctx context.Context, key string, start, stop int64) *redis.StringSliceCmd {
+	return r.client.LRange(ctx, key, start, stop)
+}
+
+// LLen returns the length of a list
+func (r *Redis) LLen(ctx context.Context, key string) *redis.IntCmd {
+	return r.client.LLen(ctx, key)
+}
+
+// LTrim trims a list to the specified range
+func (r *Redis) LTrim(ctx context.Context, key string, start, stop int64) *redis.StatusCmd {
+	return r.client.LTrim(ctx, key, start, stop)
+}
+
+// RPush appends values to a list
+func (r *Redis) RPush(ctx context.Context, key string, values ...any) *redis.IntCmd {
+	return r.client.RPush(ctx, key, values...)
+}
+
+// HSet sets field in the hash stored at key to value
+func (r *Redis) HSet(ctx context.Context, key string, values ...any) *redis.IntCmd {
+	return r.client.HSet(ctx, key, values...)
+}
+
+// HGet returns the value associated with field in the hash stored at key
+func (r *Redis) HGet(ctx context.Context, key, field string) *redis.StringCmd {
+	return r.client.HGet(ctx, key, field)
+}
+
+// HIncrBy increments the number stored at field in the hash stored at key by increment
+func (r *Redis) HIncrBy(ctx context.Context, key, field string, incr int64) *redis.IntCmd {
+	return r.client.HIncrBy(ctx, key, field, incr)
+}
+
+// HDel removes the specified fields from the hash stored at key
+func (r *Redis) HDel(ctx context.Context, key string, fields ...string) *redis.IntCmd {
+	return r.client.HDel(ctx, key, fields...)
+}
+
+// TxPipeline returns a transactional pipeline
+func (r *Redis) TxPipeline() redis.Pipeliner {
+	return r.client.TxPipeline()
 }
 
 // HealthCheck performs a comprehensive health check

@@ -15,7 +15,7 @@ alwaysApply: true
 2. **Rules Analysis & Code Review** - Analyze applicable rules and perform comprehensive review
 3. **Issue Resolution** - Address all identified problems
 4. **Pre-Commit Validation** - Final validation before commit
-5. **Git Commit** - Commit with detailed validation summary
+5. **Git Commit** - Commit with detailed validation summary ⚠️ **(JUST AFTER USER CONFIRM THAT IS DONE)**
 6. **Task Completion** - Mark task as complete only after successful commit
 </workflow_overview>
 
@@ -103,7 +103,7 @@ Address ALL issues identified:
 ## 4. Pre-Commit Validation
 
 <mandatory_step>
-**Execute precommit validation with proper parameters:**
+**Execute codereview validation with proper parameters:**
 </mandatory_step>
 
 **Required Parameters:**
@@ -113,7 +113,7 @@ Address ALL issues identified:
 
 **Example Implementation:**
 ```
-Execute precommit validation for task [task_number]:
+Execute codereview validation for task [task_number]:
 - Path: /path/to/workspace
 - Model: gemini-2.5-pro-preview-05-06
 - Context: Implementation of [task_title] as defined in task requirements
@@ -127,7 +127,7 @@ Execute precommit validation for task [task_number]:
 - Validate test coverage and error handling
 - Confirm no code duplication or logic redundancy
 
-## 5. Git Commit
+## 5. Git Commit ⚠️ JUST AFTER USER CONFIRM IS DONE
 
 ```bash
 git add .
@@ -158,10 +158,10 @@ Closes: task-[task_number]"
 
 ## Important Notes
 
-- **Tool Usage:** Most Zen MCP tools use natural language requests, but **precommit requires structured parameters** (path, model, prompt)
+- **Tool Usage:** Most Zen MCP tools use natural language requests, but **codereview requires structured parameters** (path, model, prompt)
 - **File Paths:** Use absolute paths when referencing files with Zen MCP
 - **Available Models:** `gemini-2.5-pro-preview-05-06` (deep analysis), `o3` (logical reasoning), `flash` (fast responses)
-- **Precommit Parameters:** Always provide absolute workspace path, model selection, and task context for precommit validation
+- **Codereview Parameters:** Always provide absolute workspace path, model selection, and task context for codereview validation
 - **Exceptions:** Only allowed for hotfixes, documentation-only, or config-only changes (must be documented)
 
 <enforcement_policy>

@@ -103,6 +103,10 @@ func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
 	dispatcherMetricsStart := time.Now()
 	InitDispatcherHealthMetrics(ctx, meter)
 	log.Debug("Initialized dispatcher health metrics", "duration", time.Since(dispatcherMetricsStart))
+	// Initialize memory monitoring metrics
+	memoryMetricsStart := time.Now()
+	InitializeMemoryMonitoring(ctx, meter)
+	log.Debug("Initialized memory metrics", "duration", time.Since(memoryMetricsStart))
 	log.Info("Monitoring service initialized successfully", "total_duration", time.Since(startTime))
 	return service, nil
 }

@@ -5,6 +5,7 @@ examples/**/results.*
 .compozy
 node_modules
 bin
+**/reports/**
 
 # .gitignore
 # Specifies intentionally untracked files that Git should ignore.

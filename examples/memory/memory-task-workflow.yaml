@@ -1,0 +1,205 @@
+id: memory-task-demo
+version: 0.1.0
+description: Direct memory task operations for user session management
+
+config:
+  input:
+    type: object
+    properties:
+      user_id:
+        type: string
+        description: Unique identifier for the user
+        default: "user_456"
+      session_id:
+        type: string
+        description: Session identifier
+        default: "session_abc"
+      action:
+        type: string
+        description: Action to perform
+        enum:
+          - "initialize"
+          - "update_profile"
+          - "get_stats"
+          - "cleanup"
+          - "delete"
+          - "flush"
+        default: "initialize"
+      user_data:
+        type: object
+        description: User profile data
+        properties:
+          name:
+            type: string
+            default: "Alice"
+          email:
+            type: string
+            default: "alice@example.com"
+          preferences:
+            type: object
+            properties:
+              theme:
+                type: string
+                default: "dark"
+              language:
+                type: string
+                default: "en"
+    required:
+      - user_id
+      - session_id
+      - action
+
+resources:
+  memories:
+    - id: user_memory
+      source: ./memory/user_memory.yaml
+
+tasks:
+  # Read existing user data
+  - id: read_user_data
+    type: memory
+    operation: read
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:profile"
+    on_success:
+      next: process_action
+
+  # Route based on action type
+  - id: process_action
+    type: router
+    condition: "{{ .workflow.input.action }}"
+    routes:
+      initialize: initialize_user
+      update_profile: update_user_profile
+      get_stats: get_memory_stats
+      cleanup: cleanup_user_data
+      delete: delete_user_data
+      flush: flush_user_memory
+
+  # Initialize new user profile
+  - id: initialize_user
+    type: memory
+    operation: write
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:profile"
+    payload:
+      role: "system"
+      content: |
+        User Profile Initialized:
+        Name: {{ .workflow.input.user_data.name }}
+        Email: {{ .workflow.input.user_data.email }}
+        Theme: {{ .workflow.input.user_data.preferences.theme }}
+        Language: {{ .workflow.input.user_data.preferences.language }}
+        Created: {{ now | date "2006-01-02 15:04:05" }}
+    on_success:
+      next: add_session_data
+
+  # Add session information
+  - id: add_session_data
+    type: memory
+    operation: append
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:sessions"
+    payload:
+      role: "user"
+      content: |
+        Session {{ .workflow.input.session_id }} started at {{ now | date "15:04:05" }}
+    final: true
+
+  # Update existing user profile
+  - id: update_user_profile
+    type: memory
+    operation: append
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:profile"
+    payload:
+      role: "assistant"
+      content: |
+        Profile Updated:
+        {{ if index .workflow.input.user_data "name" }}Name: {{ .workflow.input.user_data.name }}
+        {{ end }}{{ if index .workflow.input.user_data "email" }}Email: {{ .workflow.input.user_data.email }}
+        {{ end }}Updated: {{ now | date "2006-01-02 15:04:05" }}
+    final: true
+
+  # Get memory statistics
+  - id: get_memory_stats
+    type: memory
+    operation: stats
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:*"
+    stats_config:
+      include_content: true
+      group_by: "user"
+    on_success:
+      next: get_health_check
+
+  # Check memory health
+  - id: get_health_check
+    type: memory
+    operation: health
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:profile"
+    health_config:
+      include_stats: true
+      check_connectivity: true
+    final: true
+
+  # Cleanup user data
+  - id: cleanup_user_data
+    type: memory
+    operation: clear
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:*"
+    clear_config:
+      confirm: true
+      backup: true
+    final: true
+
+  # Delete user data (different from clear - this removes the memory instance)
+  - id: delete_user_data
+    type: memory
+    operation: delete
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:profile"
+    final: true
+
+  # Flush user memory (triggers memory flushing based on strategy)
+  - id: flush_user_memory
+    type: memory
+    operation: flush
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:profile"
+    flush_config:
+      strategy: "simple_fifo"
+      dry_run: false
+      force: false
+      threshold: 0.8
+    on_success:
+      next: get_memory_stats_after_flush
+
+  # Get stats after flush to see the effect
+  - id: get_memory_stats_after_flush
+    type: memory
+    operation: stats
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:*"
+    stats_config:
+      include_content: false
+      group_by: "user"
+    final: true
+
+outputs:
+  action_performed: "{{ .workflow.input.action }}"
+  user_id: "{{ .workflow.input.user_id }}"
+  session_id: "{{ .workflow.input.session_id }}"
+  read_result: "{{ if index .tasks \"read_user_data\" }}{{ index .tasks \"read_user_data\" \"output\"\
+    \ | toJson }}{{ else }}null{{ end }}"
+  stats_result: "{{ if index .tasks \"get_memory_stats\" }}{{ index .tasks \"get_memory_stats\" \"output\"\
+    \ | toJson }}{{ else }}null{{ end }}"
+  health_result: "{{ if index .tasks \"get_health_check\" }}{{ index .tasks \"get_health_check\" \"output\"\
+    \ | toJson }}{{ else }}null{{ end }}"
+  flush_result: "{{ if index .tasks \"flush_user_memory\" }}{{ index .tasks \"flush_user_memory\" \"output\"\
+    \ | toJson }}{{ else }}null{{ end }}"
+  stats_after_flush: "{{ if index .tasks \"get_memory_stats_after_flush\" }}{{ index .tasks \"get_memory_stats_after_flush\"\
+    \ \"output\" | toJson }}{{ else }}null{{ end }}"
+  completion_time: "{{ now | date \"2006-01-02 15:04:05\" }}"

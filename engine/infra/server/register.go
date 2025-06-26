@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	_ "github.com/compozy/compozy/engine/infra/monitoring" // Import for swagger docs
 	"github.com/compozy/compozy/engine/infra/server/appstate"
+	"github.com/compozy/compozy/engine/memory"
 	tkrouter "github.com/compozy/compozy/engine/task/router"
 	toolrouter "github.com/compozy/compozy/engine/tool/router"
 	wfrouter "github.com/compozy/compozy/engine/workflow/router"
@@ -19,7 +20,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-func createHealthHandler(server *Server, version string) gin.HandlerFunc {
+func CreateHealthHandler(server *Server, version string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ready := true
 		healthStatus := "healthy"
@@ -52,11 +53,29 @@ func createHealthHandler(server *Server, version string) gin.HandlerFunc {
 				healthStatus = "not_ready"
 			}
 		}
+
+		// Include memory health if global health service is available and update status
+		var memoryHealth gin.H
+		if globalHealthService := memory.GetGlobalHealthService(); globalHealthService != nil {
+			memoryHealth = memory.GetMemoryHealthForMainEndpoint(c.Request.Context(), globalHealthService)
+
+			// Update overall health status if memory is unhealthy
+			if memoryHealthy, exists := memoryHealth["healthy"].(bool); exists && !memoryHealthy {
+				ready = false
+				healthStatus = "degraded"
+			}
+		}
+
 		response := gin.H{
 			"status":    healthStatus,
 			"version":   version,
 			"ready":     ready,
 			"schedules": scheduleStatus,
+		}
+
+		// Add memory health to response if available
+		if memoryHealth != nil {
+			response["memory"] = memoryHealth
 		}
 		statusCode := 200
 		if !ready {
@@ -119,7 +138,7 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 	})
 
 	// Health check endpoint with readiness probe
-	router.GET("/health", createHealthHandler(server, version))
+	router.GET("/health", CreateHealthHandler(server, version))
 
 	// Register all component routers
 	wfrouter.Register(apiBase)
@@ -127,6 +146,11 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 	agentrouter.Register(apiBase)
 	toolrouter.Register(apiBase)
 	schedulerouter.Register(apiBase)
+
+	// Register memory health routes if global health service is available
+	if globalHealthService := memory.GetGlobalHealthService(); globalHealthService != nil {
+		memory.RegisterMemoryHealthRoutes(apiBase, globalHealthService)
+	}
 
 	log := logger.FromContext(ctx)
 	log.Info("Completed route registration",

@@ -8,11 +8,15 @@ import (
 
 	"errors"
 
+	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/monitoring/interceptor"
 	"github.com/compozy/compozy/engine/mcp"
+	"github.com/compozy/compozy/engine/memory"
+	memacts "github.com/compozy/compozy/engine/memory/activities"
+	"github.com/compozy/compozy/engine/memory/privacy"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
@@ -21,6 +25,7 @@ import (
 	wkacts "github.com/compozy/compozy/engine/worker/activities"
 	wf "github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/gosimple/slug"
 	"github.com/sethvargo/go-retry"
 	"go.temporal.io/api/enums/v1"
@@ -44,6 +49,7 @@ type Config struct {
 	WorkflowRepo      func() wf.Repository
 	TaskRepo          func() task.Repository
 	MonitoringService *monitoring.Service
+	ResourceRegistry  *autoload.ConfigRegistry // For memory resource configs
 }
 
 type Worker struct {
@@ -59,6 +65,10 @@ type Worker struct {
 	mcpRegister   *mcp.RegisterService
 	dispatcherID  string // Track dispatcher ID for cleanup
 	serverID      string // Server ID for this worker instance
+
+	// Memory management
+	memoryManager  *memory.Manager
+	templateEngine *tplengine.TemplateEngine
 
 	// Lifecycle management
 	lifecycleCtx    context.Context
@@ -117,12 +127,102 @@ func NewWorker(
 	if config == nil {
 		return nil, errors.New("worker config cannot be nil")
 	}
+	client, err := createTemporalClient(ctx, clientConfig, log)
+	if err != nil {
+		return nil, err
+	}
+	workerCore, err := setupWorkerCore(ctx, config, projectConfig, client)
+	if err != nil {
+		return nil, err
+	}
+	mcpRegister, err := setupMCPRegister(ctx, workflows, log)
+	if err != nil {
+		return nil, err
+	}
+	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+	memoryManager, err := setupMemoryManager(
+		config,
+		templateEngine,
+		workerCore.redisCache,
+		client,
+		workerCore.taskQueue,
+		log,
+	)
+	if err != nil {
+		return nil, err
+	}
+	dispatcher := createDispatcher(projectConfig, workerCore.taskQueue, client)
+	activities := NewActivities(
+		projectConfig,
+		workflows,
+		config.WorkflowRepo(),
+		config.TaskRepo(),
+		workerCore.rtManager,
+		workerCore.configStore,
+		dispatcher.signalDispatcher,
+		workerCore.configManager,
+		workerCore.redisCache,
+		memoryManager,
+		templateEngine,
+	)
+	interceptor.SetConfiguredWorkerCount(1)
+	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
+	log.Debug("Worker initialization completed", "total_duration", time.Since(workerStart))
+	return &Worker{
+		client:          client,
+		config:          config,
+		worker:          workerCore.worker,
+		projectConfig:   projectConfig,
+		workflows:       workflows,
+		activities:      activities,
+		taskQueue:       workerCore.taskQueue,
+		configStore:     workerCore.configStore,
+		redisCache:      workerCore.redisCache,
+		mcpRegister:     mcpRegister,
+		dispatcherID:    dispatcher.dispatcherID,
+		serverID:        dispatcher.serverID,
+		memoryManager:   memoryManager,
+		templateEngine:  templateEngine,
+		lifecycleCtx:    lifecycleCtx,
+		lifecycleCancel: lifecycleCancel,
+	}, nil
+}
+
+// workerCoreComponents holds the core components needed for a worker
+type workerCoreComponents struct {
+	worker        worker.Worker
+	taskQueue     string
+	rtManager     *runtime.Manager
+	redisCache    *cache.Cache
+	configStore   services.ConfigStore
+	configManager *services.ConfigManager
+}
+
+// dispatcherComponents holds dispatcher-related components
+type dispatcherComponents struct {
+	dispatcherID     string
+	serverID         string
+	signalDispatcher services.SignalDispatcher
+}
+
+// createTemporalClient creates and validates the Temporal client
+func createTemporalClient(ctx context.Context, clientConfig *TemporalConfig, log logger.Logger) (*Client, error) {
 	clientStart := time.Now()
 	client, err := NewClient(ctx, clientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create worker client: %w", err)
 	}
 	log.Debug("Temporal client created", "duration", time.Since(clientStart))
+	return client, nil
+}
+
+// setupWorkerCore creates the core worker components including Temporal worker, cache, and runtime manager
+func setupWorkerCore(
+	ctx context.Context,
+	config *Config,
+	projectConfig *project.Config,
+	client *Client,
+) (*workerCoreComponents, error) {
 	taskQueue := slug.Make(projectConfig.Name)
 	workerOptions := buildWorkerOptions(ctx, config.MonitoringService)
 	worker := client.NewWorker(taskQueue, workerOptions)
@@ -131,16 +231,39 @@ func NewWorker(
 	if err != nil {
 		return nil, fmt.Errorf("failed to created execution manager: %w", err)
 	}
+	redisCache, configStore, configManager, err := setupRedisAndConfig(ctx, projectConfig)
+	if err != nil {
+		return nil, err
+	}
+	return &workerCoreComponents{
+		worker:        worker,
+		taskQueue:     taskQueue,
+		rtManager:     rtManager,
+		redisCache:    redisCache,
+		configStore:   configStore,
+		configManager: configManager,
+	}, nil
+}
+
+// setupRedisAndConfig sets up Redis cache and configuration management
+func setupRedisAndConfig(
+	ctx context.Context,
+	projectConfig *project.Config,
+) (*cache.Cache, services.ConfigStore, *services.ConfigManager, error) {
+	log := logger.FromContext(ctx)
 	cacheStart := time.Now()
 	redisCache, err := cache.SetupCache(ctx, projectConfig.CacheConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup Redis cache: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to setup Redis cache: %w", err)
 	}
 	log.Debug("Redis cache connected", "duration", time.Since(cacheStart))
-	// Create Redis-backed ConfigStore with 24h TTL as per PRD
 	configStore := services.NewRedisConfigStore(redisCache.Redis, 24*time.Hour)
 	configManager := services.NewConfigManager(configStore, nil)
-	// Initialize MCP register and register all MCPs from all workflows
+	return redisCache, configStore, configManager, nil
+}
+
+// setupMCPRegister initializes MCP registration for workflows
+func setupMCPRegister(ctx context.Context, workflows []*wf.Config, log logger.Logger) (*mcp.RegisterService, error) {
 	mcpStart := time.Now()
 	workflowConfigs := make([]mcp.WorkflowConfig, len(workflows))
 	for i, wf := range workflows {
@@ -151,42 +274,51 @@ func NewWorker(
 		return nil, fmt.Errorf("failed to initialize MCP register: %w", err)
 	}
 	log.Debug("MCP registration scheduled", "setup_duration", time.Since(mcpStart))
-	// Create unique dispatcher ID per server instance to avoid conflicts
-	serverID := core.MustNewID().String()[:8] // Use first 8 chars for readability
+	return mcpRegister, nil
+}
+
+// setupMemoryManager creates the memory manager if resource registry is available
+func setupMemoryManager(
+	config *Config,
+	templateEngine *tplengine.TemplateEngine,
+	redisCache *cache.Cache,
+	client *Client,
+	taskQueue string,
+	log logger.Logger,
+) (*memory.Manager, error) {
+	if config.ResourceRegistry == nil {
+		log.Warn("Resource registry not provided, memory features will be disabled")
+		return nil, nil
+	}
+	privacyManager := privacy.NewManager()
+	memoryManagerOpts := &memory.ManagerOptions{
+		ResourceRegistry:  config.ResourceRegistry,
+		TplEngine:         templateEngine,
+		BaseLockManager:   redisCache.LockManager,
+		BaseRedisClient:   redisCache.Redis,
+		TemporalClient:    client,
+		TemporalTaskQueue: taskQueue,
+		PrivacyManager:    privacyManager,
+		Logger:            log,
+	}
+	memoryManager, err := memory.NewManager(memoryManagerOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create memory manager: %w", err)
+	}
+	log.Info("Memory manager initialized successfully")
+	return memoryManager, nil
+}
+
+// createDispatcher creates dispatcher components with unique IDs
+func createDispatcher(projectConfig *project.Config, taskQueue string, client *Client) *dispatcherComponents {
+	serverID := core.MustNewID().String()[:8]
 	dispatcherID := fmt.Sprintf("dispatcher-%s-%s", slug.Make(projectConfig.Name), serverID)
 	signalDispatcher := NewSignalDispatcher(client, dispatcherID, taskQueue)
-	activities := NewActivities(
-		projectConfig,
-		workflows,
-		config.WorkflowRepo(),
-		config.TaskRepo(),
-		rtManager,
-		configStore,
-		signalDispatcher,
-		configManager,
-		redisCache,
-	)
-	// Set configured worker count for monitoring
-	interceptor.SetConfiguredWorkerCount(1) // Each worker instance represents 1 configured worker
-	// Create lifecycle context for independent operation
-	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
-	log.Debug("Worker initialization completed", "total_duration", time.Since(workerStart))
-	return &Worker{
-		client:          client,
-		config:          config,
-		worker:          worker,
-		projectConfig:   projectConfig,
-		workflows:       workflows,
-		activities:      activities,
-		taskQueue:       taskQueue,
-		configStore:     configStore,
-		redisCache:      redisCache,
-		mcpRegister:     mcpRegister,
-		dispatcherID:    dispatcherID,
-		serverID:        serverID,
-		lifecycleCtx:    lifecycleCtx,
-		lifecycleCancel: lifecycleCancel,
-	}, nil
+	return &dispatcherComponents{
+		dispatcherID:     dispatcherID,
+		serverID:         serverID,
+		signalDispatcher: signalDispatcher,
+	}
 }
 
 func (o *Worker) Setup(_ context.Context) error {
@@ -201,6 +333,7 @@ func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterActivity(o.activities.ExecuteAggregateTask)
 	o.worker.RegisterActivity(o.activities.ExecuteSignalTask)
 	o.worker.RegisterActivity(o.activities.ExecuteWaitTask)
+	o.worker.RegisterActivity(o.activities.ExecuteMemoryTask)
 	o.worker.RegisterActivityWithOptions(
 		o.activities.NormalizeWaitProcessor,
 		activity.RegisterOptions{Name: tkacts.NormalizeWaitProcessorLabel},
@@ -237,6 +370,17 @@ func (o *Worker) Setup(_ context.Context) error {
 		o.activities.ListActiveDispatchers,
 		activity.RegisterOptions{Name: wkacts.ListActiveDispatchersLabel},
 	)
+	// Register memory activities if memory manager is available
+	if o.memoryManager != nil {
+		o.worker.RegisterActivityWithOptions(
+			o.activities.FlushMemory,
+			activity.RegisterOptions{Name: memacts.FlushMemoryLabel},
+		)
+		o.worker.RegisterActivityWithOptions(
+			o.activities.ClearFlushPendingFlag,
+			activity.RegisterOptions{Name: memacts.ClearFlushPendingLabel},
+		)
+	}
 	err := o.worker.Start()
 	if err != nil {
 		return err

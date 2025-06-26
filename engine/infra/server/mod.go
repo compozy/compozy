@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	csvc "github.com/compozy/compozy/engine/infra/server/config"
@@ -149,7 +150,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	log := logger.FromContext(s.ctx)
 	setupStart := time.Now()
 	configService := csvc.NewService(log, s.Config.EnvFilePath)
-	projectConfig, workflows, err := configService.LoadProject(s.ctx, s.Config.CWD, s.Config.ConfigFile)
+	projectConfig, workflows, configRegistry, err := configService.LoadProject(s.ctx, s.Config.CWD, s.Config.ConfigFile)
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to load project: %w", err)
 	}
@@ -210,7 +211,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	clientConfig := s.TemporalConfig
 	deps := appstate.NewBaseDeps(projectConfig, workflows, store, clientConfig)
 	workerStart := time.Now()
-	worker, err := setupWorker(s.ctx, deps, s.monitoring)
+	worker, err := setupWorker(s.ctx, deps, s.monitoring, configRegistry)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
@@ -234,6 +235,7 @@ func setupWorker(
 	ctx context.Context,
 	deps appstate.BaseDeps,
 	monitoringService *monitoring.Service,
+	configRegistry *autoload.ConfigRegistry,
 ) (*worker.Worker, error) {
 	log := logger.FromContext(ctx)
 	workerCreateStart := time.Now()
@@ -245,6 +247,7 @@ func setupWorker(
 			return deps.Store.NewTaskRepo()
 		},
 		MonitoringService: monitoringService,
+		ResourceRegistry:  configRegistry,
 	}
 	worker, err := worker.NewWorker(
 		ctx,

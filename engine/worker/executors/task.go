@@ -17,6 +17,7 @@ type TaskExecutor struct {
 	aggregateExecutor *TaskAggregateExecutor
 	signalExecutor    *TaskSignalExecutor
 	waitExecutor      *TaskWaitExecutor
+	memoryExecutor    *TaskMemoryExecutor
 	// Container task executors
 	parallelExecutor   *ParallelTaskExecutor
 	collectionExecutor *CollectionTaskExecutor
@@ -30,6 +31,7 @@ func NewTaskExecutor(contextBuilder *ContextBuilder) *TaskExecutor {
 	e.aggregateExecutor = NewTaskAggregateExecutor(contextBuilder)
 	e.signalExecutor = NewTaskSignalExecutor(contextBuilder)
 	e.waitExecutor = NewTaskWaitExecutor(contextBuilder, e.HandleExecution)
+	e.memoryExecutor = NewTaskMemoryExecutor(contextBuilder)
 
 	// Initialize container task executors
 	containerHelpers := NewContainerHelpers(contextBuilder, e.HandleExecution)
@@ -142,6 +144,8 @@ func (e *TaskExecutor) HandleExecution(
 		response, err = e.signalExecutor.Execute(ctx, taskConfig)
 	case task.TaskTypeWait:
 		response, err = e.waitExecutor.Execute(ctx, taskConfig)
+	case task.TaskTypeMemory:
+		response, err = e.memoryExecutor.Execute(ctx, taskConfig)
 	default:
 		log.Error(
 			"Unsupported execution type encountered",

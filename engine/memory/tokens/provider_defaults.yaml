@@ -1,0 +1,69 @@
+# Default provider configurations for token counting
+# These are built-in defaults that can be referenced when creating token counters
+# Users can override these by providing their own provider configurations
+
+providers:
+  # OpenAI configurations
+  - name: openai-gpt4
+    provider: OpenAI
+    model: gpt-4
+    settings:
+      encoding: cl100k_base
+
+  - name: openai-gpt4o
+    provider: OpenAI
+    model: gpt-4o
+    settings:
+      encoding: cl100k_base
+
+  - name: openai-gpt35
+    provider: OpenAI
+    model: gpt-3.5-turbo
+    settings:
+      encoding: cl100k_base
+
+  # Anthropic configurations
+  - name: anthropic-claude
+    provider: Anthropic
+    model: claude-3-haiku
+    settings:
+      encoding: claude
+
+  - name: anthropic-claude-sonnet
+    provider: Anthropic
+    model: claude-3-sonnet
+    settings:
+      encoding: claude
+
+  # Google configurations
+  - name: google-gemini-pro
+    provider: GoogleAI
+    model: gemini-1.5-pro
+    settings:
+      encoding: gemini
+
+  - name: google-gemini-flash
+    provider: GoogleAI
+    model: gemini-1.5-flash
+    settings:
+      encoding: gemini
+
+  # Cohere configurations
+  - name: cohere-command-r
+    provider: Cohere
+    model: command-r
+    settings:
+      encoding: cohere
+
+  - name: cohere-command-r-plus
+    provider: Cohere
+    model: command-r+
+    settings:
+      encoding: cohere
+
+  # DeepSeek configurations
+  - name: deepseek-v2
+    provider: DeepSeek
+    model: deepseek-v2
+    settings:
+      encoding: deepseek

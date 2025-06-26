@@ -5,11 +5,14 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
+	memcore "github.com/compozy/compozy/engine/memory/core"
+	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 const ExecuteBasicLabel = "ExecuteBasicTask"
@@ -25,6 +28,9 @@ type ExecuteBasic struct {
 	createStateUC  *uc.CreateState
 	executeUC      *uc.ExecuteTask
 	taskResponder  *services.TaskResponder
+	memoryManager  memcore.ManagerInterface
+	templateEngine *tplengine.TemplateEngine
+	projectConfig  *project.Config
 }
 
 // NewExecuteBasic creates a new ExecuteBasic activity
@@ -35,13 +41,19 @@ func NewExecuteBasic(
 	runtime *runtime.Manager,
 	configStore services.ConfigStore,
 	cwd *core.PathCWD,
+	memoryManager memcore.ManagerInterface,
+	templateEngine *tplengine.TemplateEngine,
+	projectConfig *project.Config,
 ) *ExecuteBasic {
 	configManager := services.NewConfigManager(configStore, cwd)
 	return &ExecuteBasic{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:  uc.NewCreateState(taskRepo, configManager),
-		executeUC:      uc.NewExecuteTask(runtime),
+		executeUC:      uc.NewExecuteTask(runtime, memoryManager, templateEngine),
 		taskResponder:  services.NewTaskResponder(workflowRepo, taskRepo),
+		memoryManager:  memoryManager,
+		templateEngine: templateEngine,
+		projectConfig:  projectConfig,
 	}
 }
 
@@ -82,7 +94,10 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 	}
 	// Execute component
 	output, executionError := a.executeUC.Execute(ctx, &uc.ExecuteTaskInput{
-		TaskConfig: taskConfig,
+		TaskConfig:     taskConfig,
+		WorkflowState:  workflowState,
+		WorkflowConfig: workflowConfig,
+		ProjectConfig:  a.projectConfig,
 	})
 	taskState.Output = output
 	response, handleErr := a.taskResponder.HandleMainTask(ctx, &services.MainTaskResponseInput{

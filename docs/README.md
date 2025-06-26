@@ -12,6 +12,8 @@ comprehensive endpoints for managing and monitoring workflow executions.
 - `swagger.json` - OpenAPI 3.0 specification in JSON format
 - `swagger.yaml` - OpenAPI 3.0 specification in YAML format
 - `docs.go` - Generated Go documentation file
+- `admin-panel.md` - Comprehensive guide for building the Compozy Admin Panel
+- `admin-panel-tech-spec.md` - Technical implementation details for the Admin Panel
 
 ## API Endpoints
 
@@ -244,3 +246,12 @@ For API support and questions:
 
 - GitHub Issues: https://github.com/compozy/compozy/issues
 - Documentation: https://github.com/compozy/compozy/docs
+
+## Related Documentation
+
+- [Admin Panel Overview](./admin-panel.md) - Guide for building a web-based admin interface
+- [Admin Panel Technical Specification](./admin-panel-tech-spec.md) - Implementation details for the admin panel
+- [Workflow Documentation](./features/workflows.md) - Detailed workflow management guide
+- [Monitoring Guide](./features/monitoring.md) - System monitoring and metrics
+- [Events API](./features/events-api.md) - Event-driven workflow execution
+- [Scheduled Workflows](./features/scheduled-workflows.md) - Cron-based workflow scheduling

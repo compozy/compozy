@@ -904,6 +904,183 @@ const docTemplate = `{
                 }
             }
         },
+        "/executions/workflows/{exec_id}/signals": {
+            "post": {
+                "description": "Send a signal with payload to a specific workflow execution",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "executions"
+                ],
+                "summary": "Send signal to workflow execution",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
+                        "description": "Workflow Execution ID",
+                        "name": "exec_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Signal data",
+                        "name": "signal",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/wfrouter.SignalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Signal sent successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/wfrouter.SignalResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid execution ID or signal data",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Execution not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/memory/health": {
+            "get": {
+                "description": "Returns comprehensive health information for the memory system",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memory",
+                    "health"
+                ],
+                "summary": "Get memory system health",
+                "responses": {
+                    "200": {
+                        "description": "Memory system is healthy",
+                        "schema": {
+                            "$ref": "#/definitions/memory.SystemHealth"
+                        }
+                    },
+                    "503": {
+                        "description": "Memory system is unhealthy",
+                        "schema": {
+                            "$ref": "#/definitions/memory.SystemHealth"
+                        }
+                    }
+                }
+            }
+        },
+        "/memory/health/{memory_id}": {
+            "get": {
+                "description": "Returns health information for a specific memory instance",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memory",
+                    "health"
+                ],
+                "summary": "Get memory instance health",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Memory Instance ID",
+                        "name": "memory_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Memory instance health retrieved",
+                        "schema": {
+                            "$ref": "#/definitions/memory.InstanceHealth"
+                        }
+                    },
+                    "404": {
+                        "description": "Memory instance not found",
+                        "schema": {
+                            "$ref": "#/definitions/gin.H"
+                        }
+                    }
+                }
+            }
+        },
         "/metrics": {
             "get": {
                 "description": "Exposes application metrics in Prometheus exposition format.\nThis endpoint is used by Prometheus servers to scrape metrics.\n\nThe response is in text/plain format following the Prometheus\nexposition format specification.\n\nAvailable metrics include:\n- HTTP request rates and latencies\n- Temporal workflow execution metrics\n- System health information",
@@ -2763,6 +2940,16 @@ const docTemplate = `{
                         "$ref": "#/definitions/mcp.Config"
                     }
                 },
+                "memories": {
+                    "description": "[]string (L2) or []MemoryReference (L3)"
+                },
+                "memory": {
+                    "description": "Memory configuration fields\nLevel 1: memory: \"customer-support-context\", memory_key: \"key-template\"\nLevel 2: memory: true, memories: [\"id1\", \"id2\"], memory_key: \"shared-key-template\"\nLevel 3: memories: [{id: \"id1\", mode: \"read-write\", key: \"template1\"},\n                    {id: \"id2\", mode: \"read-only\", key: \"template2\"}]"
+                },
+                "memory_key": {
+                    "description": "string (L1, L2)",
+                    "type": "string"
+                },
                 "resource": {
                     "type": "string"
                 },
@@ -3048,6 +3235,10 @@ const docTemplate = `{
                 }
             }
         },
+        "gin.H": {
+            "type": "object",
+            "additionalProperties": {}
+        },
         "mcp.Config": {
             "type": "object",
             "properties": {
@@ -3319,6 +3510,78 @@ const docTemplate = `{
                 "TransportStreamableHTTP"
             ]
         },
+        "memory.InstanceHealth": {
+            "type": "object",
+            "properties": {
+                "consecutive_failures": {
+                    "type": "integer"
+                },
+                "error_message": {
+                    "type": "string"
+                },
+                "healthy": {
+                    "type": "boolean"
+                },
+                "last_checked": {
+                    "type": "string"
+                },
+                "memory_id": {
+                    "type": "string"
+                },
+                "token_usage": {
+                    "$ref": "#/definitions/memory.TokenUsageHealth"
+                }
+            }
+        },
+        "memory.SystemHealth": {
+            "type": "object",
+            "properties": {
+                "healthy": {
+                    "type": "boolean"
+                },
+                "healthy_instances": {
+                    "type": "integer"
+                },
+                "instance_health": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/memory.InstanceHealth"
+                    }
+                },
+                "last_checked": {
+                    "type": "string"
+                },
+                "system_errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "total_instances": {
+                    "type": "integer"
+                },
+                "unhealthy_instances": {
+                    "type": "integer"
+                }
+            }
+        },
+        "memory.TokenUsageHealth": {
+            "type": "object",
+            "properties": {
+                "max_tokens": {
+                    "type": "integer"
+                },
+                "near_limit": {
+                    "type": "boolean"
+                },
+                "usage_percentage": {
+                    "type": "number"
+                },
+                "used": {
+                    "type": "integer"
+                }
+            }
+        },
         "router.ErrorInfo": {
             "type": "object",
             "properties": {
@@ -3353,7 +3616,7 @@ const docTemplate = `{
             "properties": {
                 "cron": {
                     "type": "string",
-                    "example": "0 9 * * 1-5"
+                    "example": "0 0 9 * * 1-5"
                 },
                 "enabled": {
                     "type": "boolean",
@@ -3412,7 +3675,7 @@ const docTemplate = `{
             "properties": {
                 "cron": {
                     "type": "string",
-                    "example": "0 */10 * * *"
+                    "example": "0 0 */10 * * *"
                 },
                 "enabled": {
                     "type": "boolean",
@@ -3501,11 +3764,17 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "on_timeout": {
+                    "type": "string"
+                },
                 "output": {
                     "$ref": "#/definitions/schema.Schema"
                 },
                 "outputs": {
                     "$ref": "#/definitions/core.Input"
+                },
+                "processor": {
+                    "$ref": "#/definitions/task.Config"
                 },
                 "resource": {
                     "type": "string"
@@ -3545,6 +3814,9 @@ const docTemplate = `{
                 "type": {
                     "$ref": "#/definitions/task.Type"
                 },
+                "wait_for": {
+                    "type": "string"
+                },
                 "with": {
                     "$ref": "#/definitions/core.Input"
                 }
@@ -3557,14 +3829,16 @@ const docTemplate = `{
                 "router",
                 "parallel",
                 "collection",
-                "composite"
+                "composite",
+                "wait"
             ],
             "x-enum-varnames": [
                 "ExecutionBasic",
                 "ExecutionRouter",
                 "ExecutionParallel",
                 "ExecutionCollection",
-                "ExecutionComposite"
+                "ExecutionComposite",
+                "ExecutionWait"
             ]
         },
         "task.ParallelStrategy": {
@@ -3675,7 +3949,8 @@ const docTemplate = `{
                 "collection",
                 "aggregate",
                 "composite",
-                "signal"
+                "signal",
+                "wait"
             ],
             "x-enum-varnames": [
                 "TaskTypeBasic",
@@ -3684,7 +3959,8 @@ const docTemplate = `{
                 "TaskTypeCollection",
                 "TaskTypeAggregate",
                 "TaskTypeComposite",
-                "TaskTypeSignal"
+                "TaskTypeSignal",
+                "TaskTypeWait"
             ]
         },
         "time.Duration": {
@@ -3784,6 +4060,18 @@ const docTemplate = `{
                 "workflow_id": {
                     "type": "string",
                     "example": "data-processing"
+                }
+            }
+        },
+        "wfrouter.SignalRequest": {
+            "type": "object"
+        },
+        "wfrouter.SignalResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Signal sent successfully"
                 }
             }
         },

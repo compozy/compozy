@@ -1,0 +1,41 @@
+resource: memory
+id: customer_support_memory
+description: Customer support conversation with privacy protection
+version: 1.0.0
+
+key: "support:{{.conversation_id}}"
+
+type: token_based
+max_tokens: 4000
+max_messages: 100
+
+flushing_strategy:
+  type: simple_fifo
+  threshold: 0.9
+
+persistence:
+  ttl: 24h
+
+privacy_policy:
+  # Provide regex patterns directly to redact sensitive information
+  redact_patterns:
+    # Social Security Numbers (XXX-XX-XXXX format)
+    - '\b\d{3}-\d{2}-\d{4}\b'
+    # Credit card numbers (basic pattern for 13-19 digits)
+    - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'
+    # Email addresses
+    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    # US Phone numbers (various formats)
+    - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
+    # IPv4 addresses
+    - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'
+    # UUID format
+    - '\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b'
+    # Custom patterns for your specific use case
+    - '\b[A-Z]{3,10}\b'  # Uppercase abbreviations
+    - '\baccount\s*#?\s*\d{6,12}\b'  # Account numbers
+  non_persistable_message_types:
+    - system
+    - tool
+
+  default_redaction_string: "[REDACTED]"

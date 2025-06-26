@@ -1,0 +1,209 @@
+# Grafana alerting rules for Compozy memory system
+groups:
+  - name: compozy_memory_health
+    interval: 30s
+    rules:
+      - alert: MemorySystemDown
+        expr: compozy_memory_health_status == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: memory
+        annotations:
+          summary: "Memory system is unhealthy"
+          description: "Memory system health status is down for memory_id {{ $labels.memory_id }} in project {{ $labels.project_id }}. This indicates critical memory system issues."
+
+      - alert: MemoryInstanceUnhealthy
+        expr: compozy_memory_health_status{memory_id!=""} == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: memory
+        annotations:
+          summary: "Memory instance is unhealthy"
+          description: "Memory instance {{ $labels.memory_id }} in project {{ $labels.project_id }} has been unhealthy for more than 2 minutes."
+
+      - alert: MemoryHighTokenUsage
+        expr: compozy_memory_tokens_used_gauge / compozy_memory_max_tokens_gauge > 0.85
+        for: 3m
+        labels:
+          severity: warning
+          component: memory
+        annotations:
+          summary: "Memory token usage is high"
+          description: "Memory {{ $labels.memory_id }} in project {{ $labels.project_id }} is using {{ $value | humanizePercentage }} of available tokens, exceeding 85% threshold."
+
+      - alert: MemoryTokenLimitReached
+        expr: compozy_memory_tokens_used_gauge / compozy_memory_max_tokens_gauge >= 1.0
+        for: 1m
+        labels:
+          severity: critical
+          component: memory
+        annotations:
+          summary: "Memory token limit reached"
+          description: "Memory {{ $labels.memory_id }} in project {{ $labels.project_id }} has reached its token limit. Memory operations may be failing."
+
+  - name: compozy_memory_operations
+    interval: 30s
+    rules:
+      - alert: MemoryOpFailures
+        expr: increase(compozy_memory_operation_errors_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          component: memory
+        annotations:
+          summary: "High memory operation failure rate"
+          description: "Memory {{ $labels.memory_id }} in project {{ $labels.project_id }} has had {{ $value }} failed {{ $labels.operation }} operations in the last 5 minutes."
+
+      - alert: MemoryOpLatencyHigh
+        expr: histogram_quantile(0.95, rate(compozy_memory_operation_duration_seconds_bucket[5m])) > 5.0
+        for: 3m
+        labels:
+          severity: warning
+          component: memory
+        annotations:
+          summary: "Memory operation latency is high"
+          description: "95th percentile {{ $labels.operation }} latency is {{ $value }}s for memory {{ $labels.memory_id }} in project {{ $labels.project_id }}, exceeding 5s threshold."
+
+      - alert: MemoryLockContentionHigh
+        expr: rate(compozy_memory_lock_contention_total[5m]) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          component: memory
+        annotations:
+          summary: "High memory lock contention"
+          description: "Memory {{ $labels.memory_id }} in project {{ $labels.project_id }} is experiencing high lock contention ({{ $value }} contentions/sec over 5 minutes)."
+
+  - name: compozy_memory_performance
+    interval: 60s
+    rules:
+      - alert: MemoryFlushFailures
+        expr: increase(compozy_memory_flush_total{status="failure"}[10m]) > 3
+        for: 2m
+        labels:
+          severity: warning
+          component: memory
+        annotations:
+          summary: "Memory flush operations failing"
+          description: "Memory {{ $labels.memory_id }} in project {{ $labels.project_id }} has had {{ $value }} failed flush operations in the last 10 minutes."
+
+      - alert: MemoryTrimOperationsHigh
+        expr: rate(compozy_memory_trim_total[5m]) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          component: memory
+        annotations:
+          summary: "High memory trim operation rate"
+          description: "Memory {{ $labels.memory_id }} in project {{ $labels.project_id }} is performing trim operations at {{ $value }} operations/sec, indicating frequent memory pressure."
+
+      - alert: MemoryCircuitBreakerTripped
+        expr: increase(compozy_memory_circuit_breaker_trips_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: memory
+        annotations:
+          summary: "Memory circuit breaker tripped"
+          description: "Circuit breaker has tripped {{ $value }} times in the last 5 minutes for memory {{ $labels.memory_id }} in project {{ $labels.project_id }}. This indicates critical system protection activation."
+
+  - name: compozy_memory_privacy
+    interval: 60s
+    rules:
+      - alert: MemoryPrivacyExclusionsHigh
+        expr: rate(compozy_memory_privacy_exclusions_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: memory
+        annotations:
+          summary: "High rate of privacy exclusions"
+          description: "Memory {{ $labels.memory_id }} in project {{ $labels.project_id }} is excluding {{ $value }} messages/sec due to privacy policies. This may indicate configuration issues."
+
+      - alert: MemoryRedactionOperationsHigh
+        expr: rate(compozy_memory_redaction_operations_total[5m]) > 10.0
+        for: 3m
+        labels:
+          severity: info
+          component: memory
+        annotations:
+          summary: "High rate of redaction operations"
+          description: "Memory {{ $labels.memory_id }} in project {{ $labels.project_id }} is performing {{ $value }} redaction operations/sec, indicating high privacy activity."
+
+  - name: compozy_memory_capacity
+    interval: 60s
+    rules:
+      - alert: MemoryGoroutinePoolExhaustion
+        expr: compozy_memory_goroutine_pool_active >= 100
+        for: 2m
+        labels:
+          severity: warning
+          component: memory
+        annotations:
+          summary: "Memory goroutine pool near exhaustion"
+          description: "Memory system has {{ $value }} active goroutines, approaching pool limits. This may impact performance."
+
+      - alert: MemoryTokensSavedLow
+        expr: rate(compozy_memory_tokens_saved_total[10m]) < 100
+        for: 10m
+        labels:
+          severity: info
+          component: memory
+        annotations:
+          summary: "Low memory optimization efficiency"
+          description: "Memory system is saving only {{ $value }} tokens/sec through optimization in project {{ $labels.project_id }}. Consider reviewing flushing strategies."
+
+  - name: compozy_memory_temporal
+    interval: 30s
+    rules:
+      - alert: MemoryTemporalActivitiesStuck
+        expr: compozy_memory_temporal_activities - compozy_memory_temporal_activities offset 5m == 0 and compozy_memory_temporal_activities > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: memory
+        annotations:
+          summary: "Memory Temporal activities appear stuck"
+          description: "Temporal activities count for memory operations has not changed in 5 minutes for project {{ $labels.project_id }}, but activities are still pending."
+
+      - alert: MemoryConfigResolutionFailures
+        expr: rate(compozy_memory_config_resolution_total{status="failure"}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          component: memory
+        annotations:
+          summary: "Memory configuration resolution failures"
+          description: "Memory configuration resolution is failing at {{ $value }} failures/sec in project {{ $labels.project_id }}."
+
+  - name: compozy_memory_system_health
+    interval: 60s
+    rules:
+      - alert: MemoryMetricsUnavailable
+        expr: up{job="compozy"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: memory
+        annotations:
+          summary: "Memory metrics unavailable"
+          description: "Compozy metrics endpoint is down, memory monitoring is not available."
+
+      - alert: MemorySystemOverloaded
+        expr: |
+          (
+            rate(compozy_memory_messages_total[5m]) > 100
+            and
+            histogram_quantile(0.95, rate(compozy_memory_operation_duration_seconds_bucket[5m])) > 2.0
+            and
+            rate(compozy_memory_lock_contention_total[5m]) > 0.5
+          )
+        for: 3m
+        labels:
+          severity: critical
+          component: memory
+        annotations:
+          summary: "Memory system appears overloaded"
+          description: "Memory system is experiencing high message rate (>100 msg/sec), high latency (>2s p95), and lock contention (>0.5/sec) in project {{ $labels.project_id }}."
