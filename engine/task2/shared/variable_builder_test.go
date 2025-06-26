@@ -248,7 +248,8 @@ func TestVariableBuilder_CopyVariables(t *testing.T) {
 		}
 
 		// Act
-		copied := builder.CopyVariables(source)
+		copied, err := builder.CopyVariables(source)
+		require.NoError(t, err)
 
 		// Assert
 		require.NotNil(t, copied)
@@ -264,7 +265,8 @@ func TestVariableBuilder_CopyVariables(t *testing.T) {
 
 	t.Run("Should handle nil source", func(t *testing.T) {
 		// Act
-		copied := builder.CopyVariables(nil)
+		copied, err := builder.CopyVariables(nil)
+		require.NoError(t, err)
 
 		// Assert
 		require.NotNil(t, copied)

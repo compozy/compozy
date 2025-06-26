@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // TypeConverter handles conversion of various types to slice
@@ -168,6 +169,10 @@ func (tc *TypeConverter) parseNumber(s string) (int, error) {
 	if f, err := strconv.ParseFloat(s, 64); err == nil {
 		// Check if it's a whole number
 		if f == math.Floor(f) {
+			// Check if float is within int range before converting
+			if f > float64(math.MaxInt) || f < float64(math.MinInt) {
+				return 0, fmt.Errorf("number out of int range: %s", s)
+			}
 			return int(f), nil
 		}
 		return 0, fmt.Errorf("not a whole number: %s", s)
@@ -175,26 +180,33 @@ func (tc *TypeConverter) parseNumber(s string) (int, error) {
 	// Try parsing as big int
 	if bigInt, ok := new(big.Int).SetString(s, 10); ok {
 		if bigInt.IsInt64() {
-			return int(bigInt.Int64()), nil
+			i64 := bigInt.Int64()
+			if i64 > math.MaxInt || i64 < math.MinInt {
+				return 0, fmt.Errorf("number out of int range: %s", s)
+			}
+			return int(i64), nil
 		}
 		return 0, fmt.Errorf("number too large: %s", s)
 	}
 	return 0, fmt.Errorf("not a number: %s", s)
 }
 
-// parseCharacterRange parses character ranges like "a..z" or "Z..A"
+// parseCharacterRange parses Unicode character ranges like "a..z", "α..ω", or "你..我"
+// Supports full Unicode character sets, not just ASCII letters
 func (tc *TypeConverter) parseCharacterRange(start, end string) []any {
-	if len(start) != 1 || len(end) != 1 {
+	startRunes := []rune(start)
+	endRunes := []rune(end)
+	if len(startRunes) != 1 || len(endRunes) != 1 {
 		return nil
 	}
-	startChar := rune(start[0])
-	endChar := rune(end[0])
-	// Check if both are letters
-	if !isLetter(startChar) || !isLetter(endChar) {
+	startChar := startRunes[0]
+	endChar := endRunes[0]
+	// Check if both are letters (using Unicode-aware function)
+	if !unicode.IsLetter(startChar) || !unicode.IsLetter(endChar) {
 		return nil
 	}
-	// Check if both are same case
-	if isUpperCase(startChar) != isUpperCase(endChar) {
+	// Check if both are from the same Unicode script for consistency
+	if !isSameScript(startChar, endChar) {
 		return nil
 	}
 	// Handle reverse ranges
@@ -213,12 +225,31 @@ func (tc *TypeConverter) parseCharacterRange(start, end string) []any {
 	return result
 }
 
-// isLetter checks if a rune is a letter
-func isLetter(r rune) bool {
-	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+// isSameScript checks if two runes belong to the same Unicode script
+// This ensures character ranges make sense (e.g., "a..z" or "α..ω" but not "a..α")
+func isSameScript(r1, r2 rune) bool {
+	// For ASCII letters, check if both are ASCII and same case
+	if isASCIILetter(r1) && isASCIILetter(r2) {
+		return unicode.IsUpper(r1) == unicode.IsUpper(r2)
+	}
+	// For non-ASCII, check common Unicode scripts
+	scripts := []*unicode.RangeTable{
+		unicode.Greek, unicode.Cyrillic, unicode.Arabic, unicode.Hebrew,
+		unicode.Han, unicode.Hiragana, unicode.Katakana, unicode.Thai,
+		unicode.Devanagari, unicode.Tamil, unicode.Telugu, unicode.Gujarati,
+	}
+	for _, script := range scripts {
+		if unicode.Is(script, r1) && unicode.Is(script, r2) {
+			return true
+		}
+	}
+	// If neither are ASCII letters and don't match known scripts,
+	// allow if they're close in Unicode codepoint space (same block)
+	const blockSize = 128 // Approximate Unicode block size
+	return (r1 / blockSize) == (r2 / blockSize)
 }
 
-// isUpperCase checks if a rune is uppercase
-func isUpperCase(r rune) bool {
-	return r >= 'A' && r <= 'Z'
+// isASCIILetter checks if a rune is an ASCII letter (a-z, A-Z)
+func isASCIILetter(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
 }

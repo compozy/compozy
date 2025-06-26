@@ -1,9 +1,13 @@
 package shared
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"strconv"
 
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // ValidationConfig provides validation functionality for task configurations and normalization contexts
@@ -66,47 +70,69 @@ func (vc *ValidationConfig) ValidateNormalizationContext(ctx *NormalizationConte
 	return vc.ValidateConfig(ctx.TaskConfig)
 }
 
+var validTaskTypes = map[task.Type]bool{
+	task.TaskTypeBasic:      true,
+	task.TaskTypeParallel:   true,
+	task.TaskTypeCollection: true,
+	task.TaskTypeRouter:     true,
+	task.TaskTypeWait:       true,
+	task.TaskTypeAggregate:  true,
+	task.TaskTypeComposite:  true,
+	task.TaskTypeSignal:     true,
+	"":                      true, // Empty type defaults to basic
+}
+
 func isValidTaskType(taskType task.Type) bool {
-	validTypes := []task.Type{
-		task.TaskTypeBasic,
-		task.TaskTypeParallel,
-		task.TaskTypeCollection,
-		task.TaskTypeRouter,
-		task.TaskTypeWait,
-		task.TaskTypeAggregate,
-		task.TaskTypeComposite,
-		task.TaskTypeSignal,
-		"", // Empty type defaults to basic
-	}
-	for _, valid := range validTypes {
-		if taskType == valid {
-			return true
-		}
-	}
-	return false
+	return validTaskTypes[taskType]
 }
 
 // InputSanitizer provides input sanitization functionality for template inputs and configuration maps
-type InputSanitizer struct{}
-
-// NewInputSanitizer creates a new input sanitizer
-func NewInputSanitizer() *InputSanitizer {
-	return &InputSanitizer{}
+type InputSanitizer struct {
+	maxStringLength int
 }
 
+// NewInputSanitizer creates a new input sanitizer with configurable string length limit
+func NewInputSanitizer() *InputSanitizer {
+	maxStringLength := 10485760 // 10MB default
+	if envVal := os.Getenv("MAX_STRING_LENGTH"); envVal != "" {
+		if val, err := strconv.Atoi(envVal); err == nil && val > 0 {
+			maxStringLength = val
+		}
+	}
+	return &InputSanitizer{
+		maxStringLength: maxStringLength,
+	}
+}
+
+// WithMaxStringLength sets the maximum string length for truncation
+func (s *InputSanitizer) WithMaxStringLength(length int) *InputSanitizer {
+	s.maxStringLength = length
+	return s
+}
+
+// GetMaxStringLength returns the current maximum string length setting
+func (s *InputSanitizer) GetMaxStringLength() int {
+	return s.maxStringLength
+}
+
+// SanitizeTemplateInput sanitizes template input by truncating long strings and removing empty keys.
+// Empty keys are logged as warnings since they may indicate bugs in caller code.
 func (s *InputSanitizer) SanitizeTemplateInput(input map[string]any) map[string]any {
 	if input == nil {
 		return make(map[string]any)
 	}
 	sanitized := make(map[string]any)
+	log := logger.FromContext(context.Background())
 	for key, value := range input {
 		if key == "" {
+			log.Warn("Empty key found in template input - this may indicate a bug in caller code")
 			continue
 		}
 		switch v := value.(type) {
 		case string:
-			if len(v) > 10000 {
-				sanitized[key] = v[:10000]
+			if len(v) > s.maxStringLength {
+				log.Warn("String value truncated from %d to %d characters for key '%s'", len(v), s.maxStringLength, key)
+				sanitized[key] = v[:s.maxStringLength]
 			} else {
 				sanitized[key] = v
 			}

@@ -139,7 +139,7 @@ func (cb *ContextBuilder) BuildSubTaskContext(
 	ctx *NormalizationContext,
 	parentTask *task.Config,
 	parentState *task.State,
-) *NormalizationContext {
+) (*NormalizationContext, error) {
 	// Clone the base context
 	nc := &NormalizationContext{
 		WorkflowState:  ctx.WorkflowState,
@@ -149,7 +149,11 @@ func (cb *ContextBuilder) BuildSubTaskContext(
 		TaskConfigs:    ctx.TaskConfigs,
 	}
 	// Copy base variables using variable builder
-	nc.Variables = cb.VariableBuilder.CopyVariables(ctx.Variables)
+	vars, err := cb.VariableBuilder.CopyVariables(ctx.Variables)
+	if err != nil {
+		return nil, err
+	}
+	nc.Variables = vars
 
 	// Use recursive parent building with caching
 	if parentTask != nil {
@@ -168,7 +172,7 @@ func (cb *ContextBuilder) BuildSubTaskContext(
 		}
 		nc.Variables["current"] = currentMap
 	}
-	return nc
+	return nc, nil
 }
 
 // BuildNormalizationSubTaskContext creates a context for sub-tasks during normalization
@@ -177,7 +181,7 @@ func (cb *ContextBuilder) BuildNormalizationSubTaskContext(
 	parentCtx *NormalizationContext,
 	parentTask *task.Config,
 	subTask *task.Config,
-) *NormalizationContext {
+) (*NormalizationContext, error) {
 	// Clone the base context
 	nc := &NormalizationContext{
 		WorkflowState:  parentCtx.WorkflowState,
@@ -190,7 +194,11 @@ func (cb *ContextBuilder) BuildNormalizationSubTaskContext(
 		ChildrenIndex:  parentCtx.ChildrenIndex,
 	}
 	// Copy parent variables using variable builder
-	nc.Variables = cb.VariableBuilder.CopyVariables(parentCtx.Variables)
+	vars, err := cb.VariableBuilder.CopyVariables(parentCtx.Variables)
+	if err != nil {
+		return nil, err
+	}
+	nc.Variables = vars
 
 	// Update task data for sub-task
 	nc.Variables["task"] = map[string]any{
@@ -204,7 +212,7 @@ func (cb *ContextBuilder) BuildNormalizationSubTaskContext(
 	if parentTask != nil {
 		cb.VariableBuilder.AddParentToVariables(nc.Variables, cb.BuildParentContext(parentCtx, parentTask, 0))
 	}
-	return nc
+	return nc, nil
 }
 
 // BuildParentContext recursively builds parent context chain with caching
@@ -255,7 +263,6 @@ func (cb *ContextBuilder) BuildParentContext(
 	}
 	// Store in cache with cost of 1
 	cb.parentContextCache.Set(cacheKey, parentMap, 1)
-	cb.parentContextCache.Wait()
 	return parentMap
 }
 
@@ -406,14 +413,10 @@ func (cb *ContextBuilder) BuildCollectionContext(
 		return make(map[string]any)
 	}
 
-	// Build full context similar to BuildContext but for collection tasks
-	ctx := &NormalizationContext{
-		WorkflowState:  workflowState,
-		WorkflowConfig: workflowConfig,
-		TaskConfigs:    make(map[string]*task.Config),
-	}
+	// Build full context using proper BuildContext method to populate Variables
+	ctx := cb.BuildContext(workflowState, workflowConfig, taskConfig)
 
-	// Populate TaskConfigs from workflowConfig if available
+	// Add additional TaskConfigs from workflowConfig if available
 	if workflowConfig != nil && workflowConfig.Tasks != nil {
 		for i := range workflowConfig.Tasks {
 			tc := &workflowConfig.Tasks[i]
@@ -421,20 +424,9 @@ func (cb *ContextBuilder) BuildCollectionContext(
 		}
 	}
 
-	ctx.ChildrenIndex = cb.ChildrenIndexBuilder.BuildChildrenIndex(workflowState)
+	// Use the proper template context from BuildContext which includes Variables
+	templateContext := ctx.BuildTemplateContext()
 
-	templateContext := map[string]any{
-		WorkflowKey: cb.buildWorkflowContext(ctx),
-		TasksKey:    cb.buildTasksContext(ctx),
-	}
-
-	// Add workflow input/output if available
-	if workflowState.Input != nil {
-		templateContext[InputKey] = *workflowState.Input
-	}
-	if workflowState.Output != nil {
-		templateContext[OutputKey] = *workflowState.Output
-	}
 	// Add task-specific context from 'with' parameter
 	if taskConfig.With != nil {
 		for k, v := range *taskConfig.With {

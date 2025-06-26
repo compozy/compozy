@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"os"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -239,16 +240,66 @@ func TestValidationConfig_ValidateNormalizationContext(t *testing.T) {
 	})
 }
 
-func TestInputSanitizer_SanitizeTemplateInput(t *testing.T) {
-	sanitizer := NewInputSanitizer()
+func TestInputSanitizer_NewInputSanitizer(t *testing.T) {
+	t.Run("Should create sanitizer with default max string length", func(t *testing.T) {
+		sanitizer := NewInputSanitizer()
+		assert.Equal(t, 10485760, sanitizer.GetMaxStringLength())
+	})
 
+	t.Run("Should read max string length from environment variable", func(t *testing.T) {
+		// Save original value
+		originalVal := os.Getenv("MAX_STRING_LENGTH")
+		defer func() {
+			if originalVal == "" {
+				os.Unsetenv("MAX_STRING_LENGTH")
+			} else {
+				os.Setenv("MAX_STRING_LENGTH", originalVal)
+			}
+		}()
+
+		// Set test value
+		os.Setenv("MAX_STRING_LENGTH", "5000")
+
+		sanitizer := NewInputSanitizer()
+		assert.Equal(t, 5000, sanitizer.GetMaxStringLength())
+	})
+
+	t.Run("Should use default when env var is invalid", func(t *testing.T) {
+		// Save original value
+		originalVal := os.Getenv("MAX_STRING_LENGTH")
+		defer func() {
+			if originalVal == "" {
+				os.Unsetenv("MAX_STRING_LENGTH")
+			} else {
+				os.Setenv("MAX_STRING_LENGTH", originalVal)
+			}
+		}()
+
+		// Set invalid value
+		os.Setenv("MAX_STRING_LENGTH", "invalid")
+
+		sanitizer := NewInputSanitizer()
+		assert.Equal(t, 10485760, sanitizer.GetMaxStringLength())
+	})
+}
+
+func TestInputSanitizer_WithMaxStringLength(t *testing.T) {
+	t.Run("Should set custom max string length", func(t *testing.T) {
+		sanitizer := NewInputSanitizer().WithMaxStringLength(1000)
+		assert.Equal(t, 1000, sanitizer.GetMaxStringLength())
+	})
+}
+
+func TestInputSanitizer_SanitizeTemplateInput(t *testing.T) {
 	t.Run("Should handle nil input", func(t *testing.T) {
+		sanitizer := NewInputSanitizer()
 		result := sanitizer.SanitizeTemplateInput(nil)
 		assert.NotNil(t, result)
 		assert.Empty(t, result)
 	})
 
 	t.Run("Should remove empty keys", func(t *testing.T) {
+		sanitizer := NewInputSanitizer()
 		input := map[string]any{
 			"":      "should be removed",
 			"valid": "should remain",
@@ -259,8 +310,9 @@ func TestInputSanitizer_SanitizeTemplateInput(t *testing.T) {
 		assert.Equal(t, "should remain", result["valid"])
 	})
 
-	t.Run("Should truncate long strings", func(t *testing.T) {
-		longString := make([]byte, 15000)
+	t.Run("Should truncate long strings using configurable limit", func(t *testing.T) {
+		sanitizer := NewInputSanitizer().WithMaxStringLength(1000)
+		longString := make([]byte, 1500)
 		for i := range longString {
 			longString[i] = 'a'
 		}
@@ -268,20 +320,38 @@ func TestInputSanitizer_SanitizeTemplateInput(t *testing.T) {
 			"long": string(longString),
 		}
 		result := sanitizer.SanitizeTemplateInput(input)
-		assert.Len(t, result["long"].(string), 10000)
+		assert.Len(t, result["long"].(string), 1000)
+	})
+
+	t.Run("Should not truncate strings under limit", func(t *testing.T) {
+		sanitizer := NewInputSanitizer().WithMaxStringLength(1000)
+		shortString := "short string"
+		input := map[string]any{
+			"short": shortString,
+		}
+		result := sanitizer.SanitizeTemplateInput(input)
+		assert.Equal(t, shortString, result["short"])
 	})
 
 	t.Run("Should recursively sanitize nested maps", func(t *testing.T) {
+		sanitizer := NewInputSanitizer().WithMaxStringLength(1000)
+		longString := make([]byte, 1500)
+		for i := range longString {
+			longString[i] = 'b'
+		}
 		input := map[string]any{
 			"nested": map[string]any{
 				"":      "should be removed",
 				"valid": "should remain",
+				"long":  string(longString),
 			},
 		}
 		result := sanitizer.SanitizeTemplateInput(input)
 		nested := result["nested"].(map[string]any)
 		assert.NotContains(t, nested, "")
 		assert.Contains(t, nested, "valid")
+		assert.Contains(t, nested, "long")
+		assert.Len(t, nested["long"].(string), 1000)
 	})
 }
 

@@ -112,7 +112,7 @@ func (a *Activities) ExecuteBasicTask(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewExecuteBasic(
+	act, err := tkfacts.NewExecuteBasic(
 		a.workflows,
 		a.workflowRepo,
 		a.taskRepo,
@@ -120,6 +120,9 @@ func (a *Activities) ExecuteBasicTask(
 		a.configStore,
 		a.projectConfig.CWD,
 	)
+	if err != nil {
+		return nil, err
+	}
 	return act.Run(ctx, input)
 }
 
@@ -130,13 +133,16 @@ func (a *Activities) ExecuteRouterTask(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewExecuteRouter(
+	act, err := tkfacts.NewExecuteRouter(
 		a.workflows,
 		a.workflowRepo,
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
 	)
+	if err != nil {
+		return nil, err
+	}
 	return act.Run(ctx, input)
 }
 
@@ -147,13 +153,16 @@ func (a *Activities) CreateParallelState(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewCreateParallelState(
+	act, err := tkfacts.NewCreateParallelState(
 		a.workflows,
 		a.workflowRepo,
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
 	)
+	if err != nil {
+		return nil, err
+	}
 	return act.Run(ctx, input)
 }
 
@@ -225,13 +234,16 @@ func (a *Activities) CreateCollectionState(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewCreateCollectionState(
+	act, err := tkfacts.NewCreateCollectionState(
 		a.workflows,
 		a.workflowRepo,
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
 	)
+	if err != nil {
+		return nil, err
+	}
 	return act.Run(ctx, input)
 }
 
@@ -264,13 +276,16 @@ func (a *Activities) ExecuteAggregateTask(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewExecuteAggregate(
+	act, err := tkfacts.NewExecuteAggregate(
 		a.workflows,
 		a.workflowRepo,
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
 	)
+	if err != nil {
+		return nil, err
+	}
 	return act.Run(ctx, input)
 }
 
@@ -281,13 +296,16 @@ func (a *Activities) CreateCompositeState(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewCreateCompositeState(
+	act, err := tkfacts.NewCreateCompositeState(
 		a.workflows,
 		a.workflowRepo,
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
 	)
+	if err != nil {
+		return nil, err
+	}
 	return act.Run(ctx, input)
 }
 
@@ -353,7 +371,7 @@ func (a *Activities) ExecuteSignalTask(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewExecuteSignal(
+	act, err := tkfacts.NewExecuteSignal(
 		a.workflows,
 		a.workflowRepo,
 		a.taskRepo,
@@ -361,6 +379,9 @@ func (a *Activities) ExecuteSignalTask(
 		a.signalDispatcher,
 		a.projectConfig.CWD,
 	)
+	if err != nil {
+		return nil, err
+	}
 	return act.Run(ctx, input)
 }
 
@@ -371,13 +392,16 @@ func (a *Activities) ExecuteWaitTask(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewExecuteWait(
+	act, err := tkfacts.NewExecuteWait(
 		a.workflows,
 		a.workflowRepo,
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
 	)
+	if err != nil {
+		return nil, err
+	}
 	return act.Run(ctx, input)
 }
 

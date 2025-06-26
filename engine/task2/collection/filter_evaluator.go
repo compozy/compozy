@@ -21,6 +21,9 @@ func NewFilterEvaluator(templateEngine shared.TemplateEngine) *FilterEvaluator {
 
 // EvaluateFilter evaluates a filter expression and returns whether the item should be included
 func (fe *FilterEvaluator) EvaluateFilter(filterExpr string, context map[string]any) (bool, error) {
+	if context == nil {
+		context = make(map[string]any)
+	}
 	if filterExpr == "" {
 		// No filter means include all items
 		return true, nil

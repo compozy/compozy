@@ -165,15 +165,15 @@ func (uc *HandleResponse) applyOutputTransformation(ctx context.Context, input *
 	// Build task configs map for context
 	taskConfigs := task2.BuildTaskConfigsMap(input.WorkflowConfig.Tasks)
 
-	// Create normalization context
-	normCtx := &shared.NormalizationContext{
-		WorkflowState:  workflowState,
-		WorkflowConfig: input.WorkflowConfig,
-		TaskConfig:     input.TaskConfig,
-		TaskConfigs:    taskConfigs,
-		CurrentInput:   input.TaskConfig.With,
-		MergedEnv:      input.TaskConfig.Env,
+	// Create normalization context with proper Variables
+	contextBuilder, err := shared.NewContextBuilder()
+	if err != nil {
+		return fmt.Errorf("failed to create context builder: %w", err)
 	}
+	normCtx := contextBuilder.BuildContext(workflowState, input.WorkflowConfig, input.TaskConfig)
+	normCtx.TaskConfigs = taskConfigs
+	normCtx.CurrentInput = input.TaskConfig.With
+	normCtx.MergedEnv = input.TaskConfig.Env
 
 	output, err := uc.outputTransformer.TransformOutput(
 		input.TaskState.Output,
@@ -211,13 +211,13 @@ func (uc *HandleResponse) normalizeTransitions(
 		return nil, nil, fmt.Errorf("failed to get workflow state: %w", err)
 	}
 
-	// Create normalization context for task2
-	normCtx := &shared.NormalizationContext{
-		WorkflowState:  workflowState,
-		WorkflowConfig: input.WorkflowConfig,
-		TaskConfig:     input.TaskConfig,
-		CurrentInput:   input.TaskState.Input,
+	// Create normalization context for task2 with proper Variables
+	contextBuilder, err := shared.NewContextBuilder()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
+	normCtx := contextBuilder.BuildContext(workflowState, input.WorkflowConfig, input.TaskConfig)
+	normCtx.CurrentInput = input.TaskState.Input
 
 	// Normalize success transition
 	var normalizedOnSuccess *core.SuccessTransition

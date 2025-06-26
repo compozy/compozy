@@ -46,7 +46,8 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 		configStore.On("SaveMetadata", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		configStore.On("GetMetadata", mock.Anything, mock.Anything).Return(expectedBytes, nil)
 
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 
 		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
@@ -62,7 +63,7 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 		}
 
 		// Act
-		err := cm.PrepareParallelConfigs(context.Background(), parentStateID, taskConfig)
+		err = cm.PrepareParallelConfigs(context.Background(), parentStateID, taskConfig)
 
 		// Assert
 		require.NoError(t, err)
@@ -83,7 +84,8 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 	t.Run("Should fail with empty parent state ID", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -93,7 +95,7 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 		taskConfig.Type = task.TaskTypeParallel
 
 		// Act
-		err := cm.PrepareParallelConfigs(context.Background(), "", taskConfig)
+		err = cm.PrepareParallelConfigs(context.Background(), "", taskConfig)
 
 		// Assert
 		require.Error(t, err)
@@ -103,11 +105,12 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 	t.Run("Should fail with nil task config", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 		parentStateID := core.MustNewID()
 
 		// Act
-		err := cm.PrepareParallelConfigs(context.Background(), parentStateID, nil)
+		err = cm.PrepareParallelConfigs(context.Background(), parentStateID, nil)
 
 		// Assert
 		require.Error(t, err)
@@ -117,7 +120,8 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 	t.Run("Should fail with wrong task type", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 		parentStateID := core.MustNewID()
 		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
@@ -128,7 +132,7 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 		taskConfig.Type = task.TaskTypeBasic
 
 		// Act
-		err := cm.PrepareParallelConfigs(context.Background(), parentStateID, taskConfig)
+		err = cm.PrepareParallelConfigs(context.Background(), parentStateID, taskConfig)
 
 		// Assert
 		require.Error(t, err)
@@ -138,7 +142,8 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 	t.Run("Should fail with no child tasks", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 		parentStateID := core.MustNewID()
 		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
@@ -150,7 +155,7 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 		}
 
 		// Act
-		err := cm.PrepareParallelConfigs(context.Background(), parentStateID, taskConfig)
+		err = cm.PrepareParallelConfigs(context.Background(), parentStateID, taskConfig)
 
 		// Assert
 		require.Error(t, err)
@@ -160,7 +165,8 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 	t.Run("Should fail with child config missing ID", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 		parentStateID := core.MustNewID()
 		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
@@ -175,7 +181,7 @@ func TestConfigManager_PrepareParallelConfigs(t *testing.T) {
 		}
 
 		// Act
-		err := cm.PrepareParallelConfigs(context.Background(), parentStateID, taskConfig)
+		err = cm.PrepareParallelConfigs(context.Background(), parentStateID, taskConfig)
 
 		// Assert
 		require.Error(t, err)
@@ -207,7 +213,8 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 		configStore.On("SaveMetadata", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		configStore.On("GetMetadata", mock.Anything, mock.Anything).Return(storedBytes, nil)
 
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 		workflowState := &workflow.State{
 			WorkflowExecID: core.MustNewID(),
 			WorkflowID:     "test-workflow",
@@ -267,7 +274,8 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 	t.Run("Should fail with empty parent state ID", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 		workflowState := &workflow.State{}
 		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
@@ -278,7 +286,7 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 		taskConfig.Type = task.TaskTypeCollection
 
 		// Act
-		_, err := cm.PrepareCollectionConfigs(
+		_, err = cm.PrepareCollectionConfigs(
 			context.Background(),
 			"",
 			taskConfig,
@@ -294,12 +302,13 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 	t.Run("Should fail with nil task config", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 		parentStateID := core.MustNewID()
 		workflowState := &workflow.State{}
 
 		// Act
-		_, err := cm.PrepareCollectionConfigs(
+		_, err = cm.PrepareCollectionConfigs(
 			context.Background(),
 			parentStateID,
 			nil,
@@ -315,7 +324,8 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 	t.Run("Should fail with wrong task type", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 		parentStateID := core.MustNewID()
 		workflowState := &workflow.State{}
 		CWD, _ := core.CWDFromPath("/tmp")
@@ -327,7 +337,7 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 		taskConfig.Type = task.TaskTypeBasic
 
 		// Act
-		_, err := cm.PrepareCollectionConfigs(
+		_, err = cm.PrepareCollectionConfigs(
 			context.Background(),
 			parentStateID,
 			taskConfig,
@@ -343,7 +353,8 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 	t.Run("Should fail with nil workflow state", func(t *testing.T) {
 		// Arrange
 		configStore := NewMockConfigStore()
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 		parentStateID := core.MustNewID()
 		CWD, _ := core.CWDFromPath("/tmp")
 		taskConfig := &task.Config{
@@ -354,7 +365,7 @@ func TestConfigManager_PrepareCollectionConfigs(t *testing.T) {
 		taskConfig.Type = task.TaskTypeCollection
 
 		// Act
-		_, err := cm.PrepareCollectionConfigs(
+		_, err = cm.PrepareCollectionConfigs(
 			context.Background(),
 			parentStateID,
 			taskConfig,
@@ -402,7 +413,8 @@ func TestConfigManager_LoadParallelTaskMetadata(t *testing.T) {
 		configStore.On("SaveMetadata", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		configStore.On("GetMetadata", mock.Anything, mock.Anything).Return(expectedBytes, nil)
 
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 		CWD, _ := core.CWDFromPath("/tmp")
 		originalTaskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -420,7 +432,7 @@ func TestConfigManager_LoadParallelTaskMetadata(t *testing.T) {
 		}
 
 		// Store the metadata first
-		err := cm.PrepareParallelConfigs(context.Background(), parentStateID, originalTaskConfig)
+		err = cm.PrepareParallelConfigs(context.Background(), parentStateID, originalTaskConfig)
 		require.NoError(t, err)
 
 		// Act
@@ -441,11 +453,12 @@ func TestConfigManager_LoadParallelTaskMetadata(t *testing.T) {
 		configStore := NewMockConfigStore()
 		// Mock GetMetadata to return error for missing metadata
 		configStore.On("GetMetadata", mock.Anything, mock.Anything).Return(nil, errors.New("metadata not found"))
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 		parentStateID := core.MustNewID()
 
 		// Act
-		_, err := cm.LoadParallelTaskMetadata(context.Background(), parentStateID)
+		_, err = cm.LoadParallelTaskMetadata(context.Background(), parentStateID)
 
 		// Assert
 		require.Error(t, err)
@@ -480,7 +493,8 @@ func TestConfigManager_LoadCollectionTaskMetadata(t *testing.T) {
 		// Set up mock expectations for collection metadata
 		configStore.On("SaveMetadata", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		configStore.On("GetMetadata", mock.Anything, mock.Anything).Return(expectedBytes, nil)
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 		workflowState := &workflow.State{
 			WorkflowExecID: core.MustNewID(),
 			WorkflowID:     "test-workflow",
@@ -506,7 +520,7 @@ func TestConfigManager_LoadCollectionTaskMetadata(t *testing.T) {
 		}
 
 		// Store the metadata first
-		_, err := cm.PrepareCollectionConfigs(
+		_, err = cm.PrepareCollectionConfigs(
 			context.Background(),
 			parentStateID,
 			originalTaskConfig,
@@ -533,11 +547,12 @@ func TestConfigManager_LoadCollectionTaskMetadata(t *testing.T) {
 		configStore := NewMockConfigStore()
 		// Mock GetMetadata to return error for missing metadata
 		configStore.On("GetMetadata", mock.Anything, mock.Anything).Return(nil, errors.New("metadata not found"))
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 		parentStateID := core.MustNewID()
 
 		// Act
-		_, err := cm.LoadCollectionTaskMetadata(context.Background(), parentStateID)
+		_, err = cm.LoadCollectionTaskMetadata(context.Background(), parentStateID)
 
 		// Assert
 		require.Error(t, err)
@@ -551,7 +566,8 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 		configStore := NewMockConfigStore()
 		// Set up mock expectations for empty collection metadata
 		configStore.On("SaveMetadata", mock.Anything, mock.Anything, mock.Anything).Return(nil)
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 
 		parentStateID := core.MustNewID()
 		workflowState := &workflow.State{
@@ -614,7 +630,8 @@ func TestConfigManager_EdgeCases(t *testing.T) {
 		}
 		metadataBytes, _ := json.Marshal(metadataWithBatch)
 		configStore.On("GetMetadata", mock.Anything, mock.Anything).Return(metadataBytes, nil)
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 
 		parentStateID := core.MustNewID()
 		workflowState := &workflow.State{
@@ -672,10 +689,11 @@ func TestConfigManager_TaskConfigOperations(t *testing.T) {
 		configStore.On("Delete", mock.Anything, mock.Anything).Return(nil)
 		configStore.On("Get", mock.Anything, mock.Anything).Return(nil, errors.New("not found"))
 
-		cm := NewConfigManager(configStore, nil)
+		cm, err := NewConfigManager(configStore, nil)
+		require.NoError(t, err)
 		ctx := context.Background()
 		taskExecID := core.MustNewID()
-		err := cm.SaveTaskConfig(ctx, taskExecID, &taskConfig)
+		err = cm.SaveTaskConfig(ctx, taskExecID, &taskConfig)
 		require.NoError(t, err)
 		savedConfig, err := configStore.Get(ctx, string(taskExecID))
 		require.NoError(t, err)

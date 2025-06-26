@@ -103,26 +103,18 @@ func (ot *OutputTransformer) transformOutputFields(
 	return result, nil
 }
 
-// buildChildrenContext is a helper function to build children context
-// This is a simplified version - the actual implementation is in ContextBuilder
+// buildChildrenContext delegates to the actual ContextBuilder implementation
 func buildChildrenContext(parentState *task.State, ctx *shared.NormalizationContext) map[string]any {
-	children := make(map[string]any)
-	parentExecID := string(parentState.TaskExecID)
-	if childTaskIDs, exists := ctx.ChildrenIndex[parentExecID]; exists {
-		for _, childTaskID := range childTaskIDs {
-			if childState, exists := ctx.WorkflowState.Tasks[childTaskID]; exists {
-				childMap := map[string]any{
-					"id":     childTaskID,
-					"input":  childState.Input,
-					"output": childState.Output,
-					"status": childState.Status,
-				}
-				if childState.Error != nil {
-					childMap["error"] = childState.Error
-				}
-				children[childTaskID] = childMap
-			}
-		}
-	}
-	return children
+	// Use the ChildrenIndexBuilder's implementation to avoid code duplication
+	childrenBuilder := shared.NewChildrenIndexBuilder()
+	taskOutputBuilder := shared.NewTaskOutputBuilder()
+
+	return childrenBuilder.BuildChildrenContext(
+		parentState,
+		ctx.WorkflowState,
+		ctx.ChildrenIndex,
+		ctx.TaskConfigs,
+		taskOutputBuilder,
+		0, // depth
+	)
 }

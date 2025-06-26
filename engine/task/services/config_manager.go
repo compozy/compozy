@@ -55,22 +55,25 @@ type ConfigManager struct {
 	configStore          ConfigStore
 	collectionNormalizer *collection.Normalizer
 	contextBuilder       *shared.ContextBuilder
+	configBuilder        *collection.ConfigBuilder
 }
 
-func NewConfigManager(configStore ConfigStore, cwd *core.PathCWD) *ConfigManager {
+func NewConfigManager(configStore ConfigStore, cwd *core.PathCWD) (*ConfigManager, error) {
 	contextBuilder, err := shared.NewContextBuilder()
 	if err != nil {
-		panic(fmt.Sprintf("failed to create context builder: %v", err))
+		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
 	engine := tplengine.NewEngine(tplengine.FormatJSON)
 	templateEngineAdapter := task2.NewTemplateEngineAdapter(engine)
 	collectionNormalizer := collection.NewNormalizer(templateEngineAdapter, contextBuilder)
+	configBuilder := collection.NewConfigBuilder(templateEngineAdapter)
 	return &ConfigManager{
 		cwd:                  cwd,
 		configStore:          configStore,
 		collectionNormalizer: collectionNormalizer,
 		contextBuilder:       contextBuilder,
-	}
+		configBuilder:        configBuilder,
+	}, nil
 }
 
 // PrepareParallelConfigs stores parallel task configuration for later child creation
@@ -434,13 +437,10 @@ func (cm *ConfigManager) createChildConfigs(
 	templateContext map[string]any,
 ) ([]task.Config, error) {
 	var childConfigs []task.Config
-	engine := tplengine.NewEngine(tplengine.FormatJSON)
-	templateEngineAdapter := task2.NewTemplateEngineAdapter(engine)
-	configBuilder := collection.NewConfigBuilder(templateEngineAdapter)
 
 	for i, item := range filteredItems {
 		itemContext := cm.collectionNormalizer.CreateItemContext(templateContext, &taskConfig.CollectionConfig, item, i)
-		childConfig, err := configBuilder.BuildTaskConfig(
+		childConfig, err := cm.configBuilder.BuildTaskConfig(
 			&taskConfig.CollectionConfig,
 			taskConfig,
 			item,
@@ -453,7 +453,7 @@ func (cm *ConfigManager) createChildConfigs(
 
 		// Process the With field templates using the item context
 		if childConfig.With != nil {
-			processedWith, err := templateEngineAdapter.ParseValue(*childConfig.With, itemContext)
+			processedWith, err := cm.configBuilder.GetTemplateEngine().ParseValue(*childConfig.With, itemContext)
 			if err != nil {
 				return nil, fmt.Errorf("failed to process child config templates for item %d: %w", i, err)
 			}

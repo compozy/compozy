@@ -1,6 +1,8 @@
 package task2
 
 import (
+	"fmt"
+
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
@@ -30,7 +32,7 @@ func (a *TemplateEngineAdapter) ProcessMap(data map[string]any, vars map[string]
 	if m, ok := result.(map[string]any); ok {
 		return m, nil
 	}
-	return nil, nil
+	return nil, fmt.Errorf("expected map[string]any but got %T", result)
 }
 
 // ProcessSlice implements shared.TemplateEngine
@@ -69,7 +71,7 @@ func (a *TemplateEngineAdapter) ParseMapWithFilter(
 	if m, ok := result.(map[string]any); ok {
 		return m, nil
 	}
-	return nil, nil
+	return nil, fmt.Errorf("expected map[string]any but got %T", result)
 }
 
 // ParseMap implements shared.TemplateEngine
@@ -82,7 +84,7 @@ func (a *TemplateEngineAdapter) ParseMap(data map[string]any, vars map[string]an
 	if m, ok := result.(map[string]any); ok {
 		return m, nil
 	}
-	return nil, nil
+	return nil, fmt.Errorf("expected map[string]any but got %T", result)
 }
 
 // ParseValue implements shared.TemplateEngine

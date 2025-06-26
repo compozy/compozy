@@ -98,7 +98,10 @@ func (n *BaseSubTaskNormalizer) normalizeSingleSubTask(
 	ctx *NormalizationContext,
 ) error {
 	// Create sub-task context with parent task as context
-	subTaskCtx := n.contextBuilder.BuildNormalizationSubTaskContext(ctx, parentConfig, subTask)
+	subTaskCtx, err := n.contextBuilder.BuildNormalizationSubTaskContext(ctx, parentConfig, subTask)
+	if err != nil {
+		return fmt.Errorf("failed to build sub-task context: %w", err)
+	}
 
 	// Get normalizer for sub-task type
 	subNormalizer, err := n.normalizerFactory.CreateNormalizer(string(subTask.Type))

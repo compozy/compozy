@@ -16,18 +16,23 @@ import (
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
-func TestConfigOrchestrator_NormalizeTask(t *testing.T) {
-	// Create real template engine
+func setupOrchestrator(t *testing.T) *task2.ConfigOrchestrator {
+	t.Helper()
 	tplEngine := tplengine.NewEngine(tplengine.FormatText)
 	templateEngine := task2.NewTemplateEngineAdapter(tplEngine)
 	envMerger := tmplcore.NewEnvMerger()
 
-	// Create factory and orchestrator
 	factory, err := task2.NewNormalizerFactory(templateEngine, envMerger)
 	require.NoError(t, err)
 
 	orchestrator, err := task2.NewConfigOrchestrator(factory)
 	require.NoError(t, err)
+
+	return orchestrator
+}
+
+func TestConfigOrchestrator_NormalizeTask(t *testing.T) {
+	orchestrator := setupOrchestrator(t)
 
 	t.Run("Should normalize basic task with template expressions", func(t *testing.T) {
 		// Setup workflow state
@@ -175,17 +180,7 @@ func TestConfigOrchestrator_NormalizeTask(t *testing.T) {
 }
 
 func TestConfigOrchestrator_NormalizeAgentComponent(t *testing.T) {
-	// Create real template engine
-	tplEngine := tplengine.NewEngine(tplengine.FormatText)
-	templateEngine := task2.NewTemplateEngineAdapter(tplEngine)
-	envMerger := tmplcore.NewEnvMerger()
-
-	// Create factory and orchestrator
-	factory, err := task2.NewNormalizerFactory(templateEngine, envMerger)
-	require.NoError(t, err)
-
-	orchestrator, err := task2.NewConfigOrchestrator(factory)
-	require.NoError(t, err)
+	orchestrator := setupOrchestrator(t)
 
 	t.Run("Should normalize agent with template expressions", func(t *testing.T) {
 		// Setup workflow state
@@ -247,17 +242,7 @@ func TestConfigOrchestrator_NormalizeAgentComponent(t *testing.T) {
 }
 
 func TestConfigOrchestrator_NormalizeToolComponent(t *testing.T) {
-	// Create real template engine
-	tplEngine := tplengine.NewEngine(tplengine.FormatText)
-	templateEngine := task2.NewTemplateEngineAdapter(tplEngine)
-	envMerger := tmplcore.NewEnvMerger()
-
-	// Create factory and orchestrator
-	factory, err := task2.NewNormalizerFactory(templateEngine, envMerger)
-	require.NoError(t, err)
-
-	orchestrator, err := task2.NewConfigOrchestrator(factory)
-	require.NoError(t, err)
+	orchestrator := setupOrchestrator(t)
 
 	t.Run("Should normalize tool with template expressions", func(t *testing.T) {
 		// Setup workflow state
@@ -323,17 +308,7 @@ func TestConfigOrchestrator_NormalizeToolComponent(t *testing.T) {
 }
 
 func TestConfigOrchestrator_NormalizeTransitions(t *testing.T) {
-	// Create real template engine
-	tplEngine := tplengine.NewEngine(tplengine.FormatText)
-	templateEngine := task2.NewTemplateEngineAdapter(tplEngine)
-	envMerger := tmplcore.NewEnvMerger()
-
-	// Create factory and orchestrator
-	factory, err := task2.NewNormalizerFactory(templateEngine, envMerger)
-	require.NoError(t, err)
-
-	orchestrator, err := task2.NewConfigOrchestrator(factory)
-	require.NoError(t, err)
+	orchestrator := setupOrchestrator(t)
 
 	t.Run("Should normalize success transition", func(t *testing.T) {
 		// Setup workflow state
@@ -419,17 +394,7 @@ func TestConfigOrchestrator_NormalizeTransitions(t *testing.T) {
 }
 
 func TestConfigOrchestrator_NormalizeOutputs(t *testing.T) {
-	// Create real template engine
-	tplEngine := tplengine.NewEngine(tplengine.FormatText)
-	templateEngine := task2.NewTemplateEngineAdapter(tplEngine)
-	envMerger := tmplcore.NewEnvMerger()
-
-	// Create factory and orchestrator
-	factory, err := task2.NewNormalizerFactory(templateEngine, envMerger)
-	require.NoError(t, err)
-
-	orchestrator, err := task2.NewConfigOrchestrator(factory)
-	require.NoError(t, err)
+	orchestrator := setupOrchestrator(t)
 
 	t.Run("Should transform task output", func(t *testing.T) {
 		// Setup workflow state

@@ -32,13 +32,16 @@ func NewCreateCompositeState(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	cwd *core.PathCWD,
-) *CreateCompositeState {
-	configManager := services.NewConfigManager(configStore, cwd)
+) (*CreateCompositeState, error) {
+	configManager, err := services.NewConfigManager(configStore, cwd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config manager: %w", err)
+	}
 	return &CreateCompositeState{
 		loadWorkflowUC:     uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:      uc.NewCreateState(taskRepo, configManager),
 		createChildTasksUC: uc.NewCreateChildTasksUC(taskRepo, configManager),
-	}
+	}, nil
 }
 
 func (a *CreateCompositeState) Run(ctx context.Context, input *CreateCompositeStateInput) (*task.State, error) {

@@ -106,7 +106,8 @@ func createTestActivities(
 
 	// Create a test config store and manager
 	configStore := createTestConfigStore()
-	configManager := createTestConfigManager(configStore)
+	configManager, err := createTestConfigManager(configStore)
+	require.NoError(t, err)
 
 	// Create a mock runtime manager for testing (we don't need actual tool execution)
 	mockRuntime := createMockRuntime(t)
@@ -258,7 +259,7 @@ func createTestConfigStore() services.ConfigStore {
 }
 
 // createTestConfigManager creates a test config manager
-func createTestConfigManager(configStore services.ConfigStore) *services.ConfigManager {
+func createTestConfigManager(configStore services.ConfigStore) (*services.ConfigManager, error) {
 	return services.NewConfigManager(configStore, nil)
 }
 

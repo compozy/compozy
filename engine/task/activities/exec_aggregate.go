@@ -36,13 +36,16 @@ func NewExecuteAggregate(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	cwd *core.PathCWD,
-) *ExecuteAggregate {
-	configManager := services.NewConfigManager(configStore, cwd)
+) (*ExecuteAggregate, error) {
+	configManager, err := services.NewConfigManager(configStore, cwd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config manager: %w", err)
+	}
 	return &ExecuteAggregate{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:  uc.NewCreateState(taskRepo, configManager),
 		taskResponder:  services.NewTaskResponder(workflowRepo, taskRepo),
-	}
+	}, nil
 }
 
 func (a *ExecuteAggregate) Run(ctx context.Context, input *ExecuteAggregateInput) (*task.MainTaskResponse, error) {
@@ -158,15 +161,15 @@ func (a *ExecuteAggregate) executeAggregate(
 	// Build task configs map for context
 	taskConfigs := task2.BuildTaskConfigsMap(workflowConfig.Tasks)
 
-	// Create normalization context
-	normCtx := &shared.NormalizationContext{
-		WorkflowState:  workflowState,
-		WorkflowConfig: workflowConfig,
-		TaskConfig:     taskConfig,
-		TaskConfigs:    taskConfigs,
-		CurrentInput:   taskConfig.With,
-		MergedEnv:      taskConfig.Env,
+	// Create normalization context with proper Variables
+	contextBuilder, err := shared.NewContextBuilder()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
+	normCtx := contextBuilder.BuildContext(workflowState, workflowConfig, taskConfig)
+	normCtx.TaskConfigs = taskConfigs
+	normCtx.CurrentInput = taskConfig.With
+	normCtx.MergedEnv = taskConfig.Env
 
 	processedOutput, err := outputTransformer.TransformOutput(
 		emptyOutput,

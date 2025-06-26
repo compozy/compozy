@@ -9,13 +9,13 @@ import (
 
 // SuccessTransitionNormalizer handles success transition normalization
 type SuccessTransitionNormalizer struct {
-	templateEngine shared.TemplateEngine
+	*TransitionNormalizer[*core.SuccessTransition]
 }
 
 // NewSuccessTransitionNormalizer creates a new success transition normalizer
 func NewSuccessTransitionNormalizer(templateEngine shared.TemplateEngine) *SuccessTransitionNormalizer {
 	return &SuccessTransitionNormalizer{
-		templateEngine: templateEngine,
+		TransitionNormalizer: NewTransitionNormalizer[*core.SuccessTransition](templateEngine),
 	}
 }
 

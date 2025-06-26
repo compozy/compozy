@@ -30,6 +30,16 @@ func (n *AgentNormalizer) NormalizeAgent(
 	if config == nil {
 		return nil
 	}
+	// Merge environment variables across workflow -> task -> agent levels
+	mergedEnv := n.envMerger.MergeThreeLevels(
+		ctx.WorkflowConfig,
+		ctx.TaskConfig,
+		config.Env, // Agent's environment overrides task and workflow
+	)
+
+	// Update context with merged environment for template processing
+	ctx.MergedEnv = mergedEnv
+
 	// Set current input if not already set
 	if ctx.CurrentInput == nil && config.With != nil {
 		ctx.CurrentInput = config.With
@@ -96,6 +106,7 @@ func (n *AgentNormalizer) normalizeAgentActions(
 			CurrentInput:  aConfig.With,
 			MergedEnv:     ctx.MergedEnv,
 			ChildrenIndex: ctx.ChildrenIndex,
+			Variables:     ctx.Variables, // Copy variables to preserve workflow context
 		}
 		// Normalize the action config
 		if err := n.normalizeAgentActionConfig(aConfig, actionCtx); err != nil {

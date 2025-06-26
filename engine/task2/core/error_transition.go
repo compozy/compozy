@@ -9,13 +9,13 @@ import (
 
 // ErrorTransitionNormalizer handles error transition normalization
 type ErrorTransitionNormalizer struct {
-	templateEngine shared.TemplateEngine
+	*TransitionNormalizer[*core.ErrorTransition]
 }
 
 // NewErrorTransitionNormalizer creates a new error transition normalizer
 func NewErrorTransitionNormalizer(templateEngine shared.TemplateEngine) *ErrorTransitionNormalizer {
 	return &ErrorTransitionNormalizer{
-		templateEngine: templateEngine,
+		TransitionNormalizer: NewTransitionNormalizer[*core.ErrorTransition](templateEngine),
 	}
 }
 

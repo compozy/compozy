@@ -78,16 +78,16 @@ func (vb *VariableBuilder) AddCurrentInputToVariables(vars map[string]any, curre
 }
 
 // CopyVariables creates a copy of variables map
-func (vb *VariableBuilder) CopyVariables(source map[string]any) map[string]any {
+func (vb *VariableBuilder) CopyVariables(source map[string]any) (map[string]any, error) {
 	if source == nil {
-		return make(map[string]any)
+		return make(map[string]any), nil
 	}
 
-	vars := make(map[string]any)
-	for k, v := range source {
-		vars[k] = v
+	vars, err := core.DeepCopy(source)
+	if err != nil {
+		return nil, err
 	}
-	return vars
+	return vars, nil
 }
 
 // AddParentToVariables adds parent context to variables

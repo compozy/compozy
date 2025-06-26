@@ -454,7 +454,7 @@ definitions:
   schedulerouter.ScheduleInfoResponse:
     properties:
       cron:
-        example: 0 0 9 * * 1-5 *
+        example: 0 0 9 * * 1-5
         type: string
       enabled:
         example: true
@@ -496,7 +496,7 @@ definitions:
   schedulerouter.UpdateScheduleRequest:
     properties:
       cron:
-        example: 0 0 */10 * * * *
+        example: 0 0 */10 * * *
         type: string
       enabled:
         example: false
@@ -556,10 +556,14 @@ definitions:
         allOf:
           - $ref: '#/definitions/core.SuccessTransition'
         description: Task configuration
+      on_timeout:
+        type: string
       output:
         $ref: '#/definitions/schema.Schema'
       outputs:
         $ref: '#/definitions/core.Input'
+      processor:
+        $ref: '#/definitions/task.Config'
       resource:
         type: string
       retries:
@@ -586,6 +590,8 @@ definitions:
         $ref: '#/definitions/tool.Config'
       type:
         $ref: '#/definitions/task.Type'
+      wait_for:
+        type: string
       with:
         $ref: '#/definitions/core.Input'
     type: object
@@ -596,6 +602,7 @@ definitions:
       - parallel
       - collection
       - composite
+      - wait
     type: string
     x-enum-varnames:
       - ExecutionBasic
@@ -603,6 +610,7 @@ definitions:
       - ExecutionParallel
       - ExecutionCollection
       - ExecutionComposite
+      - ExecutionWait
   task.ParallelStrategy:
     enum:
       - wait_all
@@ -679,6 +687,7 @@ definitions:
       - aggregate
       - composite
       - signal
+      - wait
     type: string
     x-enum-varnames:
       - TaskTypeBasic
@@ -688,6 +697,7 @@ definitions:
       - TaskTypeAggregate
       - TaskTypeComposite
       - TaskTypeSignal
+      - TaskTypeWait
   time.Duration:
     enum:
       - -9223372036854775808
@@ -757,6 +767,14 @@ definitions:
         type: string
       workflow_id:
         example: data-processing
+        type: string
+    type: object
+  wfrouter.SignalRequest:
+    type: object
+  wfrouter.SignalResponse:
+    properties:
+      message:
+        example: Signal sent successfully
         type: string
     type: object
   workflow.Config:
@@ -1796,6 +1814,66 @@ paths:
                     $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Resume workflow execution
+      tags:
+        - executions
+  /executions/workflows/{exec_id}/signals:
+    post:
+      consumes:
+        - application/json
+      description: Send a signal with payload to a specific workflow execution
+      parameters:
+        - description: Workflow Execution ID
+          example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
+          in: path
+          name: exec_id
+          required: true
+          type: string
+        - description: Signal data
+          in: body
+          name: signal
+          required: true
+          schema:
+            $ref: '#/definitions/wfrouter.SignalRequest'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Signal sent successfully
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/wfrouter.SignalResponse'
+                type: object
+        "400":
+          description: Invalid execution ID or signal data
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "404":
+          description: Execution not found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Send signal to workflow execution
       tags:
         - executions
   /metrics:

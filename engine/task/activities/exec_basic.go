@@ -35,14 +35,17 @@ func NewExecuteBasic(
 	runtime *runtime.Manager,
 	configStore services.ConfigStore,
 	cwd *core.PathCWD,
-) *ExecuteBasic {
-	configManager := services.NewConfigManager(configStore, cwd)
+) (*ExecuteBasic, error) {
+	configManager, err := services.NewConfigManager(configStore, cwd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config manager: %w", err)
+	}
 	return &ExecuteBasic{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:  uc.NewCreateState(taskRepo, configManager),
 		executeUC:      uc.NewExecuteTask(runtime),
 		taskResponder:  services.NewTaskResponder(workflowRepo, taskRepo),
-	}
+	}, nil
 }
 
 func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task.MainTaskResponse, error) {

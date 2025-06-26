@@ -1,6 +1,9 @@
 package shared
 
 import (
+	"os"
+	"strconv"
+
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 )
@@ -17,11 +20,30 @@ type TaskOutputBuilder interface {
 }
 
 // DefaultTaskOutputBuilder implements TaskOutputBuilder
-type DefaultTaskOutputBuilder struct{}
+type DefaultTaskOutputBuilder struct {
+	maxDepth int
+}
 
 // NewTaskOutputBuilder creates a new task output builder
 func NewTaskOutputBuilder() TaskOutputBuilder {
-	return &DefaultTaskOutputBuilder{}
+	maxDepth := getMaxContextDepthFromEnv()
+	return &DefaultTaskOutputBuilder{
+		maxDepth: maxDepth,
+	}
+}
+
+// getMaxContextDepthFromEnv gets the max context depth from environment variable
+// with a default fallback of 10
+func getMaxContextDepthFromEnv() int {
+	const defaultMaxDepth = 10
+	envValue := os.Getenv("COMPOZY_MAX_TASK_CONTEXT_DEPTH")
+	if envValue == "" {
+		return defaultMaxDepth
+	}
+	if depth, err := strconv.Atoi(envValue); err == nil && depth > 0 {
+		return depth
+	}
+	return defaultMaxDepth
 }
 
 // BuildTaskOutput builds task output recursively
@@ -32,8 +54,7 @@ func (tob *DefaultTaskOutputBuilder) BuildTaskOutput(
 	depth int,
 ) any {
 	// Prevent unbounded recursion
-	const maxContextDepth = 10
-	if depth >= maxContextDepth || taskState == nil {
+	if depth >= tob.maxDepth || taskState == nil {
 		return nil
 	}
 	if taskState.CanHaveChildren() {

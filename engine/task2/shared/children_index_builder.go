@@ -118,7 +118,7 @@ func (cib *ChildrenIndexBuilder) mergeTaskConfigWithoutParent(
 		return err
 	}
 	for k, v := range taskConfigMap {
-		if k != "input" && k != "output" && k != "parent" {
+		if k != "input" && k != OutputKey && k != "parent" {
 			taskContext[k] = v
 		}
 	}

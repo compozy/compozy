@@ -139,7 +139,10 @@ func NewWorker(
 	log.Debug("Redis cache connected", "duration", time.Since(cacheStart))
 	// Create Redis-backed ConfigStore with 24h TTL as per PRD
 	configStore := services.NewRedisConfigStore(redisCache.Redis, 24*time.Hour)
-	configManager := services.NewConfigManager(configStore, nil)
+	configManager, err := services.NewConfigManager(configStore, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config manager: %w", err)
+	}
 	// Initialize MCP register and register all MCPs from all workflows
 	mcpStart := time.Now()
 	workflowConfigs := make([]mcp.WorkflowConfig, len(workflows))

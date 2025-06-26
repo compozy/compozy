@@ -21,6 +21,11 @@ func NewConfigBuilder(templateEngine shared.TemplateEngine) *ConfigBuilder {
 	}
 }
 
+// GetTemplateEngine returns the template engine instance
+func (cb *ConfigBuilder) GetTemplateEngine() shared.TemplateEngine {
+	return cb.templateEngine
+}
+
 // BuildTaskConfig builds a task config for a collection item
 func (cb *ConfigBuilder) BuildTaskConfig(
 	collectionConfig *task.CollectionConfig,
@@ -34,8 +39,11 @@ func (cb *ConfigBuilder) BuildTaskConfig(
 	}
 	// Create item context with item and index
 	itemContext := cb.createItemContext(context, collectionConfig, item, index)
-	// Clone the task template
-	taskConfig := *parentTaskConfig.Task
+	// Clone the task template using deep copy to avoid shared references
+	taskConfig, err := parentTaskConfig.Task.Clone()
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone task template: %w", err)
+	}
 	// Merge inputs: parent.with -> task.with -> item context
 	mergedInput := make(core.Input)
 	// Start with parent task with if available
@@ -65,7 +73,7 @@ func (cb *ConfigBuilder) BuildTaskConfig(
 		}
 		taskConfig.ID = processedID
 	}
-	return &taskConfig, nil
+	return taskConfig, nil
 }
 
 // createItemContext creates a context for a collection item

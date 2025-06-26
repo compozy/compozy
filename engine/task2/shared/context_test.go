@@ -75,6 +75,7 @@ func TestContextBuilder_BuildContext(t *testing.T) {
 
 		// Act
 		ctx := builder.BuildContext(workflowState, workflowConfig, taskConfig)
+		require.NoError(t, err)
 
 		// Assert
 		require.NotNil(t, ctx)
@@ -351,7 +352,8 @@ func TestContextBuilder_BuildSubTaskContext(t *testing.T) {
 		}
 
 		// Act
-		subTaskCtx := builder.BuildSubTaskContext(baseCtx, parentTask, parentState)
+		subTaskCtx, err := builder.BuildSubTaskContext(baseCtx, parentTask, parentState)
+		require.NoError(t, err)
 
 		// Assert
 		require.NotNil(t, subTaskCtx)
@@ -387,7 +389,8 @@ func TestContextBuilder_BuildSubTaskContext(t *testing.T) {
 		}
 
 		// Act
-		subTaskCtx := builder.BuildSubTaskContext(baseCtx, parentTask, parentState)
+		subTaskCtx, err := builder.BuildSubTaskContext(baseCtx, parentTask, parentState)
+		require.NoError(t, err)
 
 		// Assert
 		current, ok := subTaskCtx.Variables["current"].(map[string]any)

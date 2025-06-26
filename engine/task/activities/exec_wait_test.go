@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
@@ -64,13 +65,14 @@ func TestExecuteWait_Run(t *testing.T) {
 			state.TaskExecID = taskExecID
 		})
 		// Create activity
-		activity := NewExecuteWait(
+		activity, err := NewExecuteWait(
 			[]*workflow.Config{workflowConfig},
 			workflowRepo,
 			taskRepo,
 			configStore,
 			cwd,
 		)
+		require.NoError(t, err)
 		input := &ExecuteWaitInput{
 			WorkflowID:     workflowID,
 			WorkflowExecID: workflowExecID,
@@ -105,13 +107,14 @@ func TestExecuteWait_Run(t *testing.T) {
 		taskRepo := new(store.MockTaskRepo)
 		configStore := new(services.MockConfigStore)
 		// Create activity
-		activity := NewExecuteWait(
+		activity, err := NewExecuteWait(
 			[]*workflow.Config{},
 			workflowRepo,
 			taskRepo,
 			configStore,
 			cwd,
 		)
+		require.NoError(t, err)
 		input := &ExecuteWaitInput{
 			WorkflowID:     workflowID,
 			WorkflowExecID: workflowExecID,
@@ -145,13 +148,14 @@ func TestExecuteWait_Run(t *testing.T) {
 		// Set up mocks
 		workflowRepo.On("GetState", ctx, workflowExecID).Return(nil, errors.New("workflow not found"))
 		// Create activity
-		activity := NewExecuteWait(
+		activity, err := NewExecuteWait(
 			[]*workflow.Config{},
 			workflowRepo,
 			taskRepo,
 			configStore,
 			cwd,
 		)
+		require.NoError(t, err)
 		input := &ExecuteWaitInput{
 			WorkflowID:     workflowID,
 			WorkflowExecID: workflowExecID,
@@ -200,13 +204,14 @@ func TestExecuteWait_Run(t *testing.T) {
 		// Set up mocks
 		workflowRepo.On("GetState", ctx, workflowExecID).Return(workflowState, nil)
 		// Create activity
-		activity := NewExecuteWait(
+		activity, err := NewExecuteWait(
 			[]*workflow.Config{workflowConfig},
 			workflowRepo,
 			taskRepo,
 			configStore,
 			cwd,
 		)
+		require.NoError(t, err)
 		input := &ExecuteWaitInput{
 			WorkflowID:     workflowID,
 			WorkflowExecID: workflowExecID,
@@ -281,13 +286,14 @@ func TestExecuteWait_Run(t *testing.T) {
 			state.TaskExecID = taskExecID
 		})
 		// Create activity
-		activity := NewExecuteWait(
+		activity, err := NewExecuteWait(
 			[]*workflow.Config{workflowConfig},
 			workflowRepo,
 			taskRepo,
 			configStore,
 			cwd,
 		)
+		require.NoError(t, err)
 		input := &ExecuteWaitInput{
 			WorkflowID:     workflowID,
 			WorkflowExecID: workflowExecID,

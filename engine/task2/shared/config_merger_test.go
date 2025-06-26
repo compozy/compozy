@@ -111,9 +111,7 @@ func TestConfigMerger_MergeTaskConfigIfExists(t *testing.T) {
 			"id": "task1",
 		}
 
-		// Create a task config that will cause AsMap() to fail
-		// This is difficult to test directly since AsMap() implementation is not visible
-		// So we'll test the error handling by checking for _merge_error key
+		// Create a task config that will merge successfully
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "task1",
@@ -129,12 +127,31 @@ func TestConfigMerger_MergeTaskConfigIfExists(t *testing.T) {
 		merger.MergeTaskConfigIfExists(taskContext, "task1", taskConfigs)
 
 		// Assert
-		// Should not have _merge_error since AsMap should succeed for valid config
+		// Should not have _merge_error since we no longer add error keys to context
 		_, hasError := taskContext["_merge_error"]
 		assert.False(t, hasError)
 
 		// Should have merged successfully
 		assert.Equal(t, string(task.TaskTypeBasic), taskContext["type"])
+	})
+
+	t.Run("Should handle nil task context gracefully", func(t *testing.T) {
+		// Arrange
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "task1",
+				Type: task.TaskTypeBasic,
+			},
+		}
+
+		taskConfigs := map[string]*task.Config{
+			"task1": taskConfig,
+		}
+
+		// Act & Assert - should not panic
+		assert.NotPanics(t, func() {
+			merger.MergeTaskConfigIfExists(nil, "task1", taskConfigs)
+		})
 	})
 }
 

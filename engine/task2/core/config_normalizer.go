@@ -107,7 +107,10 @@ func (cn *ConfigNormalizer) NormalizeSubTask(
 	}
 
 	// Build sub-task context
-	ctx := cn.contextBuilder.BuildNormalizationSubTaskContext(parentCtx, parentTask, subTask)
+	ctx, err := cn.contextBuilder.BuildNormalizationSubTaskContext(parentCtx, parentTask, subTask)
+	if err != nil {
+		return fmt.Errorf("failed to build sub-task context: %w", err)
+	}
 
 	// Merge environments for sub-task
 	ctx.MergedEnv = cn.envMerger.MergeThreeLevels(

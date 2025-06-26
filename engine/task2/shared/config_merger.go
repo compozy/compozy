@@ -20,13 +20,14 @@ func (cm *ConfigMerger) MergeTaskConfigIfExists(
 	taskID string,
 	taskConfigs map[string]*task.Config,
 ) {
+	if taskContext == nil {
+		return
+	}
 	if taskConfigs != nil {
 		if taskConfig, exists := taskConfigs[taskID]; exists {
-			if err := cm.MergeTaskConfig(taskContext, taskConfig); err != nil {
-				// Log error but continue - best effort merge
-				// This is non-critical for context building
-				taskContext["_merge_error"] = err.Error()
-			}
+			// Ignore merge errors - best effort merge for non-critical context building
+			//nolint:errcheck // Intentionally ignoring errors for non-critical merge operation
+			_ = cm.MergeTaskConfig(taskContext, taskConfig)
 		}
 	}
 }

@@ -33,13 +33,17 @@ func NewExecuteWait(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	cwd *core.PathCWD,
-) *ExecuteWait {
+) (*ExecuteWait, error) {
+	configManager, err := services.NewConfigManager(configStore, cwd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config manager: %w", err)
+	}
 	// Pass dependencies to activity, use cases will be created in Run method
 	return &ExecuteWait{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
-		createStateUC:  uc.NewCreateState(taskRepo, services.NewConfigManager(configStore, cwd)),
+		createStateUC:  uc.NewCreateState(taskRepo, configManager),
 		taskResponder:  services.NewTaskResponder(workflowRepo, taskRepo),
-	}
+	}, nil
 }
 
 func (a *ExecuteWait) Run(ctx context.Context, input *ExecuteWaitInput) (*task.MainTaskResponse, error) {

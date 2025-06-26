@@ -237,17 +237,12 @@ func (o *ConfigOrchestrator) NormalizeTaskOutput(
 	}
 	// Build task configs map
 	taskConfigs := BuildTaskConfigsMap(workflowConfig.Tasks)
-	// Build transformation context
-	normCtx := &shared.NormalizationContext{
-		WorkflowState:  workflowState,
-		WorkflowConfig: workflowConfig,
-		TaskConfig:     taskConfig,
-		TaskConfigs:    taskConfigs,
-		CurrentInput:   taskConfig.With,
-		MergedEnv:      taskConfig.Env,
-	}
-	// Build children index
-	o.contextBuilder.BuildContext(workflowState, workflowConfig, taskConfig)
+	// Build transformation context with proper Variables
+	normCtx := o.contextBuilder.BuildContext(workflowState, workflowConfig, taskConfig)
+	// Set additional fields
+	normCtx.TaskConfigs = taskConfigs
+	normCtx.CurrentInput = taskConfig.With
+	normCtx.MergedEnv = taskConfig.Env
 	// Get output transformer
 	transformer := o.factory.CreateOutputTransformer()
 	// Transform the output
@@ -263,21 +258,16 @@ func (o *ConfigOrchestrator) NormalizeTaskWithSignal(
 ) error {
 	// Build task configs map
 	allTaskConfigsMap := BuildTaskConfigsMap(workflowConfig.Tasks)
-	// Create normalization context
-	normCtx := &shared.NormalizationContext{
-		WorkflowState:  workflowState,
-		WorkflowConfig: workflowConfig,
-		TaskConfig:     config,
-		TaskConfigs:    allTaskConfigsMap,
-		ParentConfig: map[string]any{
-			"id":     workflowState.WorkflowID,
-			"input":  workflowState.Input,
-			"output": workflowState.Output,
-		},
-		MergedEnv: config.Env,
+	// Create normalization context with proper Variables
+	normCtx := o.contextBuilder.BuildContext(workflowState, workflowConfig, config)
+	// Set additional fields
+	normCtx.TaskConfigs = allTaskConfigsMap
+	normCtx.ParentConfig = map[string]any{
+		"id":     workflowState.WorkflowID,
+		"input":  workflowState.Input,
+		"output": workflowState.Output,
 	}
-	// Build template variables
-	o.contextBuilder.BuildContext(workflowState, workflowConfig, config)
+	normCtx.MergedEnv = config.Env
 	// Get wait task normalizer
 	if config.Type != task.TaskTypeWait {
 		return fmt.Errorf("signal normalization only supported for wait tasks, got: %s", config.Type)
