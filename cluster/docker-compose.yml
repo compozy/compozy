@@ -23,9 +23,9 @@
 #
 # Temporal Configuration
 # TEMPORAL_POSTGRESQL_VERSION=15-alpine
-# TEMPORAL_VERSION=1.28.0
-# TEMPORAL_UI_VERSION=2.45.0
-# TEMPORAL_ADMINTOOLS_VERSION=1.28.0
+# TEMPORAL_VERSION=latest
+# TEMPORAL_UI_VERSION=latest
+# TEMPORAL_ADMINTOOLS_VERSION=latest
 # TEMPORAL_HOST=localhost
 # TEMPORAL_PORT=7233
 # TEMPORAL_UI_PORT=8080
@@ -193,7 +193,14 @@ services:
       - "${MCP_PROXY_PORT:-8081}:${MCP_PROXY_PORT:-8081}" # MCP Proxy HTTP API
     healthcheck:
       test:
-        ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${MCP_PROXY_PORT:-8081}/healthz"]
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:${MCP_PROXY_PORT:-8081}/healthz",
+        ]
       interval: 30s
       timeout: 3s
       retries: 3
@@ -204,12 +211,12 @@ services:
     container_name: prometheus
     image: prom/prometheus:v2.52.0
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=7d'
-      - '--web.enable-lifecycle'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-lifecycle"
     networks:
       - temporal-network
     ports:
@@ -218,7 +225,8 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      test:
+        ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
       interval: 30s
       timeout: 3s
       retries: 3
@@ -244,7 +252,11 @@ services:
     depends_on:
       - prometheus
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1",
+        ]
       interval: 30s
       timeout: 3s
       retries: 3

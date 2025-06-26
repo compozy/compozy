@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/engine/infra/cache"
@@ -131,16 +132,28 @@ func (lma *lockManagerAdapter) acquireWithRetry(
 	lockKey string,
 	ttl time.Duration,
 ) (cache.Lock, error) {
+	// Check if this is a flush lock - flush locks should fail fast without retry
+	isFlushLock := strings.Contains(lockKey, ":flush_lock")
+
 	const maxRetries = 3
 	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		cacheLock, err := lma.tryAcquire(ctx, lockKey, ttl)
 		if err == nil {
 			lma.log.Debug("Successfully acquired distributed lock",
-				"key", lockKey, "ttl", ttl, "attempt", attempt+1)
+				"key", lockKey, "ttl", ttl, "attempt", attempt+1, "is_flush", isFlushLock)
 			return cacheLock, nil
 		}
 		lastErr = err
+
+		// For flush locks, don't retry on lock contention
+		if isFlushLock && errors.Is(err, cache.ErrLockNotAcquired) {
+			lma.log.Debug("Flush lock acquisition failed, not retrying",
+				"key", lockKey, "error", err)
+			// Return immediately for flush locks on contention
+			return nil, fmt.Errorf("%w: lock already held for key %s", memcore.ErrLockAcquisitionFailed, lockKey)
+		}
+
 		if !lma.shouldRetry(ctx, attempt, maxRetries) {
 			break
 		}
@@ -148,7 +161,12 @@ func (lma *lockManagerAdapter) acquireWithRetry(
 			return nil, retryErr
 		}
 	}
-	return nil, lma.formatAcquisitionError(lockKey, maxRetries, lastErr)
+	// For flush locks that failed on first attempt, report 0 retries
+	actualRetries := maxRetries
+	if isFlushLock && errors.Is(lastErr, cache.ErrLockNotAcquired) {
+		actualRetries = 0
+	}
+	return nil, lma.formatAcquisitionError(lockKey, actualRetries, lastErr)
 }
 
 // tryAcquire attempts a single lock acquisition with timeout

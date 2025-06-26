@@ -273,6 +273,84 @@ case "${1:-help}" in
         fi
         ;;
 
+    migrate-status)
+        if [ -f "$BRANCH_ENV_FILE" ]; then
+            source "$BRANCH_ENV_FILE"
+            echo -e "${GREEN}Checking migration status for branch: ${YELLOW}$BRANCH_NAME${NC}"
+            GOOSE_DBSTRING="postgres://${DB_USER:-postgres}:${DB_PASSWORD}@${DB_HOST:-localhost}:${DB_PORT}/${DB_NAME}?sslmode=disable"
+            GOOSE_DRIVER=postgres GOOSE_DBSTRING=${GOOSE_DBSTRING} goose -dir ./engine/infra/store/migrations status
+        else
+            echo -e "${RED}Error: Environment file not found. Run '$0 init' first.${NC}"
+            exit 1
+        fi
+        ;;
+
+    migrate-up)
+        if [ -f "$BRANCH_ENV_FILE" ]; then
+            source "$BRANCH_ENV_FILE"
+            echo -e "${GREEN}Running migrations up for branch: ${YELLOW}$BRANCH_NAME${NC}"
+            GOOSE_DBSTRING="postgres://${DB_USER:-postgres}:${DB_PASSWORD}@${DB_HOST:-localhost}:${DB_PORT}/${DB_NAME}?sslmode=disable"
+            GOOSE_DRIVER=postgres GOOSE_DBSTRING=${GOOSE_DBSTRING} goose -dir ./engine/infra/store/migrations up
+            echo -e "${GREEN}Migrations completed!${NC}"
+        else
+            echo -e "${RED}Error: Environment file not found. Run '$0 init' first.${NC}"
+            exit 1
+        fi
+        ;;
+
+    migrate-down)
+        if [ -f "$BRANCH_ENV_FILE" ]; then
+            source "$BRANCH_ENV_FILE"
+            echo -e "${YELLOW}Rolling back one migration for branch: $BRANCH_NAME${NC}"
+            read -p "Are you sure? (y/N) " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                GOOSE_DBSTRING="postgres://${DB_USER:-postgres}:${DB_PASSWORD}@${DB_HOST:-localhost}:${DB_PORT}/${DB_NAME}?sslmode=disable"
+                GOOSE_DRIVER=postgres GOOSE_DBSTRING=${GOOSE_DBSTRING} goose -dir ./engine/infra/store/migrations down
+                echo -e "${GREEN}Migration rolled back!${NC}"
+            fi
+        else
+            echo -e "${RED}Error: Environment file not found. Run '$0 init' first.${NC}"
+            exit 1
+        fi
+        ;;
+
+    migrate-create)
+        if [ -z "$2" ]; then
+            echo -e "${RED}Error: Migration name required${NC}"
+            echo "Usage: $0 migrate-create <migration_name>"
+            exit 1
+        fi
+        migration_name="$2"
+        echo -e "${GREEN}Creating new migration: ${YELLOW}$migration_name${NC}"
+        GOOSE_DRIVER=postgres goose -dir ./engine/infra/store/migrations create "$migration_name" sql
+        echo -e "${GREEN}Migration created!${NC}"
+        ;;
+
+    migrate-validate)
+        echo -e "${GREEN}Validating migrations...${NC}"
+        GOOSE_DRIVER=postgres goose -dir ./engine/infra/store/migrations validate
+        echo -e "${GREEN}Validation complete!${NC}"
+        ;;
+
+    migrate-reset)
+        if [ -f "$BRANCH_ENV_FILE" ]; then
+            source "$BRANCH_ENV_FILE"
+            echo -e "${YELLOW}This will reset all migrations for branch: $BRANCH_NAME${NC}"
+            echo -e "${RED}WARNING: All database data will be lost!${NC}"
+            read -p "Are you sure? (y/N) " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                GOOSE_DBSTRING="postgres://${DB_USER:-postgres}:${DB_PASSWORD}@${DB_HOST:-localhost}:${DB_PORT}/${DB_NAME}?sslmode=disable"
+                GOOSE_DRIVER=postgres GOOSE_DBSTRING=${GOOSE_DBSTRING} goose -dir ./engine/infra/store/migrations reset
+                echo -e "${GREEN}Migrations reset!${NC}"
+            fi
+        else
+            echo -e "${RED}Error: Environment file not found. Run '$0 init' first.${NC}"
+            exit 1
+        fi
+        ;;
+
     switch)
         # Show all available branch environments
         echo -e "${GREEN}Available branch environments:${NC}"
@@ -304,6 +382,12 @@ case "${1:-help}" in
         echo "  config     Show current configuration"
         echo "  clean      Remove all resources for current branch"
         echo "  reset-db   Reset all databases (removes all data!)"
+        echo "  migrate-status   Check migration status"
+        echo "  migrate-up     Run migrations up"
+        echo "  migrate-down   Roll back one migration"
+        echo "  migrate-create Create a new migration"
+        echo "  migrate-validate Validate migrations"
+        echo "  migrate-reset Reset all migrations"
         echo "  switch     List all branch environments"
         echo "  help       Show this help message"
         echo -e "\n${YELLOW}Examples:${NC}"

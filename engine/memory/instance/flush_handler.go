@@ -41,6 +41,12 @@ func (f *FlushHandler) PerformFlush(ctx context.Context) (*core.FlushMemoryActiv
 		// Acquire flush lock
 		unlock, err := f.lockManager.AcquireFlushLock(ctx, f.instanceID)
 		if err != nil {
+			// Check if it's a lock contention error
+			if errors.Is(err, core.ErrFlushLockFailed) || errors.Is(err, core.ErrLockAcquisitionFailed) {
+				f.logger.Debug("Flush already in progress for instance",
+					"instance_id", f.instanceID)
+				return core.ErrFlushAlreadyPending
+			}
 			if isTransientError(err) {
 				f.logger.Warn("Transient error acquiring flush lock, will retry",
 					"error", err,
@@ -57,8 +63,8 @@ func (f *FlushHandler) PerformFlush(ctx context.Context) (*core.FlushMemoryActiv
 			}
 		}()
 
-		// Execute the flush with pending state management
-		result, err = f.executeFlushWithPendingState(ctx)
+		// Execute the flush directly
+		result, err = f.executeFlush(ctx)
 		if err != nil {
 			if isTransientError(err) {
 				f.logger.Warn("Transient error during flush, will retry",
@@ -85,40 +91,6 @@ func (f *FlushHandler) PerformFlush(ctx context.Context) (*core.FlushMemoryActiv
 		return nil, err
 	}
 	return result, finalErr
-}
-
-// executeFlushWithPendingState manages flush pending state and executes flush
-func (f *FlushHandler) executeFlushWithPendingState(ctx context.Context) (*core.FlushMemoryActivityOutput, error) {
-	// Check if store supports flush state management
-	flushStore, ok := f.store.(core.FlushStateStore)
-	if !ok {
-		// If not supported, execute flush without pending state management
-		return f.executeFlush(ctx)
-	}
-
-	// Check if already pending
-	isPending, err := flushStore.IsFlushPending(ctx, f.instanceID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check flush pending state: %w", err)
-	}
-	if isPending {
-		return nil, core.ErrFlushAlreadyPending
-	}
-
-	// Mark flush as pending
-	if err := flushStore.MarkFlushPending(ctx, f.instanceID, true); err != nil {
-		return nil, fmt.Errorf("failed to mark flush as pending: %w", err)
-	}
-	defer func() {
-		// Always clear the pending flag
-		if err := flushStore.MarkFlushPending(ctx, f.instanceID, false); err != nil {
-			f.logger.Error("Failed to clear flush pending flag",
-				"error", err,
-				"instance_id", f.instanceID)
-		}
-	}()
-
-	return f.executeFlush(ctx)
 }
 
 // executeFlush performs the actual flush operation
@@ -198,7 +170,6 @@ func isTransientError(err error) bool {
 		"temporary failure",
 		"network is unreachable",
 		"lock timeout",
-		"failed to acquire lock",
 	}
 
 	errStr := err.Error()

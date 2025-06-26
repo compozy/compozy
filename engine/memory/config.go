@@ -393,9 +393,18 @@ func (c *Config) Merge(other any) error {
 	if c.ID != otherConfig.ID && otherConfig.ID != "" {
 		return fmt.Errorf("cannot merge memory configs with different IDs: '%s' and '%s'", c.ID, otherConfig.ID)
 	}
-	if err := mergo.Merge(c, otherConfig, mergo.WithOverride); err != nil {
+	// Deep copy the other config to avoid mutating it
+	copiedOther, err := core.DeepCopy(otherConfig)
+	if err != nil {
+		return fmt.Errorf("failed to deep copy config: %w", err)
+	}
+	// Clear sync fields from the copy to prevent mergo from copying them
+	copiedOther.ttlManager = nil
+	copiedOther.ttlManagerOnce = sync.Once{}
+	if err := mergo.Merge(c, copiedOther, mergo.WithOverride); err != nil {
 		return fmt.Errorf("failed to merge memory configs: %w", err)
 	}
+	// The sync fields in c remain untouched since we cleared them in copiedOther
 	return nil
 }
 
@@ -408,27 +417,28 @@ func (c *Config) FromMap(data any) error {
 	if err != nil {
 		return err
 	}
-	// Save the sync fields that shouldn't be overwritten
-	ttlManager := c.ttlManager
-	// Manually copy fields to avoid copying sync.Once
-	c.Resource = parsedConfig.Resource
-	c.ID = parsedConfig.ID
-	c.Description = parsedConfig.Description
-	c.Version = parsedConfig.Version
-	c.Type = parsedConfig.Type
-	c.MaxTokens = parsedConfig.MaxTokens
-	c.MaxMessages = parsedConfig.MaxMessages
-	c.MaxContextRatio = parsedConfig.MaxContextRatio
-	c.TokenAllocation = parsedConfig.TokenAllocation
-	c.Flushing = parsedConfig.Flushing
-	c.Persistence = parsedConfig.Persistence
-	c.PrivacyPolicy = parsedConfig.PrivacyPolicy
-	c.Locking = parsedConfig.Locking
-	c.TokenProvider = parsedConfig.TokenProvider
-	c.filePath = parsedConfig.filePath
-	c.CWD = parsedConfig.CWD
-	// Restore the cached ttlManager if it was already initialized
-	c.ttlManager = ttlManager
-	// ttlManagerOnce is not copied to preserve its state
+	// Deep copy the parsed config to handle nested structures properly
+	copiedConfig, err := core.DeepCopy(parsedConfig)
+	if err != nil {
+		return fmt.Errorf("failed to deep copy config: %w", err)
+	}
+	// Manually copy all fields except sync fields
+	c.Resource = copiedConfig.Resource
+	c.ID = copiedConfig.ID
+	c.Description = copiedConfig.Description
+	c.Version = copiedConfig.Version
+	c.Type = copiedConfig.Type
+	c.MaxTokens = copiedConfig.MaxTokens
+	c.MaxMessages = copiedConfig.MaxMessages
+	c.MaxContextRatio = copiedConfig.MaxContextRatio
+	c.TokenAllocation = copiedConfig.TokenAllocation
+	c.Flushing = copiedConfig.Flushing
+	c.Persistence = copiedConfig.Persistence
+	c.PrivacyPolicy = copiedConfig.PrivacyPolicy
+	c.Locking = copiedConfig.Locking
+	c.TokenProvider = copiedConfig.TokenProvider
+	c.filePath = copiedConfig.filePath
+	c.CWD = copiedConfig.CWD
+	// Don't copy ttlManager and ttlManagerOnce to preserve their state
 	return nil
 }

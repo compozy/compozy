@@ -260,4 +260,37 @@ func TestConfig_LazyTTLManagerInitialization(t *testing.T) {
 		// Verify only one TTLManager was created
 		assert.NotNil(t, cfg.ttlManager)
 	})
+	t.Run("Should preserve TTLManager across FromMap calls", func(t *testing.T) {
+		cfg := &Config{
+			ID: "test-memory",
+			Locking: &memcore.LockConfig{
+				AppendTTL: "30s",
+			},
+		}
+		// Initialize TTLManager
+		ttl := cfg.GetAppendLockTTL()
+		assert.Equal(t, 30*time.Second, ttl)
+		assert.NotNil(t, cfg.ttlManager)
+		// Store reference to the ttlManager
+		originalManager := cfg.ttlManager
+		// Call FromMap with new data
+		newData := map[string]any{
+			"resource": "memory",
+			"id":       "test-memory",
+			"type":     "token_based",
+			"locking": map[string]any{
+				"append_ttl": "60s",
+			},
+			"persistence": map[string]any{
+				"type": "memory",
+			},
+		}
+		err := cfg.FromMap(newData)
+		require.NoError(t, err)
+		// Verify the TTLManager is preserved
+		assert.Same(t, originalManager, cfg.ttlManager)
+		// Verify the TTL values are still from the original manager
+		ttl2 := cfg.GetAppendLockTTL()
+		assert.Equal(t, 30*time.Second, ttl2) // Still 30s from the cached manager
+	})
 }
