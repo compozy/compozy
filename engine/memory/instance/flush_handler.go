@@ -87,10 +87,7 @@ func (f *FlushHandler) PerformFlush(ctx context.Context) (*core.FlushMemoryActiv
 		f.metrics.RecordFlush(ctx, time.Since(start), 0, finalErr)
 	}
 
-	if err != nil {
-		return nil, err
-	}
-	return result, finalErr
+	return result, err
 }
 
 // executeFlush performs the actual flush operation
@@ -172,9 +169,9 @@ func isTransientError(err error) bool {
 		"lock timeout",
 	}
 
-	errStr := err.Error()
+	errStr := strings.ToLower(err.Error())
 	for _, pattern := range transientPatterns {
-		if strings.Contains(errStr, pattern) {
+		if strings.Contains(errStr, strings.ToLower(pattern)) {
 			return true
 		}
 	}

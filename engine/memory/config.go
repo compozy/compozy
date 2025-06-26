@@ -385,6 +385,27 @@ func (c *Config) HasSchema() bool {
 	return false // No input/output JSON schema
 }
 
+// copyConfigFields copies all fields except sync-related ones
+func (c *Config) copyConfigFields(from *Config) {
+	c.Resource = from.Resource
+	c.ID = from.ID
+	c.Description = from.Description
+	c.Version = from.Version
+	c.Type = from.Type
+	c.MaxTokens = from.MaxTokens
+	c.MaxMessages = from.MaxMessages
+	c.MaxContextRatio = from.MaxContextRatio
+	c.TokenAllocation = from.TokenAllocation
+	c.Flushing = from.Flushing
+	c.Persistence = from.Persistence
+	c.PrivacyPolicy = from.PrivacyPolicy
+	c.Locking = from.Locking
+	c.TokenProvider = from.TokenProvider
+	c.filePath = from.filePath
+	c.CWD = from.CWD
+	// Deliberately not copying ttlManager and ttlManagerOnce
+}
+
 func (c *Config) Merge(other any) error {
 	otherConfig, ok := other.(*Config)
 	if !ok {
@@ -422,23 +443,7 @@ func (c *Config) FromMap(data any) error {
 	if err != nil {
 		return fmt.Errorf("failed to deep copy config: %w", err)
 	}
-	// Manually copy all fields except sync fields
-	c.Resource = copiedConfig.Resource
-	c.ID = copiedConfig.ID
-	c.Description = copiedConfig.Description
-	c.Version = copiedConfig.Version
-	c.Type = copiedConfig.Type
-	c.MaxTokens = copiedConfig.MaxTokens
-	c.MaxMessages = copiedConfig.MaxMessages
-	c.MaxContextRatio = copiedConfig.MaxContextRatio
-	c.TokenAllocation = copiedConfig.TokenAllocation
-	c.Flushing = copiedConfig.Flushing
-	c.Persistence = copiedConfig.Persistence
-	c.PrivacyPolicy = copiedConfig.PrivacyPolicy
-	c.Locking = copiedConfig.Locking
-	c.TokenProvider = copiedConfig.TokenProvider
-	c.filePath = copiedConfig.filePath
-	c.CWD = copiedConfig.CWD
-	// Don't copy ttlManager and ttlManagerOnce to preserve their state
+	// Use helper method to copy all fields except sync fields
+	c.copyConfigFields(copiedConfig)
 	return nil
 }
