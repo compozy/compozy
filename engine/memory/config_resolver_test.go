@@ -67,9 +67,12 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 		assert.Nil(t, result)
 
 		// Check error type and message
-		var configErr *memcore.ConfigError
-		require.ErrorAs(t, err, &configErr)
-		assert.Contains(t, err.Error(), "memory resource 'nonexistent-memory' not found in registry")
+		var memErr *Error
+		require.ErrorAs(t, err, &memErr)
+		assert.Equal(t, ErrorTypeConfig, memErr.Type)
+		assert.Equal(t, "load", memErr.Operation)
+		assert.Equal(t, "nonexistent-memory", memErr.ResourceID)
+		assert.Contains(t, err.Error(), "memory configuration error for resource 'nonexistent-memory' during load")
 	})
 
 	t.Run("Should return ConfigError when config has wrong type", func(t *testing.T) {
@@ -103,10 +106,13 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 		assert.Nil(t, result)
 
 		// Check error type and message
-		var configErr *memcore.ConfigError
-		require.ErrorAs(t, err, &configErr)
-		assert.Contains(t, err.Error(), "invalid config type for memory resource 'wrong-type'")
-		assert.Contains(t, err.Error(), "expected *memory.Config")
+		var memErr *Error
+		require.ErrorAs(t, err, &memErr)
+		assert.Equal(t, ErrorTypeConfig, memErr.Type)
+		assert.Equal(t, "convert", memErr.Operation)
+		assert.Equal(t, "wrong-type", memErr.ResourceID)
+		assert.Contains(t, err.Error(), "memory configuration error for resource 'wrong-type' during convert")
+		assert.Contains(t, err.Error(), "expected map[string]any")
 	})
 
 	t.Run("Should handle different memory resource types", func(t *testing.T) {
@@ -596,7 +602,8 @@ func TestManager_configToResource(t *testing.T) {
 			},
 		}
 
-		result, err := manager.configToResource(config)
+		builder := &ResourceBuilder{config: config, logger: manager.log}
+		result, err := builder.Build()
 		require.NoError(t, err)
 
 		// Verify basic fields are mapped correctly
@@ -642,7 +649,8 @@ func TestManager_configToResource(t *testing.T) {
 			},
 		}
 
-		result, err := manager.configToResource(config)
+		builder := &ResourceBuilder{config: config, logger: manager.log}
+		result, err := builder.Build()
 		require.NoError(t, err)
 
 		// Verify TTL fields are empty when locking config is nil

@@ -3,6 +3,7 @@ package instance
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/engine/llm"
@@ -51,22 +52,18 @@ func (o *Operations) AppendMessage(ctx context.Context, msg llm.Message) error {
 	}
 	var lockReleaseErr error
 	defer func() {
-		if unlockErr := unlock(); unlockErr != nil {
-			lockReleaseErr = unlockErr
-			o.logger.Error("Failed to release append lock", "error", unlockErr, "instance_id", o.instanceID)
-		}
+		lockReleaseErr = o.handleLockRelease(unlock, "append")
 	}()
 
 	// Calculate token count
 	tokenCount := o.calculateTokenCount(ctx, msg)
 
 	// Append to store
+	var operationErr error
 	if err := o.store.AppendMessage(ctx, o.instanceID, msg); err != nil {
 		o.metrics.RecordAppend(ctx, time.Since(start), tokenCount, err)
-		if lockReleaseErr != nil {
-			return fmt.Errorf("failed to append message: %w (also failed to release lock: %v)", err, lockReleaseErr)
-		}
-		return err
+		operationErr = err
+		return o.combineErrors(operationErr, lockReleaseErr, "append message")
 	}
 
 	// Update token count metadata
@@ -76,10 +73,7 @@ func (o *Operations) AppendMessage(ctx context.Context, msg llm.Message) error {
 	}
 
 	o.metrics.RecordAppend(ctx, time.Since(start), tokenCount, nil)
-	if lockReleaseErr != nil {
-		return fmt.Errorf("operation completed but failed to release lock: %w", lockReleaseErr)
-	}
-	return nil
+	return o.combineErrors(nil, lockReleaseErr, "append message")
 }
 
 // AppendMessageWithTokenCount appends a message and updates token count atomically
@@ -94,37 +88,24 @@ func (o *Operations) AppendMessageWithTokenCount(ctx context.Context, msg llm.Me
 	}
 	var lockReleaseErr error
 	defer func() {
-		if unlockErr := unlock(); unlockErr != nil {
-			lockReleaseErr = unlockErr
-			o.logger.Error("Failed to release append lock", "error", unlockErr, "instance_id", o.instanceID)
-		}
+		lockReleaseErr = o.handleLockRelease(unlock, "append")
 	}()
 
 	// Use atomic operation if available
+	var operationErr error
 	if atomicStore, ok := o.store.(core.AtomicOperations); ok {
-		err = atomicStore.AppendMessageWithTokenCount(ctx, o.instanceID, msg, tokenCount)
+		operationErr = atomicStore.AppendMessageWithTokenCount(ctx, o.instanceID, msg, tokenCount)
 	} else {
 		// Fallback to separate operations
-		if err = o.store.AppendMessage(ctx, o.instanceID, msg); err == nil {
-			err = o.store.IncrementTokenCount(ctx, o.instanceID, tokenCount)
+		if err := o.store.AppendMessage(ctx, o.instanceID, msg); err != nil {
+			operationErr = err
+		} else if err := o.store.IncrementTokenCount(ctx, o.instanceID, tokenCount); err != nil {
+			operationErr = err
 		}
 	}
 
-	o.metrics.RecordAppend(ctx, time.Since(start), tokenCount, err)
-	if err != nil && lockReleaseErr != nil {
-		return fmt.Errorf(
-			"failed to append message with token count: %w (also failed to release lock: %v)",
-			err,
-			lockReleaseErr,
-		)
-	}
-	if err != nil {
-		return err
-	}
-	if lockReleaseErr != nil {
-		return fmt.Errorf("operation completed but failed to release lock: %w", lockReleaseErr)
-	}
-	return nil
+	o.metrics.RecordAppend(ctx, time.Since(start), tokenCount, operationErr)
+	return o.combineErrors(operationErr, lockReleaseErr, "append message with token count")
 }
 
 // ReadMessages retrieves all messages
@@ -134,18 +115,7 @@ func (o *Operations) ReadMessages(ctx context.Context) ([]llm.Message, error) {
 	messages, err := o.store.ReadMessages(ctx, o.instanceID)
 	messageCount := len(messages)
 
-	// Calculate total tokens for metrics
-	totalTokens := 0
-	if err == nil {
-		for _, msg := range messages {
-			totalTokens += o.calculateTokenCount(ctx, msg)
-		}
-	}
-
 	o.metrics.RecordRead(ctx, time.Since(start), messageCount, err)
-	if err == nil {
-		o.metrics.RecordTokenCount(ctx, totalTokens)
-	}
 	return messages, err
 }
 
@@ -158,32 +128,20 @@ func (o *Operations) ClearMessages(ctx context.Context) error {
 	}
 	var lockReleaseErr error
 	defer func() {
-		if unlockErr := unlock(); unlockErr != nil {
-			lockReleaseErr = unlockErr
-			o.logger.Error("Failed to release clear lock", "error", unlockErr, "instance_id", o.instanceID)
-		}
+		lockReleaseErr = o.handleLockRelease(unlock, "clear")
 	}()
 
 	// Clear messages
-	err = o.store.DeleteMessages(ctx, o.instanceID)
+	operationErr := o.store.DeleteMessages(ctx, o.instanceID)
 
 	// Reset token count
-	if err == nil {
+	if operationErr == nil {
 		if setErr := o.store.SetTokenCount(ctx, o.instanceID, 0); setErr != nil {
 			o.recordMetadataError(ctx, "reset_token_count", setErr)
 		}
 	}
 
-	if err != nil && lockReleaseErr != nil {
-		return fmt.Errorf("failed to clear messages: %w (also failed to release lock: %v)", err, lockReleaseErr)
-	}
-	if err != nil {
-		return err
-	}
-	if lockReleaseErr != nil {
-		return fmt.Errorf("operation completed but failed to release lock: %w", lockReleaseErr)
-	}
-	return nil
+	return o.combineErrors(operationErr, lockReleaseErr, "clear messages")
 }
 
 // GetMessageCount returns the number of messages
@@ -260,29 +218,41 @@ func (o *Operations) calculateTokensFromMessages(ctx context.Context) (int, erro
 		return 0, err
 	}
 
-	// Use caching to reduce redundant token counting calls
-	contentCache := make(map[string]int)
-	roleCache := make(map[string]int)
+	// Use sync.Map for better concurrent performance
+	var contentCache sync.Map
+	var roleCache sync.Map
 
 	totalTokens := 0
 	for _, msg := range messages {
 		// Count content tokens with caching
 		var contentCount int
-		if count, exists := contentCache[msg.Content]; exists {
-			contentCount = count
+		if count, exists := contentCache.Load(msg.Content); exists {
+			if cachedCount, ok := count.(int); ok {
+				contentCount = cachedCount
+			} else {
+				// Fallback if type assertion fails
+				contentCount = o.calculateTokenCountWithFallback(ctx, msg.Content, "content")
+				contentCache.Store(msg.Content, contentCount)
+			}
 		} else {
 			contentCount = o.calculateTokenCountWithFallback(ctx, msg.Content, "content")
-			contentCache[msg.Content] = contentCount
+			contentCache.Store(msg.Content, contentCount)
 		}
 
 		// Count role tokens with caching
 		roleStr := string(msg.Role)
 		var roleCount int
-		if count, exists := roleCache[roleStr]; exists {
-			roleCount = count
+		if count, exists := roleCache.Load(roleStr); exists {
+			if cachedCount, ok := count.(int); ok {
+				roleCount = cachedCount
+			} else {
+				// Fallback if type assertion fails
+				roleCount = o.calculateTokenCountWithFallback(ctx, roleStr, "role")
+				roleCache.Store(roleStr, roleCount)
+			}
 		} else {
 			roleCount = o.calculateTokenCountWithFallback(ctx, roleStr, "role")
-			roleCache[roleStr] = roleCount
+			roleCache.Store(roleStr, roleCount)
 		}
 
 		// Add structure overhead and accumulate
@@ -305,4 +275,30 @@ func (o *Operations) recordMetadataError(_ context.Context, operation string, er
 		"operation", operation,
 		"error", err,
 		"instance_id", o.instanceID)
+}
+
+// handleLockRelease standardizes lock release error handling across operations
+func (o *Operations) handleLockRelease(unlock func() error, operation string) error {
+	if err := unlock(); err != nil {
+		o.logger.Error("Failed to release lock",
+			"error", err,
+			"operation", operation,
+			"instance_id", o.instanceID)
+		return err
+	}
+	return nil
+}
+
+// combineErrors returns a combined error message when both operation and lock release fail
+func (o *Operations) combineErrors(operationErr error, lockErr error, operation string) error {
+	if operationErr != nil && lockErr != nil {
+		return fmt.Errorf("failed to %s: %w (also failed to release lock: %v)", operation, operationErr, lockErr)
+	}
+	if operationErr != nil {
+		return operationErr
+	}
+	if lockErr != nil {
+		return fmt.Errorf("operation completed but failed to release lock: %w", lockErr)
+	}
+	return nil
 }

@@ -53,7 +53,10 @@ func NewTokenAwareLRUStrategy(
 		cacheSize = 1000 // Default cache size
 	}
 	// Enforce maximum cache size to prevent excessive memory usage
-	const maxCacheSize = 10000
+	maxCacheSize := options.MaxCacheSize
+	if maxCacheSize <= 0 {
+		maxCacheSize = 10000 // Default
+	}
 	if cacheSize > maxCacheSize {
 		cacheSize = maxCacheSize
 	}
@@ -165,7 +168,9 @@ func (s *TokenAwareLRUStrategy) convertMessagesToTokenAware(messages []llm.Messa
 			Message:    msg,
 			TokenCount: tokenCount,
 			Index:      i,
-			LastAccess: now.Add(time.Duration(-len(messages)+i) * time.Millisecond), // Preserve order
+			LastAccess: now.Add(
+				time.Duration(-len(messages)+i) * time.Nanosecond,
+			), // Preserve order with higher precision
 		}
 	}
 	return result

@@ -22,6 +22,8 @@ config:
           - "update_profile"
           - "get_stats"
           - "cleanup"
+          - "delete"
+          - "flush"
         default: "initialize"
       user_data:
         type: object
@@ -65,12 +67,14 @@ tasks:
   # Route based on action type
   - id: process_action
     type: router
+    condition: "{{ .workflow.input.action }}"
     routes:
       initialize: initialize_user
       update_profile: update_user_profile
       get_stats: get_memory_stats
       cleanup: cleanup_user_data
-    strategy: "exact"
+      delete: delete_user_data
+      flush: flush_user_memory
 
   # Initialize new user profile
   - id: initialize_user
@@ -100,8 +104,7 @@ tasks:
       role: "user"
       content: |
         Session {{ .workflow.input.session_id }} started at {{ now | date "15:04:05" }}
-    on_success:
-      next: complete
+    final: true
 
   # Update existing user profile
   - id: update_user_profile
@@ -113,11 +116,10 @@ tasks:
       role: "assistant"
       content: |
         Profile Updated:
-        {% if .workflow.input.user_data.name %}Name: {{ .workflow.input.user_data.name }}{% endif %}
-        {% if .workflow.input.user_data.email %}Email: {{ .workflow.input.user_data.email }}{% endif %}
-        Updated: {{ now | date "2006-01-02 15:04:05" }}
-    on_success:
-      next: complete
+        {{ if index .workflow.input.user_data "name" }}Name: {{ .workflow.input.user_data.name }}
+        {{ end }}{{ if index .workflow.input.user_data "email" }}Email: {{ .workflow.input.user_data.email }}
+        {{ end }}Updated: {{ now | date "2006-01-02 15:04:05" }}
+    final: true
 
   # Get memory statistics
   - id: get_memory_stats
@@ -140,8 +142,7 @@ tasks:
     health_config:
       include_stats: true
       check_connectivity: true
-    on_success:
-      next: complete
+    final: true
 
   # Cleanup user data
   - id: cleanup_user_data
@@ -152,22 +153,53 @@ tasks:
     clear_config:
       confirm: true
       backup: true
-    on_success:
-      next: complete
+    final: true
 
-  # Final completion task
-  - id: complete
-    type: basic
+  # Delete user data (different from clear - this removes the memory instance)
+  - id: delete_user_data
+    type: memory
+    operation: delete
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:profile"
+    final: true
+
+  # Flush user memory (triggers memory flushing based on strategy)
+  - id: flush_user_memory
+    type: memory
+    operation: flush
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:profile"
+    flush_config:
+      strategy: "simple_fifo"
+      dry_run: false
+      force: false
+      threshold: 0.8
+    on_success:
+      next: get_memory_stats_after_flush
+
+  # Get stats after flush to see the effect
+  - id: get_memory_stats_after_flush
+    type: memory
+    operation: stats
+    memory_ref: user_memory
+    key_template: "user:{{ .workflow.input.user_id }}:*"
+    stats_config:
+      include_content: false
+      group_by: "user"
     final: true
 
 outputs:
   action_performed: "{{ .workflow.input.action }}"
   user_id: "{{ .workflow.input.user_id }}"
   session_id: "{{ .workflow.input.session_id }}"
-  read_result: "{{ if .tasks.read_user_data.output }}{{ .tasks.read_user_data.output }}{{ else }}null{{\
-    \ end }}"
-  stats_result: "{{ if .tasks.get_memory_stats.output }}{{ .tasks.get_memory_stats.output }}{{ else }}null{{\
-    \ end }}"
-  health_result: "{{ if .tasks.get_health_check.output }}{{ .tasks.get_health_check.output }}{{ else }}null{{\
-    \ end }}"
-  completion_time: "{{ now | date '2006-01-02 15:04:05' }}"
+  read_result: "{{ if index .tasks \"read_user_data\" }}{{ index .tasks \"read_user_data\" \"output\"\
+    \ | toJson }}{{ else }}null{{ end }}"
+  stats_result: "{{ if index .tasks \"get_memory_stats\" }}{{ index .tasks \"get_memory_stats\" \"output\"\
+    \ | toJson }}{{ else }}null{{ end }}"
+  health_result: "{{ if index .tasks \"get_health_check\" }}{{ index .tasks \"get_health_check\" \"output\"\
+    \ | toJson }}{{ else }}null{{ end }}"
+  flush_result: "{{ if index .tasks \"flush_user_memory\" }}{{ index .tasks \"flush_user_memory\" \"output\"\
+    \ | toJson }}{{ else }}null{{ end }}"
+  stats_after_flush: "{{ if index .tasks \"get_memory_stats_after_flush\" }}{{ index .tasks \"get_memory_stats_after_flush\"\
+    \ \"output\" | toJson }}{{ else }}null{{ end }}"
+  completion_time: "{{ now | date \"2006-01-02 15:04:05\" }}"

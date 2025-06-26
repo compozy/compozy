@@ -2,7 +2,9 @@ package memory
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"math/big"
 	"sync"
 	"time"
 
@@ -10,16 +12,23 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
+const (
+	defaultNearLimitThreshold = 0.85
+	defaultCheckInterval      = 30 * time.Second
+	defaultHealthTimeout      = 5 * time.Second
+)
+
 // HealthService provides centralized health monitoring for the memory system
 type HealthService struct {
-	healthStates    sync.Map // map[string]*HealthState
-	manager         *Manager
-	checkInterval   time.Duration
-	healthTimeout   time.Duration
-	log             logger.Logger
-	stopCh          chan struct{}
-	mu              sync.RWMutex
-	lastGlobalCheck time.Time
+	healthStates       sync.Map // map[string]*HealthState
+	manager            *Manager
+	checkInterval      time.Duration
+	healthTimeout      time.Duration
+	nearLimitThreshold float64
+	log                logger.Logger
+	stopCh             chan struct{}
+	mu                 sync.RWMutex
+	lastGlobalCheck    time.Time
 }
 
 // SystemHealth represents the overall health status of the memory system
@@ -51,15 +60,35 @@ type TokenUsageHealth struct {
 	NearLimit       bool    `json:"near_limit"`
 }
 
-// NewHealthService creates a new memory health service
+// HealthServiceOptions contains configuration options for the health service
+type HealthServiceOptions struct {
+	CheckInterval      time.Duration
+	HealthTimeout      time.Duration
+	NearLimitThreshold float64
+}
+
+// NewHealthService creates a new memory health service with default options
 func NewHealthService(ctx context.Context, manager *Manager) *HealthService {
+	return NewHealthServiceWithOptions(ctx, manager, nil)
+}
+
+// NewHealthServiceWithOptions creates a new memory health service with custom options
+func NewHealthServiceWithOptions(ctx context.Context, manager *Manager, opts *HealthServiceOptions) *HealthService {
 	log := logger.FromContext(ctx)
+	if opts == nil {
+		opts = &HealthServiceOptions{
+			CheckInterval:      defaultCheckInterval,
+			HealthTimeout:      defaultHealthTimeout,
+			NearLimitThreshold: defaultNearLimitThreshold,
+		}
+	}
 	return &HealthService{
-		manager:       manager,
-		checkInterval: 30 * time.Second, // Check every 30 seconds
-		healthTimeout: 5 * time.Second,  // Timeout for individual health checks
-		log:           log.With("component", "memory_health_service"),
-		stopCh:        make(chan struct{}),
+		manager:            manager,
+		checkInterval:      opts.CheckInterval,
+		healthTimeout:      opts.HealthTimeout,
+		nearLimitThreshold: opts.NearLimitThreshold,
+		log:                log.With("component", "memory_health_service"),
+		stopCh:             make(chan struct{}),
 	}
 }
 
@@ -173,7 +202,7 @@ func (mhs *HealthService) addTokenUsageInfo(instanceHealth *InstanceHealth, memo
 	var nearLimit bool
 	if ts.MaxTokens > 0 {
 		usagePercentage = float64(ts.TokensUsed) / float64(ts.MaxTokens) * 100
-		nearLimit = usagePercentage > 85.0
+		nearLimit = usagePercentage > mhs.nearLimitThreshold*100
 	}
 	instanceHealth.TokenUsage = &TokenUsageHealth{
 		Used:            int(ts.TokensUsed),
@@ -383,7 +412,7 @@ func (mhs *HealthService) performOperationalChecks(ctx context.Context, memoryID
 			return false
 		}
 		// 2. Test basic read/write operations
-		testKey := fmt.Sprintf("health:check:%s:%d", memoryID, time.Now().UnixNano())
+		testKey := fmt.Sprintf("health:check:%s:%d:%s", memoryID, time.Now().UnixNano(), generateRandomString(8))
 		testValue := "health-check-value"
 		// Write test with timeout
 		writeCtx, writeCancel := context.WithTimeout(ctx, 2*time.Second)
@@ -409,11 +438,16 @@ func (mhs *HealthService) performOperationalChecks(ctx context.Context, memoryID
 		// Cleanup test key
 		delCtx, delCancel := context.WithTimeout(ctx, 1*time.Second)
 		defer delCancel()
-		_ = mhs.manager.baseRedisClient.Del(delCtx, testKey)
+		if err := mhs.manager.baseRedisClient.Del(delCtx, testKey).Err(); err != nil {
+			mhs.log.Debug("Failed to cleanup health check test key",
+				"memory_id", memoryID,
+				"key", testKey,
+				"error", err)
+		}
 	}
 	// 3. Test lock operations if lock manager is available
 	if mhs.manager.baseLockManager != nil {
-		lockKey := fmt.Sprintf("health:lock:%s:%d", memoryID, time.Now().UnixNano())
+		lockKey := fmt.Sprintf("health:lock:%s:%d:%s", memoryID, time.Now().UnixNano(), generateRandomString(8))
 		lockCtx, lockCancel := context.WithTimeout(ctx, 3*time.Second)
 		defer lockCancel()
 		lock, err := mhs.manager.baseLockManager.Acquire(lockCtx, lockKey, 5*time.Second)
@@ -445,4 +479,20 @@ func (mhs *HealthService) SetCheckInterval(interval time.Duration) {
 // SetHealthTimeout sets the timeout for individual health checks
 func (mhs *HealthService) SetHealthTimeout(timeout time.Duration) {
 	mhs.healthTimeout = timeout
+}
+
+// generateRandomString generates a random string of the specified length
+func generateRandomString(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	result := make([]byte, length)
+	for i := range result {
+		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			// Fallback to timestamp-based selection if crypto/rand fails
+			result[i] = charset[time.Now().UnixNano()%int64(len(charset))]
+		} else {
+			result[i] = charset[num.Int64()]
+		}
+	}
+	return string(result)
 }

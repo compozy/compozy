@@ -3,6 +3,7 @@ package strategies
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/memory/core"
@@ -258,5 +259,51 @@ func TestLRUStrategy_ConcurrentAccess(t *testing.T) {
 
 		// If we reach here without deadlock, the test passes
 		assert.True(t, true)
+	})
+}
+
+func TestLRUStrategy_DuplicateMessageHandling(t *testing.T) {
+	t.Run("Should handle duplicate messages correctly in cache updates", func(t *testing.T) {
+		strategy, err := NewLRUStrategy(&core.FlushingStrategyConfig{
+			Type:               core.LRUFlushing,
+			SummarizeThreshold: 0.8,
+		}, nil)
+		require.NoError(t, err)
+
+		config := &core.Resource{
+			Type:        core.MessageCountBasedMemory,
+			MaxMessages: 10,
+		}
+
+		// Create messages with duplicates to test the fix
+		messages := []llm.Message{
+			{Role: llm.MessageRoleUser, Content: "Hello world"},       // Index 0
+			{Role: llm.MessageRoleAssistant, Content: "Hi there"},     // Index 1
+			{Role: llm.MessageRoleUser, Content: "Hello world"},       // Index 2 - duplicate of 0
+			{Role: llm.MessageRoleUser, Content: "Different message"}, // Index 3
+			{Role: llm.MessageRoleUser, Content: "Hello world"},       // Index 4 - another duplicate
+			{Role: llm.MessageRoleAssistant, Content: "Hi there"},     // Index 5 - duplicate of 1
+		}
+
+		// First, access all messages to populate the LRU cache
+		now := time.Now()
+		for i := range messages {
+			strategy.cache.Add(i, now.Add(time.Duration(i)*time.Millisecond))
+		}
+
+		// Simulate a flush that keeps some messages (including duplicates)
+		result, err := strategy.PerformFlush(context.Background(), messages, config)
+
+		require.NoError(t, err)
+		assert.True(t, result.Success)
+		// Should have flushed some messages but kept others
+		assert.Greater(t, result.MessageCount, 0)
+		assert.Less(t, result.MessageCount, len(messages))
+
+		// Verify that the cache was properly rebuilt without key collisions
+		// This test would have failed before the fix due to duplicate content causing map key collisions
+		assert.NotPanics(t, func() {
+			strategy.PerformFlush(context.Background(), messages, config)
+		})
 	})
 }

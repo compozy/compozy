@@ -20,6 +20,8 @@ type StrategyConstructor func(*core.FlushingStrategyConfig, *StrategyOptions) (i
 type StrategyOptions struct {
 	// CacheSize for LRU-based strategies
 	CacheSize int
+	// MaxCacheSize enforces maximum cache size to prevent excessive memory usage
+	MaxCacheSize int
 	// MaxTokens for token-aware strategies
 	MaxTokens int
 	// DefaultThreshold for strategies that support thresholds
@@ -159,6 +161,7 @@ func (f *StrategyFactory) CreateDefaultStrategy() (instance.FlushStrategy, error
 func GetDefaultStrategyOptions() *StrategyOptions {
 	return &StrategyOptions{
 		CacheSize:        1000,
+		MaxCacheSize:     10000, // Default maximum cache size
 		MaxTokens:        4000,
 		DefaultThreshold: 0.8,
 

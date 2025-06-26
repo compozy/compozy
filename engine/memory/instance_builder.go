@@ -173,10 +173,17 @@ func (lma *lockManagerAdapter) waitForRetry(
 ) error {
 	const baseDelay = 50 * time.Millisecond
 	// Safe exponential backoff with bounds checking to prevent overflow
-	if attempt < 0 || attempt > 10 {
-		attempt = 10 // Cap at reasonable maximum
+	if attempt < 0 {
+		attempt = 0 // Ensure non-negative
 	}
-	delay := time.Duration(1<<attempt) * baseDelay
+	// Calculate delay with overflow protection
+	// For attempts > 30, 1<<attempt would overflow, so we cap the shift operation
+	shiftAmount := attempt
+	if shiftAmount > 30 {
+		// 2^30 * 50ms ≈ 53687 seconds ≈ 14.9 hours - more than reasonable max
+		shiftAmount = 30
+	}
+	delay := time.Duration(1<<shiftAmount) * baseDelay
 	lma.log.Debug("Lock acquisition failed, retrying",
 		"key", lockKey, "attempt", attempt+1, "max_retries", maxRetries, "delay", delay, "error", err)
 	select {
@@ -271,44 +278,52 @@ func (mm *Manager) createFlushingStrategy(
 	resourceCfg *memcore.Resource,
 	tokenManager *TokenMemoryManager,
 ) (instance.FlushStrategy, error) {
-	// Create factory with core token counter for proper dependency injection
-	var coreTokenCounter memcore.TokenCounter
-	if tokenManager != nil {
-		coreTokenCounter = tokenManager.GetTokenCounter()
-	}
-	factory := strategies.NewStrategyFactoryWithTokenCounter(coreTokenCounter)
+	factory := mm.createStrategyFactory(tokenManager)
+	strategyConfig := mm.getStrategyConfig(resourceCfg)
 
-	// Determine strategy configuration
-	var strategyConfig *memcore.FlushingStrategyConfig
-	if resourceCfg.FlushingStrategy != nil {
-		strategyConfig = resourceCfg.FlushingStrategy
-	} else {
-		// Default to FIFO strategy
-		strategyConfig = &memcore.FlushingStrategyConfig{
-			Type:               memcore.SimpleFIFOFlushing,
-			SummarizeThreshold: 0.8,
-		}
-	}
-
-	// Validate strategy configuration
 	if err := factory.ValidateStrategyConfig(strategyConfig); err != nil {
 		return nil, fmt.Errorf("invalid strategy configuration for resource '%s': %w", resourceCfg.ID, err)
 	}
 
-	// Handle legacy HybridSummaryFlushing strategy
 	if strategyConfig.Type == memcore.HybridSummaryFlushing {
 		return mm.createLegacyHybridStrategy(resourceCfg, tokenManager, strategyConfig)
 	}
 
-	// Create strategy options based on resource configuration
-	opts := mm.createStrategyOptions(resourceCfg)
+	return mm.createStrategyWithFactory(factory, resourceCfg, strategyConfig)
+}
 
-	// Create strategy using factory
+// createStrategyFactory creates and configures a strategy factory with the appropriate token counter
+func (mm *Manager) createStrategyFactory(tokenManager *TokenMemoryManager) *strategies.StrategyFactory {
+	var coreTokenCounter memcore.TokenCounter
+	if tokenManager != nil {
+		coreTokenCounter = tokenManager.GetTokenCounter()
+	}
+	return strategies.NewStrategyFactoryWithTokenCounter(coreTokenCounter)
+}
+
+// getStrategyConfig extracts or creates a default strategy configuration from the resource
+func (mm *Manager) getStrategyConfig(resourceCfg *memcore.Resource) *memcore.FlushingStrategyConfig {
+	if resourceCfg.FlushingStrategy != nil {
+		return resourceCfg.FlushingStrategy
+	}
+	// Default to FIFO strategy
+	return &memcore.FlushingStrategyConfig{
+		Type:               memcore.SimpleFIFOFlushing,
+		SummarizeThreshold: 0.8,
+	}
+}
+
+// createStrategyWithFactory creates a strategy using the factory with appropriate options
+func (mm *Manager) createStrategyWithFactory(
+	factory *strategies.StrategyFactory,
+	resourceCfg *memcore.Resource,
+	strategyConfig *memcore.FlushingStrategyConfig,
+) (instance.FlushStrategy, error) {
+	opts := mm.createStrategyOptions(resourceCfg)
 	strategy, err := factory.CreateStrategy(strategyConfig, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create flushing strategy for resource '%s': %w", resourceCfg.ID, err)
 	}
-
 	return strategy, nil
 }
 

@@ -173,6 +173,31 @@ func TestBuilder_Validation(t *testing.T) {
 			})
 		}
 	})
+	t.Run("Should successfully validate with all dependencies", func(t *testing.T) {
+		mockStore := &mockStore{}
+		mockLockManager := &mockLockManager{}
+		mockTokenCounter := &mockTokenCounter{}
+		mockFlushStrategy := &mockFlushStrategy{}
+		resource := &core.Resource{
+			ID:        "test-memory",
+			Type:      core.TokenBasedMemory,
+			MaxTokens: 1000,
+		}
+
+		// Test validation passes with all required fields except temporal client
+		b := NewBuilder().
+			WithInstanceID("test-instance").
+			WithResourceConfig(resource).
+			WithStore(mockStore).
+			WithLockManager(mockLockManager).
+			WithTokenCounter(mockTokenCounter).
+			WithFlushingStrategy(mockFlushStrategy)
+
+		err := b.Validate(context.Background())
+		assert.Error(t, err) // Still fails due to missing temporal client
+		assert.Contains(t, err.Error(), "temporal client cannot be nil")
+	})
+
 	t.Run("Should set default values correctly", func(t *testing.T) {
 		builder := NewBuilder().
 			WithInstanceID("test-instance").

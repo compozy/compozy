@@ -1,8 +1,6 @@
 package memory
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/memory/tokens"
@@ -88,7 +86,8 @@ func NewCacheableTiktokenCounter(model string) (*CacheableTiktokenCounter, error
 
 // GetCacheKey returns a unique cache key for this token counter
 func (ctc *CacheableTiktokenCounter) GetCacheKey() string {
-	return fmt.Sprintf("token-counter:%s", ctc.model)
+	keyBuilder := NewCacheKeyBuilder("memory")
+	return keyBuilder.ForTokenCounter(ctc.model)
 }
 
 // EstimateCost returns the approximate memory cost of this token counter
@@ -139,17 +138,9 @@ func NewCacheableUnifiedCounter(
 
 // GetCacheKey returns a unique cache key for this unified counter
 func (cuc *CacheableUnifiedCounter) GetCacheKey() string {
-	// Include provider and model, but not API key for privacy
-	// Use hash of API key for uniqueness without exposing the key
-	keyHash := ""
-	if cuc.apiKey != "" {
-		// Use SHA-256 hash of the API key to guarantee uniqueness
-		hasher := sha256.New()
-		hasher.Write([]byte(cuc.apiKey))
-		// Use first 16 characters of hex hash for cache key (sufficient for uniqueness)
-		keyHash = ":" + hex.EncodeToString(hasher.Sum(nil))[:16]
-	}
-	return fmt.Sprintf("unified-counter:%s:%s%s", cuc.provider, cuc.model, keyHash)
+	keyBuilder := NewCacheKeyBuilder("memory")
+	apiKeyHash := keyBuilder.HashAPIKey(cuc.apiKey)
+	return keyBuilder.ForUnifiedCounter(cuc.provider, cuc.model, apiKeyHash)
 }
 
 // EstimateCost returns the approximate memory cost of this unified counter

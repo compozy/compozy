@@ -147,7 +147,8 @@ func (p *PriorityEvictionPolicy) containsImportantKeywords(content string) bool 
 func (p *PriorityEvictionPolicy) estimateTokens(msg llm.Message) int {
 	// Simple estimation: ~4 characters per token
 	contentLength := len(msg.Content)
-	roleOverhead := 5 // Role field overhead
+	// Role overhead varies by role length: system=6, assistant=9, user=4, tool=4
+	roleOverhead := len(string(msg.Role)) + 2 // Role plus formatting overhead
 	return (contentLength / 4) + roleOverhead
 }
 

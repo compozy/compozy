@@ -29,7 +29,8 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 				},
 			},
 		}
-		resource, err := mm.configToResource(config)
+		builder := &ResourceBuilder{config: config, logger: mm.log}
+		resource, err := builder.Build()
 		require.NoError(t, err)
 		require.NotNil(t, resource)
 		require.NotNil(t, resource.PrivacyPolicy)
@@ -56,7 +57,8 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 				},
 			},
 		}
-		resource, err := mm.configToResource(config)
+		builder := &ResourceBuilder{config: config, logger: mm.log}
+		resource, err := builder.Build()
 		assert.Error(t, err, "Should return error for invalid patterns")
 		assert.Nil(t, resource)
 	})
@@ -76,7 +78,8 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 				},
 			},
 		}
-		resource, err := mm.configToResource(config)
+		builder := &ResourceBuilder{config: config, logger: mm.log}
+		resource, err := builder.Build()
 		assert.Error(t, err, "Should return error for dangerous patterns")
 		assert.Nil(t, resource)
 	})
@@ -98,7 +101,8 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 				DefaultRedactionString:     "[HIDDEN]",
 			},
 		}
-		resource, err := mm.configToResource(config)
+		builder := &ResourceBuilder{config: config, logger: mm.log}
+		resource, err := builder.Build()
 		require.NoError(t, err)
 		require.NotNil(t, resource)
 		require.NotNil(t, resource.PrivacyPolicy)
@@ -121,7 +125,8 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 				NonPersistableMessageTypes: []string{"system"},
 			},
 		}
-		resource, err := mm.configToResource(config)
+		builder := &ResourceBuilder{config: config, logger: mm.log}
+		resource, err := builder.Build()
 		require.NoError(t, err)
 		require.NotNil(t, resource)
 		require.NotNil(t, resource.PrivacyPolicy)

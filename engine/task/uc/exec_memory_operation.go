@@ -9,7 +9,6 @@ import (
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
@@ -38,18 +37,18 @@ func (uc *ExecuteMemoryOperation) Execute(
 	ctx context.Context,
 	input *ExecuteMemoryOperationInput,
 ) (*core.Output, error) {
-	// Set up evaluator context
+	// Set up evaluator context following project standards
 	evalContext := map[string]any{
 		"workflow": map[string]any{
 			"id":      input.WorkflowState.WorkflowID,
 			"exec_id": input.WorkflowState.WorkflowExecID,
 			"input":   input.WorkflowState.Input,
 		},
+		"tasks": input.WorkflowState.Tasks,
 	}
+	// Add merged input as "input" at top level for task context
 	if input.MergedInput != nil {
-		for k, v := range *input.MergedInput {
-			evalContext[k] = v
-		}
+		evalContext["input"] = input.MergedInput
 	}
 	// Validate key template is provided for memory scoping
 	if input.TaskConfig.KeyTemplate == "" {
@@ -77,9 +76,23 @@ func (uc *ExecuteMemoryOperation) Execute(
 	case task.MemoryOpRead:
 		return uc.executeRead(ctx, memInstance, resolvedKey)
 	case task.MemoryOpWrite:
-		return uc.executeWrite(ctx, memInstance, resolvedKey, input.TaskConfig.Payload, input.MergedInput)
+		return uc.executeWrite(
+			ctx,
+			memInstance,
+			resolvedKey,
+			input.TaskConfig.Payload,
+			input.MergedInput,
+			input.WorkflowState,
+		)
 	case task.MemoryOpAppend:
-		return uc.executeAppend(ctx, memInstance, resolvedKey, input.TaskConfig.Payload, input.MergedInput)
+		return uc.executeAppend(
+			ctx,
+			memInstance,
+			resolvedKey,
+			input.TaskConfig.Payload,
+			input.MergedInput,
+			input.WorkflowState,
+		)
 	case task.MemoryOpDelete:
 		return uc.executeDelete(ctx, memInstance, resolvedKey)
 	case task.MemoryOpFlush:
@@ -198,9 +211,10 @@ func (uc *ExecuteMemoryOperation) executeWrite(
 	key string,
 	payload any,
 	mergedInput *core.Input,
+	workflowState *workflow.State,
 ) (*core.Output, error) {
 	// Resolve payload if it's a template
-	resolvedPayload, err := uc.resolvePayload(payload, mergedInput)
+	resolvedPayload, err := uc.resolvePayload(payload, mergedInput, workflowState)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve payload: %w", err)
 	}
@@ -250,9 +264,10 @@ func (uc *ExecuteMemoryOperation) executeAppend(
 	key string,
 	payload any,
 	mergedInput *core.Input,
+	workflowState *workflow.State,
 ) (*core.Output, error) {
 	// Resolve payload if it's a template
-	resolvedPayload, err := uc.resolvePayload(payload, mergedInput)
+	resolvedPayload, err := uc.resolvePayload(payload, mergedInput, workflowState)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve payload: %w", err)
 	}
@@ -301,7 +316,6 @@ func (uc *ExecuteMemoryOperation) executeFlush(
 	key string,
 	config *task.FlushConfig,
 ) (*core.Output, error) {
-	log := logger.FromContext(ctx)
 	// Check if memory implements FlushableMemory interface
 	flushableMem, ok := mem.(memcore.FlushableMemory)
 	if !ok {
@@ -334,21 +348,8 @@ func (uc *ExecuteMemoryOperation) executeFlush(
 		}, nil
 	}
 
-	// Mark flush as pending to prevent concurrent flushes
-	if err := flushableMem.MarkFlushPending(ctx, true); err != nil {
-		return nil, fmt.Errorf("failed to mark flush pending: %w", err)
-	}
-
-	// Ensure we clear the pending flag on completion
-	defer func() {
-		if clearErr := flushableMem.MarkFlushPending(ctx, false); clearErr != nil {
-			log.Error("failed to clear flush pending flag",
-				"error", clearErr,
-				"key", key)
-		}
-	}()
-
 	// Perform the flush operation
+	// Note: PerformFlush handles its own flush pending management internally
 	result, err := flushableMem.PerformFlush(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("flush operation failed: %w", err)
@@ -489,16 +490,26 @@ func (uc *ExecuteMemoryOperation) executeStats(
 
 // Helper methods
 
-func (uc *ExecuteMemoryOperation) resolvePayload(payload any, mergedInput *core.Input) (any, error) {
+func (uc *ExecuteMemoryOperation) resolvePayload(
+	payload any,
+	mergedInput *core.Input,
+	workflowState *workflow.State,
+) (any, error) {
 	if payload == nil {
 		return nil, nil
 	}
-	// Build context for template evaluation
-	tplCtx := make(map[string]any)
+	// Build context for template evaluation following project standards
+	tplCtx := map[string]any{
+		"workflow": map[string]any{
+			"id":      workflowState.WorkflowID,
+			"exec_id": workflowState.WorkflowExecID,
+			"input":   workflowState.Input,
+		},
+		"tasks": workflowState.Tasks,
+	}
+	// Add merged input as "input" at top level for task context
 	if mergedInput != nil {
-		for k, v := range *mergedInput {
-			tplCtx[k] = v
-		}
+		tplCtx["input"] = mergedInput
 	}
 	return uc.resolvePayloadRecursive(payload, tplCtx)
 }

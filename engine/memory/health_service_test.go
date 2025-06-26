@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -83,6 +84,93 @@ func TestHealthService_GetOverallHealth(t *testing.T) {
 		assert.NotNil(t, health)
 		assert.NotZero(t, health.LastChecked)
 		assert.NotNil(t, health.InstanceHealth)
+	})
+}
+
+func TestHealthService_ConcurrentAccess(t *testing.T) {
+	t.Run("Should handle concurrent GetOverallHealth calls", func(t *testing.T) {
+		ctx := context.Background()
+		manager := &Manager{}
+		service := NewHealthService(ctx, manager)
+
+		var wg sync.WaitGroup
+		results := make([]*SystemHealth, 10)
+
+		for i := 0; i < 10; i++ {
+			wg.Add(1)
+			go func(index int) {
+				defer wg.Done()
+				health := service.GetOverallHealth(ctx)
+				results[index] = health
+				assert.NotNil(t, health)
+				assert.NotZero(t, health.LastChecked)
+				assert.NotNil(t, health.InstanceHealth)
+			}(i)
+		}
+		wg.Wait()
+
+		// Verify all calls succeeded
+		for i, health := range results {
+			assert.NotNil(t, health, "Health result %d should not be nil", i)
+			assert.NotZero(t, health.LastChecked, "Health result %d should have LastChecked set", i)
+		}
+	})
+
+	t.Run("Should handle concurrent health checks with Start/Stop", func(t *testing.T) {
+		ctx := context.Background()
+		manager := &Manager{}
+		service := NewHealthService(ctx, manager)
+
+		var wg sync.WaitGroup
+
+		// Start background health monitoring
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			service.Start(ctx)
+			time.Sleep(100 * time.Millisecond)
+			service.Stop()
+		}()
+
+		// Concurrent health checks
+		for i := 0; i < 5; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				health := service.GetOverallHealth(ctx)
+				assert.NotZero(t, health.LastChecked)
+			}()
+		}
+
+		wg.Wait()
+	})
+}
+
+func TestHealthService_ErrorScenarios(t *testing.T) {
+	t.Run("Should handle manager with nil components gracefully", func(t *testing.T) {
+		ctx := context.Background()
+		manager := &Manager{
+			baseRedisClient: nil,
+			baseLockManager: nil,
+		}
+		service := NewHealthService(ctx, manager)
+
+		health := service.GetOverallHealth(ctx)
+		assert.NotNil(t, health)
+		assert.NotZero(t, health.LastChecked)
+		assert.NotNil(t, health.InstanceHealth)
+	})
+
+	t.Run("Should handle context cancellation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		manager := &Manager{}
+		service := NewHealthService(ctx, manager)
+
+		// Cancel context immediately
+		cancel()
+
+		health := service.GetOverallHealth(ctx)
+		assert.NotNil(t, health)
 	})
 }
 

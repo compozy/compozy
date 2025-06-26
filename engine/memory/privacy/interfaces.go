@@ -36,11 +36,3 @@ type RedactionEngine interface {
 	// ApplyPatterns applies multiple redaction patterns with timeout protection
 	ApplyPatterns(content string, patterns []string, replacement string, timeout time.Duration) (string, error)
 }
-
-// PolicyValidator validates privacy policies
-type PolicyValidator interface {
-	// ValidatePolicy validates a privacy policy configuration
-	ValidatePolicy(policy *core.PrivacyPolicyConfig) error
-	// ValidateRedactionPatterns validates all redaction patterns in a policy
-	ValidateRedactionPatterns(patterns []string) error
-}

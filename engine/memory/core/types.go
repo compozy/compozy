@@ -112,11 +112,11 @@ type Resource struct {
 // PrivacyPolicyConfig defines rules for handling sensitive data.
 type PrivacyPolicyConfig struct {
 	// RedactPatterns is a list of regex patterns to apply for redacting content.
-	RedactPatterns []string `yaml:"redact_patterns,omitempty"               json:"redact_patterns,omitempty"`
+	RedactPatterns []string `yaml:"redact_patterns,omitempty"               json:"redact_patterns,omitempty"               mapstructure:"redact_patterns,omitempty"`
 	// NonPersistableMessageTypes is a list of message types/roles that should not be persisted.
-	NonPersistableMessageTypes []string `yaml:"non_persistable_message_types,omitempty" json:"non_persistable_message_types,omitempty"`
+	NonPersistableMessageTypes []string `yaml:"non_persistable_message_types,omitempty" json:"non_persistable_message_types,omitempty" mapstructure:"non_persistable_message_types,omitempty"`
 	// DefaultRedactionString is the string to replace redacted content with. Defaults to "[REDACTED]".
-	DefaultRedactionString string `yaml:"default_redaction_string,omitempty"      json:"default_redaction_string,omitempty"`
+	DefaultRedactionString string `yaml:"default_redaction_string,omitempty"      json:"default_redaction_string,omitempty"      mapstructure:"default_redaction_string,omitempty"`
 }
 
 // TokenProviderConfig defines configuration for multi-provider token counting
@@ -300,15 +300,15 @@ func (ta *TokenAllocation) Validate() error {
 // This config is responsible only for WHEN and HOW MUCH to flush.
 type FlushingStrategyConfig struct {
 	// Type is the kind of flushing strategy to apply (e.g., hybrid_summary).
-	Type FlushingStrategyType `yaml:"type"                               json:"type"                               validate:"required,oneof=hybrid_summary simple_fifo lru token_aware_lru"`
+	Type FlushingStrategyType `yaml:"type"                               json:"type"                               mapstructure:"type"                               validate:"required,oneof=hybrid_summary simple_fifo lru token_aware_lru"`
 	// SummarizeThreshold is the percentage of MaxTokens/MaxMessages at which summarization should trigger.
 	// E.g., 0.8 means trigger summarization when memory is 80% full. Only for hybrid_summary.
-	SummarizeThreshold float64 `yaml:"summarize_threshold,omitempty"      json:"summarize_threshold,omitempty"      validate:"omitempty,gt=0,lte=1"`
+	SummarizeThreshold float64 `yaml:"summarize_threshold,omitempty"      json:"summarize_threshold,omitempty"      mapstructure:"summarize_threshold,omitempty"      validate:"omitempty,gt=0,lte=1"`
 	// SummaryTokens is the target token count for generated summaries. Only for hybrid_summary.
-	SummaryTokens int `yaml:"summary_tokens,omitempty"           json:"summary_tokens,omitempty"           validate:"omitempty,gt=0"`
+	SummaryTokens int `yaml:"summary_tokens,omitempty"           json:"summary_tokens,omitempty"           mapstructure:"summary_tokens,omitempty"           validate:"omitempty,gt=0"`
 	// SummarizeOldestPercent is the percentage of the oldest messages to summarize. Only for hybrid_summary.
 	// E.g., 0.3 means summarize the oldest 30% of messages.
-	SummarizeOldestPercent float64 `yaml:"summarize_oldest_percent,omitempty" json:"summarize_oldest_percent,omitempty" validate:"omitempty,gt=0,lte=1"`
+	SummarizeOldestPercent float64 `yaml:"summarize_oldest_percent,omitempty" json:"summarize_oldest_percent,omitempty" mapstructure:"summarize_oldest_percent,omitempty" validate:"omitempty,gt=0,lte=1"`
 }
 
 // EvictionPolicyType defines the type of eviction policy to use.
@@ -364,14 +364,14 @@ const (
 
 // PersistenceConfig defines how memory instances are persisted.
 type PersistenceConfig struct {
-	Type PersistenceType `yaml:"type"                      json:"type"                      validate:"required,oneof=redis in_memory"`
+	Type PersistenceType `yaml:"type"                      json:"type"                      mapstructure:"type"                      validate:"required,oneof=redis in_memory"`
 	// TTL is the time-to-live for memory instances in this resource.
 	// Parsed as a duration string (e.g., "24h", "30m").
-	TTL string `yaml:"ttl"                       json:"ttl"                       validate:"required"`
+	TTL string `yaml:"ttl"                       json:"ttl"                       mapstructure:"ttl"                       validate:"required"`
 	// ParsedTTL is the parsed duration of TTL.
 	ParsedTTL time.Duration `yaml:"-"                         json:"-"`
 	// CircuitBreaker configures resilience for persistence operations.
-	CircuitBreaker *CircuitBreakerConfig `yaml:"circuit_breaker,omitempty" json:"circuit_breaker,omitempty"`
+	CircuitBreaker *CircuitBreakerConfig `yaml:"circuit_breaker,omitempty" json:"circuit_breaker,omitempty" mapstructure:"circuit_breaker,omitempty"`
 }
 
 // CircuitBreakerConfig defines parameters for a circuit breaker pattern.

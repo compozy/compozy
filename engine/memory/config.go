@@ -8,6 +8,7 @@ import (
 	"dario.cat/mergo"
 	"github.com/compozy/compozy/engine/core"
 	memcore "github.com/compozy/compozy/engine/memory/core"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // Config defines the structure for a memory resource configuration.
@@ -15,47 +16,47 @@ import (
 type Config struct {
 	// Resource type identifier, should be "memory".
 	// Used by autoloaders to identify the type of this configuration.
-	Resource string `json:"resource"              yaml:"resource"              validate:"required,eq=memory"`
+	Resource string `json:"resource"              yaml:"resource"              mapstructure:"resource"              validate:"required,eq=memory"`
 	// ID is the unique identifier for this memory resource within the project.
-	ID string `json:"id"                    yaml:"id"                    validate:"required"`
+	ID string `json:"id"                    yaml:"id"                    mapstructure:"id"                    validate:"required"`
 	// Description provides a human-readable explanation of the memory resource's purpose.
-	Description string `json:"description,omitempty" yaml:"description,omitempty"`
+	Description string `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description,omitempty"`
 	// Version allows tracking changes to the memory resource definition.
-	Version string `json:"version,omitempty"     yaml:"version,omitempty"`
+	Version string `json:"version,omitempty"     yaml:"version,omitempty"     mapstructure:"version,omitempty"`
 
 	// Type indicates the primary management strategy (e.g., token_based).
 	// This refers to memory.MemoryType defined in types.go
-	Type memcore.Type `json:"type" yaml:"type" validate:"required,oneof=token_based message_count_based buffer"`
+	Type memcore.Type `json:"type" yaml:"type" mapstructure:"type" validate:"required,oneof=token_based message_count_based buffer"`
 
 	// MaxTokens is the hard limit on the number of tokens this memory can hold.
-	MaxTokens int `json:"max_tokens,omitempty"        yaml:"max_tokens,omitempty"        validate:"omitempty,gt=0"`
+	MaxTokens int `json:"max_tokens,omitempty"        yaml:"max_tokens,omitempty"        mapstructure:"max_tokens,omitempty"        validate:"omitempty,gt=0"`
 	// MaxMessages is the hard limit on the number of messages.
-	MaxMessages int `json:"max_messages,omitempty"      yaml:"max_messages,omitempty"      validate:"omitempty,gt=0"`
+	MaxMessages int `json:"max_messages,omitempty"      yaml:"max_messages,omitempty"      mapstructure:"max_messages,omitempty"      validate:"omitempty,gt=0"`
 	// MaxContextRatio specifies the maximum portion of an LLM's context window this memory should aim to use.
-	MaxContextRatio float64 `json:"max_context_ratio,omitempty" yaml:"max_context_ratio,omitempty" validate:"omitempty,gt=0,lte=1"`
+	MaxContextRatio float64 `json:"max_context_ratio,omitempty" yaml:"max_context_ratio,omitempty" mapstructure:"max_context_ratio,omitempty" validate:"omitempty,gt=0,lte=1"`
 
 	// TokenAllocation defines how the token budget is distributed if applicable.
 	// Refers to memory.TokenAllocation defined in types.go
-	TokenAllocation *memcore.TokenAllocation `json:"token_allocation,omitempty" yaml:"token_allocation,omitempty"`
+	TokenAllocation *memcore.TokenAllocation `json:"token_allocation,omitempty" yaml:"token_allocation,omitempty" mapstructure:"token_allocation,omitempty"`
 	// FlushingStrategy defines how memory is managed when limits are approached or reached.
 	// Refers to memcore.FlushingStrategyConfig defined in types.go
-	Flushing *memcore.FlushingStrategyConfig `json:"flushing,omitempty"         yaml:"flushing,omitempty"` // Renamed from FlushingStrategy in PRD to avoid conflict with the struct type
+	Flushing *memcore.FlushingStrategyConfig `json:"flushing,omitempty"         yaml:"flushing,omitempty"         mapstructure:"flushing,omitempty"` // Renamed from FlushingStrategy in PRD to avoid conflict with the struct type
 
 	// Persistence defines how memory instances are persisted.
 	// Refers to memcore.PersistenceConfig defined in types.go
-	Persistence memcore.PersistenceConfig `json:"persistence" yaml:"persistence" validate:"required"`
+	Persistence memcore.PersistenceConfig `json:"persistence" yaml:"persistence" mapstructure:"persistence" validate:"required"`
 
 	// PrivacyPolicy defines how sensitive data within this memory resource should be handled.
 	// Refers to memcore.PrivacyPolicyConfig defined in types.go
-	PrivacyPolicy *memcore.PrivacyPolicyConfig `json:"privacy_policy,omitempty" yaml:"privacy_policy,omitempty"`
+	PrivacyPolicy *memcore.PrivacyPolicyConfig `json:"privacy_policy,omitempty" yaml:"privacy_policy,omitempty" mapstructure:"privacy_policy,omitempty"`
 
 	// Locking defines lock timeout settings for memory operations.
 	// Refers to memcore.LockConfig defined in types.go
-	Locking *memcore.LockConfig `json:"locking,omitempty" yaml:"locking,omitempty"`
+	Locking *memcore.LockConfig `json:"locking,omitempty" yaml:"locking,omitempty" mapstructure:"locking,omitempty"`
 
 	// TokenProvider configures multi-provider token counting with API-based counting.
 	// Refers to memcore.TokenProviderConfig defined in types.go
-	TokenProvider *memcore.TokenProviderConfig `json:"token_provider,omitempty" yaml:"token_provider,omitempty"`
+	TokenProvider *memcore.TokenProviderConfig `json:"token_provider,omitempty" yaml:"token_provider,omitempty" mapstructure:"token_provider,omitempty"`
 
 	// --- Fields for core.Configurable / core.Config compatibility ---
 	filePath string        `json:"-" yaml:"-"`
@@ -267,34 +268,85 @@ func (c *Config) validateTokenBased() error {
 	return nil
 }
 
+// TTLManager centralizes TTL management for memory operations
+type TTLManager struct {
+	appendTTL time.Duration
+	clearTTL  time.Duration
+	flushTTL  time.Duration
+}
+
+// NewTTLManager creates a TTL manager from lock configuration
+func NewTTLManager(lockConfig *memcore.LockConfig, memoryID string) *TTLManager {
+	tm := &TTLManager{
+		// Default TTLs
+		appendTTL: 30 * time.Second,
+		clearTTL:  10 * time.Second,
+		flushTTL:  5 * time.Minute,
+	}
+	if lockConfig == nil {
+		return tm
+	}
+	// Parse configured TTLs with error logging
+	log := logger.FromContext(context.Background())
+	tm.appendTTL = parseTTLWithDefault(lockConfig.AppendTTL, tm.appendTTL, "append", memoryID, log)
+	tm.clearTTL = parseTTLWithDefault(lockConfig.ClearTTL, tm.clearTTL, "clear", memoryID, log)
+	tm.flushTTL = parseTTLWithDefault(lockConfig.FlushTTL, tm.flushTTL, "flush", memoryID, log)
+	return tm
+}
+
+// parseTTLWithDefault parses a TTL string with fallback and error logging
+func parseTTLWithDefault(
+	ttlStr string,
+	defaultTTL time.Duration,
+	operation, memoryID string,
+	log logger.Logger,
+) time.Duration {
+	if ttlStr == "" {
+		return defaultTTL
+	}
+	ttl, err := time.ParseDuration(ttlStr)
+	if err != nil {
+		log.Error("Failed to parse lock TTL",
+			"memory_id", memoryID,
+			"operation", operation,
+			"ttl_string", ttlStr,
+			"error", err)
+		return defaultTTL
+	}
+	return ttl
+}
+
+// GetAppendTTL returns the TTL for append operations
+func (tm *TTLManager) GetAppendTTL() time.Duration {
+	return tm.appendTTL
+}
+
+// GetClearTTL returns the TTL for clear operations
+func (tm *TTLManager) GetClearTTL() time.Duration {
+	return tm.clearTTL
+}
+
+// GetFlushTTL returns the TTL for flush operations
+func (tm *TTLManager) GetFlushTTL() time.Duration {
+	return tm.flushTTL
+}
+
 // GetAppendLockTTL returns the lock TTL for append operations with a default fallback.
 func (c *Config) GetAppendLockTTL() time.Duration {
-	if c.Locking != nil && c.Locking.AppendTTL != "" {
-		if ttl, err := time.ParseDuration(c.Locking.AppendTTL); err == nil {
-			return ttl
-		}
-	}
-	return 30 * time.Second // Default
+	tm := NewTTLManager(c.Locking, c.ID)
+	return tm.GetAppendTTL()
 }
 
 // GetClearLockTTL returns the lock TTL for clear operations with a default fallback.
 func (c *Config) GetClearLockTTL() time.Duration {
-	if c.Locking != nil && c.Locking.ClearTTL != "" {
-		if ttl, err := time.ParseDuration(c.Locking.ClearTTL); err == nil {
-			return ttl
-		}
-	}
-	return 10 * time.Second // Default
+	tm := NewTTLManager(c.Locking, c.ID)
+	return tm.GetClearTTL()
 }
 
 // GetFlushLockTTL returns the lock TTL for flush operations with a default fallback.
 func (c *Config) GetFlushLockTTL() time.Duration {
-	if c.Locking != nil && c.Locking.FlushTTL != "" {
-		if ttl, err := time.ParseDuration(c.Locking.FlushTTL); err == nil {
-			return ttl
-		}
-	}
-	return 5 * time.Minute // Default
+	tm := NewTTLManager(c.Locking, c.ID)
+	return tm.GetFlushTTL()
 }
 
 // --- Methods below are part of core.Config but might not be fully relevant for a simple resource definition ---

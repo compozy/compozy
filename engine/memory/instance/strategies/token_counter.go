@@ -6,6 +6,17 @@ import (
 	"github.com/compozy/compozy/engine/memory/core"
 )
 
+const (
+	// DefaultTokensPerChar represents the estimated tokens per character (1 token per 4 chars)
+	DefaultTokensPerChar = 0.25
+	// SimpleEstimationEncoding is the encoding name for simple estimation
+	SimpleEstimationEncoding = "simple-estimation"
+	// GPTAverageTokenLength represents the average character length per token in GPT models
+	GPTAverageTokenLength = 4.0
+	// GPTEstimationEncoding is the encoding name for GPT-style estimation
+	GPTEstimationEncoding = "gpt-estimation"
+)
+
 // SimpleTokenCounterAdapter adapts a simple estimation algorithm to core.TokenCounter interface
 type SimpleTokenCounterAdapter struct {
 	tokensPerChar float64
@@ -14,7 +25,7 @@ type SimpleTokenCounterAdapter struct {
 // NewSimpleTokenCounterAdapter creates a new simple token counter adapter
 func NewSimpleTokenCounterAdapter() core.TokenCounter {
 	return &SimpleTokenCounterAdapter{
-		tokensPerChar: 0.25, // Approximately 4 characters per token
+		tokensPerChar: DefaultTokensPerChar,
 	}
 }
 
@@ -33,7 +44,7 @@ func (tc *SimpleTokenCounterAdapter) CountTokens(_ context.Context, text string)
 
 // GetEncoding returns the name of the encoding being used
 func (tc *SimpleTokenCounterAdapter) GetEncoding() string {
-	return "simple-estimation"
+	return SimpleEstimationEncoding
 }
 
 // GPTTokenCounterAdapter provides GPT-style token estimation
@@ -44,7 +55,7 @@ type GPTTokenCounterAdapter struct {
 // NewGPTTokenCounterAdapter creates a new GPT-style token counter adapter
 func NewGPTTokenCounterAdapter() core.TokenCounter {
 	return &GPTTokenCounterAdapter{
-		averageTokenLength: 4.0, // GPT tokens average ~4 characters
+		averageTokenLength: GPTAverageTokenLength,
 	}
 }
 
@@ -53,30 +64,12 @@ func (tc *GPTTokenCounterAdapter) CountTokens(_ context.Context, text string) (i
 	if text == "" {
 		return 0, nil
 	}
-	// More accurate estimation considering word boundaries and punctuation
+	// Simple character-based estimation
 	tokenCount := int(float64(len(text)) / tc.averageTokenLength)
-
-	// Adjust for common patterns
-	if len(text) < 10 {
-		// Very short text tends to be less efficient
-		tokenCount = maxInt(1, tokenCount)
-	} else if len(text) > 1000 {
-		// Long text tends to be more efficient
-		tokenCount = int(float64(tokenCount) * 0.9)
-	}
-
-	return maxInt(1, tokenCount), nil
+	return max(1, tokenCount), nil
 }
 
 // GetEncoding returns the name of the encoding being used
 func (tc *GPTTokenCounterAdapter) GetEncoding() string {
-	return "gpt-estimation"
-}
-
-// maxInt returns the larger of two integers
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
+	return GPTEstimationEncoding
 }

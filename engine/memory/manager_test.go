@@ -33,7 +33,7 @@ func TestNewCacheableTiktokenCounter(t *testing.T) {
 		counter, err := NewCacheableTiktokenCounter("gpt-3.5-turbo")
 		require.NoError(t, err)
 		key := counter.GetCacheKey()
-		assert.Equal(t, "token-counter:gpt-3.5-turbo", key)
+		assert.Equal(t, "memory:token-counter:gpt-3.5-turbo", key)
 	})
 	t.Run("Should estimate cost", func(t *testing.T) {
 		counter, err := NewCacheableTiktokenCounter("gpt-4")

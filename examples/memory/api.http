@@ -218,7 +218,51 @@ GET {{baseUrl}}/executions/workflows/{{execId9}}
 Accept: application/json
 
 ### =============================================================================
-### STEP 10: Test Bob with different data
+### STEP 10: Test Flush operation
+### =============================================================================
+# @name aliceFlush
+POST {{baseUrl}}/workflows/{{memoryTaskWorkflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "alice_123",
+    "session_id": "session_005",
+    "action": "flush"
+  }
+}
+
+### Get execution ID from Alice's flush
+@execId10 = {{aliceFlush.response.body.data.exec_id}}
+
+### View Alice's flush result
+GET {{baseUrl}}/executions/workflows/{{execId10}}
+Accept: application/json
+
+### =============================================================================
+### STEP 11: Test Delete operation
+### =============================================================================
+# @name aliceDelete
+POST {{baseUrl}}/workflows/{{memoryTaskWorkflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "alice_123",
+    "session_id": "session_006",
+    "action": "delete"
+  }
+}
+
+### Get execution ID from Alice's delete
+@execId11 = {{aliceDelete.response.body.data.exec_id}}
+
+### View Alice's delete result
+GET {{baseUrl}}/executions/workflows/{{execId11}}
+Accept: application/json
+
+### =============================================================================
+### STEP 12: Test Bob with different data
 ### =============================================================================
 # @name bobInit
 POST {{baseUrl}}/workflows/{{memoryTaskWorkflowId}}/executions
@@ -241,8 +285,8 @@ Content-Type: application/json
 }
 
 ### Get execution ID from Bob's initialization
-@execId10 = {{bobInit.response.body.data.exec_id}}
+@execId12 = {{bobInit.response.body.data.exec_id}}
 
 ### View Bob's initialization result
-GET {{baseUrl}}/executions/workflows/{{execId10}}
+GET {{baseUrl}}/executions/workflows/{{execId12}}
 Accept: application/json

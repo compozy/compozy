@@ -29,6 +29,14 @@ func NewLRUStrategy(config *core.FlushingStrategyConfig, options *StrategyOption
 		options = GetDefaultStrategyOptions()
 	}
 
+	// Validate LRU-specific options
+	if options.LRUTargetCapacityPercent < 0 || options.LRUTargetCapacityPercent > 1 {
+		return nil, fmt.Errorf(
+			"LRUTargetCapacityPercent must be between 0 and 1, got %f",
+			options.LRUTargetCapacityPercent,
+		)
+	}
+
 	cacheSize := options.CacheSize
 	if cacheSize <= 0 {
 		cacheSize = 1000 // Default cache size
@@ -264,19 +272,38 @@ func (s *LRUStrategy) updateCacheAfterEviction(
 	// Clear the cache and repopulate with remaining messages
 	s.cache.Purge()
 
-	// Build a map for O(1) message lookup by content comparison
+	// Build a map for O(1) message lookup by content and index comparison
 	messageToOrigIndex := make(map[string]int)
 	for idx := range remainingIndices {
-		// Use message content as key for lookup
-		key := fmt.Sprintf("%s:%s", messages[idx].Role, messages[idx].Content)
+		// Use message content with index for uniqueness to handle duplicate messages
+		key := fmt.Sprintf("%d:%s:%s", idx, messages[idx].Role, messages[idx].Content)
 		messageToOrigIndex[key] = idx
 	}
 
 	// Rebuild cache with new indices for remaining messages
 	for newIdx, msg := range remainingMessages {
-		// Find the original index using content comparison
-		key := fmt.Sprintf("%s:%s", msg.Role, msg.Content)
-		if origIdx, found := messageToOrigIndex[key]; found {
+		// Find the original index by matching content and checking all remaining indices
+		var origIdx int
+		found := false
+		for candidateIdx := range remainingIndices {
+			candidateKey := fmt.Sprintf(
+				"%d:%s:%s",
+				candidateIdx,
+				messages[candidateIdx].Role,
+				messages[candidateIdx].Content,
+			)
+			if messages[candidateIdx].Role == msg.Role && messages[candidateIdx].Content == msg.Content {
+				if _, exists := messageToOrigIndex[candidateKey]; exists {
+					origIdx = candidateIdx
+					found = true
+					// Remove from map to handle duplicate messages correctly
+					delete(messageToOrigIndex, candidateKey)
+					break
+				}
+			}
+		}
+
+		if found {
 			if accessTime, exists := accessTimeMap[origIdx]; exists {
 				s.cache.Add(newIdx, accessTime)
 			} else {

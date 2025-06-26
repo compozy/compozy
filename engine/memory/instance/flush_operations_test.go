@@ -157,13 +157,14 @@ func (m *flushTestTokenCounter) CountTokens(_ context.Context, _ string) (int, e
 }
 
 func (m *flushTestTokenCounter) EncodeTokens(_ context.Context, _ string) ([]int, error) {
-	return []int{}, nil
+	// Return a simple token encoding based on content length
+	return []int{1, 2, 3}, nil // Placeholder encoding
 }
 
 func (m *flushTestTokenCounter) DecodeTokens(_ context.Context, _ []int) (string, error) {
-	return "", nil
+	return "decoded", nil
 }
 
 func (m *flushTestTokenCounter) GetEncoding() string {
-	return "mock"
+	return "test-encoding"
 }
