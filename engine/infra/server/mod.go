@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	csvc "github.com/compozy/compozy/engine/infra/server/config"
+	"github.com/compozy/compozy/engine/infra/server/middleware/ratelimit"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
@@ -105,6 +106,25 @@ func NewServer(ctx context.Context, config *Config, tConfig *worker.TemporalConf
 func (s *Server) buildRouter(state *appstate.State) error {
 	r := gin.New()
 	r.Use(gin.Recovery())
+
+	// Setup rate limiting
+	if s.Config.RateLimit != nil {
+		log := logger.FromContext(s.ctx)
+		// Create rate limit manager without Redis for now
+		// TODO: Add Redis support when available in store
+		manager, err := ratelimit.NewManager(s.Config.RateLimit, nil)
+		if err != nil {
+			log.Error("Failed to initialize rate limiting", "error", err)
+			// Continue without rate limiting
+		} else {
+			// Apply global rate limit middleware
+			r.Use(manager.Middleware())
+			log.Info("Rate limiting enabled",
+				"global_limit", s.Config.RateLimit.GlobalRate.Limit,
+				"global_period", s.Config.RateLimit.GlobalRate.Period)
+		}
+	}
+
 	// Add monitoring middleware BEFORE other middleware if monitoring is initialized
 	log := logger.FromContext(s.ctx)
 	if s.monitoring != nil && s.monitoring.IsInitialized() {

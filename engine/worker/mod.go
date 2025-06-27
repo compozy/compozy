@@ -476,6 +476,11 @@ func (o *Worker) GetTaskQueue() string {
 	return o.taskQueue
 }
 
+// GetMemoryManager returns the memory manager instance
+func (o *Worker) GetMemoryManager() *memory.Manager {
+	return o.memoryManager
+}
+
 // TerminateDispatcher explicitly terminates the dispatcher workflow
 // Use this only when you want to force cleanup (e.g., CLI cleanup command)
 func (o *Worker) TerminateDispatcher(ctx context.Context, reason string) error {

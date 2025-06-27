@@ -10,6 +10,7 @@ import (
 	_ "github.com/compozy/compozy/engine/infra/monitoring" // Import for swagger docs
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/memory"
+	memrouter "github.com/compozy/compozy/engine/memory/router"
 	tkrouter "github.com/compozy/compozy/engine/task/router"
 	toolrouter "github.com/compozy/compozy/engine/tool/router"
 	wfrouter "github.com/compozy/compozy/engine/workflow/router"
@@ -146,6 +147,7 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 	agentrouter.Register(apiBase)
 	toolrouter.Register(apiBase)
 	schedulerouter.Register(apiBase)
+	memrouter.Register(apiBase)
 
 	// Register memory health routes if global health service is available
 	if globalHealthService := memory.GetGlobalHealthService(); globalHealthService != nil {

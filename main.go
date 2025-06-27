@@ -27,6 +27,9 @@
 //	@tag.name			schedules
 //	@tag.description	Schedule management operations
 
+//	@tag.name			memory
+//	@tag.description	Memory management operations
+
 //	@tag.name			Operations
 //	@tag.description	Operational endpoints for monitoring and health
 
@@ -36,6 +39,7 @@ import (
 	"os"
 
 	"github.com/compozy/compozy/cli"
+	_ "github.com/compozy/compozy/engine/memory/router"            // Import for swagger docs
 	_ "github.com/compozy/compozy/engine/workflow/schedule/router" // Import for swagger docs
 )
 
