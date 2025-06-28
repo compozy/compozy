@@ -3,7 +3,6 @@ package uc
 import (
 	"fmt"
 	"regexp"
-	"strings"
 
 	"github.com/compozy/compozy/engine/llm"
 )
@@ -47,10 +46,7 @@ func ValidateKey(key string) error {
 	if !keyPattern.MatchString(key) {
 		return fmt.Errorf("%w: must not contain control characters, 1-255 characters", ErrInvalidKey)
 	}
-	// Check for special characters that could cause issues
-	if strings.ContainsAny(key, "\n\r\t") {
-		return fmt.Errorf("%w: must not contain newlines or tabs", ErrInvalidKey)
-	}
+
 	return nil
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/cache"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/privacy"
+	"github.com/compozy/compozy/engine/memory/tokens"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"go.temporal.io/sdk/client"
@@ -91,4 +92,9 @@ func (mm *Manager) GetInstance(
 	}
 	mm.log.Info("MemoryInstance retrieved/created", "instance_id", sanitizedKey, "resource_id", resourceCfg.ID)
 	return instance, nil
+}
+
+// GetTokenCounter returns a new token counter.
+func (mm *Manager) GetTokenCounter(_ context.Context) (memcore.TokenCounter, error) {
+	return tokens.NewTiktokenCounter(DefaultTokenCounterModel)
 }

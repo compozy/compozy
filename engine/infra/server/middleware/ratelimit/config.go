@@ -1,6 +1,7 @@
 package ratelimit
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/ulule/limiter/v3"
@@ -52,7 +53,7 @@ func DefaultConfig() *Config {
 		},
 		RouteRates: map[string]RateConfig{
 			"/api/v0/memory": {
-				Limit:    50,
+				Limit:    200, // More reasonable for memory operations
 				Period:   1 * time.Minute,
 				Disabled: false,
 			},
@@ -67,6 +68,7 @@ func DefaultConfig() *Config {
 				Disabled: false,
 			},
 		},
+		// RedisAddr is the address of the Redis server. If empty, an in-memory store is used.
 		RedisAddr:           "",
 		RedisPassword:       "",
 		RedisDB:             0,
@@ -90,4 +92,17 @@ func (rc RateConfig) ToLimiterRate() limiter.Rate {
 		Period: rc.Period,
 		Limit:  rc.Limit,
 	}
+}
+
+// Validate validates the configuration
+func (c *Config) Validate() error {
+	if c.GlobalRate.Limit <= 0 {
+		return fmt.Errorf("global rate limit must be positive")
+	}
+	for route, rate := range c.RouteRates {
+		if rate.Limit <= 0 {
+			return fmt.Errorf("route rate limit for %s must be positive", route)
+		}
+	}
+	return nil
 }

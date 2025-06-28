@@ -2,13 +2,9 @@ package uc
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
-	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/memory"
-	memcore "github.com/compozy/compozy/engine/memory/core"
+	"github.com/compozy/compozy/engine/memory/service"
 	"github.com/compozy/compozy/engine/worker"
 )
 
@@ -39,6 +35,7 @@ type MemoryHealthInfo struct {
 type StatsMemory struct {
 	Manager *memory.Manager
 	Worker  *worker.Worker
+	service service.MemoryOperationsService
 }
 
 type StatsMemoryInput struct {
@@ -68,9 +65,11 @@ type PaginationInfo struct {
 
 // NewStatsMemory creates a new stats memory use case
 func NewStatsMemory(manager *memory.Manager, worker *worker.Worker) *StatsMemory {
+	memService := service.NewMemoryOperationsService(manager, nil, nil)
 	return &StatsMemory{
 		Manager: manager,
 		Worker:  worker,
+		service: memService,
 	}
 }
 
@@ -81,44 +80,46 @@ func (uc *StatsMemory) Execute(ctx context.Context, input StatsMemoryInput) (*St
 		return nil, err
 	}
 
-	// Normalize pagination parameters
-	input = uc.normalizePagination(input)
-
 	// Get memory manager
 	manager, err := uc.getManager()
 	if err != nil {
 		return nil, NewErrorContext(err, "stats_memory", input.MemoryRef, input.Key)
 	}
 
-	// Get memory instance
-	instance, err := uc.getMemoryInstance(ctx, manager, input)
+	// Use centralized service for stats
+	resp, err := uc.service.Stats(ctx, &service.StatsRequest{
+		BaseRequest: service.BaseRequest{
+			MemoryRef: input.MemoryRef,
+			Key:       input.Key,
+		},
+		Config: &service.StatsConfig{
+			IncludeContent: true, // Always include content for role distribution
+		},
+	})
+	if err != nil {
+		return nil, NewErrorContext(err, "stats_memory", input.MemoryRef, input.Key)
+	}
+
+	// Build basic output from service response
+	output := &StatsMemoryOutput{
+		Key:              input.Key,
+		MessageCount:     resp.MessageCount,
+		TokenCount:       resp.TokenCount,
+		TokenLimit:       128000, // Default context window
+		TokenUtilization: float64(resp.TokenCount) / 128000,
+	}
+
+	// Calculate role distribution separately for compatibility
+	roleDistribution, paginationInfo, err := uc.calculateRoleDistribution(ctx, manager, input)
 	if err != nil {
 		return nil, err
 	}
 
-	// Collect stats
-	stats, err := uc.collectStats(ctx, instance)
-	if err != nil {
-		return nil, err
-	}
+	output.RoleDistribution = roleDistribution
+	output.PaginationInfo = paginationInfo
+	output.ContextWindowUsed = resp.MessageCount
 
-	// Calculate role distribution
-	roleDistribution, paginationInfo, err := uc.calculateRoleDistribution(ctx, instance, input)
-	if err != nil {
-		return nil, err
-	}
-
-	// Build output
-	return &StatsMemoryOutput{
-		Key:               input.Key,
-		MessageCount:      stats.messageCount,
-		ContextWindowUsed: stats.contextWindowUsed,
-		TokenCount:        stats.tokenCount,
-		TokenLimit:        stats.tokenLimit,
-		TokenUtilization:  stats.tokenUtilization,
-		RoleDistribution:  roleDistribution,
-		PaginationInfo:    paginationInfo,
-	}, nil
+	return output, nil
 }
 
 // validateInput validates the input parameters
@@ -158,126 +159,34 @@ func (uc *StatsMemory) getManager() (*memory.Manager, error) {
 	return manager, nil
 }
 
-// getMemoryInstance retrieves the memory instance
-func (uc *StatsMemory) getMemoryInstance(
-	ctx context.Context,
-	manager *memory.Manager,
-	input StatsMemoryInput,
-) (memcore.Memory, error) {
-	memRef := core.MemoryReference{
-		ID:  input.MemoryRef,
-		Key: input.Key,
-	}
-
-	workflowContext := map[string]any{
-		"api_operation": "stats",
-		"key":           input.Key,
-	}
-
-	instance, err := manager.GetInstance(ctx, memRef, workflowContext)
-	if err != nil {
-		if errors.Is(err, memcore.ErrMemoryNotFound) {
-			return nil, NewErrorContext(ErrMemoryNotFound, "stats_memory", input.MemoryRef, input.Key)
-		}
-		return nil, NewErrorContext(
-			fmt.Errorf("failed to get memory: %w", err),
-			"stats_memory", input.MemoryRef, input.Key,
-		).WithDetail("error_type", "memory_access")
-	}
-
-	// Check context cancellation before potentially long operation
-	select {
-	case <-ctx.Done():
-		return nil, fmt.Errorf("operation canceled: %w", ctx.Err())
-	default:
-		// Continue with operation
-	}
-
-	return instance, nil
-}
-
-// statsInfo holds collected statistics
-type statsInfo struct {
-	messageCount      int
-	tokenCount        int
-	contextWindowUsed int
-	tokenLimit        int
-	tokenUtilization  float64
-}
-
-// collectStats gathers statistics from the memory instance
-func (uc *StatsMemory) collectStats(ctx context.Context, instance memcore.Memory) (*statsInfo, error) {
-	stats := &statsInfo{}
-
-	// Get message count
-	messageCount, err := instance.Len(ctx)
-	if err != nil {
-		return nil, NewErrorContext(
-			fmt.Errorf("failed to get message count: %w", err),
-			"stats_memory", "", "",
-		).WithDetail("error_type", "count_error")
-	}
-	stats.messageCount = messageCount
-
-	// Get token count
-	tokenCount, err := instance.GetTokenCount(ctx)
-	if err != nil {
-		return nil, NewErrorContext(
-			fmt.Errorf("failed to get token count: %w", err),
-			"stats_memory", "", "",
-		).WithDetail("error_type", "token_error")
-	}
-	stats.tokenCount = tokenCount
-
-	// Get memory health (for future use, currently we use defaults)
-	_, err = instance.GetMemoryHealth(ctx)
-	if err != nil {
-		return nil, NewErrorContext(
-			fmt.Errorf("failed to get memory health: %w", err),
-			"stats_memory", "", "",
-		).WithDetail("error_type", "health_error")
-	}
-
-	// Calculate token utilization (using 128K as default limit)
-	stats.tokenLimit = 128000 // Default context window
-	stats.contextWindowUsed = messageCount
-	if stats.tokenLimit > 0 {
-		stats.tokenUtilization = float64(tokenCount) / float64(stats.tokenLimit)
-	}
-
-	return stats, nil
-}
-
-// calculateRoleDistribution calculates role distribution with pagination
+// calculateRoleDistribution calculates role distribution with pagination using memory manager
 func (uc *StatsMemory) calculateRoleDistribution(
 	ctx context.Context,
-	instance memcore.Memory,
+	_ *memory.Manager,
 	input StatsMemoryInput,
 ) (
 	map[string]int,
 	*PaginationInfo,
 	error,
 ) {
-	// Check context cancellation before potentially long operation
-	select {
-	case <-ctx.Done():
-		return nil, nil, fmt.Errorf("operation canceled: %w", ctx.Err())
-	default:
-		// Continue with operation
-	}
+	// Normalize pagination parameters
+	input = uc.normalizePagination(input)
 
-	// Read messages
-	messages, err := instance.Read(ctx)
+	// Use centralized service to read messages
+	resp, err := uc.service.Read(ctx, &service.ReadRequest{
+		BaseRequest: service.BaseRequest{
+			MemoryRef: input.MemoryRef,
+			Key:       input.Key,
+		},
+	})
 	if err != nil {
-		return nil, nil, NewErrorContext(
-			fmt.Errorf("failed to read memory for stats: %w", err),
-			"stats_memory", input.MemoryRef, input.Key,
-		).WithDetail("error_type", "memory_read")
+		return nil, nil, NewErrorContext(err, "stats_memory", input.MemoryRef, input.Key)
 	}
 
 	// Apply pagination if needed
-	totalMessages := len(messages)
+	totalMessages := len(resp.Messages)
 	var paginationInfo *PaginationInfo
+	messages := resp.Messages
 
 	if input.Limit > 0 && totalMessages > input.Limit {
 		paginationInfo = &PaginationInfo{
@@ -294,19 +203,23 @@ func (uc *StatsMemory) calculateRoleDistribution(
 	// Calculate role distribution
 	roleDistribution := make(map[string]int)
 	for _, msg := range messages {
-		roleDistribution[string(msg.Role)]++
+		if role, ok := msg["role"].(string); ok {
+			roleDistribution[role]++
+		} else {
+			roleDistribution["unknown"]++
+		}
 	}
 
 	return roleDistribution, paginationInfo, nil
 }
 
 // paginateMessages applies pagination to message slice
-func (uc *StatsMemory) paginateMessages(messages []llm.Message, offset, limit int) []llm.Message {
+func (uc *StatsMemory) paginateMessages(messages []map[string]any, offset, limit int) []map[string]any {
 	start := offset
 	end := offset + limit
 
 	if start >= len(messages) {
-		return []llm.Message{}
+		return []map[string]any{}
 	}
 
 	if end > len(messages) {

@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/memory/service"
 	memuc "github.com/compozy/compozy/engine/memory/uc"
 	"github.com/gin-gonic/gin"
 )
@@ -59,10 +60,7 @@ func readMemory(c *gin.Context) {
 	}
 
 	// Execute use case
-	uc := &memuc.ReadMemory{
-		Manager: memCtx.Manager,
-		Worker:  memCtx.Worker,
-	}
+	uc := memuc.NewReadMemory(memCtx.Manager, memCtx.Worker)
 
 	input := memuc.ReadMemoryInput{
 		MemoryRef: memCtx.MemoryRef,
@@ -134,7 +132,8 @@ func writeMemory(c *gin.Context) {
 	}
 
 	// Execute use case
-	uc := memuc.NewWriteMemory(memCtx.Manager, memCtx.MemoryRef, memCtx.Key, &input)
+	memService := service.NewMemoryOperationsService(memCtx.Manager, nil, nil)
+	uc := memuc.NewWriteMemory(memService, memCtx.MemoryRef, memCtx.Key, &input)
 	result, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		handleMemoryError(c, err, "failed to write memory")
@@ -439,10 +438,7 @@ func statsMemory(c *gin.Context) {
 	}
 
 	// Create use case
-	uc := &memuc.StatsMemory{
-		Manager: memCtx.Manager,
-		Worker:  memCtx.Worker,
-	}
+	uc := memuc.NewStatsMemory(memCtx.Manager, memCtx.Worker)
 
 	// Execute
 	result, err := uc.Execute(c.Request.Context(), memuc.StatsMemoryInput{

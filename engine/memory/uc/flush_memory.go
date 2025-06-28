@@ -2,11 +2,9 @@ package uc
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/memory"
-	memcore "github.com/compozy/compozy/engine/memory/core"
+	"github.com/compozy/compozy/engine/memory/service"
 )
 
 // FlushMemoryInput represents the input for flushing memory
@@ -36,6 +34,7 @@ type FlushMemory struct {
 	memoryRef string
 	key       string
 	input     *FlushMemoryInput
+	service   service.MemoryOperationsService
 }
 
 // NewFlushMemory creates a new flush memory use case
@@ -43,85 +42,66 @@ func NewFlushMemory(manager *memory.Manager, memoryRef, key string, input *Flush
 	if input == nil {
 		input = &FlushMemoryInput{}
 	}
+	memService := service.NewMemoryOperationsService(manager, nil, nil)
 	return &FlushMemory{
 		manager:   manager,
 		memoryRef: memoryRef,
 		key:       key,
 		input:     input,
+		service:   memService,
 	}
 }
 
 // Execute flushes memory content
 func (uc *FlushMemory) Execute(ctx context.Context) (*FlushMemoryResult, error) {
-	if uc.manager == nil {
-		return nil, ErrMemoryManagerNotAvailable
+	// Validate inputs
+	if err := uc.validate(); err != nil {
+		return nil, err
 	}
 
-	// Validate inputs
+	// Use centralized service for flushing
+	resp, err := uc.service.Flush(ctx, &service.FlushRequest{
+		BaseRequest: service.BaseRequest{
+			MemoryRef: uc.memoryRef,
+			Key:       uc.key,
+		},
+		Config: &service.FlushConfig{
+			Strategy: uc.input.Strategy,
+			MaxKeys:  uc.input.MaxKeys,
+			DryRun:   uc.input.DryRun,
+			Force:    uc.input.Force,
+		},
+	})
+	if err != nil {
+		return nil, NewErrorContext(err, "flush_memory", uc.memoryRef, uc.key)
+	}
+
+	return &FlushMemoryResult{
+		Success:          resp.Success,
+		Key:              resp.Key,
+		SummaryGenerated: resp.SummaryGenerated,
+		MessageCount:     resp.MessageCount,
+		TokenCount:       resp.TokenCount,
+		DryRun:           resp.DryRun,
+		WouldFlush:       resp.WouldFlush,
+		FlushStrategy:    resp.FlushStrategy,
+		Error:            resp.Error,
+	}, nil
+}
+
+// validate performs input validation
+func (uc *FlushMemory) validate() error {
+	if uc.manager == nil {
+		return ErrMemoryManagerNotAvailable
+	}
 	if err := ValidateMemoryRef(uc.memoryRef); err != nil {
-		return nil, err
+		return err
 	}
 	if err := ValidateKey(uc.key); err != nil {
-		return nil, err
+		return err
 	}
 	if err := ValidateFlushInput(uc.input); err != nil {
-		return nil, err
+		return err
 	}
-
-	// Create a memory reference
-	memRef := core.MemoryReference{
-		ID:  uc.memoryRef,
-		Key: uc.key,
-	}
-	// Create workflow context for API operations
-	workflowContext := map[string]any{
-		"api_operation": "flush",
-		"key":           uc.key,
-	}
-	// Get memory instance
-	instance, err := uc.manager.GetInstance(ctx, memRef, workflowContext)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get memory instance: %w", err)
-	}
-	// Check if memory implements FlushableMemory interface
-	flushableMem, ok := instance.(memcore.FlushableMemory)
-	if !ok {
-		return nil, fmt.Errorf("memory instance does not support flush operations")
-	}
-	// Check if we're in dry-run mode
-	if uc.input.DryRun {
-		// Get memory health to simulate what would happen
-		health, err := instance.GetMemoryHealth(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get memory health for dry run: %w", err)
-		}
-		return &FlushMemoryResult{
-			Success:       true,
-			DryRun:        true,
-			Key:           uc.key,
-			WouldFlush:    health.TokenCount > 0, // Simplified check
-			TokenCount:    health.TokenCount,
-			MessageCount:  health.MessageCount,
-			FlushStrategy: health.FlushStrategy,
-		}, nil
-	}
-	// Perform the flush operation
-	result, err := flushableMem.PerformFlush(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("flush operation failed: %w", err)
-	}
-	// Convert flush result to output
-	flushResult := &FlushMemoryResult{
-		Success:          result.Success,
-		Key:              uc.key,
-		SummaryGenerated: result.SummaryGenerated,
-		MessageCount:     result.MessageCount,
-		TokenCount:       result.TokenCount,
-	}
-	// Add error to output if present
-	if result.Error != "" {
-		flushResult.Error = result.Error
-		return flushResult, fmt.Errorf("flush completed with error: %s", result.Error)
-	}
-	return flushResult, nil
+	return nil
 }

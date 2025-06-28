@@ -2,10 +2,9 @@ package uc
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/memory"
+	"github.com/compozy/compozy/engine/memory/service"
 )
 
 // HealthMemoryInput represents the input for checking memory health
@@ -30,6 +29,7 @@ type HealthMemory struct {
 	memoryRef string
 	key       string
 	input     *HealthMemoryInput
+	service   service.MemoryOperationsService
 }
 
 // NewHealthMemory creates a new health memory use case
@@ -37,63 +37,58 @@ func NewHealthMemory(manager *memory.Manager, memoryRef, key string, input *Heal
 	if input == nil {
 		input = &HealthMemoryInput{}
 	}
+	memService := service.NewMemoryOperationsService(manager, nil, nil)
 	return &HealthMemory{
 		manager:   manager,
 		memoryRef: memoryRef,
 		key:       key,
 		input:     input,
+		service:   memService,
 	}
 }
 
 // Execute checks memory health
 func (uc *HealthMemory) Execute(ctx context.Context) (*HealthMemoryResult, error) {
-	if uc.manager == nil {
-		return nil, ErrMemoryManagerNotAvailable
+	// Validate inputs
+	if err := uc.validate(); err != nil {
+		return nil, err
 	}
 
-	// Validate inputs
+	// Use centralized service for health check
+	resp, err := uc.service.Health(ctx, &service.HealthRequest{
+		BaseRequest: service.BaseRequest{
+			MemoryRef: uc.memoryRef,
+			Key:       uc.key,
+		},
+		Config: &service.HealthConfig{
+			IncludeStats: uc.input.IncludeStats,
+		},
+	})
+	if err != nil {
+		return nil, NewErrorContext(err, "health_memory", uc.memoryRef, uc.key)
+	}
+
+	return &HealthMemoryResult{
+		Healthy:       resp.Healthy,
+		Key:           resp.Key,
+		TokenCount:    resp.TokenCount,
+		MessageCount:  resp.MessageCount,
+		FlushStrategy: resp.FlushStrategy,
+		LastFlush:     resp.LastFlush,
+		CurrentTokens: resp.CurrentTokens,
+	}, nil
+}
+
+// validate performs input validation
+func (uc *HealthMemory) validate() error {
+	if uc.manager == nil {
+		return ErrMemoryManagerNotAvailable
+	}
 	if err := ValidateMemoryRef(uc.memoryRef); err != nil {
-		return nil, err
+		return err
 	}
 	if err := ValidateKey(uc.key); err != nil {
-		return nil, err
+		return err
 	}
-
-	// Create a memory reference
-	memRef := core.MemoryReference{
-		ID:  uc.memoryRef,
-		Key: uc.key,
-	}
-	// Create workflow context for API operations
-	workflowContext := map[string]any{
-		"api_operation": "health",
-		"key":           uc.key,
-	}
-	// Get memory instance
-	instance, err := uc.manager.GetInstance(ctx, memRef, workflowContext)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get memory instance: %w", err)
-	}
-	// Get memory health
-	health, err := instance.GetMemoryHealth(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get memory health: %w", err)
-	}
-	result := &HealthMemoryResult{
-		Healthy:       true,
-		Key:           uc.key,
-		TokenCount:    health.TokenCount,
-		MessageCount:  health.MessageCount,
-		FlushStrategy: health.FlushStrategy,
-	}
-	if health.LastFlush != nil {
-		result.LastFlush = health.LastFlush.Format("2006-01-02T15:04:05Z07:00")
-	}
-	if uc.input.IncludeStats {
-		tokenCount, err := instance.GetTokenCount(ctx)
-		if err == nil {
-			result.CurrentTokens = tokenCount
-		}
-	}
-	return result, nil
+	return nil
 }

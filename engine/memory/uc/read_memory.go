@@ -2,13 +2,10 @@ package uc
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
-	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/memory"
-	memcore "github.com/compozy/compozy/engine/memory/core"
+	"github.com/compozy/compozy/engine/memory/service"
 	"github.com/compozy/compozy/engine/worker"
 )
 
@@ -23,6 +20,7 @@ type ReadMemoryResult struct {
 type ReadMemory struct {
 	Manager *memory.Manager
 	Worker  *worker.Worker
+	Service service.MemoryOperationsService
 }
 
 type ReadMemoryInput struct {
@@ -40,54 +38,49 @@ type ReadMemoryOutput struct {
 
 // NewReadMemory creates a new read memory use case
 func NewReadMemory(manager *memory.Manager, worker *worker.Worker) *ReadMemory {
+	memService := service.NewMemoryOperationsService(manager, nil, nil)
 	return &ReadMemory{
 		Manager: manager,
 		Worker:  worker,
+		Service: memService,
 	}
 }
 
 // Execute reads memory content
 func (uc *ReadMemory) Execute(ctx context.Context, input ReadMemoryInput) (*ReadMemoryOutput, error) {
-	// Validate inputs
-	if err := uc.validateInput(input); err != nil {
-		return nil, err
-	}
-
 	// Apply pagination defaults
 	input = uc.applyPaginationDefaults(input)
 
-	// Get memory manager
-	manager, err := uc.getMemoryManager(input)
+	// Use centralized service for reading (validation handled by service)
+	resp, err := uc.Service.Read(ctx, &service.ReadRequest{
+		BaseRequest: service.BaseRequest{
+			MemoryRef: input.MemoryRef,
+			Key:       input.Key,
+		},
+	})
 	if err != nil {
-		return nil, err
+		return nil, err // Service already provides typed errors with context
 	}
 
-	// Get memory instance
-	instance, err := uc.getMemoryInstance(ctx, manager, input)
-	if err != nil {
-		return nil, err
+	// Convert service response to LLM messages for pagination
+	messages := make([]llm.Message, len(resp.Messages))
+	for i, msgMap := range resp.Messages {
+		role, ok := msgMap["role"].(string)
+		if !ok {
+			role = "unknown"
+		}
+		content, ok := msgMap["content"].(string)
+		if !ok {
+			content = ""
+		}
+		messages[i] = llm.Message{
+			Role:    llm.MessageRole(role),
+			Content: content,
+		}
 	}
 
-	// Check context cancellation before potentially long operation
-	select {
-	case <-ctx.Done():
-		return nil, fmt.Errorf("operation canceled: %w", ctx.Err())
-	default:
-		// Continue with operation
-	}
-
-	// Read and paginate messages
-	return uc.readAndPaginateMessages(ctx, instance, input)
-}
-
-func (uc *ReadMemory) validateInput(input ReadMemoryInput) error {
-	if err := ValidateMemoryRef(input.MemoryRef); err != nil {
-		return NewErrorContext(err, "read_memory", input.MemoryRef, input.Key)
-	}
-	if err := ValidateKey(input.Key); err != nil {
-		return NewErrorContext(err, "read_memory", input.MemoryRef, input.Key)
-	}
-	return nil
+	// Apply pagination to messages
+	return uc.applyPagination(messages, input), nil
 }
 
 func (uc *ReadMemory) applyPaginationDefaults(input ReadMemoryInput) ReadMemoryInput {
@@ -103,62 +96,14 @@ func (uc *ReadMemory) applyPaginationDefaults(input ReadMemoryInput) ReadMemoryI
 	return input
 }
 
-func (uc *ReadMemory) getMemoryManager(input ReadMemoryInput) (*memory.Manager, error) {
-	if uc.Manager == nil && uc.Worker != nil {
-		uc.Manager = uc.Worker.GetMemoryManager()
-	}
-	if uc.Manager == nil {
-		return nil, NewErrorContext(ErrMemoryManagerNotAvailable, "read_memory", input.MemoryRef, input.Key)
-	}
-	return uc.Manager, nil
-}
-
-func (uc *ReadMemory) getMemoryInstance(
-	ctx context.Context,
-	manager *memory.Manager,
-	input ReadMemoryInput,
-) (memcore.Memory, error) {
-	// Create a memory reference
-	memRef := core.MemoryReference{
-		ID:  input.MemoryRef,
-		Key: input.Key,
-	}
-
-	// Create workflow context for API operations
-	workflowContext := map[string]any{
-		"api_operation": "read",
-		"key":           input.Key,
-	}
-
-	// Get memory instance
-	instance, err := manager.GetInstance(ctx, memRef, workflowContext)
-	if err != nil {
-		if errors.Is(err, memcore.ErrMemoryNotFound) {
-			return nil, NewErrorContext(ErrMemoryNotFound, "read_memory", input.MemoryRef, input.Key)
-		}
-		return nil, fmt.Errorf("failed to get memory instance: %w", err)
-	}
-	return instance, nil
-}
-
-func (uc *ReadMemory) readAndPaginateMessages(
-	ctx context.Context,
-	instance memcore.Memory,
-	input ReadMemoryInput,
-) (*ReadMemoryOutput, error) {
-	// Read memory content
-	messages, err := instance.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read memory: %w", err)
-	}
-
+func (uc *ReadMemory) applyPagination(messages []llm.Message, input ReadMemoryInput) *ReadMemoryOutput {
 	// Handle empty memory
 	if len(messages) == 0 {
 		return &ReadMemoryOutput{
 			Messages:   []llm.Message{},
 			TotalCount: 0,
 			HasMore:    false,
-		}, nil
+		}
 	}
 
 	// Apply pagination
@@ -172,7 +117,7 @@ func (uc *ReadMemory) readAndPaginateMessages(
 			Messages:   []llm.Message{},
 			TotalCount: totalCount,
 			HasMore:    false,
-		}, nil
+		}
 	}
 
 	// Adjust end if needed
@@ -188,5 +133,5 @@ func (uc *ReadMemory) readAndPaginateMessages(
 		Messages:   paginatedMessages,
 		TotalCount: totalCount,
 		HasMore:    hasMore,
-	}, nil
+	}
 }

@@ -2,10 +2,9 @@ package uc
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/memory"
+	"github.com/compozy/compozy/engine/memory/service"
 )
 
 // ClearMemoryInput represents the input for clearing memory
@@ -28,6 +27,7 @@ type ClearMemory struct {
 	memoryRef string
 	key       string
 	input     *ClearMemoryInput
+	service   service.MemoryOperationsService
 }
 
 // NewClearMemory creates a new clear memory use case
@@ -35,59 +35,59 @@ func NewClearMemory(manager *memory.Manager, memoryRef, key string, input *Clear
 	if input == nil {
 		input = &ClearMemoryInput{}
 	}
+	memService := service.NewMemoryOperationsService(manager, nil, nil)
 	return &ClearMemory{
 		manager:   manager,
 		memoryRef: memoryRef,
 		key:       key,
 		input:     input,
+		service:   memService,
 	}
 }
 
 // Execute clears memory content
 func (uc *ClearMemory) Execute(ctx context.Context) (*ClearMemoryResult, error) {
-	if uc.manager == nil {
-		return nil, ErrMemoryManagerNotAvailable
+	// Validate inputs
+	if err := uc.validate(); err != nil {
+		return nil, err
 	}
 
-	// Validate inputs
+	// Use centralized service for clearing
+	resp, err := uc.service.Clear(ctx, &service.ClearRequest{
+		BaseRequest: service.BaseRequest{
+			MemoryRef: uc.memoryRef,
+			Key:       uc.key,
+		},
+		Config: &service.ClearConfig{
+			Confirm: uc.input.Confirm,
+			Backup:  uc.input.Backup,
+		},
+	})
+	if err != nil {
+		return nil, NewErrorContext(err, "clear_memory", uc.memoryRef, uc.key)
+	}
+
+	return &ClearMemoryResult{
+		Success:         resp.Success,
+		Key:             resp.Key,
+		MessagesCleared: resp.MessagesCleared,
+		BackupCreated:   resp.BackupCreated,
+	}, nil
+}
+
+// validate performs input validation
+func (uc *ClearMemory) validate() error {
+	if uc.manager == nil {
+		return ErrMemoryManagerNotAvailable
+	}
 	if err := ValidateMemoryRef(uc.memoryRef); err != nil {
-		return nil, err
+		return err
 	}
 	if err := ValidateKey(uc.key); err != nil {
-		return nil, err
+		return err
 	}
 	if err := ValidateClearInput(uc.input); err != nil {
-		return nil, err
+		return err
 	}
-
-	// Create a memory reference
-	memRef := core.MemoryReference{
-		ID:  uc.memoryRef,
-		Key: uc.key,
-	}
-	// Create workflow context for API operations
-	workflowContext := map[string]any{
-		"api_operation": "clear",
-		"key":           uc.key,
-	}
-	// Get memory instance
-	instance, err := uc.manager.GetInstance(ctx, memRef, workflowContext)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get memory instance: %w", err)
-	}
-	// Get count before clear for backup info
-	beforeCount, err := instance.Len(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get message count before clear: %w", err)
-	}
-	// Clear memory
-	if err := instance.Clear(ctx); err != nil {
-		return nil, fmt.Errorf("failed to clear memory: %w", err)
-	}
-	return &ClearMemoryResult{
-		Success:         true,
-		Key:             uc.key,
-		MessagesCleared: beforeCount,
-		BackupCreated:   uc.input.Backup,
-	}, nil
+	return nil
 }

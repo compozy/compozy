@@ -5,16 +5,18 @@ import (
 
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/memory"
+	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/gin-gonic/gin"
 )
 
 // MemoryContext contains common extracted parameters for memory operations
 type MemoryContext struct {
-	MemoryRef string
-	Key       string
-	Manager   *memory.Manager
-	Worker    *worker.Worker
+	MemoryRef    string
+	Key          string
+	Manager      *memory.Manager
+	Worker       *worker.Worker
+	TokenCounter memcore.TokenCounter
 }
 
 const memoryContextKey = "memoryContext"
@@ -76,12 +78,25 @@ func ExtractMemoryContext() gin.HandlerFunc {
 			return
 		}
 
+		// Get token counter
+		tokenCounter, err := memoryManager.GetTokenCounter(c.Request.Context())
+		if err != nil {
+			reqErr := router.NewRequestError(
+				http.StatusInternalServerError,
+				"failed to get token counter",
+				err,
+			)
+			router.RespondWithError(c, reqErr.StatusCode, reqErr)
+			return
+		}
+
 		// Create memory context
 		ctx := &MemoryContext{
-			MemoryRef: memoryRef,
-			Key:       key,
-			Manager:   memoryManager,
-			Worker:    appState.Worker,
+			MemoryRef:    memoryRef,
+			Key:          key,
+			Manager:      memoryManager,
+			Worker:       appState.Worker,
+			TokenCounter: tokenCounter,
 		}
 
 		// Store in gin context
