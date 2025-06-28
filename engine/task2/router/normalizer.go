@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/shared"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // Normalizer handles normalization for router tasks
@@ -14,7 +15,7 @@ type Normalizer struct {
 
 // NewNormalizer creates a new router task normalizer
 func NewNormalizer(
-	templateEngine shared.TemplateEngine,
+	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *shared.ContextBuilder,
 ) *Normalizer {
 	return &Normalizer{
@@ -49,8 +50,8 @@ func (n *Normalizer) normalizeRoutes(routes map[string]any, context map[string]a
 	if len(routes) == 0 {
 		return nil
 	}
-	// Process each route in the map
-	for routeName, routeValue := range routes {
+	// Process each route in sorted order for deterministic processing
+	err := shared.IterateSortedMap(routes, func(routeName string, routeValue any) error {
 		// Routes can be either:
 		// 1. Simple string (task ID)
 		// 2. Map with condition and task_id
@@ -72,6 +73,7 @@ func (n *Normalizer) normalizeRoutes(routes map[string]any, context map[string]a
 		default:
 			// Leave other types as-is
 		}
-	}
-	return nil
+		return nil
+	})
+	return err
 }

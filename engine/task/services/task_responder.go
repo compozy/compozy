@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"strings"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -39,16 +40,14 @@ type TaskResponder struct {
 
 func NewTaskResponder(workflowRepo workflow.Repository, taskRepo task.Repository) *TaskResponder {
 	// Create template engine for task2 normalizers
-	engine := tplengine.NewEngine(tplengine.FormatJSON)
-	templateEngineAdapter := task2.NewTemplateEngineAdapter(engine)
-
+	tplEngine := tplengine.NewEngine(tplengine.FormatJSON)
 	return &TaskResponder{
 		workflowRepo:                workflowRepo,
 		taskRepo:                    taskRepo,
 		parentStatusUpdater:         NewParentStatusUpdater(taskRepo),
-		successTransitionNormalizer: task2core.NewSuccessTransitionNormalizer(templateEngineAdapter),
-		errorTransitionNormalizer:   task2core.NewErrorTransitionNormalizer(templateEngineAdapter),
-		outputTransformer:           task2core.NewOutputTransformer(templateEngineAdapter),
+		successTransitionNormalizer: task2core.NewSuccessTransitionNormalizer(tplEngine),
+		errorTransitionNormalizer:   task2core.NewErrorTransitionNormalizer(tplEngine),
+		outputTransformer:           task2core.NewOutputTransformer(tplEngine),
 	}
 }
 
@@ -393,28 +392,18 @@ func (s *TaskResponder) applyOutputTransformationCommon(
 	taskConfig *task.Config,
 	workflowConfig *workflow.Config,
 ) error {
-	workflowState, err := s.workflowRepo.GetState(ctx, state.WorkflowExecID)
+	// Build normalization context
+	normCtx, err := s.buildNormalizationContext(ctx, state, taskConfig, workflowConfig)
 	if err != nil {
-		return fmt.Errorf("failed to get workflow state for output transformation: %w", err)
+		return err
 	}
-	// Build task configs map for context
-	taskConfigs := task2.BuildTaskConfigsMap(workflowConfig.Tasks)
 
-	// Build children index for parent-child relationships
-	childrenIndexBuilder := shared.NewChildrenIndexBuilder()
-	childrenIndex := childrenIndexBuilder.BuildChildrenIndex(workflowState)
-
-	// Create normalization context with proper Variables
-	contextBuilder, err := shared.NewContextBuilder()
-	if err != nil {
-		return fmt.Errorf("failed to create context builder: %w", err)
+	// Apply collection context if this is a collection child task
+	if err := s.applyCollectionContext(ctx, state, normCtx); err != nil {
+		return err
 	}
-	normCtx := contextBuilder.BuildContext(workflowState, workflowConfig, taskConfig)
-	normCtx.TaskConfigs = taskConfigs
-	normCtx.CurrentInput = taskConfig.With
-	normCtx.MergedEnv = taskConfig.Env
-	normCtx.ChildrenIndex = childrenIndex
 
+	// Transform output
 	output, err := s.outputTransformer.TransformOutput(
 		state.Output,
 		taskConfig.GetOutputs(),
@@ -426,6 +415,126 @@ func (s *TaskResponder) applyOutputTransformationCommon(
 	}
 	state.Output = output
 	return nil
+}
+
+// buildNormalizationContext creates the normalization context for output transformation
+func (s *TaskResponder) buildNormalizationContext(
+	ctx context.Context,
+	state *task.State,
+	taskConfig *task.Config,
+	workflowConfig *workflow.Config,
+) (*shared.NormalizationContext, error) {
+	workflowState, err := s.workflowRepo.GetState(ctx, state.WorkflowExecID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workflow state for output transformation: %w", err)
+	}
+
+	// Build task configs map for context
+	taskConfigs := task2.BuildTaskConfigsMap(workflowConfig.Tasks)
+
+	// Build children index for parent-child relationships
+	childrenIndexBuilder := shared.NewChildrenIndexBuilder()
+	childrenIndex := childrenIndexBuilder.BuildChildrenIndex(workflowState)
+
+	// Create normalization context with proper Variables
+	contextBuilder, err := shared.NewContextBuilder()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create context builder: %w", err)
+	}
+	normCtx := contextBuilder.BuildContext(workflowState, workflowConfig, taskConfig)
+	normCtx.TaskConfigs = taskConfigs
+	normCtx.CurrentInput = taskConfig.With
+	normCtx.MergedEnv = taskConfig.Env
+	normCtx.ChildrenIndex = childrenIndex
+
+	return normCtx, nil
+}
+
+// applyCollectionContext adds collection item/index context if this is a collection child task
+func (s *TaskResponder) applyCollectionContext(
+	ctx context.Context,
+	state *task.State,
+	normCtx *shared.NormalizationContext,
+) error {
+	// Skip if not a child task or no input
+	if state.ParentStateID == nil || state.Input == nil {
+		return nil
+	}
+
+	// Check if parent is a collection task
+	parentState, err := s.taskRepo.GetState(ctx, *state.ParentStateID)
+	if err != nil || parentState.ExecutionType != task.ExecutionCollection {
+		return nil
+	}
+
+	log := logger.FromContext(ctx)
+	log.Debug("Processing collection child task output transformation",
+		"task_id", state.TaskID,
+		"parent_id", state.ParentStateID,
+		"input", *state.Input,
+	)
+
+	// Apply collection item context
+	s.applyCollectionItemContext(state.Input, normCtx, log)
+
+	// Apply collection index context
+	s.applyCollectionIndexContext(state.Input, normCtx, log)
+
+	// Add all non-metadata input fields to variables
+	for key, value := range *state.Input {
+		if !strings.HasPrefix(key, "_collection_") {
+			normCtx.Variables[key] = value
+		}
+	}
+
+	log.Debug("Final normalization context variables", "variables", normCtx.Variables)
+	return nil
+}
+
+// applyCollectionItemContext adds item variable to normalization context
+func (s *TaskResponder) applyCollectionItemContext(
+	input *core.Input,
+	normCtx *shared.NormalizationContext,
+	log logger.Logger,
+) {
+	item, exists := (*input)["_collection_item"]
+	if !exists {
+		return
+	}
+
+	normCtx.Variables["item"] = item
+	log.Debug("Found collection item", "item", item)
+
+	// Apply custom item variable name if specified
+	if itemVar, exists := (*input)["_collection_item_var"]; exists {
+		if varName, ok := itemVar.(string); ok && varName != "" {
+			normCtx.Variables[varName] = item
+			log.Debug("Added custom item variable", "var_name", varName, "value", item)
+		}
+	}
+}
+
+// applyCollectionIndexContext adds index variable to normalization context
+func (s *TaskResponder) applyCollectionIndexContext(
+	input *core.Input,
+	normCtx *shared.NormalizationContext,
+	log logger.Logger,
+) {
+	index, exists := (*input)["_collection_index"]
+	if !exists {
+		return
+	}
+
+	normCtx.Variables["index"] = index
+	log.Debug("Found collection index", "index", index)
+
+	// Apply custom index variable name if specified
+	if indexVar, exists := (*input)["_collection_index_var"]; exists {
+		if varName, ok := indexVar.(string); ok && varName != "" {
+			normCtx.Variables[varName] = index
+			log.Debug("Added custom index variable", "var_name", varName, "value", index)
+		}
+	}
 }
 
 func (s *TaskResponder) applyOutputTransformation(ctx context.Context, input *MainTaskResponseInput) error {

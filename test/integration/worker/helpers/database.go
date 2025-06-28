@@ -13,15 +13,16 @@ import (
 
 // DatabaseHelper provides database setup and teardown for integration tests
 type DatabaseHelper struct {
-	pool *pgxpool.Pool
+	pool    *pgxpool.Pool
+	cleanup func()
 }
 
-// NewDatabaseHelper creates a new database helper using the shared test database
+// NewDatabaseHelper creates a new database helper using a test container.
 func NewDatabaseHelper(t *testing.T) *DatabaseHelper {
-	// Use the existing shared test database helper
-	pool := helpers.GetSharedTestDB(t)
+	pool, cleanup := helpers.CreateTestContainerDatabase(context.Background(), t)
 	return &DatabaseHelper{
-		pool: pool,
+		pool:    pool,
+		cleanup: cleanup,
 	}
 }
 
@@ -32,8 +33,7 @@ func (h *DatabaseHelper) GetPool() *pgxpool.Pool {
 
 // Cleanup cleans up database resources
 func (h *DatabaseHelper) Cleanup(t *testing.T) {
-	// Note: We don't close the shared pool as it's managed globally
-	// Just log that cleanup was called
+	h.cleanup()
 	t.Logf("Database helper cleanup completed")
 }
 

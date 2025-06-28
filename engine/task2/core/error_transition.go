@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task2/shared"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // ErrorTransitionNormalizer handles error transition normalization
@@ -13,7 +14,7 @@ type ErrorTransitionNormalizer struct {
 }
 
 // NewErrorTransitionNormalizer creates a new error transition normalizer
-func NewErrorTransitionNormalizer(templateEngine shared.TemplateEngine) *ErrorTransitionNormalizer {
+func NewErrorTransitionNormalizer(templateEngine *tplengine.TemplateEngine) *ErrorTransitionNormalizer {
 	return &ErrorTransitionNormalizer{
 		TransitionNormalizer: NewTransitionNormalizer[*core.ErrorTransition](templateEngine),
 	}
@@ -39,7 +40,7 @@ func (n *ErrorTransitionNormalizer) Normalize(
 		return fmt.Errorf("failed to convert transition to map: %w", err)
 	}
 	// Apply template processing to all fields
-	parsed, err := n.templateEngine.ParseMap(configMap, context)
+	parsed, err := n.templateEngine.ParseAny(configMap, context)
 	if err != nil {
 		return fmt.Errorf("failed to normalize transition: %w", err)
 	}

@@ -7,22 +7,23 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/shared"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // ConfigBuilder builds collection task configurations
 type ConfigBuilder struct {
-	templateEngine shared.TemplateEngine
+	templateEngine *tplengine.TemplateEngine
 }
 
 // NewConfigBuilder creates a new config builder
-func NewConfigBuilder(templateEngine shared.TemplateEngine) *ConfigBuilder {
+func NewConfigBuilder(templateEngine *tplengine.TemplateEngine) *ConfigBuilder {
 	return &ConfigBuilder{
 		templateEngine: templateEngine,
 	}
 }
 
 // GetTemplateEngine returns the template engine instance
-func (cb *ConfigBuilder) GetTemplateEngine() shared.TemplateEngine {
+func (cb *ConfigBuilder) GetTemplateEngine() *tplengine.TemplateEngine {
 	return cb.templateEngine
 }
 
@@ -67,11 +68,15 @@ func (cb *ConfigBuilder) BuildTaskConfig(
 	taskConfig.With = &mergedInput
 	// Generate unique task ID if it contains templates
 	if taskConfig.ID != "" {
-		processedID, err := cb.templateEngine.Process(taskConfig.ID, itemContext)
+		processedID, err := cb.templateEngine.ParseAny(taskConfig.ID, itemContext)
+		value, ok := processedID.(string)
+		if !ok {
+			return nil, fmt.Errorf("task ID is not a string")
+		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to process task ID template: %w", err)
 		}
-		taskConfig.ID = processedID
+		taskConfig.ID = value
 	}
 	return taskConfig, nil
 }
@@ -83,10 +88,11 @@ func (cb *ConfigBuilder) createItemContext(
 	item any,
 	index int,
 ) map[string]any {
-	// Clone base context
+	// Clone base context in deterministic order
 	itemContext := make(map[string]any)
-	for k, v := range baseContext {
-		itemContext[k] = v
+	keys := shared.SortedMapKeys(baseContext)
+	for _, k := range keys {
+		itemContext[k] = baseContext[k]
 	}
 	// Add item and index
 	itemContext["item"] = item

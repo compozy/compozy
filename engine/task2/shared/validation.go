@@ -32,23 +32,31 @@ func (vc *ValidationConfig) ValidateConfig(config *task.Config) error {
 		return fmt.Errorf("action is required for task type: %s", config.Type)
 	}
 	if config.With != nil {
-		for key, value := range *config.With {
+		err := IterateSortedMap(*config.With, func(key string, value any) error {
 			if key == "" {
 				return fmt.Errorf("empty key in task.With is not allowed")
 			}
 			if value == nil {
 				return fmt.Errorf("nil value for key '%s' in task.With is not allowed", key)
 			}
+			return nil
+		})
+		if err != nil {
+			return err
 		}
 	}
 	if config.Env != nil {
-		for key, value := range *config.Env {
+		err := IterateSortedMap(*config.Env, func(key, value string) error {
 			if key == "" {
 				return fmt.Errorf("empty key in task.Env is not allowed")
 			}
 			if value == "" {
 				return fmt.Errorf("empty value for key '%s' in task.Env is not allowed", key)
 			}
+			return nil
+		})
+		if err != nil {
+			return err
 		}
 	}
 	return nil
@@ -123,7 +131,9 @@ func (s *InputSanitizer) SanitizeTemplateInput(input map[string]any) map[string]
 	}
 	sanitized := make(map[string]any)
 	log := logger.FromContext(context.Background())
-	for key, value := range input {
+	keys := SortedMapKeys(input)
+	for _, key := range keys {
+		value := input[key]
 		if key == "" {
 			log.Warn("Empty key found in template input - this may indicate a bug in caller code")
 			continue

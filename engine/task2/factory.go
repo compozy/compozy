@@ -14,11 +14,12 @@ import (
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/task2/signal"
 	"github.com/compozy/compozy/engine/task2/wait"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // DefaultNormalizerFactory creates appropriate normalizers based on task type
 type DefaultNormalizerFactory struct {
-	templateEngine shared.TemplateEngine
+	templateEngine *tplengine.TemplateEngine
 	contextBuilder *shared.ContextBuilder
 	envMerger      *core.EnvMerger
 }
@@ -54,7 +55,7 @@ func (a *taskNormalizerAdapter) Type() string {
 }
 
 // NewNormalizerFactory creates a new normalizer factory
-func NewNormalizerFactory(engine shared.TemplateEngine, merger *core.EnvMerger) (NormalizerFactory, error) {
+func NewNormalizerFactory(engine *tplengine.TemplateEngine, merger *core.EnvMerger) (NormalizerFactory, error) {
 	builder, err := shared.NewContextBuilder()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context builder: %w", err)

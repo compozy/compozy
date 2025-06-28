@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
@@ -22,7 +23,8 @@ func TestWaitTaskManager_UpdateWaitTaskStatus(t *testing.T) {
 		ctx := context.Background()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
-		configStore := new(MockConfigStore)
+		configStore := NewTestConfigStore(t)
+		defer configStore.Close()
 		workflowRepo := new(store.MockWorkflowRepo)
 		taskResponder := NewTaskResponder(workflowRepo, taskRepo)
 		parentUpdater := NewParentStatusUpdater(taskRepo)
@@ -59,7 +61,8 @@ func TestWaitTaskManager_UpdateWaitTaskStatus(t *testing.T) {
 		taskExecID := core.MustNewID()
 		parentStateID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
-		configStore := new(MockConfigStore)
+		configStore := NewTestConfigStore(t)
+		defer configStore.Close()
 		workflowRepo := new(store.MockWorkflowRepo)
 		taskResponder := NewTaskResponder(workflowRepo, taskRepo)
 		parentUpdater := NewParentStatusUpdater(taskRepo)
@@ -119,7 +122,8 @@ func TestWaitTaskManager_UpdateWaitTaskStatus(t *testing.T) {
 		ctx := context.Background()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
-		configStore := new(MockConfigStore)
+		configStore := NewTestConfigStore(t)
+		defer configStore.Close()
 		workflowRepo := new(store.MockWorkflowRepo)
 		taskResponder := NewTaskResponder(workflowRepo, taskRepo)
 		parentUpdater := NewParentStatusUpdater(taskRepo)
@@ -139,7 +143,8 @@ func TestWaitTaskManager_UpdateWaitTaskStatus(t *testing.T) {
 		ctx := context.Background()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
-		configStore := new(MockConfigStore)
+		configStore := NewTestConfigStore(t)
+		defer configStore.Close()
 		workflowRepo := new(store.MockWorkflowRepo)
 		taskResponder := NewTaskResponder(workflowRepo, taskRepo)
 		parentUpdater := NewParentStatusUpdater(taskRepo)
@@ -170,7 +175,8 @@ func TestWaitTaskManager_ValidateWaitTaskSignal(t *testing.T) {
 		ctx := context.Background()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
-		configStore := new(MockConfigStore)
+		configStore := NewTestConfigStore(t)
+		defer configStore.Close()
 		workflowRepo := new(store.MockWorkflowRepo)
 		taskResponder := NewTaskResponder(workflowRepo, taskRepo)
 		parentUpdater := NewParentStatusUpdater(taskRepo)
@@ -192,22 +198,23 @@ func TestWaitTaskManager_ValidateWaitTaskSignal(t *testing.T) {
 		}
 		// Set up mocks
 		taskRepo.On("GetState", ctx, taskExecID).Return(taskState, nil)
-		configStore.On("Get", ctx, taskExecID.String()).Return(taskConfig, nil)
+		err := configStore.Save(ctx, taskExecID.String(), taskConfig)
+		require.NoError(t, err)
 		// Create manager
 		manager := NewWaitTaskManager(taskRepo, configStore, taskResponder, parentUpdater)
 		// Act
-		err := manager.ValidateWaitTaskSignal(ctx, taskExecID, "approval_signal")
+		err = manager.ValidateWaitTaskSignal(ctx, taskExecID, "approval_signal")
 		// Assert
 		assert.NoError(t, err)
 		taskRepo.AssertExpectations(t)
-		configStore.AssertExpectations(t)
 	})
 	t.Run("Should reject signal for completed task", func(t *testing.T) {
 		// Arrange
 		ctx := context.Background()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
-		configStore := new(MockConfigStore)
+		configStore := NewTestConfigStore(t)
+		defer configStore.Close()
 		workflowRepo := new(store.MockWorkflowRepo)
 		taskResponder := NewTaskResponder(workflowRepo, taskRepo)
 		parentUpdater := NewParentStatusUpdater(taskRepo)
@@ -236,7 +243,8 @@ func TestWaitTaskManager_ValidateWaitTaskSignal(t *testing.T) {
 		ctx := context.Background()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
-		configStore := new(MockConfigStore)
+		configStore := NewTestConfigStore(t)
+		defer configStore.Close()
 		workflowRepo := new(store.MockWorkflowRepo)
 		taskResponder := NewTaskResponder(workflowRepo, taskRepo)
 		parentUpdater := NewParentStatusUpdater(taskRepo)
@@ -258,23 +266,24 @@ func TestWaitTaskManager_ValidateWaitTaskSignal(t *testing.T) {
 		}
 		// Set up mocks
 		taskRepo.On("GetState", ctx, taskExecID).Return(taskState, nil)
-		configStore.On("Get", ctx, taskExecID.String()).Return(taskConfig, nil)
+		err := configStore.Save(ctx, taskExecID.String(), taskConfig)
+		require.NoError(t, err)
 		// Create manager
 		manager := NewWaitTaskManager(taskRepo, configStore, taskResponder, parentUpdater)
 		// Act
-		err := manager.ValidateWaitTaskSignal(ctx, taskExecID, "wrong_signal")
+		err = manager.ValidateWaitTaskSignal(ctx, taskExecID, "wrong_signal")
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "task is waiting for signal 'approval_signal', not 'wrong_signal'")
 		taskRepo.AssertExpectations(t)
-		configStore.AssertExpectations(t)
 	})
 	t.Run("Should reject non-wait task", func(t *testing.T) {
 		// Arrange
 		ctx := context.Background()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
-		configStore := new(MockConfigStore)
+		configStore := NewTestConfigStore(t)
+		defer configStore.Close()
 		workflowRepo := new(store.MockWorkflowRepo)
 		taskResponder := NewTaskResponder(workflowRepo, taskRepo)
 		parentUpdater := NewParentStatusUpdater(taskRepo)
@@ -293,16 +302,16 @@ func TestWaitTaskManager_ValidateWaitTaskSignal(t *testing.T) {
 		}
 		// Set up mocks
 		taskRepo.On("GetState", ctx, taskExecID).Return(taskState, nil)
-		configStore.On("Get", ctx, taskExecID.String()).Return(taskConfig, nil)
+		err := configStore.Save(ctx, taskExecID.String(), taskConfig)
+		require.NoError(t, err)
 		// Create manager
 		manager := NewWaitTaskManager(taskRepo, configStore, taskResponder, parentUpdater)
 		// Act
-		err := manager.ValidateWaitTaskSignal(ctx, taskExecID, "any_signal")
+		err = manager.ValidateWaitTaskSignal(ctx, taskExecID, "any_signal")
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "task is not a wait task")
 		taskRepo.AssertExpectations(t)
-		configStore.AssertExpectations(t)
 	})
 }
 
@@ -313,7 +322,8 @@ func TestWaitTaskManager_PrepareWaitTaskResponse(t *testing.T) {
 		taskExecID := core.MustNewID()
 		workflowExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
-		configStore := new(MockConfigStore)
+		configStore := NewTestConfigStore(t)
+		defer configStore.Close()
 		workflowRepo := new(store.MockWorkflowRepo)
 		taskResponder := NewTaskResponder(workflowRepo, taskRepo)
 		parentUpdater := NewParentStatusUpdater(taskRepo)
@@ -342,7 +352,8 @@ func TestWaitTaskManager_PrepareWaitTaskResponse(t *testing.T) {
 			Status:         core.StatusRunning,
 		}
 		// Set up mocks
-		configStore.On("Get", ctx, taskExecID.String()).Return(taskConfig, nil)
+		err := configStore.Save(ctx, taskExecID.String(), taskConfig)
+		require.NoError(t, err)
 		workflowRepo.On("GetState", ctx, workflowExecID).Return(workflowState, nil)
 		taskRepo.On("UpsertState", ctx, mock.AnythingOfType("*task.State")).Return(nil)
 		// Create manager
@@ -354,7 +365,6 @@ func TestWaitTaskManager_PrepareWaitTaskResponse(t *testing.T) {
 		assert.NotNil(t, response)
 		assert.Equal(t, taskState, response.State)
 		assert.Equal(t, core.StatusSuccess, response.State.Status)
-		configStore.AssertExpectations(t)
 		workflowRepo.AssertExpectations(t)
 	})
 	t.Run("Should handle config load error", func(t *testing.T) {
@@ -362,7 +372,8 @@ func TestWaitTaskManager_PrepareWaitTaskResponse(t *testing.T) {
 		ctx := context.Background()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
-		configStore := new(MockConfigStore)
+		configStore := NewTestConfigStore(t)
+		defer configStore.Close()
 		workflowRepo := new(store.MockWorkflowRepo)
 		taskResponder := NewTaskResponder(workflowRepo, taskRepo)
 		parentUpdater := NewParentStatusUpdater(taskRepo)
@@ -378,8 +389,7 @@ func TestWaitTaskManager_PrepareWaitTaskResponse(t *testing.T) {
 		workflowConfig := &workflow.Config{
 			ID: "test-workflow",
 		}
-		// Set up mocks
-		configStore.On("Get", ctx, taskExecID.String()).Return(nil, errors.New("config not found"))
+		// Set up mocks - don't store config to simulate not found
 		// Create manager
 		manager := NewWaitTaskManager(taskRepo, configStore, taskResponder, parentUpdater)
 		// Act
@@ -388,6 +398,5 @@ func TestWaitTaskManager_PrepareWaitTaskResponse(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, response)
 		assert.Contains(t, err.Error(), "failed to load task config")
-		configStore.AssertExpectations(t)
 	})
 }

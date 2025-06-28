@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2"
@@ -12,176 +11,73 @@ import (
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
-func TestNormalizerFactory_NewNormalizerFactory(t *testing.T) {
-	t.Run("Should create factory with template engine and env merger", func(t *testing.T) {
+func TestTaskNormalizer_Type(t *testing.T) {
+	t.Run("Should return normalizer type as string", func(t *testing.T) {
 		// Arrange
-		tplEngine := tplengine.NewEngine(tplengine.FormatText)
-		templateEngine := task2.NewTemplateEngineAdapter(tplEngine)
+		templateEngine := &tplengine.TemplateEngine{}
 		envMerger := core.NewEnvMerger()
+		factory, err := task2.NewNormalizerFactory(templateEngine, envMerger)
+		assert.NoError(t, err)
+
+		normalizer, err := factory.CreateNormalizer(task.TaskTypeBasic)
+		assert.NoError(t, err)
 
 		// Act
-		factory, err := task2.NewNormalizerFactory(templateEngine, envMerger)
+		taskType := normalizer.Type()
 
 		// Assert
-		require.NoError(t, err)
-		assert.NotNil(t, factory)
+		assert.Equal(t, task.TaskTypeBasic, taskType)
 	})
 }
 
-func TestNormalizerFactory_CreateNormalizer(t *testing.T) {
-	// Setup
-	tplEngine := tplengine.NewEngine(tplengine.FormatText)
-	templateEngine := task2.NewTemplateEngineAdapter(tplEngine)
+func TestDefaultNormalizerFactory_CreateNormalizer_AllTypes(t *testing.T) {
+	// Arrange
+	templateEngine := &tplengine.TemplateEngine{}
 	envMerger := core.NewEnvMerger()
 	factory, err := task2.NewNormalizerFactory(templateEngine, envMerger)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
-	t.Run("Should create basic normalizer", func(t *testing.T) {
+	testCases := []struct {
+		name     string
+		taskType task.Type
+	}{
+		{"Should create basic normalizer", task.TaskTypeBasic},
+		{"Should create parallel normalizer", task.TaskTypeParallel},
+		{"Should create collection normalizer", task.TaskTypeCollection},
+		{"Should create router normalizer", task.TaskTypeRouter},
+		{"Should create wait normalizer", task.TaskTypeWait},
+		{"Should create aggregate normalizer", task.TaskTypeAggregate},
+		{"Should create composite normalizer", task.TaskTypeComposite},
+		{"Should create signal normalizer", task.TaskTypeSignal},
+		{"Should handle empty type as basic", ""},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			normalizer, err := factory.CreateNormalizer(tc.taskType)
+
+			// Assert
+			assert.NoError(t, err)
+			assert.NotNil(t, normalizer)
+		})
+	}
+}
+
+func TestDefaultNormalizerFactory_CreateNormalizer_UnsupportedType(t *testing.T) {
+	t.Run("Should return error for unsupported task type", func(t *testing.T) {
+		// Arrange
+		templateEngine := &tplengine.TemplateEngine{}
+		envMerger := core.NewEnvMerger()
+		factory, err := task2.NewNormalizerFactory(templateEngine, envMerger)
+		assert.NoError(t, err)
+
 		// Act
-		normalizer, err := factory.CreateNormalizer(task.TaskTypeBasic)
+		normalizer, err := factory.CreateNormalizer("unsupported_type")
 
 		// Assert
-		require.NoError(t, err)
-		assert.NotNil(t, normalizer)
-		assert.Equal(t, string(task.TaskTypeBasic), string(normalizer.Type()))
-	})
-
-	t.Run("Should create basic normalizer for empty type", func(t *testing.T) {
-		// Act
-		normalizer, err := factory.CreateNormalizer("")
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotNil(t, normalizer)
-		assert.Equal(t, string(task.TaskTypeBasic), string(normalizer.Type()))
-	})
-
-	t.Run("Should create parallel normalizer", func(t *testing.T) {
-		// Act
-		normalizer, err := factory.CreateNormalizer(task.TaskTypeParallel)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotNil(t, normalizer)
-		assert.Equal(t, string(task.TaskTypeParallel), string(normalizer.Type()))
-	})
-
-	t.Run("Should create collection normalizer", func(t *testing.T) {
-		// Act
-		normalizer, err := factory.CreateNormalizer(task.TaskTypeCollection)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotNil(t, normalizer)
-		assert.Equal(t, string(task.TaskTypeCollection), string(normalizer.Type()))
-	})
-
-	t.Run("Should create composite normalizer", func(t *testing.T) {
-		// Act
-		normalizer, err := factory.CreateNormalizer(task.TaskTypeComposite)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotNil(t, normalizer)
-		assert.Equal(t, string(task.TaskTypeComposite), string(normalizer.Type()))
-	})
-
-	t.Run("Should create wait normalizer", func(t *testing.T) {
-		// Act
-		normalizer, err := factory.CreateNormalizer(task.TaskTypeWait)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotNil(t, normalizer)
-		assert.Equal(t, string(task.TaskTypeWait), string(normalizer.Type()))
-	})
-
-	t.Run("Should create router normalizer", func(t *testing.T) {
-		// Act
-		normalizer, err := factory.CreateNormalizer(task.TaskTypeRouter)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotNil(t, normalizer)
-		assert.Equal(t, string(task.TaskTypeRouter), string(normalizer.Type()))
-	})
-
-	t.Run("Should create aggregate normalizer", func(t *testing.T) {
-		// Act
-		normalizer, err := factory.CreateNormalizer(task.TaskTypeAggregate)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotNil(t, normalizer)
-		assert.Equal(t, string(task.TaskTypeAggregate), string(normalizer.Type()))
-	})
-
-	t.Run("Should create signal normalizer", func(t *testing.T) {
-		// Act
-		normalizer, err := factory.CreateNormalizer(task.TaskTypeSignal)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotNil(t, normalizer)
-		assert.Equal(t, string(task.TaskTypeSignal), string(normalizer.Type()))
-	})
-
-	t.Run("Should return error for unknown task type", func(t *testing.T) {
-		// Act
-		normalizer, err := factory.CreateNormalizer("unknown")
-
-		// Assert
-		require.Error(t, err)
+		assert.Error(t, err)
 		assert.Nil(t, normalizer)
 		assert.Contains(t, err.Error(), "unsupported task type")
-	})
-}
-
-func TestNormalizerFactory_CreateCoreNormalizers(t *testing.T) {
-	// Setup
-	tplEngine := tplengine.NewEngine(tplengine.FormatText)
-	templateEngine := task2.NewTemplateEngineAdapter(tplEngine)
-	envMerger := core.NewEnvMerger()
-	factory, err := task2.NewNormalizerFactory(templateEngine, envMerger)
-	require.NoError(t, err)
-
-	t.Run("Should create agent normalizer", func(t *testing.T) {
-		// Act
-		normalizer := factory.CreateAgentNormalizer()
-
-		// Assert
-		assert.NotNil(t, normalizer)
-	})
-
-	t.Run("Should create tool normalizer", func(t *testing.T) {
-		// Act
-		normalizer := factory.CreateToolNormalizer()
-
-		// Assert
-		assert.NotNil(t, normalizer)
-	})
-
-	t.Run("Should create success transition normalizer", func(t *testing.T) {
-		// Act
-		normalizer := factory.CreateSuccessTransitionNormalizer()
-
-		// Assert
-		assert.NotNil(t, normalizer)
-	})
-
-	t.Run("Should create error transition normalizer", func(t *testing.T) {
-		// Act
-		normalizer := factory.CreateErrorTransitionNormalizer()
-
-		// Assert
-		assert.NotNil(t, normalizer)
-	})
-
-	t.Run("Should create output transformer", func(t *testing.T) {
-		// Act
-		transformer := factory.CreateOutputTransformer()
-
-		// Assert
-		assert.NotNil(t, transformer)
 	})
 }

@@ -19,15 +19,11 @@ import (
 func setupOrchestrator(t *testing.T) *task2.ConfigOrchestrator {
 	t.Helper()
 	tplEngine := tplengine.NewEngine(tplengine.FormatText)
-	templateEngine := task2.NewTemplateEngineAdapter(tplEngine)
 	envMerger := tmplcore.NewEnvMerger()
-
-	factory, err := task2.NewNormalizerFactory(templateEngine, envMerger)
+	factory, err := task2.NewNormalizerFactory(tplEngine, envMerger)
 	require.NoError(t, err)
-
 	orchestrator, err := task2.NewConfigOrchestrator(factory)
 	require.NoError(t, err)
-
 	return orchestrator
 }
 
@@ -449,6 +445,6 @@ func TestConfigOrchestrator_NormalizeOutputs(t *testing.T) {
 
 		// Check transformed values
 		assert.Equal(t, "success", (*transformedOutput)["status"])
-		assert.Equal(t, "10", (*transformedOutput)["item_count"])
+		assert.Equal(t, 10, (*transformedOutput)["item_count"])
 	})
 }

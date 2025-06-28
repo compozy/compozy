@@ -5,13 +5,8 @@ import (
 	"sort"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
-
-// TemplateEngine defines interface for template processing
-type TemplateEngine interface {
-	Process(template string, context map[string]any) (any, error)
-	ProcessMap(templateMap map[string]any, context map[string]any) (map[string]any, error)
-}
 
 // NormalizationContext defines context for normalization
 type NormalizationContext interface {
@@ -20,11 +15,11 @@ type NormalizationContext interface {
 
 // OutputNormalizer handles workflow output normalization and transformation
 type OutputNormalizer struct {
-	templateEngine TemplateEngine
+	templateEngine *tplengine.TemplateEngine
 }
 
 // NewOutputNormalizer creates a new workflow output transformer
-func NewOutputNormalizer(templateEngine TemplateEngine) *OutputNormalizer {
+func NewOutputNormalizer(templateEngine *tplengine.TemplateEngine) *OutputNormalizer {
 	return &OutputNormalizer{
 		templateEngine: templateEngine,
 	}
@@ -75,26 +70,12 @@ func (ot *OutputNormalizer) transformOutputFields(
 	result := make(map[string]any)
 	for _, key := range keys {
 		value := outputsConfig[key]
-		// Value can be a string template or a map
-		switch v := value.(type) {
-		case string:
-			// Process string template
-			processed, err := ot.templateEngine.Process(v, transformCtx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to transform %s output field %s: %w", contextName, key, err)
-			}
-			result[key] = processed
-		case map[string]any:
-			// Process map recursively
-			processed, err := ot.templateEngine.ProcessMap(v, transformCtx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to transform %s output field %s: %w", contextName, key, err)
-			}
-			result[key] = processed
-		default:
-			// Keep other types as-is
-			result[key] = value
+		// Process all values through ParseMap, which handles all types appropriately
+		processed, err := ot.templateEngine.ParseAny(value, transformCtx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to transform %s output field %s: %w", contextName, key, err)
 		}
+		result[key] = processed
 	}
 	return result, nil
 }

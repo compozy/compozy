@@ -25,7 +25,8 @@ func TestExecuteWait_Run(t *testing.T) {
 		taskExecID := core.MustNewID()
 		workflowRepo := new(store.MockWorkflowRepo)
 		taskRepo := new(store.MockTaskRepo)
-		configStore := new(services.MockConfigStore)
+		configStore := services.NewTestConfigStore(t)
+		defer configStore.Close()
 		cwd, _ := core.CWDFromPath("/test")
 		workflowConfig := &workflow.Config{
 			ID: workflowID,
@@ -59,7 +60,7 @@ func TestExecuteWait_Run(t *testing.T) {
 		}
 		// Set up mocks
 		workflowRepo.On("GetState", ctx, workflowExecID).Return(workflowState, nil)
-		configStore.On("Save", ctx, mock.AnythingOfType("string"), taskConfig).Return(nil)
+		// No need to mock configStore.Save as TestConfigStore handles it
 		taskRepo.On("UpsertState", ctx, mock.AnythingOfType("*task.State")).Return(nil).Run(func(args mock.Arguments) {
 			state := args.Get(1).(*task.State)
 			state.TaskExecID = taskExecID
@@ -95,7 +96,6 @@ func TestExecuteWait_Run(t *testing.T) {
 		}))
 		workflowRepo.AssertExpectations(t)
 		taskRepo.AssertExpectations(t)
-		configStore.AssertExpectations(t)
 	})
 	t.Run("Should handle nil task config", func(t *testing.T) {
 		// Arrange
@@ -105,7 +105,8 @@ func TestExecuteWait_Run(t *testing.T) {
 		cwd, _ := core.CWDFromPath("/tmp")
 		workflowRepo := new(store.MockWorkflowRepo)
 		taskRepo := new(store.MockTaskRepo)
-		configStore := new(services.MockConfigStore)
+		configStore := services.NewTestConfigStore(t)
+		defer configStore.Close()
 		// Create activity
 		activity, err := NewExecuteWait(
 			[]*workflow.Config{},
@@ -135,7 +136,8 @@ func TestExecuteWait_Run(t *testing.T) {
 		cwd, _ := core.CWDFromPath("/tmp")
 		workflowRepo := new(store.MockWorkflowRepo)
 		taskRepo := new(store.MockTaskRepo)
-		configStore := new(services.MockConfigStore)
+		configStore := services.NewTestConfigStore(t)
+		defer configStore.Close()
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "wait-task",
@@ -178,7 +180,8 @@ func TestExecuteWait_Run(t *testing.T) {
 		cwd, _ := core.CWDFromPath("/tmp")
 		workflowRepo := new(store.MockWorkflowRepo)
 		taskRepo := new(store.MockTaskRepo)
-		configStore := new(services.MockConfigStore)
+		configStore := services.NewTestConfigStore(t)
+		defer configStore.Close()
 		workflowConfig := &workflow.Config{
 			ID: workflowID,
 			Tasks: []task.Config{
@@ -234,7 +237,8 @@ func TestExecuteWait_Run(t *testing.T) {
 		taskExecID := core.MustNewID()
 		workflowRepo := new(store.MockWorkflowRepo)
 		taskRepo := new(store.MockTaskRepo)
-		configStore := new(services.MockConfigStore)
+		configStore := services.NewTestConfigStore(t)
+		defer configStore.Close()
 		cwd, _ := core.CWDFromPath("/test")
 		workflowConfig := &workflow.Config{
 			ID: workflowID,
@@ -280,7 +284,7 @@ func TestExecuteWait_Run(t *testing.T) {
 		}
 		// Set up mocks
 		workflowRepo.On("GetState", ctx, workflowExecID).Return(workflowState, nil)
-		configStore.On("Save", ctx, mock.AnythingOfType("string"), taskConfig).Return(nil)
+		// No need to mock configStore.Save as TestConfigStore handles it
 		taskRepo.On("UpsertState", ctx, mock.AnythingOfType("*task.State")).Return(nil).Run(func(args mock.Arguments) {
 			state := args.Get(1).(*task.State)
 			state.TaskExecID = taskExecID

@@ -4,12 +4,13 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // BaseSubTaskNormalizer provides common functionality for normalizers that handle sub-tasks
 // This eliminates code duplication between parallel and composite normalizers
 type BaseSubTaskNormalizer struct {
-	templateEngine    TemplateEngine
+	templateEngine    *tplengine.TemplateEngine
 	contextBuilder    *ContextBuilder
 	normalizerFactory NormalizerFactory
 	taskType          task.Type
@@ -18,7 +19,7 @@ type BaseSubTaskNormalizer struct {
 
 // NewBaseSubTaskNormalizer creates a new base sub-task normalizer
 func NewBaseSubTaskNormalizer(
-	templateEngine TemplateEngine,
+	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *ContextBuilder,
 	normalizerFactory NormalizerFactory,
 	taskType task.Type,

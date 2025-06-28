@@ -226,3 +226,105 @@ func TestProgressInfo_IsAllComplete(t *testing.T) {
 		assert.True(t, actual)
 	})
 }
+
+func TestProgressState_CompletionRate(t *testing.T) {
+	t.Run("Should calculate completion rate correctly", func(t *testing.T) {
+		progressState := &ProgressState{
+			TotalChildren:  10,
+			CompletedCount: 7,
+		}
+		expected := 0.7
+		actual := progressState.CompletionRate()
+		assert.Equal(t, expected, actual)
+	})
+
+	t.Run("Should return 0 for empty collections", func(t *testing.T) {
+		progressState := &ProgressState{
+			TotalChildren:  0,
+			CompletedCount: 0,
+		}
+		expected := 0.0
+		actual := progressState.CompletionRate()
+		assert.Equal(t, expected, actual)
+	})
+
+	t.Run("Should return 1.0 for fully completed", func(t *testing.T) {
+		progressState := &ProgressState{
+			TotalChildren:  5,
+			CompletedCount: 5,
+		}
+		expected := 1.0
+		actual := progressState.CompletionRate()
+		assert.Equal(t, expected, actual)
+	})
+}
+
+func TestProgressState_FailureRate(t *testing.T) {
+	t.Run("Should calculate failure rate correctly", func(t *testing.T) {
+		progressState := &ProgressState{
+			TotalChildren: 10,
+			FailedCount:   3,
+		}
+		expected := 0.3
+		actual := progressState.FailureRate()
+		assert.Equal(t, expected, actual)
+	})
+
+	t.Run("Should return 0 for empty collections", func(t *testing.T) {
+		progressState := &ProgressState{
+			TotalChildren: 0,
+			FailedCount:   0,
+		}
+		expected := 0.0
+		actual := progressState.FailureRate()
+		assert.Equal(t, expected, actual)
+	})
+
+	t.Run("Should return 0 for no failures", func(t *testing.T) {
+		progressState := &ProgressState{
+			TotalChildren: 5,
+			FailedCount:   0,
+		}
+		expected := 0.0
+		actual := progressState.FailureRate()
+		assert.Equal(t, expected, actual)
+	})
+}
+
+func TestProgressState_OverallStatus(t *testing.T) {
+	t.Run("Should return completed when all tasks are completed", func(t *testing.T) {
+		progressState := &ProgressState{
+			TotalChildren:  5,
+			CompletedCount: 5,
+			FailedCount:    0,
+		}
+		expected := "completed"
+		actual := progressState.OverallStatusString()
+		assert.Equal(t, expected, actual)
+	})
+
+	t.Run("Should return partial_failure when some tasks failed", func(t *testing.T) {
+		progressState := &ProgressState{
+			TotalChildren:  5,
+			CompletedCount: 3,
+			FailedCount:    1,
+			RunningCount:   0,
+			PendingCount:   1,
+		}
+		expected := "partial_failure"
+		actual := progressState.OverallStatusString()
+		assert.Equal(t, expected, actual)
+	})
+
+	t.Run("Should return in_progress when tasks are still running", func(t *testing.T) {
+		progressState := &ProgressState{
+			TotalChildren:  5,
+			CompletedCount: 2,
+			FailedCount:    0,
+			RunningCount:   3,
+		}
+		expected := "in_progress"
+		actual := progressState.OverallStatusString()
+		assert.Equal(t, expected, actual)
+	})
+}

@@ -1,12 +1,15 @@
 package collection
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"math/big"
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/compozy/compozy/engine/task2/shared"
 )
 
 // TypeConverter handles conversion of various types to slice
@@ -17,11 +20,20 @@ func NewTypeConverter() *TypeConverter {
 	return &TypeConverter{}
 }
 
+// NewTypeConverterWithPrecision creates a new type converter
+// Note: Precision handling is now done by the template engine
+func NewTypeConverterWithPrecision() *TypeConverter {
+	return &TypeConverter{}
+}
+
 // ConvertToSlice converts various types to a slice
 func (tc *TypeConverter) ConvertToSlice(value any) []any {
 	if value == nil {
 		return []any{}
 	}
+
+	// Note: Precision conversion is now handled by the template engine
+	// when WithPrecisionPreservation is enabled
 
 	// Handle slice types
 	if result := tc.convertSliceTypes(value); result != nil {
@@ -69,11 +81,13 @@ func (tc *TypeConverter) convertSliceTypes(value any) []any {
 	return nil
 }
 
-// convertMapTypes handles conversion of map types
+// convertMapTypes handles conversion of map types in deterministic order
 func (tc *TypeConverter) convertMapTypes(value any) []any {
 	if v, ok := value.(map[string]any); ok {
 		result := make([]any, 0, len(v))
-		for k, val := range v {
+		keys := shared.SortedMapKeys(v)
+		for _, k := range keys {
+			val := v[k]
 			result = append(result, map[string]any{
 				"key":   k,
 				"value": val,
@@ -97,13 +111,16 @@ func (tc *TypeConverter) convertStringTypes(value any) []any {
 
 // convertPrimitiveTypes handles conversion of primitive types
 func (tc *TypeConverter) convertPrimitiveTypes(value any) []any {
-	switch value.(type) {
+	switch v := value.(type) {
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
 		return []any{value}
 	case float32, float64:
 		return []any{value}
 	case bool:
 		return []any{value}
+	case json.Number:
+		// Convert json.Number to appropriate numeric type
+		return []any{tc.handleJSONNumber(v)}
 	default:
 		return []any{value}
 	}
@@ -252,4 +269,22 @@ func isSameScript(r1, r2 rune) bool {
 // isASCIILetter checks if a rune is an ASCII letter (a-z, A-Z)
 func isASCIILetter(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+}
+
+// handleJSONNumber processes json.Number type to preserve precision
+func (tc *TypeConverter) handleJSONNumber(num json.Number) any {
+	numStr := string(num)
+
+	// Try int64 first
+	if i, err := strconv.ParseInt(numStr, 10, 64); err == nil {
+		return i
+	}
+
+	// Try float64
+	if f, err := strconv.ParseFloat(numStr, 64); err == nil {
+		return f
+	}
+
+	// Cannot parse as number, return as string
+	return numStr
 }

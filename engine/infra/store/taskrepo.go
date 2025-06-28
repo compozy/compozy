@@ -356,7 +356,7 @@ func (r *TaskRepo) ListChildren(ctx context.Context, parentStateID core.ID) ([]*
 		SELECT *
 		FROM task_states
 		WHERE parent_state_id = $1
-		ORDER BY created_at
+		ORDER BY task_id
 	`
 
 	var statesDB []*task.StateDB
@@ -383,7 +383,7 @@ func (r *TaskRepo) ListChildrenOutputs(ctx context.Context, parentStateID core.I
 		SELECT task_id, output 
 		FROM task_states 
 		WHERE parent_state_id = $1 AND output IS NOT NULL
-		ORDER BY created_at
+		ORDER BY task_id
 	`
 	rows, err := r.db.Query(ctx, query, parentStateID)
 	if err != nil {

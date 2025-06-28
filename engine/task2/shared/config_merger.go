@@ -38,7 +38,9 @@ func (cm *ConfigMerger) MergeTaskConfig(taskContext map[string]any, taskConfig *
 	if err != nil {
 		return fmt.Errorf("failed to convert task config to map: %w", err)
 	}
-	for k, v := range taskConfigMap {
+	keys := SortedMapKeys(taskConfigMap)
+	for _, k := range keys {
+		v := taskConfigMap[k]
 		if k != "input" && k != "output" { // Don't override runtime state
 			taskContext[k] = v
 		}

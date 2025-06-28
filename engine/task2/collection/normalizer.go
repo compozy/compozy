@@ -2,7 +2,9 @@ package collection
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/shared"
@@ -12,7 +14,7 @@ import (
 
 // Normalizer handles normalization for collection tasks
 type Normalizer struct {
-	templateEngine shared.TemplateEngine
+	templateEngine *tplengine.TemplateEngine
 	contextBuilder *shared.ContextBuilder
 	converter      *TypeConverter
 	filterEval     *FilterEvaluator
@@ -21,13 +23,18 @@ type Normalizer struct {
 
 // NewNormalizer creates a new collection task normalizer
 func NewNormalizer(
-	templateEngine shared.TemplateEngine,
+	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *shared.ContextBuilder,
 ) *Normalizer {
+	// Enable precision preservation in the template engine for collection tasks
+	if templateEngine != nil {
+		templateEngine.WithPrecisionPreservation(true)
+	}
+
 	return &Normalizer{
 		templateEngine: templateEngine,
 		contextBuilder: contextBuilder,
-		converter:      NewTypeConverter(),
+		converter:      NewTypeConverterWithPrecision(),
 		filterEval:     NewFilterEvaluator(templateEngine),
 		configBuilder:  NewConfigBuilder(templateEngine),
 	}
@@ -92,31 +99,26 @@ func (n *Normalizer) ExpandCollectionItems(
 	if config.Items == "" {
 		return nil, fmt.Errorf("collection config: items field is required")
 	}
-	// For template expressions, use ParseValue to preserve object structure
-	if tplengine.HasTemplate(config.Items) {
-		// ParseValue preserves the object structure when evaluating templates
-		itemsValue, err := n.templateEngine.ParseValue(config.Items, templateContext)
-		if err != nil {
-			return nil, fmt.Errorf("failed to evaluate items expression: %w", err)
-		}
-		// Convert to a slice of items
-		items := n.converter.ConvertToSlice(itemsValue)
-		return items, nil
-	}
-	// For static JSON arrays/objects, use ProcessString to parse the JSON
-	result, err := n.templateEngine.ProcessString(config.Items, templateContext)
+	// First, process any templates in the items expression
+	processedString, err := n.templateEngine.ParseAny(config.Items, templateContext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to process items expression: %w", err)
 	}
-	// Use the JSON result if available, otherwise fall back to text
-	var itemsValue any
-	if result.JSON != nil {
-		itemsValue = result.JSON
-	} else {
-		itemsValue = result.Text
+
+	// If the result is a string, try to parse it as JSON with precision handling
+	if strValue, ok := processedString.(string); ok {
+		var parsedValue any
+		decoder := json.NewDecoder(strings.NewReader(strValue))
+		decoder.UseNumber() // Preserve numeric precision
+		if err := decoder.Decode(&parsedValue); err == nil {
+			// Successfully parsed JSON, use the parsed value
+			processedString = parsedValue
+		}
+		// If JSON parsing fails, keep the string as is (for range expressions like "1..3")
 	}
+
 	// Convert to a slice of items
-	items := n.converter.ConvertToSlice(itemsValue)
+	items := n.converter.ConvertToSlice(processedString)
 	return items, nil
 }
 
@@ -164,10 +166,11 @@ func (n *Normalizer) createItemContext(
 	item any,
 	index int,
 ) map[string]any {
-	// Clone base context
+	// Clone base context in deterministic order
 	itemContext := make(map[string]any)
-	for k, v := range baseContext {
-		itemContext[k] = v
+	keys := shared.SortedMapKeys(baseContext)
+	for _, k := range keys {
+		itemContext[k] = baseContext[k]
 	}
 	// Add item and index
 	itemContext["item"] = item

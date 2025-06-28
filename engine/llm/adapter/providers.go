@@ -233,13 +233,20 @@ func (m *MockLLM) extractPrompt(messages []llms.MessageContent) string {
 
 // checkErrorConditions checks if the prompt should trigger an error
 func (m *MockLLM) checkErrorConditions(prompt string) error {
-	if strings.Contains(prompt, "Process with error for testing") ||
-		strings.Contains(prompt, "Process item that may fail") {
-		// Check if should_fail is true
-		if strings.Contains(prompt, "should_fail") && strings.Contains(prompt, "true") {
-			return fmt.Errorf("mock agent error: simulated failure for testing")
-		}
+	// For "Process with error for testing" action, always fail
+	// This is used by test fixtures that expect failure
+	if strings.Contains(prompt, "Process with error for testing") {
+		return fmt.Errorf("mock agent error: simulated failure for testing")
 	}
+
+	// For other actions that may fail, check for should_fail parameter
+	if strings.Contains(prompt, "Process item that may fail") ||
+		strings.Contains(prompt, "handle_parallel_failure") {
+		// In real scenarios, should_fail would be in the prompt
+		// For now, these actions fail by default in tests
+		return fmt.Errorf("mock agent error: simulated failure for testing")
+	}
+
 	return nil
 }
 
@@ -266,9 +273,66 @@ func (m *MockLLM) handleDelaySimulation(ctx context.Context, prompt string) erro
 // generateResponse generates a mock response based on the prompt
 func (m *MockLLM) generateResponse(prompt string) *llms.ContentResponse {
 	var responseText string
-	if prompt != "" {
+
+	// Check for specific action patterns and return appropriate JSON responses
+	switch {
+	case strings.Contains(prompt, "Analyze a single activity") || strings.Contains(prompt, "analyze_activity"):
+		// Return response for analyze_activity action with different responses based on activity
+		switch {
+		case strings.Contains(prompt, "hiking"):
+			responseText = `{
+				"analysis": "Excellent outdoor activity for cardiovascular health",
+				"rating": 5
+			}`
+		case strings.Contains(prompt, "swimming"):
+			responseText = `{
+				"analysis": "Great full-body workout with low impact",
+				"rating": 5
+			}`
+		case strings.Contains(prompt, "cycling"):
+			responseText = `{
+				"analysis": "Efficient cardio exercise that builds leg strength",
+				"rating": 4
+			}`
+		default:
+			responseText = `{
+				"analysis": "Good physical activity",
+				"rating": 4
+			}`
+		}
+	case strings.Contains(prompt, "Process city data") || strings.Contains(prompt, "process_city"):
+		// Return response for process_city action with different responses based on city
+		switch {
+		case strings.Contains(prompt, "Seattle"):
+			responseText = `{
+				"weather": "Rainy",
+				"population": 750000
+			}`
+		case strings.Contains(prompt, "Portland"):
+			responseText = `{
+				"weather": "Cloudy",
+				"population": 650000
+			}`
+		case strings.Contains(prompt, "Vancouver"):
+			responseText = `{
+				"weather": "Mild",
+				"population": 700000
+			}`
+		default:
+			responseText = `{
+				"weather": "Unknown",
+				"population": 500000
+			}`
+		}
+	case strings.Contains(prompt, "Process a single collection item") || strings.Contains(prompt, "process_item"):
+		// Return response for process_item action
+		responseText = `{
+			"result": "Item processed successfully",
+			"processed_value": 100
+		}`
+	case prompt != "":
 		responseText = fmt.Sprintf("Mock response for: %s", prompt)
-	} else {
+	default:
 		responseText = "Mock agent response: task completed successfully"
 	}
 

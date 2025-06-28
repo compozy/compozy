@@ -41,16 +41,14 @@ type HandleResponse struct {
 
 func NewHandleResponse(workflowRepo workflow.Repository, taskRepo task.Repository) *HandleResponse {
 	// Create template engine for task2 normalizers
-	engine := tplengine.NewEngine(tplengine.FormatJSON)
-	templateEngineAdapter := task2.NewTemplateEngineAdapter(engine)
-
+	tplEngine := tplengine.NewEngine(tplengine.FormatJSON)
 	return &HandleResponse{
 		workflowRepo:                workflowRepo,
 		taskRepo:                    taskRepo,
 		parentStatusUpdater:         services.NewParentStatusUpdater(taskRepo),
-		successTransitionNormalizer: task2core.NewSuccessTransitionNormalizer(templateEngineAdapter),
-		errorTransitionNormalizer:   task2core.NewErrorTransitionNormalizer(templateEngineAdapter),
-		outputTransformer:           task2core.NewOutputTransformer(templateEngineAdapter),
+		successTransitionNormalizer: task2core.NewSuccessTransitionNormalizer(tplEngine),
+		errorTransitionNormalizer:   task2core.NewErrorTransitionNormalizer(tplEngine),
+		outputTransformer:           task2core.NewOutputTransformer(tplEngine),
 	}
 }
 
@@ -174,6 +172,23 @@ func (uc *HandleResponse) applyOutputTransformation(ctx context.Context, input *
 	normCtx.TaskConfigs = taskConfigs
 	normCtx.CurrentInput = input.TaskConfig.With
 	normCtx.MergedEnv = input.TaskConfig.Env
+
+	// For collection child tasks, we need to add the item context
+	// Check if this task has a parent that is a collection
+	if input.TaskState.ParentStateID != nil {
+		parentState, err := uc.taskRepo.GetState(ctx, *input.TaskState.ParentStateID)
+		if err == nil && parentState.ExecutionType == task.ExecutionCollection {
+			// Extract item and index from the task's input
+			if input.TaskState.Input != nil {
+				if item, hasItem := (*input.TaskState.Input)[shared.ItemKey]; hasItem {
+					normCtx.Variables[shared.ItemKey] = item
+				}
+				if index, hasIndex := (*input.TaskState.Input)[shared.IndexKey]; hasIndex {
+					normCtx.Variables[shared.IndexKey] = index
+				}
+			}
+		}
+	}
 
 	output, err := uc.outputTransformer.TransformOutput(
 		input.TaskState.Output,

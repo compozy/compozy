@@ -14,7 +14,6 @@ import (
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/compozy/compozy/engine/core"
-	"gopkg.in/yaml.v3"
 )
 
 // EngineFormat represents the format of the template engine output
@@ -31,16 +30,10 @@ const (
 
 // TemplateEngine is the main template engine struct
 type TemplateEngine struct {
-	templates    map[string]*template.Template
-	globalValues map[string]any
-	format       EngineFormat
-}
-
-// ProcessResult contains the result of processing a template
-type ProcessResult struct {
-	Text string
-	YAML any
-	JSON any
+	templates                map[string]*template.Template
+	globalValues             map[string]any
+	format                   EngineFormat
+	preserveNumericPrecision bool
 }
 
 // NewEngine creates a new template engine with the specified format
@@ -55,6 +48,12 @@ func NewEngine(format EngineFormat) *TemplateEngine {
 // WithFormat returns a new engine with the specified format
 func (e *TemplateEngine) WithFormat(format EngineFormat) *TemplateEngine {
 	e.format = format
+	return e
+}
+
+// WithPrecisionPreservation enables or disables numeric precision preservation
+func (e *TemplateEngine) WithPrecisionPreservation(enabled bool) *TemplateEngine {
+	e.preserveNumericPrecision = enabled
 	return e
 }
 
@@ -119,43 +118,24 @@ func (e *TemplateEngine) renderTemplate(tmpl *template.Template, context map[str
 }
 
 // ProcessString processes a template string and returns the result
-func (e *TemplateEngine) ProcessString(templateStr string, context map[string]any) (*ProcessResult, error) {
-	rendered, err := e.RenderString(templateStr, context)
+func (e *TemplateEngine) ProcessString(templateStr string, context map[string]any) (string, error) {
+	result, err := e.ParseAny(templateStr, context)
 	if err != nil {
-		return nil, err
+		return "", fmt.Errorf("failed to parse template string: %w", err)
 	}
-
-	result := &ProcessResult{
-		Text: rendered,
+	value, ok := result.(string)
+	if !ok {
+		return "", fmt.Errorf("failed to parse template string: %w", err)
 	}
-
-	// Parse the result based on the format
-	switch e.format {
-	case FormatYAML:
-		var yamlObj any
-		err = yaml.Unmarshal([]byte(rendered), &yamlObj)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse YAML: %w", err)
-		}
-		result.YAML = yamlObj
-	case FormatJSON:
-		var jsonObj any
-		err = json.Unmarshal([]byte(rendered), &jsonObj)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse JSON: %w", err)
-		}
-		result.JSON = jsonObj
-	}
-
-	return result, nil
+	return value, nil
 }
 
 // ProcessFile processes a template file and returns the result
-func (e *TemplateEngine) ProcessFile(filePath string, context map[string]any) (*ProcessResult, error) {
+func (e *TemplateEngine) ProcessFile(filePath string, context map[string]any) (string, error) {
 	// Read the template file
 	templateBytes, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read template file: %w", err)
+		return "", fmt.Errorf("failed to read template file: %w", err)
 	}
 
 	// Determine format from file extension if not specified
@@ -175,22 +155,22 @@ func (e *TemplateEngine) ProcessFile(filePath string, context map[string]any) (*
 	return e.ProcessString(string(templateBytes), context)
 }
 
-// ParseMap processes a value and resolves any templates within it
-func (e *TemplateEngine) ParseMap(value any, data map[string]any) (any, error) {
+// ParseAny processes a value and resolves any templates within it
+func (e *TemplateEngine) ParseAny(value any, ctxData map[string]any) (any, error) {
 	if value == nil {
 		return nil, nil
 	}
 	switch v := value.(type) {
 	case string:
-		return e.parseStringValue(v, data)
+		return e.parseStringValue(v, ctxData)
 	case map[string]any:
-		return e.parseMapType(v, data)
+		return e.parseMapType(v, ctxData)
 	case core.Output:
-		return e.parseMapType(map[string]any(v), data)
+		return e.parseMapType(map[string]any(v), ctxData)
 	case core.Input:
-		return e.parseMapType(map[string]any(v), data)
+		return e.parseMapType(map[string]any(v), ctxData)
 	case []any:
-		return e.parseArrayType(v, data)
+		return e.parseArrayType(v, ctxData)
 	default:
 		// For other types (int, float, bool, etc.), return as is
 		return v, nil
@@ -201,7 +181,7 @@ func (e *TemplateEngine) ParseMap(value any, data map[string]any) (any, error) {
 func (e *TemplateEngine) parseMapType(m map[string]any, data map[string]any) (map[string]any, error) {
 	result := make(map[string]any, len(m))
 	for k, val := range m {
-		parsedVal, err := e.ParseMap(val, data)
+		parsedVal, err := e.ParseAny(val, data)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse template in map key %s: %w", k, err)
 		}
@@ -214,7 +194,7 @@ func (e *TemplateEngine) parseMapType(m map[string]any, data map[string]any) (ma
 func (e *TemplateEngine) parseArrayType(arr []any, data map[string]any) ([]any, error) {
 	result := make([]any, len(arr))
 	for i, val := range arr {
-		parsedVal, err := e.ParseMap(val, data)
+		parsedVal, err := e.ParseAny(val, data)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse template in array index %d: %w", i, err)
 		}
@@ -259,11 +239,7 @@ func (e *TemplateEngine) ParseMapWithFilter(value any, data map[string]any, filt
 		}
 		return result, nil
 	default:
-		// Convert boolean values to strings for non-template cases
-		if boolVal, ok := v.(bool); ok {
-			return fmt.Sprintf("%t", boolVal), nil
-		}
-		// For other types (int, float, etc.), return as is
+		// For other types (int, float, bool, etc.), return as is
 		return v, nil
 	}
 }
@@ -271,6 +247,12 @@ func (e *TemplateEngine) ParseMapWithFilter(value any, data map[string]any, filt
 // parseStringValue handles parsing of string values that may contain templates
 func (e *TemplateEngine) parseStringValue(v string, data map[string]any) (any, error) {
 	if !HasTemplate(v) {
+		// If precision preservation is enabled and this is a plain string value,
+		// try to convert it with precision
+		if e.preserveNumericPrecision {
+			pc := NewPrecisionConverter()
+			return pc.ConvertWithPrecision(v), nil
+		}
 		return v, nil
 	}
 
@@ -307,6 +289,12 @@ func (e *TemplateEngine) renderAndProcessTemplate(v string, data map[string]any)
 	parsed, err := e.RenderString(v, data)
 	if err != nil {
 		return nil, err
+	}
+
+	// Apply precision conversion if enabled
+	if e.preserveNumericPrecision {
+		pc := NewPrecisionConverter()
+		return pc.ConvertWithPrecision(parsed), nil
 	}
 
 	// Convert boolean results from template rendering to strings

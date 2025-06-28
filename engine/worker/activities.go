@@ -434,7 +434,7 @@ func (a *Activities) ExecuteMemoryTask(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewExecuteMemory(
+	act, err := tkfacts.NewExecuteMemory(
 		a.workflows,
 		a.workflowRepo,
 		a.taskRepo,
@@ -443,6 +443,9 @@ func (a *Activities) ExecuteMemoryTask(
 		a.projectConfig.CWD,
 		a.templateEngine,
 	)
+	if err != nil {
+		return nil, err
+	}
 	return act.Run(ctx, input)
 }
 

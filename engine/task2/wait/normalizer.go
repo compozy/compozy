@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/shared"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // Normalizer handles normalization for wait tasks
@@ -16,7 +17,7 @@ type Normalizer struct {
 
 // NewNormalizer creates a new wait task normalizer
 func NewNormalizer(
-	templateEngine shared.TemplateEngine,
+	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *shared.ContextBuilder,
 ) *Normalizer {
 	return &Normalizer{
@@ -62,7 +63,7 @@ func (n *Normalizer) NormalizeWithSignal(
 	// Preserve existing With values before normalization
 	existingWith := config.With
 	// Parse all templates with the signal-augmented context
-	parsed, err := n.TemplateEngine().ParseMap(configMap, context)
+	parsed, err := n.TemplateEngine().ParseAny(configMap, context)
 	if err != nil {
 		return fmt.Errorf("failed to normalize task config with signal context: %w", err)
 	}

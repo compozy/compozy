@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/task2/shared"
 	wf "github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
@@ -18,31 +19,8 @@ type TemplateEngineAdapter struct {
 	engine *tplengine.TemplateEngine
 }
 
-func (tea *TemplateEngineAdapter) Process(template string, context map[string]any) (any, error) {
-	result, err := tea.engine.ProcessString(template, context)
-	if err != nil {
-		return nil, err
-	}
-	// Return JSON parsed value for JSON format, otherwise return text
-	if result.JSON != nil {
-		return result.JSON, nil
-	}
-	return result.Text, nil
-}
-
-func (tea *TemplateEngineAdapter) ProcessMap(
-	templateMap map[string]any,
-	context map[string]any,
-) (map[string]any, error) {
-	result, err := tea.engine.ParseMap(templateMap, context)
-	if err != nil {
-		return nil, err
-	}
-	// ParseMap returns any, need to type assert to map[string]any
-	if resultMap, ok := result.(map[string]any); ok {
-		return resultMap, nil
-	}
-	return nil, fmt.Errorf("ParseMap result is not a map[string]any, got %T", result)
+func (tea *TemplateEngineAdapter) ParseMap(value any, context map[string]any) (any, error) {
+	return tea.engine.ParseAny(value, context)
 }
 
 // NormalizationContextAdapter creates a normalization context from workflow state
@@ -52,14 +30,49 @@ type NormalizationContextAdapter struct {
 }
 
 func (nca *NormalizationContextAdapter) BuildTemplateContext() map[string]any {
+	// Use the shared context builder to build a proper context with children support
+	contextBuilder := shared.NewBaseContextBuilder()
+	normContext := contextBuilder.BuildContext(nca.workflowState, nca.workflowConfig, nil)
+
+	// Get the variables which contain the properly built context
+	if normContext.Variables != nil {
+		// The variables already contain workflow, tasks with children, env, etc.
+		// Add additional top-level fields for backward compatibility
+		normContext.Variables["workflow_id"] = nca.workflowState.WorkflowID
+		normContext.Variables["workflow_exec_id"] = nca.workflowState.WorkflowExecID
+		normContext.Variables["status"] = nca.workflowState.Status
+		normContext.Variables["config"] = nca.workflowConfig
+
+		return normContext.Variables
+	}
+
+	// Fallback to original implementation if context builder fails
+	workflowMap := map[string]any{
+		"id":      nca.workflowState.WorkflowID,
+		"exec_id": nca.workflowState.WorkflowExecID,
+		"status":  nca.workflowState.Status,
+	}
+
+	// Add input if available
+	if nca.workflowState.Input != nil {
+		workflowMap["input"] = *nca.workflowState.Input
+	}
+
+	// Add output if available
+	if nca.workflowState.Output != nil {
+		workflowMap["output"] = *nca.workflowState.Output
+	}
+
 	context := map[string]any{
 		"env":              make(map[string]any),
-		"workflow":         nca.workflowState,
+		"workflow":         workflowMap,
 		"config":           nca.workflowConfig,
 		"tasks":            nca.workflowState.Tasks,
 		"workflow_id":      nca.workflowState.WorkflowID,
 		"workflow_exec_id": nca.workflowState.WorkflowExecID,
+		"status":           nca.workflowState.Status,
 	}
+
 	// Add workflow environment if available
 	if envMap := nca.workflowConfig.GetEnv(); envMap != nil {
 		context["env"] = envMap.AsMap()
@@ -87,11 +100,10 @@ func NewCompleteWorkflow(workflowRepo wf.Repository, workflows []*wf.Config) *Co
 	}
 	// Create template engine for output transformation
 	engine := tplengine.NewEngine(tplengine.FormatJSON)
-	templateEngineAdapter := &TemplateEngineAdapter{engine: engine}
 	return &CompleteWorkflow{
 		workflowRepo:      workflowRepo,
 		workflows:         workflowMap,
-		outputTransformer: wf.NewOutputNormalizer(templateEngineAdapter),
+		outputTransformer: wf.NewOutputNormalizer(engine),
 	}
 }
 

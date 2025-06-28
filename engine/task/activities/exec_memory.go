@@ -38,14 +38,17 @@ func NewExecuteMemory(
 	memoryManager memcore.ManagerInterface,
 	cwd *core.PathCWD,
 	templateEngine *tplengine.TemplateEngine,
-) *ExecuteMemory {
-	configManager := services.NewConfigManager(configStore, cwd)
+) (*ExecuteMemory, error) {
+	configManager, err := services.NewConfigManager(configStore, cwd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config manager: %w", err)
+	}
 	return &ExecuteMemory{
 		loadWorkflowUC:        uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:         uc.NewCreateState(taskRepo, configManager),
 		taskResponder:         services.NewTaskResponder(workflowRepo, taskRepo),
 		execMemoryOperationUC: uc.NewExecuteMemoryOperation(memoryManager, templateEngine),
-	}
+	}, nil
 }
 
 func (a *ExecuteMemory) Run(ctx context.Context, input *ExecuteMemoryInput) (*task.MainTaskResponse, error) {

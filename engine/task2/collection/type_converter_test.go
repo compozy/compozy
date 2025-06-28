@@ -1,6 +1,7 @@
 package collection
 
 import (
+	"encoding/json"
 	"math"
 	"testing"
 
@@ -414,4 +415,80 @@ func TestTypeConverter_ConvertToSlice_FullWorkflow(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestTypeConverter_PrecisionHandling(t *testing.T) {
+	t.Run("Should handle strings without conversion", func(t *testing.T) {
+		// Note: Precision handling is now done by the template engine
+		// TypeConverter just treats strings as strings
+		tc := NewTypeConverterWithPrecision()
+
+		// Large integer remains as string
+		largeInt := "9007199254740992" // MAX_SAFE_INTEGER + 1
+		result := tc.ConvertToSlice(largeInt)
+
+		require.Len(t, result, 1)
+		assert.IsType(t, "", result[0])
+		assert.Equal(t, "9007199254740992", result[0])
+	})
+
+	t.Run("Should handle JSON numbers with standard conversion", func(t *testing.T) {
+		tc := NewTypeConverterWithPrecision()
+
+		// JSON numbers are converted to int64 or float64 by handleJSONNumber
+		jsonNum := json.Number("42")
+		result := tc.ConvertToSlice(jsonNum)
+
+		require.Len(t, result, 1)
+		assert.IsType(t, int64(0), result[0])
+		assert.Equal(t, int64(42), result[0])
+	})
+
+	t.Run("Should handle large JSON numbers", func(t *testing.T) {
+		tc := NewTypeConverterWithPrecision()
+
+		// Large JSON number that fits in int64
+		jsonNum := json.Number("9007199254740992")
+		result := tc.ConvertToSlice(jsonNum)
+
+		require.Len(t, result, 1)
+		assert.IsType(t, int64(0), result[0])
+		assert.Equal(t, int64(9007199254740992), result[0])
+	})
+
+	t.Run("Should handle JSON floats", func(t *testing.T) {
+		tc := NewTypeConverterWithPrecision()
+
+		jsonNum := json.Number("3.14159")
+		result := tc.ConvertToSlice(jsonNum)
+
+		require.Len(t, result, 1)
+		assert.IsType(t, float64(0), result[0])
+		assert.Equal(t, 3.14159, result[0])
+	})
+
+	t.Run("Should handle very large JSON numbers as float64", func(t *testing.T) {
+		tc := NewTypeConverterWithPrecision()
+
+		// Too large for int64, will be parsed as float64
+		jsonNum := json.Number("99999999999999999999999999999999")
+		result := tc.ConvertToSlice(jsonNum)
+
+		require.Len(t, result, 1)
+		assert.IsType(t, float64(0), result[0])
+		// The value will be represented as 1e+32 in float64
+		assert.Equal(t, float64(1e+32), result[0])
+	})
+
+	t.Run("Should handle unparseable JSON numbers as strings", func(t *testing.T) {
+		tc := NewTypeConverterWithPrecision()
+
+		// Invalid number format
+		jsonNum := json.Number("not-a-number")
+		result := tc.ConvertToSlice(jsonNum)
+
+		require.Len(t, result, 1)
+		assert.IsType(t, "", result[0])
+		assert.Equal(t, "not-a-number", result[0])
+	})
 }

@@ -7,7 +7,6 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/compozy/compozy/engine/task2"
 	"github.com/compozy/compozy/engine/task2/collection"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
@@ -64,9 +63,8 @@ func NewConfigManager(configStore ConfigStore, cwd *core.PathCWD) (*ConfigManage
 		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
 	engine := tplengine.NewEngine(tplengine.FormatJSON)
-	templateEngineAdapter := task2.NewTemplateEngineAdapter(engine)
-	collectionNormalizer := collection.NewNormalizer(templateEngineAdapter, contextBuilder)
-	configBuilder := collection.NewConfigBuilder(templateEngineAdapter)
+	collectionNormalizer := collection.NewNormalizer(engine, contextBuilder)
+	configBuilder := collection.NewConfigBuilder(engine)
 	return &ConfigManager{
 		cwd:                  cwd,
 		configStore:          configStore,
@@ -367,6 +365,11 @@ func (cm *ConfigManager) SaveTaskConfig(ctx context.Context, taskExecID core.ID,
 	return cm.configStore.Save(ctx, taskExecID.String(), config)
 }
 
+// GetTaskConfig retrieves a task configuration from Redis using taskExecID as key
+func (cm *ConfigManager) GetTaskConfig(ctx context.Context, taskExecID core.ID) (*task.Config, error) {
+	return cm.configStore.Get(ctx, taskExecID.String())
+}
+
 // DeleteTaskConfig removes a task configuration from Redis using taskExecID as key
 func (cm *ConfigManager) DeleteTaskConfig(ctx context.Context, taskExecID core.ID) error {
 	return cm.configStore.Delete(ctx, taskExecID.String())
@@ -437,10 +440,11 @@ func (cm *ConfigManager) createChildConfigs(
 	templateContext map[string]any,
 ) ([]task.Config, error) {
 	var childConfigs []task.Config
+	runtimeProcessor := collection.NewRuntimeProcessor(cm.configBuilder.GetTemplateEngine())
 
 	for i, item := range filteredItems {
 		itemContext := cm.collectionNormalizer.CreateItemContext(templateContext, &taskConfig.CollectionConfig, item, i)
-		childConfig, err := cm.configBuilder.BuildTaskConfig(
+		baseChildConfig, err := cm.configBuilder.BuildTaskConfig(
 			&taskConfig.CollectionConfig,
 			taskConfig,
 			item,
@@ -448,22 +452,39 @@ func (cm *ConfigManager) createChildConfigs(
 			itemContext,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create child config for item %d: %w", i, err)
+			return nil, fmt.Errorf("failed to create base child config for item %d: %w", i, err)
 		}
 
-		// Process the With field templates using the item context
+		// Use RuntimeProcessor for comprehensive template processing
+		childConfig, err := runtimeProcessor.ProcessItemConfig(baseChildConfig, itemContext)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process runtime templates for item %d: %w", i, err)
+		}
+
+		// Ensure With field has collection metadata
 		if childConfig.With != nil {
-			processedWith, err := cm.configBuilder.GetTemplateEngine().ParseValue(*childConfig.With, itemContext)
-			if err != nil {
-				return nil, fmt.Errorf("failed to process child config templates for item %d: %w", i, err)
-			}
-			if processedMap, ok := processedWith.(map[string]any); ok {
-				processedInput := core.Input(processedMap)
-				childConfig.With = &processedInput
-			} else {
-				return nil, fmt.Errorf("expected map[string]any for processed With field, got %T", processedWith)
+			withMap := map[string]any(*childConfig.With)
+			withMap["_collection_item"] = item
+			withMap["_collection_index"] = i
+			withMap["_collection_item_var"] = taskConfig.GetItemVar()
+			withMap["_collection_index_var"] = taskConfig.GetIndexVar()
+			withInput := core.Input(withMap)
+			childConfig.With = &withInput
+		} else {
+			// Create With field with collection metadata
+			childConfig.With = &core.Input{
+				"_collection_item":      item,
+				"_collection_index":     i,
+				"_collection_item_var":  taskConfig.GetItemVar(),
+				"_collection_index_var": taskConfig.GetIndexVar(),
 			}
 		}
+
+		// DO NOT process outputs field here
+		// Output transformation happens AFTER task execution in HandleResponse
+		// This maintains proper separation of concerns:
+		// - ConfigManager: Creates child configs with collection context
+		// - OutputTransformer: Transforms outputs after execution with full runtime context
 
 		childConfigs = append(childConfigs, *childConfig)
 	}

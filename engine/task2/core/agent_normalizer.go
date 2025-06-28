@@ -4,17 +4,19 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/shared"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // AgentNormalizer handles agent component normalization
 type AgentNormalizer struct {
-	templateEngine shared.TemplateEngine
+	templateEngine *tplengine.TemplateEngine
 	envMerger      *EnvMerger
 }
 
 // NewAgentNormalizer creates a new agent normalizer
-func NewAgentNormalizer(templateEngine shared.TemplateEngine, envMerger *EnvMerger) *AgentNormalizer {
+func NewAgentNormalizer(templateEngine *tplengine.TemplateEngine, envMerger *EnvMerger) *AgentNormalizer {
 	return &AgentNormalizer{
 		templateEngine: templateEngine,
 		envMerger:      envMerger,
@@ -106,7 +108,8 @@ func (n *AgentNormalizer) normalizeAgentActions(
 			CurrentInput:  aConfig.With,
 			MergedEnv:     ctx.MergedEnv,
 			ChildrenIndex: ctx.ChildrenIndex,
-			Variables:     ctx.Variables, // Copy variables to preserve workflow context
+			Variables:     ctx.Variables,  // Copy variables to preserve workflow context
+			ParentTask:    ctx.ParentTask, // Preserve parent task to maintain collection context
 		}
 		// Normalize the action config
 		if err := n.normalizeAgentActionConfig(aConfig, actionCtx); err != nil {
@@ -137,8 +140,18 @@ func (n *AgentNormalizer) normalizeAgentActionConfig(
 	}
 	// Apply template processing with appropriate filters
 	// Skip input and output fields during action normalization
+	// Also skip prompt field if we're within a collection context to preserve {{ .item }} references
 	parsed, err := n.templateEngine.ParseMapWithFilter(configMap, context, func(k string) bool {
-		return k == "input" || k == "output"
+		// Always skip input and output
+		if k == "input" || k == "output" {
+			return true
+		}
+		// If parent task is a collection, also skip prompt field
+		// to preserve collection-specific template variables like {{ .item }}
+		if ctx.ParentTask != nil && ctx.ParentTask.Type == task.TaskTypeCollection {
+			return k == "prompt" || k == "json_mode"
+		}
+		return false
 	})
 	if err != nil {
 		return fmt.Errorf("failed to normalize action config: %w", err)

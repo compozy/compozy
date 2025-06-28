@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 const (
@@ -14,12 +15,12 @@ const (
 
 // ToolNormalizer handles tool component normalization
 type ToolNormalizer struct {
-	templateEngine shared.TemplateEngine
+	templateEngine *tplengine.TemplateEngine
 	envMerger      *EnvMerger
 }
 
 // NewToolNormalizer creates a new tool normalizer
-func NewToolNormalizer(templateEngine shared.TemplateEngine, envMerger *EnvMerger) *ToolNormalizer {
+func NewToolNormalizer(templateEngine *tplengine.TemplateEngine, envMerger *EnvMerger) *ToolNormalizer {
 	return &ToolNormalizer{
 		templateEngine: templateEngine,
 		envMerger:      envMerger,

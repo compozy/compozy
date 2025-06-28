@@ -155,8 +155,7 @@ func (a *ExecuteAggregate) executeAggregate(
 	emptyOutput := &core.Output{}
 	// Use task2 output transformer to process outputs with template engine
 	engine := tplengine.NewEngine(tplengine.FormatJSON)
-	templateEngineAdapter := task2.NewTemplateEngineAdapter(engine)
-	outputTransformer := task2core.NewOutputTransformer(templateEngineAdapter)
+	outputTransformer := task2core.NewOutputTransformer(engine)
 
 	// Build task configs map for context
 	taskConfigs := task2.BuildTaskConfigsMap(workflowConfig.Tasks)

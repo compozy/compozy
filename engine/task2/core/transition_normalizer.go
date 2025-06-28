@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task2/shared"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // Transition interface for common transition operations
@@ -16,11 +17,11 @@ type Transition interface {
 
 // TransitionNormalizer handles normalization for any transition type
 type TransitionNormalizer[T Transition] struct {
-	templateEngine shared.TemplateEngine
+	templateEngine *tplengine.TemplateEngine
 }
 
 // NewTransitionNormalizer creates a new generic transition normalizer
-func NewTransitionNormalizer[T Transition](templateEngine shared.TemplateEngine) *TransitionNormalizer[T] {
+func NewTransitionNormalizer[T Transition](templateEngine *tplengine.TemplateEngine) *TransitionNormalizer[T] {
 	return &TransitionNormalizer[T]{
 		templateEngine: templateEngine,
 	}
@@ -47,7 +48,7 @@ func (n *TransitionNormalizer[T]) Normalize(
 		return fmt.Errorf("failed to convert transition to map: %w", err)
 	}
 	// Apply template processing to all fields
-	parsed, err := n.templateEngine.ParseMap(configMap, context)
+	parsed, err := n.templateEngine.ParseAny(configMap, context)
 	if err != nil {
 		return fmt.Errorf("failed to normalize transition: %w", err)
 	}

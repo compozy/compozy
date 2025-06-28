@@ -4,16 +4,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/compozy/engine/task2/shared"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // FilterEvaluator handles filter expression evaluation
 type FilterEvaluator struct {
-	templateEngine shared.TemplateEngine
+	templateEngine *tplengine.TemplateEngine
 }
 
 // NewFilterEvaluator creates a new filter evaluator
-func NewFilterEvaluator(templateEngine shared.TemplateEngine) *FilterEvaluator {
+func NewFilterEvaluator(templateEngine *tplengine.TemplateEngine) *FilterEvaluator {
 	return &FilterEvaluator{
 		templateEngine: templateEngine,
 	}
@@ -29,12 +29,17 @@ func (fe *FilterEvaluator) EvaluateFilter(filterExpr string, context map[string]
 		return true, nil
 	}
 	// Process the filter expression as a template
-	processed, err := fe.templateEngine.Process(filterExpr, context)
+	processed, err := fe.templateEngine.ParseAny(filterExpr, context)
 	if err != nil {
 		return false, fmt.Errorf("failed to process filter expression: %w", err)
 	}
+	// Convert result to string for evaluation
+	var result string
+	if processed != nil {
+		result = fmt.Sprintf("%v", processed)
+	}
 	// Trim whitespace
-	result := strings.TrimSpace(processed)
+	result = strings.TrimSpace(result)
 	// Check for boolean-like values
 	switch strings.ToLower(result) {
 	case "true", "yes", "1", "on":

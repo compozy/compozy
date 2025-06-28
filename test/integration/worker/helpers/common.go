@@ -2,8 +2,6 @@ package helpers
 
 import (
 	"context"
-	"fmt"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,79 +21,6 @@ import (
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 )
-
-// TestConfigStore implements services.ConfigStore for testing
-type TestConfigStore struct {
-	mu       sync.RWMutex
-	data     map[string]*task.Config
-	metadata map[string][]byte
-}
-
-func NewTestConfigStore() *TestConfigStore {
-	return &TestConfigStore{
-		data:     make(map[string]*task.Config),
-		metadata: make(map[string][]byte),
-	}
-}
-
-func (s *TestConfigStore) Save(_ context.Context, key string, config *task.Config) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.data[key] = config
-	return nil
-}
-
-func (s *TestConfigStore) Get(_ context.Context, key string) (*task.Config, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	config, exists := s.data[key]
-	if !exists {
-		return nil, fmt.Errorf("config not found for taskExecID %s", key)
-	}
-	return config, nil
-}
-
-func (s *TestConfigStore) Delete(_ context.Context, key string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.data, key)
-	return nil
-}
-
-func (s *TestConfigStore) SaveMetadata(_ context.Context, key string, data []byte) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.metadata == nil {
-		s.metadata = make(map[string][]byte)
-	}
-	s.metadata[key] = data
-	return nil
-}
-
-func (s *TestConfigStore) GetMetadata(_ context.Context, key string) ([]byte, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	data, exists := s.metadata[key]
-	if !exists {
-		return nil, fmt.Errorf("metadata not found for key %s", key)
-	}
-	return data, nil
-}
-
-func (s *TestConfigStore) DeleteMetadata(_ context.Context, key string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.metadata != nil {
-		delete(s.metadata, key)
-	}
-	return nil
-}
-
-func (s *TestConfigStore) Close() error {
-	s.data = make(map[string]*task.Config)
-	s.metadata = make(map[string][]byte)
-	return nil
-}
 
 // CreateMockRuntime creates a mock runtime manager for integration tests
 func CreateMockRuntime(t *testing.T) *coreruntime.Manager {
@@ -123,7 +48,7 @@ func CreateTestProjectConfig(_ *TestFixture, projectName string) *project.Config
 }
 
 // CreateTestConfigManager creates a test config manager
-func CreateTestConfigManager(configStore *TestConfigStore) (*services.ConfigManager, error) {
+func CreateTestConfigManager(configStore *services.TestConfigStore) (*services.ConfigManager, error) {
 	return services.NewConfigManager(configStore, nil)
 }
 
@@ -240,64 +165,118 @@ func CreateCollectionAgentConfig() *agent.Config {
 		ID:           "test-collection-agent",
 		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
 		Instructions: "Test agent for collection workflow integration testing",
-		Actions: []*agent.ActionConfig{
-			{
-				ID:     "process_item",
-				Prompt: "Process a single collection item",
-				InputSchema: &schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"item_name":  map[string]any{"type": "string"},
-						"item_value": map[string]any{"type": "number"},
-						"multiplier": map[string]any{"type": "number"},
-					},
-				},
+		Actions:      createCollectionAgentActions(),
+	}
+}
+
+// createCollectionAgentActions creates the action configurations for collection agent
+func createCollectionAgentActions() []*agent.ActionConfig {
+	return []*agent.ActionConfig{
+		createProcessItemAction(),
+		createProcessParallelItemAction(),
+		createProcessWithFailureAction(),
+		createAnalyzeActivityAction(),
+		createProcessCityAction(),
+		createAggregateResultsAction(),
+		createHandleEmptyCollectionAction(),
+	}
+}
+
+func createProcessItemAction() *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     "process_item",
+		Prompt: "Process a single collection item",
+		InputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"item_name":  map[string]any{"type": "string"},
+				"item_value": map[string]any{"type": "number"},
+				"multiplier": map[string]any{"type": "number"},
 			},
-			{
-				ID:     "process_parallel_item",
-				Prompt: "Process a parallel collection item",
-				InputSchema: &schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"task_id":    map[string]any{"type": "string"},
-						"priority":   map[string]any{"type": "string"},
-						"timeout_ms": map[string]any{"type": "number"},
-						"start_time": map[string]any{"type": "string"},
-					},
-				},
+		},
+	}
+}
+
+func createProcessParallelItemAction() *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     "process_parallel_item",
+		Prompt: "Process a parallel collection item",
+		InputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"task_id":    map[string]any{"type": "string"},
+				"priority":   map[string]any{"type": "string"},
+				"timeout_ms": map[string]any{"type": "number"},
+				"start_time": map[string]any{"type": "string"},
 			},
-			{
-				ID:     "process_with_failure",
-				Prompt: "Process item that may fail",
-				InputSchema: &schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"item_id":     map[string]any{"type": "string"},
-						"should_fail": map[string]any{"type": "boolean"},
-						"value":       map[string]any{"type": "number"},
-					},
-				},
+		},
+	}
+}
+
+func createProcessWithFailureAction() *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     "process_with_failure",
+		Prompt: "Process item that may fail",
+		InputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"item_id":     map[string]any{"type": "string"},
+				"should_fail": map[string]any{"type": "boolean"},
+				"value":       map[string]any{"type": "number"},
 			},
-			{
-				ID:     "aggregate_results",
-				Prompt: "Aggregate collection results",
-				InputSchema: &schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"child_results": map[string]any{"type": "array"},
-						"total_items":   map[string]any{"type": "number"},
-					},
-				},
+		},
+	}
+}
+
+func createAnalyzeActivityAction() *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     "analyze_activity",
+		Prompt: "Analyze a single activity",
+		InputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"activity_name": map[string]any{"type": "string"},
 			},
-			{
-				ID:     "handle_empty_collection",
-				Prompt: "Handle empty collection case",
-				InputSchema: &schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"collection_size": map[string]any{"type": "number"},
-					},
-				},
+		},
+	}
+}
+
+func createProcessCityAction() *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     "process_city",
+		Prompt: "Process city data",
+		InputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"city_name":     map[string]any{"type": "string"},
+				"city_position": map[string]any{"type": "number"},
+			},
+		},
+	}
+}
+
+func createAggregateResultsAction() *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     "aggregate_results",
+		Prompt: "Aggregate collection results",
+		InputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"child_results": map[string]any{"type": "array"},
+				"total_items":   map[string]any{"type": "number"},
+			},
+		},
+	}
+}
+
+func createHandleEmptyCollectionAction() *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     "handle_empty_collection",
+		Prompt: "Handle empty collection case",
+		InputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"collection_size": map[string]any{"type": "number"},
 			},
 		},
 	}
@@ -383,7 +362,7 @@ func CreateTestActivities(
 	workflowRepo *store.WorkflowRepo,
 	fixture *TestFixture,
 	runtime *coreruntime.Manager,
-	configStore *TestConfigStore,
+	configStore *services.TestConfigStore,
 	projectName string,
 	agentConfig *agent.Config,
 ) *worker.Activities {
@@ -473,7 +452,7 @@ func ExecuteWorkflowAndGetState(
 	// Create repositories and runtime
 	taskRepo := store.NewTaskRepo(dbHelper.GetPool())
 	workflowRepo := store.NewWorkflowRepo(dbHelper.GetPool())
-	configStore := NewTestConfigStore()
+	configStore := services.NewTestConfigStore(t)
 	runtime := CreateMockRuntime(t)
 
 	// Ensure proper cleanup of resources

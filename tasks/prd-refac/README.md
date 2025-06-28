@@ -1,10 +1,14 @@
-# Normalizer Package Refactoring
+# Engine Refactoring Documentation
 
-This directory contains the Product Requirements Document (PRD) and Technical Specification for refactoring the Compozy normalizer package from a monolithic architecture to a modular, task-type-specific architecture.
+This directory contains Product Requirements Documents (PRDs) and Technical Specifications for refactoring critical components of the Compozy engine from monolithic architectures to modular, domain-driven designs.
 
 ## Overview
 
-The normalizer package is responsible for:
+This directory documents the ongoing refactoring efforts to modernize the Compozy engine architecture:
+
+### Normalizer Package
+
+Responsible for:
 
 - Configuration normalization across different task types
 - Template processing and variable substitution
@@ -12,10 +16,41 @@ The normalizer package is responsible for:
 - Context building for template evaluation
 - Output transformation
 
-## Documents
+### Task Orchestration Services
 
-- **[\_prd.md](_prd.md)** - Product Requirements Document outlining the business goals, requirements, and success criteria
-- **[\_techspec.md](_techspec.md)** - Technical Specification detailing the architecture, implementation plan, and migration strategy
+Responsible for:
+
+- Task configuration management and storage
+- Parent-child task relationship management
+- Inter-task signal dispatching
+- Wait task lifecycle management
+- Task execution response handling
+
+## Refactoring Projects
+
+### 1. Normalizer Package Refactoring
+
+**Documents:**
+
+- **[\_prd.md](_prd.md)** - Product Requirements Document for normalizer refactoring
+- **[\_techspec.md](_techspec.md)** - Technical Specification for normalizer architecture
+- **[integration-plan.md](integration-plan.md)** - Direct integration strategy for task2 package
+
+### 2. Task Services Migration
+
+**Documents:**
+
+- **[task-services-migration-prd.md](task-services-migration-prd.md)** - Product Requirements for service migration
+- **[task-services-migration-techspec.md](task-services-migration-techspec.md)** - Technical architecture and implementation
+- **[task-services-migration-tasks.md](task-services-migration-tasks.md)** - Detailed task breakdown (20 tasks)
+- **[task-services-migration-plan.md](task-services-migration-plan.md)** - Initial migration strategy
+
+**Scope:** Migration of four critical orchestration services:
+
+- ConfigManager - Task configuration and metadata management
+- ParentStatusUpdater - Parent task status tracking and updates
+- SignalDispatcher - Inter-task signal routing
+- WaitTaskManager - Wait task lifecycle orchestration
 
 ## Key Changes
 
@@ -76,9 +111,24 @@ To work on this refactoring:
 
 ## Project Standards
 
-This refactoring must adhere to:
+All refactoring efforts must adhere to:
 
 - [Architecture & Design Principles](../../.cursor/rules/architecture.mdc)
 - [Go Coding Standards](../../.cursor/rules/go-coding-standards.mdc)
 - [Testing Standards](../../.cursor/rules/testing-standards.mdc)
 - [Core Go Patterns](../../.cursor/rules/go-patterns.mdc)
+
+## Combined Benefits
+
+Together, these refactoring efforts will:
+
+1. **Transform the engine architecture** from monolithic to modular, domain-driven design
+2. **Enable independent development** of task types and orchestration services
+3. **Improve system reliability** through better isolation and error handling
+4. **Accelerate feature development** with cleaner, more maintainable code
+5. **Simplify testing** through well-defined interfaces and boundaries
+
+## Current Status
+
+- **Normalizer Refactoring**: Task2 package complete, ready for integration
+- **Task Services Migration**: Planning complete, ready for implementation (10-day timeline)

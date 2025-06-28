@@ -1,0 +1,61 @@
+name: collection-progress-tracking
+
+workflow:
+  id: test-progress-tracking
+  version: "1.0.0"
+  tasks:
+    - id: data-pipeline
+      type: basic
+      action: process_item
+      with:
+        item_name: "pipeline"
+        item_value: 1
+        multiplier: 1
+      on_success:
+        next: process-data-items
+    - id: process-data-items
+      type: collection
+      mode: parallel
+      items: "{{ .workflow.input.data_items }}"
+      task:
+        id: "process-item-{{ .index }}"
+        type: basic
+        action: process_item
+        with:
+          item_name: "{{ .item.name }}"
+          item_value: 1
+          multiplier: 1
+
+input:
+  data_items:
+    - name: "dataset-1"
+      data: "data-content-1"
+    - name: "dataset-2"
+      data: "data-content-2"
+    - name: "dataset-3"
+      data: "data-content-3"
+    - name: "dataset-4"
+      data: "data-content-4"
+
+expected:
+  workflow_state:
+    status: "SUCCESS"
+    total_tasks: 6  # 1 pipeline + 1 parent collection + 4 children
+    completed_tasks: 6
+  task_states:
+    - name: data-pipeline
+      status: "SUCCESS"
+    - name: process-data-items
+      status: "SUCCESS"
+    - name: process-item-0
+      status: "SUCCESS"
+      parent: process-data-items
+    - name: process-item-1
+      status: "SUCCESS"
+      parent: process-data-items
+    - name: process-item-2
+      status: "SUCCESS"
+      parent: process-data-items
+    - name: process-item-3
+      status: "SUCCESS"
+      parent: process-data-items

@@ -3,6 +3,7 @@ package basic
 import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/shared"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // Normalizer handles normalization for basic tasks
@@ -11,7 +12,7 @@ type Normalizer struct {
 }
 
 // NewNormalizer creates a new basic task normalizer
-func NewNormalizer(templateEngine shared.TemplateEngine) *Normalizer {
+func NewNormalizer(templateEngine *tplengine.TemplateEngine) *Normalizer {
 	return &Normalizer{
 		BaseNormalizer: shared.NewBaseNormalizer(
 			templateEngine,

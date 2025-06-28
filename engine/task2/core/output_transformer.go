@@ -7,15 +7,16 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/shared"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // OutputTransformer handles output normalization and transformation
 type OutputTransformer struct {
-	templateEngine shared.TemplateEngine
+	templateEngine *tplengine.TemplateEngine
 }
 
 // NewOutputTransformer creates a new output transformer
-func NewOutputTransformer(templateEngine shared.TemplateEngine) *OutputTransformer {
+func NewOutputTransformer(templateEngine *tplengine.TemplateEngine) *OutputTransformer {
 	return &OutputTransformer{
 		templateEngine: templateEngine,
 	}
@@ -70,37 +71,7 @@ func (ot *OutputTransformer) transformOutputFields(
 	transformCtx map[string]any,
 	contextName string,
 ) (map[string]any, error) {
-	// Sort keys to ensure deterministic iteration order for Temporal workflows
-	keys := make([]string, 0, len(outputsConfig))
-	for k := range outputsConfig {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	result := make(map[string]any)
-	for _, key := range keys {
-		value := outputsConfig[key]
-		// Value can be a string template or a map
-		switch v := value.(type) {
-		case string:
-			// Process string template
-			processed, err := ot.templateEngine.Process(v, transformCtx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to transform %s output field %s: %w", contextName, key, err)
-			}
-			result[key] = processed
-		case map[string]any:
-			// Process map recursively
-			processed, err := ot.templateEngine.ProcessMap(v, transformCtx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to transform %s output field %s: %w", contextName, key, err)
-			}
-			result[key] = processed
-		default:
-			// Keep other types as-is
-			result[key] = value
-		}
-	}
-	return result, nil
+	return TransformOutputFields(ot.templateEngine, outputsConfig, transformCtx, contextName)
 }
 
 // buildChildrenContext delegates to the actual ContextBuilder implementation
@@ -117,4 +88,28 @@ func buildChildrenContext(parentState *task.State, ctx *shared.NormalizationCont
 		taskOutputBuilder,
 		0, // depth
 	)
+}
+
+func TransformOutputFields(
+	templateEngine *tplengine.TemplateEngine,
+	outputsConfig map[string]any,
+	transformCtx map[string]any,
+	contextName string,
+) (map[string]any, error) {
+	// Sort keys to ensure deterministic iteration order for Temporal workflows
+	keys := make([]string, 0, len(outputsConfig))
+	for k := range outputsConfig {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	result := make(map[string]any)
+	for _, key := range keys {
+		value := outputsConfig[key]
+		processed, err := templateEngine.ParseAny(value, transformCtx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to transform %s output field %s: %w", contextName, key, err)
+		}
+		result[key] = processed
+	}
+	return result, nil
 }

@@ -1,175 +1,497 @@
 package composite_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/compozy/compozy/engine/task2"
 	"github.com/compozy/compozy/engine/task2/composite"
 	"github.com/compozy/compozy/engine/task2/shared"
-	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
-
-// testNormalizerFactory is a simple implementation for testing
-type testNormalizerFactory struct{}
-
-func (f *testNormalizerFactory) CreateNormalizer(taskType string) (shared.TaskNormalizer, error) {
-	// Return a simple basic normalizer for testing
-	basicNormalizer := &testTaskNormalizer{taskType: taskType}
-	return basicNormalizer, nil
-}
-
-// testTaskNormalizer is a simple implementation for testing
-type testTaskNormalizer struct {
-	taskType string
-}
-
-func (n *testTaskNormalizer) Normalize(_ any, _ *shared.NormalizationContext) error {
-	return nil
-}
-
-func (n *testTaskNormalizer) Type() string {
-	return n.taskType
-}
 
 func TestCompositeNormalizer_NewNormalizer(t *testing.T) {
 	t.Run("Should create composite normalizer", func(t *testing.T) {
 		// Arrange
-		tplEngine := tplengine.NewEngine(tplengine.FormatText)
-		templateEngine := task2.NewTemplateEngineAdapter(tplEngine)
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 		contextBuilder, err := shared.NewContextBuilder()
 		require.NoError(t, err)
-		// Create a simple shared factory for testing
-		sharedFactory := &testNormalizerFactory{}
+
+		// Create a mock normalizer factory
+		normalizerFactory := &mockNormalizerFactory{}
 
 		// Act
-		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, sharedFactory)
+		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, normalizerFactory)
 
 		// Assert
 		assert.NotNil(t, normalizer)
-		assert.Equal(t, string(task.TaskTypeComposite), string(normalizer.Type()))
+	})
+
+	t.Run("Should handle nil template engine", func(t *testing.T) {
+		// Arrange
+		contextBuilder, err := shared.NewContextBuilder()
+		require.NoError(t, err)
+
+		// Create a mock normalizer factory
+		normalizerFactory := &mockNormalizerFactory{}
+
+		// Act
+		normalizer := composite.NewNormalizer(nil, contextBuilder, normalizerFactory)
+
+		// Assert
+		assert.NotNil(t, normalizer)
+	})
+
+	t.Run("Should handle nil context builder", func(t *testing.T) {
+		// Arrange
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+
+		// Create a mock normalizer factory
+		normalizerFactory := &mockNormalizerFactory{}
+
+		// Act
+		normalizer := composite.NewNormalizer(templateEngine, nil, normalizerFactory)
+
+		// Assert
+		assert.NotNil(t, normalizer)
+	})
+
+	t.Run("Should handle nil normalizer factory", func(t *testing.T) {
+		// Arrange
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+		contextBuilder, err := shared.NewContextBuilder()
+		require.NoError(t, err)
+
+		// Act
+		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, nil)
+
+		// Assert
+		assert.NotNil(t, normalizer)
+	})
+
+	t.Run("Should handle all nil parameters", func(t *testing.T) {
+		// Act
+		normalizer := composite.NewNormalizer(nil, nil, nil)
+
+		// Assert
+		assert.NotNil(t, normalizer)
 	})
 }
 
-func TestCompositeNormalizer_Normalize(t *testing.T) {
-	// Setup
-	tplEngine := tplengine.NewEngine(tplengine.FormatText)
-	templateEngine := task2.NewTemplateEngineAdapter(tplEngine)
+// Mock normalizer factory for testing
+type mockNormalizerFactory struct {
+	mock.Mock
+}
+
+func (m *mockNormalizerFactory) CreateNormalizer(taskType string) (shared.TaskNormalizer, error) {
+	args := m.Called(taskType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(shared.TaskNormalizer), args.Error(1)
+}
+
+// Mock task normalizer for testing
+type mockTaskNormalizer struct {
+	mock.Mock
+}
+
+func (m *mockTaskNormalizer) Type() string {
+	args := m.Called()
+	return args.String(0)
+}
+
+func (m *mockTaskNormalizer) Normalize(config any, ctx *shared.NormalizationContext) error {
+	args := m.Called(config, ctx)
+	return args.Error(0)
+}
+
+func TestCompositeNormalizer_Type(t *testing.T) {
+	t.Run("Should return correct task type", func(t *testing.T) {
+		// Arrange
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+		contextBuilder, err := shared.NewContextBuilder()
+		require.NoError(t, err)
+		factory := &mockNormalizerFactory{}
+		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, factory)
+		// Act
+		taskType := normalizer.Type()
+		// Assert
+		assert.Equal(t, task.TaskTypeComposite, taskType)
+	})
+}
+
+func TestCompositeNormalizer_Normalize_ErrorHandling(t *testing.T) {
+	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 	contextBuilder, err := shared.NewContextBuilder()
 	require.NoError(t, err)
-	// Create a simple shared factory for testing
-	sharedFactory := &testNormalizerFactory{}
-	normalizer := composite.NewNormalizer(templateEngine, contextBuilder, sharedFactory)
 
-	t.Run("Should normalize composite task with sub-tasks", func(t *testing.T) {
+	t.Run("Should handle nil config gracefully", func(t *testing.T) {
 		// Arrange
-		taskConfig := &task.Config{
-			BaseConfig: task.BaseConfig{
-				ID:   "composite1",
-				Type: task.TaskTypeComposite,
-				With: &core.Input{
-					"prefix": "task",
-				},
-			},
-			Tasks: []task.Config{
-				{
-					BaseConfig: task.BaseConfig{
-						ID:   "{{ .with.prefix }}-1",
-						Type: task.TaskTypeBasic,
-					},
-					BasicTask: task.BasicTask{
-						Action: "action1",
-					},
-				},
-				{
-					BaseConfig: task.BaseConfig{
-						ID:   "{{ .with.prefix }}-2",
-						Type: task.TaskTypeBasic,
-					},
-					BasicTask: task.BasicTask{
-						Action: "action2",
-					},
-				},
-			},
-		}
-
-		workflowState := &workflow.State{
-			WorkflowID: "test-workflow",
-			Input: &core.Input{
-				"global": "value",
-			},
-		}
-
-		workflowConfig := &workflow.Config{
-			ID: "test-workflow",
-		}
-
-		ctx := &shared.NormalizationContext{
-			WorkflowState:  workflowState,
-			WorkflowConfig: workflowConfig,
-			TaskConfig:     taskConfig,
-			Variables: map[string]any{
-				"workflow": map[string]any{
-					"id":    "test-workflow",
-					"input": workflowState.Input,
-				},
-				"with": taskConfig.With,
-			},
-		}
-
+		factory := &mockNormalizerFactory{}
+		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, factory)
+		ctx := &shared.NormalizationContext{}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
-
+		err := normalizer.Normalize(nil, ctx)
 		// Assert
-		require.NoError(t, err)
-		require.Len(t, taskConfig.Tasks, 2)
-		// Note: Templates not processed by test mock - this is expected behavior
-		assert.Equal(t, "{{ .with.prefix }}-1", taskConfig.Tasks[0].ID)
-		assert.Equal(t, "{{ .with.prefix }}-2", taskConfig.Tasks[1].ID)
-	})
-
-	t.Run("Should handle composite task with no sub-tasks", func(t *testing.T) {
-		// Arrange
-		taskConfig := &task.Config{
-			BaseConfig: task.BaseConfig{
-				ID:   "composite1",
-				Type: task.TaskTypeComposite,
-			},
-			Tasks: []task.Config{},
-		}
-
-		ctx := &shared.NormalizationContext{
-			Variables: make(map[string]any),
-		}
-
-		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, taskConfig.Tasks)
+		assert.NoError(t, err)
 	})
 
 	t.Run("Should return error for wrong task type", func(t *testing.T) {
 		// Arrange
-		invalidConfig := &task.Config{
+		factory := &mockNormalizerFactory{}
+		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, factory)
+		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
-				ID:   "wrong-type",
-				Type: task.TaskTypeBasic, // Wrong type
+				ID:   "test-task",
+				Type: task.TaskTypeBasic,
 			},
 		}
-		ctx := &shared.NormalizationContext{}
-
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(invalidConfig, ctx)
-
+		err := normalizer.Normalize(taskConfig, ctx)
 		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cannot handle task type")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "composite normalizer cannot handle task type: basic")
+	})
+
+	t.Run("Should handle template parsing errors in main config", func(t *testing.T) {
+		// Arrange
+		factory := &mockNormalizerFactory{}
+		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, factory)
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "{{ .invalid.deeply.nested.nonexistent.field }}",
+				Type: task.TaskTypeComposite,
+			},
+		}
+		ctx := &shared.NormalizationContext{
+			Variables: map[string]any{
+				"existing": "value",
+			},
+		}
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to normalize composite task config")
+	})
+
+	t.Run("Should handle config serialization errors", func(t *testing.T) {
+		// Arrange
+		factory := &mockNormalizerFactory{}
+		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, factory)
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-task",
+				Type: task.TaskTypeComposite,
+			},
+		}
+		// Inject problematic data for serialization
+		unsafeField := func() {}
+		taskConfig.With = &core.Input{"function": unsafeField}
+
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to convert task config to map")
+	})
+
+	t.Run("Should handle sub-task normalization errors", func(t *testing.T) {
+		// Arrange
+		mockFactory := &mockNormalizerFactory{}
+		mockSubNormalizer := &mockTaskNormalizer{}
+		mockFactory.On("CreateNormalizer", "basic").Return(mockSubNormalizer, nil)
+		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).
+			Return(errors.New("sub-task normalization failed"))
+
+		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, mockFactory)
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "composite-task",
+				Type: task.TaskTypeComposite,
+			},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "sub-task-1",
+						Type: task.TaskTypeBasic,
+					},
+				},
+			},
+		}
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to normalize composite sub-tasks")
+		mockFactory.AssertExpectations(t)
+		mockSubNormalizer.AssertExpectations(t)
+	})
+
+	t.Run("Should handle normalizer factory errors", func(t *testing.T) {
+		// Arrange
+		mockFactory := &mockNormalizerFactory{}
+		mockFactory.On("CreateNormalizer", "basic").Return(nil, errors.New("normalizer creation failed"))
+
+		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, mockFactory)
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "composite-task",
+				Type: task.TaskTypeComposite,
+			},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "sub-task-1",
+						Type: task.TaskTypeBasic,
+					},
+				},
+			},
+		}
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create normalizer for task type basic")
+		mockFactory.AssertExpectations(t)
+	})
+
+	t.Run("Should process composite task configuration successfully", func(t *testing.T) {
+		// Arrange
+		mockFactory := &mockNormalizerFactory{}
+		mockSubNormalizer := &mockTaskNormalizer{}
+		mockFactory.On("CreateNormalizer", "basic").Return(mockSubNormalizer, nil)
+		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil)
+
+		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, mockFactory)
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "{{ .name }}-composite",
+				Type: task.TaskTypeComposite,
+			},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "sub-task-1",
+						Type: task.TaskTypeBasic,
+					},
+				},
+			},
+		}
+		ctx := &shared.NormalizationContext{
+			Variables: map[string]any{
+				"name": "test",
+			},
+		}
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, "test-composite", taskConfig.ID)
+		mockFactory.AssertExpectations(t)
+		mockSubNormalizer.AssertExpectations(t)
+	})
+}
+
+func TestCompositeNormalizer_BoundaryConditions(t *testing.T) {
+	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+	contextBuilder, err := shared.NewContextBuilder()
+	require.NoError(t, err)
+
+	t.Run("Should handle nil template engine", func(t *testing.T) {
+		// Arrange
+		factory := &mockNormalizerFactory{}
+		normalizer := composite.NewNormalizer(nil, contextBuilder, factory)
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-task",
+				Type: task.TaskTypeComposite,
+			},
+		}
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
+		// Act & Assert
+		assert.Panics(t, func() {
+			normalizer.Normalize(taskConfig, ctx)
+		})
+	})
+
+	t.Run("Should handle nil context builder gracefully", func(t *testing.T) {
+		// Arrange
+		factory := &mockNormalizerFactory{}
+		normalizer := composite.NewNormalizer(templateEngine, nil, factory)
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-task",
+				Type: task.TaskTypeComposite,
+			},
+		}
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should handle nil normalizer factory", func(t *testing.T) {
+		// Arrange
+		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, nil)
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-task",
+				Type: task.TaskTypeComposite,
+			},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "sub-task-1",
+						Type: task.TaskTypeBasic,
+					},
+				},
+			},
+		}
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
+		// Act & Assert
+		assert.Panics(t, func() {
+			normalizer.Normalize(taskConfig, ctx)
+		})
+	})
+
+	t.Run("Should handle empty sub-tasks array", func(t *testing.T) {
+		// Arrange
+		factory := &mockNormalizerFactory{}
+		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, factory)
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-task",
+				Type: task.TaskTypeComposite,
+			},
+			Tasks: []task.Config{}, // Empty array
+		}
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should handle task reference (Task field) normalization", func(t *testing.T) {
+		// Arrange
+		mockFactory := &mockNormalizerFactory{}
+		mockSubNormalizer := &mockTaskNormalizer{}
+		mockFactory.On("CreateNormalizer", "basic").Return(mockSubNormalizer, nil)
+		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil)
+
+		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, mockFactory)
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-task",
+				Type: task.TaskTypeComposite,
+			},
+			Task: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:   "ref-task",
+					Type: task.TaskTypeBasic,
+				},
+			},
+		}
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert
+		assert.NoError(t, err)
+		mockFactory.AssertExpectations(t)
+		mockSubNormalizer.AssertExpectations(t)
+	})
+
+	t.Run("Should handle both Tasks array and Task reference", func(t *testing.T) {
+		// Arrange
+		mockFactory := &mockNormalizerFactory{}
+		mockSubNormalizer := &mockTaskNormalizer{}
+		mockFactory.On("CreateNormalizer", "basic").Return(mockSubNormalizer, nil)
+		// Expect 3 calls: 2 for Tasks array + 1 for Task reference
+		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil).Times(3)
+
+		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, mockFactory)
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-task",
+				Type: task.TaskTypeComposite,
+			},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "sub-task-1",
+						Type: task.TaskTypeBasic,
+					},
+				},
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "sub-task-2",
+						Type: task.TaskTypeBasic,
+					},
+				},
+			},
+			Task: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:   "ref-task",
+					Type: task.TaskTypeBasic,
+				},
+			},
+		}
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert
+		assert.NoError(t, err)
+		mockFactory.AssertExpectations(t)
+		mockSubNormalizer.AssertExpectations(t)
+	})
+
+	t.Run("Should preserve sub-task configuration after normalization", func(t *testing.T) {
+		// Arrange
+		mockFactory := &mockNormalizerFactory{}
+		mockSubNormalizer := &mockTaskNormalizer{}
+		mockFactory.On("CreateNormalizer", "basic").Return(mockSubNormalizer, nil)
+		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil)
+
+		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, mockFactory)
+
+		originalSubTaskID := "original-sub-task"
+		originalSubTaskWith := &core.Input{"param": "value"}
+
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "composite-task",
+				Type: task.TaskTypeComposite,
+			},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   originalSubTaskID,
+						Type: task.TaskTypeBasic,
+						With: originalSubTaskWith,
+					},
+				},
+			},
+		}
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, originalSubTaskID, taskConfig.Tasks[0].ID)
+		assert.Equal(t, originalSubTaskWith, taskConfig.Tasks[0].With)
+		mockFactory.AssertExpectations(t)
+		mockSubNormalizer.AssertExpectations(t)
 	})
 }

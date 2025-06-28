@@ -3,6 +3,7 @@ package composite
 import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/shared"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // Normalizer handles normalization for composite tasks
@@ -12,7 +13,7 @@ type Normalizer struct {
 
 // NewNormalizer creates a new composite task normalizer
 func NewNormalizer(
-	templateEngine shared.TemplateEngine,
+	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *shared.ContextBuilder,
 	normalizerFactory shared.NormalizerFactory,
 ) *Normalizer {

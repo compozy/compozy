@@ -6,11 +6,12 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // BaseNormalizer provides common normalization functionality for all task types
 type BaseNormalizer struct {
-	templateEngine TemplateEngine
+	templateEngine *tplengine.TemplateEngine
 	contextBuilder *ContextBuilder
 	taskType       task.Type
 	filterFunc     func(string) bool
@@ -18,7 +19,7 @@ type BaseNormalizer struct {
 
 // NewBaseNormalizer creates a new base normalizer
 func NewBaseNormalizer(
-	templateEngine TemplateEngine,
+	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *ContextBuilder,
 	taskType task.Type,
 	filterFunc func(string) bool,
@@ -87,15 +88,31 @@ func (n *BaseNormalizer) Normalize(config *task.Config, ctx *NormalizationContex
 
 // ProcessTemplateString processes a single string template
 func (n *BaseNormalizer) ProcessTemplateString(value string, context map[string]any) (string, error) {
-	return n.templateEngine.Process(value, context)
+	result, err := n.templateEngine.ParseAny(value, context)
+	if err != nil {
+		return "", err
+	}
+	value, ok := result.(string)
+	if !ok {
+		return "", fmt.Errorf("expected string, got %T", result)
+	}
+	return value, nil
 }
 
 // ProcessTemplateMap processes a map containing templates
 func (n *BaseNormalizer) ProcessTemplateMap(value map[string]any, context map[string]any) (map[string]any, error) {
-	return n.templateEngine.ProcessMap(value, context)
+	result, err := n.templateEngine.ParseAny(value, context)
+	if err != nil {
+		return nil, err
+	}
+	value, ok := result.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("expected map[string]any, got %T", result)
+	}
+	return value, nil
 }
 
 // TemplateEngine returns the template engine for custom processing
-func (n *BaseNormalizer) TemplateEngine() TemplateEngine {
+func (n *BaseNormalizer) TemplateEngine() *tplengine.TemplateEngine {
 	return n.templateEngine
 }
