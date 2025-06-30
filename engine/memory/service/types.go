@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -10,6 +11,21 @@ import (
 	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/workflow"
 )
+
+// ValidatePayloadType validates that the payload is one of the supported types.
+// Supported types: string, map[string]any, []map[string]any, []any
+func ValidatePayloadType(payload any) error {
+	if payload == nil {
+		return fmt.Errorf("payload cannot be nil")
+	}
+	switch payload.(type) {
+	case string, map[string]any, []map[string]any, []any:
+		return nil
+	default:
+		return fmt.Errorf("unsupported payload type: %T, supported types: string, map[string]any, []map[string]any, []any",
+			payload)
+	}
+}
 
 // MemoryOperationsService provides centralized memory operations
 type MemoryOperationsService interface {
@@ -66,6 +82,9 @@ type ReadPaginatedResponse struct {
 // WriteRequest represents a memory write operation
 type WriteRequest struct {
 	BaseRequest
+	// Payload contains the data to write to memory.
+	// Supported types: string, map[string]any, []map[string]any, []any
+	// Use ValidatePayloadType() to validate before use.
 	Payload       any             `json:"payload"`
 	MergedInput   *core.Input     `json:"merged_input,omitempty"`
 	WorkflowState *workflow.State `json:"workflow_state,omitempty"`
@@ -81,6 +100,9 @@ type WriteResponse struct {
 // AppendRequest represents a memory append operation
 type AppendRequest struct {
 	BaseRequest
+	// Payload contains the data to append to memory.
+	// Supported types: string, map[string]any, []map[string]any, []any
+	// Use ValidatePayloadType() to validate before use.
 	Payload       any             `json:"payload"`
 	MergedInput   *core.Input     `json:"merged_input,omitempty"`
 	WorkflowState *workflow.State `json:"workflow_state,omitempty"`

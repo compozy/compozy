@@ -50,12 +50,17 @@ func readMemory(c *gin.Context) {
 	if limitStr := c.Query("limit"); limitStr != "" {
 		if parsedLimit, err := strconv.Atoi(limitStr); err == nil {
 			limit = parsedLimit
+			// Enforce maximum limit
+			limit = min(limit, 1000)
+			if limit <= 0 {
+				limit = 50
+			}
 		}
 	}
 
 	if offsetStr := c.Query("offset"); offsetStr != "" {
 		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil {
-			offset = parsedOffset
+			offset = max(parsedOffset, 0)
 		}
 	}
 

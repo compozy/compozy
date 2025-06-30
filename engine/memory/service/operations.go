@@ -225,6 +225,15 @@ func (s *memoryOperationsService) Write(ctx context.Context, req *WriteRequest) 
 		return nil, err
 	}
 
+	// Validate payload type
+	if err := ValidatePayloadType(req.Payload); err != nil {
+		return nil, memcore.NewMemoryError(
+			memcore.ErrCodeInvalidConfig,
+			"invalid payload type",
+			err,
+		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
+	}
+
 	// Get memory instance
 	instance, err := s.getMemoryInstance(ctx, req.MemoryRef, req.Key, "write")
 	if err != nil {
@@ -822,6 +831,14 @@ func (s *memoryOperationsService) prepareAppendOperation(
 	ctx context.Context,
 	req *AppendRequest,
 ) (memcore.Memory, []llm.Message, int, error) {
+	// Validate payload type
+	if err := ValidatePayloadType(req.Payload); err != nil {
+		return nil, nil, 0, memcore.NewMemoryError(
+			memcore.ErrCodeInvalidConfig,
+			"invalid payload type",
+			err,
+		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
+	}
 	instance, err := s.getMemoryInstance(ctx, req.MemoryRef, req.Key, "append")
 	if err != nil {
 		return nil, nil, 0, memcore.NewMemoryError(

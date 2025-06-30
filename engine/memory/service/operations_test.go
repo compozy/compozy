@@ -152,7 +152,7 @@ func TestValidationFunctions(t *testing.T) {
 			{"Should accept valid key", "valid_key_123", false},
 			{"Should accept key with spaces", "key with spaces", false},
 			{"Should reject empty key", "", true},
-			{"Should reject control chars", "invalid\x00key", true},
+			{"Should reject key with control chars", "invalid\x00key", true},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -280,6 +280,27 @@ func TestMemoryService_Read(t *testing.T) {
 // Test Write operation with atomic transactions
 func TestMemoryService_Write(t *testing.T) {
 	ctx := context.Background()
+
+	t.Run("Should reject invalid payload type", func(t *testing.T) {
+		// Setup
+		manager := &testMemoryManager{}
+		service := NewMemoryOperationsService(manager, nil, nil)
+
+		// Execute with invalid payload type
+		resp, err := service.Write(ctx, &WriteRequest{
+			BaseRequest: BaseRequest{
+				MemoryRef: "test_memory",
+				Key:       "test_key",
+			},
+			Payload: 12345, // Invalid type: int
+		})
+
+		// Verify
+		assert.Nil(t, resp)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid payload type")
+		assert.Contains(t, err.Error(), "unsupported payload type: int")
+	})
 
 	t.Run("Should successfully perform atomic write", func(t *testing.T) {
 		memory := &testMemory{}
@@ -410,6 +431,27 @@ func TestMemoryService_WriteWithTemplates(t *testing.T) {
 // Test Append operation
 func TestMemoryService_Append(t *testing.T) {
 	ctx := context.Background()
+
+	t.Run("Should reject invalid payload type", func(t *testing.T) {
+		// Setup
+		manager := &testMemoryManager{}
+		service := NewMemoryOperationsService(manager, nil, nil)
+
+		// Execute with invalid payload type
+		resp, err := service.Append(ctx, &AppendRequest{
+			BaseRequest: BaseRequest{
+				MemoryRef: "test_memory",
+				Key:       "test_key",
+			},
+			Payload: []int{1, 2, 3}, // Invalid type: []int
+		})
+
+		// Verify
+		assert.Nil(t, resp)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid payload type")
+		assert.Contains(t, err.Error(), "unsupported payload type: []int")
+	})
 
 	t.Run("Should successfully append messages", func(t *testing.T) {
 		memory := &testMemory{
@@ -825,4 +867,33 @@ func TestTokenCountingNonBlocking(t *testing.T) {
 		tokens := svc.(*memoryOperationsService).calculateTokensNonBlocking(ctx, messages)
 		assert.Equal(t, 0, tokens, "Should return 0 tokens when token counter is nil")
 	})
+}
+
+// Test payload type validation
+func TestValidatePayloadType(t *testing.T) {
+	tests := []struct {
+		name    string
+		payload any
+		wantErr bool
+	}{
+		{"Should accept string payload", "hello world", false},
+		{"Should accept single message map", map[string]any{"role": "user", "content": "hello"}, false},
+		{"Should accept array of message maps", []map[string]any{{"role": "user", "content": "hello"}}, false},
+		{"Should accept array of any", []any{map[string]any{"role": "user", "content": "hello"}}, false},
+		{"Should reject nil payload", nil, true},
+		{"Should reject int payload", 123, true},
+		{"Should reject bool payload", true, true},
+		{"Should reject struct payload", struct{ Name string }{Name: "test"}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidatePayloadType(tt.payload)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
