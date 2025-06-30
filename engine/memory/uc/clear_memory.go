@@ -30,18 +30,25 @@ type ClearMemory struct {
 	service   service.MemoryOperationsService
 }
 
-// NewClearMemory creates a new clear memory use case
-func NewClearMemory(manager *memory.Manager, memoryRef, key string, input *ClearMemoryInput) *ClearMemory {
+// NewClearMemory creates a new clear memory use case with dependency injection
+func NewClearMemory(
+	manager *memory.Manager,
+	memoryRef, key string,
+	input *ClearMemoryInput,
+	svc service.MemoryOperationsService,
+) *ClearMemory {
 	if input == nil {
 		input = &ClearMemoryInput{}
 	}
-	memService := service.NewMemoryOperationsService(manager, nil, nil)
+	if svc == nil {
+		svc = service.NewMemoryOperationsService(manager, nil, nil)
+	}
 	return &ClearMemory{
 		manager:   manager,
 		memoryRef: memoryRef,
 		key:       key,
 		input:     input,
-		service:   memService,
+		service:   svc,
 	}
 }
 

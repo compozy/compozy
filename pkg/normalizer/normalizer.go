@@ -216,6 +216,16 @@ func (n *Normalizer) NormalizeAgentConfig(
 	if config == nil {
 		return nil
 	}
+	if err := n.normalizeAgentConfigMap(config, ctx); err != nil {
+		return err
+	}
+	if err := n.NormalizeAgentActions(config, ctx, actionID); err != nil {
+		return fmt.Errorf("failed to normalize agent actions: %w", err)
+	}
+	return n.normalizeAgentTools(config, ctx)
+}
+
+func (n *Normalizer) normalizeAgentConfigMap(config *agent.Config, ctx *NormalizationContext) error {
 	if ctx.CurrentInput == nil && config.With != nil {
 		ctx.CurrentInput = config.With
 	}
@@ -225,7 +235,8 @@ func (n *Normalizer) NormalizeAgentConfig(
 		return fmt.Errorf("failed to convert task config to map: %w", err)
 	}
 	parsed, err := n.engine.ParseMapWithFilter(configMap, context, func(k string) bool {
-		return k == "actions" || k == "tools" || k == inputKey || k == outputKey
+		return k == "actions" || k == "tools" || k == inputKey || k == outputKey ||
+			k == "memory" || k == "memories" || k == "memory_key" || k == "memory_refs"
 	})
 	if err != nil {
 		return fmt.Errorf("failed to normalize task config: %w", err)
@@ -233,9 +244,10 @@ func (n *Normalizer) NormalizeAgentConfig(
 	if err := config.FromMap(parsed); err != nil {
 		return fmt.Errorf("failed to update task config from normalized map: %w", err)
 	}
-	if err := n.NormalizeAgentActions(config, ctx, actionID); err != nil {
-		return fmt.Errorf("failed to normalize agent actions: %w", err)
-	}
+	return nil
+}
+
+func (n *Normalizer) normalizeAgentTools(config *agent.Config, ctx *NormalizationContext) error {
 	for i := range config.Tools {
 		if err := n.NormalizeToolConfig(&config.Tools[i], ctx); err != nil {
 			return fmt.Errorf("failed to normalize tool config: %w", err)

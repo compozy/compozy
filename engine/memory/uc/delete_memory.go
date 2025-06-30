@@ -15,14 +15,20 @@ type DeleteMemory struct {
 	service   service.MemoryOperationsService
 }
 
-// NewDeleteMemory creates a new delete memory use case
-func NewDeleteMemory(manager *memory.Manager, memoryRef, key string) *DeleteMemory {
-	memService := service.NewMemoryOperationsService(manager, nil, nil)
+// NewDeleteMemory creates a new delete memory use case with dependency injection
+func NewDeleteMemory(
+	manager *memory.Manager,
+	memoryRef, key string,
+	svc service.MemoryOperationsService,
+) *DeleteMemory {
+	if svc == nil {
+		svc = service.NewMemoryOperationsService(manager, nil, nil)
+	}
 	return &DeleteMemory{
 		manager:   manager,
 		memoryRef: memoryRef,
 		key:       key,
-		service:   memService,
+		service:   svc,
 	}
 }
 

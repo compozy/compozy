@@ -8,83 +8,23 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/llm"
 	memcore "github.com/compozy/compozy/engine/memory/core"
+	"github.com/compozy/compozy/engine/memory/testutil"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
-// Mock implementations
-type mockMemoryManager struct {
-	mock.Mock
+// Helper function to create real memory manager for testing
+func setupTestMemoryManager(t *testing.T) (*testutil.TestRedisSetup, memcore.ManagerInterface) {
+	setup := testutil.SetupTestRedis(t)
+	return setup, setup.Manager
 }
-
-func (m *mockMemoryManager) GetInstance(
-	ctx context.Context,
-	memRef core.MemoryReference,
-	workflowCtx map[string]any,
-) (memcore.Memory, error) {
-	args := m.Called(ctx, memRef, workflowCtx)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(memcore.Memory), args.Error(1)
-}
-
-type mockMemory struct {
-	mock.Mock
-	id string
-}
-
-func (m *mockMemory) Append(ctx context.Context, msg llm.Message) error {
-	args := m.Called(ctx, msg)
-	return args.Error(0)
-}
-
-func (m *mockMemory) Read(ctx context.Context) ([]llm.Message, error) {
-	args := m.Called(ctx)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]llm.Message), args.Error(1)
-}
-
-func (m *mockMemory) Len(ctx context.Context) (int, error) {
-	args := m.Called(ctx)
-	return args.Int(0), args.Error(1)
-}
-
-func (m *mockMemory) GetTokenCount(ctx context.Context) (int, error) {
-	args := m.Called(ctx)
-	return args.Int(0), args.Error(1)
-}
-
-func (m *mockMemory) GetMemoryHealth(ctx context.Context) (*memcore.Health, error) {
-	args := m.Called(ctx)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*memcore.Health), args.Error(1)
-}
-
-func (m *mockMemory) Clear(ctx context.Context) error {
-	args := m.Called(ctx)
-	return args.Error(0)
-}
-
-func (m *mockMemory) GetID() string {
-	return m.id
-}
-
-func (m *mockMemory) AppendWithPrivacy(ctx context.Context, msg llm.Message, metadata memcore.PrivacyMetadata) error {
-	args := m.Called(ctx, msg, metadata)
-	return args.Error(0)
-}
-
-// Since TemplateEngine is a concrete struct, we'll test with real instances or nil
 
 func TestNewMemoryResolver(t *testing.T) {
 	t.Run("Should create memory resolver", func(t *testing.T) {
-		memMgr := &mockMemoryManager{}
+		setup, memMgr := setupTestMemoryManager(t)
+		defer setup.Cleanup()
+
 		tplEngine := tplengine.NewEngine(tplengine.FormatText)
 		workflowCtx := map[string]any{
 			"workflow": map[string]any{
@@ -115,10 +55,15 @@ func TestMemoryResolver_GetMemory(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("Should resolve memory with template", func(t *testing.T) {
-		memMgr := &mockMemoryManager{}
+	t.Run("Should resolve memory with template using real Redis", func(t *testing.T) {
+		// Setup real Redis environment
+		setup, memMgr := setupTestMemoryManager(t)
+		defer setup.Cleanup()
+
+		// Pre-create a memory instance that the resolver can find
+		_ = setup.CreateTestMemoryInstance(t, "test-memory")
+
 		tplEngine := tplengine.NewEngine(tplengine.FormatText)
-		mockMem := &mockMemory{id: "resolved-key"}
 
 		resolver := &MemoryResolver{
 			memoryManager:   memMgr,
@@ -126,25 +71,31 @@ func TestMemoryResolver_GetMemory(t *testing.T) {
 			workflowContext: map[string]any{"user": "test-user"},
 		}
 
-		expectedRef := core.MemoryReference{
-			ID:          "test-memory",
-			Key:         "user-{{ .user }}",
-			ResolvedKey: "user-test-user",
-			Mode:        "read-write",
-		}
-		memMgr.On("GetInstance", ctx, expectedRef, resolver.workflowContext).Return(mockMem, nil)
-
+		// Create and test real memory instance using a predefined memory ID
 		memory, err := resolver.GetMemory(ctx, "test-memory", "user-{{ .user }}")
 
 		assert.NoError(t, err)
 		assert.NotNil(t, memory)
-		assert.Equal(t, "resolved-key", memory.GetID())
+		// The instance ID will be a hash-based key generated from the resolved key
+		assert.NotEmpty(t, memory.GetID())
 
-		memMgr.AssertExpectations(t)
+		// Test actual memory operations with real Redis
+		testMsg := llm.Message{Role: llm.MessageRoleUser, Content: "Hello from real Redis!"}
+		err = memory.Append(ctx, testMsg)
+		assert.NoError(t, err)
+
+		// Read back the message
+		messages, err := memory.Read(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, messages, 1)
+		assert.Equal(t, testMsg.Content, messages[0].Content)
+		assert.Equal(t, testMsg.Role, messages[0].Role)
 	})
 
 	t.Run("Should handle template resolution error", func(t *testing.T) {
-		memMgr := &mockMemoryManager{}
+		setup, memMgr := setupTestMemoryManager(t)
+		defer setup.Cleanup()
+
 		tplEngine := tplengine.NewEngine(tplengine.FormatText)
 
 		resolver := &MemoryResolver{
@@ -162,7 +113,9 @@ func TestMemoryResolver_GetMemory(t *testing.T) {
 	})
 
 	t.Run("Should handle memory instance error", func(t *testing.T) {
-		memMgr := &mockMemoryManager{}
+		setup, memMgr := setupTestMemoryManager(t)
+		defer setup.Cleanup()
+
 		tplEngine := tplengine.NewEngine(tplengine.FormatText)
 
 		resolver := &MemoryResolver{
@@ -171,21 +124,12 @@ func TestMemoryResolver_GetMemory(t *testing.T) {
 			workflowContext: map[string]any{},
 		}
 
-		expectedRef := core.MemoryReference{
-			ID:          "test-memory",
-			Key:         "key",
-			ResolvedKey: "key",
-			Mode:        "read-write",
-		}
-		memMgr.On("GetInstance", ctx, expectedRef, resolver.workflowContext).Return(nil, assert.AnError)
-
-		memory, err := resolver.GetMemory(ctx, "test-memory", "key")
+		// Try to get a memory instance that doesn't exist
+		memory, err := resolver.GetMemory(ctx, "non-existent-memory", "key")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to get memory instance")
 		assert.Nil(t, memory)
-
-		memMgr.AssertExpectations(t)
 	})
 }
 
@@ -193,7 +137,12 @@ func TestMemoryResolver_ResolveAgentMemories(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Should return nil for agent without memory", func(t *testing.T) {
-		resolver := &MemoryResolver{}
+		setup, memMgr := setupTestMemoryManager(t)
+		defer setup.Cleanup()
+
+		resolver := &MemoryResolver{
+			memoryManager: memMgr,
+		}
 		agentCfg := &agent.Config{
 			ID: "test-agent",
 		}
@@ -204,11 +153,15 @@ func TestMemoryResolver_ResolveAgentMemories(t *testing.T) {
 		assert.Nil(t, memories)
 	})
 
-	t.Run("Should resolve multiple memories", func(t *testing.T) {
-		memMgr := &mockMemoryManager{}
+	t.Run("Should demonstrate template resolution and memory operations", func(t *testing.T) {
+		// Setup real Redis environment
+		setup, memMgr := setupTestMemoryManager(t)
+		defer setup.Cleanup()
+
+		// Pre-create memory instances that the resolvers can find
+		_ = setup.CreateTestMemoryInstance(t, "session-memory")
+
 		tplEngine := tplengine.NewEngine(tplengine.FormatText)
-		mockMem1 := &mockMemory{id: "mem1-resolved"}
-		mockMem2 := &mockMemory{id: "mem2-resolved"}
 
 		resolver := &MemoryResolver{
 			memoryManager:   memMgr,
@@ -216,63 +169,33 @@ func TestMemoryResolver_ResolveAgentMemories(t *testing.T) {
 			workflowContext: map[string]any{"session": "123"},
 		}
 
-		expectedRef1 := core.MemoryReference{
-			ID:          "memory1",
-			Key:         "session-{{ .session }}",
-			ResolvedKey: "session-123",
-			Mode:        "read-write",
-		}
-		expectedRef2 := core.MemoryReference{
-			ID:          "memory2",
-			Key:         "global",
-			ResolvedKey: "global",
-			Mode:        "read-write",
-		}
-		memMgr.On("GetInstance", ctx, expectedRef1, resolver.workflowContext).Return(mockMem1, nil)
-		memMgr.On("GetInstance", ctx, expectedRef2, resolver.workflowContext).Return(mockMem2, nil)
+		// Test the GetMemory method directly with template resolution
+		memory, err := resolver.GetMemory(ctx, "session-memory", "session-{{ .session }}")
 
-		// Test the GetMemory method directly
-		mem1, err1 := resolver.GetMemory(ctx, "memory1", "session-{{ .session }}")
-		mem2, err2 := resolver.GetMemory(ctx, "memory2", "global")
+		assert.NoError(t, err)
+		assert.NotNil(t, memory)
+		assert.NotEmpty(t, memory.GetID())
 
-		assert.NoError(t, err1)
-		assert.NoError(t, err2)
-		assert.NotNil(t, mem1)
-		assert.NotNil(t, mem2)
-		assert.Equal(t, "mem1-resolved", mem1.GetID())
-		assert.Equal(t, "mem2-resolved", mem2.GetID())
+		// Test memory operations
+		testMsg := llm.Message{Role: llm.MessageRoleUser, Content: "Session-specific message"}
+		err = memory.Append(ctx, testMsg)
+		assert.NoError(t, err)
 
-		memMgr.AssertExpectations(t)
-
-		// Note: Testing ResolveAgentMemories fully would require either:
-		// 1. Making resolvedMemoryReferences public
-		// 2. Testing through the full agent validation flow
-		// 3. Adding a test-only method to set resolved references
+		messages, err := memory.Read(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, messages, 1)
+		assert.Equal(t, "Session-specific message", messages[0].Content)
 	})
 
-	t.Run("Should skip read-only memories", func(t *testing.T) {
-		// This test would require setting up an agent with read-only memory references
-		// which requires access to the private resolvedMemoryReferences field
-		// For now, this is documented as a limitation that will be tested
-		// when Task 8 implements read-only support
-		t.Skip("Read-only memory support not yet implemented")
-	})
+	t.Run("Should demonstrate concurrent memory isolation with real Redis", func(t *testing.T) {
+		// Setup real Redis environment
+		setup, memMgr := setupTestMemoryManager(t)
+		defer setup.Cleanup()
 
-	t.Run("Should not mutate shared agent config during concurrent executions", func(t *testing.T) {
-		memMgr := &mockMemoryManager{}
+		// Pre-create memory instances that the resolvers can find
+		_ = setup.CreateTestMemoryInstance(t, "session-memory")
+
 		tplEngine := tplengine.NewEngine(tplengine.FormatText)
-		mockMem := &mockMemory{id: "test-memory"}
-
-		// Simulate pre-validated memory references (normally set during Validate())
-		// In production, these would be part of a shared agent.Config
-		originalMemRefs := []core.MemoryReference{
-			{
-				ID:          "memory1",
-				Key:         "session-{{ .session }}",
-				Mode:        "read-write",
-				ResolvedKey: "", // Should remain empty in shared config
-			},
-		}
 
 		// Create multiple resolvers with different contexts
 		resolver1 := &MemoryResolver{
@@ -286,66 +209,509 @@ func TestMemoryResolver_ResolveAgentMemories(t *testing.T) {
 			workflowContext: map[string]any{"session": "456"},
 		}
 
-		// Set up mock expectations
-		expectedRef1 := core.MemoryReference{
-			ID:          "memory1",
-			Key:         "session-{{ .session }}",
-			ResolvedKey: "session-123",
-			Mode:        "read-write",
-		}
-		expectedRef2 := core.MemoryReference{
-			ID:          "memory1",
-			Key:         "session-{{ .session }}",
-			ResolvedKey: "session-456",
-			Mode:        "read-write",
-		}
-		memMgr.On("GetInstance", ctx, expectedRef1, resolver1.workflowContext).Return(mockMem, nil)
-		memMgr.On("GetInstance", ctx, expectedRef2, resolver2.workflowContext).Return(mockMem, nil)
+		// Get separate memory instances using real Redis
+		mem1, err1 := resolver1.GetMemory(ctx, "session-memory", "session-{{ .session }}")
+		mem2, err2 := resolver2.GetMemory(ctx, "session-memory", "session-{{ .session }}")
 
-		// Execute GetMemory calls concurrently
-		mem1, err1 := resolver1.GetMemory(ctx, "memory1", "session-{{ .session }}")
-		mem2, err2 := resolver2.GetMemory(ctx, "memory1", "session-{{ .session }}")
-
-		// Verify both succeeded without interference
+		// Verify both succeeded
 		assert.NoError(t, err1)
 		assert.NoError(t, err2)
 		assert.NotNil(t, mem1)
 		assert.NotNil(t, mem2)
 
-		// Verify original memory references were not mutated
-		assert.Equal(t, "", originalMemRefs[0].ResolvedKey, "Original memory reference should not be mutated")
+		// Verify they have different IDs (isolated memories)
+		assert.NotEmpty(t, mem1.GetID())
+		assert.NotEmpty(t, mem2.GetID())
+		assert.NotEqual(t, mem1.GetID(), mem2.GetID(), "Memory instances should have different IDs")
 
-		memMgr.AssertExpectations(t)
+		// Test that memories are isolated - writing to one doesn't affect the other
+		msg1 := llm.Message{Role: llm.MessageRoleUser, Content: "Message for session 123"}
+		msg2 := llm.Message{Role: llm.MessageRoleUser, Content: "Message for session 456"}
+
+		err := mem1.Append(ctx, msg1)
+		assert.NoError(t, err)
+		err = mem2.Append(ctx, msg2)
+		assert.NoError(t, err)
+
+		// Read from both memories and verify isolation
+		messages1, err := mem1.Read(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, messages1, 1)
+		assert.Equal(t, "Message for session 123", messages1[0].Content)
+
+		messages2, err := mem2.Read(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, messages2, 1)
+		assert.Equal(t, "Message for session 456", messages2[0].Content)
 	})
 }
 
 func TestMemoryResolverAdapter(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("Should adapt memory interface correctly", func(t *testing.T) {
-		mockMem := &mockMemory{id: "test-memory"}
-		adapter := &memoryResolverAdapter{memory: mockMem}
+	t.Run("Should adapt real memory interface correctly", func(t *testing.T) {
+		// Setup real Redis environment
+		setup := testutil.SetupTestRedis(t)
+		defer setup.Cleanup()
 
-		// Test Append
-		msg := llm.Message{Role: llm.MessageRoleUser, Content: "test"}
-		mockMem.On("Append", ctx, msg).Return(nil)
+		realMem := setup.CreateTestMemoryInstance(t, "adapter-test-memory")
+		adapter := &memoryResolverAdapter{memory: realMem}
+
+		// Test Append with real Redis
+		msg := llm.Message{Role: llm.MessageRoleUser, Content: "test adapter"}
 		err := adapter.Append(ctx, msg)
 		assert.NoError(t, err)
 
-		// Test Read
-		messages := []llm.Message{
-			{Role: llm.MessageRoleUser, Content: "test1"},
-			{Role: llm.MessageRoleAssistant, Content: "test2"},
-		}
-		mockMem.On("Read", ctx).Return(messages, nil)
+		// Test Read with real Redis
 		result, err := adapter.Read(ctx)
 		assert.NoError(t, err)
-		assert.Equal(t, messages, result)
+		assert.Len(t, result, 1)
+		assert.Equal(t, "test adapter", result[0].Content)
+		assert.Equal(t, llm.MessageRoleUser, result[0].Role)
 
-		// Test GetID
+		// Test GetID - the adapter should return the hash-based ID from the real memory
 		id := adapter.GetID()
-		assert.Equal(t, "test-memory", id)
+		assert.NotEmpty(t, id)
+	})
 
-		mockMem.AssertExpectations(t)
+	t.Run("Should handle concurrent access correctly", func(t *testing.T) {
+		// Setup real Redis environment
+		setup := testutil.SetupTestRedis(t)
+		defer setup.Cleanup()
+
+		realMem := setup.CreateTestMemoryInstance(t, "concurrent-test-memory")
+		adapter := &memoryResolverAdapter{memory: realMem}
+
+		// Test concurrent append operations
+		done := make(chan bool, 2)
+		errors := make(chan error, 2)
+
+		// First goroutine
+		go func() {
+			defer func() { done <- true }()
+			msg := llm.Message{Role: llm.MessageRoleUser, Content: "Message from goroutine 1"}
+			if err := adapter.Append(ctx, msg); err != nil {
+				errors <- err
+			}
+		}()
+
+		// Second goroutine
+		go func() {
+			defer func() { done <- true }()
+			msg := llm.Message{Role: llm.MessageRoleAssistant, Content: "Message from goroutine 2"}
+			if err := adapter.Append(ctx, msg); err != nil {
+				errors <- err
+			}
+		}()
+
+		// Wait for both operations to complete
+		<-done
+		<-done
+
+		// Check for errors
+		select {
+		case err := <-errors:
+			t.Fatalf("Concurrent operation failed: %v", err)
+		default:
+			// No errors
+		}
+
+		// Verify both messages were stored
+		messages, err := adapter.Read(ctx)
+		require.NoError(t, err)
+		assert.Len(t, messages, 2)
+
+		// Verify message content (order may vary due to concurrency)
+		contents := make([]string, len(messages))
+		for i, msg := range messages {
+			contents[i] = msg.Content
+		}
+		assert.Contains(t, contents, "Message from goroutine 1")
+		assert.Contains(t, contents, "Message from goroutine 2")
 	})
 }
+
+// TestMemoryResolverTemplateResolution tests comprehensive template resolution scenarios
+func TestMemoryResolverTemplateResolution(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Should resolve simple template variables", func(t *testing.T) {
+		setup, memMgr := setupTestMemoryManager(t)
+		defer setup.Cleanup()
+
+		_ = setup.CreateTestMemoryInstance(t, "test-memory")
+
+		tplEngine := tplengine.NewEngine(tplengine.FormatText)
+		workflowContext := map[string]any{
+			"user_id": "user123",
+			"session": "session456",
+		}
+
+		resolver := &MemoryResolver{
+			memoryManager:   memMgr,
+			templateEngine:  tplEngine,
+			workflowContext: workflowContext,
+		}
+
+		// Test simple variable replacement
+		resolved, err := resolver.resolveKey(ctx, "user:{{.user_id}}")
+		assert.NoError(t, err)
+		assert.Equal(t, "user:user123", resolved)
+
+		// Test multiple variables
+		resolved, err = resolver.resolveKey(ctx, "{{.user_id}}:{{.session}}")
+		assert.NoError(t, err)
+		assert.Equal(t, "user123:session456", resolved)
+	})
+
+	t.Run("Should resolve nested template variables", func(t *testing.T) {
+		setup, memMgr := setupTestMemoryManager(t)
+		defer setup.Cleanup()
+
+		tplEngine := tplengine.NewEngine(tplengine.FormatText)
+		workflowContext := map[string]any{
+			"workflow": map[string]any{
+				"input": map[string]any{
+					"user_id": "nested123",
+				},
+				"exec_id": "exec456",
+			},
+			"project": map[string]any{
+				"id": "project789",
+			},
+		}
+
+		resolver := &MemoryResolver{
+			memoryManager:   memMgr,
+			templateEngine:  tplEngine,
+			workflowContext: workflowContext,
+		}
+
+		// Test nested object access
+		resolved, err := resolver.resolveKey(ctx, "user:{{.workflow.input.user_id}}")
+		assert.NoError(t, err)
+		assert.Equal(t, "user:nested123", resolved)
+
+		// Test complex nested template
+		resolved, err = resolver.resolveKey(ctx, "{{.project.id}}:{{.workflow.exec_id}}:{{.workflow.input.user_id}}")
+		assert.NoError(t, err)
+		assert.Equal(t, "project789:exec456:nested123", resolved)
+	})
+
+	t.Run("Should handle template with missing variables", func(t *testing.T) {
+		setup, memMgr := setupTestMemoryManager(t)
+		defer setup.Cleanup()
+
+		tplEngine := tplengine.NewEngine(tplengine.FormatText)
+		workflowContext := map[string]any{
+			"user_id": "user123",
+		}
+
+		resolver := &MemoryResolver{
+			memoryManager:   memMgr,
+			templateEngine:  tplEngine,
+			workflowContext: workflowContext,
+		}
+
+		// Template with missing variable should fail
+		_, err := resolver.resolveKey(ctx, "user:{{.missing_variable}}")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to execute key template")
+	})
+
+	t.Run("Should handle empty template engine", func(t *testing.T) {
+		setup, memMgr := setupTestMemoryManager(t)
+		defer setup.Cleanup()
+
+		resolver := &MemoryResolver{
+			memoryManager:   memMgr,
+			templateEngine:  nil, // No template engine
+			workflowContext: map[string]any{},
+		}
+
+		// Should return template as-is when no engine available
+		resolved, err := resolver.resolveKey(ctx, "static-key-{{.user_id}}")
+		assert.NoError(t, err)
+		assert.Equal(t, "static-key-{{.user_id}}", resolved)
+	})
+
+	t.Run("Should handle complex workflow context structures", func(t *testing.T) {
+		setup, memMgr := setupTestMemoryManager(t)
+		defer setup.Cleanup()
+
+		tplEngine := tplengine.NewEngine(tplengine.FormatText)
+		workflowContext := map[string]any{
+			"workflow": map[string]any{
+				"id":      "wf-123",
+				"exec_id": "exec-456",
+				"input": map[string]any{
+					"user_id":    "user789",
+					"session_id": "sess101",
+					"metadata": map[string]any{
+						"channel": "web",
+						"version": "v2.1",
+					},
+				},
+				"output": map[string]any{
+					"status": "success",
+				},
+			},
+			"project": map[string]any{
+				"id":      "proj-abc",
+				"name":    "test-project",
+				"version": "1.0.0",
+			},
+			"task": map[string]any{
+				"id":   "task-def",
+				"type": "basic",
+			},
+		}
+
+		resolver := &MemoryResolver{
+			memoryManager:   memMgr,
+			templateEngine:  tplEngine,
+			workflowContext: workflowContext,
+		}
+
+		testCases := []struct {
+			template string
+			expected string
+		}{
+			{
+				template: "{{.workflow.id}}:{{.project.id}}:{{.workflow.input.user_id}}",
+				expected: "wf-123:proj-abc:user789",
+			},
+			{
+				template: "{{.workflow.input.metadata.channel}}-{{.workflow.input.metadata.version}}",
+				expected: "web-v2.1",
+			},
+			{
+				template: "session:{{.workflow.input.session_id}}:{{.task.type}}",
+				expected: "session:sess101:basic",
+			},
+		}
+
+		for _, tc := range testCases {
+			resolved, err := resolver.resolveKey(ctx, tc.template)
+			assert.NoError(t, err, "Template: %s", tc.template)
+			assert.Equal(t, tc.expected, resolved, "Template: %s", tc.template)
+		}
+	})
+
+	t.Run("Should handle edge cases in template resolution", func(t *testing.T) {
+		setup, memMgr := setupTestMemoryManager(t)
+		defer setup.Cleanup()
+
+		tplEngine := tplengine.NewEngine(tplengine.FormatText)
+		workflowContext := map[string]any{
+			"empty_string": "",
+			"zero_value":   0,
+			"null_value":   nil,
+			"bool_value":   true,
+		}
+
+		resolver := &MemoryResolver{
+			memoryManager:   memMgr,
+			templateEngine:  tplEngine,
+			workflowContext: workflowContext,
+		}
+
+		testCases := []struct {
+			template string
+			expected string
+		}{
+			{
+				template: "empty:{{.empty_string}}",
+				expected: "empty:",
+			},
+			{
+				template: "zero:{{.zero_value}}",
+				expected: "zero:0",
+			},
+			{
+				template: "bool:{{.bool_value}}",
+				expected: "bool:true",
+			},
+		}
+
+		for _, tc := range testCases {
+			resolved, err := resolver.resolveKey(ctx, tc.template)
+			assert.NoError(t, err, "Template: %s", tc.template)
+			assert.Equal(t, tc.expected, resolved, "Template: %s", tc.template)
+		}
+
+		// Test null value template - template engine handles nil gracefully
+		resolved, err := resolver.resolveKey(ctx, "null:{{.null_value}}")
+		assert.NoError(t, err)
+		assert.Equal(t, "null:<no value>", resolved)
+	})
+
+	t.Run("Should handle special characters in templates", func(t *testing.T) {
+		setup, memMgr := setupTestMemoryManager(t)
+		defer setup.Cleanup()
+
+		tplEngine := tplengine.NewEngine(tplengine.FormatText)
+		workflowContext := map[string]any{
+			"user_id":    "user@example.com",
+			"session_id": "sess-123-456",
+			"project":    "my-project_v2",
+		}
+
+		resolver := &MemoryResolver{
+			memoryManager:   memMgr,
+			templateEngine:  tplEngine,
+			workflowContext: workflowContext,
+		}
+
+		testCases := []struct {
+			template string
+			expected string
+		}{
+			{
+				template: "user:{{.user_id}}",
+				expected: "user:user@example.com",
+			},
+			{
+				template: "session:{{.session_id}}",
+				expected: "session:sess-123-456",
+			},
+			{
+				template: "{{.project}}_cache",
+				expected: "my-project_v2_cache",
+			},
+		}
+
+		for _, tc := range testCases {
+			resolved, err := resolver.resolveKey(ctx, tc.template)
+			assert.NoError(t, err, "Template: %s", tc.template)
+			assert.Equal(t, tc.expected, resolved, "Template: %s", tc.template)
+		}
+	})
+}
+
+// TestMemoryResolverWorkflowIntegration tests integration with workflow execution patterns
+func TestMemoryResolverWorkflowIntegration(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Should handle real workflow execution context", func(t *testing.T) {
+		setup, memMgr := setupTestMemoryManager(t)
+		defer setup.Cleanup()
+
+		_ = setup.CreateTestMemoryInstance(t, "customer-support")
+
+		tplEngine := tplengine.NewEngine(tplengine.FormatText)
+
+		// Simulate real workflow context from buildWorkflowContext function
+		workflowContext := map[string]any{
+			"workflow": map[string]any{
+				"id":      "memory-api",
+				"exec_id": "exec-12345",
+				"status":  "running",
+				"input": map[string]any{
+					"user_id": "api_test_user",
+					"message": "Hello, what do you remember about me?",
+				},
+			},
+			"config": map[string]any{
+				"id":          "memory-api",
+				"version":     "0.1.0",
+				"description": "Simple agent with memory for testing REST API endpoints",
+			},
+			"project": map[string]any{
+				"id":          "test-project",
+				"name":        "test-project",
+				"version":     "1.0.0",
+				"description": "Test project for memory integration",
+			},
+			"task": map[string]any{
+				"id":   "chat",
+				"type": "basic",
+			},
+		}
+
+		resolver := NewMemoryResolver(memMgr, tplEngine, workflowContext)
+
+		// Test memory resolution with workflow template
+		memory, err := resolver.GetMemory(ctx, "customer-support", "user:{{.workflow.input.user_id}}")
+		require.NoError(t, err)
+		require.NotNil(t, memory)
+
+		// Verify memory operations work correctly
+		testMsg := llm.Message{
+			Role:    llm.MessageRoleUser,
+			Content: "Integration test message from workflow context",
+		}
+		err = memory.Append(ctx, testMsg)
+		require.NoError(t, err)
+
+		messages, err := memory.Read(ctx)
+		require.NoError(t, err)
+		assert.Len(t, messages, 1)
+		assert.Equal(t, testMsg.Content, messages[0].Content)
+	})
+
+	t.Run("Should handle agent configuration memory references", func(t *testing.T) {
+		setup, memMgr := setupTestMemoryManager(t)
+		defer setup.Cleanup()
+
+		_ = setup.CreateTestMemoryInstance(t, "customer-support")
+
+		tplEngine := tplengine.NewEngine(tplengine.FormatText)
+		workflowContext := map[string]any{
+			"workflow": map[string]any{
+				"input": map[string]any{
+					"user_id": "agent_test_user",
+				},
+			},
+		}
+
+		resolver := NewMemoryResolver(memMgr, tplEngine, workflowContext)
+
+		// Create agent config with memory (simulating validated agent)
+		agentConfig := &agent.Config{
+			ID:           "test-agent",
+			Instructions: "Test agent for memory resolver",
+			Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
+		}
+
+		// Manually set resolved memory references (simulating validation)
+		// In real code, this is done during agent.Validate() processing
+		agentConfig.Memory = "customer-support"
+		agentConfig.MemoryKey = "user:{{.workflow.input.user_id}}"
+
+		// Create CWD for agent validation
+		cwd, err := core.CWDFromPath("/tmp/test-agent")
+		require.NoError(t, err)
+		agentConfig.CWD = cwd
+
+		// Validate to properly set up memory references
+		err = agentConfig.Validate()
+		require.NoError(t, err)
+
+		// Test resolving agent memories
+		memories, err := resolver.ResolveAgentMemories(ctx, agentConfig)
+		require.NoError(t, err)
+		require.NotNil(t, memories)
+		assert.Len(t, memories, 1)
+
+		memory, exists := memories["customer-support"]
+		require.True(t, exists)
+		assert.NotNil(t, memory)
+
+		// Test memory functionality
+		testMsg := llm.Message{
+			Role:    llm.MessageRoleAssistant,
+			Content: "Agent memory integration test",
+		}
+		err = memory.Append(ctx, testMsg)
+		require.NoError(t, err)
+
+		messages, err := memory.Read(ctx)
+		require.NoError(t, err)
+		assert.Len(t, messages, 1)
+		assert.Equal(t, testMsg.Content, messages[0].Content)
+	})
+}
+
+// Note: The helper method for setting resolved memory references is not needed
+// as we now use proper agent validation which sets up memory references correctly

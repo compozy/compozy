@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/llm"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -51,6 +52,9 @@ func NewMemoryOperationsServiceWithConfig(
 	tokenCounter memcore.TokenCounter,
 	config *Config,
 ) MemoryOperationsService {
+	if memoryManager == nil {
+		panic("memoryManager is required")
+	}
 	if config == nil {
 		config = DefaultConfig()
 	}
@@ -132,14 +136,69 @@ func (s *memoryOperationsService) Read(ctx context.Context, req *ReadRequest) (*
 		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
 
-	// Convert messages to output format
-	output := MessagesToOutputFormat(messages)
-
 	span.SetAttributes(attribute.Int("message_count", len(messages)))
 	return &ReadResponse{
-		Messages: output,
+		Messages: messages,
 		Count:    len(messages),
 		Key:      req.Key,
+	}, nil
+}
+
+// ReadPaginated executes a memory read operation with pagination
+func (s *memoryOperationsService) ReadPaginated(
+	ctx context.Context,
+	req *ReadPaginatedRequest,
+) (*ReadPaginatedResponse, error) {
+	ctx, span := s.tracer.Start(ctx, "memory.service.ReadPaginated")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("memory_ref", req.MemoryRef),
+		attribute.String("key", req.Key),
+		attribute.Int("offset", req.Offset),
+		attribute.Int("limit", req.Limit),
+	)
+	if s.operationCount != nil {
+		s.operationCount.Add(ctx, 1, metric.WithAttributes(
+			attribute.String("operation", "read_paginated"),
+			attribute.String("memory_ref", req.MemoryRef),
+		))
+	}
+	if err := ValidateBaseRequestWithLimits(&req.BaseRequest, &s.config.ValidationLimits); err != nil {
+		return nil, err
+	}
+	if err := ValidatePaginationParams(req.Offset, req.Limit); err != nil {
+		return nil, err
+	}
+	instance, err := s.getMemoryInstance(ctx, req.MemoryRef, req.Key, "read_paginated")
+	if err != nil {
+		return nil, memcore.NewMemoryError(
+			memcore.ErrCodeMemoryRead,
+			"failed to get memory instance",
+			err,
+		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
+	}
+	messages, totalCount, err := instance.ReadPaginated(ctx, req.Offset, req.Limit)
+	if err != nil {
+		return nil, memcore.NewMemoryError(
+			memcore.ErrCodeMemoryRead,
+			"failed to read memory with pagination",
+			err,
+		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
+	}
+	hasMore := (req.Offset + len(messages)) < totalCount
+	span.SetAttributes(
+		attribute.Int("message_count", len(messages)),
+		attribute.Int("total_count", totalCount),
+		attribute.Bool("has_more", hasMore),
+	)
+	return &ReadPaginatedResponse{
+		Messages:   messages,
+		Count:      len(messages),
+		TotalCount: totalCount,
+		Offset:     req.Offset,
+		Limit:      req.Limit,
+		HasMore:    hasMore,
+		Key:        req.Key,
 	}, nil
 }
 
@@ -259,7 +318,11 @@ func (s *memoryOperationsService) Delete(ctx context.Context, req *DeleteRequest
 	// Get memory instance
 	instance, err := s.getMemoryInstance(ctx, req.MemoryRef, req.Key, "delete")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get memory instance: %w", err)
+		return nil, memcore.NewMemoryError(
+			memcore.ErrCodeStoreOperation,
+			"failed to get memory instance",
+			err,
+		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
 
 	// Clear all messages (delete operation)
@@ -326,7 +389,11 @@ func (s *memoryOperationsService) Clear(ctx context.Context, req *ClearRequest) 
 	// Get memory instance
 	instance, err := s.getMemoryInstance(ctx, req.MemoryRef, req.Key, "clear")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get memory instance: %w", err)
+		return nil, memcore.NewMemoryError(
+			memcore.ErrCodeStoreOperation,
+			"failed to get memory instance",
+			err,
+		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
 
 	// Get count before clear for backup info
@@ -390,7 +457,11 @@ func (s *memoryOperationsService) Health(ctx context.Context, req *HealthRequest
 	// Get memory instance
 	instance, err := s.getMemoryInstance(ctx, req.MemoryRef, req.Key, "health")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get memory instance: %w", err)
+		return nil, memcore.NewMemoryError(
+			memcore.ErrCodeStoreOperation,
+			"failed to get memory instance",
+			err,
+		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
 
 	health, err := instance.GetMemoryHealth(ctx)
@@ -455,7 +526,11 @@ func (s *memoryOperationsService) Stats(ctx context.Context, req *StatsRequest) 
 	// Get memory instance
 	instance, err := s.getMemoryInstance(ctx, req.MemoryRef, req.Key, "stats")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get memory instance: %w", err)
+		return nil, memcore.NewMemoryError(
+			memcore.ErrCodeStoreOperation,
+			"failed to get memory instance",
+			err,
+		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
 
 	// Get basic stats
@@ -607,6 +682,28 @@ func (s *memoryOperationsService) resolvePayloadRecursive(payload any, context m
 	}
 }
 
+// calculateTokensNonBlocking calculates total tokens without blocking the operation
+func (s *memoryOperationsService) calculateTokensNonBlocking(ctx context.Context, messages []llm.Message) int {
+	totalTokens := 0
+	if s.tokenCounter == nil {
+		return totalTokens
+	}
+	log := logger.FromContext(ctx)
+	for _, msg := range messages {
+		count, err := s.tokenCounter.CountTokens(ctx, msg.Content)
+		if err != nil {
+			// Log error but continue with 0 tokens for this message
+			// Token counting should not block the write operation
+			log.Warn("Failed to count tokens for message, using 0",
+				"error", err,
+				"content_length", len(msg.Content))
+			count = 0
+		}
+		totalTokens += count
+	}
+	return totalTokens
+}
+
 // performAtomicWrite performs atomic write using AtomicOperations interface
 func (s *memoryOperationsService) performAtomicWrite(
 	ctx context.Context,
@@ -614,22 +711,8 @@ func (s *memoryOperationsService) performAtomicWrite(
 	key string,
 	messages []llm.Message,
 ) (*WriteResponse, error) {
-	// Calculate total tokens if tokenCounter is available
-	totalTokens := 0
-	if s.tokenCounter != nil {
-		for _, msg := range messages {
-			count, err := s.tokenCounter.CountTokens(ctx, msg.Content)
-			if err != nil {
-				return nil, memcore.NewMemoryError(
-					memcore.ErrCodeTokenCounting,
-					"failed to count tokens for message",
-					err,
-				)
-			}
-			totalTokens += count
-		}
-	}
-
+	// Calculate total tokens without blocking operation
+	totalTokens := s.calculateTokensNonBlocking(ctx, messages)
 	// Use atomic replace operation
 	if err := instance.ReplaceMessagesWithMetadata(ctx, key, messages, totalTokens); err != nil {
 		return nil, memcore.NewMemoryError(
@@ -638,12 +721,59 @@ func (s *memoryOperationsService) performAtomicWrite(
 			err,
 		).WithContext("key", key).WithContext("message_count", len(messages)).WithContext("total_tokens", totalTokens)
 	}
-
 	return &WriteResponse{
 		Success: true,
 		Count:   len(messages),
 		Key:     key,
 	}, nil
+}
+
+// handleTransactionBeginError creates standardized error for transaction begin failures
+func (s *memoryOperationsService) handleTransactionBeginError(err error, key string) error {
+	return memcore.NewMemoryError(
+		memcore.ErrCodeStoreOperation,
+		"failed to begin transaction",
+		err,
+	).WithContext("key", key)
+}
+
+// handleTransactionClearError creates standardized error for transaction clear failures
+func (s *memoryOperationsService) handleTransactionClearError(err error, key string) error {
+	return memcore.NewMemoryError(
+		memcore.ErrCodeMemoryClear,
+		"failed to clear memory",
+		err,
+	).WithContext("key", key)
+}
+
+// handleTransactionApplyError handles apply failures with rollback attempt
+func (s *memoryOperationsService) handleTransactionApplyError(
+	ctx context.Context,
+	tx *MemoryTransaction,
+	err error,
+	key string,
+) error {
+	if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+		return memcore.NewMemoryError(
+			memcore.ErrCodeStoreOperation,
+			"write failed and rollback failed",
+			err,
+		).WithContext("rollback_error", rollbackErr.Error()).WithContext("key", key)
+	}
+	return memcore.NewMemoryError(
+		memcore.ErrCodeStoreOperation,
+		"write failed, memory restored",
+		err,
+	).WithContext("key", key)
+}
+
+// handleTransactionCommitError creates standardized error for transaction commit failures
+func (s *memoryOperationsService) handleTransactionCommitError(err error, key string) error {
+	return memcore.NewMemoryError(
+		memcore.ErrCodeStoreOperation,
+		"failed to commit transaction",
+		err,
+	).WithContext("key", key)
 }
 
 // performTransactionalWrite performs write using transaction pattern
@@ -653,53 +783,19 @@ func (s *memoryOperationsService) performTransactionalWrite(
 	key string,
 	messages []llm.Message,
 ) (*WriteResponse, error) {
-	// Use transaction for atomic write operation
 	tx := NewMemoryTransaction(instance)
-
-	// Begin transaction
 	if err := tx.Begin(ctx); err != nil {
-		return nil, memcore.NewMemoryError(
-			memcore.ErrCodeStoreOperation,
-			"failed to begin transaction",
-			err,
-		).WithContext("key", key)
+		return nil, s.handleTransactionBeginError(err, key)
 	}
-
-	// Clear existing messages (write replaces all)
 	if err := tx.Clear(ctx); err != nil {
-		return nil, memcore.NewMemoryError(
-			memcore.ErrCodeMemoryClear,
-			"failed to clear memory",
-			err,
-		).WithContext("key", key)
+		return nil, s.handleTransactionClearError(err, key)
 	}
-
-	// Apply new messages
 	if err := tx.ApplyMessages(ctx, messages); err != nil {
-		// Rollback on failure
-		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
-			return nil, memcore.NewMemoryError(
-				memcore.ErrCodeStoreOperation,
-				"write failed and rollback failed",
-				err,
-			).WithContext("rollback_error", rollbackErr.Error()).WithContext("key", key)
-		}
-		return nil, memcore.NewMemoryError(
-			memcore.ErrCodeStoreOperation,
-			"write failed, memory restored",
-			err,
-		).WithContext("key", key)
+		return nil, s.handleTransactionApplyError(ctx, tx, err, key)
 	}
-
-	// Commit transaction
 	if err := tx.Commit(); err != nil {
-		return nil, memcore.NewMemoryError(
-			memcore.ErrCodeStoreOperation,
-			"failed to commit transaction",
-			err,
-		).WithContext("key", key)
+		return nil, s.handleTransactionCommitError(err, key)
 	}
-
 	return &WriteResponse{
 		Success: true,
 		Count:   len(messages),
@@ -839,7 +935,11 @@ func (s *memoryOperationsService) prepareFlushOperation(
 ) (memcore.FlushableMemory, error) {
 	instance, err := s.getMemoryInstance(ctx, req.MemoryRef, req.Key, "flush")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get memory instance: %w", err)
+		return nil, memcore.NewMemoryError(
+			memcore.ErrCodeStoreOperation,
+			"failed to get memory instance",
+			err,
+		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
 	flushableMem, ok := instance.(memcore.FlushableMemory)
 	if !ok {
@@ -855,7 +955,7 @@ func (s *memoryOperationsService) prepareFlushOperation(
 // performDryRunFlush performs a dry run flush operation
 func (s *memoryOperationsService) performDryRunFlush(
 	ctx context.Context,
-	instance memcore.Memory,
+	instance memcore.FlushableMemory,
 	req *FlushRequest,
 ) (*FlushResponse, error) {
 	health, err := instance.GetMemoryHealth(ctx)

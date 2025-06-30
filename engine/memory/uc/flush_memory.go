@@ -37,18 +37,25 @@ type FlushMemory struct {
 	service   service.MemoryOperationsService
 }
 
-// NewFlushMemory creates a new flush memory use case
-func NewFlushMemory(manager *memory.Manager, memoryRef, key string, input *FlushMemoryInput) *FlushMemory {
+// NewFlushMemory creates a new flush memory use case with dependency injection
+func NewFlushMemory(
+	manager *memory.Manager,
+	memoryRef, key string,
+	input *FlushMemoryInput,
+	svc service.MemoryOperationsService,
+) *FlushMemory {
 	if input == nil {
 		input = &FlushMemoryInput{}
 	}
-	memService := service.NewMemoryOperationsService(manager, nil, nil)
+	if svc == nil {
+		svc = service.NewMemoryOperationsService(manager, nil, nil)
+	}
 	return &FlushMemory{
 		manager:   manager,
 		memoryRef: memoryRef,
 		key:       key,
 		input:     input,
-		service:   memService,
+		service:   svc,
 	}
 }
 

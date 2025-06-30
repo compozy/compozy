@@ -10,39 +10,39 @@ func Register(apiBase *gin.RouterGroup) {
 	// Memory routes
 	memoryGroup := apiBase.Group("/memory")
 
-	// Routes with memory reference and key
-	refGroup := memoryGroup.Group("/:memory_ref/:key")
+	// Routes with memory reference only (key moved to query params or body)
+	refGroup := memoryGroup.Group("/:memory_ref")
 	refGroup.Use(ExtractMemoryContext())
 	{
-		// GET /api/v0/memory/:memory_ref/:key
+		// GET /api/v0/memory/:memory_ref/read?key={key}
 		// Read memory content
-		refGroup.GET("", readMemory)
+		refGroup.GET("/read", readMemory)
 
-		// PUT /api/v0/memory/:memory_ref/:key
-		// Write/replace memory content
-		refGroup.PUT("", writeMemory)
+		// POST /api/v0/memory/:memory_ref/write
+		// Write/replace memory content (key in body)
+		refGroup.POST("/write", writeMemory)
 
-		// POST /api/v0/memory/:memory_ref/:key
-		// Append to memory
-		refGroup.POST("", appendMemory)
+		// POST /api/v0/memory/:memory_ref/append
+		// Append to memory (key in body)
+		refGroup.POST("/append", appendMemory)
 
-		// DELETE /api/v0/memory/:memory_ref/:key
-		// Delete memory
-		refGroup.DELETE("", deleteMemory)
+		// POST /api/v0/memory/:memory_ref/delete
+		// Delete memory (key in body)
+		refGroup.POST("/delete", deleteMemory)
 
-		// POST /api/v0/memory/:memory_ref/:key/flush
-		// Flush memory
+		// POST /api/v0/memory/:memory_ref/flush
+		// Flush memory (key in body)
 		refGroup.POST("/flush", flushMemory)
 
-		// GET /api/v0/memory/:memory_ref/:key/health
+		// GET /api/v0/memory/:memory_ref/health?key={key}
 		// Get memory health
 		refGroup.GET("/health", healthMemory)
 
-		// POST /api/v0/memory/:memory_ref/:key/clear
-		// Clear memory
+		// POST /api/v0/memory/:memory_ref/clear
+		// Clear memory (key in body)
 		refGroup.POST("/clear", clearMemory)
 
-		// GET /api/v0/memory/:memory_ref/:key/stats
+		// GET /api/v0/memory/:memory_ref/stats?key={key}
 		// Get memory statistics
 		refGroup.GET("/stats", statsMemory)
 	}

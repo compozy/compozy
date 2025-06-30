@@ -3,33 +3,11 @@ package uc
 import (
 	"context"
 
+	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/memory/service"
 	"github.com/compozy/compozy/engine/worker"
 )
-
-// StatsMemoryResult represents the result of getting memory stats
-type StatsMemoryResult struct {
-	Key              string            `json:"key"`
-	MessageCount     int               `json:"message_count"`
-	TokenCount       int               `json:"token_count"`
-	AverageTokens    float64           `json:"average_tokens_per_message"`
-	RoleDistribution map[string]int    `json:"role_distribution"`
-	MemoryHealth     *MemoryHealthInfo `json:"memory_health"`
-	Metadata         map[string]any    `json:"metadata,omitempty"`
-}
-
-// MemoryHealthInfo represents memory health information
-type MemoryHealthInfo struct {
-	Healthy       bool   `json:"healthy"`
-	FlushStrategy string `json:"flush_strategy"`
-	LastFlush     string `json:"last_flush,omitempty"`
-	TokenUsage    struct {
-		Current    int     `json:"current"`
-		Threshold  int     `json:"threshold"`
-		Percentage float64 `json:"percentage"`
-	} `json:"token_usage"`
-}
 
 // StatsMemory use case for getting memory statistics
 type StatsMemory struct {
@@ -63,13 +41,19 @@ type PaginationInfo struct {
 	HasMore    bool `json:"has_more"`
 }
 
-// NewStatsMemory creates a new stats memory use case
-func NewStatsMemory(manager *memory.Manager, worker *worker.Worker) *StatsMemory {
-	memService := service.NewMemoryOperationsService(manager, nil, nil)
+// NewStatsMemory creates a new stats memory use case with dependency injection
+func NewStatsMemory(
+	manager *memory.Manager,
+	worker *worker.Worker,
+	svc service.MemoryOperationsService,
+) *StatsMemory {
+	if svc == nil && manager != nil {
+		svc = service.NewMemoryOperationsService(manager, nil, nil)
+	}
 	return &StatsMemory{
 		Manager: manager,
 		Worker:  worker,
-		service: memService,
+		service: svc,
 	}
 }
 
@@ -100,13 +84,19 @@ func (uc *StatsMemory) Execute(ctx context.Context, input StatsMemoryInput) (*St
 		return nil, NewErrorContext(err, "stats_memory", input.MemoryRef, input.Key)
 	}
 
+	// Get token limit from memory configuration
+	tokenLimit, err := uc.getTokenLimit(ctx, input.MemoryRef)
+	if err != nil {
+		return nil, NewErrorContext(err, "stats_memory", input.MemoryRef, input.Key)
+	}
+
 	// Build basic output from service response
 	output := &StatsMemoryOutput{
 		Key:              input.Key,
 		MessageCount:     resp.MessageCount,
 		TokenCount:       resp.TokenCount,
-		TokenLimit:       128000, // Default context window
-		TokenUtilization: float64(resp.TokenCount) / 128000,
+		TokenLimit:       tokenLimit,
+		TokenUtilization: float64(resp.TokenCount) / float64(tokenLimit),
 	}
 
 	// Calculate role distribution separately for compatibility
@@ -135,15 +125,7 @@ func (uc *StatsMemory) validateInput(input StatsMemoryInput) error {
 
 // normalizePagination applies defaults and limits to pagination parameters
 func (uc *StatsMemory) normalizePagination(input StatsMemoryInput) StatsMemoryInput {
-	if input.Limit <= 0 {
-		input.Limit = 100 // Default limit for stats
-	}
-	if input.Limit > 10000 {
-		input.Limit = 10000 // Max limit for stats
-	}
-	if input.Offset < 0 {
-		input.Offset = 0
-	}
+	input.Offset, input.Limit = NormalizePagination(input.Offset, input.Limit, StatsPaginationLimits)
 	return input
 }
 
@@ -157,6 +139,25 @@ func (uc *StatsMemory) getManager() (*memory.Manager, error) {
 		return nil, ErrMemoryManagerNotAvailable
 	}
 	return manager, nil
+}
+
+// getTokenLimit retrieves the token limit from memory configuration
+func (uc *StatsMemory) getTokenLimit(_ context.Context, memoryRef string) (int, error) {
+	manager, err := uc.getManager()
+	if err != nil {
+		return 0, err
+	}
+	// Get memory resource configuration from manager
+	resource, err := manager.GetMemoryConfig(memoryRef)
+	if err != nil {
+		return 0, NewErrorContext(err, "get_memory_config", memoryRef, "")
+	}
+	// Use MaxTokens from configuration, with fallback to default context window
+	if resource.MaxTokens > 0 {
+		return resource.MaxTokens, nil
+	}
+	// Default fallback for when MaxTokens is not configured
+	return 128000, nil
 }
 
 // calculateRoleDistribution calculates role distribution with pagination using memory manager
@@ -203,23 +204,23 @@ func (uc *StatsMemory) calculateRoleDistribution(
 	// Calculate role distribution
 	roleDistribution := make(map[string]int)
 	for _, msg := range messages {
-		if role, ok := msg["role"].(string); ok {
-			roleDistribution[role]++
-		} else {
-			roleDistribution["unknown"]++
+		role := string(msg.Role)
+		if role == "" {
+			role = "unknown"
 		}
+		roleDistribution[role]++
 	}
 
 	return roleDistribution, paginationInfo, nil
 }
 
 // paginateMessages applies pagination to message slice
-func (uc *StatsMemory) paginateMessages(messages []map[string]any, offset, limit int) []map[string]any {
+func (uc *StatsMemory) paginateMessages(messages []llm.Message, offset, limit int) []llm.Message {
 	start := offset
 	end := offset + limit
 
 	if start >= len(messages) {
-		return []map[string]any{}
+		return []llm.Message{}
 	}
 
 	if end > len(messages) {

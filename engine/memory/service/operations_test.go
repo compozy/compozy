@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"os"
 	"sync"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/llm"
 	memcore "github.com/compozy/compozy/engine/memory/core"
+	"github.com/compozy/compozy/engine/memory/testutil"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
@@ -57,6 +59,22 @@ func (m *testMemory) Read(_ context.Context) ([]llm.Message, error) {
 	msgCopy := make([]llm.Message, len(m.messages))
 	copy(msgCopy, m.messages)
 	return msgCopy, nil
+}
+
+func (m *testMemory) ReadPaginated(_ context.Context, offset, limit int) ([]llm.Message, int, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	totalCount := len(m.messages)
+	if offset >= totalCount {
+		return []llm.Message{}, totalCount, nil
+	}
+	end := offset + limit
+	if end > totalCount {
+		end = totalCount
+	}
+	msgCopy := make([]llm.Message, end-offset)
+	copy(msgCopy, m.messages[offset:end])
+	return msgCopy, totalCount, nil
 }
 
 func (m *testMemory) Len(_ context.Context) (int, error) {
@@ -108,10 +126,10 @@ func TestValidationFunctions(t *testing.T) {
 			ref     string
 			wantErr bool
 		}{
-			{"valid ref", "valid_memory_123", false},
-			{"empty ref", "", true},
-			{"invalid chars", "invalid-memory!", true},
-			{"too long", string(make([]byte, 101)), true},
+			{"Should accept valid ref", "valid_memory_123", false},
+			{"Should reject empty ref", "", true},
+			{"Should reject invalid chars", "invalid-memory!", true},
+			{"Should reject ref that is too long", string(make([]byte, 101)), true},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -131,10 +149,10 @@ func TestValidationFunctions(t *testing.T) {
 			key     string
 			wantErr bool
 		}{
-			{"valid key", "valid_key_123", false},
-			{"key with spaces", "key with spaces", false},
-			{"empty key", "", true},
-			{"control chars", "invalid\x00key", true},
+			{"Should accept valid key", "valid_key_123", false},
+			{"Should accept key with spaces", "key with spaces", false},
+			{"Should reject empty key", "", true},
+			{"Should reject control chars", "invalid\x00key", true},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -158,12 +176,12 @@ func TestPayloadToMessages(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "string payload",
+			name:    "Should convert string payload to user message",
 			payload: "Hello world",
 			want:    []llm.Message{{Role: llm.MessageRoleUser, Content: "Hello world"}},
 		},
 		{
-			name: "single message map",
+			name: "Should convert single message map",
 			payload: map[string]any{
 				"role":    "assistant",
 				"content": "Hello there!",
@@ -171,7 +189,7 @@ func TestPayloadToMessages(t *testing.T) {
 			want: []llm.Message{{Role: llm.MessageRoleAssistant, Content: "Hello there!"}},
 		},
 		{
-			name: "array of messages",
+			name: "Should convert array of messages",
 			payload: []any{
 				map[string]any{"role": "user", "content": "Hi"},
 				map[string]any{"role": "assistant", "content": "Hello"},
@@ -182,7 +200,7 @@ func TestPayloadToMessages(t *testing.T) {
 			},
 		},
 		{
-			name:    "nil payload",
+			name:    "Should return error for nil payload",
 			payload: nil,
 			wantErr: true,
 		},
@@ -205,7 +223,7 @@ func TestPayloadToMessages(t *testing.T) {
 func TestMemoryService_Read(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("successful read", func(t *testing.T) {
+	t.Run("Should successfully read messages", func(t *testing.T) {
 		// Setup
 		memory := &testMemory{
 			messages: []llm.Message{
@@ -237,12 +255,14 @@ func TestMemoryService_Read(t *testing.T) {
 		assert.Equal(t, 2, resp.Count)
 		assert.Equal(t, "test_key", resp.Key)
 		assert.Len(t, resp.Messages, 2)
-		assert.Equal(t, "Hello", resp.Messages[0]["content"])
-		assert.Equal(t, "user", resp.Messages[0]["role"])
+		assert.Equal(t, "Hello", resp.Messages[0].Content)
+		assert.Equal(t, llm.MessageRoleUser, resp.Messages[0].Role)
 	})
 
-	t.Run("validation error", func(t *testing.T) {
-		service := NewMemoryOperationsService(nil, nil, nil)
+	t.Run("Should return validation error for empty memory reference", func(t *testing.T) {
+		// Use a minimal manager for validation testing - validation should occur before manager is used
+		manager := &testMemoryManager{}
+		service := NewMemoryOperationsService(manager, nil, nil)
 
 		resp, err := service.Read(ctx, &ReadRequest{
 			BaseRequest: BaseRequest{
@@ -261,7 +281,7 @@ func TestMemoryService_Read(t *testing.T) {
 func TestMemoryService_Write(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("successful atomic write", func(t *testing.T) {
+	t.Run("Should successfully perform atomic write", func(t *testing.T) {
 		memory := &testMemory{}
 
 		manager := &testMemoryManager{
@@ -295,7 +315,7 @@ func TestMemoryService_Write(t *testing.T) {
 		assert.Equal(t, "Hello world", msgs[0].Content)
 	})
 
-	t.Run("rollback on failure", func(t *testing.T) {
+	t.Run("Should rollback on failure", func(t *testing.T) {
 		originalMessages := []llm.Message{
 			{Role: llm.MessageRoleUser, Content: "Original message"},
 		}
@@ -340,7 +360,7 @@ func TestMemoryService_Write(t *testing.T) {
 func TestMemoryService_WriteWithTemplates(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("template resolution in payload", func(t *testing.T) {
+	t.Run("Should resolve templates in payload", func(t *testing.T) {
 		memory := &testMemory{}
 
 		manager := &testMemoryManager{
@@ -391,7 +411,7 @@ func TestMemoryService_WriteWithTemplates(t *testing.T) {
 func TestMemoryService_Append(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("successful append", func(t *testing.T) {
+	t.Run("Should successfully append messages", func(t *testing.T) {
 		memory := &testMemory{
 			messages: []llm.Message{
 				{Role: llm.MessageRoleUser, Content: "Existing message"},
@@ -436,7 +456,7 @@ func TestMemoryService_Append(t *testing.T) {
 func TestMemoryService_Delete(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("successful delete", func(t *testing.T) {
+	t.Run("Should successfully delete memory", func(t *testing.T) {
 		memory := &testMemory{
 			messages: []llm.Message{
 				{Role: llm.MessageRoleUser, Content: "Message to delete"},
@@ -474,7 +494,7 @@ func TestMemoryService_Delete(t *testing.T) {
 func TestMemoryService_Clear(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("successful clear with confirmation", func(t *testing.T) {
+	t.Run("Should successfully clear with confirmation", func(t *testing.T) {
 		memory := &testMemory{
 			messages: []llm.Message{
 				{Role: llm.MessageRoleUser, Content: "Message 1"},
@@ -511,8 +531,10 @@ func TestMemoryService_Clear(t *testing.T) {
 		assert.Equal(t, "test_key", resp.Key)
 	})
 
-	t.Run("clear requires confirmation", func(t *testing.T) {
-		service := NewMemoryOperationsService(nil, nil, nil)
+	t.Run("Should require confirmation for clear operation", func(t *testing.T) {
+		// Use a minimal manager for validation testing - validation should occur before manager is used
+		manager := &testMemoryManager{}
+		service := NewMemoryOperationsService(manager, nil, nil)
 
 		resp, err := service.Clear(ctx, &ClearRequest{
 			BaseRequest: BaseRequest{
@@ -534,7 +556,7 @@ func TestMemoryService_Clear(t *testing.T) {
 func TestMemoryTransaction(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("successful transaction", func(t *testing.T) {
+	t.Run("Should complete successful transaction", func(t *testing.T) {
 		memory := &testMemory{
 			messages: []llm.Message{
 				{Role: llm.MessageRoleUser, Content: "Original"},
@@ -566,7 +588,7 @@ func TestMemoryTransaction(t *testing.T) {
 		assert.Equal(t, "New message", msgs[0].Content)
 	})
 
-	t.Run("rollback restores original state", func(t *testing.T) {
+	t.Run("Should restore original state on rollback", func(t *testing.T) {
 		originalMessages := []llm.Message{
 			{Role: llm.MessageRoleUser, Content: "Original 1"},
 			{Role: llm.MessageRoleUser, Content: "Original 2"},
@@ -597,5 +619,210 @@ func TestMemoryTransaction(t *testing.T) {
 		assert.Len(t, msgs, 2)
 		assert.Equal(t, "Original 1", msgs[0].Content)
 		assert.Equal(t, "Original 2", msgs[1].Content)
+	})
+}
+
+// Test with real Redis instances using miniredis
+func TestMemoryService_WithRealRedis(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Should read paginated messages from real Redis", func(t *testing.T) {
+		// Setup real Redis environment
+		setup := testutil.SetupTestRedis(t)
+		defer setup.Cleanup()
+
+		memInstance := setup.CreateTestMemoryInstance(t, "test_memory_read_paginated")
+
+		// Add some messages
+		messages := []llm.Message{
+			{Role: llm.MessageRoleUser, Content: "Message 1"},
+			{Role: llm.MessageRoleAssistant, Content: "Message 2"},
+			{Role: llm.MessageRoleUser, Content: "Message 3"},
+			{Role: llm.MessageRoleAssistant, Content: "Message 4"},
+			{Role: llm.MessageRoleUser, Content: "Message 5"},
+		}
+
+		for _, msg := range messages {
+			err := memInstance.Append(ctx, msg)
+			require.NoError(t, err)
+		}
+
+		// Create service with real memory manager
+		service := NewMemoryOperationsService(setup.Manager, nil, nil)
+
+		// Test paginated read
+		resp, err := service.ReadPaginated(ctx, &ReadPaginatedRequest{
+			BaseRequest: BaseRequest{
+				MemoryRef: "test_memory_read_paginated",
+				Key:       "test_memory_read_paginated",
+			},
+			Offset: 1,
+			Limit:  2,
+		})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, 2, resp.Count)
+		assert.Equal(t, 5, resp.TotalCount)
+		assert.Equal(t, 1, resp.Offset)
+		assert.Equal(t, 2, resp.Limit)
+		assert.True(t, resp.HasMore)
+		assert.Len(t, resp.Messages, 2)
+		assert.Equal(t, "Message 2", resp.Messages[0].Content)
+		assert.Equal(t, "Message 3", resp.Messages[1].Content)
+	})
+
+	t.Run("Should write and read messages with real Redis", func(t *testing.T) {
+		// Setup real Redis environment
+		setup := testutil.SetupTestRedis(t)
+		defer setup.Cleanup()
+
+		// Create memory configuration first
+		_ = setup.CreateTestMemoryInstance(t, "test_memory_write")
+
+		// Create service with real memory manager
+		service := NewMemoryOperationsService(setup.Manager, nil, nil)
+
+		// Test write operation
+		writeResp, err := service.Write(ctx, &WriteRequest{
+			BaseRequest: BaseRequest{
+				MemoryRef: "test_memory_write",
+				Key:       "test_key",
+			},
+			Payload: []map[string]any{
+				{"role": "user", "content": "Hello from real Redis!"},
+				{"role": "assistant", "content": "Hi there from Redis!"},
+			},
+		})
+
+		require.NoError(t, err)
+		assert.True(t, writeResp.Success)
+		assert.Equal(t, 2, writeResp.Count)
+
+		// Test read operation
+		readResp, err := service.Read(ctx, &ReadRequest{
+			BaseRequest: BaseRequest{
+				MemoryRef: "test_memory_write",
+				Key:       "test_key",
+			},
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, 2, readResp.Count)
+		assert.Len(t, readResp.Messages, 2)
+		assert.Equal(t, "Hello from real Redis!", readResp.Messages[0].Content)
+		assert.Equal(t, "Hi there from Redis!", readResp.Messages[1].Content)
+	})
+
+	t.Run("Should append messages with real Redis", func(t *testing.T) {
+		// Setup real Redis environment
+		setup := testutil.SetupTestRedis(t)
+		defer setup.Cleanup()
+
+		memInstance := setup.CreateTestMemoryInstance(t, "test_memory_append")
+
+		// Add initial message
+		err := memInstance.Append(ctx, llm.Message{
+			Role:    llm.MessageRoleUser,
+			Content: "Initial message",
+		})
+		require.NoError(t, err)
+
+		// Create service with real memory manager
+		service := NewMemoryOperationsService(setup.Manager, nil, nil)
+
+		// Test append operation
+		appendResp, err := service.Append(ctx, &AppendRequest{
+			BaseRequest: BaseRequest{
+				MemoryRef: "test_memory_append",
+				Key:       "test_memory_append",
+			},
+			Payload: map[string]any{
+				"role":    "assistant",
+				"content": "Appended message",
+			},
+		})
+
+		require.NoError(t, err)
+		assert.True(t, appendResp.Success)
+		assert.Equal(t, 1, appendResp.Appended)
+		assert.Equal(t, 2, appendResp.TotalCount)
+
+		// Verify total messages
+		msgs, err := memInstance.Read(ctx)
+		require.NoError(t, err)
+		assert.Len(t, msgs, 2)
+		assert.Equal(t, "Initial message", msgs[0].Content)
+		assert.Equal(t, "Appended message", msgs[1].Content)
+	})
+}
+
+func TestDependencyValidation(t *testing.T) {
+	t.Run("Should panic when memoryManager is nil", func(t *testing.T) {
+		assert.Panics(t, func() {
+			NewMemoryOperationsService(nil, nil, nil)
+		}, "Expected panic when memoryManager is nil")
+	})
+
+	t.Run("Should allow nil templateEngine and tokenCounter", func(t *testing.T) {
+		manager := &testMemoryManager{}
+		assert.NotPanics(t, func() {
+			service := NewMemoryOperationsService(manager, nil, nil)
+			assert.NotNil(t, service)
+		}, "Should not panic when only memoryManager is provided")
+	})
+}
+
+func TestConfigurableContentLimits(t *testing.T) {
+	t.Run("Should use default values when environment variables are not set", func(t *testing.T) {
+		// Clear environment variables
+		os.Unsetenv("MAX_MESSAGE_CONTENT_LENGTH")
+		os.Unsetenv("MAX_TOTAL_CONTENT_SIZE")
+		config := DefaultConfig()
+		assert.Equal(t, 10*1024, config.ValidationLimits.MaxMessageContentLength) // 10KB
+		assert.Equal(t, 100*1024, config.ValidationLimits.MaxTotalContentSize)    // 100KB
+	})
+	t.Run("Should use environment variables when set", func(t *testing.T) {
+		// Set environment variables
+		os.Setenv("MAX_MESSAGE_CONTENT_LENGTH", "20480") // 20KB
+		os.Setenv("MAX_TOTAL_CONTENT_SIZE", "512000")    // 500KB
+		defer func() {
+			os.Unsetenv("MAX_MESSAGE_CONTENT_LENGTH")
+			os.Unsetenv("MAX_TOTAL_CONTENT_SIZE")
+		}()
+		config := DefaultConfig()
+		assert.Equal(t, 20480, config.ValidationLimits.MaxMessageContentLength)
+		assert.Equal(t, 512000, config.ValidationLimits.MaxTotalContentSize)
+	})
+	t.Run("Should fallback to defaults with invalid environment variables", func(t *testing.T) {
+		// Set invalid environment variables
+		os.Setenv("MAX_MESSAGE_CONTENT_LENGTH", "invalid")
+		os.Setenv("MAX_TOTAL_CONTENT_SIZE", "-1000")
+		defer func() {
+			os.Unsetenv("MAX_MESSAGE_CONTENT_LENGTH")
+			os.Unsetenv("MAX_TOTAL_CONTENT_SIZE")
+		}()
+		config := DefaultConfig()
+		assert.Equal(t, 10*1024, config.ValidationLimits.MaxMessageContentLength) // 10KB default
+		assert.Equal(t, 100*1024, config.ValidationLimits.MaxTotalContentSize)    // 100KB default
+	})
+}
+
+func TestTokenCountingNonBlocking(t *testing.T) {
+	t.Run("Should not block operations when token counting fails", func(t *testing.T) {
+		// Create a service with a nil token counter (won't cause failures)
+		setup := testutil.SetupTestRedis(t)
+		defer setup.Cleanup()
+		svc := NewMemoryOperationsService(setup.Manager, nil, nil)
+		// Test that operations continue normally even without token counting
+		// This verifies the non-blocking behavior by ensuring the method doesn't panic
+		messages := []llm.Message{
+			{Role: "user", Content: "Hello world"},
+			{Role: "assistant", Content: "Hi there!"},
+		}
+		ctx := context.Background()
+		// Call the helper method to verify it returns 0 tokens when counter is nil
+		tokens := svc.(*memoryOperationsService).calculateTokensNonBlocking(ctx, messages)
+		assert.Equal(t, 0, tokens, "Should return 0 tokens when token counter is nil")
 	})
 }

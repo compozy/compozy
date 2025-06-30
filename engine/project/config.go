@@ -30,6 +30,8 @@ type Opts struct {
 	DispatcherHeartbeatInterval int `json:"dispatcher_heartbeat_interval,omitempty" yaml:"dispatcher_heartbeat_interval,omitempty" mapstructure:"dispatcher_heartbeat_interval"`
 	DispatcherHeartbeatTTL      int `json:"dispatcher_heartbeat_ttl,omitempty"      yaml:"dispatcher_heartbeat_ttl,omitempty"      mapstructure:"dispatcher_heartbeat_ttl"`
 	DispatcherStaleThreshold    int `json:"dispatcher_stale_threshold,omitempty"    yaml:"dispatcher_stale_threshold,omitempty"    mapstructure:"dispatcher_stale_threshold"`
+	MaxMessageContentLength     int `json:"max_message_content_length,omitempty"    yaml:"max_message_content_length,omitempty"    mapstructure:"max_message_content_length"`
+	MaxTotalContentSize         int `json:"max_total_content_size,omitempty"        yaml:"max_total_content_size,omitempty"        mapstructure:"max_total_content_size"`
 }
 
 type Config struct {
@@ -210,6 +212,8 @@ func configureDispatcherOptions(config *Config, log logger.Logger) {
 	setIntConfigFromEnv("DISPATCHER_HEARTBEAT_INTERVAL", &config.Opts.DispatcherHeartbeatInterval, 30, log)
 	setIntConfigFromEnv("DISPATCHER_HEARTBEAT_TTL", &config.Opts.DispatcherHeartbeatTTL, 300, log)
 	setIntConfigFromEnv("DISPATCHER_STALE_THRESHOLD", &config.Opts.DispatcherStaleThreshold, 120, log)
+	setIntConfigFromEnv("MAX_MESSAGE_CONTENT_LENGTH", &config.Opts.MaxMessageContentLength, 10240, log)
+	setIntConfigFromEnv("MAX_TOTAL_CONTENT_SIZE", &config.Opts.MaxTotalContentSize, 102400, log)
 }
 
 // loadAndPrepareConfig loads and prepares the configuration file

@@ -62,6 +62,21 @@ func (t *testStore) ReadMessages(_ context.Context, _ string) ([]llm.Message, er
 	return t.messages, nil
 }
 
+func (t *testStore) ReadMessagesPaginated(_ context.Context, _ string, offset, limit int) ([]llm.Message, int, error) {
+	if t.shouldReturnErr {
+		return nil, 0, assert.AnError
+	}
+	totalCount := len(t.messages)
+	if offset >= totalCount {
+		return []llm.Message{}, totalCount, nil
+	}
+	end := offset + limit
+	if end > totalCount {
+		end = totalCount
+	}
+	return t.messages[offset:end], totalCount, nil
+}
+
 func (t *testStore) SetTokenCount(_ context.Context, _ string, count int) error {
 	t.mu.Lock()
 	t.setTokenCalls++

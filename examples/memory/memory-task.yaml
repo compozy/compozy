@@ -1,4 +1,4 @@
-id: memory-task-demo
+id: memory-task
 version: 0.1.0
 description: Direct memory task operations for user session management
 
@@ -202,4 +202,4 @@ outputs:
     \ | toJson }}{{ else }}null{{ end }}"
   stats_after_flush: "{{ if index .tasks \"get_memory_stats_after_flush\" }}{{ index .tasks \"get_memory_stats_after_flush\"\
     \ \"output\" | toJson }}{{ else }}null{{ end }}"
-  completion_time: "{{ now | date \"2006-01-02 15:04:05\" }}"
+  completion_time: '{{ now | date "2006-01-02 15:04:05" }}'

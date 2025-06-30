@@ -2,9 +2,12 @@ package service
 
 import (
 	"context"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/workflow"
 )
 
@@ -12,6 +15,7 @@ import (
 type MemoryOperationsService interface {
 	// Core operations
 	Read(ctx context.Context, req *ReadRequest) (*ReadResponse, error)
+	ReadPaginated(ctx context.Context, req *ReadPaginatedRequest) (*ReadPaginatedResponse, error)
 	Write(ctx context.Context, req *WriteRequest) (*WriteResponse, error)
 	Append(ctx context.Context, req *AppendRequest) (*AppendResponse, error)
 	Delete(ctx context.Context, req *DeleteRequest) (*DeleteResponse, error)
@@ -36,9 +40,27 @@ type ReadRequest struct {
 
 // ReadResponse contains the result of a read operation
 type ReadResponse struct {
-	Messages []map[string]any `json:"messages"`
-	Count    int              `json:"count"`
-	Key      string           `json:"key"`
+	Messages []llm.Message `json:"messages"`
+	Count    int           `json:"count"`
+	Key      string        `json:"key"`
+}
+
+// ReadPaginatedRequest represents a memory read operation with pagination
+type ReadPaginatedRequest struct {
+	BaseRequest
+	Offset int `json:"offset"`
+	Limit  int `json:"limit"`
+}
+
+// ReadPaginatedResponse contains the result of a paginated read operation
+type ReadPaginatedResponse struct {
+	Messages   []llm.Message `json:"messages"`
+	Count      int           `json:"count"`
+	TotalCount int           `json:"total_count"`
+	Offset     int           `json:"offset"`
+	Limit      int           `json:"limit"`
+	HasMore    bool          `json:"has_more"`
+	Key        string        `json:"key"`
 }
 
 // WriteRequest represents a memory write operation
@@ -182,12 +204,16 @@ type Config struct {
 }
 
 // ValidationLimits holds configurable validation limits
+// MaxMessageContentLength and MaxTotalContentSize can be configured via:
+// - Environment variables: MAX_MESSAGE_CONTENT_LENGTH, MAX_TOTAL_CONTENT_SIZE
+// - Command line flags: --max-message-content-length, --max-total-content-size
+// - Project config YAML: max_message_content_length, max_total_content_size
 type ValidationLimits struct {
 	MaxMemoryRefLength      int
 	MaxKeyLength            int
-	MaxMessageContentLength int
+	MaxMessageContentLength int // Configurable via env vars/flags/config
 	MaxMessagesPerRequest   int
-	MaxTotalContentSize     int
+	MaxTotalContentSize     int // Configurable via env vars/flags/config
 }
 
 // LockTTLs holds lock timeout configurations
@@ -197,15 +223,25 @@ type LockTTLs struct {
 	Flush  time.Duration
 }
 
-// DefaultConfig returns default configuration
+// getIntFromEnv gets an integer value from environment variable with fallback to default
+func getIntFromEnv(envKey string, defaultValue int) int {
+	if envValue := os.Getenv(envKey); envValue != "" {
+		if envInt, err := strconv.Atoi(envValue); err == nil && envInt > 0 {
+			return envInt
+		}
+	}
+	return defaultValue
+}
+
+// DefaultConfig returns default configuration with environment variable support
 func DefaultConfig() *Config {
 	return &Config{
 		ValidationLimits: ValidationLimits{
 			MaxMemoryRefLength:      100,
 			MaxKeyLength:            255,
-			MaxMessageContentLength: 10 * 1024, // 10KB
+			MaxMessageContentLength: getIntFromEnv("MAX_MESSAGE_CONTENT_LENGTH", 10*1024), // 10KB default
 			MaxMessagesPerRequest:   100,
-			MaxTotalContentSize:     100 * 1024, // 100KB
+			MaxTotalContentSize:     getIntFromEnv("MAX_TOTAL_CONTENT_SIZE", 100*1024), // 100KB default
 		},
 		LockTTLs: LockTTLs{
 			Append: 30 * time.Second,

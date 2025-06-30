@@ -22,14 +22,14 @@ import (
 //	@Accept			json
 //	@Produce		json
 //	@Param			memory_ref	path		string	true	"Memory reference"	example("user_memory")
-//	@Param			key			path		string	true	"Memory key"		example("user:123:profile")
+//	@Param			key			query		string	true	"Memory key"		example("user:123:profile")
 //	@Param			limit		query		int		false	"Maximum number of messages to return (default: 50, max: 1000)"	example(50)
 //	@Param			offset		query		int		false	"Number of messages to skip (for pagination)"	example(0)
 //	@Success		200			{object}	router.Response{data=object{messages=[]object{role=string,content=string},total_count=int,has_more=bool,key=string,limit=int,offset=int}}	"Memory read successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		404			{object}	router.Response{error=router.ErrorInfo}	"Memory not found"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/api/v0/memory/{memory_ref}/{key} [get]
+//	@Router			/api/v0/memory/{memory_ref}/read [get]
 func readMemory(c *gin.Context) {
 	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
@@ -60,7 +60,7 @@ func readMemory(c *gin.Context) {
 	}
 
 	// Execute use case
-	uc := memuc.NewReadMemory(memCtx.Manager, memCtx.Worker)
+	uc := memuc.NewReadMemory(memCtx.Manager, memCtx.Worker, nil)
 
 	input := memuc.ReadMemoryInput{
 		MemoryRef: memCtx.MemoryRef,
@@ -100,12 +100,11 @@ func readMemory(c *gin.Context) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			memory_ref	path		string	true	"Memory reference"	example("user_memory")
-//	@Param			key			path		string	true	"Memory key"		example("user:123:profile")
-//	@Param			body		body		memuc.WriteMemoryInput	true	"Messages to write"
+//	@Param			body		body		WriteMemoryRequest	true	"Key and messages to write"
 //	@Success		200			{object}	router.Response{data=memuc.WriteMemoryResult}	"Memory written successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/api/v0/memory/{memory_ref}/{key} [put]
+//	@Router			/api/v0/memory/{memory_ref}/write [post]
 func writeMemory(c *gin.Context) {
 	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
@@ -119,9 +118,9 @@ func writeMemory(c *gin.Context) {
 		return
 	}
 
-	// Parse request body
-	var input memuc.WriteMemoryInput
-	if err := c.ShouldBindJSON(&input); err != nil {
+	// Parse request body with key
+	var req WriteMemoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		reqErr := router.NewRequestError(
 			http.StatusBadRequest,
 			"invalid request body",
@@ -131,9 +130,14 @@ func writeMemory(c *gin.Context) {
 		return
 	}
 
+	// Create input for use case
+	input := memuc.WriteMemoryInput{
+		Messages: req.Messages,
+	}
+
 	// Execute use case
 	memService := service.NewMemoryOperationsService(memCtx.Manager, nil, nil)
-	uc := memuc.NewWriteMemory(memService, memCtx.MemoryRef, memCtx.Key, &input)
+	uc := memuc.NewWriteMemory(memService, memCtx.MemoryRef, req.Key, &input)
 	result, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		handleMemoryError(c, err, "failed to write memory")
@@ -155,12 +159,11 @@ func writeMemory(c *gin.Context) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			memory_ref	path		string	true	"Memory reference"	example("user_memory")
-//	@Param			key			path		string	true	"Memory key"		example("user:123:profile")
-//	@Param			body		body		memuc.AppendMemoryInput	true	"Messages to append"
+//	@Param			body		body		AppendMemoryRequest	true	"Key and messages to append"
 //	@Success		200			{object}	router.Response{data=memuc.AppendMemoryResult}	"Memory appended successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/api/v0/memory/{memory_ref}/{key} [post]
+//	@Router			/api/v0/memory/{memory_ref}/append [post]
 func appendMemory(c *gin.Context) {
 	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
@@ -174,9 +177,9 @@ func appendMemory(c *gin.Context) {
 		return
 	}
 
-	// Parse request body
-	var input memuc.AppendMemoryInput
-	if err := c.ShouldBindJSON(&input); err != nil {
+	// Parse request body with key
+	var req AppendMemoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		reqErr := router.NewRequestError(
 			http.StatusBadRequest,
 			"invalid request body",
@@ -186,8 +189,13 @@ func appendMemory(c *gin.Context) {
 		return
 	}
 
+	// Create input for use case
+	input := memuc.AppendMemoryInput{
+		Messages: req.Messages,
+	}
+
 	// Execute use case
-	uc := memuc.NewAppendMemory(memCtx.Manager, memCtx.MemoryRef, memCtx.Key, &input)
+	uc := memuc.NewAppendMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &input, nil)
 	result, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		handleMemoryError(c, err, "failed to append to memory")
@@ -209,11 +217,11 @@ func appendMemory(c *gin.Context) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			memory_ref	path		string	true	"Memory reference"	example("user_memory")
-//	@Param			key			path		string	true	"Memory key"		example("user:123:profile")
+//	@Param			body		body		DeleteMemoryRequest	true	"Key to delete"
 //	@Success		200			{object}	router.Response{data=memuc.DeleteMemoryResult}	"Memory deleted successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/api/v0/memory/{memory_ref}/{key} [delete]
+//	@Router			/api/v0/memory/{memory_ref}/delete [post]
 func deleteMemory(c *gin.Context) {
 	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
@@ -227,8 +235,20 @@ func deleteMemory(c *gin.Context) {
 		return
 	}
 
+	// Parse request body with key
+	var req DeleteMemoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		reqErr := router.NewRequestError(
+			http.StatusBadRequest,
+			"invalid request body",
+			err,
+		)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return
+	}
+
 	// Execute use case
-	uc := memuc.NewDeleteMemory(memCtx.Manager, memCtx.MemoryRef, memCtx.Key)
+	uc := memuc.NewDeleteMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, nil)
 	result, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		handleMemoryError(c, err, "failed to delete memory")
@@ -250,12 +270,11 @@ func deleteMemory(c *gin.Context) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			memory_ref	path		string	true	"Memory reference"	example("user_memory")
-//	@Param			key			path		string	true	"Memory key"		example("user:123:profile")
-//	@Param			body		body		memuc.FlushMemoryInput	false	"Flush options"
+//	@Param			body		body		FlushMemoryRequest	true	"Key and flush options"
 //	@Success		200			{object}	router.Response{data=memuc.FlushMemoryResult}	"Memory flushed successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/api/v0/memory/{memory_ref}/{key}/flush [post]
+//	@Router			/api/v0/memory/{memory_ref}/flush [post]
 func flushMemory(c *gin.Context) {
 	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
@@ -269,15 +288,28 @@ func flushMemory(c *gin.Context) {
 		return
 	}
 
-	// Parse request body (optional)
-	var input memuc.FlushMemoryInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		// Continue with default values
-		input = memuc.FlushMemoryInput{}
+	// Parse request body with key
+	var req FlushMemoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		reqErr := router.NewRequestError(
+			http.StatusBadRequest,
+			"invalid request body",
+			err,
+		)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return
+	}
+
+	// Create input for use case
+	input := memuc.FlushMemoryInput{
+		Force:    req.Force,
+		DryRun:   req.DryRun,
+		MaxKeys:  req.MaxKeys,
+		Strategy: req.Strategy,
 	}
 
 	// Execute use case
-	uc := memuc.NewFlushMemory(memCtx.Manager, memCtx.MemoryRef, memCtx.Key, &input)
+	uc := memuc.NewFlushMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &input, nil)
 	result, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		handleMemoryError(c, err, "failed to flush memory")
@@ -299,12 +331,12 @@ func flushMemory(c *gin.Context) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			memory_ref		path		string	true	"Memory reference"		example("user_memory")
-//	@Param			key				path		string	true	"Memory key"			example("user:123:profile")
+//	@Param			key				query		string	true	"Memory key"			example("user:123:profile")
 //	@Param			include_stats	query		bool	false	"Include detailed stats"	example(true)
 //	@Success		200				{object}	router.Response{data=memuc.HealthMemoryResult}	"Memory health retrieved successfully"
 //	@Failure		400				{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500				{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/api/v0/memory/{memory_ref}/{key}/health [get]
+//	@Router			/api/v0/memory/{memory_ref}/health [get]
 func healthMemory(c *gin.Context) {
 	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
@@ -325,7 +357,7 @@ func healthMemory(c *gin.Context) {
 	input := &memuc.HealthMemoryInput{
 		IncludeStats: includeStats,
 	}
-	uc := memuc.NewHealthMemory(memCtx.Manager, memCtx.MemoryRef, memCtx.Key, input)
+	uc := memuc.NewHealthMemory(memCtx.Manager, memCtx.MemoryRef, memCtx.Key, input, nil)
 	result, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		handleMemoryError(c, err, "failed to get memory health")
@@ -347,12 +379,11 @@ func healthMemory(c *gin.Context) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			memory_ref	path		string	true	"Memory reference"	example("user_memory")
-//	@Param			key			path		string	true	"Memory key"		example("user:123:profile")
-//	@Param			body		body		memuc.ClearMemoryInput	true	"Clear options"
+//	@Param			body		body		ClearMemoryRequest	true	"Key and clear options"
 //	@Success		200			{object}	router.Response{data=memuc.ClearMemoryResult}	"Memory cleared successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/api/v0/memory/{memory_ref}/{key}/clear [post]
+//	@Router			/api/v0/memory/{memory_ref}/clear [post]
 func clearMemory(c *gin.Context) {
 	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
@@ -366,9 +397,9 @@ func clearMemory(c *gin.Context) {
 		return
 	}
 
-	// Parse request body
-	var input memuc.ClearMemoryInput
-	if err := c.ShouldBindJSON(&input); err != nil {
+	// Parse request body with key
+	var req ClearMemoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		reqErr := router.NewRequestError(
 			http.StatusBadRequest,
 			"invalid request body",
@@ -378,8 +409,14 @@ func clearMemory(c *gin.Context) {
 		return
 	}
 
+	// Create input for use case
+	input := memuc.ClearMemoryInput{
+		Confirm: req.Confirm,
+		Backup:  req.Backup,
+	}
+
 	// Execute use case
-	uc := memuc.NewClearMemory(memCtx.Manager, memCtx.MemoryRef, memCtx.Key, &input)
+	uc := memuc.NewClearMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &input, nil)
 	result, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		handleMemoryError(c, err, "failed to clear memory")
@@ -401,13 +438,13 @@ func clearMemory(c *gin.Context) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			memory_ref	path		string	true	"Memory reference"	example("user_memory")
-//	@Param			key			path		string	true	"Memory key"		example("user:123:profile")
+//	@Param			key			query		string	true	"Memory key"		example("user:123:profile")
 //	@Param			limit		query		int		false	"Limit for role distribution calculation (default: 100, max: 10000)"	example(100)
 //	@Param			offset		query		int		false	"Offset for role distribution calculation"	example(0)
 //	@Success		200			{object}	router.Response{data=memuc.StatsMemoryOutput}	"Memory statistics retrieved successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/api/v0/memory/{memory_ref}/{key}/stats [get]
+//	@Router			/api/v0/memory/{memory_ref}/stats [get]
 func statsMemory(c *gin.Context) {
 	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
@@ -438,7 +475,7 @@ func statsMemory(c *gin.Context) {
 	}
 
 	// Create use case
-	uc := memuc.NewStatsMemory(memCtx.Manager, memCtx.Worker)
+	uc := memuc.NewStatsMemory(memCtx.Manager, memCtx.Worker, nil)
 
 	// Execute
 	result, err := uc.Execute(c.Request.Context(), memuc.StatsMemoryInput{

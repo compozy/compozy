@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -289,5 +290,66 @@ func TestRedisMemoryStore_TrimMessagesWithMetadata(t *testing.T) {
 		messageCount, err := store.GetMessageCount(ctx, "test-key")
 		require.NoError(t, err)
 		assert.Equal(t, 2, messageCount)
+	})
+}
+
+func TestRedisMemoryStore_ReadMessagesPaginated(t *testing.T) {
+	client, cleanup := setupTestRedis(t)
+	defer cleanup()
+
+	store := NewRedisMemoryStore(client, "")
+	ctx := context.Background()
+
+	t.Run("Should return empty for non-existent key", func(t *testing.T) {
+		messages, totalCount, err := store.ReadMessagesPaginated(ctx, "non-existent", 0, 10)
+		require.NoError(t, err)
+		assert.Empty(t, messages)
+		assert.Equal(t, 0, totalCount)
+	})
+
+	t.Run("Should paginate messages correctly", func(t *testing.T) {
+		// Append 10 messages
+		messages := make([]llm.Message, 10)
+		for i := 0; i < 10; i++ {
+			messages[i] = llm.Message{
+				Role:    llm.MessageRoleUser,
+				Content: fmt.Sprintf("Message %d", i+1),
+			}
+		}
+
+		err := store.AppendMessages(ctx, "test-paginate", messages)
+		require.NoError(t, err)
+
+		// Test first page (offset 0, limit 3)
+		page1, total1, err := store.ReadMessagesPaginated(ctx, "test-paginate", 0, 3)
+		require.NoError(t, err)
+		assert.Equal(t, 10, total1)
+		assert.Len(t, page1, 3)
+		assert.Equal(t, "Message 1", page1[0].Content)
+		assert.Equal(t, "Message 2", page1[1].Content)
+		assert.Equal(t, "Message 3", page1[2].Content)
+
+		// Test second page (offset 3, limit 3)
+		page2, total2, err := store.ReadMessagesPaginated(ctx, "test-paginate", 3, 3)
+		require.NoError(t, err)
+		assert.Equal(t, 10, total2)
+		assert.Len(t, page2, 3)
+		assert.Equal(t, "Message 4", page2[0].Content)
+		assert.Equal(t, "Message 5", page2[1].Content)
+		assert.Equal(t, "Message 6", page2[2].Content)
+
+		// Test last partial page (offset 8, limit 5 - should return only 2)
+		page3, total3, err := store.ReadMessagesPaginated(ctx, "test-paginate", 8, 5)
+		require.NoError(t, err)
+		assert.Equal(t, 10, total3)
+		assert.Len(t, page3, 2)
+		assert.Equal(t, "Message 9", page3[0].Content)
+		assert.Equal(t, "Message 10", page3[1].Content)
+
+		// Test offset beyond available data
+		page4, total4, err := store.ReadMessagesPaginated(ctx, "test-paginate", 15, 5)
+		require.NoError(t, err)
+		assert.Equal(t, 10, total4)
+		assert.Empty(t, page4)
 	})
 }

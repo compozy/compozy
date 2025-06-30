@@ -21,15 +21,22 @@ type AppendMemory struct {
 	service   service.MemoryOperationsService
 }
 
-// NewAppendMemory creates a new append memory use case
-func NewAppendMemory(manager *memory.Manager, memoryRef, key string, input *AppendMemoryInput) *AppendMemory {
-	memService := service.NewMemoryOperationsService(manager, nil, nil)
+// NewAppendMemory creates a new append memory use case with dependency injection
+func NewAppendMemory(
+	manager *memory.Manager,
+	memoryRef, key string,
+	input *AppendMemoryInput,
+	svc service.MemoryOperationsService,
+) *AppendMemory {
+	if svc == nil {
+		svc = service.NewMemoryOperationsService(manager, nil, nil)
+	}
 	return &AppendMemory{
 		manager:   manager,
 		memoryRef: memoryRef,
 		key:       key,
 		input:     input,
-		service:   memService,
+		service:   svc,
 	}
 }
 

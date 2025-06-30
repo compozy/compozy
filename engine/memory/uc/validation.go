@@ -5,6 +5,7 @@ import (
 	"regexp"
 
 	"github.com/compozy/compozy/engine/llm"
+	"github.com/compozy/compozy/engine/memory/service"
 )
 
 var (
@@ -14,18 +15,11 @@ var (
 	keyPattern = regexp.MustCompile(`^[^\x00-\x1F\x7F]{1,255}$`)
 )
 
-const (
-	// MaxMemoryRefLength is the maximum allowed length for a memory reference
-	MaxMemoryRefLength = 100
-	// MaxKeyLength is the maximum allowed length for a memory key
-	MaxKeyLength = 255
-	// MaxMessageContentLength is the maximum allowed length for a single message content
-	MaxMessageContentLength = 10 * 1024 // 10KB per message
-	// MaxMessagesPerRequest is the maximum number of messages allowed in a single request
-	MaxMessagesPerRequest = 100
-	// MaxTotalContentSize is the maximum total size of all message content in a request
-	MaxTotalContentSize = 100 * 1024 // 100KB total
-)
+// getDefaultLimits returns default validation limits from service layer
+func getDefaultLimits() *service.ValidationLimits {
+	config := service.DefaultConfig()
+	return &config.ValidationLimits
+}
 
 // ValidateMemoryRef validates a memory reference
 func ValidateMemoryRef(ref string) error {
@@ -55,48 +49,48 @@ func ValidateRawMessages(messages []map[string]any) error {
 	if len(messages) == 0 {
 		return NewValidationError("messages", nil, "messages cannot be empty")
 	}
-
+	limits := getDefaultLimits()
 	// Check maximum number of messages
-	if len(messages) > MaxMessagesPerRequest {
+	if len(messages) > limits.MaxMessagesPerRequest {
 		return NewValidationError("messages", len(messages),
-			fmt.Sprintf("exceeded maximum number of messages (%d)", MaxMessagesPerRequest))
+			fmt.Sprintf("exceeded maximum number of messages (%d)", limits.MaxMessagesPerRequest))
 	}
-
 	totalContentSize := 0
 	for i, msg := range messages {
 		// Validate using existing ValidateMessage function
 		if err := ValidateMessage(msg, i); err != nil {
 			return err
 		}
-
 		// Track total content size
 		if content, ok := msg["content"].(string); ok {
 			totalContentSize += len(content)
 		}
 	}
-
 	// Check total content size
-	if totalContentSize > MaxTotalContentSize {
+	if totalContentSize > limits.MaxTotalContentSize {
 		return NewValidationError("messages", totalContentSize,
-			fmt.Sprintf("total content size exceeds maximum of %d bytes", MaxTotalContentSize))
+			fmt.Sprintf("total content size exceeds maximum of %d bytes", limits.MaxTotalContentSize))
 	}
-
 	return nil
 }
 
 // ValidateMessage validates a single message
 func ValidateMessage(msg map[string]any, index int) error {
+	limits := getDefaultLimits()
 	// Check content
 	content, ok := msg["content"].(string)
 	if !ok || content == "" {
 		return fmt.Errorf("%w: message[%d] content is required and must be a string", ErrInvalidPayload, index)
 	}
-
-	// Check content length (prevent DOS)
-	if len(content) > 100000 { // 100KB limit per message
-		return fmt.Errorf("%w: message[%d] content too long (max 100KB)", ErrInvalidPayload, index)
+	// Check content length using configurable limits
+	if len(content) > limits.MaxMessageContentLength {
+		return fmt.Errorf(
+			"%w: message[%d] content too long (max %d bytes)",
+			ErrInvalidPayload,
+			index,
+			limits.MaxMessageContentLength,
+		)
 	}
-
 	// Check role if provided
 	if role, exists := msg["role"]; exists {
 		roleStr, ok := role.(string)
@@ -107,7 +101,6 @@ func ValidateMessage(msg map[string]any, index int) error {
 			return fmt.Errorf("%w: message[%d] %v", ErrInvalidPayload, index, err)
 		}
 	}
-
 	return nil
 }
 

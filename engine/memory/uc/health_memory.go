@@ -32,18 +32,25 @@ type HealthMemory struct {
 	service   service.MemoryOperationsService
 }
 
-// NewHealthMemory creates a new health memory use case
-func NewHealthMemory(manager *memory.Manager, memoryRef, key string, input *HealthMemoryInput) *HealthMemory {
+// NewHealthMemory creates a new health memory use case with dependency injection
+func NewHealthMemory(
+	manager *memory.Manager,
+	memoryRef, key string,
+	input *HealthMemoryInput,
+	svc service.MemoryOperationsService,
+) *HealthMemory {
 	if input == nil {
 		input = &HealthMemoryInput{}
 	}
-	memService := service.NewMemoryOperationsService(manager, nil, nil)
+	if svc == nil {
+		svc = service.NewMemoryOperationsService(manager, nil, nil)
+	}
 	return &HealthMemory{
 		manager:   manager,
 		memoryRef: memoryRef,
 		key:       key,
 		input:     input,
-		service:   memService,
+		service:   svc,
 	}
 }
 

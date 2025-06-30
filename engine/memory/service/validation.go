@@ -285,7 +285,7 @@ func ValidateFlushConfig(config *FlushConfig) error {
 
 	// Validate strategy if provided
 	if config.Strategy != "" {
-		validStrategies := []string{"summarize", "trim", "archive", "hybrid"}
+		validStrategies := []string{"hybrid_summary", "simple_fifo", "lru", "token_aware_lru"}
 		valid := false
 		for _, s := range validStrategies {
 			if config.Strategy == s {

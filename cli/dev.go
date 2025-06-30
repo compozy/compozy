@@ -66,6 +66,20 @@ func setEnvironmentVariablesFromFlags(cmd *cobra.Command) error {
 	if os.Getenv("DISPATCHER_STALE_THRESHOLD") == "" {
 		os.Setenv("DISPATCHER_STALE_THRESHOLD", fmt.Sprintf("%d", dispatcherStaleThreshold))
 	}
+	maxMessageContentLength, err := cmd.Flags().GetInt("max-message-content-length")
+	if err != nil {
+		return fmt.Errorf("failed to get max-message-content-length flag: %w", err)
+	}
+	if os.Getenv("MAX_MESSAGE_CONTENT_LENGTH") == "" {
+		os.Setenv("MAX_MESSAGE_CONTENT_LENGTH", fmt.Sprintf("%d", maxMessageContentLength))
+	}
+	maxTotalContentSize, err := cmd.Flags().GetInt("max-total-content-size")
+	if err != nil {
+		return fmt.Errorf("failed to get max-total-content-size flag: %w", err)
+	}
+	if os.Getenv("MAX_TOTAL_CONTENT_SIZE") == "" {
+		os.Setenv("MAX_TOTAL_CONTENT_SIZE", fmt.Sprintf("%d", maxTotalContentSize))
+	}
 	return nil
 }
 
@@ -273,6 +287,12 @@ func DevCmd() *cobra.Command {
 
 	// Task execution configuration flags
 	cmd.Flags().Int("max-nesting-depth", 20, "Maximum task nesting depth allowed (env: MAX_NESTING_DEPTH)")
+
+	// Memory content size configuration flags
+	cmd.Flags().
+		Int("max-message-content-length", 10240, "Maximum message content length in bytes (env: MAX_MESSAGE_CONTENT_LENGTH)")
+	cmd.Flags().
+		Int("max-total-content-size", 102400, "Maximum total content size in bytes (env: MAX_TOTAL_CONTENT_SIZE)")
 
 	// Dispatcher heartbeat configuration flags
 	cmd.Flags().Int("dispatcher-heartbeat-interval", 30,

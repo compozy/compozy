@@ -98,3 +98,9 @@ func (mm *Manager) GetInstance(
 func (mm *Manager) GetTokenCounter(_ context.Context) (memcore.TokenCounter, error) {
 	return tokens.NewTiktokenCounter(DefaultTokenCounterModel)
 }
+
+// GetMemoryConfig retrieves the memory configuration for a given memory ID.
+// This method is useful for retrieving configuration details like MaxTokens.
+func (mm *Manager) GetMemoryConfig(memoryID string) (*memcore.Resource, error) {
+	return mm.loadMemoryConfig(memoryID)
+}

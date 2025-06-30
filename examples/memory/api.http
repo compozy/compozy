@@ -4,7 +4,7 @@
 ### Make sure Compozy is running on localhost:3001 before executing these requests
 
 @baseUrl = http://localhost:3001/api/v0
-@workflowId = memory-demo
+@workflowId = basic-memory
 
 ### =============================================================================
 ### STEP 1: John introduces himself
@@ -116,7 +116,7 @@ Accept: application/json
 ### Direct memory operations using memory task type
 ### =============================================================================
 
-@memoryTaskWorkflowId = memory-task-demo
+@memoryTaskWorkflowId = memory-task
 
 ### =============================================================================
 ### STEP 6: Initialize Alice's user profile
@@ -292,169 +292,5 @@ GET {{baseUrl}}/executions/workflows/{{execId12}}
 Accept: application/json
 
 ### =============================================================================
+### For direct REST API endpoints testing, see api-rest.http
 ### =============================================================================
-### DIRECT MEMORY REST API ENDPOINTS
-### =============================================================================
-### =============================================================================
-### These endpoints provide direct HTTP access to memory operations
-### without going through workflow executions
-### Make sure Compozy is running before executing these requests
-
-@memoryRef = user_memory
-@userId = test_user_123
-
-### =============================================================================
-### READ MEMORY
-### =============================================================================
-### Read memory content for a specific user
-GET {{baseUrl}}/memory/{{memoryRef}}/user:{{userId}}:profile
-Accept: application/json
-
-### =============================================================================
-### WRITE MEMORY
-### =============================================================================
-### Write/replace memory content
-PUT {{baseUrl}}/memory/{{memoryRef}}/user:{{userId}}:profile
-Content-Type: application/json
-
-{
-  "messages": [
-    {
-      "role": "system",
-      "content": "User preferences: dark theme, English language"
-    },
-    {
-      "role": "user",
-      "content": "My name is John and I live in San Francisco"
-    },
-    {
-      "role": "assistant",
-      "content": "Nice to meet you, John from San Francisco!"
-    }
-  ]
-}
-
-### =============================================================================
-### APPEND MEMORY
-### =============================================================================
-### Append new messages to existing memory
-POST {{baseUrl}}/memory/{{memoryRef}}/user:{{userId}}:profile
-Content-Type: application/json
-
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "I work as a software engineer"
-    },
-    {
-      "role": "assistant",
-      "content": "That's great! Software engineering is a rewarding field."
-    }
-  ]
-}
-
-### =============================================================================
-### GET MEMORY STATS
-### =============================================================================
-### Get statistics for memory instance
-GET {{baseUrl}}/memory/{{memoryRef}}/user:{{userId}}:profile/stats
-Accept: application/json
-
-### With additional options
-GET {{baseUrl}}/memory/{{memoryRef}}/user:{{userId}}:profile/stats?include_content=true
-Accept: application/json
-
-### =============================================================================
-### GET MEMORY HEALTH
-### =============================================================================
-### Check memory health status
-GET {{baseUrl}}/memory/{{memoryRef}}/user:{{userId}}:profile/health
-Accept: application/json
-
-### With detailed stats
-GET {{baseUrl}}/memory/{{memoryRef}}/user:{{userId}}:profile/health?include_stats=true
-Accept: application/json
-
-### =============================================================================
-### FLUSH MEMORY
-### =============================================================================
-### Flush memory (dry run)
-POST {{baseUrl}}/memory/{{memoryRef}}/user:{{userId}}:profile/flush
-Content-Type: application/json
-
-{
-  "dry_run": true,
-  "strategy": "simple_fifo",
-  "threshold": 0.8
-}
-
-### Flush memory (actual)
-POST {{baseUrl}}/memory/{{memoryRef}}/user:{{userId}}:profile/flush
-Content-Type: application/json
-
-{
-  "dry_run": false,
-  "strategy": "simple_fifo",
-  "force": false,
-  "threshold": 0.8
-}
-
-### =============================================================================
-### CLEAR MEMORY
-### =============================================================================
-### Clear memory with confirmation
-POST {{baseUrl}}/memory/{{memoryRef}}/user:{{userId}}:profile/clear
-Content-Type: application/json
-
-{
-  "confirm": true,
-  "backup": true
-}
-
-### =============================================================================
-### DELETE MEMORY
-### =============================================================================
-### Delete memory instance
-DELETE {{baseUrl}}/memory/{{memoryRef}}/user:{{userId}}:profile
-Accept: application/json
-
-### =============================================================================
-### BATCH OPERATIONS (Future Enhancement)
-### =============================================================================
-### Get multiple memory instances by pattern
-GET {{baseUrl}}/memory/{{memoryRef}}/user:{{userId}}:*?max_keys=10
-Accept: application/json
-
-### Batch delete by pattern
-DELETE {{baseUrl}}/memory/{{memoryRef}}/user:{{userId}}:*
-Content-Type: application/json
-
-{
-  "pattern": "user:{{userId}}:session:*",
-  "max_keys": 100,
-  "confirm": true
-}
-
-### =============================================================================
-### ERROR CASES
-### =============================================================================
-### Invalid memory reference
-GET {{baseUrl}}/memory/invalid_memory/test_key
-Accept: application/json
-
-### Missing required fields
-PUT {{baseUrl}}/memory/{{memoryRef}}/user:{{userId}}:profile
-Content-Type: application/json
-
-{
-  "invalid": "data"
-}
-
-### Clear without confirmation
-POST {{baseUrl}}/memory/{{memoryRef}}/user:{{userId}}:profile/clear
-Content-Type: application/json
-
-{
-  "confirm": false
-}

@@ -125,6 +125,13 @@ func (n *ConfigNormalizer) NormalizeAgentComponent(
 	if err := n.normalizer.NormalizeAgentConfig(agentConfig, normCtx, taskConfig.Action); err != nil {
 		return fmt.Errorf("failed to normalize agent config for %s: %w", agentConfig.ID, err)
 	}
+
+	// Process memory configuration for agents loaded via references
+	// This ensures memory references are created during normalization phase
+	if err := agentConfig.NormalizeAndValidateMemoryConfig(); err != nil {
+		return fmt.Errorf("failed to process memory config for agent %s: %w", agentConfig.ID, err)
+	}
+
 	return nil
 }
 

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/compozy/compozy/engine/llm"
 	memcore "github.com/compozy/compozy/engine/memory/core"
@@ -10,6 +11,7 @@ import (
 
 // MemoryTransaction provides transactional operations for memory modifications
 type MemoryTransaction struct {
+	mu      sync.RWMutex
 	mem     memcore.Memory
 	backup  []llm.Message
 	cleared bool
@@ -33,7 +35,9 @@ func (t *MemoryTransaction) Begin(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to backup messages: %w", err)
 	}
+	t.mu.Lock()
 	t.backup = backup
+	t.mu.Unlock()
 	return nil
 }
 
@@ -42,21 +46,29 @@ func (t *MemoryTransaction) Clear(ctx context.Context) error {
 	if err := t.mem.Clear(ctx); err != nil {
 		return fmt.Errorf("failed to clear memory: %w", err)
 	}
+	t.mu.Lock()
 	t.cleared = true
+	t.mu.Unlock()
 	return nil
 }
 
 // Commit finalizes the transaction (no-op for successful operations)
 func (t *MemoryTransaction) Commit() error {
 	// Reset state
+	t.mu.Lock()
 	t.backup = nil
 	t.cleared = false
+	t.mu.Unlock()
 	return nil
 }
 
 // Rollback restores the original state
 func (t *MemoryTransaction) Rollback(ctx context.Context) error {
-	if t.backup == nil {
+	t.mu.RLock()
+	backup := t.backup
+	t.mu.RUnlock()
+
+	if backup == nil {
 		return nil // Nothing to rollback
 	}
 
@@ -66,7 +78,7 @@ func (t *MemoryTransaction) Rollback(ctx context.Context) error {
 	}
 
 	// Restore backup messages
-	for i, msg := range t.backup {
+	for i, msg := range backup {
 		// Check for context cancellation
 		select {
 		case <-ctx.Done():
