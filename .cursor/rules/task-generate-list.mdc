@@ -105,22 +105,6 @@ status: pending  # Options: pending, in-progress, completed, excluded
 ## Overview
 [Brief description of what this task accomplishes]
 
-## Subtasks
-
-- [ ] X.1 [Subtask description]
-- [ ] X.2 [Subtask description]
-- [ ] X.3 [Subtask description]
-
-## Implementation Details
-
-[Extract relevant sections from the tech spec that apply to this task]
-
-## Success Criteria
-- [Clear definition of when this task is complete]
-- [Measurable outcomes]
-- [Quality requirements]
-- [Components impacted by this task per Tech Spec Impact Analysis]
-
 <critical>
 **MANDATORY REQUIREMENTS:**
 
@@ -137,6 +121,30 @@ status: pending  # Options: pending, in-progress, completed, excluded
 
 **Enforcement:** Violating these standards results in immediate task rejection.
 </critical>
+
+## Subtasks
+
+- [ ] X.1 [Subtask description]
+- [ ] X.2 [Subtask description]
+- [ ] X.3 [Subtask description]
+
+## Implementation Details
+
+[Extract relevant sections from the tech spec that apply to this task]
+
+### Relevant Files
+
+> List of relevant files that this task will touch
+
+### Dependent Files
+
+> List of dependencies that this task will need to handle
+
+## Success Criteria
+- [Clear definition of when this task is complete]
+- [Measurable outcomes]
+- [Quality requirements]
+- [Components impacted by this task per Tech Spec Impact Analysis]
 ```
 </individual_task_format>
 
