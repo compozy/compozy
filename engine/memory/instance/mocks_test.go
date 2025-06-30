@@ -38,6 +38,15 @@ func (m *mockStore) ReadMessages(ctx context.Context, key string) ([]llm.Message
 	return args.Get(0).([]llm.Message), args.Error(1)
 }
 
+func (m *mockStore) ReadMessagesPaginated(
+	ctx context.Context,
+	key string,
+	offset, limit int,
+) ([]llm.Message, int, error) {
+	args := m.Called(ctx, key, offset, limit)
+	return args.Get(0).([]llm.Message), args.Int(1), args.Error(2)
+}
+
 func (m *mockStore) GetMessageCount(ctx context.Context, key string) (int, error) {
 	args := m.Called(ctx, key)
 	return args.Int(0), args.Error(1)

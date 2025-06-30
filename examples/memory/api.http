@@ -4,7 +4,7 @@
 ### Make sure Compozy is running on localhost:3001 before executing these requests
 
 @baseUrl = http://localhost:3001/api/v0
-@workflowId = memory-demo
+@workflowId = basic-memory
 
 ### =============================================================================
 ### STEP 1: John introduces himself
@@ -116,7 +116,7 @@ Accept: application/json
 ### Direct memory operations using memory task type
 ### =============================================================================
 
-@memoryTaskWorkflowId = memory-task-demo
+@memoryTaskWorkflowId = memory-task
 
 ### =============================================================================
 ### STEP 6: Initialize Alice's user profile
@@ -290,3 +290,7 @@ Content-Type: application/json
 ### View Bob's initialization result
 GET {{baseUrl}}/executions/workflows/{{execId12}}
 Accept: application/json
+
+### =============================================================================
+### For direct REST API endpoints testing, see api-rest.http
+### =============================================================================

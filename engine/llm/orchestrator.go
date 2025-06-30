@@ -122,21 +122,44 @@ func (o *llmOrchestrator) prepareMemoryContext(
 	log logger.Logger,
 ) map[string]Memory {
 	memoryRefs := request.Agent.GetResolvedMemoryReferences()
-	if o.config.MemoryProvider == nil || len(memoryRefs) == 0 {
+
+	log.Debug("Preparing memory context for agent",
+		"agent_id", request.Agent.ID,
+		"memory_refs_count", len(memoryRefs),
+	)
+
+	if o.config.MemoryProvider == nil {
+		log.Debug("No memory provider available")
 		return nil
 	}
-	log.Debug("Resolving memory instances for agent", "agent_id", request.Agent.ID)
+	if len(memoryRefs) == 0 {
+		log.Debug("No memory references configured for agent")
+		return nil
+	}
+
 	memories := make(map[string]Memory)
 	for _, ref := range memoryRefs {
+		log.Debug("Retrieving memory for agent",
+			"memory_id", ref.ID,
+			"key", ref.Key,
+		)
+
 		memory, err := o.config.MemoryProvider.GetMemory(ctx, ref.ID, ref.Key)
 		if err != nil {
-			log.Warn("Failed to get memory instance", "memory_id", ref.ID, "error", err)
+			log.Error("Failed to get memory instance", "memory_id", ref.ID, "error", err)
 			continue
 		}
 		if memory != nil {
+			log.Debug("Memory instance retrieved successfully",
+				"memory_id", ref.ID,
+				"instance_id", memory.GetID())
 			memories[ref.ID] = memory
+		} else {
+			log.Warn("Memory instance is nil", "memory_id", ref.ID)
 		}
 	}
+
+	log.Debug("Memory context prepared", "count", len(memories))
 	return memories
 }
 

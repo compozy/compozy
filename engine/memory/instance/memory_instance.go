@@ -186,6 +186,13 @@ func (mi *memoryInstance) Read(ctx context.Context) ([]llm.Message, error) {
 	return messages, err
 }
 
+func (mi *memoryInstance) ReadPaginated(ctx context.Context, offset, limit int) ([]llm.Message, int, error) {
+	start := time.Now()
+	messages, totalCount, err := mi.store.ReadMessagesPaginated(ctx, mi.id, offset, limit)
+	mi.metrics.RecordRead(ctx, time.Since(start), len(messages), err)
+	return messages, totalCount, err
+}
+
 func (mi *memoryInstance) Len(ctx context.Context) (int, error) {
 	count, err := mi.store.GetMessageCount(ctx, mi.id)
 	if err != nil {

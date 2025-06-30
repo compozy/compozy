@@ -107,7 +107,10 @@ func (a *Config) GetMaxIterations() int {
 	return a.MaxIterations
 }
 
-func (a *Config) normalizeAndValidateMemoryConfig() error {
+// NormalizeAndValidateMemoryConfig processes the memory configuration for the agent.
+// This method parses memory fields and creates resolved memory references.
+// It should be called during agent configuration processing.
+func (a *Config) NormalizeAndValidateMemoryConfig() error {
 	const defaultMemoryMode = "read-write"
 	validators := []func(string) (bool, error){
 		a.validateLevel3MemoryConfig,
@@ -349,7 +352,7 @@ func (a *Config) Validate() error {
 	}
 
 	// Normalize and validate memory configuration first
-	if err := a.normalizeAndValidateMemoryConfig(); err != nil {
+	if err := a.NormalizeAndValidateMemoryConfig(); err != nil {
 		return fmt.Errorf("invalid memory configuration: %w", err)
 	}
 

@@ -1,0 +1,249 @@
+### =============================================================================
+### MEMORY REST API TESTING
+### =============================================================================
+### Test the direct memory REST API endpoints and verify they work with the agent
+### Make sure Compozy is running before executing these requests
+
+@baseUrl = http://localhost:3001/api/v0
+@memoryRef = user_memory
+@userId = api_test_user
+@memoryKey = user:{{userId}}
+
+### =============================================================================
+### STEP 1: Test agent with empty memory (should say it's a new conversation)
+### =============================================================================
+# @name agentEmptyMemory
+POST {{baseUrl}}/workflows/memory-api/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "{{userId}}",
+    "message": "Hello, what do you remember about me?"
+  }
+}
+
+### Get execution ID from agent test
+@execId1 = {{agentEmptyMemory.response.body.data.exec_id}}
+
+### View agent response with empty memory
+GET {{baseUrl}}/executions/workflows/{{execId1}}
+Accept: application/json
+
+### =============================================================================
+### STEP 2: Add some memory via REST API
+### =============================================================================
+### Write initial memory content
+POST {{baseUrl}}/memory/{{memoryRef}}/write
+Content-Type: application/json
+
+{
+  "key": "{{memoryKey}}",
+  "messages": [
+    {
+      "role": "system",
+      "content": "User preferences: loves coffee, works as a software engineer"
+    },
+    {
+      "role": "user",
+      "content": "Hi, I'm John and I work as a software engineer. I love coffee!"
+    },
+    {
+      "role": "assistant",
+      "content": "Nice to meet you, John! I'll remember that you're a software engineer who loves coffee."
+    }
+  ]
+}
+
+### =============================================================================
+### STEP 3: Test agent with populated memory (should remember John and coffee)
+### =============================================================================
+# @name agentWithMemory
+POST {{baseUrl}}/workflows/memory-api/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "{{userId}}",
+    "message": "What do you know about me?"
+  }
+}
+
+### Get execution ID from agent test with memory
+@execId2 = {{agentWithMemory.response.body.data.exec_id}}
+
+### View agent response with memory
+GET {{baseUrl}}/executions/workflows/{{execId2}}
+Accept: application/json
+
+### =============================================================================
+### STEP 4: Append more information via REST API
+### =============================================================================
+### Append new conversation
+POST {{baseUrl}}/memory/{{memoryRef}}/append
+Content-Type: application/json
+
+{
+  "key": "{{memoryKey}}",
+  "messages": [
+    {
+      "role": "user",
+      "content": "I also enjoy hiking on weekends and I live in San Francisco"
+    },
+    {
+      "role": "assistant",
+      "content": "Great to know! So you're John, a software engineer in San Francisco who loves coffee and enjoys hiking on weekends."
+    }
+  ]
+}
+
+### =============================================================================
+### STEP 5: Test agent with expanded memory
+### =============================================================================
+# @name agentExpandedMemory
+POST {{baseUrl}}/workflows/memory-api/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "{{userId}}",
+    "message": "Tell me everything you know about me"
+  }
+}
+
+### Get execution ID
+@execId3 = {{agentExpandedMemory.response.body.data.exec_id}}
+
+### View agent response with expanded memory
+GET {{baseUrl}}/executions/workflows/{{execId3}}
+Accept: application/json
+
+### =============================================================================
+### STEP 6: Read memory directly via REST API
+### =============================================================================
+### Read current memory content
+GET {{baseUrl}}/memory/{{memoryRef}}/read?key={{memoryKey}}
+Accept: application/json
+
+### =============================================================================
+### STEP 7: Get memory statistics
+### =============================================================================
+### Get memory stats
+GET {{baseUrl}}/memory/{{memoryRef}}/stats?key={{memoryKey}}
+Accept: application/json
+
+### Get memory stats with content
+GET {{baseUrl}}/memory/{{memoryRef}}/stats?key={{memoryKey}}&include_content=true
+Accept: application/json
+
+### =============================================================================
+### STEP 8: Get memory health
+### =============================================================================
+### Check memory health
+GET {{baseUrl}}/memory/{{memoryRef}}/health?key={{memoryKey}}
+Accept: application/json
+
+### Get detailed health with stats
+GET {{baseUrl}}/memory/{{memoryRef}}/health?key={{memoryKey}}&include_stats=true
+Accept: application/json
+
+### =============================================================================
+### STEP 9: Test flush operation (dry run)
+### =============================================================================
+### Flush memory (dry run to see what would happen)
+POST {{baseUrl}}/memory/{{memoryRef}}/flush
+Content-Type: application/json
+
+{
+  "key": "{{memoryKey}}",
+  "dry_run": true,
+  "strategy": "hybrid_summary"
+}
+
+### =============================================================================
+### STEP 10: Test agent after potential flush
+### =============================================================================
+# @name agentAfterFlush
+POST {{baseUrl}}/workflows/memory-api/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "{{userId}}",
+    "message": "Do you still remember me after the flush check?"
+  }
+}
+
+### Get execution ID
+@execId4 = {{agentAfterFlush.response.body.data.exec_id}}
+
+### View agent response after flush check
+GET {{baseUrl}}/executions/workflows/{{execId4}}
+Accept: application/json
+
+### =============================================================================
+### STEP 11: Clear memory (with confirmation)
+### =============================================================================
+### Clear memory with backup
+POST {{baseUrl}}/memory/{{memoryRef}}/clear
+Content-Type: application/json
+
+{
+  "key": "{{memoryKey}}",
+  "confirm": true,
+  "backup": true
+}
+
+### =============================================================================
+### STEP 12: Test agent with cleared memory
+### =============================================================================
+# @name agentClearedMemory
+POST {{baseUrl}}/workflows/memory-api/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "{{userId}}",
+    "message": "Do you remember anything about me now?"
+  }
+}
+
+### Get execution ID
+@execId5 = {{agentClearedMemory.response.body.data.exec_id}}
+
+### View agent response with cleared memory
+GET {{baseUrl}}/executions/workflows/{{execId5}}
+Accept: application/json
+
+### =============================================================================
+### STEP 13: Verify memory is empty
+### =============================================================================
+### Read memory after clear (should be empty)
+GET {{baseUrl}}/memory/{{memoryRef}}/read?key={{memoryKey}}
+Accept: application/json
+
+### =============================================================================
+### ERROR TESTING
+### =============================================================================
+
+### Test invalid memory reference
+GET {{baseUrl}}/memory/invalid_memory/read?key=test_key
+Accept: application/json
+
+### Test clear without confirmation (should fail)
+POST {{baseUrl}}/memory/{{memoryRef}}/clear
+Content-Type: application/json
+
+{
+  "key": "{{memoryKey}}",
+  "confirm": false
+}
+
+### Test invalid JSON for write
+POST {{baseUrl}}/memory/{{memoryRef}}/write
+Content-Type: application/json
+
+{
+  "key": "{{memoryKey}}",
+  "invalid": "data_structure"
+}
