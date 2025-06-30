@@ -266,5 +266,13 @@
             "updated": "2025-06-19T23:33:26.937Z",
             "description": "Tasks for taskwait context"
         }
+    },
+    "cli-commands-v1": {
+        "tasks": [],
+        "metadata": {
+            "created": "2025-06-27T21:11:52.471Z",
+            "updated": "2025-06-27T21:11:52.471Z",
+            "description": "Compozy CLI comprehensive command implementation - expanding from dev-only to full workflow orchestration interface"
+        }
     }
 }

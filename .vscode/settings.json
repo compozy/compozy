@@ -2,6 +2,16 @@
     "deno.enable": true,
     "deno.lint": true,
     "deno.codeLens.test": true,
+    "deno.enablePaths": [
+        "./cli",
+        "./engine",
+        "./examples",
+        "./pkg",
+        "./test"
+    ],
+    "deno.disablePaths": [
+        "./docs"
+    ],
     "javascript.preferences.importModuleSpecifier": "relative",
     "typescript.preferences.importModuleSpecifier": "relative",
     "javascript.updateImportsOnFileMove.enabled": "always",
@@ -27,5 +37,11 @@
     },
     "[javascript]": {
         "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "files.associations": {
+        "docs/**/*.ts": "typescript",
+        "docs/**/*.tsx": "typescriptreact",
+        "docs/**/*.js": "javascript",
+        "docs/**/*.jsx": "javascriptreact"
     }
 }
