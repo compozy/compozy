@@ -107,29 +107,6 @@ func TestExpansionResult_Structure(t *testing.T) {
 	})
 }
 
-func TestParallelTaskMetadata_Structure(t *testing.T) {
-	t.Run("Should contain strategy and config data", func(t *testing.T) {
-		// Arrange
-		strategy := task.StrategyWaitAll
-		config := &task.Config{}
-		config.Type = task.TaskTypeBasic
-		configs := []*task.Config{config}
-		createdAt := int64(1234567890)
-
-		// Act
-		metadata := &ParallelTaskMetadata{
-			Strategy:    strategy,
-			TaskConfigs: configs,
-			CreatedAt:   createdAt,
-		}
-
-		// Assert
-		assert.Equal(t, strategy, metadata.Strategy)
-		assert.Equal(t, configs, metadata.TaskConfigs)
-		assert.Equal(t, createdAt, metadata.CreatedAt)
-	})
-}
-
 // MockTaskResponseHandler for testing interface compliance
 type MockTaskResponseHandler struct {
 	handleResponseFunc func(context.Context, *ResponseInput) (*ResponseOutput, error)
@@ -295,74 +272,5 @@ func TestCollectionExpander_Interface(t *testing.T) {
 		assert.Equal(t, expectedResult, result)
 		assert.Equal(t, 3, result.ItemCount)
 		assert.Len(t, result.ChildConfigs, 3)
-	})
-}
-
-// MockTaskConfigRepository for testing interface compliance
-type MockTaskConfigRepository struct {
-	storeParallelMetadataFunc func(context.Context, core.ID, *ParallelTaskMetadata) error
-	loadParallelMetadataFunc  func(context.Context, core.ID) (*ParallelTaskMetadata, error)
-}
-
-func (m *MockTaskConfigRepository) StoreParallelMetadata(
-	ctx context.Context,
-	parentStateID core.ID,
-	metadata *ParallelTaskMetadata,
-) error {
-	if m.storeParallelMetadataFunc != nil {
-		return m.storeParallelMetadataFunc(ctx, parentStateID, metadata)
-	}
-	return nil
-}
-
-func (m *MockTaskConfigRepository) LoadParallelMetadata(
-	ctx context.Context,
-	parentStateID core.ID,
-) (*ParallelTaskMetadata, error) {
-	if m.loadParallelMetadataFunc != nil {
-		return m.loadParallelMetadataFunc(ctx, parentStateID)
-	}
-	return &ParallelTaskMetadata{}, nil
-}
-
-func TestTaskConfigRepository_Interface(t *testing.T) {
-	t.Run("Should implement TaskConfigRepository interface", func(_ *testing.T) {
-		// Arrange
-		repo := &MockTaskConfigRepository{}
-
-		// Act & Assert - This ensures interface compliance
-		var _ TaskConfigRepository = repo
-	})
-
-	t.Run("Should handle metadata storage and retrieval", func(t *testing.T) {
-		// Arrange
-		parentID := core.MustNewID()
-		config := &task.Config{}
-		config.Type = task.TaskTypeBasic
-		metadata := &ParallelTaskMetadata{
-			Strategy:    task.StrategyWaitAll,
-			TaskConfigs: []*task.Config{config},
-			CreatedAt:   1234567890,
-		}
-
-		repo := &MockTaskConfigRepository{
-			storeParallelMetadataFunc: func(_ context.Context, id core.ID, meta *ParallelTaskMetadata) error {
-				assert.Equal(t, parentID, id)
-				assert.Equal(t, metadata, meta)
-				return nil
-			},
-			loadParallelMetadataFunc: func(_ context.Context, id core.ID) (*ParallelTaskMetadata, error) {
-				assert.Equal(t, parentID, id)
-				return metadata, nil
-			},
-		}
-
-		// Act & Assert
-		err := repo.StoreParallelMetadata(context.Background(), parentID, metadata)
-		require.NoError(t, err)
-
-		loadedMetadata, err := repo.LoadParallelMetadata(context.Background(), parentID)
-		require.NoError(t, err)
-		assert.Equal(t, metadata, loadedMetadata)
 	})
 }

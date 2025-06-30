@@ -95,17 +95,27 @@ type CollectionExpander interface {
 // Infrastructure Service Interfaces
 // -----------------------------------------------------------------------------
 
-// ParallelTaskMetadata contains metadata for parallel task execution
-type ParallelTaskMetadata struct {
-	Strategy    task.ParallelStrategy `json:"strategy"`
-	TaskConfigs []*task.Config        `json:"task_configs"`
-	CreatedAt   int64                 `json:"created_at"`
-}
-
 // TaskConfigRepository handles storage and retrieval of task configuration data
 type TaskConfigRepository interface {
-	// StoreParallelMetadata stores parallel task metadata
-	StoreParallelMetadata(ctx context.Context, parentStateID core.ID, metadata *ParallelTaskMetadata) error
-	// LoadParallelMetadata loads parallel task metadata
-	LoadParallelMetadata(ctx context.Context, parentStateID core.ID) (*ParallelTaskMetadata, error)
+	// Parallel Task Methods
+	StoreParallelMetadata(ctx context.Context, parentStateID core.ID, metadata any) error
+	LoadParallelMetadata(ctx context.Context, parentStateID core.ID) (any, error)
+
+	// Collection Task Methods
+	StoreCollectionMetadata(ctx context.Context, parentStateID core.ID, metadata any) error
+	LoadCollectionMetadata(ctx context.Context, parentStateID core.ID) (any, error)
+
+	// Composite Task Methods
+	StoreCompositeMetadata(ctx context.Context, parentStateID core.ID, metadata any) error
+	LoadCompositeMetadata(ctx context.Context, parentStateID core.ID) (any, error)
+
+	// Generic Task Config Methods
+	SaveTaskConfig(ctx context.Context, taskExecID string, config *task.Config) error
+	GetTaskConfig(ctx context.Context, taskExecID string) (*task.Config, error)
+	DeleteTaskConfig(ctx context.Context, taskExecID string) error
+
+	// Strategy Management Methods
+	ExtractParallelStrategy(ctx context.Context, parentState *task.State) (task.ParallelStrategy, error)
+	ValidateStrategy(strategy string) (task.ParallelStrategy, error)
+	CalculateMaxWorkers(taskType task.Type, maxWorkers int) int
 }
