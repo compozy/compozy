@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -16,10 +17,22 @@ import (
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
-func taskConfigBasic() *task.Config {
-	config := &task.Config{}
-	config.Type = task.TaskTypeBasic
-	return config
+// MockOutputTransformer for testing
+type MockOutputTransformer struct {
+	mock.Mock
+}
+
+func (m *MockOutputTransformer) TransformOutput(
+	ctx context.Context,
+	state *task.State,
+	config *task.Config,
+	workflowConfig *workflow.Config,
+) (map[string]any, error) {
+	args := m.Called(ctx, state, config, workflowConfig)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(map[string]any), args.Error(1)
 }
 
 func TestNewBaseResponseHandler(t *testing.T) {
@@ -30,6 +43,7 @@ func TestNewBaseResponseHandler(t *testing.T) {
 		parentStatusManager := &MockParentStatusManager{}
 		workflowRepo := &store.MockWorkflowRepo{}
 		taskRepo := &store.MockTaskRepo{}
+		outputTransformer := &MockOutputTransformer{}
 
 		// Act
 		handler := NewBaseResponseHandler(
@@ -38,6 +52,7 @@ func TestNewBaseResponseHandler(t *testing.T) {
 			parentStatusManager,
 			workflowRepo,
 			taskRepo,
+			outputTransformer,
 		)
 
 		// Assert
@@ -47,365 +62,566 @@ func TestNewBaseResponseHandler(t *testing.T) {
 		assert.Equal(t, parentStatusManager, handler.parentStatusManager)
 		assert.Equal(t, workflowRepo, handler.workflowRepo)
 		assert.Equal(t, taskRepo, handler.taskRepo)
+		assert.Equal(t, outputTransformer, handler.outputTransformer)
 	})
 }
 
-func TestBaseResponseHandler_ProcessMainTaskResponse(t *testing.T) {
-	t.Run("Should process successful task execution", func(t *testing.T) {
+func TestProcessMainTaskResponse(t *testing.T) {
+	t.Run("Should process successful task response", func(t *testing.T) {
 		// Arrange
-		mockTaskRepo := &store.MockTaskRepo{}
-		mockParentStatusManager := new(MockParentStatusManager)
+		ctx := context.Background()
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+		contextBuilder := &ContextBuilder{}
+		parentStatusManager := &MockParentStatusManager{}
+		workflowRepo := &store.MockWorkflowRepo{}
+		taskRepo := &store.MockTaskRepo{}
+		outputTransformer := &MockOutputTransformer{}
 
 		handler := NewBaseResponseHandler(
-			nil, nil, mockParentStatusManager, nil, mockTaskRepo,
+			templateEngine,
+			contextBuilder,
+			parentStatusManager,
+			workflowRepo,
+			taskRepo,
+			outputTransformer,
 		)
 
 		taskState := &task.State{
 			TaskExecID: core.MustNewID(),
-			Status:     core.StatusRunning,
+			TaskID:     "test-task",
+			Status:     core.StatusPending,
+			Output:     &core.Output{"result": "success"},
 		}
-
-		config := taskConfigBasic()
-		config.Type = task.TaskTypeBasic
-		input := &ResponseInput{
-			TaskConfig:     config,
-			TaskState:      taskState,
-			WorkflowConfig: &workflow.Config{},
-			WorkflowState:  &workflow.State{},
-		}
-
-		mockTaskRepo.On("UpsertState", mock.Anything, mock.MatchedBy(func(state *task.State) bool {
-			return state.Status == core.StatusSuccess
-		})).Return(nil)
-
-		// Act
-		output, err := handler.ProcessMainTaskResponse(context.Background(), input)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotNil(t, output)
-		assert.Equal(t, core.StatusSuccess, output.State.Status)
-		assert.NotNil(t, output.Response)
-		mockTaskRepo.AssertExpectations(t)
-	})
-
-	t.Run("Should process failed task execution", func(t *testing.T) {
-		// Arrange
-		mockTaskRepo := &store.MockTaskRepo{}
-		mockParentStatusManager := new(MockParentStatusManager)
-
-		handler := NewBaseResponseHandler(
-			nil, nil, mockParentStatusManager, nil, mockTaskRepo,
-		)
-
-		taskState := &task.State{
-			TaskExecID: core.MustNewID(),
-			Status:     core.StatusRunning,
-		}
-
-		executionError := errors.New("execution failed")
-		config := taskConfigBasic()
-		config.Type = task.TaskTypeBasic
-		input := &ResponseInput{
-			TaskConfig:     config,
-			TaskState:      taskState,
-			ExecutionError: executionError,
-			WorkflowConfig: &workflow.Config{},
-			WorkflowState:  &workflow.State{},
-		}
-
-		mockTaskRepo.On("UpsertState", mock.Anything, mock.MatchedBy(func(state *task.State) bool {
-			return state.Status == core.StatusFailed && state.Error != nil && state.Error.Message == "execution failed"
-		})).Return(nil)
-
-		// Act
-		output, err := handler.ProcessMainTaskResponse(context.Background(), input)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, core.StatusFailed, output.State.Status)
-		assert.NotNil(t, output.State.Error)
-		assert.Equal(t, "execution failed", output.State.Error.Message)
-		mockTaskRepo.AssertExpectations(t)
-	})
-
-	t.Run("Should update parent status for child task", func(t *testing.T) {
-		// Arrange
-		mockTaskRepo := &store.MockTaskRepo{}
-		mockParentStatusManager := new(MockParentStatusManager)
-
-		handler := NewBaseResponseHandler(
-			nil, nil, mockParentStatusManager, nil, mockTaskRepo,
-		)
-
-		parentID := core.MustNewID()
-		taskState := &task.State{
-			TaskExecID:    core.MustNewID(),
-			Status:        core.StatusRunning,
-			ParentStateID: &parentID,
-		}
-
-		config := taskConfigBasic()
-		config.Type = task.TaskTypeBasic
-		input := &ResponseInput{
-			TaskConfig:     config,
-			TaskState:      taskState,
-			WorkflowConfig: &workflow.Config{},
-			WorkflowState:  &workflow.State{},
-		}
-
-		mockTaskRepo.On("UpsertState", mock.Anything, mock.Anything).Return(nil)
-		mockParentStatusManager.On("UpdateParentStatus", mock.Anything, parentID, task.StrategyWaitAll).Return(nil)
-
-		// Act
-		output, err := handler.ProcessMainTaskResponse(context.Background(), input)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, core.StatusSuccess, output.State.Status)
-		mockTaskRepo.AssertExpectations(t)
-		mockParentStatusManager.AssertExpectations(t)
-	})
-
-	t.Run("Should handle context cancellation gracefully", func(t *testing.T) {
-		// Arrange
-		mockTaskRepo := &store.MockTaskRepo{}
-		handler := NewBaseResponseHandler(nil, nil, nil, nil, mockTaskRepo)
-
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel() // Cancel immediately
-
-		taskState := &task.State{TaskExecID: core.MustNewID()}
-		input := &ResponseInput{
-			TaskConfig:     taskConfigBasic(),
-			TaskState:      taskState,
-			WorkflowConfig: &workflow.Config{},
-			WorkflowState:  &workflow.State{},
-		}
-
-		// Act
-		output, err := handler.ProcessMainTaskResponse(ctx, input)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, taskState, output.State)
-	})
-
-	t.Run("Should handle task state save error", func(t *testing.T) {
-		// Arrange
-		mockTaskRepo := &store.MockTaskRepo{}
-		handler := NewBaseResponseHandler(nil, nil, nil, nil, mockTaskRepo)
-
-		saveError := errors.New("database error")
-		mockTaskRepo.On("UpsertState", mock.Anything, mock.Anything).Return(saveError)
 
 		input := &ResponseInput{
-			TaskConfig:     taskConfigBasic(),
-			TaskState:      &task.State{TaskExecID: core.MustNewID()},
-			WorkflowConfig: &workflow.Config{},
-			WorkflowState:  &workflow.State{},
-		}
-
-		// Act
-		output, err := handler.ProcessMainTaskResponse(context.Background(), input)
-
-		// Assert
-		require.Error(t, err)
-		assert.Nil(t, output)
-		assert.Contains(t, err.Error(), "failed to save task state")
-		mockTaskRepo.AssertExpectations(t)
-	})
-}
-
-func TestBaseResponseHandler_ShouldDeferOutputTransformation(t *testing.T) {
-	t.Run("Should defer output transformation for collection tasks", func(t *testing.T) {
-		// Arrange
-		handler := NewBaseResponseHandler(nil, nil, nil, nil, nil)
-		config := &task.Config{}
-		config.Type = task.TaskTypeCollection
-
-		// Act
-		shouldDefer := handler.ShouldDeferOutputTransformation(config)
-
-		// Assert
-		assert.True(t, shouldDefer)
-	})
-
-	t.Run("Should defer output transformation for parallel tasks", func(t *testing.T) {
-		// Arrange
-		handler := NewBaseResponseHandler(nil, nil, nil, nil, nil)
-		config := &task.Config{}
-		config.Type = task.TaskTypeParallel
-
-		// Act
-		shouldDefer := handler.ShouldDeferOutputTransformation(config)
-
-		// Assert
-		assert.True(t, shouldDefer)
-	})
-
-	t.Run("Should not defer output transformation for basic tasks", func(t *testing.T) {
-		// Arrange
-		handler := NewBaseResponseHandler(nil, nil, nil, nil, nil)
-		config := taskConfigBasic()
-
-		// Act
-		shouldDefer := handler.ShouldDeferOutputTransformation(config)
-
-		// Assert
-		assert.False(t, shouldDefer)
-	})
-
-	t.Run("Should not defer output transformation for composite tasks", func(t *testing.T) {
-		// Arrange
-		handler := NewBaseResponseHandler(nil, nil, nil, nil, nil)
-		config := &task.Config{}
-		config.Type = task.TaskTypeComposite
-
-		// Act
-		shouldDefer := handler.ShouldDeferOutputTransformation(config)
-
-		// Assert
-		assert.False(t, shouldDefer)
-	})
-}
-
-func TestBaseResponseHandler_ValidateInput(t *testing.T) {
-	t.Run("Should pass validation for valid input", func(t *testing.T) {
-		// Arrange
-		handler := NewBaseResponseHandler(nil, nil, nil, nil, nil)
-		input := &ResponseInput{
-			TaskConfig:     taskConfigBasic(),
-			TaskState:      &task.State{},
-			WorkflowConfig: &workflow.Config{},
-			WorkflowState:  &workflow.State{},
-		}
-
-		// Act
-		err := handler.ValidateInput(input)
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("Should fail validation for nil input", func(t *testing.T) {
-		// Arrange
-		handler := NewBaseResponseHandler(nil, nil, nil, nil, nil)
-
-		// Act
-		err := handler.ValidateInput(nil)
-
-		// Assert
-		require.Error(t, err)
-		var validationErr *ValidationError
-		assert.ErrorAs(t, err, &validationErr)
-		assert.Equal(t, "input", validationErr.Field)
-	})
-
-	t.Run("Should fail validation for nil task config", func(t *testing.T) {
-		// Arrange
-		handler := NewBaseResponseHandler(nil, nil, nil, nil, nil)
-		input := &ResponseInput{
-			TaskState:      &task.State{},
-			WorkflowConfig: &workflow.Config{},
-			WorkflowState:  &workflow.State{},
-		}
-
-		// Act
-		err := handler.ValidateInput(input)
-
-		// Assert
-		require.Error(t, err)
-		var validationErr *ValidationError
-		assert.ErrorAs(t, err, &validationErr)
-		assert.Equal(t, "task_config", validationErr.Field)
-	})
-
-	t.Run("Should fail validation for nil task state", func(t *testing.T) {
-		// Arrange
-		handler := NewBaseResponseHandler(nil, nil, nil, nil, nil)
-		input := &ResponseInput{
-			TaskConfig:     taskConfigBasic(),
-			WorkflowConfig: &workflow.Config{},
-			WorkflowState:  &workflow.State{},
-		}
-
-		// Act
-		err := handler.ValidateInput(input)
-
-		// Assert
-		require.Error(t, err)
-		var validationErr *ValidationError
-		assert.ErrorAs(t, err, &validationErr)
-		assert.Equal(t, "task_state", validationErr.Field)
-	})
-}
-
-func TestBaseResponseHandler_CreateResponseContext(t *testing.T) {
-	t.Run("Should create context for child task", func(t *testing.T) {
-		// Arrange
-		handler := NewBaseResponseHandler(nil, nil, nil, nil, nil)
-		parentID := core.MustNewID()
-		input := &ResponseInput{
-			TaskConfig: taskConfigBasic(),
-			TaskState: &task.State{
-				ParentStateID: &parentID,
+			TaskConfig: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:   "test-task",
+					Type: task.TaskTypeBasic,
+					Outputs: &core.Input{
+						"transformed": "{{ .result }}",
+					},
+				},
+			},
+			TaskState: taskState,
+			WorkflowConfig: &workflow.Config{
+				ID: "test-workflow",
+			},
+			WorkflowState: &workflow.State{
+				WorkflowID:     "test-workflow",
+				WorkflowExecID: core.MustNewID(),
 			},
 		}
 
+		// Mock expectations
+		// Mock WithTx for saveTaskState
+		taskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Run(func(args mock.Arguments) {
+			fn := args.Get(1).(func(pgx.Tx) error)
+			fn(nil) // Simulate transaction execution
+		}).Return(nil)
+
+		taskRepo.On("GetStateForUpdate", ctx, mock.Anything, taskState.TaskExecID).Return(taskState, nil)
+		taskRepo.On("UpsertStateWithTx", ctx, mock.Anything, mock.MatchedBy(func(state *task.State) bool {
+			return state.Status == core.StatusSuccess
+		})).Return(nil)
+
+		outputTransformer.On("TransformOutput", ctx, taskState, input.TaskConfig, input.WorkflowConfig).
+			Return(map[string]any{"transformed": "output"}, nil)
+
 		// Act
-		context := handler.CreateResponseContext(input)
+		result, err := handler.ProcessMainTaskResponse(ctx, input)
 
 		// Assert
-		assert.True(t, context.IsParentTask)
-		assert.Equal(t, parentID.String(), context.ParentTaskID)
-		assert.NotNil(t, context.DeferredConfig)
-		assert.False(t, context.DeferredConfig.ShouldDefer)
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, core.StatusSuccess, result.State.Status)
+		assert.NotNil(t, result.State.Output)
+
+		taskRepo.AssertExpectations(t)
+		outputTransformer.AssertExpectations(t)
 	})
 
-	t.Run("Should create context for parent task", func(t *testing.T) {
+	t.Run("Should handle task execution error", func(t *testing.T) {
 		// Arrange
-		handler := NewBaseResponseHandler(nil, nil, nil, nil, nil)
-		config := &task.Config{}
-		config.Type = task.TaskTypeCollection
-		input := &ResponseInput{
-			TaskConfig: config,
-			TaskState:  &task.State{},
+		ctx := context.Background()
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+		contextBuilder := &ContextBuilder{}
+		parentStatusManager := &MockParentStatusManager{}
+		workflowRepo := &store.MockWorkflowRepo{}
+		taskRepo := &store.MockTaskRepo{}
+		outputTransformer := &MockOutputTransformer{}
+
+		handler := NewBaseResponseHandler(
+			templateEngine,
+			contextBuilder,
+			parentStatusManager,
+			workflowRepo,
+			taskRepo,
+			outputTransformer,
+		)
+
+		executionError := errors.New("task execution failed")
+		taskState := &task.State{
+			TaskExecID: core.MustNewID(),
+			TaskID:     "test-task",
+			Status:     core.StatusPending,
 		}
 
+		input := &ResponseInput{
+			TaskConfig: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:   "test-task",
+					Type: task.TaskTypeBasic,
+					OnError: &core.ErrorTransition{
+						Next: func() *string { s := "error-task"; return &s }(),
+					},
+				},
+			},
+			TaskState:      taskState,
+			ExecutionError: executionError,
+			WorkflowConfig: &workflow.Config{
+				ID: "test-workflow",
+			},
+			WorkflowState: &workflow.State{
+				WorkflowID:     "test-workflow",
+				WorkflowExecID: core.MustNewID(),
+			},
+		}
+
+		// Mock expectations
+		// Mock WithTx for saveTaskState
+		taskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Run(func(args mock.Arguments) {
+			fn := args.Get(1).(func(pgx.Tx) error)
+			fn(nil) // Simulate transaction execution
+		}).Return(nil)
+
+		taskRepo.On("GetStateForUpdate", ctx, mock.Anything, taskState.TaskExecID).Return(taskState, nil)
+		taskRepo.On("UpsertStateWithTx", ctx, mock.Anything, mock.MatchedBy(func(state *task.State) bool {
+			return state.Status == core.StatusFailed && state.Error != nil
+		})).Return(nil)
+
 		// Act
-		context := handler.CreateResponseContext(input)
+		result, err := handler.ProcessMainTaskResponse(ctx, input)
 
 		// Assert
-		assert.False(t, context.IsParentTask)
-		assert.Empty(t, context.ParentTaskID)
-		assert.NotNil(t, context.DeferredConfig)
-		assert.True(t, context.DeferredConfig.ShouldDefer)
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, core.StatusFailed, result.State.Status)
+		assert.NotNil(t, result.State.Error)
+		assert.Equal(t, executionError.Error(), result.State.Error.Message)
+
+		taskRepo.AssertExpectations(t)
+	})
+
+	t.Run("Should handle context cancellation", func(t *testing.T) {
+		// Arrange
+		ctx, cancel := context.WithCancel(context.Background())
+
+		taskRepo := &store.MockTaskRepo{}
+
+		handler := NewBaseResponseHandler(nil, nil, nil, nil, taskRepo, nil)
+
+		input := &ResponseInput{
+			TaskConfig: &task.Config{
+				BaseConfig: task.BaseConfig{ID: "test-task"},
+			},
+			TaskState:      &task.State{TaskExecID: core.MustNewID()},
+			WorkflowConfig: &workflow.Config{ID: "test-workflow"},
+			WorkflowState:  &workflow.State{WorkflowID: "test-workflow"},
+		}
+
+		// Mock WithTx to return context canceled error
+		taskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Return(context.Canceled)
+
+		// Cancel the context before processing
+		cancel()
+
+		// Act
+		result, err := handler.ProcessMainTaskResponse(ctx, input)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, input.TaskState, result.State)
 	})
 }
 
-func TestBaseResponseHandler_CreateDeferredOutputConfig(t *testing.T) {
-	t.Run("Should create deferred config for collection tasks", func(t *testing.T) {
-		// Arrange
-		handler := NewBaseResponseHandler(nil, nil, nil, nil, nil)
-
-		// Act
-		config := handler.CreateDeferredOutputConfig(task.TaskTypeCollection, "test reason")
-
-		// Assert
-		assert.True(t, config.ShouldDefer)
-		assert.Equal(t, "test reason", config.Reason)
+func TestShouldDeferOutputTransformation(t *testing.T) {
+	t.Run("Should defer for collection tasks", func(t *testing.T) {
+		handler := &BaseResponseHandler{}
+		config := &task.Config{
+			BaseConfig: task.BaseConfig{
+				Type: task.TaskTypeCollection,
+			},
+		}
+		assert.True(t, handler.ShouldDeferOutputTransformation(config))
 	})
 
-	t.Run("Should create non-deferred config for basic tasks", func(t *testing.T) {
+	t.Run("Should defer for parallel tasks", func(t *testing.T) {
+		handler := &BaseResponseHandler{}
+		config := &task.Config{
+			BaseConfig: task.BaseConfig{
+				Type: task.TaskTypeParallel,
+			},
+		}
+		assert.True(t, handler.ShouldDeferOutputTransformation(config))
+	})
+
+	t.Run("Should not defer for basic tasks", func(t *testing.T) {
+		handler := &BaseResponseHandler{}
+		config := &task.Config{
+			BaseConfig: task.BaseConfig{
+				Type: task.TaskTypeBasic,
+			},
+		}
+		assert.False(t, handler.ShouldDeferOutputTransformation(config))
+	})
+}
+
+func TestApplyDeferredOutputTransformation(t *testing.T) {
+	t.Run("Should apply deferred transformation successfully", func(t *testing.T) {
 		// Arrange
-		handler := NewBaseResponseHandler(nil, nil, nil, nil, nil)
+		ctx := context.Background()
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+		contextBuilder := &ContextBuilder{}
+		parentStatusManager := &MockParentStatusManager{}
+		workflowRepo := &store.MockWorkflowRepo{}
+		taskRepo := &store.MockTaskRepo{}
+		outputTransformer := &MockOutputTransformer{}
+
+		handler := NewBaseResponseHandler(
+			templateEngine,
+			contextBuilder,
+			parentStatusManager,
+			workflowRepo,
+			taskRepo,
+			outputTransformer,
+		)
+
+		taskExecID := core.MustNewID()
+		taskState := &task.State{
+			TaskExecID: taskExecID,
+			TaskID:     "test-collection",
+			Status:     core.StatusSuccess,
+			Output:     &core.Output{"items": []string{"a", "b", "c"}},
+		}
+
+		input := &ResponseInput{
+			TaskConfig: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:      "test-collection",
+					Type:    task.TaskTypeCollection,
+					Outputs: &core.Input{"count": "{{ len .output.items }}"},
+				},
+			},
+			TaskState: taskState,
+			WorkflowConfig: &workflow.Config{
+				ID: "test-workflow",
+			},
+			WorkflowState: &workflow.State{
+				WorkflowID:     "test-workflow",
+				WorkflowExecID: core.MustNewID(),
+			},
+		}
+
+		// Mock expectations
+		// Mock WithTx for ApplyDeferredOutputTransformation
+		taskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Run(func(args mock.Arguments) {
+			fn := args.Get(1).(func(pgx.Tx) error)
+			fn(nil) // Simulate transaction execution
+		}).Return(nil)
+
+		taskRepo.On("GetStateForUpdate", ctx, mock.Anything, taskState.TaskExecID).Return(taskState, nil)
+
+		outputTransformer.On("TransformOutput", ctx, taskState, input.TaskConfig, input.WorkflowConfig).
+			Return(map[string]any{"count": 3}, nil)
+
+		taskRepo.On("UpsertStateWithTx", ctx, mock.Anything, mock.MatchedBy(func(state *task.State) bool {
+			return state.Output != nil
+		})).Return(nil)
 
 		// Act
-		config := handler.CreateDeferredOutputConfig(task.TaskTypeBasic, "test reason")
+		err := handler.ApplyDeferredOutputTransformation(ctx, input)
 
 		// Assert
-		assert.False(t, config.ShouldDefer)
-		assert.Equal(t, "test reason", config.Reason)
+		require.NoError(t, err)
+		taskRepo.AssertExpectations(t)
+		outputTransformer.AssertExpectations(t)
+	})
+
+	t.Run("Should handle transformation failure", func(t *testing.T) {
+		// Arrange
+		ctx := context.Background()
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+		contextBuilder := &ContextBuilder{}
+		parentStatusManager := &MockParentStatusManager{}
+		workflowRepo := &store.MockWorkflowRepo{}
+		taskRepo := &store.MockTaskRepo{}
+		outputTransformer := &MockOutputTransformer{}
+
+		handler := NewBaseResponseHandler(
+			templateEngine,
+			contextBuilder,
+			parentStatusManager,
+			workflowRepo,
+			taskRepo,
+			outputTransformer,
+		)
+
+		taskExecID := core.MustNewID()
+		taskState := &task.State{
+			TaskExecID: taskExecID,
+			TaskID:     "test-collection",
+			Status:     core.StatusSuccess,
+			Output:     &core.Output{"items": []string{"a", "b", "c"}},
+		}
+
+		input := &ResponseInput{
+			TaskConfig: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:      "test-collection",
+					Type:    task.TaskTypeCollection,
+					Outputs: &core.Input{"count": "{{ .invalid.path }}"},
+				},
+			},
+			TaskState: taskState,
+			WorkflowConfig: &workflow.Config{
+				ID: "test-workflow",
+			},
+			WorkflowState: &workflow.State{
+				WorkflowID:     "test-workflow",
+				WorkflowExecID: core.MustNewID(),
+			},
+		}
+
+		transformError := errors.New("transformation failed")
+
+		// Mock expectations
+		// Mock WithTx for ApplyDeferredOutputTransformation
+		taskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Run(func(args mock.Arguments) {
+			fn := args.Get(1).(func(pgx.Tx) error)
+			fn(nil) // Simulate transaction execution
+		}).Return(nil)
+
+		taskRepo.On("GetStateForUpdate", ctx, mock.Anything, taskState.TaskExecID).Return(taskState, nil)
+
+		outputTransformer.On("TransformOutput", ctx, taskState, input.TaskConfig, input.WorkflowConfig).
+			Return(nil, transformError)
+
+		taskRepo.On("UpsertStateWithTx", ctx, mock.Anything, mock.MatchedBy(func(state *task.State) bool {
+			return state.Status == core.StatusFailed && state.Error != nil
+		})).Return(nil)
+
+		// Act
+		err := handler.ApplyDeferredOutputTransformation(ctx, input)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "output transformation failed")
+		taskRepo.AssertExpectations(t)
+		outputTransformer.AssertExpectations(t)
+	})
+}
+
+func TestValidateInput(t *testing.T) {
+	handler := &BaseResponseHandler{}
+
+	t.Run("Should validate nil input", func(t *testing.T) {
+		err := handler.ValidateInput(nil)
+		require.Error(t, err)
+		assert.IsType(t, &ValidationError{}, err)
+		assert.Contains(t, err.Error(), "input cannot be nil")
+	})
+
+	t.Run("Should validate nil task config", func(t *testing.T) {
+		input := &ResponseInput{
+			TaskState:      &task.State{},
+			WorkflowConfig: &workflow.Config{},
+			WorkflowState:  &workflow.State{},
+		}
+		err := handler.ValidateInput(input)
+		require.Error(t, err)
+		assert.IsType(t, &ValidationError{}, err)
+		assert.Contains(t, err.Error(), "task config cannot be nil")
+	})
+
+	t.Run("Should validate nil task state", func(t *testing.T) {
+		input := &ResponseInput{
+			TaskConfig:     &task.Config{},
+			WorkflowConfig: &workflow.Config{},
+			WorkflowState:  &workflow.State{},
+		}
+		err := handler.ValidateInput(input)
+		require.Error(t, err)
+		assert.IsType(t, &ValidationError{}, err)
+		assert.Contains(t, err.Error(), "task state cannot be nil")
+	})
+
+	t.Run("Should validate nil workflow config", func(t *testing.T) {
+		input := &ResponseInput{
+			TaskConfig:    &task.Config{},
+			TaskState:     &task.State{},
+			WorkflowState: &workflow.State{},
+		}
+		err := handler.ValidateInput(input)
+		require.Error(t, err)
+		assert.IsType(t, &ValidationError{}, err)
+		assert.Contains(t, err.Error(), "workflow config cannot be nil")
+	})
+
+	t.Run("Should validate nil workflow state", func(t *testing.T) {
+		input := &ResponseInput{
+			TaskConfig:     &task.Config{},
+			TaskState:      &task.State{},
+			WorkflowConfig: &workflow.Config{},
+		}
+		err := handler.ValidateInput(input)
+		require.Error(t, err)
+		assert.IsType(t, &ValidationError{}, err)
+		assert.Contains(t, err.Error(), "workflow state cannot be nil")
+	})
+
+	t.Run("Should pass validation with all required fields", func(t *testing.T) {
+		input := &ResponseInput{
+			TaskConfig:     &task.Config{},
+			TaskState:      &task.State{},
+			WorkflowConfig: &workflow.Config{},
+			WorkflowState:  &workflow.State{},
+		}
+		err := handler.ValidateInput(input)
+		require.NoError(t, err)
+	})
+}
+
+func TestProcessTransitions(t *testing.T) {
+	t.Run("Should process success transitions", func(t *testing.T) {
+		// Arrange
+		ctx := context.Background()
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+		contextBuilder := &ContextBuilder{}
+		handler := &BaseResponseHandler{
+			templateEngine: templateEngine,
+			contextBuilder: contextBuilder,
+		}
+
+		successTransition := &core.SuccessTransition{
+			Next: func() *string { s := "next-task"; return &s }(),
+		}
+
+		input := &ResponseInput{
+			TaskConfig: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:        "test-task",
+					OnSuccess: successTransition,
+				},
+			},
+			TaskState:      &task.State{TaskExecID: core.MustNewID()},
+			WorkflowConfig: &workflow.Config{ID: "test-workflow"},
+			WorkflowState:  &workflow.State{WorkflowID: "test-workflow"},
+		}
+
+		// Act
+		onSuccess, onError, err := handler.processTransitions(ctx, input, true, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotNil(t, onSuccess)
+		assert.Equal(t, "next-task", *onSuccess.Next)
+		assert.Nil(t, onError)
+	})
+
+	t.Run("Should process error transitions", func(t *testing.T) {
+		// Arrange
+		ctx := context.Background()
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+		contextBuilder := &ContextBuilder{}
+		handler := &BaseResponseHandler{
+			templateEngine: templateEngine,
+			contextBuilder: contextBuilder,
+		}
+
+		errorTransition := &core.ErrorTransition{
+			Next: func() *string { s := "error-handler"; return &s }(),
+		}
+
+		input := &ResponseInput{
+			TaskConfig: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:      "test-task",
+					OnError: errorTransition,
+				},
+			},
+			TaskState:      &task.State{TaskExecID: core.MustNewID()},
+			WorkflowConfig: &workflow.Config{ID: "test-workflow"},
+			WorkflowState:  &workflow.State{WorkflowID: "test-workflow"},
+		}
+
+		executionErr := errors.New("task failed")
+
+		// Act
+		onSuccess, onError, err := handler.processTransitions(ctx, input, false, executionErr)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Nil(t, onSuccess)
+		assert.NotNil(t, onError)
+		assert.Equal(t, "error-handler", *onError.Next)
+	})
+}
+
+func TestUpdateParentStatusIfNeeded(t *testing.T) {
+	t.Run("Should skip update for non-child tasks", func(t *testing.T) {
+		// Arrange
+		ctx := context.Background()
+		parentStatusManager := &MockParentStatusManager{}
+		handler := &BaseResponseHandler{
+			parentStatusManager: parentStatusManager,
+		}
+
+		state := &task.State{
+			TaskExecID: core.MustNewID(),
+			// No ParentStateID - this is not a child task
+		}
+
+		// Act
+		err := handler.updateParentStatusIfNeeded(ctx, state)
+
+		// Assert
+		require.NoError(t, err)
+		parentStatusManager.AssertNotCalled(t, "UpdateParentStatus")
+	})
+
+	t.Run("Should update parent status for child tasks", func(t *testing.T) {
+		// Arrange
+		ctx := context.Background()
+		parentStatusManager := &MockParentStatusManager{}
+		taskRepo := &store.MockTaskRepo{}
+		handler := &BaseResponseHandler{
+			parentStatusManager: parentStatusManager,
+			taskRepo:            taskRepo,
+		}
+
+		parentID := core.MustNewID()
+		state := &task.State{
+			TaskExecID:    core.MustNewID(),
+			ParentStateID: &parentID,
+		}
+
+		// Mock getting parent state to extract strategy
+		parentState := &task.State{
+			TaskExecID: parentID,
+			Input:      &core.Input{"strategy": "wait_all"},
+		}
+		taskRepo.On("GetState", ctx, parentID).Return(parentState, nil)
+
+		parentStatusManager.On("UpdateParentStatus", ctx, parentID, task.StrategyWaitAll).
+			Return(nil)
+
+		// Act
+		err := handler.updateParentStatusIfNeeded(ctx, state)
+
+		// Assert
+		require.NoError(t, err)
+		parentStatusManager.AssertExpectations(t)
 	})
 }

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 ---
 
 <task_context>
@@ -18,15 +18,15 @@ Implement the TaskConfigRepository infrastructure service that handles simple CR
 
 ## Subtasks
 
-- [ ] 3.1 TaskConfigRepository interface fully implemented
-- [ ] 3.2 All metadata storage/retrieval logic extracted from ConfigManager
-- [ ] 3.3 Parallel, composite, and collection metadata handling
-- [ ] 3.4 Generic task config save/get/delete operations
-- [ ] 3.5 JSON marshaling/unmarshaling preserved exactly
-- [ ] 3.6 Error handling with proper context
-- [ ] 3.7 Strategy extraction and validation logic
-- [ ] 3.8 CWD propagation to child configs
-- [ ] 3.9 >70% test coverage including error scenarios
+- [x] 3.1 TaskConfigRepository interface fully implemented
+- [x] 3.2 All metadata storage/retrieval logic extracted from ConfigManager
+- [x] 3.3 Parallel, composite, and collection metadata handling
+- [x] 3.4 Generic task config save/get/delete operations
+- [x] 3.5 JSON marshaling/unmarshaling preserved exactly
+- [x] 3.6 Error handling with proper context
+- [x] 3.7 Strategy extraction and validation logic
+- [x] 3.8 CWD propagation to child configs
+- [x] 3.9 >70% test coverage including error scenarios
 
 ## Implementation Details
 

@@ -15,8 +15,7 @@ alwaysApply: true
 2. **Rules Analysis & Code Review** - Analyze applicable rules and perform comprehensive review
 3. **Issue Resolution** - Address all identified problems
 4. **Pre-Commit Validation** - Final validation before commit
-5. **Git Commit** - Commit with detailed validation summary ⚠️ **(JUST AFTER USER CONFIRM THAT IS DONE)**
-6. **Task Completion** - Mark task as complete only after successful commit
+5. **Task Completion** - Mark task as complete only after successful validation
 </workflow_overview>
 
 ## 1. Task Definition Validation
@@ -127,25 +126,9 @@ Execute codereview validation for task [task_number]:
 - Validate test coverage and error handling
 - Confirm no code duplication or logic redundancy
 
-## 5. Git Commit ⚠️ JUST AFTER USER CONFIRM IS DONE
+## 5. Mark Task Complete
 
-```bash
-git add .
-git commit -m "feat(task-[task_number]): [concise_task_description]
-
-- Implemented [specific changes made]
-- Task definition, PRD, and tech spec validated
-- Code reviewed with Zen MCP (Gemini 2.5 Pro + O3)
-- Rules compliance verified
-- All review issues addressed
-- Task: [task_number] - [task_title]
-
-Closes: task-[task_number]"
-```
-
-## 6. Mark Task Complete
-
-**ONLY AFTER** successful commit, update the Markdown task file:
+**ONLY AFTER** successful validation, update the Markdown task file:
 
 ```markdown
 - [x] 1.0 [task_title] ✅ COMPLETED
@@ -153,7 +136,7 @@ Closes: task-[task_number]"
   - [x] 1.2 Task definition, PRD, and tech spec validated
   - [x] 1.3 Rules analysis and compliance verified
   - [x] 1.4 Code review completed with Zen MCP
-  - [x] 1.5 Ready for commit
+  - [x] 1.5 Ready for deployment
 ```
 
 ## Important Notes

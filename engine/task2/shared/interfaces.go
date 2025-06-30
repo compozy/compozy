@@ -39,6 +39,9 @@ type ResponseInput struct {
 	WorkflowConfig *workflow.Config `json:"workflow_config"`
 	WorkflowState  *workflow.State  `json:"workflow_state"`
 	ExecutionError error            `json:"execution_error,omitempty"`
+	// NextTaskOverride allows router tasks to override the normal workflow progression
+	// by specifying the exact next task to execute based on routing decisions
+	NextTaskOverride *task.Config `json:"next_task_override,omitempty"`
 }
 
 // ResponseOutput contains the output data from response handlers

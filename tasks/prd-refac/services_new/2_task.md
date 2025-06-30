@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 ---
 
 <task_context>
@@ -18,14 +18,14 @@ Implement the CollectionExpander domain service that encapsulates the complex bu
 
 ## Subtasks
 
-- [ ] 2.1 Extract collection expansion logic from ConfigManager
-- [ ] 2.2 Implement CollectionExpander interface
-- [ ] 2.3 Create collection item processing and filtering
-- [ ] 2.4 Implement template processing for collection items
-- [ ] 2.5 Add comprehensive error handling
-- [ ] 2.6 Collection context injection to child configs
-- [ ] 2.7 Custom variable naming support
-- [ ] 2.8 Create comprehensive unit tests
+- [x] 2.1 Extract collection expansion logic from ConfigManager
+- [x] 2.2 Implement CollectionExpander interface
+- [x] 2.3 Create collection item processing and filtering
+- [x] 2.4 Implement template processing for collection items
+- [x] 2.5 Add comprehensive error handling
+- [x] 2.6 Collection context injection to child configs
+- [x] 2.7 Custom variable naming support
+- [x] 2.8 Create comprehensive unit tests
 
 ## Implementation Details
 
