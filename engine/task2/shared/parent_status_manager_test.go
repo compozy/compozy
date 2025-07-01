@@ -2,7 +2,8 @@ package shared
 
 import (
 	"context"
-	"errors"
+	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,265 +15,213 @@ import (
 	"github.com/compozy/compozy/engine/task"
 )
 
-func TestNewParentStatusManager(t *testing.T) {
-	t.Run("Should create parent status manager with task repository", func(t *testing.T) {
-		// Arrange
-		mockTaskRepo := &store.MockTaskRepo{}
-
-		// Act
-		manager := NewParentStatusManager(mockTaskRepo)
-
-		// Assert
-		assert.NotNil(t, manager)
-		_, ok := manager.(*DefaultParentStatusManager)
-		assert.True(t, ok)
-	})
-}
-
 func TestDefaultParentStatusManager_UpdateParentStatus(t *testing.T) {
-	t.Run("Should update parent status with wait_all strategy", func(t *testing.T) {
+	t.Run("Should update parent status based on all children success", func(t *testing.T) {
 		// Arrange
-		mockTaskRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(mockTaskRepo).(*DefaultParentStatusManager)
-
+		mockRepo := &store.MockTaskRepo{}
+		manager := NewParentStatusManager(mockRepo)
+		ctx := context.Background()
 		parentID := core.MustNewID()
-		children := []*task.State{
-			{TaskExecID: core.MustNewID(), Status: core.StatusSuccess},
-			{TaskExecID: core.MustNewID(), Status: core.StatusSuccess},
-		}
+
+		// Parent state
 		parentState := &task.State{
 			TaskExecID: parentID,
+			TaskID:     "parent-task",
 			Status:     core.StatusRunning,
 		}
+		mockRepo.On("GetState", ctx, parentID).Return(parentState, nil)
 
-		mockTaskRepo.On("GetState", mock.Anything, parentID).Return(parentState, nil)
-		mockTaskRepo.On("ListChildren", mock.Anything, parentID).Return(children, nil)
-		mockTaskRepo.On("UpsertState", mock.Anything, mock.MatchedBy(func(state *task.State) bool {
-			return state.TaskExecID == parentID && state.Status == core.StatusSuccess
+		// All children successful
+		children := []*task.State{
+			{Status: core.StatusSuccess},
+			{Status: core.StatusSuccess},
+		}
+		mockRepo.On("ListChildren", ctx, parentID).Return(children, nil)
+
+		// Expect parent status to be updated to success
+		mockRepo.On("UpsertState", ctx, mock.MatchedBy(func(s *task.State) bool {
+			return s.TaskExecID == parentID && s.Status == core.StatusSuccess
 		})).Return(nil)
 
 		// Act
-		err := manager.UpdateParentStatus(context.Background(), parentID, task.StrategyWaitAll)
+		err := manager.UpdateParentStatus(ctx, parentID, task.StrategyWaitAll)
 
 		// Assert
 		require.NoError(t, err)
-		mockTaskRepo.AssertExpectations(t)
+		mockRepo.AssertExpectations(t)
 	})
 
-	t.Run("Should not update when parent already has expected status", func(t *testing.T) {
+	t.Run("Should handle fail-fast strategy", func(t *testing.T) {
 		// Arrange
-		mockTaskRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(mockTaskRepo).(*DefaultParentStatusManager)
-
+		mockRepo := &store.MockTaskRepo{}
+		manager := NewParentStatusManager(mockRepo)
+		ctx := context.Background()
 		parentID := core.MustNewID()
-		children := []*task.State{
-			{TaskExecID: core.MustNewID(), Status: core.StatusSuccess},
-			{TaskExecID: core.MustNewID(), Status: core.StatusSuccess},
-		}
+
 		parentState := &task.State{
 			TaskExecID: parentID,
-			Status:     core.StatusSuccess, // Already success
-		}
-
-		mockTaskRepo.On("GetState", mock.Anything, parentID).Return(parentState, nil)
-		mockTaskRepo.On("ListChildren", mock.Anything, parentID).Return(children, nil)
-		// UpsertState should NOT be called since status hasn't changed
-
-		// Act
-		err := manager.UpdateParentStatus(context.Background(), parentID, task.StrategyWaitAll)
-
-		// Assert
-		require.NoError(t, err)
-		mockTaskRepo.AssertExpectations(t)
-	})
-
-	t.Run("Should update parent status to failed when child fails", func(t *testing.T) {
-		// Arrange
-		mockTaskRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(mockTaskRepo).(*DefaultParentStatusManager)
-
-		parentID := core.MustNewID()
-		children := []*task.State{
-			{TaskExecID: core.MustNewID(), Status: core.StatusSuccess},
-			{TaskExecID: core.MustNewID(), Status: core.StatusFailed},
-		}
-		parentState := &task.State{
-			TaskExecID: parentID,
+			TaskID:     "parent-task",
 			Status:     core.StatusRunning,
 		}
+		mockRepo.On("GetState", ctx, parentID).Return(parentState, nil)
 
-		mockTaskRepo.On("GetState", mock.Anything, parentID).Return(parentState, nil)
-		mockTaskRepo.On("ListChildren", mock.Anything, parentID).Return(children, nil)
-		mockTaskRepo.On("UpsertState", mock.Anything, mock.MatchedBy(func(state *task.State) bool {
-			return state.Status == core.StatusFailed
+		// One child failed
+		children := []*task.State{
+			{Status: core.StatusSuccess},
+			{Status: core.StatusFailed},
+			{Status: core.StatusRunning},
+		}
+		mockRepo.On("ListChildren", ctx, parentID).Return(children, nil)
+
+		// Expect parent to fail immediately
+		mockRepo.On("UpsertState", ctx, mock.MatchedBy(func(s *task.State) bool {
+			return s.TaskExecID == parentID && s.Status == core.StatusFailed
 		})).Return(nil)
 
 		// Act
-		err := manager.UpdateParentStatus(context.Background(), parentID, task.StrategyWaitAll)
+		err := manager.UpdateParentStatus(ctx, parentID, task.StrategyFailFast)
 
 		// Assert
 		require.NoError(t, err)
-		mockTaskRepo.AssertExpectations(t)
+		mockRepo.AssertExpectations(t)
 	})
 
-	t.Run("Should handle empty children list", func(t *testing.T) {
+	t.Run("Should skip update when no children exist", func(t *testing.T) {
 		// Arrange
-		mockTaskRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(mockTaskRepo).(*DefaultParentStatusManager)
-
+		mockRepo := &store.MockTaskRepo{}
+		manager := NewParentStatusManager(mockRepo)
+		ctx := context.Background()
 		parentID := core.MustNewID()
-		children := []*task.State{}
+
 		parentState := &task.State{
 			TaskExecID: parentID,
+			TaskID:     "parent-task",
 			Status:     core.StatusRunning,
 		}
+		mockRepo.On("GetState", ctx, parentID).Return(parentState, nil)
 
-		mockTaskRepo.On("GetState", mock.Anything, parentID).Return(parentState, nil)
-		mockTaskRepo.On("ListChildren", mock.Anything, parentID).Return(children, nil)
+		// No children
+		mockRepo.On("ListChildren", ctx, parentID).Return([]*task.State{}, nil)
+
+		// Should not call UpsertState
+		mockRepo.AssertNotCalled(t, "UpsertState")
 
 		// Act
-		err := manager.UpdateParentStatus(context.Background(), parentID, task.StrategyWaitAll)
+		err := manager.UpdateParentStatus(ctx, parentID, task.StrategyWaitAll)
 
 		// Assert
 		require.NoError(t, err)
-		mockTaskRepo.AssertExpectations(t)
+		mockRepo.AssertExpectations(t)
 	})
 
-	t.Run("Should handle error when listing children", func(t *testing.T) {
+	t.Run("Should handle repository errors", func(t *testing.T) {
 		// Arrange
-		mockTaskRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(mockTaskRepo).(*DefaultParentStatusManager)
-
+		mockRepo := &store.MockTaskRepo{}
+		manager := NewParentStatusManager(mockRepo)
+		ctx := context.Background()
 		parentID := core.MustNewID()
-		parentState := &task.State{
-			TaskExecID: parentID,
-			Status:     core.StatusRunning,
-		}
-		listError := errors.New("database error")
 
-		mockTaskRepo.On("GetState", mock.Anything, parentID).Return(parentState, nil)
-		mockTaskRepo.On("ListChildren", mock.Anything, parentID).Return([]*task.State(nil), listError)
+		// GetState fails
+		mockRepo.On("GetState", ctx, parentID).Return(nil, fmt.Errorf("database error"))
 
 		// Act
-		err := manager.UpdateParentStatus(context.Background(), parentID, task.StrategyWaitAll)
+		err := manager.UpdateParentStatus(ctx, parentID, task.StrategyWaitAll)
 
 		// Assert
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to list children")
-		mockTaskRepo.AssertExpectations(t)
-	})
-
-	t.Run("Should handle error when getting parent state", func(t *testing.T) {
-		// Arrange
-		mockTaskRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(mockTaskRepo).(*DefaultParentStatusManager)
-
-		parentID := core.MustNewID()
-		getStateError := errors.New("state not found")
-
-		mockTaskRepo.On("GetState", mock.Anything, parentID).Return((*task.State)(nil), getStateError)
-
-		// Act
-		err := manager.UpdateParentStatus(context.Background(), parentID, task.StrategyWaitAll)
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to get parent state")
-		mockTaskRepo.AssertExpectations(t)
+		assert.Contains(t, err.Error(), "failed to batch get parent states")
+		assert.Contains(t, err.Error(), "database error")
+		mockRepo.AssertExpectations(t)
 	})
 }
 
 func TestDefaultParentStatusManager_GetAggregatedStatus(t *testing.T) {
-	t.Run("Should return success when all children succeed", func(t *testing.T) {
+	t.Run("Should return success when no children exist", func(t *testing.T) {
 		// Arrange
-		mockTaskRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(mockTaskRepo).(*DefaultParentStatusManager)
-
+		mockRepo := &store.MockTaskRepo{}
+		manager := NewParentStatusManager(mockRepo)
+		ctx := context.Background()
 		parentID := core.MustNewID()
-		children := []*task.State{
-			{TaskExecID: core.MustNewID(), Status: core.StatusSuccess},
-			{TaskExecID: core.MustNewID(), Status: core.StatusSuccess},
-		}
 
-		mockTaskRepo.On("ListChildren", mock.Anything, parentID).Return(children, nil)
+		mockRepo.On("ListChildren", ctx, parentID).Return([]*task.State{}, nil)
 
 		// Act
-		status, err := manager.GetAggregatedStatus(context.Background(), parentID, task.StrategyWaitAll)
+		status, err := manager.GetAggregatedStatus(ctx, parentID, task.StrategyWaitAll)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, core.StatusSuccess, status)
-		mockTaskRepo.AssertExpectations(t)
+		mockRepo.AssertExpectations(t)
 	})
 
-	t.Run("Should return running when some children are running", func(t *testing.T) {
+	t.Run("Should aggregate status with wait-all strategy", func(t *testing.T) {
 		// Arrange
-		mockTaskRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(mockTaskRepo).(*DefaultParentStatusManager)
-
+		mockRepo := &store.MockTaskRepo{}
+		manager := NewParentStatusManager(mockRepo)
+		ctx := context.Background()
 		parentID := core.MustNewID()
-		children := []*task.State{
-			{TaskExecID: core.MustNewID(), Status: core.StatusSuccess},
-			{TaskExecID: core.MustNewID(), Status: core.StatusRunning},
-		}
 
-		mockTaskRepo.On("ListChildren", mock.Anything, parentID).Return(children, nil)
+		children := []*task.State{
+			{Status: core.StatusSuccess},
+			{Status: core.StatusRunning},
+		}
+		mockRepo.On("ListChildren", ctx, parentID).Return(children, nil)
 
 		// Act
-		status, err := manager.GetAggregatedStatus(context.Background(), parentID, task.StrategyWaitAll)
+		status, err := manager.GetAggregatedStatus(ctx, parentID, task.StrategyWaitAll)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, core.StatusRunning, status)
-		mockTaskRepo.AssertExpectations(t)
-	})
-
-	t.Run("Should return failed when any child fails", func(t *testing.T) {
-		// Arrange
-		mockTaskRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(mockTaskRepo).(*DefaultParentStatusManager)
-
-		parentID := core.MustNewID()
-		children := []*task.State{
-			{TaskExecID: core.MustNewID(), Status: core.StatusSuccess},
-			{TaskExecID: core.MustNewID(), Status: core.StatusFailed},
-		}
-
-		mockTaskRepo.On("ListChildren", mock.Anything, parentID).Return(children, nil)
-
-		// Act
-		status, err := manager.GetAggregatedStatus(context.Background(), parentID, task.StrategyWaitAll)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, core.StatusFailed, status)
-		mockTaskRepo.AssertExpectations(t)
-	})
-
-	t.Run("Should return success for empty children list", func(t *testing.T) {
-		// Arrange
-		mockTaskRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(mockTaskRepo).(*DefaultParentStatusManager)
-
-		parentID := core.MustNewID()
-		children := []*task.State{}
-
-		mockTaskRepo.On("ListChildren", mock.Anything, parentID).Return(children, nil)
-
-		// Act
-		status, err := manager.GetAggregatedStatus(context.Background(), parentID, task.StrategyWaitAll)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, core.StatusSuccess, status)
-		mockTaskRepo.AssertExpectations(t)
+		mockRepo.AssertExpectations(t)
 	})
 }
 
 func TestDefaultParentStatusManager_StrategyCalculations(t *testing.T) {
-	manager := &DefaultParentStatusManager{}
+	mockRepo := &store.MockTaskRepo{}
+	manager := NewParentStatusManager(mockRepo).(*DefaultParentStatusManager)
 
-	t.Run("Should calculate fail-fast strategy correctly", func(t *testing.T) {
+	t.Run("Should calculate wait-all status correctly", func(t *testing.T) {
+		testCases := []struct {
+			name           string
+			children       []*task.State
+			expectedStatus core.StatusType
+		}{
+			{
+				name: "all success",
+				children: []*task.State{
+					{Status: core.StatusSuccess},
+					{Status: core.StatusSuccess},
+				},
+				expectedStatus: core.StatusSuccess,
+			},
+			{
+				name: "one failed",
+				children: []*task.State{
+					{Status: core.StatusSuccess},
+					{Status: core.StatusFailed},
+				},
+				expectedStatus: core.StatusFailed,
+			},
+			{
+				name: "one running",
+				children: []*task.State{
+					{Status: core.StatusSuccess},
+					{Status: core.StatusRunning},
+				},
+				expectedStatus: core.StatusRunning,
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				status := manager.calculateWaitAllStatus(tc.children)
+				assert.Equal(t, tc.expectedStatus, status)
+			})
+		}
+	})
+
+	t.Run("Should calculate fail-fast status correctly", func(t *testing.T) {
 		// Arrange
 		children := []*task.State{
 			{Status: core.StatusSuccess},
@@ -287,9 +236,10 @@ func TestDefaultParentStatusManager_StrategyCalculations(t *testing.T) {
 		assert.Equal(t, core.StatusFailed, status)
 	})
 
-	t.Run("Should calculate best-effort strategy correctly", func(t *testing.T) {
+	t.Run("Should calculate best-effort status correctly", func(t *testing.T) {
 		// Arrange
 		children := []*task.State{
+			{Status: core.StatusFailed},
 			{Status: core.StatusSuccess},
 			{Status: core.StatusFailed},
 		}
@@ -301,11 +251,12 @@ func TestDefaultParentStatusManager_StrategyCalculations(t *testing.T) {
 		assert.Equal(t, core.StatusSuccess, status)
 	})
 
-	t.Run("Should calculate race strategy correctly", func(t *testing.T) {
+	t.Run("Should calculate race status correctly", func(t *testing.T) {
 		// Arrange
 		children := []*task.State{
-			{Status: core.StatusSuccess},
+			{Status: core.StatusFailed},
 			{Status: core.StatusRunning},
+			{Status: core.StatusSuccess},
 		}
 
 		// Act
@@ -315,7 +266,7 @@ func TestDefaultParentStatusManager_StrategyCalculations(t *testing.T) {
 		assert.Equal(t, core.StatusSuccess, status)
 	})
 
-	t.Run("Should calculate wait-all strategy correctly", func(t *testing.T) {
+	t.Run("Should use wait-all for empty strategy", func(t *testing.T) {
 		// Arrange
 		children := []*task.State{
 			{Status: core.StatusSuccess},
@@ -323,67 +274,7 @@ func TestDefaultParentStatusManager_StrategyCalculations(t *testing.T) {
 		}
 
 		// Act
-		status := manager.calculateWaitAllStatus(children)
-
-		// Assert
-		assert.Equal(t, core.StatusRunning, status)
-	})
-}
-
-func TestDefaultParentStatusManager_CalculateStatusWithStrategy(t *testing.T) {
-	manager := &DefaultParentStatusManager{}
-
-	t.Run("Should use fail-fast strategy", func(t *testing.T) {
-		// Arrange
-		children := []*task.State{
-			{Status: core.StatusSuccess},
-			{Status: core.StatusFailed},
-		}
-
-		// Act
-		status := manager.calculateStatusWithStrategy(children, task.StrategyFailFast)
-
-		// Assert
-		assert.Equal(t, core.StatusFailed, status)
-	})
-
-	t.Run("Should use best-effort strategy", func(t *testing.T) {
-		// Arrange
-		children := []*task.State{
-			{Status: core.StatusSuccess},
-			{Status: core.StatusFailed},
-		}
-
-		// Act
-		status := manager.calculateStatusWithStrategy(children, task.StrategyBestEffort)
-
-		// Assert
-		assert.Equal(t, core.StatusSuccess, status)
-	})
-
-	t.Run("Should use race strategy", func(t *testing.T) {
-		// Arrange
-		children := []*task.State{
-			{Status: core.StatusSuccess},
-			{Status: core.StatusRunning},
-		}
-
-		// Act
-		status := manager.calculateStatusWithStrategy(children, task.StrategyRace)
-
-		// Assert
-		assert.Equal(t, core.StatusSuccess, status)
-	})
-
-	t.Run("Should default to wait-all strategy", func(t *testing.T) {
-		// Arrange
-		children := []*task.State{
-			{Status: core.StatusSuccess},
-			{Status: core.StatusRunning},
-		}
-
-		// Act
-		status := manager.calculateStatusWithStrategy(children, task.StrategyWaitAll)
+		status := manager.calculateStatusWithStrategy(children, "")
 
 		// Assert
 		assert.Equal(t, core.StatusRunning, status)
@@ -401,5 +292,207 @@ func TestDefaultParentStatusManager_CalculateStatusWithStrategy(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, core.StatusRunning, status)
+	})
+}
+
+func TestDefaultParentStatusManager_BatchProcessing(t *testing.T) {
+	t.Run("Should process single batch when updates are less than batch size", func(t *testing.T) {
+		// Arrange
+		mockRepo := &store.MockTaskRepo{}
+		manager := NewParentStatusManagerWithConfig(mockRepo, 10, true) // batch size 10
+		ctx := context.Background()
+
+		// Create 5 updates (less than batch size)
+		updates := []ParentUpdate{
+			{ParentID: core.MustNewID(), Strategy: task.StrategyWaitAll},
+			{ParentID: core.MustNewID(), Strategy: task.StrategyFailFast},
+			{ParentID: core.MustNewID(), Strategy: task.StrategyBestEffort},
+			{ParentID: core.MustNewID(), Strategy: task.StrategyRace},
+			{ParentID: core.MustNewID(), Strategy: task.StrategyWaitAll},
+		}
+
+		// Mock parent states
+		parentStates := make([]*task.State, len(updates))
+		for i, update := range updates {
+			parentState := &task.State{
+				TaskExecID: update.ParentID,
+				TaskID:     "parent-task-" + strconv.Itoa(i),
+				Status:     core.StatusRunning,
+			}
+			parentStates[i] = parentState
+			mockRepo.On("GetState", ctx, update.ParentID).Return(parentState, nil)
+
+			// Mock children for each parent
+			children := []*task.State{
+				{Status: core.StatusSuccess},
+				{Status: core.StatusSuccess},
+			}
+			mockRepo.On("ListChildren", ctx, update.ParentID).Return(children, nil)
+
+			// Mock update
+			mockRepo.On("UpsertState", ctx, mock.MatchedBy(func(s *task.State) bool {
+				return s.TaskExecID == update.ParentID && s.Status == core.StatusSuccess
+			})).Return(nil)
+		}
+
+		// Act
+		err := manager.(*DefaultParentStatusManager).updateParentStatusBatch(ctx, updates)
+
+		// Assert
+		require.NoError(t, err)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("Should process multiple batches when updates exceed batch size", func(t *testing.T) {
+		// Arrange
+		mockRepo := &store.MockTaskRepo{}
+		manager := NewParentStatusManagerWithConfig(mockRepo, 3, true) // batch size 3
+		ctx := context.Background()
+
+		// Create 7 updates (will require 3 batches: 3, 3, 1)
+		updates := make([]ParentUpdate, 7)
+		for i := 0; i < 7; i++ {
+			updates[i] = ParentUpdate{
+				ParentID: core.MustNewID(),
+				Strategy: task.StrategyWaitAll,
+			}
+
+			// Mock for each parent
+			parentState := &task.State{
+				TaskExecID: updates[i].ParentID,
+				TaskID:     "parent-task-" + strconv.Itoa(i),
+				Status:     core.StatusRunning,
+			}
+			mockRepo.On("GetState", ctx, updates[i].ParentID).Return(parentState, nil)
+
+			children := []*task.State{{Status: core.StatusSuccess}}
+			mockRepo.On("ListChildren", ctx, updates[i].ParentID).Return(children, nil)
+			mockRepo.On("UpsertState", ctx, mock.AnythingOfType("*task.State")).Return(nil)
+		}
+
+		// Act
+		err := manager.(*DefaultParentStatusManager).updateParentStatusBatch(ctx, updates)
+
+		// Assert
+		require.NoError(t, err)
+		mockRepo.AssertExpectations(t)
+		// Verify that GetState was called exactly 7 times
+		mockRepo.AssertNumberOfCalls(t, "GetState", 7)
+	})
+
+	t.Run("Should handle duplicate parent IDs efficiently", func(t *testing.T) {
+		// Arrange
+		mockRepo := &store.MockTaskRepo{}
+		manager := NewParentStatusManagerWithConfig(mockRepo, 10, true)
+		ctx := context.Background()
+
+		parentID := core.MustNewID()
+		// Create updates with duplicate parent IDs
+		updates := []ParentUpdate{
+			{ParentID: parentID, Strategy: task.StrategyWaitAll},
+			{ParentID: parentID, Strategy: task.StrategyFailFast}, // duplicate
+			{ParentID: core.MustNewID(), Strategy: task.StrategyBestEffort},
+		}
+
+		// Mock for unique parent IDs
+		parentState1 := &task.State{
+			TaskExecID: parentID,
+			TaskID:     "parent-task-1",
+			Status:     core.StatusRunning,
+		}
+		parentState2 := &task.State{
+			TaskExecID: updates[2].ParentID,
+			TaskID:     "parent-task-2",
+			Status:     core.StatusRunning,
+		}
+
+		// After fix, should only call GetState twice (not three times)
+		mockRepo.On("GetState", ctx, parentID).Return(parentState1, nil).Once()
+		mockRepo.On("GetState", ctx, updates[2].ParentID).Return(parentState2, nil).Once()
+
+		children := []*task.State{{Status: core.StatusSuccess}}
+		mockRepo.On("ListChildren", ctx, parentID).Return(children, nil).Once()
+		mockRepo.On("ListChildren", ctx, updates[2].ParentID).Return(children, nil).Once()
+
+		mockRepo.On("UpsertState", ctx, mock.AnythingOfType("*task.State")).Return(nil)
+
+		// Act
+		err := manager.(*DefaultParentStatusManager).updateParentStatusBatch(ctx, updates)
+
+		// Assert
+		require.NoError(t, err)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("Should work with non-batching repository", func(t *testing.T) {
+		// Arrange
+		mockRepo := &store.MockTaskRepo{}
+		manager := NewParentStatusManagerWithConfig(mockRepo, 2, true)
+		ctx := context.Background()
+
+		// Create 3 updates
+		updates := make([]ParentUpdate, 3)
+		for i := 0; i < 3; i++ {
+			updates[i] = ParentUpdate{
+				ParentID: core.MustNewID(),
+				Strategy: task.StrategyWaitAll,
+			}
+
+			parentState := &task.State{
+				TaskExecID: updates[i].ParentID,
+				TaskID:     "parent-task-" + strconv.Itoa(i),
+				Status:     core.StatusRunning,
+			}
+			mockRepo.On("GetState", ctx, updates[i].ParentID).Return(parentState, nil)
+
+			children := []*task.State{{Status: core.StatusSuccess}}
+			mockRepo.On("ListChildren", ctx, updates[i].ParentID).Return(children, nil)
+			mockRepo.On("UpsertState", ctx, mock.AnythingOfType("*task.State")).Return(nil)
+		}
+
+		// Act - should work even without batch repository interface
+		err := manager.(*DefaultParentStatusManager).updateParentStatusBatch(ctx, updates)
+
+		// Assert
+		require.NoError(t, err)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("Should handle errors in batch processing", func(t *testing.T) {
+		// Arrange
+		mockRepo := &store.MockTaskRepo{}
+		manager := NewParentStatusManagerWithConfig(mockRepo, 2, true)
+		ctx := context.Background()
+
+		updates := []ParentUpdate{
+			{ParentID: core.MustNewID(), Strategy: task.StrategyWaitAll},
+			{ParentID: core.MustNewID(), Strategy: task.StrategyWaitAll},
+			{ParentID: core.MustNewID(), Strategy: task.StrategyWaitAll},
+		}
+
+		// First batch succeeds
+		for i := 0; i < 2; i++ {
+			parentState := &task.State{
+				TaskExecID: updates[i].ParentID,
+				TaskID:     "parent-task-" + strconv.Itoa(i),
+				Status:     core.StatusRunning,
+			}
+			mockRepo.On("GetState", ctx, updates[i].ParentID).Return(parentState, nil)
+			children := []*task.State{{Status: core.StatusSuccess}}
+			mockRepo.On("ListChildren", ctx, updates[i].ParentID).Return(children, nil)
+			mockRepo.On("UpsertState", ctx, mock.AnythingOfType("*task.State")).Return(nil)
+		}
+
+		// Second batch fails
+		mockRepo.On("GetState", ctx, updates[2].ParentID).Return(nil, fmt.Errorf("database error"))
+
+		// Act
+		err := manager.(*DefaultParentStatusManager).updateParentStatusBatch(ctx, updates)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to process batch 2-3")
+		assert.Contains(t, err.Error(), "database error")
+		mockRepo.AssertExpectations(t)
 	})
 }

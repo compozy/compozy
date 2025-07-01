@@ -11,6 +11,7 @@ import (
 // Normalizer handles normalization for router tasks
 type Normalizer struct {
 	*shared.BaseNormalizer
+	templateEngine *tplengine.TemplateEngine
 }
 
 // NewNormalizer creates a new router task normalizer
@@ -25,6 +26,7 @@ func NewNormalizer(
 			task.TaskTypeRouter,
 			nil, // Use default filter
 		),
+		templateEngine: templateEngine,
 	}
 }
 
@@ -58,14 +60,14 @@ func (n *Normalizer) normalizeRoutes(routes map[string]any, context map[string]a
 		switch v := routeValue.(type) {
 		case string:
 			// Simple string - process as task ID template
-			processed, err := n.ProcessTemplateString(v, context)
+			processed, err := n.templateEngine.ParseAny(v, context)
 			if err != nil {
 				return fmt.Errorf("failed to process route %s task ID: %w", routeName, err)
 			}
 			routes[routeName] = processed
 		case map[string]any:
 			// Complex route with condition
-			processedRoute, err := n.ProcessTemplateMap(v, context)
+			processedRoute, err := n.templateEngine.ParseAny(v, context)
 			if err != nil {
 				return fmt.Errorf("failed to process route %s: %w", routeName, err)
 			}

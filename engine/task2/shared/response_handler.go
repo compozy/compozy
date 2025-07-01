@@ -8,9 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
-	"github.com/jackc/pgx/v5"
 )
 
 // BaseResponseHandler provides common response handling logic for all task types
@@ -21,6 +19,7 @@ type BaseResponseHandler struct {
 	workflowRepo        workflow.Repository
 	taskRepo            task.Repository
 	outputTransformer   OutputTransformer
+	transactionService  *TransactionService
 }
 
 // OutputTransformer defines the interface for output transformation
@@ -49,6 +48,7 @@ func NewBaseResponseHandler(
 		workflowRepo:        workflowRepo,
 		taskRepo:            taskRepo,
 		outputTransformer:   outputTransformer,
+		transactionService:  NewTransactionService(taskRepo),
 	}
 }
 
@@ -58,48 +58,81 @@ func (h *BaseResponseHandler) ProcessMainTaskResponse(
 	ctx context.Context,
 	input *ResponseInput,
 ) (*ResponseOutput, error) {
+	// Process execution and save state
+	isSuccess, executionErr, err := h.processAndSaveTaskResult(ctx, input)
+	if err != nil {
+		return h.handleProcessingError(ctx, input, err)
+	}
+	// Update parent status if needed
+	if err := h.updateParentIfNeeded(ctx, input.TaskState); err != nil {
+		return h.handleProcessingError(ctx, input, err)
+	}
+	// Build final response
+	return h.buildTaskResponse(ctx, input, isSuccess, executionErr)
+}
+
+// processAndSaveTaskResult processes execution result and saves state
+func (h *BaseResponseHandler) processAndSaveTaskResult(
+	ctx context.Context,
+	input *ResponseInput,
+) (bool, error, error) {
 	// Process task execution result
 	isSuccess, executionErr := h.processTaskExecutionResult(ctx, input)
-
-	// Save state and handle context cancellation
+	// Save state with proper error handling
 	if err := h.saveTaskState(ctx, input.TaskState); err != nil {
-		if ctx.Err() != nil {
-			return &ResponseOutput{State: input.TaskState}, nil
-		}
-		return nil, err
+		return false, nil, err
 	}
+	return isSuccess, executionErr, nil
+}
 
-	// Update parent status and handle context cancellation
-	h.logParentStatusUpdateError(ctx, input.TaskState)
-	if ctx.Err() != nil {
-		return &ResponseOutput{State: input.TaskState}, nil
+// updateParentIfNeeded updates parent status with proper error handling
+func (h *BaseResponseHandler) updateParentIfNeeded(
+	ctx context.Context,
+	state *task.State,
+) error {
+	if err := h.updateParentStatusIfNeeded(ctx, state); err != nil {
+		// Return error instead of just logging
+		return fmt.Errorf("unable to update parent task status: %w", err)
 	}
+	return nil
+}
 
-	// Process transitions and validate error handling
+// buildTaskResponse builds the final response with transitions
+func (h *BaseResponseHandler) buildTaskResponse(
+	ctx context.Context,
+	input *ResponseInput,
+	isSuccess bool,
+	executionErr error,
+) (*ResponseOutput, error) {
+	// Process transitions
 	onSuccess, onError, err := h.processTransitions(ctx, input, isSuccess, executionErr)
 	if err != nil {
 		return nil, err
 	}
-
-	// Handle context cancellation after transition processing
-	if ctx.Err() != nil {
-		return &ResponseOutput{State: input.TaskState}, nil
-	}
-
 	// Determine next task
 	nextTask := h.determineNextTask(input, isSuccess)
-
 	response := &task.MainTaskResponse{
 		OnSuccess: onSuccess,
 		OnError:   onError,
 		State:     input.TaskState,
 		NextTask:  nextTask,
 	}
-
 	return &ResponseOutput{
 		Response: response,
 		State:    input.TaskState,
 	}, nil
+}
+
+// handleProcessingError handles errors with context cancellation check
+func (h *BaseResponseHandler) handleProcessingError(
+	ctx context.Context,
+	input *ResponseInput,
+	err error,
+) (*ResponseOutput, error) {
+	if ctx.Err() != nil {
+		return &ResponseOutput{State: input.TaskState}, nil
+	}
+	return nil, err
 }
 
 // processTaskExecutionResult handles output transformation and determines success status
@@ -208,23 +241,6 @@ func (h *BaseResponseHandler) setErrorState(state *task.State, executionErr erro
 	}
 }
 
-// logParentStatusUpdateError logs parent status update errors without failing the main flow
-// Extracted from TaskResponder.logParentStatusUpdateError
-func (h *BaseResponseHandler) logParentStatusUpdateError(ctx context.Context, state *task.State) {
-	if err := h.updateParentStatusIfNeeded(ctx, state); err != nil {
-		// Log the error but don't fail the main flow to match TaskResponder behavior
-		log := logger.FromContext(ctx).With(
-			"task_exec_id", state.TaskExecID,
-			"task_id", state.TaskID,
-			"error", err,
-		)
-		if state.ParentStateID != nil {
-			log = log.With("parent_state_id", *state.ParentStateID)
-		}
-		log.Error("Failed to update parent task status")
-	}
-}
-
 // normalizeTransitions normalizes task transitions for processing
 func (h *BaseResponseHandler) normalizeTransitions(
 	_ context.Context,
@@ -233,73 +249,110 @@ func (h *BaseResponseHandler) normalizeTransitions(
 	if input.TaskConfig == nil {
 		return nil, nil, fmt.Errorf("task config cannot be nil for transition normalization")
 	}
+	// Build contexts
+	normCtx, templateContext := h.buildNormalizationContexts(input)
+	// Normalize both transitions
+	normalizedSuccess, err := h.normalizeSuccessTransition(input.TaskConfig.OnSuccess, normCtx, templateContext)
+	if err != nil {
+		return nil, nil, err
+	}
+	normalizedError, err := h.normalizeErrorTransition(input.TaskConfig.OnError, normCtx, templateContext)
+	if err != nil {
+		return nil, nil, err
+	}
+	return normalizedSuccess, normalizedError, nil
+}
 
-	// Build normalization context
+// buildNormalizationContexts builds contexts for transition normalization
+func (h *BaseResponseHandler) buildNormalizationContexts(
+	input *ResponseInput,
+) (*NormalizationContext, map[string]any) {
 	normCtx := h.contextBuilder.BuildContext(input.WorkflowState, input.WorkflowConfig, input.TaskConfig)
 	normCtx.CurrentInput = input.TaskState.Input
-
-	// Build template context for normalization
 	templateContext := normCtx.BuildTemplateContext()
+	return normCtx, templateContext
+}
 
-	// Normalize success transition
-	var normalizedSuccess *core.SuccessTransition
-	if input.TaskConfig.OnSuccess != nil {
-		normalizedSuccess = &core.SuccessTransition{}
-		*normalizedSuccess = *input.TaskConfig.OnSuccess
-
-		// Set current input if not already set
-		if normCtx.CurrentInput == nil && normalizedSuccess.With != nil {
-			normCtx.CurrentInput = normalizedSuccess.With
-		}
-
-		// Convert to map for template processing
-		configMap, err := normalizedSuccess.AsMap()
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to convert success transition to map: %w", err)
-		}
-
-		// Apply template processing
-		parsed, err := h.templateEngine.ParseAny(configMap, templateContext)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to normalize success transition: %w", err)
-		}
-
-		// Update from normalized map
-		if err := normalizedSuccess.FromMap(parsed); err != nil {
-			return nil, nil, fmt.Errorf("failed to update success transition from normalized map: %w", err)
-		}
+// normalizeSuccessTransition normalizes success transition
+func (h *BaseResponseHandler) normalizeSuccessTransition(
+	transition *core.SuccessTransition,
+	normCtx *NormalizationContext,
+	templateContext map[string]any,
+) (*core.SuccessTransition, error) {
+	if transition == nil {
+		return nil, nil
 	}
-
-	// Normalize error transition
-	var normalizedError *core.ErrorTransition
-	if input.TaskConfig.OnError != nil {
-		normalizedError = &core.ErrorTransition{}
-		*normalizedError = *input.TaskConfig.OnError
-
-		// Set current input if not already set
-		if normCtx.CurrentInput == nil && normalizedError.With != nil {
-			normCtx.CurrentInput = normalizedError.With
-		}
-
-		// Convert to map for template processing
-		configMap, err := normalizedError.AsMap()
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to convert error transition to map: %w", err)
-		}
-
-		// Apply template processing
-		parsed, err := h.templateEngine.ParseAny(configMap, templateContext)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to normalize error transition: %w", err)
-		}
-
-		// Update from normalized map
-		if err := normalizedError.FromMap(parsed); err != nil {
-			return nil, nil, fmt.Errorf("failed to update error transition from normalized map: %w", err)
-		}
+	normalized := &core.SuccessTransition{}
+	*normalized = *transition
+	// Set current input if not already set
+	if normCtx.CurrentInput == nil && normalized.With != nil {
+		normCtx.CurrentInput = normalized.With
 	}
+	// Apply template processing
+	if err := h.applyTransitionTemplates(normalized, templateContext, "success"); err != nil {
+		return nil, err
+	}
+	return normalized, nil
+}
 
-	return normalizedSuccess, normalizedError, nil
+// normalizeErrorTransition normalizes error transition
+func (h *BaseResponseHandler) normalizeErrorTransition(
+	transition *core.ErrorTransition,
+	normCtx *NormalizationContext,
+	templateContext map[string]any,
+) (*core.ErrorTransition, error) {
+	if transition == nil {
+		return nil, nil
+	}
+	normalized := &core.ErrorTransition{}
+	*normalized = *transition
+	// Set current input if not already set
+	if normCtx.CurrentInput == nil && normalized.With != nil {
+		normCtx.CurrentInput = normalized.With
+	}
+	// Apply template processing
+	if err := h.applyTransitionTemplates(normalized, templateContext, "error"); err != nil {
+		return nil, err
+	}
+	return normalized, nil
+}
+
+// applyTransitionTemplates applies template processing to transitions
+func (h *BaseResponseHandler) applyTransitionTemplates(
+	transition any,
+	templateContext map[string]any,
+	transitionType string,
+) error {
+	// Convert to map for template processing
+	var configMap map[string]any
+	var err error
+	switch t := transition.(type) {
+	case *core.SuccessTransition:
+		configMap, err = t.AsMap()
+	case *core.ErrorTransition:
+		configMap, err = t.AsMap()
+	default:
+		return fmt.Errorf("unsupported transition type: %T", transition)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to convert %s transition to map: %w", transitionType, err)
+	}
+	// Apply template processing
+	parsed, err := h.templateEngine.ParseAny(configMap, templateContext)
+	if err != nil {
+		return fmt.Errorf("failed to normalize %s transition: %w", transitionType, err)
+	}
+	// Update from normalized map
+	switch t := transition.(type) {
+	case *core.SuccessTransition:
+		err = t.FromMap(parsed)
+	case *core.ErrorTransition:
+		err = t.FromMap(parsed)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to update %s transition from normalized map: %w", transitionType, err)
+	}
+	return nil
 }
 
 // updateParentStatusIfNeeded updates parent task status if this is a child task
@@ -331,28 +384,43 @@ func (h *BaseResponseHandler) updateParentStatusIfNeeded(ctx context.Context, ch
 func (h *BaseResponseHandler) extractParentStrategy(parentState *task.State) task.ParallelStrategy {
 	// Default strategy if not specified
 	defaultStrategy := task.StrategyWaitAll
-
 	if parentState.Input == nil {
 		return defaultStrategy
 	}
-
 	// Check for strategy in input
-	if strategyVal, exists := (*parentState.Input)["strategy"]; exists {
+	if strategyVal, exists := (*parentState.Input)[FieldStrategy]; exists {
 		if strategyStr, ok := strategyVal.(string); ok {
-			switch task.ParallelStrategy(strategyStr) {
-			case task.StrategyWaitAll:
-				return task.StrategyWaitAll
-			case task.StrategyFailFast:
-				return task.StrategyFailFast
-			case task.StrategyBestEffort:
-				return task.StrategyBestEffort
-			case task.StrategyRace:
-				return task.StrategyRace
-			}
+			return h.parseStrategy(strategyStr)
 		}
 	}
-
+	// Check for parallel config in input
+	if parallelConfig, exists := (*parentState.Input)[FieldParallelConfig]; exists {
+		switch v := parallelConfig.(type) {
+		case map[string]any:
+			if strategy, ok := v[FieldStrategy].(string); ok {
+				return h.parseStrategy(strategy)
+			}
+		case string:
+			return h.parseStrategy(v)
+		}
+	}
 	return defaultStrategy
+}
+
+// parseStrategy converts string to ParallelStrategy type
+func (h *BaseResponseHandler) parseStrategy(strategy string) task.ParallelStrategy {
+	switch task.ParallelStrategy(strategy) {
+	case task.StrategyWaitAll:
+		return task.StrategyWaitAll
+	case task.StrategyFailFast:
+		return task.StrategyFailFast
+	case task.StrategyBestEffort:
+		return task.StrategyBestEffort
+	case task.StrategyRace:
+		return task.StrategyRace
+	default:
+		return task.StrategyWaitAll
+	}
 }
 
 // ShouldDeferOutputTransformation determines if output transformation should be deferred
@@ -419,39 +487,7 @@ func (h *BaseResponseHandler) ProcessTransitions(_ context.Context, _ *ResponseI
 // saveTaskState saves the task state with transaction safety when available
 // Extracted from TaskResponder.saveTaskState
 func (h *BaseResponseHandler) saveTaskState(ctx context.Context, state *task.State) error {
-	// Check if the task repository supports transactions for row-level locking
-	type txRepo interface {
-		WithTx(ctx context.Context, fn func(tx pgx.Tx) error) error
-		GetStateForUpdate(ctx context.Context, tx pgx.Tx, taskExecID core.ID) (*task.State, error)
-		UpsertStateWithTx(ctx context.Context, tx pgx.Tx, state *task.State) error
-	}
-
-	if txTaskRepo, ok := h.taskRepo.(txRepo); ok {
-		return txTaskRepo.WithTx(ctx, func(tx pgx.Tx) error {
-			// Get latest state with row-level lock to prevent concurrent modifications
-			latestState, err := txTaskRepo.GetStateForUpdate(ctx, tx, state.TaskExecID)
-			if err != nil {
-				return fmt.Errorf("failed to lock state for update: %w", err)
-			}
-
-			// Apply changes to latest state to prevent overwrites
-			latestState.Status = state.Status
-			latestState.Output = state.Output
-			latestState.Error = state.Error
-
-			// Save with transaction safety
-			if err := txTaskRepo.UpsertStateWithTx(ctx, tx, latestState); err != nil {
-				return fmt.Errorf("failed to update task state: %w", err)
-			}
-			return nil
-		})
-	}
-
-	// Fallback to regular save if transactions are not supported
-	if err := h.taskRepo.UpsertState(ctx, state); err != nil {
-		return fmt.Errorf("failed to update task state: %w", err)
-	}
-	return nil
+	return h.transactionService.SaveStateWithLocking(ctx, state)
 }
 
 // ApplyDeferredOutputTransformation applies output transformation for parent tasks after children are processed
@@ -465,87 +501,32 @@ func (h *BaseResponseHandler) ApplyDeferredOutputTransformation(
 		return nil
 	}
 
-	// Check if the task repository supports transactions
-	type txRepo interface {
-		WithTx(ctx context.Context, fn func(pgx.Tx) error) error
-		GetStateForUpdate(ctx context.Context, tx pgx.Tx, taskExecID core.ID) (*task.State, error)
-		UpsertStateWithTx(ctx context.Context, tx pgx.Tx, state *task.State) error
-	}
+	// Define the transformation logic
+	transformer := func(state *task.State) error {
+		// Create a new input for the transformation
+		transformInput := &ResponseInput{
+			TaskConfig:     input.TaskConfig,
+			TaskState:      state,
+			WorkflowConfig: input.WorkflowConfig,
+			WorkflowState:  input.WorkflowState,
+		}
 
-	if txTaskRepo, ok := h.taskRepo.(txRepo); ok {
-		// Use a transaction to prevent race conditions and ensure atomicity
-		var transformErr error
-		txErr := txTaskRepo.WithTx(ctx, func(tx pgx.Tx) error {
-			// Get the latest state with lock to prevent concurrent modifications
-			latestState, err := txTaskRepo.GetStateForUpdate(ctx, tx, input.TaskState.TaskExecID)
-			if err != nil {
-				return fmt.Errorf("failed to get latest state for update: %w", err)
-			}
+		// Ensure the task is marked as successful
+		transformInput.TaskState.UpdateStatus(core.StatusSuccess)
 
-			// Use the fresh state for the transformation
-			// Create a new input for the transformation function to avoid side effects
-			transformInput := &ResponseInput{
-				TaskConfig:     input.TaskConfig,
-				TaskState:      latestState,
-				WorkflowConfig: input.WorkflowConfig,
-				WorkflowState:  input.WorkflowState,
-			}
-
-			// Ensure the task is marked as successful for the transformation context
-			transformInput.TaskState.UpdateStatus(core.StatusSuccess)
-
-			// Apply output transformation if needed
-			if transformInput.TaskConfig.GetOutputs() != nil && transformInput.TaskState.Output != nil {
-				transformErr = h.applyOutputTransformation(ctx, transformInput)
-			}
-
-			if transformErr != nil {
-				// On transformation failure, mark task as failed and set error
+		// Apply output transformation if needed
+		if transformInput.TaskConfig.GetOutputs() != nil && transformInput.TaskState.Output != nil {
+			if err := h.applyOutputTransformation(ctx, transformInput); err != nil {
+				// On transformation failure, mark task as failed
 				transformInput.TaskState.UpdateStatus(core.StatusFailed)
-				h.setErrorState(transformInput.TaskState, transformErr)
+				h.setErrorState(transformInput.TaskState, err)
+				return err
 			}
-
-			// Save the updated state (either with transformed output or with failure status)
-			if err := txTaskRepo.UpsertStateWithTx(ctx, tx, transformInput.TaskState); err != nil {
-				if transformErr != nil {
-					return fmt.Errorf(
-						"failed to save state after transformation error: %w (original error: %w)",
-						err,
-						transformErr,
-					)
-				}
-				return fmt.Errorf("failed to save transformed state: %w", err)
-			}
-
-			// Always commit the transaction - the state has been properly saved
-			return nil
-		})
-
-		// If transaction failed, return the transaction error
-		if txErr != nil {
-			return txErr
 		}
 
-		// If transformation failed, return the transformation error after successful state save
-		return transformErr
+		return nil
 	}
 
-	// Fallback to direct transformation if transactions are not supported
-	if input.TaskConfig.GetOutputs() != nil && input.TaskState.Output != nil {
-		if err := h.applyOutputTransformation(ctx, input); err != nil {
-			// On transformation failure, mark task as failed and set error
-			input.TaskState.UpdateStatus(core.StatusFailed)
-			h.setErrorState(input.TaskState, err)
-			// Save the failed state
-			if saveErr := h.taskRepo.UpsertState(ctx, input.TaskState); saveErr != nil {
-				return fmt.Errorf(
-					"failed to save state after transformation error: %w (original error: %w)",
-					saveErr,
-					err,
-				)
-			}
-			return err
-		}
-	}
-	return nil
+	// Apply transformation with transaction support
+	return h.transactionService.ApplyTransformation(ctx, input.TaskState.TaskExecID, transformer)
 }

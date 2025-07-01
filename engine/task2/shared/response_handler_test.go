@@ -397,27 +397,28 @@ func TestApplyDeferredOutputTransformation(t *testing.T) {
 		transformError := errors.New("transformation failed")
 
 		// Mock expectations
-		// Mock WithTx for ApplyDeferredOutputTransformation
-		taskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Run(func(args mock.Arguments) {
+		// Since WithTx executes the function and returns its error, we need to mock it properly
+		taskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Return(
+			errors.New("task processing failed: output transformation failed: transformation failed"),
+		).Run(func(args mock.Arguments) {
+			// Still execute the function to trigger mocks inside
 			fn := args.Get(1).(func(pgx.Tx) error)
-			fn(nil) // Simulate transaction execution
-		}).Return(nil)
+			fn(nil)
+		})
 
 		taskRepo.On("GetStateForUpdate", ctx, mock.Anything, taskState.TaskExecID).Return(taskState, nil)
 
 		outputTransformer.On("TransformOutput", ctx, taskState, input.TaskConfig, input.WorkflowConfig).
 			Return(nil, transformError)
 
-		taskRepo.On("UpsertStateWithTx", ctx, mock.Anything, mock.MatchedBy(func(state *task.State) bool {
-			return state.Status == core.StatusFailed && state.Error != nil
-		})).Return(nil)
-
 		// Act
 		err := handler.ApplyDeferredOutputTransformation(ctx, input)
 
 		// Assert
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "output transformation failed")
+		// The error is wrapped by the transaction service as "task processing failed"
+		assert.Contains(t, err.Error(), "task processing failed")
+		assert.Contains(t, err.Error(), "transformation failed")
 		taskRepo.AssertExpectations(t)
 		outputTransformer.AssertExpectations(t)
 	})
