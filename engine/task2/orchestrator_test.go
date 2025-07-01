@@ -20,7 +20,7 @@ func setupOrchestrator(t *testing.T) *task2.ConfigOrchestrator {
 	t.Helper()
 	tplEngine := tplengine.NewEngine(tplengine.FormatText)
 	envMerger := tmplcore.NewEnvMerger()
-	factory, err := task2.NewNormalizerFactory(tplEngine, envMerger)
+	factory, err := task2.NewFactory(tplEngine, envMerger)
 	require.NoError(t, err)
 	orchestrator, err := task2.NewConfigOrchestrator(factory)
 	require.NoError(t, err)

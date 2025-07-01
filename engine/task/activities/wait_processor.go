@@ -55,7 +55,7 @@ func (a *NormalizeWaitProcessor) Run(ctx context.Context, input *NormalizeWaitPr
 	// Create task2 orchestrator for signal normalization
 	engine := tplengine.NewEngine(tplengine.FormatJSON)
 	envMerger := task2core.NewEnvMerger()
-	factory, err := task2.NewNormalizerFactory(engine, envMerger)
+	factory, err := task2.NewFactory(engine, envMerger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create normalizer factory: %w", err)
 	}

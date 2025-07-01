@@ -88,12 +88,12 @@ type mockNormalizerFactory struct {
 	mock.Mock
 }
 
-func (m *mockNormalizerFactory) CreateNormalizer(taskType string) (shared.TaskNormalizer, error) {
+func (m *mockNormalizerFactory) CreateNormalizer(taskType task.Type) (shared.TaskNormalizerInterface, error) {
 	args := m.Called(taskType)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(shared.TaskNormalizer), args.Error(1)
+	return args.Get(0).(shared.TaskNormalizerInterface), args.Error(1)
 }
 
 // Mock task normalizer for testing
@@ -101,12 +101,12 @@ type mockTaskNormalizer struct {
 	mock.Mock
 }
 
-func (m *mockTaskNormalizer) Type() string {
+func (m *mockTaskNormalizer) Type() task.Type {
 	args := m.Called()
-	return args.String(0)
+	return task.Type(args.String(0))
 }
 
-func (m *mockTaskNormalizer) Normalize(config any, ctx *shared.NormalizationContext) error {
+func (m *mockTaskNormalizer) Normalize(config *task.Config, ctx *shared.NormalizationContext) error {
 	args := m.Called(config, ctx)
 	return args.Error(0)
 }
@@ -208,7 +208,7 @@ func TestCompositeNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		// Arrange
 		mockFactory := &mockNormalizerFactory{}
 		mockSubNormalizer := &mockTaskNormalizer{}
-		mockFactory.On("CreateNormalizer", "basic").Return(mockSubNormalizer, nil)
+		mockFactory.On("CreateNormalizer", task.TaskTypeBasic).Return(mockSubNormalizer, nil)
 		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).
 			Return(errors.New("sub-task normalization failed"))
 
@@ -240,7 +240,7 @@ func TestCompositeNormalizer_Normalize_ErrorHandling(t *testing.T) {
 	t.Run("Should handle normalizer factory errors", func(t *testing.T) {
 		// Arrange
 		mockFactory := &mockNormalizerFactory{}
-		mockFactory.On("CreateNormalizer", "basic").Return(nil, errors.New("normalizer creation failed"))
+		mockFactory.On("CreateNormalizer", task.TaskTypeBasic).Return(nil, errors.New("normalizer creation failed"))
 
 		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, mockFactory)
 		taskConfig := &task.Config{
@@ -270,7 +270,7 @@ func TestCompositeNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		// Arrange
 		mockFactory := &mockNormalizerFactory{}
 		mockSubNormalizer := &mockTaskNormalizer{}
-		mockFactory.On("CreateNormalizer", "basic").Return(mockSubNormalizer, nil)
+		mockFactory.On("CreateNormalizer", task.TaskTypeBasic).Return(mockSubNormalizer, nil)
 		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil)
 
 		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, mockFactory)
@@ -388,7 +388,7 @@ func TestCompositeNormalizer_BoundaryConditions(t *testing.T) {
 		// Arrange
 		mockFactory := &mockNormalizerFactory{}
 		mockSubNormalizer := &mockTaskNormalizer{}
-		mockFactory.On("CreateNormalizer", "basic").Return(mockSubNormalizer, nil)
+		mockFactory.On("CreateNormalizer", task.TaskTypeBasic).Return(mockSubNormalizer, nil)
 		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil)
 
 		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, mockFactory)
@@ -417,7 +417,7 @@ func TestCompositeNormalizer_BoundaryConditions(t *testing.T) {
 		// Arrange
 		mockFactory := &mockNormalizerFactory{}
 		mockSubNormalizer := &mockTaskNormalizer{}
-		mockFactory.On("CreateNormalizer", "basic").Return(mockSubNormalizer, nil)
+		mockFactory.On("CreateNormalizer", task.TaskTypeBasic).Return(mockSubNormalizer, nil)
 		// Expect 3 calls: 2 for Tasks array + 1 for Task reference
 		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil).Times(3)
 
@@ -461,7 +461,7 @@ func TestCompositeNormalizer_BoundaryConditions(t *testing.T) {
 		// Arrange
 		mockFactory := &mockNormalizerFactory{}
 		mockSubNormalizer := &mockTaskNormalizer{}
-		mockFactory.On("CreateNormalizer", "basic").Return(mockSubNormalizer, nil)
+		mockFactory.On("CreateNormalizer", task.TaskTypeBasic).Return(mockSubNormalizer, nil)
 		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil)
 
 		normalizer := composite.NewNormalizer(templateEngine, contextBuilder, mockFactory)

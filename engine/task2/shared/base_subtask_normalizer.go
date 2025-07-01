@@ -7,12 +7,25 @@ import (
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
+// TaskNormalizerInterface defines the interface needed by BaseSubTaskNormalizer
+// This is the exact same interface as task2.TaskNormalizer but defined locally to avoid import cycles
+type TaskNormalizerInterface interface {
+	Normalize(config *task.Config, ctx *NormalizationContext) error
+	Type() task.Type
+}
+
+// NormalizerFactoryInterface defines the interface needed by BaseSubTaskNormalizer
+// This is the subset of task2.Factory needed here to avoid import cycles
+type NormalizerFactoryInterface interface {
+	CreateNormalizer(taskType task.Type) (TaskNormalizerInterface, error)
+}
+
 // BaseSubTaskNormalizer provides common functionality for normalizers that handle sub-tasks
 // This eliminates code duplication between parallel and composite normalizers
 type BaseSubTaskNormalizer struct {
 	templateEngine    *tplengine.TemplateEngine
 	contextBuilder    *ContextBuilder
-	normalizerFactory NormalizerFactory
+	normalizerFactory NormalizerFactoryInterface
 	taskType          task.Type
 	taskTypeName      string
 }
@@ -21,7 +34,7 @@ type BaseSubTaskNormalizer struct {
 func NewBaseSubTaskNormalizer(
 	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *ContextBuilder,
-	normalizerFactory NormalizerFactory,
+	normalizerFactory NormalizerFactoryInterface,
 	taskType task.Type,
 	taskTypeName string,
 ) *BaseSubTaskNormalizer {
@@ -105,7 +118,7 @@ func (n *BaseSubTaskNormalizer) normalizeSingleSubTask(
 	}
 
 	// Get normalizer for sub-task type
-	subNormalizer, err := n.normalizerFactory.CreateNormalizer(string(subTask.Type))
+	subNormalizer, err := n.normalizerFactory.CreateNormalizer(subTask.Type)
 	if err != nil {
 		return fmt.Errorf("failed to create normalizer for task type %s: %w", subTask.Type, err)
 	}

@@ -14,12 +14,12 @@ import (
 
 // ConfigOrchestrator handles the orchestration of normalization processes
 type ConfigOrchestrator struct {
-	factory        NormalizerFactory
+	factory        Factory
 	contextBuilder *shared.ContextBuilder
 }
 
 // NewConfigOrchestrator creates a new configuration orchestrator
-func NewConfigOrchestrator(factory NormalizerFactory) (*ConfigOrchestrator, error) {
+func NewConfigOrchestrator(factory Factory) (*ConfigOrchestrator, error) {
 	builder, err := shared.NewContextBuilder()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context builder: %w", err)

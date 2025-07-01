@@ -15,7 +15,7 @@ type Normalizer struct {
 func NewNormalizer(
 	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *shared.ContextBuilder,
-	normalizerFactory shared.NormalizerFactory,
+	normalizerFactory shared.NormalizerFactoryInterface,
 ) *Normalizer {
 	return &Normalizer{
 		BaseSubTaskNormalizer: shared.NewBaseSubTaskNormalizer(

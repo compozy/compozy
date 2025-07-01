@@ -4,7 +4,6 @@ package task2
 
 import (
 	"github.com/compozy/compozy/engine/task"
-	"github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/task2/shared"
 )
 
@@ -15,16 +14,4 @@ type TaskNormalizer interface {
 
 	// Type returns the task type this normalizer handles
 	Type() task.Type
-}
-
-// NormalizerFactory creates appropriate normalizers
-type NormalizerFactory interface {
-	CreateNormalizer(taskType task.Type) (TaskNormalizer, error)
-
-	// Component normalizers
-	CreateAgentNormalizer() *core.AgentNormalizer
-	CreateToolNormalizer() *core.ToolNormalizer
-	CreateSuccessTransitionNormalizer() *core.SuccessTransitionNormalizer
-	CreateErrorTransitionNormalizer() *core.ErrorTransitionNormalizer
-	CreateOutputTransformer() *core.OutputTransformer
 }
