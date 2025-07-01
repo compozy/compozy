@@ -6,6 +6,14 @@ import (
 	"github.com/compozy/compozy/engine/core"
 )
 
+// Runtime type constants
+const (
+	// RuntimeTypeBun represents the Bun JavaScript runtime
+	RuntimeTypeBun = "bun"
+	// RuntimeTypeNode represents the Node.js runtime
+	RuntimeTypeNode = "node"
+)
+
 // ToolExecutionError provides structured error information with context
 type ToolExecutionError struct {
 	ToolID     string
@@ -23,14 +31,14 @@ func (e *ToolExecutionError) Unwrap() error {
 	return e.Err
 }
 
-// ProcessError provides structured error information for Deno process issues
+// ProcessError provides structured error information for runtime process issues
 type ProcessError struct {
 	Operation string
 	Err       error
 }
 
 func (e *ProcessError) Error() string {
-	return fmt.Sprintf("deno process %s failed: %v", e.Operation, e.Err)
+	return fmt.Sprintf("runtime process %s failed: %v", e.Operation, e.Err)
 }
 
 func (e *ProcessError) Unwrap() error {
@@ -53,7 +61,7 @@ type ToolExecuteParams struct {
 // The tool output is returned directly as core.Output (map[string]any)
 type ToolExecuteResult = core.Output
 
-// Manager manages Deno tool executions via a compiled binary
+// Manager manages tool executions via a compiled binary
 type Manager struct {
 	config      *Config
 	projectRoot string

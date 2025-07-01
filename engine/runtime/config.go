@@ -14,6 +14,11 @@ type Config struct {
 	DenoPermissions        []string
 	ToolExecutionTimeout   time.Duration
 	DenoNoCheck            bool
+	// New fields for runtime selection
+	RuntimeType    string   // "bun" or "node"
+	EntrypointPath string   // Path to entrypoint file
+	BunPermissions []string // Bun-specific permissions
+	NodeOptions    []string // Node.js-specific options
 }
 
 // Option is a function that configures the RuntimeManager
@@ -76,6 +81,43 @@ func WithTestConfig() Option {
 	}
 }
 
+// WithConfig applies a complete configuration
+func WithConfig(config *Config) Option {
+	return func(c *Config) {
+		if config != nil {
+			*c = *config
+		}
+	}
+}
+
+// WithRuntimeType sets the runtime type (bun or node)
+func WithRuntimeType(runtimeType string) Option {
+	return func(c *Config) {
+		c.RuntimeType = runtimeType
+	}
+}
+
+// WithEntrypointPath sets the entrypoint file path
+func WithEntrypointPath(path string) Option {
+	return func(c *Config) {
+		c.EntrypointPath = path
+	}
+}
+
+// WithBunPermissions sets Bun-specific permissions
+func WithBunPermissions(permissions []string) Option {
+	return func(c *Config) {
+		c.BunPermissions = permissions
+	}
+}
+
+// WithNodeOptions sets Node.js-specific options
+func WithNodeOptions(options []string) Option {
+	return func(c *Config) {
+		c.NodeOptions = options
+	}
+}
+
 // DefaultConfig returns a sensible default configuration
 func DefaultConfig() *Config {
 	return &Config{
@@ -83,12 +125,13 @@ func DefaultConfig() *Config {
 		BackoffMaxInterval:     5 * time.Second,
 		BackoffMaxElapsedTime:  30 * time.Second,
 		WorkerFilePerm:         0700,
-		DenoPermissions: []string{
+		ToolExecutionTimeout:   60 * time.Second,
+		RuntimeType:            RuntimeTypeBun, // Default to Bun runtime
+		BunPermissions: []string{
 			"--allow-net",
 			"--allow-env",
+			"--allow-read",
 		},
-		ToolExecutionTimeout: 60 * time.Second,
-		DenoNoCheck:          true, // Default to true for performance
 	}
 }
 
@@ -105,5 +148,11 @@ func TestConfig() *Config {
 		},
 		ToolExecutionTimeout: 5 * time.Second, // Shorter timeout for tests
 		DenoNoCheck:          true,
+		RuntimeType:          RuntimeTypeBun, // Default to Bun for tests
+		BunPermissions: []string{
+			"--allow-read",
+			"--allow-net",
+			"--allow-env",
+		},
 	}
 }
