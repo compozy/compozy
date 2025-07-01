@@ -38,5 +38,5 @@ type Runtime interface {
 	GetGlobalTimeout() time.Duration
 }
 
-// Compile-time check to ensure Manager implements Runtime interface
-var _ Runtime = (*Manager)(nil)
+// Compile-time check to ensure BunManager implements Runtime interface
+var _ Runtime = (*BunManager)(nil)

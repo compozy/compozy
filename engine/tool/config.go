@@ -22,7 +22,6 @@ type Config struct {
 	Resource     string         `json:"resource,omitempty"    yaml:"resource,omitempty"    mapstructure:"resource,omitempty"`
 	ID           string         `json:"id,omitempty"          yaml:"id,omitempty"          mapstructure:"id,omitempty"`
 	Description  string         `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description,omitempty"`
-	Execute      string         `json:"execute,omitempty"     yaml:"execute,omitempty"     mapstructure:"execute,omitempty"`
 	Timeout      string         `json:"timeout,omitempty"     yaml:"timeout,omitempty"     mapstructure:"timeout,omitempty"`
 	InputSchema  *schema.Schema `json:"input,omitempty"       yaml:"input,omitempty"       mapstructure:"input,omitempty"`
 	OutputSchema *schema.Schema `json:"output,omitempty"      yaml:"output,omitempty"      mapstructure:"output,omitempty"`
@@ -106,7 +105,6 @@ func (t *Config) HasSchema() bool {
 func (t *Config) Validate() error {
 	v := schema.NewCompositeValidator(
 		schema.NewCWDValidator(t.CWD, t.ID),
-		NewExecuteValidator(t),
 	)
 	if err := v.Validate(); err != nil {
 		return err

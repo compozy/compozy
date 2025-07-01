@@ -1,23 +1,9 @@
 {
-    "deno.enable": true,
-    "deno.lint": true,
-    "deno.codeLens.test": true,
-    "deno.enablePaths": [
-        "./cli",
-        "./engine",
-        "./examples",
-        "./pkg",
-        "./test"
-    ],
-    "deno.disablePaths": [
-        "./docs"
-    ],
-    "javascript.preferences.importModuleSpecifier": "relative",
     "typescript.preferences.importModuleSpecifier": "relative",
-    "javascript.updateImportsOnFileMove.enabled": "always",
+    "javascript.preferences.importModuleSpecifier": "relative",
     "typescript.updateImportsOnFileMove.enabled": "always",
+    "javascript.updateImportsOnFileMove.enabled": "always",
     "testing.automaticallyOpenPeekView": "never",
-    "deno.internalDebug": true,
     "makefile.makefilePath": "./Makefile",
     "protoc": {
         "path": "/opt/homebrew/bin/protoc",
@@ -39,9 +25,16 @@
         "editor.defaultFormatter": "esbenp.prettier-vscode"
     },
     "files.associations": {
+        "examples/**/*.ts": "typescript",
+        "examples/**/*.tsx": "typescriptreact",
+        "examples/**/*.js": "javascript",
+        "examples/**/*.jsx": "javascriptreact",
         "docs/**/*.ts": "typescript",
         "docs/**/*.tsx": "typescriptreact",
         "docs/**/*.js": "javascript",
         "docs/**/*.jsx": "javascriptreact"
-    }
+    },
+    "typescript.preferences.includePackageJsonAutoImports": "on",
+    "typescript.suggest.autoImports": true,
+    "bun.runtime": "bun"
 }

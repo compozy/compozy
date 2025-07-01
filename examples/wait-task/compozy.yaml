@@ -6,6 +6,8 @@ workflows:
   - source: ./workflow.yaml
 
 runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
   permissions:
     - --allow-read
     - --allow-net

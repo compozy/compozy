@@ -86,6 +86,33 @@ func TestDefaultFactory_CreateRuntime(t *testing.T) {
 		assert.Nil(t, rt)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported runtime type: python")
+		assert.Contains(t, err.Error(), "supported types:")
+	})
+
+	t.Run("Should validate runtime type before processing", func(t *testing.T) {
+		factory := runtime.NewDefaultFactory("/test/project")
+		ctx := context.Background()
+
+		// Note: empty string defaults to Bun, so we skip it
+		invalidTypes := []string{"invalid", "PYTHON", "ruby", "java", "deno"}
+
+		for _, invalidType := range invalidTypes {
+			config := &runtime.Config{
+				RuntimeType: invalidType,
+			}
+
+			rt, err := factory.CreateRuntime(ctx, config)
+
+			assert.Nil(t, rt, "Runtime should be nil for invalid type: %s", invalidType)
+			assert.Error(t, err, "Should return error for invalid type: %s", invalidType)
+			assert.Contains(
+				t,
+				err.Error(),
+				"unsupported runtime type",
+				"Error should mention unsupported type for: %s",
+				invalidType,
+			)
+		}
 	})
 }
 

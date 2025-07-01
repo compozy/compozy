@@ -454,8 +454,8 @@ func TestNormalizer_NormalizeToolConfig(t *testing.T) {
 
 	t.Run("Should normalize tool config with templates", func(t *testing.T) {
 		toolConfig := &tool.Config{
-			ID:          "test-tool",
-			Execute:     "{{ .env.SCRIPTS_PATH }}/process.ts",
+			ID: "test-tool",
+			// Execute field removed - tools resolved via entrypoint exports
 			Description: "Tool for {{ .parent.id }} task",
 			With: &core.Input{
 				"endpoint": "{{ .env.API_URL }}/{{ .parent.action }}",
@@ -488,7 +488,7 @@ func TestNormalizer_NormalizeToolConfig(t *testing.T) {
 		err := n.NormalizeToolConfig(toolConfig, ctx)
 		require.NoError(t, err)
 
-		assert.Equal(t, "/scripts/process.ts", toolConfig.Execute)
+		// Execute field removed - tools resolved via entrypoint exports
 		assert.Equal(t, "Tool for api-task task", toolConfig.Description)
 		assert.Equal(t, "https://api.example.com/fetch", (*toolConfig.With)["endpoint"])
 		assert.Equal(t, "Chicago", (*toolConfig.With)["city"])

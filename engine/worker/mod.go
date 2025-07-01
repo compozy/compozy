@@ -92,13 +92,20 @@ func buildRuntimeManager(
 	ctx context.Context,
 	projectRoot string,
 	projectConfig *project.Config,
-) (*runtime.Manager, error) {
+) (runtime.Runtime, error) {
 	log := logger.FromContext(ctx)
-	// Build runtime options from project config
-	var rtOpts []runtime.Option
+
+	// Build configuration options using functional pattern
+	var options []runtime.Option
+
+	// Default to Bun runtime (could be made configurable in future)
+	options = append(options, runtime.WithRuntimeType(runtime.RuntimeTypeBun))
+
+	// Update to use Bun permissions instead of Deno
 	if len(projectConfig.Runtime.Permissions) > 0 {
-		rtOpts = append(rtOpts, runtime.WithDenoPermissions(projectConfig.Runtime.Permissions))
+		options = append(options, runtime.WithBunPermissions(projectConfig.Runtime.Permissions))
 	}
+
 	// Check for tool execution timeout from environment
 	if timeoutStr := os.Getenv("TOOL_EXECUTION_TIMEOUT"); timeoutStr != "" {
 		timeout, err := time.ParseDuration(timeoutStr)
@@ -108,11 +115,18 @@ func buildRuntimeManager(
 		case timeout <= 0:
 			log.Warn("Ignoring non-positive TOOL_EXECUTION_TIMEOUT", "value", timeout)
 		default:
-			rtOpts = append(rtOpts, runtime.WithToolExecutionTimeout(timeout))
+			options = append(options, runtime.WithToolExecutionTimeout(timeout))
 			log.Debug("Using custom tool execution timeout", "timeout", timeout)
 		}
 	}
-	return runtime.NewRuntimeManager(ctx, projectRoot, rtOpts...)
+
+	// Use factory to create runtime with functional options
+	factory := runtime.NewDefaultFactory(projectRoot)
+	config := runtime.DefaultConfig()
+	for _, option := range options {
+		option(config)
+	}
+	return factory.CreateRuntime(ctx, config)
 }
 
 func NewWorker(
@@ -192,7 +206,7 @@ func NewWorker(
 type workerCoreComponents struct {
 	worker        worker.Worker
 	taskQueue     string
-	rtManager     *runtime.Manager
+	rtManager     runtime.Runtime
 	redisCache    *cache.Cache
 	configStore   services.ConfigStore
 	configManager *services.ConfigManager

@@ -38,7 +38,7 @@ func NewExecuteSubtask(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
-	runtime *runtime.Manager,
+	runtime runtime.Runtime,
 	configStore services.ConfigStore,
 ) *ExecuteSubtask {
 	return &ExecuteSubtask{

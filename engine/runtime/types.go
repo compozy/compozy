@@ -14,6 +14,22 @@ const (
 	RuntimeTypeNode = "node"
 )
 
+// SupportedRuntimeTypes contains all supported runtime types
+var SupportedRuntimeTypes = []string{
+	RuntimeTypeBun,
+	RuntimeTypeNode,
+}
+
+// IsValidRuntimeType checks if the given runtime type is valid
+func IsValidRuntimeType(runtimeType string) bool {
+	for _, supported := range SupportedRuntimeTypes {
+		if runtimeType == supported {
+			return true
+		}
+	}
+	return false
+}
+
 // ToolExecutionError provides structured error information with context
 type ToolExecutionError struct {
 	ToolID     string
@@ -60,9 +76,3 @@ type ToolExecuteParams struct {
 // ToolExecuteResult represents the result of Tool.Execute method
 // The tool output is returned directly as core.Output (map[string]any)
 type ToolExecuteResult = core.Output
-
-// Manager manages tool executions via a compiled binary
-type Manager struct {
-	config      *Config
-	projectRoot string
-}

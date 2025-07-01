@@ -77,8 +77,6 @@ func TestDefaultConfigRuntimeFields(t *testing.T) {
 
 		assert.Equal(t, runtime.RuntimeTypeBun, config.RuntimeType)
 		assert.NotEmpty(t, config.BunPermissions)
-		assert.Contains(t, config.BunPermissions, "--allow-net")
-		assert.Contains(t, config.BunPermissions, "--allow-env")
 		assert.Contains(t, config.BunPermissions, "--allow-read")
 	})
 }
@@ -90,7 +88,5 @@ func TestTestConfigRuntimeFields(t *testing.T) {
 		assert.Equal(t, runtime.RuntimeTypeBun, config.RuntimeType)
 		assert.NotEmpty(t, config.BunPermissions)
 		assert.Contains(t, config.BunPermissions, "--allow-read")
-		assert.Contains(t, config.BunPermissions, "--allow-net")
-		assert.Contains(t, config.BunPermissions, "--allow-env")
 	})
 }

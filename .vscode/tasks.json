@@ -2,10 +2,32 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Deno Test All",
+            "label": "Bun Test Runtime",
             "type": "shell",
             "command": "make test-runtime",
             "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Bun Install",
+            "type": "shell",
+            "command": "bun install",
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Bun Dev",
+            "type": "shell",
+            "command": "bun run dev",
+            "group": "build",
             "presentation": {
                 "reveal": "always",
                 "panel": "new"

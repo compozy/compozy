@@ -39,15 +39,19 @@ func (f *DefaultFactory) CreateRuntime(ctx context.Context, config *Config) (Run
 		runtimeType = RuntimeTypeBun
 	}
 
+	// Validate runtime type before proceeding
+	if !IsValidRuntimeType(runtimeType) {
+		return nil, fmt.Errorf("unsupported runtime type: %s (supported types: %v)", runtimeType, SupportedRuntimeTypes)
+	}
+
 	switch runtimeType {
 	case RuntimeTypeBun:
-		// TODO: Implement NewBunManager in task 3.0
-		// For now, return the existing Manager which will be updated to support Bun
-		return NewRuntimeManager(ctx, f.projectRoot, WithConfig(config))
+		return NewBunManager(ctx, f.projectRoot, WithConfig(config))
 	case RuntimeTypeNode:
 		// TODO: Implement NewNodeManager in a future task
 		return nil, fmt.Errorf("node.js runtime not yet implemented")
 	default:
+		// This should never be reached due to validation above, but kept for safety
 		return nil, fmt.Errorf("unsupported runtime type: %s", runtimeType)
 	}
 }

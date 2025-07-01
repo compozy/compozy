@@ -13,10 +13,11 @@ models:
     api_key: "{{ .env.GROQ_API_KEY }}"
 
 runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
   permissions:
     - --allow-read
     - --allow-net
-    - --allow-env
 
 # AutoLoad configuration for discovering memory resources
 autoload:

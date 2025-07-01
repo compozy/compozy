@@ -11,10 +11,8 @@ type Config struct {
 	BackoffMaxInterval     time.Duration
 	BackoffMaxElapsedTime  time.Duration
 	WorkerFilePerm         os.FileMode
-	DenoPermissions        []string
 	ToolExecutionTimeout   time.Duration
-	DenoNoCheck            bool
-	// New fields for runtime selection
+	// Runtime selection fields
 	RuntimeType    string   // "bun" or "node"
 	EntrypointPath string   // Path to entrypoint file
 	BunPermissions []string // Bun-specific permissions
@@ -52,24 +50,10 @@ func WithWorkerFilePerm(perm os.FileMode) Option {
 	}
 }
 
-// WithDenoPermissions sets the Deno permissions
-func WithDenoPermissions(permissions []string) Option {
-	return func(c *Config) {
-		c.DenoPermissions = permissions
-	}
-}
-
 // WithToolExecutionTimeout sets the tool execution timeout
 func WithToolExecutionTimeout(timeout time.Duration) Option {
 	return func(c *Config) {
 		c.ToolExecutionTimeout = timeout
-	}
-}
-
-// WithDenoNoCheck sets whether to use --no-check flag
-func WithDenoNoCheck(noCheck bool) Option {
-	return func(c *Config) {
-		c.DenoNoCheck = noCheck
 	}
 }
 
@@ -85,7 +69,34 @@ func WithTestConfig() Option {
 func WithConfig(config *Config) Option {
 	return func(c *Config) {
 		if config != nil {
-			*c = *config
+			// Merge configurations instead of replacing completely
+			if config.BackoffInitialInterval != 0 {
+				c.BackoffInitialInterval = config.BackoffInitialInterval
+			}
+			if config.BackoffMaxInterval != 0 {
+				c.BackoffMaxInterval = config.BackoffMaxInterval
+			}
+			if config.BackoffMaxElapsedTime != 0 {
+				c.BackoffMaxElapsedTime = config.BackoffMaxElapsedTime
+			}
+			if config.WorkerFilePerm != 0 {
+				c.WorkerFilePerm = config.WorkerFilePerm
+			}
+			if config.ToolExecutionTimeout != 0 {
+				c.ToolExecutionTimeout = config.ToolExecutionTimeout
+			}
+			if config.RuntimeType != "" {
+				c.RuntimeType = config.RuntimeType
+			}
+			if config.EntrypointPath != "" {
+				c.EntrypointPath = config.EntrypointPath
+			}
+			if len(config.BunPermissions) > 0 {
+				c.BunPermissions = config.BunPermissions
+			}
+			if len(config.NodeOptions) > 0 {
+				c.NodeOptions = config.NodeOptions
+			}
 		}
 	}
 }
@@ -124,13 +135,11 @@ func DefaultConfig() *Config {
 		BackoffInitialInterval: 100 * time.Millisecond,
 		BackoffMaxInterval:     5 * time.Second,
 		BackoffMaxElapsedTime:  30 * time.Second,
-		WorkerFilePerm:         0700,
+		WorkerFilePerm:         0600, // Secure file permissions
 		ToolExecutionTimeout:   60 * time.Second,
 		RuntimeType:            RuntimeTypeBun, // Default to Bun runtime
 		BunPermissions: []string{
-			"--allow-net",
-			"--allow-env",
-			"--allow-read",
+			"--allow-read", // Minimal permissions - allow read only by default
 		},
 	}
 }
@@ -140,19 +149,11 @@ func TestConfig() *Config {
 		BackoffInitialInterval: 10 * time.Millisecond,
 		BackoffMaxInterval:     100 * time.Millisecond,
 		BackoffMaxElapsedTime:  1 * time.Second, // Much shorter for tests
-		WorkerFilePerm:         0700,
-		DenoPermissions: []string{
-			"--allow-read",
-			"--allow-net",
-			"--allow-env",
-		},
-		ToolExecutionTimeout: 5 * time.Second, // Shorter timeout for tests
-		DenoNoCheck:          true,
-		RuntimeType:          RuntimeTypeBun, // Default to Bun for tests
+		WorkerFilePerm:         0600,            // Secure permissions for tests
+		ToolExecutionTimeout:   5 * time.Second, // Shorter timeout for tests
+		RuntimeType:            RuntimeTypeBun,  // Default to Bun for tests
 		BunPermissions: []string{
 			"--allow-read",
-			"--allow-net",
-			"--allow-env",
 		},
 	}
 }

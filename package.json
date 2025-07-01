@@ -1,0 +1,25 @@
+{
+    "name": "compozy-examples",
+    "version": "0.1.0",
+    "description": "Compozy runtime examples and tools",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "prettier:fix": "prettier --write \"**/*.@(json|md|sh)\"",
+        "prettier:validate": "prettier --check \"**/*.@(json|md|sh)\"",
+        "test:runtime": "bun test",
+        "dev": "bun run --watch",
+        "build": "bun build"
+    },
+    "devDependencies": {
+        "@types/bun": "latest",
+        "prettier": "^3.5.3",
+        "prettier-plugin-sh": "^0.18.0"
+    },
+    "dependencies": {
+        "openmeteo": "^1.1.4"
+    },
+    "workspaces": [
+        "examples/**"
+    ]
+}

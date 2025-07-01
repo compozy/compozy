@@ -501,11 +501,13 @@ func (s *testConfigStore) Close() error {
 
 // createMockRuntime creates a mock runtime manager for integration tests
 // This focuses on testing workflow orchestration without actual tool execution
-func createMockRuntime(t *testing.T) *runtime.Manager {
+func createMockRuntime(t *testing.T) runtime.Runtime {
 	// Create a test runtime manager that won't be used since we're using agents
 	// We need to provide something to satisfy the interface
 	ctx := t.Context()
-	rtManager, err := runtime.NewRuntimeManager(ctx, "/tmp", runtime.WithTestConfig())
+	config := runtime.TestConfig()
+	factory := runtime.NewDefaultFactory("/tmp")
+	rtManager, err := factory.CreateRuntime(ctx, config)
 	require.NoError(t, err, "failed to create mock runtime manager")
 	return rtManager
 }
