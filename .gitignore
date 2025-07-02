@@ -6,6 +6,11 @@ examples/**/results.*
 node_modules
 bin
 **/reports/**
+**/coverage*
+
+# Bun-specific files
+bun.lockb
+.bun
 
 # .gitignore
 # Specifies intentionally untracked files that Git should ignore.

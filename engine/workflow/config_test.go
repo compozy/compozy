@@ -69,7 +69,7 @@ func Test_LoadWorkflow(t *testing.T) {
 		tool := config.Tools[0]
 		assert.Equal(t, "code-formatter", tool.ID)
 		assert.Equal(t, "A tool for formatting code", tool.Description)
-		assert.Equal(t, "./format.ts", tool.Execute)
+		// Execute field removed - tools resolved via entrypoint exports
 
 		// Validate agents
 		require.Len(t, config.Agents, 1)

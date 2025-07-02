@@ -612,17 +612,11 @@ func (cn *CollectionNormalizer) applyToolDescriptionTemplate(
 
 // applyToolExecuteTemplate applies template to tool execute command
 func (cn *CollectionNormalizer) applyToolExecuteTemplate(
-	toolPtr *tool.Config,
-	itemContext map[string]any,
-	engine *tplengine.TemplateEngine,
+	_ *tool.Config,
+	_ map[string]any,
+	_ *tplengine.TemplateEngine,
 ) error {
-	if toolPtr.Execute != "" {
-		processedExecute, err := engine.RenderString(toolPtr.Execute, itemContext)
-		if err != nil {
-			return fmt.Errorf("failed to apply template to tool execute: %w", err)
-		}
-		toolPtr.Execute = processedExecute
-	}
+	// Execute field has been removed - tools are now resolved via entrypoint exports
 	return nil
 }
 

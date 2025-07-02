@@ -1,6 +1,6 @@
 id: invalid-tool
 description: An invalid tool configuration
-execute: ./nonexistent.ts
+timeout: invalid-duration
 
 input:
   type: object

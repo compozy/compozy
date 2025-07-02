@@ -1,4 +1,4 @@
-import { fetchWeatherApi } from "npm:openmeteo";
+import { fetchWeatherApi } from "openmeteo";
 
 interface WeatherData {
     temperature: number;
@@ -101,10 +101,17 @@ function getDefaultWeather(): WeatherData {
     };
 }
 
-export async function run(input: { city: string }): Promise<WeatherData> {
+export async function weatherTool(input: { city: string }): Promise<WeatherData> {
+    // Input validation
+    if (!input || typeof input.city !== 'string' || input.city.trim() === '') {
+        throw new Error('Invalid input: city must be a non-empty string');
+    }
+
+    const cityName = input.city.trim();
+    
     try {
         // Get coordinates for the city
-        const coords = await getCoordinates(input.city);
+        const coords = await getCoordinates(cityName);
         if (!coords) {
             return getDefaultWeather();
         }

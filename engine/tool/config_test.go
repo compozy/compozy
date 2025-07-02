@@ -34,7 +34,7 @@ func Test_LoadTool(t *testing.T) {
 
 		require.NotNil(t, config.ID)
 		require.NotNil(t, config.Description)
-		require.NotNil(t, config.Execute)
+		// Execute field removed - tools resolved via entrypoint exports
 		require.NotNil(t, config.InputSchema)
 		require.NotNil(t, config.OutputSchema)
 		require.NotNil(t, config.Env)
@@ -42,8 +42,7 @@ func Test_LoadTool(t *testing.T) {
 
 		assert.Equal(t, "code-formatter", config.ID)
 		assert.Equal(t, "A tool for formatting code", config.Description)
-		assert.Equal(t, "./format.ts", config.Execute)
-		assert.True(t, IsTypeScript(config.Execute))
+		// Execute field removed - tools resolved via entrypoint exports
 
 		// Validate input schema
 		schema := config.InputSchema
@@ -108,22 +107,12 @@ func Test_ToolConfigValidation(t *testing.T) {
 		assert.Contains(t, err.Error(), "current working directory is required for test-tool")
 	})
 
-	t.Run("Should return error for invalid execute path", func(t *testing.T) {
-		config := &Config{
-			ID:      toolID,
-			Execute: "./nonexistent.ts",
-			CWD:     toolCWD,
-		}
-
-		err := config.Validate()
-		assert.Error(t, err)
-	})
+	// Test removed - Execute field no longer exists, tools resolved via entrypoint
 
 	t.Run("Should return error for tool with invalid parameters", func(t *testing.T) {
 		config := &Config{
-			ID:      toolID,
-			Execute: "./test.ts",
-			CWD:     toolCWD,
+			ID:  toolID,
+			CWD: toolCWD,
 			InputSchema: &schema.Schema{
 				"type": "object",
 				"properties": map[string]any{

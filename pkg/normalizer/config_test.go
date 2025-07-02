@@ -367,8 +367,9 @@ func TestConfigNormalizer_ErrorHandling(t *testing.T) {
 
 	t.Run("Should return error for missing template key in tool normalization", func(t *testing.T) {
 		toolConfig := &tool.Config{
-			ID:      "error-tool",
-			Execute: "{{ .invalid.template }}",
+			ID: "error-tool",
+			// Use invalid template to trigger error
+			Description: "{{ .invalid.template }}",
 		}
 
 		taskConfig := &task.Config{
