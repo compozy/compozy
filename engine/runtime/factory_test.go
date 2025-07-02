@@ -32,7 +32,7 @@ func TestDefaultFactory_CreateRuntime(t *testing.T) {
 		ctx := context.Background()
 		config := &runtime.Config{}
 
-		// This will currently use the existing Manager until BunManager is implemented
+		// This creates a BunManager instance for the default runtime type
 		rt, err := factory.CreateRuntime(ctx, config)
 
 		require.NoError(t, err)

@@ -95,7 +95,7 @@ func TestToolIDValidation(t *testing.T) {
 			tmpDir := t.TempDir()
 			ctx := context.Background()
 
-			if !isBunAvailable() {
+			if !runtime.IsBunAvailable() {
 				t.Skip("Bun not available")
 			}
 
@@ -213,7 +213,7 @@ func TestEnvironmentVariableValidation(t *testing.T) {
 			tmpDir := t.TempDir()
 			ctx := context.Background()
 
-			if !isBunAvailable() {
+			if !runtime.IsBunAvailable() {
 				t.Skip("Bun not available")
 			}
 

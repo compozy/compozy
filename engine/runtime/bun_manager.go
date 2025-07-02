@@ -181,90 +181,29 @@ func (bm *BunManager) executeBunWorker(ctx context.Context, requestData []byte, 
 	if err != nil {
 		return nil, err
 	}
-
 	// Set up process pipes
 	stdin, stdout, stderr, err := bm.setupProcessPipes(cmd)
 	if err != nil {
 		return nil, err
 	}
-
 	// Start the process
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start bun process: %w", err)
 	}
-
-	// Send request data and handle write errors properly
-	writeErrCh := make(chan error, 1)
-	go func() {
-		defer stdin.Close()
-		_, err := stdin.Write(requestData)
-		writeErrCh <- err
-	}()
-
-	// Check for stdin write errors before proceeding
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case err := <-writeErrCh:
-		if err != nil {
-			return nil, fmt.Errorf("failed to write request data to stdin: %w", err)
-		}
+	// Write request data to stdin
+	if err := bm.writeRequestToStdin(ctx, stdin, requestData); err != nil {
+		return nil, err
 	}
-
-	// Read stderr in background for logging and capture errors
-	var stderrBuf bytes.Buffer
-	var stderrWg sync.WaitGroup
-	stderrWg.Add(1)
-	go func() {
-		defer stderrWg.Done()
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			line := scanner.Text()
-			stderrBuf.WriteString(line + "\n")
-			logger.FromContext(ctx).Debug("Bun worker stderr", "output", line)
-		}
-	}()
-
-	// Read response from stdout with size limit
-	raw := bufferPool.Get()
-	buf, ok := raw.(*bytes.Buffer)
-	if !ok {
-		// Safe fallback if pool returns unexpected type
-		buf = bytes.NewBuffer(make([]byte, 0, 1024))
-	}
-	defer func() {
-		buf.Reset()
-		bufferPool.Put(buf)
-	}()
-
-	// Use LimitReader to prevent memory exhaustion from malicious tools
-	limitedReader := io.LimitReader(stdout, MaxOutputSize+1) // Read one extra byte to detect overflow
-	bytesRead, err := io.Copy(buf, limitedReader)
+	// Read stderr and stdout concurrently
+	stderrBuf, stderrWg := bm.readStderrInBackground(ctx, stderr)
+	response, err := bm.readStdoutResponse(stdout)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
+		return nil, err
 	}
-
-	// Check if output exceeded the size limit
-	if bytesRead > MaxOutputSize {
-		return nil, fmt.Errorf("tool output exceeds maximum size limit of %d bytes", MaxOutputSize)
+	// Wait for process completion and stderr reading
+	if err := bm.waitForProcessCompletion(cmd, stderrWg, stderrBuf); err != nil {
+		return nil, err
 	}
-
-	// Wait for process to complete
-	waitErr := cmd.Wait()
-
-	// Wait for stderr goroutine to finish before accessing stderrBuf
-	stderrWg.Wait()
-
-	if waitErr != nil {
-		// Include stderr output in error for debugging
-		if stderrOutput := stderrBuf.String(); stderrOutput != "" {
-			return nil, fmt.Errorf("bun process failed: %w\nstderr: %s", waitErr, stderrOutput)
-		}
-		return nil, fmt.Errorf("bun process failed: %w", waitErr)
-	}
-
-	// Parse response
-	response := buf.String()
 	return bm.parseToolResponse(response)
 }
 
@@ -356,6 +295,94 @@ func (bm *BunManager) parseToolResponse(response string) (*core.Output, error) {
 		// Wrap primitives in a structured format
 		return &core.Output{PrimitiveValueKey: result}, nil
 	}
+}
+
+// writeRequestToStdin writes request data to the process stdin and handles errors
+func (bm *BunManager) writeRequestToStdin(ctx context.Context, stdin io.WriteCloser, requestData []byte) error {
+	writeErrCh := make(chan error, 1)
+	go func() {
+		defer stdin.Close()
+		_, err := stdin.Write(requestData)
+		writeErrCh <- err
+	}()
+
+	// Check for stdin write errors before proceeding
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-writeErrCh:
+		if err != nil {
+			return fmt.Errorf("failed to write request data to stdin: %w", err)
+		}
+		return nil
+	}
+}
+
+// readStderrInBackground starts a goroutine to read stderr for logging and error capture
+func (bm *BunManager) readStderrInBackground(
+	ctx context.Context,
+	stderr io.ReadCloser,
+) (*bytes.Buffer, *sync.WaitGroup) {
+	var stderrBuf bytes.Buffer
+	var stderrWg sync.WaitGroup
+	stderrWg.Add(1)
+	go func() {
+		defer stderrWg.Done()
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			line := scanner.Text()
+			stderrBuf.WriteString(line + "\n")
+			logger.FromContext(ctx).Debug("Bun worker stderr", "output", line)
+		}
+	}()
+	return &stderrBuf, &stderrWg
+}
+
+// readStdoutResponse reads the response from stdout with size limiting
+func (bm *BunManager) readStdoutResponse(stdout io.ReadCloser) (string, error) {
+	raw := bufferPool.Get()
+	buf, ok := raw.(*bytes.Buffer)
+	if !ok {
+		// Safe fallback if pool returns unexpected type
+		buf = bytes.NewBuffer(make([]byte, 0, 1024))
+	}
+	defer func() {
+		buf.Reset()
+		bufferPool.Put(buf)
+	}()
+
+	// Use LimitReader to prevent memory exhaustion from malicious tools
+	limitedReader := io.LimitReader(stdout, MaxOutputSize+1) // Read one extra byte to detect overflow
+	bytesRead, err := io.Copy(buf, limitedReader)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check if output exceeded the size limit
+	if bytesRead > MaxOutputSize {
+		return "", fmt.Errorf("tool output exceeds maximum size limit of %d bytes", MaxOutputSize)
+	}
+
+	return buf.String(), nil
+}
+
+// waitForProcessCompletion waits for the process to complete and handles errors
+func (bm *BunManager) waitForProcessCompletion(cmd *exec.Cmd, stderrWg *sync.WaitGroup, stderrBuf *bytes.Buffer) error {
+	// Wait for process to complete
+	waitErr := cmd.Wait()
+
+	// Wait for stderr goroutine to finish before accessing stderrBuf
+	stderrWg.Wait()
+
+	if waitErr != nil {
+		// Include stderr output in error for debugging
+		if stderrOutput := stderrBuf.String(); stderrOutput != "" {
+			return fmt.Errorf("bun process failed: %w\nstderr: %s", waitErr, stderrOutput)
+		}
+		return fmt.Errorf("bun process failed: %w", waitErr)
+	}
+
+	return nil
 }
 
 // validateAndAddEnvironmentVars validates environment variables and adds them to the command env

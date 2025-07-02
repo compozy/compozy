@@ -165,59 +165,75 @@ func (p *Config) validateRuntimeConfig() error {
 
 	// Validate runtime type if specified
 	if runtime.Type != "" {
-		validTypes := []string{"bun", "node"}
-		valid := false
-		for _, validType := range validTypes {
-			if runtime.Type == validType {
-				valid = true
-				break
-			}
-		}
-		if !valid {
-			return fmt.Errorf(
-				"runtime configuration error: invalid runtime type '%s' - supported types are %v",
-				runtime.Type,
-				validTypes,
-			)
+		if err := validateRuntimeType(runtime.Type); err != nil {
+			return err
 		}
 	}
 
 	// Validate entrypoint path if specified
 	if runtime.Entrypoint != "" {
-		if p.CWD == nil {
-			return fmt.Errorf(
-				"runtime configuration error: working directory must be set before validating entrypoint path '%s'",
-				runtime.Entrypoint,
-			)
+		if err := validateEntrypointPath(p.CWD, runtime.Entrypoint); err != nil {
+			return err
 		}
-
-		// Check if entrypoint path exists
-		entrypointPath := filepath.Join(p.CWD.PathStr(), runtime.Entrypoint)
-		if _, err := os.Stat(entrypointPath); os.IsNotExist(err) {
-			return fmt.Errorf(
-				"runtime configuration error: entrypoint file '%s' does not exist at path '%s'",
-				runtime.Entrypoint,
-				entrypointPath,
-			)
-		} else if err != nil {
-			return fmt.Errorf(
-				"runtime configuration error: failed to access entrypoint file '%s': %w",
-				entrypointPath,
-				err,
-			)
-		}
-
-		// Validate entrypoint file extension (should be .ts or .js)
-		ext := filepath.Ext(runtime.Entrypoint)
-		if ext != ".ts" && ext != ".js" {
-			return fmt.Errorf(
-				"runtime configuration error: entrypoint file '%s' has unsupported extension '%s'",
-				runtime.Entrypoint,
-				ext,
-			)
+		if err := validateEntrypointExtension(runtime.Entrypoint); err != nil {
+			return err
 		}
 	}
 
+	return nil
+}
+
+// validateRuntimeType validates that the runtime type is one of the supported values
+func validateRuntimeType(runtimeType string) error {
+	validTypes := []string{"bun", "node"}
+	for _, validType := range validTypes {
+		if runtimeType == validType {
+			return nil
+		}
+	}
+	return fmt.Errorf(
+		"runtime configuration error: invalid runtime type '%s' - supported types are %v",
+		runtimeType,
+		validTypes,
+	)
+}
+
+// validateEntrypointPath validates that the entrypoint file exists and is accessible
+func validateEntrypointPath(cwd *core.PathCWD, entrypoint string) error {
+	if cwd == nil {
+		return fmt.Errorf(
+			"runtime configuration error: working directory must be set before validating entrypoint path '%s'",
+			entrypoint,
+		)
+	}
+	entrypointPath := filepath.Join(cwd.PathStr(), entrypoint)
+	if _, err := os.Stat(entrypointPath); os.IsNotExist(err) {
+		return fmt.Errorf(
+			"runtime configuration error: entrypoint file '%s' does not exist at path '%s'",
+			entrypoint,
+			entrypointPath,
+		)
+	} else if err != nil {
+		return fmt.Errorf(
+			"runtime configuration error: failed to access entrypoint file '%s': %w",
+			entrypointPath,
+			err,
+		)
+	}
+	return nil
+}
+
+// validateEntrypointExtension validates that the entrypoint file has a supported extension
+func validateEntrypointExtension(entrypoint string) error {
+	ext := filepath.Ext(entrypoint)
+	if ext != ".ts" && ext != ".js" {
+		return fmt.Errorf(
+			"runtime configuration error: entrypoint file '%s' has unsupported extension '%s' - "+
+				"supported extensions are .ts and .js",
+			entrypoint,
+			ext,
+		)
+	}
 	return nil
 }
 
