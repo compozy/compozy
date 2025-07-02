@@ -25,13 +25,13 @@ type ExecuteTaskInput struct {
 }
 
 type ExecuteTask struct {
-	runtime        *runtime.Manager
+	runtime        runtime.Runtime
 	memoryManager  memcore.ManagerInterface
 	templateEngine *tplengine.TemplateEngine
 }
 
 func NewExecuteTask(
-	runtime *runtime.Manager,
+	runtime runtime.Runtime,
 	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
 ) *ExecuteTask {
@@ -50,7 +50,8 @@ func (uc *ExecuteTask) Execute(ctx context.Context, input *ExecuteTaskInput) (*c
 	switch {
 	case agentConfig != nil:
 		actionID := input.TaskConfig.Action
-		// TODO: remove this when do automatically selection for action
+		// TODO: Implement automatic action selection for agents (tracked in project backlog)
+		// Current behavior requires explicit action ID specification for agent tasks
 		if actionID == "" {
 			return nil, fmt.Errorf("action ID is required for agent")
 		}

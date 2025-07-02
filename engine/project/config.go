@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"dario.cat/mergo"
@@ -20,7 +21,35 @@ type WorkflowSourceConfig struct {
 	Source string `json:"source" yaml:"source" mapstructure:"source"`
 }
 
+// RuntimeConfig defines the JavaScript runtime configuration for tool execution.
+// This configuration controls which runtime environment is used and how tools are executed.
+// Security Note: These settings directly impact the security posture of tool execution.
 type RuntimeConfig struct {
+	// Type specifies the JavaScript runtime to use for tool execution.
+	// Valid values: "bun", "node"
+	// Default: "bun" (if not specified)
+	// Security: Different runtimes have different security models and capabilities
+	Type string `json:"type,omitempty" yaml:"type,omitempty" mapstructure:"type"`
+
+	// Entrypoint specifies the path to the JavaScript/TypeScript file that exports all available tools.
+	// This file serves as the single entry point for tool discovery and execution.
+	// The path is relative to the project root directory.
+	// Required file extensions: .ts (TypeScript) or .js (JavaScript)
+	// Default: "./tools.ts" (if not specified)
+	// Security: Must be a trusted file as it has access to all tool implementations
+	Entrypoint string `json:"entrypoint" yaml:"entrypoint" mapstructure:"entrypoint"`
+
+	// Permissions defines the security permissions granted to the runtime during tool execution.
+	// These permissions control what system resources tools can access.
+	// For Bun runtime: Uses Bun's permission flags (e.g., "--allow-read", "--allow-net", "--allow-write")
+	// For Node.js runtime: Reserved for future Node.js permission system
+	// Default for Bun: ["--allow-read"] (minimal read-only access)
+	// Security Critical: Granting excessive permissions can lead to security vulnerabilities.
+	// Principle of least privilege should be applied - only grant permissions that tools actually need.
+	// Examples:
+	//   - ["--allow-read"] - Read-only file system access (recommended minimum)
+	//   - ["--allow-read", "--allow-net"] - Read access + network access
+	//   - ["--allow-read", "--allow-write", "--allow-net"] - Full access (use with caution)
 	Permissions []string `json:"permissions,omitempty" yaml:"permissions,omitempty" mapstructure:"permissions"`
 }
 
@@ -91,6 +120,10 @@ func (p *Config) Validate() error {
 	if err := validator.Validate(); err != nil {
 		return err
 	}
+	// Validate runtime configuration
+	if err := p.validateRuntimeConfig(); err != nil {
+		return fmt.Errorf("runtime configuration validation failed: %w", err)
+	}
 	// Validate cache configuration if present
 	if p.CacheConfig != nil {
 		if err := p.CacheConfig.Validate(); err != nil {
@@ -123,6 +156,84 @@ func (p *Config) ValidateInput(_ context.Context, _ *core.Input) error {
 
 func (p *Config) ValidateOutput(_ context.Context, _ *core.Output) error {
 	// Does not make sense the project having a schema
+	return nil
+}
+
+// validateRuntimeConfig validates the runtime configuration fields with detailed error messages
+func (p *Config) validateRuntimeConfig() error {
+	runtime := &p.Runtime
+
+	// Validate runtime type if specified
+	if runtime.Type != "" {
+		if err := validateRuntimeType(runtime.Type); err != nil {
+			return err
+		}
+	}
+
+	// Validate entrypoint path if specified
+	if runtime.Entrypoint != "" {
+		if err := validateEntrypointPath(p.CWD, runtime.Entrypoint); err != nil {
+			return err
+		}
+		if err := validateEntrypointExtension(runtime.Entrypoint); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateRuntimeType validates that the runtime type is one of the supported values
+func validateRuntimeType(runtimeType string) error {
+	validTypes := []string{"bun", "node"}
+	for _, validType := range validTypes {
+		if runtimeType == validType {
+			return nil
+		}
+	}
+	return fmt.Errorf(
+		"runtime configuration error: invalid runtime type '%s' - supported types are %v",
+		runtimeType,
+		validTypes,
+	)
+}
+
+// validateEntrypointPath validates that the entrypoint file exists and is accessible
+func validateEntrypointPath(cwd *core.PathCWD, entrypoint string) error {
+	if cwd == nil {
+		return fmt.Errorf(
+			"runtime configuration error: working directory must be set before validating entrypoint path '%s'",
+			entrypoint,
+		)
+	}
+	entrypointPath := filepath.Join(cwd.PathStr(), entrypoint)
+	if _, err := os.Stat(entrypointPath); os.IsNotExist(err) {
+		return fmt.Errorf(
+			"runtime configuration error: entrypoint file '%s' does not exist at path '%s'",
+			entrypoint,
+			entrypointPath,
+		)
+	} else if err != nil {
+		return fmt.Errorf(
+			"runtime configuration error: failed to access entrypoint file '%s': %w",
+			entrypointPath,
+			err,
+		)
+	}
+	return nil
+}
+
+// validateEntrypointExtension validates that the entrypoint file has a supported extension
+func validateEntrypointExtension(entrypoint string) error {
+	ext := filepath.Ext(entrypoint)
+	if ext != ".ts" && ext != ".js" {
+		return fmt.Errorf(
+			"runtime configuration error: entrypoint file '%s' has unsupported extension '%s' - "+
+				"supported extensions are .ts and .js",
+			entrypoint,
+			ext,
+		)
+	}
 	return nil
 }
 
@@ -206,6 +317,43 @@ func setIntConfigFromEnv(envKey string, currentValue *int, defaultValue int, log
 	}
 }
 
+// setRuntimeDefaults sets secure and sensible default values for runtime configuration.
+// These defaults follow the principle of least privilege and prioritize security over convenience.
+func setRuntimeDefaults(runtime *RuntimeConfig) {
+	// Default to Bun runtime if not specified
+	// Rationale: Bun is chosen as the default because:
+	// - Superior performance compared to Node.js for most tool execution scenarios
+	// - Built-in TypeScript support without additional compilation steps
+	// - More comprehensive permission system for security isolation
+	// - Faster startup times which improves tool execution latency
+	if runtime.Type == "" {
+		runtime.Type = "bun"
+	}
+
+	// Set default entrypoint if not specified
+	// Rationale: "./tools.ts" is chosen because:
+	// - TypeScript provides better type safety and development experience
+	// - Relative path ensures entrypoint is within project directory (security)
+	// - Conventional name that's intuitive for developers
+	// - Single entrypoint simplifies tool discovery and management
+	if runtime.Entrypoint == "" {
+		runtime.Entrypoint = "./tools.ts"
+	}
+
+	// Set default permissions for Bun if not specified
+	// Rationale: Only read permissions are granted by default because:
+	// - Principle of least privilege - tools should only get minimum required access
+	// - Read-only access prevents accidental or malicious file modifications
+	// - Network and write permissions can be explicitly granted when needed
+	// - Reduces attack surface for potentially vulnerable or malicious tools
+	// - Forces developers to consciously evaluate permission requirements
+	if len(runtime.Permissions) == 0 && runtime.Type == "bun" {
+		runtime.Permissions = []string{
+			"--allow-read", // Minimal read-only access for maximum security
+		}
+	}
+}
+
 // configureDispatcherOptions sets dispatcher-related configuration options from environment
 func configureDispatcherOptions(config *Config, log logger.Logger) {
 	setIntConfigFromEnv("MAX_NESTING_DEPTH", &config.Opts.MaxNestingDepth, 20, log)
@@ -237,6 +385,8 @@ func loadAndPrepareConfig(ctx context.Context, cwd *core.PathCWD, path string) (
 	if config.AutoLoad != nil {
 		config.AutoLoad.SetDefaults()
 	}
+	// Set default runtime configuration if not specified
+	setRuntimeDefaults(&config.Runtime)
 	config.MonitoringConfig, err = monitoring.LoadWithEnv(ctx, config.MonitoringConfig)
 	if err != nil {
 		return nil, err

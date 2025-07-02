@@ -11,14 +11,32 @@ interface MemoryInput {
   message?: string;
 }
 
+interface AppendResult {
+  appended_message: string;
+  timestamp: string;
+}
+
 interface MemoryOutput {
   success: boolean;
   operation: string;
-  result?: any;
+  result?: string | AppendResult;
   error?: string;
 }
 
-export default function memoryTool(input: MemoryInput): MemoryOutput {
+export function memoryTool(input: MemoryInput): MemoryOutput {
+  // Input validation
+  if (!input || typeof input !== 'object') {
+    throw new Error('Invalid input: input must be an object');
+  }
+  
+  if (!input.operation || typeof input.operation !== 'string') {
+    throw new Error('Invalid input: operation must be a non-empty string');
+  }
+  
+  if (!['read', 'append'].includes(input.operation)) {
+    throw new Error('Invalid input: operation must be either "read" or "append"');
+  }
+
   const { operation, memory_key, message } = input;
 
   try {

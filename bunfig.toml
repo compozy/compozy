@@ -1,0 +1,38 @@
+# Bun configuration file
+# This replaces the previous deno.json configuration
+
+[install]
+# Auto-install dependencies when importing
+auto = "auto"
+
+# Configure package manager behavior
+registry = "https://registry.npmjs.org"
+cache = true
+
+[run]
+# Enable hot reloading for development
+hot = false
+
+# Set environment
+env = "development"
+
+[test]
+# Test configuration
+preload = []
+coverage = false
+
+[build]
+# Build configuration
+target = "bun"
+format = "esm"
+splitting = false
+minify = false
+sourcemap = "none"
+
+# TypeScript configuration
+[typescript]
+# Enable strict mode
+strict = true
+
+# Compiler options
+compilerOptions = { strict = true, target = "ES2022", module = "ESNext" }

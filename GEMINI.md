@@ -2,6 +2,22 @@
 
 This file provides comprehensive guidance for working with the Compozy codebase, including development commands, standards, and workflow patterns.
 
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** check dependent files APIs before write tests to avoid write wrong code
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>
+
 ## Project Overview
 
 Compozy is a **workflow orchestration engine for AI agents** that enables building AI-powered applications through declarative YAML configuration and a robust Go backend. It integrates with various LLM providers and supports the Model Context Protocol (MCP) for extending AI capabilities.

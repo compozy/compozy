@@ -16,8 +16,8 @@ func TestConfigNormalizer_NormalizeToolComponent(t *testing.T) {
 
 	t.Run("Should normalize tool with complete parent context and environment merging", func(t *testing.T) {
 		toolConfig := &tool.Config{
-			ID:          "api-caller",
-			Execute:     "{{ .env.SCRIPTS_PATH }}/api_call.ts",
+			ID: "api-caller",
+			// Execute field removed - tools resolved via entrypoint exports
 			Description: "API caller for {{ .parent.id }} task of type {{ .parent.type }}",
 			With: &core.Input{
 				"endpoint_path": "users",
@@ -91,7 +91,7 @@ func TestConfigNormalizer_NormalizeToolComponent(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check template resolution with complete parent context
-		assert.Equal(t, "/app/scripts/api_call.ts", toolConfig.Execute)
+		// Execute field removed - tools resolved via entrypoint exports
 		assert.Equal(t, "API caller for api-task task of type basic", toolConfig.Description)
 		assert.Equal(t, "users", (*toolConfig.With)["endpoint_path"]) // This is not templated
 		assert.Equal(t, "fetch_data", (*toolConfig.With)["task_action"])

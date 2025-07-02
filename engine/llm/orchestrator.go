@@ -36,7 +36,7 @@ type Request struct {
 type OrchestratorConfig struct {
 	ToolRegistry   ToolRegistry
 	PromptBuilder  PromptBuilder
-	RuntimeManager *runtime.Manager
+	RuntimeManager runtime.Runtime
 	LLMFactory     llmadapter.Factory
 	MemoryProvider MemoryProvider // Optional: provides memory instances for agents
 	AsyncHook      AsyncHook      // Optional: hook for monitoring async operations
