@@ -105,6 +105,22 @@ status: pending  # Options: pending, in-progress, completed, excluded
 ## Overview
 [Brief description of what this task accomplishes]
 
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** check dependent files APIs before write tests to avoid write wrong code
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>
+
 ## Subtasks
 
 - [ ] X.1 [Subtask description]
@@ -115,28 +131,19 @@ status: pending  # Options: pending, in-progress, completed, excluded
 
 [Extract relevant sections from the tech spec that apply to this task]
 
+### Relevant Files
+
+> List of relevant files that this task will touch
+
+### Dependent Files
+
+> List of dependencies that this task will need to handle
+
 ## Success Criteria
 - [Clear definition of when this task is complete]
 - [Measurable outcomes]
 - [Quality requirements]
 - [Components impacted by this task per Tech Spec Impact Analysis]
-
-<critical>
-**MANDATORY REQUIREMENTS:**
-
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-  - Architecture patterns: `.cursor/rules/architecture.mdc`
-  - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-  - Testing requirements: `.cursor/rules/testing-standards.mdc`
-  - API standards: `.cursor/rules/api-standards.mdc`
-  - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test` before completing parent tasks
-- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
-
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>
 ```
 </individual_task_format>
 
