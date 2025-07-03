@@ -121,8 +121,7 @@ func TestRuntimeProcessor_ProcessItemConfig(t *testing.T) {
 		baseConfig.ID = "test"
 		baseConfig.Type = task.TaskTypeBasic
 		baseConfig.Tool = &tool.Config{
-			ID:      "{{.item.tool_name}}",
-			Execute: "{{.item.input}}",
+			ID: "{{.item.tool_name}}",
 			With: &core.Input{
 				"input": "{{.item.input}}",
 				"nested": map[string]any{
@@ -143,7 +142,6 @@ func TestRuntimeProcessor_ProcessItemConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result.Tool)
 		assert.Equal(t, "processor", result.Tool.ID)
-		assert.Equal(t, "test data", result.Tool.Execute)
 		withMap := map[string]any(*result.Tool.With)
 		assert.Equal(t, "test data", withMap["input"])
 		nestedParams := withMap["nested"].(map[string]any)
@@ -583,7 +581,6 @@ func TestRuntimeProcessor_EdgeCases(t *testing.T) {
 		baseConfig.Tool = &tool.Config{
 			ID:          "test-tool",
 			Description: "Execute {{.item.command}}",
-			Execute:     "{{.item.script}}",
 		}
 
 		itemContext := map[string]any{
@@ -597,7 +594,6 @@ func TestRuntimeProcessor_EdgeCases(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result.Tool)
 		assert.Equal(t, "Execute analysis", result.Tool.Description)
-		assert.Equal(t, "run.sh", result.Tool.Execute)
 	})
 
 	t.Run("Should handle with parameters as array", func(t *testing.T) {

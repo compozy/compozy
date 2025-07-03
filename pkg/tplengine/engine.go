@@ -295,6 +295,45 @@ func (e *TemplateEngine) ParseMapWithFilter(value any, data map[string]any, filt
 	}
 }
 
+// ParseWithJSONHandling processes a value, resolves templates, and handles JSON parsing for strings
+// This method is similar to ParseAny but with special handling for JSON strings
+func (e *TemplateEngine) ParseWithJSONHandling(value any, data map[string]any) (any, error) {
+	if value == nil {
+		return nil, nil
+	}
+	switch v := value.(type) {
+	case string:
+		// Check if it's a template
+		if HasTemplate(v) {
+			processed, err := e.ParseAny(v, data)
+			if err != nil {
+				return nil, err
+			}
+			// If the result is a string that looks like JSON, parse it
+			if str, ok := processed.(string); ok && str != "" && (str[0] == '{' || str[0] == '[') {
+				var parsed any
+				if err := json.Unmarshal([]byte(str), &parsed); err == nil {
+					// Now process any templates in the parsed JSON
+					return e.ParseAny(parsed, data)
+				}
+			}
+			return processed, nil
+		}
+		// Try to parse as JSON if it looks like JSON
+		if v != "" && (v[0] == '{' || v[0] == '[') {
+			var parsed any
+			if err := json.Unmarshal([]byte(v), &parsed); err == nil {
+				// Now process any templates in the parsed JSON
+				return e.ParseAny(parsed, data)
+			}
+		}
+		return v, nil
+	default:
+		// For other types, use regular ParseAny
+		return e.ParseAny(v, data)
+	}
+}
+
 // parseStringValue handles parsing of string values that may contain templates
 func (e *TemplateEngine) parseStringValue(v string, data map[string]any) (any, error) {
 	if !HasTemplate(v) {

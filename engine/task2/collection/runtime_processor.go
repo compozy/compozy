@@ -1,7 +1,6 @@
 package collection
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/task"
@@ -89,32 +88,70 @@ func (r *RuntimeProcessor) processSpecialFields(configMap map[string]any, contex
 	return nil
 }
 
-// processIDField processes the ID field if it contains templates
-func (r *RuntimeProcessor) processIDField(configMap map[string]any, context map[string]any) error {
-	if id, ok := configMap["id"].(string); ok && tplengine.HasTemplate(id) {
-		processed, err := r.templateEngine.ParseAny(id, context)
+// processStringField processes a string field in the config map if it contains templates
+func (r *RuntimeProcessor) processStringField(
+	configMap map[string]any,
+	fieldName string,
+	context map[string]any,
+) error {
+	if value, ok := configMap[fieldName].(string); ok && tplengine.HasTemplate(value) {
+		processed, err := r.templateEngine.ParseAny(value, context)
 		if err != nil {
-			return fmt.Errorf("failed to process ID template: %w", err)
+			return fmt.Errorf("failed to process %s template: %w", fieldName, err)
 		}
-		if processedID, ok := processed.(string); ok {
-			configMap["id"] = processedID
+		if processedValue, ok := processed.(string); ok {
+			configMap[fieldName] = processedValue
 		}
 	}
 	return nil
 }
 
-// processActionField processes the action field if it contains templates
-func (r *RuntimeProcessor) processActionField(configMap map[string]any, context map[string]any) error {
-	if action, ok := configMap["action"].(string); ok && tplengine.HasTemplate(action) {
-		processed, err := r.templateEngine.ParseAny(action, context)
-		if err != nil {
-			return fmt.Errorf("failed to process action template: %w", err)
+// processNestedMapField processes a map field with special nested handling
+func (r *RuntimeProcessor) processNestedMapField(
+	configMap map[string]any,
+	fieldName string,
+	context map[string]any,
+	nestedFields map[string]bool,
+) error {
+	fieldConfig, ok := configMap[fieldName]
+	if !ok || fieldConfig == nil {
+		return nil
+	}
+	fieldMap, ok := fieldConfig.(map[string]any)
+	if !ok {
+		return nil
+	}
+	// Process all fields
+	processedField, err := r.templateEngine.ParseAny(fieldMap, context)
+	if err != nil {
+		return fmt.Errorf("failed to process %s config: %w", fieldName, err)
+	}
+	// Special handling for nested fields
+	if processedMap, ok := processedField.(map[string]any); ok {
+		for nestedField := range nestedFields {
+			if nestedValue, ok := processedMap[nestedField]; ok && nestedValue != nil {
+				processedNested, err := r.templateEngine.ParseAny(nestedValue, context)
+				if err != nil {
+					return fmt.Errorf("failed to process %s %s: %w", fieldName, nestedField, err)
+				}
+				processedMap[nestedField] = processedNested
+			}
 		}
-		if processedAction, ok := processed.(string); ok {
-			configMap["action"] = processedAction
-		}
+		configMap[fieldName] = processedMap
+	} else {
+		configMap[fieldName] = processedField
 	}
 	return nil
+}
+
+// processIDField processes the ID field if it contains templates
+func (r *RuntimeProcessor) processIDField(configMap map[string]any, context map[string]any) error {
+	return r.processStringField(configMap, "id", context)
+}
+
+// processActionField processes the action field if it contains templates
+func (r *RuntimeProcessor) processActionField(configMap map[string]any, context map[string]any) error {
+	return r.processStringField(configMap, "action", context)
 }
 
 // processWithField processes the 'with' parameters with deep processing for nested maps
@@ -155,86 +192,28 @@ func (r *RuntimeProcessor) processToolField(configMap map[string]any, context ma
 
 // processWithParameters processes the 'with' parameters deeply
 func (r *RuntimeProcessor) processWithParameters(withParams any, context map[string]any) (any, error) {
-	// Handle different types of with parameters
-	switch v := withParams.(type) {
-	case map[string]any:
-		// Process as a map
-		return r.templateEngine.ParseAny(v, context)
-	case string:
-		// It might be a JSON string or a template
-		if tplengine.HasTemplate(v) {
-			processed, err := r.templateEngine.ParseAny(v, context)
-			if err != nil {
-				return nil, err
-			}
-			// If the result is a string that looks like JSON, parse it
-			if str, ok := processed.(string); ok && (str[0] == '{' || str[0] == '[') {
-				var parsed any
-				if err := json.Unmarshal([]byte(str), &parsed); err == nil {
-					return parsed, nil
-				}
-			}
-			return processed, nil
-		}
-		// Try to parse as JSON
-		if v != "" && (v[0] == '{' || v[0] == '[') {
-			var parsed any
-			if err := json.Unmarshal([]byte(v), &parsed); err == nil {
-				// Now process any templates in the parsed JSON
-				return r.templateEngine.ParseAny(parsed, context)
-			}
-		}
-		return v, nil
-	default:
-		// For other types, process as-is
-		return r.templateEngine.ParseAny(v, context)
-	}
+	// Use ParseWithJSONHandling for automatic JSON parsing
+	return r.templateEngine.ParseWithJSONHandling(withParams, context)
 }
 
 // processAgentConfig processes agent configuration templates
 func (r *RuntimeProcessor) processAgentConfig(agentConfig any, context map[string]any) (any, error) {
-	agentMap, ok := agentConfig.(map[string]any)
-	if !ok {
-		return agentConfig, nil
-	}
-	// Process all agent fields
-	processedAgent, err := r.templateEngine.ParseAny(agentMap, context)
-	if err != nil {
+	// Use a temporary map to leverage processNestedMapField
+	tempMap := map[string]any{"agent": agentConfig}
+	nestedFields := map[string]bool{"settings": true}
+	if err := r.processNestedMapField(tempMap, "agent", context, nestedFields); err != nil {
 		return nil, err
 	}
-	// Special handling for nested agent settings
-	if processedMap, ok := processedAgent.(map[string]any); ok {
-		if settings, ok := processedMap["settings"]; ok && settings != nil {
-			processedSettings, err := r.templateEngine.ParseAny(settings, context)
-			if err != nil {
-				return nil, fmt.Errorf("failed to process agent settings: %w", err)
-			}
-			processedMap["settings"] = processedSettings
-		}
-	}
-	return processedAgent, nil
+	return tempMap["agent"], nil
 }
 
 // processToolConfig processes tool configuration templates
 func (r *RuntimeProcessor) processToolConfig(toolConfig any, context map[string]any) (any, error) {
-	toolMap, ok := toolConfig.(map[string]any)
-	if !ok {
-		return toolConfig, nil
-	}
-	// Process all tool fields
-	processedTool, err := r.templateEngine.ParseAny(toolMap, context)
-	if err != nil {
+	// Use a temporary map to leverage processNestedMapField
+	tempMap := map[string]any{"tool": toolConfig}
+	nestedFields := map[string]bool{"params": true}
+	if err := r.processNestedMapField(tempMap, "tool", context, nestedFields); err != nil {
 		return nil, err
 	}
-	// Special handling for tool parameters
-	if processedMap, ok := processedTool.(map[string]any); ok {
-		if params, ok := processedMap["params"]; ok && params != nil {
-			processedParams, err := r.templateEngine.ParseAny(params, context)
-			if err != nil {
-				return nil, fmt.Errorf("failed to process tool params: %w", err)
-			}
-			processedMap["params"] = processedParams
-		}
-	}
-	return processedTool, nil
+	return tempMap["tool"], nil
 }

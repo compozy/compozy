@@ -271,7 +271,6 @@ func TestConfigOrchestrator_NormalizeToolComponent(t *testing.T) {
 		toolConfig := &tool.Config{
 			ID:          "tool1",
 			Description: "API tool",
-			Execute:     "curl {{ .parent.with.endpoint }}",
 			With: &core.Input{
 				"method": "POST",
 				"url":    "{{ .parent.with.endpoint }}",
@@ -297,7 +296,6 @@ func TestConfigOrchestrator_NormalizeToolComponent(t *testing.T) {
 		// Check normalized values in With
 		assert.Equal(t, "https://api.example.com", (*toolConfig.With)["url"])
 		assert.Equal(t, "secret123", (*toolConfig.With)["apiKey"])
-		assert.Equal(t, "curl https://api.example.com", toolConfig.Execute)
 		// Check merged input
 		assert.Equal(t, "https://api.example.com", (*toolConfig.With)["endpoint"])
 		assert.Equal(t, "POST", (*toolConfig.With)["method"])

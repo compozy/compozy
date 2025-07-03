@@ -35,7 +35,6 @@ func TestToolNormalizer_NormalizeTool(t *testing.T) {
 		config := &tool.Config{
 			ID:          "test-tool-id",
 			Description: "Test tool",
-			Execute:     "echo hello",
 		}
 		ctx := &shared.NormalizationContext{
 			WorkflowState: &workflow.State{
@@ -68,8 +67,7 @@ func TestToolNormalizer_NormalizeTool(t *testing.T) {
 		envMerger := core.NewEnvMerger()
 		normalizer := core.NewToolNormalizer(templateEngine, envMerger)
 		config := &tool.Config{
-			ID:      "test-tool-id",
-			Execute: "echo hello",
+			ID: "test-tool-id",
 			Env: &enginecore.EnvMap{
 				"TOOL_VAR": "tool_value",
 			},
@@ -116,9 +114,8 @@ func TestToolNormalizer_NormalizeTool(t *testing.T) {
 		normalizer := core.NewToolNormalizer(templateEngine, envMerger)
 		input := enginecore.NewInput(map[string]any{"key": "value"})
 		config := &tool.Config{
-			ID:      "test-tool-id",
-			Execute: "echo hello",
-			With:    &input,
+			ID:   "test-tool-id",
+			With: &input,
 		}
 		ctx := &shared.NormalizationContext{
 			WorkflowConfig: &workflow.Config{ID: "test"},
@@ -141,9 +138,8 @@ func TestToolNormalizer_NormalizeTool(t *testing.T) {
 		existingInput := enginecore.NewInput(map[string]any{"existing": "input"})
 		configInput := enginecore.NewInput(map[string]any{"config": "input"})
 		config := &tool.Config{
-			ID:      "test-tool-id",
-			Execute: "echo hello",
-			With:    &configInput,
+			ID:   "test-tool-id",
+			With: &configInput,
 		}
 		ctx := &shared.NormalizationContext{
 			WorkflowConfig: &workflow.Config{ID: "test"},
@@ -164,8 +160,7 @@ func TestToolNormalizer_NormalizeTool(t *testing.T) {
 		envMerger := core.NewEnvMerger()
 		normalizer := core.NewToolNormalizer(templateEngine, envMerger)
 		config := &tool.Config{
-			ID:      "test-tool-id",
-			Execute: "echo hello",
+			ID: "test-tool-id",
 		}
 		ctx := &shared.NormalizationContext{
 			WorkflowConfig: &workflow.Config{ID: "test"},
