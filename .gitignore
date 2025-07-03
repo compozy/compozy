@@ -6,7 +6,6 @@ examples/**/results.*
 node_modules
 bin
 **/reports/**
-gograph.yaml
 **/coverage*
 
 # Bun-specific files
