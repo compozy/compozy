@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
@@ -91,8 +92,14 @@ func (h *BaseResponseHandler) updateParentIfNeeded(
 	state *task.State,
 ) error {
 	if err := h.updateParentStatusIfNeeded(ctx, state); err != nil {
-		// Return error instead of just logging
-		return fmt.Errorf("unable to update parent task status: %w", err)
+		// Log detailed error internally
+		log := logger.FromContext(ctx).With(
+			"task_exec_id", state.TaskExecID,
+			"parent_state_id", state.ParentStateID,
+		)
+		log.Error("Failed to update parent task status", "error", err)
+		// Return generic error to prevent information disclosure
+		return errors.New("parent task update failed")
 	}
 	return nil
 }
@@ -500,33 +507,64 @@ func (h *BaseResponseHandler) ApplyDeferredOutputTransformation(
 	if input.ExecutionError != nil || input.TaskState.Status == core.StatusFailed {
 		return nil
 	}
+	// Apply transformation with transaction support
+	transformer := h.createOutputTransformationFunction(ctx, input)
+	if err := h.transactionService.ApplyTransformation(ctx, input.TaskState.TaskExecID, transformer); err != nil {
+		return err
+	}
+	// Verify transformation persistence and update in-memory state
+	return h.verifyTransformationPersistence(ctx, input)
+}
 
-	// Define the transformation logic
-	transformer := func(state *task.State) error {
-		// Create a new input for the transformation
+// createOutputTransformationFunction creates the transformation logic for deferred output processing
+func (h *BaseResponseHandler) createOutputTransformationFunction(
+	ctx context.Context,
+	input *ResponseInput,
+) func(*task.State) error {
+	return func(state *task.State) error {
 		transformInput := &ResponseInput{
 			TaskConfig:     input.TaskConfig,
 			TaskState:      state,
 			WorkflowConfig: input.WorkflowConfig,
 			WorkflowState:  input.WorkflowState,
 		}
-
-		// Ensure the task is marked as successful
 		transformInput.TaskState.UpdateStatus(core.StatusSuccess)
+		return h.applyOutputTransformationIfNeeded(ctx, transformInput)
+	}
+}
 
-		// Apply output transformation if needed
-		if transformInput.TaskConfig.GetOutputs() != nil && transformInput.TaskState.Output != nil {
-			if err := h.applyOutputTransformation(ctx, transformInput); err != nil {
-				// On transformation failure, mark task as failed
-				transformInput.TaskState.UpdateStatus(core.StatusFailed)
-				h.setErrorState(transformInput.TaskState, err)
-				return err
-			}
-		}
-
+// applyOutputTransformationIfNeeded applies output transformation if the task has outputs configured
+func (h *BaseResponseHandler) applyOutputTransformationIfNeeded(
+	ctx context.Context,
+	transformInput *ResponseInput,
+) error {
+	if transformInput.TaskConfig.GetOutputs() == nil || transformInput.TaskState.Output == nil {
 		return nil
 	}
+	if err := h.applyOutputTransformation(ctx, transformInput); err != nil {
+		transformInput.TaskState.UpdateStatus(core.StatusFailed)
+		h.setErrorState(transformInput.TaskState, err)
+		return err
+	}
+	return nil
+}
 
-	// Apply transformation with transaction support
-	return h.transactionService.ApplyTransformation(ctx, input.TaskState.TaskExecID, transformer)
+// verifyTransformationPersistence ensures the transformation was persisted and updates in-memory state
+func (h *BaseResponseHandler) verifyTransformationPersistence(
+	ctx context.Context,
+	input *ResponseInput,
+) error {
+	verifiedState, err := h.taskRepo.GetState(ctx, input.TaskState.TaskExecID)
+	if err != nil {
+		log := logger.FromContext(ctx).With(
+			"task_exec_id", input.TaskState.TaskExecID,
+			"task_id", input.TaskConfig.ID,
+		)
+		log.Warn("Failed to verify transformation persistence", "error", err)
+		return nil
+	}
+	input.TaskState.Status = verifiedState.Status
+	input.TaskState.Output = verifiedState.Output
+	input.TaskState.Error = verifiedState.Error
+	return nil
 }

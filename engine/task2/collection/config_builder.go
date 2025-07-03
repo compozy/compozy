@@ -51,9 +51,22 @@ func (cb *ConfigBuilder) BuildTaskConfig(
 	if parentTaskConfig.With != nil {
 		maps.Copy(mergedInput, *parentTaskConfig.With)
 	}
-	// Add task template with
+	// Add task template with - process templates in it
 	if taskConfig.With != nil {
-		maps.Copy(mergedInput, *taskConfig.With)
+		// Process templates in the with field using the item context
+		processedWith, err := cb.templateEngine.ParseAny(*taskConfig.With, itemContext)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process with field templates: %w", err)
+		}
+		// Convert processed result to Input map
+		switch v := processedWith.(type) {
+		case map[string]any:
+			maps.Copy(mergedInput, v)
+		case core.Input:
+			maps.Copy(mergedInput, v)
+		default:
+			return nil, fmt.Errorf("processed with field is not a map: %T", processedWith)
+		}
 	}
 	// Add item context
 	mergedInput["item"] = item
@@ -61,10 +74,17 @@ func (cb *ConfigBuilder) BuildTaskConfig(
 	// Apply custom item/index keys if specified
 	if collectionConfig.GetItemVar() != "" {
 		mergedInput[collectionConfig.GetItemVar()] = item
+		// Store the custom variable name so it can be used during output transformation
+		mergedInput[shared.FieldCollectionItemVar] = collectionConfig.GetItemVar()
 	}
 	if collectionConfig.GetIndexVar() != "" {
 		mergedInput[collectionConfig.GetIndexVar()] = index
+		// Store the custom variable name so it can be used during output transformation
+		mergedInput[shared.FieldCollectionIndexVar] = collectionConfig.GetIndexVar()
 	}
+	// Store the standard collection fields for output transformation
+	mergedInput[shared.FieldCollectionItem] = item
+	mergedInput[shared.FieldCollectionIndex] = index
 	taskConfig.With = &mergedInput
 	// Generate unique task ID if it contains templates
 	if taskConfig.ID != "" {

@@ -124,10 +124,12 @@ func TestCollectionNormalizer_Normalize(t *testing.T) {
 			},
 		}
 
-		// Act & Assert - Should panic when trying to BuildTemplateContext
-		assert.Panics(t, func() {
-			_ = normalizer.Normalize(taskConfig, nil)
-		})
+		// Act
+		err := normalizer.Normalize(taskConfig, nil)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid context type")
 	})
 
 	t.Run("Should handle template parsing errors in main config", func(t *testing.T) {

@@ -81,9 +81,6 @@ func (a *Activities) CreateTaskState(ctx context.Context, input *CreateTaskState
 
 // UPDATE: engine/cmd/server/main.go
 func setupActivities(db *sql.DB) *activities.Activities {
-    // Remove old service initialization
-    // DELETE: services := services.New(db)
-
     // Direct dependency setup
     deps := &activities.Dependencies{
         TaskRepo:       repo.NewTaskRepository(db),

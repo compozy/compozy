@@ -12,7 +12,10 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
+	"github.com/compozy/compozy/engine/task2"
+	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/sethvargo/go-retry"
 )
 
@@ -28,7 +31,8 @@ type ExecuteSubtaskInput struct {
 type ExecuteSubtask struct {
 	loadWorkflowUC *uc.LoadWorkflow
 	executeTaskUC  *uc.ExecuteTask
-	taskResponder  *services.TaskResponder
+	task2Factory   task2.Factory
+	templateEngine *tplengine.TemplateEngine
 	taskRepo       task.Repository
 	configStore    services.ConfigStore
 }
@@ -40,11 +44,14 @@ func NewExecuteSubtask(
 	taskRepo task.Repository,
 	runtime *runtime.Manager,
 	configStore services.ConfigStore,
+	task2Factory task2.Factory,
+	templateEngine *tplengine.TemplateEngine,
 ) *ExecuteSubtask {
 	return &ExecuteSubtask{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		executeTaskUC:  uc.NewExecuteTask(runtime, nil, nil), // Subtasks don't need memory manager
-		taskResponder:  services.NewTaskResponder(workflowRepo, taskRepo),
+		task2Factory:   task2Factory,
+		templateEngine: templateEngine,
 		taskRepo:       taskRepo,
 		configStore:    configStore,
 	}
@@ -64,9 +71,21 @@ func (a *ExecuteSubtask) Run(ctx context.Context, input *ExecuteSubtaskInput) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to load task config for taskExecID %s: %w", input.TaskExecID, err)
 	}
-	// Normalize task configuration
-	if err := a.normalizeTaskConfig(ctx, workflowState, workflowConfig, taskConfig); err != nil {
-		return nil, err
+	// Use task2 normalizer for subtask
+	normalizer, err := a.task2Factory.CreateNormalizer(taskConfig.Type)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create subtask normalizer: %w", err)
+	}
+	// Create context builder to build proper normalization context
+	contextBuilder, err := shared.NewContextBuilder()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create context builder: %w", err)
+	}
+	// Build proper normalization context with all template variables
+	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, taskConfig)
+	// Normalize the task configuration
+	if err := normalizer.Normalize(taskConfig, normContext); err != nil {
+		return nil, fmt.Errorf("failed to normalize subtask: %w", err)
 	}
 	// Get child state with retry logic
 	taskState, err := a.getChildStateWithRetry(ctx, input.ParentStateID, taskConfig.ID)
@@ -101,47 +120,35 @@ func (a *ExecuteSubtask) Run(ctx context.Context, input *ExecuteSubtaskInput) (*
 	if err := a.taskRepo.UpsertState(ctx, taskState); err != nil {
 		return nil, fmt.Errorf("failed to persist task output and status: %w", err)
 	}
-	// Handle subtask response
-	response, err := a.taskResponder.HandleSubtask(ctx, &services.SubtaskResponseInput{
-		WorkflowConfig: workflowConfig,
-		TaskState:      taskState,
-		TaskConfig:     taskConfig,
-		ExecutionError: executionError,
-	})
+	// Use task2 ResponseHandler for subtask
+	handler, err := a.task2Factory.CreateResponseHandler(taskConfig.Type)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create subtask response handler: %w", err)
 	}
-
+	// Prepare input for response handler
+	responseInput := &shared.ResponseInput{
+		TaskConfig:     taskConfig,
+		TaskState:      taskState,
+		WorkflowConfig: workflowConfig,
+		WorkflowState:  workflowState,
+		ExecutionError: executionError,
+	}
+	// Handle the response
+	result, err := handler.HandleResponse(ctx, responseInput)
+	if err != nil {
+		return nil, fmt.Errorf("failed to handle subtask response: %w", err)
+	}
+	// Convert shared.ResponseOutput to task.SubtaskResponse
+	converter := NewResponseConverter()
+	// Convert to MainTaskResponse first then extract subtask data
+	mainTaskResponse := converter.ConvertToMainTaskResponse(result)
+	subtaskResponse := &task.SubtaskResponse{
+		State: mainTaskResponse.State,
+	}
 	// Return the response with the execution status embedded.
 	// We only return an error if there's an infrastructure issue that Temporal should retry.
 	// Business logic failures are captured in the response status.
-	return response, nil
-}
-
-// normalizeTaskConfig normalizes the task configuration to avoid race conditions
-func (a *ExecuteSubtask) normalizeTaskConfig(
-	ctx context.Context,
-	wState *workflow.State,
-	wConfig *workflow.Config,
-	taskConfig *task.Config,
-) error {
-	// Create a copy of workflow config to avoid race conditions when multiple goroutines
-	// concurrently call NormalizeConfig.Execute which mutates the config in-place
-	wcCopy, err := wConfig.Clone()
-	if err != nil {
-		return fmt.Errorf("failed to clone workflow config: %w", err)
-	}
-	wcCopy.Tasks = append([]task.Config(nil), wConfig.Tasks...)
-	normalizer, err := uc.NewNormalizeConfig()
-	if err != nil {
-		return fmt.Errorf("failed to create normalizer: %w", err)
-	}
-	normalizeInput := &uc.NormalizeConfigInput{
-		WorkflowState:  wState,
-		WorkflowConfig: wcCopy,
-		TaskConfig:     taskConfig,
-	}
-	return normalizer.Execute(ctx, normalizeInput)
+	return subtaskResponse, nil
 }
 
 // getChildStateWithRetry retrieves child state with exponential backoff retry

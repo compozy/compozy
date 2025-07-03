@@ -10,23 +10,55 @@ status: pending
 <dependencies>activities_integration,legacy_services,build_system</dependencies>
 </task_context>
 
-# Task 10.0: Legacy Service Removal
+# Task 10.0: Legacy Service and Activities Removal
 
 ## Overview
 
-Remove the legacy TaskResponder and ConfigManager services from the codebase after successful integration of the new modular components. This is the final cleanup phase that eliminates the old monolithic services and completes the refactoring process.
+Remove the legacy TaskResponder and ConfigManager services, along with all old activity implementations from the codebase after successful integration of the new modular components. This is the final cleanup phase that eliminates the old monolithic services and legacy activities, replacing them with the new \_v2 implementations. This is a CRITICAL operation that requires careful validation before deletion.
 
 ## Subtasks
 
-- [ ] 10.1 TaskResponder service completely removed from codebase
-- [ ] 10.2 ConfigManager service completely removed from codebase
-- [ ] 10.3 All references and imports updated to use new components
-- [ ] 10.4 Build succeeds without any compilation errors
-- [ ] 10.5 All tests pass with new component integration
-- [ ] 10.6 Code size reduction of 1,225 LOC achieved
-- [ ] 10.7 Documentation updated to reflect new architecture
+- [ ] 10.1 Validate all old activities are properly replaced by \_v2 implementations
+- [ ] 10.2 Remove all old activity files from engine/task/activities
+- [ ] 10.3 TaskResponder service completely removed from codebase
+- [ ] 10.4 ConfigManager service completely removed from codebase
+- [ ] 10.5 All references and imports updated to use new components
+- [ ] 10.6 Build succeeds without any compilation errors
+- [ ] 10.7 All tests pass with new component integration
+- [ ] 10.8 Code size reduction achieved (1,225+ LOC)
+- [ ] 10.9 Documentation updated to reflect new architecture
 
 ## Implementation Details
+
+### CRITICAL: Pre-Removal Validation for Activities
+
+**Before removing ANY old activity files, validate each one:**
+
+```bash
+# List all old activities that need validation
+ls -la engine/task/activities/*.go | grep -v _v2
+
+# For each old activity, ensure the _v2 replacement exists and is properly integrated
+```
+
+**Old Activities to Validate and Remove:**
+
+1. `engine/task/activities/create_collection_state.go` → Verify replaced by `collection_state_v2.go`
+2. `engine/task/activities/get_collection_response.go` → Verify replaced by `collection_resp_v2.go`
+3. `engine/task/activities/create_parallel_state.go` → Verify replaced by `parallel_state_v2.go`
+4. `engine/task/activities/get_parallel_response.go` → Verify replaced by `parallel_resp_v2.go`
+5. `engine/task/activities/execute_basic_task.go` → Verify replaced by `exec_basic_v2.go`
+6. `engine/task/activities/create_composite_state.go` → Verify replaced by `composite_state_v2.go`
+7. `engine/task/activities/get_composite_response.go` → Verify replaced by `composite_resp_v2.go`
+8. Any other old activity files not using \_v2 pattern
+
+**Validation Steps for Each Activity:**
+
+1. Confirm \_v2 version exists and is complete
+2. Verify all functionality is preserved
+3. Check that Activities.go is using the \_v2 version
+4. Run specific tests for that activity type
+5. Only then remove the old file
 
 ### Files to Remove
 
@@ -36,6 +68,11 @@ Remove the legacy TaskResponder and ConfigManager services from the codebase aft
 2. `engine/task/services/config_manager.go` (493 LOC)
 3. `engine/task/services/task_responder_test.go`
 4. `engine/task/services/config_manager_test.go`
+
+**Legacy Activity Files (ONLY after validation):**
+
+1. All non-\_v2 files in `engine/task/activities/`
+2. Associated test files for old activities
 
 **Legacy Integration Points:**
 
@@ -281,10 +318,25 @@ grep -r "ConfigManager" . --exclude-dir=.git
 - [ ] No critical issues reported in monitoring
 - [ ] User acceptance testing completed
 
+## ⚠️ CRITICAL WARNING
+
+This task involves removing core activity implementations that are fundamental to the workflow engine.
+**DO NOT DELETE ANY FILES** until you have:
+
+1. Verified each old activity has a complete \_v2 replacement
+2. Confirmed Activities.go is using ONLY \_v2 implementations
+3. Run ALL integration tests for each activity type
+4. Validated behavior is IDENTICAL between old and new
+5. Checked for any references to old activities in the codebase
+
+**Deletion without proper validation will break the entire workflow system!**
+
 ## Dependencies
 
 - Task 9: Activities.go integration completed and validated
 - All new components fully functional and tested
+- All \_v2 activity implementations created and tested
+- Activities.go updated to use \_v2 implementations
 - Production deployment with new components successful
 - Behavior validation completed
 
@@ -372,6 +424,9 @@ grep -r "ConfigManager" . --exclude-dir=.git
 
 Before marking this task complete, verify:
 
+- [ ] All old activities validated to have \_v2 replacements
+- [ ] Activities.go confirmed to use ONLY \_v2 implementations
+- [ ] All old activity files removed from engine/task/activities
 - [ ] TaskResponder service completely removed from codebase
 - [ ] ConfigManager service completely removed from codebase
 - [ ] All import statements updated to remove legacy services
@@ -379,6 +434,7 @@ Before marking this task complete, verify:
 - [ ] Build completes successfully with no compilation errors
 - [ ] All tests pass with new architecture
 - [ ] Documentation updated to reflect new architecture
-- [ ] 1,225 LOC reduction verified
+- [ ] Code size reduction verified (1,225+ LOC)
 - [ ] No orphaned code or imports remaining
+- [ ] No references to old activities remaining
 - [ ] Final code review completed and approved

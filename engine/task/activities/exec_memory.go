@@ -9,6 +9,8 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
+	"github.com/compozy/compozy/engine/task2"
+	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
@@ -25,8 +27,9 @@ type ExecuteMemoryInput struct {
 type ExecuteMemory struct {
 	loadWorkflowUC        *uc.LoadWorkflow
 	createStateUC         *uc.CreateState
-	taskResponder         *services.TaskResponder
+	task2Factory          task2.Factory
 	execMemoryOperationUC *uc.ExecuteMemoryOperation
+	templateEngine        *tplengine.TemplateEngine
 }
 
 // NewExecuteMemory creates a new ExecuteMemory activity
@@ -36,18 +39,16 @@ func NewExecuteMemory(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	memoryManager memcore.ManagerInterface,
-	cwd *core.PathCWD,
+	_ *core.PathCWD,
 	templateEngine *tplengine.TemplateEngine,
+	task2Factory task2.Factory,
 ) (*ExecuteMemory, error) {
-	configManager, err := services.NewConfigManager(configStore, cwd)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create config manager: %w", err)
-	}
 	return &ExecuteMemory{
 		loadWorkflowUC:        uc.NewLoadWorkflow(workflows, workflowRepo),
-		createStateUC:         uc.NewCreateState(taskRepo, configManager),
-		taskResponder:         services.NewTaskResponder(workflowRepo, taskRepo),
+		createStateUC:         uc.NewCreateState(taskRepo, configStore),
+		task2Factory:          task2Factory,
 		execMemoryOperationUC: uc.NewExecuteMemoryOperation(memoryManager, templateEngine),
+		templateEngine:        templateEngine,
 	}, nil
 }
 
@@ -64,9 +65,26 @@ func (a *ExecuteMemory) Run(ctx context.Context, input *ExecuteMemoryInput) (*ta
 	if err != nil {
 		return nil, fmt.Errorf("failed to load workflow: %w", err)
 	}
+	// Use task2 normalizer for memory tasks
+	normalizer, err := a.task2Factory.CreateNormalizer(task.TaskTypeMemory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create memory normalizer: %w", err)
+	}
+	// Create context builder to build proper normalization context
+	contextBuilder, err := shared.NewContextBuilder()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create context builder: %w", err)
+	}
+	// Build proper normalization context with all template variables
+	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, input.TaskConfig)
+	// Normalize the task configuration
+	normalizedConfig := input.TaskConfig
+	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
+		return nil, fmt.Errorf("failed to normalize memory task: %w", err)
+	}
 	// Create state
 	state, err := a.createStateUC.Execute(ctx, &uc.CreateStateInput{
-		TaskConfig:     input.TaskConfig,
+		TaskConfig:     normalizedConfig,
 		WorkflowConfig: workflowConfig,
 		WorkflowState:  workflowState,
 	})
@@ -75,22 +93,33 @@ func (a *ExecuteMemory) Run(ctx context.Context, input *ExecuteMemoryInput) (*ta
 	}
 	// Execute memory operation
 	output, executionError := a.execMemoryOperationUC.Execute(ctx, &uc.ExecuteMemoryOperationInput{
-		TaskConfig:    input.TaskConfig,
+		TaskConfig:    normalizedConfig,
 		MergedInput:   input.MergedInput,
 		WorkflowState: workflowState,
 	})
 	if executionError == nil {
 		state.Output = output
 	}
-	// Handle response using task responder
-	response, handleErr := a.taskResponder.HandleMainTask(ctx, &services.MainTaskResponseInput{
-		WorkflowConfig: workflowConfig,
-		TaskState:      state,
-		TaskConfig:     input.TaskConfig,
-		ExecutionError: executionError,
-	})
-	if handleErr != nil {
-		return nil, handleErr
+	// Use task2 ResponseHandler for memory type
+	handler, err := a.task2Factory.CreateResponseHandler(task.TaskTypeMemory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create memory response handler: %w", err)
 	}
-	return response, executionError
+	// Prepare input for response handler
+	responseInput := &shared.ResponseInput{
+		TaskConfig:     normalizedConfig,
+		TaskState:      state,
+		WorkflowConfig: workflowConfig,
+		WorkflowState:  workflowState,
+		ExecutionError: executionError,
+	}
+	// Handle the response
+	result, err := handler.HandleResponse(ctx, responseInput)
+	if err != nil {
+		return nil, fmt.Errorf("failed to handle memory response: %w", err)
+	}
+	// Convert shared.ResponseOutput to task.MainTaskResponse
+	converter := NewResponseConverter()
+	mainTaskResponse := converter.ConvertToMainTaskResponse(result)
+	return mainTaskResponse, executionError
 }

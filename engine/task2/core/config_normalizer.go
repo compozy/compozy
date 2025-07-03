@@ -4,20 +4,21 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task2/contracts"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 )
 
 // ConfigNormalizer orchestrates the entire normalization process
 type ConfigNormalizer struct {
-	factory        NormalizerFactory
+	factory        contracts.NormalizerFactory
 	envMerger      *EnvMerger
 	contextBuilder *shared.ContextBuilder
 }
 
 // NewConfigNormalizer creates a new config normalizer
 func NewConfigNormalizer(
-	factory NormalizerFactory,
+	factory contracts.NormalizerFactory,
 	envMerger *EnvMerger,
 	contextBuilder *shared.ContextBuilder,
 ) *ConfigNormalizer {

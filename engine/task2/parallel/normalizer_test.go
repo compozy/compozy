@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task2/contracts"
 	"github.com/compozy/compozy/engine/task2/parallel"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/pkg/tplengine"
@@ -20,12 +21,12 @@ type mockNormalizerFactory struct {
 	mock.Mock
 }
 
-func (m *mockNormalizerFactory) CreateNormalizer(taskType task.Type) (shared.TaskNormalizerInterface, error) {
+func (m *mockNormalizerFactory) CreateNormalizer(taskType task.Type) (contracts.TaskNormalizer, error) {
 	args := m.Called(taskType)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(shared.TaskNormalizerInterface), args.Error(1)
+	return args.Get(0).(contracts.TaskNormalizer), args.Error(1)
 }
 
 // Mock task normalizer for testing
@@ -38,7 +39,7 @@ func (m *mockTaskNormalizer) Type() task.Type {
 	return task.Type(args.String(0))
 }
 
-func (m *mockTaskNormalizer) Normalize(config *task.Config, ctx *shared.NormalizationContext) error {
+func (m *mockTaskNormalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
 	args := m.Called(config, ctx)
 	return args.Error(0)
 }

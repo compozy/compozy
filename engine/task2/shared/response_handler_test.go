@@ -340,6 +340,15 @@ func TestApplyDeferredOutputTransformation(t *testing.T) {
 			return state.Output != nil
 		})).Return(nil)
 
+		// Mock the verification read after transformation
+		verifiedState := &task.State{
+			TaskExecID: taskState.TaskExecID,
+			TaskID:     taskState.TaskID,
+			Status:     core.StatusSuccess,
+			Output:     &core.Output{"count": 3},
+		}
+		taskRepo.On("GetState", ctx, taskState.TaskExecID).Return(verifiedState, nil)
+
 		// Act
 		err := handler.ApplyDeferredOutputTransformation(ctx, input)
 
@@ -347,6 +356,7 @@ func TestApplyDeferredOutputTransformation(t *testing.T) {
 		require.NoError(t, err)
 		taskRepo.AssertExpectations(t)
 		outputTransformer.AssertExpectations(t)
+		workflowRepo.AssertExpectations(t)
 	})
 
 	t.Run("Should handle transformation failure", func(t *testing.T) {
@@ -421,6 +431,80 @@ func TestApplyDeferredOutputTransformation(t *testing.T) {
 		assert.Contains(t, err.Error(), "transformation failed")
 		taskRepo.AssertExpectations(t)
 		outputTransformer.AssertExpectations(t)
+	})
+
+	t.Run("Should handle verification read failure gracefully", func(t *testing.T) {
+		// Arrange
+		ctx := context.Background()
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+		contextBuilder := &ContextBuilder{}
+		parentStatusManager := &MockParentStatusManager{}
+		workflowRepo := &store.MockWorkflowRepo{}
+		taskRepo := &store.MockTaskRepo{}
+		outputTransformer := &MockOutputTransformer{}
+
+		handler := NewBaseResponseHandler(
+			templateEngine,
+			contextBuilder,
+			parentStatusManager,
+			workflowRepo,
+			taskRepo,
+			outputTransformer,
+		)
+
+		taskExecID := core.MustNewID()
+		taskState := &task.State{
+			TaskExecID: taskExecID,
+			TaskID:     "test-collection",
+			Status:     core.StatusSuccess,
+			Output:     &core.Output{"items": []string{"a", "b", "c"}},
+		}
+
+		input := &ResponseInput{
+			TaskConfig: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:      "test-collection",
+					Type:    task.TaskTypeCollection,
+					Outputs: &core.Input{"count": "{{ len .output.items }}"},
+				},
+			},
+			TaskState: taskState,
+			WorkflowConfig: &workflow.Config{
+				ID: "test-workflow",
+			},
+			WorkflowState: &workflow.State{
+				WorkflowID:     "test-workflow",
+				WorkflowExecID: core.MustNewID(),
+			},
+		}
+
+		// Mock expectations
+		// Mock WithTx for ApplyDeferredOutputTransformation
+		taskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Run(func(args mock.Arguments) {
+			fn := args.Get(1).(func(pgx.Tx) error)
+			fn(nil) // Simulate transaction execution
+		}).Return(nil)
+
+		taskRepo.On("GetStateForUpdate", ctx, mock.Anything, taskState.TaskExecID).Return(taskState, nil)
+
+		outputTransformer.On("TransformOutput", ctx, taskState, input.TaskConfig, input.WorkflowConfig).
+			Return(map[string]any{"count": 3}, nil)
+
+		taskRepo.On("UpsertStateWithTx", ctx, mock.Anything, mock.MatchedBy(func(state *task.State) bool {
+			return state.Output != nil
+		})).Return(nil)
+
+		// Mock the verification read to fail - this should be logged but not fail the operation
+		taskRepo.On("GetState", ctx, taskState.TaskExecID).Return(nil, errors.New("database connection lost"))
+
+		// Act
+		err := handler.ApplyDeferredOutputTransformation(ctx, input)
+
+		// Assert
+		require.NoError(t, err) // Should not fail despite verification read error
+		taskRepo.AssertExpectations(t)
+		outputTransformer.AssertExpectations(t)
+		workflowRepo.AssertExpectations(t)
 	})
 }
 

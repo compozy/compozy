@@ -18,8 +18,12 @@ func BuildProgressContext(state *task.ProgressState) map[string]any {
 
 	return map[string]any{
 		"total":          state.TotalChildren,
-		"completed":      state.CompletedCount,
+		"completed":      state.SuccessCount, // Keep "completed" key for template compatibility
+		"success":        state.SuccessCount, // New explicit success key
 		"failed":         state.FailedCount,
+		"canceled":       state.CanceledCount,
+		"timedOut":       state.TimedOutCount,
+		"terminal":       state.TerminalCount,
 		"running":        state.RunningCount,
 		"pending":        state.PendingCount,
 		"completionRate": state.CompletionRate(),

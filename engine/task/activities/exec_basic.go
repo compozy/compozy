@@ -11,6 +11,8 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
+	"github.com/compozy/compozy/engine/task2"
+	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
@@ -23,37 +25,39 @@ type ExecuteBasicInput struct {
 	TaskConfig     *task.Config `json:"task_config"`
 }
 
+// ExecuteBasic handles basic task execution with task2 integration
 type ExecuteBasic struct {
 	loadWorkflowUC *uc.LoadWorkflow
 	createStateUC  *uc.CreateState
 	executeUC      *uc.ExecuteTask
-	taskResponder  *services.TaskResponder
+	task2Factory   task2.Factory
+	workflowRepo   workflow.Repository
+	taskRepo       task.Repository
 	memoryManager  memcore.ManagerInterface
 	templateEngine *tplengine.TemplateEngine
 	projectConfig  *project.Config
 }
 
-// NewExecuteBasic creates a new ExecuteBasic activity
+// NewExecuteBasic creates a new ExecuteBasic activity with task2 integration
 func NewExecuteBasic(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	runtime *runtime.Manager,
 	configStore services.ConfigStore,
-	cwd *core.PathCWD,
+	_ *core.PathCWD,
 	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
 	projectConfig *project.Config,
+	task2Factory task2.Factory,
 ) (*ExecuteBasic, error) {
-	configManager, err := services.NewConfigManager(configStore, cwd)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create config manager: %w", err)
-	}
 	return &ExecuteBasic{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
-		createStateUC:  uc.NewCreateState(taskRepo, configManager),
+		createStateUC:  uc.NewCreateState(taskRepo, configStore),
 		executeUC:      uc.NewExecuteTask(runtime, memoryManager, templateEngine),
-		taskResponder:  services.NewTaskResponder(workflowRepo, taskRepo),
+		task2Factory:   task2Factory,
+		workflowRepo:   workflowRepo,
+		taskRepo:       taskRepo,
 		memoryManager:  memoryManager,
 		templateEngine: templateEngine,
 		projectConfig:  projectConfig,
@@ -69,57 +73,73 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 	if err != nil {
 		return nil, err
 	}
-	// Normalize task config
-	normalizer, err := uc.NewNormalizeConfig()
+	// Use task2 normalizer for basic tasks
+	normalizer, err := a.task2Factory.CreateNormalizer(task.TaskTypeBasic)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create normalizer: %w", err)
+		return nil, fmt.Errorf("failed to create basic normalizer: %w", err)
 	}
-	normalizeInput := &uc.NormalizeConfigInput{
-		WorkflowState:  workflowState,
-		WorkflowConfig: workflowConfig,
-		TaskConfig:     input.TaskConfig,
-	}
-	err = normalizer.Execute(ctx, normalizeInput)
+	// Create context builder to build proper normalization context
+	contextBuilder, err := shared.NewContextBuilder()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
-	// Validate task
-	taskConfig := input.TaskConfig
-	taskType := taskConfig.Type
-	if taskType != task.TaskTypeBasic {
-		return nil, fmt.Errorf("unsupported task type: %s", taskType)
+	// Build proper normalization context with all template variables
+	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, input.TaskConfig)
+	// Normalize the task configuration
+	normalizedConfig := input.TaskConfig
+	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
+		return nil, fmt.Errorf("failed to normalize basic task: %w", err)
+	}
+	// Validate task type
+	if normalizedConfig.Type != task.TaskTypeBasic {
+		return nil, fmt.Errorf("unsupported task type: %s", normalizedConfig.Type)
 	}
 	// Create task state
 	taskState, err := a.createStateUC.Execute(ctx, &uc.CreateStateInput{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
-		TaskConfig:     taskConfig,
+		TaskConfig:     normalizedConfig,
 	})
 	if err != nil {
 		return nil, err
 	}
 	// Execute component
 	output, executionError := a.executeUC.Execute(ctx, &uc.ExecuteTaskInput{
-		TaskConfig:     taskConfig,
+		TaskConfig:     normalizedConfig,
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
 		ProjectConfig:  a.projectConfig,
 	})
 	taskState.Output = output
-	response, handleErr := a.taskResponder.HandleMainTask(ctx, &services.MainTaskResponseInput{
-		WorkflowConfig: workflowConfig,
+	// Use task2 ResponseHandler for basic type
+	handler, err := a.task2Factory.CreateResponseHandler(task.TaskTypeBasic)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create basic response handler: %w", err)
+	}
+	// Prepare input for response handler
+	responseInput := &shared.ResponseInput{
+		TaskConfig:     normalizedConfig,
 		TaskState:      taskState,
-		TaskConfig:     taskConfig,
+		WorkflowConfig: workflowConfig,
+		WorkflowState:  workflowState,
 		ExecutionError: executionError,
-	})
-	if handleErr != nil {
-		return nil, handleErr
 	}
-
-	// If there was an execution error, the task should be considered failed
+	// Handle the response
+	result, err := handler.HandleResponse(ctx, responseInput)
+	if err != nil {
+		return nil, fmt.Errorf("failed to handle basic response: %w", err)
+	}
+	// Convert shared.ResponseOutput to task.MainTaskResponse
+	mainTaskResponse := a.convertToMainTaskResponse(result)
+	// If there was an execution error, return it
 	if executionError != nil {
-		return response, executionError
+		return mainTaskResponse, executionError
 	}
+	return mainTaskResponse, nil
+}
 
-	return response, nil
+// convertToMainTaskResponse converts shared.ResponseOutput to task.MainTaskResponse
+func (a *ExecuteBasic) convertToMainTaskResponse(result *shared.ResponseOutput) *task.MainTaskResponse {
+	converter := NewResponseConverter()
+	return converter.ConvertToMainTaskResponse(result)
 }

@@ -44,8 +44,18 @@ func CreateTestContainerDatabase(ctx context.Context, t *testing.T) (*pgxpool.Po
 	require.NoError(t, err)
 
 	cleanup := func() {
-		if err := pgContainer.Terminate(ctx); err != nil {
-			t.Fatalf("failed to terminate container: %s", err)
+		// Close the pool first to release all connections
+		pool.Close()
+
+		// Give a moment for connections to close
+		time.Sleep(100 * time.Millisecond)
+
+		// Terminate the container with a timeout
+		terminateCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := pgContainer.Terminate(terminateCtx); err != nil {
+			t.Logf("Warning: failed to terminate container: %s", err)
 		}
 	}
 

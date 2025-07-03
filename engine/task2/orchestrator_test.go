@@ -1,6 +1,7 @@
 package task2_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,25 +11,21 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2"
-	tmplcore "github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/tplengine"
 )
 
-func setupOrchestrator(t *testing.T) *task2.ConfigOrchestrator {
+func setupOrchestrator(ctx context.Context, t *testing.T) *task2.ConfigOrchestrator {
 	t.Helper()
-	tplEngine := tplengine.NewEngine(tplengine.FormatText)
-	envMerger := tmplcore.NewEnvMerger()
-	factory, err := task2.NewFactory(tplEngine, envMerger)
-	require.NoError(t, err)
+	factory, cleanup := setupTestFactory(ctx, t)
+	defer cleanup()
 	orchestrator, err := task2.NewConfigOrchestrator(factory)
 	require.NoError(t, err)
 	return orchestrator
 }
 
 func TestConfigOrchestrator_NormalizeTask(t *testing.T) {
-	orchestrator := setupOrchestrator(t)
+	orchestrator := setupOrchestrator(context.Background(), t)
 
 	t.Run("Should normalize basic task with template expressions", func(t *testing.T) {
 		// Setup workflow state
@@ -69,7 +66,11 @@ func TestConfigOrchestrator_NormalizeTask(t *testing.T) {
 
 		// Check normalized values
 		assert.Equal(t, "Hello TestUser", taskConfig.Action)
-		assert.Equal(t, "Count is 5", (*taskConfig.With)["message"])
+		if taskConfig.With != nil {
+			assert.Equal(t, "Count is 5", (*taskConfig.With)["message"])
+		} else {
+			t.Fatal("taskConfig.With is nil after normalization")
+		}
 	})
 
 	t.Run("Should normalize parallel task with sub-tasks", func(t *testing.T) {
@@ -176,7 +177,7 @@ func TestConfigOrchestrator_NormalizeTask(t *testing.T) {
 }
 
 func TestConfigOrchestrator_NormalizeAgentComponent(t *testing.T) {
-	orchestrator := setupOrchestrator(t)
+	orchestrator := setupOrchestrator(context.Background(), t)
 
 	t.Run("Should normalize agent with template expressions", func(t *testing.T) {
 		// Setup workflow state
@@ -238,7 +239,7 @@ func TestConfigOrchestrator_NormalizeAgentComponent(t *testing.T) {
 }
 
 func TestConfigOrchestrator_NormalizeToolComponent(t *testing.T) {
-	orchestrator := setupOrchestrator(t)
+	orchestrator := setupOrchestrator(context.Background(), t)
 
 	t.Run("Should normalize tool with template expressions", func(t *testing.T) {
 		// Setup workflow state
@@ -304,7 +305,7 @@ func TestConfigOrchestrator_NormalizeToolComponent(t *testing.T) {
 }
 
 func TestConfigOrchestrator_NormalizeTransitions(t *testing.T) {
-	orchestrator := setupOrchestrator(t)
+	orchestrator := setupOrchestrator(context.Background(), t)
 
 	t.Run("Should normalize success transition", func(t *testing.T) {
 		// Setup workflow state
@@ -390,7 +391,7 @@ func TestConfigOrchestrator_NormalizeTransitions(t *testing.T) {
 }
 
 func TestConfigOrchestrator_NormalizeOutputs(t *testing.T) {
-	orchestrator := setupOrchestrator(t)
+	orchestrator := setupOrchestrator(context.Background(), t)
 
 	t.Run("Should transform task output", func(t *testing.T) {
 		// Setup workflow state

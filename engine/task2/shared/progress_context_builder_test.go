@@ -13,11 +13,12 @@ func TestBuildProgressContext(t *testing.T) {
 	t.Run("Should build progress context with all required fields", func(t *testing.T) {
 		startTime := time.Now().Add(-30 * time.Second)
 		progressState := &task.ProgressState{
-			TotalChildren:  10,
-			CompletedCount: 6,
-			FailedCount:    2,
-			RunningCount:   1,
-			PendingCount:   1,
+			TotalChildren: 10,
+			SuccessCount:  6,
+			FailedCount:   2,
+			TerminalCount: 8,
+			RunningCount:  1,
+			PendingCount:  1,
 			StatusCounts: map[core.StatusType]int{
 				core.StatusSuccess: 6,
 				core.StatusFailed:  2,
@@ -32,6 +33,7 @@ func TestBuildProgressContext(t *testing.T) {
 
 		assert.Equal(t, 10, result["total"])
 		assert.Equal(t, 6, result["completed"])
+		assert.Equal(t, 6, result["success"])
 		assert.Equal(t, 2, result["failed"])
 		assert.Equal(t, 1, result["running"])
 		assert.Equal(t, 1, result["pending"])
@@ -50,8 +52,9 @@ func TestBuildProgressContext(t *testing.T) {
 		startTime := time.Now()
 		progressState := &task.ProgressState{
 			TotalChildren:  0,
-			CompletedCount: 0,
+			SuccessCount:   0,
 			FailedCount:    0,
+			TerminalCount:  0,
 			RunningCount:   0,
 			PendingCount:   0,
 			StatusCounts:   make(map[core.StatusType]int),
@@ -80,8 +83,9 @@ func TestBuildProgressContext(t *testing.T) {
 		startTime := time.Now().Add(-60 * time.Second)
 		progressState := &task.ProgressState{
 			TotalChildren:  5,
-			CompletedCount: 5,
+			SuccessCount:   5,
 			FailedCount:    0,
+			TerminalCount:  5,
 			RunningCount:   0,
 			PendingCount:   0,
 			StartTime:      startTime,
@@ -101,8 +105,9 @@ func TestBuildProgressContext(t *testing.T) {
 	t.Run("Should handle all failed state", func(t *testing.T) {
 		progressState := &task.ProgressState{
 			TotalChildren:  3,
-			CompletedCount: 0,
+			SuccessCount:   0,
 			FailedCount:    3,
+			TerminalCount:  3,
 			RunningCount:   0,
 			PendingCount:   0,
 			StartTime:      time.Now(),

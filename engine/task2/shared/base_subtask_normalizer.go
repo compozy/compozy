@@ -4,28 +4,16 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task2/contracts"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
-
-// TaskNormalizerInterface defines the interface needed by BaseSubTaskNormalizer
-// This is the exact same interface as task2.TaskNormalizer but defined locally to avoid import cycles
-type TaskNormalizerInterface interface {
-	Normalize(config *task.Config, ctx *NormalizationContext) error
-	Type() task.Type
-}
-
-// NormalizerFactoryInterface defines the interface needed by BaseSubTaskNormalizer
-// This is the subset of task2.Factory needed here to avoid import cycles
-type NormalizerFactoryInterface interface {
-	CreateNormalizer(taskType task.Type) (TaskNormalizerInterface, error)
-}
 
 // BaseSubTaskNormalizer provides common functionality for normalizers that handle sub-tasks
 // This eliminates code duplication between parallel and composite normalizers
 type BaseSubTaskNormalizer struct {
 	templateEngine    *tplengine.TemplateEngine
 	contextBuilder    *ContextBuilder
-	normalizerFactory NormalizerFactoryInterface
+	normalizerFactory contracts.NormalizerFactory
 	taskType          task.Type
 	taskTypeName      string
 }
@@ -34,7 +22,7 @@ type BaseSubTaskNormalizer struct {
 func NewBaseSubTaskNormalizer(
 	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *ContextBuilder,
-	normalizerFactory NormalizerFactoryInterface,
+	normalizerFactory contracts.NormalizerFactory,
 	taskType task.Type,
 	taskTypeName string,
 ) *BaseSubTaskNormalizer {
@@ -53,7 +41,12 @@ func (n *BaseSubTaskNormalizer) Type() task.Type {
 }
 
 // Normalize applies common sub-task normalization rules
-func (n *BaseSubTaskNormalizer) Normalize(config *task.Config, ctx *NormalizationContext) error {
+func (n *BaseSubTaskNormalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
+	// Type assert to get the concrete type
+	normCtx, ok := ctx.(*NormalizationContext)
+	if !ok {
+		return fmt.Errorf("invalid context type: expected *NormalizationContext, got %T", ctx)
+	}
 	if config == nil {
 		return nil
 	}
@@ -61,7 +54,7 @@ func (n *BaseSubTaskNormalizer) Normalize(config *task.Config, ctx *Normalizatio
 		return fmt.Errorf("%s normalizer cannot handle task type: %s", n.taskTypeName, config.Type)
 	}
 	// Build template context
-	context := ctx.BuildTemplateContext()
+	context := normCtx.BuildTemplateContext()
 	// Convert config to map for template processing
 	configMap, err := config.AsMap()
 	if err != nil {
@@ -79,7 +72,7 @@ func (n *BaseSubTaskNormalizer) Normalize(config *task.Config, ctx *Normalizatio
 		return fmt.Errorf("failed to update %s task config from normalized map: %w", n.taskTypeName, err)
 	}
 	// Now normalize each sub-task with the parent task as context
-	if err := n.normalizeSubTasks(config, ctx); err != nil {
+	if err := n.normalizeSubTasks(config, normCtx); err != nil {
 		return fmt.Errorf("failed to normalize %s sub-tasks: %w", n.taskTypeName, err)
 	}
 	return nil

@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
 	coreruntime "github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/schema"
@@ -20,6 +21,8 @@ import (
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/tplengine"
+	utils "github.com/compozy/compozy/test/helpers"
 )
 
 // CreateMockRuntime creates a mock runtime manager for integration tests
@@ -47,10 +50,7 @@ func CreateTestProjectConfig(_ *TestFixture, projectName string) *project.Config
 	}
 }
 
-// CreateTestConfigManager creates a test config manager
-func CreateTestConfigManager(configStore *services.TestConfigStore) (*services.ConfigManager, error) {
-	return services.NewConfigManager(configStore, nil)
-}
+// CreateTestConfigManager removed - ConfigManager has been replaced by task2.Factory
 
 // FindInitialTaskID finds the initial task ID from fixture
 func FindInitialTaskID(fixture *TestFixture) string {
@@ -357,7 +357,7 @@ func CreateParallelAgentConfig() *agent.Config {
 
 // CreateTestActivities creates activity instances for testing
 func CreateTestActivities(
-	t *testing.T,
+	_ *testing.T,
 	taskRepo *store.TaskRepo,
 	workflowRepo *store.WorkflowRepo,
 	fixture *TestFixture,
@@ -368,8 +368,12 @@ func CreateTestActivities(
 ) *worker.Activities {
 	projectConfig := CreateTestProjectConfig(fixture, projectName)
 	workflows := createTestWorkflowConfigs(fixture, agentConfig)
-	configManager, err := CreateTestConfigManager(configStore)
-	require.NoError(t, err)
+
+	// Create template engine for tests
+	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+
+	// Create memory manager for tests - use nil for now as it's not needed for most tests
+	var memoryManager *memory.Manager
 
 	return worker.NewActivities(
 		projectConfig,
@@ -379,10 +383,9 @@ func CreateTestActivities(
 		runtime,
 		configStore,
 		nil, // signalDispatcher - not needed for test
-		configManager,
 		nil, // redisCache - not needed for test
-		nil, // memoryManager - not needed for test
-		nil, // templateEngine - not needed for test
+		memoryManager,
+		templateEngine,
 	)
 }
 
@@ -439,19 +442,19 @@ func createTestWorkflowConfigs(fixture *TestFixture, agentConfig *agent.Config) 
 func ExecuteWorkflowAndGetState(
 	t *testing.T,
 	fixture *TestFixture,
-	dbHelper *DatabaseHelper,
+	_ *DatabaseHelper,
 	projectName string,
 	agentConfig *agent.Config,
 ) *workflow.State {
 	ctx := context.Background()
+	taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
+	defer cleanup()
 
 	// Create test suite and worker
 	testSuite := testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
 
 	// Create repositories and runtime
-	taskRepo := store.NewTaskRepo(dbHelper.GetPool())
-	workflowRepo := store.NewWorkflowRepo(dbHelper.GetPool())
 	configStore := services.NewTestConfigStore(t)
 	runtime := CreateMockRuntime(t)
 

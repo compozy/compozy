@@ -10,6 +10,7 @@ import (
 
 	enginecore "github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task2/contracts"
 	"github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
@@ -25,7 +26,7 @@ func (m *mockNormalizer) Type() task.Type {
 	return args.Get(0).(task.Type)
 }
 
-func (m *mockNormalizer) Normalize(config *task.Config, ctx *shared.NormalizationContext) error {
+func (m *mockNormalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
 	args := m.Called(config, ctx)
 	return args.Error(0)
 }
@@ -35,12 +36,12 @@ type mockNormalizerFactory struct {
 	mock.Mock
 }
 
-func (m *mockNormalizerFactory) CreateNormalizer(taskType task.Type) (core.TaskNormalizer, error) {
+func (m *mockNormalizerFactory) CreateNormalizer(taskType task.Type) (contracts.TaskNormalizer, error) {
 	args := m.Called(taskType)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(core.TaskNormalizer), args.Error(1)
+	return args.Get(0).(contracts.TaskNormalizer), args.Error(1)
 }
 
 func TestConfigNormalizer_NormalizeTask(t *testing.T) {

@@ -30,7 +30,10 @@ type NormalizeConfig struct {
 func NewNormalizeConfig() (*NormalizeConfig, error) {
 	tplEngine := tplengine.NewEngine(tplengine.FormatJSON)
 	envMerger := core.NewEnvMerger()
-	factory, err := task2.NewFactory(tplEngine, envMerger)
+	factory, err := task2.NewFactory(&task2.FactoryConfig{
+		TemplateEngine: tplEngine,
+		EnvMerger:      envMerger,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create normalizer factory: %w", err)
 	}

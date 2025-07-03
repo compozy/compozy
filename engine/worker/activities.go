@@ -13,6 +13,8 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	tkfacts "github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/task/services"
+	"github.com/compozy/compozy/engine/task2"
+	"github.com/compozy/compozy/engine/task2/core"
 	wkacts "github.com/compozy/compozy/engine/worker/activities"
 	"github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
@@ -28,13 +30,13 @@ type Activities struct {
 	runtime          *runtime.Manager
 	configStore      services.ConfigStore
 	signalDispatcher services.SignalDispatcher
-	configManager    *services.ConfigManager
 	redisCache       *cache.Cache
 	celEvaluator     task.ConditionEvaluator
 	memoryManager    *memory.Manager
 	memoryActivities *memacts.MemoryActivities
 	templateEngine   *tplengine.TemplateEngine
 	logger           logger.Logger
+	task2Factory     task2.Factory
 }
 
 func NewActivities(
@@ -45,7 +47,6 @@ func NewActivities(
 	runtime *runtime.Manager,
 	configStore services.ConfigStore,
 	signalDispatcher services.SignalDispatcher,
-	configManager *services.ConfigManager,
 	redisCache *cache.Cache,
 	memoryManager *memory.Manager,
 	templateEngine *tplengine.TemplateEngine,
@@ -60,6 +61,19 @@ func NewActivities(
 	log := logger.NewForTests() // TODO: Use proper logger from config
 	// Create memory activities instance
 	memoryActivities := memacts.NewMemoryActivities(memoryManager, log)
+
+	// Create task2 factory
+	envMerger := core.NewEnvMerger()
+	task2Factory, err := task2.NewFactory(&task2.FactoryConfig{
+		TemplateEngine: templateEngine,
+		EnvMerger:      envMerger,
+		WorkflowRepo:   workflowRepo,
+		TaskRepo:       taskRepo,
+	})
+	if err != nil {
+		panic(fmt.Sprintf("failed to create task2 factory: %v", err))
+	}
+
 	return &Activities{
 		projectConfig:    projectConfig,
 		workflows:        workflows,
@@ -68,13 +82,13 @@ func NewActivities(
 		runtime:          runtime,
 		configStore:      configStore,
 		signalDispatcher: signalDispatcher,
-		configManager:    configManager,
 		redisCache:       redisCache,
 		celEvaluator:     celEvaluator,
 		memoryManager:    memoryManager,
 		memoryActivities: memoryActivities,
 		templateEngine:   templateEngine,
 		logger:           log,
+		task2Factory:     task2Factory,
 	}
 }
 
@@ -138,9 +152,10 @@ func (a *Activities) ExecuteBasicTask(
 		a.runtime,
 		a.configStore,
 		a.projectConfig.CWD,
-		a.memoryManager,
+		memcore.ManagerInterface(a.memoryManager),
 		a.templateEngine,
 		a.projectConfig,
+		a.task2Factory,
 	)
 	if err != nil {
 		return nil, err
@@ -161,6 +176,8 @@ func (a *Activities) ExecuteRouterTask(
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
+		a.task2Factory,
+		a.templateEngine,
 	)
 	if err != nil {
 		return nil, err
@@ -181,6 +198,7 @@ func (a *Activities) CreateParallelState(
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
+		a.task2Factory,
 	)
 	if err != nil {
 		return nil, err
@@ -201,6 +219,8 @@ func (a *Activities) ExecuteSubtask(
 		a.taskRepo,
 		a.runtime,
 		a.configStore,
+		a.task2Factory,
+		a.templateEngine,
 	)
 	return act.Run(ctx, input)
 }
@@ -212,7 +232,12 @@ func (a *Activities) GetParallelResponse(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewGetParallelResponse(a.workflowRepo, a.taskRepo, a.configStore)
+	act := tkfacts.NewGetParallelResponse(
+		a.workflowRepo,
+		a.taskRepo,
+		a.configStore,
+		a.task2Factory,
+	)
 	return act.Run(ctx, input)
 }
 
@@ -262,6 +287,7 @@ func (a *Activities) CreateCollectionState(
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
+		a.task2Factory,
 	)
 	if err != nil {
 		return nil, err
@@ -276,7 +302,12 @@ func (a *Activities) GetCollectionResponse(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewGetCollectionResponse(a.workflowRepo, a.taskRepo, a.configStore)
+	act := tkfacts.NewGetCollectionResponse(
+		a.workflowRepo,
+		a.taskRepo,
+		a.configStore,
+		a.task2Factory,
+	)
 	return act.Run(ctx, input)
 }
 
@@ -304,6 +335,8 @@ func (a *Activities) ExecuteAggregateTask(
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
+		a.task2Factory,
+		a.templateEngine,
 	)
 	if err != nil {
 		return nil, err
@@ -324,6 +357,7 @@ func (a *Activities) CreateCompositeState(
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
+		a.task2Factory,
 	)
 	if err != nil {
 		return nil, err
@@ -338,7 +372,12 @@ func (a *Activities) GetCompositeResponse(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewGetCompositeResponse(a.workflowRepo, a.taskRepo, a.configStore)
+	act := tkfacts.NewGetCompositeResponse(
+		a.workflowRepo,
+		a.taskRepo,
+		a.configStore,
+		a.task2Factory,
+	)
 	return act.Run(ctx, input)
 }
 
@@ -371,7 +410,9 @@ func (a *Activities) LoadCompositeConfigsActivity(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewLoadCompositeConfigs(a.configManager)
+	// Create task config repository from factory
+	configRepo := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	act := tkfacts.NewLoadCompositeConfigs(configRepo)
 	return act.Run(ctx, input)
 }
 
@@ -382,7 +423,9 @@ func (a *Activities) LoadCollectionConfigsActivity(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := tkfacts.NewLoadCollectionConfigs(a.configManager)
+	// Create task config repository from factory
+	configRepo := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	act := tkfacts.NewLoadCollectionConfigs(configRepo)
 	return act.Run(ctx, input)
 }
 
@@ -400,6 +443,8 @@ func (a *Activities) ExecuteSignalTask(
 		a.configStore,
 		a.signalDispatcher,
 		a.projectConfig.CWD,
+		a.task2Factory,
+		a.templateEngine,
 	)
 	if err != nil {
 		return nil, err
@@ -420,6 +465,8 @@ func (a *Activities) ExecuteWaitTask(
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
+		a.task2Factory,
+		a.templateEngine,
 	)
 	if err != nil {
 		return nil, err
@@ -442,6 +489,7 @@ func (a *Activities) ExecuteMemoryTask(
 		a.memoryManager,
 		a.projectConfig.CWD,
 		a.templateEngine,
+		a.task2Factory,
 	)
 	if err != nil {
 		return nil, err
@@ -459,6 +507,7 @@ func (a *Activities) NormalizeWaitProcessor(
 	act := tkfacts.NewNormalizeWaitProcessor(
 		a.workflows,
 		a.workflowRepo,
+		a.taskRepo,
 	)
 	return act.Run(ctx, input)
 }

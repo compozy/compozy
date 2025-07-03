@@ -4,16 +4,25 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"html"
+	html_template "html/template"
 	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/compozy/compozy/engine/core"
+)
+
+// Pre-compiled regular expressions for template processing performance
+var (
+	templateExpressionRegex = regexp.MustCompile(`{{[^}]*}}`)
+	hyphenatedPathRegex     = regexp.MustCompile(`(\.[a-zA-Z_][a-zA-Z0-9_-]*(?:\.[a-zA-Z_][a-zA-Z0-9_-]*)*)`)
 )
 
 // EngineFormat represents the format of the template engine output
@@ -29,7 +38,9 @@ const (
 )
 
 // TemplateEngine is the main template engine struct
+// It is safe for concurrent use by multiple goroutines
 type TemplateEngine struct {
+	mu                       sync.RWMutex
 	templates                map[string]*template.Template
 	globalValues             map[string]any
 	format                   EngineFormat
@@ -47,14 +58,39 @@ func NewEngine(format EngineFormat) *TemplateEngine {
 
 // WithFormat returns a new engine with the specified format
 func (e *TemplateEngine) WithFormat(format EngineFormat) *TemplateEngine {
+	e.mu.Lock()
 	e.format = format
+	e.mu.Unlock()
 	return e
 }
 
 // WithPrecisionPreservation enables or disables numeric precision preservation
 func (e *TemplateEngine) WithPrecisionPreservation(enabled bool) *TemplateEngine {
+	e.mu.Lock()
 	e.preserveNumericPrecision = enabled
+	e.mu.Unlock()
 	return e
+}
+
+// getFuncMap returns the function map for templates, including HTML safety functions
+//
+// Security functions available in templates:
+//   - htmlEscape: Escapes HTML content to prevent XSS (e.g., {{ .userInput | htmlEscape }})
+//   - htmlAttrEscape: Escapes HTML attribute values (e.g., <div title="{{ .title | htmlAttrEscape }}">)
+//   - jsEscape: Escapes JavaScript strings (e.g., <script>var x = '{{ .data | jsEscape }}';</script>)
+//
+// IMPORTANT: Always use these functions when rendering user input or any untrusted data
+// in HTML contexts to prevent XSS vulnerabilities.
+func (e *TemplateEngine) getFuncMap() template.FuncMap {
+	// Start with sprig functions
+	funcMap := sprig.FuncMap()
+
+	// Add HTML safety functions with comprehensive XSS protection
+	funcMap["htmlEscape"] = html.EscapeString
+	funcMap["htmlAttrEscape"] = html.EscapeString // For attribute values
+	funcMap["jsEscape"] = html_template.JSEscapeString
+
+	return funcMap
 }
 
 // AddTemplate adds a template to the engine
@@ -62,11 +98,14 @@ func (e *TemplateEngine) AddTemplate(name, templateStr string) error {
 	// Preprocess template to handle hyphens in field names
 	processedTemplate := e.preprocessTemplateForHyphens(templateStr)
 
-	tmpl, err := template.New(name).Option("missingkey=error").Funcs(sprig.FuncMap()).Parse(processedTemplate)
+	tmpl, err := template.New(name).Option("missingkey=error").Funcs(e.getFuncMap()).Parse(processedTemplate)
 	if err != nil {
 		return fmt.Errorf("failed to parse template: %w", err)
 	}
+
+	e.mu.Lock()
 	e.templates[name] = tmpl
+	e.mu.Unlock()
 	return nil
 }
 
@@ -77,7 +116,10 @@ func HasTemplate(template string) bool {
 
 // Render renders a template by name
 func (e *TemplateEngine) Render(name string, context map[string]any) (string, error) {
+	e.mu.RLock()
 	tmpl, ok := e.templates[name]
+	e.mu.RUnlock()
+
 	if !ok {
 		return "", fmt.Errorf("template not found: %s", name)
 	}
@@ -96,7 +138,7 @@ func (e *TemplateEngine) RenderString(templateStr string, context map[string]any
 	processedTemplate := e.preprocessTemplateForHyphens(templateStr)
 
 	// Create a new template and parse the string
-	tmpl, err := template.New("inline").Option("missingkey=error").Funcs(sprig.FuncMap()).Parse(processedTemplate)
+	tmpl, err := template.New("inline").Option("missingkey=error").Funcs(e.getFuncMap()).Parse(processedTemplate)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse template: %w", err)
 	}
@@ -107,7 +149,11 @@ func (e *TemplateEngine) RenderString(templateStr string, context map[string]any
 // renderTemplate renders a parsed template with the given context
 func (e *TemplateEngine) renderTemplate(tmpl *template.Template, context map[string]any) (string, error) {
 	processedContext := e.preprocessContext(context)
+
+	// Thread-safe access to global values
+	e.mu.RLock()
 	maps.Copy(processedContext, e.globalValues)
+	e.mu.RUnlock()
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, processedContext); err != nil {
@@ -139,7 +185,11 @@ func (e *TemplateEngine) ProcessFile(filePath string, context map[string]any) (s
 	}
 
 	// Determine format from file extension if not specified
-	if e.format == "" {
+	e.mu.RLock()
+	currentFormat := e.format
+	e.mu.RUnlock()
+	if currentFormat == "" {
+		e.mu.Lock()
 		ext := strings.ToLower(filepath.Ext(filePath))
 		switch ext {
 		case ".yaml", ".yml":
@@ -149,6 +199,7 @@ func (e *TemplateEngine) ProcessFile(filePath string, context map[string]any) (s
 		default:
 			e.format = FormatText
 		}
+		e.mu.Unlock()
 	}
 
 	// Process the template
@@ -249,7 +300,10 @@ func (e *TemplateEngine) parseStringValue(v string, data map[string]any) (any, e
 	if !HasTemplate(v) {
 		// If precision preservation is enabled and this is a plain string value,
 		// try to convert it with precision
-		if e.preserveNumericPrecision {
+		e.mu.RLock()
+		preservePrecision := e.preserveNumericPrecision
+		e.mu.RUnlock()
+		if preservePrecision {
 			pc := NewPrecisionConverter()
 			return pc.ConvertWithPrecision(v), nil
 		}
@@ -292,7 +346,10 @@ func (e *TemplateEngine) renderAndProcessTemplate(v string, data map[string]any)
 	}
 
 	// Apply precision conversion if enabled
-	if e.preserveNumericPrecision {
+	e.mu.RLock()
+	preservePrecision := e.preserveNumericPrecision
+	e.mu.RUnlock()
+	if preservePrecision {
 		pc := NewPrecisionConverter()
 		return pc.ConvertWithPrecision(parsed), nil
 	}
@@ -410,7 +467,9 @@ func (e *TemplateEngine) extractTraversableMap(currentAny any) (map[string]any, 
 
 // AddGlobalValue adds a global value to the template engine
 func (e *TemplateEngine) AddGlobalValue(name string, value any) {
+	e.mu.Lock()
 	e.globalValues[name] = value
+	e.mu.Unlock()
 }
 
 // preprocessContext adds default fields to the context and ensures proper boolean handling
@@ -451,18 +510,13 @@ func (e *TemplateEngine) preprocessContext(ctx map[string]any) map[string]any {
 // preprocessTemplateForHyphens converts template expressions with hyphens to use index syntax
 // This function processes dot-path expressions within templates, even inside conditionals
 func (e *TemplateEngine) preprocessTemplateForHyphens(templateStr string) string {
-	// Find all template expressions
-	re := regexp.MustCompile(`{{[^}]*}}`)
-
-	return re.ReplaceAllStringFunc(templateStr, func(match string) string {
+	// Use pre-compiled regular expressions for better performance
+	return templateExpressionRegex.ReplaceAllStringFunc(templateStr, func(match string) string {
 		// Extract the content between {{ and }}
 		content := strings.TrimSpace(match[2 : len(match)-2])
 
-		// Find dot-path patterns that contain hyphens
-		// This regex looks for dot-paths that may contain hyphens
-		pathPattern := regexp.MustCompile(`(\.[a-zA-Z_][a-zA-Z0-9_-]*(?:\.[a-zA-Z_][a-zA-Z0-9_-]*)*)`)
-
-		processedContent := pathPattern.ReplaceAllStringFunc(content, func(pathMatch string) string {
+		// Find dot-path patterns that contain hyphens using pre-compiled regex
+		processedContent := hyphenatedPathRegex.ReplaceAllStringFunc(content, func(pathMatch string) string {
 			// Only process if it contains hyphens
 			if !strings.Contains(pathMatch, "-") {
 				return pathMatch

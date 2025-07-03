@@ -2,32 +2,38 @@ package activities
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
+	"github.com/compozy/compozy/engine/task2"
+	task2core "github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/tplengine"
+	utils "github.com/compozy/compozy/test/helpers"
 )
 
 func TestExecuteWait_Run(t *testing.T) {
 	t.Run("Should create wait task state successfully", func(t *testing.T) {
 		// Arrange
 		ctx := context.Background()
-		workflowID := "test-workflow"
-		workflowExecID := core.MustNewID()
-		taskExecID := core.MustNewID()
-		workflowRepo := new(store.MockWorkflowRepo)
-		taskRepo := new(store.MockTaskRepo)
+
+		// Setup real repositories with testcontainers
+		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
+		defer cleanup()
+
 		configStore := services.NewTestConfigStore(t)
 		defer configStore.Close()
+
+		workflowID := "test-workflow"
+		workflowExecID := core.MustNewID()
 		cwd, _ := core.CWDFromPath("/test")
+
+		// Create workflow config
 		workflowConfig := &workflow.Config{
 			ID: workflowID,
 			Tasks: []task.Config{
@@ -43,11 +49,17 @@ func TestExecuteWait_Run(t *testing.T) {
 				},
 			},
 		}
+
+		// Create and save workflow state
 		workflowState := &workflow.State{
 			WorkflowID:     workflowID,
 			WorkflowExecID: workflowExecID,
 			Status:         core.StatusPending,
 		}
+		err := workflowRepo.UpsertState(ctx, workflowState)
+		require.NoError(t, err)
+
+		// Create task config
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:        "wait-task",
@@ -58,13 +70,17 @@ func TestExecuteWait_Run(t *testing.T) {
 				WaitFor: "approval_signal",
 			},
 		}
-		// Set up mocks
-		workflowRepo.On("GetState", ctx, workflowExecID).Return(workflowState, nil)
-		// No need to mock configStore.Save as TestConfigStore handles it
-		taskRepo.On("UpsertState", ctx, mock.AnythingOfType("*task.State")).Return(nil).Run(func(args mock.Arguments) {
-			state := args.Get(1).(*task.State)
-			state.TaskExecID = taskExecID
+
+		// Create task2 factory
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+		task2Factory, err := task2.NewFactory(&task2.FactoryConfig{
+			TemplateEngine: templateEngine,
+			EnvMerger:      task2core.NewEnvMerger(),
+			WorkflowRepo:   workflowRepo,
+			TaskRepo:       taskRepo,
 		})
+		require.NoError(t, err)
+
 		// Create activity
 		activity, err := NewExecuteWait(
 			[]*workflow.Config{workflowConfig},
@@ -72,41 +88,66 @@ func TestExecuteWait_Run(t *testing.T) {
 			taskRepo,
 			configStore,
 			cwd,
+			task2Factory,
+			templateEngine,
 		)
 		require.NoError(t, err)
+
 		input := &ExecuteWaitInput{
 			WorkflowID:     workflowID,
 			WorkflowExecID: workflowExecID,
 			TaskConfig:     taskConfig,
 		}
+
 		// Act
 		response, err := activity.Run(ctx, input)
+
 		// Assert
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
+		assert.NotNil(t, response.State)
 		assert.Equal(t, "wait-task", response.State.TaskID)
-		// Verify task state was created with proper metadata
-		taskRepo.AssertCalled(t, "UpsertState", ctx, mock.MatchedBy(func(state *task.State) bool {
-			return state.TaskID == "wait-task" &&
-				state.ExecutionType == task.ExecutionWait &&
-				state.Output != nil &&
-				(*state.Output)["wait_status"] == "waiting" &&
-				(*state.Output)["signal_name"] == "approval_signal" &&
-				(*state.Output)["has_processor"] == false
-		}))
-		workflowRepo.AssertExpectations(t)
-		taskRepo.AssertExpectations(t)
+		assert.Equal(t, task.ExecutionWait, response.State.ExecutionType)
+		assert.NotNil(t, response.State.Output)
+
+		// Verify output metadata
+		output := *response.State.Output
+		assert.Equal(t, "waiting", output["wait_status"])
+		assert.Equal(t, "approval_signal", output["signal_name"])
+		assert.Equal(t, false, output["has_processor"])
+
+		// Verify state was saved to database
+		savedState, err := taskRepo.GetState(ctx, response.State.TaskExecID)
+		require.NoError(t, err)
+		assert.Equal(t, "wait-task", savedState.TaskID)
+		assert.Equal(t, workflowExecID, savedState.WorkflowExecID)
+		assert.Equal(t, task.ExecutionWait, savedState.ExecutionType)
 	})
 	t.Run("Should handle nil task config", func(t *testing.T) {
 		// Arrange
 		ctx := context.Background()
+
+		// Setup real repositories with testcontainers
+		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
+		defer cleanup()
+
+		configStore := services.NewTestConfigStore(t)
+		defer configStore.Close()
+
 		workflowID := "test-workflow"
 		workflowExecID := core.MustNewID()
 		cwd, _ := core.CWDFromPath("/tmp")
-		workflowRepo := new(store.MockWorkflowRepo)
-		taskRepo := new(store.MockTaskRepo)
-		configStore := services.NewTestConfigStore(t)
-		defer configStore.Close()
+
+		// Create task2 factory
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+		task2Factory, err := task2.NewFactory(&task2.FactoryConfig{
+			TemplateEngine: templateEngine,
+			EnvMerger:      task2core.NewEnvMerger(),
+			WorkflowRepo:   workflowRepo,
+			TaskRepo:       taskRepo,
+		})
+		require.NoError(t, err)
+
 		// Create activity
 		activity, err := NewExecuteWait(
 			[]*workflow.Config{},
@@ -114,15 +155,20 @@ func TestExecuteWait_Run(t *testing.T) {
 			taskRepo,
 			configStore,
 			cwd,
+			task2Factory,
+			templateEngine,
 		)
 		require.NoError(t, err)
+
 		input := &ExecuteWaitInput{
 			WorkflowID:     workflowID,
 			WorkflowExecID: workflowExecID,
 			TaskConfig:     nil, // nil config
 		}
+
 		// Act
 		response, err := activity.Run(ctx, input)
+
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, response)
@@ -131,13 +177,18 @@ func TestExecuteWait_Run(t *testing.T) {
 	t.Run("Should handle workflow not found", func(t *testing.T) {
 		// Arrange
 		ctx := context.Background()
-		workflowID := "test-workflow"
-		workflowExecID := core.MustNewID()
-		cwd, _ := core.CWDFromPath("/tmp")
-		workflowRepo := new(store.MockWorkflowRepo)
-		taskRepo := new(store.MockTaskRepo)
+
+		// Setup real repositories with testcontainers
+		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
+		defer cleanup()
+
 		configStore := services.NewTestConfigStore(t)
 		defer configStore.Close()
+
+		workflowID := "test-workflow"
+		workflowExecID := core.MustNewID() // Non-existent workflow exec ID
+		cwd, _ := core.CWDFromPath("/tmp")
+
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "wait-task",
@@ -147,8 +198,17 @@ func TestExecuteWait_Run(t *testing.T) {
 				WaitFor: "approval_signal",
 			},
 		}
-		// Set up mocks
-		workflowRepo.On("GetState", ctx, workflowExecID).Return(nil, errors.New("workflow not found"))
+
+		// Create task2 factory
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+		task2Factory, err := task2.NewFactory(&task2.FactoryConfig{
+			TemplateEngine: templateEngine,
+			EnvMerger:      task2core.NewEnvMerger(),
+			WorkflowRepo:   workflowRepo,
+			TaskRepo:       taskRepo,
+		})
+		require.NoError(t, err)
+
 		// Create activity
 		activity, err := NewExecuteWait(
 			[]*workflow.Config{},
@@ -156,32 +216,41 @@ func TestExecuteWait_Run(t *testing.T) {
 			taskRepo,
 			configStore,
 			cwd,
+			task2Factory,
+			templateEngine,
 		)
 		require.NoError(t, err)
+
 		input := &ExecuteWaitInput{
 			WorkflowID:     workflowID,
 			WorkflowExecID: workflowExecID,
 			TaskConfig:     taskConfig,
 		}
+
 		// Act
 		response, err := activity.Run(ctx, input)
+
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, response)
-		assert.Contains(t, err.Error(), "workflow not found")
-		// Verify mocks
-		workflowRepo.AssertExpectations(t)
+		assert.Contains(t, err.Error(), "workflow state not found")
 	})
 	t.Run("Should handle wrong task type", func(t *testing.T) {
 		// Arrange
 		ctx := context.Background()
+
+		// Setup real repositories with testcontainers
+		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
+		defer cleanup()
+
+		configStore := services.NewTestConfigStore(t)
+		defer configStore.Close()
+
 		workflowID := "test-workflow"
 		workflowExecID := core.MustNewID()
 		cwd, _ := core.CWDFromPath("/tmp")
-		workflowRepo := new(store.MockWorkflowRepo)
-		taskRepo := new(store.MockTaskRepo)
-		configStore := services.NewTestConfigStore(t)
-		defer configStore.Close()
+
+		// Create workflow config
 		workflowConfig := &workflow.Config{
 			ID: workflowID,
 			Tasks: []task.Config{
@@ -193,19 +262,34 @@ func TestExecuteWait_Run(t *testing.T) {
 				},
 			},
 		}
+
+		// Create and save workflow state
 		workflowState := &workflow.State{
 			WorkflowID:     workflowID,
 			WorkflowExecID: workflowExecID,
 			Status:         core.StatusPending,
 		}
+		err := workflowRepo.UpsertState(ctx, workflowState)
+		require.NoError(t, err)
+
+		// Create task config with wrong type
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "wait-task",
 				Type: task.TaskTypeBasic, // Wrong type
 			},
 		}
-		// Set up mocks
-		workflowRepo.On("GetState", ctx, workflowExecID).Return(workflowState, nil)
+
+		// Create task2 factory
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+		task2Factory, err := task2.NewFactory(&task2.FactoryConfig{
+			TemplateEngine: templateEngine,
+			EnvMerger:      task2core.NewEnvMerger(),
+			WorkflowRepo:   workflowRepo,
+			TaskRepo:       taskRepo,
+		})
+		require.NoError(t, err)
+
 		// Create activity
 		activity, err := NewExecuteWait(
 			[]*workflow.Config{workflowConfig},
@@ -213,33 +297,41 @@ func TestExecuteWait_Run(t *testing.T) {
 			taskRepo,
 			configStore,
 			cwd,
+			task2Factory,
+			templateEngine,
 		)
 		require.NoError(t, err)
+
 		input := &ExecuteWaitInput{
 			WorkflowID:     workflowID,
 			WorkflowExecID: workflowExecID,
 			TaskConfig:     taskConfig,
 		}
+
 		// Act
 		response, err := activity.Run(ctx, input)
+
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, response)
-		assert.Contains(t, err.Error(), "unsupported task type")
-		// Verify mocks
-		workflowRepo.AssertExpectations(t)
+		assert.Contains(t, err.Error(), "wait normalizer cannot handle task type")
 	})
 	t.Run("Should include processor metadata when processor is configured", func(t *testing.T) {
 		// Arrange
 		ctx := context.Background()
-		workflowID := "test-workflow"
-		workflowExecID := core.MustNewID()
-		taskExecID := core.MustNewID()
-		workflowRepo := new(store.MockWorkflowRepo)
-		taskRepo := new(store.MockTaskRepo)
+
+		// Setup real repositories with testcontainers
+		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
+		defer cleanup()
+
 		configStore := services.NewTestConfigStore(t)
 		defer configStore.Close()
+
+		workflowID := "test-workflow"
+		workflowExecID := core.MustNewID()
 		cwd, _ := core.CWDFromPath("/test")
+
+		// Create workflow config
 		workflowConfig := &workflow.Config{
 			ID: workflowID,
 			Tasks: []task.Config{
@@ -261,11 +353,17 @@ func TestExecuteWait_Run(t *testing.T) {
 				},
 			},
 		}
+
+		// Create and save workflow state
 		workflowState := &workflow.State{
 			WorkflowID:     workflowID,
 			WorkflowExecID: workflowExecID,
 			Status:         core.StatusPending,
 		}
+		err := workflowRepo.UpsertState(ctx, workflowState)
+		require.NoError(t, err)
+
+		// Create task config with processor
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:        "wait-task",
@@ -282,13 +380,17 @@ func TestExecuteWait_Run(t *testing.T) {
 				},
 			},
 		}
-		// Set up mocks
-		workflowRepo.On("GetState", ctx, workflowExecID).Return(workflowState, nil)
-		// No need to mock configStore.Save as TestConfigStore handles it
-		taskRepo.On("UpsertState", ctx, mock.AnythingOfType("*task.State")).Return(nil).Run(func(args mock.Arguments) {
-			state := args.Get(1).(*task.State)
-			state.TaskExecID = taskExecID
+
+		// Create task2 factory
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+		task2Factory, err := task2.NewFactory(&task2.FactoryConfig{
+			TemplateEngine: templateEngine,
+			EnvMerger:      task2core.NewEnvMerger(),
+			WorkflowRepo:   workflowRepo,
+			TaskRepo:       taskRepo,
 		})
+		require.NoError(t, err)
+
 		// Create activity
 		activity, err := NewExecuteWait(
 			[]*workflow.Config{workflowConfig},
@@ -296,21 +398,34 @@ func TestExecuteWait_Run(t *testing.T) {
 			taskRepo,
 			configStore,
 			cwd,
+			task2Factory,
+			templateEngine,
 		)
 		require.NoError(t, err)
+
 		input := &ExecuteWaitInput{
 			WorkflowID:     workflowID,
 			WorkflowExecID: workflowExecID,
 			TaskConfig:     taskConfig,
 		}
+
 		// Act
 		response, err := activity.Run(ctx, input)
+
 		// Assert
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
+		assert.NotNil(t, response.State)
+		assert.NotNil(t, response.State.Output)
+
 		// Verify has_processor is true
-		taskRepo.AssertCalled(t, "UpsertState", ctx, mock.MatchedBy(func(state *task.State) bool {
-			return state.Output != nil && (*state.Output)["has_processor"] == true
-		}))
+		output := *response.State.Output
+		assert.Equal(t, true, output["has_processor"])
+
+		// Verify state was saved to database with has_processor = true
+		savedState, err := taskRepo.GetState(ctx, response.State.TaskExecID)
+		require.NoError(t, err)
+		assert.NotNil(t, savedState.Output)
+		assert.Equal(t, true, (*savedState.Output)["has_processor"])
 	})
 }

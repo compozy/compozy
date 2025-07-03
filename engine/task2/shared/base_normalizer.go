@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task2/contracts"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
@@ -26,6 +27,7 @@ func NewBaseNormalizer(
 ) *BaseNormalizer {
 	if filterFunc == nil {
 		// Default filter for most task types
+		// Filter returns true for fields that should NOT be template processed
 		filterFunc = func(k string) bool {
 			return k == "agent" || k == "tool" || k == "outputs" || k == "output"
 		}
@@ -44,7 +46,12 @@ func (n *BaseNormalizer) Type() task.Type {
 }
 
 // Normalize applies common normalization rules across all task types
-func (n *BaseNormalizer) Normalize(config *task.Config, ctx *NormalizationContext) error {
+func (n *BaseNormalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
+	// Type assert to get the concrete type
+	normCtx, ok := ctx.(*NormalizationContext)
+	if !ok {
+		return fmt.Errorf("invalid context type: expected *NormalizationContext, got %T", ctx)
+	}
 	if config == nil {
 		return nil
 	}
@@ -57,7 +64,7 @@ func (n *BaseNormalizer) Normalize(config *task.Config, ctx *NormalizationContex
 		return fmt.Errorf("%s normalizer cannot handle task type: %s", n.taskType, config.Type)
 	}
 	// Build template context
-	context := ctx.BuildTemplateContext()
+	context := normCtx.BuildTemplateContext()
 	// Convert config to map for template processing
 	configMap, err := config.AsMap()
 	if err != nil {

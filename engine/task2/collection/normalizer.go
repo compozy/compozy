@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task2/contracts"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
@@ -46,15 +47,35 @@ func (n *Normalizer) Type() task.Type {
 }
 
 // Normalize applies collection task-specific normalization rules
-func (n *Normalizer) Normalize(config *task.Config, ctx *shared.NormalizationContext) error {
+func (n *Normalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
+	// Validate inputs
+	if err := n.validateInputs(config, ctx); err != nil {
+		return err
+	}
 	if config == nil {
 		return nil
 	}
-	if config.Type != task.TaskTypeCollection {
+	// Type assert to get the concrete type
+	normCtx, ok := ctx.(*shared.NormalizationContext)
+	if !ok {
+		return fmt.Errorf("invalid context type: expected *shared.NormalizationContext, got %T", ctx)
+	}
+	// Normalize the config
+	return n.normalizeConfig(config, normCtx)
+}
+
+// validateInputs validates the input parameters
+func (n *Normalizer) validateInputs(config *task.Config, _ contracts.NormalizationContext) error {
+	if config != nil && config.Type != task.TaskTypeCollection {
 		return fmt.Errorf("collection normalizer cannot handle task type: %s", config.Type)
 	}
+	return nil
+}
+
+// normalizeConfig performs the actual normalization
+func (n *Normalizer) normalizeConfig(config *task.Config, normCtx *shared.NormalizationContext) error {
 	// Build template context
-	context := ctx.BuildTemplateContext()
+	context := normCtx.BuildTemplateContext()
 	// Convert config to map for template processing
 	configMap, err := config.AsMap()
 	if err != nil {
@@ -66,11 +87,7 @@ func (n *Normalizer) Normalize(config *task.Config, ctx *shared.NormalizationCon
 		childTaskConfig = config.Task
 	}
 	// Normalize the collection task fields (excluding collection-specific fields)
-	parsed, err := n.templateEngine.ParseMapWithFilter(configMap, context, func(k string) bool {
-		// Skip fields that need special handling
-		return k == "agent" || k == "tool" || k == "outputs" || k == "output" ||
-			k == "collection" || k == "items" || k == "filter" || k == "task"
-	})
+	parsed, err := n.templateEngine.ParseMapWithFilter(configMap, context, n.shouldSkipField)
 	if err != nil {
 		return fmt.Errorf("failed to normalize collection task config: %w", err)
 	}
@@ -87,6 +104,13 @@ func (n *Normalizer) Normalize(config *task.Config, ctx *shared.NormalizationCon
 	// Note: Collection-specific normalization (items expansion, filtering) happens at runtime
 	// during task execution, not during config normalization phase
 	return nil
+}
+
+// shouldSkipField determines if a field should be skipped during normalization
+func (n *Normalizer) shouldSkipField(k string) bool {
+	// Skip fields that need special handling
+	return k == "agent" || k == "tool" || k == "outputs" || k == "output" ||
+		k == "collection" || k == "items" || k == "filter" || k == "task"
 }
 
 // ExpandCollectionItems evaluates the 'items' template expression and converts the result

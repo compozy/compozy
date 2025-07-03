@@ -8,6 +8,8 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
+	"github.com/compozy/compozy/engine/task2"
+	task2core "github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -20,14 +22,20 @@ type CreateChildTasksInput struct {
 }
 
 type CreateChildTasks struct {
-	taskRepo      task.Repository
-	configManager *services.ConfigManager
+	taskRepo     task.Repository
+	configStore  services.ConfigStore
+	task2Factory task2.Factory
 }
 
-func NewCreateChildTasksUC(taskRepo task.Repository, configManager *services.ConfigManager) *CreateChildTasks {
+func NewCreateChildTasksUC(
+	taskRepo task.Repository,
+	configStore services.ConfigStore,
+	task2Factory task2.Factory,
+) *CreateChildTasks {
 	return &CreateChildTasks{
-		taskRepo:      taskRepo,
-		configManager: configManager,
+		taskRepo:     taskRepo,
+		configStore:  configStore,
+		task2Factory: task2Factory,
 	}
 }
 
@@ -42,7 +50,7 @@ func (uc *CreateChildTasks) Execute(ctx context.Context, input *CreateChildTasks
 	}
 
 	// Load parent task config to get its environment
-	parentConfig, err := uc.configManager.GetTaskConfig(ctx, parentState.TaskExecID)
+	parentConfig, err := uc.configStore.Get(ctx, parentState.TaskExecID.String())
 	if err != nil {
 		return fmt.Errorf("failed to load parent task config: %w", err)
 	}
@@ -64,9 +72,20 @@ func (uc *CreateChildTasks) createParallelChildren(
 	parentState *task.State,
 	parentConfig *task.Config,
 ) error {
-	metadata, err := uc.configManager.LoadParallelTaskMetadata(ctx, parentState.TaskExecID)
+	// Create config repository from factory
+	configRepo := uc.task2Factory.CreateTaskConfigRepository(uc.configStore)
+
+	metadataAny, err := configRepo.LoadParallelMetadata(ctx, parentState.TaskExecID)
 	if err != nil {
 		return err
+	}
+
+	metadata, ok := metadataAny.(*task2core.ParallelTaskMetadata)
+	if !ok {
+		return fmt.Errorf(
+			"invalid metadata type for parallel task: expected *ParallelTaskMetadata, got %T",
+			metadataAny,
+		)
 	}
 
 	if err := uc.validateChildConfigs(metadata.ChildConfigs); err != nil {
@@ -81,9 +100,20 @@ func (uc *CreateChildTasks) createCollectionChildren(
 	parentState *task.State,
 	parentConfig *task.Config,
 ) error {
-	metadata, err := uc.configManager.LoadCollectionTaskMetadata(ctx, parentState.TaskExecID)
+	// Create config repository from factory
+	configRepo := uc.task2Factory.CreateTaskConfigRepository(uc.configStore)
+
+	metadataAny, err := configRepo.LoadCollectionMetadata(ctx, parentState.TaskExecID)
 	if err != nil {
 		return err
+	}
+
+	metadata, ok := metadataAny.(*task2core.CollectionTaskMetadata)
+	if !ok {
+		return fmt.Errorf(
+			"invalid metadata type for collection task: expected *CollectionTaskMetadata, got %T",
+			metadataAny,
+		)
 	}
 
 	if err := uc.validateChildConfigs(metadata.ChildConfigs); err != nil {
@@ -98,10 +128,22 @@ func (uc *CreateChildTasks) createCompositeChildren(
 	parentState *task.State,
 	parentConfig *task.Config,
 ) error {
-	metadata, err := uc.configManager.LoadCompositeTaskMetadata(ctx, parentState.TaskExecID)
+	// Create config repository from factory
+	configRepo := uc.task2Factory.CreateTaskConfigRepository(uc.configStore)
+
+	metadataAny, err := configRepo.LoadCompositeMetadata(ctx, parentState.TaskExecID)
 	if err != nil {
 		return err
 	}
+
+	metadata, ok := metadataAny.(*task2core.CompositeTaskMetadata)
+	if !ok {
+		return fmt.Errorf(
+			"invalid metadata type for composite task: expected *CompositeTaskMetadata, got %T",
+			metadataAny,
+		)
+	}
+
 	if err := uc.validateChildConfigs(metadata.ChildConfigs); err != nil {
 		return err
 	}
@@ -116,7 +158,7 @@ func (uc *CreateChildTasks) validateParentState(parentState *task.State) error {
 	return nil
 }
 
-func (uc *CreateChildTasks) validateChildConfigs(childConfigs []task.Config) error {
+func (uc *CreateChildTasks) validateChildConfigs(childConfigs []*task.Config) error {
 	for i := range childConfigs {
 		if childConfigs[i].ID == "" {
 			return fmt.Errorf("child config at index %d missing required ID field", i)
@@ -136,7 +178,7 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 	ctx context.Context,
 	parentState *task.State,
 	parentConfig *task.Config,
-	childConfigs []task.Config,
+	childConfigs []*task.Config,
 ) error {
 	log := logger.FromContext(ctx)
 	// Collect configs to save after transaction succeeds
@@ -145,7 +187,7 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 	// Prepare all child states first
 	var childStates []*task.State
 	for i := range childConfigs {
-		childConfig := &childConfigs[i]
+		childConfig := childConfigs[i]
 		childTaskExecID := core.MustNewID()
 
 		// Create child partial state by recursively processing the child config
@@ -187,10 +229,10 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 	// Save configs only after database transaction succeeds
 	var savedConfigIDs []core.ID
 	for _, c := range configsToSave {
-		if err := uc.configManager.SaveTaskConfig(ctx, c.id, c.cfg); err != nil {
+		if err := uc.configStore.Save(ctx, c.id.String(), c.cfg); err != nil {
 			// Best-effort rollback: delete any configs already saved
 			for _, savedID := range savedConfigIDs {
-				if deleteErr := uc.configManager.DeleteTaskConfig(ctx, savedID); deleteErr != nil {
+				if deleteErr := uc.configStore.Delete(ctx, savedID.String()); deleteErr != nil {
 					log.Warn("Failed to rollback config during error recovery",
 						"config_id", savedID,
 						"rollback_error", deleteErr,

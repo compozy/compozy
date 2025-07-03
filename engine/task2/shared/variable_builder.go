@@ -74,6 +74,23 @@ func (vb *VariableBuilder) AddCurrentInputToVariables(vars map[string]any, curre
 		if index, exists := (*currentInput)["index"]; exists {
 			vars["index"] = index
 		}
+		// Handle collection-specific fields
+		if collectionItem, exists := (*currentInput)[FieldCollectionItem]; exists {
+			// Add custom item variable name if specified
+			if itemVar, exists := (*currentInput)[FieldCollectionItemVar]; exists {
+				if varName, ok := itemVar.(string); ok && varName != "" {
+					vars[varName] = collectionItem
+				}
+			}
+		}
+		if collectionIndex, exists := (*currentInput)[FieldCollectionIndex]; exists {
+			// Add custom index variable name if specified
+			if indexVar, exists := (*currentInput)[FieldCollectionIndexVar]; exists {
+				if varName, ok := indexVar.(string); ok && varName != "" {
+					vars[varName] = collectionIndex
+				}
+			}
+		}
 	}
 }
 

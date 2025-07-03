@@ -3,6 +3,7 @@ package shared
 import (
 	"os"
 	"strconv"
+	"sync"
 )
 
 // ConfigLimits holds configurable limits for the task2 engine
@@ -59,10 +60,23 @@ func GetConfigLimits() *ConfigLimits {
 }
 
 // Global config limits instance
-var globalConfigLimits *ConfigLimits
+var (
+	globalConfigLimits *ConfigLimits
+	configLimitsMutex  sync.RWMutex
+)
 
 // GetGlobalConfigLimits returns the singleton instance of configuration limits
 func GetGlobalConfigLimits() *ConfigLimits {
+	configLimitsMutex.RLock()
+	if globalConfigLimits != nil {
+		defer configLimitsMutex.RUnlock()
+		return globalConfigLimits
+	}
+	configLimitsMutex.RUnlock()
+
+	configLimitsMutex.Lock()
+	defer configLimitsMutex.Unlock()
+	// Double-check after acquiring write lock
 	if globalConfigLimits == nil {
 		globalConfigLimits = GetConfigLimits()
 	}
@@ -71,5 +85,7 @@ func GetGlobalConfigLimits() *ConfigLimits {
 
 // RefreshGlobalConfigLimits refreshes the global configuration limits from environment
 func RefreshGlobalConfigLimits() {
+	configLimitsMutex.Lock()
+	defer configLimitsMutex.Unlock()
 	globalConfigLimits = GetConfigLimits()
 }

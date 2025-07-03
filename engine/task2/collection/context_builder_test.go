@@ -301,11 +301,12 @@ func TestCollectionContextBuilder_BuildIterationContextWithProgress(t *testing.T
 		item := "test-item"
 		index := 1
 		progressState := &task.ProgressState{
-			TotalChildren:  10,
-			CompletedCount: 3,
-			FailedCount:    1,
-			RunningCount:   2,
-			PendingCount:   4,
+			TotalChildren: 10,
+			SuccessCount:  3,
+			FailedCount:   1,
+			TerminalCount: 4,
+			RunningCount:  2,
+			PendingCount:  4,
 		}
 
 		// Act

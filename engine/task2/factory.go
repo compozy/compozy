@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/task2/basic"
 	"github.com/compozy/compozy/engine/task2/collection"
 	"github.com/compozy/compozy/engine/task2/composite"
+	"github.com/compozy/compozy/engine/task2/contracts"
 	"github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/task2/parallel"
 	"github.com/compozy/compozy/engine/task2/router"
@@ -30,22 +31,6 @@ type DefaultNormalizerFactory struct {
 	taskRepo     task.Repository
 }
 
-// factoryAdapter bridges Factory to shared.NormalizerFactoryInterface
-// This is a minimal adapter needed only for parallel/composite normalizers
-type factoryAdapter struct {
-	factory Factory
-}
-
-func (a *factoryAdapter) CreateNormalizer(taskType task.Type) (shared.TaskNormalizerInterface, error) {
-	normalizer, err := a.factory.CreateNormalizer(taskType)
-	if err != nil {
-		return nil, err
-	}
-	// Since both interfaces have the same methods, we can use a type assertion
-	// This works because all our normalizers implement both interfaces
-	return normalizer, nil
-}
-
 // FactoryConfig contains configuration options for the extended factory
 type FactoryConfig struct {
 	TemplateEngine *tplengine.TemplateEngine
@@ -54,21 +39,8 @@ type FactoryConfig struct {
 	TaskRepo       task.Repository
 }
 
-// NewFactory creates a new unified factory
-func NewFactory(engine *tplengine.TemplateEngine, merger *core.EnvMerger) (Factory, error) {
-	builder, err := shared.NewContextBuilder()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create context builder: %w", err)
-	}
-	return &DefaultNormalizerFactory{
-		templateEngine: engine,
-		contextBuilder: builder,
-		envMerger:      merger,
-	}, nil
-}
-
 // NewFactoryWithConfig creates a new factory with full dependency injection
-func NewFactoryWithConfig(config *FactoryConfig) (Factory, error) {
+func NewFactory(config *FactoryConfig) (Factory, error) {
 	if config.TemplateEngine == nil {
 		return nil, fmt.Errorf("template engine is required")
 	}
@@ -89,13 +61,12 @@ func NewFactoryWithConfig(config *FactoryConfig) (Factory, error) {
 }
 
 // CreateNormalizer creates a normalizer for the given task type
-func (f *DefaultNormalizerFactory) CreateNormalizer(taskType task.Type) (TaskNormalizer, error) {
+func (f *DefaultNormalizerFactory) CreateNormalizer(taskType task.Type) (contracts.TaskNormalizer, error) {
 	switch taskType {
 	case task.TaskTypeBasic, "": // Empty type defaults to basic
 		return basic.NewNormalizer(f.templateEngine), nil
 	case task.TaskTypeParallel:
-		adapter := &factoryAdapter{factory: f}
-		return parallel.NewNormalizer(f.templateEngine, f.contextBuilder, adapter), nil
+		return parallel.NewNormalizer(f.templateEngine, f.contextBuilder, f), nil
 	case task.TaskTypeCollection:
 		return collection.NewNormalizer(f.templateEngine, f.contextBuilder), nil
 	case task.TaskTypeRouter:
@@ -105,8 +76,7 @@ func (f *DefaultNormalizerFactory) CreateNormalizer(taskType task.Type) (TaskNor
 	case task.TaskTypeAggregate:
 		return aggregate.NewNormalizer(f.templateEngine, f.contextBuilder), nil
 	case task.TaskTypeComposite:
-		adapter := &factoryAdapter{factory: f}
-		return composite.NewNormalizer(f.templateEngine, f.contextBuilder, adapter), nil
+		return composite.NewNormalizer(f.templateEngine, f.contextBuilder, f), nil
 	case task.TaskTypeSignal:
 		return signal.NewNormalizer(f.templateEngine, f.contextBuilder), nil
 	default:
@@ -220,10 +190,14 @@ func (f *DefaultNormalizerFactory) createParentStatusManager() shared.ParentStat
 
 // createOutputTransformer creates an output transformer adapter
 func (f *DefaultNormalizerFactory) createOutputTransformer() shared.OutputTransformer {
+	// Create the actual output transformer
+	transformer := core.NewOutputTransformer(f.templateEngine)
 	// Create an adapter that implements the shared.OutputTransformer interface
 	return &outputTransformerAdapter{
 		templateEngine: f.templateEngine,
 		contextBuilder: f.contextBuilder,
+		transformer:    transformer,
+		workflowRepo:   f.workflowRepo,
 	}
 }
 
@@ -231,20 +205,43 @@ func (f *DefaultNormalizerFactory) createOutputTransformer() shared.OutputTransf
 type outputTransformerAdapter struct {
 	templateEngine *tplengine.TemplateEngine
 	contextBuilder *shared.ContextBuilder
+	transformer    *core.OutputTransformer
+	workflowRepo   workflow.Repository
 }
 
 // TransformOutput implements shared.OutputTransformer
 func (a *outputTransformerAdapter) TransformOutput(
-	_ context.Context,
+	ctx context.Context,
 	state *task.State,
-	_ *task.Config,
-	_ *workflow.Config,
+	config *task.Config,
+	workflowConfig *workflow.Config,
 ) (map[string]any, error) {
-	// For now, return state output as-is
-	// The actual output transformation logic is handled by task-specific handlers
-	if state.Output != nil {
-		return state.Output.AsMap(), nil
+	// If no outputs configuration, return state output as-is
+	if config.GetOutputs() == nil || state.Output == nil {
+		if state.Output != nil {
+			return state.Output.AsMap(), nil
+		}
+		return make(map[string]any), nil
 	}
-
+	// Get the actual workflow state
+	workflowState, err := a.workflowRepo.GetState(ctx, state.WorkflowExecID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workflow state for output transformation: %w", err)
+	}
+	// Build normalization context for transformation
+	normCtx := a.contextBuilder.BuildContext(workflowState, workflowConfig, config)
+	// Apply output transformation
+	transformedOutput, err := a.transformer.TransformOutput(
+		state.Output,
+		config.GetOutputs(),
+		normCtx,
+		config,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if transformedOutput != nil {
+		return transformedOutput.AsMap(), nil
+	}
 	return make(map[string]any), nil
 }

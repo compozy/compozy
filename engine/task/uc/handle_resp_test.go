@@ -143,11 +143,12 @@ func TestHandleResponse_UpdateParentStatusIfNeeded(t *testing.T) {
 			},
 		}
 		progressInfo := &task.ProgressInfo{
-			TotalChildren:  2,
-			CompletedCount: 2,
-			FailedCount:    0,
-			RunningCount:   0,
-			PendingCount:   0,
+			TotalChildren: 2,
+			SuccessCount:  2,
+			FailedCount:   0,
+			TerminalCount: 2,
+			RunningCount:  0,
+			PendingCount:  0,
 		}
 
 		mockTaskRepo.On("GetState", mock.Anything, parentID).Return(parentState, nil)
@@ -199,11 +200,12 @@ func TestHandleResponse_UpdateParentStatusIfNeeded(t *testing.T) {
 			},
 		}
 		progressInfo := &task.ProgressInfo{
-			TotalChildren:  2,
-			CompletedCount: 0,
-			FailedCount:    1,
-			RunningCount:   1,
-			PendingCount:   0,
+			TotalChildren: 2,
+			SuccessCount:  0,
+			FailedCount:   1,
+			TerminalCount: 1,
+			RunningCount:  1,
+			PendingCount:  0,
 		}
 
 		mockTaskRepo.On("GetState", mock.Anything, parentID).Return(parentState, nil)

@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
+	"github.com/compozy/compozy/engine/task2"
+	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 )
 
@@ -16,22 +19,26 @@ type GetCollectionResponseInput struct {
 	WorkflowConfig *workflow.Config `json:"workflow_config"`
 }
 
+// GetCollectionResponse handles collection response using task2 integration
 type GetCollectionResponse struct {
-	taskRepo      task.Repository
-	taskResponder *services.TaskResponder
-	configStore   services.ConfigStore
+	workflowRepo workflow.Repository
+	taskRepo     task.Repository
+	task2Factory task2.Factory
+	configStore  services.ConfigStore
 }
 
-// NewGetCollectionResponse creates a new GetCollectionResponse activity
+// NewGetCollectionResponse creates a new GetCollectionResponse activity with task2 integration
 func NewGetCollectionResponse(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
+	task2Factory task2.Factory,
 ) *GetCollectionResponse {
 	return &GetCollectionResponse{
-		taskRepo:      taskRepo,
-		taskResponder: services.NewTaskResponder(workflowRepo, taskRepo),
-		configStore:   configStore,
+		workflowRepo: workflowRepo,
+		taskRepo:     taskRepo,
+		task2Factory: task2Factory,
+		configStore:  configStore,
 	}
 }
 
@@ -47,37 +54,52 @@ func (a *GetCollectionResponse) Run(
 	if taskConfig == nil {
 		return nil, fmt.Errorf("task config not found for task execution ID: %s", input.ParentState.TaskExecID.String())
 	}
-
+	// Load workflow state
+	workflowState, err := a.workflowRepo.GetState(ctx, input.ParentState.WorkflowExecID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workflow state: %w", err)
+	}
+	// Process the collection task
 	executionError := a.processCollectionTask(ctx, input, taskConfig)
-	var itemCount, skippedCount int
-	if input.ParentState.Output != nil {
-		if metadata, exists := (*input.ParentState.Output)["collection_metadata"]; exists {
-			if metadataMap, ok := metadata.(map[string]any); ok {
-				itemCount = toInt(metadataMap["item_count"])
-				skippedCount = toInt(metadataMap["skipped_count"])
+	// Use task2 ResponseHandler for collection type
+	handler, err := a.task2Factory.CreateResponseHandler(task.TaskTypeCollection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create collection response handler: %w", err)
+	}
+	// Prepare input for response handler
+	responseInput := &shared.ResponseInput{
+		TaskConfig:     taskConfig,
+		TaskState:      input.ParentState,
+		WorkflowConfig: input.WorkflowConfig,
+		WorkflowState:  workflowState,
+		ExecutionError: executionError,
+	}
+	// Handle the response
+	result, err := handler.HandleResponse(ctx, responseInput)
+	if err != nil {
+		return nil, fmt.Errorf("failed to handle collection response: %w", err)
+	}
+	// Apply deferred output transformation for collection tasks after children are processed
+	// This handles collection response aggregation with child outputs
+	if collectionHandler, ok := handler.(interface {
+		ApplyDeferredOutputTransformation(context.Context, *shared.ResponseInput) error
+	}); ok {
+		// CRITICAL: Only apply transformation if no execution error
+		// This matches the condition in BaseResponseHandler.ApplyDeferredOutputTransformation
+		if executionError == nil && input.ParentState.Status != core.StatusFailed {
+			if err := collectionHandler.ApplyDeferredOutputTransformation(ctx, responseInput); err != nil {
+				return nil, fmt.Errorf("failed to apply deferred output transformation: %w", err)
 			}
 		}
-	}
-
-	// Use TaskResponder to handle the collection response
-	response, err := a.taskResponder.HandleCollection(ctx, &services.CollectionResponseInput{
-		WorkflowConfig: input.WorkflowConfig,
-		TaskState:      input.ParentState,
-		TaskConfig:     taskConfig,
-		ExecutionError: executionError,
-		ItemCount:      itemCount,
-		SkippedCount:   skippedCount,
-	})
-	if err != nil {
-		return nil, err
 	}
 
 	// If there was an execution error, the collection should be considered failed
 	if executionError != nil {
 		return nil, executionError
 	}
-
-	return response, nil
+	// Convert shared.ResponseOutput to task.CollectionResponse
+	collectionResponse := a.convertToCollectionResponse(ctx, result)
+	return collectionResponse, nil
 }
 
 // processCollectionTask handles collection task processing logic and returns execution error if any
@@ -89,19 +111,11 @@ func (a *GetCollectionResponse) processCollectionTask(
 	return processParentTask(ctx, a.taskRepo, input.ParentState, taskConfig, task.TaskTypeCollection)
 }
 
-// toInt safely converts any value to int, handling nil and different numeric types
-func toInt(v any) int {
-	if v == nil {
-		return 0
-	}
-	switch val := v.(type) {
-	case int:
-		return val
-	case int64:
-		return int(val)
-	case float64:
-		return int(val)
-	default:
-		return 0
-	}
+// convertToCollectionResponse converts shared.ResponseOutput to task.CollectionResponse
+func (a *GetCollectionResponse) convertToCollectionResponse(
+	ctx context.Context,
+	result *shared.ResponseOutput,
+) *task.CollectionResponse {
+	converter := NewResponseConverter()
+	return converter.ConvertToCollectionResponse(ctx, result, a.configStore, a.task2Factory)
 }

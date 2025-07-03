@@ -2,6 +2,7 @@ package parallel
 
 import (
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task2/contracts"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
@@ -15,7 +16,7 @@ type Normalizer struct {
 func NewNormalizer(
 	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *shared.ContextBuilder,
-	normalizerFactory shared.NormalizerFactoryInterface,
+	normalizerFactory contracts.NormalizerFactory,
 ) *Normalizer {
 	return &Normalizer{
 		BaseSubTaskNormalizer: shared.NewBaseSubTaskNormalizer(

@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task2/contracts"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/dgraph-io/ristretto"
 )
@@ -23,6 +24,12 @@ type NormalizationContext struct {
 	ChildrenIndex  map[string][]string // Maps parent task exec ID to child task IDs
 	Variables      map[string]any
 }
+
+// IsNormalizationContext implements the contracts.NormalizationContext interface
+func (nc *NormalizationContext) IsNormalizationContext() {}
+
+// Compile-time check that NormalizationContext implements contracts.NormalizationContext
+var _ contracts.NormalizationContext = (*NormalizationContext)(nil)
 
 // GetVariables returns the variables map, creating it if necessary
 func (nc *NormalizationContext) GetVariables() map[string]any {
@@ -95,6 +102,12 @@ func (cb *ContextBuilder) BuildContext(
 			tasksMap[taskID] = cb.buildSingleTaskContext(taskID, taskState, nc)
 		}
 		cb.VariableBuilder.AddTasksToVariables(vars, workflowState, tasksMap)
+	}
+
+	// Set CurrentInput from task's with field if not already set
+	// This ensures collection child tasks have their item context available
+	if nc.CurrentInput == nil && taskConfig != nil && taskConfig.With != nil {
+		nc.CurrentInput = taskConfig.With
 	}
 
 	// Add current input if present

@@ -5,13 +5,12 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/router"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
-	"github.com/compozy/compozy/test/integration/worker/helpers"
+	utils "github.com/compozy/compozy/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -67,17 +66,9 @@ func TestRouterResponseHandler_Integration(t *testing.T) {
 		t.Parallel()
 
 		// Setup test infrastructure
-		dbHelper := helpers.NewDatabaseHelper(t)
-		t.Cleanup(func() {
-			dbHelper.Cleanup(t)
-		})
-
 		ctx := context.Background()
-		pool := dbHelper.GetPool()
-
-		// Create real repository instances
-		taskRepo := store.NewTaskRepo(pool)
-		workflowRepo := store.NewWorkflowRepo(pool)
+		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
+		t.Cleanup(cleanup)
 
 		// Create handler dependencies
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
@@ -166,17 +157,9 @@ func TestRouterResponseHandler_Integration(t *testing.T) {
 		t.Parallel()
 
 		// Setup test infrastructure
-		dbHelper := helpers.NewDatabaseHelper(t)
-		t.Cleanup(func() {
-			dbHelper.Cleanup(t)
-		})
-
 		ctx := context.Background()
-		pool := dbHelper.GetPool()
-
-		// Create real repository instances
-		taskRepo := store.NewTaskRepo(pool)
-		workflowRepo := store.NewWorkflowRepo(pool)
+		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
+		t.Cleanup(cleanup)
 
 		// Create handler dependencies
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)

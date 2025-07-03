@@ -47,7 +47,12 @@ func (o *ConfigOrchestrator) NormalizeTask(
 		"input":  workflowState.Input,
 		"output": workflowState.Output,
 	}
-	normCtx.MergedEnv = taskConfig.Env // Assume env is already merged at this point
+	normCtx.CurrentInput = taskConfig.With // Set the task's With field as current input
+	normCtx.MergedEnv = taskConfig.Env     // Assume env is already merged at this point
+	// Add current input to variables for template processing
+	if taskConfig.With != nil {
+		o.contextBuilder.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, taskConfig.With)
+	}
 	// Get task normalizer
 	normalizer, err := o.factory.CreateNormalizer(taskConfig.Type)
 	if err != nil {

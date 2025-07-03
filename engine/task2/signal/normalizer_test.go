@@ -348,10 +348,12 @@ func TestSignalNormalizer_BoundaryConditions(t *testing.T) {
 				Type: task.TaskTypeSignal,
 			},
 		}
-		// Act & Assert
-		assert.Panics(t, func() {
-			normalizer.Normalize(taskConfig, nil)
-		})
+		// Act
+		err = normalizer.Normalize(taskConfig, nil)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid context type")
 	})
 
 	t.Run("Should handle empty signal configuration", func(t *testing.T) {

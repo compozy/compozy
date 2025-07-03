@@ -1,0 +1,205 @@
+language: "en"
+early_access: true
+tone_instructions: "Be educational and constructive. Prioritize security/crashes over style. Provide actionable\
+  \ fixes with the 'why'. Be firm on standards but acknowledge good work. Focus on teaching best practices\
+  \ and growing developer skills."
+
+reviews:
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  sequence_diagrams: true
+  profile: "assertive"  # More thorough feedback for a project with strict standards
+  path_filters:
+    - "!**/*.md"
+    - "!**/*.mdc"
+    - "!**/*.mdx"
+    - "!.cursor/**"
+    - "!.git/**"
+    - "!.claude/**"
+    - "!.vscode/**"
+    - "!.taskmaster/**"
+    - "!docs/swagger.*"
+    - "!**/mock_*.go"
+    - "!**/*.pb.go"
+    - "!**/*.pb.gw.go"
+    - "!**/fixtures/**"
+    - "!test/testdata/**"
+  path_instructions:
+    - path: "**/*.go"
+      instructions: |
+        Review Go files against comprehensive quality standards:
+
+        GO LANGUAGE STANDARDS:
+        - Follow idiomatic Go patterns and conventions
+        - Use proper error handling with error wrapping and context
+        - Prefer composition over inheritance
+        - Use interfaces for abstraction and testability
+        - Follow effective Go guidelines and Go code review comments
+        - Ensure proper use of goroutines and channels
+        - Check for proper context usage and cancellation
+        - Validate proper use of defer for cleanup operations
+
+        SECURITY CONCERNS:
+        - NEVER hardcode secrets, API keys, or credentials
+        - Validate and sanitize all external inputs
+        - Check for SQL injection vulnerabilities in database queries
+        - Ensure proper authentication and authorization checks
+        - Prevent information disclosure in error messages
+        - Validate proper CORS configuration for APIs
+        - Check for potential race conditions in concurrent code
+        - Ensure secure communication (TLS/HTTPS where appropriate)
+        - Validate file operations for path traversal vulnerabilities
+        - Check for proper resource limits to prevent DoS
+
+        PERFORMANCE OPTIMIZATION:
+        - Minimize allocations in hot paths
+        - Use sync.Pool for frequently allocated objects
+        - Check for unnecessary copying of large data structures
+        - Validate efficient use of goroutines (avoid goroutine leaks)
+        - Ensure proper connection pooling for databases
+        - Check for N+1 query problems
+        - Validate proper indexing strategies mentioned in queries
+        - Look for unnecessary loops and optimize algorithmic complexity
+        - Check for proper caching strategies where applicable
+        - Ensure efficient JSON marshaling/unmarshaling
+
+        CODE QUALITY & DRY:
+        - Eliminate code duplication - extract common functionality
+        - Function length MUST NOT exceed 30 lines for business logic
+        - Cyclomatic complexity MUST be below 10
+        - Line length MUST NOT exceed 120 characters
+        - Use clear, intention-revealing names
+        - Avoid magic numbers and strings - use named constants
+        - Ensure single source of truth for business rules
+        - Check for copy-paste programming anti-patterns
+
+        SOLID PRINCIPLES:
+        - Single Responsibility: Each package/type/function has one reason to change
+        - Open/Closed: Extensible through interfaces, not modification
+        - Liskov Substitution: Subtypes must be substitutable for base types
+        - Interface Segregation: Many small interfaces over large ones
+        - Dependency Inversion: Depend on abstractions, not concretions
+
+        CLEAN ARCHITECTURE:
+        - Verify proper layer separation (Domain, Application, Infrastructure)
+        - Ensure dependencies flow inward toward domain
+        - Domain layer has no external dependencies
+        - Application layer defines interfaces, infrastructure implements
+        - Check for proper use of ports and adapters pattern
+        - Validate separation of concerns
+        - Ensure business logic is isolated from external frameworks
+
+        SCALABILITY CONSIDERATIONS:
+        - Design for horizontal scaling where possible
+        - Avoid global mutable state
+        - Ensure stateless service design where applicable
+        - Check for proper distributed system patterns (circuit breakers, retries)
+        - Validate graceful degradation strategies
+        - Ensure efficient resource utilization
+        - Check for proper pagination in list operations
+        - Validate appropriate use of caching and cache invalidation
+
+        ERROR HANDLING:
+        - Internal errors: Use fmt.Errorf() with context wrapping
+        - Domain boundaries: Use core.NewError() for public service methods
+        - NEVER ignore errors - always check and handle explicitly
+        - Return early on errors to avoid deep nesting
+        - Provide meaningful error messages with context
+        - Implement proper error logging and monitoring hooks
+
+        TESTING & MAINTAINABILITY:
+        - Ensure code is testable with proper abstractions
+        - Check for appropriate test coverage
+        - Validate that complex logic is well-documented
+        - Ensure consistent code style and formatting
+        - Check for proper logging at appropriate levels
+        - Validate monitoring and observability hooks
+
+        PROJECT-SPECIFIC REQUIREMENTS:
+        - Context MUST be first parameter in functions making external calls
+        - ALL tests MUST use t.Run("Should...") pattern
+        - MUST use stretchr/testify for assertions and mocks
+        - PROHIBIT testify suite patterns - use direct assertions only
+        - Test coverage ≥80% for business logic in engine/{agent,task,tool,workflow}/
+        - Use explicit dependency injection through constructors
+        - Provide nil-safe configuration handling with defaults
+        - Required libraries:
+          - HTTP: gin-gonic/gin
+          - Database: PostgreSQL with jackc/pgx/v5, Redis with redis/go-redis/v9
+          - Validation: go-playground/validator/v10
+          - Logging: charmbracelet/log (NEVER fmt.Printf or log.Printf)
+          - CLI: spf13/cobra
+
+        ADDITIONAL SECURITY CHECKS:
+        - Verify proper handling of sensitive data in memory (clear after use)
+        - Check for timing attacks in authentication code
+        - Validate proper CSRF protection in web handlers
+        - Ensure secure random number generation for tokens/IDs
+        - Check for proper session management and timeout handling
+        - Validate secure cookie settings (HttpOnly, Secure, SameSite)
+        - Look for insecure deserialization vulnerabilities
+        - Check for proper rate limiting implementation
+        - Ensure audit logging for security-relevant operations
+
+    - path: "**/router/**/*.go"
+      instructions: |
+        API STANDARDS:
+        - Verify RESTful design with consistent responses
+        - Check API versioning at /api/v0/
+        - Ensure proper HTTP status codes usage
+        - Validate consistent JSON response format:
+          Success: {"data": {...}, "message": "Success"}
+          Error: {"error": "...", "details": "..."}
+        - MUST update Swagger annotations for all API changes
+        - Include request/response examples in Swagger annotations
+
+    - path: "**/*_test.go"
+      instructions: |
+        TESTING STANDARDS ENFORCEMENT:
+        - MANDATORY: Every test MUST use t.Run("Should...") pattern
+        - Test names: TestModuleName_MethodName(t *testing.T)
+        - PROHIBIT suite.Suite embedding or any suite-based patterns
+        - Require direct assertions: assert.Equal(t, expected, actual)
+        - Verify both success and error paths are tested
+        - Check mock usage - only mock external dependencies
+        - Ensure tests are independent and repeatable
+
+    - path: "engine/infra/**/*.go"
+      instructions: |
+        INFRASTRUCTURE LAYER:
+        - Verify this layer only contains external concerns (DB, HTTP, etc.)
+        - Check that all implementations properly implement Application Layer interfaces
+        - Ensure no business logic exists in infrastructure code
+        - Validate proper resource cleanup with defer statements
+        - Check connection pooling and error handling for external services
+
+    - path: "engine/core/**/*.go"
+      instructions: |
+        DOMAIN LAYER:
+        - Verify only shared business entities and value objects
+        - Ensure no dependencies on other engine packages
+        - Check that interfaces are small and focused
+        - Validate immutability of value objects where appropriate
+
+    - path: "engine/worker/**/*.go"
+      instructions: |
+        TEMPORAL WORKFLOW STANDARDS:
+        - Verify workflows are deterministic (no random values, system time, or external I/O)
+        - Check proper activity timeout configuration
+        - Ensure activities have proper heartbeat for long-running operations
+        - Validate context cancellation handling in activities
+        - Verify workflow versioning for backward compatibility when needed
+        - Check proper error handling and retry policies
+        - Ensure cleanup using workflow.NewDisconnectedContext() for deferred operations
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "main"
+      - "develop"
+
+chat:
+  auto_reply: true

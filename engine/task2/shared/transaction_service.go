@@ -108,6 +108,9 @@ func (s *TransactionService) saveWithTransaction(
 		// Merge changes into latest state
 		s.mergeStateChanges(latestState, state)
 
+		// Copy state back to original to ensure caller sees the merged state
+		*state = *latestState
+
 		// Save with transaction safety
 		if err := txRepo.UpsertStateWithTx(ctx, tx, latestState); err != nil {
 			return fmt.Errorf("unable to save task changes: %w", err)
@@ -191,4 +194,9 @@ func (s *TransactionService) mergeStateChanges(target, source *task.State) {
 	target.Status = source.Status
 	target.Output = source.Output
 	target.Error = source.Error
+	// CRITICAL FIX: Also merge Input if target doesn't have it but source does
+	// This handles cases where the initial save didn't include Input properly
+	if target.Input == nil && source.Input != nil {
+		target.Input = source.Input
+	}
 }
