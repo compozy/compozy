@@ -1,0 +1,45 @@
+project:
+  id: compozy
+  name: Compozy
+  rootpath: ./
+
+analysis:
+  ignoredirs:
+    - .git
+    - .idea
+    - .vscode
+    - node_modules
+  ignorefiles: []
+  includetests: true
+  includevendor: false
+  maxconcurrency: 4
+
+analyzer:
+  detect_circular_deps: true
+  max_depth: 10
+
+llm:
+  model: gpt-4.1-2025-04-14
+
+neo4j:
+  uri: bolt://localhost:7687
+  username: neo4j
+  password: password
+
+parser:
+  ignore_dirs:
+    - .git
+    - vendor
+    - node_modules
+    - .cursor
+    - .vscode
+    - .taskmaster
+    - bin
+    - cluster
+    - docs
+    - examples
+    - scripts
+    - tasks
+  ignore_files: []
+  include_tests: true
+  max_concurrency: 4

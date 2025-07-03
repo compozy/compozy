@@ -31,7 +31,7 @@ func TestParallelTaskExecution(t *testing.T) {
 		fixture := fixtureLoader.LoadFixture(t, "", "simple_parallel")
 
 		// Execute real workflow and retrieve state from database
-		t.Log("Executing parallel workflow with fixed ExecuteSubtask and TaskResponder")
+		t.Log("Executing parallel workflow with fixed ExecuteSubtask and response handling")
 		result := executeWorkflowAndGetState(t, fixture, dbHelper)
 
 		// Verify the actual database state matches expectations

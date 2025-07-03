@@ -6,15 +6,17 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
+	task2core "github.com/compozy/compozy/engine/task2/core"
+	"github.com/compozy/compozy/engine/task2/shared"
 	wf "github.com/compozy/compozy/engine/workflow"
 )
 
 const (
-	LoadTaskConfigLabel       = "LoadTaskConfig"
-	LoadBatchConfigsLabel     = "LoadBatchConfigs"
-	LoadCompositeConfigsLabel = "LoadCompositeConfigs"
+	LoadTaskConfigLabel        = "LoadTaskConfig"
+	LoadBatchConfigsLabel      = "LoadBatchConfigs"
+	LoadCompositeConfigsLabel  = "LoadCompositeConfigs"
+	LoadCollectionConfigsLabel = "LoadCollectionConfigs"
 )
 
 // LoadTaskConfigInput represents input for deterministic task config loading
@@ -31,6 +33,12 @@ type LoadBatchConfigsInput struct {
 
 // LoadCompositeConfigsInput represents input for loading composite child configs from metadata
 type LoadCompositeConfigsInput struct {
+	ParentTaskExecID core.ID  `json:"parent_task_exec_id"`
+	TaskIDs          []string `json:"task_ids"`
+}
+
+// LoadCollectionConfigsInput represents input for loading collection child configs from metadata
+type LoadCollectionConfigsInput struct {
 	ParentTaskExecID core.ID  `json:"parent_task_exec_id"`
 	TaskIDs          []string `json:"task_ids"`
 }
@@ -86,13 +94,13 @@ func (a *LoadBatchConfigs) Run(_ context.Context, input *LoadBatchConfigsInput) 
 
 // LoadCompositeConfigs activity implementation
 type LoadCompositeConfigs struct {
-	configManager *services.ConfigManager
+	configRepo shared.TaskConfigRepository
 }
 
 // NewLoadCompositeConfigs creates a new LoadCompositeConfigs activity
-func NewLoadCompositeConfigs(configManager *services.ConfigManager) *LoadCompositeConfigs {
+func NewLoadCompositeConfigs(configRepo shared.TaskConfigRepository) *LoadCompositeConfigs {
 	return &LoadCompositeConfigs{
-		configManager: configManager,
+		configRepo: configRepo,
 	}
 }
 
@@ -103,22 +111,27 @@ func (a *LoadCompositeConfigs) Run(
 	// For composite tasks, child configs are stored individually by their TaskExecID
 	// We need to map TaskID -> TaskExecID, then load each config
 	// First, get the composite metadata to find child TaskExecIDs
-	metadata, err := a.configManager.LoadCompositeTaskMetadata(ctx, input.ParentTaskExecID)
+	metadata, err := a.configRepo.LoadCompositeMetadata(ctx, input.ParentTaskExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load composite metadata: %w", err)
+	}
+	// Type assert the metadata to CompositeTaskMetadata
+	compositeMetadata, ok := metadata.(*task2core.CompositeTaskMetadata)
+	if !ok {
+		return nil, fmt.Errorf("invalid metadata type: expected *CompositeTaskMetadata, got %T", metadata)
 	}
 	// Create TaskID -> Config mapping for requested tasks
 	configs := make(map[string]*task.Config, len(input.TaskIDs))
 	// Optimize: Build a map of available child configs first
 	childConfigsByID := make(map[string]*task.Config)
-	for i := range metadata.ChildConfigs {
-		childConfigsByID[metadata.ChildConfigs[i].ID] = &metadata.ChildConfigs[i]
+	for i := range compositeMetadata.ChildConfigs {
+		childConfigsByID[compositeMetadata.ChildConfigs[i].ID] = compositeMetadata.ChildConfigs[i]
 	}
 	// Return only the requested configs (memory efficient for large composite tasks)
 	for _, taskID := range input.TaskIDs {
 		config, exists := childConfigsByID[taskID]
 		if !exists {
-			availableIDs := getChildConfigIDs(metadata.ChildConfigs)
+			availableIDs := getChildConfigIDs(compositeMetadata.ChildConfigs)
 			const maxIDsToShow = 20
 			displayIDs := availableIDs
 			if len(availableIDs) > maxIDsToShow {
@@ -137,10 +150,66 @@ func (a *LoadCompositeConfigs) Run(
 	return configs, nil
 }
 
-func getChildConfigIDs(configs []task.Config) []string {
+func getChildConfigIDs(configs []*task.Config) []string {
 	ids := make([]string, len(configs))
 	for i := range configs {
 		ids[i] = configs[i].ID
 	}
 	return ids
+}
+
+// LoadCollectionConfigs activity implementation
+type LoadCollectionConfigs struct {
+	configRepo shared.TaskConfigRepository
+}
+
+// NewLoadCollectionConfigs creates a new LoadCollectionConfigs activity
+func NewLoadCollectionConfigs(configRepo shared.TaskConfigRepository) *LoadCollectionConfigs {
+	return &LoadCollectionConfigs{
+		configRepo: configRepo,
+	}
+}
+
+func (a *LoadCollectionConfigs) Run(
+	ctx context.Context,
+	input *LoadCollectionConfigsInput,
+) (map[string]*task.Config, error) {
+	// For collection tasks, child configs are stored in collection metadata
+	metadata, err := a.configRepo.LoadCollectionMetadata(ctx, input.ParentTaskExecID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load collection metadata: %w", err)
+	}
+	// Type assert the metadata to CollectionTaskMetadata
+	collectionMetadata, ok := metadata.(*task2core.CollectionTaskMetadata)
+	if !ok {
+		return nil, fmt.Errorf("invalid metadata type: expected *CollectionTaskMetadata, got %T", metadata)
+	}
+	// Create TaskID -> Config mapping for requested tasks
+	configs := make(map[string]*task.Config, len(input.TaskIDs))
+	// Build a map of available child configs first
+	childConfigsByID := make(map[string]*task.Config)
+	for i := range collectionMetadata.ChildConfigs {
+		childConfigsByID[collectionMetadata.ChildConfigs[i].ID] = collectionMetadata.ChildConfigs[i]
+	}
+	// Return only the requested configs
+	for _, taskID := range input.TaskIDs {
+		config, exists := childConfigsByID[taskID]
+		if !exists {
+			availableIDs := getChildConfigIDs(collectionMetadata.ChildConfigs)
+			const maxIDsToShow = 20
+			displayIDs := availableIDs
+			if len(availableIDs) > maxIDsToShow {
+				displayIDs = availableIDs[:maxIDsToShow]
+			}
+			return nil, fmt.Errorf(
+				"child config not found: task_id=%s, parent_exec_id=%s, available_configs_count=%d, available_configs_sample=%v",
+				taskID,
+				input.ParentTaskExecID,
+				len(availableIDs),
+				displayIDs,
+			)
+		}
+		configs[taskID] = config
+	}
+	return configs, nil
 }

@@ -14,18 +14,23 @@ type SuccessTransition struct {
 	With *Input  `json:"with,omitempty" yaml:"with,omitempty" mapstructure:"with,omitempty"`
 }
 
+// GetWith returns the With field of the transition
+func (t *SuccessTransition) GetWith() *Input {
+	return t.With
+}
+
 // AsMap converts the provider configuration to a map for template normalization
-func (p *SuccessTransition) AsMap() (map[string]any, error) {
-	return AsMapDefault(p)
+func (t *SuccessTransition) AsMap() (map[string]any, error) {
+	return AsMapDefault(t)
 }
 
 // FromMap updates the provider configuration from a normalized map
-func (p *SuccessTransition) FromMap(data any) error {
+func (t *SuccessTransition) FromMap(data any) error {
 	config, err := FromMapDefault[SuccessTransition](data)
 	if err != nil {
 		return err
 	}
-	return mergo.Merge(p, config, mergo.WithOverride)
+	return mergo.Merge(t, config, mergo.WithOverride)
 }
 
 // ErrorTransition represents an error transition configuration
@@ -34,18 +39,23 @@ type ErrorTransition struct {
 	With *Input  `json:"with,omitempty" yaml:"with,omitempty" mapstructure:"with,omitempty"`
 }
 
+// GetWith returns the With field of the transition
+func (t *ErrorTransition) GetWith() *Input {
+	return t.With
+}
+
 // AsMap converts the provider configuration to a map for template normalization
-func (p *ErrorTransition) AsMap() (map[string]any, error) {
-	return AsMapDefault(p)
+func (t *ErrorTransition) AsMap() (map[string]any, error) {
+	return AsMapDefault(t)
 }
 
 // FromMap updates the provider configuration from a normalized map
-func (p *ErrorTransition) FromMap(data any) error {
+func (t *ErrorTransition) FromMap(data any) error {
 	config, err := FromMapDefault[ErrorTransition](data)
 	if err != nil {
 		return err
 	}
-	return mergo.Merge(p, config, mergo.WithOverride)
+	return mergo.Merge(t, config, mergo.WithOverride)
 }
 
 // RetryPolicyConfig defines the retry behavior for a transition

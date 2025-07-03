@@ -56,6 +56,7 @@ type RuntimeConfig struct {
 type Opts struct {
 	core.GlobalOpts             `    json:",inline"                                 yaml:",inline"                                 mapstructure:",squash"`
 	MaxNestingDepth             int `json:"max_nesting_depth,omitempty"             yaml:"max_nesting_depth,omitempty"             mapstructure:"max_nesting_depth"`
+	MaxStringLength             int `json:"max_string_length,omitempty"             yaml:"max_string_length,omitempty"             mapstructure:"max_string_length"`
 	DispatcherHeartbeatInterval int `json:"dispatcher_heartbeat_interval,omitempty" yaml:"dispatcher_heartbeat_interval,omitempty" mapstructure:"dispatcher_heartbeat_interval"`
 	DispatcherHeartbeatTTL      int `json:"dispatcher_heartbeat_ttl,omitempty"      yaml:"dispatcher_heartbeat_ttl,omitempty"      mapstructure:"dispatcher_heartbeat_ttl"`
 	DispatcherStaleThreshold    int `json:"dispatcher_stale_threshold,omitempty"    yaml:"dispatcher_stale_threshold,omitempty"    mapstructure:"dispatcher_stale_threshold"`
@@ -357,6 +358,7 @@ func setRuntimeDefaults(runtime *RuntimeConfig) {
 // configureDispatcherOptions sets dispatcher-related configuration options from environment
 func configureDispatcherOptions(config *Config, log logger.Logger) {
 	setIntConfigFromEnv("MAX_NESTING_DEPTH", &config.Opts.MaxNestingDepth, 20, log)
+	setIntConfigFromEnv("MAX_STRING_LENGTH", &config.Opts.MaxStringLength, 10485760, log)
 	setIntConfigFromEnv("DISPATCHER_HEARTBEAT_INTERVAL", &config.Opts.DispatcherHeartbeatInterval, 30, log)
 	setIntConfigFromEnv("DISPATCHER_HEARTBEAT_TTL", &config.Opts.DispatcherHeartbeatTTL, 300, log)
 	setIntConfigFromEnv("DISPATCHER_STALE_THRESHOLD", &config.Opts.DispatcherStaleThreshold, 120, log)

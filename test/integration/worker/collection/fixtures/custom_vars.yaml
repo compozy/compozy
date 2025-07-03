@@ -1,0 +1,69 @@
+name: collection-custom-vars
+
+workflow:
+  id: test-custom-vars
+  version: "1.0.0"
+  tasks:
+    - id: process-cities
+      type: collection
+      mode: parallel
+      items: "{{ .workflow.input.cities }}"
+      # Custom variable names instead of default item/index
+      item_var: "city"
+      index_var: "position"
+      task:
+        id: "process-city-{{ .position }}"
+        type: basic
+        action: process_city
+        with:
+          city_name: "{{ .city }}"
+          city_position: "{{ .position }}"
+        # Test that custom variables are available during output transformation
+        outputs:
+          city_name: "{{ .city }}"
+          position: "{{ .position }}"
+          message: "Processing {{ .city }} at position {{ .position }}"
+          weather: "{{ .output.weather }}"
+          population: "{{ .output.population }}"
+
+input:
+  cities:
+    - "Seattle"
+    - "Portland"
+    - "Vancouver"
+
+expected:
+  workflow_state:
+    status: "SUCCESS"
+    total_tasks: 4  # 1 parent + 3 children
+    completed_tasks: 4
+  task_states:
+    - name: process-cities
+      status: "SUCCESS"
+    - name: process-city-0
+      status: "SUCCESS"
+      parent: process-cities
+      output:
+        city_name: "Seattle"
+        position: 0
+        message: "Processing Seattle at position 0"
+        weather: "Rainy"
+        population: 750000
+    - name: process-city-1
+      status: "SUCCESS"
+      parent: process-cities
+      output:
+        city_name: "Portland"
+        position: 1
+        message: "Processing Portland at position 1"
+        weather: "Cloudy"
+        population: 650000
+    - name: process-city-2
+      status: "SUCCESS"
+      parent: process-cities
+      output:
+        city_name: "Vancouver"
+        position: 2
+        message: "Processing Vancouver at position 2"
+        weather: "Mild"
+        population: 700000

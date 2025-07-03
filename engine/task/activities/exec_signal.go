@@ -8,7 +8,10 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
+	"github.com/compozy/compozy/engine/task2"
+	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 const ExecuteSignalLabel = "ExecuteSignalTask"
@@ -23,7 +26,8 @@ type ExecuteSignalInput struct {
 type ExecuteSignal struct {
 	loadWorkflowUC   *uc.LoadWorkflow
 	createStateUC    *uc.CreateState
-	taskResponder    *services.TaskResponder
+	task2Factory     task2.Factory
+	templateEngine   *tplengine.TemplateEngine
 	signalDispatcher services.SignalDispatcher
 }
 
@@ -34,15 +38,17 @@ func NewExecuteSignal(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	signalDispatcher services.SignalDispatcher,
-	cwd *core.PathCWD,
-) *ExecuteSignal {
-	configManager := services.NewConfigManager(configStore, cwd)
+	_ *core.PathCWD,
+	task2Factory task2.Factory,
+	templateEngine *tplengine.TemplateEngine,
+) (*ExecuteSignal, error) {
 	return &ExecuteSignal{
 		loadWorkflowUC:   uc.NewLoadWorkflow(workflows, workflowRepo),
-		createStateUC:    uc.NewCreateState(taskRepo, configManager),
-		taskResponder:    services.NewTaskResponder(workflowRepo, taskRepo),
+		createStateUC:    uc.NewCreateState(taskRepo, configStore),
+		task2Factory:     task2Factory,
+		templateEngine:   templateEngine,
 		signalDispatcher: signalDispatcher,
-	}
+	}, nil
 }
 
 func (a *ExecuteSignal) Run(ctx context.Context, input *ExecuteSignalInput) (*task.MainTaskResponse, error) {
@@ -54,55 +60,67 @@ func (a *ExecuteSignal) Run(ctx context.Context, input *ExecuteSignalInput) (*ta
 	if err != nil {
 		return nil, err
 	}
-	// Normalize task config
-	normalizer := uc.NewNormalizeConfig()
-	normalizeInput := &uc.NormalizeConfigInput{
-		WorkflowState:  workflowState,
-		WorkflowConfig: workflowConfig,
-		TaskConfig:     input.TaskConfig,
-	}
-	err = normalizer.Execute(ctx, normalizeInput)
+	// Use task2 normalizer for signal tasks
+	normalizer, err := a.task2Factory.CreateNormalizer(task.TaskTypeSignal)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create signal normalizer: %w", err)
+	}
+	// Create context builder to build proper normalization context
+	contextBuilder, err := shared.NewContextBuilder()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create context builder: %w", err)
+	}
+	// Build proper normalization context with all template variables
+	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, input.TaskConfig)
+	// Normalize the task configuration
+	normalizedConfig := input.TaskConfig
+	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
+		return nil, fmt.Errorf("failed to normalize signal task: %w", err)
 	}
 	// Validate task
-	taskConfig := input.TaskConfig
-	taskType := taskConfig.Type
-	if taskType != task.TaskTypeSignal {
-		return nil, fmt.Errorf("unsupported task type: %s", taskType)
+	if normalizedConfig.Type != task.TaskTypeSignal {
+		return nil, fmt.Errorf("unsupported task type: %s", normalizedConfig.Type)
 	}
 	// Create task state
 	taskState, err := a.createStateUC.Execute(ctx, &uc.CreateStateInput{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
-		TaskConfig:     taskConfig,
+		TaskConfig:     normalizedConfig,
 	})
 	if err != nil {
 		return nil, err
 	}
 	// Dispatch the signal and capture the error
-	executionError := a.dispatchSignal(ctx, taskConfig, input.WorkflowExecID.String(), input.ProjectName)
+	executionError := a.dispatchSignal(ctx, normalizedConfig, input.WorkflowExecID.String(), input.ProjectName)
 	// Set a simple success output if the signal was dispatched
 	if executionError == nil {
 		taskState.Output = &core.Output{
 			"signal_dispatched": true,
-			"signal_id":         taskConfig.Signal.ID,
+			"signal_id":         normalizedConfig.Signal.ID,
 		}
 	}
-	response, handleErr := a.taskResponder.HandleMainTask(ctx, &services.MainTaskResponseInput{
-		WorkflowConfig: workflowConfig,
+	// Use task2 ResponseHandler for signal type
+	handler, err := a.task2Factory.CreateResponseHandler(task.TaskTypeSignal)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create signal response handler: %w", err)
+	}
+	// Prepare input for response handler
+	responseInput := &shared.ResponseInput{
+		TaskConfig:     normalizedConfig,
 		TaskState:      taskState,
-		TaskConfig:     taskConfig,
-		ExecutionError: executionError, // Pass the error to the responder
-	})
-	if handleErr != nil {
-		return nil, handleErr
+		WorkflowConfig: workflowConfig,
+		WorkflowState:  workflowState,
+		ExecutionError: executionError,
 	}
-	// If there was an execution error, the task should be considered failed
-	if executionError != nil {
-		return response, executionError
+	// Handle the response
+	result, err := handler.HandleResponse(ctx, responseInput)
+	if err != nil {
+		return nil, fmt.Errorf("failed to handle signal response: %w", err)
 	}
-	return response, nil
+	// Convert shared.ResponseOutput to task.MainTaskResponse
+	converter := NewResponseConverter()
+	mainTaskResponse := converter.ConvertToMainTaskResponse(result)
+	return mainTaskResponse, executionError
 }
 
 func (a *ExecuteSignal) dispatchSignal(

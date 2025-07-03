@@ -787,7 +787,7 @@ func TestTaskRepo_GetProgressInfo(t *testing.T) {
 
 			// Verify aggregated counts
 			assert.Equal(t, 3, progressInfo.TotalChildren)
-			assert.Equal(t, 1, progressInfo.CompletedCount)
+			assert.Equal(t, 1, progressInfo.SuccessCount)
 			assert.Equal(t, 1, progressInfo.FailedCount)
 			assert.Equal(t, 1, progressInfo.RunningCount)
 			assert.Equal(t, 0, progressInfo.PendingCount)

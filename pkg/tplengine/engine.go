@@ -4,17 +4,25 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"html"
+	html_template "html/template"
 	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/compozy/compozy/engine/core"
-	"gopkg.in/yaml.v3"
+)
+
+// Pre-compiled regular expressions for template processing performance
+var (
+	templateExpressionRegex = regexp.MustCompile(`{{[^}]*}}`)
+	hyphenatedPathRegex     = regexp.MustCompile(`(\.[a-zA-Z_][a-zA-Z0-9_-]*(?:\.[a-zA-Z_][a-zA-Z0-9_-]*)*)`)
 )
 
 // EngineFormat represents the format of the template engine output
@@ -30,17 +38,13 @@ const (
 )
 
 // TemplateEngine is the main template engine struct
+// It is safe for concurrent use by multiple goroutines
 type TemplateEngine struct {
-	templates    map[string]*template.Template
-	globalValues map[string]any
-	format       EngineFormat
-}
-
-// ProcessResult contains the result of processing a template
-type ProcessResult struct {
-	Text string
-	YAML any
-	JSON any
+	mu                       sync.RWMutex
+	templates                map[string]*template.Template
+	globalValues             map[string]any
+	format                   EngineFormat
+	preserveNumericPrecision bool
 }
 
 // NewEngine creates a new template engine with the specified format
@@ -54,8 +58,39 @@ func NewEngine(format EngineFormat) *TemplateEngine {
 
 // WithFormat returns a new engine with the specified format
 func (e *TemplateEngine) WithFormat(format EngineFormat) *TemplateEngine {
+	e.mu.Lock()
 	e.format = format
+	e.mu.Unlock()
 	return e
+}
+
+// WithPrecisionPreservation enables or disables numeric precision preservation
+func (e *TemplateEngine) WithPrecisionPreservation(enabled bool) *TemplateEngine {
+	e.mu.Lock()
+	e.preserveNumericPrecision = enabled
+	e.mu.Unlock()
+	return e
+}
+
+// getFuncMap returns the function map for templates, including HTML safety functions
+//
+// Security functions available in templates:
+//   - htmlEscape: Escapes HTML content to prevent XSS (e.g., {{ .userInput | htmlEscape }})
+//   - htmlAttrEscape: Escapes HTML attribute values (e.g., <div title="{{ .title | htmlAttrEscape }}">)
+//   - jsEscape: Escapes JavaScript strings (e.g., <script>var x = '{{ .data | jsEscape }}';</script>)
+//
+// IMPORTANT: Always use these functions when rendering user input or any untrusted data
+// in HTML contexts to prevent XSS vulnerabilities.
+func (e *TemplateEngine) getFuncMap() template.FuncMap {
+	// Start with sprig functions
+	funcMap := sprig.FuncMap()
+
+	// Add HTML safety functions with comprehensive XSS protection
+	funcMap["htmlEscape"] = html.EscapeString
+	funcMap["htmlAttrEscape"] = html.EscapeString // For attribute values
+	funcMap["jsEscape"] = html_template.JSEscapeString
+
+	return funcMap
 }
 
 // AddTemplate adds a template to the engine
@@ -63,11 +98,14 @@ func (e *TemplateEngine) AddTemplate(name, templateStr string) error {
 	// Preprocess template to handle hyphens in field names
 	processedTemplate := e.preprocessTemplateForHyphens(templateStr)
 
-	tmpl, err := template.New(name).Option("missingkey=error").Funcs(sprig.FuncMap()).Parse(processedTemplate)
+	tmpl, err := template.New(name).Option("missingkey=error").Funcs(e.getFuncMap()).Parse(processedTemplate)
 	if err != nil {
 		return fmt.Errorf("failed to parse template: %w", err)
 	}
+
+	e.mu.Lock()
 	e.templates[name] = tmpl
+	e.mu.Unlock()
 	return nil
 }
 
@@ -78,7 +116,10 @@ func HasTemplate(template string) bool {
 
 // Render renders a template by name
 func (e *TemplateEngine) Render(name string, context map[string]any) (string, error) {
+	e.mu.RLock()
 	tmpl, ok := e.templates[name]
+	e.mu.RUnlock()
+
 	if !ok {
 		return "", fmt.Errorf("template not found: %s", name)
 	}
@@ -97,7 +138,7 @@ func (e *TemplateEngine) RenderString(templateStr string, context map[string]any
 	processedTemplate := e.preprocessTemplateForHyphens(templateStr)
 
 	// Create a new template and parse the string
-	tmpl, err := template.New("inline").Option("missingkey=error").Funcs(sprig.FuncMap()).Parse(processedTemplate)
+	tmpl, err := template.New("inline").Option("missingkey=error").Funcs(e.getFuncMap()).Parse(processedTemplate)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse template: %w", err)
 	}
@@ -108,7 +149,11 @@ func (e *TemplateEngine) RenderString(templateStr string, context map[string]any
 // renderTemplate renders a parsed template with the given context
 func (e *TemplateEngine) renderTemplate(tmpl *template.Template, context map[string]any) (string, error) {
 	processedContext := e.preprocessContext(context)
+
+	// Thread-safe access to global values
+	e.mu.RLock()
 	maps.Copy(processedContext, e.globalValues)
+	e.mu.RUnlock()
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, processedContext); err != nil {
@@ -119,47 +164,32 @@ func (e *TemplateEngine) renderTemplate(tmpl *template.Template, context map[str
 }
 
 // ProcessString processes a template string and returns the result
-func (e *TemplateEngine) ProcessString(templateStr string, context map[string]any) (*ProcessResult, error) {
-	rendered, err := e.RenderString(templateStr, context)
+func (e *TemplateEngine) ProcessString(templateStr string, context map[string]any) (string, error) {
+	result, err := e.ParseAny(templateStr, context)
 	if err != nil {
-		return nil, err
+		return "", fmt.Errorf("failed to parse template string: %w", err)
 	}
-
-	result := &ProcessResult{
-		Text: rendered,
+	value, ok := result.(string)
+	if !ok {
+		return "", fmt.Errorf("failed to parse template string: %w", err)
 	}
-
-	// Parse the result based on the format
-	switch e.format {
-	case FormatYAML:
-		var yamlObj any
-		err = yaml.Unmarshal([]byte(rendered), &yamlObj)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse YAML: %w", err)
-		}
-		result.YAML = yamlObj
-	case FormatJSON:
-		var jsonObj any
-		err = json.Unmarshal([]byte(rendered), &jsonObj)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse JSON: %w", err)
-		}
-		result.JSON = jsonObj
-	}
-
-	return result, nil
+	return value, nil
 }
 
 // ProcessFile processes a template file and returns the result
-func (e *TemplateEngine) ProcessFile(filePath string, context map[string]any) (*ProcessResult, error) {
+func (e *TemplateEngine) ProcessFile(filePath string, context map[string]any) (string, error) {
 	// Read the template file
 	templateBytes, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read template file: %w", err)
+		return "", fmt.Errorf("failed to read template file: %w", err)
 	}
 
 	// Determine format from file extension if not specified
-	if e.format == "" {
+	e.mu.RLock()
+	currentFormat := e.format
+	e.mu.RUnlock()
+	if currentFormat == "" {
+		e.mu.Lock()
 		ext := strings.ToLower(filepath.Ext(filePath))
 		switch ext {
 		case ".yaml", ".yml":
@@ -169,28 +199,29 @@ func (e *TemplateEngine) ProcessFile(filePath string, context map[string]any) (*
 		default:
 			e.format = FormatText
 		}
+		e.mu.Unlock()
 	}
 
 	// Process the template
 	return e.ProcessString(string(templateBytes), context)
 }
 
-// ParseMap processes a value and resolves any templates within it
-func (e *TemplateEngine) ParseMap(value any, data map[string]any) (any, error) {
+// ParseAny processes a value and resolves any templates within it
+func (e *TemplateEngine) ParseAny(value any, ctxData map[string]any) (any, error) {
 	if value == nil {
 		return nil, nil
 	}
 	switch v := value.(type) {
 	case string:
-		return e.parseStringValue(v, data)
+		return e.parseStringValue(v, ctxData)
 	case map[string]any:
-		return e.parseMapType(v, data)
+		return e.parseMapType(v, ctxData)
 	case core.Output:
-		return e.parseMapType(map[string]any(v), data)
+		return e.parseMapType(map[string]any(v), ctxData)
 	case core.Input:
-		return e.parseMapType(map[string]any(v), data)
+		return e.parseMapType(map[string]any(v), ctxData)
 	case []any:
-		return e.parseArrayType(v, data)
+		return e.parseArrayType(v, ctxData)
 	default:
 		// For other types (int, float, bool, etc.), return as is
 		return v, nil
@@ -201,7 +232,7 @@ func (e *TemplateEngine) ParseMap(value any, data map[string]any) (any, error) {
 func (e *TemplateEngine) parseMapType(m map[string]any, data map[string]any) (map[string]any, error) {
 	result := make(map[string]any, len(m))
 	for k, val := range m {
-		parsedVal, err := e.ParseMap(val, data)
+		parsedVal, err := e.ParseAny(val, data)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse template in map key %s: %w", k, err)
 		}
@@ -214,7 +245,7 @@ func (e *TemplateEngine) parseMapType(m map[string]any, data map[string]any) (ma
 func (e *TemplateEngine) parseArrayType(arr []any, data map[string]any) ([]any, error) {
 	result := make([]any, len(arr))
 	for i, val := range arr {
-		parsedVal, err := e.ParseMap(val, data)
+		parsedVal, err := e.ParseAny(val, data)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse template in array index %d: %w", i, err)
 		}
@@ -259,18 +290,62 @@ func (e *TemplateEngine) ParseMapWithFilter(value any, data map[string]any, filt
 		}
 		return result, nil
 	default:
-		// Convert boolean values to strings for non-template cases
-		if boolVal, ok := v.(bool); ok {
-			return fmt.Sprintf("%t", boolVal), nil
-		}
-		// For other types (int, float, etc.), return as is
+		// For other types (int, float, bool, etc.), return as is
 		return v, nil
+	}
+}
+
+// ParseWithJSONHandling processes a value, resolves templates, and handles JSON parsing for strings
+// This method is similar to ParseAny but with special handling for JSON strings
+func (e *TemplateEngine) ParseWithJSONHandling(value any, data map[string]any) (any, error) {
+	if value == nil {
+		return nil, nil
+	}
+	switch v := value.(type) {
+	case string:
+		// Check if it's a template
+		if HasTemplate(v) {
+			processed, err := e.ParseAny(v, data)
+			if err != nil {
+				return nil, err
+			}
+			// If the result is a string that looks like JSON, parse it
+			if str, ok := processed.(string); ok && str != "" && (str[0] == '{' || str[0] == '[') {
+				var parsed any
+				if err := json.Unmarshal([]byte(str), &parsed); err == nil {
+					// Now process any templates in the parsed JSON
+					return e.ParseAny(parsed, data)
+				}
+			}
+			return processed, nil
+		}
+		// Try to parse as JSON if it looks like JSON
+		if v != "" && (v[0] == '{' || v[0] == '[') {
+			var parsed any
+			if err := json.Unmarshal([]byte(v), &parsed); err == nil {
+				// Now process any templates in the parsed JSON
+				return e.ParseAny(parsed, data)
+			}
+		}
+		return v, nil
+	default:
+		// For other types, use regular ParseAny
+		return e.ParseAny(v, data)
 	}
 }
 
 // parseStringValue handles parsing of string values that may contain templates
 func (e *TemplateEngine) parseStringValue(v string, data map[string]any) (any, error) {
 	if !HasTemplate(v) {
+		// If precision preservation is enabled and this is a plain string value,
+		// try to convert it with precision
+		e.mu.RLock()
+		preservePrecision := e.preserveNumericPrecision
+		e.mu.RUnlock()
+		if preservePrecision {
+			pc := NewPrecisionConverter()
+			return pc.ConvertWithPrecision(v), nil
+		}
 		return v, nil
 	}
 
@@ -285,18 +360,9 @@ func (e *TemplateEngine) parseStringValue(v string, data map[string]any) (any, e
 }
 
 func (e *TemplateEngine) prepareValueForTemplate(obj any) (any, error) {
-	// Convert values to strings for configuration processing
+	// For simple object references, preserve the original type
+	// Only convert to string when necessary for template processing
 	switch val := obj.(type) {
-	case bool:
-		return fmt.Sprintf("%t", val), nil
-	case int:
-		return fmt.Sprintf("%d", val), nil
-	case int64:
-		return fmt.Sprintf("%d", val), nil
-	case float64:
-		return fmt.Sprintf("%g", val), nil
-	case float32:
-		return fmt.Sprintf("%g", val), nil
 	case *core.Output:
 		// Dereference core.Output to map[string]any for template processing
 		if val != nil {
@@ -307,6 +373,7 @@ func (e *TemplateEngine) prepareValueForTemplate(obj any) (any, error) {
 		// Return core.Output as map[string]any for template processing
 		return map[string]any(val), nil
 	default:
+		// Return the value as-is to preserve its type
 		return obj, nil
 	}
 }
@@ -315,6 +382,15 @@ func (e *TemplateEngine) renderAndProcessTemplate(v string, data map[string]any)
 	parsed, err := e.RenderString(v, data)
 	if err != nil {
 		return nil, err
+	}
+
+	// Apply precision conversion if enabled
+	e.mu.RLock()
+	preservePrecision := e.preserveNumericPrecision
+	e.mu.RUnlock()
+	if preservePrecision {
+		pc := NewPrecisionConverter()
+		return pc.ConvertWithPrecision(parsed), nil
 	}
 
 	// Convert boolean results from template rendering to strings
@@ -430,7 +506,9 @@ func (e *TemplateEngine) extractTraversableMap(currentAny any) (map[string]any, 
 
 // AddGlobalValue adds a global value to the template engine
 func (e *TemplateEngine) AddGlobalValue(name string, value any) {
+	e.mu.Lock()
 	e.globalValues[name] = value
+	e.mu.Unlock()
 }
 
 // preprocessContext adds default fields to the context and ensures proper boolean handling
@@ -471,18 +549,13 @@ func (e *TemplateEngine) preprocessContext(ctx map[string]any) map[string]any {
 // preprocessTemplateForHyphens converts template expressions with hyphens to use index syntax
 // This function processes dot-path expressions within templates, even inside conditionals
 func (e *TemplateEngine) preprocessTemplateForHyphens(templateStr string) string {
-	// Find all template expressions
-	re := regexp.MustCompile(`{{[^}]*}}`)
-
-	return re.ReplaceAllStringFunc(templateStr, func(match string) string {
+	// Use pre-compiled regular expressions for better performance
+	return templateExpressionRegex.ReplaceAllStringFunc(templateStr, func(match string) string {
 		// Extract the content between {{ and }}
 		content := strings.TrimSpace(match[2 : len(match)-2])
 
-		// Find dot-path patterns that contain hyphens
-		// This regex looks for dot-paths that may contain hyphens
-		pathPattern := regexp.MustCompile(`(\.[a-zA-Z_][a-zA-Z0-9_-]*(?:\.[a-zA-Z_][a-zA-Z0-9_-]*)*)`)
-
-		processedContent := pathPattern.ReplaceAllStringFunc(content, func(pathMatch string) string {
+		// Find dot-path patterns that contain hyphens using pre-compiled regex
+		processedContent := hyphenatedPathRegex.ReplaceAllStringFunc(content, func(pathMatch string) string {
 			// Only process if it contains hyphens
 			if !strings.Contains(pathMatch, "-") {
 				return pathMatch

@@ -9,7 +9,10 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
+	"github.com/compozy/compozy/engine/task2"
+	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 const ExecuteRouterLabel = "ExecuteRouterTask"
@@ -23,7 +26,8 @@ type ExecuteRouterInput struct {
 type ExecuteRouter struct {
 	loadWorkflowUC *uc.LoadWorkflow
 	createStateUC  *uc.CreateState
-	taskResponder  *services.TaskResponder
+	task2Factory   task2.Factory
+	templateEngine *tplengine.TemplateEngine
 }
 
 // NewExecuteRouter creates a new ExecuteRouter activity
@@ -32,14 +36,16 @@ func NewExecuteRouter(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
-	cwd *core.PathCWD,
-) *ExecuteRouter {
-	configManager := services.NewConfigManager(configStore, cwd)
+	_ *core.PathCWD,
+	task2Factory task2.Factory,
+	templateEngine *tplengine.TemplateEngine,
+) (*ExecuteRouter, error) {
 	return &ExecuteRouter{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
-		createStateUC:  uc.NewCreateState(taskRepo, configManager),
-		taskResponder:  services.NewTaskResponder(workflowRepo, taskRepo),
-	}
+		createStateUC:  uc.NewCreateState(taskRepo, configStore),
+		task2Factory:   task2Factory,
+		templateEngine: templateEngine,
+	}, nil
 }
 
 func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*task.MainTaskResponse, error) {
@@ -60,44 +66,59 @@ func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*ta
 	if err != nil {
 		return nil, err
 	}
-	// Normalize task config
-	normalizer := uc.NewNormalizeConfig()
-	normalizeInput := &uc.NormalizeConfigInput{
-		WorkflowState:  workflowState,
-		WorkflowConfig: workflowConfig,
-		TaskConfig:     input.TaskConfig,
-	}
-	err = normalizer.Execute(ctx, normalizeInput)
+	// Use task2 normalizer for router tasks
+	normalizer, err := a.task2Factory.CreateNormalizer(task.TaskTypeRouter)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create router normalizer: %w", err)
+	}
+	// Create context builder to build proper normalization context
+	contextBuilder, err := shared.NewContextBuilder()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create context builder: %w", err)
+	}
+	// Build proper normalization context with all template variables
+	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, input.TaskConfig)
+	// Normalize the task configuration
+	normalizedConfig := input.TaskConfig
+	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
+		return nil, fmt.Errorf("failed to normalize router task: %w", err)
 	}
 	// Create task state
 	taskState, err := a.createStateUC.Execute(ctx, &uc.CreateStateInput{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
-		TaskConfig:     taskConfig,
+		TaskConfig:     normalizedConfig,
 	})
 	if err != nil {
 		return nil, err
 	}
-	output, routeResult, err := a.evaluateRouter(taskConfig, workflowConfig)
+	output, routeResult, executionError := a.evaluateRouter(normalizedConfig, workflowConfig)
+	if executionError == nil {
+		taskState.Output = output
+	}
+	// Use task2 ResponseHandler for router type
+	handler, err := a.task2Factory.CreateResponseHandler(task.TaskTypeRouter)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create router response handler: %w", err)
 	}
-	taskState.Output = output
-	// Use the NextTaskOverride to specify the router route directly
-	var nextTaskOverride *task.Config
-	if routeResult != nil {
-		nextTaskOverride = routeResult
-	}
-	var executionError error // keep the variable for the responder signature
-	return a.taskResponder.HandleMainTask(ctx, &services.MainTaskResponseInput{
+	// Prepare input for response handler
+	responseInput := &shared.ResponseInput{
+		TaskConfig:       normalizedConfig,
 		TaskState:        taskState,
 		WorkflowConfig:   workflowConfig,
-		TaskConfig:       taskConfig,
+		WorkflowState:    workflowState,
 		ExecutionError:   executionError,
-		NextTaskOverride: nextTaskOverride,
-	})
+		NextTaskOverride: routeResult,
+	}
+	// Handle the response
+	result, err := handler.HandleResponse(ctx, responseInput)
+	if err != nil {
+		return nil, fmt.Errorf("failed to handle router response: %w", err)
+	}
+	// Convert shared.ResponseOutput to task.MainTaskResponse
+	converter := NewResponseConverter()
+	mainTaskResponse := converter.ConvertToMainTaskResponse(result)
+	return mainTaskResponse, executionError
 }
 
 func (a *ExecuteRouter) evaluateRouter(

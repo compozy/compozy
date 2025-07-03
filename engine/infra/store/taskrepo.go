@@ -356,7 +356,7 @@ func (r *TaskRepo) ListChildren(ctx context.Context, parentStateID core.ID) ([]*
 		SELECT *
 		FROM task_states
 		WHERE parent_state_id = $1
-		ORDER BY created_at
+		ORDER BY task_id
 	`
 
 	var statesDB []*task.StateDB
@@ -383,7 +383,7 @@ func (r *TaskRepo) ListChildrenOutputs(ctx context.Context, parentStateID core.I
 		SELECT task_id, output 
 		FROM task_states 
 		WHERE parent_state_id = $1 AND output IS NOT NULL
-		ORDER BY created_at
+		ORDER BY task_id
 	`
 	rows, err := r.db.Query(ctx, query, parentStateID)
 	if err != nil {
@@ -515,22 +515,30 @@ func (r *TaskRepo) GetProgressInfo(ctx context.Context, parentStateID core.ID) (
 
 	progressInfo.TotalChildren = totalChildren
 
-	// Derive specific counters from status counts using constants
-	progressInfo.CompletedCount = progressInfo.StatusCounts[core.StatusSuccess]
+	// Derive specific counters from status counts with clear semantics
+	progressInfo.SuccessCount = progressInfo.StatusCounts[core.StatusSuccess]
 	progressInfo.FailedCount = progressInfo.StatusCounts[core.StatusFailed]
-	progressInfo.RunningCount = progressInfo.StatusCounts[core.StatusRunning]
+	progressInfo.CanceledCount = progressInfo.StatusCounts[core.StatusCanceled]
+	progressInfo.TimedOutCount = progressInfo.StatusCounts[core.StatusTimedOut]
+	progressInfo.RunningCount = progressInfo.StatusCounts[core.StatusRunning] +
+		progressInfo.StatusCounts[core.StatusWaiting] +
+		progressInfo.StatusCounts[core.StatusPaused]
 	progressInfo.PendingCount = progressInfo.StatusCounts[core.StatusPending]
 
-	// Include counts for other terminal and non-terminal statuses
-	progressInfo.CompletedCount += progressInfo.StatusCounts[core.StatusCanceled] // Canceled is considered terminal
-	progressInfo.FailedCount += progressInfo.StatusCounts[core.StatusTimedOut]    // Timed out is considered failed
-	progressInfo.RunningCount += progressInfo.StatusCounts[core.StatusWaiting]    // Waiting is considered running
-	progressInfo.RunningCount += progressInfo.StatusCounts[core.StatusPaused]     // Paused is considered running
+	// Calculate terminal count (all finished tasks regardless of outcome)
+	progressInfo.TerminalCount = progressInfo.SuccessCount +
+		progressInfo.FailedCount +
+		progressInfo.CanceledCount +
+		progressInfo.TimedOutCount
 
-	// Calculate rates
+	// Calculate rates based on total children
 	if progressInfo.TotalChildren > 0 {
-		progressInfo.CompletionRate = float64(progressInfo.CompletedCount) / float64(progressInfo.TotalChildren)
-		progressInfo.FailureRate = float64(progressInfo.FailedCount) / float64(progressInfo.TotalChildren)
+		progressInfo.CompletionRate = float64(progressInfo.SuccessCount) / float64(progressInfo.TotalChildren)
+		progressInfo.FailureRate = float64(
+			progressInfo.FailedCount+progressInfo.TimedOutCount,
+		) / float64(
+			progressInfo.TotalChildren,
+		)
 	}
 
 	return progressInfo, nil

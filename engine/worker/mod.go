@@ -174,7 +174,6 @@ func NewWorker(
 		workerCore.rtManager,
 		workerCore.configStore,
 		dispatcher.signalDispatcher,
-		workerCore.configManager,
 		workerCore.redisCache,
 		memoryManager,
 		templateEngine,
@@ -204,12 +203,11 @@ func NewWorker(
 
 // workerCoreComponents holds the core components needed for a worker
 type workerCoreComponents struct {
-	worker        worker.Worker
-	taskQueue     string
-	rtManager     runtime.Runtime
-	redisCache    *cache.Cache
-	configStore   services.ConfigStore
-	configManager *services.ConfigManager
+	worker      worker.Worker
+	taskQueue   string
+	rtManager   runtime.Runtime
+	redisCache  *cache.Cache
+	configStore services.ConfigStore
 }
 
 // dispatcherComponents holds dispatcher-related components
@@ -245,17 +243,16 @@ func setupWorkerCore(
 	if err != nil {
 		return nil, fmt.Errorf("failed to created execution manager: %w", err)
 	}
-	redisCache, configStore, configManager, err := setupRedisAndConfig(ctx, projectConfig)
+	redisCache, configStore, err := setupRedisAndConfig(ctx, projectConfig)
 	if err != nil {
 		return nil, err
 	}
 	return &workerCoreComponents{
-		worker:        worker,
-		taskQueue:     taskQueue,
-		rtManager:     rtManager,
-		redisCache:    redisCache,
-		configStore:   configStore,
-		configManager: configManager,
+		worker:      worker,
+		taskQueue:   taskQueue,
+		rtManager:   rtManager,
+		redisCache:  redisCache,
+		configStore: configStore,
 	}, nil
 }
 
@@ -263,21 +260,21 @@ func setupWorkerCore(
 func setupRedisAndConfig(
 	ctx context.Context,
 	projectConfig *project.Config,
-) (*cache.Cache, services.ConfigStore, *services.ConfigManager, error) {
+) (*cache.Cache, services.ConfigStore, error) {
 	log := logger.FromContext(ctx)
 	cacheStart := time.Now()
 	redisCache, err := cache.SetupCache(ctx, projectConfig.CacheConfig)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to setup Redis cache: %w", err)
+		return nil, nil, fmt.Errorf("failed to setup Redis cache: %w", err)
 	}
 	log.Debug("Redis cache connected", "duration", time.Since(cacheStart))
 	configStore := services.NewRedisConfigStore(redisCache.Redis, 24*time.Hour)
-	configManager := services.NewConfigManager(configStore, nil)
-	return redisCache, configStore, configManager, nil
+	return redisCache, configStore, nil
 }
 
 // setupMCPRegister initializes MCP registration for workflows
 func setupMCPRegister(ctx context.Context, workflows []*wf.Config, log logger.Logger) (*mcp.RegisterService, error) {
+	// Initialize MCP register and register all MCPs from all workflows
 	mcpStart := time.Now()
 	workflowConfigs := make([]mcp.WorkflowConfig, len(workflows))
 	for i, wf := range workflows {
@@ -375,6 +372,10 @@ func (o *Worker) Setup(_ context.Context) error {
 	o.worker.RegisterActivityWithOptions(
 		o.activities.LoadCompositeConfigsActivity,
 		activity.RegisterOptions{Name: tkacts.LoadCompositeConfigsLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.LoadCollectionConfigsActivity,
+		activity.RegisterOptions{Name: tkacts.LoadCollectionConfigsLabel},
 	)
 	o.worker.RegisterActivityWithOptions(
 		o.activities.DispatcherHeartbeat,
