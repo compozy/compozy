@@ -881,6 +881,148 @@ definitions:
       with:
         $ref: '#/definitions/core.Input'
     type: object
+  uc.AppendMemoryInput:
+    properties:
+      messages:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+    type: object
+  uc.AppendMemoryResult:
+    properties:
+      appended:
+        type: integer
+      key:
+        type: string
+      success:
+        type: boolean
+      total_count:
+        type: integer
+    type: object
+  uc.ClearMemoryInput:
+    properties:
+      backup:
+        type: boolean
+      confirm:
+        type: boolean
+    type: object
+  uc.ClearMemoryResult:
+    properties:
+      backup_created:
+        type: boolean
+      key:
+        type: string
+      messages_cleared:
+        type: integer
+      success:
+        type: boolean
+    type: object
+  uc.DeleteMemoryResult:
+    properties:
+      key:
+        type: string
+      success:
+        type: boolean
+    type: object
+  uc.FlushMemoryInput:
+    properties:
+      dry_run:
+        type: boolean
+      force:
+        type: boolean
+      max_keys:
+        type: integer
+      strategy:
+        type: string
+    type: object
+  uc.FlushMemoryResult:
+    properties:
+      dry_run:
+        type: boolean
+      error:
+        type: string
+      flush_strategy:
+        type: string
+      key:
+        type: string
+      message_count:
+        type: integer
+      success:
+        type: boolean
+      summary_generated:
+        type: boolean
+      token_count:
+        type: integer
+      would_flush:
+        type: boolean
+    type: object
+  uc.HealthMemoryResult:
+    properties:
+      current_tokens:
+        type: integer
+      flush_strategy:
+        type: string
+      healthy:
+        type: boolean
+      key:
+        type: string
+      last_flush:
+        type: string
+      message_count:
+        type: integer
+      token_count:
+        type: integer
+    type: object
+  uc.PaginationInfo:
+    properties:
+      has_more:
+        type: boolean
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total_count:
+        type: integer
+    type: object
+  uc.StatsMemoryOutput:
+    properties:
+      context_window_used:
+        type: integer
+      key:
+        type: string
+      message_count:
+        type: integer
+      pagination_info:
+        $ref: '#/definitions/uc.PaginationInfo'
+      role_distribution:
+        additionalProperties:
+          type: integer
+        type: object
+      token_count:
+        type: integer
+      token_limit:
+        type: integer
+      token_utilization:
+        type: number
+    type: object
+  uc.WriteMemoryInput:
+    properties:
+      messages:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+    type: object
+  uc.WriteMemoryResult:
+    properties:
+      count:
+        type: integer
+      key:
+        type: string
+      success:
+        type: boolean
+    type: object
   wfrouter.EventRequest:
     properties:
       name:
@@ -1697,6 +1839,488 @@ paths:
       summary: Call a tool on an MCP server
       tags:
         - MCP Tools
+  /api/v0/memory/{memory_ref}/{key}:
+    delete:
+      consumes:
+        - application/json
+      description: Delete all memory content for a specific key
+      parameters:
+        - description: Memory reference
+          example: '"user_memory"'
+          in: path
+          name: memory_ref
+          required: true
+          type: string
+        - description: Memory key
+          example: '"user:123:profile"'
+          in: path
+          name: key
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory deleted successfully
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/uc.DeleteMemoryResult'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Delete memory
+      tags:
+        - memory
+    get:
+      consumes:
+        - application/json
+      description: Retrieve memory content for a specific memory reference and key
+      parameters:
+        - description: Memory reference
+          example: '"user_memory"'
+          in: path
+          name: memory_ref
+          required: true
+          type: string
+        - description: Memory key
+          example: '"user:123:profile"'
+          in: path
+          name: key
+          required: true
+          type: string
+        - description: 'Maximum number of messages to return (default: 50, max: 1000)'
+          example: 50
+          in: query
+          name: limit
+          type: integer
+        - description: Number of messages to skip (for pagination)
+          example: 0
+          in: query
+          name: offset
+          type: integer
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory read successfully
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    properties:
+                      has_more:
+                        type: boolean
+                      key:
+                        type: string
+                      limit:
+                        type: integer
+                      messages:
+                        items:
+                          properties:
+                            content:
+                              type: string
+                            role:
+                              type: string
+                          type: object
+                        type: array
+                      offset:
+                        type: integer
+                      total_count:
+                        type: integer
+                    type: object
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "404":
+          description: Memory not found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Read memory content
+      tags:
+        - memory
+    post:
+      consumes:
+        - application/json
+      description: Append messages to existing memory content
+      parameters:
+        - description: Memory reference
+          example: '"user_memory"'
+          in: path
+          name: memory_ref
+          required: true
+          type: string
+        - description: Memory key
+          example: '"user:123:profile"'
+          in: path
+          name: key
+          required: true
+          type: string
+        - description: Messages to append
+          in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/uc.AppendMemoryInput'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory appended successfully
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/uc.AppendMemoryResult'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Append to memory
+      tags:
+        - memory
+    put:
+      consumes:
+        - application/json
+      description: Write or replace memory content for a specific memory reference and key
+      parameters:
+        - description: Memory reference
+          example: '"user_memory"'
+          in: path
+          name: memory_ref
+          required: true
+          type: string
+        - description: Memory key
+          example: '"user:123:profile"'
+          in: path
+          name: key
+          required: true
+          type: string
+        - description: Messages to write
+          in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/uc.WriteMemoryInput'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory written successfully
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/uc.WriteMemoryResult'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Write memory content
+      tags:
+        - memory
+  /api/v0/memory/{memory_ref}/{key}/clear:
+    post:
+      consumes:
+        - application/json
+      description: Clear all memory content with confirmation
+      parameters:
+        - description: Memory reference
+          example: '"user_memory"'
+          in: path
+          name: memory_ref
+          required: true
+          type: string
+        - description: Memory key
+          example: '"user:123:profile"'
+          in: path
+          name: key
+          required: true
+          type: string
+        - description: Clear options
+          in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/uc.ClearMemoryInput'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory cleared successfully
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/uc.ClearMemoryResult'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Clear memory
+      tags:
+        - memory
+  /api/v0/memory/{memory_ref}/{key}/flush:
+    post:
+      consumes:
+        - application/json
+      description: Flush memory content with optional summarization
+      parameters:
+        - description: Memory reference
+          example: '"user_memory"'
+          in: path
+          name: memory_ref
+          required: true
+          type: string
+        - description: Memory key
+          example: '"user:123:profile"'
+          in: path
+          name: key
+          required: true
+          type: string
+        - description: Flush options
+          in: body
+          name: body
+          schema:
+            $ref: '#/definitions/uc.FlushMemoryInput'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory flushed successfully
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/uc.FlushMemoryResult'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Flush memory
+      tags:
+        - memory
+  /api/v0/memory/{memory_ref}/{key}/health:
+    get:
+      consumes:
+        - application/json
+      description: Get health status and metrics for memory
+      parameters:
+        - description: Memory reference
+          example: '"user_memory"'
+          in: path
+          name: memory_ref
+          required: true
+          type: string
+        - description: Memory key
+          example: '"user:123:profile"'
+          in: path
+          name: key
+          required: true
+          type: string
+        - description: Include detailed stats
+          example: true
+          in: query
+          name: include_stats
+          type: boolean
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory health retrieved successfully
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/uc.HealthMemoryResult'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Check memory health
+      tags:
+        - memory
+  /api/v0/memory/{memory_ref}/{key}/stats:
+    get:
+      consumes:
+        - application/json
+      description: Retrieve detailed statistics about memory content
+      parameters:
+        - description: Memory reference
+          example: '"user_memory"'
+          in: path
+          name: memory_ref
+          required: true
+          type: string
+        - description: Memory key
+          example: '"user:123:profile"'
+          in: path
+          name: key
+          required: true
+          type: string
+        - description: 'Limit for role distribution calculation (default: 100, max: 10000)'
+          example: 100
+          in: query
+          name: limit
+          type: integer
+        - description: Offset for role distribution calculation
+          example: 0
+          in: query
+          name: offset
+          type: integer
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory statistics retrieved successfully
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/uc.StatsMemoryOutput'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Get memory statistics
+      tags:
+        - memory
   /events:
     post:
       consumes:
@@ -2807,5 +3431,7 @@ tags:
     name: tools
   - description: Schedule management operations
     name: schedules
+  - description: Memory management operations
+    name: memory
   - description: Operational endpoints for monitoring and health
     name: Operations

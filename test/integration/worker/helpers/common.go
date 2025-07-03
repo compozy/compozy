@@ -26,9 +26,11 @@ import (
 )
 
 // CreateMockRuntime creates a mock runtime manager for integration tests
-func CreateMockRuntime(t *testing.T) *coreruntime.Manager {
+func CreateMockRuntime(t *testing.T) coreruntime.Runtime {
 	ctx := t.Context()
-	rtManager, err := coreruntime.NewRuntimeManager(ctx, "/tmp", coreruntime.WithTestConfig())
+	config := coreruntime.TestConfig()
+	factory := coreruntime.NewDefaultFactory("/tmp")
+	rtManager, err := factory.CreateRuntime(ctx, config)
 	require.NoError(t, err, "failed to create mock runtime manager")
 	return rtManager
 }
@@ -361,7 +363,7 @@ func CreateTestActivities(
 	taskRepo *store.TaskRepo,
 	workflowRepo *store.WorkflowRepo,
 	fixture *TestFixture,
-	runtime *coreruntime.Manager,
+	runtime coreruntime.Runtime,
 	configStore *services.TestConfigStore,
 	projectName string,
 	agentConfig *agent.Config,

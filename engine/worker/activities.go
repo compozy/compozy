@@ -27,7 +27,7 @@ type Activities struct {
 	workflows        []*workflow.Config
 	workflowRepo     workflow.Repository
 	taskRepo         task.Repository
-	runtime          *runtime.Manager
+	runtime          runtime.Runtime
 	configStore      services.ConfigStore
 	signalDispatcher services.SignalDispatcher
 	redisCache       *cache.Cache
@@ -44,7 +44,7 @@ func NewActivities(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
-	runtime *runtime.Manager,
+	runtime runtime.Runtime,
 	configStore services.ConfigStore,
 	signalDispatcher services.SignalDispatcher,
 	redisCache *cache.Cache,

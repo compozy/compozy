@@ -25,13 +25,13 @@ type ExecuteTaskInput struct {
 }
 
 type ExecuteTask struct {
-	runtime        *runtime.Manager
+	runtime        runtime.Runtime
 	memoryManager  memcore.ManagerInterface
 	templateEngine *tplengine.TemplateEngine
 }
 
 func NewExecuteTask(
-	runtime *runtime.Manager,
+	runtime runtime.Runtime,
 	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
 ) *ExecuteTask {
@@ -50,7 +50,8 @@ func (uc *ExecuteTask) Execute(ctx context.Context, input *ExecuteTaskInput) (*c
 	switch {
 	case agentConfig != nil:
 		actionID := input.TaskConfig.Action
-		// TODO: remove this when do automatically selection for action
+		// TODO: Implement automatic action selection for agents (tracked in project backlog)
+		// Current behavior requires explicit action ID specification for agent tasks
 		if actionID == "" {
 			return nil, fmt.Errorf("action ID is required for agent")
 		}
@@ -119,18 +120,11 @@ func (uc *ExecuteTask) executeAgent(
 		// Create memory resolver for this execution
 		memoryResolver := NewMemoryResolver(uc.memoryManager, uc.templateEngine, workflowContext)
 		llmOpts = append(llmOpts, llm.WithMemoryProvider(memoryResolver))
-
-		log.Debug("Memory resolver initialized for agent execution",
-			"agent_id", agentConfig.ID,
-			"memory_count", len(agentConfig.GetResolvedMemoryReferences()),
-		)
 	} else if len(agentConfig.GetResolvedMemoryReferences()) > 0 {
 		// Log warning if agent has memory configuration but memory manager not available
 		log.Warn("Agent has memory configuration but memory manager not available",
 			"agent_id", agentConfig.ID,
 			"memory_count", len(agentConfig.GetResolvedMemoryReferences()),
-			"has_memory_dependencies", hasMemoryDependencies,
-			"has_workflow_context", hasWorkflowContext,
 		)
 	}
 
@@ -177,21 +171,26 @@ func buildWorkflowContext(
 
 	// Add workflow information
 	if workflowState != nil {
-		context["workflow"] = map[string]any{
+		workflowData := map[string]any{
 			"id":      workflowState.WorkflowID,
 			"exec_id": workflowState.WorkflowExecID.String(),
 			"status":  workflowState.Status,
 		}
 
-		// Add workflow input data
+		// Add workflow input data under workflow.input
 		if workflowState.Input != nil {
+			workflowData["input"] = *workflowState.Input
+			// Also maintain backward compatibility by putting input at top level
 			context["input"] = *workflowState.Input
 		}
 
 		// Add workflow outputs if available
 		if workflowState.Output != nil {
+			workflowData["output"] = *workflowState.Output
 			context["output"] = *workflowState.Output
 		}
+
+		context["workflow"] = workflowData
 	}
 
 	// Add workflow config information

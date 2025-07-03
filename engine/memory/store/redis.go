@@ -139,6 +139,52 @@ func (s *RedisMemoryStore) ReadMessages(ctx context.Context, key string) ([]llm.
 	return messages, nil
 }
 
+// ReadMessagesPaginated retrieves messages with pagination support
+func (s *RedisMemoryStore) ReadMessagesPaginated(
+	ctx context.Context,
+	key string,
+	offset, limit int,
+) ([]llm.Message, int, error) {
+	fKey := s.fullKey(key)
+	// Get total count first
+	totalCount, err := s.client.LLen(ctx, fKey).Result()
+	if err == redis.Nil {
+		return []llm.Message{}, 0, nil // Key not found, return empty slice
+	}
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get message count from redis for key %s: %w", fKey, err)
+	}
+	// Validate offset
+	if offset >= int(totalCount) {
+		return []llm.Message{}, int(totalCount), nil // Offset beyond available data
+	}
+	// Calculate range for Redis LRANGE (inclusive start, inclusive end)
+	start := int64(offset)
+	end := int64(offset + limit - 1)
+	if end >= totalCount {
+		end = totalCount - 1 // Adjust to available data
+	}
+	// Get paginated messages
+	vals, err := s.client.LRange(ctx, fKey, start, end).Result()
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to read paginated messages from redis for key %s: %w", fKey, err)
+	}
+	messages := make([]llm.Message, 0, len(vals))
+	for _, val := range vals {
+		var msg llm.Message
+		if err := json.Unmarshal([]byte(val), &msg); err != nil {
+			return nil, 0, fmt.Errorf(
+				"%w: could not unmarshal message from key %s: %s",
+				ErrInvalidMessage,
+				fKey,
+				err.Error(),
+			)
+		}
+		messages = append(messages, msg)
+	}
+	return messages, int(totalCount), nil
+}
+
 // CountMessages returns the number of messages for a given key.
 // Uses LLEN.
 func (s *RedisMemoryStore) CountMessages(ctx context.Context, key string) (int, error) {

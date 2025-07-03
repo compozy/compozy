@@ -5,6 +5,7 @@ alwaysApply: true
 ---
 <critical>
 **MANDATORY REQUIREMENTS:**
+- **ALWAYS** check dependent files APIs before write tests to avoid write wrong code
 - **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
 - **NEVER** use workarounds, especially in tests - implement proper solutions
 - **MUST** follow all established project standards:

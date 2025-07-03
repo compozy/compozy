@@ -9,22 +9,27 @@ Guidelines for managing task lists in markdown files to track progress on comple
 
 ## Task Implementation
 
+<critical>
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** check dependent files APIs before write tests to avoid write wrong code
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: `.cursor/rules/architecture.mdc`
+    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+    - Testing requirements: `.cursor/rules/testing-standards.mdc`
+    - API standards: `.cursor/rules/api-standards.mdc`
+    - Security & quality: `.cursor/rules/quality-security.mdc`
+- **MUST** run `make lint` and `make test` before completing ANY subtask
+- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
+**Enforcement:** Violating these standards results in immediate task rejection.
+</critical>
+
 <completion_protocol>
 1. When you finish a **sub‑task**, immediately mark it as completed by changing `[ ]` to `[x]`.
 2. If **all** subtasks underneath a parent task are now `[x]`, also mark the **parent task** as completed.
 - Stop after each sub‑task and wait for the user's go‑ahead.
 </completion_protocol>
-
-<critical type="before_parent_task_completion">
-Before completing the parent task (when ALL sub-tasks are [x]), you MUST:
-1. Run `make lint` and `make test` to ensure the implementation is correct
-2. Follow the @task-review.mdc workflow to ensure quality and review
-3. **NEVER** mark complete if ANY lint errors exist or ANY tests are failing
-4. **NEVER** mark complete without implementertions defined in the task
-5. **NEVER IN ANY CIRCUMSTANCE** fix things doing workarounds, you need to delivery good quality code.
-
-This comprehensive validation is required for parent tasks, not individual sub-tasks.
-</critical>
 
 ## Task List Maintenance
 
@@ -54,18 +59,3 @@ When working with task lists, the AI must:
 7. **ALWAYS** use the task.mdc file as the primary reference for implementation
 8. **NEVER** skip test assertions defined in the task requirements
 </ai_workflow>
-
-<critical type="code_quality_enforcement">
-**MANDATORY REQUIREnst PRD and tech specs - Ns
-- **NEVER** use workarountests - implement prfollow all established prre patterns: @Architecture & Design Principles
-  - Go coding standards: @Go Coding Standards
-irements: @Testing Standards
-  - API standards: @API Development Standards
-  - Security & quality: @Quality and Security Standards
-- **MUST** run `make lint` and `make test` before completing parent tasks
-- **MUST** follow @task-review.mdc workflow for parent tasks
-- **NEVER** finish tasks with ANY lint errors or failing tests
-- **NEVER** finish tasks without implementing ALL test assertions defined in task.mdc
-- **ALWAYS** use task.mdc as the primary reference for validation
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>

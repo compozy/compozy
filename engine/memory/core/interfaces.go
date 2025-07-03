@@ -17,6 +17,9 @@ type Memory interface {
 	// Read retrieves all messages from the memory.
 	// Implementations should handle ordering (e.g., chronological).
 	Read(ctx context.Context) ([]llm.Message, error)
+	// ReadPaginated retrieves messages from memory with pagination support.
+	// Returns the requested slice of messages and the total count for pagination metadata.
+	ReadPaginated(ctx context.Context, offset, limit int) ([]llm.Message, int, error)
 	// Len returns the number of messages in the memory.
 	Len(ctx context.Context) (int, error)
 
@@ -70,6 +73,9 @@ type MessageStore interface {
 	AppendMessages(ctx context.Context, key string, msgs []llm.Message) error
 	// ReadMessages retrieves all messages associated with the given key.
 	ReadMessages(ctx context.Context, key string) ([]llm.Message, error)
+	// ReadMessagesPaginated retrieves messages associated with the given key with pagination support.
+	// Returns the requested slice of messages and the total count for pagination metadata.
+	ReadMessagesPaginated(ctx context.Context, key string, offset, limit int) ([]llm.Message, int, error)
 	// ReplaceMessages replaces all messages for a key with a new set of messages.
 	// Useful for operations like summarization where the history is rewritten.
 	ReplaceMessages(ctx context.Context, key string, messages []llm.Message) error

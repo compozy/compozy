@@ -1,10 +1,11 @@
-name: memory-demo
+name: basic-memory
 version: 0.1.0
 description: Simple conversational agent that remembers user information using memory
 
 workflows:
-  - source: ./workflow.yaml
-  - source: ./memory-task-workflow.yaml
+  - source: ./basic-memory.yaml
+  - source: ./memory-task.yaml
+  - source: ./memory-api.yaml
 
 models:
   - provider: groq
@@ -12,10 +13,11 @@ models:
     api_key: "{{ .env.GROQ_API_KEY }}"
 
 runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
   permissions:
     - --allow-read
     - --allow-net
-    - --allow-env
 
 # AutoLoad configuration for discovering memory resources
 autoload:

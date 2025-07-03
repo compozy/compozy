@@ -11,11 +11,11 @@ import (
 
 type InternalTool struct {
 	config  *tool.Config
-	runtime *runtime.Manager
+	runtime runtime.Runtime
 	env     *core.EnvMap
 }
 
-func NewTool(config *tool.Config, env *core.EnvMap, runtime *runtime.Manager) *InternalTool {
+func NewTool(config *tool.Config, env *core.EnvMap, runtime runtime.Runtime) *InternalTool {
 	return &InternalTool{
 		config:  config,
 		env:     env,
@@ -44,12 +44,7 @@ func (t *InternalTool) Call(ctx context.Context, input *core.Input) (*core.Outpu
 	if err != nil {
 		return nil, fmt.Errorf("output processing failed: %w", err)
 	}
-	if output != nil {
-		if resultData, ok := (*output)["result"].(map[string]any); ok {
-			newOutput := core.Output(resultData)
-			return &newOutput, nil
-		}
-	}
+	// Return output directly - runtime manager handles all parsing and normalization
 	return output, nil
 }
 

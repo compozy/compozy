@@ -57,18 +57,24 @@ func NewMemoryResolver(
 func (r *MemoryResolver) GetMemory(ctx context.Context, memoryID string, keyTemplate string) (llm.Memory, error) {
 	log := logger.FromContext(ctx)
 
+	log.Debug("Resolving memory access",
+		"memory_id", memoryID,
+		"key_template", keyTemplate,
+	)
+
 	if r.memoryManager == nil {
-		log.Debug("Memory manager not available")
+		log.Error("Memory manager is nil")
 		return nil, nil
 	}
 
 	// Resolve the key template using the workflow context
 	resolvedKey, err := r.resolveKey(ctx, keyTemplate)
 	if err != nil {
+		log.Error("Failed to resolve key template", "error", err)
 		return nil, fmt.Errorf("failed to resolve memory key template: %w", err)
 	}
 
-	log.Debug("Resolving memory instance",
+	log.Debug("Key resolved successfully",
 		"memory_id", memoryID,
 		"key_template", keyTemplate,
 		"resolved_key", resolvedKey,

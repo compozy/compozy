@@ -20,7 +20,7 @@ type Service struct {
 }
 
 // NewService creates a new LLM service with clean architecture
-func NewService(ctx context.Context, runtime *runtime.Manager, agent *agent.Config, opts ...Option) (*Service, error) {
+func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Config, opts ...Option) (*Service, error) {
 	log := logger.FromContext(ctx)
 	// Build configuration
 	config := DefaultConfig()
@@ -106,9 +106,9 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// runtimeAdapter adapts runtime.Manager to the registry.ToolRuntime interface
+// runtimeAdapter adapts runtime.Runtime to the registry.ToolRuntime interface
 type runtimeAdapter struct {
-	manager *runtime.Manager
+	manager runtime.Runtime
 }
 
 func (r *runtimeAdapter) ExecuteTool(
