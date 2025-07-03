@@ -1,0 +1,60 @@
+name: collection-deterministic-processing
+
+workflow:
+  id: test-deterministic-processing
+  version: "1.0.0"
+  tasks:
+    - id: process-config-maps
+      type: collection
+      mode: sequential
+      items: "{{ .workflow.input.config_sets }}"
+      with:
+        # These maps should be processed in deterministic order (alphabetically by key)
+        zebra_config: "config-z"
+        alpha_config: "config-a"
+        beta_config: "config-b"
+        gamma_config: "config-g"
+        # Additional maps to test ordering
+        charlie_config: "config-c"
+        delta_config: "config-d"
+      env:
+        # Environment variables should also be deterministically ordered
+        ENV_Z: "env-z"
+        ENV_A: "env-a"
+        ENV_B: "env-b"
+        ENV_C: "env-c"
+      task:
+        id: "process-config-{{ .index }}"
+        type: basic
+        action: process_item
+        with:
+          item_name: "{{ .item.name }}"
+          item_value: "{{ .item.value }}"
+          multiplier: 1
+
+input:
+  config_sets:
+    - name: "config-set-1"
+      value: 1
+    - name: "config-set-2"
+      value: 2
+    - name: "config-set-3"
+      value: 3
+
+expected:
+  workflow_state:
+    status: "SUCCESS"
+    total_tasks: 4  # 1 parent + 3 children
+    completed_tasks: 4
+  task_states:
+    - name: process-config-maps
+      status: "SUCCESS"
+    - name: process-config-0
+      status: "SUCCESS"
+      parent: process-config-maps
+    - name: process-config-1
+      status: "SUCCESS"
+      parent: process-config-maps
+    - name: process-config-2
+      status: "SUCCESS"
+      parent: process-config-maps

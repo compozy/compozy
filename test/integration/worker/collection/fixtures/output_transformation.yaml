@@ -1,0 +1,61 @@
+name: collection-output-transformation
+
+workflow:
+  id: test-output-transformation
+  version: "1.0.0"
+  tasks:
+    - id: analyze-activities
+      type: collection
+      mode: parallel
+      items: "{{ .workflow.input.activities }}"
+      task:
+        id: "analyze-activity-{{ .index }}"
+        type: basic
+        action: analyze_activity
+        with:
+          activity_name: "{{ .item }}"
+        # This tests that {{ .item }} and {{ .index }} are available during output transformation
+        outputs:
+          activity: "{{ .item }}"
+          index: "{{ .index }}"
+          result: "{{ .output.analysis }}"
+          rating: "{{ .output.rating }}"
+
+input:
+  activities:
+    - "hiking"
+    - "swimming"
+    - "cycling"
+
+expected:
+  workflow_state:
+    status: "SUCCESS"
+    total_tasks: 4  # 1 parent + 3 children
+    completed_tasks: 4
+  task_states:
+    - name: analyze-activities
+      status: "SUCCESS"
+    - name: analyze-activity-0
+      status: "SUCCESS"
+      parent: analyze-activities
+      output:
+        activity: "hiking"
+        index: 0
+        result: "Excellent outdoor activity for cardiovascular health"
+        rating: 5
+    - name: analyze-activity-1
+      status: "SUCCESS"
+      parent: analyze-activities
+      output:
+        activity: "swimming"
+        index: 1
+        result: "Great full-body workout with low impact"
+        rating: 5
+    - name: analyze-activity-2
+      status: "SUCCESS"
+      parent: analyze-activities
+      output:
+        activity: "cycling"
+        index: 2
+        result: "Efficient cardio exercise that builds leg strength"
+        rating: 4

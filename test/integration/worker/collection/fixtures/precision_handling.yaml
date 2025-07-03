@@ -1,0 +1,50 @@
+name: collection-precision-handling
+
+workflow:
+  id: test-precision-handling
+  version: "1.0.0"
+  tasks:
+    - id: process-financial-data
+      type: collection
+      mode: parallel
+      items: "{{ .workflow.input.financial_records }}"
+      task:
+        id: "process-record-{{ .index }}"
+        type: basic
+        action: process_item
+        with:
+          item_name: "{{ .item.account_id }}"
+          item_value: 100
+          multiplier: 1
+          # Test precision preservation in template processing
+          balance_str: "{{ .item.balance }}"
+          rate_str: "{{ .item.rate }}"
+          decimal_str: "{{ .item.decimal }}"
+
+input:
+  financial_records:
+    - account_id: "9007199254740992"  # MAX_SAFE_INTEGER + 1  
+      amount: 18014398509481984  # 2^54  
+      balance: "999999999999999999"  # Large integer - as string
+      rate: "0.123456789123456789"  # High precision decimal - as string
+      decimal: "123456789.123456789"  # High precision decimal - as string
+    - account_id: "9007199254740993"  # MAX_SAFE_INTEGER + 2
+      amount: 36028797018963968  # 2^55
+      balance: "123456789012345678"  # Large integer - as string
+      rate: "2.345678901234567890"  # High precision decimal - as string
+      decimal: "987654321.987654321"  # High precision decimal - as string
+
+expected:
+  workflow_state:
+    status: "SUCCESS"
+    total_tasks: 3  # 1 parent + 2 children
+    completed_tasks: 3
+  task_states:
+    - name: process-financial-data
+      status: "SUCCESS"
+    - name: process-record-0
+      status: "SUCCESS"
+      parent: process-financial-data
+    - name: process-record-1
+      status: "SUCCESS"
+      parent: process-financial-data
