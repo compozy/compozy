@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/llm"
 	memcore "github.com/compozy/compozy/engine/memory/core"
+	"github.com/compozy/compozy/engine/memory/instance/strategies"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
@@ -24,6 +25,7 @@ type memoryOperationsService struct {
 	memoryManager     memcore.ManagerInterface
 	templateEngine    *tplengine.TemplateEngine
 	tokenCounter      memcore.TokenCounter
+	strategyFactory   *strategies.StrategyFactory
 	config            *Config
 	tracer            trace.Tracer
 	meter             metric.Meter
@@ -85,6 +87,7 @@ func NewMemoryOperationsServiceWithConfig(
 		memoryManager:     memoryManager,
 		templateEngine:    templateEngine,
 		tokenCounter:      tokenCounter,
+		strategyFactory:   strategies.NewStrategyFactoryWithTokenCounter(tokenCounter),
 		config:            config,
 		tracer:            tracer,
 		meter:             meter,
@@ -483,11 +486,11 @@ func (s *memoryOperationsService) Health(ctx context.Context, req *HealthRequest
 	}
 
 	result := &HealthResponse{
-		Healthy:       true,
-		Key:           req.Key,
-		TokenCount:    health.TokenCount,
-		MessageCount:  health.MessageCount,
-		FlushStrategy: health.FlushStrategy,
+		Healthy:        true,
+		Key:            req.Key,
+		TokenCount:     health.TokenCount,
+		MessageCount:   health.MessageCount,
+		ActualStrategy: health.ActualStrategy,
 	}
 
 	if health.LastFlush != nil {
@@ -571,10 +574,10 @@ func (s *memoryOperationsService) Stats(ctx context.Context, req *StatsRequest) 
 	}
 
 	result := &StatsResponse{
-		Key:           req.Key,
-		MessageCount:  messageCount,
-		TokenCount:    tokenCount,
-		FlushStrategy: health.FlushStrategy,
+		Key:            req.Key,
+		MessageCount:   messageCount,
+		TokenCount:     tokenCount,
+		ActualStrategy: health.ActualStrategy,
 	}
 
 	if health.LastFlush != nil {
@@ -942,7 +945,7 @@ func (s *memoryOperationsService) validateFlushRequest(req *FlushRequest) error 
 	if err := ValidateBaseRequestWithLimits(&req.BaseRequest, &s.config.ValidationLimits); err != nil {
 		return err
 	}
-	return ValidateFlushConfig(req.Config)
+	return ValidateFlushConfig(req.Config, s.strategyFactory)
 }
 
 // prepareFlushOperation prepares and validates the flush operation
@@ -983,14 +986,22 @@ func (s *memoryOperationsService) performDryRunFlush(
 			err,
 		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
+
+	// Determine what strategy would be used
+	actualStrategy := health.ActualStrategy
+	if req.Config != nil && req.Config.Strategy != "" {
+		// If user requested a specific strategy, that would be used
+		actualStrategy = req.Config.Strategy
+	}
+
 	return &FlushResponse{
-		Success:       true,
-		DryRun:        true,
-		Key:           req.Key,
-		WouldFlush:    health.TokenCount > 0,
-		TokenCount:    health.TokenCount,
-		MessageCount:  health.MessageCount,
-		FlushStrategy: health.FlushStrategy,
+		Success:        true,
+		DryRun:         true,
+		Key:            req.Key,
+		WouldFlush:     health.TokenCount > 0,
+		TokenCount:     health.TokenCount,
+		MessageCount:   health.MessageCount,
+		ActualStrategy: actualStrategy,
 	}, nil
 }
 
@@ -1000,7 +1011,44 @@ func (s *memoryOperationsService) performActualFlush(
 	flushableMem memcore.FlushableMemory,
 	req *FlushRequest,
 ) (*FlushResponse, error) {
-	result, err := flushableMem.PerformFlush(ctx)
+	// Extract requested strategy
+	requestedStrategy := ""
+	if req.Config != nil && req.Config.Strategy != "" {
+		requestedStrategy = req.Config.Strategy
+	}
+
+	// Check if instance supports dynamic strategy
+	var result *memcore.FlushMemoryActivityOutput
+	var err error
+	var actualStrategy string
+
+	if dynamicFlush, ok := flushableMem.(memcore.DynamicFlushableMemory); ok {
+		// Use dynamic flush
+		result, err = dynamicFlush.PerformFlushWithStrategy(ctx, requestedStrategy)
+
+		// Determine actual strategy used
+		if requestedStrategy != "" {
+			actualStrategy = requestedStrategy
+		} else {
+			actualStrategy = dynamicFlush.GetConfiguredStrategy()
+		}
+	} else {
+		// Fallback to standard flush
+		result, err = flushableMem.PerformFlush(ctx)
+
+		// Attempt to get the configured strategy for non-dynamic memories
+		if health, healthErr := flushableMem.GetMemoryHealth(ctx); healthErr == nil {
+			actualStrategy = health.ActualStrategy
+		} else {
+			// Log the error but don't fail the flush operation
+			logger.FromContext(ctx).Warn("Failed to get memory health for strategy info",
+				"error", healthErr,
+				"memory_ref", req.MemoryRef,
+				"key", req.Key)
+			actualStrategy = "unknown"
+		}
+	}
+
 	if err != nil {
 		return nil, memcore.NewMemoryError(
 			memcore.ErrCodeFlushFailed,
@@ -1014,6 +1062,7 @@ func (s *memoryOperationsService) performActualFlush(
 		SummaryGenerated: result.SummaryGenerated,
 		MessageCount:     result.MessageCount,
 		TokenCount:       result.TokenCount,
+		ActualStrategy:   actualStrategy,
 	}
 	if result.Error != "" {
 		response.Error = result.Error

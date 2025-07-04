@@ -61,9 +61,9 @@ func (h *HealthChecker) GetMemoryHealth(ctx context.Context) (*core.Health, erro
 			isPending = false
 		}
 		if isPending {
-			health.FlushStrategy = "flush_pending"
+			health.ActualStrategy = "flush_pending"
 		} else {
-			health.FlushStrategy = "ready"
+			health.ActualStrategy = "ready"
 		}
 	}
 

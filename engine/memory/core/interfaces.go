@@ -50,6 +50,18 @@ type FlushableMemory interface {
 	MarkFlushPending(ctx context.Context, pending bool) error
 }
 
+// DynamicFlushableMemory extends FlushableMemory with dynamic strategy support.
+// This interface allows memory instances to flush with a specific strategy per request,
+// overriding the configured default strategy.
+type DynamicFlushableMemory interface {
+	FlushableMemory
+	// PerformFlushWithStrategy executes flush with a specific strategy type.
+	// If strategyType is empty, uses the configured default strategy.
+	PerformFlushWithStrategy(ctx context.Context, strategyType string) (*FlushMemoryActivityOutput, error)
+	// GetConfiguredStrategy returns the default configured strategy type as a string.
+	GetConfiguredStrategy() string
+}
+
 // Store defines the interface for the underlying persistence layer for memory.
 // This is now a composite interface that includes all store operations.
 // Implementations will handle the actual storage and retrieval of messages.
@@ -147,10 +159,10 @@ type ManagerInterface interface {
 
 // Health provides diagnostic information about memory state.
 type Health struct {
-	TokenCount    int        `json:"token_count"`
-	MessageCount  int        `json:"message_count"`
-	LastFlush     *time.Time `json:"last_flush,omitempty"`
-	FlushStrategy string     `json:"flush_strategy"`
+	TokenCount     int        `json:"token_count"`
+	MessageCount   int        `json:"message_count"`
+	LastFlush      *time.Time `json:"last_flush,omitempty"`
+	ActualStrategy string     `json:"actual_strategy"`
 	// Potentially add lock status or other health indicators
 }
 
@@ -189,4 +201,18 @@ type ClearFlushPendingFlagInput struct {
 	MemoryInstanceKey string
 	MemoryResourceID  string
 	ProjectID         string
+}
+
+// FlushStrategy defines the interface for different flushing strategies
+type FlushStrategy interface {
+	// ShouldFlush determines if a flush should be triggered based on current state
+	ShouldFlush(tokenCount, messageCount int, config *Resource) bool
+	// PerformFlush executes the flush operation
+	PerformFlush(
+		ctx context.Context,
+		messages []llm.Message,
+		config *Resource,
+	) (*FlushMemoryActivityOutput, error)
+	// GetType returns the strategy type
+	GetType() FlushingStrategyType
 }

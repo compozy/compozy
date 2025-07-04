@@ -384,6 +384,7 @@ type SignalDispatcher struct {
 	client       client.Client
 	dispatcherID string
 	taskQueue    string
+	serverID     string
 }
 
 // NewSignalDispatcher creates a new TemporalSignalDispatcher
@@ -391,11 +392,13 @@ func NewSignalDispatcher(
 	client client.Client,
 	dispatcherID string,
 	taskQueue string,
+	serverID string,
 ) services.SignalDispatcher {
 	return &SignalDispatcher{
 		client:       client,
 		dispatcherID: dispatcherID,
 		taskQueue:    taskQueue,
+		serverID:     serverID,
 	}
 }
 
@@ -426,6 +429,7 @@ func (t *SignalDispatcher) DispatchSignal(
 		},
 		DispatcherWorkflow,
 		projectName,
+		t.serverID,
 	)
 	return err
 }

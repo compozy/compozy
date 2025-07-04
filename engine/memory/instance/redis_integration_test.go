@@ -249,7 +249,7 @@ func TestMemoryInstance_WithRealRedis(t *testing.T) {
 		// Verify health data
 		assert.Equal(t, 2, health.MessageCount)
 		assert.Greater(t, health.TokenCount, 0)
-		assert.NotEmpty(t, health.FlushStrategy)
+		assert.NotEmpty(t, health.ActualStrategy)
 	})
 
 	t.Run("Should handle concurrent access with real Redis store", func(t *testing.T) {

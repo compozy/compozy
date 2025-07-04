@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/memory/core"
+	"github.com/compozy/compozy/engine/memory/instance/strategies"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.temporal.io/sdk/client"
 )
@@ -19,13 +20,14 @@ type memoryInstance struct {
 	store             core.Store
 	lockManager       LockManager
 	tokenCounter      core.TokenCounter
-	flushingStrategy  FlushStrategy
+	flushingStrategy  core.FlushStrategy
 	evictionPolicy    EvictionPolicy
 	temporalClient    client.Client
 	temporalTaskQueue string
 	privacyManager    any
 	logger            logger.Logger
 	metrics           Metrics
+	strategyFactory   *strategies.StrategyFactory // NEW: for dynamic strategy creation
 }
 
 func NewMemoryInstance(opts *BuilderOptions) (Instance, error) {
@@ -33,6 +35,10 @@ func NewMemoryInstance(opts *BuilderOptions) (Instance, error) {
 		"memory_instance_id", opts.InstanceID,
 		"memory_resource_id", opts.ResourceID,
 	)
+
+	// Create strategy factory with token counter
+	strategyFactory := strategies.NewStrategyFactoryWithTokenCounter(opts.TokenCounter)
+
 	instance := &memoryInstance{
 		id:                opts.InstanceID,
 		resourceID:        opts.ResourceID,
@@ -48,6 +54,7 @@ func NewMemoryInstance(opts *BuilderOptions) (Instance, error) {
 		privacyManager:    opts.PrivacyManager,
 		logger:            instanceLogger,
 		metrics:           NewDefaultMetrics(instanceLogger),
+		strategyFactory:   strategyFactory,
 	}
 	return instance, nil
 }
@@ -222,10 +229,10 @@ func (mi *memoryInstance) GetMemoryHealth(ctx context.Context) (*core.Health, er
 	}
 	now := time.Now()
 	return &core.Health{
-		MessageCount:  messageCount,
-		TokenCount:    tokenCount,
-		LastFlush:     &now,
-		FlushStrategy: mi.flushingStrategy.GetType().String(),
+		MessageCount:   messageCount,
+		TokenCount:     tokenCount,
+		LastFlush:      &now,
+		ActualStrategy: mi.flushingStrategy.GetType().String(),
 	}, nil
 }
 
@@ -265,17 +272,51 @@ func (mi *memoryInstance) AppendWithPrivacy(ctx context.Context, msg llm.Message
 }
 
 func (mi *memoryInstance) PerformFlush(ctx context.Context) (*core.FlushMemoryActivityOutput, error) {
+	// Use PerformFlushWithStrategy with empty strategy to use default
+	return mi.PerformFlushWithStrategy(ctx, "")
+}
+
+// PerformFlushWithStrategy implements DynamicFlushableMemory interface
+func (mi *memoryInstance) PerformFlushWithStrategy(
+	ctx context.Context,
+	strategyType string,
+) (*core.FlushMemoryActivityOutput, error) {
+	// Validate strategy type if provided
+	if strategyType != "" {
+		if err := mi.validateStrategyType(strategyType); err != nil {
+			return nil, fmt.Errorf("invalid strategy type: %w", err)
+		}
+	}
+
 	// Create flush handler with necessary dependencies
 	flushHandler := &FlushHandler{
-		instanceID:       mi.id,
-		store:            mi.store,
-		lockManager:      mi.lockManager,
-		flushingStrategy: mi.flushingStrategy,
-		logger:           mi.logger,
-		metrics:          mi.metrics,
-		resourceConfig:   mi.resourceConfig,
+		instanceID:        mi.id,
+		projectID:         mi.projectID,
+		store:             mi.store,
+		lockManager:       mi.lockManager,
+		flushingStrategy:  mi.flushingStrategy, // default strategy
+		strategyFactory:   mi.strategyFactory,  // for dynamic creation
+		requestedStrategy: strategyType,        // requested strategy
+		tokenCounter:      mi.tokenCounter,
+		logger:            mi.logger,
+		metrics:           mi.metrics,
+		resourceConfig:    mi.resourceConfig,
 	}
 	return flushHandler.PerformFlush(ctx)
+}
+
+// GetConfiguredStrategy implements DynamicFlushableMemory interface
+func (mi *memoryInstance) GetConfiguredStrategy() string {
+	if mi.resourceConfig != nil && mi.resourceConfig.FlushingStrategy != nil {
+		return string(mi.resourceConfig.FlushingStrategy.Type)
+	}
+	return string(core.SimpleFIFOFlushing)
+}
+
+// validateStrategyType validates that the strategy type is supported
+func (mi *memoryInstance) validateStrategyType(strategyType string) error {
+	// Use factory's validation method
+	return mi.strategyFactory.ValidateStrategyType(strategyType)
 }
 
 func (mi *memoryInstance) MarkFlushPending(ctx context.Context, pending bool) error {
@@ -283,79 +324,94 @@ func (mi *memoryInstance) MarkFlushPending(ctx context.Context, pending bool) er
 }
 
 func (mi *memoryInstance) checkFlushTrigger(ctx context.Context) {
-	go func() {
-		// Create a timeout context to prevent goroutine leaks
-		timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		defer cancel()
+	go mi.performAsyncFlushCheck(ctx)
+}
 
-		// Check if the context is already canceled before starting work
-		select {
-		case <-timeoutCtx.Done():
-			mi.logger.Debug("Flush trigger check canceled", "memory_id", mi.id, "reason", timeoutCtx.Err())
-			return
-		default:
-		}
+// performAsyncFlushCheck executes the flush check logic asynchronously.
+// It creates a timeout context to prevent goroutine leaks and checks
+// if flushing should be triggered based on token and message counts.
+func (mi *memoryInstance) performAsyncFlushCheck(ctx context.Context) {
+	// Create a timeout context to prevent goroutine leaks
+	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	// Check if the context is already canceled before starting work
+	if mi.isContextCanceled(timeoutCtx, "Flush trigger check canceled") {
+		return
+	}
+	// Get token count with cancellation check
+	tokenCount, err := mi.getTokenCountWithCheck(timeoutCtx)
+	if err != nil {
+		return
+	}
+	// Check cancellation again before the second call
+	if mi.isContextCanceled(timeoutCtx, "Flush trigger check canceled after token count") {
+		return
+	}
+	// Get message count with cancellation check
+	messageCount, err := mi.getMessageCountWithCheck(timeoutCtx)
+	if err != nil {
+		return
+	}
+	// Final cancellation check before flush decision
+	if mi.isContextCanceled(timeoutCtx, "Flush trigger check canceled before flush decision") {
+		return
+	}
+	// Check if flush should be triggered
+	if mi.flushingStrategy.ShouldFlush(tokenCount, messageCount, mi.resourceConfig) {
+		mi.logger.Info(
+			"Flush triggered",
+			"token_count",
+			tokenCount,
+			"message_count",
+			messageCount,
+			"memory_id",
+			mi.id,
+		)
+	}
+}
 
-		tokenCount, err := mi.GetTokenCount(timeoutCtx)
-		if err != nil {
-			// Check if error is due to context cancellation
-			if timeoutCtx.Err() != nil {
-				mi.logger.Debug("Token count check canceled", "memory_id", mi.id, "reason", timeoutCtx.Err())
-				return
-			}
-			mi.logger.Error("Failed to get token count for flush check", "error", err, "memory_id", mi.id)
-			return
-		}
+// isContextCanceled checks if the context is canceled and logs if so.
+// Returns true if the context is done, false otherwise.
+func (mi *memoryInstance) isContextCanceled(ctx context.Context, message string) bool {
+	select {
+	case <-ctx.Done():
+		mi.logger.Debug(message, "memory_id", mi.id, "reason", ctx.Err())
+		return true
+	default:
+		return false
+	}
+}
 
-		// Check cancellation again before the second call
-		select {
-		case <-timeoutCtx.Done():
-			mi.logger.Debug(
-				"Flush trigger check canceled after token count",
-				"memory_id",
-				mi.id,
-				"reason",
-				timeoutCtx.Err(),
-			)
-			return
-		default:
+// getTokenCountWithCheck gets token count and handles cancellation.
+// It distinguishes between context cancellation errors and actual failures,
+// logging appropriately for each case.
+func (mi *memoryInstance) getTokenCountWithCheck(ctx context.Context) (int, error) {
+	tokenCount, err := mi.GetTokenCount(ctx)
+	if err != nil {
+		// Check if error is due to context cancellation
+		if ctx.Err() != nil {
+			mi.logger.Debug("Token count check canceled", "memory_id", mi.id, "reason", ctx.Err())
+			return 0, err
 		}
+		mi.logger.Error("Failed to get token count for flush check", "error", err, "memory_id", mi.id)
+		return 0, err
+	}
+	return tokenCount, nil
+}
 
-		messageCount, err := mi.Len(timeoutCtx)
-		if err != nil {
-			// Check if error is due to context cancellation
-			if timeoutCtx.Err() != nil {
-				mi.logger.Debug("Message count check canceled", "memory_id", mi.id, "reason", timeoutCtx.Err())
-				return
-			}
-			mi.logger.Error("Failed to get message count for flush check", "error", err, "memory_id", mi.id)
-			return
+// getMessageCountWithCheck gets message count and handles cancellation.
+// It distinguishes between context cancellation errors and actual failures,
+// logging appropriately for each case.
+func (mi *memoryInstance) getMessageCountWithCheck(ctx context.Context) (int, error) {
+	messageCount, err := mi.Len(ctx)
+	if err != nil {
+		// Check if error is due to context cancellation
+		if ctx.Err() != nil {
+			mi.logger.Debug("Message count check canceled", "memory_id", mi.id, "reason", ctx.Err())
+			return 0, err
 		}
-
-		// Final cancellation check before flush decision
-		select {
-		case <-timeoutCtx.Done():
-			mi.logger.Debug(
-				"Flush trigger check canceled before flush decision",
-				"memory_id",
-				mi.id,
-				"reason",
-				timeoutCtx.Err(),
-			)
-			return
-		default:
-		}
-
-		if mi.flushingStrategy.ShouldFlush(tokenCount, messageCount, mi.resourceConfig) {
-			mi.logger.Info(
-				"Flush triggered",
-				"token_count",
-				tokenCount,
-				"message_count",
-				messageCount,
-				"memory_id",
-				mi.id,
-			)
-		}
-	}()
+		mi.logger.Error("Failed to get message count for flush check", "error", err, "memory_id", mi.id)
+		return 0, err
+	}
+	return messageCount, nil
 }

@@ -48,20 +48,6 @@ type LockManager interface {
 // UnlockFunc is a function that releases a lock
 type UnlockFunc func() error
 
-// FlushStrategy defines the interface for different flushing strategies
-type FlushStrategy interface {
-	// ShouldFlush determines if a flush should be triggered based on current state
-	ShouldFlush(tokenCount, messageCount int, config *core.Resource) bool
-	// PerformFlush executes the flush operation
-	PerformFlush(
-		ctx context.Context,
-		messages []llm.Message,
-		config *core.Resource,
-	) (*core.FlushMemoryActivityOutput, error)
-	// GetType returns the strategy type
-	GetType() core.FlushingStrategyType
-}
-
 // EvictionPolicy defines the interface for message eviction strategies
 type EvictionPolicy interface {
 	// SelectMessagesToEvict selects which messages should be evicted

@@ -192,3 +192,130 @@ func TestStrategyFactory_CreateDefaultStrategy(t *testing.T) {
 		assert.Equal(t, core.SimpleFIFOFlushing, strategy.GetType())
 	})
 }
+
+func TestStrategyFactory_ValidateStrategyType(t *testing.T) {
+	factory := NewStrategyFactory()
+
+	tests := []struct {
+		name        string
+		strategy    string
+		expectError bool
+		errMsg      string
+	}{
+		{
+			name:        "valid simple_fifo strategy",
+			strategy:    "simple_fifo",
+			expectError: false,
+		},
+		{
+			name:        "valid fifo alias",
+			strategy:    "fifo",
+			expectError: false,
+		},
+		{
+			name:        "valid lru strategy",
+			strategy:    "lru",
+			expectError: false,
+		},
+		{
+			name:        "valid token_aware_lru strategy",
+			strategy:    "token_aware_lru",
+			expectError: false,
+		},
+		{
+			name:        "empty string is valid (uses default)",
+			strategy:    "",
+			expectError: false,
+		},
+		{
+			name:        "invalid strategy",
+			strategy:    "invalid_strategy",
+			expectError: true,
+			errMsg:      "invalid strategy type: invalid_strategy",
+		},
+		{
+			name:        "obsolete summarize strategy",
+			strategy:    "summarize",
+			expectError: true,
+			errMsg:      "invalid strategy type: summarize",
+		},
+		{
+			name:        "obsolete hybrid strategy",
+			strategy:    "hybrid",
+			expectError: true,
+			errMsg:      "invalid strategy type: hybrid",
+		},
+		{
+			name:        "obsolete hybrid_summary strategy",
+			strategy:    "hybrid_summary",
+			expectError: true,
+			errMsg:      "strategy type hybrid_summary is not supported",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := factory.ValidateStrategyType(tt.strategy)
+			if tt.expectError {
+				require.Error(t, err)
+				if tt.errMsg != "" {
+					assert.Contains(t, err.Error(), tt.errMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestStrategyFactory_GetSupportedStrategies(t *testing.T) {
+	factory := NewStrategyFactory()
+	strategies := factory.GetSupportedStrategies()
+
+	t.Run("Should return all supported strategies as strings", func(t *testing.T) {
+		// Should include all valid strategies
+		assert.Contains(t, strategies, "simple_fifo")
+		assert.Contains(t, strategies, "fifo")
+		assert.Contains(t, strategies, "lru")
+		assert.Contains(t, strategies, "token_aware_lru")
+
+		// Should have exactly 4 strategies (including fifo alias)
+		assert.Len(t, strategies, 4)
+	})
+
+	t.Run("Should NOT include obsolete strategies", func(t *testing.T) {
+		assert.NotContains(t, strategies, "summarize")
+		assert.NotContains(t, strategies, "trim")
+		assert.NotContains(t, strategies, "archive")
+		assert.NotContains(t, strategies, "hybrid")
+		assert.NotContains(t, strategies, "hybrid_summary")
+		assert.NotContains(t, strategies, "priority_based")
+	})
+}
+
+func TestStrategyFactory_IsValidStrategy(t *testing.T) {
+	factory := NewStrategyFactory()
+
+	tests := []struct {
+		name     string
+		strategy string
+		expected bool
+	}{
+		{"simple_fifo is valid", "simple_fifo", true},
+		{"fifo alias is valid", "fifo", true},
+		{"lru is valid", "lru", true},
+		{"token_aware_lru is valid", "token_aware_lru", true},
+		{"empty string is valid", "", true},
+		{"invalid_strategy is invalid", "invalid_strategy", false},
+		{"summarize is invalid", "summarize", false},
+		{"hybrid is invalid", "hybrid", false},
+		{"hybrid_summary is invalid", "hybrid_summary", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := factory.IsValidStrategy(tt.strategy)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

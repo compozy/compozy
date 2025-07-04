@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/llm"
 	memcore "github.com/compozy/compozy/engine/memory/core"
+	"github.com/compozy/compozy/engine/memory/instance/strategies"
 )
 
 // Default validation limits - used when no config is provided
@@ -253,7 +254,7 @@ func ValidateBaseRequestWithLimits(req *BaseRequest, limits *ValidationLimits) e
 }
 
 // ValidateFlushConfig validates flush operation configuration
-func ValidateFlushConfig(config *FlushConfig) error {
+func ValidateFlushConfig(config *FlushConfig, factory *strategies.StrategyFactory) error {
 	if config == nil {
 		return nil // Config is optional
 	}
@@ -285,15 +286,9 @@ func ValidateFlushConfig(config *FlushConfig) error {
 
 	// Validate strategy if provided
 	if config.Strategy != "" {
-		validStrategies := []string{"hybrid_summary", "simple_fifo", "lru", "token_aware_lru"}
-		valid := false
-		for _, s := range validStrategies {
-			if config.Strategy == s {
-				valid = true
-				break
-			}
-		}
-		if !valid {
+		// Use the provided factory instance for validation
+		if err := factory.ValidateStrategyType(config.Strategy); err != nil {
+			validStrategies := factory.GetSupportedStrategies()
 			return memcore.NewMemoryError(
 				memcore.ErrCodeInvalidConfig,
 				fmt.Sprintf("invalid strategy '%s', must be one of: %v", config.Strategy, validStrategies),

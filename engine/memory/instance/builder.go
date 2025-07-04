@@ -18,7 +18,7 @@ type BuilderOptions struct {
 	Store             core.Store
 	LockManager       LockManager
 	TokenCounter      core.TokenCounter
-	FlushingStrategy  FlushStrategy
+	FlushingStrategy  core.FlushStrategy
 	EvictionPolicy    EvictionPolicy // Policy for selecting messages to evict
 	TemporalClient    client.Client
 	TemporalTaskQueue string
@@ -81,7 +81,7 @@ func (b *Builder) WithTokenCounter(tc core.TokenCounter) *Builder {
 }
 
 // WithFlushingStrategy sets the flushing strategy
-func (b *Builder) WithFlushingStrategy(fs FlushStrategy) *Builder {
+func (b *Builder) WithFlushingStrategy(fs core.FlushStrategy) *Builder {
 	b.opts.FlushingStrategy = fs
 	return b
 }

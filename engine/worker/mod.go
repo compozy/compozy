@@ -329,7 +329,7 @@ func setupMemoryManager(
 func createDispatcher(projectConfig *project.Config, taskQueue string, client *Client) *dispatcherComponents {
 	serverID := core.MustNewID().String()[:8]
 	dispatcherID := fmt.Sprintf("dispatcher-%s-%s", slug.Make(projectConfig.Name), serverID)
-	signalDispatcher := NewSignalDispatcher(client, dispatcherID, taskQueue)
+	signalDispatcher := NewSignalDispatcher(client, dispatcherID, taskQueue, serverID)
 	return &dispatcherComponents{
 		dispatcherID:     dispatcherID,
 		serverID:         serverID,

@@ -14,13 +14,13 @@ type HealthMemoryInput struct {
 
 // HealthMemoryResult represents the result of checking memory health
 type HealthMemoryResult struct {
-	Healthy       bool   `json:"healthy"`
-	Key           string `json:"key"`
-	TokenCount    int    `json:"token_count"`
-	MessageCount  int    `json:"message_count"`
-	FlushStrategy string `json:"flush_strategy"`
-	LastFlush     string `json:"last_flush,omitempty"`
-	CurrentTokens int    `json:"current_tokens,omitempty"`
+	Healthy        bool   `json:"healthy"`
+	Key            string `json:"key"`
+	TokenCount     int    `json:"token_count"`
+	MessageCount   int    `json:"message_count"`
+	ActualStrategy string `json:"actual_strategy"`
+	LastFlush      string `json:"last_flush,omitempty"`
+	CurrentTokens  int    `json:"current_tokens,omitempty"`
 }
 
 // HealthMemory use case for checking memory health
@@ -76,13 +76,13 @@ func (uc *HealthMemory) Execute(ctx context.Context) (*HealthMemoryResult, error
 	}
 
 	return &HealthMemoryResult{
-		Healthy:       resp.Healthy,
-		Key:           resp.Key,
-		TokenCount:    resp.TokenCount,
-		MessageCount:  resp.MessageCount,
-		FlushStrategy: resp.FlushStrategy,
-		LastFlush:     resp.LastFlush,
-		CurrentTokens: resp.CurrentTokens,
+		Healthy:        resp.Healthy,
+		Key:            resp.Key,
+		TokenCount:     resp.TokenCount,
+		MessageCount:   resp.MessageCount,
+		ActualStrategy: resp.ActualStrategy,
+		LastFlush:      resp.LastFlush,
+		CurrentTokens:  resp.CurrentTokens,
 	}, nil
 }
 

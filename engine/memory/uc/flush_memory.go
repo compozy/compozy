@@ -24,7 +24,7 @@ type FlushMemoryResult struct {
 	TokenCount       int    `json:"token_count"`
 	DryRun           bool   `json:"dry_run,omitempty"`
 	WouldFlush       bool   `json:"would_flush,omitempty"`
-	FlushStrategy    string `json:"flush_strategy,omitempty"`
+	ActualStrategy   string `json:"actual_strategy"`
 	Error            string `json:"error,omitempty"`
 }
 
@@ -91,7 +91,7 @@ func (uc *FlushMemory) Execute(ctx context.Context) (*FlushMemoryResult, error) 
 		TokenCount:       resp.TokenCount,
 		DryRun:           resp.DryRun,
 		WouldFlush:       resp.WouldFlush,
-		FlushStrategy:    resp.FlushStrategy,
+		ActualStrategy:   resp.ActualStrategy,
 		Error:            resp.Error,
 	}, nil
 }

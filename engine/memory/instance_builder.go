@@ -21,7 +21,7 @@ type memoryComponents struct {
 	store            memcore.Store
 	lockManager      *instance.LockManagerImpl
 	tokenManager     *TokenMemoryManager
-	flushingStrategy instance.FlushStrategy
+	flushingStrategy memcore.FlushStrategy
 	evictionPolicy   instance.EvictionPolicy
 }
 
@@ -295,7 +295,7 @@ func (mm *Manager) createTokenManager(resourceCfg *memcore.Resource) (*TokenMemo
 func (mm *Manager) createFlushingStrategy(
 	resourceCfg *memcore.Resource,
 	tokenManager *TokenMemoryManager,
-) (instance.FlushStrategy, error) {
+) (memcore.FlushStrategy, error) {
 	factory := mm.createStrategyFactory(tokenManager)
 	strategyConfig := mm.getStrategyConfig(resourceCfg)
 
@@ -336,7 +336,7 @@ func (mm *Manager) createStrategyWithFactory(
 	factory *strategies.StrategyFactory,
 	resourceCfg *memcore.Resource,
 	strategyConfig *memcore.FlushingStrategyConfig,
-) (instance.FlushStrategy, error) {
+) (memcore.FlushStrategy, error) {
 	opts := mm.createStrategyOptions(resourceCfg)
 	strategy, err := factory.CreateStrategy(strategyConfig, opts)
 	if err != nil {
@@ -350,7 +350,7 @@ func (mm *Manager) createLegacyHybridStrategy(
 	resourceCfg *memcore.Resource,
 	tokenManager *TokenMemoryManager,
 	strategyConfig *memcore.FlushingStrategyConfig,
-) (instance.FlushStrategy, error) {
+) (memcore.FlushStrategy, error) {
 	var summarizer MessageSummarizer
 	tokenCounter, err := mm.getOrCreateTokenCounter(DefaultTokenCounterModel)
 	if err != nil {

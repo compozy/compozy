@@ -158,6 +158,14 @@ func (env *TestEnvironment) GetLogger() logger.Logger {
 	return env.logger
 }
 
+// RegisterMemoryConfig registers a memory configuration for testing
+func (env *TestEnvironment) RegisterMemoryConfig(config *memory.Config) error {
+	if err := config.Validate(); err != nil {
+		return fmt.Errorf("failed to validate config %s: %w", config.ID, err)
+	}
+	return env.configRegistry.Register(config, "test")
+}
+
 // addTestMemoryConfigs adds test-specific memory configurations
 func (env *TestEnvironment) addTestMemoryConfigs() {
 	// Register test memory resources
