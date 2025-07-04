@@ -45,10 +45,8 @@ func CreateTestContainerDatabase(ctx context.Context, t *testing.T) (*pgxpool.Po
 
 	cleanup := func() {
 		// Close the pool first to release all connections
+		// pool.Close() is synchronous and waits for all connections to be properly closed
 		pool.Close()
-
-		// Give a moment for connections to close
-		time.Sleep(100 * time.Millisecond)
 
 		// Terminate the container with a timeout
 		terminateCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

@@ -278,10 +278,8 @@ func (o *ConfigOrchestrator) NormalizeTaskWithSignal(
 		"output": workflowState.Output,
 	}
 	normCtx.MergedEnv = config.Env
-	// Get wait task normalizer
-	if config.Type != task.TaskTypeWait {
-		return fmt.Errorf("signal normalization only supported for wait tasks, got: %s", config.Type)
-	}
+	// Get wait task normalizer - it handles signal normalization for both wait tasks and their processors
+	// Note: Wait task processors can be any task type (usually basic) but still need signal context
 	normalizer, err := o.factory.CreateNormalizer(task.TaskTypeWait)
 	if err != nil {
 		return fmt.Errorf("failed to create wait normalizer: %w", err)

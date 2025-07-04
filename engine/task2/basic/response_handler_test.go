@@ -28,18 +28,17 @@ func TestNewResponseHandler(t *testing.T) {
 		assert.Equal(t, baseHandler, handler.baseHandler)
 	})
 
-	t.Run("Should handle nil dependencies gracefully", func(t *testing.T) {
-		handler := NewResponseHandler(nil, nil, nil)
-		assert.NotNil(t, handler)
-		assert.Nil(t, handler.templateEngine)
-		assert.Nil(t, handler.contextBuilder)
-		assert.Nil(t, handler.baseHandler)
+	t.Run("Should panic with nil baseHandler", func(t *testing.T) {
+		assert.Panics(t, func() {
+			NewResponseHandler(nil, nil, nil)
+		}, "NewResponseHandler should panic when baseHandler is nil")
 	})
 }
 
 func TestBasicResponseHandler_Type(t *testing.T) {
 	t.Run("Should return TaskTypeBasic", func(t *testing.T) {
-		handler := NewResponseHandler(nil, nil, nil)
+		baseHandler := &shared.BaseResponseHandler{}
+		handler := NewResponseHandler(nil, nil, baseHandler)
 		assert.Equal(t, task.TaskTypeBasic, handler.Type())
 	})
 }
@@ -47,7 +46,8 @@ func TestBasicResponseHandler_Type(t *testing.T) {
 // Task Type Validation Tests (only testable unit logic)
 func TestBasicResponseHandler_TaskTypeValidation(t *testing.T) {
 	t.Run("Should validate correct task type without panic", func(t *testing.T) {
-		handler := NewResponseHandler(nil, nil, nil)
+		baseHandler := &shared.BaseResponseHandler{}
+		handler := NewResponseHandler(nil, nil, baseHandler)
 
 		// Test that we can create input with correct type without issues
 		input := &shared.ResponseInput{
@@ -65,7 +65,8 @@ func TestBasicResponseHandler_TaskTypeValidation(t *testing.T) {
 	})
 
 	t.Run("Should identify wrong task type without panic", func(t *testing.T) {
-		handler := NewResponseHandler(nil, nil, nil)
+		baseHandler := &shared.BaseResponseHandler{}
+		handler := NewResponseHandler(nil, nil, baseHandler)
 
 		// Test that we can identify type mismatches in input
 		input := &shared.ResponseInput{
@@ -88,14 +89,16 @@ func TestBasicResponseHandler_TaskTypeValidation(t *testing.T) {
 func TestBasicResponseHandler_FieldAccess(t *testing.T) {
 	t.Run("Should store and retrieve template engine", func(t *testing.T) {
 		engine := &tplengine.TemplateEngine{}
-		handler := NewResponseHandler(engine, nil, nil)
+		baseHandler := &shared.BaseResponseHandler{}
+		handler := NewResponseHandler(engine, nil, baseHandler)
 
 		assert.Same(t, engine, handler.templateEngine)
 	})
 
 	t.Run("Should store and retrieve context builder", func(t *testing.T) {
 		builder := &shared.ContextBuilder{}
-		handler := NewResponseHandler(nil, builder, nil)
+		baseHandler := &shared.BaseResponseHandler{}
+		handler := NewResponseHandler(nil, builder, baseHandler)
 
 		assert.Same(t, builder, handler.contextBuilder)
 	})
@@ -111,7 +114,8 @@ func TestBasicResponseHandler_FieldAccess(t *testing.T) {
 // Test input structure validation (without calling dependent methods)
 func TestBasicResponseHandler_InputStructureValidation(t *testing.T) {
 	t.Run("Should handle nil input config gracefully", func(t *testing.T) {
-		_ = NewResponseHandler(nil, nil, nil)
+		baseHandler := &shared.BaseResponseHandler{}
+		_ = NewResponseHandler(nil, nil, baseHandler)
 
 		input := &shared.ResponseInput{
 			TaskConfig:     nil, // Test nil config
@@ -126,7 +130,8 @@ func TestBasicResponseHandler_InputStructureValidation(t *testing.T) {
 	})
 
 	t.Run("Should handle valid input structure", func(t *testing.T) {
-		handler := NewResponseHandler(nil, nil, nil)
+		baseHandler := &shared.BaseResponseHandler{}
+		handler := NewResponseHandler(nil, nil, baseHandler)
 
 		input := &shared.ResponseInput{
 			TaskConfig: &task.Config{

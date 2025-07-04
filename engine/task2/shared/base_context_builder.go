@@ -72,15 +72,19 @@ func (b *BaseContextBuilder) EnrichContext(ctx *NormalizationContext, taskState 
 	}
 	// Add task output to variables if available
 	if taskState.Output != nil {
-		if taskMap, ok := ctx.Variables["task"].(map[string]any); ok {
-			taskMap["output"] = taskState.Output
+		taskMap, ok := ctx.Variables["task"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("task variable is not a map[string]any, got %T", ctx.Variables["task"])
 		}
+		taskMap["output"] = taskState.Output
 	}
 	// Add task state status
-	if taskMap, ok := ctx.Variables["task"].(map[string]any); ok {
-		taskMap["status"] = taskState.Status
-		taskMap["error"] = taskState.Error
+	taskMap, ok := ctx.Variables["task"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("task variable is not a map[string]any, got %T", ctx.Variables["task"])
 	}
+	taskMap["status"] = taskState.Status
+	taskMap["error"] = taskState.Error
 	return nil
 }
 

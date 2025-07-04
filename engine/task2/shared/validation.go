@@ -87,6 +87,7 @@ var validTaskTypes = map[task.Type]bool{
 	task.TaskTypeAggregate:  true,
 	task.TaskTypeComposite:  true,
 	task.TaskTypeSignal:     true,
+	task.TaskTypeMemory:     true,
 	"":                      true, // Empty type defaults to basic
 }
 

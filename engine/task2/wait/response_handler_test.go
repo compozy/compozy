@@ -128,16 +128,10 @@ func TestWaitResponseHandler_ValidateWaitCompletion(t *testing.T) {
 	t.Run("Should handle nil state gracefully", func(t *testing.T) {
 		handler := NewResponseHandler(nil, nil, nil)
 
-		// The ValidateWaitCompletion method accesses state.Status, so nil state will panic
-		// Let's test with a valid state instead
-		state := &task.State{
-			TaskExecID: "test-exec-id",
-			TaskID:     "test-task-id",
-			Status:     core.StatusPending,
-		}
+		// Test that nil state returns an error instead of panicking
+		err := handler.ValidateWaitCompletion(nil)
 
-		err := handler.ValidateWaitCompletion(state)
-
-		assert.NoError(t, err) // Current implementation doesn't return errors
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "state cannot be nil")
 	})
 }

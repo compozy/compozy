@@ -72,14 +72,14 @@ func TestSortedMapUtilities(t *testing.T) {
 		require.False(t, called)
 	})
 
-	t.Run("Should work with concurrent map access safely", func(t *testing.T) {
+	t.Run("Should maintain deterministic order across multiple sequential calls", func(t *testing.T) {
 		m := map[string]int{
 			"concurrent": 1,
 			"access":     2,
 			"test":       3,
 		}
 
-		// Multiple concurrent accesses should be safe
+		// Multiple sequential calls should produce identical results
 		results := make([][]string, 5)
 		for i := 0; i < 5; i++ {
 			var keys []string

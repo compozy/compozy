@@ -24,13 +24,17 @@ func (vb *VariableBuilder) BuildBaseVariables(
 
 	// Add workflow data
 	if workflowState != nil {
-		vars["workflow"] = map[string]any{
+		workflowData := map[string]any{
 			"id":     workflowState.WorkflowID,
 			"input":  workflowState.Input,
 			"output": workflowState.Output,
 			"status": workflowState.Status,
-			"config": workflowConfig,
 		}
+		// Only add config if it's not nil
+		if workflowConfig != nil {
+			workflowData["config"] = workflowConfig
+		}
+		vars["workflow"] = workflowData
 	}
 
 	// Add task data
@@ -68,11 +72,11 @@ func (vb *VariableBuilder) AddCurrentInputToVariables(vars map[string]any, curre
 	if currentInput != nil {
 		vars["input"] = currentInput
 		// Also add item and index at top level for collection tasks
-		if item, exists := (*currentInput)["item"]; exists {
-			vars["item"] = item
+		if item, exists := (*currentInput)[FieldItem]; exists {
+			vars[FieldItem] = item
 		}
-		if index, exists := (*currentInput)["index"]; exists {
-			vars["index"] = index
+		if index, exists := (*currentInput)[FieldIndex]; exists {
+			vars[FieldIndex] = index
 		}
 		// Handle collection-specific fields
 		if collectionItem, exists := (*currentInput)[FieldCollectionItem]; exists {

@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
 	utils "github.com/compozy/compozy/test/helpers"
+	task2helpers "github.com/compozy/compozy/test/integration/task2/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -222,6 +223,96 @@ func TestRouterResponseHandler_Integration(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, core.StatusSuccess, result.State.Status)
+	})
+
+	t.Run("Should inherit CWD and FilePath from router to target task", func(t *testing.T) {
+		t.Parallel()
+
+		// Setup test infrastructure using standard pattern
+		ts := task2helpers.NewTestSetup(t)
+
+		// Create router response handler
+		handler := router.NewResponseHandler(ts.TemplateEngine, ts.ContextBuilder, ts.BaseHandler)
+
+		// Create workflow state first
+		workflowState, workflowExecID := ts.CreateWorkflowState(t, "context-inheritance-workflow")
+
+		// Create router task state with routing decision
+		routerState := ts.CreateTaskState(t, &task2helpers.TaskStateConfig{
+			WorkflowID:     "context-inheritance-workflow",
+			WorkflowExecID: workflowExecID,
+			TaskID:         "context-router",
+			Status:         core.StatusSuccess,
+			Output: &core.Output{
+				shared.FieldRouteTaken: "target-task",
+			},
+		})
+
+		// Setup router config with context to inherit
+		routerCWD := &core.PathCWD{Path: "/router/working/directory"}
+		routerConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:       "context-router",
+				Type:     task.TaskTypeRouter,
+				CWD:      routerCWD,
+				FilePath: "configs/router.yaml",
+				Outputs:  &core.Input{"route_taken": "{{ .output.route_taken }}"},
+			},
+		}
+
+		// Setup target task config (should inherit from router)
+		targetTaskConfig := task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "target-task",
+				Type: task.TaskTypeBasic,
+			},
+		}
+
+		// Setup workflow config with tasks
+		workflowConfig := &workflow.Config{
+			ID: "context-inheritance-workflow",
+			Tasks: []task.Config{
+				*routerConfig,
+				targetTaskConfig,
+			},
+		}
+
+		// Mock output transformer
+		ts.OutputTransformer.On("TransformOutput", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(map[string]any{shared.FieldRouteTaken: "target-task"}, nil)
+
+		// Create response input
+		input := &shared.ResponseInput{
+			TaskConfig:     routerConfig,
+			TaskState:      routerState,
+			WorkflowConfig: workflowConfig,
+			WorkflowState:  workflowState,
+		}
+
+		// Act - process the response
+		result, err := handler.HandleResponse(ts.Context, input)
+
+		// Assert - response should succeed
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, core.StatusSuccess, result.State.Status)
+
+		// Assert - context inheritance occurred through NextTaskOverride
+		require.NotNil(t, input.NextTaskOverride, "NextTaskOverride should be set for inheritance")
+		assert.Equal(t, "target-task", input.NextTaskOverride.ID)
+		assert.Equal(t, routerCWD, input.NextTaskOverride.CWD, "target task should inherit router CWD")
+		assert.Equal(
+			t,
+			"configs/router.yaml",
+			input.NextTaskOverride.FilePath,
+			"target task should inherit router FilePath",
+		)
+
+		// Verify database state
+		savedState := ts.GetSavedTaskState(t, routerState.TaskExecID)
+		assert.Equal(t, core.StatusSuccess, savedState.Status)
+
+		ts.OutputTransformer.AssertExpectations(t)
 	})
 }
 

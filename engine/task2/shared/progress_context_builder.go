@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"context"
 	"time"
 
 	"github.com/compozy/compozy/engine/task"
@@ -9,7 +10,27 @@ import (
 // BuildProgressContext transforms ProgressState into template context variables
 // This function creates a map of progress-related variables that can be used
 // in collection and parallel task templates for conditional logic and monitoring
-func BuildProgressContext(state *task.ProgressState) map[string]any {
+func BuildProgressContext(_ context.Context, state *task.ProgressState) map[string]any {
+	// Handle nil state gracefully
+	if state == nil {
+		return map[string]any{
+			"total":          0,
+			"completed":      0,
+			"success":        0,
+			"failed":         0,
+			"canceled":       0,
+			"timedOut":       0,
+			"terminal":       0,
+			"running":        0,
+			"pending":        0,
+			"completionRate": 0.0,
+			"failureRate":    0.0,
+			"overallStatus":  "unknown",
+			"statusType":     nil,
+			"elapsedSeconds": 0.0,
+		}
+	}
+
 	// Calculate elapsed time, handling zero time case
 	var elapsedSeconds float64
 	if !state.StartTime.IsZero() {

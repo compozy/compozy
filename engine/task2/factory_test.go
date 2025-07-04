@@ -200,9 +200,10 @@ func TestExtendedFactory_CreateTaskConfigRepository(t *testing.T) {
 
 		// Act
 		configStore := services.NewTestConfigStore(t)
-		repo := factory.CreateTaskConfigRepository(configStore)
+		repo, err := factory.CreateTaskConfigRepository(configStore)
 
 		// Assert
+		require.NoError(t, err)
 		assert.NotNil(t, repo)
 		assert.Implements(t, (*shared.TaskConfigRepository)(nil), repo)
 	})

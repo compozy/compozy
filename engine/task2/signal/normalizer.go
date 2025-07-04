@@ -31,6 +31,10 @@ func NewNormalizer(
 
 // Normalize applies signal task-specific normalization rules
 func (n *Normalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
+	// Check for nil config
+	if config == nil {
+		return fmt.Errorf("task config cannot be nil")
+	}
 	// Call base normalization first
 	if err := n.BaseNormalizer.Normalize(config, ctx); err != nil {
 		return err

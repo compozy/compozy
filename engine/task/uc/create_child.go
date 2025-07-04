@@ -73,7 +73,10 @@ func (uc *CreateChildTasks) createParallelChildren(
 	parentConfig *task.Config,
 ) error {
 	// Create config repository from factory
-	configRepo := uc.task2Factory.CreateTaskConfigRepository(uc.configStore)
+	configRepo, err := uc.task2Factory.CreateTaskConfigRepository(uc.configStore)
+	if err != nil {
+		return fmt.Errorf("failed to create task config repository: %w", err)
+	}
 
 	metadataAny, err := configRepo.LoadParallelMetadata(ctx, parentState.TaskExecID)
 	if err != nil {
@@ -101,7 +104,10 @@ func (uc *CreateChildTasks) createCollectionChildren(
 	parentConfig *task.Config,
 ) error {
 	// Create config repository from factory
-	configRepo := uc.task2Factory.CreateTaskConfigRepository(uc.configStore)
+	configRepo, err := uc.task2Factory.CreateTaskConfigRepository(uc.configStore)
+	if err != nil {
+		return fmt.Errorf("failed to create task config repository: %w", err)
+	}
 
 	metadataAny, err := configRepo.LoadCollectionMetadata(ctx, parentState.TaskExecID)
 	if err != nil {
@@ -129,7 +135,10 @@ func (uc *CreateChildTasks) createCompositeChildren(
 	parentConfig *task.Config,
 ) error {
 	// Create config repository from factory
-	configRepo := uc.task2Factory.CreateTaskConfigRepository(uc.configStore)
+	configRepo, err := uc.task2Factory.CreateTaskConfigRepository(uc.configStore)
+	if err != nil {
+		return fmt.Errorf("failed to create task config repository: %w", err)
+	}
 
 	metadataAny, err := configRepo.LoadCompositeMetadata(ctx, parentState.TaskExecID)
 	if err != nil {

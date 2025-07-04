@@ -31,7 +31,8 @@ func (ot *OutputNormalizer) TransformWorkflowOutput(
 	outputsConfig *core.Output,
 	ctx NormalizationContext,
 ) (*core.Output, error) {
-	if outputsConfig == nil {
+	// Return nil consistently when no output config is provided
+	if outputsConfig == nil || len(*outputsConfig) == 0 {
 		return nil, nil
 	}
 	// Build transformation context
@@ -44,9 +45,6 @@ func (ot *OutputNormalizer) TransformWorkflowOutput(
 		transformCtx["error"] = workflowState.Error
 	}
 	// Apply output transformation
-	if len(*outputsConfig) == 0 {
-		return &core.Output{}, nil
-	}
 	transformedOutput, err := ot.transformOutputFields(outputsConfig.AsMap(), transformCtx, "workflow")
 	if err != nil {
 		return nil, err

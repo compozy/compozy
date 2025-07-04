@@ -164,7 +164,13 @@ func TestParallelContextBuilder_EnrichContext(t *testing.T) {
 
 	t.Run("Should enrich context with task state", func(t *testing.T) {
 		// Arrange
-		context := builder.BuildContext(nil, nil, nil)
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-task",
+				Type: task.TaskTypeParallel,
+			},
+		}
+		context := builder.BuildContext(nil, nil, taskConfig)
 		taskState := &task.State{
 			Status: core.StatusRunning,
 		}
@@ -174,6 +180,9 @@ func TestParallelContextBuilder_EnrichContext(t *testing.T) {
 
 		// Assert
 		assert.NoError(t, err)
+		// Verify task status was added
+		taskMap := context.Variables["task"].(map[string]any)
+		assert.Equal(t, core.StatusRunning, taskMap["status"])
 	})
 
 	t.Run("Should handle nil context", func(t *testing.T) {

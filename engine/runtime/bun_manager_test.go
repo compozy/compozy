@@ -3,6 +3,7 @@ package runtime_test
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -64,7 +65,8 @@ func TestNewBunManager(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check that worker file was created
-		workerPath := tmpDir + "/.compozy/bun_worker.ts"
+		storeDir := core.GetStoreDir(tmpDir)
+		workerPath := filepath.Join(storeDir, "bun_worker.ts")
 		_, err = os.Stat(workerPath)
 		assert.NoError(t, err, "Worker file should be created")
 	})
@@ -234,7 +236,7 @@ export function dummy() {}
 		// Create tool that uses environment variables
 		entrypointContent := `
 export async function env_tool(input: any) {
-    return { 
+    return {
         env_var: process.env.TEST_VAR,
         input: input
     };
@@ -302,7 +304,8 @@ func TestBunManager_WorkerFileGeneration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Read the generated worker file
-		workerPath := tmpDir + "/.compozy/bun_worker.ts"
+		storeDir := core.GetStoreDir(tmpDir)
+		workerPath := filepath.Join(storeDir, "bun_worker.ts")
 		content, err := os.ReadFile(workerPath)
 		require.NoError(t, err)
 
@@ -325,7 +328,8 @@ func TestBunManager_WorkerFileGeneration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Read the generated worker file
-		workerPath := tmpDir + "/.compozy/bun_worker.ts"
+		storeDir := core.GetStoreDir(tmpDir)
+		workerPath := filepath.Join(storeDir, "bun_worker.ts")
 		content, err := os.ReadFile(workerPath)
 		require.NoError(t, err)
 

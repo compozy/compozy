@@ -92,7 +92,10 @@ func (a *CreateParallelState) Run(ctx context.Context, input *CreateParallelStat
 		childConfigs[i] = &normalizedConfig.Tasks[i]
 	}
 	// Store parallel metadata using task2 repository
-	configRepo := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create task config repository: %w", err)
+	}
 	parallelMetadata := &task2core.ParallelTaskMetadata{
 		ParentStateID: state.TaskExecID,
 		ChildConfigs:  childConfigs,

@@ -82,6 +82,15 @@ func TestSignalResponseHandler_TaskTypeValidation(t *testing.T) {
 }
 
 func TestSignalResponseHandler_ValidateSignalDispatch(t *testing.T) {
+	t.Run("Should return error for nil state", func(t *testing.T) {
+		handler := NewResponseHandler(nil, nil, nil)
+
+		err := handler.ValidateSignalDispatch(nil)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "signal task state cannot be nil")
+	})
+
 	t.Run("Should validate successful signal dispatch", func(t *testing.T) {
 		handler := NewResponseHandler(nil, nil, nil)
 
@@ -108,7 +117,8 @@ func TestSignalResponseHandler_ValidateSignalDispatch(t *testing.T) {
 
 		err := handler.ValidateSignalDispatch(state)
 
-		assert.NoError(t, err) // Current implementation doesn't return errors
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "signal dispatch failed")
 	})
 
 	t.Run("Should validate running signal dispatch", func(t *testing.T) {
@@ -122,29 +132,37 @@ func TestSignalResponseHandler_ValidateSignalDispatch(t *testing.T) {
 
 		err := handler.ValidateSignalDispatch(state)
 
-		assert.NoError(t, err) // Current implementation doesn't return errors
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "signal dispatch not completed")
 	})
 
 	t.Run("Should handle different status types", func(t *testing.T) {
 		handler := NewResponseHandler(nil, nil, nil)
 
-		testCases := []core.StatusType{
-			core.StatusPending,
-			core.StatusRunning,
-			core.StatusSuccess,
-			core.StatusFailed,
-			core.StatusCanceled,
-			core.StatusTimedOut,
+		testCases := []struct {
+			status      core.StatusType
+			expectError bool
+		}{
+			{core.StatusPending, true},
+			{core.StatusRunning, true},
+			{core.StatusSuccess, false},
+			{core.StatusFailed, true},
+			{core.StatusCanceled, true},
+			{core.StatusTimedOut, true},
 		}
 
-		for _, status := range testCases {
+		for _, tc := range testCases {
 			state := &task.State{
 				TaskExecID: core.MustNewID(),
-				Status:     status,
+				Status:     tc.status,
 			}
 
 			err := handler.ValidateSignalDispatch(state)
-			assert.NoError(t, err, "Should handle status: %s", status)
+			if tc.expectError {
+				assert.Error(t, err, "Should return error for status: %s", tc.status)
+			} else {
+				assert.NoError(t, err, "Should not return error for status: %s", tc.status)
+			}
 		}
 	})
 
@@ -159,7 +177,8 @@ func TestSignalResponseHandler_ValidateSignalDispatch(t *testing.T) {
 		// ValidateSignalDispatch accesses state.Status so we need a valid state
 		err := handler.ValidateSignalDispatch(state)
 
-		assert.NoError(t, err)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "signal dispatch not completed")
 	})
 
 	t.Run("Should handle state with output", func(t *testing.T) {

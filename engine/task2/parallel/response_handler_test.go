@@ -186,29 +186,12 @@ func TestParallelResponseHandler_HandleSubtaskResponse(t *testing.T) {
 }
 
 func TestParallelResponseHandler_ExtractParallelStrategy(t *testing.T) {
-	t.Run("Should return default strategy when base handler is nil", func(t *testing.T) {
+	t.Run("Should panic when calling deprecated method", func(t *testing.T) {
 		handler := NewResponseHandler(nil, nil, nil)
 
-		strategy := handler.ExtractParallelStrategy(&task.State{})
-
-		assert.Equal(t, task.StrategyWaitAll, strategy)
-	})
-
-	t.Run("Should return default strategy with base handler", func(t *testing.T) {
-		baseHandler := &shared.BaseResponseHandler{}
-		handler := NewResponseHandler(nil, nil, baseHandler)
-
-		strategy := handler.ExtractParallelStrategy(&task.State{})
-
-		assert.Equal(t, task.StrategyWaitAll, strategy)
-	})
-
-	t.Run("Should handle nil state gracefully", func(t *testing.T) {
-		handler := NewResponseHandler(nil, nil, nil)
-
-		strategy := handler.ExtractParallelStrategy(nil)
-
-		assert.Equal(t, task.StrategyWaitAll, strategy)
+		assert.PanicsWithValue(t,
+			"ExtractParallelStrategy is deprecated. Use TaskConfigRepository.ExtractParallelStrategy instead",
+			func() { handler.ExtractParallelStrategy(&task.State{}) })
 	})
 }
 

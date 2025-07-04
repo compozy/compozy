@@ -28,7 +28,6 @@ require (
 	github.com/mark3labs/mcp-go v0.32.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
-	github.com/nats-io/nats.go v1.43.0
 	github.com/open-and-sustainable/alembica v0.0.8
 	github.com/otiai10/copy v1.14.1
 	github.com/pashagolub/pgxmock/v4 v4.8.0
@@ -48,8 +47,8 @@ require (
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
 	github.com/swaggo/swag v1.16.4
-	github.com/testcontainers/testcontainers-go v0.37.0
-	github.com/testcontainers/testcontainers-go/modules/postgres v0.37.0
+	github.com/testcontainers/testcontainers-go v0.37.0 // test-only dependency
+	github.com/testcontainers/testcontainers-go/modules/postgres v0.37.0 // test-only dependency
 	github.com/tidwall/gjson v1.18.0
 	github.com/tmc/langchaingo v0.1.13
 	github.com/ulule/limiter/v3 v3.11.2
@@ -64,7 +63,7 @@ require (
 	golang.org/x/sync v0.15.0
 	golang.org/x/text v0.26.0
 	google.golang.org/grpc v1.73.0
-	google.golang.org/protobuf v1.36.6
+	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -173,8 +172,6 @@ require (
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/nats-io/nkeys v0.4.11 // indirect
-	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/nexus-rpc/sdk-go v0.4.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect

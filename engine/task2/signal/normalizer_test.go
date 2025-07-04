@@ -130,8 +130,7 @@ func TestSignalNormalizer_Normalize(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	// NOTE: Skipping nil task config test as it reveals a bug in the signal normalizer
-	// The normalizer should check for nil config before accessing config.Signal
+	// NOTE: The nil config test is handled in the error handling section below
 
 	t.Run("Should process signal templates", func(t *testing.T) {
 		// Arrange
@@ -193,10 +192,11 @@ func TestSignalNormalizer_Normalize_ErrorHandling(t *testing.T) {
 	t.Run("Should handle nil config gracefully", func(t *testing.T) {
 		// Arrange
 		ctx := &shared.NormalizationContext{}
-		// Act & Assert - Signal normalizer should panic on nil config like other normalizers
-		assert.Panics(t, func() {
-			normalizer.Normalize(nil, ctx)
-		})
+		// Act
+		err := normalizer.Normalize(nil, ctx)
+		// Assert - Signal normalizer should return error for nil config
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "task config cannot be nil")
 	})
 
 	t.Run("Should return error for wrong task type", func(t *testing.T) {
@@ -333,10 +333,11 @@ func TestSignalNormalizer_BoundaryConditions(t *testing.T) {
 			},
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
-		// Act & Assert
-		assert.Panics(t, func() {
-			normalizer.Normalize(taskConfig, ctx)
-		})
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert - Should return error due to nil template engine
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "template engine is required for normalization")
 	})
 
 	t.Run("Should handle nil context gracefully", func(t *testing.T) {

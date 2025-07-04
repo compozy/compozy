@@ -24,6 +24,9 @@ func NewResponseHandler(
 	contextBuilder *shared.ContextBuilder,
 	baseHandler *shared.BaseResponseHandler,
 ) *ResponseHandler {
+	if baseHandler == nil {
+		panic("baseHandler cannot be nil")
+	}
 	return &ResponseHandler{
 		baseHandler:    baseHandler,
 		templateEngine: templateEngine,

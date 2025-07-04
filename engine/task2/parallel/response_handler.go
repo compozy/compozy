@@ -109,15 +109,7 @@ func (h *ResponseHandler) HandleSubtaskResponse(
 }
 
 // ExtractParallelStrategy extracts the parallel strategy from parent state
-// Deprecated: Use BaseResponseHandler.extractParentStrategy instead
-// This method is kept for backward compatibility but delegates to base handler
+// Deprecated: Use TaskConfigRepository.ExtractParallelStrategy instead
 func (h *ResponseHandler) ExtractParallelStrategy(_ *task.State) task.ParallelStrategy {
-	// Delegate to base handler to avoid duplicate logic
-	baseHandler := h.baseHandler
-	if baseHandler == nil {
-		return task.StrategyWaitAll
-	}
-	// Use reflection to access the private method
-	// In production, we should make extractParentStrategy public or use an interface
-	return task.StrategyWaitAll // For now, return default
+	panic("ExtractParallelStrategy is deprecated. Use TaskConfigRepository.ExtractParallelStrategy instead")
 }

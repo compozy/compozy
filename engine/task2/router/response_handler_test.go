@@ -192,6 +192,213 @@ func TestRouterResponseHandler_setNextTaskFromRoute(t *testing.T) {
 		assert.Equal(t, "target-task", input.NextTaskOverride.ID)
 	})
 
+	t.Run("Should inherit CWD from router task to target task", func(t *testing.T) {
+		handler := NewResponseHandler(nil, nil, nil)
+
+		routerCWD := &core.PathCWD{Path: "/router/directory"}
+		targetTask := task.Config{BaseConfig: task.BaseConfig{ID: "target-task"}}
+		input := &shared.ResponseInput{
+			TaskConfig: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:  "router-task",
+					CWD: routerCWD,
+				},
+			},
+			WorkflowConfig: &workflow.Config{
+				Tasks: []task.Config{targetTask},
+			},
+		}
+		response := &shared.ResponseOutput{
+			State: &task.State{
+				Output: &core.Output{
+					shared.FieldRouteTaken: "target-task",
+				},
+			},
+		}
+
+		err := handler.setNextTaskFromRoute(input, response)
+
+		require.NoError(t, err)
+		require.NotNil(t, input.NextTaskOverride)
+		assert.Equal(t, "target-task", input.NextTaskOverride.ID)
+		assert.Equal(t, routerCWD, input.NextTaskOverride.CWD)
+	})
+
+	t.Run("Should inherit FilePath from router task to target task", func(t *testing.T) {
+		handler := NewResponseHandler(nil, nil, nil)
+
+		routerFilePath := "config/router.yaml"
+		targetTask := task.Config{BaseConfig: task.BaseConfig{ID: "target-task"}}
+		input := &shared.ResponseInput{
+			TaskConfig: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:       "router-task",
+					FilePath: routerFilePath,
+				},
+			},
+			WorkflowConfig: &workflow.Config{
+				Tasks: []task.Config{targetTask},
+			},
+		}
+		response := &shared.ResponseOutput{
+			State: &task.State{
+				Output: &core.Output{
+					shared.FieldRouteTaken: "target-task",
+				},
+			},
+		}
+
+		err := handler.setNextTaskFromRoute(input, response)
+
+		require.NoError(t, err)
+		require.NotNil(t, input.NextTaskOverride)
+		assert.Equal(t, "target-task", input.NextTaskOverride.ID)
+		assert.Equal(t, routerFilePath, input.NextTaskOverride.FilePath)
+	})
+
+	t.Run("Should not override existing CWD in target task", func(t *testing.T) {
+		handler := NewResponseHandler(nil, nil, nil)
+
+		routerCWD := &core.PathCWD{Path: "/router/directory"}
+		targetCWD := &core.PathCWD{Path: "/target/directory"}
+		targetTask := task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:  "target-task",
+				CWD: targetCWD,
+			},
+		}
+		input := &shared.ResponseInput{
+			TaskConfig: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:  "router-task",
+					CWD: routerCWD,
+				},
+			},
+			WorkflowConfig: &workflow.Config{
+				Tasks: []task.Config{targetTask},
+			},
+		}
+		response := &shared.ResponseOutput{
+			State: &task.State{
+				Output: &core.Output{
+					shared.FieldRouteTaken: "target-task",
+				},
+			},
+		}
+
+		err := handler.setNextTaskFromRoute(input, response)
+
+		require.NoError(t, err)
+		require.NotNil(t, input.NextTaskOverride)
+		assert.Equal(t, "target-task", input.NextTaskOverride.ID)
+		assert.Equal(t, targetCWD, input.NextTaskOverride.CWD, "target task CWD should not be overridden")
+	})
+
+	t.Run("Should not override existing FilePath in target task", func(t *testing.T) {
+		handler := NewResponseHandler(nil, nil, nil)
+
+		routerFilePath := "config/router.yaml"
+		targetFilePath := "config/target.yaml"
+		targetTask := task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:       "target-task",
+				FilePath: targetFilePath,
+			},
+		}
+		input := &shared.ResponseInput{
+			TaskConfig: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:       "router-task",
+					FilePath: routerFilePath,
+				},
+			},
+			WorkflowConfig: &workflow.Config{
+				Tasks: []task.Config{targetTask},
+			},
+		}
+		response := &shared.ResponseOutput{
+			State: &task.State{
+				Output: &core.Output{
+					shared.FieldRouteTaken: "target-task",
+				},
+			},
+		}
+
+		err := handler.setNextTaskFromRoute(input, response)
+
+		require.NoError(t, err)
+		require.NotNil(t, input.NextTaskOverride)
+		assert.Equal(t, "target-task", input.NextTaskOverride.ID)
+		assert.Equal(
+			t,
+			targetFilePath,
+			input.NextTaskOverride.FilePath,
+			"target task FilePath should not be overridden",
+		)
+	})
+
+	t.Run("Should inherit both CWD and FilePath when both are available", func(t *testing.T) {
+		handler := NewResponseHandler(nil, nil, nil)
+
+		routerCWD := &core.PathCWD{Path: "/router/directory"}
+		routerFilePath := "config/router.yaml"
+		targetTask := task.Config{BaseConfig: task.BaseConfig{ID: "target-task"}}
+		input := &shared.ResponseInput{
+			TaskConfig: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:       "router-task",
+					CWD:      routerCWD,
+					FilePath: routerFilePath,
+				},
+			},
+			WorkflowConfig: &workflow.Config{
+				Tasks: []task.Config{targetTask},
+			},
+		}
+		response := &shared.ResponseOutput{
+			State: &task.State{
+				Output: &core.Output{
+					shared.FieldRouteTaken: "target-task",
+				},
+			},
+		}
+
+		err := handler.setNextTaskFromRoute(input, response)
+
+		require.NoError(t, err)
+		require.NotNil(t, input.NextTaskOverride)
+		assert.Equal(t, "target-task", input.NextTaskOverride.ID)
+		assert.Equal(t, routerCWD, input.NextTaskOverride.CWD)
+		assert.Equal(t, routerFilePath, input.NextTaskOverride.FilePath)
+	})
+
+	t.Run("Should handle nil TaskConfig gracefully", func(t *testing.T) {
+		handler := NewResponseHandler(nil, nil, nil)
+
+		targetTask := task.Config{BaseConfig: task.BaseConfig{ID: "target-task"}}
+		input := &shared.ResponseInput{
+			TaskConfig: nil, // No router task config
+			WorkflowConfig: &workflow.Config{
+				Tasks: []task.Config{targetTask},
+			},
+		}
+		response := &shared.ResponseOutput{
+			State: &task.State{
+				Output: &core.Output{
+					shared.FieldRouteTaken: "target-task",
+				},
+			},
+		}
+
+		err := handler.setNextTaskFromRoute(input, response)
+
+		require.NoError(t, err)
+		require.NotNil(t, input.NextTaskOverride)
+		assert.Equal(t, "target-task", input.NextTaskOverride.ID)
+		assert.Nil(t, input.NextTaskOverride.CWD, "CWD should remain nil when no router config")
+		assert.Empty(t, input.NextTaskOverride.FilePath, "FilePath should remain empty when no router config")
+	})
+
 	t.Run("Should handle empty workflow tasks", func(t *testing.T) {
 		handler := NewResponseHandler(nil, nil, nil)
 

@@ -36,7 +36,7 @@ func NewTaskOutputBuilder() TaskOutputBuilder {
 // with a default fallback of 10
 func getMaxContextDepthFromEnv() int {
 	const defaultMaxDepth = 10
-	envValue := os.Getenv("COMPOZY_MAX_TASK_CONTEXT_DEPTH")
+	envValue := os.Getenv(EnvCompozyMaxTaskContextDepth)
 	if envValue == "" {
 		return defaultMaxDepth
 	}

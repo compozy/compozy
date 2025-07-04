@@ -134,7 +134,8 @@ func TestBasicResponseHandler_Integration(t *testing.T) {
 
 func TestBasicResponseHandler_Type(t *testing.T) {
 	t.Run("Should return basic task type", func(t *testing.T) {
-		handler := basic.NewResponseHandler(nil, nil, nil)
+		baseHandler := &shared.BaseResponseHandler{}
+		handler := basic.NewResponseHandler(nil, nil, baseHandler)
 		assert.Equal(t, task.TaskTypeBasic, handler.Type())
 	})
 }

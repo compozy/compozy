@@ -153,8 +153,11 @@ func (h *ResponseHandler) ValidateCollectionOutput(output *core.Output) error {
 		return nil
 	}
 
-	// Add any collection-specific output validation here
-	// For example, ensure the output is an array if expected
+	// No validation is currently needed for collection outputs because:
+	// 1. Collection outputs are dynamically structured based on the collection configuration
+	// 2. The output structure is determined by the user-defined transformation in the workflow
+	// 3. Validation would overly constrain the flexibility of collection transformations
+	// The orchestrator and output transformer handle the actual aggregation and structuring
 
 	return nil
 }

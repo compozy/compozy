@@ -97,7 +97,6 @@ Available tools: none
     ```
 
 3. **Check File Paths**
-
     - Ensure relative paths are correct
     - Use explicit `.ts` extensions
     - Verify files exist and are readable

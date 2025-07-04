@@ -12,11 +12,11 @@ func GetVersion() string {
 	return "v0"
 }
 
-func GetStoreDir(cwd *PathCWD) string {
-	if cwd == nil {
+func GetStoreDir(cwd string) string {
+	if cwd == "" {
 		return ".compozy"
 	}
-	return filepath.Join(cwd.PathStr(), ".compozy")
+	return filepath.Join(cwd, ".compozy")
 }
 
 // -----------------------------------------------------------------------------

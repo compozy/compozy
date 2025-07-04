@@ -27,17 +27,20 @@ func NewNormalizer(
 	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *shared.ContextBuilder,
 ) *Normalizer {
-	// Enable precision preservation in the template engine for collection tasks
+	// For nil template engine, the normalizer will fail during Normalize()
+	// This allows tests to verify proper error handling
+	var filterEval *FilterEvaluator
+	var configBuilder *ConfigBuilder
 	if templateEngine != nil {
-		templateEngine.WithPrecisionPreservation(true)
+		filterEval = NewFilterEvaluator(templateEngine)
+		configBuilder = NewConfigBuilder(templateEngine)
 	}
-
 	return &Normalizer{
 		templateEngine: templateEngine,
 		contextBuilder: contextBuilder,
 		converter:      NewTypeConverterWithPrecision(),
-		filterEval:     NewFilterEvaluator(templateEngine),
-		configBuilder:  NewConfigBuilder(templateEngine),
+		filterEval:     filterEval,
+		configBuilder:  configBuilder,
 	}
 }
 
@@ -87,10 +90,16 @@ func (n *Normalizer) normalizeConfig(config *task.Config, normCtx *shared.Normal
 		childTaskConfig = config.Task
 	}
 	// Normalize the collection task fields (excluding collection-specific fields)
+	if n.templateEngine == nil {
+		return fmt.Errorf("template engine is required for normalization")
+	}
 	parsed, err := n.templateEngine.ParseMapWithFilter(configMap, context, n.shouldSkipField)
 	if err != nil {
 		return fmt.Errorf("failed to normalize collection task config: %w", err)
 	}
+	// Apply precision conversion to numeric values in the parsed result
+	// Collection tasks require precision preservation for numeric values
+	parsed = n.applyPrecisionConversion(parsed)
 	// Update config from normalized map
 	if err := config.FromMap(parsed); err != nil {
 		return fmt.Errorf("failed to update task config from normalized map: %w", err)
@@ -100,6 +109,8 @@ func (n *Normalizer) normalizeConfig(config *task.Config, normCtx *shared.Normal
 	// should only be processed at runtime when collection items are available
 	if childTaskConfig != nil {
 		config.Task = childTaskConfig
+		// Apply context inheritance to the child task template
+		shared.InheritTaskConfig(config.Task, config)
 	}
 	// Note: Collection-specific normalization (items expansion, filtering) happens at runtime
 	// during task execution, not during config normalization phase
@@ -221,4 +232,28 @@ func (n *Normalizer) BuildCollectionContext(
 		workflowConfig,
 		taskConfig,
 	)
+}
+
+// applyPrecisionConversion recursively applies precision conversion to numeric values
+func (n *Normalizer) applyPrecisionConversion(value any) any {
+	pc := tplengine.NewPrecisionConverter()
+	switch v := value.(type) {
+	case map[string]any:
+		result := make(map[string]any, len(v))
+		for k, val := range v {
+			result[k] = n.applyPrecisionConversion(val)
+		}
+		return result
+	case []any:
+		result := make([]any, len(v))
+		for i, val := range v {
+			result[i] = n.applyPrecisionConversion(val)
+		}
+		return result
+	case string:
+		// Use precision converter to preserve numeric precision
+		return pc.ConvertWithPrecision(v)
+	default:
+		return v
+	}
 }

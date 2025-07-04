@@ -73,6 +73,9 @@ func (n *BaseNormalizer) Normalize(config *task.Config, ctx contracts.Normalizat
 	// Preserve existing With values before normalization
 	existingWith := config.With
 	// Apply template processing with appropriate filters
+	if n.templateEngine == nil {
+		return fmt.Errorf("template engine is required for normalization")
+	}
 	parsed, err := n.templateEngine.ParseMapWithFilter(configMap, context, n.filterFunc)
 	if err != nil {
 		return fmt.Errorf("failed to normalize %s task config: %w", n.taskType, err)
@@ -95,6 +98,9 @@ func (n *BaseNormalizer) Normalize(config *task.Config, ctx contracts.Normalizat
 
 // ProcessTemplateString processes a single string template
 func (n *BaseNormalizer) ProcessTemplateString(value string, context map[string]any) (string, error) {
+	if n.templateEngine == nil {
+		return "", fmt.Errorf("template engine is required for template processing")
+	}
 	result, err := n.templateEngine.ParseAny(value, context)
 	if err != nil {
 		return "", err
@@ -108,6 +114,9 @@ func (n *BaseNormalizer) ProcessTemplateString(value string, context map[string]
 
 // ProcessTemplateMap processes a map containing templates
 func (n *BaseNormalizer) ProcessTemplateMap(value map[string]any, context map[string]any) (map[string]any, error) {
+	if n.templateEngine == nil {
+		return nil, fmt.Errorf("template engine is required for template processing")
+	}
 	result, err := n.templateEngine.ParseAny(value, context)
 	if err != nil {
 		return nil, err

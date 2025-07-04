@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/segmentio/ksuid"
 )
 
 // DefaultParentStatusManager implements ParentStatusManager interface
@@ -369,7 +370,10 @@ func (m *DefaultParentStatusManager) validateID(id core.ID) error {
 	if id == "" {
 		return fmt.Errorf("invalid identifier provided")
 	}
-	// core.ID should be a valid UUID
-	// Additional validation can be added here if needed
+	// Validate KSUID format
+	_, err := ksuid.Parse(id.String())
+	if err != nil {
+		return fmt.Errorf("invalid ID format: %w", err)
+	}
 	return nil
 }

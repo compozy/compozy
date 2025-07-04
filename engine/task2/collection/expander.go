@@ -176,8 +176,8 @@ func (e *Expander) injectCollectionContext(
 	}
 	withMap := map[string]any(*childConfig.With)
 	// Standard collection variables
-	withMap["_collection_item"] = item
-	withMap["_collection_index"] = index
+	withMap[shared.FieldCollectionItem] = item
+	withMap[shared.FieldCollectionIndex] = index
 	// Custom variable naming support
 	if itemVar := parentConfig.GetItemVar(); itemVar != "" {
 		withMap[itemVar] = item

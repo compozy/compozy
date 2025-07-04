@@ -89,3 +89,10 @@ func RefreshGlobalConfigLimits() {
 	defer configLimitsMutex.Unlock()
 	globalConfigLimits = GetConfigLimits()
 }
+
+// resetGlobalConfigLimits resets the global configuration limits to nil (for testing)
+func resetGlobalConfigLimits() {
+	configLimitsMutex.Lock()
+	defer configLimitsMutex.Unlock()
+	globalConfigLimits = nil
+}

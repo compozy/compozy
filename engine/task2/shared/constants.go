@@ -58,10 +58,11 @@ const (
 
 // Environment variables
 const (
-	EnvMaxNestingDepth       = "MAX_NESTING_DEPTH"
-	EnvMaxStringLength       = "MAX_STRING_LENGTH"
-	EnvMaxTaskContextDepth   = "MAX_TASK_CONTEXT_DEPTH"
-	EnvParentUpdateBatchSize = "PARENT_UPDATE_BATCH_SIZE"
+	EnvMaxNestingDepth            = "MAX_NESTING_DEPTH"
+	EnvMaxStringLength            = "MAX_STRING_LENGTH"
+	EnvMaxTaskContextDepth        = "MAX_TASK_CONTEXT_DEPTH"
+	EnvParentUpdateBatchSize      = "PARENT_UPDATE_BATCH_SIZE"
+	EnvCompozyMaxTaskContextDepth = "COMPOZY_MAX_TASK_CONTEXT_DEPTH"
 )
 
 // Context keys

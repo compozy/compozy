@@ -5,12 +5,11 @@ import (
 	"maps"
 	"time"
 
-	"go.temporal.io/sdk/workflow"
-
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	tkacts "github.com/compozy/compozy/engine/task/activities"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
+	"go.temporal.io/sdk/workflow"
 )
 
 type TaskWaitExecutor struct {
@@ -30,50 +29,24 @@ func NewTaskWaitExecutor(
 }
 
 func (e *TaskWaitExecutor) Execute(ctx workflow.Context, taskConfig *task.Config) (task.Response, error) {
-	log := workflow.GetLogger(ctx)
-	// First, create the wait task state via activity
 	response, err := e.initializeWaitTask(ctx, taskConfig)
 	if err != nil {
 		return nil, err
 	}
-	// Parse timeout duration
-	timeout, err := core.ParseHumanDuration(taskConfig.Timeout)
+	timeout, err := e.validateTimeout(ctx, taskConfig)
 	if err != nil {
-		log.Error("Invalid timeout format", "timeout", taskConfig.Timeout, "error", err)
-		return nil, fmt.Errorf("invalid timeout: %w", err)
+		return nil, err
 	}
-	// Validate timeout is positive
-	if timeout <= 0 {
-		return nil, fmt.Errorf("wait task requires a positive timeout (got %s)", taskConfig.Timeout)
-	}
-	// Create the wait state for tracking signals
-	waitState := &WaitState{
-		ConditionMet: false,
-	}
-	// Set up signal channel
+	waitState := &WaitState{ConditionMet: false}
 	signalChan := workflow.GetSignalChannel(ctx, taskConfig.WaitFor)
-	// Set up timeout with cancellable context
 	timerCtx, cancelTimer := workflow.WithCancel(ctx)
 	timer := workflow.NewTimer(timerCtx, timeout)
-	log.Info("Wait task started",
-		"task_id", taskConfig.ID,
-		"signal_name", taskConfig.WaitFor,
-		"timeout", timeout,
-		"has_processor", taskConfig.Processor != nil)
-	// Update workflow status to PAUSED when wait task starts
-	updateInput := &wfacts.UpdateStateInput{
-		WorkflowID:     e.WorkflowID,
-		WorkflowExecID: e.WorkflowExecID,
-		Status:         core.StatusPaused,
-	}
-	err = workflow.ExecuteActivity(ctx, wfacts.UpdateStateLabel, updateInput).Get(ctx, nil)
+	e.logWaitTaskStart(ctx, taskConfig, timeout)
+	err = e.updateWorkflowStatus(ctx, core.StatusPaused)
 	if err != nil {
-		log.Error("Failed to update workflow status to paused", "error", err)
-		// Continue execution despite status update failure
+		workflow.GetLogger(ctx).Error("Failed to update workflow status to paused", "error", err)
 	}
-	// Main event loop
 	e.waitForCondition(ctx, taskConfig, waitState, signalChan, timer, cancelTimer)
-	// Update response based on outcome
 	return e.finalizeResponse(ctx, taskConfig, response, waitState, timeout)
 }
 
@@ -103,51 +76,14 @@ func (e *TaskWaitExecutor) waitForCondition(
 	timer workflow.Future,
 	cancelTimer workflow.CancelFunc,
 ) {
-	log := workflow.GetLogger(ctx)
 	for !waitState.ConditionMet {
-		// Create a new selector for each iteration
 		selector := workflow.NewSelector(ctx)
-		// Handle incoming signals
 		selector.AddReceive(signalChan, func(c workflow.ReceiveChannel, _ bool) {
-			var signal task.SignalEnvelope
-			c.Receive(ctx, &signal)
-			log.Info("Signal received",
-				"signal_id", signal.Metadata.SignalID,
-				"workflow_id", signal.Metadata.WorkflowID)
-			// Process signal (evaluate condition)
-			// Note: Signal deduplication is handled by Temporal server when signals are sent with unique IDs
-			shouldContinue, processorOutput, err := e.processSignal(ctx, taskConfig, &signal)
-			if err != nil {
-				waitState.Error = err
-				waitState.ConditionMet = true // Exit the loop to finalize
-				return
-			}
-			if shouldContinue {
-				waitState.ConditionMet = true
-				waitState.MatchingSignal = &signal
-				waitState.ProcessorOutput = processorOutput
-				log.Info("Condition met, continuing workflow",
-					"signal_id", signal.Metadata.SignalID,
-					"task_id", taskConfig.ID)
-				// Cancel the timer to prevent non-deterministic behavior
-				cancelTimer()
-				// Consume the cancellation event to maintain determinism
-				if err := timer.Get(ctx, nil); err != nil {
-					log.Warn("Timer cancellation error", "error", err)
-				}
-				waitState.TimerCancelled = true
-			} else {
-				log.Info("Condition not met, continuing to wait",
-					"signal_id", signal.Metadata.SignalID,
-					"task_id", taskConfig.ID)
-			}
+			e.handleSignalReceived(ctx, c, taskConfig, waitState, timer, cancelTimer)
 		})
-		// Handle timeout - only add if timer wasn't canceled
 		if !waitState.TimerCancelled {
 			selector.AddFuture(timer, func(_ workflow.Future) {
-				log.Info("Wait task timed out", "task_id", taskConfig.ID)
-				waitState.TimedOut = true
-				waitState.ConditionMet = true // Exit the loop
+				e.handleTimeout(ctx, taskConfig, waitState)
 			})
 		}
 		selector.Select(ctx)
@@ -180,57 +116,11 @@ func (e *TaskWaitExecutor) finalizeResponse(
 ) (task.Response, error) {
 	switch {
 	case waitState.Error != nil:
-		// Handle fatal error from processor or evaluation
-		response.State.Status = core.StatusFailed
-		response.State.Error = core.NewError(
-			waitState.Error,
-			"WAIT_TASK_ERROR",
-			nil,
-		)
-		// Route to on_error
-		if taskConfig.OnError != nil && taskConfig.OnError.Next != nil {
-			response.NextTask = e.loadNextTaskConfig(ctx, taskConfig.ID, *taskConfig.OnError.Next)
-		}
+		e.handleErrorResponse(response, waitState, taskConfig, ctx)
 	case waitState.TimedOut:
-		// Handle timeout scenario
-		response.State.Status = core.StatusFailed
-		response.State.Error = core.NewError(
-			fmt.Errorf("wait task timed out after %s", timeout),
-			"WAIT_TIMEOUT",
-			map[string]any{
-				"signal_name": taskConfig.WaitFor,
-				"timeout":     taskConfig.Timeout,
-			},
-		)
-		// Route to on_timeout or on_error
-		if taskConfig.OnTimeout != "" {
-			response.NextTask = e.loadNextTaskConfig(ctx, taskConfig.ID, taskConfig.OnTimeout)
-		} else if taskConfig.OnError != nil && taskConfig.OnError.Next != nil {
-			response.NextTask = e.loadNextTaskConfig(ctx, taskConfig.ID, *taskConfig.OnError.Next)
-		}
+		e.handleTimeoutResponse(response, waitState, taskConfig, timeout, ctx)
 	case waitState.MatchingSignal != nil:
-		// Success - condition was met
-		response.State.Status = core.StatusSuccess
-		response.State.Output = &core.Output{
-			"wait_status":      "completed",
-			"signal":           waitState.MatchingSignal,
-			"processor_output": waitState.ProcessorOutput,
-		}
-		// Update workflow status back to RUNNING only on success
-		updateInput := &wfacts.UpdateStateInput{
-			WorkflowID:     e.WorkflowID,
-			WorkflowExecID: e.WorkflowExecID,
-			Status:         core.StatusRunning,
-		}
-		err := workflow.ExecuteActivity(ctx, wfacts.UpdateStateLabel, updateInput).Get(ctx, nil)
-		if err != nil {
-			workflow.GetLogger(ctx).Error("Failed to update workflow status to running", "error", err)
-			// Continue execution despite status update failure
-		}
-		// Route to on_success
-		if taskConfig.OnSuccess != nil && taskConfig.OnSuccess.Next != nil {
-			response.NextTask = e.loadNextTaskConfig(ctx, taskConfig.ID, *taskConfig.OnSuccess.Next)
-		}
+		e.handleSuccessResponse(ctx, response, waitState, taskConfig)
 	}
 	return response, nil
 }
@@ -240,69 +130,12 @@ func (e *TaskWaitExecutor) processSignal(
 	config *task.Config,
 	signal *task.SignalEnvelope,
 ) (bool, *task.ProcessorOutput, error) {
-	log := workflow.GetLogger(ctx)
-	// Use the task context which includes proper activity options from config
-	// This respects timeout settings from project/workflow/task config
 	ctx = e.BuildTaskContext(ctx, config.ID)
-	// If there's a processor, execute it first
-	// NOTE: Processor execution is currently synchronous and blocks signal reception.
-	// Processors should be designed to be short-lived to avoid blocking the wait loop.
-	// Future improvement: Execute processors asynchronously or in child workflows
-	// to maintain responsiveness to new signals and timer events.
-	var processorOutput *task.ProcessorOutput
-	if config.Processor != nil {
-		log.Info("Executing wait task processor", "processor_id", config.Processor.ID)
-		// Normalize processor templates with signal context via activity (proper deterministic approach)
-		var processorConfig *task.Config
-		normInput := &tkacts.NormalizeWaitProcessorInput{
-			WorkflowID:      e.WorkflowID,
-			WorkflowExecID:  e.WorkflowExecID,
-			ProcessorConfig: config.Processor,
-			Signal:          signal,
-		}
-		err := workflow.ExecuteActivity(ctx, tkacts.NormalizeWaitProcessorLabel, normInput).Get(ctx, &processorConfig)
-		if err != nil {
-			log.Error("Failed to normalize processor templates with signal context", "error", err)
-			return false, nil, fmt.Errorf("failed to normalize processor: %w", err)
-		}
-		// Inject signal data into the processor's input for runtime access
-		processorInput := core.Input{}
-		if processorConfig.With != nil {
-			// Copy existing normalized input to avoid mutation
-			maps.Copy(processorInput, *processorConfig.With)
-		}
-		processorInput["signal"] = signal
-		processorConfig.With = &processorInput
-		// Execute the processor as a nested task using HandleExecution
-		// This supports all task types (basic, router, parallel, etc.)
-		processorResponse, err := e.ExecutionHandler(ctx, processorConfig, 1)
-		if err != nil {
-			log.Error("Processor execution failed", "error", err)
-			// Return the error to fail the task immediately
-			return false, nil, fmt.Errorf("processor failed: %w", err)
-		}
-		// Extract processor output from the response
-		if mainTaskResponse, ok := processorResponse.(*task.MainTaskResponse); ok && mainTaskResponse.State != nil {
-			processorOutput = &task.ProcessorOutput{
-				Output: mainTaskResponse.State.Output,
-				Error:  mainTaskResponse.State.Error,
-			}
-		}
-	}
-	// Evaluate condition using CEL via activity
-	evalInput := &tkacts.EvaluateConditionInput{
-		Expression:      config.Condition,
-		Signal:          signal,
-		ProcessorOutput: processorOutput,
-	}
-	var conditionMet bool
-	err := workflow.ExecuteActivity(ctx, tkacts.EvaluateConditionLabel, evalInput).Get(ctx, &conditionMet)
+	processorOutput, err := e.executeProcessor(ctx, config, signal)
 	if err != nil {
-		log.Error("Condition evaluation failed", "error", err, "expression", config.Condition)
-		// Return the error to fail the task immediately
-		return false, processorOutput, fmt.Errorf("condition evaluation failed: %w", err)
+		return false, nil, err
 	}
-	return conditionMet, processorOutput, nil
+	return e.evaluateCondition(ctx, config, signal, processorOutput)
 }
 
 // WaitState tracks the state of the wait task within the workflow
@@ -313,4 +146,212 @@ type WaitState struct {
 	MatchingSignal  *task.SignalEnvelope
 	ProcessorOutput *task.ProcessorOutput
 	Error           error
+}
+
+func (e *TaskWaitExecutor) validateTimeout(ctx workflow.Context, taskConfig *task.Config) (time.Duration, error) {
+	timeout, err := core.ParseHumanDuration(taskConfig.Timeout)
+	if err != nil {
+		workflow.GetLogger(ctx).Error("Invalid timeout format", "timeout", taskConfig.Timeout, "error", err)
+		return 0, fmt.Errorf("invalid timeout: %w", err)
+	}
+	if timeout <= 0 {
+		return 0, fmt.Errorf("wait task requires a positive timeout (got %s)", taskConfig.Timeout)
+	}
+	return timeout, nil
+}
+
+func (e *TaskWaitExecutor) logWaitTaskStart(ctx workflow.Context, taskConfig *task.Config, timeout time.Duration) {
+	workflow.GetLogger(ctx).Info("Wait task started",
+		"task_id", taskConfig.ID,
+		"signal_name", taskConfig.WaitFor,
+		"timeout", timeout,
+		"has_processor", taskConfig.Processor != nil)
+}
+
+func (e *TaskWaitExecutor) updateWorkflowStatus(ctx workflow.Context, status core.StatusType) error {
+	updateInput := &wfacts.UpdateStateInput{
+		WorkflowID:     e.WorkflowID,
+		WorkflowExecID: e.WorkflowExecID,
+		Status:         status,
+	}
+	return workflow.ExecuteActivity(ctx, wfacts.UpdateStateLabel, updateInput).Get(ctx, nil)
+}
+
+func (e *TaskWaitExecutor) handleSignalReceived(
+	ctx workflow.Context,
+	c workflow.ReceiveChannel,
+	taskConfig *task.Config,
+	waitState *WaitState,
+	timer workflow.Future,
+	cancelTimer workflow.CancelFunc,
+) {
+	var signal task.SignalEnvelope
+	c.Receive(ctx, &signal)
+	log := workflow.GetLogger(ctx)
+	log.Info("Signal received", "signal_id", signal.Metadata.SignalID, "workflow_id", signal.Metadata.WorkflowID)
+	shouldContinue, processorOutput, err := e.processSignal(ctx, taskConfig, &signal)
+	if err != nil {
+		waitState.Error = err
+		waitState.ConditionMet = true
+		return
+	}
+	if shouldContinue {
+		waitState.ConditionMet = true
+		waitState.MatchingSignal = &signal
+		waitState.ProcessorOutput = processorOutput
+		log.Info("Condition met, continuing workflow", "signal_id", signal.Metadata.SignalID, "task_id", taskConfig.ID)
+		cancelTimer()
+		if err := timer.Get(ctx, nil); err != nil {
+			log.Warn("Timer cancellation error", "error", err)
+		}
+		waitState.TimerCancelled = true
+	} else {
+		log.Info("Condition not met, continuing to wait", "signal_id", signal.Metadata.SignalID, "task_id", taskConfig.ID)
+	}
+}
+
+func (e *TaskWaitExecutor) handleTimeout(ctx workflow.Context, taskConfig *task.Config, waitState *WaitState) {
+	workflow.GetLogger(ctx).Info("Wait task timed out", "task_id", taskConfig.ID)
+	waitState.TimedOut = true
+	waitState.ConditionMet = true
+}
+
+func (e *TaskWaitExecutor) handleErrorResponse(
+	response *task.MainTaskResponse,
+	waitState *WaitState,
+	taskConfig *task.Config,
+	ctx workflow.Context,
+) {
+	response.State.Status = core.StatusFailed
+	response.State.Error = core.NewError(waitState.Error, "WAIT_TASK_ERROR", nil)
+	if taskConfig.OnError != nil && taskConfig.OnError.Next != nil {
+		response.NextTask = e.loadNextTaskConfig(ctx, taskConfig.ID, *taskConfig.OnError.Next)
+	}
+}
+
+func (e *TaskWaitExecutor) handleTimeoutResponse(
+	response *task.MainTaskResponse,
+	_ *WaitState,
+	taskConfig *task.Config,
+	timeout time.Duration,
+	ctx workflow.Context,
+) {
+	response.State.Status = core.StatusFailed
+	response.State.Error = core.NewError(
+		fmt.Errorf("wait task timed out after %s", timeout),
+		"WAIT_TIMEOUT",
+		map[string]any{
+			"signal_name": taskConfig.WaitFor,
+			"timeout":     taskConfig.Timeout,
+		},
+	)
+	if taskConfig.OnTimeout != "" {
+		response.NextTask = e.loadNextTaskConfig(ctx, taskConfig.ID, taskConfig.OnTimeout)
+	} else if taskConfig.OnError != nil && taskConfig.OnError.Next != nil {
+		response.NextTask = e.loadNextTaskConfig(ctx, taskConfig.ID, *taskConfig.OnError.Next)
+	}
+}
+
+func (e *TaskWaitExecutor) handleSuccessResponse(
+	ctx workflow.Context,
+	response *task.MainTaskResponse,
+	waitState *WaitState,
+	taskConfig *task.Config,
+) {
+	response.State.Status = core.StatusSuccess
+	response.State.Output = &core.Output{
+		"wait_status":      "completed",
+		"signal":           waitState.MatchingSignal,
+		"processor_output": waitState.ProcessorOutput,
+	}
+	err := e.updateWorkflowStatus(ctx, core.StatusRunning)
+	if err != nil {
+		workflow.GetLogger(ctx).Error("Failed to update workflow status to running", "error", err)
+	}
+	if taskConfig.OnSuccess != nil && taskConfig.OnSuccess.Next != nil {
+		response.NextTask = e.loadNextTaskConfig(ctx, taskConfig.ID, *taskConfig.OnSuccess.Next)
+	}
+}
+
+func (e *TaskWaitExecutor) executeProcessor(
+	ctx workflow.Context,
+	config *task.Config,
+	signal *task.SignalEnvelope,
+) (*task.ProcessorOutput, error) {
+	if config.Processor == nil {
+		return nil, nil
+	}
+	log := workflow.GetLogger(ctx)
+	log.Info("Executing wait task processor", "processor_id", config.Processor.ID)
+	processorConfig, err := e.normalizeProcessor(ctx, config, signal)
+	if err != nil {
+		return nil, err
+	}
+	return e.runProcessor(ctx, processorConfig, signal)
+}
+
+func (e *TaskWaitExecutor) normalizeProcessor(
+	ctx workflow.Context,
+	config *task.Config,
+	signal *task.SignalEnvelope,
+) (*task.Config, error) {
+	normInput := &tkacts.NormalizeWaitProcessorInput{
+		WorkflowID:       e.WorkflowID,
+		WorkflowExecID:   e.WorkflowExecID,
+		ProcessorConfig:  config.Processor,
+		ParentTaskConfig: config,
+		Signal:           signal,
+	}
+	var processorConfig *task.Config
+	err := workflow.ExecuteActivity(ctx, tkacts.NormalizeWaitProcessorLabel, normInput).Get(ctx, &processorConfig)
+	if err != nil {
+		workflow.GetLogger(ctx).Error("Failed to normalize processor templates with signal context", "error", err)
+		return nil, fmt.Errorf("failed to normalize processor: %w", err)
+	}
+	return processorConfig, nil
+}
+
+func (e *TaskWaitExecutor) runProcessor(
+	ctx workflow.Context,
+	processorConfig *task.Config,
+	signal *task.SignalEnvelope,
+) (*task.ProcessorOutput, error) {
+	processorInput := core.Input{"signal": signal}
+	if processorConfig.With != nil {
+		maps.Copy(processorInput, *processorConfig.With)
+	}
+	processorInput["signal"] = signal
+	processorConfig.With = &processorInput
+	processorResponse, err := e.ExecutionHandler(ctx, processorConfig, 1)
+	if err != nil {
+		workflow.GetLogger(ctx).Error("Processor execution failed", "error", err)
+		return nil, fmt.Errorf("processor failed: %w", err)
+	}
+	if mainTaskResponse, ok := processorResponse.(*task.MainTaskResponse); ok && mainTaskResponse.State != nil {
+		return &task.ProcessorOutput{
+			Output: mainTaskResponse.State.Output,
+			Error:  mainTaskResponse.State.Error,
+		}, nil
+	}
+	return nil, nil
+}
+
+func (e *TaskWaitExecutor) evaluateCondition(
+	ctx workflow.Context,
+	config *task.Config,
+	signal *task.SignalEnvelope,
+	processorOutput *task.ProcessorOutput,
+) (bool, *task.ProcessorOutput, error) {
+	evalInput := &tkacts.EvaluateConditionInput{
+		Expression:      config.Condition,
+		Signal:          signal,
+		ProcessorOutput: processorOutput,
+	}
+	var conditionMet bool
+	err := workflow.ExecuteActivity(ctx, tkacts.EvaluateConditionLabel, evalInput).Get(ctx, &conditionMet)
+	if err != nil {
+		workflow.GetLogger(ctx).Error("Condition evaluation failed", "error", err, "expression", config.Condition)
+		return false, processorOutput, fmt.Errorf("condition evaluation failed: %w", err)
+	}
+	return conditionMet, processorOutput, nil
 }

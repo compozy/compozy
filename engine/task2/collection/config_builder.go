@@ -17,6 +17,9 @@ type ConfigBuilder struct {
 
 // NewConfigBuilder creates a new config builder
 func NewConfigBuilder(templateEngine *tplengine.TemplateEngine) *ConfigBuilder {
+	if templateEngine == nil {
+		panic("templateEngine cannot be nil")
+	}
 	return &ConfigBuilder{
 		templateEngine: templateEngine,
 	}
@@ -45,30 +48,78 @@ func (cb *ConfigBuilder) BuildTaskConfig(
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone task template: %w", err)
 	}
-	// Merge inputs: parent.with -> task.with -> item context
+	// Build merged input for the task
+	mergedInput, err := cb.buildMergedInput(parentTaskConfig, taskConfig, collectionConfig, item, index, itemContext)
+	if err != nil {
+		return nil, err
+	}
+	taskConfig.With = &mergedInput
+	// Process task ID if it contains templates
+	if err := cb.processTaskID(taskConfig, itemContext); err != nil {
+		return nil, err
+	}
+	// Inherit parent config properties
+	cb.inheritParentConfig(taskConfig, parentTaskConfig)
+	return taskConfig, nil
+}
+
+// buildMergedInput builds the merged input for a collection item task
+func (cb *ConfigBuilder) buildMergedInput(
+	parentTaskConfig *task.Config,
+	taskConfig *task.Config,
+	collectionConfig *task.CollectionConfig,
+	item any,
+	index int,
+	itemContext map[string]any,
+) (core.Input, error) {
 	mergedInput := make(core.Input)
 	// Start with parent task with if available
 	if parentTaskConfig.With != nil {
 		maps.Copy(mergedInput, *parentTaskConfig.With)
 	}
-	// Add task template with - process templates in it
-	if taskConfig.With != nil {
-		// Process templates in the with field using the item context
-		processedWith, err := cb.templateEngine.ParseAny(*taskConfig.With, itemContext)
-		if err != nil {
-			return nil, fmt.Errorf("failed to process with field templates: %w", err)
-		}
-		// Convert processed result to Input map
-		switch v := processedWith.(type) {
-		case map[string]any:
-			maps.Copy(mergedInput, v)
-		case core.Input:
-			maps.Copy(mergedInput, v)
-		default:
-			return nil, fmt.Errorf("processed with field is not a map: %T", processedWith)
-		}
+	// Process and add task template with
+	if err := cb.processTaskWith(taskConfig, itemContext, mergedInput); err != nil {
+		return nil, err
 	}
-	// Add item context
+	// Add collection context fields
+	cb.addCollectionContext(mergedInput, collectionConfig, item, index)
+	return mergedInput, nil
+}
+
+// processTaskWith processes the task's with field and adds it to the merged input
+func (cb *ConfigBuilder) processTaskWith(
+	taskConfig *task.Config,
+	itemContext map[string]any,
+	mergedInput core.Input,
+) error {
+	if taskConfig.With == nil {
+		return nil
+	}
+	// Process templates in the with field using the item context
+	processedWith, err := cb.templateEngine.ParseAny(*taskConfig.With, itemContext)
+	if err != nil {
+		return fmt.Errorf("failed to process with field templates: %w", err)
+	}
+	// Convert processed result to Input map
+	switch v := processedWith.(type) {
+	case map[string]any:
+		maps.Copy(mergedInput, v)
+	case core.Input:
+		maps.Copy(mergedInput, v)
+	default:
+		return fmt.Errorf("processed with field is not a map: %T", processedWith)
+	}
+	return nil
+}
+
+// addCollectionContext adds collection-specific fields to the input
+func (cb *ConfigBuilder) addCollectionContext(
+	mergedInput core.Input,
+	collectionConfig *task.CollectionConfig,
+	item any,
+	index int,
+) {
+	// Add standard fields
 	mergedInput["item"] = item
 	mergedInput["index"] = index
 	// Apply custom item/index keys if specified
@@ -85,20 +136,35 @@ func (cb *ConfigBuilder) BuildTaskConfig(
 	// Store the standard collection fields for output transformation
 	mergedInput[shared.FieldCollectionItem] = item
 	mergedInput[shared.FieldCollectionIndex] = index
-	taskConfig.With = &mergedInput
-	// Generate unique task ID if it contains templates
-	if taskConfig.ID != "" {
-		processedID, err := cb.templateEngine.ParseAny(taskConfig.ID, itemContext)
-		value, ok := processedID.(string)
-		if !ok {
-			return nil, fmt.Errorf("task ID is not a string")
-		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to process task ID template: %w", err)
-		}
-		taskConfig.ID = value
+}
+
+// processTaskID processes the task ID if it contains templates
+func (cb *ConfigBuilder) processTaskID(taskConfig *task.Config, itemContext map[string]any) error {
+	if taskConfig.ID == "" {
+		return nil
 	}
-	return taskConfig, nil
+	processedID, err := cb.templateEngine.ParseAny(taskConfig.ID, itemContext)
+	if err != nil {
+		return fmt.Errorf("failed to process task ID template: %w", err)
+	}
+	value, ok := processedID.(string)
+	if !ok {
+		return fmt.Errorf("task ID is not a string")
+	}
+	taskConfig.ID = value
+	return nil
+}
+
+// inheritParentConfig copies relevant fields from parent to child config
+func (cb *ConfigBuilder) inheritParentConfig(taskConfig, parentTaskConfig *task.Config) {
+	// Copy CWD from parent config to child config if not already set
+	if taskConfig.CWD == nil && parentTaskConfig.CWD != nil {
+		taskConfig.CWD = parentTaskConfig.CWD
+	}
+	// Copy FilePath from parent config to child config if not already set
+	if taskConfig.FilePath == "" && parentTaskConfig.FilePath != "" {
+		taskConfig.FilePath = parentTaskConfig.FilePath
+	}
 }
 
 // createItemContext creates a context for a collection item

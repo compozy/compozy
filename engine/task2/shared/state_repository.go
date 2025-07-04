@@ -3,6 +3,7 @@ package shared
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -41,6 +42,7 @@ type DefaultStateRepository struct {
 	taskRepo           task.Repository
 	transactionService *TransactionService
 	parentCache        map[core.ID]*task.State // Simple in-memory cache
+	cacheMutex         sync.RWMutex            // Protects parentCache access
 }
 
 // NewStateRepository creates a new state repository
@@ -75,17 +77,22 @@ func (r *DefaultStateRepository) GetParentState(ctx context.Context, parentID co
 	if err := r.validateID(parentID); err != nil {
 		return nil, fmt.Errorf("invalid parent task reference: %w", err)
 	}
-	// Check cache first
+	// Check cache first with read lock
+	r.cacheMutex.RLock()
 	if cached, exists := r.parentCache[parentID]; exists {
+		r.cacheMutex.RUnlock()
 		return cached, nil
 	}
+	r.cacheMutex.RUnlock()
 	// Fetch from repository
 	parentState, err := r.taskRepo.GetState(ctx, parentID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve parent task: %w", err)
 	}
-	// Cache the result
+	// Cache the result with write lock
+	r.cacheMutex.Lock()
 	r.parentCache[parentID] = parentState
+	r.cacheMutex.Unlock()
 	return parentState, nil
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"slices"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -92,12 +91,19 @@ func (r *TaskConfigRepository) StoreParallelMetadata(
 	parentStateID core.ID,
 	metadata any,
 ) error {
+	if parentStateID == "" {
+		return fmt.Errorf("parent state ID cannot be empty")
+	}
 	if metadata == nil {
 		return fmt.Errorf("parallel metadata cannot be nil")
 	}
 	parallelMetadata, ok := metadata.(*ParallelTaskMetadata)
 	if !ok {
 		return fmt.Errorf("metadata must be of type *ParallelTaskMetadata")
+	}
+	// Validate content - only validate strategy if provided
+	if parallelMetadata.Strategy != "" && !r.isValidStrategy(parallelMetadata.Strategy) {
+		return fmt.Errorf("invalid parallel strategy: %s", parallelMetadata.Strategy)
 	}
 	return r.storeMetadata(ctx, parentStateID, parallelMetadata, "parallel", parallelMetadata.ChildConfigs)
 }
@@ -129,12 +135,19 @@ func (r *TaskConfigRepository) StoreCollectionMetadata(
 	parentStateID core.ID,
 	metadata any,
 ) error {
+	if parentStateID == "" {
+		return fmt.Errorf("parent state ID cannot be empty")
+	}
 	if metadata == nil {
 		return fmt.Errorf("collection metadata cannot be nil")
 	}
 	collectionMetadata, ok := metadata.(*CollectionTaskMetadata)
 	if !ok {
 		return fmt.Errorf("metadata must be of type *CollectionTaskMetadata")
+	}
+	// Validate content - only validate strategy if provided
+	if collectionMetadata.Strategy != "" && !r.isValidStrategy(collectionMetadata.Strategy) {
+		return fmt.Errorf("invalid collection strategy: %s", collectionMetadata.Strategy)
 	}
 	return r.storeMetadata(ctx, parentStateID, collectionMetadata, "collection", collectionMetadata.ChildConfigs)
 }
@@ -166,12 +179,19 @@ func (r *TaskConfigRepository) StoreCompositeMetadata(
 	parentStateID core.ID,
 	metadata any,
 ) error {
+	if parentStateID == "" {
+		return fmt.Errorf("parent state ID cannot be empty")
+	}
 	if metadata == nil {
 		return fmt.Errorf("composite metadata cannot be nil")
 	}
 	compositeMetadata, ok := metadata.(*CompositeTaskMetadata)
 	if !ok {
 		return fmt.Errorf("metadata must be of type *CompositeTaskMetadata")
+	}
+	// Validate content - only validate strategy if provided
+	if compositeMetadata.Strategy != "" && !r.isValidStrategy(compositeMetadata.Strategy) {
+		return fmt.Errorf("invalid composite strategy: %s", compositeMetadata.Strategy)
 	}
 	return r.storeMetadata(ctx, parentStateID, compositeMetadata, "composite", compositeMetadata.ChildConfigs)
 }
@@ -310,13 +330,7 @@ func (r *TaskConfigRepository) CalculateMaxWorkers(taskType task.Type, maxWorker
 
 // isValidStrategy checks if strategy is valid
 func (r *TaskConfigRepository) isValidStrategy(strategy string) bool {
-	validStrategies := []string{
-		string(task.StrategyWaitAll),
-		string(task.StrategyFailFast),
-		string(task.StrategyBestEffort),
-		string(task.StrategyRace),
-	}
-	return slices.Contains(validStrategies, strategy)
+	return task.ValidateStrategy(strategy)
 }
 
 // -----------------------------------------------------------------------------

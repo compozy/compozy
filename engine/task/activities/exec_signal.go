@@ -38,7 +38,6 @@ func NewExecuteSignal(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	signalDispatcher services.SignalDispatcher,
-	_ *core.PathCWD,
 	task2Factory task2.Factory,
 	templateEngine *tplengine.TemplateEngine,
 ) (*ExecuteSignal, error) {

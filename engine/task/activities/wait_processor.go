@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/task/uc"
 	"github.com/compozy/compozy/engine/task2"
 	task2core "github.com/compozy/compozy/engine/task2/core"
+	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
@@ -16,10 +17,11 @@ import (
 const NormalizeWaitProcessorLabel = "NormalizeWaitProcessor"
 
 type NormalizeWaitProcessorInput struct {
-	WorkflowID      string               `json:"workflow_id"`
-	WorkflowExecID  core.ID              `json:"workflow_exec_id"`
-	ProcessorConfig *task.Config         `json:"processor_config"`
-	Signal          *task.SignalEnvelope `json:"signal"`
+	WorkflowID       string               `json:"workflow_id"`
+	WorkflowExecID   core.ID              `json:"workflow_exec_id"`
+	ProcessorConfig  *task.Config         `json:"processor_config"`
+	ParentTaskConfig *task.Config         `json:"parent_task_config"` // NEW: Enable inheritance
+	Signal           *task.SignalEnvelope `json:"signal"`
 }
 
 type NormalizeWaitProcessor struct {
@@ -56,6 +58,9 @@ func (a *NormalizeWaitProcessor) Run(ctx context.Context, input *NormalizeWaitPr
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone processor config: %w", err)
 	}
+
+	// Apply parent context inheritance from wait task to processor
+	shared.InheritTaskConfig(normalizedConfig, input.ParentTaskConfig)
 
 	// Create task2 orchestrator for signal normalization
 	engine := tplengine.NewEngine(tplengine.FormatJSON)

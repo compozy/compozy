@@ -7,13 +7,11 @@ This directory contains comprehensive integration tests for the Compozy memory s
 ### Core Test Files
 
 1. **helpers.go** - Test environment setup and utilities
-
     - `TestEnvironment` - Manages Redis, Temporal, and Memory Manager setup
     - Automatic cleanup procedures
     - Test memory configuration registration
 
 2. **e2e_test.go** - End-to-end memory lifecycle tests
-
     - Complete memory lifecycle testing
     - Concurrent agent access scenarios
     - Flush workflow integration
@@ -21,7 +19,6 @@ This directory contains comprehensive integration tests for the Compozy memory s
     - Memory expiration
 
 3. **distributed_locking_test.go** - Distributed locking tests
-
     - Concurrent append operations
     - Concurrent clear operations
     - Flush prevention with locks
@@ -29,14 +26,12 @@ This directory contains comprehensive integration tests for the Compozy memory s
     - Lock timeout handling
 
 4. **flush_cleanup_test.go** - Flush and cleanup workflow tests
-
     - Complete flush workflow with summarization
     - Multiple flush strategies (FIFO, summarization)
     - Cleanup workflow for expired memories
     - Concurrent flush and cleanup interaction
 
 5. **token_counting_test.go** - Token counting integration tests
-
     - Multi-provider token counting
     - Token counting consistency
     - Token counting with flush operations
@@ -54,13 +49,11 @@ This directory contains comprehensive integration tests for the Compozy memory s
 ### Support Infrastructure
 
 7. **test_data.go** - Test data management
-
     - `TestDataManager` - Tracks and cleans up test instances
     - `StandardTestDataSets` - Common test scenarios
     - Helper functions for populating and verifying memory
 
 8. **health_monitor.go** - Test environment health monitoring
-
     - `HealthMonitor` - Monitors Redis, Temporal, Memory Manager
     - Metrics collection and reporting
     - Alert generation on failures

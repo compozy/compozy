@@ -26,13 +26,11 @@ func TestConfigBuilder_NewConfigBuilder(t *testing.T) {
 		assert.Equal(t, templateEngine, builder.GetTemplateEngine())
 	})
 
-	t.Run("Should handle nil template engine", func(t *testing.T) {
-		// Act
-		builder := collection.NewConfigBuilder(nil)
-
-		// Assert
-		assert.NotNil(t, builder)
-		assert.Nil(t, builder.GetTemplateEngine())
+	t.Run("Should panic with nil template engine", func(t *testing.T) {
+		// Act & Assert
+		assert.Panics(t, func() {
+			collection.NewConfigBuilder(nil)
+		}, "NewConfigBuilder should panic when templateEngine is nil")
 	})
 }
 

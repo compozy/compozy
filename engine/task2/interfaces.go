@@ -26,5 +26,5 @@ type Factory interface {
 	CreateCollectionExpander() shared.CollectionExpander
 
 	// Infrastructure service creation
-	CreateTaskConfigRepository(configStore core.ConfigStore) shared.TaskConfigRepository
+	CreateTaskConfigRepository(configStore core.ConfigStore) (shared.TaskConfigRepository, error)
 }

@@ -40,12 +40,10 @@ type Config struct {
 These settings control how the runtime handles execution retries and backoff strategies:
 
 - **`BackoffInitialInterval`** (default: `100ms`)
-
     - Initial delay before the first retry attempt
     - Should be kept relatively short for responsive user experience
 
 - **`BackoffMaxInterval`** (default: `5s`)
-
     - Maximum delay between retry attempts
     - Prevents excessive wait times during prolonged failures
 
@@ -68,7 +66,6 @@ These settings control how the runtime handles execution retries and backoff str
 ### Runtime Selection
 
 - **`RuntimeType`** (default: `"bun"`)
-
     - Specifies which JavaScript runtime to use
     - Supported values: `"bun"`, `"node"` (planned)
 

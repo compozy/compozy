@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	task2core "github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/task2/shared"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // ResponseConverter provides utilities for converting response outputs to specific response types.
@@ -52,7 +53,7 @@ func (rc *ResponseConverter) ConvertToCollectionResponse(
 	result *shared.ResponseOutput,
 	configStore task2core.ConfigStore,
 	task2Factory interface {
-		CreateTaskConfigRepository(store task2core.ConfigStore) shared.TaskConfigRepository
+		CreateTaskConfigRepository(store task2core.ConfigStore) (shared.TaskConfigRepository, error)
 	},
 ) *task.CollectionResponse {
 	if result == nil {
@@ -80,12 +81,17 @@ func (rc *ResponseConverter) ConvertToCollectionResponse(
 	}
 	// Get collection metadata from config store if available - with nil checks
 	if configStore != nil && task2Factory != nil && result.State != nil {
-		configRepo := task2Factory.CreateTaskConfigRepository(configStore)
-		metadata, err := configRepo.LoadCollectionMetadata(ctx, result.State.TaskExecID)
-		if err == nil && metadata != nil {
-			if collectionMetadata, ok := metadata.(*task2core.CollectionTaskMetadata); ok {
-				response.ItemCount = collectionMetadata.ItemCount
-				response.SkippedCount = collectionMetadata.SkippedCount
+		configRepo, err := task2Factory.CreateTaskConfigRepository(configStore)
+		if err != nil {
+			// Log error but don't fail - metadata is optional for response
+			logger.FromContext(ctx).Error("failed to create task config repository", "error", err)
+		} else {
+			metadata, err := configRepo.LoadCollectionMetadata(ctx, result.State.TaskExecID)
+			if err == nil && metadata != nil {
+				if collectionMetadata, ok := metadata.(*task2core.CollectionTaskMetadata); ok {
+					response.ItemCount = collectionMetadata.ItemCount
+					response.SkippedCount = collectionMetadata.SkippedCount
+				}
 			}
 		}
 	}

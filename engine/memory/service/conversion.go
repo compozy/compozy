@@ -7,17 +7,6 @@ import (
 	memcore "github.com/compozy/compozy/engine/memory/core"
 )
 
-// ConvertToLLMMessages is deprecated - use PayloadToMessages instead.
-// Kept for backward compatibility, redirects to PayloadToMessages.
-func ConvertToLLMMessages(messages []map[string]any) ([]llm.Message, error) {
-	return PayloadToMessages(messages)
-}
-
-// MapToMessage converts a single message map to llm.Message using default limits
-func MapToMessage(msg map[string]any) (llm.Message, error) {
-	return MapToMessageWithLimits(msg, nil)
-}
-
 // MapToMessageWithLimits converts a single message map to llm.Message with configurable limits
 func MapToMessageWithLimits(msg map[string]any, limits *ValidationLimits) (llm.Message, error) {
 	role, ok := msg["role"].(string)
@@ -128,16 +117,4 @@ func PayloadToMessagesWithLimits(payload any, limits *ValidationLimits) ([]llm.M
 		"unsupported payload format",
 		nil,
 	).WithContext("payload_type", fmt.Sprintf("%T", payload))
-}
-
-// MessagesToOutputFormat converts llm.Message slice to output format
-func MessagesToOutputFormat(messages []llm.Message) []map[string]any {
-	output := make([]map[string]any, len(messages))
-	for i, msg := range messages {
-		output[i] = map[string]any{
-			"role":    string(msg.Role),
-			"content": msg.Content,
-		}
-	}
-	return output
 }

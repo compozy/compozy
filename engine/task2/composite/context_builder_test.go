@@ -162,7 +162,9 @@ func TestCompositeContextBuilder_EnrichContext(t *testing.T) {
 	t.Run("Should enrich context with base enrichment", func(t *testing.T) {
 		// Arrange
 		ctx := &shared.NormalizationContext{
-			Variables: make(map[string]any),
+			Variables: map[string]any{
+				"task": map[string]any{}, // Initialize task map
+			},
 		}
 		taskState := &task.State{
 			TaskID: string(core.MustNewID()),
@@ -174,6 +176,9 @@ func TestCompositeContextBuilder_EnrichContext(t *testing.T) {
 
 		// Assert
 		assert.NoError(t, err)
+		// Verify task status was added
+		taskMap := ctx.Variables["task"].(map[string]any)
+		assert.Equal(t, core.StatusRunning, taskMap["status"])
 	})
 
 	t.Run("Should handle nil task state", func(t *testing.T) {

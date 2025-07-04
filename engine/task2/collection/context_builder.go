@@ -1,6 +1,7 @@
 package collection
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
@@ -94,7 +95,7 @@ func (b *ContextBuilder) BuildIterationContextWithProgress(
 
 	// Add progress context if provided
 	if progressState != nil {
-		progressCtx := shared.BuildProgressContext(progressState)
+		progressCtx := shared.BuildProgressContext(context.TODO(), progressState)
 		iterCtx.Variables["progress"] = progressCtx
 	}
 

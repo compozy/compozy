@@ -11,6 +11,7 @@ import (
 	task2core "github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 const GetParallelResponseLabel = "GetParallelResponse"
@@ -130,19 +131,24 @@ func (a *GetParallelResponse) convertToMainTaskResponse(
 			State: result.State,
 		}
 		// Get parallel metadata from config store if available
-		configRepo := a.task2Factory.CreateTaskConfigRepository(a.configStore)
-		metadata, err := configRepo.LoadParallelMetadata(ctx, result.State.TaskExecID)
-		if err == nil && metadata != nil {
-			if parallelMetadata, ok := metadata.(*task2core.ParallelTaskMetadata); ok {
-				// Add parallel-specific metadata to output
-				if result.State.Output == nil {
-					output := make(core.Output)
-					result.State.Output = &output
-				}
-				(*result.State.Output)["parallel_metadata"] = map[string]any{
-					"child_count": len(parallelMetadata.ChildConfigs),
-					"strategy":    parallelMetadata.Strategy,
-					"max_workers": parallelMetadata.MaxWorkers,
+		configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+		if err != nil {
+			// Log error but don't fail - metadata is optional for response
+			logger.FromContext(ctx).Error("failed to create task config repository", "error", err)
+		} else {
+			metadata, err := configRepo.LoadParallelMetadata(ctx, result.State.TaskExecID)
+			if err == nil && metadata != nil {
+				if parallelMetadata, ok := metadata.(*task2core.ParallelTaskMetadata); ok {
+					// Add parallel-specific metadata to output
+					if result.State.Output == nil {
+						output := make(core.Output)
+						result.State.Output = &output
+					}
+					(*result.State.Output)["parallel_metadata"] = map[string]any{
+						"child_count": len(parallelMetadata.ChildConfigs),
+						"strategy":    parallelMetadata.Strategy,
+						"max_workers": parallelMetadata.MaxWorkers,
+					}
 				}
 			}
 		}

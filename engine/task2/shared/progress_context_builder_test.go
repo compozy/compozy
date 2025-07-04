@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -29,7 +30,7 @@ func TestBuildProgressContext(t *testing.T) {
 			LastUpdateTime: time.Now(),
 		}
 
-		result := BuildProgressContext(progressState)
+		result := BuildProgressContext(context.Background(), progressState)
 
 		assert.Equal(t, 10, result["total"])
 		assert.Equal(t, 6, result["completed"])
@@ -62,7 +63,7 @@ func TestBuildProgressContext(t *testing.T) {
 			LastUpdateTime: startTime,
 		}
 
-		result := BuildProgressContext(progressState)
+		result := BuildProgressContext(context.Background(), progressState)
 
 		assert.Equal(t, 0, result["total"])
 		assert.Equal(t, 0, result["completed"])
@@ -92,7 +93,7 @@ func TestBuildProgressContext(t *testing.T) {
 			LastUpdateTime: time.Now(),
 		}
 
-		result := BuildProgressContext(progressState)
+		result := BuildProgressContext(context.Background(), progressState)
 
 		assert.Equal(t, 5, result["total"])
 		assert.Equal(t, 5, result["completed"])
@@ -114,7 +115,7 @@ func TestBuildProgressContext(t *testing.T) {
 			LastUpdateTime: time.Now(),
 		}
 
-		result := BuildProgressContext(progressState)
+		result := BuildProgressContext(context.Background(), progressState)
 
 		assert.Equal(t, 3, result["total"])
 		assert.Equal(t, 0, result["completed"])
@@ -122,5 +123,26 @@ func TestBuildProgressContext(t *testing.T) {
 		assert.Equal(t, 0.0, result["completionRate"])
 		assert.Equal(t, 1.0, result["failureRate"])
 		assert.Equal(t, "failed", result["overallStatus"]) // All failed = failed status
+	})
+
+	t.Run("Should handle nil progress state gracefully", func(t *testing.T) {
+		result := BuildProgressContext(context.Background(), nil)
+
+		// Should return valid map with zero values
+		assert.NotNil(t, result)
+		assert.Equal(t, 0, result["total"])
+		assert.Equal(t, 0, result["completed"])
+		assert.Equal(t, 0, result["success"])
+		assert.Equal(t, 0, result["failed"])
+		assert.Equal(t, 0, result["canceled"])
+		assert.Equal(t, 0, result["timedOut"])
+		assert.Equal(t, 0, result["terminal"])
+		assert.Equal(t, 0, result["running"])
+		assert.Equal(t, 0, result["pending"])
+		assert.Equal(t, 0.0, result["completionRate"])
+		assert.Equal(t, 0.0, result["failureRate"])
+		assert.Equal(t, "unknown", result["overallStatus"])
+		assert.Nil(t, result["statusType"])
+		assert.Equal(t, 0.0, result["elapsedSeconds"])
 	})
 }

@@ -126,13 +126,11 @@ Common dependencies across activities:
 #### Response Processing Chain
 
 1. `response_helpers.go` provides core functions:
-
     - `processParentTask` - Main orchestrator for parent tasks
     - `aggregateChildOutputs` - Collects child outputs
     - `buildDetailedFailureError` - Creates detailed error messages
 
 2. `response_converter.go` provides conversion utilities:
-
     - `ConvertToMainTaskResponse` - Basic response conversion
     - `ConvertToCollectionResponse` - Collection-specific conversion
 

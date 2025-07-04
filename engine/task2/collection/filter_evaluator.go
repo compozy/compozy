@@ -14,6 +14,9 @@ type FilterEvaluator struct {
 
 // NewFilterEvaluator creates a new filter evaluator
 func NewFilterEvaluator(templateEngine *tplengine.TemplateEngine) *FilterEvaluator {
+	if templateEngine == nil {
+		panic("templateEngine cannot be nil")
+	}
 	return &FilterEvaluator{
 		templateEngine: templateEngine,
 	}

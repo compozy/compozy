@@ -291,8 +291,8 @@ func TestChildrenIndexBuilder_CircularReferenceDetection(t *testing.T) {
 
 		// Set up circular reference in children index
 		childrenIndex := map[string][]string{
-			string(parentExecID): {"child-task"},
-			string(childExecID):  {"parent-task"}, // Circular: child has parent as child
+			parentExecID.String(): {"child-task"},
+			childExecID.String():  {"parent-task"}, // Circular: child has parent as child
 		}
 
 		workflowState := &workflow.State{
@@ -353,7 +353,7 @@ func TestChildrenIndexBuilder_CircularReferenceDetection(t *testing.T) {
 		}
 
 		childrenIndex := map[string][]string{
-			string(parentExecID): {"child1-task", "child2-task"},
+			parentExecID.String(): {"child1-task", "child2-task"},
 		}
 
 		workflowState := &workflow.State{

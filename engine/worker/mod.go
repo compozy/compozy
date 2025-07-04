@@ -106,6 +106,11 @@ func buildRuntimeManager(
 		options = append(options, runtime.WithBunPermissions(projectConfig.Runtime.Permissions))
 	}
 
+	// Set entrypoint path from project config
+	if projectConfig.Runtime.Entrypoint != "" {
+		options = append(options, runtime.WithEntrypointPath(projectConfig.Runtime.Entrypoint))
+	}
+
 	// Check for tool execution timeout from environment
 	if timeoutStr := os.Getenv("TOOL_EXECUTION_TIMEOUT"); timeoutStr != "" {
 		timeout, err := time.ParseDuration(timeoutStr)

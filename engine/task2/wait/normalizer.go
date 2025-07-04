@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task2/contracts"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
@@ -31,6 +32,19 @@ func NewNormalizer(
 			},
 		),
 	}
+}
+
+// Normalize applies wait task-specific normalization rules
+func (n *Normalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
+	// Call base normalization first
+	if err := n.BaseNormalizer.Normalize(config, ctx); err != nil {
+		return err
+	}
+	// Apply inheritance to processor if present
+	if config != nil && config.Processor != nil {
+		shared.InheritTaskConfig(config.Processor, config)
+	}
+	return nil
 }
 
 // NormalizeWithSignal normalizes a wait task config with signal context

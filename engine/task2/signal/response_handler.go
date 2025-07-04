@@ -2,6 +2,7 @@ package signal
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -81,11 +82,21 @@ func (h *ResponseHandler) Type() task.Type {
 
 // ValidateSignalDispatch validates that the signal was properly dispatched
 func (h *ResponseHandler) ValidateSignalDispatch(state *task.State) error {
+	if state == nil {
+		return fmt.Errorf("signal task state cannot be nil")
+	}
 	// Signal tasks should complete successfully if the signal was dispatched
 	// The actual signal delivery is handled asynchronously by the workflow engine
 	if state.Status == core.StatusSuccess {
 		// Signal was dispatched successfully
 		return nil
 	}
-	return nil
+	if state.Status == core.StatusFailed {
+		if state.Error != nil {
+			return fmt.Errorf("signal dispatch failed: %s", state.Error.Message)
+		}
+		return fmt.Errorf("signal dispatch failed with unknown error")
+	}
+	// For pending or running states, it's not an error but the signal hasn't been dispatched yet
+	return fmt.Errorf("signal dispatch not completed, current status: %s", state.Status)
 }

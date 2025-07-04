@@ -2,6 +2,7 @@ package wait
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -79,6 +80,9 @@ func (h *ResponseHandler) Type() task.Type {
 
 // ValidateWaitCompletion validates that the wait task completed properly
 func (h *ResponseHandler) ValidateWaitCompletion(state *task.State) error {
+	if state == nil {
+		return fmt.Errorf("state cannot be nil")
+	}
 	// Wait tasks are considered complete when they receive a signal
 	// The validation here is minimal as the wait logic is handled by the executor
 	if state.Status == core.StatusSuccess && state.Output == nil {

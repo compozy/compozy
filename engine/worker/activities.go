@@ -411,7 +411,10 @@ func (a *Activities) LoadCompositeConfigsActivity(
 		return nil, err
 	}
 	// Create task config repository from factory
-	configRepo := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create task config repository: %w", err)
+	}
 	act := tkfacts.NewLoadCompositeConfigs(configRepo)
 	return act.Run(ctx, input)
 }
@@ -424,7 +427,10 @@ func (a *Activities) LoadCollectionConfigsActivity(
 		return nil, err
 	}
 	// Create task config repository from factory
-	configRepo := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create task config repository: %w", err)
+	}
 	act := tkfacts.NewLoadCollectionConfigs(configRepo)
 	return act.Run(ctx, input)
 }
@@ -442,7 +448,6 @@ func (a *Activities) ExecuteSignalTask(
 		a.taskRepo,
 		a.configStore,
 		a.signalDispatcher,
-		a.projectConfig.CWD,
 		a.task2Factory,
 		a.templateEngine,
 	)

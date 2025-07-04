@@ -21,12 +21,11 @@ func TestFilterEvaluator_NewFilterEvaluator(t *testing.T) {
 		assert.NotNil(t, evaluator)
 	})
 
-	t.Run("Should handle nil template engine", func(t *testing.T) {
-		// Act
-		evaluator := collection.NewFilterEvaluator(nil)
-
-		// Assert
-		assert.NotNil(t, evaluator)
+	t.Run("Should panic with nil template engine", func(t *testing.T) {
+		// Act & Assert
+		assert.Panics(t, func() {
+			collection.NewFilterEvaluator(nil)
+		}, "NewFilterEvaluator should panic when templateEngine is nil")
 	})
 }
 

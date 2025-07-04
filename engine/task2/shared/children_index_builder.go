@@ -80,11 +80,7 @@ func (cib *ChildrenIndexBuilder) buildChildrenContextWithVisited(
 	if childTaskIDs, exists := childrenIndex[parentExecID]; exists {
 		for _, childTaskID := range childTaskIDs {
 			if childState, exists := workflowState.Tasks[childTaskID]; exists {
-				// Create a copy of visited map for the recursive call
-				visitedCopy := make(map[string]bool)
-				for k, v := range visited {
-					visitedCopy[k] = v
-				}
+				// Pass the original visited map directly since defer cleanup handles it
 				children[childTaskID] = cib.buildChildContextWithoutParentVisited(
 					childTaskID,
 					childState,
@@ -93,7 +89,7 @@ func (cib *ChildrenIndexBuilder) buildChildrenContextWithVisited(
 					taskConfigs,
 					taskOutputBuilder,
 					depth+1,
-					visitedCopy,
+					visited,
 				)
 			}
 		}

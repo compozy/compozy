@@ -196,11 +196,11 @@ func TestBaseNormalizer_BoundaryConditions(t *testing.T) {
 			},
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
-		// Act & Assert
-		// Should panic due to nil template engine
-		assert.Panics(t, func() {
-			normalizer.Normalize(taskConfig, ctx)
-		})
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert - Should return error instead of panicking
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "template engine is required for normalization")
 	})
 
 	t.Run("Should handle empty string templates", func(t *testing.T) {

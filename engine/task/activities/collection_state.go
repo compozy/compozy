@@ -84,7 +84,10 @@ func (a *CreateCollectionState) Run(ctx context.Context, input *CreateCollection
 		return nil, fmt.Errorf("expansion validation failed: %w", err)
 	}
 	// Store expanded configs for child task creation
-	configRepo := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create task config repository: %w", err)
+	}
 	collectionMetadata := &task2core.CollectionTaskMetadata{
 		ParentStateID: state.TaskExecID,
 		ChildConfigs:  expansionResult.ChildConfigs,

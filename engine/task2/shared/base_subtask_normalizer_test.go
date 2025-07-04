@@ -317,11 +317,11 @@ func TestBaseSubTaskNormalizer_BoundaryConditions(t *testing.T) {
 			},
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
-		// Act & Assert
-		// Should panic due to nil template engine
-		assert.Panics(t, func() {
-			normalizer.Normalize(taskConfig, ctx)
-		})
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert - Should return error due to nil template engine
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "template engine is required for normalization")
 	})
 
 	t.Run("Should handle nil context builder gracefully", func(t *testing.T) {
@@ -578,6 +578,337 @@ func TestBaseSubTaskNormalizer_BoundaryConditions(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, originalSubTaskID, taskConfig.Tasks[0].ID)
 		assert.Equal(t, originalSubTaskWith, taskConfig.Tasks[0].With)
+		mockFactory.AssertExpectations(t)
+		mockSubNormalizer.AssertExpectations(t)
+	})
+}
+
+func TestBaseSubTaskNormalizer_ConfigInheritance(t *testing.T) {
+	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+	contextBuilder, err := shared.NewContextBuilder()
+	require.NoError(t, err)
+
+	t.Run("Should inherit CWD from parent to child task", func(t *testing.T) {
+		// Arrange
+		mockFactory := &mockNormalizerFactory{}
+		mockSubNormalizer := &mockTaskNormalizer{}
+		mockFactory.On("CreateNormalizer", task.TaskTypeBasic).Return(mockSubNormalizer, nil)
+		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil)
+
+		normalizer := shared.NewBaseSubTaskNormalizer(
+			templateEngine,
+			contextBuilder,
+			mockFactory,
+			task.TaskTypeParallel,
+			"parallel",
+		)
+
+		parentCWD := &core.PathCWD{Path: "/parent/working/directory"}
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "parallel-task",
+				Type: task.TaskTypeParallel,
+				CWD:  parentCWD,
+			},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "child-task",
+						Type: task.TaskTypeBasic,
+					},
+				},
+			},
+		}
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, parentCWD, taskConfig.Tasks[0].CWD, "child task should inherit parent CWD")
+		mockFactory.AssertExpectations(t)
+		mockSubNormalizer.AssertExpectations(t)
+	})
+
+	t.Run("Should inherit FilePath from parent to child task", func(t *testing.T) {
+		// Arrange
+		mockFactory := &mockNormalizerFactory{}
+		mockSubNormalizer := &mockTaskNormalizer{}
+		mockFactory.On("CreateNormalizer", task.TaskTypeBasic).Return(mockSubNormalizer, nil)
+		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil)
+
+		normalizer := shared.NewBaseSubTaskNormalizer(
+			templateEngine,
+			contextBuilder,
+			mockFactory,
+			task.TaskTypeParallel,
+			"parallel",
+		)
+
+		parentFilePath := "configs/parent.yaml"
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:       "parallel-task",
+				Type:     task.TaskTypeParallel,
+				FilePath: parentFilePath,
+			},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "child-task",
+						Type: task.TaskTypeBasic,
+					},
+				},
+			},
+		}
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, parentFilePath, taskConfig.Tasks[0].FilePath, "child task should inherit parent FilePath")
+		mockFactory.AssertExpectations(t)
+		mockSubNormalizer.AssertExpectations(t)
+	})
+
+	t.Run("Should inherit both CWD and FilePath from parent to child task", func(t *testing.T) {
+		// Arrange
+		mockFactory := &mockNormalizerFactory{}
+		mockSubNormalizer := &mockTaskNormalizer{}
+		mockFactory.On("CreateNormalizer", task.TaskTypeBasic).Return(mockSubNormalizer, nil)
+		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil)
+
+		normalizer := shared.NewBaseSubTaskNormalizer(
+			templateEngine,
+			contextBuilder,
+			mockFactory,
+			task.TaskTypeParallel,
+			"parallel",
+		)
+
+		parentCWD := &core.PathCWD{Path: "/parent/working/directory"}
+		parentFilePath := "configs/parent.yaml"
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:       "parallel-task",
+				Type:     task.TaskTypeParallel,
+				CWD:      parentCWD,
+				FilePath: parentFilePath,
+			},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "child-task",
+						Type: task.TaskTypeBasic,
+					},
+				},
+			},
+		}
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, parentCWD, taskConfig.Tasks[0].CWD, "child task should inherit parent CWD")
+		assert.Equal(t, parentFilePath, taskConfig.Tasks[0].FilePath, "child task should inherit parent FilePath")
+		mockFactory.AssertExpectations(t)
+		mockSubNormalizer.AssertExpectations(t)
+	})
+
+	t.Run("Should not override existing CWD in child task", func(t *testing.T) {
+		// Arrange
+		mockFactory := &mockNormalizerFactory{}
+		mockSubNormalizer := &mockTaskNormalizer{}
+		mockFactory.On("CreateNormalizer", task.TaskTypeBasic).Return(mockSubNormalizer, nil)
+		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil)
+
+		normalizer := shared.NewBaseSubTaskNormalizer(
+			templateEngine,
+			contextBuilder,
+			mockFactory,
+			task.TaskTypeParallel,
+			"parallel",
+		)
+
+		parentCWD := &core.PathCWD{Path: "/parent/working/directory"}
+		childCWD := &core.PathCWD{Path: "/child/specific/directory"}
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "parallel-task",
+				Type: task.TaskTypeParallel,
+				CWD:  parentCWD,
+			},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "child-task",
+						Type: task.TaskTypeBasic,
+						CWD:  childCWD,
+					},
+				},
+			},
+		}
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, childCWD, taskConfig.Tasks[0].CWD, "child task should keep its own CWD")
+		assert.NotEqual(t, parentCWD, taskConfig.Tasks[0].CWD, "child CWD should not be overwritten by parent")
+		mockFactory.AssertExpectations(t)
+		mockSubNormalizer.AssertExpectations(t)
+	})
+
+	t.Run("Should not override existing FilePath in child task", func(t *testing.T) {
+		// Arrange
+		mockFactory := &mockNormalizerFactory{}
+		mockSubNormalizer := &mockTaskNormalizer{}
+		mockFactory.On("CreateNormalizer", task.TaskTypeBasic).Return(mockSubNormalizer, nil)
+		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil)
+
+		normalizer := shared.NewBaseSubTaskNormalizer(
+			templateEngine,
+			contextBuilder,
+			mockFactory,
+			task.TaskTypeParallel,
+			"parallel",
+		)
+
+		parentFilePath := "configs/parent.yaml"
+		childFilePath := "configs/child.yaml"
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:       "parallel-task",
+				Type:     task.TaskTypeParallel,
+				FilePath: parentFilePath,
+			},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:       "child-task",
+						Type:     task.TaskTypeBasic,
+						FilePath: childFilePath,
+					},
+				},
+			},
+		}
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, childFilePath, taskConfig.Tasks[0].FilePath, "child task should keep its own FilePath")
+		assert.NotEqual(
+			t,
+			parentFilePath,
+			taskConfig.Tasks[0].FilePath,
+			"child FilePath should not be overwritten by parent",
+		)
+		mockFactory.AssertExpectations(t)
+		mockSubNormalizer.AssertExpectations(t)
+	})
+
+	t.Run("Should handle inheritance with Task reference", func(t *testing.T) {
+		// Arrange
+		mockFactory := &mockNormalizerFactory{}
+		mockSubNormalizer := &mockTaskNormalizer{}
+		mockFactory.On("CreateNormalizer", task.TaskTypeBasic).Return(mockSubNormalizer, nil)
+		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil)
+
+		normalizer := shared.NewBaseSubTaskNormalizer(
+			templateEngine,
+			contextBuilder,
+			mockFactory,
+			task.TaskTypeParallel,
+			"parallel",
+		)
+
+		parentCWD := &core.PathCWD{Path: "/parent/working/directory"}
+		parentFilePath := "configs/parent.yaml"
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:       "parallel-task",
+				Type:     task.TaskTypeParallel,
+				CWD:      parentCWD,
+				FilePath: parentFilePath,
+			},
+			Task: &task.Config{
+				BaseConfig: task.BaseConfig{
+					ID:   "ref-task",
+					Type: task.TaskTypeBasic,
+				},
+			},
+		}
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, parentCWD, taskConfig.Task.CWD, "Task reference should inherit parent CWD")
+		assert.Equal(t, parentFilePath, taskConfig.Task.FilePath, "Task reference should inherit parent FilePath")
+		mockFactory.AssertExpectations(t)
+		mockSubNormalizer.AssertExpectations(t)
+	})
+
+	t.Run("Should inherit config for multiple child tasks", func(t *testing.T) {
+		// Arrange
+		mockFactory := &mockNormalizerFactory{}
+		mockSubNormalizer := &mockTaskNormalizer{}
+		mockFactory.On("CreateNormalizer", task.TaskTypeBasic).Return(mockSubNormalizer, nil)
+		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil).Times(3)
+
+		normalizer := shared.NewBaseSubTaskNormalizer(
+			templateEngine,
+			contextBuilder,
+			mockFactory,
+			task.TaskTypeParallel,
+			"parallel",
+		)
+
+		parentCWD := &core.PathCWD{Path: "/parent/working/directory"}
+		parentFilePath := "configs/parent.yaml"
+		taskConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:       "parallel-task",
+				Type:     task.TaskTypeParallel,
+				CWD:      parentCWD,
+				FilePath: parentFilePath,
+			},
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "child-task-1",
+						Type: task.TaskTypeBasic,
+					},
+				},
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "child-task-2",
+						Type: task.TaskTypeBasic,
+					},
+				},
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "child-task-3",
+						Type: task.TaskTypeBasic,
+					},
+				},
+			},
+		}
+		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
+		// Act
+		err := normalizer.Normalize(taskConfig, ctx)
+		// Assert
+		assert.NoError(t, err)
+		for i := range taskConfig.Tasks {
+			assert.Equal(t, parentCWD, taskConfig.Tasks[i].CWD, "child task %d should inherit parent CWD", i)
+			assert.Equal(
+				t,
+				parentFilePath,
+				taskConfig.Tasks[i].FilePath,
+				"child task %d should inherit parent FilePath",
+				i,
+			)
+		}
 		mockFactory.AssertExpectations(t)
 		mockSubNormalizer.AssertExpectations(t)
 	})

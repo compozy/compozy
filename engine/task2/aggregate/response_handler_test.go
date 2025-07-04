@@ -30,14 +30,16 @@ func TestAggregateResponseHandler_NewResponseHandler(t *testing.T) {
 
 func TestAggregateResponseHandler_Type(t *testing.T) {
 	t.Run("Should return aggregate task type", func(t *testing.T) {
-		handler := NewResponseHandler(nil, nil, nil)
+		baseHandler := &shared.BaseResponseHandler{}
+		handler := NewResponseHandler(nil, nil, baseHandler)
 		assert.Equal(t, task.TaskTypeAggregate, handler.Type())
 	})
 }
 
 func TestAggregateResponseHandler_HandleResponse_Validation(t *testing.T) {
 	t.Run("Should return error for wrong task type", func(t *testing.T) {
-		handler := NewResponseHandler(nil, nil, nil)
+		baseHandler := &shared.BaseResponseHandler{}
+		handler := NewResponseHandler(nil, nil, baseHandler)
 
 		// Provide full valid input except for wrong type
 		input := &shared.ResponseInput{
@@ -65,7 +67,8 @@ func TestAggregateResponseHandler_HandleResponse_Validation(t *testing.T) {
 
 func TestAggregateResponseHandler_validateAggregationResult(t *testing.T) {
 	t.Run("Should validate nil output", func(t *testing.T) {
-		handler := NewResponseHandler(nil, nil, nil)
+		baseHandler := &shared.BaseResponseHandler{}
+		handler := NewResponseHandler(nil, nil, baseHandler)
 
 		err := handler.validateAggregationResult(nil)
 
@@ -74,7 +77,8 @@ func TestAggregateResponseHandler_validateAggregationResult(t *testing.T) {
 	})
 
 	t.Run("Should validate empty output", func(t *testing.T) {
-		handler := NewResponseHandler(nil, nil, nil)
+		baseHandler := &shared.BaseResponseHandler{}
+		handler := NewResponseHandler(nil, nil, baseHandler)
 
 		output := &core.Output{}
 
@@ -85,7 +89,8 @@ func TestAggregateResponseHandler_validateAggregationResult(t *testing.T) {
 	})
 
 	t.Run("Should validate output with aggregated field", func(t *testing.T) {
-		handler := NewResponseHandler(nil, nil, nil)
+		baseHandler := &shared.BaseResponseHandler{}
+		handler := NewResponseHandler(nil, nil, baseHandler)
 
 		output := &core.Output{
 			shared.FieldAggregated: []any{"item1", "item2"},
@@ -97,7 +102,8 @@ func TestAggregateResponseHandler_validateAggregationResult(t *testing.T) {
 	})
 
 	t.Run("Should validate output with other data", func(t *testing.T) {
-		handler := NewResponseHandler(nil, nil, nil)
+		baseHandler := &shared.BaseResponseHandler{}
+		handler := NewResponseHandler(nil, nil, baseHandler)
 
 		output := &core.Output{
 			"total":  42,
@@ -113,7 +119,8 @@ func TestAggregateResponseHandler_validateAggregationResult(t *testing.T) {
 
 func TestAggregateResponseHandler_HandleAggregateCompletion(t *testing.T) {
 	t.Run("Should set output when nil", func(t *testing.T) {
-		handler := NewResponseHandler(nil, nil, nil)
+		baseHandler := &shared.BaseResponseHandler{}
+		handler := NewResponseHandler(nil, nil, baseHandler)
 
 		state := &task.State{
 			TaskExecID: "test-exec-id",
@@ -135,7 +142,8 @@ func TestAggregateResponseHandler_HandleAggregateCompletion(t *testing.T) {
 	})
 
 	t.Run("Should merge with existing output", func(t *testing.T) {
-		handler := NewResponseHandler(nil, nil, nil)
+		baseHandler := &shared.BaseResponseHandler{}
+		handler := NewResponseHandler(nil, nil, baseHandler)
 
 		existingOutput := core.Output{
 			"existing": "value",
@@ -163,7 +171,8 @@ func TestAggregateResponseHandler_HandleAggregateCompletion(t *testing.T) {
 	})
 
 	t.Run("Should handle empty aggregated data", func(t *testing.T) {
-		handler := NewResponseHandler(nil, nil, nil)
+		baseHandler := &shared.BaseResponseHandler{}
+		handler := NewResponseHandler(nil, nil, baseHandler)
 
 		state := &task.State{
 			TaskExecID: "test-exec-id",

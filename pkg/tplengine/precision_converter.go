@@ -7,6 +7,16 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+const (
+	// JavaScriptMaxSafeInteger represents the maximum safe integer in JavaScript (2^53 - 1)
+	JavaScriptMaxSafeInteger = 9007199254740991
+	// JavaScriptMinSafeInteger represents the minimum safe integer in JavaScript -(2^53 - 1)
+	JavaScriptMinSafeInteger = -9007199254740991
+	// Float64SignificantDigits represents the maximum number of significant digits
+	// that can be accurately represented in a float64
+	Float64SignificantDigits = 15
+)
+
 // PrecisionConverter handles numeric conversion with precision preservation
 type PrecisionConverter struct{}
 
@@ -50,7 +60,7 @@ func (pc *PrecisionConverter) convertStringWithPrecision(s string) any {
 		// JavaScript's MAX_SAFE_INTEGER is 2^53 - 1 = 9007199254740991
 		if bigInt.IsInt64() {
 			i64 := bigInt.Int64()
-			if i64 >= -9007199254740991 && i64 <= 9007199254740991 {
+			if i64 >= JavaScriptMinSafeInteger && i64 <= JavaScriptMaxSafeInteger {
 				return i64
 			}
 		}
@@ -72,7 +82,7 @@ func (pc *PrecisionConverter) convertStringWithPrecision(s string) any {
 
 	// Check if the decimal has too many significant digits for float64
 	// Float64 can accurately represent about 15-17 significant digits
-	if countSignificantDigits(s) > 15 {
+	if countSignificantDigits(s) > Float64SignificantDigits {
 		// Too many digits for accurate float64 representation
 		return s
 	}

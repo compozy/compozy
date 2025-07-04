@@ -12,7 +12,7 @@ import (
 func TestGetGlobalConfigLimits_ConcurrentAccess(t *testing.T) {
 	t.Run("Should handle concurrent access without race conditions", func(t *testing.T) {
 		// Reset global state before test
-		globalConfigLimits = nil
+		resetGlobalConfigLimits()
 
 		// Number of concurrent goroutines
 		numGoroutines := 100
@@ -52,7 +52,7 @@ func TestGetGlobalConfigLimits_ConcurrentAccess(t *testing.T) {
 	})
 	t.Run("Should handle concurrent refresh and access", func(t *testing.T) {
 		// Reset global state before test
-		globalConfigLimits = nil
+		resetGlobalConfigLimits()
 
 		// Set test environment variables
 		os.Setenv(EnvMaxNestingDepth, "20")
@@ -99,7 +99,7 @@ func TestGetGlobalConfigLimits_ConcurrentAccess(t *testing.T) {
 	})
 	t.Run("Should properly initialize singleton on first access", func(t *testing.T) {
 		// Reset global state
-		globalConfigLimits = nil
+		resetGlobalConfigLimits()
 
 		// First access should initialize
 		limits := GetGlobalConfigLimits()
@@ -119,7 +119,7 @@ func TestGetGlobalConfigLimits_ConcurrentAccess(t *testing.T) {
 func TestRefreshGlobalConfigLimits(t *testing.T) {
 	t.Run("Should refresh configuration from environment", func(t *testing.T) {
 		// Reset global state
-		globalConfigLimits = nil
+		resetGlobalConfigLimits()
 
 		// Get initial config
 		initial := GetGlobalConfigLimits()
@@ -139,7 +139,7 @@ func TestRefreshGlobalConfigLimits(t *testing.T) {
 	})
 	t.Run("Should handle concurrent refresh operations", func(t *testing.T) {
 		// Reset global state
-		globalConfigLimits = nil
+		resetGlobalConfigLimits()
 
 		// Set different environment values
 		testValues := []string{"15", "25", "35", "45"}
@@ -227,7 +227,7 @@ func TestGetConfigLimits(t *testing.T) {
 // BenchmarkGetGlobalConfigLimits tests performance under concurrent load
 func BenchmarkGetGlobalConfigLimits(b *testing.B) {
 	// Reset state
-	globalConfigLimits = nil
+	resetGlobalConfigLimits()
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {

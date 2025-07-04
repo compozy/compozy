@@ -16,7 +16,8 @@ import (
 )
 
 func TestCollectionNormalizer_Type(t *testing.T) {
-	normalizer := collection.NewNormalizer(nil, nil)
+	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+	normalizer := collection.NewNormalizer(templateEngine, nil)
 	assert.Equal(t, task.TaskTypeCollection, normalizer.Type())
 }
 
@@ -256,10 +257,11 @@ func TestCollectionNormalizer_Normalize(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 
-		// Act & Assert - Should panic due to nil template engine
-		assert.Panics(t, func() {
-			_ = normalizerWithNilEngine.Normalize(taskConfig, ctx)
-		})
+		// Act
+		err := normalizerWithNilEngine.Normalize(taskConfig, ctx)
+		// Assert - Should return error due to nil template engine
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "template engine is required for normalization")
 	})
 
 	t.Run("Should handle empty collections config", func(t *testing.T) {

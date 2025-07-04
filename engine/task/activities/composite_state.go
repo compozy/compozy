@@ -92,7 +92,10 @@ func (a *CreateCompositeState) Run(ctx context.Context, input *CreateCompositeSt
 		childConfigs[i] = &normalizedConfig.Tasks[i]
 	}
 	// Store composite metadata using task2 repository
-	configRepo := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create task config repository: %w", err)
+	}
 	compositeMetadata := &task2core.CompositeTaskMetadata{
 		ParentStateID: state.TaskExecID,
 		ChildConfigs:  childConfigs,
