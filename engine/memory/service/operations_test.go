@@ -94,9 +94,9 @@ func (m *testMemory) GetMemoryHealth(_ context.Context) (*memcore.Health, error)
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return &memcore.Health{
-		TokenCount:    len(m.messages) * 50,
-		MessageCount:  len(m.messages),
-		FlushStrategy: "fifo",
+		TokenCount:     len(m.messages) * 50,
+		MessageCount:   len(m.messages),
+		ActualStrategy: "fifo",
 	}, nil
 }
 
@@ -896,4 +896,304 @@ func TestValidatePayloadType(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Test flushable memory for testing flush operations
+type testFlushableMemory struct {
+	*testMemory
+	performFlushFn             func(ctx context.Context) (*memcore.FlushMemoryActivityOutput, error)
+	performFlushWithStrategyFn func(ctx context.Context, strategy memcore.FlushingStrategyType) (*memcore.FlushMemoryActivityOutput, error)
+	getConfiguredStrategyFn    func() memcore.FlushingStrategyType
+}
+
+func (m *testFlushableMemory) PerformFlush(ctx context.Context) (*memcore.FlushMemoryActivityOutput, error) {
+	if m.performFlushFn != nil {
+		return m.performFlushFn(ctx)
+	}
+	return &memcore.FlushMemoryActivityOutput{
+		Success:      true,
+		MessageCount: len(m.messages),
+		TokenCount:   len(m.messages) * 50,
+	}, nil
+}
+
+func (m *testFlushableMemory) PerformFlushWithStrategy(
+	ctx context.Context,
+	strategy memcore.FlushingStrategyType,
+) (*memcore.FlushMemoryActivityOutput, error) {
+	if m.performFlushWithStrategyFn != nil {
+		return m.performFlushWithStrategyFn(ctx, strategy)
+	}
+	return &memcore.FlushMemoryActivityOutput{
+		Success:      true,
+		MessageCount: len(m.messages),
+		TokenCount:   len(m.messages) * 50,
+	}, nil
+}
+
+func (m *testFlushableMemory) GetConfiguredStrategy() memcore.FlushingStrategyType {
+	if m.getConfiguredStrategyFn != nil {
+		return m.getConfiguredStrategyFn()
+	}
+	return memcore.SimpleFIFOFlushing
+}
+
+func (m *testFlushableMemory) MarkFlushPending(_ context.Context, _ bool) error {
+	return nil
+}
+
+// Simple flushable memory that doesn't implement dynamic interface
+type simpleFlushableMemory struct {
+	*testMemory
+	performFlushFn    func(ctx context.Context) (*memcore.FlushMemoryActivityOutput, error)
+	getMemoryHealthFn func(ctx context.Context) (*memcore.Health, error)
+}
+
+func (m *simpleFlushableMemory) PerformFlush(ctx context.Context) (*memcore.FlushMemoryActivityOutput, error) {
+	if m.performFlushFn != nil {
+		return m.performFlushFn(ctx)
+	}
+	return &memcore.FlushMemoryActivityOutput{
+		Success:      true,
+		MessageCount: len(m.messages),
+		TokenCount:   len(m.messages) * 50,
+	}, nil
+}
+
+func (m *simpleFlushableMemory) GetMemoryHealth(ctx context.Context) (*memcore.Health, error) {
+	if m.getMemoryHealthFn != nil {
+		return m.getMemoryHealthFn(ctx)
+	}
+	// Call parent implementation
+	return m.testMemory.GetMemoryHealth(ctx)
+}
+
+func (m *simpleFlushableMemory) MarkFlushPending(_ context.Context, _ bool) error {
+	return nil
+}
+
+// Test Flush operation
+func TestMemoryService_Flush(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Should use requested strategy when provided", func(t *testing.T) {
+		memory := &testFlushableMemory{
+			testMemory: &testMemory{
+				messages: []llm.Message{
+					{Role: llm.MessageRoleUser, Content: "Message 1"},
+					{Role: llm.MessageRoleUser, Content: "Message 2"},
+				},
+			},
+			performFlushWithStrategyFn: func(_ context.Context, strategy memcore.FlushingStrategyType) (*memcore.FlushMemoryActivityOutput, error) {
+				assert.Equal(t, memcore.FlushingStrategyType("lru"), strategy)
+				return &memcore.FlushMemoryActivityOutput{
+					Success:          true,
+					MessageCount:     2,
+					TokenCount:       100,
+					SummaryGenerated: false,
+				}, nil
+			},
+			getConfiguredStrategyFn: func() memcore.FlushingStrategyType {
+				return memcore.SimpleFIFOFlushing
+			},
+		}
+
+		manager := &testMemoryManager{
+			getInstance: func(_ context.Context, _ core.MemoryReference, _ map[string]any) (memcore.Memory, error) {
+				return memory, nil
+			},
+		}
+
+		service := NewMemoryOperationsService(manager, nil, nil)
+
+		// Execute with requested strategy
+		resp, err := service.Flush(ctx, &FlushRequest{
+			BaseRequest: BaseRequest{
+				MemoryRef: "test_memory",
+				Key:       "test_key",
+			},
+			Config: &FlushConfig{
+				Strategy: "lru",
+			},
+		})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, resp.Success)
+		assert.Equal(t, "lru", resp.ActualStrategy)
+		assert.Equal(t, 2, resp.MessageCount)
+		assert.Equal(t, 100, resp.TokenCount)
+	})
+
+	t.Run("Should use configured strategy when no strategy requested", func(t *testing.T) {
+		memory := &testFlushableMemory{
+			testMemory: &testMemory{
+				messages: []llm.Message{
+					{Role: llm.MessageRoleUser, Content: "Message 1"},
+				},
+			},
+			performFlushWithStrategyFn: func(_ context.Context, strategy memcore.FlushingStrategyType) (*memcore.FlushMemoryActivityOutput, error) {
+				assert.Equal(t, memcore.FlushingStrategyType(""), strategy)
+				return &memcore.FlushMemoryActivityOutput{
+					Success:      true,
+					MessageCount: 1,
+					TokenCount:   50,
+				}, nil
+			},
+			getConfiguredStrategyFn: func() memcore.FlushingStrategyType {
+				return memcore.TokenAwareLRUFlushing
+			},
+		}
+
+		manager := &testMemoryManager{
+			getInstance: func(_ context.Context, _ core.MemoryReference, _ map[string]any) (memcore.Memory, error) {
+				return memory, nil
+			},
+		}
+
+		service := NewMemoryOperationsService(manager, nil, nil)
+
+		// Execute without strategy
+		resp, err := service.Flush(ctx, &FlushRequest{
+			BaseRequest: BaseRequest{
+				MemoryRef: "test_memory",
+				Key:       "test_key",
+			},
+		})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, resp.Success)
+		assert.Equal(t, "token_aware_lru", resp.ActualStrategy)
+		assert.Equal(t, 1, resp.MessageCount)
+		assert.Equal(t, 50, resp.TokenCount)
+	})
+
+	t.Run("Should fallback to standard flush for non-dynamic memory", func(t *testing.T) {
+		// Create a simple flushable memory that doesn't support dynamic strategy
+		memory := &simpleFlushableMemory{
+			testMemory: &testMemory{
+				messages: []llm.Message{
+					{Role: llm.MessageRoleUser, Content: "Message 1"},
+				},
+			},
+			performFlushFn: func(_ context.Context) (*memcore.FlushMemoryActivityOutput, error) {
+				return &memcore.FlushMemoryActivityOutput{
+					Success:      true,
+					MessageCount: 1,
+					TokenCount:   50,
+				}, nil
+			},
+		}
+
+		manager := &testMemoryManager{
+			getInstance: func(_ context.Context, _ core.MemoryReference, _ map[string]any) (memcore.Memory, error) {
+				return memory, nil
+			},
+		}
+
+		service := NewMemoryOperationsService(manager, nil, nil)
+
+		// Execute with strategy (should be ignored)
+		resp, err := service.Flush(ctx, &FlushRequest{
+			BaseRequest: BaseRequest{
+				MemoryRef: "test_memory",
+				Key:       "test_key",
+			},
+			Config: &FlushConfig{
+				Strategy: "lru",
+			},
+		})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, resp.Success)
+		assert.Equal(t, "fifo", resp.ActualStrategy) // Should get strategy from GetMemoryHealth
+		assert.Equal(t, 1, resp.MessageCount)
+		assert.Equal(t, 50, resp.TokenCount)
+	})
+
+	t.Run("Should handle dry run with requested strategy", func(t *testing.T) {
+		memory := &testFlushableMemory{
+			testMemory: &testMemory{
+				messages: []llm.Message{
+					{Role: llm.MessageRoleUser, Content: "Message 1"},
+				},
+			},
+		}
+
+		manager := &testMemoryManager{
+			getInstance: func(_ context.Context, _ core.MemoryReference, _ map[string]any) (memcore.Memory, error) {
+				return memory, nil
+			},
+		}
+
+		service := NewMemoryOperationsService(manager, nil, nil)
+
+		// Execute dry run with strategy
+		resp, err := service.Flush(ctx, &FlushRequest{
+			BaseRequest: BaseRequest{
+				MemoryRef: "test_memory",
+				Key:       "test_key",
+			},
+			Config: &FlushConfig{
+				Strategy: "lru",
+				DryRun:   true,
+			},
+		})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, resp.Success)
+		assert.True(t, resp.DryRun)
+		assert.Equal(t, "lru", resp.ActualStrategy)
+		assert.True(t, resp.WouldFlush)
+	})
+
+	t.Run("Should use 'unknown' when GetMemoryHealth fails for non-dynamic memory", func(t *testing.T) {
+		// Create a simple flushable memory that returns error for GetMemoryHealth
+		memory := &simpleFlushableMemory{
+			testMemory: &testMemory{
+				messages: []llm.Message{
+					{Role: llm.MessageRoleUser, Content: "Message 1"},
+				},
+			},
+			performFlushFn: func(_ context.Context) (*memcore.FlushMemoryActivityOutput, error) {
+				return &memcore.FlushMemoryActivityOutput{
+					Success:      true,
+					MessageCount: 1,
+					TokenCount:   50,
+				}, nil
+			},
+			getMemoryHealthFn: func(_ context.Context) (*memcore.Health, error) {
+				return nil, errors.New("health check failed")
+			},
+		}
+
+		manager := &testMemoryManager{
+			getInstance: func(_ context.Context, _ core.MemoryReference, _ map[string]any) (memcore.Memory, error) {
+				return memory, nil
+			},
+		}
+
+		service := NewMemoryOperationsService(manager, nil, nil)
+
+		// Execute with strategy (should be ignored)
+		resp, err := service.Flush(ctx, &FlushRequest{
+			BaseRequest: BaseRequest{
+				MemoryRef: "test_memory",
+				Key:       "test_key",
+			},
+			Config: &FlushConfig{
+				Strategy: "lru",
+			},
+		})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, resp.Success)
+		assert.Equal(t, "unknown", resp.ActualStrategy) // Should fallback to unknown when health fails
+		assert.Equal(t, 1, resp.MessageCount)
+		assert.Equal(t, 50, resp.TokenCount)
+	})
 }

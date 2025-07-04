@@ -176,7 +176,7 @@ func TestMemoryInstance_BusinessLogic(t *testing.T) {
 		assert.NotNil(t, health)
 		assert.Equal(t, 5, health.MessageCount)
 		assert.Equal(t, 100, health.TokenCount)
-		assert.Equal(t, "hybrid_summary", health.FlushStrategy)
+		assert.Equal(t, "hybrid_summary", health.ActualStrategy)
 		mockStore.AssertExpectations(t)
 		mockFlushStrategy.AssertExpectations(t)
 	})

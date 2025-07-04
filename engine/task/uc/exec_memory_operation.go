@@ -276,11 +276,11 @@ func (uc *ExecuteMemoryOperation) executeHealth(
 		return nil, fmt.Errorf("failed to get memory health: %w", err)
 	}
 	result := map[string]any{
-		"healthy":        resp.Healthy,
-		"key":            key,
-		"token_count":    resp.TokenCount,
-		"message_count":  resp.MessageCount,
-		"flush_strategy": resp.FlushStrategy,
+		"healthy":         resp.Healthy,
+		"key":             key,
+		"token_count":     resp.TokenCount,
+		"message_count":   resp.MessageCount,
+		"actual_strategy": resp.ActualStrategy,
 	}
 	if resp.LastFlush != "" {
 		result["last_flush"] = resp.LastFlush
@@ -348,10 +348,10 @@ func (uc *ExecuteMemoryOperation) executeStats(
 		return nil, fmt.Errorf("failed to get memory stats: %w", err)
 	}
 	stats := map[string]any{
-		"key":            key,
-		"message_count":  resp.MessageCount,
-		"token_count":    resp.TokenCount,
-		"flush_strategy": resp.FlushStrategy,
+		"key":             key,
+		"message_count":   resp.MessageCount,
+		"token_count":     resp.TokenCount,
+		"actual_strategy": resp.ActualStrategy,
 	}
 	if resp.LastFlush != "" {
 		stats["last_flush"] = resp.LastFlush

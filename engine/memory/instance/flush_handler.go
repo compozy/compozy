@@ -13,19 +13,29 @@ import (
 	"github.com/sethvargo/go-retry"
 
 	"github.com/compozy/compozy/engine/memory/core"
+	"github.com/compozy/compozy/engine/memory/instance/strategies"
 	"github.com/compozy/compozy/engine/memory/store"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
+const (
+	// DefaultSummarizeThreshold is the default threshold for summarization
+	DefaultSummarizeThreshold = 0.8
+)
+
 // FlushHandler handles memory flushing operations with retry logic
 type FlushHandler struct {
-	instanceID       string
-	store            core.Store
-	lockManager      LockManager
-	flushingStrategy FlushStrategy
-	logger           logger.Logger
-	metrics          Metrics
-	resourceConfig   *core.Resource
+	instanceID        string
+	projectID         string // NEW: for namespacing
+	store             core.Store
+	lockManager       LockManager
+	flushingStrategy  core.FlushStrategy
+	strategyFactory   *strategies.StrategyFactory // NEW: for dynamic strategy creation
+	requestedStrategy string                      // NEW: requested strategy type
+	tokenCounter      core.TokenCounter           // NEW: for strategy creation
+	logger            logger.Logger
+	metrics           Metrics
+	resourceConfig    *core.Resource
 }
 
 // PerformFlush executes the complete memory flush operation with retry logic
@@ -107,8 +117,14 @@ func (f *FlushHandler) executeFlush(ctx context.Context) (*core.FlushMemoryActiv
 		}, nil
 	}
 
+	// Select the strategy to use
+	strategy, err := f.selectStrategy()
+	if err != nil {
+		return nil, fmt.Errorf("failed to select flush strategy: %w", err)
+	}
+
 	// Execute flushing strategy
-	result, err := f.flushingStrategy.PerformFlush(ctx, messages, f.resourceConfig)
+	result, err := strategy.PerformFlush(ctx, messages, f.resourceConfig)
 	if err != nil {
 		return nil, fmt.Errorf("flushing strategy failed: %w", err)
 	}
@@ -119,6 +135,38 @@ func (f *FlushHandler) executeFlush(ctx context.Context) (*core.FlushMemoryActiv
 	}
 
 	return result, nil
+}
+
+// selectStrategy determines which strategy to use for the flush operation
+func (f *FlushHandler) selectStrategy() (core.FlushStrategy, error) {
+	// Use requested strategy if provided
+	if f.requestedStrategy != "" && f.strategyFactory != nil {
+		strategyConfig := &core.FlushingStrategyConfig{
+			Type: core.FlushingStrategyType(f.requestedStrategy),
+			// Copy threshold from resource config if available
+			SummarizeThreshold: f.getThreshold(),
+		}
+
+		opts := strategies.GetDefaultStrategyOptions()
+		if f.resourceConfig != nil && f.resourceConfig.MaxTokens > 0 {
+			opts.MaxTokens = f.resourceConfig.MaxTokens
+		}
+
+		return f.strategyFactory.CreateStrategy(strategyConfig, opts)
+	}
+
+	// Fall back to configured strategy
+	return f.flushingStrategy, nil
+}
+
+// getThreshold returns the summarize threshold from the resource config
+func (f *FlushHandler) getThreshold() float64 {
+	if f.resourceConfig != nil &&
+		f.resourceConfig.FlushingStrategy != nil &&
+		f.resourceConfig.FlushingStrategy.SummarizeThreshold > 0 {
+		return f.resourceConfig.FlushingStrategy.SummarizeThreshold
+	}
+	return DefaultSummarizeThreshold
 }
 
 // applyFlushResults applies the results of a flush operation
@@ -140,14 +188,16 @@ func (f *FlushHandler) applyFlushResults(
 	// Check if store supports atomic operations
 	atomicStore, ok := f.store.(store.AtomicStore)
 	if !ok {
-		f.logger.Warn("Store doesn't support atomic trim operations", "instance_id", f.instanceID)
+		f.logger.Warn("Store doesn't support atomic trim operations",
+			"instance_id", f.instanceID,
+			"store_type", fmt.Sprintf("%T", f.store))
 		return nil
 	}
 
 	// Trim messages to keep only the remaining ones
 	err := atomicStore.TrimMessagesWithMetadata(ctx, f.instanceID, result.MessageCount, result.TokenCount)
 	if err != nil {
-		return fmt.Errorf("failed to trim messages after flush: %w", err)
+		return fmt.Errorf("failed to trim messages after flush for instance %s: %w", f.instanceID, err)
 	}
 
 	return nil

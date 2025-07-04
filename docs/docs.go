@@ -437,7 +437,463 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v0/memory/{memory_ref}/{key}": {
+        "/api/v0/memory/{memory_ref}/append": {
+            "post": {
+                "description": "Append messages to existing memory content",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memory"
+                ],
+                "summary": "Append to memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"user_memory\"",
+                        "description": "Memory reference",
+                        "name": "memory_ref",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Key and messages to append",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/memrouter.AppendMemoryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Memory appended successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.AppendResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v0/memory/{memory_ref}/clear": {
+            "post": {
+                "description": "Clear all memory content with confirmation",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memory"
+                ],
+                "summary": "Clear memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"user_memory\"",
+                        "description": "Memory reference",
+                        "name": "memory_ref",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Key and clear options",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/memrouter.ClearMemoryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Memory cleared successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/uc.ClearMemoryResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v0/memory/{memory_ref}/delete": {
+            "post": {
+                "description": "Delete all memory content for a specific key",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memory"
+                ],
+                "summary": "Delete memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"user_memory\"",
+                        "description": "Memory reference",
+                        "name": "memory_ref",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Key to delete",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/memrouter.DeleteMemoryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Memory deleted successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.DeleteResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v0/memory/{memory_ref}/flush": {
+            "post": {
+                "description": "Flush memory content with optional summarization. The actual_strategy field in the response indicates which flush strategy was used.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memory"
+                ],
+                "summary": "Flush memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"user_memory\"",
+                        "description": "Memory reference",
+                        "name": "memory_ref",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Key and flush options",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/memrouter.FlushMemoryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Memory flushed successfully. Response includes actual_strategy field showing which strategy was used",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/uc.FlushMemoryResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v0/memory/{memory_ref}/health": {
+            "get": {
+                "description": "Get health status and metrics for memory",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memory"
+                ],
+                "summary": "Check memory health",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"user_memory\"",
+                        "description": "Memory reference",
+                        "name": "memory_ref",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"user:123:profile\"",
+                        "description": "Memory key",
+                        "name": "key",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "example": true,
+                        "description": "Include detailed stats",
+                        "name": "include_stats",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Memory health retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/uc.HealthMemoryResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v0/memory/{memory_ref}/read": {
             "get": {
                 "description": "Retrieve memory content for a specific memory reference and key",
                 "consumes": [
@@ -464,7 +920,7 @@ const docTemplate = `{
                         "example": "\"user:123:profile\"",
                         "description": "Memory key",
                         "name": "key",
-                        "in": "path",
+                        "in": "query",
                         "required": true
                     },
                     {
@@ -587,579 +1043,9 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
-            "put": {
-                "description": "Write or replace memory content for a specific memory reference and key",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "memory"
-                ],
-                "summary": "Write memory content",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"user_memory\"",
-                        "description": "Memory reference",
-                        "name": "memory_ref",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"user:123:profile\"",
-                        "description": "Memory key",
-                        "name": "key",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Messages to write",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/uc.WriteMemoryInput"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Memory written successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/uc.WriteMemoryResult"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "Append messages to existing memory content",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "memory"
-                ],
-                "summary": "Append to memory",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"user_memory\"",
-                        "description": "Memory reference",
-                        "name": "memory_ref",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"user:123:profile\"",
-                        "description": "Memory key",
-                        "name": "key",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Messages to append",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/uc.AppendMemoryInput"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Memory appended successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/uc.AppendMemoryResult"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "Delete all memory content for a specific key",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "memory"
-                ],
-                "summary": "Delete memory",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"user_memory\"",
-                        "description": "Memory reference",
-                        "name": "memory_ref",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"user:123:profile\"",
-                        "description": "Memory key",
-                        "name": "key",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Memory deleted successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/uc.DeleteMemoryResult"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
             }
         },
-        "/api/v0/memory/{memory_ref}/{key}/clear": {
-            "post": {
-                "description": "Clear all memory content with confirmation",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "memory"
-                ],
-                "summary": "Clear memory",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"user_memory\"",
-                        "description": "Memory reference",
-                        "name": "memory_ref",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"user:123:profile\"",
-                        "description": "Memory key",
-                        "name": "key",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Clear options",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/uc.ClearMemoryInput"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Memory cleared successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/uc.ClearMemoryResult"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v0/memory/{memory_ref}/{key}/flush": {
-            "post": {
-                "description": "Flush memory content with optional summarization",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "memory"
-                ],
-                "summary": "Flush memory",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"user_memory\"",
-                        "description": "Memory reference",
-                        "name": "memory_ref",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"user:123:profile\"",
-                        "description": "Memory key",
-                        "name": "key",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Flush options",
-                        "name": "body",
-                        "in": "body",
-                        "schema": {
-                            "$ref": "#/definitions/uc.FlushMemoryInput"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Memory flushed successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/uc.FlushMemoryResult"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v0/memory/{memory_ref}/{key}/health": {
-            "get": {
-                "description": "Get health status and metrics for memory",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "memory"
-                ],
-                "summary": "Check memory health",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"user_memory\"",
-                        "description": "Memory reference",
-                        "name": "memory_ref",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"user:123:profile\"",
-                        "description": "Memory key",
-                        "name": "key",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "boolean",
-                        "example": true,
-                        "description": "Include detailed stats",
-                        "name": "include_stats",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Memory health retrieved successfully",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/uc.HealthMemoryResult"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v0/memory/{memory_ref}/{key}/stats": {
+        "/api/v0/memory/{memory_ref}/stats": {
             "get": {
                 "description": "Retrieve detailed statistics about memory content",
                 "consumes": [
@@ -1186,7 +1072,7 @@ const docTemplate = `{
                         "example": "\"user:123:profile\"",
                         "description": "Memory key",
                         "name": "key",
-                        "in": "path",
+                        "in": "query",
                         "required": true
                     },
                     {
@@ -1217,6 +1103,96 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/uc.StatsMemoryOutput"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v0/memory/{memory_ref}/write": {
+            "post": {
+                "description": "Write or replace memory content for a specific memory reference and key",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memory"
+                ],
+                "summary": "Write memory content",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"user_memory\"",
+                        "description": "Memory reference",
+                        "name": "memory_ref",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Key and messages to write",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/memrouter.WriteMemoryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Memory written successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.WriteResponse"
                                         }
                                     }
                                 }
@@ -4407,6 +4383,96 @@ const docTemplate = `{
                 }
             }
         },
+        "memrouter.AppendMemoryRequest": {
+            "type": "object",
+            "required": [
+                "key",
+                "messages"
+            ],
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                }
+            }
+        },
+        "memrouter.ClearMemoryRequest": {
+            "type": "object",
+            "required": [
+                "confirm",
+                "key"
+            ],
+            "properties": {
+                "backup": {
+                    "type": "boolean"
+                },
+                "confirm": {
+                    "type": "boolean"
+                },
+                "key": {
+                    "type": "string"
+                }
+            }
+        },
+        "memrouter.DeleteMemoryRequest": {
+            "type": "object",
+            "required": [
+                "key"
+            ],
+            "properties": {
+                "key": {
+                    "type": "string"
+                }
+            }
+        },
+        "memrouter.FlushMemoryRequest": {
+            "type": "object",
+            "required": [
+                "key"
+            ],
+            "properties": {
+                "dry_run": {
+                    "type": "boolean"
+                },
+                "force": {
+                    "type": "boolean"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "max_keys": {
+                    "type": "integer"
+                },
+                "strategy": {
+                    "type": "string"
+                }
+            }
+        },
+        "memrouter.WriteMemoryRequest": {
+            "type": "object",
+            "required": [
+                "key",
+                "messages"
+            ],
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                }
+            }
+        },
         "router.ErrorInfo": {
             "type": "object",
             "properties": {
@@ -4511,6 +4577,48 @@ const docTemplate = `{
         "schema.Schema": {
             "type": "object",
             "additionalProperties": {}
+        },
+        "service.AppendResponse": {
+            "type": "object",
+            "properties": {
+                "appended": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                },
+                "total_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.DeleteResponse": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "service.WriteResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
         },
         "task.ClearConfig": {
             "type": "object",
@@ -4935,9 +5043,6 @@ const docTemplate = `{
                 "env": {
                     "$ref": "#/definitions/core.EnvMap"
                 },
-                "execute": {
-                    "type": "string"
-                },
                 "id": {
                     "type": "string"
                 },
@@ -4958,46 +5063,6 @@ const docTemplate = `{
                 }
             }
         },
-        "uc.AppendMemoryInput": {
-            "type": "object",
-            "properties": {
-                "messages": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "additionalProperties": {}
-                    }
-                }
-            }
-        },
-        "uc.AppendMemoryResult": {
-            "type": "object",
-            "properties": {
-                "appended": {
-                    "type": "integer"
-                },
-                "key": {
-                    "type": "string"
-                },
-                "success": {
-                    "type": "boolean"
-                },
-                "total_count": {
-                    "type": "integer"
-                }
-            }
-        },
-        "uc.ClearMemoryInput": {
-            "type": "object",
-            "properties": {
-                "backup": {
-                    "type": "boolean"
-                },
-                "confirm": {
-                    "type": "boolean"
-                }
-            }
-        },
         "uc.ClearMemoryResult": {
             "type": "object",
             "properties": {
@@ -5015,44 +5080,16 @@ const docTemplate = `{
                 }
             }
         },
-        "uc.DeleteMemoryResult": {
-            "type": "object",
-            "properties": {
-                "key": {
-                    "type": "string"
-                },
-                "success": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "uc.FlushMemoryInput": {
-            "type": "object",
-            "properties": {
-                "dry_run": {
-                    "type": "boolean"
-                },
-                "force": {
-                    "type": "boolean"
-                },
-                "max_keys": {
-                    "type": "integer"
-                },
-                "strategy": {
-                    "type": "string"
-                }
-            }
-        },
         "uc.FlushMemoryResult": {
             "type": "object",
             "properties": {
+                "actual_strategy": {
+                    "type": "string"
+                },
                 "dry_run": {
                     "type": "boolean"
                 },
                 "error": {
-                    "type": "string"
-                },
-                "flush_strategy": {
                     "type": "string"
                 },
                 "key": {
@@ -5078,11 +5115,11 @@ const docTemplate = `{
         "uc.HealthMemoryResult": {
             "type": "object",
             "properties": {
+                "actual_strategy": {
+                    "type": "string"
+                },
                 "current_tokens": {
                     "type": "integer"
-                },
-                "flush_strategy": {
-                    "type": "string"
                 },
                 "healthy": {
                     "type": "boolean"
@@ -5147,32 +5184,6 @@ const docTemplate = `{
                 },
                 "token_utilization": {
                     "type": "number"
-                }
-            }
-        },
-        "uc.WriteMemoryInput": {
-            "type": "object",
-            "properties": {
-                "messages": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "additionalProperties": {}
-                    }
-                }
-            }
-        },
-        "uc.WriteMemoryResult": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "key": {
-                    "type": "string"
-                },
-                "success": {
-                    "type": "boolean"
                 }
             }
         },

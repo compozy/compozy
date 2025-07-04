@@ -106,7 +106,7 @@ func readMemory(c *gin.Context) {
 //	@Produce		json
 //	@Param			memory_ref	path		string	true	"Memory reference"	example("user_memory")
 //	@Param			body		body		WriteMemoryRequest	true	"Key and messages to write"
-//	@Success		200			{object}	router.Response{data=memuc.WriteMemoryResult}	"Memory written successfully"
+//	@Success		200			{object}	router.Response{data=service.WriteResponse}	"Memory written successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/api/v0/memory/{memory_ref}/write [post]
@@ -165,7 +165,7 @@ func writeMemory(c *gin.Context) {
 //	@Produce		json
 //	@Param			memory_ref	path		string	true	"Memory reference"	example("user_memory")
 //	@Param			body		body		AppendMemoryRequest	true	"Key and messages to append"
-//	@Success		200			{object}	router.Response{data=memuc.AppendMemoryResult}	"Memory appended successfully"
+//	@Success		200			{object}	router.Response{data=service.AppendResponse}	"Memory appended successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/api/v0/memory/{memory_ref}/append [post]
@@ -223,7 +223,7 @@ func appendMemory(c *gin.Context) {
 //	@Produce		json
 //	@Param			memory_ref	path		string	true	"Memory reference"	example("user_memory")
 //	@Param			body		body		DeleteMemoryRequest	true	"Key to delete"
-//	@Success		200			{object}	router.Response{data=memuc.DeleteMemoryResult}	"Memory deleted successfully"
+//	@Success		200			{object}	router.Response{data=service.DeleteResponse}	"Memory deleted successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/api/v0/memory/{memory_ref}/delete [post]
@@ -270,13 +270,13 @@ func deleteMemory(c *gin.Context) {
 // flushMemory flushes memory content
 //
 //	@Summary		Flush memory
-//	@Description	Flush memory content with optional summarization
+//	@Description	Flush memory content with optional summarization. The actual_strategy field in the response indicates which flush strategy was used.
 //	@Tags			memory
 //	@Accept			json
 //	@Produce		json
 //	@Param			memory_ref	path		string	true	"Memory reference"	example("user_memory")
 //	@Param			body		body		FlushMemoryRequest	true	"Key and flush options"
-//	@Success		200			{object}	router.Response{data=memuc.FlushMemoryResult}	"Memory flushed successfully"
+//	@Success		200			{object}	router.Response{data=memuc.FlushMemoryResult}	"Memory flushed successfully. Response includes actual_strategy field showing which strategy was used"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/api/v0/memory/{memory_ref}/flush [post]

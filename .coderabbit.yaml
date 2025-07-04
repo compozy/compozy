@@ -8,7 +8,7 @@ reviews:
   review_status: true
   collapse_walkthrough: false
   sequence_diagrams: true
-  profile: "chill"
+  profile: "assertive"
   path_filters:
     - "!**/*.md"
     - "!**/*.yaml"

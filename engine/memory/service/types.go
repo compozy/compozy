@@ -142,7 +142,7 @@ type FlushResponse struct {
 	TokenCount       int    `json:"token_count"`
 	DryRun           bool   `json:"dry_run,omitempty"`
 	WouldFlush       bool   `json:"would_flush,omitempty"`
-	FlushStrategy    string `json:"flush_strategy,omitempty"`
+	ActualStrategy   string `json:"actual_strategy"`
 	Error            string `json:"error,omitempty"`
 }
 
@@ -168,13 +168,13 @@ type HealthRequest struct {
 
 // HealthResponse contains the result of a health check
 type HealthResponse struct {
-	Healthy       bool   `json:"healthy"`
-	Key           string `json:"key"`
-	TokenCount    int    `json:"token_count"`
-	MessageCount  int    `json:"message_count"`
-	FlushStrategy string `json:"flush_strategy"`
-	LastFlush     string `json:"last_flush,omitempty"`
-	CurrentTokens int    `json:"current_tokens,omitempty"`
+	Healthy        bool   `json:"healthy"`
+	Key            string `json:"key"`
+	TokenCount     int    `json:"token_count"`
+	MessageCount   int    `json:"message_count"`
+	ActualStrategy string `json:"actual_strategy"`
+	LastFlush      string `json:"last_flush,omitempty"`
+	CurrentTokens  int    `json:"current_tokens,omitempty"`
 }
 
 // StatsRequest represents a memory stats operation
@@ -188,7 +188,7 @@ type StatsResponse struct {
 	Key                 string `json:"key"`
 	MessageCount        int    `json:"message_count"`
 	TokenCount          int    `json:"token_count"`
-	FlushStrategy       string `json:"flush_strategy"`
+	ActualStrategy      string `json:"actual_strategy"`
 	LastFlush           string `json:"last_flush,omitempty"`
 	AvgTokensPerMessage int    `json:"avg_tokens_per_message,omitempty"`
 }

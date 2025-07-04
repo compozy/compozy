@@ -24,10 +24,10 @@ func getDefaultLimits() *service.ValidationLimits {
 // ValidateMemoryRef validates a memory reference
 func ValidateMemoryRef(ref string) error {
 	if ref == "" {
-		return ErrInvalidMemoryRef
+		return NewValidationError("memory_ref", ref, "memory reference cannot be empty")
 	}
 	if !memRefPattern.MatchString(ref) {
-		return fmt.Errorf("%w: must be alphanumeric with underscores, 1-100 characters", ErrInvalidMemoryRef)
+		return NewValidationError("memory_ref", ref, "must be alphanumeric with underscores, 1-100 characters")
 	}
 	return nil
 }
@@ -35,10 +35,10 @@ func ValidateMemoryRef(ref string) error {
 // ValidateKey validates a memory key
 func ValidateKey(key string) error {
 	if key == "" {
-		return ErrInvalidKey
+		return NewValidationError("key", key, "key cannot be empty")
 	}
 	if !keyPattern.MatchString(key) {
-		return fmt.Errorf("%w: must not contain control characters, 1-255 characters", ErrInvalidKey)
+		return NewValidationError("key", key, "must not contain control characters, 1-255 characters")
 	}
 
 	return nil
@@ -80,25 +80,25 @@ func ValidateMessage(msg map[string]any, index int) error {
 	// Check content
 	content, ok := msg["content"].(string)
 	if !ok || content == "" {
-		return fmt.Errorf("%w: message[%d] content is required and must be a string", ErrInvalidPayload, index)
+		return NewValidationError(
+			"content",
+			nil,
+			fmt.Sprintf("message[%d] content is required and must be a string", index),
+		)
 	}
 	// Check content length using configurable limits
 	if len(content) > limits.MaxMessageContentLength {
-		return fmt.Errorf(
-			"%w: message[%d] content too long (max %d bytes)",
-			ErrInvalidPayload,
-			index,
-			limits.MaxMessageContentLength,
-		)
+		return NewValidationError("content", len(content),
+			fmt.Sprintf("message[%d] content too long (max %d bytes)", index, limits.MaxMessageContentLength))
 	}
 	// Check role if provided
 	if role, exists := msg["role"]; exists {
 		roleStr, ok := role.(string)
 		if !ok {
-			return fmt.Errorf("%w: message[%d] role must be a string", ErrInvalidPayload, index)
+			return NewValidationError("role", role, fmt.Sprintf("message[%d] role must be a string", index))
 		}
 		if err := ValidateMessageRole(roleStr); err != nil {
-			return fmt.Errorf("%w: message[%d] %v", ErrInvalidPayload, index, err)
+			return NewValidationError("role", roleStr, fmt.Sprintf("message[%d] %v", index, err))
 		}
 	}
 	return nil
@@ -111,7 +111,7 @@ func ValidateMessageRole(role string) error {
 		string(llm.MessageRoleSystem), string(llm.MessageRoleTool):
 		return nil
 	default:
-		return fmt.Errorf("invalid message role '%s', must be one of: user, assistant, system, tool", role)
+		return NewValidationError("role", role, "must be one of: user, assistant, system, tool")
 	}
 }
 
@@ -123,27 +123,14 @@ func ValidateFlushInput(input *FlushMemoryInput) error {
 
 	// Validate max keys
 	if input.MaxKeys < 0 {
-		return fmt.Errorf("%w: max_keys must be non-negative", ErrInvalidPayload)
+		return NewValidationError("max_keys", input.MaxKeys, "must be non-negative")
 	}
 	if input.MaxKeys > 10000 {
-		return fmt.Errorf("%w: max_keys too large (max 10000)", ErrInvalidPayload)
+		return NewValidationError("max_keys", input.MaxKeys, "too large (max 10000)")
 	}
 
-	// Validate strategy if provided
-	if input.Strategy != "" {
-		validStrategies := []string{"summarize", "trim", "archive", "hybrid"}
-		valid := false
-		for _, s := range validStrategies {
-			if input.Strategy == s {
-				valid = true
-				break
-			}
-		}
-		if !valid {
-			return fmt.Errorf("%w: invalid strategy '%s', must be one of: %v",
-				ErrInvalidPayload, input.Strategy, validStrategies)
-		}
-	}
+	// Strategy validation is handled by the service layer
+	// No need to duplicate it here
 
 	return nil
 }
@@ -156,7 +143,7 @@ func ValidateClearInput(input *ClearMemoryInput) error {
 
 	// Confirm flag must be true for safety
 	if !input.Confirm {
-		return fmt.Errorf("%w: confirm flag must be true to clear memory", ErrInvalidPayload)
+		return NewValidationError("confirm", input.Confirm, "must be true to clear memory")
 	}
 
 	return nil

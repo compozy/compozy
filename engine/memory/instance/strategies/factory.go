@@ -2,9 +2,9 @@ package strategies
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/compozy/compozy/engine/memory/core"
-	"github.com/compozy/compozy/engine/memory/instance"
 )
 
 // StrategyFactory creates flush strategies based on configuration
@@ -14,7 +14,7 @@ type StrategyFactory struct {
 }
 
 // StrategyConstructor is a function type for creating strategies
-type StrategyConstructor func(*core.FlushingStrategyConfig, *StrategyOptions) (instance.FlushStrategy, error)
+type StrategyConstructor func(*core.FlushingStrategyConfig, *StrategyOptions) (core.FlushStrategy, error)
 
 // StrategyOptions contains options for strategy construction
 type StrategyOptions struct {
@@ -64,29 +64,30 @@ func NewStrategyFactoryWithTokenCounter(coreTokenCounter core.TokenCounter) *Str
 
 // registerDefaultStrategies registers all built-in strategies
 func (f *StrategyFactory) registerDefaultStrategies() {
-	// Register FIFO strategy
-	f.Register(
-		core.SimpleFIFOFlushing,
-		func(config *core.FlushingStrategyConfig, opts *StrategyOptions) (instance.FlushStrategy, error) {
-			threshold := 0.8
-			if config != nil && config.SummarizeThreshold > 0 {
-				threshold = config.SummarizeThreshold
-			} else if opts != nil && opts.DefaultThreshold > 0 {
-				threshold = opts.DefaultThreshold
-			}
+	// Create the FIFO strategy constructor
+	fifoConstructor := func(config *core.FlushingStrategyConfig, opts *StrategyOptions) (core.FlushStrategy, error) {
+		threshold := 0.8
+		if config != nil && config.SummarizeThreshold > 0 {
+			threshold = config.SummarizeThreshold
+		} else if opts != nil && opts.DefaultThreshold > 0 {
+			threshold = opts.DefaultThreshold
+		}
 
-			// Use core token counter if available, otherwise use default strategy counter
-			if f.coreTokenCounter != nil {
-				return NewFIFOStrategyWithTokenCounter(threshold, f.coreTokenCounter), nil
-			}
-			return NewFIFOStrategy(threshold), nil
-		},
-	)
+		// Use core token counter if available, otherwise use default strategy counter
+		if f.coreTokenCounter != nil {
+			return NewFIFOStrategyWithTokenCounter(threshold, f.coreTokenCounter), nil
+		}
+		return NewFIFOStrategy(threshold), nil
+	}
+
+	// Register FIFO strategy with both names
+	f.Register(core.SimpleFIFOFlushing, fifoConstructor)
+	f.Register(core.FIFOFlushing, fifoConstructor) // Register alias
 
 	// Register LRU strategy
 	f.Register(
 		core.LRUFlushing,
-		func(config *core.FlushingStrategyConfig, opts *StrategyOptions) (instance.FlushStrategy, error) {
+		func(config *core.FlushingStrategyConfig, opts *StrategyOptions) (core.FlushStrategy, error) {
 			return NewLRUStrategy(config, opts)
 		},
 	)
@@ -94,7 +95,7 @@ func (f *StrategyFactory) registerDefaultStrategies() {
 	// Register Token-Aware LRU strategy
 	f.Register(
 		core.TokenAwareLRUFlushing,
-		func(config *core.FlushingStrategyConfig, opts *StrategyOptions) (instance.FlushStrategy, error) {
+		func(config *core.FlushingStrategyConfig, opts *StrategyOptions) (core.FlushStrategy, error) {
 			return NewTokenAwareLRUStrategy(config, opts)
 		},
 	)
@@ -112,7 +113,7 @@ func (f *StrategyFactory) Register(strategyType core.FlushingStrategyType, const
 func (f *StrategyFactory) CreateStrategy(
 	config *core.FlushingStrategyConfig,
 	opts *StrategyOptions,
-) (instance.FlushStrategy, error) {
+) (core.FlushStrategy, error) {
 	if config == nil {
 		// Use default FIFO strategy configuration
 		config = &core.FlushingStrategyConfig{
@@ -149,7 +150,7 @@ func (f *StrategyFactory) IsStrategySupported(strategyType core.FlushingStrategy
 }
 
 // CreateDefaultStrategy creates a default FIFO strategy
-func (f *StrategyFactory) CreateDefaultStrategy() (instance.FlushStrategy, error) {
+func (f *StrategyFactory) CreateDefaultStrategy() (core.FlushStrategy, error) {
 	return f.CreateStrategy(&core.FlushingStrategyConfig{
 		Type: core.SimpleFIFOFlushing,
 	}, &StrategyOptions{
@@ -200,4 +201,44 @@ func (f *StrategyFactory) ValidateStrategyConfig(config *core.FlushingStrategyCo
 	}
 
 	return nil
+}
+
+// ValidateStrategyType validates a string strategy type.
+// It checks if the strategy type is valid and supported by the factory.
+// An empty string is considered valid and will use the default strategy.
+func (f *StrategyFactory) ValidateStrategyType(strategyType string) error {
+	if strategyType == "" {
+		// Empty string is valid - uses default strategy
+		return nil
+	}
+
+	flushType := core.FlushingStrategyType(strategyType)
+	if !flushType.IsValid() {
+		return fmt.Errorf("invalid strategy type: %s", strategyType)
+	}
+
+	if !f.IsStrategySupported(flushType) {
+		return fmt.Errorf("strategy type %s is not supported", strategyType)
+	}
+
+	return nil
+}
+
+// GetSupportedStrategies returns all valid strategy types as strings for API use.
+// The strategies are returned in alphabetical order for consistency.
+func (f *StrategyFactory) GetSupportedStrategies() []string {
+	// Get all registered strategies dynamically
+	strategies := make([]string, 0, len(f.strategies))
+	for strategyType := range f.strategies {
+		strategies = append(strategies, string(strategyType))
+	}
+	// Sort for consistent order
+	sort.Strings(strategies)
+	return strategies
+}
+
+// IsValidStrategy is a convenience method for validation.
+// It returns true if the strategy type is valid and supported, false otherwise.
+func (f *StrategyFactory) IsValidStrategy(strategyType string) bool {
+	return f.ValidateStrategyType(strategyType) == nil
 }
