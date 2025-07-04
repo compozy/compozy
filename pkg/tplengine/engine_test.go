@@ -1,6 +1,7 @@
 package tplengine
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -102,15 +103,15 @@ age: {{ .user.age }}
 		},
 	}
 
-	result, err := engine.ProcessString(yamlStr, ctx)
+	// For YAML format, we need to first render the template, then parse it
+	renderedYAML, err := engine.RenderString(yamlStr, ctx)
 	assert.NoError(t, err)
-	assert.NotNil(t, result.YAML)
+	assert.NotNil(t, renderedYAML)
 
 	// Convert to map for easier assertions
 	var yamlMap map[string]any
-	yamlBytes, err := yaml.Marshal(result.YAML)
-	assert.NoError(t, err)
-	err = yaml.Unmarshal(yamlBytes, &yamlMap)
+	// Parse the rendered YAML
+	err = yaml.Unmarshal([]byte(renderedYAML), &yamlMap)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "John", yamlMap["name"])
@@ -119,18 +120,21 @@ age: {{ .user.age }}
 	// JSON format
 	engine = NewEngine(FormatJSON)
 
-	// Simple JSON with template
+	// For JSON format, we need to first render the template, then parse it
 	jsonStr := `{
   "name": "{{ .user.name }}",
   "age": {{ .user.age }}
 }`
 
-	result, err = engine.ProcessString(jsonStr, ctx)
+	// First render the template string
+	renderedJSON, err := engine.RenderString(jsonStr, ctx)
 	assert.NoError(t, err)
-	assert.NotNil(t, result.JSON)
+	assert.NotNil(t, renderedJSON)
 
-	jsonMap, ok := result.JSON.(map[string]any)
-	assert.True(t, ok)
+	// Then parse the rendered JSON
+	var jsonMap map[string]any
+	err = json.Unmarshal([]byte(renderedJSON), &jsonMap)
+	assert.NoError(t, err)
 	assert.Equal(t, "John", jsonMap["name"])
 	assert.Equal(t, float64(30), jsonMap["age"]) // JSON numbers are float64
 }
@@ -163,15 +167,18 @@ age: {{ .user.age }}
 		},
 	}
 
-	result, err := engine.ProcessFile(yamlPath, ctx)
+	// Read the file content manually and render it
+	content, err := os.ReadFile(yamlPath)
+	require.NoError(t, err)
+
+	renderedYAML, err := engine.RenderString(string(content), ctx)
 	assert.NoError(t, err)
-	assert.NotNil(t, result.YAML)
+	assert.NotNil(t, renderedYAML)
 
 	// Convert to map for easier assertions
 	var yamlMap map[string]any
-	yamlBytes, err := yaml.Marshal(result.YAML)
-	assert.NoError(t, err)
-	err = yaml.Unmarshal(yamlBytes, &yamlMap)
+	// Parse the rendered YAML
+	err = yaml.Unmarshal([]byte(renderedYAML), &yamlMap)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "John", yamlMap["name"])

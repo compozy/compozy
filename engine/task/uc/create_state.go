@@ -23,14 +23,14 @@ type CreateStateInput struct {
 }
 
 type CreateState struct {
-	taskRepo      task.Repository
-	configManager *services.ConfigManager
+	taskRepo    task.Repository
+	configStore services.ConfigStore
 }
 
-func NewCreateState(taskRepo task.Repository, configManager *services.ConfigManager) *CreateState {
+func NewCreateState(taskRepo task.Repository, configStore services.ConfigStore) *CreateState {
 	return &CreateState{
-		taskRepo:      taskRepo,
-		configManager: configManager,
+		taskRepo:    taskRepo,
+		configStore: configStore,
 	}
 }
 
@@ -39,7 +39,7 @@ func (uc *CreateState) Execute(ctx context.Context, input *CreateStateInput) (*t
 	taskExecID := core.MustNewID()
 
 	// Save task config to Redis BEFORE creating state to avoid race condition
-	err := uc.configManager.SaveTaskConfig(ctx, taskExecID, input.TaskConfig)
+	err := uc.configStore.Save(ctx, taskExecID.String(), input.TaskConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save task config: %w", err)
 	}
@@ -47,17 +47,14 @@ func (uc *CreateState) Execute(ctx context.Context, input *CreateStateInput) (*t
 	// Create the basic state with the pre-generated taskExecID
 	state, err := uc.createBasicState(ctx, input, taskExecID)
 	if err != nil {
-		if deleteErr := uc.configManager.DeleteTaskConfig(ctx, taskExecID); deleteErr != nil {
+		if deleteErr := uc.configStore.Delete(ctx, taskExecID.String()); deleteErr != nil {
 			return nil, fmt.Errorf("state create failed (%w) and rollback failed (%v)", err, deleteErr)
 		}
 		return nil, err
 	}
 
-	// Delegate config preparation to ConfigManager
-	if err := uc.prepareChildConfigsIfNeeded(ctx, state, input); err != nil {
-		return nil, err
-	}
-
+	// Note: Child config preparation is now handled by task2 infrastructure
+	// in the respective activity implementations (collection_state.go, parallel_state.go, etc.)
 	return state, nil
 }
 
@@ -86,39 +83,6 @@ func (uc *CreateState) createBasicState(
 		return nil, fmt.Errorf("failed to validate task params: %w", err)
 	}
 	return taskState, nil
-}
-
-func (uc *CreateState) prepareChildConfigsIfNeeded(
-	ctx context.Context,
-	state *task.State,
-	input *CreateStateInput,
-) error {
-	switch input.TaskConfig.Type {
-	case task.TaskTypeParallel:
-		return uc.configManager.PrepareParallelConfigs(ctx, state.TaskExecID, input.TaskConfig)
-	case task.TaskTypeCollection:
-		// Capture the metadata returned by PrepareCollectionConfigs
-		metadata, err := uc.configManager.PrepareCollectionConfigs(
-			ctx,
-			state.TaskExecID,
-			input.TaskConfig,
-			input.WorkflowState,
-		)
-		if err != nil {
-			return err
-		}
-		// Store the metadata in the parent state's output
-		if state.Output == nil {
-			state.Output = &core.Output{}
-		}
-		(*state.Output)["collection_metadata"] = metadata
-		// Update the state in the repository to persist the metadata
-		return uc.taskRepo.UpsertState(ctx, state)
-	case task.TaskTypeComposite:
-		return uc.configManager.PrepareCompositeConfigs(ctx, state.TaskExecID, input.TaskConfig)
-	default:
-		return nil
-	}
 }
 
 func (uc *CreateState) processComponent(
@@ -186,7 +150,7 @@ func (uc *CreateState) processParallelTask(
 	input *CreateStateInput,
 	baseEnv *core.EnvMap,
 ) (*task.PartialState, error) {
-	// Create simple parent partial state - ConfigManager handles the metadata
+	// Create simple parent partial state - metadata is handled by task2 normalizers
 	parentInput := input.TaskConfig.With
 	if parentInput == nil {
 		parentInput = &core.Input{}
@@ -201,7 +165,7 @@ func (uc *CreateState) processCollectionTask(
 	input *CreateStateInput,
 	baseEnv *core.EnvMap,
 ) (*task.PartialState, error) {
-	// Create simple parent partial state for collection - ConfigManager handles the metadata
+	// Create simple parent partial state for collection - metadata is handled by task2 normalizers
 	parentInput := input.TaskConfig.With
 	if parentInput == nil {
 		parentInput = &core.Input{}

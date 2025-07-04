@@ -231,54 +231,6 @@ type PartialState struct {
 	ParentStateID *core.ID           `json:"parent_state_id,omitempty"`
 }
 
-// CreateBasicPartialState creates a partial state for basic execution
-func CreateBasicPartialState(
-	component core.ComponentType,
-	input *core.Input,
-	env *core.EnvMap,
-	executionType ExecutionType,
-) *PartialState {
-	return &PartialState{
-		Component:     component,
-		ExecutionType: executionType,
-		Input:         input,
-		MergedEnv:     env,
-	}
-}
-
-// CreateAgentPartialState creates a partial state for agent execution
-func CreateAgentPartialState(
-	agentID, actionID string,
-	input *core.Input,
-	env *core.EnvMap,
-	executionType ExecutionType,
-) *PartialState {
-	return &PartialState{
-		Component:     core.ComponentAgent,
-		ExecutionType: executionType,
-		AgentID:       &agentID,
-		ActionID:      &actionID,
-		Input:         input,
-		MergedEnv:     env,
-	}
-}
-
-// CreateToolPartialState creates a partial state for tool execution
-func CreateToolPartialState(
-	toolID string,
-	input *core.Input,
-	env *core.EnvMap,
-	executionType ExecutionType,
-) *PartialState {
-	return &PartialState{
-		Component:     core.ComponentTool,
-		ExecutionType: executionType,
-		ToolID:        &toolID,
-		Input:         input,
-		MergedEnv:     env,
-	}
-}
-
 // CreateParentPartialState creates a partial state for parent task execution
 func CreateParentPartialState(
 	input *core.Input,
@@ -296,23 +248,6 @@ func CreateParentPartialStateWithExecType(
 	return &PartialState{
 		Component:     core.ComponentTask,
 		ExecutionType: executionType,
-		Input:         input,
-		MergedEnv:     env,
-	}
-}
-
-// CreateChildPartialState creates a partial state for child task execution
-func CreateChildPartialState(
-	component core.ComponentType,
-	parentStateID core.ID,
-	input *core.Input,
-	env *core.EnvMap,
-	executionType ExecutionType,
-) *PartialState {
-	return &PartialState{
-		Component:     component,
-		ExecutionType: executionType,
-		ParentStateID: &parentStateID,
 		Input:         input,
 		MergedEnv:     env,
 	}

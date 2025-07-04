@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/workflow"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -142,11 +143,12 @@ func TestHandleResponse_UpdateParentStatusIfNeeded(t *testing.T) {
 			},
 		}
 		progressInfo := &task.ProgressInfo{
-			TotalChildren:  2,
-			CompletedCount: 2,
-			FailedCount:    0,
-			RunningCount:   0,
-			PendingCount:   0,
+			TotalChildren: 2,
+			SuccessCount:  2,
+			FailedCount:   0,
+			TerminalCount: 2,
+			RunningCount:  0,
+			PendingCount:  0,
 		}
 
 		mockTaskRepo.On("GetState", mock.Anything, parentID).Return(parentState, nil)
@@ -198,11 +200,12 @@ func TestHandleResponse_UpdateParentStatusIfNeeded(t *testing.T) {
 			},
 		}
 		progressInfo := &task.ProgressInfo{
-			TotalChildren:  2,
-			CompletedCount: 0,
-			FailedCount:    1,
-			RunningCount:   1,
-			PendingCount:   0,
+			TotalChildren: 2,
+			SuccessCount:  0,
+			FailedCount:   1,
+			TerminalCount: 1,
+			RunningCount:  1,
+			PendingCount:  0,
 		}
 
 		mockTaskRepo.On("GetState", mock.Anything, parentID).Return(parentState, nil)
@@ -229,5 +232,110 @@ func TestHandleResponse_UpdateParentStatusIfNeeded(t *testing.T) {
 		require.NoError(t, err)
 		mockTaskRepo.AssertExpectations(t)
 		mockWorkflowRepo.AssertExpectations(t)
+	})
+}
+
+func TestHandleResponse_OutputTransformationWithCollectionContext(t *testing.T) {
+	t.Run("Should transform outputs with item context for collection child tasks", func(t *testing.T) {
+		mockWorkflowRepo := new(store.MockWorkflowRepo)
+		mockTaskRepo := new(store.MockTaskRepo)
+
+		// Create parent collection state
+		parentID := core.ID("parent-collection-123")
+		parentState := &task.State{
+			TaskExecID:    parentID,
+			TaskID:        "analyze-activities",
+			Status:        core.StatusRunning,
+			ExecutionType: task.ExecutionCollection,
+		}
+
+		// Create child task state with item in input
+		workflowExecID := core.ID("workflow-123")
+		childState := &task.State{
+			TaskExecID:     core.ID("child-123"),
+			TaskID:         "analyze-activity-0",
+			WorkflowExecID: workflowExecID,
+			Status:         core.StatusSuccess,
+			ParentStateID:  &parentID,
+			Input: &core.Input{
+				"item":  "running",
+				"index": 0,
+			},
+			Output: &core.Output{
+				"result": "analyzed",
+			},
+		}
+
+		// Create child task config with outputs using {{ .item }}
+		childConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "analyze-activity-0",
+				Type: task.TaskTypeBasic,
+				Outputs: &core.Input{
+					"activity": "{{ .item }}",
+					"analysis": "{{ .output.result }}",
+				},
+			},
+		}
+
+		// Create workflow state and config
+		workflowState := &workflow.State{
+			WorkflowExecID: workflowExecID,
+			Tasks: map[string]*task.State{
+				"analyze-activities": parentState,
+				"analyze-activity-0": childState,
+			},
+		}
+
+		workflowConfig := &workflow.Config{
+			ID: "test-workflow",
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "analyze-activities",
+						Type: task.TaskTypeCollection,
+					},
+				},
+			},
+		}
+
+		// Mock the repository calls
+		mockWorkflowRepo.On("GetState", mock.Anything, workflowExecID).Return(workflowState, nil)
+		mockTaskRepo.On("GetState", mock.Anything, parentID).Return(parentState, nil)
+		mockTaskRepo.On("UpsertState", mock.Anything, mock.MatchedBy(func(state *task.State) bool {
+			// Verify that outputs were transformed correctly
+			if state.Output == nil {
+				return false
+			}
+			activity, hasActivity := (*state.Output)["activity"]
+			analysis, hasAnalysis := (*state.Output)["analysis"]
+			return hasActivity && activity == "running" &&
+				hasAnalysis && analysis == "analyzed"
+		})).Return(nil)
+
+		handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
+		ctx := context.Background()
+
+		input := &HandleResponseInput{
+			WorkflowConfig:   workflowConfig,
+			TaskState:        childState,
+			TaskConfig:       childConfig,
+			ExecutionError:   nil,
+			NextTaskOverride: nil,
+		}
+
+		response, err := handleResponse.Execute(ctx, input)
+
+		require.NoError(t, err)
+		require.NotNil(t, response)
+
+		// Verify output was transformed
+		mainResponse := response.(*task.MainTaskResponse)
+		require.NotNil(t, mainResponse.State.Output)
+		assert.Equal(t, "running", (*mainResponse.State.Output)["activity"])
+		assert.Equal(t, "analyzed", (*mainResponse.State.Output)["analysis"])
+
+		mockWorkflowRepo.AssertExpectations(t)
+		mockTaskRepo.AssertExpectations(t)
 	})
 }

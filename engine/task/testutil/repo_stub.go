@@ -141,20 +141,34 @@ func (r *InMemoryRepo) GetProgressInfo(ctx context.Context, parentStateID core.I
 
 		switch child.Status {
 		case core.StatusSuccess:
-			progressInfo.CompletedCount++
+			progressInfo.SuccessCount++
 		case core.StatusFailed:
 			progressInfo.FailedCount++
-		case core.StatusRunning:
+		case core.StatusCanceled:
+			progressInfo.CanceledCount++
+		case core.StatusTimedOut:
+			progressInfo.TimedOutCount++
+		case core.StatusRunning, core.StatusWaiting, core.StatusPaused:
 			progressInfo.RunningCount++
 		case core.StatusPending:
 			progressInfo.PendingCount++
 		}
 	}
 
+	// Calculate terminal count
+	progressInfo.TerminalCount = progressInfo.SuccessCount +
+		progressInfo.FailedCount +
+		progressInfo.CanceledCount +
+		progressInfo.TimedOutCount
+
 	// Calculate rates
 	if progressInfo.TotalChildren > 0 {
-		progressInfo.CompletionRate = float64(progressInfo.CompletedCount) / float64(progressInfo.TotalChildren)
-		progressInfo.FailureRate = float64(progressInfo.FailedCount) / float64(progressInfo.TotalChildren)
+		progressInfo.CompletionRate = float64(progressInfo.SuccessCount) / float64(progressInfo.TotalChildren)
+		progressInfo.FailureRate = float64(
+			progressInfo.FailedCount+progressInfo.TimedOutCount,
+		) / float64(
+			progressInfo.TotalChildren,
+		)
 	}
 
 	return progressInfo, nil

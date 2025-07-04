@@ -87,7 +87,8 @@ func NewBunManager(ctx context.Context, projectRoot string, options ...Option) (
 	}
 
 	// Verify worker script exists
-	workerPath := filepath.Join(bm.projectRoot, ".compozy", "bun_worker.ts")
+	storeDir := core.GetStoreDir(bm.projectRoot)
+	workerPath := filepath.Join(storeDir, "bun_worker.ts")
 	if _, err := os.Stat(workerPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("worker file not found at %s: run 'compozy dev' to generate it", workerPath)
 	}
@@ -207,11 +208,10 @@ func (bm *BunManager) executeBunWorker(ctx context.Context, requestData []byte, 
 	return bm.parseToolResponse(response)
 }
 
-// Helper methods to reduce executeBunWorker complexity
-
 // createBunCommand creates and configures the Bun command with environment variables
 func (bm *BunManager) createBunCommand(ctx context.Context, env core.EnvMap) (*exec.Cmd, error) {
-	workerPath := filepath.Join(bm.projectRoot, ".compozy", "bun_worker.ts")
+	storeDir := core.GetStoreDir(bm.projectRoot)
+	workerPath := filepath.Join(storeDir, "bun_worker.ts")
 
 	args := []string{"run"}
 	args = append(args, bm.config.BunPermissions...)
@@ -495,7 +495,7 @@ func (bm *BunManager) validateToolID(toolID string) error {
 
 // compileBunWorker creates the Bun worker script
 func (bm *BunManager) compileBunWorker() error {
-	compozyDir := filepath.Join(bm.projectRoot, ".compozy")
+	compozyDir := core.GetStoreDir(bm.projectRoot)
 	if err := os.MkdirAll(compozyDir, 0755); err != nil {
 		return fmt.Errorf("failed to create .compozy directory: %w", err)
 	}
@@ -535,7 +535,8 @@ func IsBunAvailable() bool {
 
 // GetBunWorkerFileHash returns a hash of the Bun worker file for caching purposes
 func (bm *BunManager) GetBunWorkerFileHash() (string, error) {
-	workerPath := filepath.Join(bm.projectRoot, ".compozy", "bun_worker.ts")
+	storeDir := core.GetStoreDir(bm.projectRoot)
+	workerPath := filepath.Join(storeDir, "bun_worker.ts")
 	content, err := os.ReadFile(workerPath)
 	if err != nil {
 		return "", err

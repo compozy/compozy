@@ -73,8 +73,11 @@ func (s *ParentStatusUpdater) buildProgressOutput(
 		"completion_rate": progressInfo.CompletionRate,
 		"failure_rate":    progressInfo.FailureRate,
 		"total_children":  progressInfo.TotalChildren,
-		"completed_count": progressInfo.CompletedCount,
+		"success_count":   progressInfo.SuccessCount,
 		"failed_count":    progressInfo.FailedCount,
+		"canceled_count":  progressInfo.CanceledCount,
+		"timed_out_count": progressInfo.TimedOutCount,
+		"terminal_count":  progressInfo.TerminalCount,
 		"running_count":   progressInfo.RunningCount,
 		"pending_count":   progressInfo.PendingCount,
 		"strategy":        string(input.Strategy),
@@ -89,9 +92,10 @@ func (s *ParentStatusUpdater) createFailureError(
 	input *UpdateParentStatusInput,
 ) *core.Error {
 	errorMetadata := map[string]any{
-		"failed_count":    progressInfo.FailedCount,
-		"completed_count": progressInfo.CompletedCount,
-		"total_children":  progressInfo.TotalChildren,
+		"failed_count":   progressInfo.FailedCount,
+		"success_count":  progressInfo.SuccessCount,
+		"terminal_count": progressInfo.TerminalCount,
+		"total_children": progressInfo.TotalChildren,
 	}
 	if input.ChildState != nil {
 		errorMetadata["child_task_id"] = input.ChildState.TaskID

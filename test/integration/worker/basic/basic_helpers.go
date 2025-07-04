@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/schema"
@@ -23,6 +24,8 @@ import (
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/tplengine"
+	utils "github.com/compozy/compozy/test/helpers"
 	"github.com/compozy/compozy/test/integration/worker/helpers"
 )
 
@@ -30,13 +33,11 @@ import (
 func executeWorkflowAndGetState(
 	t *testing.T,
 	fixture *helpers.TestFixture,
-	dbHelper *helpers.DatabaseHelper,
+	_ *helpers.DatabaseHelper,
 ) *workflow.State {
 	ctx := context.Background()
-
-	// Create repositories using the pool
-	taskRepo := store.NewTaskRepo(dbHelper.GetPool())
-	workflowRepo := store.NewWorkflowRepo(dbHelper.GetPool())
+	taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
+	defer cleanup()
 
 	// Setup Temporal test environment
 	testSuite := &testsuite.WorkflowTestSuite{}
@@ -104,12 +105,17 @@ func createTestActivities(
 	projectConfig := createTestProjectConfig()
 	workflows := createTestWorkflowConfigs(fixture)
 
-	// Create a test config store and manager
+	// Create a test config store
 	configStore := createTestConfigStore()
-	configManager := createTestConfigManager(configStore)
 
 	// Create a mock runtime manager for testing (we don't need actual tool execution)
 	mockRuntime := createMockRuntime(t)
+
+	// Create template engine for tests
+	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+
+	// Create memory manager for tests - use nil for now as it's not needed for most tests
+	var memoryManager *memory.Manager
 
 	// Create test activities with real repositories
 	return worker.NewActivities(
@@ -120,10 +126,9 @@ func createTestActivities(
 		mockRuntime,
 		configStore,
 		nil, // signalDispatcher - not needed for basic test
-		configManager,
 		nil, // redisCache - not needed for basic test
-		nil, // memoryManager - not needed for basic test
-		nil, // templateEngine - not needed for basic test
+		memoryManager,
+		templateEngine,
 	)
 }
 
@@ -177,11 +182,13 @@ func createTestWorkflowConfigs(fixture *helpers.TestFixture) []*workflow.Config 
 	for i := range fixture.Workflow.Tasks {
 		tasks[i] = fixture.Workflow.Tasks[i]
 		if tasks[i].Type == task.TaskTypeBasic {
+			providerConfig := core.NewProviderConfig(core.ProviderMock, "test-model", "")
 			// Use a minimal agent configuration for integration testing
 			tasks[i].Agent = &agent.Config{
 				ID:           "test-agent",
-				Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
+				Config:       *providerConfig,
 				Instructions: "Test agent for integration testing",
+				With:         tasks[i].With, // Copy task's with field to agent
 				Actions: []*agent.ActionConfig{
 					{
 						ID:     "process_message",
@@ -259,10 +266,7 @@ func createTestConfigStore() services.ConfigStore {
 	}
 }
 
-// createTestConfigManager creates a test config manager
-func createTestConfigManager(configStore services.ConfigStore) *services.ConfigManager {
-	return services.NewConfigManager(configStore, nil)
-}
+// createTestConfigManager removed - ConfigManager has been replaced by task2.Factory
 
 // Verification functions that check actual database state
 

@@ -6,9 +6,11 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task2"
+	"github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/normalizer"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // -----------------------------------------------------------------------------
@@ -22,19 +24,35 @@ type NormalizeConfigInput struct {
 }
 
 type NormalizeConfig struct {
-	normalizer *normalizer.ConfigNormalizer
+	orchestrator *task2.ConfigOrchestrator
 }
 
-func NewNormalizeConfig() *NormalizeConfig {
-	return &NormalizeConfig{
-		normalizer: normalizer.NewConfigNormalizer(),
+func NewNormalizeConfig() (*NormalizeConfig, error) {
+	tplEngine := tplengine.NewEngine(tplengine.FormatJSON)
+	envMerger := core.NewEnvMerger()
+	factory, err := task2.NewFactory(&task2.FactoryConfig{
+		TemplateEngine: tplEngine,
+		EnvMerger:      envMerger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create normalizer factory: %w", err)
 	}
+
+	// Create orchestrator
+	orchestrator, err := task2.NewConfigOrchestrator(factory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config orchestrator: %w", err)
+	}
+
+	return &NormalizeConfig{
+		orchestrator: orchestrator,
+	}, nil
 }
 
 func (uc *NormalizeConfig) Execute(_ context.Context, input *NormalizeConfigInput) error {
-	taskConfigs := normalizer.BuildTaskConfigsMap(input.WorkflowConfig.Tasks)
+	taskConfigs := task2.BuildTaskConfigsMap(input.WorkflowConfig.Tasks)
 	taskConfig := input.TaskConfig
-	err := uc.normalizer.NormalizeTask(
+	err := uc.orchestrator.NormalizeTask(
 		input.WorkflowState,
 		input.WorkflowConfig,
 		taskConfig,
@@ -67,7 +85,7 @@ func (uc *NormalizeConfig) normalizeAgent(
 	agentConfig *agent.Config,
 	taskConfigs map[string]*task.Config,
 ) error {
-	err := uc.normalizer.NormalizeAgentComponent(
+	err := uc.orchestrator.NormalizeAgentComponent(
 		input.WorkflowState,
 		input.WorkflowConfig,
 		input.TaskConfig,
@@ -86,7 +104,7 @@ func (uc *NormalizeConfig) normalizeTool(
 	toolConfig *tool.Config,
 	taskConfigs map[string]*task.Config,
 ) error {
-	err := uc.normalizer.NormalizeToolComponent(
+	err := uc.orchestrator.NormalizeToolComponent(
 		input.WorkflowState,
 		input.WorkflowConfig,
 		input.TaskConfig,

@@ -9,8 +9,11 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
+	"github.com/compozy/compozy/engine/task2"
+	task2core "github.com/compozy/compozy/engine/task2/core"
+	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/normalizer"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 const ExecuteAggregateLabel = "ExecuteAggregateTask"
@@ -24,7 +27,8 @@ type ExecuteAggregateInput struct {
 type ExecuteAggregate struct {
 	loadWorkflowUC *uc.LoadWorkflow
 	createStateUC  *uc.CreateState
-	taskResponder  *services.TaskResponder
+	task2Factory   task2.Factory
+	templateEngine *tplengine.TemplateEngine
 }
 
 func NewExecuteAggregate(
@@ -32,14 +36,16 @@ func NewExecuteAggregate(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
-	cwd *core.PathCWD,
-) *ExecuteAggregate {
-	configManager := services.NewConfigManager(configStore, cwd)
+	_ *core.PathCWD,
+	task2Factory task2.Factory,
+	templateEngine *tplengine.TemplateEngine,
+) (*ExecuteAggregate, error) {
 	return &ExecuteAggregate{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
-		createStateUC:  uc.NewCreateState(taskRepo, configManager),
-		taskResponder:  services.NewTaskResponder(workflowRepo, taskRepo),
-	}
+		createStateUC:  uc.NewCreateState(taskRepo, configStore),
+		task2Factory:   task2Factory,
+		templateEngine: templateEngine,
+	}, nil
 }
 
 func (a *ExecuteAggregate) Run(ctx context.Context, input *ExecuteAggregateInput) (*task.MainTaskResponse, error) {
@@ -59,44 +65,61 @@ func (a *ExecuteAggregate) Run(ctx context.Context, input *ExecuteAggregateInput
 	if err != nil {
 		return nil, err
 	}
-	// Normalize task config
-	normalizer := uc.NewNormalizeConfig()
-	normalizeInput := &uc.NormalizeConfigInput{
-		WorkflowState:  workflowState,
-		WorkflowConfig: workflowConfig,
-		TaskConfig:     input.TaskConfig,
-	}
-	err = normalizer.Execute(ctx, normalizeInput)
+	// Use task2 normalizer for aggregate tasks
+	normalizer, err := a.task2Factory.CreateNormalizer(task.TaskTypeAggregate)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create aggregate normalizer: %w", err)
+	}
+	// Create context builder to build proper normalization context
+	contextBuilder, err := shared.NewContextBuilder()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create context builder: %w", err)
+	}
+	// Build proper normalization context with all template variables
+	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, input.TaskConfig)
+	// Normalize the task configuration
+	normalizedConfig := input.TaskConfig
+	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
+		return nil, fmt.Errorf("failed to normalize aggregate task: %w", err)
 	}
 	// Create task state
 	taskState, err := a.createStateUC.Execute(ctx, &uc.CreateStateInput{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
-		TaskConfig:     input.TaskConfig,
+		TaskConfig:     normalizedConfig,
 	})
 	if err != nil {
 		return nil, err
 	}
 	// Execute aggregate logic with timeout protection
-	output, executionError := a.executeAggregateWithTimeout(ctx, input.TaskConfig, workflowState, workflowConfig)
+	output, executionError := a.executeAggregateWithTimeout(ctx, normalizedConfig, workflowState, workflowConfig)
 	taskState.Output = output
-	// Handle main task response
-	response, handleErr := a.taskResponder.HandleMainTask(ctx, &services.MainTaskResponseInput{
-		WorkflowConfig: workflowConfig,
+	// Use task2 ResponseHandler for aggregate type
+	handler, err := a.task2Factory.CreateResponseHandler(task.TaskTypeAggregate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create aggregate response handler: %w", err)
+	}
+	// Prepare input for response handler
+	responseInput := &shared.ResponseInput{
+		TaskConfig:     normalizedConfig,
 		TaskState:      taskState,
-		TaskConfig:     input.TaskConfig,
+		WorkflowConfig: workflowConfig,
+		WorkflowState:  workflowState,
 		ExecutionError: executionError,
-	})
-	if handleErr != nil {
-		return nil, handleErr
 	}
-	// If there was an execution error, the task should be considered failed
+	// Handle the response
+	result, err := handler.HandleResponse(ctx, responseInput)
+	if err != nil {
+		return nil, fmt.Errorf("failed to handle aggregate response: %w", err)
+	}
+	// Convert shared.ResponseOutput to task.MainTaskResponse
+	converter := NewResponseConverter()
+	mainTaskResponse := converter.ConvertToMainTaskResponse(result)
+	// If there was an execution error, return it
 	if executionError != nil {
-		return response, executionError
+		return mainTaskResponse, executionError
 	}
-	return response, nil
+	return mainTaskResponse, nil
 }
 
 func (a *ExecuteAggregate) executeAggregateWithTimeout(
@@ -144,13 +167,26 @@ func (a *ExecuteAggregate) executeAggregate(
 	// For aggregate tasks, we don't have actual task output, just template processing
 	// Create an empty output to trigger the transformation
 	emptyOutput := &core.Output{}
-	// Use ConfigNormalizer to process outputs with template engine
-	configNormalizer := normalizer.NewConfigNormalizer()
-	processedOutput, err := configNormalizer.NormalizeTaskOutput(
+	// Use task2 output transformer to process outputs with template engine
+	outputTransformer := task2core.NewOutputTransformer(a.templateEngine)
+
+	// Build task configs map for context
+	taskConfigs := task2.BuildTaskConfigsMap(workflowConfig.Tasks)
+
+	// Create normalization context with proper Variables
+	contextBuilder, err := shared.NewContextBuilder()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create context builder: %w", err)
+	}
+	normCtx := contextBuilder.BuildContext(workflowState, workflowConfig, taskConfig)
+	normCtx.TaskConfigs = taskConfigs
+	normCtx.CurrentInput = taskConfig.With
+	normCtx.MergedEnv = taskConfig.Env
+
+	processedOutput, err := outputTransformer.TransformOutput(
 		emptyOutput,
 		taskConfig.Outputs,
-		workflowState,
-		workflowConfig,
+		normCtx,
 		taskConfig,
 	)
 	if err != nil {

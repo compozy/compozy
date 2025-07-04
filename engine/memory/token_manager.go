@@ -10,37 +10,6 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
-// MessagesWithTokensToLLMMessages converts a slice of MessageWithTokens back to llm.Message.
-func MessagesWithTokensToLLMMessages(mwt []memcore.MessageWithTokens) []llm.Message {
-	if mwt == nil {
-		return nil
-	}
-	msgs := make([]llm.Message, len(mwt))
-	for i, msgWithToken := range mwt {
-		if msg, ok := msgWithToken.Message.(llm.Message); ok {
-			msgs[i] = msg
-		} else {
-			// Handle unexpected type - should not happen if properly structured
-			msgs[i] = llm.Message{Role: "system", Content: "Invalid message type"}
-		}
-	}
-	return msgs
-}
-
-// LLMMessagesToMessagesWithTokens is a helper primarily for testing or initial setup,
-// as TokenMemoryManager.CalculateMessagesWithTokens is the main way to create MessageWithTokens.
-// This version assumes token counts are unknown (set to 0).
-func LLMMessagesToMessagesWithTokens(msgs []llm.Message) []memcore.MessageWithTokens {
-	if msgs == nil {
-		return nil
-	}
-	mwt := make([]memcore.MessageWithTokens, len(msgs))
-	for i, msg := range msgs {
-		mwt[i] = memcore.MessageWithTokens{Message: msg, TokenCount: 0} // TokenCount would be calculated later
-	}
-	return mwt
-}
-
 // TokenMemoryManager orchestrates token counting, eviction, and allocation for a memory instance.
 // It does not directly interact with the MemoryStore but operates on slices of messages.
 type TokenMemoryManager struct {

@@ -241,11 +241,15 @@ func TestProviderRegistry_ThreadSafety(t *testing.T) {
 			go func(_ int) {
 				providers := registry.List()
 				assert.True(t, len(providers) > 0)
-				// Try to get a provider
+				// Try to get a provider - handle race condition where provider might be removed
 				if len(providers) > 0 {
 					config, err := registry.Get(providers[0])
-					assert.NoError(t, err)
-					assert.NotNil(t, config)
+					// Either success or provider not found (due to concurrent removal) is acceptable
+					if err == nil {
+						assert.NotNil(t, config)
+					} else {
+						assert.Contains(t, err.Error(), "not found")
+					}
 				}
 				done <- true
 			}(i)

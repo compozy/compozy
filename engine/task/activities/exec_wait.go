@@ -9,7 +9,10 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
+	"github.com/compozy/compozy/engine/task2"
+	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 const ExecuteWaitLabel = "ExecuteWaitTask"
@@ -23,7 +26,8 @@ type ExecuteWaitInput struct {
 type ExecuteWait struct {
 	loadWorkflowUC *uc.LoadWorkflow
 	createStateUC  *uc.CreateState
-	taskResponder  *services.TaskResponder
+	task2Factory   task2.Factory
+	templateEngine *tplengine.TemplateEngine
 }
 
 // NewExecuteWait creates a new ExecuteWait activity
@@ -32,14 +36,16 @@ func NewExecuteWait(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
-	cwd *core.PathCWD,
-) *ExecuteWait {
-	// Pass dependencies to activity, use cases will be created in Run method
+	_ *core.PathCWD,
+	task2Factory task2.Factory,
+	templateEngine *tplengine.TemplateEngine,
+) (*ExecuteWait, error) {
 	return &ExecuteWait{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
-		createStateUC:  uc.NewCreateState(taskRepo, services.NewConfigManager(configStore, cwd)),
-		taskResponder:  services.NewTaskResponder(workflowRepo, taskRepo),
-	}
+		createStateUC:  uc.NewCreateState(taskRepo, configStore),
+		task2Factory:   task2Factory,
+		templateEngine: templateEngine,
+	}, nil
 }
 
 func (a *ExecuteWait) Run(ctx context.Context, input *ExecuteWaitInput) (*task.MainTaskResponse, error) {
@@ -55,32 +61,36 @@ func (a *ExecuteWait) Run(ctx context.Context, input *ExecuteWaitInput) (*task.M
 	if err != nil {
 		return nil, err
 	}
-	// Normalize task config
-	normalizer := uc.NewNormalizeConfig()
-	normalizeInput := &uc.NormalizeConfigInput{
-		WorkflowState:  workflowState,
-		WorkflowConfig: workflowConfig,
-		TaskConfig:     input.TaskConfig,
-	}
-	err = normalizer.Execute(ctx, normalizeInput)
+	// Use task2 normalizer for wait tasks
+	normalizer, err := a.task2Factory.CreateNormalizer(task.TaskTypeWait)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create wait normalizer: %w", err)
+	}
+	// Create context builder to build proper normalization context
+	contextBuilder, err := shared.NewContextBuilder()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create context builder: %w", err)
+	}
+	// Build proper normalization context with all template variables
+	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, input.TaskConfig)
+	// Normalize the task configuration
+	normalizedConfig := input.TaskConfig
+	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
+		return nil, fmt.Errorf("failed to normalize wait task: %w", err)
 	}
 	// Validate task type
-	taskConfig := input.TaskConfig
-	taskType := taskConfig.Type
-	if taskType != task.TaskTypeWait {
-		return nil, fmt.Errorf("unsupported task type: %s", taskType)
+	if normalizedConfig.Type != task.TaskTypeWait {
+		return nil, fmt.Errorf("unsupported task type: %s", normalizedConfig.Type)
 	}
 	// Validate WaitFor signal name
-	if strings.TrimSpace(taskConfig.WaitFor) == "" {
+	if strings.TrimSpace(normalizedConfig.WaitFor) == "" {
 		return nil, fmt.Errorf("wait task must define a non-empty wait_for signal")
 	}
 	// Create task state
 	taskState, err := a.createStateUC.Execute(ctx, &uc.CreateStateInput{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
-		TaskConfig:     taskConfig,
+		TaskConfig:     normalizedConfig,
 	})
 	if err != nil {
 		return nil, err
@@ -91,19 +101,29 @@ func (a *ExecuteWait) Run(ctx context.Context, input *ExecuteWaitInput) (*task.M
 	// The actual waiting and signal processing happens in the workflow
 	taskState.Output = &core.Output{
 		"wait_status":   "waiting",
-		"signal_name":   taskConfig.WaitFor,
-		"has_processor": taskConfig.Processor != nil,
+		"signal_name":   normalizedConfig.WaitFor,
+		"has_processor": normalizedConfig.Processor != nil,
 	}
-	// Update task state to indicate we're waiting
-	// This is different from other tasks that complete immediately
-	response, handleErr := a.taskResponder.HandleMainTask(ctx, &services.MainTaskResponseInput{
-		WorkflowConfig: workflowConfig,
+	// Use task2 ResponseHandler for wait type
+	handler, err := a.task2Factory.CreateResponseHandler(task.TaskTypeWait)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create wait response handler: %w", err)
+	}
+	// Prepare input for response handler
+	responseInput := &shared.ResponseInput{
+		TaskConfig:     normalizedConfig,
 		TaskState:      taskState,
-		TaskConfig:     taskConfig,
+		WorkflowConfig: workflowConfig,
+		WorkflowState:  workflowState,
 		ExecutionError: nil, // No error, we're just waiting
-	})
-	if handleErr != nil {
-		return nil, handleErr
 	}
-	return response, nil
+	// Handle the response
+	result, err := handler.HandleResponse(ctx, responseInput)
+	if err != nil {
+		return nil, fmt.Errorf("failed to handle wait response: %w", err)
+	}
+	// Convert shared.ResponseOutput to task.MainTaskResponse
+	converter := NewResponseConverter()
+	mainTaskResponse := converter.ConvertToMainTaskResponse(result)
+	return mainTaskResponse, nil
 }

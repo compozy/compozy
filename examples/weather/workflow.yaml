@@ -31,7 +31,7 @@ agents:
     config:
       $ref: global::models.#(provider=="groq")
     instructions: |
-      You are a helpful tourist guide assistant specialized in the city {{ .workflow.input.city }}
+      You are a helpful tourist guide assistant.
       That's is your capabilities:
       - You can use weather tools to fetch weather data (just when necessary and asked about it)
       - You can provide thoughtful recommendations for activities based on some weather data.
@@ -42,7 +42,7 @@ agents:
     actions:
       - id: get_weather
         prompt: |
-          What is the current weather in {{ .workflow.input.city }}?
+          What is the current weather in {{ .input.city }}?
       - id: suggest_activities
         json_mode: true
         prompt: |
@@ -104,6 +104,8 @@ tasks:
     type: basic
     $use: agent(local::agents.#(id="tourist_guide"))
     action: get_weather
+    with:
+      city: "{{ .workflow.input.city }}"
     outputs:
       temperature: "{{ .output.temperature }}"
       humidity: "{{ .output.humidity }}"

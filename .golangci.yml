@@ -11,10 +11,10 @@ linters:
   enable:
     - bodyclose
     - dogsled
-        # - dupl
+      # - dupl
     - errcheck
-    - funlen
     - gochecknoinits
+    - funlen
     - goconst
     - gocritic
     - gocyclo

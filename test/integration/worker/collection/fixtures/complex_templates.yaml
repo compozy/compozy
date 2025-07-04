@@ -1,0 +1,79 @@
+name: collection-complex-templates
+
+workflow:
+  id: test-complex-templates
+  version: "1.0.0"
+  tasks:
+    - id: setup-context
+      type: basic
+      action: process_item
+      with:
+        item_name: "setup"
+        item_value: 1
+        multiplier: 1
+      on_success:
+        next: process-complex-items
+    - id: process-complex-items
+      type: collection
+      mode: sequential
+      items: "{{ .workflow.input.processing_tasks }}"
+      task:
+        id: "task-{{ .item.type }}-{{ .index }}"
+        type: basic
+        action: process_item
+        with:
+          item_name: "{{ .item.id }}"
+          item_value: 50
+          multiplier: 1
+          # Complex nested template evaluation
+          source_path: "{{ .item.config.source_dir }}/{{ .item.config.filename }}"
+          timeout_config: "{{ .item.config.timeout }}"
+          # Template expression within template
+          full_id: "{{ .workflow.id }}_{{ .item.type }}_{{ .index }}"
+
+input:
+  processing_tasks:
+    - id: "doc-001"
+      type: "document"
+      action: "process_document"
+      config:
+        source_dir: "/input/documents"
+        filename: "doc-001.pdf"
+        batch_size: 50
+        timeout: 300
+    - id: "img-001"
+      type: "image"
+      action: "process_image"
+      config:
+        source_dir: "/input/images"
+        filename: "img-001.png"
+        batch_size: 25
+        timeout: 180
+    - id: "data-001"
+      type: "dataset"
+      action: "process_dataset"
+      config:
+        source_dir: "/input/data"
+        filename: "data-001.json"
+        batch_size: 100
+        timeout: 600
+
+expected:
+  workflow_state:
+    status: "SUCCESS"
+    total_tasks: 5  # 1 setup + 1 parent collection + 3 children
+    completed_tasks: 5
+  task_states:
+    - name: setup-context
+      status: "SUCCESS"
+    - name: process-complex-items
+      status: "SUCCESS"
+    - name: task-document-0
+      status: "SUCCESS"
+      parent: process-complex-items
+    - name: task-image-1
+      status: "SUCCESS"
+      parent: process-complex-items
+    - name: task-dataset-2
+      status: "SUCCESS"
+      parent: process-complex-items

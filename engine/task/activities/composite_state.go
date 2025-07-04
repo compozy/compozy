@@ -8,6 +8,9 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
+	"github.com/compozy/compozy/engine/task2"
+	task2core "github.com/compozy/compozy/engine/task2/core"
+	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 )
 
@@ -19,26 +22,31 @@ type CreateCompositeStateInput struct {
 	TaskConfig     *task.Config `json:"task_config"`
 }
 
+// CreateCompositeState handles composite state creation with task2 integration
 type CreateCompositeState struct {
 	loadWorkflowUC     *uc.LoadWorkflow
 	createStateUC      *uc.CreateState
 	createChildTasksUC *uc.CreateChildTasks
+	task2Factory       task2.Factory
+	configStore        services.ConfigStore
 }
 
-// NewCreateCompositeState creates a new CreateCompositeState activity
+// NewCreateCompositeState creates a new CreateCompositeState activity with task2 integration
 func NewCreateCompositeState(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
-	cwd *core.PathCWD,
-) *CreateCompositeState {
-	configManager := services.NewConfigManager(configStore, cwd)
+	_ *core.PathCWD,
+	task2Factory task2.Factory,
+) (*CreateCompositeState, error) {
 	return &CreateCompositeState{
 		loadWorkflowUC:     uc.NewLoadWorkflow(workflows, workflowRepo),
-		createStateUC:      uc.NewCreateState(taskRepo, configManager),
-		createChildTasksUC: uc.NewCreateChildTasksUC(taskRepo, configManager),
-	}
+		createStateUC:      uc.NewCreateState(taskRepo, configStore),
+		createChildTasksUC: uc.NewCreateChildTasksUC(taskRepo, configStore, task2Factory),
+		task2Factory:       task2Factory,
+		configStore:        configStore,
+	}, nil
 }
 
 func (a *CreateCompositeState) Run(ctx context.Context, input *CreateCompositeStateInput) (*task.State, error) {
@@ -54,7 +62,7 @@ func (a *CreateCompositeState) Run(ctx context.Context, input *CreateCompositeSt
 	if err != nil {
 		return nil, err
 	}
-	// Create state (ConfigManager handles composite config preparation)
+	// Create parent state first with the original composite config
 	state, err := a.createStateUC.Execute(ctx, &uc.CreateStateInput{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
@@ -63,6 +71,42 @@ func (a *CreateCompositeState) Run(ctx context.Context, input *CreateCompositeSt
 	if err != nil {
 		return nil, err
 	}
+	// Use task2 normalizer to prepare composite task configs
+	normalizer, err := a.task2Factory.CreateNormalizer(task.TaskTypeComposite)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create composite normalizer: %w", err)
+	}
+	// Create normalization context
+	normContext := &shared.NormalizationContext{
+		WorkflowState:  workflowState,
+		WorkflowConfig: workflowConfig,
+	}
+	// Normalize the composite task configuration
+	normalizedConfig := input.TaskConfig
+	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
+		return nil, fmt.Errorf("failed to normalize composite task: %w", err)
+	}
+	// Get child configs from normalized composite config
+	childConfigs := make([]*task.Config, len(normalizedConfig.Tasks))
+	for i := range normalizedConfig.Tasks {
+		childConfigs[i] = &normalizedConfig.Tasks[i]
+	}
+	// Store composite metadata using task2 repository
+	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create task config repository: %w", err)
+	}
+	compositeMetadata := &task2core.CompositeTaskMetadata{
+		ParentStateID: state.TaskExecID,
+		ChildConfigs:  childConfigs,
+		Strategy:      string(normalizedConfig.GetStrategy()),
+		MaxWorkers:    1, // Composite tasks are sequential
+	}
+	if err := configRepo.StoreCompositeMetadata(ctx, state.TaskExecID, compositeMetadata); err != nil {
+		return nil, fmt.Errorf("failed to store composite metadata: %w", err)
+	}
+	// Add metadata to state output
+	a.addCompositeMetadata(state, normalizedConfig, len(childConfigs))
 	// Create child tasks
 	if err := a.createChildTasksUC.Execute(ctx, &uc.CreateChildTasksInput{
 		ParentStateID:  state.TaskExecID,
@@ -72,4 +116,16 @@ func (a *CreateCompositeState) Run(ctx context.Context, input *CreateCompositeSt
 		return nil, fmt.Errorf("failed to create child tasks: %w", err)
 	}
 	return state, nil
+}
+
+func (a *CreateCompositeState) addCompositeMetadata(state *task.State, config *task.Config, childCount int) {
+	if state.Output == nil {
+		output := make(core.Output)
+		state.Output = &output
+	}
+	(*state.Output)["composite_metadata"] = map[string]any{
+		"child_count": childCount,
+		"strategy":    string(config.GetStrategy()),
+		"sequential":  true, // Composite tasks are always sequential
+	}
 }

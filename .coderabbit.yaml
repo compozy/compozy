@@ -1,8 +1,5 @@
 language: "en"
 early_access: true
-tone_instructions: |
-  Be professional, direct, and focused on code quality. Use clear, technical language that emphasizes correctness,
-  maintainability, and adherence to established patterns. Be constructive but firm about standards violations.
 
 reviews:
   request_changes_workflow: true
@@ -11,9 +8,14 @@ reviews:
   review_status: true
   collapse_walkthrough: false
   sequence_diagrams: true
-  profile: "assertive"  # More thorough feedback for a project with strict standards
+  profile: "chill"
   path_filters:
     - "!**/*.md"
+    - "!**/*.yaml"
+    - "!**/*.yml"
+    - "!**/*.json"
+    - "!**/*.toml"
+    - "!**/*.xml"
     - "!**/*.mdc"
     - "!**/*.mdx"
     - "!.cursor/**"
@@ -27,134 +29,3 @@ reviews:
     - "!**/*.pb.gw.go"
     - "!**/fixtures/**"
     - "!test/testdata/**"
-  path_instructions:
-    - path: "**/*.go"
-      instructions: |
-        Review Go files against Compozy's strict standards:
-
-        ARCHITECTURE & DESIGN:
-        - Verify adherence to Clean Architecture with proper layer separation (Domain, Application, Infrastructure, Runtime)
-        - Ensure SOLID principles are followed, especially:
-          - Single Responsibility: Each function/struct has one clear purpose
-          - Open/Closed: Extensible through interfaces, not modification
-          - Interface Segregation: Small, focused interfaces
-          - Dependency Inversion: Depend on abstractions, inject through constructors
-        - Check Domain-Driven Design implementation with clear domain boundaries
-        - Verify dependencies flow inward toward the domain layer
-
-        CODE QUALITY:
-        - Function length MUST NOT exceed 30 lines for business logic
-        - Line length MUST NOT exceed 120 characters
-        - Cyclomatic complexity MUST be below 10
-        - Use intention-revealing names, avoid abbreviations
-        - Context MUST be first parameter in functions making external calls
-
-        ERROR HANDLING (CRITICAL):
-        - Internal errors: Use fmt.Errorf() with context wrapping
-        - Domain boundaries: Use core.NewError() for public service methods
-        - NEVER ignore errors - always check and handle explicitly
-        - Return early on errors to avoid deep nesting
-
-        TESTING REQUIREMENTS:
-        - ALL tests MUST use t.Run("Should...") pattern - no direct test implementation
-        - MUST use stretchr/testify for assertions and mocks
-        - PROHIBIT testify suite patterns - use direct assertions only
-        - Test coverage ≥80% for business logic in engine/{agent,task,tool,workflow}/
-        - Mock only external dependencies using testify/mock
-
-        DEPENDENCIES:
-        - Use explicit dependency injection through constructors
-        - Provide nil-safe configuration handling with defaults
-        - Use interfaces to define behavior
-
-        SPECIFIC LIBRARIES:
-        - HTTP: MUST use gin-gonic/gin
-        - Database: PostgreSQL with jackc/pgx/v5, Redis with redis/go-redis/v9
-        - Validation: go-playground/validator/v10
-        - Logging: charmbracelet/log (NEVER fmt.Printf or log.Printf)
-        - CLI: spf13/cobra
-
-    - path: "**/router/**/*.go"
-      instructions: |
-        API STANDARDS:
-        - Verify RESTful design with consistent responses
-        - Check API versioning at /api/v0/
-        - Ensure proper HTTP status codes usage
-        - Validate consistent JSON response format:
-          Success: {"data": {...}, "message": "Success"}
-          Error: {"error": "...", "details": "..."}
-        - MUST update Swagger annotations for all API changes
-        - Include request/response examples in Swagger annotations
-
-    - path: "**/*_test.go"
-      instructions: |
-        TESTING STANDARDS ENFORCEMENT:
-        - MANDATORY: Every test MUST use t.Run("Should...") pattern
-        - Test names: TestModuleName_MethodName(t *testing.T)
-        - PROHIBIT suite.Suite embedding or any suite-based patterns
-        - Require direct assertions: assert.Equal(t, expected, actual)
-        - Verify both success and error paths are tested
-        - Check mock usage - only mock external dependencies
-        - Ensure tests are independent and repeatable
-
-    - path: "engine/infra/**/*.go"
-      instructions: |
-        INFRASTRUCTURE LAYER:
-        - Verify this layer only contains external concerns (DB, HTTP, etc.)
-        - Check that all implementations properly implement Application Layer interfaces
-        - Ensure no business logic exists in infrastructure code
-        - Validate proper resource cleanup with defer statements
-        - Check connection pooling and error handling for external services
-
-    - path: "engine/core/**/*.go"
-      instructions: |
-        DOMAIN LAYER:
-        - Verify only shared business entities and value objects
-        - Ensure no dependencies on other engine packages
-        - Check that interfaces are small and focused
-        - Validate immutability of value objects where appropriate
-
-    - path: "**/*.go"
-      instructions: |
-        SECURITY REQUIREMENTS:
-        - NEVER allow API keys or secrets in code - must use environment variables
-        - Check for exposed secrets in logs - use structured logging without sensitive data
-        - Verify input validation on all external inputs
-        - Ensure proper authentication/authorization checks
-        - Look for SQL injection vulnerabilities
-        - Check for proper resource cleanup to prevent leaks
-        - Verify HTTP response bodies are closed (defer resp.Body.Close())
-                 - Ensure error details don't expose sensitive information
-
-    - path: "engine/worker/**/*.go"
-      instructions: |
-        TEMPORAL WORKFLOW STANDARDS:
-        - Verify workflows are deterministic (no random values, system time, or external I/O)
-        - Check proper activity timeout configuration
-        - Ensure activities have proper heartbeat for long-running operations
-        - Validate context cancellation handling in activities
-        - Verify workflow versioning for backward compatibility when needed
-        - Check proper error handling and retry policies
-        - Ensure cleanup using workflow.NewDisconnectedContext() for deferred operations
-  tools:
-    golangci-lint:
-      enabled: false  # Disable because golangci-lint-v2 is not supported yet
-    gitleaks:
-      enabled: true
-    actionlint:
-      enabled: true
-    shellcheck:
-      enabled: true
-    markdownlint:
-      enabled: false  # Disabled since we're excluding .md files
-    yamllint:
-      enabled: true
-  auto_review:
-    enabled: true
-    drafts: false
-    base_branches:
-      - "main"
-      - "develop"
-
-chat:
-  auto_reply: true

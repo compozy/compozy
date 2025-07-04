@@ -17,18 +17,16 @@ import (
 type Config struct {
 	// Resource type identifier, should be "memory".
 	// Used by autoloaders to identify the type of this configuration.
-	Resource string `json:"resource"              yaml:"resource"              mapstructure:"resource"              validate:"required,eq=memory"`
+	Resource string `json:"resource"                    yaml:"resource"                    mapstructure:"resource"                    validate:"required,eq=memory"`
 	// ID is the unique identifier for this memory resource within the project.
-	ID string `json:"id"                    yaml:"id"                    mapstructure:"id"                    validate:"required"`
+	ID string `json:"id"                          yaml:"id"                          mapstructure:"id"                          validate:"required"`
 	// Description provides a human-readable explanation of the memory resource's purpose.
-	Description string `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description,omitempty"`
+	Description string `json:"description,omitempty"       yaml:"description,omitempty"       mapstructure:"description,omitempty"`
 	// Version allows tracking changes to the memory resource definition.
-	Version string `json:"version,omitempty"     yaml:"version,omitempty"     mapstructure:"version,omitempty"`
-
+	Version string `json:"version,omitempty"           yaml:"version,omitempty"           mapstructure:"version,omitempty"`
 	// Type indicates the primary management strategy (e.g., token_based).
 	// This refers to memory.MemoryType defined in types.go
-	Type memcore.Type `json:"type" yaml:"type" mapstructure:"type" validate:"required,oneof=token_based message_count_based buffer"`
-
+	Type memcore.Type `json:"type"                        yaml:"type"                        mapstructure:"type"                        validate:"required,oneof=token_based message_count_based buffer"`
 	// MaxTokens is the hard limit on the number of tokens this memory can hold.
 	MaxTokens int `json:"max_tokens,omitempty"        yaml:"max_tokens,omitempty"        mapstructure:"max_tokens,omitempty"        validate:"omitempty,gt=0"`
 	// MaxMessages is the hard limit on the number of messages.

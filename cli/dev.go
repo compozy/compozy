@@ -45,6 +45,13 @@ func setEnvironmentVariablesFromFlags(cmd *cobra.Command) error {
 	if os.Getenv("MAX_NESTING_DEPTH") == "" {
 		os.Setenv("MAX_NESTING_DEPTH", fmt.Sprintf("%d", maxNestingDepth))
 	}
+	maxStringLength, err := cmd.Flags().GetInt("max-string-length")
+	if err != nil {
+		return fmt.Errorf("failed to get max-string-length flag: %w", err)
+	}
+	if os.Getenv("MAX_STRING_LENGTH") == "" {
+		os.Setenv("MAX_STRING_LENGTH", fmt.Sprintf("%d", maxStringLength))
+	}
 	dispatcherHeartbeatInterval, err := cmd.Flags().GetInt("dispatcher-heartbeat-interval")
 	if err != nil {
 		return fmt.Errorf("failed to get dispatcher-heartbeat-interval flag: %w", err)
@@ -287,6 +294,8 @@ func DevCmd() *cobra.Command {
 
 	// Task execution configuration flags
 	cmd.Flags().Int("max-nesting-depth", 20, "Maximum task nesting depth allowed (env: MAX_NESTING_DEPTH)")
+	cmd.Flags().
+		Int("max-string-length", 10485760, "Maximum string length in bytes for template processing (env: MAX_STRING_LENGTH)")
 
 	// Memory content size configuration flags
 	cmd.Flags().

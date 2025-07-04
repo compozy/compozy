@@ -7,30 +7,39 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/uc"
+	"github.com/compozy/compozy/engine/task2"
+	task2core "github.com/compozy/compozy/engine/task2/core"
+	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/normalizer"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 const NormalizeWaitProcessorLabel = "NormalizeWaitProcessor"
 
 type NormalizeWaitProcessorInput struct {
-	WorkflowID      string               `json:"workflow_id"`
-	WorkflowExecID  core.ID              `json:"workflow_exec_id"`
-	ProcessorConfig *task.Config         `json:"processor_config"`
-	Signal          *task.SignalEnvelope `json:"signal"`
+	WorkflowID       string               `json:"workflow_id"`
+	WorkflowExecID   core.ID              `json:"workflow_exec_id"`
+	ProcessorConfig  *task.Config         `json:"processor_config"`
+	ParentTaskConfig *task.Config         `json:"parent_task_config"` // NEW: Enable inheritance
+	Signal           *task.SignalEnvelope `json:"signal"`
 }
 
 type NormalizeWaitProcessor struct {
 	loadWorkflowUC *uc.LoadWorkflow
+	workflowRepo   workflow.Repository
+	taskRepo       task.Repository
 }
 
 // NewNormalizeWaitProcessor creates a new NormalizeWaitProcessor activity
 func NewNormalizeWaitProcessor(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
+	taskRepo task.Repository,
 ) *NormalizeWaitProcessor {
 	return &NormalizeWaitProcessor{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
+		workflowRepo:   workflowRepo,
+		taskRepo:       taskRepo,
 	}
 }
 
@@ -50,16 +59,29 @@ func (a *NormalizeWaitProcessor) Run(ctx context.Context, input *NormalizeWaitPr
 		return nil, fmt.Errorf("failed to clone processor config: %w", err)
 	}
 
-	// Build normalization context with full workflow state and config
-	norm := normalizer.New()
-	normCtx := &normalizer.NormalizationContext{
-		WorkflowState:  workflowState,
-		WorkflowConfig: workflowConfig,
-		TaskConfigs:    normalizer.BuildTaskConfigsMap(workflowConfig.Tasks),
+	// Apply parent context inheritance from wait task to processor
+	shared.InheritTaskConfig(normalizedConfig, input.ParentTaskConfig)
+
+	// Create task2 orchestrator for signal normalization
+	engine := tplengine.NewEngine(tplengine.FormatJSON)
+	envMerger := task2core.NewEnvMerger()
+	factory, err := task2.NewFactory(&task2.FactoryConfig{
+		TemplateEngine: engine,
+		EnvMerger:      envMerger,
+		WorkflowRepo:   a.workflowRepo,
+		TaskRepo:       a.taskRepo,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create normalizer factory: %w", err)
 	}
 
-	// Normalize the processor config with signal context
-	err = norm.NormalizeTaskConfigWithSignal(normalizedConfig, normCtx, input.Signal)
+	orchestrator, err := task2.NewConfigOrchestrator(factory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config orchestrator: %w", err)
+	}
+
+	// Normalize the processor config with signal context using task2
+	err = orchestrator.NormalizeTaskWithSignal(normalizedConfig, workflowState, workflowConfig, input.Signal)
 	if err != nil {
 		return nil, fmt.Errorf("failed to normalize processor config with signal context: %w", err)
 	}

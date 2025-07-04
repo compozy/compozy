@@ -1,0 +1,104 @@
+---
+alwaysApply: true
+---
+
+You have access to GoGraph MCP tools for precise Go code analysis. Use these tools extensively instead of guessing.
+
+## 🔧 Available Tools & Usage Priority
+
+### 🎯 Primary Analysis Tools (Use These First)
+
+- `verify_code_exists` - Verify function/type existence before making suggestions
+- `get_package_structure` - Understand package organization and exports
+- `get_function_info` - Get detailed function signatures, parameters, and relationships
+- `trace_call_chain` - Find API call flows and function dependencies
+- `query_dependencies` - Analyze import relationships and package dependencies
+
+### 🔍 Deep Analysis Tools
+
+- `find_implementations` - Locate interface implementations
+- `detect_circular_deps` - Identify architectural issues
+- `check_test_coverage` - Assess test quality by package
+- `detect_code_patterns` - Find design patterns and anti-patterns
+
+### 🚫 What NOT to Use
+
+- `analyze_project` - Project is already analyzed, don't re-run
+- `natural_language_query` - Use specific tools instead of NL queries
+
+## 📋 Required Workflow
+
+1. **Before any suggestion**: Use `verify_code_exists` to confirm functions/types exist
+2. **For API discovery**: Use `trace_call_chain` from entry points to map call flows
+3. **For dependencies**: Use `query_dependencies` to understand package relationships
+4. **For structure**: Use `get_package_structure` and `get_function_info` for details
+
+## 🎯 Example Workflows
+
+**Finding API endpoints:**
+
+1. trace_call_chain from main() or HTTP handlers
+2. get_function_info for detailed signatures
+3. verify_code_exists before suggesting changes
+
+**Architecture analysis:**
+
+1. query_dependencies for package relationships
+2. detect_circular_deps for issues
+3. get_package_structure for detailed organization
+
+**Code changes:**
+
+1. verify_code_exists for target functions
+2. trace_call_chain to understand impact
+3. find_implementations for interface usage
+   You have access to GoGraph MCP tools for precise Go code analysis. Use these tools extensively instead of guessing.
+
+## 🔧 Available Tools & Usage Priority
+
+### 🎯 Primary Analysis Tools (Use These First)
+
+- `verify_code_exists` - Verify function/type existence before making suggestions
+- `get_package_structure` - Understand package organization and exports
+- `get_function_info` - Get detailed function signatures, parameters, and relationships
+- `trace_call_chain` - Find API call flows and function dependencies
+- `query_dependencies` - Analyze import relationships and package dependencies
+
+### 🔍 Deep Analysis Tools
+
+- `find_implementations` - Locate interface implementations
+- `detect_circular_deps` - Identify architectural issues
+- `check_test_coverage` - Assess test quality by package
+- `detect_code_patterns` - Find design patterns and anti-patterns
+
+### 🚫 What NOT to Use
+
+- `analyze_project` - Project is already analyzed, don't re-run
+- `natural_language_query` - Use specific tools instead of NL queries
+
+## 📋 Required Workflow
+
+1. **Before any suggestion**: Use `verify_code_exists` to confirm functions/types exist
+2. **For API discovery**: Use `trace_call_chain` from entry points to map call flows
+3. **For dependencies**: Use `query_dependencies` to understand package relationships
+4. **For structure**: Use `get_package_structure` and `get_function_info` for details
+
+## 🎯 Example Workflows
+
+**Finding API endpoints:**
+
+1. trace_call_chain from main() or HTTP handlers
+2. get_function_info for detailed signatures
+3. verify_code_exists before suggesting changes
+
+**Architecture analysis:**
+
+1. query_dependencies for package relationships
+2. detect_circular_deps for issues
+3. get_package_structure for detailed organization
+
+**Code changes:**
+
+1. verify_code_exists for target functions
+2. trace_call_chain to understand impact
+3. find_implementations for interface usage

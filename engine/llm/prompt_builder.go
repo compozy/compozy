@@ -35,8 +35,6 @@ func (b *promptBuilder) Build(_ context.Context, action *agent.ActionConfig) (st
 		return "", fmt.Errorf("action config is nil")
 	}
 
-	// For now, return the prompt directly
-	// Future: add template processing, variable substitution, etc.
 	return action.Prompt, nil
 }
 

@@ -223,7 +223,7 @@ func verifyCompositeStateManagement(t *testing.T, fixture *helpers.TestFixture, 
 		if progressInfo, ok := (*compositeTask.Output)["progress_info"]; ok {
 			if pi, ok := progressInfo.(map[string]any); ok {
 				assert.Contains(t, pi, "total_children", "Progress info should contain total_children")
-				assert.Contains(t, pi, "completed_count", "Progress info should contain completed_count")
+				assert.Contains(t, pi, "success_count", "Progress info should contain success_count")
 				assert.Contains(t, pi, "failed_count", "Progress info should contain failed_count")
 
 				// Compare against expected values from fixture
@@ -240,12 +240,21 @@ func verifyCompositeStateManagement(t *testing.T, fixture *helpers.TestFixture, 
 									"Total children count should match expected",
 								)
 							}
-							if expectedCompleted, ok := expectedPI["completed_count"]; ok {
+							if expectedCompleted, ok := expectedPI["success_count"]; ok {
 								assert.EqualValues(
 									t,
 									expectedCompleted,
-									pi["completed_count"],
-									"Completed count should match expected",
+									pi["success_count"],
+									"Success count should match expected",
+								)
+							}
+							// Legacy field check for backward compatibility in tests
+							if expectedCompleted, ok := expectedPI["completed_count"]; ok && expectedCompleted != nil {
+								assert.EqualValues(
+									t,
+									expectedCompleted,
+									pi["success_count"],
+									"Success count should match expected (from legacy completed_count)",
 								)
 							}
 							if expectedFailed, ok := expectedPI["failed_count"]; ok {
