@@ -1024,13 +1024,13 @@ func (s *memoryOperationsService) performActualFlush(
 
 	if dynamicFlush, ok := flushableMem.(memcore.DynamicFlushableMemory); ok {
 		// Use dynamic flush
-		result, err = dynamicFlush.PerformFlushWithStrategy(ctx, requestedStrategy)
+		result, err = dynamicFlush.PerformFlushWithStrategy(ctx, memcore.FlushingStrategyType(requestedStrategy))
 
 		// Determine actual strategy used
 		if requestedStrategy != "" {
 			actualStrategy = requestedStrategy
 		} else {
-			actualStrategy = dynamicFlush.GetConfiguredStrategy()
+			actualStrategy = string(dynamicFlush.GetConfiguredStrategy())
 		}
 	} else {
 		// Fallback to standard flush

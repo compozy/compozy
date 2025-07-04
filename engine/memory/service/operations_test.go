@@ -902,8 +902,8 @@ func TestValidatePayloadType(t *testing.T) {
 type testFlushableMemory struct {
 	*testMemory
 	performFlushFn             func(ctx context.Context) (*memcore.FlushMemoryActivityOutput, error)
-	performFlushWithStrategyFn func(ctx context.Context, strategy string) (*memcore.FlushMemoryActivityOutput, error)
-	getConfiguredStrategyFn    func() string
+	performFlushWithStrategyFn func(ctx context.Context, strategy memcore.FlushingStrategyType) (*memcore.FlushMemoryActivityOutput, error)
+	getConfiguredStrategyFn    func() memcore.FlushingStrategyType
 }
 
 func (m *testFlushableMemory) PerformFlush(ctx context.Context) (*memcore.FlushMemoryActivityOutput, error) {
@@ -919,7 +919,7 @@ func (m *testFlushableMemory) PerformFlush(ctx context.Context) (*memcore.FlushM
 
 func (m *testFlushableMemory) PerformFlushWithStrategy(
 	ctx context.Context,
-	strategy string,
+	strategy memcore.FlushingStrategyType,
 ) (*memcore.FlushMemoryActivityOutput, error) {
 	if m.performFlushWithStrategyFn != nil {
 		return m.performFlushWithStrategyFn(ctx, strategy)
@@ -931,11 +931,11 @@ func (m *testFlushableMemory) PerformFlushWithStrategy(
 	}, nil
 }
 
-func (m *testFlushableMemory) GetConfiguredStrategy() string {
+func (m *testFlushableMemory) GetConfiguredStrategy() memcore.FlushingStrategyType {
 	if m.getConfiguredStrategyFn != nil {
 		return m.getConfiguredStrategyFn()
 	}
-	return "simple_fifo"
+	return memcore.SimpleFIFOFlushing
 }
 
 func (m *testFlushableMemory) MarkFlushPending(_ context.Context, _ bool) error {
@@ -984,8 +984,8 @@ func TestMemoryService_Flush(t *testing.T) {
 					{Role: llm.MessageRoleUser, Content: "Message 2"},
 				},
 			},
-			performFlushWithStrategyFn: func(_ context.Context, strategy string) (*memcore.FlushMemoryActivityOutput, error) {
-				assert.Equal(t, "lru", strategy)
+			performFlushWithStrategyFn: func(_ context.Context, strategy memcore.FlushingStrategyType) (*memcore.FlushMemoryActivityOutput, error) {
+				assert.Equal(t, memcore.FlushingStrategyType("lru"), strategy)
 				return &memcore.FlushMemoryActivityOutput{
 					Success:          true,
 					MessageCount:     2,
@@ -993,8 +993,8 @@ func TestMemoryService_Flush(t *testing.T) {
 					SummaryGenerated: false,
 				}, nil
 			},
-			getConfiguredStrategyFn: func() string {
-				return "simple_fifo"
+			getConfiguredStrategyFn: func() memcore.FlushingStrategyType {
+				return memcore.SimpleFIFOFlushing
 			},
 		}
 
@@ -1032,16 +1032,16 @@ func TestMemoryService_Flush(t *testing.T) {
 					{Role: llm.MessageRoleUser, Content: "Message 1"},
 				},
 			},
-			performFlushWithStrategyFn: func(_ context.Context, strategy string) (*memcore.FlushMemoryActivityOutput, error) {
-				assert.Equal(t, "", strategy)
+			performFlushWithStrategyFn: func(_ context.Context, strategy memcore.FlushingStrategyType) (*memcore.FlushMemoryActivityOutput, error) {
+				assert.Equal(t, memcore.FlushingStrategyType(""), strategy)
 				return &memcore.FlushMemoryActivityOutput{
 					Success:      true,
 					MessageCount: 1,
 					TokenCount:   50,
 				}, nil
 			},
-			getConfiguredStrategyFn: func() string {
-				return "token_aware_lru"
+			getConfiguredStrategyFn: func() memcore.FlushingStrategyType {
+				return memcore.TokenAwareLRUFlushing
 			},
 		}
 

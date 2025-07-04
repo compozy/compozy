@@ -19,12 +19,12 @@ func TestValidateFlushConfig(t *testing.T) {
 		errMsg    string
 	}{
 		{
-			name:      "nil config is valid",
+			name:      "Should accept nil config as valid",
 			config:    nil,
 			expectErr: false,
 		},
 		{
-			name: "valid config with simple_fifo strategy",
+			name: "Should accept valid config with simple_fifo strategy",
 			config: &FlushConfig{
 				Strategy:  "simple_fifo",
 				MaxKeys:   100,
@@ -33,7 +33,7 @@ func TestValidateFlushConfig(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name: "valid config with lru strategy",
+			name: "Should accept valid config with lru strategy",
 			config: &FlushConfig{
 				Strategy:  "lru",
 				MaxKeys:   50,
@@ -42,21 +42,21 @@ func TestValidateFlushConfig(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name: "valid config with token_aware_lru strategy",
+			name: "Should accept valid config with token_aware_lru strategy",
 			config: &FlushConfig{
 				Strategy: "token_aware_lru",
 			},
 			expectErr: false,
 		},
 		{
-			name: "valid config with fifo alias",
+			name: "Should accept valid config with fifo alias",
 			config: &FlushConfig{
 				Strategy: "fifo",
 			},
 			expectErr: false,
 		},
 		{
-			name: "invalid strategy",
+			name: "Should reject invalid strategy",
 			config: &FlushConfig{
 				Strategy: "invalid_strategy",
 			},
@@ -64,14 +64,14 @@ func TestValidateFlushConfig(t *testing.T) {
 			errMsg:    "invalid strategy 'invalid_strategy'",
 		},
 		{
-			name: "empty strategy is valid",
+			name: "Should accept empty strategy as valid",
 			config: &FlushConfig{
 				Strategy: "",
 			},
 			expectErr: false,
 		},
 		{
-			name: "negative max keys",
+			name: "Should reject negative max keys",
 			config: &FlushConfig{
 				MaxKeys: -1,
 			},
@@ -79,7 +79,7 @@ func TestValidateFlushConfig(t *testing.T) {
 			errMsg:    "max_keys must be non-negative",
 		},
 		{
-			name: "max keys too large",
+			name: "Should reject max keys too large",
 			config: &FlushConfig{
 				MaxKeys: 10001,
 			},
@@ -87,7 +87,7 @@ func TestValidateFlushConfig(t *testing.T) {
 			errMsg:    "max_keys too large",
 		},
 		{
-			name: "threshold below 0",
+			name: "Should reject threshold below 0",
 			config: &FlushConfig{
 				Threshold: -0.1,
 			},
@@ -95,7 +95,7 @@ func TestValidateFlushConfig(t *testing.T) {
 			errMsg:    "threshold must be between 0 and 1",
 		},
 		{
-			name: "threshold above 1",
+			name: "Should reject threshold above 1",
 			config: &FlushConfig{
 				Threshold: 1.1,
 			},
@@ -103,7 +103,7 @@ func TestValidateFlushConfig(t *testing.T) {
 			errMsg:    "threshold must be between 0 and 1",
 		},
 		{
-			name: "obsolete strategies are rejected",
+			name: "Should reject obsolete strategies",
 			config: &FlushConfig{
 				Strategy: "summarize",
 			},
@@ -111,7 +111,7 @@ func TestValidateFlushConfig(t *testing.T) {
 			errMsg:    "invalid strategy 'summarize'",
 		},
 		{
-			name: "hybrid_summary is rejected",
+			name: "Should reject hybrid_summary strategy",
 			config: &FlushConfig{
 				Strategy: "hybrid_summary",
 			},

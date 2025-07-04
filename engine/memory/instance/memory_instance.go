@@ -273,17 +273,17 @@ func (mi *memoryInstance) AppendWithPrivacy(ctx context.Context, msg llm.Message
 
 func (mi *memoryInstance) PerformFlush(ctx context.Context) (*core.FlushMemoryActivityOutput, error) {
 	// Use PerformFlushWithStrategy with empty strategy to use default
-	return mi.PerformFlushWithStrategy(ctx, "")
+	return mi.PerformFlushWithStrategy(ctx, core.FlushingStrategyType(""))
 }
 
 // PerformFlushWithStrategy implements DynamicFlushableMemory interface
 func (mi *memoryInstance) PerformFlushWithStrategy(
 	ctx context.Context,
-	strategyType string,
+	strategyType core.FlushingStrategyType,
 ) (*core.FlushMemoryActivityOutput, error) {
 	// Validate strategy type if provided
 	if strategyType != "" {
-		if err := mi.validateStrategyType(strategyType); err != nil {
+		if err := mi.validateStrategyType(string(strategyType)); err != nil {
 			return nil, fmt.Errorf("invalid strategy type: %w", err)
 		}
 	}
@@ -294,9 +294,9 @@ func (mi *memoryInstance) PerformFlushWithStrategy(
 		projectID:         mi.projectID,
 		store:             mi.store,
 		lockManager:       mi.lockManager,
-		flushingStrategy:  mi.flushingStrategy, // default strategy
-		strategyFactory:   mi.strategyFactory,  // for dynamic creation
-		requestedStrategy: strategyType,        // requested strategy
+		flushingStrategy:  mi.flushingStrategy,  // default strategy
+		strategyFactory:   mi.strategyFactory,   // for dynamic creation
+		requestedStrategy: string(strategyType), // requested strategy
 		tokenCounter:      mi.tokenCounter,
 		logger:            mi.logger,
 		metrics:           mi.metrics,
@@ -306,11 +306,11 @@ func (mi *memoryInstance) PerformFlushWithStrategy(
 }
 
 // GetConfiguredStrategy implements DynamicFlushableMemory interface
-func (mi *memoryInstance) GetConfiguredStrategy() string {
+func (mi *memoryInstance) GetConfiguredStrategy() core.FlushingStrategyType {
 	if mi.resourceConfig != nil && mi.resourceConfig.FlushingStrategy != nil {
-		return string(mi.resourceConfig.FlushingStrategy.Type)
+		return mi.resourceConfig.FlushingStrategy.Type
 	}
-	return string(core.SimpleFIFOFlushing)
+	return core.SimpleFIFOFlushing
 }
 
 // validateStrategyType validates that the strategy type is supported

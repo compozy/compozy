@@ -24,7 +24,7 @@ func TestDynamicFlushableMemory(t *testing.T) {
 		tests := []struct {
 			name           string
 			resourceConfig *core.Resource
-			expectedType   string
+			expectedType   core.FlushingStrategyType
 		}{
 			{
 				name: "returns configured LRU strategy",
@@ -33,7 +33,7 @@ func TestDynamicFlushableMemory(t *testing.T) {
 						Type: core.LRUFlushing,
 					},
 				},
-				expectedType: "lru",
+				expectedType: core.LRUFlushing,
 			},
 			{
 				name: "returns configured token aware LRU strategy",
@@ -42,19 +42,19 @@ func TestDynamicFlushableMemory(t *testing.T) {
 						Type: core.TokenAwareLRUFlushing,
 					},
 				},
-				expectedType: "token_aware_lru",
+				expectedType: core.TokenAwareLRUFlushing,
 			},
 			{
 				name: "returns default FIFO when no strategy configured",
 				resourceConfig: &core.Resource{
 					FlushingStrategy: nil,
 				},
-				expectedType: "simple_fifo",
+				expectedType: core.SimpleFIFOFlushing,
 			},
 			{
 				name:           "returns default FIFO when no resource config",
 				resourceConfig: nil,
-				expectedType:   "simple_fifo",
+				expectedType:   core.SimpleFIFOFlushing,
 			},
 		}
 		for _, tt := range tests {
@@ -96,7 +96,7 @@ func TestDynamicFlushableMemory(t *testing.T) {
 			metrics:          NewDefaultMetrics(logger.NewForTests()),
 		}
 		// Execute
-		result, err := instance.PerformFlushWithStrategy(ctx, "")
+		result, err := instance.PerformFlushWithStrategy(ctx, core.FlushingStrategyType(""))
 		// Verify
 		assert.NoError(t, err)
 		assert.Equal(t, expectedOutput, result)
@@ -112,7 +112,7 @@ func TestDynamicFlushableMemory(t *testing.T) {
 		}
 		ctx := context.Background()
 		// Test invalid strategy type
-		result, err := instance.PerformFlushWithStrategy(ctx, "invalid_strategy")
+		result, err := instance.PerformFlushWithStrategy(ctx, core.FlushingStrategyType("invalid_strategy"))
 		assert.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "invalid strategy type")

@@ -279,8 +279,9 @@ func TestStrategyFactory_GetSupportedStrategies(t *testing.T) {
 		assert.Contains(t, strategies, "lru")
 		assert.Contains(t, strategies, "token_aware_lru")
 
-		// Should have exactly 4 strategies (including fifo alias)
-		assert.Len(t, strategies, 4)
+		// Verify exact set of strategies
+		expectedStrategies := []string{"simple_fifo", "fifo", "lru", "token_aware_lru"}
+		assert.ElementsMatch(t, expectedStrategies, strategies, "Should have exact set of supported strategies")
 	})
 
 	t.Run("Should NOT include obsolete strategies", func(t *testing.T) {

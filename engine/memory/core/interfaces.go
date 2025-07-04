@@ -57,9 +57,9 @@ type DynamicFlushableMemory interface {
 	FlushableMemory
 	// PerformFlushWithStrategy executes flush with a specific strategy type.
 	// If strategyType is empty, uses the configured default strategy.
-	PerformFlushWithStrategy(ctx context.Context, strategyType string) (*FlushMemoryActivityOutput, error)
-	// GetConfiguredStrategy returns the default configured strategy type as a string.
-	GetConfiguredStrategy() string
+	PerformFlushWithStrategy(ctx context.Context, strategyType FlushingStrategyType) (*FlushMemoryActivityOutput, error)
+	// GetConfiguredStrategy returns the default configured strategy type.
+	GetConfiguredStrategy() FlushingStrategyType
 }
 
 // Store defines the interface for the underlying persistence layer for memory.
