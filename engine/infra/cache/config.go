@@ -27,6 +27,8 @@ type Config struct {
 	MaxRetries      int           `json:"max_retries,omitempty"              yaml:"max_retries,omitempty"              mapstructure:"max_retries"`
 	MinRetryBackoff time.Duration `json:"min_retry_backoff,omitempty"        yaml:"min_retry_backoff,omitempty"        mapstructure:"min_retry_backoff"`
 	MaxRetryBackoff time.Duration `json:"max_retry_backoff,omitempty"        yaml:"max_retry_backoff,omitempty"        mapstructure:"max_retry_backoff"`
+	MaxIdleConns    int           `json:"max_idle_conns,omitempty"           yaml:"max_idle_conns,omitempty"           mapstructure:"max_idle_conns"`
+	MinIdleConns    int           `json:"min_idle_conns,omitempty"           yaml:"min_idle_conns,omitempty"           mapstructure:"min_idle_conns"`
 	// Health Check
 	PoolTimeout time.Duration `json:"pool_timeout,omitempty"             yaml:"pool_timeout,omitempty"             mapstructure:"pool_timeout"`
 	PingTimeout time.Duration `json:"ping_timeout,omitempty"             yaml:"ping_timeout,omitempty"             mapstructure:"ping_timeout"`
@@ -76,6 +78,19 @@ func (c *Config) validatePoolConfig() error {
 	}
 	if c.MaxRetries < 0 {
 		return fmt.Errorf("cache max retries cannot be negative: got %d", c.MaxRetries)
+	}
+	if c.MaxIdleConns < 0 {
+		return fmt.Errorf("cache max idle connections cannot be negative: got %d", c.MaxIdleConns)
+	}
+	if c.MinIdleConns < 0 {
+		return fmt.Errorf("cache min idle connections cannot be negative: got %d", c.MinIdleConns)
+	}
+	if c.MinIdleConns > c.MaxIdleConns && c.MaxIdleConns > 0 {
+		return fmt.Errorf(
+			"cache min idle connections (%d) cannot be greater than max idle connections (%d)",
+			c.MinIdleConns,
+			c.MaxIdleConns,
+		)
 	}
 	if c.NotificationBufferSize < 0 {
 		return fmt.Errorf("cache notification buffer size cannot be negative: got %d", c.NotificationBufferSize)

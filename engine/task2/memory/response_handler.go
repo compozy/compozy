@@ -1,4 +1,4 @@
-package basic
+package memory
 
 import (
 	"context"
@@ -9,27 +9,27 @@ import (
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
-// ResponseHandler handles response processing for basic tasks
+// ResponseHandler handles response processing for memory tasks
 type ResponseHandler struct {
 	baseHandler    *shared.BaseResponseHandler
 	templateEngine *tplengine.TemplateEngine
 	contextBuilder *shared.ContextBuilder
 }
 
-// NewResponseHandler creates a new basic task response handler
+// NewResponseHandler creates a new memory task response handler
 func NewResponseHandler(
 	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *shared.ContextBuilder,
 	baseHandler *shared.BaseResponseHandler,
 ) (*ResponseHandler, error) {
 	if baseHandler == nil {
-		return nil, fmt.Errorf("failed to create basic response handler: baseHandler is required but was nil")
+		return nil, fmt.Errorf("failed to create memory response handler: baseHandler is required but was nil")
 	}
 	if templateEngine == nil {
-		return nil, fmt.Errorf("failed to create basic response handler: templateEngine is required but was nil")
+		return nil, fmt.Errorf("failed to create memory response handler: templateEngine is required but was nil")
 	}
 	if contextBuilder == nil {
-		return nil, fmt.Errorf("failed to create basic response handler: contextBuilder is required but was nil")
+		return nil, fmt.Errorf("failed to create memory response handler: contextBuilder is required but was nil")
 	}
 	return &ResponseHandler{
 		baseHandler:    baseHandler,
@@ -38,7 +38,7 @@ func NewResponseHandler(
 	}, nil
 }
 
-// HandleResponse processes a basic task execution response
+// HandleResponse processes a memory task execution response
 func (h *ResponseHandler) HandleResponse(
 	ctx context.Context,
 	input *shared.ResponseInput,
@@ -48,22 +48,23 @@ func (h *ResponseHandler) HandleResponse(
 		return nil, err
 	}
 	// Validate task type matches handler
-	if input.TaskConfig.Type != task.TaskTypeBasic {
+	if input.TaskConfig.Type != task.TaskTypeMemory {
 		return nil, &shared.ValidationError{
 			Field: "task_type",
 			Message: fmt.Sprintf(
-				"basic response handler received incorrect task type: expected '%s', got '%s'",
-				task.TaskTypeBasic,
+				"memory response handler received incorrect task type: expected '%s', got '%s'",
+				task.TaskTypeMemory,
 				input.TaskConfig.Type,
 			),
 		}
 	}
-	// Basic tasks use standard main task processing without any special handling
-	// Simply delegate to base handler for all common logic
+	// Memory task constraints are already validated in task.TypeValidator.validateMemoryTask()
+	// Memory tasks use standard main task processing like basic tasks
+	// but are explicitly memory tasks in type
 	return h.baseHandler.ProcessMainTaskResponse(ctx, input)
 }
 
 // Type returns the task type this handler processes
 func (h *ResponseHandler) Type() task.Type {
-	return task.TaskTypeBasic
+	return task.TaskTypeMemory
 }

@@ -1,0 +1,22 @@
+resource: memory
+id: test_memory
+description: Test memory for integration testing
+version: 0.1.0
+
+key: "test:{{.session_id}}"
+type: token_based
+max_tokens: 1000
+max_messages: 50
+
+persistence:
+    type: redis
+    ttl: 1h
+
+token_provider:
+    provider: openai
+    model: gpt-3.5-turbo
+
+locking:
+    append_ttl: "30s"
+    clear_ttl: "10s"
+    flush_ttl: "5m"

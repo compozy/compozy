@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/task2/basic"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/tplengine"
 	task2helpers "github.com/compozy/compozy/test/integration/task2/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -22,7 +23,8 @@ func TestBasicResponseHandler_Integration(t *testing.T) {
 		ts := task2helpers.NewTestSetup(t)
 
 		// Create basic response handler
-		handler := basic.NewResponseHandler(ts.TemplateEngine, ts.ContextBuilder, ts.BaseHandler)
+		handler, err := basic.NewResponseHandler(ts.TemplateEngine, ts.ContextBuilder, ts.BaseHandler)
+		require.NoError(t, err)
 
 		// Create workflow state
 		workflowState, workflowExecID := ts.CreateWorkflowState(t, "test-workflow")
@@ -84,7 +86,8 @@ func TestBasicResponseHandler_Integration(t *testing.T) {
 		ts := task2helpers.NewTestSetup(t)
 
 		// Create basic response handler
-		handler := basic.NewResponseHandler(ts.TemplateEngine, ts.ContextBuilder, ts.BaseHandler)
+		handler, err := basic.NewResponseHandler(ts.TemplateEngine, ts.ContextBuilder, ts.BaseHandler)
+		require.NoError(t, err)
 
 		// Create workflow state
 		workflowState, workflowExecID := ts.CreateWorkflowState(t, "test-workflow")
@@ -134,8 +137,11 @@ func TestBasicResponseHandler_Integration(t *testing.T) {
 
 func TestBasicResponseHandler_Type(t *testing.T) {
 	t.Run("Should return basic task type", func(t *testing.T) {
+		templateEngine := &tplengine.TemplateEngine{}
+		contextBuilder := &shared.ContextBuilder{}
 		baseHandler := &shared.BaseResponseHandler{}
-		handler := basic.NewResponseHandler(nil, nil, baseHandler)
+		handler, err := basic.NewResponseHandler(templateEngine, contextBuilder, baseHandler)
+		require.NoError(t, err)
 		assert.Equal(t, task.TaskTypeBasic, handler.Type())
 	})
 }

@@ -3,6 +3,7 @@ description: Comprehensive testing standards and patterns for Compozy Go develop
 globs:
 alwaysApply: false
 ---
+
 # Testing Standards for Compozy Go Development
 
 <critical>
@@ -45,19 +46,22 @@ alwaysApply: false
 
 <anti_patterns type="prohibited_patterns">
 **NEVER USE TESTIFY SUITE PATTERNS:**
+
 - ❌ **PROHIBITED:** `suite.Suite` embedding or any suite-based test structures
 - ❌ **PROHIBITED:** Suite methods like `s.Equal()`, `s.NoError()`, `s.True()`, `s.False()`, `s.T()`
 - ❌ **PROHIBITED:** `testsuite.WorkflowTestSuite` or similar suite embeddings
 - ❌ **PROHIBITED:** Suite lifecycle methods like `SetupTest()`, `TearDownTest()`, `AfterTest()`
 
 **USE DIRECT ASSERTIONS INSTEAD:**
+
 - ✅ **REQUIRED:** `assert.Equal(t, expected, actual)`
 - ✅ **REQUIRED:** `require.NoError(t, err)`
 - ✅ **REQUIRED:** `assert.True(t, condition)`
 - ✅ **REQUIRED:** Individual test functions with `*testing.T` parameter
-</anti_patterns>
+  </anti_patterns>
 
 <anti_patterns type="bad_examples">
+
 ```go
 // ❌ NEVER DO THIS - Suite pattern is prohibited
 type MyTestSuite struct {
@@ -79,6 +83,7 @@ func TestSomething_Method(t *testing.T) {
     })
 }
 ```
+
 </anti_patterns>
 
 ## Table-Driven Tests
@@ -92,23 +97,36 @@ func TestSomething_Method(t *testing.T) {
 ## Test Organization
 
 <organization_rules>
-- Place `*_test.go` files alongside implementation files
+
+- **Unit Tests**: Place `*_test.go` files alongside implementation files
+- **Integration Tests**: **MUST** live under `test/integration/` directory - NO EXCEPTIONS
 - Each test MUST be independent and repeatable
 - Mock external dependencies **only when necessary** using `testify/mock`
 - Use project test helpers: `utils.SetupTest()`, `utils.SetupFixture()`
 - Test both success and error paths
 - Ensure test coverage for all exported functions
-</organization_rules>
+  </organization_rules>
+
+<integration_test_location type="mandatory">
+**INTEGRATION TEST LOCATION REQUIREMENT:**
+
+- **ALL integration tests MUST be placed in `test/integration/` directory**
+- **NEVER place integration tests alongside unit tests in package directories**
+- Integration tests include: database tests, HTTP API tests, external service tests, end-to-end workflow tests
+- Use subdirectories under `test/integration/` to organize by domain: `test/integration/memory/`, `test/integration/workflow/`, etc.
+- Integration test files follow same naming: `*_test.go`
+  </integration_test_location>
 
 ## Mock Standards
 
 <when_to_mock>
 **WHEN TO USE MOCKS:**
+
 - External services (HTTP clients, databases, file systems)
 - Dependencies that are slow, unreliable, or have side effects
 - Complex interfaces that would make tests brittle or slow
 - **NOT REQUIRED** for simple functions, pure logic, or internal utilities
-</when_to_mock>
+  </when_to_mock>
 
 <pattern type="mock_implementation">
 ```go
@@ -117,16 +135,16 @@ type MockService struct {
     mock.Mock
 }
 
-func (m *MockService) DoSomething(ctx context.Context, param string) error {
-    args := m.Called(ctx, param)
-    return args.Error(0)
+func (m \*MockService) DoSomething(ctx context.Context, param string) error {
+args := m.Called(ctx, param)
+return args.Error(0)
 }
 
 // Usage in tests
 func TestComponent_Method(t *testing.T) {
-    t.Run("Should use mocked service", func(t *testing.T) {
-        mockService := new(MockService)
-        mockService.On("DoSomething", mock.Anything, "test").Return(nil)
+t.Run("Should use mocked service", func(t *testing.T) {
+mockService := new(MockService)
+mockService.On("DoSomething", mock.Anything, "test").Return(nil)
 
         component := NewComponent(mockService)
         err := component.Method("test")
@@ -134,8 +152,10 @@ func TestComponent_Method(t *testing.T) {
         assert.NoError(t, err)
         mockService.AssertExpectations(t)
     })
+
 }
-```
+
+````
 </pattern>
 
 <refactoring_priorities>
@@ -155,7 +175,8 @@ func TestService_Method(t *testing.T) {
         // test implementation
     })
 }
-```
+````
+
 </example>
 
 ## Test Patterns
@@ -174,22 +195,25 @@ func TestService_Method(t *testing.T) {
 
 <coverage_requirements type="unified">
 **Unified Coverage Standard:**
+
 - **Business Logic Packages**: All code in `engine/{agent,task,tool,workflow}/` must achieve ≥80% test coverage
 - **Exported Functions**: All exported functions across the codebase must have meaningful tests (not just presence tests)
 - **Coverage Focus**: Prioritize testing business logic paths over trivial getters/setters
 - **Quality Gate**: Use coverage reports to identify gaps in business logic, not just check for test existence
-</coverage_requirements>
+  </coverage_requirements>
 
 ## Architectural Testing
 
 <architectural_testing type="mandatory">
 **MANDATORY: Architecture Constraint Validation**
+
 - **Dependency Direction**: Test that dependencies flow inward toward domain
 - **Layer Violations**: Prevent direct dependencies between Infrastructure and Domain layers
 - **Circular Dependencies**: Automated detection of package cycles
 - **Interface Compliance**: Verify adapters properly implement port interfaces
 
 **Implementation Pattern:**
+
 ```go
 func TestArchitecturalConstraints(t *testing.T) {
     t.Run("Should enforce dependency direction", func(t *testing.T) {
@@ -202,4 +226,5 @@ func TestArchitecturalConstraints(t *testing.T) {
     })
 }
 ```
+
 </architectural_testing>

@@ -18,6 +18,7 @@ type BuilderOptions struct {
 	Store             core.Store
 	LockManager       LockManager
 	TokenCounter      core.TokenCounter
+	AsyncTokenCounter AsyncTokenCounter // Optional async token counter for performance
 	FlushingStrategy  core.FlushStrategy
 	EvictionPolicy    EvictionPolicy // Policy for selecting messages to evict
 	TemporalClient    client.Client
@@ -77,6 +78,12 @@ func (b *Builder) WithLockManager(lm LockManager) *Builder {
 // WithTokenCounter sets the token counter
 func (b *Builder) WithTokenCounter(tc core.TokenCounter) *Builder {
 	b.opts.TokenCounter = tc
+	return b
+}
+
+// WithAsyncTokenCounter sets the async token counter
+func (b *Builder) WithAsyncTokenCounter(atc AsyncTokenCounter) *Builder {
+	b.opts.AsyncTokenCounter = atc
 	return b
 }
 

@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/engine/memory/instance/eviction"
 	"github.com/compozy/compozy/engine/memory/instance/strategies"
 	"github.com/compozy/compozy/engine/memory/store"
+	"github.com/compozy/compozy/engine/memory/tokens"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -409,6 +410,8 @@ func (mm *Manager) createMemoryInstance(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token counter: %w", err)
 	}
+	// Create async token counter wrapper
+	asyncTokenCounter := tokens.NewAsyncTokenCounter(tokenCounter, 10, mm.log)
 	// Use the instance builder
 	instanceBuilder := instance.NewBuilder().
 		WithInstanceID(sanitizedKey).
@@ -418,6 +421,7 @@ func (mm *Manager) createMemoryInstance(
 		WithStore(components.store).
 		WithLockManager(components.lockManager).
 		WithTokenCounter(tokenCounter).
+		WithAsyncTokenCounter(asyncTokenCounter).
 		WithFlushingStrategy(components.flushingStrategy).
 		WithEvictionPolicy(components.evictionPolicy).
 		WithTemporalClient(mm.temporalClient).
