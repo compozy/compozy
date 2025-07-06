@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,6 +35,12 @@ func (mm *Manager) buildMemoryComponents(
 ) (*memoryComponents, error) {
 	// Build the key prefix with namespace: compozy:{project_id}:memory
 	keyPrefix := fmt.Sprintf("compozy:%s:memory", projectIDVal)
+
+	mm.log.Debug("🔧 buildMemoryComponents: Redis namespace generation",
+		"resource_id", resourceCfg.ID,
+		"project_id_input", projectIDVal,
+		"generated_key_prefix", keyPrefix)
+
 	redisStore := store.NewRedisMemoryStore(mm.baseRedisClient, keyPrefix)
 	lockManager, err := mm.createLockManager(projectIDVal, resourceCfg)
 	if err != nil {
@@ -397,7 +405,7 @@ func (mm *Manager) createEvictionPolicy(resourceCfg *memcore.Resource) instance.
 // createMemoryInstance creates the final memory instance with all components
 func (mm *Manager) createMemoryInstance(
 	ctx context.Context,
-	sanitizedKey, projectIDVal string,
+	validatedKey, projectIDVal string,
 	resourceCfg *memcore.Resource,
 	components *memoryComponents,
 ) (memcore.Memory, error) {
@@ -410,11 +418,18 @@ func (mm *Manager) createMemoryInstance(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token counter: %w", err)
 	}
-	// Create async token counter wrapper
-	asyncTokenCounter := tokens.NewAsyncTokenCounter(tokenCounter, 10, mm.log)
+	// Create async token counter wrapper with configurable workers
+	workers := 10 // default
+	// Check environment variable first (set by CLI flag or env)
+	if envWorkers := os.Getenv("ASYNC_TOKEN_COUNTER_WORKERS"); envWorkers != "" {
+		if parsed, err := strconv.Atoi(envWorkers); err == nil && parsed > 0 {
+			workers = parsed
+		}
+	}
+	asyncTokenCounter := tokens.NewAsyncTokenCounter(tokenCounter, workers, mm.log)
 	// Use the instance builder
 	instanceBuilder := instance.NewBuilder().
-		WithInstanceID(sanitizedKey).
+		WithInstanceID(validatedKey).
 		WithResourceID(resourceCfg.ID).
 		WithProjectID(projectIDVal).
 		WithResourceConfig(resourceCfg).

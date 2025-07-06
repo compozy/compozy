@@ -51,7 +51,7 @@ func TestWaitResponseHandler_HandleResponse_Validation(t *testing.T) {
 			WorkflowState:  &workflow.State{},  // Valid workflow state
 		}
 
-		result, err := handler.HandleResponse(context.TODO(), input)
+		result, err := handler.HandleResponse(context.Background(), input)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)

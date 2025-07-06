@@ -64,8 +64,26 @@ func readMemory(c *gin.Context) {
 		}
 	}
 
+	// Create service with workflow context from middleware
+	svc, err := service.NewMemoryOperationsService(
+		memCtx.Manager,
+		nil, // template engine
+		memCtx.TokenCounter,
+		nil, // use default config
+		memCtx.WorkflowContext,
+	)
+	if err != nil {
+		reqErr := router.NewRequestError(
+			http.StatusInternalServerError,
+			"failed to create memory service",
+			err,
+		)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return
+	}
+
 	// Execute use case
-	uc := memuc.NewReadMemory(memCtx.Manager, memCtx.Worker, nil)
+	uc := memuc.NewReadMemory(memCtx.Manager, memCtx.Worker, svc)
 
 	input := memuc.ReadMemoryInput{
 		MemoryRef: memCtx.MemoryRef,
@@ -140,8 +158,25 @@ func writeMemory(c *gin.Context) {
 		Messages: req.Messages,
 	}
 
+	// Create service with workflow context from middleware
+	memService, err := service.NewMemoryOperationsService(
+		memCtx.Manager,
+		nil, // template engine
+		memCtx.TokenCounter,
+		nil, // use default config
+		memCtx.WorkflowContext,
+	)
+	if err != nil {
+		reqErr := router.NewRequestError(
+			http.StatusInternalServerError,
+			"failed to create memory service",
+			err,
+		)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return
+	}
+
 	// Execute use case
-	memService := service.NewMemoryOperationsService(memCtx.Manager, nil, nil)
 	uc := memuc.NewWriteMemory(memService, memCtx.MemoryRef, req.Key, &input)
 	result, err := uc.Execute(c.Request.Context())
 	if err != nil {
@@ -199,8 +234,26 @@ func appendMemory(c *gin.Context) {
 		Messages: req.Messages,
 	}
 
+	// Create service with workflow context from middleware
+	memService, err := service.NewMemoryOperationsService(
+		memCtx.Manager,
+		nil, // template engine
+		memCtx.TokenCounter,
+		nil, // use default config
+		memCtx.WorkflowContext,
+	)
+	if err != nil {
+		reqErr := router.NewRequestError(
+			http.StatusInternalServerError,
+			"failed to create memory service",
+			err,
+		)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return
+	}
+
 	// Execute use case
-	uc := memuc.NewAppendMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &input, nil)
+	uc := memuc.NewAppendMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &input, memService)
 	result, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		handleMemoryError(c, err, "failed to append to memory")
@@ -479,8 +532,26 @@ func statsMemory(c *gin.Context) {
 		}
 	}
 
-	// Create use case
-	uc := memuc.NewStatsMemory(memCtx.Manager, memCtx.Worker, nil)
+	// Create service with workflow context from middleware
+	memService, err := service.NewMemoryOperationsService(
+		memCtx.Manager,
+		nil, // template engine
+		memCtx.TokenCounter,
+		nil, // use default config
+		memCtx.WorkflowContext,
+	)
+	if err != nil {
+		reqErr := router.NewRequestError(
+			http.StatusInternalServerError,
+			"failed to create memory service",
+			err,
+		)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return
+	}
+
+	// Create use case with properly configured service
+	uc := memuc.NewStatsMemory(memCtx.Manager, memCtx.Worker, memService)
 
 	// Execute
 	result, err := uc.Execute(c.Request.Context(), memuc.StatsMemoryInput{

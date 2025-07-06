@@ -43,18 +43,16 @@ definitions:
         items:
           $ref: '#/definitions/mcp.Config'
         type: array
-      memories:
-        description: '[]string (L2) or []MemoryReference (L3)'
       memory:
         description: |-
-          Memory configuration fields
-          Level 1: memory: "customer-support-context", memory_key: "key-template"
-          Level 2: memory: true, memories: ["id1", "id2"], memory_key: "shared-key-template"
-          Level 3: memories: [{id: "id1", mode: "read-write", key: "template1"},
-                              {id: "id2", mode: "read-only", key: "template2"}]
-      memory_key:
-        description: string (L1, L2)
-        type: string
+          Memory configuration - simplified single format
+          memory:
+            - id: user_memory
+              key: "user:{{.workflow.input.user_id}}"
+              mode: "read-write"  # optional, defaults to "read-write"
+        items:
+          $ref: '#/definitions/core.MemoryReference'
+        type: array
       resource:
         type: string
       tools:
@@ -148,6 +146,25 @@ definitions:
     type: object
   core.Input:
     additionalProperties: {}
+    type: object
+  core.MemoryReference:
+    properties:
+      id:
+        type: string
+      key:
+        description: |-
+          Key is a template string that resolves to the actual memory instance key.
+          e.g., "support-{{ .workflow.input.conversationId }}"
+        type: string
+      mode:
+        description: Mode defines access permissions (e.g., "read-write", "read-only").
+        enum:
+        - read-write
+        - read-only
+        type: string
+    required:
+    - id
+    - key
     type: object
   core.Output:
     additionalProperties: {}

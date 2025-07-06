@@ -20,6 +20,7 @@ alwaysApply: false
 - **MUST** run `make lint` and `make test` before completing ANY subtask
 - **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
 **Enforcement:** Violating these standards results in immediate task rejection.
+**CRITICAL:** Also review `.cursor/rules/test-anti-patterns.mdc` for comprehensive anti-patterns based on codebase analysis.
 </critical>
 
 ## Core Testing Requirements
@@ -58,7 +59,65 @@ alwaysApply: false
 - ✅ **REQUIRED:** `require.NoError(t, err)`
 - ✅ **REQUIRED:** `assert.True(t, condition)`
 - ✅ **REQUIRED:** Individual test functions with `*testing.T` parameter
-  </anti_patterns>
+</anti_patterns>
+
+## CRITICAL: Redundancy Prevention
+
+<critical_reference>
+**COMPREHENSIVE ANTI-PATTERNS:** See `.cursor/rules/test-anti-patterns.mdc` for detailed analysis of 12 critical anti-patterns discovered in the codebase that led to 75-80% test redundancy.
+</critical_reference>
+
+<redundancy_prevention type="critical_anti_patterns">
+**NEVER CREATE REDUNDANT TESTS:**
+
+❌ **PROHIBITED: Cross-Package Validation Duplication**
+- Do NOT create identical config validation tests in multiple packages
+- Do NOT duplicate error handling patterns across packages
+- Do NOT repeat the same validation logic in multiple test files
+
+❌ **PROHIBITED: Meaningless Tests**
+- Do NOT test trivial getter/setter methods without business logic
+- Do NOT test basic constructor functionality that only assigns fields
+- Do NOT test Go standard library functionality (JSON marshal/unmarshal, template parsing)
+- Do NOT test interface implementations that have no custom logic
+
+❌ **PROHIBITED: Mock-Heavy Tests**
+- Do NOT create tests that are 90% mock setup with minimal business logic testing
+- Do NOT test mock framework functionality instead of application logic
+- Do NOT mock simple interfaces that don't require external dependencies
+
+❌ **PROHIBITED: Duplicate Test Scenarios**
+- Do NOT create identical test scenarios across different test files
+- Do NOT repeat the same test patterns with only minor type variations
+- Do NOT duplicate integration test logic in unit test files
+
+❌ **PROHIBITED: Over-Testing Simple Functions**
+- Do NOT create multiple tests for simple utility functions
+- Do NOT test obvious behavior (field assignments, basic operations)
+- Do NOT create excessive edge case tests for trivial operations
+</redundancy_prevention>
+
+<test_value_requirements type="mandatory">
+**EVERY TEST MUST PROVIDE VALUE:**
+
+✅ **REQUIRED: Meaningful Business Logic Testing**
+- Test complex business rules and logic flows
+- Test error handling that affects system behavior
+- Test integration points between components
+- Test state management and transitions
+
+✅ **REQUIRED: Proper Assertions**
+- Use specific error message validation: `assert.ErrorContains(t, err, "expected message")`
+- Verify side effects and state changes, not just function completion
+- Test actual behavior outcomes, not just that functions were called
+- Validate business invariants and constraints
+
+✅ **REQUIRED: Test Critical Paths**
+- Focus on workflows, orchestration, and coordination logic
+- Test failure scenarios and recovery mechanisms
+- Test concurrent access and race condition prevention
+- Test security boundaries and validation logic
+</test_value_requirements>
 
 <anti_patterns type="bad_examples">
 
@@ -75,11 +134,68 @@ func (s *MyTestSuite) TestSomething() {
     s.T().Run("test", func(t *testing.T) { ... }) // ❌ WRONG
 }
 
-// ✅ DO THIS INSTEAD - Direct test functions
-func TestSomething_Method(t *testing.T) {
-    t.Run("Should behave correctly", func(t *testing.T) {
-        assert.Equal(t, "expected", "actual")  // ✅ CORRECT
-        require.NoError(t, err)                // ✅ CORRECT
+// ❌ NEVER DO THIS - Redundant config validation across packages
+func TestConfig_Validation(t *testing.T) {
+    t.Run("Should validate required fields", func(t *testing.T) {
+        config := &Config{} // ❌ REDUNDANT if same pattern exists in other packages
+        err := config.Validate()
+        assert.Error(t, err)
+        assert.Contains(t, err.Error(), "required field") // ❌ WEAK ASSERTION
+    })
+}
+
+// ❌ NEVER DO THIS - Meaningless getter/setter tests
+func TestConfig_GetOutput(t *testing.T) {
+    t.Run("Should return output", func(t *testing.T) {
+        config := &Config{Output: "test"}
+        assert.Equal(t, "test", config.GetOutput()) // ❌ TESTS OBVIOUS BEHAVIOR
+    })
+}
+
+// ❌ NEVER DO THIS - Mock-heavy tests with no business logic
+func TestService_Method(t *testing.T) {
+    t.Run("Should call dependencies", func(t *testing.T) {
+        // 20 lines of mock setup ❌
+        mockRepo := &MockRepo{}
+        mockService := &MockService{}
+        mockValidator := &MockValidator{}
+        mockRepo.On("Get", mock.Anything).Return(nil, nil)
+        mockService.On("Process", mock.Anything).Return(nil)
+        mockValidator.On("Validate", mock.Anything).Return(nil)
+        
+        // 1 line of actual test ❌
+        service := NewService(mockRepo, mockService, mockValidator)
+        err := service.Method()
+        
+        // Only tests mocks were called, not business logic ❌
+        assert.NoError(t, err)
+        mockRepo.AssertExpectations(t)
+    })
+}
+
+// ✅ DO THIS INSTEAD - Direct test functions with meaningful logic
+func TestWorkflow_ExecuteWithValidation(t *testing.T) {
+    t.Run("Should execute workflow and transition state correctly", func(t *testing.T) {
+        // Test actual business logic and state transitions
+        workflow := &Workflow{State: StateRunning}
+        result, err := workflow.Execute(validInput)
+        
+        // Test meaningful behavior and side effects
+        require.NoError(t, err)
+        assert.Equal(t, StateCompleted, workflow.State) // ✅ TESTS STATE CHANGE
+        assert.Equal(t, expectedOutput, result.Output)  // ✅ TESTS BUSINESS LOGIC
+        assert.True(t, workflow.CompletedAt.After(workflow.StartedAt)) // ✅ TESTS INVARIANTS
+    })
+    
+    t.Run("Should handle validation errors and maintain state consistency", func(t *testing.T) {
+        workflow := &Workflow{State: StateRunning}
+        result, err := workflow.Execute(invalidInput)
+        
+        // Test error handling affects system behavior
+        assert.Error(t, err)
+        assert.ErrorContains(t, err, "validation failed") // ✅ SPECIFIC ERROR VALIDATION
+        assert.Equal(t, StateRunning, workflow.State)      // ✅ TESTS STATE PRESERVATION
+        assert.Nil(t, result)                              // ✅ TESTS ERROR BEHAVIOR
     })
 }
 ```
@@ -97,7 +213,6 @@ func TestSomething_Method(t *testing.T) {
 ## Test Organization
 
 <organization_rules>
-
 - **Unit Tests**: Place `*_test.go` files alongside implementation files
 - **Integration Tests**: **MUST** live under `test/integration/` directory - NO EXCEPTIONS
 - Each test MUST be independent and repeatable
@@ -105,7 +220,27 @@ func TestSomething_Method(t *testing.T) {
 - Use project test helpers: `utils.SetupTest()`, `utils.SetupFixture()`
 - Test both success and error paths
 - Ensure test coverage for all exported functions
-  </organization_rules>
+</organization_rules>
+
+<test_consolidation type="mandatory">
+**PREVENT TEST DUPLICATION:**
+
+✅ **REQUIRED: Shared Test Utilities**
+- Create `test/helpers/` directory for shared test utilities
+- Use generic validation test frameworks instead of duplicating validation logic
+- Create shared mock factories instead of duplicating mock setup patterns
+- Extract common test patterns into reusable helpers
+
+✅ **REQUIRED: Test Consolidation Patterns**
+- Use table-driven tests for similar scenarios with different parameters
+- Create parametrized test frameworks for common patterns (config validation, error handling)
+- Consolidate identical test scenarios across packages into shared test suites
+
+❌ **PROHIBITED: Test Pattern Duplication**
+- Do NOT create identical mock setup patterns across multiple test files
+- Do NOT duplicate the same test scenario in multiple packages
+- Do NOT repeat validation test logic when it can be shared
+</test_consolidation>
 
 <integration_test_location type="mandatory">
 **INTEGRATION TEST LOCATION REQUIREMENT:**
@@ -200,7 +335,107 @@ func TestService_Method(t *testing.T) {
 - **Exported Functions**: All exported functions across the codebase must have meaningful tests (not just presence tests)
 - **Coverage Focus**: Prioritize testing business logic paths over trivial getters/setters
 - **Quality Gate**: Use coverage reports to identify gaps in business logic, not just check for test existence
-  </coverage_requirements>
+</coverage_requirements>
+
+<coverage_quality type="critical">
+**COVERAGE QUALITY REQUIREMENTS:**
+
+✅ **REQUIRED: Meaningful Coverage**
+- Coverage MUST come from testing actual business logic, not trivial operations
+- Focus on critical paths: workflow orchestration, state management, error handling
+- Test integration points between components and modules
+- Verify security boundaries and validation logic
+
+❌ **PROHIBITED: Coverage Inflation**
+- Do NOT count trivial getter/setter tests toward coverage goals
+- Do NOT create tests that execute code without verifying behavior
+- Do NOT test framework functionality to inflate coverage percentages
+- Do NOT mock everything just to achieve high coverage numbers
+
+✅ **REQUIRED: Critical Component Coverage**
+- **Workflow Activities**: ALL workflow activities MUST have comprehensive tests
+- **State Management**: ALL state transitions and consistency rules MUST be tested
+- **API Endpoints**: ALL HTTP endpoints MUST have integration tests
+- **Use Cases**: ALL business use cases MUST have complete test coverage
+- **Error Handling**: ALL error scenarios MUST be tested with proper recovery verification
+</coverage_quality>
+
+## Test Efficiency and Quality
+
+<test_efficiency type="critical_guidelines">
+**CRITICAL: Test Efficiency Requirements**
+
+❌ **NEVER CREATE LOW-VALUE TESTS:**
+- Tests that only verify constructor creates non-nil objects
+- Tests that only verify getter methods return assigned values
+- Tests that only verify interface implementations exist without custom logic
+- Tests that only check default configuration values are set
+- Tests that duplicate Go standard library functionality testing
+
+❌ **NEVER CREATE REDUNDANT VALIDATION:**
+- Multiple tests for the same validation logic across packages
+- Identical error handling test patterns repeated in multiple files
+- Same mock setup patterns copied across test files
+- Duplicate test scenarios with only type/name variations
+
+✅ **REQUIRED: Test Efficiency Patterns:**
+- Before creating a test, verify similar functionality isn't already tested elsewhere
+- Use shared test helpers for common validation patterns
+- Create generic test frameworks for repeated scenarios
+- Focus tests on business logic and critical paths only
+
+✅ **REQUIRED: Test Quality Gates:**
+- Every test MUST verify meaningful behavior, not just code execution
+- Every test MUST have specific assertions about expected outcomes
+- Every test MUST test business logic, not framework functionality
+- Every test MUST be able to fail when business logic is broken
+</test_efficiency>
+
+<shared_test_patterns type="implementation_guide">
+**SHARED TEST PATTERN IMPLEMENTATION:**
+
+```go
+// ✅ CORRECT: Generic validation test framework
+// test/helpers/validation_suite.go
+type ValidationTest struct {
+    Name           string
+    Input          interface{}
+    ExpectedError  string
+    ShouldPass     bool
+}
+
+func RunValidationTests(t *testing.T, validator interface{}, tests []ValidationTest) {
+    for _, test := range tests {
+        t.Run(test.Name, func(t *testing.T) {
+            // Generic validation testing logic
+        })
+    }
+}
+
+// ✅ CORRECT: Shared mock factory
+// test/mocks/factory.go
+func CreateStandardMocks() *TestMocks {
+    return &TestMocks{
+        Repository: createMockRepository(),
+        Service:    createMockService(),
+        Validator:  createMockValidator(),
+    }
+}
+
+// ✅ CORRECT: Usage in test files
+func TestWorkflow_Execute(t *testing.T) {
+    mocks := mocks.CreateStandardMocks()
+    workflow := NewWorkflow(mocks.Repository, mocks.Service)
+    
+    t.Run("Should execute workflow successfully", func(t *testing.T) {
+        result, err := workflow.Execute(validInput)
+        // Test actual business logic and outcomes
+        require.NoError(t, err)
+        assert.Equal(t, expectedState, workflow.State)
+    })
+}
+```
+</shared_test_patterns>
 
 ## Architectural Testing
 

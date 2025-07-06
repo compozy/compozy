@@ -121,7 +121,7 @@ func (o *llmOrchestrator) prepareMemoryContext(
 	request Request,
 	log logger.Logger,
 ) map[string]Memory {
-	memoryRefs := request.Agent.GetResolvedMemoryReferences()
+	memoryRefs := request.Agent.Memory
 
 	log.Debug("Preparing memory context for agent",
 		"agent_id", request.Agent.ID,
@@ -293,7 +293,7 @@ func (o *llmOrchestrator) storeResponseInMemoryAsync(
 		err := StoreResponseInMemory(
 			bgCtx,
 			memories,
-			request.Agent.GetResolvedMemoryReferences(),
+			request.Agent.Memory,
 			assistantMsg,
 			messages[len(messages)-1],
 		)

@@ -18,7 +18,6 @@ import (
 	wkacts "github.com/compozy/compozy/engine/worker/activities"
 	"github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
@@ -35,7 +34,6 @@ type Activities struct {
 	memoryManager    *memory.Manager
 	memoryActivities *memacts.MemoryActivities
 	templateEngine   *tplengine.TemplateEngine
-	logger           logger.Logger
 	task2Factory     task2.Factory
 }
 
@@ -57,10 +55,9 @@ func NewActivities(
 		// This is a critical initialization error
 		panic(fmt.Sprintf("failed to create CEL evaluator: %v", err))
 	}
-	// Create logger for activities
-	log := logger.NewForTests() // TODO: Use proper logger from config
 	// Create memory activities instance
-	memoryActivities := memacts.NewMemoryActivities(memoryManager, log)
+	// Note: MemoryActivities will use activity.GetLogger(ctx) internally for proper logging
+	memoryActivities := memacts.NewMemoryActivities(memoryManager, nil)
 
 	// Create task2 factory
 	envMerger := core.NewEnvMerger()
@@ -87,7 +84,6 @@ func NewActivities(
 		memoryManager:    memoryManager,
 		memoryActivities: memoryActivities,
 		templateEngine:   templateEngine,
-		logger:           log,
 		task2Factory:     task2Factory,
 	}
 }
@@ -494,6 +490,7 @@ func (a *Activities) ExecuteMemoryTask(
 		a.memoryManager,
 		a.projectConfig.CWD,
 		a.templateEngine,
+		a.projectConfig,
 		a.task2Factory,
 	)
 	if err != nil {

@@ -29,7 +29,11 @@ func NewAppendMemory(
 	svc service.MemoryOperationsService,
 ) *AppendMemory {
 	if svc == nil {
-		svc = service.NewMemoryOperationsService(manager, nil, nil)
+		var err error
+		svc, err = service.NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		if err != nil {
+			panic("failed to create memory operations service: " + err.Error())
+		}
 	}
 	return &AppendMemory{
 		manager:   manager,

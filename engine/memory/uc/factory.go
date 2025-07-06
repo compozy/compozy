@@ -1,6 +1,8 @@
 package uc
 
 import (
+	"fmt"
+
 	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/memory/service"
 	"github.com/compozy/compozy/engine/worker"
@@ -18,17 +20,21 @@ func NewFactory(
 	manager *memory.Manager,
 	worker *worker.Worker,
 	memoryService service.MemoryOperationsService,
-) *Factory {
+) (*Factory, error) {
 	// Create default service if not provided
 	if memoryService == nil && manager != nil {
-		memoryService = service.NewMemoryOperationsService(manager, nil, nil)
+		var err error
+		memoryService, err = service.NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create memory operations service: %w", err)
+		}
 	}
 
 	return &Factory{
 		manager:       manager,
 		worker:        worker,
 		memoryService: memoryService,
-	}
+	}, nil
 }
 
 // CreateReadMemory creates a new read memory use case with injected dependencies

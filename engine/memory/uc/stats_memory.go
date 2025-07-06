@@ -48,7 +48,12 @@ func NewStatsMemory(
 	svc service.MemoryOperationsService,
 ) *StatsMemory {
 	if svc == nil && manager != nil {
-		svc = service.NewMemoryOperationsService(manager, nil, nil)
+		var err error
+		svc, err = service.NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		if err != nil {
+			// Log error but continue with nil service
+			panic("failed to create memory operations service: " + err.Error())
+		}
 	}
 	return &StatsMemory{
 		Manager: manager,

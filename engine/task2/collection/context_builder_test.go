@@ -1,6 +1,7 @@
 package collection_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -310,7 +311,13 @@ func TestCollectionContextBuilder_BuildIterationContextWithProgress(t *testing.T
 		}
 
 		// Act
-		result, err := builder.BuildIterationContextWithProgress(baseContext, item, index, progressState)
+		result, err := builder.BuildIterationContextWithProgress(
+			context.Background(),
+			baseContext,
+			item,
+			index,
+			progressState,
+		)
 
 		// Assert
 		assert.NoError(t, err)
@@ -335,7 +342,7 @@ func TestCollectionContextBuilder_BuildIterationContextWithProgress(t *testing.T
 		index := 1
 
 		// Act
-		result, err := builder.BuildIterationContextWithProgress(baseContext, item, index, nil)
+		result, err := builder.BuildIterationContextWithProgress(context.Background(), baseContext, item, index, nil)
 
 		// Assert
 		assert.NoError(t, err)
@@ -367,7 +374,13 @@ func TestCollectionContextBuilder_BuildIterationContextWithProgress(t *testing.T
 		}
 
 		// Act
-		result, err := builder.BuildIterationContextWithProgress(baseContext, item, index, progressState)
+		result, err := builder.BuildIterationContextWithProgress(
+			context.Background(),
+			baseContext,
+			item,
+			index,
+			progressState,
+		)
 
 		// Assert
 		assert.NoError(t, err)

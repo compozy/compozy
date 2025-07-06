@@ -86,7 +86,8 @@ func TestVariableBuilder_BuildBaseVariables(t *testing.T) {
 		workflowVars := result["workflow"].(map[string]any)
 		assert.Equal(t, workflowID, workflowVars["id"])
 		assert.Equal(t, enginecore.StatusRunning, workflowVars["status"])
-		assert.Equal(t, workflowState.Input, workflowVars["input"])
+		// Input should be dereferenced for template access
+		assert.Equal(t, *workflowState.Input, workflowVars["input"])
 		assert.Equal(t, workflowState.Output, workflowVars["output"])
 		assert.Equal(t, workflowConfig, workflowVars["config"])
 
@@ -149,7 +150,8 @@ func TestVariableBuilder_AddCurrentInputToVariables(t *testing.T) {
 		// Act
 		builder.AddCurrentInputToVariables(vars, input)
 		// Assert
-		assert.Equal(t, input, vars["input"])
+		// Input should be dereferenced for template access
+		assert.Equal(t, *input, vars["input"])
 		assert.NotContains(t, vars, "item")
 		assert.NotContains(t, vars, "index")
 	})
@@ -166,7 +168,8 @@ func TestVariableBuilder_AddCurrentInputToVariables(t *testing.T) {
 		// Act
 		builder.AddCurrentInputToVariables(vars, input)
 		// Assert
-		assert.Equal(t, input, vars["input"])
+		// Input should be dereferenced for template access
+		assert.Equal(t, *input, vars["input"])
 		assert.Equal(t, "collection_item", vars["item"])
 		assert.Equal(t, 42, vars["index"])
 		assert.NotContains(t, vars, "other")

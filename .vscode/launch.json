@@ -33,10 +33,12 @@
             "description": "Select example folder",
             "type": "pickString",
             "options": [
-                "examples/weather",
+                "examples/memory",
+                "examples/schedules",
                 "examples/nested-tasks",
                 "examples/signals",
-                "examples/wait-task"
+                "examples/wait-task",
+                "examples/weather"
             ]
         }
     ]

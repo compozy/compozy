@@ -123,7 +123,7 @@ func TestAgentMemoryResolver(t *testing.T) {
 		assert.Equal(t, "Shared knowledge", sharedMessages[0].Content)
 	})
 
-	t.Run("Should handle memory template resolution errors gracefully", func(t *testing.T) {
+	t.Run("Should handle memory template resolution errors by failing", func(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
@@ -144,11 +144,11 @@ func TestAgentMemoryResolver(t *testing.T) {
 
 		memoryResolver := uc.NewMemoryResolver(env.GetMemoryManager(), tplEngine, workflowContext)
 
-		// Should fail to resolve memories due to template error
+		// Should now fail due to invalid template resolution
 		memories, err := memoryResolver.ResolveAgentMemories(ctx, agentConfig)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to resolve memory")
-		assert.Nil(t, memories)
+		assert.Error(t, err, "Should fail when template resolution produces invalid key")
+		assert.Contains(t, err.Error(), "memory key validation failed", "Error should indicate validation failure")
+		assert.Nil(t, memories, "Should not return memories when resolution fails")
 	})
 
 	t.Run("Should skip read-only memories during append operations", func(t *testing.T) {
@@ -307,9 +307,10 @@ func createTestAgentWithMemory(t *testing.T, _ *TestEnvironment) *agent.Config {
 		ID:           "test-agent-with-memory",
 		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
 		Instructions: "Test agent with memory integration",
-		Memory:       "customer-support",                 // Level 1: Simple memory ID
-		MemoryKey:    "user:{{.workflow.input.user_id}}", // Template for memory key
-		CWD:          cwd,
+		Memory: []core.MemoryReference{
+			{ID: "customer-support", Key: "user:{{.workflow.input.user_id}}", Mode: "read-write"},
+		},
+		CWD: cwd,
 		Actions: []*agent.ActionConfig{
 			{
 				ID:     "chat",
@@ -336,26 +337,15 @@ func createTestAgentWithMultipleMemories(t *testing.T, _ *TestEnvironment) *agen
 	cwd, err := core.CWDFromPath("/tmp/test-agent-multi")
 	require.NoError(t, err)
 
-	// Level 3: Use different templates to ensure proper isolation
-	memoryRefs := []any{
-		map[string]any{
-			"id":   "customer-support",
-			"key":  "user:{{.workflow.input.user_id}}",
-			"mode": "read-write",
-		},
-		map[string]any{
-			"id":   "shared-memory",
-			"key":  "shared:{{.workflow.input.session_id}}",
-			"mode": "read-write",
-		},
-	}
-
 	agentConfig := &agent.Config{
 		ID:           "test-agent-multi-memory",
 		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
 		Instructions: "Test agent with multiple memories",
-		Memories:     memoryRefs, // Level 3: Explicit references with different templates
-		CWD:          cwd,
+		Memory: []core.MemoryReference{
+			{ID: "customer-support", Key: "user:{{.workflow.input.user_id}}", Mode: "read-write"},
+			{ID: "shared-memory", Key: "shared:{{.workflow.input.session_id}}", Mode: "read-write"},
+		},
+		CWD: cwd,
 		Actions: []*agent.ActionConfig{
 			{
 				ID:     "process",
@@ -386,9 +376,10 @@ func createTestAgentWithInvalidTemplate(t *testing.T, _ *TestEnvironment) *agent
 		ID:           "test-agent-invalid-template",
 		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
 		Instructions: "Test agent with invalid template",
-		Memory:       "customer-support",
-		MemoryKey:    "invalid:{{.workflow.input.missing_variable}}", // Template with missing variable
-		CWD:          cwd,
+		Memory: []core.MemoryReference{
+			{ID: "customer-support", Key: "invalid:{{.workflow.input.missing_variable}}", Mode: "read-write"},
+		},
+		CWD: cwd,
 		Actions: []*agent.ActionConfig{
 			{
 				ID:     "error_test",
@@ -415,21 +406,14 @@ func createTestAgentWithReadOnlyMemory(t *testing.T, _ *TestEnvironment) *agent.
 	cwd, err := core.CWDFromPath("/tmp/test-agent-readonly")
 	require.NoError(t, err)
 
-	// Level 3: Explicit memory reference with read-only mode
-	memoryRefs := []any{
-		map[string]any{
-			"id":   "customer-support",
-			"key":  "readonly:{{.workflow.input.user_id}}",
-			"mode": "read-only",
-		},
-	}
-
 	agentConfig := &agent.Config{
 		ID:           "test-agent-readonly",
 		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
 		Instructions: "Test agent with read-only memory",
-		Memories:     memoryRefs, // Level 3: Explicit references
-		CWD:          cwd,
+		Memory: []core.MemoryReference{
+			{ID: "customer-support", Key: "readonly:{{.workflow.input.user_id}}", Mode: "read-only"},
+		},
+		CWD: cwd,
 		Actions: []*agent.ActionConfig{
 			{
 				ID:     "readonly_test",

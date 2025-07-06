@@ -90,12 +90,10 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 	version := core.GetVersion()
 	prefixURL := fmt.Sprintf("/api/%s", version)
 	apiBase := router.Group(prefixURL)
-
 	// Configure Swagger Info
 	docs.SwaggerInfo.BasePath = prefixURL
 	docs.SwaggerInfo.Host = ""
 	docs.SwaggerInfo.Schemes = []string{"http", "https"}
-
 	// Configure gin-swagger with custom URL
 	url := ginSwagger.URL("/swagger/doc.json")
 	router.GET("/swagger-ui", func(c *gin.Context) {

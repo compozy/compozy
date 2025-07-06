@@ -3,7 +3,7 @@ id: user_memory
 description: User conversation history and personal information
 version: 0.1.0
 
-key: "user:{{.user_id}}"
+key: "user:{{.workflow.input.user_id}}"
 
 type: token_based
 max_tokens: 2000

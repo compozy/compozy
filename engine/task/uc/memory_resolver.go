@@ -3,6 +3,7 @@ package uc
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -67,30 +68,47 @@ func (r *MemoryResolver) GetMemory(ctx context.Context, memoryID string, keyTemp
 		return nil, nil
 	}
 
-	// Resolve the key template using the workflow context
-	resolvedKey, err := r.resolveKey(ctx, keyTemplate)
-	if err != nil {
-		log.Error("Failed to resolve key template", "error", err)
-		return nil, fmt.Errorf("failed to resolve memory key template: %w", err)
+	// Defensive validation: Check for empty key template
+	if keyTemplate == "" {
+		log.Error("Empty memory key template detected",
+			"memory_id", memoryID,
+			"workflow_context", fmt.Sprintf("%+v", r.workflowContext),
+			"workflow_context_keys", getContextKeys(r.workflowContext),
+		)
+		// Return detailed error to help diagnose the issue
+		return nil, fmt.Errorf(
+			"memory key template is empty for memory_id=%s. "+
+				"This may indicate the agent's memory configuration was not properly loaded. "+
+				"Workflow context keys: %v",
+			memoryID,
+			getContextKeys(r.workflowContext),
+		)
 	}
-
-	log.Debug("Key resolved successfully",
-		"memory_id", memoryID,
-		"key_template", keyTemplate,
-		"resolved_key", resolvedKey,
-	)
 
 	// Create a memory reference for the manager
+	// IMPORTANT: We pass the template in the Key field, NOT in ResolvedKey
+	// The Manager's resolveMemoryKey method will handle the template resolution
 	memRef := core.MemoryReference{
 		ID:          memoryID,
-		Key:         keyTemplate,
-		ResolvedKey: resolvedKey,
+		Key:         keyTemplate,  // This contains the template string
+		ResolvedKey: "",           // Leave empty - Manager will resolve
 		Mode:        "read-write", // TODO: Get mode from agent memory configuration
 	}
+
+	log.Debug("Passing memory reference to manager",
+		"memory_id", memoryID,
+		"key_template", keyTemplate,
+		"memRef", fmt.Sprintf("%+v", memRef))
 
 	// Get the memory instance from the manager
 	memInstance, err := r.memoryManager.GetInstance(ctx, memRef, r.workflowContext)
 	if err != nil {
+		log.Error("Failed to get memory instance",
+			"memory_id", memoryID,
+			"key_template", keyTemplate,
+			"error", err,
+			"workflow_context", fmt.Sprintf("%+v", r.workflowContext),
+		)
 		return nil, fmt.Errorf("failed to get memory instance: %w", err)
 	}
 
@@ -103,17 +121,38 @@ func (r *MemoryResolver) GetMemory(ctx context.Context, memoryID string, keyTemp
 }
 
 // resolveKey resolves a key template using the workflow context
-func (r *MemoryResolver) resolveKey(_ context.Context, keyTemplate string) (string, error) {
+func (r *MemoryResolver) resolveKey(ctx context.Context, keyTemplate string) (string, error) {
+	log := logger.FromContext(ctx)
+	log.Debug("Starting key resolution",
+		"key_template", keyTemplate,
+		"has_template_engine", r.templateEngine != nil,
+		"workflow_context", fmt.Sprintf("%+v", r.workflowContext),
+	)
+
 	if r.templateEngine == nil {
-		// If no template engine, return the key as-is
+		// Check if the key appears to be a template
+		if strings.Contains(keyTemplate, "{{") {
+			log.Error("Template engine is nil but key has template syntax",
+				"key_template", keyTemplate)
+			return "", fmt.Errorf("template engine is required to resolve key template: %s", keyTemplate)
+		}
+		// If no template syntax, return as literal key
 		return keyTemplate, nil
 	}
 
 	// Execute the template with the workflow context
 	resolved, err := r.templateEngine.RenderString(keyTemplate, r.workflowContext)
 	if err != nil {
+		log.Error("Template resolution failed",
+			"key_template", keyTemplate,
+			"error", err,
+			"workflow_context", fmt.Sprintf("%+v", r.workflowContext))
 		return "", fmt.Errorf("failed to execute key template: %w", err)
 	}
+
+	log.Debug("Template resolved successfully",
+		"key_template", keyTemplate,
+		"resolved_key", resolved)
 
 	return resolved, nil
 }
@@ -122,8 +161,16 @@ func (r *MemoryResolver) resolveKey(_ context.Context, keyTemplate string) (stri
 // The returned map is keyed by the memory reference ID.
 func (r *MemoryResolver) ResolveAgentMemories(ctx context.Context, agent *agent.Config) (map[string]llm.Memory, error) {
 	log := logger.FromContext(ctx)
+	memoryRefs := agent.Memory
 
-	memoryRefs := agent.GetResolvedMemoryReferences()
+	// Enhanced logging for debugging memory configuration issues
+	log.Debug("ResolveAgentMemories called",
+		"agent_id", agent.ID,
+		"memory_refs_count", len(memoryRefs),
+		"memory_refs", fmt.Sprintf("%+v", memoryRefs),
+		"workflow_context", fmt.Sprintf("%+v", r.workflowContext),
+	)
+
 	if len(memoryRefs) == 0 {
 		log.Debug("No memory references configured for agent", "agent_id", agent.ID)
 		return nil, nil
@@ -163,4 +210,16 @@ func (r *MemoryResolver) ResolveAgentMemories(ctx context.Context, agent *agent.
 	)
 
 	return memories, nil
+}
+
+// getContextKeys returns the keys from a context map for debugging purposes
+func getContextKeys(context map[string]any) []string {
+	if context == nil {
+		return []string{}
+	}
+	keys := make([]string, 0, len(context))
+	for k := range context {
+		keys = append(keys, k)
+	}
+	return keys
 }

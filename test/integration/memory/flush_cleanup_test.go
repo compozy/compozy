@@ -27,8 +27,12 @@ func TestFlushWorkflowComplete(t *testing.T) {
 			Key: "flush-complete-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("flush-complete-%d", time.Now().Unix()),
+			"project": map[string]any{
+				"id": "test-project",
+			},
+			"test": map[string]any{
+				"id": fmt.Sprintf("flush-complete-%d", time.Now().Unix()),
+			},
 		}
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
@@ -120,9 +124,13 @@ func TestFlushWithMultipleStrategies(t *testing.T) {
 					Key: "flush-strategy-{{.test.id}}-{{.strategy}}",
 				}
 				workflowContext := map[string]any{
-					"project.id": "test-project",
-					"test.id":    fmt.Sprintf("strategy-%d", time.Now().Unix()),
-					"strategy":   tc.name,
+					"project": map[string]any{
+						"id": "test-project",
+					},
+					"test": map[string]any{
+						"id": fmt.Sprintf("strategy-%d", time.Now().Unix()),
+					},
+					"strategy": fmt.Sprintf("test-%d", time.Now().UnixNano()%1000),
 				}
 				instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 				require.NoError(t, err)
@@ -179,8 +187,12 @@ func TestCleanupWorkflow(t *testing.T) {
 				Key: fmt.Sprintf("%s-{{.test.id}}", mem.key),
 			}
 			workflowContext := map[string]any{
-				"project.id": "test-project",
-				"test.id":    fmt.Sprintf("cleanup-%d", time.Now().Unix()),
+				"project": map[string]any{
+					"id": "test-project",
+				},
+				"test": map[string]any{
+					"id": fmt.Sprintf("cleanup-%d", time.Now().Unix()),
+				},
 			}
 			instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 			require.NoError(t, err)
@@ -230,8 +242,12 @@ func TestFlushAndCleanupInteraction(t *testing.T) {
 			Key: "flush-cleanup-interaction-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("interaction-%d", time.Now().Unix()),
+			"project": map[string]any{
+				"id": "test-project",
+			},
+			"test": map[string]any{
+				"id": fmt.Sprintf("interaction-%d", time.Now().Unix()),
+			},
 		}
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
@@ -290,9 +306,13 @@ func TestConcurrentFlushAndCleanup(t *testing.T) {
 				Key: "concurrent-fc-{{.instance}}-{{.test.id}}",
 			}
 			workflowContext := map[string]any{
-				"project.id": "test-project",
-				"instance":   fmt.Sprintf("inst-%d", i),
-				"test.id":    fmt.Sprintf("concurrent-%d", time.Now().Unix()),
+				"project": map[string]any{
+					"id": "test-project",
+				},
+				"instance": fmt.Sprintf("inst-%d", i),
+				"test": map[string]any{
+					"id": fmt.Sprintf("concurrent-%d", time.Now().Unix()),
+				},
 			}
 			instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 			require.NoError(t, err)

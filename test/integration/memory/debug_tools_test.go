@@ -35,8 +35,8 @@ func TestDebugToolsCapture(t *testing.T) {
 			Key: "debug-test-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("debug-%d", time.Now().Unix()),
+			"project": map[string]any{"id": "test-project"},
+			"test":    map[string]any{"id": fmt.Sprintf("debug-%d", time.Now().Unix())},
 		}
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
@@ -79,7 +79,7 @@ func TestMaintenanceToolsCleanup(t *testing.T) {
 			Key: fmt.Sprintf("cleanup-test-old-%d", oldTimestamp),
 		}
 		oldWorkflowContext := map[string]any{
-			"project.id": "test-project",
+			"project": map[string]any{"id": "test-project"},
 		}
 		oldInstance, err := env.GetMemoryManager().GetInstance(ctx, oldMemRef, oldWorkflowContext)
 		require.NoError(t, err)
@@ -95,7 +95,7 @@ func TestMaintenanceToolsCleanup(t *testing.T) {
 			Key: fmt.Sprintf("cleanup-test-new-%d", newTimestamp),
 		}
 		newWorkflowContext := map[string]any{
-			"project.id": "test-project",
+			"project": map[string]any{"id": "test-project"},
 		}
 		newInstance, err := env.GetMemoryManager().GetInstance(ctx, newMemRef, newWorkflowContext)
 		require.NoError(t, err)
@@ -213,8 +213,8 @@ func TestInteractiveDebugger(t *testing.T) {
 			Key: "interactive-test-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("interactive-%d", time.Now().Unix()),
+			"project": map[string]any{"id": "test-project"},
+			"test":    map[string]any{"id": fmt.Sprintf("interactive-%d", time.Now().Unix())},
 		}
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)

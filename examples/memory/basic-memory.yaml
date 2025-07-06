@@ -48,6 +48,7 @@ agents:
       max_tokens: 500
     memory:
       - id: user_memory
+        key: "user:{{.workflow.input.user_id}}"
     instructions: |
       You are a friendly conversational agent that can remember information about users.
 

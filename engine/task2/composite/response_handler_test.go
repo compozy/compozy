@@ -51,7 +51,7 @@ func TestCompositeResponseHandler_HandleResponse_Validation(t *testing.T) {
 			WorkflowState:  &workflow.State{},  // Valid workflow state
 		}
 
-		result, err := handler.HandleResponse(context.TODO(), input)
+		result, err := handler.HandleResponse(context.Background(), input)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -85,7 +85,7 @@ func TestCompositeResponseHandler_HandleSubtaskResponse(t *testing.T) {
 		}
 
 		result, err := handler.HandleSubtaskResponse(
-			context.TODO(),
+			context.Background(),
 			parentState,
 			childState,
 			childConfig,
@@ -116,7 +116,7 @@ func TestCompositeResponseHandler_HandleSubtaskResponse(t *testing.T) {
 		}
 
 		result, err := handler.HandleSubtaskResponse(
-			context.TODO(),
+			context.Background(),
 			nil,
 			childState,
 			childConfig,
@@ -146,7 +146,7 @@ func TestCompositeResponseHandler_HandleSubtaskResponse(t *testing.T) {
 		}
 
 		result, err := handler.HandleSubtaskResponse(
-			context.TODO(),
+			context.Background(),
 			nil,
 			childState,
 			childConfig,

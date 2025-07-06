@@ -46,8 +46,8 @@ func TestStrategySelectionE2E(t *testing.T) {
 			Key: "support_conversation_{{.conversation.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id":      "test-project",
-			"conversation.id": "123",
+			"project":      map[string]any{"id": "test-project"},
+			"conversation": map[string]any{"id": "123"},
 		}
 
 		memoryInstance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
@@ -65,7 +65,8 @@ func TestStrategySelectionE2E(t *testing.T) {
 		}
 
 		// Test service layer with specific strategy request
-		svc := service.NewMemoryOperationsService(env.GetMemoryManager(), nil, nil)
+		svc, err := service.NewMemoryOperationsService(env.GetMemoryManager(), nil, nil, nil, nil)
+		require.NoError(t, err)
 		flushReq := &service.FlushRequest{
 			BaseRequest: service.BaseRequest{
 				MemoryRef: "customersupport",
@@ -113,8 +114,8 @@ func TestStrategySelectionE2E(t *testing.T) {
 			Key: "shared_memory_{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    "fallback_test",
+			"project": map[string]any{"id": "test-project"},
+			"test":    map[string]any{"id": "fallback_test"},
 		}
 
 		memoryInstance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
@@ -132,7 +133,8 @@ func TestStrategySelectionE2E(t *testing.T) {
 		}
 
 		// Test without specifying strategy
-		svc := service.NewMemoryOperationsService(env.GetMemoryManager(), nil, nil)
+		svc, err := service.NewMemoryOperationsService(env.GetMemoryManager(), nil, nil, nil, nil)
+		require.NoError(t, err)
 		flushReq := &service.FlushRequest{
 			BaseRequest: service.BaseRequest{
 				MemoryRef: "sharedmemory",
@@ -185,8 +187,8 @@ func TestStrategySelectionE2E(t *testing.T) {
 			Key: "flush_test_{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    "invalid_test",
+			"project": map[string]any{"id": "test-project"},
+			"test":    map[string]any{"id": "invalid_test"},
 		}
 
 		memoryInstance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
@@ -203,7 +205,8 @@ func TestStrategySelectionE2E(t *testing.T) {
 		}
 
 		// Test with invalid strategy
-		svc := service.NewMemoryOperationsService(env.GetMemoryManager(), nil, nil)
+		svc, err := service.NewMemoryOperationsService(env.GetMemoryManager(), nil, nil, nil, nil)
+		require.NoError(t, err)
 		flushReq := &service.FlushRequest{
 			BaseRequest: service.BaseRequest{
 				MemoryRef: "flushablememory",
@@ -261,8 +264,8 @@ func TestStrategySelectionE2E(t *testing.T) {
 			Key: "compat_test_{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    "compat_test",
+			"project": map[string]any{"id": "test-project"},
+			"test":    map[string]any{"id": "compat_test"},
 		}
 
 		memoryInstance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
@@ -279,7 +282,8 @@ func TestStrategySelectionE2E(t *testing.T) {
 		}
 
 		// Test flush
-		svc := service.NewMemoryOperationsService(env.GetMemoryManager(), nil, nil)
+		svc, err := service.NewMemoryOperationsService(env.GetMemoryManager(), nil, nil, nil, nil)
+		require.NoError(t, err)
 		flushReq := &service.FlushRequest{
 			BaseRequest: service.BaseRequest{
 				MemoryRef: "compatmemory",

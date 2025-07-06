@@ -67,6 +67,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
+require github.com/romdo/go-debounce v0.1.0
+
 require (
 	cel.dev/expr v0.24.0 // indirect
 	cloud.google.com/go v0.121.3 // indirect
@@ -183,7 +185,6 @@ require (
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
-	github.com/romdo/go-debounce v0.1.0 // indirect
 	github.com/sashabaranov/go-openai v1.40.3 // indirect
 	github.com/shirou/gopsutil/v4 v4.25.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect

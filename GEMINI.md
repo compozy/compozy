@@ -169,6 +169,7 @@ make reset-db       # Reset database completely
 - **Code Formatting & Line Spacing**: [no_linebreaks.mdc](mdc:.cursor/rules/no_linebreaks.mdc) - NEVER add blank lines inside function bodies
 - **Go Coding Standards**: [go-coding-standards.mdc](mdc:.cursor/rules/go-coding-standards.mdc) - Function limits, error handling, documentation policy
 - **Testing Standards**: [testing-standards.mdc](mdc:.cursor/rules/testing-standards.mdc) - MANDATORY `t.Run("Should...")` pattern, testify usage
+- **Test Anti-Patterns**: [test-anti-patterns.mdc](mdc:.cursor/rules/test-anti-patterns.mdc) - CRITICAL anti-patterns to prevent based on codebase analysis
 - **Go Implementation Patterns**: [go-patterns.mdc](mdc:.cursor/rules/go-patterns.mdc) - Canonical implementations of architecture principles
 - **Architecture Principles**: [architecture.mdc](mdc:.cursor/rules/architecture.mdc) - SOLID principles, Clean Architecture, DRY
 - **Code Quality & Security**: [quality-security.mdc](mdc:.cursor/rules/quality-security.mdc) - Linting rules, security requirements

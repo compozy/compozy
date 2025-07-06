@@ -14,6 +14,17 @@ func NewVariableBuilder() *VariableBuilder {
 	return &VariableBuilder{}
 }
 
+// dereferenceInput safely dereferences the workflow input pointer
+// This is critical for template resolution of memory keys like {{.workflow.input.user_id}}
+func (vb *VariableBuilder) dereferenceInput(input *core.Input) any {
+	if input == nil {
+		return nil
+	}
+	// Dereference the pointer to expose the underlying map
+	// This allows templates to access nested fields like .workflow.input.user_id
+	return *input
+}
+
 // BuildBaseVariables builds the base variables map from workflow and task data
 func (vb *VariableBuilder) BuildBaseVariables(
 	workflowState *workflow.State,
@@ -26,7 +37,7 @@ func (vb *VariableBuilder) BuildBaseVariables(
 	if workflowState != nil {
 		workflowData := map[string]any{
 			"id":     workflowState.WorkflowID,
-			"input":  workflowState.Input,
+			"input":  vb.dereferenceInput(workflowState.Input),
 			"output": workflowState.Output,
 			"status": workflowState.Status,
 		}
@@ -70,7 +81,7 @@ func (vb *VariableBuilder) AddTasksToVariables(
 // AddCurrentInputToVariables adds current input data to variables
 func (vb *VariableBuilder) AddCurrentInputToVariables(vars map[string]any, currentInput *core.Input) {
 	if currentInput != nil {
-		vars["input"] = currentInput
+		vars["input"] = vb.dereferenceInput(currentInput)
 		// Also add item and index at top level for collection tasks
 		if item, exists := (*currentInput)[FieldItem]; exists {
 			vars[FieldItem] = item
@@ -115,5 +126,15 @@ func (vb *VariableBuilder) CopyVariables(source map[string]any) (map[string]any,
 func (vb *VariableBuilder) AddParentToVariables(vars map[string]any, parentContext map[string]any) {
 	if parentContext != nil {
 		vars["parent"] = parentContext
+	}
+}
+
+// AddProjectToVariables adds project information to variables for memory operations
+func (vb *VariableBuilder) AddProjectToVariables(vars map[string]any, projectName string) {
+	if projectName != "" {
+		vars["project"] = map[string]any{
+			"id":   projectName,
+			"name": projectName,
+		}
 	}
 }

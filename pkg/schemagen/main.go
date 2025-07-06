@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -15,12 +16,14 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/invopop/jsonschema"
 )
 
 // GenerateParserSchemas generates JSON schemas for parser structs and writes them to the output directory.
-func GenerateParserSchemas(outDir string) error {
-	fmt.Println("Generating JSON schemas...")
+func GenerateParserSchemas(ctx context.Context, outDir string) error {
+	log := logger.FromContext(ctx)
+	log.Info("Generating JSON schemas")
 
 	// Ensure the output directory exists
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
@@ -89,7 +92,7 @@ func GenerateParserSchemas(outDir string) error {
 			return fmt.Errorf("failed to write schema to %s: %w", filePath, err)
 		}
 
-		fmt.Printf("Generated schema: %s\n", filePath)
+		log.Info("Generated schema", "file", filePath)
 	}
 
 	return nil
@@ -98,17 +101,33 @@ func GenerateParserSchemas(outDir string) error {
 func main() {
 	// Parse command line arguments
 	outDir := flag.String("out", "./schemas", "output directory for generated schemas")
+	logLevel := flag.String("log-level", "info", "log level (debug, info, warn, error)")
+	logJSON := flag.Bool("log-json", false, "output logs in JSON format")
+	logSource := flag.Bool("log-source", false, "include source code location in logs")
 	flag.Parse()
+
+	// Set up logger
+	level := logger.InfoLevel
+	switch *logLevel {
+	case "debug":
+		level = logger.DebugLevel
+	case "warn":
+		level = logger.WarnLevel
+	case "error":
+		level = logger.ErrorLevel
+	}
+	log := logger.SetupLogger(level, *logJSON, *logSource)
+	ctx := logger.ContextWithLogger(context.Background(), log)
 
 	// Convert to absolute path to avoid issues with relative paths
 	absOutDir, err := filepath.Abs(*outDir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error converting path to absolute: %v\n", err)
+		log.Error("Error converting path to absolute", "error", err)
 		os.Exit(1)
 	}
 
-	if err := GenerateParserSchemas(absOutDir); err != nil {
-		fmt.Fprintf(os.Stderr, "Error generating schemas: %v\n", err)
+	if err := GenerateParserSchemas(ctx, absOutDir); err != nil {
+		log.Error("Error generating schemas", "error", err)
 		os.Exit(1)
 	}
 }

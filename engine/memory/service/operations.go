@@ -31,31 +31,19 @@ type memoryOperationsService struct {
 	meter             metric.Meter
 	operationCount    metric.Int64Counter
 	operationDuration metric.Float64Histogram
+	workflowContext   map[string]any
 }
 
-// NewMemoryOperationsService creates a new memory operations service with default config
+// NewMemoryOperationsService creates a new memory operations service
 func NewMemoryOperationsService(
 	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
 	tokenCounter memcore.TokenCounter,
-) MemoryOperationsService {
-	return NewMemoryOperationsServiceWithConfig(
-		memoryManager,
-		templateEngine,
-		tokenCounter,
-		DefaultConfig(),
-	)
-}
-
-// NewMemoryOperationsServiceWithConfig creates a new memory operations service with custom config
-func NewMemoryOperationsServiceWithConfig(
-	memoryManager memcore.ManagerInterface,
-	templateEngine *tplengine.TemplateEngine,
-	tokenCounter memcore.TokenCounter,
 	config *Config,
-) MemoryOperationsService {
+	workflowContext map[string]any,
+) (MemoryOperationsService, error) {
 	if memoryManager == nil {
-		panic("memoryManager is required")
+		return nil, fmt.Errorf("memoryManager is required")
 	}
 	if config == nil {
 		config = DefaultConfig()
@@ -93,7 +81,8 @@ func NewMemoryOperationsServiceWithConfig(
 		meter:             meter,
 		operationCount:    operationCount,
 		operationDuration: operationDuration,
-	}
+		workflowContext:   workflowContext,
+	}, nil
 }
 
 // Read executes a memory read operation
@@ -597,19 +586,37 @@ func (s *memoryOperationsService) Stats(ctx context.Context, req *StatsRequest) 
 
 // Helper methods
 
+// dereferenceInput safely dereferences the workflow input pointer for template resolution
+func dereferenceInput(input *core.Input) any {
+	if input == nil {
+		return nil
+	}
+	// Dereference the pointer to expose the underlying map
+	// This allows templates to access nested fields like .workflow.input.user_id
+	return *input
+}
+
 // getMemoryInstance retrieves a memory instance for the given parameters
 func (s *memoryOperationsService) getMemoryInstance(
 	ctx context.Context,
 	memoryRef, key, operation string,
 ) (memcore.Memory, error) {
+	// For REST API operations, we use the explicit key provided by the client
+	// rather than any template defined in the memory resource configuration.
+	// This allows external systems to manage memory with explicit keys.
+	// The key can be any format the user chooses: "user:123", "session:abc",
+	// "cache:data", "my-custom-key", etc.
 	memRef := core.MemoryReference{
-		ID:  memoryRef,
-		Key: key,
+		ID:          memoryRef,
+		ResolvedKey: key, // Use ResolvedKey for explicit keys from REST API
 	}
 
-	workflowContext := map[string]any{
-		"api_operation": operation,
-		"key":           key,
+	// Use the workflow context from the service if available, or create a minimal one
+	workflowContext := s.workflowContext
+	if workflowContext == nil {
+		workflowContext = map[string]any{
+			"api_operation": operation,
+		}
 	}
 
 	return s.memoryManager.GetInstance(ctx, memRef, workflowContext)
@@ -635,14 +642,14 @@ func (s *memoryOperationsService) resolvePayload(
 		"workflow": map[string]any{
 			"id":      workflowState.WorkflowID,
 			"exec_id": workflowState.WorkflowExecID,
-			"input":   workflowState.Input,
+			"input":   dereferenceInput(workflowState.Input),
 		},
 		"tasks": workflowState.Tasks,
 	}
 
 	// Add merged input as "input" at top level for task context
 	if mergedInput != nil {
-		tplCtx["input"] = mergedInput
+		tplCtx["input"] = dereferenceInput(mergedInput)
 	}
 
 	return s.resolvePayloadRecursive(payload, tplCtx)

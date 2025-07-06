@@ -96,6 +96,9 @@ func TestMemoryResolver_GetMemory(t *testing.T) {
 		setup, memMgr := setupTestMemoryManager(t)
 		defer setup.Cleanup()
 
+		// Pre-create a memory instance so config exists
+		_ = setup.CreateTestMemoryInstance(t, "test-memory")
+
 		tplEngine := tplengine.NewEngine(tplengine.FormatText)
 
 		resolver := &MemoryResolver{
@@ -104,12 +107,12 @@ func TestMemoryResolver_GetMemory(t *testing.T) {
 			workflowContext: map[string]any{},
 		}
 
-		// This template will fail because of missingkey=error option in template engine
+		// This template will now fail fast due to invalid characters after failed resolution
 		memory, err := resolver.GetMemory(ctx, "test-memory", "invalid-{{ .missing }}")
 
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to resolve memory key template")
 		assert.Nil(t, memory)
+		assert.Contains(t, err.Error(), "failed to get memory instance")
 	})
 
 	t.Run("Should handle memory instance error", func(t *testing.T) {
@@ -413,10 +416,11 @@ func TestMemoryResolverTemplateResolution(t *testing.T) {
 			workflowContext: workflowContext,
 		}
 
-		// Template with missing variable should fail
-		_, err := resolver.resolveKey(ctx, "user:{{.missing_variable}}")
+		// Template with missing variable should fail at MemoryResolver level
+		key, err := resolver.resolveKey(ctx, "user:{{.missing_variable}}")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to execute key template")
+		assert.Empty(t, key)
 	})
 
 	t.Run("Should handle empty template engine", func(t *testing.T) {
@@ -429,10 +433,11 @@ func TestMemoryResolverTemplateResolution(t *testing.T) {
 			workflowContext: map[string]any{},
 		}
 
-		// Should return template as-is when no engine available
+		// Should return error when template engine is nil and template syntax is detected
 		resolved, err := resolver.resolveKey(ctx, "static-key-{{.user_id}}")
-		assert.NoError(t, err)
-		assert.Equal(t, "static-key-{{.user_id}}", resolved)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "template engine is required")
+		assert.Empty(t, resolved)
 	})
 
 	t.Run("Should handle complex workflow context structures", func(t *testing.T) {
@@ -676,8 +681,9 @@ func TestMemoryResolverWorkflowIntegration(t *testing.T) {
 
 		// Manually set resolved memory references (simulating validation)
 		// In real code, this is done during agent.Validate() processing
-		agentConfig.Memory = "customer-support"
-		agentConfig.MemoryKey = "user:{{.workflow.input.user_id}}"
+		agentConfig.Memory = []core.MemoryReference{
+			{ID: "customer-support", Key: "user:{{.workflow.input.user_id}}", Mode: "read-write"},
+		}
 
 		// Create CWD for agent validation
 		cwd, err := core.CWDFromPath("/tmp/test-agent")

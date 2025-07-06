@@ -2,6 +2,10 @@ package memory
 
 import (
 	"context"
+	"fmt"
+	"time"
+
+	"github.com/sethvargo/go-retry"
 
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
@@ -23,14 +27,15 @@ const (
 // It handles memory key template evaluation and ensures that Instances are
 // properly configured based on Resource definitions.
 type Manager struct {
-	resourceRegistry  *autoload.ConfigRegistry  // To get MemoryResource configurations
-	tplEngine         *tplengine.TemplateEngine // For evaluating key templates
-	baseLockManager   cache.LockManager         // The global lock manager (e.g., RedisLockManager)
-	baseRedisClient   cache.RedisInterface      // The global Redis client (for creating Store)
-	temporalClient    client.Client             // Temporal client for scheduling activities
-	temporalTaskQueue string                    // Default task queue for memory activities
-	privacyManager    privacy.ManagerInterface  // Privacy controls and data protection
-	log               logger.Logger             // Logger following the project standard with log.FromContext(ctx)
+	resourceRegistry       *autoload.ConfigRegistry  // To get MemoryResource configurations
+	tplEngine              *tplengine.TemplateEngine // For evaluating key templates
+	baseLockManager        cache.LockManager         // The global lock manager (e.g., RedisLockManager)
+	baseRedisClient        cache.RedisInterface      // The global Redis client (for creating Store)
+	temporalClient         client.Client             // Temporal client for scheduling activities
+	temporalTaskQueue      string                    // Default task queue for memory activities
+	privacyManager         privacy.ManagerInterface  // Privacy controls and data protection
+	projectContextResolver *ProjectContextResolver   // For consistent project ID resolution
+	log                    logger.Logger             // Logger following the project standard with log.FromContext(ctx)
 }
 
 // ManagerOptions holds options for creating a Manager.
@@ -43,6 +48,7 @@ type ManagerOptions struct {
 	TemporalTaskQueue       string
 	PrivacyManager          privacy.ManagerInterface  // Optional: if nil, a new one will be created
 	PrivacyResilienceConfig *privacy.ResilienceConfig // Optional: if provided, creates resilient privacy manager
+	FallbackProjectID       string                    // Project ID to use when not found in context
 	Logger                  logger.Logger             // Optional: if nil, a new one will be created
 }
 
@@ -53,15 +59,17 @@ func NewManager(opts *ManagerOptions) (*Manager, error) {
 	}
 	setDefaultManagerOptions(opts)
 	privacyManager := getOrCreatePrivacyManager(opts.PrivacyManager, opts.PrivacyResilienceConfig, opts.Logger)
+	projectContextResolver := NewProjectContextResolver(opts.FallbackProjectID, opts.Logger)
 	return &Manager{
-		resourceRegistry:  opts.ResourceRegistry,
-		tplEngine:         opts.TplEngine,
-		baseLockManager:   opts.BaseLockManager,
-		baseRedisClient:   opts.BaseRedisClient,
-		temporalClient:    opts.TemporalClient,
-		temporalTaskQueue: opts.TemporalTaskQueue,
-		privacyManager:    privacyManager,
-		log:               opts.Logger,
+		resourceRegistry:       opts.ResourceRegistry,
+		tplEngine:              opts.TplEngine,
+		baseLockManager:        opts.BaseLockManager,
+		baseRedisClient:        opts.BaseRedisClient,
+		temporalClient:         opts.TemporalClient,
+		temporalTaskQueue:      opts.TemporalTaskQueue,
+		privacyManager:         privacyManager,
+		projectContextResolver: projectContextResolver,
+		log:                    opts.Logger,
 	}, nil
 }
 
@@ -72,25 +80,110 @@ func (mm *Manager) GetInstance(
 	agentMemoryRef core.MemoryReference,
 	workflowContextData map[string]any,
 ) (memcore.Memory, error) {
-	mm.log.Debug("GetInstance called", "resource_id", agentMemoryRef.ID, "key_template", agentMemoryRef.Key)
-	resourceCfg, err := mm.loadMemoryConfig(agentMemoryRef.ID)
+	// Retry logic for transient key resolution failures using go-retry
+	var instance memcore.Memory
+	retryConfig := retry.WithMaxRetries(3, retry.NewExponential(100*time.Millisecond))
+
+	err := retry.Do(ctx, retryConfig, func(ctx context.Context) error {
+		mm.log.Info("GetInstance called: Starting memory instance retrieval",
+			"resource_id", agentMemoryRef.ID,
+			"key_template", agentMemoryRef.Key,
+			"resolved_key", agentMemoryRef.ResolvedKey)
+
+		// Check for empty key template and retry
+		if agentMemoryRef.Key == "" && agentMemoryRef.ResolvedKey == "" {
+			workflowExecID := ExtractWorkflowExecID(workflowContextData)
+			err := fmt.Errorf("memory key template is empty for resource_id=%s, workflow_exec_id=%s",
+				agentMemoryRef.ID, workflowExecID)
+			mm.log.Warn("Empty key template detected, will retry",
+				"resource_id", agentMemoryRef.ID,
+				"workflow_exec_id", workflowExecID)
+			return retry.RetryableError(err)
+		}
+
+		// If we have a key, proceed with normal flow
+		var err error
+		instance, err = mm.getInstanceInternal(ctx, agentMemoryRef, workflowContextData)
+		if err != nil {
+			return err // Non-retryable error
+		}
+		return nil
+	})
+
+	if err != nil {
+		mm.log.Error("All retry attempts failed for memory instance retrieval",
+			"resource_id", agentMemoryRef.ID,
+			"error", err)
+		return nil, err
+	}
+
+	return instance, nil
+}
+
+// getInstanceInternal contains the actual instance retrieval logic
+func (mm *Manager) getInstanceInternal(
+	ctx context.Context,
+	agentMemoryRef core.MemoryReference,
+	workflowContextData map[string]any,
+) (memcore.Memory, error) {
+	// Load configuration and resolve key
+	resourceCfg, validatedKey, projectIDVal, err := mm.prepareInstanceData(ctx, agentMemoryRef, workflowContextData)
 	if err != nil {
 		return nil, err
 	}
-	sanitizedKey, projectIDVal := mm.resolveMemoryKey(ctx, agentMemoryRef.Key, workflowContextData)
+	// Setup components and create instance
+	return mm.createMemoryInstanceWithComponents(ctx, validatedKey, projectIDVal, resourceCfg)
+}
+
+// prepareInstanceData loads config, resolves key, and gets project ID
+func (mm *Manager) prepareInstanceData(
+	ctx context.Context,
+	agentMemoryRef core.MemoryReference,
+	workflowContextData map[string]any,
+) (*memcore.Resource, string, string, error) {
+	resourceCfg, err := mm.loadMemoryConfig(agentMemoryRef.ID)
+	if err != nil {
+		mm.log.Error("GetInstance: Failed to load memory config", "resource_id", agentMemoryRef.ID, "error", err)
+		return nil, "", "", err
+	}
+	validatedKey, err := mm.resolveMemoryKey(ctx, agentMemoryRef, workflowContextData)
+	if err != nil {
+		mm.log.Error("GetInstance: Memory key resolution failed", "error", err)
+		return nil, "", "", err
+	}
+	projectIDVal := mm.getProjectID(workflowContextData)
+	mm.log.Debug("GetInstance: Data preparation complete", "validated_key", validatedKey, "project_id", projectIDVal)
+	return resourceCfg, validatedKey, projectIDVal, nil
+}
+
+// createMemoryInstanceWithComponents builds components and creates the memory instance
+func (mm *Manager) createMemoryInstanceWithComponents(
+	ctx context.Context,
+	validatedKey, projectIDVal string,
+	resourceCfg *memcore.Resource,
+) (memcore.Memory, error) {
 	components, err := mm.buildMemoryComponents(resourceCfg, projectIDVal)
 	if err != nil {
+		mm.log.Error("GetInstance: Failed to build memory components", "error", err)
 		return nil, err
 	}
 	err = mm.registerPrivacyPolicy(resourceCfg)
 	if err != nil {
+		mm.log.Error("GetInstance: Failed to register privacy policy", "error", err)
 		return nil, err
 	}
-	instance, err := mm.createMemoryInstance(ctx, sanitizedKey, projectIDVal, resourceCfg, components)
+	instance, err := mm.createMemoryInstance(ctx, validatedKey, projectIDVal, resourceCfg, components)
 	if err != nil {
+		mm.log.Error("GetInstance: Failed to create memory instance", "error", err)
 		return nil, err
 	}
-	mm.log.Info("MemoryInstance retrieved/created", "instance_id", sanitizedKey, "resource_id", resourceCfg.ID)
+	mm.log.Info(
+		"GetInstance: Memory instance successfully created",
+		"instance_id",
+		validatedKey,
+		"resource_id",
+		resourceCfg.ID,
+	)
 	return instance, nil
 }
 

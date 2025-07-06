@@ -119,7 +119,7 @@ func (env *TestEnvironment) setupMemoryManager(t *testing.T) {
 	t.Helper()
 	// Create privacy manager
 	privacyManager := privacy.NewManager()
-	// Create memory manager options
+	// Create memory manager options with test project ID fallback
 	opts := &memory.ManagerOptions{
 		ResourceRegistry:  env.configRegistry,
 		TplEngine:         env.tplEngine,
@@ -128,6 +128,7 @@ func (env *TestEnvironment) setupMemoryManager(t *testing.T) {
 		TemporalClient:    env.temporalClient,
 		TemporalTaskQueue: "test-memory-queue",
 		PrivacyManager:    privacyManager,
+		FallbackProjectID: "basic-memory", // Use the same project ID as the examples
 		Logger:            env.logger,
 	}
 	// Create memory manager
@@ -156,6 +157,11 @@ func (env *TestEnvironment) GetRedis() *redis.Client {
 // GetLogger returns the logger
 func (env *TestEnvironment) GetLogger() logger.Logger {
 	return env.logger
+}
+
+// GetConfigRegistry returns the config registry
+func (env *TestEnvironment) GetConfigRegistry() *autoload.ConfigRegistry {
+	return env.configRegistry
 }
 
 // RegisterMemoryConfig registers a memory configuration for testing

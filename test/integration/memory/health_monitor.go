@@ -196,8 +196,10 @@ func (h *HealthMonitor) checkMemoryManagerHealth(ctx context.Context) {
 		Key: "health-check-{{.timestamp}}",
 	}
 	workflowCtx := map[string]any{
-		"project.id": "test-project",
-		"timestamp":  fmt.Sprintf("%d", time.Now().UnixNano()),
+		"project": map[string]any{
+			"id": "test-project",
+		},
+		"timestamp": fmt.Sprintf("%d", time.Now().UnixNano()),
 	}
 	instance, err := h.env.GetMemoryManager().GetInstance(checkCtx, testRef, workflowCtx)
 	status.ResponseTime = time.Since(start)

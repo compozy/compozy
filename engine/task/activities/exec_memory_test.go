@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/engine/memory"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/privacy"
+	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2"
 	task2core "github.com/compozy/compozy/engine/task2/core"
@@ -801,6 +802,12 @@ func createTestMemoryActivity(t *testing.T) *ExecuteMemory {
 		},
 	}
 
+	// Create test project config
+	projectConfig := &project.Config{
+		Name: "test-project",
+		CWD:  nil, // CWD not needed for tests
+	}
+
 	// Create activity
 	activity, err := NewExecuteMemory(
 		testWorkflows,
@@ -810,6 +817,7 @@ func createTestMemoryActivity(t *testing.T) *ExecuteMemory {
 		memoryManager,
 		nil, // pathCWD not needed for tests
 		templateEngine,
+		projectConfig,
 		task2Factory,
 	)
 	require.NoError(t, err)

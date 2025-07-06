@@ -2,15 +2,21 @@ package memory
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
+	"regexp"
+	"strings"
 
+	"github.com/compozy/compozy/engine/core"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/privacy"
 	"github.com/compozy/compozy/engine/memory/tokens"
 	"github.com/compozy/compozy/pkg/logger"
 )
+
+// validKeyPattern is a compiled regex for validating memory keys
+// Allow alphanumeric characters, hyphens, underscores, colons, dots, and @ symbols
+// Length limit: 1-256 characters
+var validKeyPattern = regexp.MustCompile(`^[\w:\-@\.]{1,256}$`)
 
 // ErrorType represents different types of memory errors
 type ErrorType string
@@ -144,44 +150,165 @@ func (mm *Manager) loadMemoryConfig(resourceID string) (*memcore.Resource, error
 // resolveMemoryKey evaluates the memory key template and returns the resolved key
 func (mm *Manager) resolveMemoryKey(
 	_ context.Context,
-	keyTemplate string,
+	agentMemoryRef core.MemoryReference,
 	workflowContextData map[string]any,
-) (string, string) {
-	var keyToSanitize string
-	// Use RenderString for plain string templates (not JSON/YAML)
-	rendered, err := mm.tplEngine.RenderString(keyTemplate, workflowContextData)
+) (string, error) {
+	// Extract project ID early
+	projectID := mm.projectContextResolver.ResolveProjectID(workflowContextData)
+
+	// Get the key to validate
+	keyToValidate := mm.getKeyToValidate(agentMemoryRef, workflowContextData)
+
+	// Validate the key
+	validatedKey, err := mm.validateKey(keyToValidate)
 	if err != nil {
-		// Fall back to sanitizing the template as-is with warning
-		mm.log.Warn("Failed to evaluate key template",
-			"template", keyTemplate,
-			"error", err)
-		keyToSanitize = keyTemplate
-	} else {
-		keyToSanitize = rendered
+		// Extract workflow execution ID for correlation
+		workflowExecID := ExtractWorkflowExecID(workflowContextData)
+		return "", fmt.Errorf("memory key validation failed for '%s' (project: %s, workflow_exec_id: %s): %w",
+			keyToValidate, projectID, workflowExecID, err)
 	}
-	// Sanitize the key (either resolved or fallback) and extract project ID
-	sanitizedKey := mm.sanitizeKey(keyToSanitize)
-	projectIDVal := extractProjectID(workflowContextData)
-	return sanitizedKey, projectIDVal
+
+	mm.log.Debug("Memory key resolution complete",
+		"original_template", agentMemoryRef.Key,
+		"resolved_key", agentMemoryRef.ResolvedKey,
+		"validated_key", validatedKey,
+		"project_id", projectID)
+
+	return validatedKey, nil
 }
 
-// extractProjectID extracts project ID from workflow context data
-// Expected key: "project.id" as a top-level string value
-// Does not support nested structures like {"project": {"id": "..."}}
-func extractProjectID(workflowContextData map[string]any) string {
+// getProjectID extracts project ID from workflow context data using the centralized resolver
+func (mm *Manager) getProjectID(workflowContextData map[string]any) string {
+	return mm.projectContextResolver.ResolveProjectID(workflowContextData)
+}
+
+// getKeyToValidate determines which key to use based on the reference type
+func (mm *Manager) getKeyToValidate(
+	agentMemoryRef core.MemoryReference,
+	workflowContextData map[string]any,
+) string {
+	// Use pre-resolved key if available (e.g., from REST API)
+	if agentMemoryRef.ResolvedKey != "" {
+		mm.log.Debug("Using pre-resolved key", "key", agentMemoryRef.ResolvedKey)
+		return agentMemoryRef.ResolvedKey
+	}
+
+	// Otherwise, resolve from template
+	return mm.resolveKeyFromTemplate(agentMemoryRef.Key, agentMemoryRef.ID, workflowContextData)
+}
+
+// resolveKeyFromTemplate handles template resolution for memory keys
+func (mm *Manager) resolveKeyFromTemplate(
+	keyTemplate string,
+	_ string,
+	workflowContextData map[string]any,
+) string {
+	// Check if it contains template syntax
+	if !strings.Contains(keyTemplate, "{{") {
+		mm.log.Debug("Using literal key (no template syntax detected)", "key", keyTemplate)
+		return keyTemplate
+	}
+
+	// Attempt template resolution
+	mm.log.Debug("Attempting template resolution",
+		"template", keyTemplate,
+		"has_template_engine", mm.tplEngine != nil)
+
+	if mm.tplEngine == nil {
+		mm.log.Error("Template engine not available for key resolution", "template", keyTemplate)
+		return keyTemplate // Return original for validation error
+	}
+
+	rendered, err := mm.tplEngine.RenderString(keyTemplate, workflowContextData)
+	if err != nil {
+		mm.log.Error("Failed to evaluate key template",
+			"template", keyTemplate,
+			"error", err)
+		// Return template as-is to trigger validation error
+		// This ensures template resolution errors are properly propagated
+		return keyTemplate
+	}
+
+	mm.log.Debug("Template resolved successfully",
+		"template", keyTemplate,
+		"rendered", rendered)
+	return rendered
+}
+
+// ProjectContextResolver provides centralized project ID resolution
+type ProjectContextResolver struct {
+	fallbackProjectID string
+	log               logger.Logger
+}
+
+// NewProjectContextResolver creates a resolver with a fallback project ID
+func NewProjectContextResolver(fallbackProjectID string, log logger.Logger) *ProjectContextResolver {
+	return &ProjectContextResolver{
+		fallbackProjectID: fallbackProjectID,
+		log:               log,
+	}
+}
+
+// ResolveProjectID extracts project ID from workflow context with fallback
+func (r *ProjectContextResolver) ResolveProjectID(workflowContextData map[string]any) string {
+	// Try nested format first (standard workflow format)
+	if project, ok := workflowContextData["project"]; ok {
+		if projectMap, ok := project.(map[string]any); ok {
+			if id, ok := projectMap["id"]; ok {
+				if idStr, ok := id.(string); ok && idStr != "" {
+					r.log.Info("Project ID resolved from nested format", "project_id", idStr)
+					return idStr
+				}
+			}
+		}
+	}
+
+	// Try flat format (legacy support)
 	if projectID, ok := workflowContextData["project.id"]; ok {
-		if projectIDStr, ok := projectID.(string); ok {
+		if projectIDStr, ok := projectID.(string); ok && projectIDStr != "" {
+			r.log.Info("Project ID resolved from flat format", "project_id", projectIDStr)
 			return projectIDStr
 		}
 	}
-	return ""
+
+	// Use fallback project ID (from appState.ProjectConfig.Name)
+	r.log.Info("Using fallback project ID", "fallback_project_id", r.fallbackProjectID)
+	return r.fallbackProjectID
 }
 
-// sanitizeKey creates a safe, deterministic key for Redis storage
-func (mm *Manager) sanitizeKey(key string) string {
-	// Use SHA-256 hash for consistent, safe keys
-	hash := sha256.Sum256([]byte(key))
-	return hex.EncodeToString(hash[:])
+// ExtractWorkflowExecID extracts the workflow execution ID from workflow context data
+func ExtractWorkflowExecID(contextData map[string]any) string {
+	if contextData == nil {
+		return "unknown"
+	}
+
+	// Check for workflow.exec_id
+	if workflow, ok := contextData["workflow"].(map[string]any); ok {
+		if execID, ok := workflow["exec_id"].(string); ok && execID != "" {
+			return execID
+		}
+	}
+
+	return "unknown"
+}
+
+// validateKey validates that a memory key is safe for Redis storage
+// and returns the key unchanged if valid, or an error if invalid
+func (mm *Manager) validateKey(key string) (string, error) {
+	if !validKeyPattern.MatchString(key) {
+		return "", fmt.Errorf(
+			"invalid memory key '%s': must contain only alphanumeric characters, "+
+				"hyphens, underscores, colons, dots, and @ symbols, and be 1-256 characters long",
+			key,
+		)
+	}
+
+	// Additional validation: prevent keys that might conflict with Redis internals
+	if strings.HasPrefix(key, "__") || strings.HasSuffix(key, "__") {
+		return "", fmt.Errorf("invalid memory key '%s': keys cannot start or end with '__'", key)
+	}
+
+	return key, nil
 }
 
 // registerPrivacyPolicy registers the privacy policy if one is configured
