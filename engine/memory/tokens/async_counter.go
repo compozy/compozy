@@ -33,13 +33,21 @@ type tokenCountResult struct {
 }
 
 // NewAsyncTokenCounter creates a new async token counter
-func NewAsyncTokenCounter(counter memcore.TokenCounter, workers int, log logger.Logger) *AsyncTokenCounter {
+func NewAsyncTokenCounter(
+	counter memcore.TokenCounter,
+	workers int,
+	bufferSize int,
+	log logger.Logger,
+) *AsyncTokenCounter {
 	if workers <= 0 {
 		workers = 10 // Default worker pool size
 	}
+	if bufferSize <= 0 {
+		bufferSize = 1000 // Default buffer size
+	}
 	atc := &AsyncTokenCounter{
 		realCounter: counter,
-		queue:       make(chan *tokenCountRequest, 1000), // Buffered queue
+		queue:       make(chan *tokenCountRequest, bufferSize),
 		workers:     workers,
 		log:         log,
 		metrics:     NewTokenMetrics(),

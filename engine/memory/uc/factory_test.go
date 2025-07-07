@@ -164,7 +164,8 @@ func TestFactory(t *testing.T) {
 		assert.NotNil(t, appendUC)
 		assert.Equal(t, mockService, appendUC.service)
 
-		statsUC := factory.CreateStatsMemory()
+		statsUC, err := factory.CreateStatsMemory()
+		require.NoError(t, err)
 		assert.NotNil(t, statsUC)
 		assert.Equal(t, mockService, statsUC.service)
 	})
@@ -188,13 +189,14 @@ func TestDependencyInjection(t *testing.T) {
 		mockService.On("Flush", mock.Anything, mock.Anything).Return(expectedResponse, nil)
 
 		// Create flush memory UC with injected service
-		flushUC := NewFlushMemory(
+		flushUC, err := NewFlushMemory(
 			setup.Manager,
 			"test_ref",
 			"test_key",
 			&FlushMemoryInput{},
 			mockService,
 		)
+		require.NoError(t, err)
 
 		// Execute
 		ctx := context.Background()

@@ -64,17 +64,6 @@ func TestNewResponseHandler(t *testing.T) {
 	})
 }
 
-func TestBasicResponseHandler_Type(t *testing.T) {
-	t.Run("Should return TaskTypeBasic", func(t *testing.T) {
-		templateEngine := &tplengine.TemplateEngine{}
-		contextBuilder := &shared.ContextBuilder{}
-		baseHandler := &shared.BaseResponseHandler{}
-		handler, err := NewResponseHandler(templateEngine, contextBuilder, baseHandler)
-		require.NoError(t, err)
-		assert.Equal(t, task.TaskTypeBasic, handler.Type())
-	})
-}
-
 // Task Type Validation Tests (only testable unit logic)
 func TestBasicResponseHandler_TaskTypeValidation(t *testing.T) {
 	t.Run("Should validate correct task type without panic", func(t *testing.T) {

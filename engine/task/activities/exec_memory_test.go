@@ -9,7 +9,6 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/mocks"
 
@@ -27,6 +26,7 @@ import (
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
+	utils "github.com/compozy/compozy/test/helpers"
 )
 
 func TestExecuteMemory_Factory(t *testing.T) {
@@ -72,10 +72,11 @@ func TestExecuteMemory_BasicOperations(t *testing.T) {
 	t.Run("Should execute memory write operation", func(t *testing.T) {
 		// Arrange
 		ctx := context.Background()
-		activity := createTestMemoryActivity(t)
+		activity, workflowExecIDs := createTestMemoryActivity(t)
+		workflowID := "test-workflow"
 		input := &ExecuteMemoryInput{
-			WorkflowID:     "test-workflow",
-			WorkflowExecID: core.MustNewID(),
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecIDs[workflowID],
 			TaskConfig: &task.Config{
 				BaseConfig: task.BaseConfig{
 					Type: task.TaskTypeMemory,
@@ -111,9 +112,9 @@ func TestExecuteMemory_BasicOperations(t *testing.T) {
 	t.Run("Should execute memory read operation", func(t *testing.T) {
 		// Arrange
 		ctx := context.Background()
-		activity := createTestMemoryActivity(t)
+		activity, workflowExecIDs := createTestMemoryActivity(t)
 		workflowID := "test-workflow-read"
-		workflowExecID := core.MustNewID()
+		workflowExecID := workflowExecIDs[workflowID]
 
 		// First write some data
 		writeInput := &ExecuteMemoryInput{
@@ -208,7 +209,9 @@ func TestExecuteMemory_AllOperations(t *testing.T) {
 	for _, tc := range operations {
 		t.Run("Should execute "+tc.name+" operation", func(t *testing.T) {
 			// Arrange
-			activity := createTestMemoryActivity(t)
+			activity, workflowExecIDs := createTestMemoryActivity(t)
+			workflowID := "test-workflow"
+			workflowExecID := workflowExecIDs[workflowID]
 			config := &task.Config{
 				BaseConfig: task.BaseConfig{
 					Type: task.TaskTypeMemory,
@@ -231,8 +234,8 @@ func TestExecuteMemory_AllOperations(t *testing.T) {
 			}
 
 			input := &ExecuteMemoryInput{
-				WorkflowID:     "test-workflow",
-				WorkflowExecID: core.MustNewID(),
+				WorkflowID:     workflowID,
+				WorkflowExecID: workflowExecID,
 				TaskConfig:     config,
 				MergedInput:    &core.Input{"user_id": "test-user"},
 			}
@@ -252,14 +255,15 @@ func TestExecuteMemory_StatefulOperations(t *testing.T) {
 	t.Run("Should execute append operation and verify data was added", func(t *testing.T) {
 		// Arrange
 		ctx := context.Background()
-		activity := createTestMemoryActivity(t)
+		activity, workflowExecIDs := createTestMemoryActivity(t)
 		workflowID := "test-workflow-append"
+		workflowExecID := workflowExecIDs[workflowID]
 		keyTemplate := "test:{{.workflow.id}}"
 
 		// 1. Write initial data
 		writeInput := &ExecuteMemoryInput{
 			WorkflowID:     workflowID,
-			WorkflowExecID: core.MustNewID(),
+			WorkflowExecID: workflowExecID,
 			TaskConfig: &task.Config{
 				BaseConfig: task.BaseConfig{Type: task.TaskTypeMemory},
 				MemoryTask: task.MemoryTask{
@@ -277,7 +281,7 @@ func TestExecuteMemory_StatefulOperations(t *testing.T) {
 		// 2. Act: Execute the append operation
 		appendInput := &ExecuteMemoryInput{
 			WorkflowID:     workflowID,
-			WorkflowExecID: core.MustNewID(),
+			WorkflowExecID: workflowExecID,
 			TaskConfig: &task.Config{
 				BaseConfig: task.BaseConfig{Type: task.TaskTypeMemory},
 				MemoryTask: task.MemoryTask{
@@ -300,7 +304,7 @@ func TestExecuteMemory_StatefulOperations(t *testing.T) {
 		// 4. Verify: Read the data and confirm both messages are present
 		readInput := &ExecuteMemoryInput{
 			WorkflowID:     workflowID,
-			WorkflowExecID: core.MustNewID(),
+			WorkflowExecID: workflowExecID,
 			TaskConfig: &task.Config{
 				BaseConfig: task.BaseConfig{Type: task.TaskTypeMemory},
 				MemoryTask: task.MemoryTask{
@@ -323,14 +327,15 @@ func TestExecuteMemory_StatefulOperations(t *testing.T) {
 	t.Run("Should execute delete operation and remove data", func(t *testing.T) {
 		// Arrange
 		ctx := context.Background()
-		activity := createTestMemoryActivity(t)
+		activity, workflowExecIDs := createTestMemoryActivity(t)
 		workflowID := "test-workflow-delete"
+		workflowExecID := workflowExecIDs[workflowID]
 		keyTemplate := "test:{{.workflow.id}}"
 
 		// 1. Write data first
 		writeInput := &ExecuteMemoryInput{
 			WorkflowID:     workflowID,
-			WorkflowExecID: core.MustNewID(),
+			WorkflowExecID: workflowExecID,
 			TaskConfig: &task.Config{
 				BaseConfig: task.BaseConfig{Type: task.TaskTypeMemory},
 				MemoryTask: task.MemoryTask{
@@ -348,7 +353,7 @@ func TestExecuteMemory_StatefulOperations(t *testing.T) {
 		// 2. Act: Execute the delete operation
 		deleteInput := &ExecuteMemoryInput{
 			WorkflowID:     workflowID,
-			WorkflowExecID: core.MustNewID(),
+			WorkflowExecID: workflowExecID,
 			TaskConfig: &task.Config{
 				BaseConfig: task.BaseConfig{Type: task.TaskTypeMemory},
 				MemoryTask: task.MemoryTask{
@@ -370,7 +375,7 @@ func TestExecuteMemory_StatefulOperations(t *testing.T) {
 		// 4. Verify: Try to read the data and confirm it's gone
 		readInput := &ExecuteMemoryInput{
 			WorkflowID:     workflowID,
-			WorkflowExecID: core.MustNewID(),
+			WorkflowExecID: workflowExecID,
 			TaskConfig: &task.Config{
 				BaseConfig: task.BaseConfig{Type: task.TaskTypeMemory},
 				MemoryTask: task.MemoryTask{
@@ -393,14 +398,15 @@ func TestExecuteMemory_StatefulOperations(t *testing.T) {
 	t.Run("Should execute clear operation and remove all data", func(t *testing.T) {
 		// Arrange
 		ctx := context.Background()
-		activity := createTestMemoryActivity(t)
+		activity, workflowExecIDs := createTestMemoryActivity(t)
 		workflowID := "test-workflow-clear"
+		workflowExecID := workflowExecIDs[workflowID]
 		keyTemplate := "test:{{.workflow.id}}"
 
 		// 1. Write some data first
 		writeInput := &ExecuteMemoryInput{
 			WorkflowID:     workflowID,
-			WorkflowExecID: core.MustNewID(),
+			WorkflowExecID: workflowExecID,
 			TaskConfig: &task.Config{
 				BaseConfig: task.BaseConfig{Type: task.TaskTypeMemory},
 				MemoryTask: task.MemoryTask{
@@ -418,7 +424,7 @@ func TestExecuteMemory_StatefulOperations(t *testing.T) {
 		// 2. Act: Execute the clear operation
 		clearInput := &ExecuteMemoryInput{
 			WorkflowID:     workflowID,
-			WorkflowExecID: core.MustNewID(),
+			WorkflowExecID: workflowExecID,
 			TaskConfig: &task.Config{
 				BaseConfig: task.BaseConfig{Type: task.TaskTypeMemory},
 				MemoryTask: task.MemoryTask{
@@ -444,7 +450,7 @@ func TestExecuteMemory_StatefulOperations(t *testing.T) {
 		// 4. Verify: Try to read the data and confirm it's gone
 		readInput := &ExecuteMemoryInput{
 			WorkflowID:     workflowID,
-			WorkflowExecID: core.MustNewID(),
+			WorkflowExecID: workflowExecID,
 			TaskConfig: &task.Config{
 				BaseConfig: task.BaseConfig{Type: task.TaskTypeMemory},
 				MemoryTask: task.MemoryTask{
@@ -467,14 +473,15 @@ func TestExecuteMemory_StatefulOperations(t *testing.T) {
 	t.Run("Should execute stats operation and return meaningful statistics", func(t *testing.T) {
 		// Arrange
 		ctx := context.Background()
-		activity := createTestMemoryActivity(t)
+		activity, workflowExecIDs := createTestMemoryActivity(t)
 		workflowID := "test-workflow-stats"
+		workflowExecID := workflowExecIDs[workflowID]
 		keyTemplate := "test:{{.workflow.id}}"
 
 		// 1. Write some data first to get meaningful stats
 		writeInput := &ExecuteMemoryInput{
 			WorkflowID:     workflowID,
-			WorkflowExecID: core.MustNewID(),
+			WorkflowExecID: workflowExecID,
 			TaskConfig: &task.Config{
 				BaseConfig: task.BaseConfig{Type: task.TaskTypeMemory},
 				MemoryTask: task.MemoryTask{
@@ -492,7 +499,7 @@ func TestExecuteMemory_StatefulOperations(t *testing.T) {
 		// 2. Act: Execute the stats operation
 		statsInput := &ExecuteMemoryInput{
 			WorkflowID:     workflowID,
-			WorkflowExecID: core.MustNewID(),
+			WorkflowExecID: workflowExecID,
 			TaskConfig: &task.Config{
 				BaseConfig: task.BaseConfig{Type: task.TaskTypeMemory},
 				MemoryTask: task.MemoryTask{
@@ -526,10 +533,12 @@ func TestExecuteMemory_StatefulOperations(t *testing.T) {
 func TestExecuteMemory_ErrorHandling(t *testing.T) {
 	t.Run("Should fail with missing memory_ref", func(t *testing.T) {
 		// Arrange
-		activity := createTestMemoryActivity(t)
+		activity, workflowExecIDs := createTestMemoryActivity(t)
+		workflowID := "test-workflow"
+		workflowExecID := workflowExecIDs[workflowID]
 		input := &ExecuteMemoryInput{
-			WorkflowID:     "test-workflow",
-			WorkflowExecID: core.MustNewID(),
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
 			TaskConfig: &task.Config{
 				BaseConfig: task.BaseConfig{
 					Type: task.TaskTypeMemory,
@@ -554,10 +563,12 @@ func TestExecuteMemory_ErrorHandling(t *testing.T) {
 
 	t.Run("Should fail with missing key_template", func(t *testing.T) {
 		// Arrange
-		activity := createTestMemoryActivity(t)
+		activity, workflowExecIDs := createTestMemoryActivity(t)
+		workflowID := "test-workflow"
+		workflowExecID := workflowExecIDs[workflowID]
 		input := &ExecuteMemoryInput{
-			WorkflowID:     "test-workflow",
-			WorkflowExecID: core.MustNewID(),
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
 			TaskConfig: &task.Config{
 				BaseConfig: task.BaseConfig{
 					Type: task.TaskTypeMemory,
@@ -582,10 +593,12 @@ func TestExecuteMemory_ErrorHandling(t *testing.T) {
 
 	t.Run("Should fail with invalid operation", func(t *testing.T) {
 		// Arrange
-		activity := createTestMemoryActivity(t)
+		activity, workflowExecIDs := createTestMemoryActivity(t)
+		workflowID := "test-workflow"
+		workflowExecID := workflowExecIDs[workflowID]
 		input := &ExecuteMemoryInput{
-			WorkflowID:     "test-workflow",
-			WorkflowExecID: core.MustNewID(),
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
 			TaskConfig: &task.Config{
 				BaseConfig: task.BaseConfig{
 					Type: task.TaskTypeMemory,
@@ -610,10 +623,12 @@ func TestExecuteMemory_ErrorHandling(t *testing.T) {
 
 	t.Run("Should fail with nil task_config", func(t *testing.T) {
 		// Arrange
-		activity := createTestMemoryActivity(t)
+		activity, workflowExecIDs := createTestMemoryActivity(t)
+		workflowID := "test-workflow"
+		workflowExecID := workflowExecIDs[workflowID]
 		input := &ExecuteMemoryInput{
-			WorkflowID:     "test-workflow",
-			WorkflowExecID: core.MustNewID(),
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
 			TaskConfig:     nil, // nil config
 			MergedInput:    &core.Input{"user_id": "test-user"},
 		}
@@ -693,13 +708,10 @@ func (s *testConfigStore) Close() error {
 	return nil
 }
 
-// createTestMemoryActivity creates a test ExecuteMemory activity with all required dependencies
-func createTestMemoryActivity(t *testing.T) *ExecuteMemory {
+// setupTestRedis creates a test Redis instance using miniredis
+func setupTestRedis(t *testing.T) *redis.Client {
 	t.Helper()
-	ctx := context.Background()
-	log := logger.NewForTests()
 
-	// Setup Redis with miniredis
 	mr, err := miniredis.Run()
 	require.NoError(t, err)
 	t.Cleanup(func() { mr.Close() })
@@ -711,17 +723,31 @@ func createTestMemoryActivity(t *testing.T) *ExecuteMemory {
 	t.Cleanup(func() { _ = redisClient.Close() })
 
 	// Test Redis connection
-	ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err = redisClient.Ping(ctxTimeout).Err()
+	err = redisClient.Ping(ctx).Err()
 	require.NoError(t, err)
 
-	// Create lock manager
+	return redisClient
+}
+
+// setupLockManager creates a lock manager for testing
+func setupLockManager(t *testing.T, redisClient *redis.Client) cache.LockManager {
+	t.Helper()
+
 	lockManager, err := cache.NewRedisLockManager(redisClient)
 	require.NoError(t, err)
 
-	// Create config registry and add test memory configs
+	return lockManager
+}
+
+// setupTestConfigRegistry creates and configures a test config registry
+func setupTestConfigRegistry(t *testing.T) *autoload.ConfigRegistry {
+	t.Helper()
+
 	configRegistry := autoload.NewConfigRegistry()
+
+	// Add test memory config
 	testMemoryConfig := &memory.Config{
 		Resource:    "memory",
 		ID:          "test_memory",
@@ -738,18 +764,30 @@ func createTestMemoryActivity(t *testing.T) *ExecuteMemory {
 			SummarizeThreshold: 0.8,
 		},
 	}
-	err = testMemoryConfig.Validate()
+
+	err := testMemoryConfig.Validate()
 	require.NoError(t, err)
+
 	err = configRegistry.Register(testMemoryConfig, "test")
 	require.NoError(t, err)
 
-	// Create template engine
-	templateEngine := tplengine.NewEngine(tplengine.FormatText)
+	return configRegistry
+}
 
-	// Create mock temporal client
+// setupMemoryManager creates a memory manager for testing
+func setupMemoryManager(
+	t *testing.T,
+	redisClient *redis.Client,
+	lockManager cache.LockManager,
+	configRegistry *autoload.ConfigRegistry,
+) *memory.Manager {
+	t.Helper()
+
+	log := logger.NewForTests()
+	templateEngine := tplengine.NewEngine(tplengine.FormatText)
 	mockClient := &mocks.Client{}
-	// Create memory manager
 	privacyManager := privacy.NewManager()
+
 	memoryManager, err := memory.NewManager(&memory.ManagerOptions{
 		ResourceRegistry:  configRegistry,
 		TplEngine:         templateEngine,
@@ -762,13 +800,16 @@ func createTestMemoryActivity(t *testing.T) *ExecuteMemory {
 	})
 	require.NoError(t, err)
 
-	// Create mock repositories and services using proper test store
-	workflowRepo := &store.MockWorkflowRepo{}
-	taskRepo := &store.MockTaskRepo{}
-	configStore := newTestConfigStore()
+	return memoryManager
+}
 
-	// Create Task2 factory with full dependencies (needed for response handlers)
+// setupTask2Factory creates a Task2 factory for testing
+func setupTask2Factory(t *testing.T, workflowRepo *store.WorkflowRepo, taskRepo *store.TaskRepo) task2.Factory {
+	t.Helper()
+
+	templateEngine := tplengine.NewEngine(tplengine.FormatText)
 	envMerger := task2core.NewEnvMerger()
+
 	task2Factory, err := task2.NewFactory(&task2.FactoryConfig{
 		TemplateEngine: templateEngine,
 		EnvMerger:      envMerger,
@@ -777,36 +818,91 @@ func createTestMemoryActivity(t *testing.T) *ExecuteMemory {
 	})
 	require.NoError(t, err)
 
-	// Setup mock expectations for workflow and task repos
-	setupMockRepoExpectations(workflowRepo, taskRepo)
+	return task2Factory
+}
 
-	// Create test workflows
-	testWorkflows := []*workflow.Config{
-		{
-			ID: "test-workflow",
-		},
-		{
-			ID: "test-workflow-read",
-		},
-		{
-			ID: "test-workflow-append",
-		},
-		{
-			ID: "test-workflow-delete",
-		},
-		{
-			ID: "test-workflow-clear",
-		},
-		{
-			ID: "test-workflow-stats",
-		},
+// setupTestWorkflows creates test workflow configs
+func setupTestWorkflows() []*workflow.Config {
+	return []*workflow.Config{
+		{ID: "test-workflow"},
+		{ID: "test-workflow-read"},
+		{ID: "test-workflow-append"},
+		{ID: "test-workflow-delete"},
+		{ID: "test-workflow-clear"},
+		{ID: "test-workflow-stats"},
 	}
+}
+
+// setupWorkflowStates creates workflow states in the database for testing
+func setupWorkflowStates(
+	ctx context.Context,
+	t *testing.T,
+	workflowRepo *store.WorkflowRepo,
+	workflows []*workflow.Config,
+) map[string]core.ID {
+	t.Helper()
+
+	workflowExecIDs := make(map[string]core.ID)
+
+	for _, wf := range workflows {
+		execID := core.MustNewID()
+		workflowExecIDs[wf.ID] = execID
+
+		state := &workflow.State{
+			WorkflowID:     wf.ID,
+			WorkflowExecID: execID,
+			Input:          &core.Input{},
+			Status:         core.StatusRunning,
+		}
+
+		err := workflowRepo.UpsertState(ctx, state)
+		require.NoError(t, err, "Failed to create workflow state for %s", wf.ID)
+	}
+
+	return workflowExecIDs
+}
+
+// createTestMemoryActivity creates a test ExecuteMemory activity with all required dependencies
+func createTestMemoryActivity(t *testing.T) (*ExecuteMemory, map[string]core.ID) {
+	t.Helper()
+	ctx := context.Background()
+
+	// Setup Redis
+	redisClient := setupTestRedis(t)
+
+	// Setup lock manager
+	lockManager := setupLockManager(t, redisClient)
+
+	// Setup config registry
+	configRegistry := setupTestConfigRegistry(t)
+
+	// Setup real repositories instead of mocks
+	taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
+	t.Cleanup(cleanup)
+
+	// Setup memory manager
+	memoryManager := setupMemoryManager(t, redisClient, lockManager, configRegistry)
+
+	// Setup Task2 factory
+	task2Factory := setupTask2Factory(t, workflowRepo, taskRepo)
+
+	// Setup config store
+	configStore := newTestConfigStore()
+
+	// Setup test workflows
+	testWorkflows := setupTestWorkflows()
+
+	// Create workflow states in the database and get their exec IDs
+	workflowExecIDs := setupWorkflowStates(ctx, t, workflowRepo, testWorkflows)
 
 	// Create test project config
 	projectConfig := &project.Config{
 		Name: "test-project",
 		CWD:  nil, // CWD not needed for tests
 	}
+
+	// Create template engine
+	templateEngine := tplengine.NewEngine(tplengine.FormatText)
 
 	// Create activity
 	activity, err := NewExecuteMemory(
@@ -822,28 +918,5 @@ func createTestMemoryActivity(t *testing.T) *ExecuteMemory {
 	)
 	require.NoError(t, err)
 
-	return activity
-}
-
-// setupMockRepoExpectations sets up the necessary mock expectations for repositories
-func setupMockRepoExpectations(workflowRepo *store.MockWorkflowRepo, taskRepo *store.MockTaskRepo) {
-	// Setup workflow repo expectations - match on any core.ID for GetState
-	workflowRepo.On("GetState", mock.Anything, mock.AnythingOfType("core.ID")).Return(&workflow.State{
-		WorkflowID:     "test-workflow",
-		WorkflowExecID: core.MustNewID(),
-		Input:          &core.Input{},
-		Status:         core.StatusRunning,
-	}, nil)
-
-	workflowRepo.On("GetStateByID", mock.Anything, mock.Anything).Return(&workflow.State{
-		WorkflowID:     "test-workflow",
-		WorkflowExecID: core.MustNewID(),
-		Input:          &core.Input{},
-		Status:         core.StatusRunning,
-	}, nil)
-
-	// Setup task repo expectations - use AnythingOfType for task.State pointer
-	taskRepo.On("UpsertState", mock.Anything, mock.AnythingOfType("*task.State")).Return(nil)
-	// Setup transaction support - WithTx method expects a function parameter
-	taskRepo.On("WithTx", mock.Anything, mock.AnythingOfType("func(pgx.Tx) error")).Return(nil)
+	return activity, workflowExecIDs
 }

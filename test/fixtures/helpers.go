@@ -1,4 +1,4 @@
-package utils
+package fixtures
 
 import (
 	"path/filepath"
@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func SetupTest(t *testing.T, filename string) (*core.PathCWD, string) {
+func SetupConfigTest(t *testing.T, filename string) (*core.PathCWD, string) {
 	testDir := filepath.Dir(filename)
 	cwd, err := core.CWDFromPath(testDir)
 	require.NoError(t, err)

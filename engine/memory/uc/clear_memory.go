@@ -36,7 +36,7 @@ func NewClearMemory(
 	memoryRef, key string,
 	input *ClearMemoryInput,
 	svc service.MemoryOperationsService,
-) *ClearMemory {
+) (*ClearMemory, error) {
 	if input == nil {
 		input = &ClearMemoryInput{}
 	}
@@ -45,7 +45,7 @@ func NewClearMemory(
 		svc, err = service.NewMemoryOperationsService(manager, nil, nil, nil, nil)
 		if err != nil {
 			// Log error but continue with nil service
-			panic("failed to create memory operations service: " + err.Error())
+			return nil, err
 		}
 	}
 	return &ClearMemory{
@@ -54,7 +54,7 @@ func NewClearMemory(
 		key:       key,
 		input:     input,
 		service:   svc,
-	}
+	}, nil
 }
 
 // Execute clears memory content

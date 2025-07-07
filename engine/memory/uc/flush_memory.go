@@ -43,7 +43,7 @@ func NewFlushMemory(
 	memoryRef, key string,
 	input *FlushMemoryInput,
 	svc service.MemoryOperationsService,
-) *FlushMemory {
+) (*FlushMemory, error) {
 	if input == nil {
 		input = &FlushMemoryInput{}
 	}
@@ -52,7 +52,7 @@ func NewFlushMemory(
 		svc, err = service.NewMemoryOperationsService(manager, nil, nil, nil, nil)
 		if err != nil {
 			// Log error but continue with nil service
-			panic("failed to create memory operations service: " + err.Error())
+			return nil, err
 		}
 	}
 	return &FlushMemory{
@@ -61,7 +61,7 @@ func NewFlushMemory(
 		key:       key,
 		input:     input,
 		service:   svc,
-	}
+	}, nil
 }
 
 // Execute flushes memory content

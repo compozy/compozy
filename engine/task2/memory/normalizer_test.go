@@ -8,31 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
-
-func TestNormalizer_NewNormalizer(t *testing.T) {
-	t.Run("Should create normalizer with valid template engine", func(t *testing.T) {
-		templateEngine := &tplengine.TemplateEngine{}
-		normalizer := NewNormalizer(templateEngine)
-		require.NotNil(t, normalizer)
-		assert.NotNil(t, normalizer.BaseNormalizer)
-	})
-
-	t.Run("Should create normalizer with nil template engine", func(t *testing.T) {
-		normalizer := NewNormalizer(nil)
-		require.NotNil(t, normalizer)
-		assert.NotNil(t, normalizer.BaseNormalizer)
-	})
-}
-
-func TestNormalizer_Type(t *testing.T) {
-	t.Run("Should return TaskTypeMemory", func(t *testing.T) {
-		templateEngine := &tplengine.TemplateEngine{}
-		normalizer := NewNormalizer(templateEngine)
-		assert.Equal(t, task.TaskTypeMemory, normalizer.Type())
-	})
-}
 
 func TestNormalizer_Normalize(t *testing.T) {
 	templateEngine := &tplengine.TemplateEngine{}

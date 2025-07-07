@@ -361,9 +361,25 @@ func setRetryDefaults(cfg *Config) {
 // getIntEnvOrDefault returns the integer value from environment or default
 func getIntEnvOrDefault(envKey string, defaultValue int) int {
 	if envStr := os.Getenv(envKey); envStr != "" {
-		if val, err := strconv.Atoi(envStr); err == nil && val > 0 {
+		val, err := strconv.Atoi(envStr)
+		if err != nil {
+			log := logger.FromContext(context.Background())
+			log.Debug(
+				"Failed to parse environment variable as integer",
+				"key",
+				envKey,
+				"value",
+				envStr,
+				"error",
+				err.Error(),
+			)
+			return defaultValue
+		}
+		if val > 0 {
 			return val
 		}
+		log := logger.FromContext(context.Background())
+		log.Debug("Environment variable value is not positive", "key", envKey, "value", val)
 	}
 	return defaultValue
 }
@@ -371,9 +387,21 @@ func getIntEnvOrDefault(envKey string, defaultValue int) int {
 // getDurationEnvOrDefault returns the duration value from environment or default
 func getDurationEnvOrDefault(envKey string, defaultValue time.Duration) time.Duration {
 	if envStr := os.Getenv(envKey); envStr != "" {
-		if val, err := time.ParseDuration(envStr); err == nil {
-			return val
+		val, err := time.ParseDuration(envStr)
+		if err != nil {
+			log := logger.FromContext(context.Background())
+			log.Debug(
+				"Failed to parse environment variable as duration",
+				"key",
+				envKey,
+				"value",
+				envStr,
+				"error",
+				err.Error(),
+			)
+			return defaultValue
 		}
+		return val
 	}
 	return defaultValue
 }

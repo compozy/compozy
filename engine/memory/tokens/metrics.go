@@ -35,7 +35,8 @@ func (tm *TokenMetrics) RecordDuration(d time.Duration) {
 	// Safe conversion - only positive durations should be recorded
 	if d >= 0 {
 		nanos := d.Nanoseconds()
-		if nanos >= 0 { // Double check for gosec
+		// Ensure we don't overflow when converting int64 to uint64
+		if nanos >= 0 {
 			tm.totalDuration.Add(uint64(nanos))
 			tm.countDuration.Add(1)
 		}

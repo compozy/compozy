@@ -12,7 +12,6 @@ import (
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/pkg/logger"
-	"github.com/compozy/compozy/pkg/utils"
 	"github.com/fsnotify/fsnotify"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -62,6 +61,7 @@ func setEnvironmentVariablesFromFlags(cmd *cobra.Command) error {
 		{"max-message-content-length", "MAX_MESSAGE_CONTENT_LENGTH"},
 		{"max-total-content-size", "MAX_TOTAL_CONTENT_SIZE"},
 		{"async-token-counter-workers", "ASYNC_TOKEN_COUNTER_WORKERS"},
+		{"async-token-counter-buffer-size", "ASYNC_TOKEN_COUNTER_BUFFER_SIZE"},
 	}
 	for _, pair := range flagEnvPairs {
 		if err := setIntFlagToEnv(cmd, pair.flag, pair.env); err != nil {
@@ -77,7 +77,7 @@ func getServerConfig(ctx context.Context, cmd *cobra.Command, envFilePath string
 	if err != nil {
 		return nil, err
 	}
-	CWD, _, err := utils.GetConfigCWD(cmd)
+	CWD, _, err := GetConfigCWD(cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -286,6 +286,8 @@ func DevCmd() *cobra.Command {
 	// Memory async token counter configuration
 	cmd.Flags().Int("async-token-counter-workers", 10,
 		"Number of workers for async token counting (env: ASYNC_TOKEN_COUNTER_WORKERS)")
+	cmd.Flags().Int("async-token-counter-buffer-size", 1000,
+		"Buffer size for async token counting queue (env: ASYNC_TOKEN_COUNTER_BUFFER_SIZE)")
 
 	// Dispatcher heartbeat configuration flags
 	cmd.Flags().Int("dispatcher-heartbeat-interval", 30,

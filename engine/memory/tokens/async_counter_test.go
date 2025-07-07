@@ -32,7 +32,7 @@ func TestAsyncTokenCounter_ProcessAsync(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
 		log := logger.NewForTests()
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 100, log)
 		defer asyncCounter.Shutdown()
 		text := "Test message content"
 		ref := "test_memory"
@@ -78,7 +78,7 @@ func TestAsyncTokenCounter_ProcessAsync(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
 		log := logger.NewForTests()
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 1, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 1, 100, log)
 		defer asyncCounter.Shutdown()
 		text := "Test message"
 		ref := "test_memory"
@@ -100,7 +100,7 @@ func TestAsyncTokenCounter_ProcessWithResult(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
 		log := logger.NewForTests()
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 100, log)
 		defer asyncCounter.Shutdown()
 		text := "Test message"
 		ref := "test"
@@ -146,7 +146,7 @@ func TestAsyncTokenCounter_ProcessWithResult(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
 		log := logger.NewForTests()
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 1, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 1, 100, log)
 		defer asyncCounter.Shutdown()
 		text := "Test message"
 		ref := "test"
@@ -171,7 +171,7 @@ func TestAsyncTokenCounter_Metrics(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
 		log := logger.NewForTests()
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 100, log)
 		defer asyncCounter.Shutdown()
 		// Set up mock expectations
 		mockCounter.On("CountTokens", mock.Anything, "success1").Return(10, nil)
@@ -197,7 +197,7 @@ func TestAsyncTokenCounter_WorkerPool(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
 		log := logger.NewForTests()
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 3, log) // 3 workers
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 3, 100, log) // 3 workers
 		defer asyncCounter.Shutdown()
 		// Track concurrent executions with atomic operations
 		var concurrentCount atomic.Int32
@@ -236,7 +236,7 @@ func TestAsyncTokenCounter_Shutdown(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
 		log := logger.NewForTests()
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 100, log)
 		// Queue some requests
 		mockCounter.On("CountTokens", mock.Anything, mock.Anything).
 			Return(10, nil).Maybe()
@@ -259,7 +259,7 @@ func TestNewAsyncTokenCounter(t *testing.T) {
 		mockCounter := new(mockTokenCounterAsync)
 		log := logger.NewForTests()
 		// Act
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 0, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 0, 100, log)
 		defer asyncCounter.Shutdown()
 		// Assert
 		assert.Equal(t, 10, asyncCounter.workers) // Default is 10
@@ -269,10 +269,41 @@ func TestNewAsyncTokenCounter(t *testing.T) {
 		mockCounter := new(mockTokenCounterAsync)
 		log := logger.NewForTests()
 		// Act
-		asyncCounter := NewAsyncTokenCounter(mockCounter, -5, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, -5, 100, log)
 		defer asyncCounter.Shutdown()
 		// Assert
 		assert.Equal(t, 10, asyncCounter.workers) // Default is 10
+	})
+	t.Run("Should use default buffer size if zero provided", func(t *testing.T) {
+		// Arrange
+		mockCounter := new(mockTokenCounterAsync)
+		log := logger.NewForTests()
+		// Act
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 0, log)
+		defer asyncCounter.Shutdown()
+		// Assert
+		assert.Equal(t, 1000, cap(asyncCounter.queue)) // Default is 1000
+	})
+	t.Run("Should use default buffer size if negative provided", func(t *testing.T) {
+		// Arrange
+		mockCounter := new(mockTokenCounterAsync)
+		log := logger.NewForTests()
+		// Act
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, -10, log)
+		defer asyncCounter.Shutdown()
+		// Assert
+		assert.Equal(t, 1000, cap(asyncCounter.queue)) // Default is 1000
+	})
+	t.Run("Should use custom buffer size when valid", func(t *testing.T) {
+		// Arrange
+		mockCounter := new(mockTokenCounterAsync)
+		log := logger.NewForTests()
+		customBufferSize := 500
+		// Act
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, customBufferSize, log)
+		defer asyncCounter.Shutdown()
+		// Assert
+		assert.Equal(t, customBufferSize, cap(asyncCounter.queue))
 	})
 }
 

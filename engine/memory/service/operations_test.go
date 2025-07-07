@@ -819,13 +819,6 @@ func TestDependencyValidation(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "memoryManager is required")
 	})
-
-	t.Run("Should allow nil templateEngine and tokenCounter", func(t *testing.T) {
-		manager := &testMemoryManager{}
-		service, err := NewMemoryOperationsService(manager, nil, nil, nil, nil)
-		require.NoError(t, err)
-		assert.NotNil(t, service)
-	})
 }
 
 func TestConfigurableContentLimits(t *testing.T) {

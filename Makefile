@@ -11,7 +11,7 @@ GOFMT=gofmt -s -w
 BINARY_NAME=compozy
 BINARY_DIR=bin
 SRC_DIRS=./...
-LINTCMD=golangci-lint-v2
+LINTCMD=golangci-lint
 
 # -----------------------------------------------------------------------------
 # Build Variables
@@ -20,7 +20,7 @@ GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 VERSION := $(shell git describe --tags --always 2>/dev/null || echo "unknown")
 
 # Build flags for injecting version info
-LDFLAGS := "-X 'github.com/compozy/compozy/engine/infra/monitoring.Version=$(VERSION)' -X 'github.com/compozy/compozy/engine/infra/monitoring.CommitHash=$(GIT_COMMIT)'"
+LDFLAGS := -X 'github.com/compozy/compozy/engine/infra/monitoring.Version=$(VERSION)' -X 'github.com/compozy/compozy/engine/infra/monitoring.CommitHash=$(GIT_COMMIT)'
 
 # -----------------------------------------------------------------------------
 # Swagger/OpenAPI
@@ -79,7 +79,7 @@ deps: swagger-deps
 	$(GOCMD) install gotest.tools/gotestsum@latest
 	$(GOCMD) install github.com/bokwoon95/wgo@latest
 	$(GOCMD) install github.com/pressly/goose/v3/cmd/goose@latest
-	$(GOCMD) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $$(go env GOPATH)/bin v2.2.1
 
 swagger-deps:
 	@echo "Installing Swagger dependencies..."

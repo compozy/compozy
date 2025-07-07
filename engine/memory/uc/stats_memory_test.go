@@ -39,7 +39,8 @@ func TestStatsMemory_TokenLimitFromConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create stats memory use case
-		statsUC := NewStatsMemory(setup.Manager, nil, nil)
+		statsUC, err := NewStatsMemory(setup.Manager, nil, nil)
+		require.NoError(t, err)
 
 		// Execute stats operation
 		ctx := context.Background()
@@ -82,7 +83,8 @@ func TestStatsMemory_TokenLimitFromConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create stats memory use case
-		statsUC := NewStatsMemory(setup.Manager, nil, nil)
+		statsUC, err := NewStatsMemory(setup.Manager, nil, nil)
+		require.NoError(t, err)
 
 		// Execute stats operation
 		ctx := context.Background()
@@ -144,7 +146,8 @@ func TestStatsMemory_TokenLimitFromConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create stats memory use case
-		statsUC := NewStatsMemory(setup.Manager, nil, nil)
+		statsUC, err := NewStatsMemory(setup.Manager, nil, nil)
+		require.NoError(t, err)
 
 		// Execute stats operation
 		input := StatsMemoryInput{

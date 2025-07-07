@@ -306,7 +306,11 @@ func deleteMemory(c *gin.Context) {
 	}
 
 	// Execute use case
-	uc := memuc.NewDeleteMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, nil)
+	uc, err := memuc.NewDeleteMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, nil)
+	if err != nil {
+		handleMemoryError(c, err, "failed to create delete memory use case")
+		return
+	}
 	result, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		handleMemoryError(c, err, "failed to delete memory")
@@ -367,7 +371,11 @@ func flushMemory(c *gin.Context) {
 	}
 
 	// Execute use case
-	uc := memuc.NewFlushMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &input, nil)
+	uc, err := memuc.NewFlushMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &input, nil)
+	if err != nil {
+		handleMemoryError(c, err, "failed to create flush memory use case")
+		return
+	}
 	result, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		handleMemoryError(c, err, "failed to flush memory")
@@ -415,7 +423,11 @@ func healthMemory(c *gin.Context) {
 	input := &memuc.HealthMemoryInput{
 		IncludeStats: includeStats,
 	}
-	uc := memuc.NewHealthMemory(memCtx.Manager, memCtx.MemoryRef, memCtx.Key, input, nil)
+	uc, err := memuc.NewHealthMemory(memCtx.Manager, memCtx.MemoryRef, memCtx.Key, input, nil)
+	if err != nil {
+		handleMemoryError(c, err, "failed to create health memory use case")
+		return
+	}
 	result, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		handleMemoryError(c, err, "failed to get memory health")
@@ -474,7 +486,11 @@ func clearMemory(c *gin.Context) {
 	}
 
 	// Execute use case
-	uc := memuc.NewClearMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &input, nil)
+	uc, err := memuc.NewClearMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &input, nil)
+	if err != nil {
+		handleMemoryError(c, err, "failed to create clear memory use case")
+		return
+	}
 	result, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		handleMemoryError(c, err, "failed to clear memory")
@@ -551,7 +567,11 @@ func statsMemory(c *gin.Context) {
 	}
 
 	// Create use case with properly configured service
-	uc := memuc.NewStatsMemory(memCtx.Manager, memCtx.Worker, memService)
+	uc, err := memuc.NewStatsMemory(memCtx.Manager, memCtx.Worker, memService)
+	if err != nil {
+		handleMemoryError(c, err, "failed to create stats memory use case")
+		return
+	}
 
 	// Execute
 	result, err := uc.Execute(c.Request.Context(), memuc.StatsMemoryInput{
