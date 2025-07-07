@@ -55,9 +55,9 @@ func (n *BaseNormalizer) Normalize(config *task.Config, ctx contracts.Normalizat
 	if config == nil {
 		return nil
 	}
-	// Allow empty type for basic tasks
+	// Allow empty type for basic tasks and memory tasks that use basic normalizer
 	if n.taskType == task.TaskTypeBasic {
-		if config.Type != task.TaskTypeBasic && config.Type != "" {
+		if config.Type != task.TaskTypeBasic && config.Type != "" && config.Type != task.TaskTypeMemory {
 			return fmt.Errorf("%s normalizer cannot handle task type: %s", n.taskType, config.Type)
 		}
 	} else if config.Type != n.taskType {

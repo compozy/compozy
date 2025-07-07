@@ -85,71 +85,92 @@ type TestDataSet struct {
 func StandardTestDataSets() []TestDataSet {
 	timestamp := time.Now().Unix()
 	return []TestDataSet{
-		{
-			Name: "Basic Conversation",
-			Messages: []llm.Message{
-				{Role: "system", Content: "You are a helpful assistant."},
-				{Role: "user", Content: "Hello!"},
-				{Role: "assistant", Content: "Hi there! How can I help you today?"},
-			},
-			MemoryRef: core.MemoryReference{
-				ID:  "customer-support",
-				Key: "basic-conv-{{.test.id}}",
-			},
-			WorkflowCtx: map[string]any{
-				"project.id": "test-project",
-				"test.id":    fmt.Sprintf("basic-%d", timestamp),
+		createBasicConversationDataSet(timestamp),
+		createLongConversationDataSet(timestamp),
+		createMultilingualDataSet(timestamp),
+		createTechnicalSupportDataSet(timestamp),
+	}
+}
+
+// createBasicConversationDataSet creates a basic conversation test data set
+func createBasicConversationDataSet(timestamp int64) TestDataSet {
+	return TestDataSet{
+		Name: "Basic Conversation",
+		Messages: []llm.Message{
+			{Role: "system", Content: "You are a helpful assistant."},
+			{Role: "user", Content: "Hello!"},
+			{Role: "assistant", Content: "Hi there! How can I help you today?"},
+		},
+		MemoryRef: core.MemoryReference{
+			ID:  "customer-support",
+			Key: "basic-conv-{{.test.id}}",
+		},
+		WorkflowCtx: createWorkflowContext(fmt.Sprintf("basic-%d", timestamp)),
+	}
+}
+
+// createLongConversationDataSet creates a long conversation test data set
+func createLongConversationDataSet(timestamp int64) TestDataSet {
+	return TestDataSet{
+		Name:     "Long Conversation",
+		Messages: generateLongConversation(50),
+		MemoryRef: core.MemoryReference{
+			ID:  "shared-memory",
+			Key: "long-conv-{{.test.id}}",
+		},
+		WorkflowCtx: createWorkflowContext(fmt.Sprintf("long-%d", timestamp)),
+	}
+}
+
+// createMultilingualDataSet creates a multilingual content test data set
+func createMultilingualDataSet(timestamp int64) TestDataSet {
+	return TestDataSet{
+		Name: "Multilingual Content",
+		Messages: []llm.Message{
+			{Role: "user", Content: "Hello! 你好! مرحبا! Bonjour!"},
+			{Role: "assistant", Content: "I can help in multiple languages!"},
+			{Role: "user", Content: "日本語も話せますか？"},
+			{Role: "assistant", Content: "Yes, I can communicate in Japanese too!"},
+		},
+		MemoryRef: core.MemoryReference{
+			ID:  "customer-support",
+			Key: "multilingual-{{.test.id}}",
+		},
+		WorkflowCtx: createWorkflowContext(fmt.Sprintf("multi-%d", timestamp)),
+	}
+}
+
+// createTechnicalSupportDataSet creates a technical support test data set
+func createTechnicalSupportDataSet(timestamp int64) TestDataSet {
+	return TestDataSet{
+		Name: "Technical Support",
+		Messages: []llm.Message{
+			{Role: "system", Content: "You are a technical support specialist."},
+			{Role: "user", Content: "My application is showing error code 500"},
+			{Role: "assistant", Content: "Error 500 indicates a server error. Let me help you troubleshoot."},
+			{Role: "user", Content: "I see 'database connection failed' in the logs"},
+			{
+				Role: "assistant",
+				Content: "That suggests the database server might be down or unreachable. " +
+					"Let's check the connection settings.",
 			},
 		},
-		{
-			Name:     "Long Conversation",
-			Messages: generateLongConversation(50),
-			MemoryRef: core.MemoryReference{
-				ID:  "shared-memory",
-				Key: "long-conv-{{.test.id}}",
-			},
-			WorkflowCtx: map[string]any{
-				"project.id": "test-project",
-				"test.id":    fmt.Sprintf("long-%d", timestamp),
-			},
+		MemoryRef: core.MemoryReference{
+			ID:  "customer-support",
+			Key: "tech-support-{{.test.id}}",
 		},
-		{
-			Name: "Multilingual Content",
-			Messages: []llm.Message{
-				{Role: "user", Content: "Hello! 你好! مرحبا! Bonjour!"},
-				{Role: "assistant", Content: "I can help in multiple languages!"},
-				{Role: "user", Content: "日本語も話せますか？"},
-				{Role: "assistant", Content: "Yes, I can communicate in Japanese too!"},
-			},
-			MemoryRef: core.MemoryReference{
-				ID:  "customer-support",
-				Key: "multilingual-{{.test.id}}",
-			},
-			WorkflowCtx: map[string]any{
-				"project.id": "test-project",
-				"test.id":    fmt.Sprintf("multi-%d", timestamp),
-			},
+		WorkflowCtx: createWorkflowContext(fmt.Sprintf("tech-%d", timestamp)),
+	}
+}
+
+// createWorkflowContext creates a standard workflow context for tests
+func createWorkflowContext(testID string) map[string]any {
+	return map[string]any{
+		"project": map[string]any{
+			"id": "test-project",
 		},
-		{
-			Name: "Technical Support",
-			Messages: []llm.Message{
-				{Role: "system", Content: "You are a technical support specialist."},
-				{Role: "user", Content: "My application is showing error code 500"},
-				{Role: "assistant", Content: "Error 500 indicates a server error. Let me help you troubleshoot."},
-				{Role: "user", Content: "I see 'database connection failed' in the logs"},
-				{
-					Role:    "assistant",
-					Content: "That suggests the database server might be down or unreachable. Let's check the connection settings.",
-				},
-			},
-			MemoryRef: core.MemoryReference{
-				ID:  "customer-support",
-				Key: "tech-support-{{.test.id}}",
-			},
-			WorkflowCtx: map[string]any{
-				"project.id": "test-project",
-				"test.id":    fmt.Sprintf("tech-%d", timestamp),
-			},
+		"test": map[string]any{
+			"id": testID,
 		},
 	}
 }

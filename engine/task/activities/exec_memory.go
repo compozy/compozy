@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	memcore "github.com/compozy/compozy/engine/memory/core"
+	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
@@ -30,6 +31,7 @@ type ExecuteMemory struct {
 	task2Factory          task2.Factory
 	execMemoryOperationUC *uc.ExecuteMemoryOperation
 	templateEngine        *tplengine.TemplateEngine
+	projectConfig         *project.Config
 }
 
 // NewExecuteMemory creates a new ExecuteMemory activity
@@ -41,14 +43,20 @@ func NewExecuteMemory(
 	memoryManager memcore.ManagerInterface,
 	_ *core.PathCWD,
 	templateEngine *tplengine.TemplateEngine,
+	projectConfig *project.Config,
 	task2Factory task2.Factory,
 ) (*ExecuteMemory, error) {
+	execMemoryOperationUC, err := uc.NewExecuteMemoryOperation(memoryManager, templateEngine)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create memory operation use case: %w", err)
+	}
 	return &ExecuteMemory{
 		loadWorkflowUC:        uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:         uc.NewCreateState(taskRepo, configStore),
 		task2Factory:          task2Factory,
-		execMemoryOperationUC: uc.NewExecuteMemoryOperation(memoryManager, templateEngine),
+		execMemoryOperationUC: execMemoryOperationUC,
 		templateEngine:        templateEngine,
+		projectConfig:         projectConfig,
 	}, nil
 }
 
@@ -77,6 +85,10 @@ func (a *ExecuteMemory) Run(ctx context.Context, input *ExecuteMemoryInput) (*ta
 	}
 	// Build proper normalization context with all template variables
 	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, input.TaskConfig)
+	// Add project information for memory operations
+	if a.projectConfig != nil {
+		contextBuilder.VariableBuilder.AddProjectToVariables(normContext.Variables, a.projectConfig.Name)
+	}
 	// Normalize the task configuration
 	normalizedConfig := input.TaskConfig
 	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {

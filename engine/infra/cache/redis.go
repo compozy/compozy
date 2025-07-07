@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -294,15 +296,41 @@ func (r *Redis) HealthCheck(ctx context.Context) error {
 
 // setConfigDefaults applies default values to configuration
 func setConfigDefaults(cfg *Config) *Config {
+	setHostAndPortDefaults(cfg)
+	setPoolConfigDefaults(cfg)
+	setTimeoutDefaults(cfg)
+	setRetryDefaults(cfg)
+	return cfg
+}
+
+// setHostAndPortDefaults sets default host and port values
+func setHostAndPortDefaults(cfg *Config) {
 	if cfg.Host == "" {
 		cfg.Host = "localhost"
 	}
 	if cfg.Port == "" {
 		cfg.Port = "6379"
 	}
+}
+
+// setPoolConfigDefaults sets pool configuration from environment variables
+func setPoolConfigDefaults(cfg *Config) {
+	// Configure pool size from environment with production default
 	if cfg.PoolSize == 0 {
-		cfg.PoolSize = 10
+		cfg.PoolSize = getIntEnvOrDefault("REDIS_POOL_SIZE", 100)
 	}
+	// Configure pool timeout from environment
+	if cfg.PoolTimeout == 0 {
+		cfg.PoolTimeout = getDurationEnvOrDefault("REDIS_POOL_TIMEOUT", 30*time.Second)
+	}
+	// Configure max idle connections from environment
+	if cfg.MaxIdleConns == 0 {
+		cfg.MaxIdleConns = getIntEnvOrDefault("REDIS_MAX_IDLE_CONNS", 50)
+	}
+}
+
+// setTimeoutDefaults sets default timeout values
+func setTimeoutDefaults(cfg *Config) {
 	if cfg.DialTimeout == 0 {
 		cfg.DialTimeout = 2 * time.Second // Reduced from 5s for faster startup
 	}
@@ -312,6 +340,13 @@ func setConfigDefaults(cfg *Config) *Config {
 	if cfg.WriteTimeout == 0 {
 		cfg.WriteTimeout = 3 * time.Second
 	}
+	if cfg.PingTimeout == 0 {
+		cfg.PingTimeout = 500 * time.Millisecond
+	}
+}
+
+// setRetryDefaults sets default retry configuration
+func setRetryDefaults(cfg *Config) {
 	if cfg.MaxRetries == 0 {
 		cfg.MaxRetries = 3
 	}
@@ -321,13 +356,26 @@ func setConfigDefaults(cfg *Config) *Config {
 	if cfg.MaxRetryBackoff == 0 {
 		cfg.MaxRetryBackoff = 512 * time.Millisecond
 	}
-	if cfg.PoolTimeout == 0 {
-		cfg.PoolTimeout = 4 * time.Second
+}
+
+// getIntEnvOrDefault returns the integer value from environment or default
+func getIntEnvOrDefault(envKey string, defaultValue int) int {
+	if envStr := os.Getenv(envKey); envStr != "" {
+		if val, err := strconv.Atoi(envStr); err == nil && val > 0 {
+			return val
+		}
 	}
-	if cfg.PingTimeout == 0 {
-		cfg.PingTimeout = 500 * time.Millisecond
+	return defaultValue
+}
+
+// getDurationEnvOrDefault returns the duration value from environment or default
+func getDurationEnvOrDefault(envKey string, defaultValue time.Duration) time.Duration {
+	if envStr := os.Getenv(envKey); envStr != "" {
+		if val, err := time.ParseDuration(envStr); err == nil {
+			return val
+		}
 	}
-	return cfg
+	return defaultValue
 }
 
 // applyConfigToOptions applies configuration to Redis options
@@ -340,6 +388,11 @@ func applyConfigToOptions(opt *redis.Options, cfg *Config) {
 	opt.MinRetryBackoff = cfg.MinRetryBackoff
 	opt.MaxRetryBackoff = cfg.MaxRetryBackoff
 	opt.PoolTimeout = cfg.PoolTimeout
+	if cfg.MinIdleConns > 0 {
+		opt.MinIdleConns = cfg.MinIdleConns
+	} else {
+		opt.MinIdleConns = max(1, cfg.MaxIdleConns/2)
+	}
 
 	// TLS Configuration
 	if cfg.TLSEnabled {

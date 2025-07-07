@@ -103,7 +103,7 @@ func TestParallelResponseHandler_HandleSubtaskResponse(t *testing.T) {
 		}
 
 		result, err := handler.HandleSubtaskResponse(
-			context.TODO(),
+			context.Background(),
 			parentState,
 			childState,
 			childConfig,
@@ -136,7 +136,7 @@ func TestParallelResponseHandler_HandleSubtaskResponse(t *testing.T) {
 		}
 
 		result, err := handler.HandleSubtaskResponse(
-			context.TODO(),
+			context.Background(),
 			nil,
 			childState,
 			childConfig,
@@ -171,7 +171,7 @@ func TestParallelResponseHandler_HandleSubtaskResponse(t *testing.T) {
 
 		for _, strategy := range strategies {
 			result, err := handler.HandleSubtaskResponse(
-				context.TODO(),
+				context.Background(),
 				nil,
 				childState,
 				childConfig,

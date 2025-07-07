@@ -281,45 +281,29 @@ func TestConfig_normalizeAndValidateMemoryConfig(t *testing.T) {
 		return &Config{ID: "test-agent", Config: core.ProviderConfig{}, Instructions: "do stuff", CWD: agentCWD}
 	}
 
-	t.Run("Level 1: memory string ID and memory_key", func(t *testing.T) {
+	t.Run("Should handle single memory reference", func(t *testing.T) {
 		cfg := validBaseConfig()
-		cfg.Memory = "mem-id-1"
-		cfg.MemoryKey = "key-{{.workflow.id}}"
+		cfg.Memory = []core.MemoryReference{
+			{ID: "mem-id-1", Key: "key-{{.workflow.id}}", Mode: "read-write"},
+		}
 		err := cfg.NormalizeAndValidateMemoryConfig()
 		require.NoError(t, err)
-		refs := cfg.GetResolvedMemoryReferences()
+		refs := cfg.Memory
 		require.Len(t, refs, 1)
 		assert.Equal(t, "mem-id-1", refs[0].ID)
 		assert.Equal(t, "key-{{.workflow.id}}", refs[0].Key)
 		assert.Equal(t, "read-write", refs[0].Mode)
 	})
 
-	t.Run("Level 1: missing memory_key", func(t *testing.T) {
+	t.Run("Should handle multiple memory references", func(t *testing.T) {
 		cfg := validBaseConfig()
-		cfg.Memory = "mem-id-1"
-		err := cfg.NormalizeAndValidateMemoryConfig()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "'memory_key' is required for Level 1")
-	})
-
-	t.Run("Level 1: with memories field (invalid)", func(t *testing.T) {
-		cfg := validBaseConfig()
-		cfg.Memory = "mem-id-1"
-		cfg.MemoryKey = "key"
-		cfg.Memories = []string{"another-mem"}
-		err := cfg.NormalizeAndValidateMemoryConfig()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cannot use 'memories' field when 'memory' is a string ID (Level 1)")
-	})
-
-	t.Run("Level 2: memory:true, memories list, memory_key", func(t *testing.T) {
-		cfg := validBaseConfig()
-		cfg.Memory = true
-		cfg.Memories = []any{"mem-id-1", "mem-id-2"} // YAML often unmarshals to []interface{}
-		cfg.MemoryKey = "shared-key-{{.user.id}}"
+		cfg.Memory = []core.MemoryReference{
+			{ID: "mem-id-1", Key: "shared-key-{{.user.id}}", Mode: "read-write"},
+			{ID: "mem-id-2", Key: "shared-key-{{.user.id}}", Mode: "read-write"},
+		}
 		err := cfg.NormalizeAndValidateMemoryConfig()
 		require.NoError(t, err)
-		refs := cfg.GetResolvedMemoryReferences()
+		refs := cfg.Memory
 		require.Len(t, refs, 2)
 		assert.Equal(t, "mem-id-1", refs[0].ID)
 		assert.Equal(t, "shared-key-{{.user.id}}", refs[0].Key)
@@ -329,51 +313,15 @@ func TestConfig_normalizeAndValidateMemoryConfig(t *testing.T) {
 		assert.Equal(t, "read-write", refs[1].Mode)
 	})
 
-	t.Run("Level 2: memories as []string", func(t *testing.T) {
+	t.Run("Should handle memory references with different modes", func(t *testing.T) {
 		cfg := validBaseConfig()
-		cfg.Memory = true
-		cfg.Memories = []string{"mem-id-1", "mem-id-2"}
-		cfg.MemoryKey = "shared-key-{{.user.id}}"
-		err := cfg.NormalizeAndValidateMemoryConfig()
-		require.NoError(t, err)
-		refs := cfg.GetResolvedMemoryReferences()
-		require.Len(t, refs, 2)
-		assert.Equal(t, "mem-id-1", refs[0].ID)
-	})
-
-	t.Run("Level 2: missing memory_key", func(t *testing.T) {
-		cfg := validBaseConfig()
-		cfg.Memory = true
-		cfg.Memories = []string{"mem-id-1"}
-		err := cfg.NormalizeAndValidateMemoryConfig()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "'memory_key' is required for Level 2")
-	})
-
-	t.Run("Level 2: memories not a list or empty list", func(t *testing.T) {
-		cfg := validBaseConfig()
-		cfg.Memory = true
-		cfg.Memories = "not-a-list"
-		cfg.MemoryKey = "key"
-		err := cfg.NormalizeAndValidateMemoryConfig()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "requires 'memories' to be a non-empty list of memory ID strings")
-
-		cfg.Memories = []any{}
-		err = cfg.NormalizeAndValidateMemoryConfig()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "requires 'memories' to be a non-empty list of memory ID strings")
-	})
-
-	t.Run("Level 3: memories list of objects", func(t *testing.T) {
-		cfg := validBaseConfig()
-		cfg.Memories = []any{
-			map[string]any{"id": "mem1", "key": "key1", "mode": "read-only"},
-			map[string]any{"id": "mem2", "key": "key2"}, // mode defaults to read-write
+		cfg.Memory = []core.MemoryReference{
+			{ID: "mem1", Key: "key1", Mode: "read-only"},
+			{ID: "mem2", Key: "key2", Mode: "read-write"},
 		}
 		err := cfg.NormalizeAndValidateMemoryConfig()
 		require.NoError(t, err)
-		refs := cfg.GetResolvedMemoryReferences()
+		refs := cfg.Memory
 		require.Len(t, refs, 2)
 		assert.Equal(t, "mem1", refs[0].ID)
 		assert.Equal(t, "key1", refs[0].Key)
@@ -383,80 +331,63 @@ func TestConfig_normalizeAndValidateMemoryConfig(t *testing.T) {
 		assert.Equal(t, "read-write", refs[1].Mode)
 	})
 
-	t.Run("Level 3: with memory field (invalid)", func(t *testing.T) {
+	t.Run("Should default to read-write mode when not specified", func(t *testing.T) {
 		cfg := validBaseConfig()
-		cfg.Memory = "some-id" // Invalid for Level 3
-		cfg.Memories = []any{
-			map[string]any{"id": "mem1", "key": "key1"},
+		cfg.Memory = []core.MemoryReference{
+			{ID: "mem1", Key: "key1"}, // Mode not specified
 		}
 		err := cfg.NormalizeAndValidateMemoryConfig()
-		require.Error(t, err)
-		assert.Contains(
-			t,
-			err.Error(),
-			"cannot use 'memory' field (Level 1 or 2) when 'memories' is a list of objects (Level 3)",
-		)
+		require.NoError(t, err)
+		refs := cfg.Memory
+		require.Len(t, refs, 1)
+		assert.Equal(t, "mem1", refs[0].ID)
+		assert.Equal(t, "key1", refs[0].Key)
+		assert.Equal(t, "read-write", refs[0].Mode)
 	})
 
-	t.Run("Level 3: missing id in reference", func(t *testing.T) {
+	t.Run("Should require ID in memory reference", func(t *testing.T) {
 		cfg := validBaseConfig()
-		cfg.Memories = []any{
-			map[string]any{"key": "key1"}, // Missing id
+		cfg.Memory = []core.MemoryReference{
+			{Key: "key1"}, // Missing ID
 		}
 		err := cfg.NormalizeAndValidateMemoryConfig()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "missing required 'id' field")
 	})
 
-	t.Run("Level 3: missing key in reference", func(t *testing.T) {
+	t.Run("Should require Key in memory reference", func(t *testing.T) {
 		cfg := validBaseConfig()
-		cfg.Memories = []any{
-			map[string]any{"id": "mem1"}, // Missing key
+		cfg.Memory = []core.MemoryReference{
+			{ID: "mem1"}, // Missing Key
 		}
 		err := cfg.NormalizeAndValidateMemoryConfig()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "missing required 'key' field")
 	})
 
-	t.Run("Level 3: invalid mode", func(t *testing.T) {
+	t.Run("Should reject invalid mode", func(t *testing.T) {
 		cfg := validBaseConfig()
-		cfg.Memories = []any{
-			map[string]any{"id": "mem1", "key": "key1", "mode": "write-only"}, // invalid mode
+		cfg.Memory = []core.MemoryReference{
+			{ID: "mem1", Key: "key1", Mode: "write-only"}, // Invalid mode
 		}
 		err := cfg.NormalizeAndValidateMemoryConfig()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "has invalid mode 'write-only'")
 	})
 
-	t.Run("No memory configuration", func(t *testing.T) {
+	t.Run("Should handle no memory configuration", func(t *testing.T) {
 		cfg := validBaseConfig()
 		err := cfg.NormalizeAndValidateMemoryConfig()
 		require.NoError(t, err)
-		assert.Empty(t, cfg.GetResolvedMemoryReferences())
+		assert.Empty(t, cfg.Memory)
 	})
 
-	t.Run("memory: false (explicit no memory)", func(t *testing.T) {
+	t.Run("Should handle empty memory array", func(t *testing.T) {
 		cfg := validBaseConfig()
-		cfg.Memory = false
+		cfg.Memory = []core.MemoryReference{}
 		err := cfg.NormalizeAndValidateMemoryConfig()
 		require.NoError(t, err)
-		assert.Empty(t, cfg.GetResolvedMemoryReferences())
-	})
-
-	t.Run("Invalid type for memory field", func(t *testing.T) {
-		cfg := validBaseConfig()
-		cfg.Memory = 123 // not string or bool
-		err := cfg.NormalizeAndValidateMemoryConfig()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid type for 'memory' field")
-	})
-
-	t.Run("Invalid structure for memories field", func(t *testing.T) {
-		cfg := validBaseConfig()
-		cfg.Memories = "not-a-list-of-anything-valid"
-		err := cfg.NormalizeAndValidateMemoryConfig()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid structure for 'memories' field")
+		assert.Empty(t, cfg.Memory)
 	})
 }
 
@@ -467,10 +398,11 @@ func Test_Config_Validate_WithMemory(t *testing.T) {
 		return Config{ID: "test", Config: core.ProviderConfig{}, Instructions: "test", CWD: agentCWD}
 	}
 
-	t.Run("Valid Level 1 memory config passes full validation", func(t *testing.T) {
+	t.Run("Valid memory config passes full validation", func(t *testing.T) {
 		cfg := baseCfg()
-		cfg.Memory = "mem1"
-		cfg.MemoryKey = "key1"
+		cfg.Memory = []core.MemoryReference{
+			{ID: "mem1", Key: "key1", Mode: "read-write"},
+		}
 		// Mock or skip registry check for now in AgentMemoryValidator for this test to pass
 		// by ensuring AgentMemoryValidator doesn't error on placeholder registry logic.
 		err := cfg.Validate()
@@ -480,13 +412,14 @@ func Test_Config_Validate_WithMemory(t *testing.T) {
 		) // This will fail if AgentMemoryValidator tries to use a nil registry to check ID existence
 	})
 
-	t.Run("Invalid Level 1 (missing key) fails full validation", func(t *testing.T) {
+	t.Run("Invalid memory config (missing key) fails full validation", func(t *testing.T) {
 		cfg := baseCfg()
-		cfg.Memory = "mem1"
-		// MemoryKey is intentionally not set to test validation failure
+		cfg.Memory = []core.MemoryReference{
+			{ID: "mem1"}, // Missing Key
+		}
 		err := cfg.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid memory configuration")
-		assert.Contains(t, err.Error(), "'memory_key' is required for Level 1")
+		assert.Contains(t, err.Error(), "missing required 'key' field")
 	})
 }

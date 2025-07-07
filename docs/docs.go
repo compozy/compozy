@@ -3741,15 +3741,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/mcp.Config"
                     }
                 },
-                "memories": {
-                    "description": "[]string (L2) or []MemoryReference (L3)"
-                },
                 "memory": {
-                    "description": "Memory configuration fields\nLevel 1: memory: \"customer-support-context\", memory_key: \"key-template\"\nLevel 2: memory: true, memories: [\"id1\", \"id2\"], memory_key: \"shared-key-template\"\nLevel 3: memories: [{id: \"id1\", mode: \"read-write\", key: \"template1\"},\n                    {id: \"id2\", mode: \"read-only\", key: \"template2\"}]"
-                },
-                "memory_key": {
-                    "description": "string (L1, L2)",
-                    "type": "string"
+                    "description": "Memory configuration - simplified single format\nmemory:\n  - id: user_memory\n    key: \"user:{{.workflow.input.user_id}}\"\n    mode: \"read-write\"  # optional, defaults to \"read-write\"",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.MemoryReference"
+                    }
                 },
                 "resource": {
                     "type": "string"
@@ -3881,6 +3878,30 @@ const docTemplate = `{
         "core.Input": {
             "type": "object",
             "additionalProperties": {}
+        },
+        "core.MemoryReference": {
+            "type": "object",
+            "required": [
+                "id",
+                "key"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "key": {
+                    "description": "Key is a template string that resolves to the actual memory instance key.\ne.g., \"support-{{ .workflow.input.conversationId }}\"",
+                    "type": "string"
+                },
+                "mode": {
+                    "description": "Mode defines access permissions (e.g., \"read-write\", \"read-only\").",
+                    "type": "string",
+                    "enum": [
+                        "read-write",
+                        "read-only"
+                    ]
+                }
+            }
         },
         "core.Output": {
             "type": "object",

@@ -29,9 +29,9 @@ func TestCompleteMemoryLifecycle(t *testing.T) {
 			Key: "support-conversation-{{.conversation.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id":      "test-project",
-			"conversation.id": "123",
-			"user.id":         "user-456",
+			"project":      map[string]any{"id": "test-project"},
+			"conversation": map[string]any{"id": "123"},
+			"user":         map[string]any{"id": "user-456"},
 		}
 		memoryInstance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
@@ -94,8 +94,8 @@ func TestConcurrentAgentAccess(t *testing.T) {
 			Key: "concurrent-test-{{.session.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"session.id": "concurrent-session",
+			"project": map[string]any{"id": "test-project"},
+			"session": map[string]any{"id": "concurrent-session"},
 		}
 		const numWorkers = 5
 		const messagesPerWorker = 10
@@ -194,8 +194,8 @@ func TestFlushWorkflow(t *testing.T) {
 			Key: "flush-test-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    "flush-workflow",
+			"project": map[string]any{"id": "test-project"},
+			"test":    map[string]any{"id": "flush-workflow"},
 		}
 		memoryInstance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
@@ -251,8 +251,8 @@ func TestMemoryWithPrivacy(t *testing.T) {
 			Key: "privacy-test-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    "privacy-test",
+			"project": map[string]any{"id": "test-project"},
+			"test":    map[string]any{"id": "privacy-test"},
 		}
 		memoryInstance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
@@ -313,8 +313,8 @@ func TestMemoryExpiration(t *testing.T) {
 			Key: "expiration-test-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("expiration-%d", time.Now().Unix()),
+			"project": map[string]any{"id": "test-project"},
+			"test":    map[string]any{"id": fmt.Sprintf("expiration-%d", time.Now().Unix())},
 		}
 		memoryInstance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)

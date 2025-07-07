@@ -49,11 +49,6 @@ config:
       - session_id
       - action
 
-resources:
-  memories:
-    - id: user_memory
-      source: ./memory/user_memory.yaml
-
 tasks:
   # Read existing user data
   - id: read_user_data
@@ -192,14 +187,19 @@ outputs:
   action_performed: "{{ .workflow.input.action }}"
   user_id: "{{ .workflow.input.user_id }}"
   session_id: "{{ .workflow.input.session_id }}"
-  read_result: "{{ if index .tasks \"read_user_data\" }}{{ index .tasks \"read_user_data\" \"output\"\
+  read_result:
+    "{{ if index .tasks \"read_user_data\" }}{{ index .tasks \"read_user_data\" \"output\"\
     \ | toJson }}{{ else }}null{{ end }}"
-  stats_result: "{{ if index .tasks \"get_memory_stats\" }}{{ index .tasks \"get_memory_stats\" \"output\"\
+  stats_result:
+    "{{ if index .tasks \"get_memory_stats\" }}{{ index .tasks \"get_memory_stats\" \"output\"\
     \ | toJson }}{{ else }}null{{ end }}"
-  health_result: "{{ if index .tasks \"get_health_check\" }}{{ index .tasks \"get_health_check\" \"output\"\
+  health_result:
+    "{{ if index .tasks \"get_health_check\" }}{{ index .tasks \"get_health_check\" \"output\"\
     \ | toJson }}{{ else }}null{{ end }}"
-  flush_result: "{{ if index .tasks \"flush_user_memory\" }}{{ index .tasks \"flush_user_memory\" \"output\"\
+  flush_result:
+    "{{ if index .tasks \"flush_user_memory\" }}{{ index .tasks \"flush_user_memory\" \"output\"\
     \ | toJson }}{{ else }}null{{ end }}"
-  stats_after_flush: "{{ if index .tasks \"get_memory_stats_after_flush\" }}{{ index .tasks \"get_memory_stats_after_flush\"\
+  stats_after_flush:
+    "{{ if index .tasks \"get_memory_stats_after_flush\" }}{{ index .tasks \"get_memory_stats_after_flush\"\
     \ \"output\" | toJson }}{{ else }}null{{ end }}"
   completion_time: '{{ now | date "2006-01-02 15:04:05" }}'

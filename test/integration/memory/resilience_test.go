@@ -28,8 +28,12 @@ func TestResilienceRedisFailure(t *testing.T) {
 			Key: "redis-failure-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("redis-fail-%d", time.Now().Unix()),
+			"project": map[string]any{
+				"id": "test-project",
+			},
+			"test": map[string]any{
+				"id": fmt.Sprintf("redis-fail-%d", time.Now().Unix()),
+			},
 		}
 		// Create instance while Redis is available
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
@@ -75,8 +79,12 @@ func TestResilienceTimeouts(t *testing.T) {
 			Key: "timeout-test-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("timeout-%d", time.Now().Unix()),
+			"project": map[string]any{
+				"id": "test-project",
+			},
+			"test": map[string]any{
+				"id": fmt.Sprintf("timeout-%d", time.Now().Unix()),
+			},
 		}
 		// Create instance with very short timeout context
 		shortCtx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
@@ -134,9 +142,13 @@ func TestResilienceConcurrentFailures(t *testing.T) {
 					Key: "concurrent-fail-{{.instance}}-{{.test.id}}",
 				}
 				workflowContext := map[string]any{
-					"project.id": "test-project",
-					"instance":   fmt.Sprintf("inst-%d", instanceID),
-					"test.id":    fmt.Sprintf("concurrent-%d", time.Now().Unix()),
+					"project": map[string]any{
+						"id": "test-project",
+					},
+					"instance": fmt.Sprintf("inst-%d", instanceID),
+					"test": map[string]any{
+						"id": fmt.Sprintf("concurrent-%d", time.Now().Unix()),
+					},
 				}
 				instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 				if err != nil {
@@ -202,8 +214,12 @@ func TestResilienceMemoryPressure(t *testing.T) {
 			Key: "memory-pressure-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("pressure-%d", time.Now().Unix()),
+			"project": map[string]any{
+				"id": "test-project",
+			},
+			"test": map[string]any{
+				"id": fmt.Sprintf("pressure-%d", time.Now().Unix()),
+			},
 		}
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
@@ -247,8 +263,12 @@ func TestResilienceCircuitBreaker(t *testing.T) {
 			Key: "timeout-test-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("timeout-%d", time.Now().Unix()),
+			"project": map[string]any{
+				"id": "test-project",
+			},
+			"test": map[string]any{
+				"id": fmt.Sprintf("timeout-%d", time.Now().Unix()),
+			},
 		}
 		const numAttempts = 20
 		timeoutCount := 0
@@ -308,8 +328,12 @@ func TestResilienceDataCorruption(t *testing.T) {
 			Key: "corruption-test-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("corrupt-%d", time.Now().Unix()),
+			"project": map[string]any{
+				"id": "test-project",
+			},
+			"test": map[string]any{
+				"id": fmt.Sprintf("corrupt-%d", time.Now().Unix()),
+			},
 		}
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
@@ -367,8 +391,12 @@ func TestResiliencePrivacyUnderFailure(t *testing.T) {
 			Key: "privacy-failure-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("privacy-%d", time.Now().Unix()),
+			"project": map[string]any{
+				"id": "test-project",
+			},
+			"test": map[string]any{
+				"id": fmt.Sprintf("privacy-%d", time.Now().Unix()),
+			},
 		}
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)

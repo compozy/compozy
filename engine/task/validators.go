@@ -125,6 +125,8 @@ func (v *TypeValidator) Validate() error {
 		return v.validateSignalTask()
 	case TaskTypeWait:
 		return v.validateWaitTask()
+	case TaskTypeMemory:
+		return v.validateMemoryTask()
 	default:
 		return fmt.Errorf("invalid task type: %s", v.config.Type)
 	}
@@ -381,5 +383,20 @@ func (v *TypeValidator) validateWaitTask() error {
 		return fmt.Errorf("wait tasks cannot have a tool")
 	}
 	// Additional wait task validation is handled in Config.validateWaitTask()
+	return nil
+}
+
+func (v *TypeValidator) validateMemoryTask() error {
+	// Memory tasks should not have action, agent, or tool
+	if v.config.Action != "" {
+		return fmt.Errorf("memory tasks cannot have an action field")
+	}
+	if v.config.Agent != nil {
+		return fmt.Errorf("memory tasks cannot have an agent")
+	}
+	if v.config.Tool != nil {
+		return fmt.Errorf("memory tasks cannot have a tool")
+	}
+	// Additional memory task validation is handled in Config.validateMemoryTask()
 	return nil
 }

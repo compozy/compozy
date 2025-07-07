@@ -120,11 +120,11 @@ func (uc *ExecuteTask) executeAgent(
 		// Create memory resolver for this execution
 		memoryResolver := NewMemoryResolver(uc.memoryManager, uc.templateEngine, workflowContext)
 		llmOpts = append(llmOpts, llm.WithMemoryProvider(memoryResolver))
-	} else if len(agentConfig.GetResolvedMemoryReferences()) > 0 {
+	} else if len(agentConfig.Memory) > 0 {
 		// Log warning if agent has memory configuration but memory manager not available
 		log.Warn("Agent has memory configuration but memory manager not available",
 			"agent_id", agentConfig.ID,
-			"memory_count", len(agentConfig.GetResolvedMemoryReferences()),
+			"memory_count", len(agentConfig.Memory),
 		)
 	}
 
@@ -179,9 +179,9 @@ func buildWorkflowContext(
 
 		// Add workflow input data under workflow.input
 		if workflowState.Input != nil {
-			workflowData["input"] = *workflowState.Input
+			workflowData["input"] = dereferenceInput(workflowState.Input)
 			// Also maintain backward compatibility by putting input at top level
-			context["input"] = *workflowState.Input
+			context["input"] = dereferenceInput(workflowState.Input)
 		}
 
 		// Add workflow outputs if available
@@ -229,4 +229,14 @@ func buildWorkflowContext(
 	// If timestamp is needed, it should be provided by the workflow itself
 
 	return context
+}
+
+// dereferenceInput safely dereferences the workflow input pointer for template resolution
+func dereferenceInput(input *core.Input) any {
+	if input == nil {
+		return nil
+	}
+	// Dereference the pointer to expose the underlying map
+	// This allows templates to access nested fields like .workflow.input.user_id
+	return *input
 }

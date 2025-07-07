@@ -3,12 +3,14 @@ package instance
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/instance/strategies"
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/romdo/go-debounce"
 	"go.temporal.io/sdk/client"
 )
 
@@ -20,6 +22,7 @@ type memoryInstance struct {
 	store             core.Store
 	lockManager       LockManager
 	tokenCounter      core.TokenCounter
+	asyncTokenCounter AsyncTokenCounter // NEW: for async token counting
 	flushingStrategy  core.FlushStrategy
 	evictionPolicy    EvictionPolicy
 	temporalClient    client.Client
@@ -28,6 +31,10 @@ type memoryInstance struct {
 	logger            logger.Logger
 	metrics           Metrics
 	strategyFactory   *strategies.StrategyFactory // NEW: for dynamic strategy creation
+	flushMutex        sync.Mutex                  // Ensures only one flush check runs at a time
+	flushWG           sync.WaitGroup              // Tracks in-flight flush operations
+	debouncedFlush    func()                      // Debounced flush check function
+	flushCancelFunc   func()                      // Cancel function for the debouncer
 }
 
 func NewMemoryInstance(opts *BuilderOptions) (Instance, error) {
@@ -47,6 +54,7 @@ func NewMemoryInstance(opts *BuilderOptions) (Instance, error) {
 		store:             opts.Store,
 		lockManager:       opts.LockManager,
 		tokenCounter:      opts.TokenCounter,
+		asyncTokenCounter: opts.AsyncTokenCounter,
 		flushingStrategy:  opts.FlushingStrategy,
 		evictionPolicy:    opts.EvictionPolicy,
 		temporalClient:    opts.TemporalClient,
@@ -56,6 +64,43 @@ func NewMemoryInstance(opts *BuilderOptions) (Instance, error) {
 		metrics:           NewDefaultMetrics(instanceLogger),
 		strategyFactory:   strategyFactory,
 	}
+
+	// Create the debounced flush function
+	// Coalesce flush checks within 100ms, but ensure they run at least every 1s
+	const flushDebounceWait = 100 * time.Millisecond
+	const flushMaxWait = 1 * time.Second
+
+	debouncedFunc, cancelFunc := debounce.NewWithMaxWait(
+		flushDebounceWait,
+		flushMaxWait,
+		func() {
+			// Check if we can acquire the mutex (non-blocking check)
+			if !instance.flushMutex.TryLock() {
+				// If we can't get the lock, Close() might be in progress
+				return
+			}
+
+			// Check if cancel function has been cleared (indicates Close() was called)
+			if instance.flushCancelFunc == nil {
+				instance.flushMutex.Unlock()
+				return
+			}
+
+			// Track this flush operation
+			instance.flushWG.Add(1)
+			defer instance.flushWG.Done()
+			defer instance.flushMutex.Unlock()
+
+			// Use background context since this is independent of any single Append request
+			if err := instance.performAsyncFlushCheck(context.Background()); err != nil {
+				instance.logger.Error("Failed to perform async flush check", "error", err, "memory_id", instance.id)
+			}
+		},
+	)
+
+	instance.debouncedFlush = debouncedFunc
+	instance.flushCancelFunc = cancelFunc
+
 	return instance, nil
 }
 
@@ -147,7 +192,17 @@ func (mi *memoryInstance) Append(ctx context.Context, msg llm.Message) error {
 				"context", "memory_append_operation")
 		}
 	}()
-	tokenCount := mi.calculateMessageTokenCount(ctx, msg)
+	// Use async token counting if available
+	var tokenCount int
+	if mi.asyncTokenCounter != nil {
+		// Queue async token counting (non-blocking)
+		mi.asyncTokenCounter.ProcessAsync(ctx, mi.id, msg.Content)
+		// Use estimate for immediate metrics
+		tokenCount = mi.estimateTokenCount(msg.Content) + mi.estimateTokenCount(string(msg.Role)) + 2
+	} else {
+		// Fallback to synchronous counting
+		tokenCount = mi.calculateMessageTokenCount(ctx, msg)
+	}
 	if err := mi.store.AppendMessageWithTokenCount(ctx, mi.id, msg, tokenCount); err != nil {
 		mi.metrics.RecordAppend(ctx, time.Since(start), tokenCount, err)
 		if lockReleaseErr != nil {
@@ -323,38 +378,40 @@ func (mi *memoryInstance) MarkFlushPending(ctx context.Context, pending bool) er
 	return mi.store.MarkFlushPending(ctx, mi.id, pending)
 }
 
-func (mi *memoryInstance) checkFlushTrigger(ctx context.Context) {
-	go mi.performAsyncFlushCheck(ctx)
+func (mi *memoryInstance) checkFlushTrigger(_ context.Context) {
+	// The context is not used since the debounced function runs independently
+	// This ensures flush checks are not tied to the lifecycle of individual requests
+	mi.debouncedFlush()
 }
 
 // performAsyncFlushCheck executes the flush check logic asynchronously.
 // It creates a timeout context to prevent goroutine leaks and checks
 // if flushing should be triggered based on token and message counts.
-func (mi *memoryInstance) performAsyncFlushCheck(ctx context.Context) {
+func (mi *memoryInstance) performAsyncFlushCheck(ctx context.Context) error {
 	// Create a timeout context to prevent goroutine leaks
 	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	// Check if the context is already canceled before starting work
 	if mi.isContextCanceled(timeoutCtx, "Flush trigger check canceled") {
-		return
+		return nil
 	}
 	// Get token count with cancellation check
 	tokenCount, err := mi.getTokenCountWithCheck(timeoutCtx)
 	if err != nil {
-		return
+		return err
 	}
 	// Check cancellation again before the second call
 	if mi.isContextCanceled(timeoutCtx, "Flush trigger check canceled after token count") {
-		return
+		return nil
 	}
 	// Get message count with cancellation check
 	messageCount, err := mi.getMessageCountWithCheck(timeoutCtx)
 	if err != nil {
-		return
+		return err
 	}
 	// Final cancellation check before flush decision
 	if mi.isContextCanceled(timeoutCtx, "Flush trigger check canceled before flush decision") {
-		return
+		return nil
 	}
 	// Check if flush should be triggered
 	if mi.flushingStrategy.ShouldFlush(tokenCount, messageCount, mi.resourceConfig) {
@@ -367,7 +424,14 @@ func (mi *memoryInstance) performAsyncFlushCheck(ctx context.Context) {
 			"memory_id",
 			mi.id,
 		)
+		// Perform the actual flush
+		_, err := mi.PerformFlush(timeoutCtx)
+		if err != nil {
+			mi.logger.Error("Failed to perform flush", "error", err, "memory_id", mi.id)
+			return fmt.Errorf("failed to perform flush for memory %s: %w", mi.id, err)
+		}
 	}
+	return nil
 }
 
 // isContextCanceled checks if the context is canceled and logs if so.
@@ -414,4 +478,35 @@ func (mi *memoryInstance) getMessageCountWithCheck(ctx context.Context) (int, er
 		return 0, err
 	}
 	return messageCount, nil
+}
+
+// Close gracefully shuts down the memory instance
+func (mi *memoryInstance) Close(ctx context.Context) error {
+	// 1. Acquire flush mutex to prevent new flush operations from starting
+	mi.flushMutex.Lock()
+
+	// 2. Stop the debouncer from scheduling any further calls
+	if mi.flushCancelFunc != nil {
+		mi.flushCancelFunc()
+		mi.flushCancelFunc = nil // Prevent double cancellation
+	}
+
+	// 3. Release mutex before waiting to avoid deadlock
+	mi.flushMutex.Unlock()
+
+	// 4. Wait for any in-flight flush operations to complete
+	mi.flushWG.Wait()
+
+	// 5. Perform a final synchronous flush to ensure all data is persisted
+	mi.flushMutex.Lock()
+	defer mi.flushMutex.Unlock()
+
+	// Perform final flush check with provided context
+	if err := mi.performAsyncFlushCheck(ctx); err != nil {
+		mi.logger.Error("Failed to perform final flush during close", "error", err, "memory_id", mi.id)
+		return fmt.Errorf("failed to perform final flush during close: %w", err)
+	}
+
+	mi.logger.Info("Memory instance flushed and closed successfully", "memory_id", mi.id)
+	return nil
 }

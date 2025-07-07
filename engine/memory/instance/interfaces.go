@@ -19,6 +19,9 @@ type Instance interface {
 	GetTokenCounter() core.TokenCounter
 	GetMetrics() Metrics
 	GetLockManager() LockManager
+
+	// Close gracefully shuts down the instance, flushing any pending operations
+	Close(ctx context.Context) error
 }
 
 // Metrics provides metrics and telemetry for memory operations
@@ -54,4 +57,14 @@ type EvictionPolicy interface {
 	SelectMessagesToEvict(messages []llm.Message, targetCount int) []llm.Message
 	// GetType returns the policy type
 	GetType() string
+}
+
+// AsyncTokenCounter provides asynchronous token counting
+type AsyncTokenCounter interface {
+	// ProcessAsync queues a message for token counting without blocking
+	ProcessAsync(ctx context.Context, memoryRef string, text string)
+	// ProcessWithResult queues a message and waits for the result
+	ProcessWithResult(ctx context.Context, memoryRef string, text string) (int, error)
+	// Shutdown gracefully stops the async counter
+	Shutdown()
 }

@@ -62,6 +62,7 @@ type Opts struct {
 	DispatcherStaleThreshold    int `json:"dispatcher_stale_threshold,omitempty"    yaml:"dispatcher_stale_threshold,omitempty"    mapstructure:"dispatcher_stale_threshold"`
 	MaxMessageContentLength     int `json:"max_message_content_length,omitempty"    yaml:"max_message_content_length,omitempty"    mapstructure:"max_message_content_length"`
 	MaxTotalContentSize         int `json:"max_total_content_size,omitempty"        yaml:"max_total_content_size,omitempty"        mapstructure:"max_total_content_size"`
+	AsyncTokenCounterWorkers    int `json:"async_token_counter_workers,omitempty"   yaml:"async_token_counter_workers,omitempty"   mapstructure:"async_token_counter_workers"`
 }
 
 type Config struct {
@@ -364,6 +365,7 @@ func configureDispatcherOptions(config *Config, log logger.Logger) {
 	setIntConfigFromEnv("DISPATCHER_STALE_THRESHOLD", &config.Opts.DispatcherStaleThreshold, 120, log)
 	setIntConfigFromEnv("MAX_MESSAGE_CONTENT_LENGTH", &config.Opts.MaxMessageContentLength, 10240, log)
 	setIntConfigFromEnv("MAX_TOTAL_CONTENT_SIZE", &config.Opts.MaxTotalContentSize, 102400, log)
+	setIntConfigFromEnv("ASYNC_TOKEN_COUNTER_WORKERS", &config.Opts.AsyncTokenCounterWorkers, 10, log)
 }
 
 // loadAndPrepareConfig loads and prepares the configuration file

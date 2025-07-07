@@ -125,7 +125,8 @@ func TestStatsMemory_TokenLimitFromConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create memory service and append some messages
-		memService := service.NewMemoryOperationsService(setup.Manager, nil, nil)
+		memService, err := service.NewMemoryOperationsService(setup.Manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 		ctx := context.Background()
 
 		// Append a message to generate some token count

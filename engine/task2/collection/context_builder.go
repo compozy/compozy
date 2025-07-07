@@ -82,6 +82,7 @@ func (b *ContextBuilder) BuildIterationContext(
 
 // BuildIterationContextWithProgress creates a context for a specific iteration including progress information
 func (b *ContextBuilder) BuildIterationContextWithProgress(
+	ctx context.Context,
 	baseContext *shared.NormalizationContext,
 	item any,
 	index int,
@@ -95,7 +96,7 @@ func (b *ContextBuilder) BuildIterationContextWithProgress(
 
 	// Add progress context if provided
 	if progressState != nil {
-		progressCtx := shared.BuildProgressContext(context.TODO(), progressState)
+		progressCtx := shared.BuildProgressContext(ctx, progressState)
 		iterCtx.Variables["progress"] = progressCtx
 	}
 

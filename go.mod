@@ -67,6 +67,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
+require github.com/romdo/go-debounce v0.1.0
+
 require (
 	cel.dev/expr v0.24.0 // indirect
 	cloud.google.com/go v0.121.3 // indirect

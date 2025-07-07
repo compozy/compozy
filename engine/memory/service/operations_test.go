@@ -235,12 +235,13 @@ func TestMemoryService_Read(t *testing.T) {
 		manager := &testMemoryManager{
 			getInstance: func(_ context.Context, memRef core.MemoryReference, _ map[string]any) (memcore.Memory, error) {
 				assert.Equal(t, "test_memory", memRef.ID)
-				assert.Equal(t, "test_key", memRef.Key)
+				assert.Equal(t, "test_key", memRef.ResolvedKey)
 				return memory, nil
 			},
 		}
 
-		service := NewMemoryOperationsService(manager, nil, nil)
+		service, err := NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		// Execute
 		resp, err := service.Read(ctx, &ReadRequest{
@@ -262,7 +263,8 @@ func TestMemoryService_Read(t *testing.T) {
 	t.Run("Should return validation error for empty memory reference", func(t *testing.T) {
 		// Use a minimal manager for validation testing - validation should occur before manager is used
 		manager := &testMemoryManager{}
-		service := NewMemoryOperationsService(manager, nil, nil)
+		service, err := NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		resp, err := service.Read(ctx, &ReadRequest{
 			BaseRequest: BaseRequest{
@@ -284,7 +286,8 @@ func TestMemoryService_Write(t *testing.T) {
 	t.Run("Should reject invalid payload type", func(t *testing.T) {
 		// Setup
 		manager := &testMemoryManager{}
-		service := NewMemoryOperationsService(manager, nil, nil)
+		service, err := NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		// Execute with invalid payload type
 		resp, err := service.Write(ctx, &WriteRequest{
@@ -311,7 +314,8 @@ func TestMemoryService_Write(t *testing.T) {
 			},
 		}
 
-		service := NewMemoryOperationsService(manager, nil, nil)
+		service, err := NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		// Execute
 		resp, err := service.Write(ctx, &WriteRequest{
@@ -355,7 +359,8 @@ func TestMemoryService_Write(t *testing.T) {
 			},
 		}
 
-		service := NewMemoryOperationsService(manager, nil, nil)
+		service, err := NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		// Execute
 		resp, err := service.Write(ctx, &WriteRequest{
@@ -392,7 +397,8 @@ func TestMemoryService_WriteWithTemplates(t *testing.T) {
 
 		// Create real template engine
 		templateEngine := tplengine.NewEngine(tplengine.FormatText)
-		service := NewMemoryOperationsService(manager, templateEngine, nil)
+		service, err := NewMemoryOperationsService(manager, templateEngine, nil, nil, nil)
+		require.NoError(t, err)
 
 		// Create workflow state
 		input := core.Input{"name": "John"}
@@ -435,7 +441,8 @@ func TestMemoryService_Append(t *testing.T) {
 	t.Run("Should reject invalid payload type", func(t *testing.T) {
 		// Setup
 		manager := &testMemoryManager{}
-		service := NewMemoryOperationsService(manager, nil, nil)
+		service, err := NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		// Execute with invalid payload type
 		resp, err := service.Append(ctx, &AppendRequest{
@@ -466,7 +473,8 @@ func TestMemoryService_Append(t *testing.T) {
 			},
 		}
 
-		service := NewMemoryOperationsService(manager, nil, nil)
+		service, err := NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		// Execute
 		resp, err := service.Append(ctx, &AppendRequest{
@@ -511,7 +519,8 @@ func TestMemoryService_Delete(t *testing.T) {
 			},
 		}
 
-		service := NewMemoryOperationsService(manager, nil, nil)
+		service, err := NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		// Execute
 		resp, err := service.Delete(ctx, &DeleteRequest{
@@ -551,7 +560,8 @@ func TestMemoryService_Clear(t *testing.T) {
 			},
 		}
 
-		service := NewMemoryOperationsService(manager, nil, nil)
+		service, err := NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		// Execute
 		resp, err := service.Clear(ctx, &ClearRequest{
@@ -576,7 +586,8 @@ func TestMemoryService_Clear(t *testing.T) {
 	t.Run("Should require confirmation for clear operation", func(t *testing.T) {
 		// Use a minimal manager for validation testing - validation should occur before manager is used
 		manager := &testMemoryManager{}
-		service := NewMemoryOperationsService(manager, nil, nil)
+		service, err := NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		resp, err := service.Clear(ctx, &ClearRequest{
 			BaseRequest: BaseRequest{
@@ -690,7 +701,8 @@ func TestMemoryService_WithRealRedis(t *testing.T) {
 		}
 
 		// Create service with real memory manager
-		service := NewMemoryOperationsService(setup.Manager, nil, nil)
+		service, err := NewMemoryOperationsService(setup.Manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		// Test paginated read
 		resp, err := service.ReadPaginated(ctx, &ReadPaginatedRequest{
@@ -723,7 +735,8 @@ func TestMemoryService_WithRealRedis(t *testing.T) {
 		_ = setup.CreateTestMemoryInstance(t, "test_memory_write")
 
 		// Create service with real memory manager
-		service := NewMemoryOperationsService(setup.Manager, nil, nil)
+		service, err := NewMemoryOperationsService(setup.Manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		// Test write operation
 		writeResp, err := service.Write(ctx, &WriteRequest{
@@ -771,7 +784,8 @@ func TestMemoryService_WithRealRedis(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create service with real memory manager
-		service := NewMemoryOperationsService(setup.Manager, nil, nil)
+		service, err := NewMemoryOperationsService(setup.Manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		// Test append operation
 		appendResp, err := service.Append(ctx, &AppendRequest{
@@ -800,18 +814,17 @@ func TestMemoryService_WithRealRedis(t *testing.T) {
 }
 
 func TestDependencyValidation(t *testing.T) {
-	t.Run("Should panic when memoryManager is nil", func(t *testing.T) {
-		assert.Panics(t, func() {
-			NewMemoryOperationsService(nil, nil, nil)
-		}, "Expected panic when memoryManager is nil")
+	t.Run("Should return error when memoryManager is nil", func(t *testing.T) {
+		_, err := NewMemoryOperationsService(nil, nil, nil, nil, nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "memoryManager is required")
 	})
 
 	t.Run("Should allow nil templateEngine and tokenCounter", func(t *testing.T) {
 		manager := &testMemoryManager{}
-		assert.NotPanics(t, func() {
-			service := NewMemoryOperationsService(manager, nil, nil)
-			assert.NotNil(t, service)
-		}, "Should not panic when only memoryManager is provided")
+		service, err := NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		require.NoError(t, err)
+		assert.NotNil(t, service)
 	})
 }
 
@@ -855,7 +868,8 @@ func TestTokenCountingNonBlocking(t *testing.T) {
 		// Create a service with a nil token counter (won't cause failures)
 		setup := testutil.SetupTestRedis(t)
 		defer setup.Cleanup()
-		svc := NewMemoryOperationsService(setup.Manager, nil, nil)
+		svc, err := NewMemoryOperationsService(setup.Manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 		// Test that operations continue normally even without token counting
 		// This verifies the non-blocking behavior by ensuring the method doesn't panic
 		messages := []llm.Message{
@@ -1004,7 +1018,8 @@ func TestMemoryService_Flush(t *testing.T) {
 			},
 		}
 
-		service := NewMemoryOperationsService(manager, nil, nil)
+		service, err := NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		// Execute with requested strategy
 		resp, err := service.Flush(ctx, &FlushRequest{
@@ -1051,7 +1066,8 @@ func TestMemoryService_Flush(t *testing.T) {
 			},
 		}
 
-		service := NewMemoryOperationsService(manager, nil, nil)
+		service, err := NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		// Execute without strategy
 		resp, err := service.Flush(ctx, &FlushRequest{
@@ -1092,7 +1108,8 @@ func TestMemoryService_Flush(t *testing.T) {
 			},
 		}
 
-		service := NewMemoryOperationsService(manager, nil, nil)
+		service, err := NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		// Execute with strategy (should be ignored)
 		resp, err := service.Flush(ctx, &FlushRequest{
@@ -1128,7 +1145,8 @@ func TestMemoryService_Flush(t *testing.T) {
 			},
 		}
 
-		service := NewMemoryOperationsService(manager, nil, nil)
+		service, err := NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		// Execute dry run with strategy
 		resp, err := service.Flush(ctx, &FlushRequest{
@@ -1176,7 +1194,8 @@ func TestMemoryService_Flush(t *testing.T) {
 			},
 		}
 
-		service := NewMemoryOperationsService(manager, nil, nil)
+		service, err := NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		require.NoError(t, err)
 
 		// Execute with strategy (should be ignored)
 		resp, err := service.Flush(ctx, &FlushRequest{

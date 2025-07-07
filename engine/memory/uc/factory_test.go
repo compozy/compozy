@@ -123,7 +123,8 @@ func TestFactory(t *testing.T) {
 		defer setup.Cleanup()
 
 		mockService := &mockMemoryOperationsService{}
-		factory := NewFactory(setup.Manager, nil, mockService)
+		factory, err := NewFactory(setup.Manager, nil, mockService)
+		require.NoError(t, err)
 
 		assert.NotNil(t, factory)
 		assert.Equal(t, mockService, factory.memoryService)
@@ -134,7 +135,8 @@ func TestFactory(t *testing.T) {
 		setup := testutil.SetupTestRedis(t)
 		defer setup.Cleanup()
 
-		factory := NewFactory(setup.Manager, nil, nil)
+		factory, err := NewFactory(setup.Manager, nil, nil)
+		require.NoError(t, err)
 
 		assert.NotNil(t, factory)
 		assert.NotNil(t, factory.memoryService)
@@ -146,7 +148,8 @@ func TestFactory(t *testing.T) {
 		defer setup.Cleanup()
 
 		mockService := &mockMemoryOperationsService{}
-		factory := NewFactory(setup.Manager, &worker.Worker{}, mockService)
+		factory, err := NewFactory(setup.Manager, &worker.Worker{}, mockService)
+		require.NoError(t, err)
 
 		// Test creating various use cases
 		readUC := factory.CreateReadMemory()
