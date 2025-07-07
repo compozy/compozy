@@ -6,7 +6,6 @@
   "type": "module",
   "main": "./entrypoint.ts",
   "scripts": {
-    "dev": "bun run entrypoint.ts",
     "build": "echo 'No build step required for Compozy examples'",
     "lint": "oxlint *.ts",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
