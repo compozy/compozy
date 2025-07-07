@@ -124,78 +124,78 @@ For targeted work on specific phases:
 - **Purpose:** Master orchestrator for the complete development pipeline
 - **Rules Injected:** All 14 rules from `.cursor/rules/`
 - **Capabilities:**
-    - Complete feature development pipeline
-    - Individual workflow phase execution
-    - Conflict resolution and quality oversight
-    - Progress tracking and validation
+  - Complete feature development pipeline
+  - Individual workflow phase execution
+  - Conflict resolution and quality oversight
+  - Progress tracking and validation
 - **Usage:** Primary entry point for comprehensive feature development
 
 #### `agent_feature_enricher.md`
 
 - **Purpose:** Transform brief feature descriptions into structured specifications
 - **Rules Injected:**
-    - `.cursor/rules/backwards-compatibility.mdc`
-    - `.cursor/rules/architecture.mdc`
-    - `.cursor/rules/prd-create.mdc`
-    - `.cursor/rules/quality-security.mdc`
+  - `.cursor/rules/backwards-compatibility.mdc`
+  - `.cursor/rules/architecture.mdc`
+  - `.cursor/rules/prd-create.mdc`
+  - `.cursor/rules/quality-security.mdc`
 - **Output:** Comprehensive JSON specification ready for PRD creation
 
 #### `agent_prd_creator.md`
 
 - **Purpose:** Generate complete Product Requirements Documents
 - **Rules Injected:**
-    - `.cursor/rules/prd-create.mdc`
-    - `.cursor/rules/critical-validation.mdc`
+  - `.cursor/rules/prd-create.mdc`
+  - `.cursor/rules/critical-validation.mdc`
 - **Output:** Stakeholder-ready PRD following official template
 
 #### `agent_prd_analyzer.md`
 
 - **Purpose:** Validate PRD quality, completeness, and implementation readiness
 - **Rules Injected:**
-    - `.cursor/rules/prd-create.mdc`
-    - `.cursor/rules/quality-security.mdc`
-    - `.cursor/rules/architecture.mdc`
+  - `.cursor/rules/prd-create.mdc`
+  - `.cursor/rules/quality-security.mdc`
+  - `.cursor/rules/architecture.mdc`
 - **Output:** Quality assessment with actionable feedback
 
 #### `agent_techspec_creator.md`
 
 - **Purpose:** Create detailed technical implementation specifications
 - **Rules Injected:**
-    - `.cursor/rules/prd-tech-spec.mdc`
-    - `.cursor/rules/architecture.mdc`
-    - `.cursor/rules/go-coding-standards.mdc`
-    - `.cursor/rules/api-standards.mdc`
-    - `.cursor/rules/go-patterns.mdc`
+  - `.cursor/rules/prd-tech-spec.mdc`
+  - `.cursor/rules/architecture.mdc`
+  - `.cursor/rules/go-coding-standards.mdc`
+  - `.cursor/rules/api-standards.mdc`
+  - `.cursor/rules/go-patterns.mdc`
 - **Output:** Implementation-ready technical specification
 
 #### `agent_technical_reviewer.md`
 
 - **Purpose:** Validate technical specifications for architectural compliance
 - **Rules Injected:**
-    - `.cursor/rules/architecture.mdc`
-    - `.cursor/rules/prd-tech-spec.mdc`
-    - `.cursor/rules/quality-security.mdc`
-    - `.cursor/rules/testing-standards.mdc`
-    - `.cursor/rules/api-standards.mdc`
+  - `.cursor/rules/architecture.mdc`
+  - `.cursor/rules/prd-tech-spec.mdc`
+  - `.cursor/rules/quality-security.mdc`
+  - `.cursor/rules/testing-standards.mdc`
+  - `.cursor/rules/api-standards.mdc`
 - **Output:** Technical approval with compliance validation
 
 #### `agent_simplicity_guardian.md`
 
 - **Purpose:** Analyze complexity and prevent overengineering
 - **Rules Injected:**
-    - `.cursor/rules/backwards-compatibility.mdc`
-    - `.cursor/rules/task-generate-list.mdc`
-    - `.cursor/rules/architecture.mdc`
+  - `.cursor/rules/backwards-compatibility.mdc`
+  - `.cursor/rules/task-generate-list.mdc`
+  - `.cursor/rules/architecture.mdc`
 - **Output:** Complexity analysis with simplification recommendations
 
 #### `agent_task_generator.md`
 
 - **Purpose:** Generate comprehensive task lists using Taskmaster MCP
 - **Rules Injected:**
-    - `.cursor/rules/task-generate-list.mdc`
-    - `.cursor/rules/task-developing.mdc`
-    - `.cursor/rules/task-review.mdc`
-    - `.cursor/rules/testing-standards.mdc`
+  - `.cursor/rules/task-generate-list.mdc`
+  - `.cursor/rules/task-developing.mdc`
+  - `.cursor/rules/task-review.mdc`
+  - `.cursor/rules/testing-standards.mdc`
 - **Output:** Complete taskmaster workflow with task files and complexity analysis
 
 ### Implementation Commands

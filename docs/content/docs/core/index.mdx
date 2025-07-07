@@ -1,0 +1,101 @@
+---
+title: Welcome
+description: Welcome to the Compozy documentation! This guide will help you get started with building intelligent workflows powered by AI agents and automation.
+icon: House
+---
+
+import {
+  Puzzle,
+  SlidersHorizontal,
+  BookOpen,
+  GitBranch,
+  FileCode,
+  Store,
+  GitMerge,
+  Code,
+  Cloud,
+} from "lucide-react";
+
+## Why Compozy?
+
+Building AI agents shouldn't require a PhD in machine learning or months of integration work. Yet today's AI development landscape presents significant challenges that slow down innovation and limit accessibility:
+
+<Steps size="lg" titleComponent="h3">
+  <Step title="Fragmented Development" icon={<Puzzle />}>
+    Developers spend 70% of their time wrestling with integrations instead of
+    building features. Connecting AI agents with databases, APIs, and external
+    tools requires navigating dozens of different protocols, authentication
+    methods, and data formats—turning simple automations into complex
+    engineering projects.
+  </Step>
+  <Step title="Closed Ecosystems" icon={<SlidersHorizontal />}>
+    Most AI platforms lock you into proprietary systems with limited
+    customization options. When you need to modify behavior, add custom
+    integrations, or understand how decisions are made, you hit a wall. This
+    vendor lock-in stifles innovation and increases long-term costs.
+  </Step>
+  <Step title="Lack of Standards" icon={<BookOpen />}>
+    Every AI agent platform speaks a different language. Teams waste months
+    rebuilding the same capabilities because there's no standardized way to
+    share, reuse, or compose agent components. What works on one platform rarely
+    translates to another.
+  </Step>
+  <Step title="Integration Complexity" icon={<GitBranch />}>
+    Setting up webhooks, managing API keys, handling rate limits, and
+    coordinating between multiple services requires extensive boilerplate code.
+    Simple workflows become complex orchestration challenges that take weeks to
+    deploy and maintain.
+  </Step>
+</Steps>
+
+## Solving these problems
+
+We solve these challenges by providing a comprehensive, open platform that simplifies AI agent development, deployment, and orchestration - making powerful AI capabilities accessible to developers of all skill levels:
+
+<FeatureCardList cols={2} size="lg">
+  <FeatureCard
+    title="Declarative Open Source Engine"
+    description="Build powerful AI workflows using an intuitive, open-source YAML specification. Inspired by GitHub Actions, our format lets you define complex automation with simple, human-readable syntax - from triggers and actions to data flows and conditional logic."
+    icon={FileCode}
+    href="/core/base-structure/overview"
+  />
+
+<FeatureCard
+  title="Community-Powered Registry"
+  description="Access and contribute to a growing ecosystem of pre-built tools, agents, and MCP servers. Extend your workflow capabilities with community-driven components."
+  icon={Store}
+  href="/getting-started/registry"
+/>
+
+<FeatureCard
+  title="Seamless Agent Orchestration"
+  description="Create complex workflows, chaining actions and connecting multiple agents seamlessly, with built-in context management, memory systems, and MCP integration for consistent decision-making."
+  icon={Puzzle}
+  href="/core/agents/overview"
+/>
+
+<FeatureCard
+  title="Language & Tool Agnostic"
+  description="Build AI agents and workflows using your preferred programming languages and tools. Compozy's platform-agnostic approach ensures seamless integration with any AI framework, model, or development stack."
+  icon={GitMerge}
+  href="/core/integrations/overview"
+/>
+
+<FeatureCard
+  title="Developer-First Experience"
+  description="Comprehensive CLI tooling for development, testing, and deployment. Access a marketplace of pre-built tools and agents, or create and publish your own."
+  icon={Code}
+  href="/getting-started/cli-overview"
+/>
+
+  <FeatureCard
+    title="Flexible Deployment Options"
+    description="Deploy to Compozy Cloud with a single command or self-host on your own infrastructure using Docker or Kubernetes. Full control over your deployment environment."
+    icon={Cloud}
+    href="/deployment/overview"
+  />
+</FeatureCardList>
+
+## Getting Started
+
+Ready to transform your AI workflow? Check out our [Quickstart Guide](/quickstart) to begin building your first workflow, or explore our [Key Features](/key-features) to understand the fundamentals of Compozy.

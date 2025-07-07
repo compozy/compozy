@@ -12,6 +12,7 @@ BINARY_NAME=compozy
 BINARY_DIR=bin
 SRC_DIRS=./...
 LINTCMD=golangci-lint
+BUNCMD=bun
 
 # -----------------------------------------------------------------------------
 # Build Variables
@@ -51,13 +52,14 @@ build: swagger
 # Code Quality & Formatting
 # -----------------------------------------------------------------------------
 lint:
+	$(BUNCMD) run lint
 	$(LINTCMD) run --fix --allow-parallel-runners
 	@echo "Linting completed successfully"
 
 fmt:
 	@echo "Formatting code..."
+	$(BUNCMD) run format
 	$(LINTCMD) fmt
-	@deno task prettier:fix
 	@echo "Formatting completed successfully"
 
 # -----------------------------------------------------------------------------

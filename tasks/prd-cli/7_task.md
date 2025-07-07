@@ -117,11 +117,11 @@ type Cache struct {
 - **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
 - **NEVER** use workarounds, especially in tests - implement proper solutions
 - **MUST** follow all established project standards:
-    - Architecture patterns: `.cursor/rules/architecture.mdc`
-    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-    - Testing requirements: `.cursor/rules/testing-standards.mdc`
-    - API standards: `.cursor/rules/api-standards.mdc`
-    - Security & quality: `.cursor/rules/quality-security.mdc`
+  - Architecture patterns: `.cursor/rules/architecture.mdc`
+  - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
+  - Testing requirements: `.cursor/rules/testing-standards.mdc`
+  - API standards: `.cursor/rules/api-standards.mdc`
+  - Security & quality: `.cursor/rules/quality-security.mdc`
 - **MUST** run `make lint` and `make test` before completing parent tasks
 - **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
 

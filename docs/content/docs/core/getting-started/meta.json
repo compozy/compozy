@@ -1,0 +1,6 @@
+{
+  "title": "Getting Started",
+  "description": "Quick start guide and core concepts for Compozy",
+  "icon": "Rocket",
+  "pages": ["quick-start", "installation", "core-concepts", "first-workflow"]
+}

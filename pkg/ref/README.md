@@ -7,44 +7,44 @@ reduce duplication and enable reusable, composable configurations while keeping 
 ## Table of Contents
 
 - [Ref Package](#ref-package)
-    - [Table of Contents](#table-of-contents)
-    - [Features](#features)
-    - [Installation](#installation)
-    - [Quick Start](#quick-start)
-    - [Core Directives](#core-directives)
-        - [`$ref` - Direct Value Injection](#ref---direct-value-injection)
-        - [`$use` - Component Transformation](#use---component-transformation)
-        - [`$merge` - Declarative Merging](#merge---declarative-merging)
-    - [Inline Merge](#inline-merge)
-        - [Syntax](#syntax)
-        - [Default Behavior](#default-behavior)
-        - [Merge Options](#merge-options)
-        - [Examples](#examples)
-            - [Basic Inline Merge](#basic-inline-merge)
-            - [Explicit Merge Options](#explicit-merge-options)
-            - [Key Conflict Handling](#key-conflict-handling)
-            - [Inline Merge with $use](#inline-merge-with-use)
-            - [Complex Nested Scenarios](#complex-nested-scenarios)
-    - [API Reference](#api-reference)
-        - [Basic Usage](#basic-usage)
-        - [Configuration Options](#configuration-options)
-        - [Advanced Features](#advanced-features)
-            - [Custom Directives](#custom-directives)
-            - [Pre-Evaluation Hooks](#pre-evaluation-hooks)
-            - [Direct Evaluator Usage](#direct-evaluator-usage)
-            - [Caching](#caching)
-    - [Performance](#performance)
-        - [Benchmarks](#benchmarks)
-    - [Best Practices](#best-practices)
-        - [1. Scope Organization](#1-scope-organization)
-        - [2. Avoid Deep Nesting](#2-avoid-deep-nesting)
-        - [3. Use Appropriate Directives](#3-use-appropriate-directives)
-        - [4. Handle Errors Properly](#4-handle-errors-properly)
-    - [Examples](#examples-1)
-        - [Complete Application Configuration](#complete-application-configuration)
-        - [Working with Arrays](#working-with-arrays)
-        - [Error Handling Examples](#error-handling-examples)
-    - [License](#license)
+  - [Table of Contents](#table-of-contents)
+  - [Features](#features)
+  - [Installation](#installation)
+  - [Quick Start](#quick-start)
+  - [Core Directives](#core-directives)
+    - [`$ref` - Direct Value Injection](#ref---direct-value-injection)
+    - [`$use` - Component Transformation](#use---component-transformation)
+    - [`$merge` - Declarative Merging](#merge---declarative-merging)
+  - [Inline Merge](#inline-merge)
+    - [Syntax](#syntax)
+    - [Default Behavior](#default-behavior)
+    - [Merge Options](#merge-options)
+    - [Examples](#examples)
+      - [Basic Inline Merge](#basic-inline-merge)
+      - [Explicit Merge Options](#explicit-merge-options)
+      - [Key Conflict Handling](#key-conflict-handling)
+      - [Inline Merge with $use](#inline-merge-with-use)
+      - [Complex Nested Scenarios](#complex-nested-scenarios)
+  - [API Reference](#api-reference)
+    - [Basic Usage](#basic-usage)
+    - [Configuration Options](#configuration-options)
+    - [Advanced Features](#advanced-features)
+      - [Custom Directives](#custom-directives)
+      - [Pre-Evaluation Hooks](#pre-evaluation-hooks)
+      - [Direct Evaluator Usage](#direct-evaluator-usage)
+      - [Caching](#caching)
+  - [Performance](#performance)
+    - [Benchmarks](#benchmarks)
+  - [Best Practices](#best-practices)
+    - [1. Scope Organization](#1-scope-organization)
+    - [2. Avoid Deep Nesting](#2-avoid-deep-nesting)
+    - [3. Use Appropriate Directives](#3-use-appropriate-directives)
+    - [4. Handle Errors Properly](#4-handle-errors-properly)
+  - [Examples](#examples-1)
+    - [Complete Application Configuration](#complete-application-configuration)
+    - [Working with Arrays](#working-with-arrays)
+    - [Error Handling Examples](#error-handling-examples)
+  - [License](#license)
 
 ## Features
 
@@ -400,14 +400,14 @@ deployment:
 ```yaml
 # Inline merge inside $merge directive
 config:
-    $merge:
-        - name: "my-app"
-        - database:
-              $ref: "local::db.defaults!merge:<deep>"
-              ssl: true
-              pool:
-                  timeout: 30
-        - $ref: "local::overrides"
+  $merge:
+    - name: "my-app"
+    - database:
+        $ref: "local::db.defaults!merge:<deep>"
+        ssl: true
+        pool:
+          timeout: 30
+    - $ref: "local::overrides"
 # The $ref with inline merge is evaluated first, then becomes a source for $merge
 ```
 
@@ -676,20 +676,20 @@ BenchmarkMerge_LargeArrays/Concat-16       1534473     791 ns/op   14104 B/op   
 ```yaml
 # Good: Organized by concern
 local:
-    defaults:
-        server:
-            host: "0.0.0.0"
-            port: 8080
-    features:
-        auth:
-            enabled: true
-            provider: "oauth2"
+  defaults:
+    server:
+      host: "0.0.0.0"
+      port: 8080
+  features:
+    auth:
+      enabled: true
+      provider: "oauth2"
 
 # Usage
 server:
-    $merge:
-        - $ref: "local::defaults.server"
-        - port: 9090
+  $merge:
+    - $ref: "local::defaults.server"
+    - port: 9090
 ```
 
 ### 2. Avoid Deep Nesting
@@ -773,27 +773,27 @@ environment: $ref: "local::env"
 ```yaml
 # Concatenate arrays (default)
 all_servers:
-    $merge:
-        - ["web1", "web2"]
-        - ["api1", "api2"]
+  $merge:
+    - ["web1", "web2"]
+    - ["api1", "api2"]
 # Result: ["web1", "web2", "api1", "api2"]
 
 # Unique values only
 tags:
-    $merge:
-        strategy: unique
-        sources:
-            - ["prod", "web", "critical"]
-            - ["web", "api", "prod"]
+  $merge:
+    strategy: unique
+    sources:
+      - ["prod", "web", "critical"]
+      - ["web", "api", "prod"]
 # Result: ["prod", "web", "critical", "api"]
 
 # Prepend arrays
 path:
-    $merge:
-        strategy: prepend
-        sources:
-            - ["/usr/local/bin"]
-            - ["/usr/bin", "/bin"]
+  $merge:
+    strategy: prepend
+    sources:
+      - ["/usr/local/bin"]
+      - ["/usr/bin", "/bin"]
 # Result: ["/usr/local/bin", "/usr/bin", "/bin"]
 ```
 
@@ -802,20 +802,20 @@ path:
 ```yaml
 # Cyclic reference (detected and prevented)
 a:
-    $ref: "local::b"
+  $ref: "local::b"
 # Where scope has: {"b": {"$ref": "local::a"}}
 # Error: cyclic reference detected at local::a
 
 # Type mismatch in merge
 invalid:
-    $merge:
-        - { key: "value" }
-        - ["array"]
+  $merge:
+    - { key: "value" }
+    - ["array"]
 # Error: $merge sources must be all objects or all arrays, not mixed
 
 # Missing reference
 missing:
-    $ref: "local::does.not.exist"
+  $ref: "local::does.not.exist"
 # Error: path does.not.exist not found in local scope
 ```
 

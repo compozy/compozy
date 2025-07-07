@@ -1,0 +1,13 @@
+{
+  "title": "Memory & Context",
+  "description": "Memory system and context management",
+  "icon": "Brain",
+  "pages": [
+    "memory-concepts",
+    "configuration",
+    "operations",
+    "integration-patterns",
+    "privacy-security",
+    "troubleshooting"
+  ]
+}

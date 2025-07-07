@@ -11,6 +11,7 @@ This document details all changes made during the memory system fixes and task r
 ## Summary of Changes
 
 ### 1. Service Stability Fix - operations.go
+
 **File:** `engine/memory/service/operations.go`
 **Change:** Replaced panic with proper error handling in constructor
 
@@ -33,6 +34,7 @@ func NewMemoryOperationsService(...) (MemoryOperationsService, error) {
 ```
 
 ### 2. Non-blocking Retry Logic - manager.go
+
 **File:** `engine/memory/manager.go`
 **Change:** Replaced blocking `time.Sleep` with go-retry library
 
@@ -49,17 +51,20 @@ err := retry.Do(ctx, retryConfig, func(ctx context.Context) error {
 ```
 
 ### 3. Template Security Fix (REVERTED) - config_resolver.go
+
 **File:** `engine/memory/config_resolver.go`
 **Change:** Initially added template sanitization, then **COMPLETELY REMOVED** it
 
 **Initial Addition (REMOVED):**
+
 - Added `sanitizeTemplateInput()` function
-- Added `sanitizeWorkflowContext()` function 
+- Added `sanitizeWorkflowContext()` function
 - Added `sanitizeContextValue()` function
 
 **Final State:** No sanitization - Go template engine with Sprig already handles security properly.
 
 ### 4. Function Refactoring - manager.go
+
 **File:** `engine/memory/manager.go`
 **Change:** Refactored large `getInstanceInternal` function into smaller functions
 
@@ -71,6 +76,7 @@ func (mm *Manager) logInstanceCreation(...)
 ```
 
 ### 5. Production Logging Cleanup - config_resolver.go
+
 **File:** `engine/memory/config_resolver.go`
 **Change:** Removed emoji usage from log messages
 
@@ -89,9 +95,11 @@ mm.log.Warn("Template contains potentially unsafe patterns", ...)
 ## Test Updates
 
 ### Updated Function Signatures
+
 All tests updated to handle new error-returning function signatures:
 
 **Files Updated:**
+
 - `engine/memory/service/operations_test.go`
 - `engine/memory/uc/factory_test.go`
 - `engine/memory/uc/stats_memory_test.go`
@@ -99,6 +107,7 @@ All tests updated to handle new error-returning function signatures:
 - `test/integration/memory/strategy_selection_test.go`
 
 **Pattern:**
+
 ```go
 // OLD:
 service := NewMemoryOperationsService(...)
@@ -109,6 +118,7 @@ require.NoError(t, err)
 ```
 
 ### Test Expectation Fix
+
 **File:** `test/integration/memory/memory_consistency_test.go`
 **Change:** Removed specific retry attempt number check
 
@@ -137,7 +147,7 @@ assert.Contains(t, err.Error(), "attempt 3/3")
 ## Files Modified
 
 1. `engine/memory/service/operations.go` - Service constructor error handling
-2. `engine/memory/manager.go` - Retry logic and function refactoring  
+2. `engine/memory/manager.go` - Retry logic and function refactoring
 3. `engine/memory/config_resolver.go` - Template handling and logging cleanup
 4. `engine/memory/service/operations_test.go` - Test updates
 5. `engine/memory/uc/factory_test.go` - Test updates

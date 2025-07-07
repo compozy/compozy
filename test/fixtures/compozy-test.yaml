@@ -3,25 +3,25 @@ version: 0.1.0
 description: Test project with memory resources
 
 workflows:
-    - source: ./workflows/*.yaml
+  - source: ./workflows/*.yaml
 
 models:
-    - provider: openai
-      model: gpt-3.5-turbo
-      api_key: "{{ .env.OPENAI_API_KEY }}"
+  - provider: openai
+    model: gpt-3.5-turbo
+    api_key: "{{ .env.OPENAI_API_KEY }}"
 
 runtime:
-    type: bun
-    entrypoint: "./index.ts"
+  type: bun
+  entrypoint: "./index.ts"
 
 # AutoLoad configuration for memory resources
 autoload:
-    enabled: true
-    strict: false
-    include:
-        - "memory/*.yaml"
-        - "test/fixtures/memory/*.yaml"
-    exclude:
-        - "**/*~"
-        - "**/*.bak"
-        - "**/*.tmp"
+  enabled: true
+  strict: false
+  include:
+    - "memory/*.yaml"
+    - "test/fixtures/memory/*.yaml"
+  exclude:
+    - "**/*~"
+    - "**/*.bak"
+    - "**/*.tmp"

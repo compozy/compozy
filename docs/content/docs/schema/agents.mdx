@@ -1,0 +1,21 @@
+---
+title: Agent Schema
+description: JSON Schema for agent configuration
+icon: Bot
+---
+
+import { SchemaParams } from "@/components/ui/params/schema-params";
+import agentSchema from "@/schemas/agent.json";
+
+<SchemaParams
+  schema={agentSchema}
+  title="Configuration Schema"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Resources
+
+- [JSON Schema Specification](https://json-schema.org/)
+- [JSON Schema Validator](https://www.jsonschemavalidator.net/)

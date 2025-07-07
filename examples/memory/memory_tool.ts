@@ -1,6 +1,6 @@
 /**
  * Memory Tool - Simple memory operations for conversational agent
- * 
+ *
  * This tool provides basic memory operations to store and retrieve
  * user conversation history for the simple conversational agent demo.
  */
@@ -25,15 +25,15 @@ interface MemoryOutput {
 
 export function memoryTool(input: MemoryInput): MemoryOutput {
   // Input validation
-  if (!input || typeof input !== 'object') {
-    throw new Error('Invalid input: input must be an object');
+  if (!input || typeof input !== "object") {
+    throw new Error("Invalid input: input must be an object");
   }
-  
-  if (!input.operation || typeof input.operation !== 'string') {
-    throw new Error('Invalid input: operation must be a non-empty string');
+
+  if (!input.operation || typeof input.operation !== "string") {
+    throw new Error("Invalid input: operation must be a non-empty string");
   }
-  
-  if (!['read', 'append'].includes(input.operation)) {
+
+  if (!["read", "append"].includes(input.operation)) {
     throw new Error('Invalid input: operation must be either "read" or "append"');
   }
 
@@ -49,14 +49,14 @@ export function memoryTool(input: MemoryInput): MemoryOutput {
         return {
           success: false,
           operation,
-          error: `Unknown operation: ${operation}. Supported: read, append`
+          error: `Unknown operation: ${operation}. Supported: read, append`,
         };
     }
   } catch (error) {
     return {
       success: false,
       operation,
-      error: error instanceof Error ? error.message : "Unknown error occurred"
+      error: error instanceof Error ? error.message : "Unknown error occurred",
     };
   }
 }
@@ -66,18 +66,18 @@ function handleRead(memory_key?: string): MemoryOutput {
     return {
       success: false,
       operation: "read",
-      error: "memory_key is required for read operation"
+      error: "memory_key is required for read operation",
     };
   }
 
   // Simulate reading from memory
   // In real implementation, this would call the memory system
   const mockMemoryContent = simulateUserMemory(memory_key);
-  
+
   return {
     success: true,
     operation: "read",
-    result: mockMemoryContent
+    result: mockMemoryContent,
   };
 }
 
@@ -86,7 +86,7 @@ function handleAppend(memory_key?: string, message?: string): MemoryOutput {
     return {
       success: false,
       operation: "append",
-      error: "memory_key is required for append operation"
+      error: "memory_key is required for append operation",
     };
   }
 
@@ -94,21 +94,21 @@ function handleAppend(memory_key?: string, message?: string): MemoryOutput {
     return {
       success: false,
       operation: "append",
-      error: "message is required for append operation"
+      error: "message is required for append operation",
     };
   }
 
   // Simulate appending to memory
   const timestamp = new Date().toISOString();
   const formattedMessage = `[${timestamp}] ${message}`;
-  
+
   return {
     success: true,
     operation: "append",
     result: {
       appended_message: formattedMessage,
-      timestamp
-    }
+      timestamp,
+    },
   };
 }
 
@@ -121,12 +121,12 @@ Agent: Nice to meet you, John! I'll remember that you live in San Francisco.
 User: Where do I live?
 Agent: You live in San Francisco.`;
   }
-  
+
   if (memory_key.includes("user:jane_smith")) {
     return `User: Hello, my name is Jane and I'm from New York
 Agent: Hello Jane! Nice to meet you. I'll remember that you're from New York.`;
   }
-  
+
   // For new users or empty memory
   return "";
 }

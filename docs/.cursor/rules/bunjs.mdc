@@ -1,0 +1,513 @@
+---
+alwaysApply: false
+---
+
+# Bun.js Best Practices
+
+<core_philosophy>
+**All-in-One Development Philosophy:**
+
+- Bun is an all-in-one toolkit: runtime, bundler, test runner, package manager
+- Prioritize Bun's native APIs over Node.js equivalents for performance
+- TypeScript and JSX work out of the box - no configuration needed
+- Embrace the speed advantages in all aspects of development
+  </core_philosophy>
+
+## Project Setup
+
+<project_setup>
+**Essential Project Initialization:**
+
+- Use bun init for new projects
+- Configure bunfig.toml for workspace settings
+- Leverage workspace feature for monorepos
+- Keep package.json scripts simple - Bun handles complexity
+  </project_setup>
+
+```bash
+# Initialize new project
+bun init
+
+# Create bunfig.toml for configuration
+[install]
+registry = "https://registry.npmjs.org"
+cache = "~/.bun/install/cache"
+lockfile = true
+exact = false
+
+[test]
+coverage = true
+preload = ["./setup.ts"]
+
+[run]
+shell = "bash"
+```
+
+```json
+// package.json optimized for Bun
+{
+  "name": "my-bun-app",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "build": "bun build src/index.ts --outdir ./dist --target node",
+    "start": "bun dist/index.js",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "lint": "bun run oxlint src/",
+    "type-check": "bun run tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.0.0"
+  }
+}
+```
+
+## Package Management
+
+<package_management>
+**Efficient Dependency Management:**
+
+- Use bun install for faster package installation
+- Leverage Bun's lockfile for reproducible builds
+- Use workspaces for monorepo management
+- Take advantage of automatic peer dependency resolution
+  </package_management>
+
+```bash
+# Install packages (much faster than npm/yarn)
+bun install
+
+# Add dependencies
+bun add react react-dom
+bun add -d typescript @types/react
+
+# Install from specific registry
+bun install --registry https://registry.npmjs.org
+
+# Clean install
+bun install --frozen-lockfile
+
+# Workspace commands
+bun install --filter="packages/*"
+bun run build --filter="@myorg/shared"
+```
+
+```toml
+# bunfig.toml for workspace configuration
+[install]
+cache = "~/.bun/install/cache"
+registry = "https://registry.npmjs.org"
+exact = false
+
+[install.scopes]
+"@myorg" = "https://npm.myorg.com"
+
+[test]
+preload = ["./test/setup.ts"]
+coverage = true
+```
+
+## Runtime Optimization
+
+<runtime_optimization>
+**High-Performance Runtime Usage:**
+
+- Use Bun's native APIs for file operations
+- Leverage built-in HTTP server for maximum performance
+- Use Bun.spawn for subprocess management
+- Take advantage of native JSON parsing
+  </runtime_optimization>
+
+```typescript
+// ✅ Good: Use Bun's native file operations
+import { file, write } from "bun";
+
+// Fast file reading
+const data = await file("large-file.json").json();
+
+// Fast file writing
+await write("output.json", JSON.stringify(data));
+
+// ✅ Good: Use Bun's HTTP server
+const server = Bun.serve({
+  port: 3000,
+  fetch(req) {
+    const url = new URL(req.url);
+
+    if (url.pathname === "/api/health") {
+      return new Response("OK", { status: 200 });
+    }
+
+    return new Response("Not Found", { status: 404 });
+  },
+});
+
+console.log(`Server running at http://localhost:${server.port}`);
+
+// ✅ Good: Use Bun.spawn for subprocess
+const proc = Bun.spawn(["ls", "-la"], {
+  stdout: "pipe",
+  stderr: "pipe",
+});
+
+const output = await new Response(proc.stdout).text();
+console.log(output);
+```
+
+## Building and Bundling
+
+<build_optimization>
+**Efficient Build Configuration:**
+
+- Use Bun's built-in bundler for optimal performance
+- Configure target environments appropriately
+- Leverage tree-shaking and minification
+- Use source maps for debugging
+  </build_optimization>
+
+```typescript
+// build.ts - Custom build script
+import { build } from "bun";
+
+const result = await build({
+  entrypoints: ["./src/index.ts"],
+  outdir: "./dist",
+  target: "node",
+  format: "esm",
+  minify: true,
+  sourcemap: "external",
+  splitting: true,
+  define: {
+    "process.env.NODE_ENV": '"production"',
+  },
+  external: ["react", "react-dom"], // Don't bundle these
+});
+
+if (!result.success) {
+  console.error("Build failed");
+  for (const message of result.logs) {
+    console.error(message);
+  }
+  process.exit(1);
+}
+
+console.log("Build completed successfully");
+```
+
+```bash
+# Build commands
+bun build src/index.ts --outdir ./dist --target node
+bun build src/client.tsx --outdir ./public --target browser
+bun build --minify --sourcemap=external
+
+# Watch mode for development
+bun build src/index.ts --outdir ./dist --watch
+```
+
+## Testing with Bun
+
+<testing_strategies>
+**Comprehensive Testing Approach:**
+
+- Use Bun's built-in test runner for speed
+- Write tests in TypeScript without configuration
+- Use built-in mocking capabilities
+- Leverage fast test execution
+  </testing_strategies>
+
+```typescript
+// test/setup.ts - Global test setup
+import { beforeAll, afterAll } from "bun:test";
+
+beforeAll(() => {
+  // Global setup
+  process.env.NODE_ENV = "test";
+});
+
+afterAll(() => {
+  // Global cleanup
+});
+
+// test/utils.test.ts
+import { describe, it, expect, mock } from "bun:test";
+import { formatDate, fetchUser } from "../src/utils";
+
+describe("Utils", () => {
+  it("should format date correctly", () => {
+    const date = new Date("2025-01-01");
+    expect(formatDate(date)).toBe("2025-01-01");
+  });
+
+  it("should handle async operations", async () => {
+    const mockFetch = mock(() => Promise.resolve({ id: 1, name: "John" }));
+    const user = await fetchUser(1);
+
+    expect(mockFetch).toHaveBeenCalledWith(1);
+    expect(user).toEqual({ id: 1, name: "John" });
+  });
+
+  it("should mock modules", async () => {
+    mock.module("../src/api", () => ({
+      apiCall: mock(() => Promise.resolve("mocked")),
+    }));
+
+    const { apiCall } = await import("../src/api");
+    const result = await apiCall();
+
+    expect(result).toBe("mocked");
+  });
+});
+```
+
+```bash
+# Test commands
+bun test               # Run all tests
+bun test --watch       # Watch mode
+bun test --coverage    # With coverage
+bun test utils.test.ts # Specific file
+bun test --bail        # Stop on first failure
+```
+
+## Environment Configuration
+
+<environment_management>
+**Robust Environment Setup:**
+
+- Use .env files with automatic loading
+- Validate environment variables at startup
+- Use different configs per environment
+- Implement type-safe environment access
+  </environment_management>
+
+```typescript
+// src/env.ts - Type-safe environment configuration
+import { z } from "zod";
+
+const envSchema = z.object({
+  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  PORT: z.coerce.number().default(3000),
+  DATABASE_URL: z.string().url(),
+  JWT_SECRET: z.string().min(32),
+  API_KEY: z.string().optional(),
+});
+
+export const env = envSchema.parse(process.env);
+
+// Type-safe access
+export type Env = z.infer<typeof envSchema>;
+```
+
+```bash
+# .env files are automatically loaded
+# .env
+NODE_ENV=development
+PORT=3000
+DATABASE_URL=postgresql://localhost:5432/myapp
+JWT_SECRET=your-super-secret-jwt-key-here
+
+# .env.production
+NODE_ENV=production
+PORT=8080
+DATABASE_URL=postgresql://prod-server:5432/myapp
+```
+
+## Performance Optimization
+
+<performance_patterns>
+**Maximum Performance Strategies:**
+
+- Use Bun's fast startup for development
+- Leverage hot reloading for instant feedback
+- Use native APIs instead of polyfills
+- Optimize bundle splitting for production
+  </performance_patterns>
+
+```typescript
+// ✅ Good: Use Bun's native performance features
+import { performance } from "perf_hooks";
+
+// Fast JSON operations
+const data = Bun.file("large-data.json").json();
+
+// Efficient string operations
+const hash = Bun.hash("some-string");
+const password = await Bun.password.hash("user-password");
+
+// Fast HTTP client
+const response = await fetch("https://api.example.com/data", {
+  headers: {
+    "User-Agent": "MyApp/1.0",
+  },
+});
+
+// Use Bun's built-in utilities
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+```
+
+```bash
+# Development with hot reloading
+bun run --hot src/index.ts
+
+# Production optimizations
+bun build --minify --target=node18 --outdir=dist src/index.ts
+```
+
+## Integration Patterns
+
+<integration_patterns>
+**Seamless Tool Integration:**
+
+- Integrate with existing Node.js ecosystem
+- Use Bun with popular frameworks
+- Configure for deployment platforms
+- Set up CI/CD with Bun
+  </integration_patterns>
+
+```dockerfile
+# Dockerfile for Bun applications
+FROM oven/bun:1 as base
+WORKDIR /app
+
+# Install dependencies
+COPY package.json bun.lockb ./
+RUN bun install --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+# Build application
+RUN bun run build
+
+# Production stage
+FROM oven/bun:1-slim as production
+WORKDIR /app
+
+COPY --from=base /app/dist ./dist
+COPY --from=base /app/package.json ./
+
+EXPOSE 3000
+CMD ["bun", "run", "dist/index.js"]
+```
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run tests
+        run: bun test
+
+      - name: Build
+        run: bun run build
+
+      - name: Type check
+        run: bun run type-check
+```
+
+## Security Considerations
+
+<security_practices>
+**Security Best Practices:**
+
+- Validate all environment variables
+- Use secure defaults for server configuration
+- Implement proper error handling
+- Follow least privilege principles
+  </security_practices>
+
+```typescript
+// src/security.ts
+import { env } from "./env";
+
+// Secure server configuration
+const server = Bun.serve({
+  port: env.PORT,
+  hostname: "0.0.0.0",
+
+  fetch(req) {
+    // Security headers
+    const headers = new Headers({
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+      "X-XSS-Protection": "1; mode=block",
+      "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    });
+
+    try {
+      // Your application logic
+      return handleRequest(req, headers);
+    } catch (error) {
+      // Don't expose internal errors
+      console.error("Server error:", error);
+      return new Response("Internal Server Error", {
+        status: 500,
+        headers,
+      });
+    }
+  },
+
+  error(error) {
+    console.error("Server error:", error);
+    return new Response("Internal Server Error", { status: 500 });
+  },
+});
+
+async function handleRequest(req: Request, headers: Headers): Promise<Response> {
+  const url = new URL(req.url);
+
+  // Validate request
+  if (req.method !== "GET" && req.method !== "POST") {
+    return new Response("Method Not Allowed", { status: 405, headers });
+  }
+
+  // Your route handling logic
+  return new Response("OK", { headers });
+}
+```
+
+<production_deployment>
+**Production Deployment Guidelines:**
+
+- Use official Bun Docker images
+- Configure proper logging
+- Set up health checks
+- Monitor performance metrics
+- Use process managers for production
+  </production_deployment>
+
+<best_practices_summary>
+**Essential Bun.js Guidelines:**
+
+1. Use Bun's native APIs for maximum performance
+2. Leverage built-in TypeScript and JSX support
+3. Use bun test for fast testing workflows
+4. Configure bunfig.toml for project settings
+5. Use workspaces for monorepo management
+6. Implement type-safe environment configuration
+7. Use hot reloading for development efficiency
+8. Optimize builds with proper target configuration
+9. Secure applications with proper error handling
+10. Deploy with official Docker images and monitoring
+    </best_practices_summary>
+
+<enforcement_policy>
+**MANDATORY:** These patterns must be followed consistently across all Bun.js applications and configurations.
+</enforcement_policy>

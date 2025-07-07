@@ -10,12 +10,12 @@
 - **Pluggable Storage** – in-memory (default) or **Redis** persistence for definitions & status.
 - **Dynamic Registration** – hot-add, update or remove servers at runtime via the **Admin API**.
 - **Built-in Security**
-    - Admin token authentication & IP allow-lists.
-    - Per-client and global auth tokens inherited by every request.
-    - Trusted-proxy support for safe `X-Forwarded-For` handling.
+  - Admin token authentication & IP allow-lists.
+  - Per-client and global auth tokens inherited by every request.
+  - Trusted-proxy support for safe `X-Forwarded-For` handling.
 - **Observability**
-    - `/healthz` and `/admin/metrics` endpoints.
-    - Per-client connection statistics & status tracking.
+  - `/healthz` and `/admin/metrics` endpoints.
+  - Per-client connection statistics & status tracking.
 - **Automatic Reconnect & Health-Checks** with configurable intervals/back-off.
 - **Tool, Prompt & Resource Discovery** – exposes downstream MCP capabilities through the proxy.
 
@@ -45,9 +45,9 @@ go run ./cmd/proxy/main.go # you may create your own main or use examples
 
 # 2. Register an MCP server (stdio example)
 curl -X POST http://127.0.0.1:8080/admin/mcps \
-    -H 'Authorization: Bearer CHANGE_ME_ADMIN_TOKEN' \
-    -H 'Content-Type: application/json' \
-    -d '{
+  -H 'Authorization: Bearer CHANGE_ME_ADMIN_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
         "name": "echo-mcp",
         "transport": "stdio",
         "command": "echo",
@@ -84,37 +84,37 @@ Configure these via code or inject via env-aware config loader of your choice.
 
 ```jsonc
 {
-    "name": "chat-llm", // unique id
-    "description": "OpenAI ChatGPT",
-    "transport": "sse", // stdio | sse | streamable-http
+  "name": "chat-llm", // unique id
+  "description": "OpenAI ChatGPT",
+  "transport": "sse", // stdio | sse | streamable-http
 
-    // stdio-specific
-    "command": "python",
-    "args": ["server.py"],
-    "env": { "PYTHONPATH": "." },
+  // stdio-specific
+  "command": "python",
+  "args": ["server.py"],
+  "env": { "PYTHONPATH": "." },
 
-    // http-based specific
-    "url": "https://llm.example.com/mcp",
-    "headers": { "X-API-Key": "..." },
-    "timeout": "30s",
+  // http-based specific
+  "url": "https://llm.example.com/mcp",
+  "headers": { "X-API-Key": "..." },
+  "timeout": "30s",
 
-    // security
-    "authTokens": ["client-token"],
-    "requireAuth": true,
-    "allowedIPs": ["0.0.0.0/0"],
+  // security
+  "authTokens": ["client-token"],
+  "requireAuth": true,
+  "allowedIPs": ["0.0.0.0/0"],
 
-    // behaviour
-    "autoReconnect": true,
-    "maxReconnects": 5,
-    "reconnectDelay": "5s",
-    "healthCheckEnabled": true,
-    "healthCheckInterval": "30s",
+  // behaviour
+  "autoReconnect": true,
+  "maxReconnects": 5,
+  "reconnectDelay": "5s",
+  "healthCheckEnabled": true,
+  "healthCheckInterval": "30s",
 
-    // tool filtering (optional)
-    "toolFilter": {
-        "mode": "allow", // allow|block
-        "list": ["search-tool"],
-    },
+  // tool filtering (optional)
+  "toolFilter": {
+    "mode": "allow", // allow|block
+    "list": ["search-tool"],
+  },
 }
 ```
 
@@ -125,13 +125,13 @@ Configure these via code or inject via env-aware config loader of your choice.
 ## 🛡️ Security Model
 
 1. **Admin API** (`/admin/**`)
-    - Protected by **Bearer token** (`AdminTokens`).
-    - Optional IP allow-list (`AdminAllowIPs`).
+   - Protected by **Bearer token** (`AdminTokens`).
+   - Optional IP allow-list (`AdminAllowIPs`).
 2. **Proxy Endpoints** (`/{name}/sse`, `/{name}/stream`)
-    - Auth is **passed-through** to downstream MCP.
-    - Per-client tokens (`authTokens`) **+** `GlobalAuthTokens` are automatically accepted.
+   - Auth is **passed-through** to downstream MCP.
+   - Per-client tokens (`authTokens`) **+** `GlobalAuthTokens` are automatically accepted.
 3. **Trusted Proxies**
-    - Configure `TrustedProxies` to safely read user IPs from `X-Forwarded-For`.
+   - Configure `TrustedProxies` to safely read user IPs from `X-Forwarded-For`.
 
 ---
 
@@ -172,13 +172,13 @@ The **ClientManager** exposes aggregate statistics:
 
 ```json
 {
-    "total_clients": 4,
-    "connected": 3,
-    "connecting": 0,
-    "errored": 1,
-    "total_requests": 1234,
-    "total_errors": 8,
-    "max_connections": 100
+  "total_clients": 4,
+  "connected": 3,
+  "connecting": 0,
+  "errored": 1,
+  "total_requests": 1234,
+  "total_errors": 8,
+  "max_connections": 100
 }
 ```
 
@@ -288,28 +288,28 @@ id: chat-qa-workflow
 version: "0.1.0"
 
 author:
-    name: Jane Doe
+  name: Jane Doe
 
 actions: [] # omitted for brevity
 
 mcps:
-    # Down-stream chat LLM exposed via the proxy
-    - id: chat-llm
-      # Point to the *proxy* URL – not the raw LLM server
-      url: http://127.0.0.1:8080/chat-llm/sse
-      transport: sse # stdio | sse | streamable-http
-      use_proxy: true # <- magic flag
-      env:
-          X-API-Key: "{{ .env.LLM_API_KEY }}"
-      start_timeout: 10s
-      max_sessions: 4
+  # Down-stream chat LLM exposed via the proxy
+  - id: chat-llm
+    # Point to the *proxy* URL – not the raw LLM server
+    url: http://127.0.0.1:8080/chat-llm/sse
+    transport: sse # stdio | sse | streamable-http
+    use_proxy: true # <- magic flag
+    env:
+      X-API-Key: "{{ .env.LLM_API_KEY }}"
+    start_timeout: 10s
+    max_sessions: 4
 
-    # You can still mix direct (non-proxied) MCPs if desired
-    - id: batch-mcp
-      url: http://batch.local:4000/mcp
-      transport: streamable-http
-      env:
-          TOKEN: "{{ .env.BATCH_TOKEN }}"
+  # You can still mix direct (non-proxied) MCPs if desired
+  - id: batch-mcp
+    url: http://batch.local:4000/mcp
+    transport: streamable-http
+    env:
+      TOKEN: "{{ .env.BATCH_TOKEN }}"
 ```
 
 #### How it Works
@@ -325,28 +325,28 @@ If you author an **agent** that directly lists MCPs it follows the same pattern:
 ```yaml
 id: research-agent
 config:
-    provider: openai
-    model: gpt-4o-mini
+  provider: openai
+  model: gpt-4o-mini
 
 instructions: |
-    You are a research assistant.
+  You are a research assistant.
 
 mcps:
-    - id: search-tool
-      url: http://127.0.0.1:8080/search-mcp/stream
-      transport: streamable-http
-      use_proxy: true
+  - id: search-tool
+    url: http://127.0.0.1:8080/search-mcp/stream
+    transport: streamable-http
+    use_proxy: true
 
 actions:
-    - id: web-search
-      prompt: "Find information about: {{ .input.query }}"
-      tool: $mcp(search-tool#search_web)
-      input:
-          type: object
-          properties:
-              query:
-                  type: string
-          required: [query]
+  - id: web-search
+    prompt: "Find information about: {{ .input.query }}"
+    tool: $mcp(search-tool#search_web)
+    input:
+      type: object
+      properties:
+        query:
+          type: string
+      required: [query]
 ```
 
 With `use_proxy: true` the agent's tool calls are transparently routed via the proxy, inheriting all global auth tokens/config set on the proxy instance.

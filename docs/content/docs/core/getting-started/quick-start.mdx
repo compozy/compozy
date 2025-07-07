@@ -1,0 +1,68 @@
+---
+title: Quick Start
+description: Get started with Compozy in 15 minutes
+---
+
+# Quick Start
+
+Get Compozy running in 15 minutes with our interactive TUI.
+
+## Prerequisites
+
+- Docker and Docker Compose
+- Go 1.21+ (for development)
+- Node.js 18+ (for tools development)
+
+## Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/compozy/compozy.git
+cd compozy
+
+# Start the infrastructure
+make cluster-up
+
+# Initialize a new project
+compozy init my-project
+cd my-project
+```
+
+## Your First Workflow
+
+Create a simple workflow that uses an AI agent:
+
+```yaml
+# workflows/hello.yaml
+name: hello-world
+description: My first Compozy workflow
+
+tasks:
+  - name: greet
+    type: agent
+    config:
+      agent: assistant
+      instruction: "Say hello to {{'{{'}.name{{'}}'}}"
+
+input:
+  name: World
+```
+
+## Run the Workflow
+
+```bash
+# Deploy the workflow
+compozy workflow deploy
+
+# Execute it
+compozy run create hello-world --input name=Compozy
+
+# Check status
+compozy run status
+```
+
+## Next Steps
+
+- [Installation Guide](/docs/getting-started/installation) - Detailed setup options
+- [Core Concepts](/docs/getting-started/core-concepts) - Deep dive into Compozy
+- [Examples](/docs/examples) - More workflow examples

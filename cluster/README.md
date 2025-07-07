@@ -17,27 +17,27 @@ This directory contains the Docker Compose configuration for running Compozy's i
 
 1. **Copy environment configuration**:
 
-    ```bash
-    cp .env.example .env
-    # Edit .env with your desired configuration
-    ```
+   ```bash
+   cp .env.example .env
+   # Edit .env with your desired configuration
+   ```
 
 2. **Start all services**:
 
-    ```bash
-    make start-docker
-    ```
+   ```bash
+   make start-docker
+   ```
 
 3. **Verify Redis is running**:
 
-    ```bash
-    make test-redis
-    ```
+   ```bash
+   make test-redis
+   ```
 
 4. **Run database migrations**:
-    ```bash
-    make migrate-up
-    ```
+   ```bash
+   make migrate-up
+   ```
 
 ## Redis Configuration
 

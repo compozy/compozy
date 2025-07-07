@@ -1,0 +1,29 @@
+{
+  "title": "Core",
+  "description": "The core of Compozy",
+  "icon": "Building2",
+  "root": true,
+  "pages": [
+    "index",
+    "getting-started",
+    "configuration",
+    "yaml-templates",
+    "---Concepts---",
+    "tools",
+    "agents",
+    "tasks",
+    "memory",
+    "mcp",
+    "signals",
+    "scheduling",
+    "---Setup---",
+    "temporal",
+    "development",
+    "deployment",
+    "metrics",
+    "---Resources---",
+    "examples",
+    "community",
+    "reference"
+  ]
+}

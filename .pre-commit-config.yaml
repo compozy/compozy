@@ -29,20 +29,34 @@ repos:
       - id: detect-private-key
   - repo: local
     hooks:
-      - id: format
-        name: format
-        description: Format files using different tools
-        entry: make fmt
-        language: rust
+      - id: turbo-lint
+        name: turbo lint
+        description: Run linting via Turborepo
+        entry: turbo run lint --concurrency=1
+        language: system
+        files: \.(js|jsx|ts|tsx)$
         pass_filenames: false
-  # - repo: local
-  #   hooks:
-  #     - id: lint
-  #       name: lint
-  #       description: Lint files using different tools
-  #       entry: make lint
-  #       language: rust
-  #       pass_filenames: false
+      - id: turbo-format
+        name: turbo format
+        description: Format files via Turborepo
+        entry: turbo run format --concurrency=1
+        language: system
+        files: \.(js|jsx|ts|tsx|json|css|scss|md|sh)$
+        pass_filenames: false
+      - id: turbo-type-check
+        name: turbo type check
+        description: Run TypeScript checking via Turborepo
+        entry: turbo run type-check --concurrency=1
+        language: system
+        files: \.(ts|tsx)$
+        pass_filenames: false
+      - id: format-go
+        name: format go
+        description: Format Go files using make fmt
+        entry: make fmt
+        language: system
+        files: \.go$
+        pass_filenames: false
   - repo: https://github.com/lyz-code/yamlfix/
     rev: 1.17.0
     hooks:

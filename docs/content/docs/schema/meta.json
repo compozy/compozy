@@ -1,0 +1,7 @@
+{
+  "title": "Schema Definition",
+  "description": "JSON Schema definitions for Compozy resources",
+  "icon": "FileJson",
+  "root": true,
+  "pages": ["project", "tools", "agents", "tasks", "memory", "mcp", "workflows"]
+}

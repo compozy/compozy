@@ -1,0 +1,15 @@
+{
+  "title": "Configuration",
+  "description": "Project setup and configuration management",
+  "icon": "Settings",
+  "pages": [
+    "project-setup",
+    "cli",
+    "global",
+    "workflows",
+    "providers",
+    "runtime-config",
+    "autoload",
+    "monitoring-config"
+  ]
+}

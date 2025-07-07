@@ -1,0 +1,21 @@
+---
+title: Tool Schema
+description: JSON Schema for tool configuration
+icon: Code
+---
+
+import { SchemaParams } from "@/components/ui/params/schema-params";
+import toolSchema from "@/schemas/tool.json";
+
+<SchemaParams
+  schema={toolSchema}
+  title="Tool Configuration Schema"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Resources
+
+- [JSON Schema Specification](https://json-schema.org/)
+- [JSON Schema Validator](https://www.jsonschemavalidator.net/)

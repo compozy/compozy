@@ -1,0 +1,560 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# HTML & CSS Best Practices
+
+<semantic_structure>
+**Modern HTML5 Semantic Foundation:**
+- Use semantic elements for better accessibility and SEO
+- Structure documents with proper hierarchy
+- One `<main>` element per page
+- Use landmarks: header, nav, main, aside, footer
+</semantic_structure>
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Page description for SEO">
+  <title>Page Title - Site Name</title>
+</head>
+<body>
+  <header>
+    <nav aria-label="Main navigation">
+      <ul>
+        <li><a href="/">Home</a></li>
+      </ul>
+    </nav>
+  </header>
+  
+  <main>
+    <article>
+      <header>
+        <h1>Article Title</h1>
+        <time datetime="2025-01-01">January 1, 2025</time>
+      </header>
+      <section>
+        <h2>Section Heading</h2>
+        <p>Content...</p>
+      </section>
+    </article>
+  </main>
+  
+  <aside aria-label="Related content">
+    <h2>Related Articles</h2>
+  </aside>
+  
+  <footer>
+    <p>&copy; 2025 Company Name</p>
+  </footer>
+</body>
+</html>
+```
+
+## Accessibility Standards
+
+<accessibility_standards>
+**WCAG 2.2 Compliance Requirements:**
+- Ensure all interactive elements are keyboard accessible
+- Provide proper ARIA labels and descriptions
+- Maintain sufficient color contrast ratios
+- Use semantic HTML as the foundation
+- Test with screen readers regularly
+</accessibility_standards>
+
+```html
+<!-- ✅ Good: Accessible form -->
+<form>
+  <fieldset>
+    <legend>Contact Information</legend>
+    
+    <label for="name">
+      Full Name <span aria-label="required">*</span>
+    </label>
+    <input 
+      type="text" 
+      id="name" 
+      name="name" 
+      required 
+      aria-describedby="name-error"
+    >
+    <div id="name-error" role="alert" aria-live="polite"></div>
+    
+    <label for="email">Email Address</label>
+    <input 
+      type="email" 
+      id="email" 
+      name="email" 
+      aria-describedby="email-hint"
+    >
+    <div id="email-hint">We'll never share your email</div>
+  </fieldset>
+  
+  <button type="submit">Send Message</button>
+</form>
+
+<!-- ✅ Good: Accessible navigation -->
+<nav aria-label="Breadcrumb">
+  <ol>
+    <li><a href="/">Home</a></li>
+    <li><a href="/products">Products</a></li>
+    <li aria-current="page">Laptops</li>
+  </ol>
+</nav>
+```
+
+## Modern CSS Features
+
+<modern_css_features>
+**Latest CSS Capabilities (2025):**
+- Use CSS Grid and Flexbox for layouts
+- Leverage Container Queries for component-based responsiveness
+- Implement CSS Custom Properties for theming
+- Use modern selectors like :has() and :where()
+</modern_css_features>
+
+```css
+/* Container Queries for responsive components */
+.card-container {
+  container-type: inline-size;
+  container-name: card;
+}
+
+@container card (min-width: 400px) {
+  .card {
+    display: flex;
+    flex-direction: row;
+  }
+  
+  .card__image {
+    flex: 0 0 200px;
+  }
+}
+
+/* Modern CSS Grid with subgrid */
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 3fr 1fr;
+  grid-template-rows: auto 1fr auto;
+  gap: 1rem;
+  min-height: 100vh;
+}
+
+.content {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+}
+
+/* CSS Custom Properties for theming */
+:root {
+  --color-primary: hsl(220 90% 50%);
+  --color-surface: hsl(0 0% 100%);
+  --spacing-unit: 0.5rem;
+  --border-radius: calc(var(--spacing-unit) * 2);
+}
+
+[data-theme="dark"] {
+  --color-primary: hsl(220 90% 60%);
+  --color-surface: hsl(220 15% 10%);
+}
+
+/* Modern selectors */
+.form:has(:invalid) .submit-button {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.navigation:where(.horizontal, .vertical) {
+  display: flex;
+}
+
+.navigation:where(.horizontal) {
+  flex-direction: row;
+}
+
+.navigation:where(.vertical) {
+  flex-direction: column;
+}
+```
+
+## Performance Optimization
+
+<performance_optimization>
+**Critical CSS Performance Strategies:**
+- Minimize unused CSS with PurgeCSS
+- Use CSS containment for performance isolation
+- Implement critical CSS for above-the-fold content
+- Optimize for Core Web Vitals
+</performance_optimization>
+
+```css
+/* CSS Containment for performance */
+.card {
+  contain: layout style paint;
+}
+
+.sidebar {
+  contain: layout;
+}
+
+/* Critical CSS patterns */
+.above-fold {
+  /* Critical styles only */
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+/* Efficient animations */
+.slide-in {
+  transform: translateX(-100%);
+  transition: transform 0.3s ease-out;
+  will-change: transform;
+}
+
+.slide-in.active {
+  transform: translateX(0);
+}
+
+/* Remove will-change after animation */
+.slide-in:not(.active) {
+  will-change: auto;
+}
+```
+
+## Responsive Design Patterns
+
+<responsive_design>
+**Mobile-First Responsive Strategy:**
+- Design for mobile first, enhance for larger screens
+- Use fluid typography and spacing
+- Implement responsive images with proper formats
+- Use logical properties for international support
+</responsive_design>
+
+```css
+/* Mobile-first responsive design */
+.container {
+  padding-inline: 1rem;
+  max-inline-size: 1200px;
+  margin-inline: auto;
+}
+
+/* Fluid typography */
+.heading {
+  font-size: clamp(1.5rem, 4vw, 3rem);
+  line-height: 1.2;
+}
+
+/* Responsive grid */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+/* Responsive images */
+.responsive-image {
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  aspect-ratio: 16/9;
+}
+
+/* Logical properties for i18n */
+.content {
+  margin-block-start: 2rem;
+  padding-inline: 1rem;
+  border-inline-start: 3px solid var(--color-primary);
+}
+```
+
+## CSS Architecture
+
+<css_architecture>
+**Scalable CSS Organization:**
+- Use BEM methodology for component naming
+- Organize CSS by components, not pages
+- Implement CSS custom properties for consistency
+- Use CSS layers for cascade management
+</css_architecture>
+
+```css
+/* CSS Layers for cascade control */
+@layer reset, base, components, utilities;
+
+@layer reset {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+@layer base {
+  body {
+    font-family: system-ui, sans-serif;
+    line-height: 1.6;
+    color: var(--color-text);
+  }
+}
+
+@layer components {
+  /* BEM methodology */
+  .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: var(--border-radius);
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  
+  .button--secondary {
+    background: var(--color-secondary);
+    color: var(--color-on-secondary);
+  }
+  
+  .button--large {
+    padding: 1rem 2rem;
+    font-size: 1.125rem;
+  }
+  
+  .button__icon {
+    flex-shrink: 0;
+    width: 1em;
+    height: 1em;
+  }
+  
+  .button:hover {
+    background: var(--color-primary-hover);
+  }
+  
+  .button:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  
+  .visually-hidden:not(:focus):not(:active) {
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+}
+```
+
+## SEO Optimization
+
+<seo_optimization>
+**Search Engine Optimization Best Practices:**
+- Use proper heading hierarchy (h1 → h6)
+- Implement structured data with JSON-LD
+- Optimize meta tags and Open Graph
+- Use semantic HTML for content structure
+</seo_optimization>
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- SEO Meta Tags -->
+  <title>Product Name - Category | Site Name</title>
+  <meta name="description" content="Detailed product description for SEO">
+  <meta name="keywords" content="keyword1, keyword2, keyword3">
+  <link rel="canonical" href="https://example.com/products/product-name">
+  
+  <!-- Open Graph -->
+  <meta property="og:title" content="Product Name - Category">
+  <meta property="og:description" content="Product description">
+  <meta property="og:image" content="https://example.com/product-image.jpg">
+  <meta property="og:url" content="https://example.com/products/product-name">
+  <meta property="og:type" content="product">
+  
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Product Name">
+  <meta name="twitter:description" content="Product description">
+  <meta name="twitter:image" content="https://example.com/product-image.jpg">
+  
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": "Product Name",
+    "description": "Product description",
+    "image": "https://example.com/product-image.jpg",
+    "offers": {
+      "@type": "Offer",
+      "price": "99.99",
+      "priceCurrency": "USD",
+      "availability": "https://schema.org/InStock"
+    }
+  }
+  </script>
+</head>
+<body>
+  <main>
+    <article>
+      <h1>Product Name</h1>
+      <h2>Features</h2>
+      <h3>Feature Details</h3>
+    </article>
+  </main>
+</body>
+</html>
+```
+
+## Form Best Practices
+
+<form_best_practices>
+**Accessible and User-Friendly Forms:**
+- Use proper form validation with clear error messages
+- Implement progressive enhancement
+- Provide helpful hints and instructions
+- Use appropriate input types and attributes
+</form_best_practices>
+
+```html
+<form novalidate>
+  <fieldset>
+    <legend>Personal Information</legend>
+    
+    <div class="form-field">
+      <label for="email">Email Address</label>
+      <input 
+        type="email" 
+        id="email" 
+        name="email" 
+        required 
+        autocomplete="email"
+        aria-describedby="email-hint email-error"
+        pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"
+      >
+      <div id="email-hint" class="form-hint">
+        We'll use this to send you updates
+      </div>
+      <div id="email-error" class="form-error" role="alert"></div>
+    </div>
+    
+    <div class="form-field">
+      <label for="phone">Phone Number</label>
+      <input 
+        type="tel" 
+        id="phone" 
+        name="phone" 
+        autocomplete="tel"
+        aria-describedby="phone-hint"
+        pattern="[0-9]{3}-[0-9]{3}-[0-9]{4}"
+        placeholder="123-456-7890"
+      >
+      <div id="phone-hint" class="form-hint">
+        Format: 123-456-7890
+      </div>
+    </div>
+  </fieldset>
+  
+  <button type="submit">Submit Form</button>
+</form>
+```
+
+<css_reset>
+**Modern CSS Reset:**
+```css
+/* Modern CSS Reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+body {
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+}
+
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  overflow-wrap: break-word;
+}
+
+#root,
+#__next {
+  isolation: isolate;
+}
+```
+</css_reset>
+
+<best_practices_summary>
+**Essential HTML/CSS Guidelines:**
+1. Use semantic HTML elements for structure and meaning
+2. Ensure full keyboard accessibility
+3. Implement proper ARIA labels and descriptions
+4. Use modern CSS features for layouts (Grid, Flexbox)
+5. Optimize for Core Web Vitals and performance
+6. Follow mobile-first responsive design
+7. Use logical properties for internationalization
+8. Implement proper form validation and error handling
+9. Structure CSS with layers and components
+10. Optimize for SEO with proper meta tags and structured data
+</best_practices_summary>
+
+<enforcement_policy>
+**MANDATORY:** These patterns must be followed consistently across all HTML and CSS implementations.
+</enforcement_policy>

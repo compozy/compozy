@@ -1,0 +1,21 @@
+---
+title: Task Schema
+description: JSON Schema for task configuration
+icon: ListTodo
+---
+
+import { SchemaParams } from "@/components/ui/params/schema-params";
+import taskSchema from "@/schemas/task.json";
+
+<SchemaParams
+  schema={taskSchema}
+  title="Task Configuration Schema"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Resources
+
+- [JSON Schema Specification](https://json-schema.org/)
+- [JSON Schema Validator](https://www.jsonschemavalidator.net/)

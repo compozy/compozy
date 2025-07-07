@@ -1,0 +1,13 @@
+{
+  "title": "Template Engine",
+  "description": "Understanding our YAML template engine",
+  "icon": "FileCode",
+  "pages": [
+    "overview",
+    "context-variables",
+    "directives",
+    "sprig-functions",
+    "advanced-patterns",
+    "validation-debugging"
+  ]
+}

@@ -1,0 +1,419 @@
+---
+globs: **/*.ts,**/*.tsx,**/*.mdx
+alwaysApply: false
+---
+
+# Shadcn UI Best Practices
+
+<mandatory_design_token_usage>
+**CRITICAL: Always Use Design System Tokens for Theme Switching**
+
+To ensure the theme switching functionality works correctly across light and dark modes, you MUST always use design system tokens instead of explicit color values:
+
+✅ **Always use:** `bg-background`, `text-foreground`, `border-border`, `bg-primary`, `text-primary-foreground`
+❌ **Never use:** `bg-white`, `text-black`, `border-gray-200`, `bg-blue-500`, `text-green-400`
+
+**Why this matters:**
+
+- Design tokens automatically adapt to the current theme (light/dark)
+- Explicit values break theme switching and cause accessibility issues
+- Design tokens ensure consistent brand colors across all themes
+
+**Required tokens for common use cases:**
+
+- Backgrounds: `bg-background`, `bg-card`, `bg-muted`, `bg-popover`
+- Text: `text-foreground`, `text-muted-foreground`, `text-card-foreground`
+- Borders: `border-border`, `border-input`, `border-ring`
+- Actions: `bg-primary text-primary-foreground`, `bg-secondary text-secondary-foreground`
+- States: `bg-destructive text-destructive-foreground`, `bg-accent text-accent-foreground`
+  </mandatory_design_token_usage>
+
+<core_philosophy>
+**Shadcn UI Development Philosophy:**
+
+- Shadcn is copy-paste, not a dependency - you own the code
+- Components are meant to be customized for your needs
+- Built on Radix UI primitives for accessibility
+- Styled with Tailwind CSS for flexibility
+  </core_philosophy>
+
+## Installation & Setup
+
+<installation_setup>
+**Essential Setup Process:**
+
+- Use the CLI for initial setup and adding components
+- Configure components.json for your project structure
+- Set up proper import aliases (@/components/ui)
+- Install only the components you need
+  </installation_setup>
+
+```bash
+npx shadcn-ui@latest init
+npx shadcn-ui@latest add button card dialog
+```
+
+## Component Customization
+
+<component_customization>
+**Customization Guidelines:**
+
+- Directly edit component files after installation
+- Don't hesitate to modify structure, styles, or behavior
+- Keep accessibility attributes from Radix UI
+- Add your own props and variants as needed
+- Use Tailwind Variants for component styling (see Tailwind CSS best practices)
+  </component_customization>
+
+```typescript
+// Example: Extending Button with loading state
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  loading?: boolean
+}
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, loading, children, ...props }, ref) => {
+    return (
+      <button
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        disabled={loading || props.disabled}
+        {...props}
+      >
+        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        {children}
+      </button>
+    )
+  }
+)
+```
+
+## Accessibility Best Practices
+
+<accessibility_guidelines>
+**Critical Accessibility Requirements:**
+
+- Never remove Radix UI's accessibility attributes
+- Test all components with keyboard navigation
+- Ensure proper focus management
+- Use semantic HTML elements
+- Add proper ARIA labels where needed
+  </accessibility_guidelines>
+
+```tsx
+// Good: Preserving accessibility
+<Dialog>
+  <DialogTrigger asChild>
+    <Button>Open Dialog</Button>
+  </DialogTrigger>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Accessible Title</DialogTitle>
+      <DialogDescription>
+        This description helps screen readers understand the dialog's purpose
+      </DialogDescription>
+    </DialogHeader>
+  </DialogContent>
+</Dialog>
+```
+
+## Styling Approach
+
+<styling_approach>
+**Component Styling Strategy:**
+
+- Components come with default Tailwind CSS classes
+- Use [Tailwind Variants](mdc:https:/www.tailwind-variants.org) for component variants
+- See Tailwind CSS best practices for detailed styling guidelines
+- Keep component logic separate from styling concerns
+  </styling_approach>
+
+## Theming Strategy
+
+<theming_strategy>
+**Comprehensive Theme Management:**
+
+- Use CSS variables for all color values
+- Extend theme in globals.css
+- Create semantic color names
+- Support dark mode from the start
+  </theming_strategy>
+
+```css
+/* globals.css */
+@layer base {
+  :root {
+    /* Add custom semantic colors */
+    --success: 142 76% 36%;
+    --success-foreground: 355 100% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 48 96% 89%;
+  }
+
+  .dark {
+    --success: 142 76% 46%;
+    --success-foreground: 142 76% 10%;
+    --warning: 48 96% 89%;
+    --warning-foreground: 38 92% 30%;
+  }
+}
+```
+
+## Compound Component Patterns
+
+<compound_components>
+**Advanced Component Architecture:**
+
+- Embrace the compound component pattern
+- Keep related components together
+- Use dot notation for exports
+- Maintain clear component boundaries
+  </compound_components>
+
+```typescript
+// Card compound component
+export const Card = Object.assign(CardRoot, {
+  Header: CardHeader,
+  Title: CardTitle,
+  Description: CardDescription,
+  Content: CardContent,
+  Footer: CardFooter,
+})
+
+// Usage
+<Card>
+  <Card.Header>
+    <Card.Title>Title</Card.Title>
+  </Card.Header>
+  <Card.Content>Content</Card.Content>
+</Card>
+```
+
+## Form Handling with @tanstack/react-form
+
+<form_integration>
+**Form Management Best Practices:**
+
+- Use the Form components for consistent styling
+- Integrate with zod for validation
+- Handle errors gracefully
+- Provide clear feedback
+  </form_integration>
+
+```tsx
+import { useForm } from "@tanstack/react-form";
+import { z } from "zod";
+
+const formSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+export function LoginForm() {
+  const form = useForm({
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+    onSubmit: async ({ value }) => {
+      // Handle form submission
+      console.log(value);
+    },
+    validators: {
+      onChange: formSchema,
+    },
+  });
+
+  return (
+    <Form form={form}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          form.handleSubmit();
+        }}
+        className="space-y-4"
+      >
+        <FormField name="email">
+          {(field) => (
+            <FormItem>
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input
+                  type="email"
+                  placeholder="Enter your email"
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        </FormField>
+      </form>
+    </Form>
+  );
+}
+```
+
+## Animation Integration
+
+<animation_integration>
+**Animation Strategy:**
+
+- Use Framer Motion for complex animations
+- Keep Radix's built-in animations for dialogs/tooltips
+- Ensure animations respect prefers-reduced-motion
+- Add subtle micro-interactions
+  </animation_integration>
+
+```tsx
+import { motion, AnimatePresence } from "framer-motion";
+
+// Animated card with Framer Motion
+export function AnimatedCard({ children, ...props }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.2 }}
+    >
+      <Card {...props}>{children}</Card>
+    </motion.div>
+  );
+}
+```
+
+## Data Table Patterns
+
+<data_table_patterns>
+**Complex Table Implementation:**
+
+- Use TanStack Table for complex tables
+- Implement proper sorting and filtering
+- Add loading and empty states
+- Support row selection when needed
+  </data_table_patterns>
+
+```tsx
+// Column definition with sorting
+const columns: ColumnDef<User>[] = [
+  {
+    accessorKey: "email",
+    header: ({ column }) => (
+      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        Email
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
+    cell: ({ row }) => <div className="lowercase">{row.getValue("email")}</div>,
+  },
+];
+```
+
+## Component Organization
+
+<component_organization>
+**Structured Component Management:**
+
+- Keep UI components in components/ui
+- Create feature-specific components separately
+- Use barrel exports for cleaner imports
+- Document component props with JSDoc
+  </component_organization>
+
+```typescript
+// components/ui/index.ts (barrel export)
+export * from './button'
+export * from './card'
+export * from './dialog'
+export * from './form'
+
+// Feature component using UI components
+import { Button, Card } from '@/components/ui'
+
+export function FeatureCard() {
+  return (
+    <Card>
+      <Card.Header>
+        <Card.Title>Feature</Card.Title>
+      </Card.Header>
+      <Card.Footer>
+        <Button>Action</Button>
+      </Card.Footer>
+    </Card>
+  )
+}
+```
+
+## Performance Considerations
+
+<performance_guidelines>
+**Critical Performance Patterns:**
+
+- Lazy load heavy components (Sheet, Dialog)
+- Use React.memo for expensive list items
+- Implement virtualization for long lists
+- Optimize bundle size by importing only used components
+  </performance_guidelines>
+
+## Testing Components
+
+<testing_guidelines>
+**Comprehensive Testing Strategy:**
+
+- Test user interactions, not implementation
+- Use React Testing Library
+- Mock complex dependencies
+- Test accessibility requirements
+  </testing_guidelines>
+
+```typescript
+// Example test
+describe('Button', () => {
+  it('should handle click events', () => {
+    const handleClick = jest.fn()
+    render(<Button onClick={handleClick}>Click me</Button>)
+
+    fireEvent.click(screen.getByText('Click me'))
+    expect(handleClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('should be keyboard accessible', () => {
+    render(<Button>Press me</Button>)
+    const button = screen.getByText('Press me')
+
+    button.focus()
+    expect(document.activeElement).toBe(button)
+  })
+})
+```
+
+<common_customizations>
+**Essential Customization Patterns:**
+
+1. Adding loading states to buttons
+2. Creating custom color variants
+3. Extending form inputs with icons
+4. Building composite components
+5. Adding animation variants
+   </common_customizations>
+
+<best_practices_summary>
+**Essential Shadcn Guidelines:**
+
+- Customize freely - you own the code
+- Preserve accessibility features
+- Use compound components for flexibility
+- Integrate with your tech stack
+- Test thoroughly
+- Keep components focused and reusable
+  </best_practices_summary>
+
+<enforcement_policy>
+**MANDATORY:** These patterns must be followed consistently across all Shadcn UI component implementations.
+</enforcement_policy>

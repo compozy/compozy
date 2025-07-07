@@ -86,10 +86,10 @@ Compozy currently provides only a single CLI command (`compozy dev`) for local d
 - **Profile**: Senior ML engineer at a fintech startup. Lives in VS Code and terminal. Manages 15+ production workflows
 - **Environment**: macOS, zsh with custom dotfiles, tmux power user
 - **Key Needs**:
-    - Fast, scriptable commands for deployment and monitoring
-    - Ability to tail logs without leaving terminal during debugging sessions
-    - Seamless integration with GitHub Actions for model retraining pipelines
-    - Keyboard-driven interfaces with minimal latency
+  - Fast, scriptable commands for deployment and monitoring
+  - Ability to tail logs without leaving terminal during debugging sessions
+  - Seamless integration with GitHub Actions for model retraining pipelines
+  - Keyboard-driven interfaces with minimal latency
 - **Success Criteria**: Can deploy and monitor a workflow in under 30 seconds without touching a mouse
 
 **Persona 2: "Carlos" - The DevOps/Platform Engineer**
@@ -97,11 +97,11 @@ Compozy currently provides only a single CLI command (`compozy dev`) for local d
 - **Profile**: Platform engineer responsible for CI/CD infrastructure at a mid-size company
 - **Environment**: Linux, extensive bash scripting, Jenkins/GitLab CI pipelines
 - **Key Needs**:
-    - Non-interactive commands with predictable exit codes
-    - Service account authentication (no browser required)
-    - Machine-parsable output (JSON) for all commands
-    - Stability guarantees and semantic versioning
-    - Bulk operations for managing multiple workflows
+  - Non-interactive commands with predictable exit codes
+  - Service account authentication (no browser required)
+  - Machine-parsable output (JSON) for all commands
+  - Stability guarantees and semantic versioning
+  - Bulk operations for managing multiple workflows
 - **Success Criteria**: Can script entire workflow deployment pipeline with zero manual intervention
 
 ### Secondary Personas
@@ -111,10 +111,10 @@ Compozy currently provides only a single CLI command (`compozy dev`) for local d
 - **Profile**: PhD in statistics, comfortable with Python/R but not a terminal expert
 - **Environment**: Windows WSL2, basic command line usage
 - **Key Needs**:
-    - Intuitive, guided experiences for common tasks
-    - Clear, helpful error messages with suggested next steps
-    - Visual feedback for long-running operations
-    - Easy-to-remember command patterns
+  - Intuitive, guided experiences for common tasks
+  - Clear, helpful error messages with suggested next steps
+  - Visual feedback for long-running operations
+  - Easy-to-remember command patterns
 - **Success Criteria**: Can successfully deploy first workflow within 5 minutes using interactive prompts
 
 **Persona 4: "Maya" - The Platform/MLOps Engineer**
@@ -122,10 +122,10 @@ Compozy currently provides only a single CLI command (`compozy dev`) for local d
 - **Profile**: Manages shared ML infrastructure for 50+ data scientists
 - **Environment**: Mixed (manages both macOS and Linux systems)
 - **Key Needs**:
-    - Bulk workflow management capabilities
-    - Policy-as-code for workflow configurations
-    - Audit trail for all CLI operations
-    - Template-based workflow creation
+  - Bulk workflow management capabilities
+  - Policy-as-code for workflow configurations
+  - Audit trail for all CLI operations
+  - Template-based workflow creation
 - **Success Criteria**: Can manage 100+ workflows efficiently through CLI automation
 
 **Persona 5: "CI Bot" - The Automation System**
@@ -133,10 +133,10 @@ Compozy currently provides only a single CLI command (`compozy dev`) for local d
 - **Profile**: Non-human actors (GitHub Actions, Jenkins, GitLab CI)
 - **Environment**: Ephemeral containers, no persistent state
 - **Key Needs**:
-    - Token-based authentication
-    - JSON output for all operations
-    - Deterministic behavior and exit codes
-    - Minimal dependencies and fast startup
+  - Token-based authentication
+  - JSON output for all operations
+  - Deterministic behavior and exit codes
+  - Minimal dependencies and fast startup
 - **Success Criteria**: 100% success rate for automated deployments with proper error propagation
   </personas>
 
@@ -445,40 +445,40 @@ $ compozy init
 - **Description**: Existing API not designed for CLI usage patterns
 - **Impact**: High - Could delay project by 4+ weeks
 - **Mitigation**:
-    - Week 1 spike to validate top 5 workflows
-    - Identify required API changes early
-    - Build adapter layer if needed
-    - Have backend team on standby
+  - Week 1 spike to validate top 5 workflows
+  - Identify required API changes early
+  - Build adapter layer if needed
+  - Have backend team on standby
 
 **Risk 2: Cross-Platform Compatibility**
 
 - **Description**: TUI features may not work consistently across platforms
 - **Impact**: Medium - Could limit user experience
 - **Mitigation**:
-    - Mandatory `--no-interactive` flag
-    - Progressive enhancement approach
-    - Platform-specific testing from week 1
-    - Graceful degradation built-in
+  - Mandatory `--no-interactive` flag
+  - Progressive enhancement approach
+  - Platform-specific testing from week 1
+  - Graceful degradation built-in
 
 **Risk 3: Authentication Complexity**
 
 - **Description**: Various auth methods (OAuth, SSO, tokens) add complexity
 - **Impact**: Medium - Could block enterprise adoption
 - **Mitigation**:
-    - Start with token auth (simplest)
-    - OAuth in phase 2
-    - Clear documentation for each method
-    - Enterprise auth patterns guide
+  - Start with token auth (simplest)
+  - OAuth in phase 2
+  - Clear documentation for each method
+  - Enterprise auth patterns guide
 
 **Risk 4: Scope Creep**
 
 - **Description**: Pressure to add "just one more feature"
 - **Impact**: High - Could derail timeline
 - **Mitigation**:
-    - Strict MVP definition
-    - Weekly steering committee reviews
-    - Feature requests go to backlog
-    - Version 2.0 roadmap published early
+  - Strict MVP definition
+  - Weekly steering committee reviews
+  - Feature requests go to backlog
+  - Version 2.0 roadmap published early
 
 ### Medium-Priority Risks
 
@@ -487,21 +487,21 @@ $ compozy init
 - **Description**: Commands slow with large resource counts
 - **Impact**: Medium - Poor user experience
 - **Mitigation**:
-    - Pagination from day 1
-    - Efficient filtering server-side
-    - Local caching strategy
-    - Performance benchmarks in CI
+  - Pagination from day 1
+  - Efficient filtering server-side
+  - Local caching strategy
+  - Performance benchmarks in CI
 
 **Risk 6: Breaking Changes**
 
 - **Description**: Future API changes break CLI compatibility
 - **Impact**: Low initially, High over time
 - **Mitigation**:
-    - Version checking on startup
-    - Semantic versioning from 1.0
-    - Deprecation warnings
-    - 6-month compatibility guarantee
-      </risks>
+  - Version checking on startup
+  - Semantic versioning from 1.0
+  - Deprecation warnings
+  - 6-month compatibility guarantee
+    </risks>
 
 ---
 
@@ -611,24 +611,24 @@ compozy workflow deploy workflows/data-pipeline.yaml --version v1.2.0
 # .github/workflows/deploy.yml
 - name: Deploy Workflow
   env:
-      COMPOZY_API_TOKEN: ${{ secrets.COMPOZY_TOKEN }}
+    COMPOZY_API_TOKEN: ${{ secrets.COMPOZY_TOKEN }}
   run: |
-      compozy workflow deploy ./workflows/ml-pipeline.yaml
-      compozy run create ml-pipeline --wait --timeout 30m
+    compozy workflow deploy ./workflows/ml-pipeline.yaml
+    compozy run create ml-pipeline --wait --timeout 30m
 ```
 
 ### E. Versioning Policy (Draft)
 
 1. **Semantic Versioning**: MAJOR.MINOR.PATCH from 1.0.0
 2. **Backward Compatibility**:
-    - MAJOR: Breaking changes allowed
-    - MINOR: New features, backward compatible
-    - PATCH: Bug fixes only
+   - MAJOR: Breaking changes allowed
+   - MINOR: New features, backward compatible
+   - PATCH: Bug fixes only
 3. **Deprecation Timeline**:
-    - Announce in MINOR release
-    - Warn in MINOR+1 release
-    - Remove in next MAJOR release
-    - Minimum 6 months support
+   - Announce in MINOR release
+   - Warn in MINOR+1 release
+   - Remove in next MAJOR release
+   - Minimum 6 months support
 
 ### F. References
 
@@ -636,7 +636,7 @@ compozy workflow deploy workflows/data-pipeline.yaml --version v1.2.0
 - [12 Factor CLI Apps](https://medium.com/@jdxcode/12-factor-cli-apps-dd3c227a0e46)
 - Charmbracelet TUI Framework: https://charm.sh/
 - Competitor CLI Documentation:
-    - [Prefect CLI](https://docs.prefect.io/latest/cli/)
-    - [Dagster CLI](https://docs.dagster.io/_apidocs/cli)
-    - [Airflow CLI](https://airflow.apache.org/docs/apache-airflow/stable/cli-and-env-variables-ref.html)
-      </appendix>
+  - [Prefect CLI](https://docs.prefect.io/latest/cli/)
+  - [Dagster CLI](https://docs.dagster.io/_apidocs/cli)
+  - [Airflow CLI](https://airflow.apache.org/docs/apache-airflow/stable/cli-and-env-variables-ref.html)
+    </appendix>

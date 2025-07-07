@@ -1,0 +1,13 @@
+{
+  "title": "Development",
+  "description": "Development setup and practices",
+  "icon": "Code",
+  "pages": [
+    "development-setup",
+    "testing-strategies",
+    "configuration-management",
+    "debugging",
+    "performance",
+    "code-organization"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "title": "CLI Reference",
+  "description": "Command-line interface reference",
+  "icon": "Terminal",
+  "root": true,
+  "pages": ["overview", "project-commands", "workflow-commands", "execution-commands", "monitoring-commands"]
+}

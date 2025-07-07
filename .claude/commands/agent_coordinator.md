@@ -98,38 +98,38 @@ Deploy and coordinate these specialized subagents based on the selected pipeline
 ## Full Creation Pipeline (Feature → Tasks)
 
 1. **Feature Enricher Agent**: Deploy first to process raw feature description
-    - Injected Rules: `backwards-compatibility.mdc`, `architecture.mdc`
-    - Expected Output: Structured JSON with enriched feature specification
+   - Injected Rules: `backwards-compatibility.mdc`, `architecture.mdc`
+   - Expected Output: Structured JSON with enriched feature specification
 
 2. **PRD Creator Agent**: Deploy after feature enrichment
-    - Injected Rules: `prd-create.mdc`, `critical-validation.mdc`
-    - Expected Output: Complete PRD following official template
+   - Injected Rules: `prd-create.mdc`, `critical-validation.mdc`
+   - Expected Output: Complete PRD following official template
 
 3. **Tech Spec Creator Agent**: Deploy after PRD creation
-    - Injected Rules: `prd-tech-spec.mdc`, `architecture.mdc`, `go-coding-standards.mdc`, `api-standards.mdc`, `go-patterns.mdc`
-    - Expected Output: Complete Tech Spec with implementation details
+   - Injected Rules: `prd-tech-spec.mdc`, `architecture.mdc`, `go-coding-standards.mdc`, `api-standards.mdc`, `go-patterns.mdc`
+   - Expected Output: Complete Tech Spec with implementation details
 
 ## Standard Analysis Pipeline (Both Workflows)
 
 4. **PRD Analysis Agent**: Analyze PRD for completeness
-    - Injected Rules: `prd-create.mdc`, `critical-validation.mdc`
-    - Expected Output: Comprehensive requirements analysis with gaps identified
+   - Injected Rules: `prd-create.mdc`, `critical-validation.mdc`
+   - Expected Output: Comprehensive requirements analysis with gaps identified
 
 5. **Technical Review Agent**: Validate and enhance Tech Spec
-    - Injected Rules: `prd-tech-spec.mdc`, `architecture.mdc`, `go-coding-standards.mdc`, `testing-standards.mdc`, `quality-security.mdc`, `api-standards.mdc`, `go-patterns.mdc`
-    - Expected Output: Validated Tech Spec with Compozy patterns and quality assessment
+   - Injected Rules: `prd-tech-spec.mdc`, `architecture.mdc`, `go-coding-standards.mdc`, `testing-standards.mdc`, `quality-security.mdc`, `api-standards.mdc`, `go-patterns.mdc`
+   - Expected Output: Validated Tech Spec with Compozy patterns and quality assessment
 
 6. **Simplicity Guardian Agent**: Assess complexity and prevent overengineering
-    - Injected Rules: `backwards-compatibility.mdc`, `architecture.mdc`, `task-generate-list.mdc`
-    - Expected Output: Complexity assessment with simplification recommendations and breakdown guidance
+   - Injected Rules: `backwards-compatibility.mdc`, `architecture.mdc`, `task-generate-list.mdc`
+   - Expected Output: Complexity assessment with simplification recommendations and breakdown guidance
 
 7. **Task Generation Agent**: Create implementation tasks using Taskmaster MCP workflow
-    - Injected Rules: `task-generate-list.mdc`, `task-developing.mdc`, `task-review.mdc`, `testing-standards.mdc`
-    - Expected Output: Complete taskmaster workflow execution with tasks.json, complexity report, and \_tasks.md
+   - Injected Rules: `task-generate-list.mdc`, `task-developing.mdc`, `task-review.mdc`, `testing-standards.mdc`
+   - Expected Output: Complete taskmaster workflow execution with tasks.json, complexity report, and \_tasks.md
 
 8. **Individual Task File Generation**: Create per-task implementation files
-    - Injected Rules: `task-generate-list.mdc`, `task-developing.mdc`
-    - Expected Output: Individual `<num>_task.md` files for each parent task
+   - Injected Rules: `task-generate-list.mdc`, `task-developing.mdc`
+   - Expected Output: Individual `<num>_task.md` files for each parent task
 
 **Critical Orchestration Principles:**
 

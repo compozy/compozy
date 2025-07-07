@@ -1,0 +1,6 @@
+{
+  "title": "Reference",
+  "description": "Configuration and API reference",
+  "icon": "FileText",
+  "pages": ["schema-reference", "environment-variables", "error-codes", "migration-versioning"]
+}

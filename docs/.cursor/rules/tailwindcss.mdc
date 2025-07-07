@@ -1,0 +1,507 @@
+---
+globs: **/*.ts,**/*.tsx,**/*.mdx
+alwaysApply: false
+---
+
+# Tailwind CSS Best Practices
+
+<mandatory_design_token_usage>
+**CRITICAL: Always Use Design System Tokens for Theme Switching**
+
+To ensure the theme switching functionality works correctly across light and dark modes, you MUST always use design system tokens instead of explicit color values:
+
+✅ **Always use:** `bg-background`, `text-foreground`, `border-border`, `bg-primary`, `text-primary-foreground`
+❌ **Never use:** `bg-white`, `text-black`, `border-gray-200`, `bg-blue-500`, `text-green-400`
+
+**Why this matters:**
+
+- Design tokens automatically adapt to the current theme (light/dark)
+- Explicit values break theme switching and cause accessibility issues
+- Design tokens ensure consistent brand colors across all themes
+
+**Required tokens for common use cases:**
+
+- Backgrounds: `bg-background`, `bg-card`, `bg-muted`, `bg-popover`
+- Text: `text-foreground`, `text-muted-foreground`, `text-card-foreground`
+- Borders: `border-border`, `border-input`, `border-ring`
+- Actions: `bg-primary text-primary-foreground`, `bg-secondary text-secondary-foreground`
+- States: `bg-destructive text-destructive-foreground`, `bg-accent text-accent-foreground`
+  </mandatory_design_token_usage>
+
+<core_philosophy>
+**Utility-First CSS Philosophy:**
+
+- Embrace utility-first approach - avoid custom CSS
+- Design in the browser, not in CSS files
+- Build design systems with consistent spacing/colors
+- Think in components, not pages
+  </core_philosophy>
+
+## Configuration Setup (Tailwind CSS v4)
+
+<configuration_setup>
+**Essential Configuration Patterns:**
+
+- Use CSS-first configuration with `@theme` directive
+- Define custom colors using oklch for modern color support
+- Configure in CSS files, not JavaScript (v4 change)
+- Leverage CSS variables for dynamic theming
+  </configuration_setup>
+
+```css
+/* app.css - Tailwind CSS v4 configuration */
+@import "tailwindcss";
+
+@theme {
+  /* Colors using oklch for P3 color support */
+  --color-background: oklch(100% 0 0);
+  --color-foreground: oklch(9.8% 0.02 247.93);
+  --color-primary: oklch(51.01% 0.274 263.83);
+  --color-primary-foreground: oklch(98% 0.01 247.93);
+
+  /* Custom spacing scale */
+  --spacing: 0.25rem;
+
+  /* Custom fonts */
+  --font-display: "Satoshi", "sans-serif";
+
+  /* Custom breakpoints */
+  --breakpoint-3xl: 1920px;
+
+  /* Custom border radius */
+  --radius: 0.5rem;
+}
+```
+
+## CSS Variables for Theming
+
+<theming_strategy>
+**Dynamic Theming Implementation:**
+</theming_strategy>
+
+```css
+/* globals.css - Tailwind CSS v4 */
+@import "tailwindcss";
+
+@theme {
+  /* Light mode (default) */
+  --color-background: oklch(100% 0 0);
+  --color-foreground: oklch(9.8% 0.02 247.93);
+  --color-primary: oklch(51.01% 0.274 263.83);
+  --color-primary-foreground: oklch(98% 0.01 247.93);
+  --radius: 0.5rem;
+}
+
+/* Dark mode override */
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-background: oklch(9.8% 0.02 247.93);
+    --color-foreground: oklch(98% 0.01 247.93);
+    --color-primary: oklch(73.2% 0.182 262.5);
+    --color-primary-foreground: oklch(9.8% 0.02 247.93);
+  }
+}
+
+/* Or use class-based dark mode */
+.dark {
+  --color-background: oklch(9.8% 0.02 247.93);
+  --color-foreground: oklch(98% 0.01 247.93);
+  /* ... other dark mode overrides ... */
+}
+```
+
+## Class Organization
+
+<class_organization>
+**Systematic Class Ordering:**
+
+- Order: Layout → Box Model → Typography → Visual → Misc
+- Group related utilities together
+- Use consistent ordering across components
+  </class_organization>
+
+```tsx
+// Good class organization
+<div className="
+  /* Layout */
+  flex flex-col items-center justify-between
+  /* Box Model */
+  w-full max-w-4xl p-6 mx-auto
+  /* Typography */
+  text-base font-medium
+  /* Visual */
+  bg-card border border-border rounded-lg shadow-xs
+  /* States & Interactions */
+  hover:shadow-sm transition-shadow
+  /* Responsive */
+  md:flex-row md:p-8
+">
+```
+
+## Modern Tailwind Features (v4)
+
+<modern_features>
+**Latest Tailwind v4 Capabilities:**
+
+- Use size-_ utilities instead of w-_ h-\* for squares
+- Dynamic values without brackets (e.g., `grid-cols-15`)
+- Text shadows with `text-shadow-*` utilities
+- Mask utilities with `mask-*`
+- Container queries built-in with `@container`
+- 3D transforms with `rotate-x-*`, `scale-z-*`
+  </modern_features>
+
+```tsx
+// Tailwind CSS v4 modern utilities
+<div className="size-10">  {/* Instead of w-10 h-10 */}
+<div className="h-dvh">    {/* Dynamic viewport height */}
+<div className="has-[:checked]:bg-primary">  {/* Parent selector */}
+<div className="grid grid-cols-15">  {/* Dynamic grid columns without brackets */}
+<h1 className="text-shadow-md text-shadow-blue-500/50">Title</h1>  {/* Text shadows */}
+<div className="mask-b-from-50% mask-t-to-0%">  {/* Mask utilities */}
+<div className="@container">  {/* Container queries */}
+  <div className="@sm:grid-cols-2 @lg:grid-cols-4">Content</div>
+</div>
+```
+
+## Tailwind Variants Integration
+
+<tailwind_variants>
+**Component Styling with Tailwind Variants:**
+
+- Use Tailwind Variants for component styling
+- Replace CVA with Tailwind Variants for better DX
+- Leverage responsive variants and slots
+- Maintain type safety with TypeScript
+  </tailwind_variants>
+
+```tsx
+// components/ui/button.tsx
+import { tv } from "tailwind-variants";
+import { forwardRef } from "react";
+
+const button = tv({
+  base: "inline-flex items-center justify-center rounded-sm text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background",
+  variants: {
+    variant: {
+      default: "bg-primary text-primary-foreground hover:bg-primary/90",
+      destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+      outline: "border border-input hover:bg-accent hover:text-accent-foreground",
+      secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+      ghost: "hover:bg-accent hover:text-accent-foreground",
+      link: "underline-offset-4 hover:underline text-primary",
+    },
+    size: {
+      default: "h-10 py-2 px-4",
+      sm: "h-9 px-3 rounded-sm",
+      lg: "h-11 px-8 rounded-sm",
+      icon: "size-10", // v4: use size-* for square dimensions
+    },
+  },
+  defaultVariants: {
+    variant: "default",
+    size: "default",
+  },
+});
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof button> {
+  asChild?: boolean;
+}
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button";
+    return <Comp className={button({ variant, size, className })} ref={ref} {...props} />;
+  },
+);
+```
+
+## Complex Components with Slots
+
+<slots_pattern>
+**Multi-Part Component Styling:**
+
+- Use Tailwind Variants slots for multi-part components
+- Maintain consistent styling across component parts
+- Enable variant propagation to child elements
+  </slots_pattern>
+
+```tsx
+// components/ui/card-variants.tsx
+import { tv } from "tailwind-variants";
+
+const card = tv({
+  slots: {
+    base: "rounded-lg border bg-card text-card-foreground shadow-xs", // v4: shadow-xs instead of shadow-sm
+    header: "flex flex-col space-y-1.5 p-6",
+    title: "text-2xl font-semibold leading-none tracking-tight",
+    description: "text-sm text-muted-foreground",
+    content: "p-6 pt-0",
+    footer: "flex items-center p-6 pt-0",
+  },
+  variants: {
+    variant: {
+      default: {},
+      elevated: {
+        base: "shadow-lg",
+      },
+      bordered: {
+        base: "border-2",
+        header: "border-b-2",
+      },
+    },
+    color: {
+      default: {},
+      primary: {
+        base: "border-primary/20",
+        header: "bg-primary/5",
+        title: "text-primary",
+      },
+      destructive: {
+        base: "border-destructive/20",
+        header: "bg-destructive/5",
+        title: "text-destructive",
+      },
+    },
+  },
+  defaultVariants: {
+    variant: "default",
+    color: "default",
+  },
+});
+
+export function VariantCard({ variant, color, children }) {
+  const styles = card({ variant, color });
+
+  return <div className={styles.base()}>{children}</div>;
+}
+
+VariantCard.Header = function CardHeader({ children, className }) {
+  const styles = card();
+  return <div className={styles.header({ className })}>{children}</div>;
+};
+
+VariantCard.Title = function CardTitle({ children, className }) {
+  const styles = card();
+  return <h3 className={styles.title({ className })}>{children}</h3>;
+};
+```
+
+## Responsive Variants Pattern
+
+<responsive_variants>
+**Responsive Component Design:**
+
+- Use Tailwind Variants responsive utilities
+- Build responsive components easily
+- Maintain consistency across breakpoints
+  </responsive_variants>
+
+```tsx
+// components/ui/responsive-layout.tsx
+import { tv } from 'tailwind-variants'
+
+const layout = tv({
+  base: 'grid gap-4',
+  variants: {
+    columns: {
+      1: 'grid-cols-1',
+      2: 'grid-cols-2',
+      3: 'grid-cols-3',
+      4: 'grid-cols-4',
+    },
+  },
+  responsiveVariants: ['sm', 'md', 'lg'],
+})
+
+// Usage
+<div className={layout({
+  columns: {
+    initial: 1,
+    sm: 2,
+    md: 3,
+    lg: 4,
+  }
+})} />
+```
+
+## Responsive Design
+
+<responsive_design>
+**Mobile-First Responsive Strategy:**
+
+- Mobile-first approach is default and recommended
+- Use container queries for component-level responsiveness
+- Leverage responsive variants consistently
+  </responsive_design>
+
+```tsx
+// Mobile-first responsive design
+<div className="
+  grid grid-cols-1 gap-4
+  sm:grid-cols-2 sm:gap-6
+  md:grid-cols-3
+  lg:grid-cols-4 lg:gap-8
+">
+
+// Container queries (built-in in v4)
+<div className="@container">
+  <div className="@lg:flex @lg:items-center">
+    {/* Responds to container, not viewport */}
+  </div>
+</div>
+```
+
+## Dark Mode Implementation
+
+<dark_mode>
+**Comprehensive Dark Mode Strategy:**
+
+- Use 'class' or 'media' strategy for dark mode
+- Apply dark: variants thoughtfully
+- Test both themes during development
+  </dark_mode>
+
+```tsx
+// Dark mode with proper contrast using design tokens
+<div className="
+  bg-background text-foreground
+  border border-border
+">
+```
+
+## Performance Optimization
+
+<performance_optimization>
+**Critical Performance Patterns:**
+
+- Tailwind v4 is 5x faster for full builds
+- Keep content detection automatic (no config needed)
+- Avoid dynamic class construction
+- Use `@source not` to exclude irrelevant paths
+  </performance_optimization>
+
+```typescript
+// ❌ Bad: Dynamic classes won't be included
+const getClass = (color: string) => `bg-${color}-500`
+
+// ✅ Good: Explicit classes
+const colorClasses = {
+  red: 'bg-red-500',
+  blue: 'bg-blue-500',
+  green: 'bg-green-500',
+}
+const getClass = (color: keyof typeof colorClasses) => colorClasses[color]
+
+// ✅ Good: Safelist dynamic classes in v4
+// In your CSS file:
+@source inline("bg-red-500 bg-blue-500 bg-green-500");
+```
+
+## Arbitrary Values (v4 Changes)
+
+<arbitrary_values>
+**Strategic Use of Arbitrary Values:**
+
+- Use CSS variables in parentheses: `bg-(--custom-color)`
+- Arbitrary values still work: `w-[13.5rem]`
+- Many arbitrary values no longer needed (e.g., `grid-cols-15` works)
+  </arbitrary_values>
+
+```tsx
+// v4: Variables use parentheses instead of brackets
+<div className="bg-(--brand-color)">  {/* CSS variable */}
+<div className="w-[13.5rem]">  {/* Arbitrary value */}
+<div className="text-[#1da1f2]">  {/* Arbitrary color */}
+<div className="grid-cols-15">  {/* Dynamic value without brackets in v4 */}
+```
+
+## Animation and Transitions
+
+<animations>
+**Performance-Focused Animations:**
+- Use Tailwind's built-in animations
+- Extend with custom keyframes when needed
+- Keep animations performant
+- New v4: Support for gradient animations with @property
+</animations>
+
+```css
+/* CSS configuration in v4 */
+@import "tailwindcss";
+
+@theme {
+  /* Custom animations */
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+}
+
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+```
+
+## New v4 Features
+
+<new_v4_features>
+**Tailwind CSS v4 New Capabilities:**
+
+1. **Text Shadows:** `text-shadow-sm`, `text-shadow-md`, `text-shadow-lg`
+2. **Mask Utilities:** `mask-t-from-50%`, `mask-radial-*`
+3. **Gradient Enhancements:** `bg-linear-45`, `bg-radial-*`, `bg-conic-*`
+4. **3D Transforms:** `rotate-x-45`, `rotate-y-30`, `scale-z-150`
+5. **Safe Alignment:** `justify-center-safe`, `items-center-safe`
+6. **Pointer Variants:** `pointer-coarse:`, `pointer-fine:`
+7. **Form Validation:** `user-valid:`, `user-invalid:`
+   </new_v4_features>
+
+```tsx
+// Text shadows with color
+<h1 className="text-shadow-lg text-shadow-blue-500/50">
+
+// Mask utilities
+<div className="mask-b-from-50% mask-radial-from-80%">
+
+// Gradient angles and types
+<div className="bg-linear-45 from-blue-500 to-purple-500">
+<div className="bg-radial-[at_25%_25%] from-white to-black">
+
+// 3D transforms
+<div className="perspective-distant rotate-x-45 rotate-z-30 transform-3d">
+
+// Safe alignment
+<div className="flex justify-center-safe">
+
+// Pointer-based styling
+<button className="px-3 py-1 pointer-coarse:px-5 pointer-coarse:py-3">
+```
+
+<common_patterns>
+**Essential Design Patterns:**
+
+1. Card components with consistent shadows/borders
+2. Form inputs with focus states
+3. Button groups with proper spacing
+4. Grid layouts with responsive columns
+5. Flexbox containers with gap utilities
+   </common_patterns>
+
+<anti_patterns>
+**Critical Anti-Patterns to Avoid:**
+
+- Don't use @apply except for base styles
+- Avoid inline styles when Tailwind has utilities
+- Don't create utility classes that duplicate Tailwind
+- Never use important (!) unless absolutely necessary
+- Don't mix Tailwind with CSS modules/styled-components
+  </anti_patterns>
+
+<enforcement_policy>
+**MANDATORY:** These patterns must be followed consistently across all styling implementations using Tailwind CSS v4.
+</enforcement_policy>

@@ -1,0 +1,15 @@
+{
+  "title": "Agents",
+  "description": "Agent development and LLM integration",
+  "icon": "Bot",
+  "pages": [
+    "agent-overview",
+    "llm-integration",
+    "instructions-actions",
+    "tool-integration",
+    "memory-systems",
+    "multi-agent-patterns",
+    "testing-validation",
+    "performance-optimization"
+  ]
+}

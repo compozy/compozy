@@ -1,0 +1,21 @@
+---
+title: MCP Schema
+description: JSON Schema for MCP configuration
+icon: Plug
+---
+
+import { SchemaParams } from "@/components/ui/params/schema-params";
+import mcpSchema from "@/schemas/mcp.json";
+
+<SchemaParams
+  schema={mcpSchema}
+  title="MCP Configuration Schema"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Resources
+
+- [JSON Schema Specification](https://json-schema.org/)
+- [JSON Schema Validator](https://www.jsonschemavalidator.net/)

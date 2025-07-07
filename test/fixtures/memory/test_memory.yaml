@@ -9,14 +9,14 @@ max_tokens: 1000
 max_messages: 50
 
 persistence:
-    type: redis
-    ttl: 1h
+  type: redis
+  ttl: 1h
 
 token_provider:
-    provider: openai
-    model: gpt-3.5-turbo
+  provider: openai
+  model: gpt-3.5-turbo
 
 locking:
-    append_ttl: "30s"
-    clear_ttl: "10s"
-    flush_ttl: "5m"
+  append_ttl: "30s"
+  clear_ttl: "10s"
+  flush_ttl: "5m"

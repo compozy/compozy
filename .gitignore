@@ -1,29 +1,81 @@
+# .gitignore
+# Specifies intentionally untracked files that Git should ignore.
+
+# === COMPOZY-SPECIFIC ===
 file_contents.txt
 **/file_contents.txt
-.env
 examples/**/results.*
 .compozy
-node_modules
-bin
-**/reports/**
-**/coverage*
+schemas/
+sessions/
+compozy
+diff.txt
 
-# Bun-specific files
+# === DEPENDENCIES ===
+node_modules/
+/node_modules
 bun.lockb
 .bun
 
-# .gitignore
-# Specifies intentionally untracked files that Git should ignore.
-# Get latest from https://github.com/github/gitignore/blob/main/Go.gitignore
+# === BUILD OUTPUT ===
+/build/
+build/
+**/.next/
+/.next/
+.next/
+/out/
+**/out/
+*.tsbuildinfo
+dist/
+/dist/
+**/dist/
 
+# === TURBOREPO ===
+.turbo
+**/**/.turbo
+
+# === NEXT.JS SPECIFIC ===
+next-env.d.ts
+**/next-env.d.ts
+.next/cache/
+**/.next/cache/
+
+# === LOGS & REPORTS ===
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dev-debug.log
+**/reports/**
+**/coverage*
+/coverage
+*storybook.log
+
+# === ENVIRONMENT ===
+.env
+.envrc
+.env.*
+.env*.local
+
+# === GENERATED CONTENT ===
+.contentlayer
+**/.contentlayer
+.content-collections
+**/.content-collections
+.source
+**/.source
+storybook-static
+**/storybook-static
+
+# === GO-SPECIFIC ===
 # Binaries for programs and plugins
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-schemas/
-sessions/
+bin
 
 # Test binary, built with `go test -c`
 *.test
@@ -38,51 +90,26 @@ sessions/
 # go.work
 # go.work.sum
 
-# Environment configuration.
-.env
-.envrc
-.env.*
-
-# IDE-specific files
+# === IDE & EDITORS ===
 .idea/
+.idea
+.vscode
 *.sublime-project
 *.sublime-workspace
-
-# OS-specific files
-.DS_Store
-Thumbs.db
-
-# Build output
-/build/
-
-# Local artifacts
-compozy
-diff.txt
-
-.aider*
-
-# Added by Task Master AI
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-dev-debug.log
-# Dependency directories
-node_modules/
-# Environment variables
-# Editor directories and files
-.idea
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-# OS specific
 
-# Local configuration files
+# === OS-SPECIFIC ===
+.DS_Store
+Thumbs.db
+*.pem
+
+# === MISC ===
+/.pnp
+.pnp.js
+.vercel
 *.local.json
-
-# Added by Task Master AI
-.vscode
+.aider*

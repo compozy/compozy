@@ -1,0 +1,33 @@
+/* Font definitions for Storybook */
+@font-face {
+  font-family: "Geist Sans";
+  src: url("/fonts/geist-sans/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/geist-mono/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ClashDisplay";
+  src: url("/fonts/ClashDisplay-Variable.woff2") format("woff2");
+  font-weight: 200 700;
+  font-display: swap;
+}
+
+:root {
+  /* Define the font variables that Next.js would normally provide */
+  --font-geist-sans: "Geist Sans";
+  --font-geist-mono: "Geist Mono";
+  --font-clash-display: "ClashDisplay";
+
+  /* Also define the family variables used in the CSS */
+  --font-sans-family: "Geist Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono-family: "Geist Mono", ui-monospace, monospace;
+  --font-display-family: "ClashDisplay", ui-sans-serif, system-ui, sans-serif;
+}

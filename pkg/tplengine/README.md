@@ -448,8 +448,8 @@ If you're migrating from a system that allowed `<no value>` fallbacks:
 
 ```yaml
 config:
-    host: '{{ .database.host | default "localhost" }}' # Silent if .database missing
-    port: '{{ .database.port | default "5432" }}' # Silent if .database missing
+  host: '{{ .database.host | default "localhost" }}' # Silent if .database missing
+  port: '{{ .database.port | default "5432" }}' # Silent if .database missing
 ```
 
 ### After (with missingkey=error)

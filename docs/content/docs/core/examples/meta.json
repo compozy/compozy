@@ -1,0 +1,15 @@
+{
+  "title": "Examples",
+  "description": "Examples and tutorials",
+  "icon": "BookOpen",
+  "pages": [
+    "basic-examples",
+    "intermediate-examples",
+    "advanced-examples",
+    "use-case-support",
+    "use-case-content",
+    "use-case-data",
+    "integration-examples",
+    "migration-guides"
+  ]
+}

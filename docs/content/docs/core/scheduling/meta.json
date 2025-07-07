@@ -1,0 +1,6 @@
+{
+  "title": "Scheduling",
+  "description": "Workflow scheduling and automation",
+  "icon": "Calendar",
+  "pages": ["scheduled-workflows", "schedule-management", "advanced-scheduling", "production-considerations"]
+}

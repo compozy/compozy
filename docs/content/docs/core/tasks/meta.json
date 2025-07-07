@@ -1,0 +1,14 @@
+{
+  "title": "Tasks",
+  "description": "All task types and patterns",
+  "icon": "ListCheck",
+  "pages": [
+    "basic-tasks",
+    "flow-control",
+    "parallel-processing",
+    "memory-tasks",
+    "aggregate-tasks",
+    "advanced-patterns",
+    "custom-task-types"
+  ]
+}

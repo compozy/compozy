@@ -33,35 +33,35 @@ make dev
 
 1. **Start the workflow:**
 
-    ```bash
-    curl -X POST http://localhost:8080/api/v1/workflows/wait-task/trigger \
-        -H "Content-Type: application/json" \
-        -d '{
-        "input": {
-          "initial_message": "Starting wait task demo",
-          "wait_condition": "signal.status == \"ready\"",
-          "signal_name": "ready_signal"
-        }
-      }'
-    ```
+   ```bash
+   curl -X POST http://localhost:8080/api/v1/workflows/wait-task/trigger \
+     -H "Content-Type: application/json" \
+     -d '{
+       "input": {
+         "initial_message": "Starting wait task demo",
+         "wait_condition": "signal.status == \"ready\"",
+         "signal_name": "ready_signal"
+       }
+     }'
+   ```
 
 2. **Monitor workflow status:**
 
-    ```bash
-    curl http://localhost:8080/api/v1/workflows/{workflow_execution_id}/status
-    ```
+   ```bash
+   curl http://localhost:8080/api/v1/workflows/{workflow_execution_id}/status
+   ```
 
 3. **Send the signal to trigger continuation:**
-    ```bash
-    curl -X POST http://localhost:8080/api/v1/workflows/{workflow_execution_id}/signals/ready_signal \
-        -H "Content-Type: application/json" \
-        -d '{
-        "payload": {
-          "status": "ready",
-          "message": "System is ready to proceed"
-        }
-      }'
-    ```
+   ```bash
+   curl -X POST http://localhost:8080/api/v1/workflows/{workflow_execution_id}/signals/ready_signal \
+     -H "Content-Type: application/json" \
+     -d '{
+       "payload": {
+         "status": "ready",
+         "message": "System is ready to proceed"
+       }
+     }'
+   ```
 
 ## Expected Flow
 
