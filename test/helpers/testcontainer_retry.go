@@ -1,4 +1,4 @@
-package utils
+package helpers
 
 import (
 	"context"
@@ -125,9 +125,9 @@ func TestContainerHealthCheck(ctx context.Context, pool *pgxpool.Pool) error {
 	// Check if our tables exist
 	var tableCount int
 	err = pool.QueryRow(ctx, `
-		SELECT COUNT(*) 
-		FROM information_schema.tables 
-		WHERE table_schema = 'public' 
+		SELECT COUNT(*)
+		FROM information_schema.tables
+		WHERE table_schema = 'public'
 		AND table_name IN ('workflow_states', 'task_states')
 	`).Scan(&tableCount)
 	if err != nil {

@@ -53,7 +53,7 @@ func TestAggregateResponseHandler_HandleResponse_Validation(t *testing.T) {
 			WorkflowState:  &workflow.State{},  // Valid workflow state
 		}
 
-		result, err := handler.HandleResponse(context.TODO(), input)
+		result, err := handler.HandleResponse(context.Background(), input)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -133,7 +133,7 @@ func TestAggregateResponseHandler_HandleAggregateCompletion(t *testing.T) {
 			"items": []string{"a", "b", "c"},
 		}
 
-		err := handler.HandleAggregateCompletion(context.TODO(), state, aggregatedData)
+		err := handler.HandleAggregateCompletion(context.Background(), state, aggregatedData)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, state.Output)
@@ -161,7 +161,7 @@ func TestAggregateResponseHandler_HandleAggregateCompletion(t *testing.T) {
 			"count": 10, // This should overwrite existing
 		}
 
-		err := handler.HandleAggregateCompletion(context.TODO(), state, aggregatedData)
+		err := handler.HandleAggregateCompletion(context.Background(), state, aggregatedData)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, state.Output)
@@ -182,7 +182,7 @@ func TestAggregateResponseHandler_HandleAggregateCompletion(t *testing.T) {
 
 		aggregatedData := map[string]any{}
 
-		err := handler.HandleAggregateCompletion(context.TODO(), state, aggregatedData)
+		err := handler.HandleAggregateCompletion(context.Background(), state, aggregatedData)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, state.Output)

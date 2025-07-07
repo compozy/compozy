@@ -27,13 +27,16 @@ type ExecuteMemoryOperation struct {
 func NewExecuteMemoryOperation(
 	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
-) *ExecuteMemoryOperation {
-	memoryService := service.NewMemoryOperationsService(memoryManager, templateEngine, nil)
+) (*ExecuteMemoryOperation, error) {
+	memoryService, err := service.NewMemoryOperationsService(memoryManager, templateEngine, nil, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create memory operations service: %w", err)
+	}
 	return &ExecuteMemoryOperation{
 		memoryManager:  memoryManager,
 		templateEngine: templateEngine,
 		memoryService:  memoryService,
-	}
+	}, nil
 }
 
 func (uc *ExecuteMemoryOperation) Execute(

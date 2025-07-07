@@ -165,6 +165,7 @@ func NewWorker(
 		workerCore.redisCache,
 		client,
 		workerCore.taskQueue,
+		projectConfig,
 		log,
 	)
 	if err != nil {
@@ -300,6 +301,7 @@ func setupMemoryManager(
 	redisCache *cache.Cache,
 	client *Client,
 	taskQueue string,
+	projectConfig *project.Config,
 	log logger.Logger,
 ) (*memory.Manager, error) {
 	if config.ResourceRegistry == nil {
@@ -307,6 +309,13 @@ func setupMemoryManager(
 		return nil, nil
 	}
 	privacyManager := privacy.NewManager()
+
+	// Extract project ID for consistent namespace resolution
+	fallbackProjectID := ""
+	if projectConfig != nil {
+		fallbackProjectID = projectConfig.Name
+	}
+
 	memoryManagerOpts := &memory.ManagerOptions{
 		ResourceRegistry:  config.ResourceRegistry,
 		TplEngine:         templateEngine,
@@ -315,6 +324,7 @@ func setupMemoryManager(
 		TemporalClient:    client,
 		TemporalTaskQueue: taskQueue,
 		PrivacyManager:    privacyManager,
+		FallbackProjectID: fallbackProjectID,
 		Logger:            log,
 	}
 	memoryManager, err := memory.NewManager(memoryManagerOpts)

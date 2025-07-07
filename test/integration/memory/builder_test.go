@@ -30,8 +30,12 @@ func TestBuilder_Integration(t *testing.T) {
 			Key: "test-builder-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    "builder-123",
+			"project": map[string]any{
+				"id": "test-project",
+			},
+			"test": map[string]any{
+				"id": "builder-123",
+			},
 		}
 		memInstance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)

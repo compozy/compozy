@@ -145,8 +145,12 @@ func TestHealthMonitorHelper(t *testing.T) {
 				Key: "monitor-test-{{.test.id}}",
 			}
 			workflowContext := map[string]any{
-				"project.id": "test-project",
-				"test.id":    fmt.Sprintf("monitor-%d", time.Now().Unix()),
+				"project": map[string]any{
+					"id": "test-project",
+				},
+				"test": map[string]any{
+					"id": fmt.Sprintf("monitor-%d", time.Now().Unix()),
+				},
 			}
 			instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 			require.NoError(t, err)

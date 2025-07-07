@@ -35,7 +35,9 @@ func TestTokenCountingArchitecturalConsistency(t *testing.T) {
 			ID:  "customer-support",
 			Key: "token-consistency-test",
 		}, map[string]any{
-			"project.id": "test-project",
+			"project": map[string]any{
+				"id": "test-project",
+			},
 		})
 		require.NoError(t, err)
 		require.NotNil(t, manager)
@@ -104,7 +106,9 @@ func TestTokenCountingArchitecturalConsistency(t *testing.T) {
 			ID:  "flushable-memory",
 			Key: "flush-consistency-test",
 		}, map[string]any{
-			"project.id": "test-project",
+			"project": map[string]any{
+				"id": "test-project",
+			},
 		})
 		require.NoError(t, err)
 

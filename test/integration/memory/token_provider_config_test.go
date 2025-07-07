@@ -50,7 +50,9 @@ func TestTokenProviderConfig_Integration(t *testing.T) {
 			Key: "token-provider-config-test",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
+			"project": map[string]any{
+				"id": "test-project",
+			},
 		}
 
 		manager, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
@@ -122,7 +124,9 @@ func TestTokenProviderConfig_Integration(t *testing.T) {
 			Key: "token-provider-env-test",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
+			"project": map[string]any{
+				"id": "test-project",
+			},
 		}
 
 		manager, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
@@ -191,7 +195,9 @@ func TestTokenProviderConfig_Integration(t *testing.T) {
 					Key: tc.provider + "-test-key",
 				}
 				workflowContext := map[string]any{
-					"project.id": "test-project",
+					"project": map[string]any{
+						"id": "test-project",
+					},
 				}
 
 				manager, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)

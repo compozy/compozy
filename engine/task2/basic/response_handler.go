@@ -2,6 +2,7 @@ package basic
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/shared"
@@ -20,15 +21,21 @@ func NewResponseHandler(
 	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *shared.ContextBuilder,
 	baseHandler *shared.BaseResponseHandler,
-) *ResponseHandler {
+) (*ResponseHandler, error) {
 	if baseHandler == nil {
-		panic("baseHandler cannot be nil")
+		return nil, fmt.Errorf("failed to create basic response handler: baseHandler is required but was nil")
+	}
+	if templateEngine == nil {
+		return nil, fmt.Errorf("failed to create basic response handler: templateEngine is required but was nil")
+	}
+	if contextBuilder == nil {
+		return nil, fmt.Errorf("failed to create basic response handler: contextBuilder is required but was nil")
 	}
 	return &ResponseHandler{
 		baseHandler:    baseHandler,
 		templateEngine: templateEngine,
 		contextBuilder: contextBuilder,
-	}
+	}, nil
 }
 
 // HandleResponse processes a basic task execution response
@@ -43,8 +50,12 @@ func (h *ResponseHandler) HandleResponse(
 	// Validate task type matches handler
 	if input.TaskConfig.Type != task.TaskTypeBasic {
 		return nil, &shared.ValidationError{
-			Field:   "task_type",
-			Message: "handler type does not match task type",
+			Field: "task_type",
+			Message: fmt.Sprintf(
+				"basic response handler received incorrect task type: expected '%s', got '%s'",
+				task.TaskTypeBasic,
+				input.TaskConfig.Type,
+			),
 		}
 	}
 	// Basic tasks use standard main task processing without any special handling

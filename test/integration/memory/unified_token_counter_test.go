@@ -79,7 +79,9 @@ func TestUnifiedTokenCounter_Integration(t *testing.T) {
 			Key: "unified-counter-test-1",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
+			"project": map[string]any{
+				"id": "test-project",
+			},
 		}
 
 		manager, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
@@ -128,7 +130,9 @@ func TestUnifiedTokenCounter_Integration(t *testing.T) {
 			Key: "tiktoken-fallback-test",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
+			"project": map[string]any{
+				"id": "test-project",
+			},
 		}
 
 		manager, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)

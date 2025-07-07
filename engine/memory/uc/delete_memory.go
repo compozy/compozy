@@ -20,16 +20,21 @@ func NewDeleteMemory(
 	manager *memory.Manager,
 	memoryRef, key string,
 	svc service.MemoryOperationsService,
-) *DeleteMemory {
+) (*DeleteMemory, error) {
 	if svc == nil {
-		svc = service.NewMemoryOperationsService(manager, nil, nil)
+		var err error
+		svc, err = service.NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		if err != nil {
+			// Log error but continue with nil service
+			return nil, err
+		}
 	}
 	return &DeleteMemory{
 		manager:   manager,
 		memoryRef: memoryRef,
 		key:       key,
 		service:   svc,
-	}
+	}, nil
 }
 
 // Execute deletes memory content

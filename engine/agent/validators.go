@@ -43,7 +43,6 @@ func (v *ActionsValidator) Validate() error {
 // MemoryValidator validates the resolved memory references in an agent's configuration.
 type MemoryValidator struct {
 	references []core.MemoryReference
-	// registry *autoload.Registry // Will be needed in Task 4.0 to check if memory IDs exist
 }
 
 // NewMemoryValidator creates a new validator for agent memory configurations.
@@ -51,7 +50,6 @@ type MemoryValidator struct {
 func NewMemoryValidator(refs []core.MemoryReference /*, reg *autoload.Registry */) *MemoryValidator {
 	return &MemoryValidator{
 		references: refs,
-		// registry: reg,
 	}
 }
 
@@ -70,7 +68,6 @@ func (v *MemoryValidator) Validate() error {
 		// Basic structural validation should have been done by normalizeAndValidateMemoryConfig
 		// and schema.NewStructValidator if applied to core.MemoryReference itself.
 		// Here, we focus on cross-reference validation, like existence in a registry.
-
 		if ref.ID == "" {
 			// This should ideally be caught earlier by struct validation tags on MemoryReference
 			return fmt.Errorf("memory reference at index %d has an empty ID", i)
@@ -89,16 +86,6 @@ func (v *MemoryValidator) Validate() error {
 				MemoryModeReadOnly,
 			)
 		}
-
-		// Placeholder for checking if ref.ID exists in the memory resource registry (Task 4.0)
-		// if v.registry != nil {
-		// 	if !v.registry.MemoryExists(ref.ID) { // Assuming a method like MemoryExists
-		// 		return fmt.Errorf("memory resource with ID '%s' referenced by agent is not defined", ref.ID)
-		// 	}
-		// } else {
-		// 	// Log warning or handle if registry is not available during this validation phase
-		//  // For now, we can't perform this check.
-		// }
 	}
 	return nil
 }

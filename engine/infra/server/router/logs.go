@@ -10,7 +10,6 @@ func RegisterLogRoutes(apiBase *gin.RouterGroup) {
 		// TODO: implement log routes
 		// GET /api/v0/logs
 		// List all logs
-
 		// GET /api/v0/logs/:log_id
 		// Get a log by ID
 	}

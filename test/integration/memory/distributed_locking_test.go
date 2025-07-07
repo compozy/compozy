@@ -33,8 +33,12 @@ func TestDistributedLockingAppend(t *testing.T) {
 			Key: "locking-append-test-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("append-%d", time.Now().Unix()),
+			"project": map[string]any{
+				"id": "test-project",
+			},
+			"test": map[string]any{
+				"id": fmt.Sprintf("append-%d", time.Now().Unix()),
+			},
 		}
 		const numWorkers = 20
 		const messagesPerWorker = 10
@@ -151,8 +155,12 @@ func TestDistributedLockingClear(t *testing.T) {
 			Key: "locking-clear-test-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("clear-%d", time.Now().Unix()),
+			"project": map[string]any{
+				"id": "test-project",
+			},
+			"test": map[string]any{
+				"id": fmt.Sprintf("clear-%d", time.Now().Unix()),
+			},
 		}
 		// Pre-populate memory
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
@@ -255,8 +263,12 @@ func TestDistributedLockingFlush(t *testing.T) {
 			Key: "locking-flush-test-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("flush-%d", time.Now().Unix()),
+			"project": map[string]any{
+				"id": "test-project",
+			},
+			"test": map[string]any{
+				"id": fmt.Sprintf("flush-%d", time.Now().Unix()),
+			},
 		}
 		// Get memory instance and add many messages
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
@@ -371,8 +383,12 @@ func TestDistributedLockingMixedOperations(t *testing.T) {
 					Key: "mixed-ops-1-{{.test.id}}",
 				},
 				workflowContext: map[string]any{
-					"project.id": "test-project",
-					"test.id":    fmt.Sprintf("mixed-1-%d", time.Now().Unix()),
+					"project": map[string]any{
+						"id": "test-project",
+					},
+					"test": map[string]any{
+						"id": fmt.Sprintf("mixed-1-%d", time.Now().Unix()),
+					},
 				},
 			},
 			{
@@ -381,8 +397,12 @@ func TestDistributedLockingMixedOperations(t *testing.T) {
 					Key: "mixed-ops-2-{{.test.id}}",
 				},
 				workflowContext: map[string]any{
-					"project.id": "test-project",
-					"test.id":    fmt.Sprintf("mixed-2-%d", time.Now().Unix()),
+					"project": map[string]any{
+						"id": "test-project",
+					},
+					"test": map[string]any{
+						"id": fmt.Sprintf("mixed-2-%d", time.Now().Unix()),
+					},
 				},
 			},
 		}
@@ -513,8 +533,12 @@ func TestDistributedLockingTimeout(t *testing.T) {
 			Key: "lock-timeout-test-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("timeout-%d", time.Now().Unix()),
+			"project": map[string]any{
+				"id": "test-project",
+			},
+			"test": map[string]any{
+				"id": fmt.Sprintf("timeout-%d", time.Now().Unix()),
+			},
 		}
 		// Get memory instance
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)

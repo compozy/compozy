@@ -2,15 +2,26 @@ package memory
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/engine/autoload"
+	"github.com/compozy/compozy/engine/core"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// createTestManager creates a Manager with minimal required fields for testing
+func createTestManager(tplEngine *tplengine.TemplateEngine, log logger.Logger, fallbackProjectID string) *Manager {
+	return &Manager{
+		tplEngine:              tplEngine,
+		log:                    log,
+		projectContextResolver: NewProjectContextResolver(fallbackProjectID, log),
+	}
+}
 
 func TestManager_loadMemoryConfig(t *testing.T) {
 	t.Run("Should successfully load valid memory resource from registry", func(t *testing.T) {
@@ -309,11 +320,8 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		engine := tplengine.NewEngine(tplengine.FormatText)
 		log := logger.FromContext(context.Background())
 
-		// Create manager with template engine
-		manager := &Manager{
-			tplEngine: engine,
-			log:       log,
-		}
+		// Create manager with template engine using helper
+		manager := createTestManager(engine, log, "")
 
 		// Test context data
 		workflowContext := map[string]any{
@@ -327,15 +335,22 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		template := "memory-{{index . \"project.id\"}}-{{.agent.name}}"
 
 		// Call resolveMemoryKey
-		sanitizedKey, projectID := manager.resolveMemoryKey(context.Background(), template, workflowContext)
+		memRef := core.MemoryReference{Key: template}
+		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
 
 		// Verify results
-		assert.NotEmpty(t, sanitizedKey)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, validatedKey)
+		projectID := manager.getProjectID(workflowContext)
 		assert.Equal(t, "test-project-123", projectID)
 
-		// Verify the resolved template was processed (should be different from template hash)
-		templateOnlyHash := manager.sanitizeKey(template)
-		assert.NotEqual(t, templateOnlyHash, sanitizedKey, "Template should be resolved before sanitization")
+		// Verify the resolved template was processed (should contain the resolved key)
+		assert.Equal(
+			t,
+			"memory-test-project-123-customer-support",
+			validatedKey,
+			"Template should be resolved to the exact expected value",
+		)
 	})
 
 	t.Run("Should resolve complex template with nested variables", func(t *testing.T) {
@@ -343,11 +358,8 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		engine := tplengine.NewEngine(tplengine.FormatText)
 		log := logger.FromContext(context.Background())
 
-		// Create manager
-		manager := &Manager{
-			tplEngine: engine,
-			log:       log,
-		}
+		// Create manager using helper
+		manager := createTestManager(engine, log, "")
 
 		// Complex context data
 		workflowContext := map[string]any{
@@ -369,10 +381,13 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		template := "{{.env}}-{{index . \"project.id\"}}-{{.workflow.id}}-{{.user.role}}"
 
 		// Call resolveMemoryKey
-		sanitizedKey, projectID := manager.resolveMemoryKey(context.Background(), template, workflowContext)
+		memRef := core.MemoryReference{Key: template}
+		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
 
 		// Verify results
-		assert.NotEmpty(t, sanitizedKey)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, validatedKey)
+		projectID := manager.getProjectID(workflowContext)
 		assert.Equal(t, "complex-project", projectID)
 	})
 
@@ -381,11 +396,8 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		engine := tplengine.NewEngine(tplengine.FormatText)
 		log := logger.FromContext(context.Background())
 
-		// Create manager
-		manager := &Manager{
-			tplEngine: engine,
-			log:       log,
-		}
+		// Create manager with project context resolver
+		manager := createTestManager(engine, log, "")
 
 		// Context without project.id
 		workflowContext := map[string]any{
@@ -399,23 +411,23 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		template := "memory-{{.env}}-{{.agent.name}}"
 
 		// Call resolveMemoryKey
-		sanitizedKey, projectID := manager.resolveMemoryKey(context.Background(), template, workflowContext)
+		memRef := core.MemoryReference{Key: template}
+		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
 
 		// Verify results
-		assert.NotEmpty(t, sanitizedKey)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, validatedKey)
+		projectID := manager.getProjectID(workflowContext)
 		assert.Empty(t, projectID, "Project ID should be empty when not in context")
 	})
 
-	t.Run("Should fallback to sanitization when template evaluation fails", func(t *testing.T) {
+	t.Run("Should fail validation when template evaluation fails", func(t *testing.T) {
 		// Create template engine
 		engine := tplengine.NewEngine(tplengine.FormatText)
-		log := logger.FromContext(context.Background())
+		log := logger.NewForTests()
 
-		// Create manager
-		manager := &Manager{
-			tplEngine: engine,
-			log:       log,
-		}
+		// Create manager with project context resolver
+		manager := createTestManager(engine, log, "fallback-project")
 
 		// Context with project.id
 		workflowContext := map[string]any{
@@ -426,15 +438,14 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		invalidTemplate := "memory-{{.nonexistent.variable}}"
 
 		// Call resolveMemoryKey
-		sanitizedKey, projectID := manager.resolveMemoryKey(context.Background(), invalidTemplate, workflowContext)
+		memRef := core.MemoryReference{Key: invalidTemplate}
+		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
 
-		// Verify results - should fallback to sanitizing the template string
-		assert.NotEmpty(t, sanitizedKey)
-		assert.Equal(t, "fallback-project", projectID)
-
-		// Verify it's the hash of the original template
-		expectedHash := manager.sanitizeKey(invalidTemplate)
-		assert.Equal(t, expectedHash, sanitizedKey)
+		// Verify results - should fail validation due to invalid characters
+		assert.Error(t, err, "Should fail validation due to template syntax in key")
+		assert.Empty(t, validatedKey, "Should not return a key when validation fails")
+		assert.Contains(t, err.Error(), "memory key validation failed", "Error should indicate validation failure")
+		assert.Contains(t, err.Error(), "fallback-project", "Error should include project ID for context")
 	})
 
 	t.Run("Should handle empty template gracefully", func(t *testing.T) {
@@ -442,11 +453,8 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		engine := tplengine.NewEngine(tplengine.FormatText)
 		log := logger.FromContext(context.Background())
 
-		// Create manager
-		manager := &Manager{
-			tplEngine: engine,
-			log:       log,
-		}
+		// Create manager using helper
+		manager := createTestManager(engine, log, "")
 
 		// Context with project.id
 		workflowContext := map[string]any{
@@ -457,11 +465,13 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		emptyTemplate := ""
 
 		// Call resolveMemoryKey
-		sanitizedKey, projectID := manager.resolveMemoryKey(context.Background(), emptyTemplate, workflowContext)
+		memRef := core.MemoryReference{Key: emptyTemplate}
+		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
 
-		// Verify results
-		assert.NotEmpty(t, sanitizedKey) // Should be hash of empty string
-		assert.Equal(t, "empty-test-project", projectID)
+		// Verify results - empty keys should be rejected
+		assert.Empty(t, validatedKey, "Should reject empty keys")
+		assert.Error(t, err, "Should return error for empty keys")
+		assert.Contains(t, err.Error(), "empty-test-project", "Error should include project ID")
 	})
 
 	t.Run("Should handle template with missing project.id context", func(t *testing.T) {
@@ -469,11 +479,8 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		engine := tplengine.NewEngine(tplengine.FormatText)
 		log := logger.FromContext(context.Background())
 
-		// Create manager
-		manager := &Manager{
-			tplEngine: engine,
-			log:       log,
-		}
+		// Create manager with project context resolver
+		manager := createTestManager(engine, log, "")
 
 		// Context missing project.id
 		workflowContext := map[string]any{
@@ -486,10 +493,13 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		template := "memory-{{.agent.name}}"
 
 		// Call resolveMemoryKey
-		sanitizedKey, projectID := manager.resolveMemoryKey(context.Background(), template, workflowContext)
+		memRef := core.MemoryReference{Key: template}
+		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
 
 		// Verify results
-		assert.NotEmpty(t, sanitizedKey)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, validatedKey)
+		projectID := manager.getProjectID(workflowContext)
 		assert.Empty(t, projectID)
 	})
 
@@ -498,11 +508,8 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		engine := tplengine.NewEngine(tplengine.FormatText)
 		log := logger.FromContext(context.Background())
 
-		// Create manager
-		manager := &Manager{
-			tplEngine: engine,
-			log:       log,
-		}
+		// Create manager using helper
+		manager := createTestManager(engine, log, "")
 
 		// Context with project.id
 		workflowContext := map[string]any{
@@ -513,67 +520,89 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		literalString := "memory-literal-key"
 
 		// Call resolveMemoryKey
-		sanitizedKey, projectID := manager.resolveMemoryKey(context.Background(), literalString, workflowContext)
+		memRef := core.MemoryReference{Key: literalString}
+		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
 
 		// Verify results
-		assert.NotEmpty(t, sanitizedKey)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, validatedKey)
+		projectID := manager.getProjectID(workflowContext)
 		assert.Equal(t, "literal-project", projectID)
 
-		// Should be hash of the literal string
-		expectedHash := manager.sanitizeKey(literalString)
-		assert.Equal(t, expectedHash, sanitizedKey)
+		// Should be the literal string itself (now that we don't hash)
+		assert.Equal(t, literalString, validatedKey, "Literal strings should be returned as-is")
 	})
 }
 
-func TestExtractProjectID(t *testing.T) {
-	t.Run("Should extract project ID from valid context", func(t *testing.T) {
+func TestProjectContextResolver(t *testing.T) {
+	log := logger.NewForTests()
+
+	t.Run("Should extract project ID from flat format", func(t *testing.T) {
+		resolver := NewProjectContextResolver("fallback-id", log)
 		workflowContext := map[string]any{
 			"project.id": "test-project-id",
 		}
 
-		projectID := extractProjectID(workflowContext)
+		projectID := resolver.ResolveProjectID(workflowContext)
 		assert.Equal(t, "test-project-id", projectID)
 	})
 
-	t.Run("Should return empty string when project.id is missing", func(t *testing.T) {
+	t.Run("Should extract project ID from nested format", func(t *testing.T) {
+		resolver := NewProjectContextResolver("fallback-id", log)
+		workflowContext := map[string]any{
+			"project": map[string]any{
+				"id": "nested-project-id",
+			},
+		}
+
+		projectID := resolver.ResolveProjectID(workflowContext)
+		assert.Equal(t, "nested-project-id", projectID)
+	})
+
+	t.Run("Should use fallback when project.id is missing", func(t *testing.T) {
+		resolver := NewProjectContextResolver("fallback-id", log)
 		workflowContext := map[string]any{
 			"project.name": "Test Project",
 		}
 
-		projectID := extractProjectID(workflowContext)
-		assert.Empty(t, projectID)
+		projectID := resolver.ResolveProjectID(workflowContext)
+		assert.Equal(t, "fallback-id", projectID)
 	})
 
-	t.Run("Should return empty string when project key is missing", func(t *testing.T) {
+	t.Run("Should use fallback when project key is missing", func(t *testing.T) {
+		resolver := NewProjectContextResolver("fallback-id", log)
 		workflowContext := map[string]any{
 			"agent": map[string]any{
 				"name": "test-agent",
 			},
 		}
 
-		projectID := extractProjectID(workflowContext)
-		assert.Empty(t, projectID)
+		projectID := resolver.ResolveProjectID(workflowContext)
+		assert.Equal(t, "fallback-id", projectID)
 	})
 
-	t.Run("Should return empty string when project.id is not a string", func(t *testing.T) {
+	t.Run("Should use fallback when project.id is not a string", func(t *testing.T) {
+		resolver := NewProjectContextResolver("fallback-id", log)
 		workflowContext := map[string]any{
 			"project.id": 123, // not a string
 		}
 
-		projectID := extractProjectID(workflowContext)
-		assert.Empty(t, projectID)
+		projectID := resolver.ResolveProjectID(workflowContext)
+		assert.Equal(t, "fallback-id", projectID)
 	})
 
 	t.Run("Should handle empty context", func(t *testing.T) {
+		resolver := NewProjectContextResolver("fallback-id", log)
 		workflowContext := map[string]any{}
 
-		projectID := extractProjectID(workflowContext)
-		assert.Empty(t, projectID)
+		projectID := resolver.ResolveProjectID(workflowContext)
+		assert.Equal(t, "fallback-id", projectID)
 	})
 
 	t.Run("Should handle nil context", func(t *testing.T) {
-		projectID := extractProjectID(nil)
-		assert.Empty(t, projectID)
+		resolver := NewProjectContextResolver("fallback-id", log)
+		projectID := resolver.ResolveProjectID(nil)
+		assert.Equal(t, "fallback-id", projectID)
 	})
 }
 
@@ -786,5 +815,89 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 		require.NotNil(t, resource.PrivacyPolicy)
 		assert.Empty(t, resource.PrivacyPolicy.RedactPatterns)
 		assert.Equal(t, []string{"system"}, resource.PrivacyPolicy.NonPersistableMessageTypes)
+	})
+}
+
+// TestManager_validateKey tests the validateKey function
+func TestManager_validateKey(t *testing.T) {
+	manager := &Manager{
+		log: logger.NewForTests(),
+	}
+
+	t.Run("Should accept valid keys", func(t *testing.T) {
+		validKeys := []string{
+			"user:123",
+			"user_123",
+			"user-123",
+			"user@example.com",
+			"user.name",
+			"a", // single character
+			"user:123:session:456",
+			"user_2024-01-01@example.com",
+			strings.Repeat("a", 256), // max length
+		}
+
+		for _, key := range validKeys {
+			validated, err := manager.validateKey(key)
+			assert.NoError(t, err, "Key should be valid: %s", key)
+			assert.Equal(t, key, validated, "Key should not be modified: %s", key)
+		}
+	})
+
+	t.Run("Should reject invalid keys", func(t *testing.T) {
+		invalidKeys := []struct {
+			key         string
+			errContains string
+		}{
+			{"", "invalid memory key"},
+			{"user name", "invalid memory key"},  // spaces not allowed
+			{"user!name", "invalid memory key"},  // exclamation not allowed
+			{"user#name", "invalid memory key"},  // hash not allowed
+			{"user$name", "invalid memory key"},  // dollar not allowed
+			{"user%name", "invalid memory key"},  // percent not allowed
+			{"user&name", "invalid memory key"},  // ampersand not allowed
+			{"user*name", "invalid memory key"},  // asterisk not allowed
+			{"user(name)", "invalid memory key"}, // parentheses not allowed
+			{"user[name]", "invalid memory key"}, // brackets not allowed
+			{"user{name}", "invalid memory key"}, // braces not allowed
+			{"user<name>", "invalid memory key"}, // angle brackets not allowed
+			{"user|name", "invalid memory key"},  // pipe not allowed
+			{"user\\name", "invalid memory key"}, // backslash not allowed
+			{"user/name", "invalid memory key"},  // forward slash not allowed
+			{"__reserved", "cannot start or end with '__'"},
+			{"reserved__", "cannot start or end with '__'"},
+			{"__reserved__", "cannot start or end with '__'"},
+			{strings.Repeat("a", 257), "invalid memory key"}, // too long
+		}
+
+		for _, tc := range invalidKeys {
+			_, err := manager.validateKey(tc.key)
+			assert.Error(t, err, "Key should be invalid: %s", tc.key)
+			assert.Contains(
+				t,
+				err.Error(),
+				tc.errContains,
+				"Error message should contain expected text for key: %s",
+				tc.key,
+			)
+		}
+	})
+
+	t.Run("Should handle edge cases", func(t *testing.T) {
+		// Keys with multiple special characters
+		validComplexKeys := []string{
+			"user:123@example.com:session-456.tmp",
+			"org.company.user_123-test@2024",
+			"a:b:c:d:e:f:g:h:i:j:k", // many colons
+			"a_b_c_d_e_f_g_h_i_j_k", // many underscores
+			"a-b-c-d-e-f-g-h-i-j-k", // many hyphens
+			"a.b.c.d.e.f.g.h.i.j.k", // many dots
+		}
+
+		for _, key := range validComplexKeys {
+			validated, err := manager.validateKey(key)
+			assert.NoError(t, err, "Complex key should be valid: %s", key)
+			assert.Equal(t, key, validated, "Complex key should not be modified: %s", key)
+		}
 	})
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/ref"
-	"github.com/compozy/compozy/pkg/utils"
+	fixtures "github.com/compozy/compozy/test/fixtures"
 	"github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +21,7 @@ import (
 func setupTest(t *testing.T, taskFile string) (*core.PathCWD, string) {
 	_, filename, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	cwd, dstPath := utils.SetupTest(t, filename)
+	cwd, dstPath := fixtures.SetupConfigTest(t, filename)
 	dstPath = filepath.Join(dstPath, taskFile)
 	return cwd, dstPath
 }

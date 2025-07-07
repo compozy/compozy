@@ -25,8 +25,8 @@ func TestTokenCountingWithMemoryIntegration(t *testing.T) {
 			Key: "token-tracking-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("token-%d", time.Now().Unix()),
+			"project": map[string]any{"id": "test-project"},
+			"test":    map[string]any{"id": fmt.Sprintf("token-%d", time.Now().Unix())},
 		}
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
@@ -91,8 +91,8 @@ func TestTokenCountingConsistency(t *testing.T) {
 			Key: "token-consistency-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("consistency-%d", time.Now().Unix()),
+			"project": map[string]any{"id": "test-project"},
+			"test":    map[string]any{"id": fmt.Sprintf("consistency-%d", time.Now().Unix())},
 		}
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
@@ -138,8 +138,8 @@ func TestTokenCountingWithFlush(t *testing.T) {
 			Key: "token-flush-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("flush-%d", time.Now().Unix()),
+			"project": map[string]any{"id": "test-project"},
+			"test":    map[string]any{"id": fmt.Sprintf("flush-%d", time.Now().Unix())},
 		}
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
@@ -197,8 +197,8 @@ func TestTokenCountingEdgeCases(t *testing.T) {
 			Key: "edge-case-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("edge-%d", time.Now().Unix()),
+			"project": map[string]any{"id": "test-project"},
+			"test":    map[string]any{"id": fmt.Sprintf("edge-%d", time.Now().Unix())},
 		}
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
@@ -270,8 +270,8 @@ func TestTokenCountingConcurrency(t *testing.T) {
 			Key: "token-concurrent-{{.test.id}}",
 		}
 		workflowContext := map[string]any{
-			"project.id": "test-project",
-			"test.id":    fmt.Sprintf("concurrent-%d", time.Now().Unix()),
+			"project": map[string]any{"id": "test-project"},
+			"test":    map[string]any{"id": fmt.Sprintf("concurrent-%d", time.Now().Unix())},
 		}
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)

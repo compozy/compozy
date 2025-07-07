@@ -146,15 +146,25 @@ func (o *Operations) ClearMessages(ctx context.Context) error {
 
 // GetMessageCount returns the number of messages
 func (o *Operations) GetMessageCount(ctx context.Context) (int, error) {
-	return o.store.GetMessageCount(ctx, o.instanceID)
+	o.logger.Debug("GetMessageCount called", "instanceID", o.instanceID)
+	count, err := o.store.GetMessageCount(ctx, o.instanceID)
+	if err != nil {
+		o.logger.Error("Failed to get message count from store", "instanceID", o.instanceID, "error", err)
+		return 0, err
+	}
+	o.logger.Debug("Got message count from store", "instanceID", o.instanceID, "messageCount", count)
+	return count, nil
 }
 
 // GetTokenCount returns the current token count
 func (o *Operations) GetTokenCount(ctx context.Context) (int, error) {
+	o.logger.Debug("GetTokenCount called", "instanceID", o.instanceID)
 	tokenCount, err := o.store.GetTokenCount(ctx, o.instanceID)
 	if err != nil {
+		o.logger.Error("Failed to get token count from store", "instanceID", o.instanceID, "error", err)
 		return 0, err
 	}
+	o.logger.Debug("Got token count from store", "instanceID", o.instanceID, "tokenCount", tokenCount)
 
 	// If token count is 0, it might need migration
 	if tokenCount == 0 {

@@ -46,15 +46,20 @@ func NewStatsMemory(
 	manager *memory.Manager,
 	worker *worker.Worker,
 	svc service.MemoryOperationsService,
-) *StatsMemory {
+) (*StatsMemory, error) {
 	if svc == nil && manager != nil {
-		svc = service.NewMemoryOperationsService(manager, nil, nil)
+		var err error
+		svc, err = service.NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		if err != nil {
+			// Log error but continue with nil service
+			return nil, err
+		}
 	}
 	return &StatsMemory{
 		Manager: manager,
 		Worker:  worker,
 		service: svc,
-	}
+	}, nil
 }
 
 // Execute gets memory statistics

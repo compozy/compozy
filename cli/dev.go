@@ -12,7 +12,6 @@ import (
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/pkg/logger"
-	"github.com/compozy/compozy/pkg/utils"
 	"github.com/fsnotify/fsnotify"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -36,56 +35,38 @@ func getBasicServerFlags(cmd *cobra.Command) (host string, port int, cors bool, 
 	return host, port, cors, configFile, nil
 }
 
+// setIntFlagToEnv sets an integer flag value to environment variable if not already set
+func setIntFlagToEnv(cmd *cobra.Command, flagName, envName string) error {
+	value, err := cmd.Flags().GetInt(flagName)
+	if err != nil {
+		return fmt.Errorf("failed to get %s flag: %w", flagName, err)
+	}
+	if os.Getenv(envName) == "" {
+		os.Setenv(envName, fmt.Sprintf("%d", value))
+	}
+	return nil
+}
+
 // setEnvironmentVariablesFromFlags sets environment variables from command flags if not already set
 func setEnvironmentVariablesFromFlags(cmd *cobra.Command) error {
-	maxNestingDepth, err := cmd.Flags().GetInt("max-nesting-depth")
-	if err != nil {
-		return fmt.Errorf("failed to get max-nesting-depth flag: %w", err)
+	flagEnvPairs := []struct {
+		flag string
+		env  string
+	}{
+		{"max-nesting-depth", "MAX_NESTING_DEPTH"},
+		{"max-string-length", "MAX_STRING_LENGTH"},
+		{"dispatcher-heartbeat-interval", "DISPATCHER_HEARTBEAT_INTERVAL"},
+		{"dispatcher-heartbeat-ttl", "DISPATCHER_HEARTBEAT_TTL"},
+		{"dispatcher-stale-threshold", "DISPATCHER_STALE_THRESHOLD"},
+		{"max-message-content-length", "MAX_MESSAGE_CONTENT_LENGTH"},
+		{"max-total-content-size", "MAX_TOTAL_CONTENT_SIZE"},
+		{"async-token-counter-workers", "ASYNC_TOKEN_COUNTER_WORKERS"},
+		{"async-token-counter-buffer-size", "ASYNC_TOKEN_COUNTER_BUFFER_SIZE"},
 	}
-	if os.Getenv("MAX_NESTING_DEPTH") == "" {
-		os.Setenv("MAX_NESTING_DEPTH", fmt.Sprintf("%d", maxNestingDepth))
-	}
-	maxStringLength, err := cmd.Flags().GetInt("max-string-length")
-	if err != nil {
-		return fmt.Errorf("failed to get max-string-length flag: %w", err)
-	}
-	if os.Getenv("MAX_STRING_LENGTH") == "" {
-		os.Setenv("MAX_STRING_LENGTH", fmt.Sprintf("%d", maxStringLength))
-	}
-	dispatcherHeartbeatInterval, err := cmd.Flags().GetInt("dispatcher-heartbeat-interval")
-	if err != nil {
-		return fmt.Errorf("failed to get dispatcher-heartbeat-interval flag: %w", err)
-	}
-	if os.Getenv("DISPATCHER_HEARTBEAT_INTERVAL") == "" {
-		os.Setenv("DISPATCHER_HEARTBEAT_INTERVAL", fmt.Sprintf("%d", dispatcherHeartbeatInterval))
-	}
-	dispatcherHeartbeatTTL, err := cmd.Flags().GetInt("dispatcher-heartbeat-ttl")
-	if err != nil {
-		return fmt.Errorf("failed to get dispatcher-heartbeat-ttl flag: %w", err)
-	}
-	if os.Getenv("DISPATCHER_HEARTBEAT_TTL") == "" {
-		os.Setenv("DISPATCHER_HEARTBEAT_TTL", fmt.Sprintf("%d", dispatcherHeartbeatTTL))
-	}
-	dispatcherStaleThreshold, err := cmd.Flags().GetInt("dispatcher-stale-threshold")
-	if err != nil {
-		return fmt.Errorf("failed to get dispatcher-stale-threshold flag: %w", err)
-	}
-	if os.Getenv("DISPATCHER_STALE_THRESHOLD") == "" {
-		os.Setenv("DISPATCHER_STALE_THRESHOLD", fmt.Sprintf("%d", dispatcherStaleThreshold))
-	}
-	maxMessageContentLength, err := cmd.Flags().GetInt("max-message-content-length")
-	if err != nil {
-		return fmt.Errorf("failed to get max-message-content-length flag: %w", err)
-	}
-	if os.Getenv("MAX_MESSAGE_CONTENT_LENGTH") == "" {
-		os.Setenv("MAX_MESSAGE_CONTENT_LENGTH", fmt.Sprintf("%d", maxMessageContentLength))
-	}
-	maxTotalContentSize, err := cmd.Flags().GetInt("max-total-content-size")
-	if err != nil {
-		return fmt.Errorf("failed to get max-total-content-size flag: %w", err)
-	}
-	if os.Getenv("MAX_TOTAL_CONTENT_SIZE") == "" {
-		os.Setenv("MAX_TOTAL_CONTENT_SIZE", fmt.Sprintf("%d", maxTotalContentSize))
+	for _, pair := range flagEnvPairs {
+		if err := setIntFlagToEnv(cmd, pair.flag, pair.env); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -96,7 +77,7 @@ func getServerConfig(ctx context.Context, cmd *cobra.Command, envFilePath string
 	if err != nil {
 		return nil, err
 	}
-	CWD, _, err := utils.GetConfigCWD(cmd)
+	CWD, _, err := GetConfigCWD(cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -302,6 +283,11 @@ func DevCmd() *cobra.Command {
 		Int("max-message-content-length", 10240, "Maximum message content length in bytes (env: MAX_MESSAGE_CONTENT_LENGTH)")
 	cmd.Flags().
 		Int("max-total-content-size", 102400, "Maximum total content size in bytes (env: MAX_TOTAL_CONTENT_SIZE)")
+	// Memory async token counter configuration
+	cmd.Flags().Int("async-token-counter-workers", 10,
+		"Number of workers for async token counting (env: ASYNC_TOKEN_COUNTER_WORKERS)")
+	cmd.Flags().Int("async-token-counter-buffer-size", 1000,
+		"Buffer size for async token counting queue (env: ASYNC_TOKEN_COUNTER_BUFFER_SIZE)")
 
 	// Dispatcher heartbeat configuration flags
 	cmd.Flags().Int("dispatcher-heartbeat-interval", 30,

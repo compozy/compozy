@@ -24,10 +24,9 @@ agents:
       $ref: global::models.#(provider=="groq")
       temperature: 0.7
       max_tokens: 500
-    memory: true
-    memories:
-      - user_memory
-    memory_key: "user:{{.workflow.input.user_id}}"
+    memory:
+      - id: user_memory
+        key: "user:{{.workflow.input.user_id}}"
     instructions: |
       You are a helpful assistant that can remember information about users.
       Use your memory to provide personalized responses based on what you know about the user.
@@ -48,11 +47,6 @@ agents:
               description: Your response to the user
           required:
             - response
-
-resources:
-  memories:
-    - id: user_memory
-      source: ./memory/user_memory.yaml
 
 tasks:
   # Simple chat with memory

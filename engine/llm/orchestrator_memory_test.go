@@ -169,9 +169,10 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 				Provider: "openai",
 				Model:    "gpt-4",
 			},
-			Memory:    "test-memory",
-			MemoryKey: "user-123",
-			CWD:       &core.PathCWD{Path: "."},
+			Memory: []core.MemoryReference{
+				{ID: "test-memory", Key: "user-123", Mode: "read-write"},
+			},
+			CWD: &core.PathCWD{Path: "."},
 		}
 		// Call Validate to set resolved memory references
 		err := agentCfg.Validate()
@@ -264,9 +265,10 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 				Provider: "openai",
 				Model:    "gpt-4",
 			},
-			Memory:    "test-memory",
-			MemoryKey: "user-123",
-			CWD:       &core.PathCWD{Path: "."},
+			Memory: []core.MemoryReference{
+				{ID: "test-memory", Key: "user-123", Mode: "read-write"},
+			},
+			CWD: &core.PathCWD{Path: "."},
 		}
 		err := agentCfg.Validate()
 		assert.NoError(t, err)

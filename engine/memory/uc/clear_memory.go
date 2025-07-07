@@ -36,12 +36,17 @@ func NewClearMemory(
 	memoryRef, key string,
 	input *ClearMemoryInput,
 	svc service.MemoryOperationsService,
-) *ClearMemory {
+) (*ClearMemory, error) {
 	if input == nil {
 		input = &ClearMemoryInput{}
 	}
 	if svc == nil {
-		svc = service.NewMemoryOperationsService(manager, nil, nil)
+		var err error
+		svc, err = service.NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		if err != nil {
+			// Log error but continue with nil service
+			return nil, err
+		}
 	}
 	return &ClearMemory{
 		manager:   manager,
@@ -49,7 +54,7 @@ func NewClearMemory(
 		key:       key,
 		input:     input,
 		service:   svc,
-	}
+	}, nil
 }
 
 // Execute clears memory content

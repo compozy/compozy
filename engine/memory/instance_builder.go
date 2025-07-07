@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/compozy/compozy/engine/memory/instance/eviction"
 	"github.com/compozy/compozy/engine/memory/instance/strategies"
 	"github.com/compozy/compozy/engine/memory/store"
+	"github.com/compozy/compozy/engine/memory/tokens"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -32,6 +35,12 @@ func (mm *Manager) buildMemoryComponents(
 ) (*memoryComponents, error) {
 	// Build the key prefix with namespace: compozy:{project_id}:memory
 	keyPrefix := fmt.Sprintf("compozy:%s:memory", projectIDVal)
+
+	mm.log.Debug("🔧 buildMemoryComponents: Redis namespace generation",
+		"resource_id", resourceCfg.ID,
+		"project_id_input", projectIDVal,
+		"generated_key_prefix", keyPrefix)
+
 	redisStore := store.NewRedisMemoryStore(mm.baseRedisClient, keyPrefix)
 	lockManager, err := mm.createLockManager(projectIDVal, resourceCfg)
 	if err != nil {
@@ -396,7 +405,7 @@ func (mm *Manager) createEvictionPolicy(resourceCfg *memcore.Resource) instance.
 // createMemoryInstance creates the final memory instance with all components
 func (mm *Manager) createMemoryInstance(
 	ctx context.Context,
-	sanitizedKey, projectIDVal string,
+	validatedKey, projectIDVal string,
 	resourceCfg *memcore.Resource,
 	components *memoryComponents,
 ) (memcore.Memory, error) {
@@ -409,15 +418,43 @@ func (mm *Manager) createMemoryInstance(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token counter: %w", err)
 	}
+	// Create async token counter wrapper with configurable workers and buffer size
+	workers := 10      // default workers
+	bufferSize := 1000 // default buffer size
+	// Check environment variable first (set by CLI flag or env)
+	if envWorkers := os.Getenv("ASYNC_TOKEN_COUNTER_WORKERS"); envWorkers != "" {
+		if parsed, err := strconv.Atoi(envWorkers); err == nil && parsed > 0 {
+			workers = parsed
+		} else if err != nil {
+			mm.log.Debug("Invalid ASYNC_TOKEN_COUNTER_WORKERS value, using default",
+				"env_value", envWorkers, "default", workers, "error", err)
+		} else {
+			mm.log.Debug("Invalid ASYNC_TOKEN_COUNTER_WORKERS value, using default",
+				"env_value", envWorkers, "default", workers, "reason", "must be positive integer")
+		}
+	}
+	if envBufferSize := os.Getenv("ASYNC_TOKEN_COUNTER_BUFFER_SIZE"); envBufferSize != "" {
+		if parsed, err := strconv.Atoi(envBufferSize); err == nil && parsed > 0 {
+			bufferSize = parsed
+		} else if err != nil {
+			mm.log.Debug("Invalid ASYNC_TOKEN_COUNTER_BUFFER_SIZE value, using default",
+				"env_value", envBufferSize, "default", bufferSize, "error", err)
+		} else {
+			mm.log.Debug("Invalid ASYNC_TOKEN_COUNTER_BUFFER_SIZE value, using default",
+				"env_value", envBufferSize, "default", bufferSize, "reason", "must be positive integer")
+		}
+	}
+	asyncTokenCounter := tokens.NewAsyncTokenCounter(tokenCounter, workers, bufferSize, mm.log)
 	// Use the instance builder
 	instanceBuilder := instance.NewBuilder().
-		WithInstanceID(sanitizedKey).
+		WithInstanceID(validatedKey).
 		WithResourceID(resourceCfg.ID).
 		WithProjectID(projectIDVal).
 		WithResourceConfig(resourceCfg).
 		WithStore(components.store).
 		WithLockManager(components.lockManager).
 		WithTokenCounter(tokenCounter).
+		WithAsyncTokenCounter(asyncTokenCounter).
 		WithFlushingStrategy(components.flushingStrategy).
 		WithEvictionPolicy(components.evictionPolicy).
 		WithTemporalClient(mm.temporalClient).

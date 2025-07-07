@@ -38,12 +38,17 @@ func NewHealthMemory(
 	memoryRef, key string,
 	input *HealthMemoryInput,
 	svc service.MemoryOperationsService,
-) *HealthMemory {
+) (*HealthMemory, error) {
 	if input == nil {
 		input = &HealthMemoryInput{}
 	}
 	if svc == nil {
-		svc = service.NewMemoryOperationsService(manager, nil, nil)
+		var err error
+		svc, err = service.NewMemoryOperationsService(manager, nil, nil, nil, nil)
+		if err != nil {
+			// Log error but continue with nil service
+			return nil, err
+		}
 	}
 	return &HealthMemory{
 		manager:   manager,
@@ -51,7 +56,7 @@ func NewHealthMemory(
 		key:       key,
 		input:     input,
 		service:   svc,
-	}
+	}, nil
 }
 
 // Execute checks memory health

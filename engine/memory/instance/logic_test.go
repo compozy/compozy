@@ -2,6 +2,7 @@ package instance
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -31,6 +32,7 @@ func TestMemoryInstance_BusinessLogic(t *testing.T) {
 			flushingStrategy: mockFlushStrategy,
 			logger:           logger.NewForTests(),
 			metrics:          NewDefaultMetrics(logger.NewForTests()),
+			debouncedFlush:   func() {}, // Mock debounced flush for tests
 		}
 
 		ctx := context.Background()
@@ -260,6 +262,32 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 			metrics:          NewDefaultMetrics(testLogger),
 		}
 
+		// Create a mock debounced flush that executes synchronously for testing
+		instance.debouncedFlush = func() {
+			// For this test, we need to execute the flush check in a goroutine
+			// but track when it starts to ensure proper synchronization
+			go func() {
+				// Get token count
+				tokenCount, err := instance.GetTokenCount(context.Background())
+				if err != nil {
+					return
+				}
+				// Get message count
+				messageCount, err := instance.Len(context.Background())
+				if err != nil {
+					return
+				}
+				// Check if should flush
+				instance.flushingStrategy.ShouldFlush(tokenCount, messageCount, instance.resourceConfig)
+
+				// Signal completion
+				select {
+				case flushCheckDone <- true:
+				default:
+				}
+			}()
+		}
+
 		ctx := context.Background()
 		msg := llm.Message{Role: "user", Content: "test"}
 
@@ -301,3 +329,226 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 }
 
 // TODO: Implement TestFlushHandler_ErrorLogging when flush handler is integrated
+
+// Test Close method functionality
+func TestMemoryInstance_Close(t *testing.T) {
+	t.Run("Should gracefully close with no pending operations", func(t *testing.T) {
+		mockStore := &mockStore{}
+		mockFlushStrategy := &mockFlushStrategy{}
+		mockLockManager := &mockLockManager{}
+
+		instance := &memoryInstance{
+			id:               "test-id",
+			store:            mockStore,
+			lockManager:      mockLockManager,
+			flushingStrategy: mockFlushStrategy,
+			logger:           logger.NewForTests(),
+			metrics:          NewDefaultMetrics(logger.NewForTests()),
+			flushMutex:       sync.Mutex{},
+			flushWG:          sync.WaitGroup{},
+			debouncedFlush:   func() {}, // No-op for this test
+			flushCancelFunc:  func() {}, // Mock cancel function
+		}
+
+		// Setup expectations for final flush check (no actual flush needed)
+		mockStore.On("GetTokenCount", mock.Anything, "test-id").Return(100, nil).Once()
+		mockStore.On("GetMessageCount", mock.Anything, "test-id").Return(5, nil).Once()
+		mockFlushStrategy.On("ShouldFlush", 100, 5, (*core.Resource)(nil)).Return(false).Once()
+
+		err := instance.Close(context.Background())
+
+		assert.NoError(t, err)
+		mockStore.AssertExpectations(t)
+		mockFlushStrategy.AssertExpectations(t)
+	})
+
+	t.Run("Should wait for in-flight operations before closing", func(t *testing.T) {
+		mockStore := &mockStore{}
+		mockFlushStrategy := &mockFlushStrategy{}
+		mockLockManager := &mockLockManager{}
+
+		instance := &memoryInstance{
+			id:               "test-id",
+			store:            mockStore,
+			lockManager:      mockLockManager,
+			flushingStrategy: mockFlushStrategy,
+			logger:           logger.NewForTests(),
+			metrics:          NewDefaultMetrics(logger.NewForTests()),
+			flushMutex:       sync.Mutex{},
+			flushWG:          sync.WaitGroup{},
+			debouncedFlush:   func() {}, // No-op for this test
+			flushCancelFunc:  func() {}, // Mock cancel function
+		}
+
+		// Simulate an in-flight operation
+		instance.flushWG.Add(1)
+		operationComplete := make(chan bool)
+
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			instance.flushWG.Done()
+			close(operationComplete)
+		}()
+
+		// Setup expectations for final flush check (after wait, no actual flush needed)
+		mockStore.On("GetTokenCount", mock.Anything, "test-id").Return(100, nil).Once()
+		mockStore.On("GetMessageCount", mock.Anything, "test-id").Return(5, nil).Once()
+		mockFlushStrategy.On("ShouldFlush", 100, 5, (*core.Resource)(nil)).Return(false).Once()
+
+		// Close should wait for the operation to complete
+		startTime := time.Now()
+		err := instance.Close(context.Background())
+		duration := time.Since(startTime)
+
+		assert.NoError(t, err)
+		assert.GreaterOrEqual(t, duration, 50*time.Millisecond, "Close should wait for in-flight operations")
+
+		// Ensure operation completed
+		select {
+		case <-operationComplete:
+			// Good, operation completed
+		default:
+			t.Fatal("In-flight operation did not complete")
+		}
+
+		mockStore.AssertExpectations(t)
+		mockFlushStrategy.AssertExpectations(t)
+		mockLockManager.AssertExpectations(t)
+	})
+
+	t.Run("Should handle nil cancel function", func(t *testing.T) {
+		mockStore := &mockStore{}
+		mockFlushStrategy := &mockFlushStrategy{}
+		mockLockManager := &mockLockManager{}
+
+		instance := &memoryInstance{
+			id:               "test-id",
+			store:            mockStore,
+			lockManager:      mockLockManager,
+			flushingStrategy: mockFlushStrategy,
+			logger:           logger.NewForTests(),
+			metrics:          NewDefaultMetrics(logger.NewForTests()),
+			flushMutex:       sync.Mutex{},
+			flushWG:          sync.WaitGroup{},
+			debouncedFlush:   func() {}, // No-op for this test
+			flushCancelFunc:  nil,       // Explicitly nil
+		}
+
+		// Setup expectations for final flush check
+		mockStore.On("GetTokenCount", mock.Anything, "test-id").Return(100, nil).Once()
+		mockStore.On("GetMessageCount", mock.Anything, "test-id").Return(5, nil).Once()
+		mockFlushStrategy.On("ShouldFlush", 100, 5, (*core.Resource)(nil)).Return(false).Once()
+
+		// Should not panic when flushCancelFunc is nil
+		err := instance.Close(context.Background())
+
+		assert.NoError(t, err)
+		mockStore.AssertExpectations(t)
+		mockFlushStrategy.AssertExpectations(t)
+		mockLockManager.AssertExpectations(t)
+	})
+
+	t.Run("Should perform final flush when data needs flushing", func(t *testing.T) {
+		mockStore := &mockStore{}
+		mockFlushStrategy := &mockFlushStrategy{}
+		mockLockManager := &mockLockManager{}
+		unlockFunc := func() error { return nil }
+
+		// Mock data for messages
+		messages := []llm.Message{
+			{Role: "user", Content: "test message"},
+			{Role: "assistant", Content: "test response"},
+		}
+
+		instance := &memoryInstance{
+			id:               "test-id",
+			store:            mockStore,
+			lockManager:      mockLockManager,
+			flushingStrategy: mockFlushStrategy,
+			logger:           logger.NewForTests(),
+			metrics:          NewDefaultMetrics(logger.NewForTests()),
+			flushMutex:       sync.Mutex{},
+			flushWG:          sync.WaitGroup{},
+			debouncedFlush:   func() {}, // No-op for this test
+			flushCancelFunc:  func() {}, // Mock cancel function
+		}
+
+		// Setup expectations for final flush check
+		mockLockManager.On("AcquireFlushLock", mock.Anything, "test-id").Return(unlockFunc, nil).Once()
+		mockStore.On("GetTokenCount", mock.Anything, "test-id").Return(1000, nil).Once()
+		mockStore.On("GetMessageCount", mock.Anything, "test-id").Return(10, nil).Once()
+		mockFlushStrategy.On("ShouldFlush", 1000, 10, (*core.Resource)(nil)).Return(true).Once()
+
+		// Setup expectations for actual flush via PerformFlush
+		// The performAsyncFlushCheck will call PerformFlush which creates a FlushHandler
+		// The FlushHandler will read messages and call the strategy's PerformFlush
+		mockStore.On("ReadMessages", mock.Anything, "test-id").Return(messages, nil).Once()
+		mockFlushStrategy.On("PerformFlush", mock.Anything, messages, (*core.Resource)(nil)).
+			Return(&core.FlushMemoryActivityOutput{
+				Success:          true,
+				SummaryGenerated: true,
+				MessageCount:     2,
+				TokenCount:       100,
+			}, nil).
+			Once()
+
+		err := instance.Close(context.Background())
+
+		assert.NoError(t, err)
+		mockStore.AssertExpectations(t)
+		mockFlushStrategy.AssertExpectations(t)
+		mockLockManager.AssertExpectations(t)
+	})
+}
+
+// Test race condition prevention
+func TestMemoryInstance_Close_RaceCondition(t *testing.T) {
+	t.Run("Should handle concurrent Close calls safely", func(t *testing.T) {
+		mockStore := &mockStore{}
+		mockFlushStrategy := &mockFlushStrategy{}
+		mockLockManager := &mockLockManager{}
+		unlockFunc := func() error { return nil }
+
+		instance := &memoryInstance{
+			id:               "test-id",
+			store:            mockStore,
+			lockManager:      mockLockManager,
+			flushingStrategy: mockFlushStrategy,
+			logger:           logger.NewForTests(),
+			metrics:          NewDefaultMetrics(logger.NewForTests()),
+			flushMutex:       sync.Mutex{},
+			flushWG:          sync.WaitGroup{},
+			debouncedFlush:   func() {}, // No-op for this test
+			flushCancelFunc:  func() {}, // Mock cancel function
+		}
+
+		// Setup expectations - each Close() will try to perform final flush
+		// Using Maybe() because with mutex protection, only one will succeed
+		mockLockManager.On("AcquireFlushLock", mock.Anything, "test-id").Return(unlockFunc, nil).Maybe()
+		mockStore.On("GetTokenCount", mock.Anything, "test-id").Return(100, nil).Maybe()
+		mockStore.On("GetMessageCount", mock.Anything, "test-id").Return(5, nil).Maybe()
+		mockFlushStrategy.On("ShouldFlush", 100, 5, (*core.Resource)(nil)).Return(false).Maybe()
+
+		// Start multiple concurrent Close calls
+		var wg sync.WaitGroup
+		errors := make([]error, 5)
+
+		for i := 0; i < 5; i++ {
+			wg.Add(1)
+			go func(idx int) {
+				defer wg.Done()
+				errors[idx] = instance.Close(context.Background())
+			}(i)
+		}
+
+		wg.Wait()
+
+		// All Close calls should succeed without error
+		for i, err := range errors {
+			assert.NoError(t, err, "Close call %d should not error", i)
+		}
+
+		// At least one flush check should have occurred
+		mockLockManager.AssertExpectations(t)
+	})
+}

@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/task2/composite"
 	"github.com/compozy/compozy/engine/task2/contracts"
 	"github.com/compozy/compozy/engine/task2/core"
+	"github.com/compozy/compozy/engine/task2/memory"
 	"github.com/compozy/compozy/engine/task2/parallel"
 	"github.com/compozy/compozy/engine/task2/router"
 	"github.com/compozy/compozy/engine/task2/shared"
@@ -79,6 +80,8 @@ func (f *DefaultNormalizerFactory) CreateNormalizer(taskType task.Type) (contrac
 		return composite.NewNormalizer(f.templateEngine, f.contextBuilder, f), nil
 	case task.TaskTypeSignal:
 		return signal.NewNormalizer(f.templateEngine, f.contextBuilder), nil
+	case task.TaskTypeMemory:
+		return memory.NewNormalizer(f.templateEngine), nil
 	default:
 		return nil, fmt.Errorf("unsupported task type: %s", taskType)
 	}
@@ -134,7 +137,7 @@ func (f *DefaultNormalizerFactory) CreateResponseHandler(taskType task.Type) (sh
 	// Create task-specific handler
 	switch taskType {
 	case task.TaskTypeBasic:
-		return basic.NewResponseHandler(f.templateEngine, f.contextBuilder, baseHandler), nil
+		return basic.NewResponseHandler(f.templateEngine, f.contextBuilder, baseHandler)
 	case task.TaskTypeParallel:
 		return parallel.NewResponseHandler(f.templateEngine, f.contextBuilder, baseHandler), nil
 	case task.TaskTypeCollection:
@@ -149,6 +152,8 @@ func (f *DefaultNormalizerFactory) CreateResponseHandler(taskType task.Type) (sh
 		return signal.NewResponseHandler(f.templateEngine, f.contextBuilder, baseHandler), nil
 	case task.TaskTypeAggregate:
 		return aggregate.NewResponseHandler(f.templateEngine, f.contextBuilder, baseHandler), nil
+	case task.TaskTypeMemory:
+		return memory.NewResponseHandler(f.templateEngine, f.contextBuilder, baseHandler)
 	default:
 		return nil, fmt.Errorf("unsupported task type for response handler: %s", taskType)
 	}
