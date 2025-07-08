@@ -24,6 +24,7 @@ import (
 	"github.com/compozy/compozy/engine/task/services"
 	wkacts "github.com/compozy/compozy/engine/worker/activities"
 	wf "github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/sethvargo/go-retry"
@@ -58,6 +59,7 @@ type Config struct {
 	TaskRepo          func() task.Repository
 	MonitoringService *monitoring.Service
 	ResourceRegistry  *autoload.ConfigRegistry // For memory resource configs
+	AppConfig         *config.Config           // Application configuration
 }
 
 type Worker struct {
@@ -191,6 +193,7 @@ func NewWorker(
 		workerCore.redisCache,
 		memoryManager,
 		templateEngine,
+		config.AppConfig,
 	)
 	interceptor.SetConfiguredWorkerCount(1)
 	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())

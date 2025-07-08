@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/engine/task2"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
@@ -36,6 +37,7 @@ type ExecuteBasic struct {
 	memoryManager  memcore.ManagerInterface
 	templateEngine *tplengine.TemplateEngine
 	projectConfig  *project.Config
+	appConfig      *config.Config
 }
 
 // NewExecuteBasic creates a new ExecuteBasic activity with task2 integration
@@ -50,17 +52,19 @@ func NewExecuteBasic(
 	templateEngine *tplengine.TemplateEngine,
 	projectConfig *project.Config,
 	task2Factory task2.Factory,
+	appConfig *config.Config,
 ) (*ExecuteBasic, error) {
 	return &ExecuteBasic{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:  uc.NewCreateState(taskRepo, configStore),
-		executeUC:      uc.NewExecuteTask(runtime, memoryManager, templateEngine),
+		executeUC:      uc.NewExecuteTask(runtime, memoryManager, templateEngine, appConfig),
 		task2Factory:   task2Factory,
 		workflowRepo:   workflowRepo,
 		taskRepo:       taskRepo,
 		memoryManager:  memoryManager,
 		templateEngine: templateEngine,
 		projectConfig:  projectConfig,
+		appConfig:      appConfig,
 	}, nil
 }
 
@@ -112,7 +116,7 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 	})
 	taskState.Output = output
 	// Use task2 ResponseHandler for basic type
-	handler, err := a.task2Factory.CreateResponseHandler(task.TaskTypeBasic)
+	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeBasic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create basic response handler: %w", err)
 	}

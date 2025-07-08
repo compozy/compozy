@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/compozy/compozy/pkg/config/definition"
 	"gopkg.in/yaml.v3"
 )
 
@@ -60,30 +61,9 @@ func (c *cliProvider) Load() (map[string]any, error) {
 		return make(map[string]any), nil
 	}
 
-	// Define CLI flag to configuration path mappings
-	// These mappings translate command-line flags to their corresponding
-	// configuration structure paths using dot notation.
-	var flagToPath = map[string]string{
-		"host":                            "server.host",
-		"port":                            "server.port",
-		"cors":                            "server.cors_enabled",
-		"db-host":                         "database.host",
-		"db-port":                         "database.port",
-		"db-user":                         "database.user",
-		"db-password":                     "database.password",
-		"db-name":                         "database.name",
-		"db-ssl-mode":                     "database.ssl_mode",
-		"db-conn-string":                  "database.conn_string",
-		"max-nesting-depth":               "limits.max_nesting_depth",
-		"max-string-length":               "limits.max_string_length",
-		"max-message-content-length":      "limits.max_message_content",
-		"max-total-content-size":          "limits.max_total_content_size",
-		"dispatcher-heartbeat-interval":   "runtime.dispatcher_heartbeat_interval",
-		"dispatcher-heartbeat-ttl":        "runtime.dispatcher_heartbeat_ttl",
-		"dispatcher-stale-threshold":      "runtime.dispatcher_stale_threshold",
-		"async-token-counter-workers":     "runtime.async_token_counter_workers",
-		"async-token-counter-buffer-size": "runtime.async_token_counter_buffer_size",
-	}
+	// Get CLI flag mappings from the registry (single source of truth)
+	registry := definition.CreateRegistry()
+	flagToPath := registry.GetCLIFlagMapping()
 
 	// Convert flat CLI flags to nested structure
 	config := make(map[string]any)
@@ -285,7 +265,7 @@ type defaultProvider struct {
 // NewDefaultProvider creates a new default configuration source.
 func NewDefaultProvider() Source {
 	return &defaultProvider{
-		defaults: getDefaultConfig(),
+		defaults: createDefaultMap(),
 	}
 }
 
@@ -309,57 +289,65 @@ func (d *defaultProvider) Close() error {
 	return nil
 }
 
-// getDefaultConfig returns the default configuration values.
-func getDefaultConfig() map[string]any {
+// createDefaultMap creates a map representation of default values from the registry.
+func createDefaultMap() map[string]any {
+	// Use the single source of truth - the registry
+	defaultConfig := Default()
+
+	// Convert Config struct to map[string]any format for koanf
 	return map[string]any{
 		"server": map[string]any{
-			"host":         "localhost",
-			"port":         8080,
-			"cors_enabled": false,
-			"timeout":      "30s",
+			"host":         defaultConfig.Server.Host,
+			"port":         defaultConfig.Server.Port,
+			"cors_enabled": defaultConfig.Server.CORSEnabled,
+			"timeout":      defaultConfig.Server.Timeout.String(),
 		},
 		"database": map[string]any{
-			"host":     "localhost",
-			"port":     "5432",
-			"user":     "postgres",
-			"password": "",
-			"name":     "compozy",
-			"ssl_mode": "disable",
+			"host":        defaultConfig.Database.Host,
+			"port":        defaultConfig.Database.Port,
+			"user":        defaultConfig.Database.User,
+			"password":    string(defaultConfig.Database.Password),
+			"name":        defaultConfig.Database.DBName,
+			"ssl_mode":    defaultConfig.Database.SSLMode,
+			"conn_string": defaultConfig.Database.ConnString,
 		},
 		"temporal": map[string]any{
-			"host_port":  "localhost:7233",
-			"namespace":  "default",
-			"task_queue": "compozy",
+			"host_port":  defaultConfig.Temporal.HostPort,
+			"namespace":  defaultConfig.Temporal.Namespace,
+			"task_queue": defaultConfig.Temporal.TaskQueue,
 		},
 		"runtime": map[string]any{
-			"environment":                     "development",
-			"log_level":                       "info",
-			"dispatcher_heartbeat_interval":   "30s",
-			"dispatcher_heartbeat_ttl":        "2m",
-			"dispatcher_stale_threshold":      "5m",
-			"async_token_counter_workers":     10,
-			"async_token_counter_buffer_size": 1000,
+			"environment":                     defaultConfig.Runtime.Environment,
+			"log_level":                       defaultConfig.Runtime.LogLevel,
+			"dispatcher_heartbeat_interval":   defaultConfig.Runtime.DispatcherHeartbeatInterval.String(),
+			"dispatcher_heartbeat_ttl":        defaultConfig.Runtime.DispatcherHeartbeatTTL.String(),
+			"dispatcher_stale_threshold":      defaultConfig.Runtime.DispatcherStaleThreshold.String(),
+			"async_token_counter_workers":     defaultConfig.Runtime.AsyncTokenCounterWorkers,
+			"async_token_counter_buffer_size": defaultConfig.Runtime.AsyncTokenCounterBufferSize,
 		},
 		"limits": map[string]any{
-			"max_nesting_depth":        20,
-			"max_string_length":        10485760,
-			"max_message_content":      10240,
-			"max_total_content_size":   102400,
-			"max_task_context_depth":   5,
-			"parent_update_batch_size": 100,
+			"max_nesting_depth":        defaultConfig.Limits.MaxNestingDepth,
+			"max_string_length":        defaultConfig.Limits.MaxStringLength,
+			"max_message_content":      defaultConfig.Limits.MaxMessageContent,
+			"max_total_content_size":   defaultConfig.Limits.MaxTotalContentSize,
+			"max_task_context_depth":   defaultConfig.Limits.MaxTaskContextDepth,
+			"parent_update_batch_size": defaultConfig.Limits.ParentUpdateBatchSize,
 		},
 		"openai": map[string]any{
-			"api_key": "",
+			"api_key":       string(defaultConfig.OpenAI.APIKey),
+			"base_url":      defaultConfig.OpenAI.BaseURL,
+			"org_id":        defaultConfig.OpenAI.OrgID,
+			"default_model": defaultConfig.OpenAI.DefaultModel,
 		},
 		"memory": map[string]any{
-			"url":      "",
-			"api_key":  "",
-			"org_id":   "",
-			"agent_id": "",
+			"redis_url":    defaultConfig.Memory.RedisURL,
+			"redis_prefix": defaultConfig.Memory.RedisPrefix,
+			"ttl":          defaultConfig.Memory.TTL.String(),
+			"max_entries":  defaultConfig.Memory.MaxEntries,
 		},
 		"llm": map[string]any{
-			"proxy_url":   "",
-			"admin_token": "",
+			"proxy_url":   defaultConfig.LLM.ProxyURL,
+			"admin_token": string(defaultConfig.LLM.AdminToken),
 		},
 	}
 }

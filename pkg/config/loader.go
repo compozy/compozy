@@ -12,6 +12,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/knadh/koanf/providers/env/v2"
+	"github.com/knadh/koanf/providers/structs"
 	"github.com/knadh/koanf/v2"
 )
 
@@ -65,13 +66,13 @@ func (l *loader) Load(_ context.Context, sources ...Source) (*Config, error) {
 		return nil, err
 	}
 
-	// Load environment variables
-	if err := l.loadEnvironment(); err != nil {
+	// Apply additional sources
+	if err := l.loadSources(sources); err != nil {
 		return nil, err
 	}
 
-	// Apply additional sources
-	if err := l.loadSources(sources); err != nil {
+	// Load environment variables
+	if err := l.loadEnvironment(); err != nil {
 		return nil, err
 	}
 
@@ -97,75 +98,14 @@ func (l *loader) reset() {
 	l.metadataMu.Unlock()
 }
 
-// setDefault is a helper to set a default value and handle errors
-func (l *loader) setDefault(key string, value any) error {
-	if err := l.koanf.Set(key, value); err != nil {
-		return fmt.Errorf("failed to set %s: %w", key, err)
-	}
-	return nil
-}
-
 // loadDefaults loads the default configuration.
 func (l *loader) loadDefaults() error {
 	defaultConfig := Default()
 
-	// Define all defaults as key-value pairs
-	defaults := []struct {
-		key   string
-		value any
-	}{
-		// Server defaults
-		{"server.host", defaultConfig.Server.Host},
-		{"server.port", defaultConfig.Server.Port},
-		{"server.cors_enabled", defaultConfig.Server.CORSEnabled},
-		{"server.timeout", defaultConfig.Server.Timeout},
-		// Database defaults - store sensitive fields as plain strings
-		{"database.host", defaultConfig.Database.Host},
-		{"database.port", defaultConfig.Database.Port},
-		{"database.user", defaultConfig.Database.User},
-		{"database.password", defaultConfig.Database.Password.Value()},
-		{"database.name", defaultConfig.Database.DBName},
-		{"database.ssl_mode", defaultConfig.Database.SSLMode},
-		{"database.conn_string", defaultConfig.Database.ConnString},
-		// Temporal defaults
-		{"temporal.host_port", defaultConfig.Temporal.HostPort},
-		{"temporal.namespace", defaultConfig.Temporal.Namespace},
-		{"temporal.task_queue", defaultConfig.Temporal.TaskQueue},
-		// Runtime defaults
-		{"runtime.environment", defaultConfig.Runtime.Environment},
-		{"runtime.log_level", defaultConfig.Runtime.LogLevel},
-		{"runtime.dispatcher_heartbeat_interval", defaultConfig.Runtime.DispatcherHeartbeatInterval},
-		{"runtime.dispatcher_heartbeat_ttl", defaultConfig.Runtime.DispatcherHeartbeatTTL},
-		{"runtime.dispatcher_stale_threshold", defaultConfig.Runtime.DispatcherStaleThreshold},
-		{"runtime.async_token_counter_workers", defaultConfig.Runtime.AsyncTokenCounterWorkers},
-		{"runtime.async_token_counter_buffer_size", defaultConfig.Runtime.AsyncTokenCounterBufferSize},
-		// Limits defaults
-		{"limits.max_nesting_depth", defaultConfig.Limits.MaxNestingDepth},
-		{"limits.max_string_length", defaultConfig.Limits.MaxStringLength},
-		{"limits.max_message_content", defaultConfig.Limits.MaxMessageContent},
-		{"limits.max_total_content_size", defaultConfig.Limits.MaxTotalContentSize},
-		{"limits.max_task_context_depth", defaultConfig.Limits.MaxTaskContextDepth},
-		{"limits.parent_update_batch_size", defaultConfig.Limits.ParentUpdateBatchSize},
-		// OpenAI defaults
-		{"openai.api_key", defaultConfig.OpenAI.APIKey.Value()},
-		{"openai.base_url", defaultConfig.OpenAI.BaseURL},
-		{"openai.org_id", defaultConfig.OpenAI.OrgID},
-		{"openai.default_model", defaultConfig.OpenAI.DefaultModel},
-		// Memory defaults
-		{"memory.redis_url", defaultConfig.Memory.RedisURL},
-		{"memory.redis_prefix", defaultConfig.Memory.RedisPrefix},
-		{"memory.ttl", defaultConfig.Memory.TTL},
-		{"memory.max_entries", defaultConfig.Memory.MaxEntries},
-		// LLM defaults
-		{"llm.proxy_url", defaultConfig.LLM.ProxyURL},
-		{"llm.admin_token", defaultConfig.LLM.AdminToken.Value()},
-	}
-
-	// Apply all defaults
-	for _, d := range defaults {
-		if err := l.setDefault(d.key, d.value); err != nil {
-			return err
-		}
+	// Use structs provider to automatically convert the default config to a map
+	// This eliminates the need for hardcoded key-value pairs and reduces duplication
+	if err := l.koanf.Load(structs.Provider(defaultConfig, "koanf"), nil); err != nil {
+		return fmt.Errorf("failed to load defaults: %w", err)
 	}
 
 	// Track all keys as coming from defaults

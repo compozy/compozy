@@ -183,17 +183,6 @@ func (s *Server) Run() error {
 func (s *Server) setupProjectConfig() (*project.Config, []*workflow.Config, *autoload.ConfigRegistry, error) {
 	log := logger.FromContext(s.ctx)
 	setupStart := time.Now()
-
-	// Debug: Check environment variables before loading project
-	fmt.Printf("DEBUG: In setupProjectConfig, checking env vars:\n")
-	if dbPass := os.Getenv("DB_PASSWORD"); dbPass != "" {
-		fmt.Printf("  DB_PASSWORD is set [length=%d]\n", len(dbPass))
-	} else {
-		fmt.Printf("  DB_PASSWORD is NOT set\n")
-	}
-	fmt.Printf("  EnvFilePath: %s\n", s.Config.EnvFilePath)
-	fmt.Printf("  CWD: %s\n", s.Config.CWD)
-
 	configService := csvc.NewService(log, s.Config.EnvFilePath)
 	projectConfig, workflows, configRegistry, err := configService.LoadProject(s.ctx, s.Config.CWD, s.Config.ConfigFile)
 	if err != nil {
@@ -286,7 +275,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	}
 	deps := appstate.NewBaseDeps(projectConfig, workflows, storeInstance, clientConfig)
 	workerStart := time.Now()
-	worker, err := setupWorker(s.ctx, deps, s.monitoring, configRegistry)
+	worker, err := setupWorker(s.ctx, deps, s.monitoring, configRegistry, s.AppConfig)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
@@ -310,6 +299,7 @@ func setupWorker(
 	deps appstate.BaseDeps,
 	monitoringService *monitoring.Service,
 	configRegistry *autoload.ConfigRegistry,
+	appConfig *config.Config,
 ) (*worker.Worker, error) {
 	log := logger.FromContext(ctx)
 	workerCreateStart := time.Now()
@@ -322,6 +312,7 @@ func setupWorker(
 		},
 		MonitoringService: monitoringService,
 		ResourceRegistry:  configRegistry,
+		AppConfig:         appConfig,
 	}
 	worker, err := worker.NewWorker(
 		ctx,

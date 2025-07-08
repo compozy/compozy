@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/engine/task2"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/sethvargo/go-retry"
 )
@@ -35,6 +36,7 @@ type ExecuteSubtask struct {
 	templateEngine *tplengine.TemplateEngine
 	taskRepo       task.Repository
 	configStore    services.ConfigStore
+	appConfig      *config.Config
 }
 
 // NewExecuteSubtask creates a new ExecuteSubtask activity
@@ -46,14 +48,16 @@ func NewExecuteSubtask(
 	configStore services.ConfigStore,
 	task2Factory task2.Factory,
 	templateEngine *tplengine.TemplateEngine,
+	appConfig *config.Config,
 ) *ExecuteSubtask {
 	return &ExecuteSubtask{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
-		executeTaskUC:  uc.NewExecuteTask(runtime, nil, nil), // Subtasks don't need memory manager
+		executeTaskUC:  uc.NewExecuteTask(runtime, nil, nil, appConfig), // Subtasks don't need memory manager
 		task2Factory:   task2Factory,
 		templateEngine: templateEngine,
 		taskRepo:       taskRepo,
 		configStore:    configStore,
+		appConfig:      appConfig,
 	}
 }
 
@@ -121,7 +125,7 @@ func (a *ExecuteSubtask) Run(ctx context.Context, input *ExecuteSubtaskInput) (*
 		return nil, fmt.Errorf("failed to persist task output and status: %w", err)
 	}
 	// Use task2 ResponseHandler for subtask
-	handler, err := a.task2Factory.CreateResponseHandler(taskConfig.Type)
+	handler, err := a.task2Factory.CreateResponseHandler(ctx, taskConfig.Type)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create subtask response handler: %w", err)
 	}

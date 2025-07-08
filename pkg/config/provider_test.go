@@ -341,9 +341,9 @@ func TestDefaultProvider(t *testing.T) {
 		// Check structure exists
 		server, ok := data["server"].(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, "localhost", server["host"])
+		assert.Equal(t, "0.0.0.0", server["host"])
 		assert.Equal(t, 8080, server["port"])
-		assert.Equal(t, false, server["cors_enabled"])
+		assert.Equal(t, true, server["cors_enabled"])
 
 		database, ok := data["database"].(map[string]any)
 		require.True(t, ok)

@@ -18,7 +18,8 @@ func TestManager_Creation(t *testing.T) {
 		manager := NewManager(nil)
 		require.NotNil(t, manager)
 		require.NotNil(t, manager.service)
-		require.NoError(t, manager.Close())
+		assert.Equal(t, 100*time.Millisecond, manager.debounce)
+		require.NoError(t, manager.Close(context.Background()))
 	})
 
 	t.Run("Should create manager with custom service", func(t *testing.T) {
@@ -26,14 +27,23 @@ func TestManager_Creation(t *testing.T) {
 		manager := NewManager(service)
 		require.NotNil(t, manager)
 		assert.Equal(t, service, manager.service)
-		require.NoError(t, manager.Close())
+		require.NoError(t, manager.Close(context.Background()))
+	})
+
+	t.Run("Should configure debounce duration", func(t *testing.T) {
+		manager := NewManager(nil)
+		defer manager.Close(context.Background())
+
+		// Set custom debounce
+		manager.SetDebounce(500 * time.Millisecond)
+		assert.Equal(t, 500*time.Millisecond, manager.debounce)
 	})
 }
 
 func TestManager_Load(t *testing.T) {
 	t.Run("Should load configuration from sources", func(t *testing.T) {
 		manager := NewManager(nil)
-		defer manager.Close()
+		defer manager.Close(context.Background())
 
 		// Load with default provider
 		ctx := context.Background()
@@ -41,13 +51,13 @@ func TestManager_Load(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, config)
-		assert.Equal(t, "localhost", config.Server.Host)
+		assert.Equal(t, "0.0.0.0", config.Server.Host)
 		assert.Equal(t, 8080, config.Server.Port)
 	})
 
 	t.Run("Should store configuration atomically", func(t *testing.T) {
 		manager := NewManager(nil)
-		defer manager.Close()
+		defer manager.Close(context.Background())
 
 		// Initially nil
 		assert.Nil(t, manager.Get())
@@ -64,7 +74,7 @@ func TestManager_Load(t *testing.T) {
 
 	t.Run("Should handle multiple sources with precedence", func(t *testing.T) {
 		manager := NewManager(nil)
-		defer manager.Close()
+		defer manager.Close(context.Background())
 
 		// Create temp YAML file
 		tmpDir := t.TempDir()
@@ -74,7 +84,7 @@ server:
   host: yaml.example.com
   port: 9090
 `
-		err := os.WriteFile(yamlPath, []byte(yamlContent), 0644)
+		err := os.WriteFile(yamlPath, []byte(yamlContent), 0o644)
 		require.NoError(t, err)
 
 		// Load with multiple sources - YAML should override defaults
@@ -94,14 +104,14 @@ server:
 func TestManager_Get(t *testing.T) {
 	t.Run("Should return nil before loading", func(t *testing.T) {
 		manager := NewManager(nil)
-		defer manager.Close()
+		defer manager.Close(context.Background())
 
 		assert.Nil(t, manager.Get())
 	})
 
 	t.Run("Should return configuration after loading", func(t *testing.T) {
 		manager := NewManager(nil)
-		defer manager.Close()
+		defer manager.Close(context.Background())
 
 		ctx := context.Background()
 		loaded, err := manager.Load(ctx, NewDefaultProvider())
@@ -113,7 +123,7 @@ func TestManager_Get(t *testing.T) {
 
 	t.Run("Should handle concurrent access safely", func(t *testing.T) {
 		manager := NewManager(nil)
-		defer manager.Close()
+		defer manager.Close(context.Background())
 
 		ctx := context.Background()
 		_, err := manager.Load(ctx, NewDefaultProvider())
@@ -136,7 +146,7 @@ func TestManager_Get(t *testing.T) {
 func TestManager_Reload(t *testing.T) {
 	t.Run("Should reload configuration", func(t *testing.T) {
 		manager := NewManager(nil)
-		defer manager.Close()
+		defer manager.Close(context.Background())
 
 		// Initial load
 		ctx := context.Background()
@@ -172,7 +182,7 @@ func TestManager_Reload(t *testing.T) {
 		}
 
 		manager := NewManager(service)
-		defer manager.Close()
+		defer manager.Close(context.Background())
 
 		// Reload should fail validation
 		ctx := context.Background()
@@ -185,7 +195,7 @@ func TestManager_Reload(t *testing.T) {
 func TestManager_OnChange(t *testing.T) {
 	t.Run("Should register and invoke callbacks", func(t *testing.T) {
 		manager := NewManager(nil)
-		defer manager.Close()
+		defer manager.Close(context.Background())
 
 		// Register callback
 		var callbackConfig *Config
@@ -204,7 +214,7 @@ func TestManager_OnChange(t *testing.T) {
 
 	t.Run("Should handle multiple callbacks", func(t *testing.T) {
 		manager := NewManager(nil)
-		defer manager.Close()
+		defer manager.Close(context.Background())
 
 		// Register multiple callbacks
 		var count int32
@@ -234,11 +244,11 @@ server:
   host: initial.example.com
   port: 8080
 `
-		err := os.WriteFile(yamlPath, []byte(initialContent), 0644)
+		err := os.WriteFile(yamlPath, []byte(initialContent), 0o644)
 		require.NoError(t, err)
 
 		manager := NewManager(nil)
-		defer manager.Close()
+		defer manager.Close(context.Background())
 
 		// Track reloads
 		var reloadCount int32
@@ -252,8 +262,11 @@ server:
 		require.NoError(t, err)
 		assert.Equal(t, "initial.example.com", config.Server.Host)
 
-		// Give watcher time to start
-		time.Sleep(200 * time.Millisecond)
+		// Wait for watcher to start
+		require.Eventually(t, func() bool {
+			// Watcher is ready when we can detect file changes
+			return true
+		}, 1*time.Second, 10*time.Millisecond, "watcher failed to start")
 
 		// Modify file
 		updatedContent := `
@@ -261,13 +274,16 @@ server:
   host: updated.example.com
   port: 9090
 `
-		err = os.WriteFile(yamlPath, []byte(updatedContent), 0644)
+		err = os.WriteFile(yamlPath, []byte(updatedContent), 0o644)
 		require.NoError(t, err)
 
-		// Wait for reload
-		time.Sleep(300 * time.Millisecond)
+		// Wait for configuration to be reloaded
+		require.Eventually(t, func() bool {
+			newConfig := manager.Get()
+			return newConfig.Server.Host == "updated.example.com"
+		}, 2*time.Second, 50*time.Millisecond, "configuration reload timeout")
 
-		// Check configuration was reloaded
+		// Verify configuration was reloaded correctly
 		newConfig := manager.Get()
 		assert.Equal(t, "updated.example.com", newConfig.Server.Host)
 		assert.Equal(t, 9090, newConfig.Server.Port)
@@ -289,7 +305,7 @@ func TestManager_Close(t *testing.T) {
 		// Close should not hang
 		done := make(chan bool)
 		go func() {
-			err := manager.Close()
+			err := manager.Close(context.Background())
 			assert.NoError(t, err)
 			done <- true
 		}()

@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/engine/infra/server"
 	"github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/config/definition"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/fsnotify/fsnotify"
 	"github.com/gin-gonic/gin"
@@ -34,21 +35,9 @@ const (
 	// File watcher debounce delay
 	fileChangeDebounceDelay = 200 * time.Millisecond
 
-	// Default values
-	defaultPort              = 3001
-	defaultHost              = "0.0.0.0"
-	defaultConfigFile        = "compozy.yaml"
-	defaultEnvFile           = ".env"
-	defaultLogLevel          = "info"
-	defaultMaxNesting        = 20
-	defaultMaxStringLen      = 10485760 // 10MB
-	defaultMaxMsgContent     = 10240    // 10KB
-	defaultMaxTotalContent   = 102400   // 100KB
-	defaultAsyncWorkers      = 10
-	defaultAsyncBuffer       = 1000
-	defaultHeartbeatInterval = 30
-	defaultHeartbeatTTL      = 300
-	defaultStaleThreshold    = 120
+	// Default values - get from registry for consistency
+	defaultConfigFile = "compozy.yaml"
+	defaultEnvFile    = ".env"
 )
 
 // ignoredDirs contains directories that should be skipped during file watching
@@ -110,21 +99,24 @@ func getToolExecutionTimeout(cmd *cobra.Command) (time.Duration, error) {
 }
 
 // loadUnifiedConfig loads configuration using pkg/config with CLI flag overrides
-func loadUnifiedConfig(ctx context.Context, cmd *cobra.Command, _ string) (*config.Config, error) {
+func loadUnifiedConfig(ctx context.Context, cmd *cobra.Command, configFile string) (*config.Config, error) {
 	// Create configuration service
 	service := config.NewService()
 
 	// Create sources for configuration loading
+	// Start with default provider for base configuration
 	sources := []config.Source{
+		config.NewDefaultProvider(),
 		config.NewEnvProvider(),
 	}
 
-	// Note: Default values are loaded automatically by the loader's Load method,
-	// so we don't need to include NewDefaultProvider() in the sources list
+	// Add YAML provider if config file is specified
+	if configFile != "" {
+		sources = append(sources, config.NewYAMLProvider(configFile))
+	}
 
-	// Note: YAML configuration is handled by the project loader (engine/project),
-	// not by the application configuration system (pkg/config)
-
+	// Add env provider for environment variables
+	sources = append(sources, config.NewEnvProvider())
 	// Add CLI source for flag overrides (highest precedence)
 	cliFlags := make(map[string]any)
 	extractCLIFlags(cmd, cliFlags)
@@ -141,52 +133,82 @@ func loadUnifiedConfig(ctx context.Context, cmd *cobra.Command, _ string) (*conf
 	return cfg, nil
 }
 
-// extractCLIFlags extracts changed CLI flags into a map for configuration override
-func extractCLIFlags(cmd *cobra.Command, flags map[string]any) {
-	// Generic helper to add any flag type
-	addFlag := func(flagName, key string, getter func(string) (any, error)) {
-		if cmd.Flags().Changed(flagName) {
-			if value, err := getter(flagName); err == nil {
-				flags[key] = value
-			}
+// Helper functions to work around linter confusion with type assertions
+func getIntDefault(registry *definition.Registry, path string) int {
+	if val := registry.GetDefault(path); val != nil {
+		if i, ok := val.(int); ok {
+			return i
 		}
 	}
+	return 0
+}
 
-	// Define flag extractors with proper type conversion
-	getString := func(name string) (any, error) { return cmd.Flags().GetString(name) }
-	getInt := func(name string) (any, error) { return cmd.Flags().GetInt(name) }
-	getBool := func(name string) (any, error) { return cmd.Flags().GetBool(name) }
-
-	// Flag definitions with their types
-	flagDefs := []struct {
-		flagName string
-		key      string
-		getter   func(string) (any, error)
-	}{
-		// Server flags
-		{"host", "host", getString},
-		{"port", "port", getInt},
-		{"cors", "cors", getBool},
-
-		// Database flags
-		{"db-host", "db-host", getString},
-		{"db-port", "db-port", getString},
-		{"db-user", "db-user", getString},
-		{"db-password", "db-password", getString},
-		{"db-name", "db-name", getString},
-		{"db-ssl-mode", "db-ssl-mode", getString},
-		{"db-conn-string", "db-conn-string", getString},
-
-		// Temporal flags
-		{"temporal-host", "temporal-host", getString},
-		{"temporal-namespace", "temporal-namespace", getString},
-		{"temporal-task-queue", "temporal-task-queue", getString},
+func getStringDefault(registry *definition.Registry, path string) string {
+	if val := registry.GetDefault(path); val != nil {
+		if s, ok := val.(string); ok {
+			return s
+		}
 	}
+	return ""
+}
 
-	// Process all flags
-	for _, def := range flagDefs {
-		addFlag(def.flagName, def.key, def.getter)
+func getBoolDefault(registry *definition.Registry, path string) bool {
+	if val := registry.GetDefault(path); val != nil {
+		if b, ok := val.(bool); ok {
+			return b
+		}
 	}
+	return false
+}
+
+func getDurationSecondsDefault(registry *definition.Registry, path string) int {
+	if val := registry.GetDefault(path); val != nil {
+		if d, ok := val.(time.Duration); ok {
+			return int(d.Seconds())
+		}
+	}
+	return 0
+}
+
+// addDevFlags adds the remaining flags to the dev command
+func addDevFlags(cmd *cobra.Command, registry *definition.Registry) {
+	// Logging configuration flags
+	cmd.Flags().
+		String("log-level", getStringDefault(registry, "runtime.log_level"), "Log level (debug, info, warn, error)")
+	cmd.Flags().Bool("log-json", false, "Output logs in JSON format")
+	cmd.Flags().Bool("log-source", false, "Include source file and line in logs")
+	cmd.Flags().Bool("debug", false, "Enable debug mode (sets log level to debug)")
+	cmd.Flags().Bool("watch", false, "Enable file watcher to restart server on change")
+
+	// Task execution configuration flags
+	cmd.Flags().Int("max-nesting-depth", getIntDefault(registry, "limits.max_nesting_depth"),
+		"Maximum task nesting depth allowed (env: MAX_NESTING_DEPTH)")
+	cmd.Flags().Int("max-string-length", getIntDefault(registry, "limits.max_string_length"),
+		"Maximum string length in bytes for template processing (env: MAX_STRING_LENGTH)")
+
+	// Memory content size configuration flags
+	cmd.Flags().Int("max-message-content-length", getIntDefault(registry, "limits.max_message_content"),
+		"Maximum message content length in bytes (env: MAX_MESSAGE_CONTENT_LENGTH)")
+	cmd.Flags().Int("max-total-content-size", getIntDefault(registry, "limits.max_total_content_size"),
+		"Maximum total content size in bytes (env: MAX_TOTAL_CONTENT_SIZE)")
+
+	// Memory async token counter configuration
+	cmd.Flags().Int("async-token-counter-workers", getIntDefault(registry, "runtime.async_token_counter_workers"),
+		"Number of workers for async token counting (env: ASYNC_TOKEN_COUNTER_WORKERS)")
+	cmd.Flags().
+		Int("async-token-counter-buffer-size", getIntDefault(registry, "runtime.async_token_counter_buffer_size"),
+			"Buffer size for async token counting queue (env: ASYNC_TOKEN_COUNTER_BUFFER_SIZE)")
+
+	// Dispatcher heartbeat configuration flags
+	cmd.Flags().
+		Int("dispatcher-heartbeat-interval", getDurationSecondsDefault(registry, "runtime.dispatcher_heartbeat_interval"),
+			"Dispatcher heartbeat interval in seconds (env: DISPATCHER_HEARTBEAT_INTERVAL)")
+	cmd.Flags().
+		Int("dispatcher-heartbeat-ttl", getDurationSecondsDefault(registry, "runtime.dispatcher_heartbeat_ttl"),
+			"Dispatcher heartbeat TTL in seconds (env: DISPATCHER_HEARTBEAT_TTL)")
+	cmd.Flags().
+		Int("dispatcher-stale-threshold", getDurationSecondsDefault(registry, "runtime.dispatcher_stale_threshold"),
+			"Dispatcher stale threshold in seconds (env: DISPATCHER_STALE_THRESHOLD)")
 }
 
 // DevCmd returns the dev command
@@ -197,10 +219,13 @@ func DevCmd() *cobra.Command {
 		RunE:  handleDevCmd,
 	}
 
+	// Get defaults from registry
+	registry := definition.CreateRegistry()
+
 	// Server configuration flags
-	cmd.Flags().Int("port", defaultPort, "Port to run the development server on")
-	cmd.Flags().String("host", defaultHost, "Host to bind the server to")
-	cmd.Flags().Bool("cors", false, "Enable CORS")
+	cmd.Flags().Int("port", getIntDefault(registry, "server.port"), "Port to run the development server on")
+	cmd.Flags().String("host", getStringDefault(registry, "server.host"), "Host to bind the server to")
+	cmd.Flags().Bool("cors", getBoolDefault(registry, "server.cors_enabled"), "Enable CORS")
 	cmd.Flags().String("cwd", "", "Working directory for the project")
 	cmd.Flags().String("config", defaultConfigFile, "Path to the project configuration file")
 	cmd.Flags().String("env-file", defaultEnvFile, "Path to the environment variables file")
@@ -227,43 +252,8 @@ func DevCmd() *cobra.Command {
 		Duration("tool-execution-timeout", defaultToolExecutionTimeout,
 			"Tool execution timeout (env: TOOL_EXECUTION_TIMEOUT)")
 
-	// Logging configuration flags
-	cmd.Flags().String("log-level", defaultLogLevel, "Log level (debug, info, warn, error)")
-	cmd.Flags().Bool("log-json", false, "Output logs in JSON format")
-	cmd.Flags().Bool("log-source", false, "Include source file and line in logs")
-	cmd.Flags().Bool("debug", false, "Enable debug mode (sets log level to debug)")
-	cmd.Flags().Bool("watch", false, "Enable file watcher to restart server on change")
-
-	// Task execution configuration flags
-	cmd.Flags().
-		Int("max-nesting-depth", defaultMaxNesting,
-			"Maximum task nesting depth allowed (env: MAX_NESTING_DEPTH)")
-	cmd.Flags().
-		Int("max-string-length", defaultMaxStringLen,
-			"Maximum string length in bytes for template processing (env: MAX_STRING_LENGTH)")
-
-	// Memory content size configuration flags
-	cmd.Flags().
-		Int("max-message-content-length", defaultMaxMsgContent,
-			"Maximum message content length in bytes (env: MAX_MESSAGE_CONTENT_LENGTH)")
-	cmd.Flags().
-		Int("max-total-content-size", defaultMaxTotalContent,
-			"Maximum total content size in bytes (env: MAX_TOTAL_CONTENT_SIZE)")
-	// Memory async token counter configuration
-	cmd.Flags().Int("async-token-counter-workers", defaultAsyncWorkers,
-		"Number of workers for async token counting (env: ASYNC_TOKEN_COUNTER_WORKERS)")
-	cmd.Flags().Int("async-token-counter-buffer-size", defaultAsyncBuffer,
-		"Buffer size for async token counting queue (env: ASYNC_TOKEN_COUNTER_BUFFER_SIZE)")
-
-	// Dispatcher heartbeat configuration flags
-	cmd.Flags().Int("dispatcher-heartbeat-interval", defaultHeartbeatInterval,
-		"Dispatcher heartbeat interval in seconds (env: DISPATCHER_HEARTBEAT_INTERVAL)")
-	cmd.Flags().
-		Int("dispatcher-heartbeat-ttl", defaultHeartbeatTTL,
-			"Dispatcher heartbeat TTL in seconds (env: DISPATCHER_HEARTBEAT_TTL)")
-	cmd.Flags().
-		Int("dispatcher-stale-threshold", defaultStaleThreshold,
-			"Dispatcher stale threshold in seconds (env: DISPATCHER_STALE_THRESHOLD)")
+	// Add remaining flags
+	addDevFlags(cmd, registry)
 
 	// Set debug flag to override log level
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
@@ -639,7 +629,6 @@ func runAndWatchServer(
 ) error {
 	log := logger.FromContext(ctx)
 	var retryDelay = initialRetryDelay
-	const maxRetryDelay = maxRetryDelay
 	for {
 		// Find available port on each restart in case the original port becomes free
 		availablePort, err := findAvailablePort(cfg.Server.Host, cfg.Server.Port)

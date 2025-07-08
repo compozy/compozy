@@ -7,6 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // Manager handles configuration with atomic updates and hot-reload support.
@@ -21,6 +23,7 @@ type Manager struct {
 	watchCancel context.CancelFunc
 	watchWg     sync.WaitGroup
 	closeOnce   sync.Once
+	debounce    time.Duration // configurable debounce duration for file watching
 }
 
 // NewManager creates a new configuration manager.
@@ -36,6 +39,7 @@ func NewManager(service Service) *Manager {
 		callbacks:   make([]func(*Config), 0),
 		watchCtx:    ctx,
 		watchCancel: cancel,
+		debounce:    100 * time.Millisecond, // default debounce
 	}
 }
 
@@ -54,7 +58,7 @@ func (m *Manager) Load(ctx context.Context, sources ...Source) (*Config, error) 
 	m.applyConfig(config)
 
 	// Start watching sources that support it
-	m.startWatching(sources)
+	m.startWatching(ctx, sources)
 
 	return config, nil
 }
@@ -94,6 +98,12 @@ func (m *Manager) Reload(ctx context.Context) error {
 	return nil
 }
 
+// SetDebounce sets the debounce duration for file watching.
+// Must be called before Load() to take effect.
+func (m *Manager) SetDebounce(duration time.Duration) {
+	m.debounce = duration
+}
+
 // OnChange registers a callback to be invoked when configuration changes.
 func (m *Manager) OnChange(callback func(*Config)) {
 	m.callbackMu.Lock()
@@ -102,7 +112,7 @@ func (m *Manager) OnChange(callback func(*Config)) {
 }
 
 // Close stops watching and releases resources.
-func (m *Manager) Close() error {
+func (m *Manager) Close(ctx context.Context) error {
 	// Use sync.Once to ensure we only close once
 	m.closeOnce.Do(func() {
 		// Cancel watch context
@@ -117,9 +127,7 @@ func (m *Manager) Close() error {
 		for _, source := range m.sources {
 			if source != nil {
 				if err := source.Close(); err != nil {
-					// TODO: Add logger injection for proper error logging
-					// For now, silently continue to avoid fmt.Printf in production
-					_ = err
+					logger.FromContext(ctx).Error("failed to close configuration source", "error", err)
 				}
 			}
 		}
@@ -129,7 +137,7 @@ func (m *Manager) Close() error {
 }
 
 // startWatching sets up file watching for sources that support it.
-func (m *Manager) startWatching(sources []Source) {
+func (m *Manager) startWatching(ctx context.Context, sources []Source) {
 	for _, source := range sources {
 		if source == nil {
 			continue
@@ -145,21 +153,17 @@ func (m *Manager) startWatching(sources []Source) {
 			// Watch the source
 			err := src.Watch(m.watchCtx, func() {
 				// Debounce rapid changes
-				time.Sleep(100 * time.Millisecond)
+				time.Sleep(m.debounce)
 
 				// Reload configuration
 				if err := m.Reload(m.watchCtx); err != nil {
-					// TODO: Add logger injection for proper error logging
-					// For now, silently continue to avoid fmt.Printf in production
-					_ = err
+					logger.FromContext(ctx).Error("failed to reload configuration", "error", err)
 				}
 			})
 
 			if err != nil {
 				// Source doesn't support watching or error occurred
-				// TODO: Add logger injection for proper error logging
-				// For now, silently continue to avoid fmt.Printf in production
-				_ = err
+				logger.FromContext(ctx).Debug("source does not support watching", "error", err)
 			}
 		}()
 	}

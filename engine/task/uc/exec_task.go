@@ -36,18 +36,14 @@ func NewExecuteTask(
 	runtime runtime.Runtime,
 	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
+	appConfig *config.Config,
 ) *ExecuteTask {
 	return &ExecuteTask{
 		runtime:        runtime,
 		memoryManager:  memoryManager,
 		templateEngine: templateEngine,
-		appConfig:      nil, // Will be set via SetAppConfig or loaded internally
+		appConfig:      appConfig,
 	}
-}
-
-// SetAppConfig sets the application configuration
-func (uc *ExecuteTask) SetAppConfig(appConfig *config.Config) {
-	uc.appConfig = appConfig
 }
 
 func (uc *ExecuteTask) Execute(ctx context.Context, input *ExecuteTaskInput) (*core.Output, error) {

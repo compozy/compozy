@@ -18,12 +18,11 @@ type DefaultParentStatusManager struct {
 }
 
 // NewParentStatusManager creates a new parent status manager
-func NewParentStatusManager(taskRepo task.Repository) ParentStatusManager {
+func NewParentStatusManager(ctx context.Context, taskRepo task.Repository) ParentStatusManager {
 	// Read batch size from config or use default
 	batchSize := DefaultBatchSize
 	// Load configuration from environment
 	service := config.NewService()
-	ctx := context.Background()
 	appConfig, err := service.Load(ctx)
 	if err == nil && appConfig.Limits.ParentUpdateBatchSize > 0 {
 		batchSize = appConfig.Limits.ParentUpdateBatchSize

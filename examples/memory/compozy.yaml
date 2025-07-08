@@ -16,8 +16,8 @@ runtime:
   type: bun
   entrypoint: "./entrypoint.ts"
   permissions:
-    - --allow-read
     - --allow-net
+    - --allow-read
 
 # AutoLoad configuration for discovering memory resources
 autoload:

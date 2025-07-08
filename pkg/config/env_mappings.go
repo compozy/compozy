@@ -3,6 +3,7 @@ package config
 import (
 	"reflect"
 	"strings"
+	"sync"
 )
 
 // EnvMapping represents a mapping between environment variable and config path
@@ -11,10 +12,18 @@ type EnvMapping struct {
 	ConfigPath string
 }
 
+var (
+	cachedMappings []EnvMapping
+	mappingsOnce   sync.Once
+)
+
 // GenerateEnvMappings generates environment variable mappings from config struct tags
 func GenerateEnvMappings() []EnvMapping {
-	cfg := &Config{}
-	return extractMappings(reflect.TypeOf(cfg).Elem(), "")
+	mappingsOnce.Do(func() {
+		cfg := &Config{}
+		cachedMappings = extractMappings(reflect.TypeOf(cfg).Elem(), "")
+	})
+	return cachedMappings
 }
 
 // extractMappings recursively extracts env mappings from struct fields

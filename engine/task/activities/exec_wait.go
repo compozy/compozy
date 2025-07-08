@@ -105,7 +105,7 @@ func (a *ExecuteWait) Run(ctx context.Context, input *ExecuteWaitInput) (*task.M
 		"has_processor": normalizedConfig.Processor != nil,
 	}
 	// Use task2 ResponseHandler for wait type
-	handler, err := a.task2Factory.CreateResponseHandler(task.TaskTypeWait)
+	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeWait)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create wait response handler: %w", err)
 	}

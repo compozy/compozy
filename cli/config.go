@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -275,13 +276,61 @@ func loadConfigWithSources(
 		return nil, nil, err
 	}
 
-	// Get source information
+	// Get source information by collecting all configuration keys
 	sourceMap := make(map[string]config.SourceType)
-	// Note: In a real implementation, the service would track sources
-	// For now, we'll return an empty map
-	// TODO: Implement source tracking in the config service
+	collectSourcesRecursively(service, "", cfg, sourceMap)
 
 	return cfg, sourceMap, nil
+}
+
+// collectSourcesRecursively walks through the configuration struct and collects source information
+func collectSourcesRecursively(
+	service config.Service,
+	prefix string,
+	v any,
+	sourceMap map[string]config.SourceType,
+) {
+	val := reflect.ValueOf(v)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+
+	// Only process struct types
+	if val.Kind() == reflect.Struct {
+		typ := val.Type()
+		for i := 0; i < val.NumField(); i++ {
+			field := typ.Field(i)
+			fieldVal := val.Field(i)
+
+			// Skip unexported fields
+			if !field.IsExported() {
+				continue
+			}
+
+			// Get the koanf tag to determine the key name
+			tag := field.Tag.Get("koanf")
+			if tag == "" || tag == "-" {
+				continue
+			}
+
+			// Build the full key path
+			key := tag
+			if prefix != "" {
+				key = prefix + "." + tag
+			}
+
+			// Get source for this key
+			source := service.GetSource(key)
+			if source != config.SourceDefault {
+				sourceMap[key] = source
+			}
+
+			// Recursively process nested structs
+			if fieldVal.Kind() == reflect.Struct && field.Type.String() != "time.Duration" {
+				collectSourcesRecursively(service, key, fieldVal.Interface(), sourceMap)
+			}
+		}
+	}
 }
 
 // outputJSON outputs configuration as JSON

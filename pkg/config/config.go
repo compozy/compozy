@@ -3,6 +3,8 @@ package config
 import (
 	"context"
 	"time"
+
+	"github.com/compozy/compozy/pkg/config/definition"
 )
 
 // Config represents the complete configuration for the Compozy system.
@@ -132,51 +134,101 @@ type Metadata struct {
 
 // Default returns a Config with default values for development.
 func Default() *Config {
+	return defaultFromRegistry()
+}
+
+// defaultFromRegistry creates a Config using the centralized registry
+func defaultFromRegistry() *Config {
+	registry := definition.CreateRegistry()
 	return &Config{
 		Server: ServerConfig{
-			Host:        "0.0.0.0",
-			Port:        8080,
-			CORSEnabled: true,
-			Timeout:     30 * time.Second,
+			Host:        getString(registry, "server.host"),
+			Port:        getInt(registry, "server.port"),
+			CORSEnabled: getBool(registry, "server.cors_enabled"),
+			Timeout:     getDuration(registry, "server.timeout"),
 		},
 		Database: DatabaseConfig{
-			Host:     "localhost",
-			Port:     "5432",
-			User:     "postgres",
-			Password: "", // Empty SensitiveString
-			DBName:   "compozy",
-			SSLMode:  "disable",
+			Host:     getString(registry, "database.host"),
+			Port:     getString(registry, "database.port"),
+			User:     getString(registry, "database.user"),
+			Password: SensitiveString(getString(registry, "database.password")),
+			DBName:   getString(registry, "database.name"),
+			SSLMode:  getString(registry, "database.ssl_mode"),
 		},
 		Temporal: TemporalConfig{
-			HostPort:  "localhost:7233",
-			Namespace: "default",
-			TaskQueue: "compozy-tasks",
+			HostPort:  getString(registry, "temporal.host_port"),
+			Namespace: getString(registry, "temporal.namespace"),
+			TaskQueue: getString(registry, "temporal.task_queue"),
 		},
 		Runtime: RuntimeConfig{
-			Environment:                 "development",
-			LogLevel:                    "info",
-			DispatcherHeartbeatInterval: 30 * time.Second,
-			DispatcherHeartbeatTTL:      90 * time.Second,
-			DispatcherStaleThreshold:    120 * time.Second,
-			AsyncTokenCounterWorkers:    4,
-			AsyncTokenCounterBufferSize: 100,
+			Environment:                 getString(registry, "runtime.environment"),
+			LogLevel:                    getString(registry, "runtime.log_level"),
+			DispatcherHeartbeatInterval: getDuration(registry, "runtime.dispatcher_heartbeat_interval"),
+			DispatcherHeartbeatTTL:      getDuration(registry, "runtime.dispatcher_heartbeat_ttl"),
+			DispatcherStaleThreshold:    getDuration(registry, "runtime.dispatcher_stale_threshold"),
+			AsyncTokenCounterWorkers:    getInt(registry, "runtime.async_token_counter_workers"),
+			AsyncTokenCounterBufferSize: getInt(registry, "runtime.async_token_counter_buffer_size"),
 		},
 		Limits: LimitsConfig{
-			MaxNestingDepth:       20,
-			MaxStringLength:       10485760, // 10MB
-			MaxMessageContent:     10240,
-			MaxTotalContentSize:   102400,
-			MaxTaskContextDepth:   5,
-			ParentUpdateBatchSize: 100,
+			MaxNestingDepth:       getInt(registry, "limits.max_nesting_depth"),
+			MaxStringLength:       getInt(registry, "limits.max_string_length"),
+			MaxMessageContent:     getInt(registry, "limits.max_message_content"),
+			MaxTotalContentSize:   getInt(registry, "limits.max_total_content_size"),
+			MaxTaskContextDepth:   getInt(registry, "limits.max_task_context_depth"),
+			ParentUpdateBatchSize: getInt(registry, "limits.parent_update_batch_size"),
+		},
+		OpenAI: OpenAIConfig{
+			APIKey:       SensitiveString(getString(registry, "openai.api_key")),
+			BaseURL:      getString(registry, "openai.base_url"),
+			OrgID:        getString(registry, "openai.org_id"),
+			DefaultModel: getString(registry, "openai.default_model"),
 		},
 		Memory: MemoryConfig{
-			RedisPrefix: "compozy:",
-			TTL:         24 * time.Hour,
-			MaxEntries:  10000,
+			RedisURL:    getString(registry, "memory.redis_url"),
+			RedisPrefix: getString(registry, "memory.redis_prefix"),
+			TTL:         getDuration(registry, "memory.ttl"),
+			MaxEntries:  getInt(registry, "memory.max_entries"),
 		},
 		LLM: LLMConfig{
-			ProxyURL:   "",
-			AdminToken: "",
+			ProxyURL:   getString(registry, "llm.proxy_url"),
+			AdminToken: SensitiveString(getString(registry, "llm.admin_token")),
 		},
 	}
+}
+
+// Helper functions for type-safe registry access
+func getString(registry *definition.Registry, path string) string {
+	if val := registry.GetDefault(path); val != nil {
+		if s, ok := val.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+func getInt(registry *definition.Registry, path string) int {
+	if val := registry.GetDefault(path); val != nil {
+		if i, ok := val.(int); ok {
+			return i
+		}
+	}
+	return 0
+}
+
+func getBool(registry *definition.Registry, path string) bool {
+	if val := registry.GetDefault(path); val != nil {
+		if b, ok := val.(bool); ok {
+			return b
+		}
+	}
+	return false
+}
+
+func getDuration(registry *definition.Registry, path string) time.Duration {
+	if val := registry.GetDefault(path); val != nil {
+		if d, ok := val.(time.Duration); ok {
+			return d
+		}
+	}
+	return 0
 }

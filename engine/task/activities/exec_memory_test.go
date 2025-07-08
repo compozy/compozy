@@ -59,7 +59,7 @@ func TestExecuteMemory_Factory(t *testing.T) {
 		require.NoError(t, err)
 
 		// Act
-		handler, err := factory.CreateResponseHandler(task.TaskTypeMemory)
+		handler, err := factory.CreateResponseHandler(context.Background(), task.TaskTypeMemory)
 
 		// Assert
 		assert.NoError(t, err)
