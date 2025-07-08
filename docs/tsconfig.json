@@ -18,7 +18,7 @@
     "paths": {
       "@/.source": ["./.source/index.ts"],
       "@/*": ["./src/*"],
-      "@/schemas/*": ["./schemas/*"]
+      "@/schemas/*": ["../schemas/*"]
     },
     "plugins": [
       {

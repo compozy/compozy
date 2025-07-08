@@ -5,11 +5,45 @@ icon: Settings
 ---
 
 import { SchemaParams } from "@/components/ui/params/schema-params";
+import { SchemaDescription } from "@/components/ui/params/components";
 import projectSchema from "@/schemas/project.json";
+import authorSchema from "@/schemas/author.json";
+import runtimeSchema from "@/schemas/runtime.json";
+import projectOptionsSchema from "@/schemas/project-options.json";
 
 <SchemaParams
   schema={projectSchema}
-  title="Project Configuration Schema"
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Author
+
+<SchemaParams
+  schema={authorSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Runtime Configuration
+
+<SchemaParams
+  schema={runtimeSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Project Options
+
+<SchemaParams
+  schema={projectOptionsSchema}
+  title="Schema Definition"
   collapsible={true}
   defaultExpanded={true}
   paramType="path"

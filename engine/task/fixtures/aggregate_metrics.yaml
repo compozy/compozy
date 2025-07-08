@@ -18,7 +18,7 @@ outputs:
       total_entities: "{{ add .tasks.count_users.output.total .tasks.count_orders.output.total }}"
       average_order_value: "{{ div .tasks.count_orders.output.revenue .tasks.count_orders.output.completed }}"
 
-  report_timestamp: "{{ now | date \"2006-01-02T15:04:05Z07:00\" }}"
+  report_timestamp: '{{ now | date "2006-01-02T15:04:05Z07:00" }}'
   workflow_id: "{{ .workflow.id }}"
   execution_id: "{{ .workflow.execution_id }}"
 

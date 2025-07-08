@@ -36,13 +36,6 @@ repos:
         language: system
         files: \.(js|jsx|ts|tsx)$
         pass_filenames: false
-      - id: turbo-format
-        name: turbo format
-        description: Format files via Turborepo
-        entry: turbo run format --concurrency=1
-        language: system
-        files: \.(js|jsx|ts|tsx|json|css|scss|md|sh)$
-        pass_filenames: false
       - id: turbo-type-check
         name: turbo type check
         description: Run TypeScript checking via Turborepo

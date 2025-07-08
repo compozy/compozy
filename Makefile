@@ -29,7 +29,7 @@ LDFLAGS := -X 'github.com/compozy/compozy/engine/infra/monitoring.Version=$(VERS
 SWAGGER_DIR=./docs
 SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
 
-.PHONY: all test lint fmt clean build dev deps schemagen help integration-test
+.PHONY: all test lint fmt clean build dev deps schemagen schemagen-watch help integration-test
 .PHONY: tidy test-go start-docker stop-docker clean-docker reset-docker mcp-proxy rebuild-mcp-proxy
 .PHONY: swagger swagger-deps swagger-gen swagger-serve
 
@@ -109,6 +109,9 @@ swagger-validate:
 # -----------------------------------------------------------------------------
 schemagen:
 	$(GOCMD) run pkg/schemagen/main.go -out=./schemas
+
+schemagen-watch:
+	$(GOCMD) run pkg/schemagen/main.go -out=./schemas -watch
 
 # -----------------------------------------------------------------------------
 # Testing

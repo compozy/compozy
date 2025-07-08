@@ -12,7 +12,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
-    "format": "turbo run format",
+    "format": "prettier --write \"**/*.{ts,js,tsx,json,md}\"",
     "type-check": "turbo run type-check",
     "test": "turbo run test",
     "clean": "turbo run clean",
@@ -29,7 +29,9 @@
     "typescript": "5.8.3"
   },
   "dependencies": {
-    "openmeteo": "^1.1.4"
+    "openmeteo": "^1.1.4",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "packageManager": "bun@1.2.18"
 }

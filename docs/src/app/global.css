@@ -306,3 +306,17 @@
 #nd-sidebar {
   background-color: var(--sidebar) !important;
 }
+
+.kibo-ui-code-block {
+  padding: 0;
+
+  & .shiki:not(.not-fumadocs-codeblock *) {
+    --padding-left: 0px;
+    --padding-right: 0px;
+    @apply rounded-md border-none;
+
+    & code {
+      @apply rounded-md border-none px-4 py-3;
+    }
+  }
+}

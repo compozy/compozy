@@ -2,7 +2,7 @@
 
 import { FileJson } from "lucide-react";
 import { tv } from "tailwind-variants";
-import { ConditionalSchema, SchemaDescription } from "./components";
+import { ConditionalSchema, ParameterDescription } from "./components";
 import { UI_CONSTANTS } from "./constants";
 import {
   getDefaultValue,
@@ -41,13 +41,23 @@ function SchemaParam({
   // Resolve $ref if present
   const resolvedSchema = isRefSchema(schema) ? resolveRef(schema.$ref, rootSchema) : schema;
   if (!resolvedSchema) return null;
-  const type = getSchemaType(resolvedSchema);
-  const defaultValue = getDefaultValue(resolvedSchema);
+
+  // Merge the original schema's description with the resolved schema
+  let schemaWithDescription: JSONSchema;
+  if (isRefSchema(schema) && schema.description) {
+    schemaWithDescription = { ...resolvedSchema, description: schema.description };
+  } else {
+    schemaWithDescription = resolvedSchema;
+  }
+
+  const type = getSchemaType(schemaWithDescription);
+  const defaultValue = getDefaultValue(schemaWithDescription);
+  const description = schemaWithDescription?.description;
 
   // Handle object type with properties
-  if (isObjectSchema(resolvedSchema) && resolvedSchema.properties) {
-    const requiredFields = getRequiredFields(resolvedSchema);
-    const properties = getSchemaProperties(resolvedSchema);
+  if (isObjectSchema(schemaWithDescription) && schemaWithDescription.properties) {
+    const requiredFields = getRequiredFields(schemaWithDescription);
+    const properties = getSchemaProperties(schemaWithDescription);
 
     return (
       <Param
@@ -57,7 +67,7 @@ function SchemaParam({
         default={defaultValue}
         paramType={paramType}
       >
-        <SchemaDescription schema={resolvedSchema} />
+        <ParameterDescription description={description} />
         {properties.length > 0 && (
           <Param.ExpandableRoot defaultValue={path === "" ? "properties" : undefined}>
             <Param.ExpandableItem value="properties" title={UI_CONSTANTS.PROPERTIES_TITLE}>
@@ -79,11 +89,11 @@ function SchemaParam({
   }
 
   // Handle array type with items
-  if (isArraySchema(resolvedSchema) && resolvedSchema.items) {
+  if (isArraySchema(schemaWithDescription) && schemaWithDescription.items) {
     // Handle single item schema (most common case)
-    const itemSchema = Array.isArray(resolvedSchema.items)
-      ? resolvedSchema.items[0]
-      : resolvedSchema.items;
+    const itemSchema = Array.isArray(schemaWithDescription.items)
+      ? schemaWithDescription.items[0]
+      : schemaWithDescription.items;
 
     return (
       <Param
@@ -93,7 +103,7 @@ function SchemaParam({
         default={defaultValue}
         paramType={paramType}
       >
-        <SchemaDescription schema={resolvedSchema} />
+        <ParameterDescription description={description} />
         <Param.ExpandableRoot>
           <Param.ExpandableItem value="items" title={UI_CONSTANTS.ARRAY_ITEMS_TITLE}>
             <SchemaParam
@@ -109,8 +119,12 @@ function SchemaParam({
   }
 
   // Handle anyOf/oneOf/allOf
-  if (hasConditionals(resolvedSchema)) {
-    const variants = resolvedSchema.anyOf || resolvedSchema.oneOf || resolvedSchema.allOf || [];
+  if (hasConditionals(schemaWithDescription)) {
+    const variants =
+      schemaWithDescription.anyOf ||
+      schemaWithDescription.oneOf ||
+      schemaWithDescription.allOf ||
+      [];
     return (
       <Param
         path={path}
@@ -119,7 +133,7 @@ function SchemaParam({
         default={defaultValue}
         paramType={paramType}
       >
-        <SchemaDescription schema={resolvedSchema} />
+        <ParameterDescription description={description} />
         <ConditionalSchema
           variants={variants}
           path={path}
@@ -136,7 +150,7 @@ function SchemaParam({
   // Simple types
   return (
     <Param path={path} type={type} required={required} default={defaultValue} paramType={paramType}>
-      <SchemaDescription schema={resolvedSchema} />
+      <ParameterDescription description={description} />
     </Param>
   );
 }
@@ -209,9 +223,16 @@ export function SchemaParams({
   if (shouldBeCollapsible && title) {
     return (
       <Params className={className} collapsible={true} defaultOpen={defaultExpanded}>
-        <Params.Header>
-          <FileJson className="size-4" />
-          <span className="font-medium">{title}</span>
+        <Params.Header className="py-4">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <FileJson className="size-4" />
+              <span className="font-medium">{title}</span>
+            </div>
+            {schema.description && (
+              <div className="text-sm text-muted-foreground">{schema.description}</div>
+            )}
+          </div>
         </Params.Header>
         <Params.Body>{renderContent()}</Params.Body>
       </Params>

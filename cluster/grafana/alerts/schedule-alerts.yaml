@@ -12,7 +12,7 @@ groups:
         annotations:
           summary: "Schedule operation failures detected"
           description: "{{ $labels.operation }} operations are failing for project {{ $labels.project }}. {{ $value }} failures in the last 5 minutes."
-          
+
       - alert: ScheduleReconciliationHighDuration
         expr: histogram_quantile(0.95, rate(compozy_schedule_reconcile_duration_seconds_bucket[5m])) > 30
         for: 2m
@@ -22,7 +22,7 @@ groups:
         annotations:
           summary: "Schedule reconciliation taking too long"
           description: "95th percentile reconciliation time is {{ $value }}s for project {{ $labels.project }}, which exceeds the 30s threshold."
-          
+
       - alert: ScheduleReconciliationStuck
         expr: compozy_schedule_reconcile_inflight > 0
         for: 5m
@@ -32,7 +32,7 @@ groups:
         annotations:
           summary: "Schedule reconciliation appears stuck"
           description: "Reconciliation has been in-flight for more than 5 minutes for project {{ $labels.project }}. This may indicate a stuck process."
-          
+
       - alert: HighScheduleOperationFailureRate
         expr: |
           sum by(operation, project) (rate(compozy_schedule_operations_total{status="failure"}[5m]))
@@ -59,7 +59,7 @@ groups:
         annotations:
           summary: "High number of scheduled workflows"
           description: "Project {{ $labels.project }} has {{ $value }} scheduled workflows, which may impact performance."
-          
+
       - alert: ScheduleMetricsUnavailable
         expr: up{job="compozy"} == 0
         for: 1m

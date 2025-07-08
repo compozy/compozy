@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 
 	"dario.cat/mergo"
@@ -17,73 +18,326 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
+// WorkflowSourceConfig defines the source location for a workflow file.
+//
+// **Workflows** are the core building blocks of Compozy projects that define task execution sequences.
 type WorkflowSourceConfig struct {
+	// Source specifies the path to the workflow YAML file relative to the project root.
+	//
+	// This file contains the task definitions, agent configurations, and execution flow.
+	// Paths can be:
+	//   - **Relative**: `"./workflows/data-analysis.yaml"` (recommended)
+	//   - **Nested**: `"workflows/pipelines/etl.yaml"`
+	//   - **Top-level**: `"main-workflow.yaml"`
+	//
+	// Best practices:
+	//   - Organize workflows by domain or functionality
+	//   - Use descriptive names that indicate the workflow's purpose
+	//   - Keep related workflows in the same directory
 	Source string `json:"source" yaml:"source" mapstructure:"source"`
 }
 
-// RuntimeConfig defines the JavaScript runtime configuration for tool execution.
-// This configuration controls which runtime environment is used and how tools are executed.
-// Security Note: These settings directly impact the security posture of tool execution.
-type RuntimeConfig struct {
-	// Type specifies the JavaScript runtime to use for tool execution.
-	// Valid values: "bun", "node"
-	// Default: "bun" (if not specified)
-	// Security: Different runtimes have different security models and capabilities
-	Type string `json:"type,omitempty" yaml:"type,omitempty" mapstructure:"type"`
-
-	// Entrypoint specifies the path to the JavaScript/TypeScript file that exports all available tools.
-	// This file serves as the single entry point for tool discovery and execution.
-	// The path is relative to the project root directory.
-	// Required file extensions: .ts (TypeScript) or .js (JavaScript)
-	// Default: "./tools.ts" (if not specified)
-	// Security: Must be a trusted file as it has access to all tool implementations
-	Entrypoint string `json:"entrypoint" yaml:"entrypoint" mapstructure:"entrypoint"`
-
-	// Permissions defines the security permissions granted to the runtime during tool execution.
-	// These permissions control what system resources tools can access.
-	// For Bun runtime: Uses Bun's permission flags (e.g., "--allow-read", "--allow-net", "--allow-write")
-	// For Node.js runtime: Reserved for future Node.js permission system
-	// Default for Bun: ["--allow-read"] (minimal read-only access)
-	// Security Critical: Granting excessive permissions can lead to security vulnerabilities.
-	// Principle of least privilege should be applied - only grant permissions that tools actually need.
-	// Examples:
-	//   - ["--allow-read"] - Read-only file system access (recommended minimum)
-	//   - ["--allow-read", "--allow-net"] - Read access + network access
-	//   - ["--allow-read", "--allow-write", "--allow-net"] - Full access (use with caution)
-	Permissions []string `json:"permissions,omitempty" yaml:"permissions,omitempty" mapstructure:"permissions"`
-}
-
-type Opts struct {
-	core.GlobalOpts             `    json:",inline"                                   yaml:",inline"                                   mapstructure:",squash"`
-	MaxNestingDepth             int `json:"max_nesting_depth,omitempty"               yaml:"max_nesting_depth,omitempty"               mapstructure:"max_nesting_depth"`
-	MaxStringLength             int `json:"max_string_length,omitempty"               yaml:"max_string_length,omitempty"               mapstructure:"max_string_length"`
-	DispatcherHeartbeatInterval int `json:"dispatcher_heartbeat_interval,omitempty"   yaml:"dispatcher_heartbeat_interval,omitempty"   mapstructure:"dispatcher_heartbeat_interval"`
-	DispatcherHeartbeatTTL      int `json:"dispatcher_heartbeat_ttl,omitempty"        yaml:"dispatcher_heartbeat_ttl,omitempty"        mapstructure:"dispatcher_heartbeat_ttl"`
-	DispatcherStaleThreshold    int `json:"dispatcher_stale_threshold,omitempty"      yaml:"dispatcher_stale_threshold,omitempty"      mapstructure:"dispatcher_stale_threshold"`
-	MaxMessageContentLength     int `json:"max_message_content_length,omitempty"      yaml:"max_message_content_length,omitempty"      mapstructure:"max_message_content_length"`
-	MaxTotalContentSize         int `json:"max_total_content_size,omitempty"          yaml:"max_total_content_size,omitempty"          mapstructure:"max_total_content_size"`
-	AsyncTokenCounterWorkers    int `json:"async_token_counter_workers,omitempty"     yaml:"async_token_counter_workers,omitempty"     mapstructure:"async_token_counter_workers"`
-	AsyncTokenCounterBufferSize int `json:"async_token_counter_buffer_size,omitempty" yaml:"async_token_counter_buffer_size,omitempty" mapstructure:"async_token_counter_buffer_size"`
-}
-
+// Config represents main Compozy project configuration.
+//
+// **A Compozy project** is a declarative configuration that coordinates AI agents, workflows, and tools
+// to build complex AI-powered applications. Projects serve as the top-level container that:
+//   - **Defines reusable workflows** composed of AI agent tasks
+//   - **Configures LLM providers** and model access
+//   - **Establishes data schemas** for type-safe operations
+//   - **Sets up tool execution** environments and security policies
+//   - **Manages performance** through caching, monitoring, and optimization
+//
+// Projects enable teams to build sophisticated AI applications through YAML configuration
+// rather than writing imperative code, making AI workflows more **maintainable** and **collaborative**.
+//
+// ## Example Project Structure
+//
+//	my-ai-project/
+//	├── compozy.yaml           # Project configuration (this file)
+//	├── .env                   # Environment variables
+//	├── workflows/             # Workflow definitions
+//	│   ├── data-analysis.yaml
+//	│   └── content-generation.yaml
+//	├── agents/                # Agent configurations (with autoload)
+//	│   ├── researcher.yaml
+//	│   └── writer.yaml
+//	├── tools.ts               # Custom tool implementations
+//	├── schemas/               # Data schema definitions
+//	│   └── user-input.yaml
+//	└── memory/                # Memory resources (with autoload)
+//	    └── conversation.yaml
+//
+// ## Minimal Project Configuration
+//
+//	name: my-project
+//	version: 1.0.0
+//	description: My AI project
+//	workflows:
+//	  - source: ./workflow.yaml
+//	models:
+//	  - provider: openai
+//	    model: gpt-4
+//	    api_key: "{{ .env.OPENAI_API_KEY }}"
+//
+// ## Full Project Configuration
+//
+//	name: enterprise-ai-system
+//	version: 2.1.0
+//	description: Multi-agent system for enterprise automation
+//	author:
+//	  name: AI Team
+//	  email: ai@company.com
+//	  organization: ACME Corp
+//
+//	workflows:
+//	  - source: ./workflows/customer-support.yaml
+//	  - source: ./workflows/data-pipeline.yaml
+//
+//	models:
+//	  - provider: openai
+//	    model: gpt-4
+//	    api_key: "{{ .env.OPENAI_API_KEY }}"
+//	  - provider: anthropic
+//	    model: claude-3-opus
+//	    api_key: "{{ .env.ANTHROPIC_API_KEY }}"
+//
+//	runtime:
+//	  type: bun
+//	  entrypoint: ./tools/index.ts
+//	  permissions:
+//	    - --allow-read=/data
+//	    - --allow-net=api.company.com
+//	    - --allow-env=API_KEY,DATABASE_URL
+//
+//	autoload:
+//	  enabled: true
+//	  strict: true
+//	  include:
+//	    - "agents/**/*.yaml"
+//	    - "memory/**/*.yaml"
+//
+//	cache:
+//	  url: redis://localhost:6379/0
+//	  pool_size: 10
+//
+//	monitoring:
+//	  enabled: true
+//	  metrics:
+//	    provider: prometheus
+//	    endpoint: /metrics
+//
+//	config:
+//	  max_string_length: 52428800  # 50MB
+//	  async_token_counter_workers: 20
 type Config struct {
-	Name             string                  `json:"name"                 yaml:"name"                 mapstructure:"name"`
-	Version          string                  `json:"version"              yaml:"version"              mapstructure:"version"`
-	Description      string                  `json:"description"          yaml:"description"          mapstructure:"description"`
-	Author           core.Author             `json:"author"               yaml:"author"               mapstructure:"author"`
-	Workflows        []*WorkflowSourceConfig `json:"workflows"            yaml:"workflows"            mapstructure:"workflows"`
-	Models           []*core.ProviderConfig  `json:"models"               yaml:"models"               mapstructure:"models"`
-	Schemas          []schema.Schema         `json:"schemas"              yaml:"schemas"              mapstructure:"schemas"`
-	Opts             Opts                    `json:"config"               yaml:"config"               mapstructure:"config"`
-	Runtime          RuntimeConfig           `json:"runtime"              yaml:"runtime"              mapstructure:"runtime"`
-	CacheConfig      *cache.Config           `json:"cache,omitempty"      yaml:"cache,omitempty"      mapstructure:"cache"`
-	AutoLoad         *autoload.Config        `json:"autoload,omitempty"   yaml:"autoload,omitempty"   mapstructure:"autoload,omitempty"`
-	MonitoringConfig *monitoring.Config      `json:"monitoring,omitempty" yaml:"monitoring,omitempty" mapstructure:"monitoring"`
+	// Name is the unique identifier for this Compozy project.
+	//
+	// **Requirements**:
+	//   - Must be unique within your Compozy installation
+	//   - Alphanumeric characters, hyphens, and underscores only
+	//   - Cannot start with a number
+	//   - Maximum 63 characters
+	//
+	// Examples: `"customer-support-ai"`, `"data-pipeline"`, `"content-generator"`
+	Name string `json:"name" yaml:"name" mapstructure:"name"`
 
-	filePath           string
-	CWD                *core.PathCWD `json:"CWD,omitempty" yaml:"CWD,omitempty" mapstructure:"CWD,omitempty"`
-	env                *core.EnvMap
-	autoloadValidated  bool
+	// Version specifies the semantic version of this project configuration.
+	//
+	// **Format**: Follows [Semantic Versioning 2.0.0](https://semver.org/)
+	//   - `MAJOR.MINOR.PATCH` (e.g., `1.2.3`)
+	//   - Optional pre-release: `1.0.0-alpha.1`
+	//   - Optional build metadata: `1.0.0+20230615`
+	Version string `json:"version" yaml:"version" mapstructure:"version"`
+
+	// Description provides a human-readable explanation of the project's purpose and capabilities.
+	//
+	// **Guidelines**:
+	//   - Be specific about what the project does
+	//   - Include primary use cases and benefits
+	//   - Keep it concise (1-3 sentences)
+	//   - Avoid technical jargon for broader understanding
+	//
+	// Example: `"Multi-agent customer support system with automated ticket routing and response generation using GPT-4 and Claude models"`
+	Description string `json:"description" yaml:"description" mapstructure:"description"`
+
+	// Author information for the project.
+	//
+	// $ref: inline:#author
+	Author core.Author `json:"author" yaml:"author" mapstructure:"author"`
+
+	// Workflows defines the list of workflow files that compose this project's AI capabilities.
+	Workflows []*WorkflowSourceConfig `json:"workflows" yaml:"workflows" mapstructure:"workflows"`
+
+	// Models configures the LLM providers and model settings available to this project.
+	//
+	// **Multi-Model Support**:
+	//   - Configure multiple providers for redundancy
+	//   - Different models for different tasks (cost/performance optimization)
+	//   - Fallback chains for high availability
+	//
+	// **Supported Providers**:
+	//   - OpenAI (GPT-4, GPT-3.5, etc.)
+	//   - Anthropic (Claude models)
+	//   - Google (Gemini models)
+	//   - Groq (Fast inference)
+	//   - Ollama (Local models)
+	//   - Custom providers via API compatibility
+	//
+	// Example:
+	//
+	// ```yaml
+	//models:
+	//  # Primary model for complex reasoning
+	//  - provider: openai
+	//    model: gpt-4-turbo
+	//    api_key: "{{ .env.OPENAI_API_KEY }}"
+	//    temperature: 0.7
+	//    max_tokens: 4000
+	//
+	//  # Fallback for cost optimization
+	//  - provider: anthropic
+	//    model: claude-3-haiku
+	//    api_key: "{{ .env.ANTHROPIC_API_KEY }}"
+	//
+	//  # Local model for sensitive data
+	//  - provider: ollama
+	//    model: llama2:13b
+	//    api_url: http://localhost:11434
+	// ```
+	Models []*core.ProviderConfig `json:"models" yaml:"models" mapstructure:"models"`
+
+	// Schemas defines the data validation schemas used throughout the project workflows.
+	//
+	// **Schema Benefits**:
+	//   - Type safety for workflow inputs/outputs
+	//   - Early error detection and validation
+	//   - Self-documenting data contracts
+	//   - IDE autocomplete support
+	//
+	// Example:
+	//
+	// ```yaml
+	//schemas:
+	//  - id: user-input
+	//    schema:
+	//      type: object
+	//      properties:
+	//        name:
+	//          type: string
+	//          minLength: 1
+	//        age:
+	//          type: integer
+	//          minimum: 0
+	//      required: ["name"]
+	// ```
+	Schemas []schema.Schema `json:"schemas" yaml:"schemas" mapstructure:"schemas"`
+
+	// Opts contains project-wide configuration options for performance tuning and behavior control.
+	//
+	// $ref: inline:#project-options
+	Opts Opts `json:"config" yaml:"config" mapstructure:"config"`
+
+	// Runtime specifies the JavaScript/TypeScript execution environment for custom tools.
+	//
+	// $ref: inline:#runtime-configuration
+	Runtime RuntimeConfig `json:"runtime" yaml:"runtime" mapstructure:"runtime"`
+
+	// CacheConfig enables and configures caching for improved performance and cost reduction.
+	//
+	// **Cache Benefits**:
+	//   - Reduce LLM API costs by caching responses
+	//   - Improve response times for repeated queries
+	//   - Cache workflow results for idempotent operations
+	//   - Development speed with cached test data
+	//
+	// **Redis Configuration**:
+	//
+	// ```yaml
+	//	cache:
+	//	  url: redis://localhost:6379/0
+	//	  password: "{{ .env.REDIS_PASSWORD }}"
+	//	  pool_size: 10
+	//	  max_retries: 3
+	//	  dial_timeout: 5s
+	//	  read_timeout: 3s
+	//	  write_timeout: 3s
+	// ```
+	//
+	// **TLS Support**:
+	//
+	// ```yaml
+	//	cache:
+	//	  url: rediss://secure-redis.example.com:6380/0
+	//	  tls_enabled: true
+	// ```
+	CacheConfig *cache.Config `json:"cache,omitempty" yaml:"cache,omitempty" mapstructure:"cache"`
+
+	// AutoLoad configures automatic loading and reloading of project resources during development.
+	//
+	// **Development Benefits**:
+	//   - Hot-reload agents and workflows without restart
+	//   - Automatic discovery of new resources
+	//   - Faster iteration cycles
+	//   - Validation on file changes
+	//
+	// Example:
+	//
+	// ```yaml
+	//	autoload:
+	//	  enabled: true
+	//	  strict: true              # Fail on validation errors
+	//	  watch_interval: 2s        # Check for changes every 2 seconds
+	//	  include:
+	//	    - "agents/**/*.yaml"
+	//	    - "workflows/**/*.yaml"
+	//	    - "memory/**/*.yaml"
+	//	  exclude:
+	//	    - "**/*.tmp"
+	//	    - "**/*~"
+	// ```
+	AutoLoad *autoload.Config `json:"autoload,omitempty" yaml:"autoload,omitempty" mapstructure:"autoload,omitempty"`
+
+	// MonitoringConfig sets up observability, metrics collection, and performance monitoring.
+	//
+	// **Observability Features**:
+	//   - Workflow execution tracking
+	//   - Agent performance metrics
+	//   - Token usage and cost tracking
+	//   - Error rates and alerting
+	//   - Custom business metrics
+	//
+	// Example:
+	//
+	// ```yaml
+	//	monitoring:
+	//	  enabled: true
+	//	  metrics:
+	//	    provider: prometheus
+	//	    endpoint: /metrics
+	//	    port: 9090
+	//	  tracing:
+	//	    provider: otlp
+	//	    endpoint: http://jaeger:4317
+	//	  custom_metrics:
+	//	    - name: workflow_completions
+	//	      type: counter
+	//	      labels: ["workflow_name", "status"]
+	// ```
+	MonitoringConfig *monitoring.Config `json:"monitoring,omitempty" yaml:"monitoring,omitempty" mapstructure:"monitoring"`
+
+	// filePath stores the absolute path to the configuration file for internal use
+	filePath string
+
+	// CWD represents the current working directory context for the project.
+	CWD *core.PathCWD `json:"CWD,omitempty" yaml:"CWD,omitempty" mapstructure:"CWD,omitempty"`
+
+	// env stores the loaded environment variables for the project (internal use)
+	env *core.EnvMap
+
+	// autoloadValidated caches whether autoload config has been validated (internal use)
+	autoloadValidated bool
+
+	// autoloadValidError stores any validation error from autoload config (internal use)
 	autoloadValidError error
 }
 
@@ -189,10 +443,8 @@ func (p *Config) validateRuntimeConfig() error {
 // validateRuntimeType validates that the runtime type is one of the supported values
 func validateRuntimeType(runtimeType string) error {
 	validTypes := []string{"bun", "node"}
-	for _, validType := range validTypes {
-		if runtimeType == validType {
-			return nil
-		}
+	if slices.Contains(validTypes, runtimeType) {
+		return nil
 	}
 	return fmt.Errorf(
 		"runtime configuration error: invalid runtime type '%s' - supported types are %v",

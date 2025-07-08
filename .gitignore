@@ -91,6 +91,7 @@ bin
 # go.work.sum
 
 # === IDE & EDITORS ===
+.opencode
 .idea/
 .idea
 .vscode

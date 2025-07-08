@@ -8,7 +8,6 @@
   "scripts": {
     "build": "echo 'No build step required for Compozy examples'",
     "lint": "oxlint *.ts",
-    "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "type-check": "tsc --noEmit",
     "test": "echo 'No tests configured'",
     "clean": "echo 'No clean step required'"

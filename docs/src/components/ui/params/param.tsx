@@ -16,7 +16,7 @@ const paramVariants = tv({
     type: "text-xs font-medium px-2 py-1 rounded-md bg-accent text-muted-foreground",
     badges: "flex items-center gap-2",
     badge: "text-xs px-2 py-0.5 rounded-full font-medium",
-    description: "flex flex-col text-sm text-muted-foreground prose prose-sm max-w-none",
+    description: "flex flex-col text-sm text-muted-foreground max-w-none",
     expandButton:
       "flex items-center justify-center w-6 h-6 rounded-md hover:bg-accent transition-colors",
   },
@@ -72,7 +72,7 @@ type ParamVariants = VariantProps<typeof paramVariants>;
 // Body component variants using tailwind-variants with design system tokens
 const bodyVariants = tv({
   slots: {
-    base: ["mt-4 text-sm text-muted-foreground prose prose-sm max-w-none"],
+    base: ["mt-2 text-sm text-muted-foreground prose prose-sm max-w-none"],
   },
 });
 

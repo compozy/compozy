@@ -23,8 +23,8 @@ workflow:
 
 input:
   financial_records:
-    - account_id: "9007199254740992"  # MAX_SAFE_INTEGER + 1  
-      amount: 18014398509481984  # 2^54  
+    - account_id: "9007199254740992"  # MAX_SAFE_INTEGER + 1
+      amount: 18014398509481984  # 2^54
       balance: "999999999999999999"  # Large integer - as string
       rate: "0.123456789123456789"  # High precision decimal - as string
       decimal: "123456789.123456789"  # High precision decimal - as string

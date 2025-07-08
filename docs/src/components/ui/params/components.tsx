@@ -1,78 +1,83 @@
-import { ChevronRight } from "lucide-react";
+"use client";
+
+import { ChevronRight, Link } from "lucide-react";
 import React from "react";
-import {
-  buildNumericConstraints,
-  buildStringConstraints,
-  formatValue,
-  hasEnumValues,
-} from "./helpers";
+import { Markdown } from "../markdown";
 import { Param } from "./param";
 import { JSONSchema } from "./types";
 
-interface SchemaDescriptionProps {
-  schema: JSONSchema;
+interface ParameterDescriptionProps {
+  description?: string;
 }
 
 /**
- * Renders the description content for a schema
+ * Simple parameter description component for individual schema parameters
  */
-export function SchemaDescription({ schema }: SchemaDescriptionProps) {
-  const parts: React.ReactNode[] = [];
-
-  // Add main description
-  if (schema.description) {
-    parts.push(<p key="desc">{schema.description}</p>);
+export function ParameterDescription({ description }: ParameterDescriptionProps) {
+  if (!description) {
+    return null;
   }
 
-  // Add enum values
-  if (hasEnumValues(schema)) {
+  const parts: React.ReactNode[] = [];
+
+  // Check for different types of schema references in the description
+  const hasExternalRef = description.includes("$ref: schema://");
+  const hasInlineRef = description.includes("$ref: inline:#");
+
+  const externalRefMatch = hasExternalRef ? description.match(/\$ref: schema:\/\/(\w+)/) : null;
+  const inlineRefMatch = hasInlineRef ? description.match(/\$ref: inline:#([\w-]+)/) : null;
+
+  const referencedSchema = externalRefMatch ? externalRefMatch[1] : null;
+  const inlineReference = inlineRefMatch ? inlineRefMatch[1] : null;
+
+  // Get main description without $ref references
+  let mainDescription = description;
+  if (hasExternalRef) {
+    mainDescription = mainDescription.replace(/\$ref: schema:\/\/\w+/g, "").trim();
+  }
+  if (hasInlineRef) {
+    mainDescription = mainDescription.replace(/\$ref: inline:#[\w-]+/g, "").trim();
+  }
+  mainDescription = mainDescription.trim();
+
+  // Add main description
+  if (mainDescription) {
     parts.push(
-      <div key="enum">
-        <p>Allowed values:</p>
-        <ul>
-          {schema.enum.map((value, index) => (
-            <li key={index}>
-              <code>{formatValue(value)}</code>
-            </li>
-          ))}
-        </ul>
+      <Markdown key="desc" className="[&_p]:first:mt-0 [&_p]:last:mb-0">
+        {mainDescription}
+      </Markdown>
+    );
+  }
+
+  // Add external schema reference link if present
+  if (referencedSchema) {
+    parts.push(
+      <div key="external-ref" className="flex items-center gap-1 mt-2">
+        <Link className="size-3" /> <strong>Schema Reference:</strong>{" "}
+        <a href={`/docs/schema/${referencedSchema}`} className="underline hover:no-underline">
+          {referencedSchema}.json
+        </a>
       </div>
     );
   }
 
-  // Add numeric constraints
-  const numericConstraints = buildNumericConstraints(schema);
-  if (numericConstraints.length > 0) {
-    parts.push(<p key="numeric-constraints">Constraints: {numericConstraints.join(", ")}</p>);
-  }
-
-  // Add string constraints
-  const stringConstraints = buildStringConstraints(schema);
-  if (stringConstraints.length > 0) {
-    parts.push(<p key="string-constraints">Length: {stringConstraints.join(", ")}</p>);
-  }
-
-  // Add pattern
-  if (typeof schema === "object" && schema !== null && schema.pattern) {
+  // Add inline schema reference link if present
+  if (inlineReference) {
     parts.push(
-      <p key="pattern">
-        Pattern: <code>{schema.pattern}</code>
-      </p>
+      <div key="inline-ref" className="flex items-center gap-1 mt-2">
+        <Link className="size-3" /> <strong>See also:</strong>{" "}
+        <a href={`#${inlineReference}`} className="underline hover:no-underline">
+          {inlineReference.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase())}
+        </a>
+      </div>
     );
   }
 
-  // Add format
-  if (typeof schema === "object" && schema !== null && schema.format) {
-    parts.push(
-      <p key="format">
-        Format: <code>{schema.format}</code>
-      </p>
-    );
+  if (parts.length === 0) {
+    return null;
   }
 
-  if (parts.length === 0) return null;
-
-  return <Param.Body>{parts}</Param.Body>;
+  return <>{parts}</>;
 }
 
 interface ConditionalSchemaProps {
