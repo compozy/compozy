@@ -17,6 +17,7 @@ import (
 type TemporalConfig struct {
 	HostPort  string
 	Namespace string
+	TaskQueue string
 }
 
 type Client struct {

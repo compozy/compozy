@@ -20,12 +20,8 @@
         "/admin/mcps": {
             "get": {
                 "description": "Get a list of all configured Model Context Protocol servers",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP Management"
-                ],
+                "produces": ["application/json"],
+                "tags": ["MCP Management"],
                 "summary": "List all MCP definitions",
                 "parameters": [
                     {
@@ -61,15 +57,9 @@
             },
             "post": {
                 "description": "Add a new Model Context Protocol server configuration",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP Management"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["MCP Management"],
                 "summary": "Add a new MCP definition",
                 "parameters": [
                     {
@@ -131,12 +121,8 @@
         "/admin/mcps/{name}": {
             "get": {
                 "description": "Get details of a specific Model Context Protocol server configuration",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP Management"
-                ],
+                "produces": ["application/json"],
+                "tags": ["MCP Management"],
                 "summary": "Get an MCP definition",
                 "parameters": [
                     {
@@ -186,15 +172,9 @@
             },
             "put": {
                 "description": "Update an existing Model Context Protocol server configuration",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP Management"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["MCP Management"],
                 "summary": "Update an MCP definition",
                 "parameters": [
                     {
@@ -261,12 +241,8 @@
             },
             "delete": {
                 "description": "Remove a Model Context Protocol server configuration",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP Management"
-                ],
+                "produces": ["application/json"],
+                "tags": ["MCP Management"],
                 "summary": "Remove an MCP definition",
                 "parameters": [
                     {
@@ -319,12 +295,8 @@
         "/admin/tools": {
             "get": {
                 "description": "Get a list of all tools available from all connected MCP servers",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP Tools"
-                ],
+                "produces": ["application/json"],
+                "tags": ["MCP Tools"],
                 "summary": "List all available tools",
                 "parameters": [
                     {
@@ -363,15 +335,9 @@
         "/admin/tools/call": {
             "post": {
                 "description": "Execute a specific tool with provided arguments on the specified MCP server",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP Tools"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["MCP Tools"],
                 "summary": "Call a tool on an MCP server",
                 "parameters": [
                     {
@@ -433,15 +399,9 @@
         "/api/v0/memory/{memory_ref}/append": {
             "post": {
                 "description": "Append messages to existing memory content",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "memory"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["memory"],
                 "summary": "Append to memory",
                 "parameters": [
                     {
@@ -523,15 +483,9 @@
         "/api/v0/memory/{memory_ref}/clear": {
             "post": {
                 "description": "Clear all memory content with confirmation",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "memory"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["memory"],
                 "summary": "Clear memory",
                 "parameters": [
                     {
@@ -613,15 +567,9 @@
         "/api/v0/memory/{memory_ref}/delete": {
             "post": {
                 "description": "Delete all memory content for a specific key",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "memory"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["memory"],
                 "summary": "Delete memory",
                 "parameters": [
                     {
@@ -703,15 +651,9 @@
         "/api/v0/memory/{memory_ref}/flush": {
             "post": {
                 "description": "Flush memory content with optional summarization. The actual_strategy field in the response indicates which flush strategy was used.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "memory"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["memory"],
                 "summary": "Flush memory",
                 "parameters": [
                     {
@@ -793,15 +735,9 @@
         "/api/v0/memory/{memory_ref}/health": {
             "get": {
                 "description": "Get health status and metrics for memory",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "memory"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["memory"],
                 "summary": "Check memory health",
                 "parameters": [
                     {
@@ -889,15 +825,9 @@
         "/api/v0/memory/{memory_ref}/read": {
             "get": {
                 "description": "Retrieve memory content for a specific memory reference and key",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "memory"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["memory"],
                 "summary": "Read memory content",
                 "parameters": [
                     {
@@ -1041,15 +971,9 @@
         "/api/v0/memory/{memory_ref}/stats": {
             "get": {
                 "description": "Retrieve detailed statistics about memory content",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "memory"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["memory"],
                 "summary": "Get memory statistics",
                 "parameters": [
                     {
@@ -1144,15 +1068,9 @@
         "/api/v0/memory/{memory_ref}/write": {
             "post": {
                 "description": "Write or replace memory content for a specific memory reference and key",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "memory"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["memory"],
                 "summary": "Write memory content",
                 "parameters": [
                     {
@@ -1234,15 +1152,9 @@
         "/events": {
             "post": {
                 "description": "Trigger workflows by sending events",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "events"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["events"],
                 "summary": "Send event",
                 "parameters": [
                     {
@@ -1298,15 +1210,9 @@
         "/executions/workflows": {
             "get": {
                 "description": "Retrieve a list of all workflow executions across all workflows",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "workflows"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["workflows"],
                 "summary": "List all workflow executions",
                 "responses": {
                     "200": {
@@ -1359,15 +1265,9 @@
         "/executions/workflows/{exec_id}": {
             "get": {
                 "description": "Retrieve a specific workflow execution by its execution ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["executions"],
                 "summary": "Get workflow execution by ID",
                 "parameters": [
                     {
@@ -1458,15 +1358,9 @@
         "/executions/workflows/{exec_id}/cancel": {
             "post": {
                 "description": "Cancel a specific workflow execution by its execution ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["executions"],
                 "summary": "Cancel workflow execution",
                 "parameters": [
                     {
@@ -1539,15 +1433,9 @@
         "/executions/workflows/{exec_id}/pause": {
             "post": {
                 "description": "Pause a specific workflow execution by its execution ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["executions"],
                 "summary": "Pause workflow execution",
                 "parameters": [
                     {
@@ -1620,15 +1508,9 @@
         "/executions/workflows/{exec_id}/resume": {
             "post": {
                 "description": "Resume a specific workflow execution by its execution ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["executions"],
                 "summary": "Resume workflow execution",
                 "parameters": [
                     {
@@ -1701,15 +1583,9 @@
         "/executions/workflows/{exec_id}/signals": {
             "post": {
                 "description": "Send a signal with payload to a specific workflow execution",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["executions"],
                 "summary": "Send signal to workflow execution",
                 "parameters": [
                     {
@@ -1809,16 +1685,9 @@
         "/memory/health": {
             "get": {
                 "description": "Returns comprehensive health information for the memory system",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "memory",
-                    "health"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["memory", "health"],
                 "summary": "Get memory system health",
                 "responses": {
                     "200": {
@@ -1839,16 +1708,9 @@
         "/memory/health/{memory_id}": {
             "get": {
                 "description": "Returns health information for a specific memory instance",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "memory",
-                    "health"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["memory", "health"],
                 "summary": "Get memory instance health",
                 "parameters": [
                     {
@@ -1878,12 +1740,8 @@
         "/metrics": {
             "get": {
                 "description": "Exposes application metrics in Prometheus exposition format.\nThis endpoint is used by Prometheus servers to scrape metrics.\n\nThe response is in text/plain format following the Prometheus\nexposition format specification.\n\nAvailable metrics include:\n- HTTP request rates and latencies\n- Temporal workflow execution metrics\n- System health information",
-                "produces": [
-                    "text/plain"
-                ],
-                "tags": [
-                    "Operations"
-                ],
+                "produces": ["text/plain"],
+                "tags": ["Operations"],
                 "summary": "Prometheus metrics endpoint",
                 "responses": {
                     "200": {
@@ -1904,15 +1762,9 @@
         "/schedules": {
             "get": {
                 "description": "Retrieve a list of all scheduled workflows with their current status and override information",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "schedules"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["schedules"],
                 "summary": "List all scheduled workflows",
                 "responses": {
                     "200": {
@@ -1957,15 +1809,9 @@
         "/schedules/{workflow_id}": {
             "get": {
                 "description": "Retrieve detailed information about a specific scheduled workflow including YAML configuration",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "schedules"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["schedules"],
                 "summary": "Get schedule by workflow ID",
                 "parameters": [
                     {
@@ -2054,15 +1900,9 @@
             },
             "delete": {
                 "description": "Remove a scheduled workflow from Temporal. The schedule will be recreated on the next YAML reload if still defined.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "schedules"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["schedules"],
                 "summary": "Delete schedule",
                 "parameters": [
                     {
@@ -2136,15 +1976,9 @@
             },
             "patch": {
                 "description": "Update a scheduled workflow's enabled state and/or cron expression. At least one field must be provided. This creates a temporary override that persists until the next YAML reload.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "schedules"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["schedules"],
                 "summary": "Update schedule",
                 "parameters": [
                     {
@@ -2244,15 +2078,9 @@
         "/workflows": {
             "get": {
                 "description": "Retrieve a list of all available workflow configurations",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "workflows"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["workflows"],
                 "summary": "List all workflows",
                 "responses": {
                     "200": {
@@ -2305,15 +2133,9 @@
         "/workflows/{workflow_id}": {
             "get": {
                 "description": "Retrieve a specific workflow configuration by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "workflows"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["workflows"],
                 "summary": "Get workflow by ID",
                 "parameters": [
                     {
@@ -2404,15 +2226,9 @@
         "/workflows/{workflow_id}/agents": {
             "get": {
                 "description": "Retrieve a list of all available agent configurations",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "agents"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["agents"],
                 "summary": "List all agents",
                 "parameters": [
                     {
@@ -2474,15 +2290,9 @@
         "/workflows/{workflow_id}/agents/{agent_id}": {
             "get": {
                 "description": "Retrieve a specific agent configuration by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "agents"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["agents"],
                 "summary": "Get agent by ID",
                 "parameters": [
                     {
@@ -2580,15 +2390,9 @@
         "/workflows/{workflow_id}/executions": {
             "get": {
                 "description": "Retrieve all executions for a specific workflow",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "workflows"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["workflows"],
                 "summary": "List executions by workflow ID",
                 "parameters": [
                     {
@@ -2667,15 +2471,9 @@
             },
             "post": {
                 "description": "Trigger the execution of a workflow with provided input data",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "workflows"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["workflows"],
                 "summary": "Execute workflow",
                 "parameters": [
                     {
@@ -2775,15 +2573,9 @@
         "/workflows/{workflow_id}/tasks": {
             "get": {
                 "description": "Retrieve a list of all tasks within a specific workflow",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tasks"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["tasks"],
                 "summary": "List tasks for a workflow",
                 "parameters": [
                     {
@@ -2882,15 +2674,9 @@
         "/workflows/{workflow_id}/tasks/{task_id}": {
             "get": {
                 "description": "Retrieve a specific task configuration by its ID within a workflow",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tasks"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["tasks"],
                 "summary": "Get task by ID",
                 "parameters": [
                     {
@@ -2989,15 +2775,9 @@
         "/workflows/{workflow_id}/tools": {
             "get": {
                 "description": "Retrieve a list of all available tool configurations",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tools"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["tools"],
                 "summary": "List all tools",
                 "parameters": [
                     {
@@ -3059,15 +2839,9 @@
         "/workflows/{workflow_id}/tools/{tool_id}": {
             "get": {
                 "description": "Retrieve a specific tool configuration by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tools"
-                ],
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["tools"],
                 "summary": "Get tool by ID",
                 "parameters": [
                     {
@@ -3165,9 +2939,7 @@
         "/{name}/sse": {
             "get": {
                 "description": "Proxy Server-Sent Events requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
+                "tags": ["MCP Proxy"],
                 "summary": "Proxy SSE requests to MCP server",
                 "parameters": [
                     {
@@ -3205,9 +2977,7 @@
         "/{name}/sse/{path}": {
             "get": {
                 "description": "Proxy Server-Sent Events requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
+                "tags": ["MCP Proxy"],
                 "summary": "Proxy SSE requests to MCP server",
                 "parameters": [
                     {
@@ -3251,9 +3021,7 @@
         "/{name}/stream": {
             "get": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
+                "tags": ["MCP Proxy"],
                 "summary": "Proxy streamable HTTP requests to MCP server",
                 "parameters": [
                     {
@@ -3289,9 +3057,7 @@
             },
             "put": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
+                "tags": ["MCP Proxy"],
                 "summary": "Proxy streamable HTTP requests to MCP server",
                 "parameters": [
                     {
@@ -3327,9 +3093,7 @@
             },
             "post": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
+                "tags": ["MCP Proxy"],
                 "summary": "Proxy streamable HTTP requests to MCP server",
                 "parameters": [
                     {
@@ -3365,9 +3129,7 @@
             },
             "delete": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
+                "tags": ["MCP Proxy"],
                 "summary": "Proxy streamable HTTP requests to MCP server",
                 "parameters": [
                     {
@@ -3403,9 +3165,7 @@
             },
             "patch": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
+                "tags": ["MCP Proxy"],
                 "summary": "Proxy streamable HTTP requests to MCP server",
                 "parameters": [
                     {
@@ -3443,9 +3203,7 @@
         "/{name}/stream/{path}": {
             "get": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
+                "tags": ["MCP Proxy"],
                 "summary": "Proxy streamable HTTP requests to MCP server",
                 "parameters": [
                     {
@@ -3487,9 +3245,7 @@
             },
             "put": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
+                "tags": ["MCP Proxy"],
                 "summary": "Proxy streamable HTTP requests to MCP server",
                 "parameters": [
                     {
@@ -3531,9 +3287,7 @@
             },
             "post": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
+                "tags": ["MCP Proxy"],
                 "summary": "Proxy streamable HTTP requests to MCP server",
                 "parameters": [
                     {
@@ -3575,9 +3329,7 @@
             },
             "delete": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
+                "tags": ["MCP Proxy"],
                 "summary": "Proxy streamable HTTP requests to MCP server",
                 "parameters": [
                     {
@@ -3619,9 +3371,7 @@
             },
             "patch": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
+                "tags": ["MCP Proxy"],
                 "summary": "Proxy streamable HTTP requests to MCP server",
                 "parameters": [
                     {
@@ -3666,9 +3416,7 @@
     "definitions": {
         "agent.ActionConfig": {
             "type": "object",
-            "required": [
-                "prompt"
-            ],
+            "required": ["prompt"],
             "properties": {
                 "cwd": {
                     "$ref": "#/definitions/core.PathCWD"
@@ -3695,11 +3443,7 @@
         },
         "agent.Config": {
             "type": "object",
-            "required": [
-                "config",
-                "id",
-                "instructions"
-            ],
+            "required": ["config", "id", "instructions"],
             "properties": {
                 "actions": {
                     "type": "array",
@@ -3781,13 +3525,7 @@
         },
         "core.ComponentType": {
             "type": "string",
-            "enum": [
-                "workflow",
-                "task",
-                "agent",
-                "tool",
-                "log"
-            ],
+            "enum": ["workflow", "task", "agent", "tool", "log"],
             "x-enum-varnames": [
                 "ComponentWorkflow",
                 "ComponentTask",
@@ -3874,10 +3612,7 @@
         },
         "core.MemoryReference": {
             "type": "object",
-            "required": [
-                "id",
-                "key"
-            ],
+            "required": ["id", "key"],
             "properties": {
                 "id": {
                     "type": "string"
@@ -3889,10 +3624,7 @@
                 "mode": {
                     "description": "Mode defines access permissions (e.g., \"read-write\", \"read-only\").",
                     "type": "string",
-                    "enum": [
-                        "read-write",
-                        "read-only"
-                    ]
+                    "enum": ["read-write", "read-only"]
                 }
             }
         },
@@ -3969,16 +3701,7 @@
         },
         "core.ProviderName": {
             "type": "string",
-            "enum": [
-                "openai",
-                "groq",
-                "anthropic",
-                "google",
-                "ollama",
-                "deepseek",
-                "xai",
-                "mock"
-            ],
+            "enum": ["openai", "groq", "anthropic", "google", "ollama", "deepseek", "xai", "mock"],
             "x-enum-comments": {
                 "ProviderMock": "Mock provider for testing"
             },
@@ -4106,12 +3829,7 @@
         },
         "mcpproxy.ConnectionStatus": {
             "type": "string",
-            "enum": [
-                "disconnected",
-                "connecting",
-                "connected",
-                "error"
-            ],
+            "enum": ["disconnected", "connecting", "connected", "error"],
             "x-enum-varnames": [
                 "StatusDisconnected",
                 "StatusConnecting",
@@ -4135,10 +3853,7 @@
         },
         "mcpproxy.MCPDefinition": {
             "type": "object",
-            "required": [
-                "name",
-                "transport"
-            ],
+            "required": ["name", "transport"],
             "properties": {
                 "allowedIPs": {
                     "type": "array",
@@ -4286,9 +4001,7 @@
         },
         "mcpproxy.ToolFilter": {
             "type": "object",
-            "required": [
-                "mode"
-            ],
+            "required": ["mode"],
             "properties": {
                 "list": {
                     "type": "array",
@@ -4303,27 +4016,13 @@
         },
         "mcpproxy.ToolFilterMode": {
             "type": "string",
-            "enum": [
-                "allow",
-                "block"
-            ],
-            "x-enum-varnames": [
-                "ToolFilterAllow",
-                "ToolFilterBlock"
-            ]
+            "enum": ["allow", "block"],
+            "x-enum-varnames": ["ToolFilterAllow", "ToolFilterBlock"]
         },
         "mcpproxy.TransportType": {
             "type": "string",
-            "enum": [
-                "stdio",
-                "sse",
-                "streamable-http"
-            ],
-            "x-enum-varnames": [
-                "TransportStdio",
-                "TransportSSE",
-                "TransportStreamableHTTP"
-            ]
+            "enum": ["stdio", "sse", "streamable-http"],
+            "x-enum-varnames": ["TransportStdio", "TransportSSE", "TransportStreamableHTTP"]
         },
         "memory.InstanceHealth": {
             "type": "object",
@@ -4399,10 +4098,7 @@
         },
         "memrouter.AppendMemoryRequest": {
             "type": "object",
-            "required": [
-                "key",
-                "messages"
-            ],
+            "required": ["key", "messages"],
             "properties": {
                 "key": {
                     "type": "string"
@@ -4418,10 +4114,7 @@
         },
         "memrouter.ClearMemoryRequest": {
             "type": "object",
-            "required": [
-                "confirm",
-                "key"
-            ],
+            "required": ["confirm", "key"],
             "properties": {
                 "backup": {
                     "type": "boolean"
@@ -4436,9 +4129,7 @@
         },
         "memrouter.DeleteMemoryRequest": {
             "type": "object",
-            "required": [
-                "key"
-            ],
+            "required": ["key"],
             "properties": {
                 "key": {
                     "type": "string"
@@ -4447,9 +4138,7 @@
         },
         "memrouter.FlushMemoryRequest": {
             "type": "object",
-            "required": [
-                "key"
-            ],
+            "required": ["key"],
             "properties": {
                 "dry_run": {
                     "type": "boolean"
@@ -4470,10 +4159,7 @@
         },
         "memrouter.WriteMemoryRequest": {
             "type": "object",
-            "required": [
-                "key",
-                "messages"
-            ],
+            "required": ["key", "messages"],
             "properties": {
                 "key": {
                     "type": "string"
@@ -4647,14 +4333,8 @@
         },
         "task.CollectionMode": {
             "type": "string",
-            "enum": [
-                "parallel",
-                "sequential"
-            ],
-            "x-enum-varnames": [
-                "CollectionModeParallel",
-                "CollectionModeSequential"
-            ]
+            "enum": ["parallel", "sequential"],
+            "x-enum-varnames": ["CollectionModeParallel", "CollectionModeSequential"]
         },
         "task.Config": {
             "type": "object",
@@ -4816,14 +4496,7 @@
         },
         "task.ExecutionType": {
             "type": "string",
-            "enum": [
-                "basic",
-                "router",
-                "parallel",
-                "collection",
-                "composite",
-                "wait"
-            ],
+            "enum": ["basic", "router", "parallel", "collection", "composite", "wait"],
             "x-enum-varnames": [
                 "ExecutionBasic",
                 "ExecutionRouter",
@@ -4866,16 +4539,7 @@
         },
         "task.MemoryOpType": {
             "type": "string",
-            "enum": [
-                "read",
-                "write",
-                "append",
-                "delete",
-                "flush",
-                "health",
-                "clear",
-                "stats"
-            ],
+            "enum": ["read", "write", "append", "delete", "flush", "health", "clear", "stats"],
             "x-enum-varnames": [
                 "MemoryOpRead",
                 "MemoryOpWrite",
@@ -4889,12 +4553,7 @@
         },
         "task.ParallelStrategy": {
             "type": "string",
-            "enum": [
-                "wait_all",
-                "fail_fast",
-                "best_effort",
-                "race"
-            ],
+            "enum": ["wait_all", "fail_fast", "best_effort", "race"],
             "x-enum-comments": {
                 "StrategyBestEffort": "Continue even if some tasks fail",
                 "StrategyFailFast": "Stop on first failure",
@@ -5025,14 +4684,8 @@
         "time.Duration": {
             "type": "integer",
             "enum": [
-                -9223372036854775808,
-                9223372036854775807,
-                1,
-                1000,
-                1000000,
-                1000000000,
-                60000000000,
-                3600000000000
+                -9223372036854775808, 9223372036854775807, 1, 1000, 1000000, 1000000000,
+                60000000000, 3600000000000
             ],
             "x-enum-varnames": [
                 "minDuration",
@@ -5203,9 +4856,7 @@
         },
         "wfrouter.EventRequest": {
             "type": "object",
-            "required": [
-                "name"
-            ],
+            "required": ["name"],
             "properties": {
                 "name": {
                     "type": "string"
@@ -5354,12 +5005,7 @@
         },
         "workflow.OverlapPolicy": {
             "type": "string",
-            "enum": [
-                "skip",
-                "allow",
-                "buffer_one",
-                "cancel_other"
-            ],
+            "enum": ["skip", "allow", "buffer_one", "cancel_other"],
             "x-enum-varnames": [
                 "OverlapSkip",
                 "OverlapAllow",
@@ -5369,9 +5015,7 @@
         },
         "workflow.Schedule": {
             "type": "object",
-            "required": [
-                "cron"
-            ],
+            "required": ["cron"],
             "properties": {
                 "cron": {
                     "description": "Cron expression for scheduling (required)",
@@ -5457,12 +5101,8 @@
         },
         "workflow.TriggerType": {
             "type": "string",
-            "enum": [
-                "signal"
-            ],
-            "x-enum-varnames": [
-                "TriggerTypeSignal"
-            ]
+            "enum": ["signal"],
+            "x-enum-varnames": ["TriggerTypeSignal"]
         }
     },
     "tags": [

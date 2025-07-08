@@ -247,6 +247,7 @@ func TestMemoryRESTAPIWithRealWorkflow(t *testing.T) {
 	temporalConfig := &worker.TemporalConfig{
 		HostPort:  "localhost:7233",
 		Namespace: "default",
+		TaskQueue: "", // Will use generated task queue from project name
 	}
 
 	// Create base dependencies

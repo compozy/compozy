@@ -834,6 +834,8 @@ func TestManager_validateKey(t *testing.T) {
 			"a", // single character
 			"user:123:session:456",
 			"user_2024-01-01@example.com",
+			"user:123:*",             // asterisk allowed for wildcard patterns
+			"user*name",              // asterisk allowed for wildcard patterns
 			strings.Repeat("a", 256), // max length
 		}
 
@@ -856,7 +858,6 @@ func TestManager_validateKey(t *testing.T) {
 			{"user$name", "invalid memory key"},  // dollar not allowed
 			{"user%name", "invalid memory key"},  // percent not allowed
 			{"user&name", "invalid memory key"},  // ampersand not allowed
-			{"user*name", "invalid memory key"},  // asterisk not allowed
 			{"user(name)", "invalid memory key"}, // parentheses not allowed
 			{"user[name]", "invalid memory key"}, // brackets not allowed
 			{"user{name}", "invalid memory key"}, // braces not allowed

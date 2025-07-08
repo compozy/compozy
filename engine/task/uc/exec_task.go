@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
@@ -28,6 +29,7 @@ type ExecuteTask struct {
 	runtime        runtime.Runtime
 	memoryManager  memcore.ManagerInterface
 	templateEngine *tplengine.TemplateEngine
+	appConfig      *config.Config
 }
 
 func NewExecuteTask(
@@ -39,7 +41,13 @@ func NewExecuteTask(
 		runtime:        runtime,
 		memoryManager:  memoryManager,
 		templateEngine: templateEngine,
+		appConfig:      nil, // Will be set via SetAppConfig or loaded internally
 	}
+}
+
+// SetAppConfig sets the application configuration
+func (uc *ExecuteTask) SetAppConfig(appConfig *config.Config) {
+	uc.appConfig = appConfig
 }
 
 func (uc *ExecuteTask) Execute(ctx context.Context, input *ExecuteTaskInput) (*core.Output, error) {
@@ -103,6 +111,11 @@ func (uc *ExecuteTask) executeAgent(
 
 	// Create LLM service options
 	var llmOpts []llm.Option
+
+	// Add app config if available
+	if uc.appConfig != nil {
+		llmOpts = append(llmOpts, llm.WithAppConfig(uc.appConfig))
+	}
 
 	// Integrate memory resolver if memory manager is available
 	hasMemoryDependencies := uc.memoryManager != nil && uc.templateEngine != nil

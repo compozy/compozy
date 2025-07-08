@@ -3,11 +3,10 @@ package shared
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/segmentio/ksuid"
 )
 
@@ -20,12 +19,14 @@ type DefaultParentStatusManager struct {
 
 // NewParentStatusManager creates a new parent status manager
 func NewParentStatusManager(taskRepo task.Repository) ParentStatusManager {
-	// Read batch size from environment variable or use default
+	// Read batch size from config or use default
 	batchSize := DefaultBatchSize
-	if envBatchSize := os.Getenv(EnvParentUpdateBatchSize); envBatchSize != "" {
-		if parsedSize, err := strconv.Atoi(envBatchSize); err == nil && parsedSize > 0 {
-			batchSize = parsedSize
-		}
+	// Load configuration from environment
+	service := config.NewService()
+	ctx := context.Background()
+	appConfig, err := service.Load(ctx)
+	if err == nil && appConfig.Limits.ParentUpdateBatchSize > 0 {
+		batchSize = appConfig.Limits.ParentUpdateBatchSize
 	}
 
 	return &DefaultParentStatusManager{

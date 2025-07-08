@@ -8,6 +8,7 @@ import (
 
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/mcp"
+	"github.com/compozy/compozy/pkg/config"
 )
 
 // Config represents the configuration for the LLM service
@@ -106,6 +107,22 @@ func WithLLMFactory(factory llmadapter.Factory) Option {
 func WithMemoryProvider(provider MemoryProvider) Option {
 	return func(c *Config) {
 		c.MemoryProvider = provider
+	}
+}
+
+// WithAppConfig sets configuration values from the application config
+func WithAppConfig(appConfig *config.Config) Option {
+	return func(c *Config) {
+		if appConfig == nil {
+			return
+		}
+
+		if appConfig.LLM.ProxyURL != "" {
+			c.ProxyURL = appConfig.LLM.ProxyURL
+		}
+		if appConfig.LLM.AdminToken.Value() != "" {
+			c.AdminToken = appConfig.LLM.AdminToken.Value()
+		}
 	}
 }
 

@@ -26,7 +26,6 @@ import (
 	wf "github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
-	"github.com/gosimple/slug"
 	"github.com/sethvargo/go-retry"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/api/serviceerror"
@@ -39,7 +38,16 @@ import (
 // Constants
 // -----------------------------------------------------------------------------
 
-const DispatcherEventChannel = "event_channel"
+const (
+	DispatcherEventChannel = "event_channel"
+	// Timeout constants
+	configStoreTTL             = 24 * time.Hour
+	heartbeatCleanupTimeout    = 5 * time.Second
+	mcpShutdownTimeout         = 30 * time.Second
+	dispatcherRetryDelay       = 50 * time.Millisecond
+	dispatcherMaxRetries       = 2
+	mcpProxyHealthCheckTimeout = 10 * time.Second
+)
 
 // -----------------------------------------------------------------------------
 // Temporal-based Worker
@@ -241,7 +249,11 @@ func setupWorkerCore(
 	projectConfig *project.Config,
 	client *Client,
 ) (*workerCoreComponents, error) {
-	taskQueue := slug.Make(projectConfig.Name)
+	// Use TaskQueue from client config if provided, otherwise generate from project name
+	taskQueue := client.config.TaskQueue
+	if taskQueue == "" {
+		taskQueue = GetTaskQueue(projectConfig.Name)
+	}
 	workerOptions := buildWorkerOptions(ctx, config.MonitoringService)
 	worker := client.NewWorker(taskQueue, workerOptions)
 	projectRoot := projectConfig.GetCWD().PathStr()
@@ -274,7 +286,7 @@ func setupRedisAndConfig(
 		return nil, nil, fmt.Errorf("failed to setup Redis cache: %w", err)
 	}
 	log.Debug("Redis cache connected", "duration", time.Since(cacheStart))
-	configStore := services.NewRedisConfigStore(redisCache.Redis, 24*time.Hour)
+	configStore := services.NewRedisConfigStore(redisCache.Redis, configStoreTTL)
 	return redisCache, configStore, nil
 }
 
@@ -338,7 +350,7 @@ func setupMemoryManager(
 // createDispatcher creates dispatcher components with unique IDs
 func createDispatcher(projectConfig *project.Config, taskQueue string, client *Client) *dispatcherComponents {
 	serverID := core.MustNewID().String()[:8]
-	dispatcherID := fmt.Sprintf("dispatcher-%s-%s", slug.Make(projectConfig.Name), serverID)
+	dispatcherID := fmt.Sprintf("dispatcher-%s-%s", GetTaskQueue(projectConfig.Name), serverID)
 	signalDispatcher := NewSignalDispatcher(client, dispatcherID, taskQueue, serverID)
 	return &dispatcherComponents{
 		dispatcherID:     dispatcherID,
@@ -449,7 +461,7 @@ func (o *Worker) Stop(ctx context.Context) {
 		}
 		// Clean up heartbeat entry with background context to ensure completion
 		if o.activities != nil && o.redisCache != nil {
-			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), heartbeatCleanupTimeout)
 			defer cancel()
 			if err := o.activities.RemoveDispatcherHeartbeat(cleanupCtx, o.dispatcherID); err != nil {
 				log.Error("Failed to remove dispatcher heartbeat", "error", err, "dispatcher_id", o.dispatcherID)
@@ -460,7 +472,7 @@ func (o *Worker) Stop(ctx context.Context) {
 	o.client.Close()
 	// Deregister all MCPs from proxy on shutdown
 	if o.mcpRegister != nil {
-		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, mcpShutdownTimeout)
 		defer cancel()
 		if err := o.mcpRegister.Shutdown(ctx); err != nil {
 			log.Error("Failed to shutdown MCP register", "error", err)
@@ -526,7 +538,7 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 	log := logger.FromContext(ctx)
 	err := retry.Do(
 		ctx,
-		retry.WithMaxRetries(2, retry.NewExponential(50*time.Millisecond)),
+		retry.WithMaxRetries(dispatcherMaxRetries, retry.NewExponential(dispatcherRetryDelay)),
 		func(ctx context.Context) error {
 			_, err := o.client.SignalWithStartWorkflow(
 				ctx,
@@ -620,7 +632,7 @@ func (o *Worker) checkMCPProxyHealth(ctx context.Context) error {
 		return nil // No proxy configured
 	}
 	adminToken := os.Getenv("MCP_PROXY_ADMIN_TOKEN")
-	client := mcp.NewProxyClient(proxyURL, adminToken, 10*time.Second)
+	client := mcp.NewProxyClient(proxyURL, adminToken, mcpProxyHealthCheckTimeout)
 	defer client.Close()
 	return client.Health(ctx)
 }

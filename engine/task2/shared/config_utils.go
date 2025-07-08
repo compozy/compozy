@@ -1,9 +1,10 @@
 package shared
 
 import (
-	"os"
-	"strconv"
+	"context"
 	"sync"
+
+	"github.com/compozy/compozy/pkg/config"
 )
 
 // ConfigLimits holds configurable limits for the task2 engine
@@ -17,9 +18,55 @@ type ConfigLimits struct {
 	MaxTemplateDepth int
 }
 
-// GetConfigLimits returns the configuration limits from environment variables
-// with fallback to default values
+// ConfigProvider defines the interface for accessing configuration
+type ConfigProvider interface {
+	GetConfig() *config.Config
+}
+
+// defaultConfigProvider loads configuration lazily using a singleton pattern
+type defaultConfigProvider struct {
+	config     *config.Config
+	configOnce sync.Once
+	configErr  error
+}
+
+// GetConfig returns the configuration, loading it once on first access
+func (p *defaultConfigProvider) GetConfig() *config.Config {
+	p.configOnce.Do(func() {
+		service := config.NewService()
+		ctx := context.Background()
+		p.config, p.configErr = service.Load(ctx)
+		if p.configErr != nil {
+			// TODO: Inject logger for proper error logging
+			// log := logger.FromContext(ctx)
+			// log.Error("Failed to load configuration, using defaults", "error", p.configErr)
+			// Fallback to defaults if loading fails
+			p.config = config.Default()
+		}
+	})
+	return p.config
+}
+
+// Error returns the error encountered during configuration loading, if any
+func (p *defaultConfigProvider) Error() error {
+	// Ensure config has been loaded before returning error
+	_ = p.GetConfig()
+	return p.configErr
+}
+
+// Global default config provider instance
+var globalConfigProvider = &defaultConfigProvider{}
+
+// GetConfigLimits returns the configuration limits from pkg/config
+// with fallback to default values. This loads configuration from all sources
+// including environment variables.
 func GetConfigLimits() *ConfigLimits {
+	return GetConfigLimitsWithConfig(nil)
+}
+
+// GetConfigLimitsWithConfig returns the configuration limits using the provided config
+// or loads from all sources if config is nil
+func GetConfigLimitsWithConfig(appConfig *config.Config) *ConfigLimits {
 	limits := &ConfigLimits{
 		MaxNestingDepth:  DefaultMaxParentDepth,
 		MaxStringLength:  DefaultMaxStringLength,
@@ -30,30 +77,29 @@ func GetConfigLimits() *ConfigLimits {
 		MaxTemplateDepth: DefaultMaxTemplateDepth,
 	}
 
-	// Get MaxNestingDepth from environment (used by project config)
-	if envValue := os.Getenv(EnvMaxNestingDepth); envValue != "" {
-		if val, err := strconv.Atoi(envValue); err == nil && val > 0 {
-			limits.MaxNestingDepth = val
-			// Use the same limit for all depth-related configurations
-			limits.MaxParentDepth = val
-			limits.MaxChildrenDepth = val
-			limits.MaxContextDepth = val
-			limits.MaxConfigDepth = val
-		}
+	// Use provided config or get from global provider
+	if appConfig == nil {
+		appConfig = globalConfigProvider.GetConfig()
 	}
 
-	// Get MaxStringLength from environment
-	if envValue := os.Getenv(EnvMaxStringLength); envValue != "" {
-		if val, err := strconv.Atoi(envValue); err == nil && val > 0 {
-			limits.MaxStringLength = val
-		}
+	// Use MaxNestingDepth from config (used by project config)
+	if appConfig.Limits.MaxNestingDepth > 0 {
+		limits.MaxNestingDepth = appConfig.Limits.MaxNestingDepth
+		// Use the same limit for all depth-related configurations
+		limits.MaxParentDepth = appConfig.Limits.MaxNestingDepth
+		limits.MaxChildrenDepth = appConfig.Limits.MaxNestingDepth
+		limits.MaxContextDepth = appConfig.Limits.MaxNestingDepth
+		limits.MaxConfigDepth = appConfig.Limits.MaxNestingDepth
 	}
 
-	// Get specific task context depth if set
-	if envValue := os.Getenv(EnvMaxTaskContextDepth); envValue != "" {
-		if val, err := strconv.Atoi(envValue); err == nil && val > 0 {
-			limits.MaxContextDepth = val
-		}
+	// Use MaxStringLength from config
+	if appConfig.Limits.MaxStringLength > 0 {
+		limits.MaxStringLength = appConfig.Limits.MaxStringLength
+	}
+
+	// Use specific task context depth if set
+	if appConfig.Limits.MaxTaskContextDepth > 0 {
+		limits.MaxContextDepth = appConfig.Limits.MaxTaskContextDepth
 	}
 
 	return limits
@@ -87,6 +133,8 @@ func GetGlobalConfigLimits() *ConfigLimits {
 func RefreshGlobalConfigLimits() {
 	configLimitsMutex.Lock()
 	defer configLimitsMutex.Unlock()
+	// Reset the provider to force reload on next access
+	globalConfigProvider = &defaultConfigProvider{}
 	globalConfigLimits = GetConfigLimits()
 }
 
@@ -94,5 +142,7 @@ func RefreshGlobalConfigLimits() {
 func resetGlobalConfigLimits() {
 	configLimitsMutex.Lock()
 	defer configLimitsMutex.Unlock()
+	// Reset both the provider and limits
+	globalConfigProvider = &defaultConfigProvider{}
 	globalConfigLimits = nil
 }

@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -421,27 +419,16 @@ func (mm *Manager) createMemoryInstance(
 	// Create async token counter wrapper with configurable workers and buffer size
 	workers := 10      // default workers
 	bufferSize := 1000 // default buffer size
-	// Check environment variable first (set by CLI flag or env)
-	if envWorkers := os.Getenv("ASYNC_TOKEN_COUNTER_WORKERS"); envWorkers != "" {
-		if parsed, err := strconv.Atoi(envWorkers); err == nil && parsed > 0 {
-			workers = parsed
-		} else if err != nil {
-			mm.log.Debug("Invalid ASYNC_TOKEN_COUNTER_WORKERS value, using default",
-				"env_value", envWorkers, "default", workers, "error", err)
-		} else {
-			mm.log.Debug("Invalid ASYNC_TOKEN_COUNTER_WORKERS value, using default",
-				"env_value", envWorkers, "default", workers, "reason", "must be positive integer")
-		}
-	}
-	if envBufferSize := os.Getenv("ASYNC_TOKEN_COUNTER_BUFFER_SIZE"); envBufferSize != "" {
-		if parsed, err := strconv.Atoi(envBufferSize); err == nil && parsed > 0 {
-			bufferSize = parsed
-		} else if err != nil {
-			mm.log.Debug("Invalid ASYNC_TOKEN_COUNTER_BUFFER_SIZE value, using default",
-				"env_value", envBufferSize, "default", bufferSize, "error", err)
-		} else {
-			mm.log.Debug("Invalid ASYNC_TOKEN_COUNTER_BUFFER_SIZE value, using default",
-				"env_value", envBufferSize, "default", bufferSize, "reason", "must be positive integer")
+	// Use injected config manager if available
+	if mm.configManager != nil {
+		appConfig := mm.configManager.Get()
+		if appConfig != nil {
+			if appConfig.Runtime.AsyncTokenCounterWorkers > 0 {
+				workers = appConfig.Runtime.AsyncTokenCounterWorkers
+			}
+			if appConfig.Runtime.AsyncTokenCounterBufferSize > 0 {
+				bufferSize = appConfig.Runtime.AsyncTokenCounterBufferSize
+			}
 		}
 	}
 	asyncTokenCounter := tokens.NewAsyncTokenCounter(tokenCounter, workers, bufferSize, mm.log)

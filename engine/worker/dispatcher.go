@@ -18,6 +18,15 @@ import (
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 )
 
+// Constants for dispatcher workflow
+const (
+	maxSignalsPerRun         = 1000
+	maxConsecutiveErrors     = 10
+	circuitBreakerDelay      = 5 * time.Second
+	heartbeatActivityTimeout = 10 * time.Second
+	localActivityTimeout     = 10 * time.Second
+)
+
 // EventSignal represents an incoming event
 type EventSignal struct {
 	Name          string     `json:"name"`
@@ -274,7 +283,7 @@ func startDispatcherHeartbeat(
 				TTL:          time.Duration(data.ProjectConfig.Opts.DispatcherHeartbeatTTL) * time.Second,
 			}
 			disconnectedCtx, cancel := workflow.NewDisconnectedContext(ctx)
-			ao := workflow.ActivityOptions{StartToCloseTimeout: 10 * time.Second}
+			ao := workflow.ActivityOptions{StartToCloseTimeout: heartbeatActivityTimeout}
 			disconnectedCtx = workflow.WithActivityOptions(disconnectedCtx, ao)
 			if err := workflow.ExecuteActivity(
 				disconnectedCtx,
@@ -301,9 +310,7 @@ func handleSignalProcessing(
 	projectName, serverID string,
 ) error {
 	log := workflow.GetLogger(ctx)
-	const maxSignalsPerRun = 1000
-	const maxConsecutiveErrors = 10
-	const circuitBreakerDelay = 5 * time.Second
+	// Using constants defined at package level
 	signalChan := workflow.GetSignalChannel(ctx, DispatcherEventChannel)
 	processed := 0
 	consecutiveErrors := 0
@@ -359,7 +366,7 @@ func DispatcherWorkflow(ctx workflow.Context, projectName string, serverID strin
 	workflowInfo := workflow.GetInfo(ctx)
 	dispatcherID := workflowInfo.WorkflowExecution.ID
 	var data *wfacts.GetData
-	lao := workflow.LocalActivityOptions{StartToCloseTimeout: 10 * time.Second}
+	lao := workflow.LocalActivityOptions{StartToCloseTimeout: localActivityTimeout}
 	ctx = workflow.WithLocalActivityOptions(ctx, lao)
 	err := workflow.ExecuteLocalActivity(ctx, wfacts.GetDataLabel, &wfacts.GetDataInput{WorkflowID: projectName}).
 		Get(ctx, &data)
