@@ -17,10 +17,12 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/middleware/ratelimit"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/engine/workflow/schedule"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/sethvargo/go-retry"
@@ -37,6 +39,10 @@ const (
 	scheduleRetryBaseDelay    = 1 * time.Second
 	scheduleRetryMaxDelay     = 30 * time.Second
 	scheduleRetryMaxAttempts  = 20 // ~5 minutes with exponential backoff
+	// HTTP server timeouts
+	httpReadTimeout  = 15 * time.Second
+	httpWriteTimeout = 15 * time.Second
+	httpIdleTimeout  = 60 * time.Second
 )
 
 type reconciliationStatus struct {
@@ -79,8 +85,7 @@ func (rs *reconciliationStatus) setError(err error, nextRetry time.Time) {
 
 type Server struct {
 	Config              *Config
-	TemporalConfig      *worker.TemporalConfig
-	StoreConfig         *store.Config
+	AppConfig           *config.Config // Unified configuration
 	router              *gin.Engine
 	monitoring          *monitoring.Service
 	ctx                 context.Context
@@ -90,12 +95,22 @@ type Server struct {
 	reconciliationState *reconciliationStatus
 }
 
-func NewServer(ctx context.Context, config *Config, tConfig *worker.TemporalConfig, sConfig *store.Config) *Server {
+func NewServer(ctx context.Context, appConfig *config.Config, cwd, configFile, envFilePath string) *Server {
 	serverCtx, cancel := context.WithCancel(ctx)
+
+	// Create server config from unified config
+	serverConfig := &Config{
+		CWD:         cwd,
+		Host:        appConfig.Server.Host,
+		Port:        appConfig.Server.Port,
+		CORSEnabled: appConfig.Server.CORSEnabled,
+		ConfigFile:  configFile,
+		EnvFilePath: envFilePath,
+	}
+
 	return &Server{
-		Config:              config,
-		TemporalConfig:      tConfig,
-		StoreConfig:         sConfig,
+		Config:              serverConfig,
+		AppConfig:           appConfig,
 		ctx:                 serverCtx,
 		cancel:              cancel,
 		shutdownChan:        make(chan struct{}, 1),
@@ -164,24 +179,27 @@ func (s *Server) Run() error {
 	return s.startAndRunServer(cleanupFuncs)
 }
 
-func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
-	var cleanupFuncs []func()
-	// Load project and workspace files
+// setupProjectConfig loads project configuration and returns project config, workflows, and config registry
+func (s *Server) setupProjectConfig() (*project.Config, []*workflow.Config, *autoload.ConfigRegistry, error) {
 	log := logger.FromContext(s.ctx)
 	setupStart := time.Now()
 	configService := csvc.NewService(log, s.Config.EnvFilePath)
 	projectConfig, workflows, configRegistry, err := configService.LoadProject(s.ctx, s.Config.CWD, s.Config.ConfigFile)
 	if err != nil {
-		return nil, cleanupFuncs, fmt.Errorf("failed to load project: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to load project: %w", err)
 	}
 	log.Debug("Loaded project configuration", "duration", time.Since(setupStart))
-	// Initialize monitoring service with shorter timeout to prevent slow startup
+	return projectConfig, workflows, configRegistry, nil
+}
+
+// setupMonitoring initializes monitoring service and returns cleanup function
+func (s *Server) setupMonitoring(projectConfig *project.Config) func() {
+	log := logger.FromContext(s.ctx)
 	monitoringStart := time.Now()
 	monitoringCtx, monitoringCancel := context.WithTimeout(s.ctx, monitoringInitTimeout)
 	monitoringService, err := monitoring.NewMonitoringService(monitoringCtx, projectConfig.MonitoringConfig)
 	monitoringDuration := time.Since(monitoringStart)
 	if err != nil {
-		// Cancel the context only on error
 		monitoringCancel()
 		if err == context.DeadlineExceeded {
 			log.Warn("Monitoring initialization timed out, continuing without monitoring",
@@ -190,48 +208,74 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 			log.Error("Failed to initialize monitoring service", "error", err,
 				"duration", monitoringDuration)
 		}
-		// Continue with nil monitoring service
 		s.monitoring = nil
-	} else {
-		s.monitoring = monitoringService
-		if monitoringService.IsInitialized() {
-			log.Info("Monitoring service initialized successfully",
-				"enabled", projectConfig.MonitoringConfig.Enabled,
-				"path", projectConfig.MonitoringConfig.Path,
-				"duration", monitoringDuration)
-			// Add both monitoring shutdown and context cancellation to cleanup
-			cleanupFuncs = append(cleanupFuncs, func() {
-				// Cancel the monitoring context during cleanup
-				monitoringCancel()
-				ctx, cancel := context.WithTimeout(context.Background(), monitoringShutdownTimeout)
-				defer cancel()
-				if err := monitoringService.Shutdown(ctx); err != nil {
-					log.Error("Failed to shutdown monitoring service", "error", err)
-				}
-			})
-		} else {
-			// Cancel context if monitoring is disabled
+		return func() {} // no-op cleanup
+	}
+	s.monitoring = monitoringService
+	if monitoringService.IsInitialized() {
+		log.Info("Monitoring service initialized successfully",
+			"enabled", projectConfig.MonitoringConfig.Enabled,
+			"path", projectConfig.MonitoringConfig.Path,
+			"duration", monitoringDuration)
+		return func() {
 			monitoringCancel()
-			log.Info("Monitoring is disabled in the configuration",
-				"duration", monitoringDuration)
+			ctx, cancel := context.WithTimeout(context.Background(), monitoringShutdownTimeout)
+			defer cancel()
+			if err := monitoringService.Shutdown(ctx); err != nil {
+				log.Error("Failed to shutdown monitoring service", "error", err)
+			}
 		}
 	}
-	// Setup database store
+	monitoringCancel()
+	log.Info("Monitoring is disabled in the configuration", "duration", monitoringDuration)
+	return func() {} // no-op cleanup
+}
+
+// setupStore initializes database store and returns store instance and cleanup function
+func (s *Server) setupStore() (*store.Store, func(), error) {
+	log := logger.FromContext(s.ctx)
 	storeStart := time.Now()
-	store, err := store.SetupStore(s.ctx, s.StoreConfig)
+	storeInstance, err := store.SetupStoreWithConfig(s.ctx, s.AppConfig)
 	if err != nil {
-		return nil, cleanupFuncs, fmt.Errorf("failed to setup store: %w", err)
+		return nil, nil, fmt.Errorf("failed to setup store with unified config: %w", err)
 	}
-	log.Info("Database store initialized", "duration", time.Since(storeStart))
-	cleanupFuncs = append(cleanupFuncs, func() {
+	log.Info("Database store initialized with unified config", "duration", time.Since(storeStart))
+	cleanup := func() {
 		ctx, cancel := context.WithTimeout(s.ctx, dbShutdownTimeout)
 		defer cancel()
-		store.DB.Close(ctx)
-	})
-	clientConfig := s.TemporalConfig
-	deps := appstate.NewBaseDeps(projectConfig, workflows, store, clientConfig)
+		storeInstance.DB.Close(ctx)
+	}
+	return storeInstance, cleanup, nil
+}
+
+func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
+	var cleanupFuncs []func()
+	log := logger.FromContext(s.ctx)
+	setupStart := time.Now()
+
+	projectConfig, workflows, configRegistry, err := s.setupProjectConfig()
+	if err != nil {
+		return nil, cleanupFuncs, err
+	}
+
+	monitoringCleanup := s.setupMonitoring(projectConfig)
+	cleanupFuncs = append(cleanupFuncs, monitoringCleanup)
+
+	storeInstance, storeCleanup, err := s.setupStore()
+	if err != nil {
+		return nil, cleanupFuncs, err
+	}
+	cleanupFuncs = append(cleanupFuncs, storeCleanup)
+
+	// Create Temporal config from unified config
+	clientConfig := &worker.TemporalConfig{
+		HostPort:  s.AppConfig.Temporal.HostPort,
+		Namespace: s.AppConfig.Temporal.Namespace,
+		TaskQueue: s.AppConfig.Temporal.TaskQueue,
+	}
+	deps := appstate.NewBaseDeps(projectConfig, workflows, storeInstance, clientConfig)
 	workerStart := time.Now()
-	worker, err := setupWorker(s.ctx, deps, s.monitoring, configRegistry)
+	worker, err := setupWorker(s.ctx, deps, s.monitoring, configRegistry, s.AppConfig)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
@@ -245,7 +289,6 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to create app state: %w", err)
 	}
-	// Initialize schedule manager
 	s.initializeScheduleManager(state, worker, workflows)
 	log.Info("Server dependencies setup completed", "total_duration", time.Since(setupStart))
 	return state, cleanupFuncs, nil
@@ -256,6 +299,7 @@ func setupWorker(
 	deps appstate.BaseDeps,
 	monitoringService *monitoring.Service,
 	configRegistry *autoload.ConfigRegistry,
+	appConfig *config.Config,
 ) (*worker.Worker, error) {
 	log := logger.FromContext(ctx)
 	workerCreateStart := time.Now()
@@ -268,6 +312,7 @@ func setupWorker(
 		},
 		MonitoringService: monitoringService,
 		ResourceRegistry:  configRegistry,
+		AppConfig:         appConfig,
 	}
 	worker, err := worker.NewWorker(
 		ctx,
@@ -314,9 +359,9 @@ func (s *Server) createHTTPServer() *http.Server {
 	return &http.Server{
 		Addr:         addr,
 		Handler:      s.router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  httpReadTimeout,
+		WriteTimeout: httpWriteTimeout,
+		IdleTimeout:  httpIdleTimeout,
 	}
 }
 

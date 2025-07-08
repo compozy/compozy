@@ -13,6 +13,7 @@ func RootCmd() *cobra.Command {
 	root.AddCommand(
 		DevCmd(),
 		MCPProxyCmd(),
+		ConfigCmd(),
 	)
 
 	return root

@@ -119,9 +119,12 @@ func (f *DefaultNormalizerFactory) CreateOutputTransformer() *core.OutputTransfo
 // -----------------------------------------------------------------------------
 
 // CreateResponseHandler creates a response handler for the given task type
-func (f *DefaultNormalizerFactory) CreateResponseHandler(taskType task.Type) (shared.TaskResponseHandler, error) {
+func (f *DefaultNormalizerFactory) CreateResponseHandler(
+	ctx context.Context,
+	taskType task.Type,
+) (shared.TaskResponseHandler, error) {
 	// Create dependencies
-	parentStatusManager := f.createParentStatusManager()
+	parentStatusManager := f.createParentStatusManager(ctx)
 	outputTransformer := f.createOutputTransformer()
 
 	// Create base handler with all dependencies
@@ -182,11 +185,11 @@ func (f *DefaultNormalizerFactory) CreateTaskConfigRepository(
 // -----------------------------------------------------------------------------
 
 // createParentStatusManager creates a parent status manager
-func (f *DefaultNormalizerFactory) createParentStatusManager() shared.ParentStatusManager {
+func (f *DefaultNormalizerFactory) createParentStatusManager(ctx context.Context) shared.ParentStatusManager {
 	// Use injected taskRepo if available, otherwise return nil
 	// The BaseResponseHandler will handle nil gracefully
 	if f.taskRepo != nil {
-		return shared.NewParentStatusManager(f.taskRepo)
+		return shared.NewParentStatusManager(ctx, f.taskRepo)
 	}
 	return nil
 }

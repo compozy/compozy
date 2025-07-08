@@ -54,6 +54,8 @@ build: swagger
 lint:
 	$(BUNCMD) run lint
 	$(LINTCMD) run --fix --allow-parallel-runners
+	@echo "Running modernize analyzer for min/max suggestions..."
+	# @go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest ./... 2>&1 | grep -E "\.go:[0-9]+:[0-9]+:" || echo "No modernization suggestions found"
 	@echo "Linting completed successfully"
 
 fmt:

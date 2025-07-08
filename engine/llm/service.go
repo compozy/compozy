@@ -3,7 +3,6 @@ package llm
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -26,13 +25,6 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	config := DefaultConfig()
 	for _, opt := range opts {
 		opt(config)
-	}
-	// Apply environment overrides if needed
-	if proxyURL := os.Getenv("MCP_PROXY_URL"); proxyURL != "" {
-		config.ProxyURL = proxyURL
-	}
-	if adminToken := os.Getenv("MCP_ADMIN_TOKEN"); adminToken != "" {
-		config.AdminToken = adminToken
 	}
 	// Validate configuration
 	if err := config.Validate(); err != nil {

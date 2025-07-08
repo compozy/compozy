@@ -56,14 +56,7 @@ const (
 	DefaultBatchSize        = 100 // Default batch size for parent updates
 )
 
-// Environment variables
-const (
-	EnvMaxNestingDepth            = "MAX_NESTING_DEPTH"
-	EnvMaxStringLength            = "MAX_STRING_LENGTH"
-	EnvMaxTaskContextDepth        = "MAX_TASK_CONTEXT_DEPTH"
-	EnvParentUpdateBatchSize      = "PARENT_UPDATE_BATCH_SIZE"
-	EnvCompozyMaxTaskContextDepth = "COMPOZY_MAX_TASK_CONTEXT_DEPTH"
-)
+// Environment variables - REMOVED: Now using pkg/config with COMPOZY_ prefixed env vars
 
 // Context keys
 const (

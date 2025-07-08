@@ -19,7 +19,7 @@ func TestDefaultParentStatusManager_UpdateParentStatus(t *testing.T) {
 	t.Run("Should update parent status based on all children success", func(t *testing.T) {
 		// Arrange
 		mockRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(mockRepo)
+		manager := NewParentStatusManager(context.Background(), mockRepo)
 		ctx := context.Background()
 		parentID := core.MustNewID()
 
@@ -54,7 +54,7 @@ func TestDefaultParentStatusManager_UpdateParentStatus(t *testing.T) {
 	t.Run("Should handle fail-fast strategy", func(t *testing.T) {
 		// Arrange
 		mockRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(mockRepo)
+		manager := NewParentStatusManager(context.Background(), mockRepo)
 		ctx := context.Background()
 		parentID := core.MustNewID()
 
@@ -89,7 +89,7 @@ func TestDefaultParentStatusManager_UpdateParentStatus(t *testing.T) {
 	t.Run("Should skip update when no children exist", func(t *testing.T) {
 		// Arrange
 		mockRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(mockRepo)
+		manager := NewParentStatusManager(context.Background(), mockRepo)
 		ctx := context.Background()
 		parentID := core.MustNewID()
 
@@ -117,7 +117,7 @@ func TestDefaultParentStatusManager_UpdateParentStatus(t *testing.T) {
 	t.Run("Should handle repository errors", func(t *testing.T) {
 		// Arrange
 		mockRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(mockRepo)
+		manager := NewParentStatusManager(context.Background(), mockRepo)
 		ctx := context.Background()
 		parentID := core.MustNewID()
 
@@ -139,7 +139,7 @@ func TestDefaultParentStatusManager_GetAggregatedStatus(t *testing.T) {
 	t.Run("Should return success when no children exist", func(t *testing.T) {
 		// Arrange
 		mockRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(mockRepo)
+		manager := NewParentStatusManager(context.Background(), mockRepo)
 		ctx := context.Background()
 		parentID := core.MustNewID()
 
@@ -157,7 +157,7 @@ func TestDefaultParentStatusManager_GetAggregatedStatus(t *testing.T) {
 	t.Run("Should aggregate status with wait-all strategy", func(t *testing.T) {
 		// Arrange
 		mockRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(mockRepo)
+		manager := NewParentStatusManager(context.Background(), mockRepo)
 		ctx := context.Background()
 		parentID := core.MustNewID()
 
@@ -179,7 +179,7 @@ func TestDefaultParentStatusManager_GetAggregatedStatus(t *testing.T) {
 
 func TestDefaultParentStatusManager_StrategyCalculations(t *testing.T) {
 	mockRepo := &store.MockTaskRepo{}
-	manager := NewParentStatusManager(mockRepo).(*DefaultParentStatusManager)
+	manager := NewParentStatusManager(context.Background(), mockRepo).(*DefaultParentStatusManager)
 
 	t.Run("Should calculate wait-all status correctly", func(t *testing.T) {
 		testCases := []struct {

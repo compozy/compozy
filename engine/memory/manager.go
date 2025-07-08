@@ -13,6 +13,7 @@ import (
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/privacy"
 	"github.com/compozy/compozy/engine/memory/tokens"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"go.temporal.io/sdk/client"
@@ -22,6 +23,11 @@ const (
 	// DefaultTokenCounterModel is the default model used for token counting
 	DefaultTokenCounterModel = "gpt-4"
 )
+
+// ConfigManagerInterface defines the interface for accessing configuration
+type ConfigManagerInterface interface {
+	Get() *config.Config
+}
 
 // Manager is responsible for creating, retrieving, and managing Instances.
 // It handles memory key template evaluation and ensures that Instances are
@@ -35,6 +41,7 @@ type Manager struct {
 	temporalTaskQueue      string                    // Default task queue for memory activities
 	privacyManager         privacy.ManagerInterface  // Privacy controls and data protection
 	projectContextResolver *ProjectContextResolver   // For consistent project ID resolution
+	configManager          ConfigManagerInterface    // Configuration manager for accessing app config
 	log                    logger.Logger             // Logger following the project standard with log.FromContext(ctx)
 }
 
@@ -50,6 +57,7 @@ type ManagerOptions struct {
 	PrivacyResilienceConfig *privacy.ResilienceConfig // Optional: if provided, creates resilient privacy manager
 	FallbackProjectID       string                    // Project ID to use when not found in context
 	Logger                  logger.Logger             // Optional: if nil, a new one will be created
+	ConfigManager           ConfigManagerInterface    // Optional: for accessing application configuration
 }
 
 // NewManager creates a new Manager.
@@ -69,6 +77,7 @@ func NewManager(opts *ManagerOptions) (*Manager, error) {
 		temporalTaskQueue:      opts.TemporalTaskQueue,
 		privacyManager:         privacyManager,
 		projectContextResolver: projectContextResolver,
+		configManager:          opts.ConfigManager,
 		log:                    opts.Logger,
 	}, nil
 }

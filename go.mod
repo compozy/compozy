@@ -67,7 +67,12 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require github.com/romdo/go-debounce v0.1.0
+require (
+	github.com/go-viper/mapstructure/v2 v2.2.1
+	github.com/knadh/koanf/providers/env/v2 v2.0.0
+	github.com/knadh/koanf/v2 v2.2.1
+	github.com/romdo/go-debounce v0.1.0
+)
 
 require (
 	cel.dev/expr v0.24.0 // indirect
@@ -116,6 +121,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.8.2 // indirect
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
+	github.com/fatih/structs v1.1.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
@@ -151,6 +157,8 @@ require (
 	github.com/kaptinlin/go-i18n v0.1.4 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.11 // indirect
+	github.com/knadh/koanf/maps v0.1.2 // indirect
+	github.com/knadh/koanf/providers/structs v1.0.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect

@@ -1,11 +1,11 @@
 package shared
 
 import (
-	"os"
-	"strconv"
+	"context"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/pkg/config"
 )
 
 // TaskOutputBuilder is responsible for building task output structures
@@ -26,22 +26,22 @@ type DefaultTaskOutputBuilder struct {
 
 // NewTaskOutputBuilder creates a new task output builder
 func NewTaskOutputBuilder() TaskOutputBuilder {
-	maxDepth := getMaxContextDepthFromEnv()
+	maxDepth := getMaxContextDepthFromConfig()
 	return &DefaultTaskOutputBuilder{
 		maxDepth: maxDepth,
 	}
 }
 
-// getMaxContextDepthFromEnv gets the max context depth from environment variable
+// getMaxContextDepthFromConfig gets the max context depth from config
 // with a default fallback of 10
-func getMaxContextDepthFromEnv() int {
+func getMaxContextDepthFromConfig() int {
 	const defaultMaxDepth = 10
-	envValue := os.Getenv(EnvCompozyMaxTaskContextDepth)
-	if envValue == "" {
-		return defaultMaxDepth
-	}
-	if depth, err := strconv.Atoi(envValue); err == nil && depth > 0 {
-		return depth
+	// Load configuration from environment
+	service := config.NewService()
+	ctx := context.Background()
+	appConfig, err := service.Load(ctx)
+	if err == nil && appConfig.Limits.MaxTaskContextDepth > 0 {
+		return appConfig.Limits.MaxTaskContextDepth
 	}
 	return defaultMaxDepth
 }

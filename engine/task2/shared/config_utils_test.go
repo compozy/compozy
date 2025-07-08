@@ -47,19 +47,19 @@ func TestGetGlobalConfigLimits_ConcurrentAccess(t *testing.T) {
 
 		// Verify the singleton was initialized correctly
 		assert.NotNil(t, firstResult)
-		assert.Equal(t, DefaultMaxParentDepth, firstResult.MaxNestingDepth)
-		assert.Equal(t, DefaultMaxStringLength, firstResult.MaxStringLength)
+		assert.Equal(t, 20, firstResult.MaxNestingDepth)       // Provider default is 20
+		assert.Equal(t, 10485760, firstResult.MaxStringLength) // Provider default is 10MB
 	})
 	t.Run("Should handle concurrent refresh and access", func(t *testing.T) {
 		// Reset global state before test
 		resetGlobalConfigLimits()
 
 		// Set test environment variables
-		os.Setenv(EnvMaxNestingDepth, "20")
-		os.Setenv(EnvMaxStringLength, "2048")
+		os.Setenv("LIMITS_MAX_NESTING_DEPTH", "20")
+		os.Setenv("LIMITS_MAX_STRING_LENGTH", "2048")
 		defer func() {
-			os.Unsetenv(EnvMaxNestingDepth)
-			os.Unsetenv(EnvMaxStringLength)
+			os.Unsetenv("LIMITS_MAX_NESTING_DEPTH")
+			os.Unsetenv("LIMITS_MAX_STRING_LENGTH")
 		}()
 
 		// Number of concurrent operations
@@ -75,8 +75,8 @@ func TestGetGlobalConfigLimits_ConcurrentAccess(t *testing.T) {
 				assert.NotNil(t, limits)
 				// Values should be either default or updated
 				assert.True(t,
-					limits.MaxNestingDepth == DefaultMaxParentDepth || limits.MaxNestingDepth == 20,
-					"MaxNestingDepth should be either default or updated value")
+					limits.MaxNestingDepth == 20,
+					"MaxNestingDepth should be the value we set")
 			}()
 		}
 
@@ -105,13 +105,13 @@ func TestGetGlobalConfigLimits_ConcurrentAccess(t *testing.T) {
 		limits := GetGlobalConfigLimits()
 		require.NotNil(t, limits)
 
-		// Verify initialization values
-		assert.Equal(t, DefaultMaxParentDepth, limits.MaxNestingDepth)
-		assert.Equal(t, DefaultMaxStringLength, limits.MaxStringLength)
-		assert.Equal(t, DefaultMaxContextDepth, limits.MaxContextDepth)
-		assert.Equal(t, DefaultMaxParentDepth, limits.MaxParentDepth)
-		assert.Equal(t, DefaultMaxChildrenDepth, limits.MaxChildrenDepth)
-		assert.Equal(t, DefaultMaxConfigDepth, limits.MaxConfigDepth)
+		// Verify initialization values from provider defaults
+		assert.Equal(t, 20, limits.MaxNestingDepth)       // Provider default is 20
+		assert.Equal(t, 10485760, limits.MaxStringLength) // Provider default is 10MB
+		assert.Equal(t, 5, limits.MaxContextDepth)        // Provider default is 5 for MaxTaskContextDepth
+		assert.Equal(t, 20, limits.MaxParentDepth)        // Uses MaxNestingDepth value
+		assert.Equal(t, 20, limits.MaxChildrenDepth)      // Uses MaxNestingDepth value
+		assert.Equal(t, 20, limits.MaxConfigDepth)        // Uses MaxNestingDepth value
 		assert.Equal(t, DefaultMaxTemplateDepth, limits.MaxTemplateDepth)
 	})
 }
@@ -123,11 +123,11 @@ func TestRefreshGlobalConfigLimits(t *testing.T) {
 
 		// Get initial config
 		initial := GetGlobalConfigLimits()
-		assert.Equal(t, DefaultMaxParentDepth, initial.MaxNestingDepth)
+		assert.Equal(t, 20, initial.MaxNestingDepth) // Provider default is 20
 
 		// Update environment
-		os.Setenv(EnvMaxNestingDepth, "30")
-		defer os.Unsetenv(EnvMaxNestingDepth)
+		os.Setenv("LIMITS_MAX_NESTING_DEPTH", "30")
+		defer os.Unsetenv("LIMITS_MAX_NESTING_DEPTH")
 
 		// Refresh
 		RefreshGlobalConfigLimits()
@@ -150,9 +150,9 @@ func TestRefreshGlobalConfigLimits(t *testing.T) {
 			value := val // Capture loop variable
 			go func() {
 				defer wg.Done()
-				os.Setenv(EnvMaxNestingDepth, value)
+				os.Setenv("LIMITS_MAX_NESTING_DEPTH", value)
 				RefreshGlobalConfigLimits()
-				os.Unsetenv(EnvMaxNestingDepth)
+				os.Unsetenv("LIMITS_MAX_NESTING_DEPTH")
 			}()
 		}
 
@@ -161,41 +161,58 @@ func TestRefreshGlobalConfigLimits(t *testing.T) {
 		// Final state should be consistent (not corrupted)
 		final := GetGlobalConfigLimits()
 		assert.NotNil(t, final)
-		// Value should be one of the test values or default
-		validValues := []int{DefaultMaxParentDepth, 15, 25, 35, 45}
+		// Value should be one of the test values or provider default
+		validValues := []int{20, 15, 25, 35, 45} // 20 is provider default
 		assert.Contains(t, validValues, final.MaxNestingDepth)
 	})
 }
 
 func TestGetConfigLimits(t *testing.T) {
 	t.Run("Should use default values when no environment variables set", func(t *testing.T) {
+		// Reset global state before test
+		resetGlobalConfigLimits()
+
 		// Ensure no env vars are set
-		os.Unsetenv(EnvMaxNestingDepth)
-		os.Unsetenv(EnvMaxStringLength)
-		os.Unsetenv(EnvMaxTaskContextDepth)
+		os.Unsetenv("LIMITS_MAX_NESTING_DEPTH")
+		os.Unsetenv("LIMITS_MAX_STRING_LENGTH")
+		os.Unsetenv("LIMITS_MAX_TASK_CONTEXT_DEPTH")
 
 		limits := GetConfigLimits()
 
-		assert.Equal(t, DefaultMaxParentDepth, limits.MaxNestingDepth)
-		assert.Equal(t, DefaultMaxStringLength, limits.MaxStringLength)
-		assert.Equal(t, DefaultMaxContextDepth, limits.MaxContextDepth)
-		assert.Equal(t, DefaultMaxParentDepth, limits.MaxParentDepth)
-		assert.Equal(t, DefaultMaxChildrenDepth, limits.MaxChildrenDepth)
-		assert.Equal(t, DefaultMaxConfigDepth, limits.MaxConfigDepth)
-		assert.Equal(t, DefaultMaxTemplateDepth, limits.MaxTemplateDepth)
+		// The new config system has different defaults from the provider
+		assert.Equal(t, 20, limits.MaxNestingDepth)       // Provider default is 20
+		assert.Equal(t, 10485760, limits.MaxStringLength) // Provider default is 10MB
+		assert.Equal(
+			t,
+			5,
+			limits.MaxContextDepth,
+		) // Provider default is 5 for MaxTaskContextDepth
+		assert.Equal(t, 20, limits.MaxParentDepth)                        // Uses MaxNestingDepth value
+		assert.Equal(t, 20, limits.MaxChildrenDepth)                      // Uses MaxNestingDepth value
+		assert.Equal(t, 20, limits.MaxConfigDepth)                        // Uses MaxNestingDepth value
+		assert.Equal(t, DefaultMaxTemplateDepth, limits.MaxTemplateDepth) // Still uses constant
 	})
 	t.Run("Should use environment values when set", func(t *testing.T) {
-		// Set environment variables
-		os.Setenv(EnvMaxNestingDepth, "50")
-		os.Setenv(EnvMaxStringLength, "4096")
-		os.Setenv(EnvMaxTaskContextDepth, "10")
+		// Reset global state before test to ensure clean config loading
+		resetGlobalConfigLimits()
+
+		// Set environment variables BEFORE the config is loaded
+		os.Setenv("LIMITS_MAX_NESTING_DEPTH", "50")
+		os.Setenv("LIMITS_MAX_STRING_LENGTH", "4096")
+		os.Setenv("LIMITS_MAX_TASK_CONTEXT_DEPTH", "10")
 		defer func() {
-			os.Unsetenv(EnvMaxNestingDepth)
-			os.Unsetenv(EnvMaxStringLength)
-			os.Unsetenv(EnvMaxTaskContextDepth)
+			os.Unsetenv("LIMITS_MAX_NESTING_DEPTH")
+			os.Unsetenv("LIMITS_MAX_STRING_LENGTH")
+			os.Unsetenv("LIMITS_MAX_TASK_CONTEXT_DEPTH")
 		}()
 
 		limits := GetConfigLimits()
+
+		// Debug output
+		t.Logf("Environment vars: LIMITS_MAX_NESTING_DEPTH=%s", os.Getenv("LIMITS_MAX_NESTING_DEPTH"))
+		t.Logf("Got MaxNestingDepth: %d", limits.MaxNestingDepth)
+		t.Logf("Got MaxStringLength: %d", limits.MaxStringLength)
+		t.Logf("Got MaxContextDepth: %d", limits.MaxContextDepth)
 
 		// MaxNestingDepth affects multiple fields
 		assert.Equal(t, 50, limits.MaxNestingDepth)
@@ -208,19 +225,22 @@ func TestGetConfigLimits(t *testing.T) {
 		assert.Equal(t, 10, limits.MaxContextDepth) // Overridden by specific env var
 	})
 	t.Run("Should handle invalid environment values", func(t *testing.T) {
+		// Reset global state before test
+		resetGlobalConfigLimits()
+
 		// Set invalid values
-		os.Setenv(EnvMaxNestingDepth, "invalid")
-		os.Setenv(EnvMaxStringLength, "-100")
+		os.Setenv("LIMITS_MAX_NESTING_DEPTH", "invalid")
+		os.Setenv("LIMITS_MAX_STRING_LENGTH", "-100")
 		defer func() {
-			os.Unsetenv(EnvMaxNestingDepth)
-			os.Unsetenv(EnvMaxStringLength)
+			os.Unsetenv("LIMITS_MAX_NESTING_DEPTH")
+			os.Unsetenv("LIMITS_MAX_STRING_LENGTH")
 		}()
 
 		limits := GetConfigLimits()
 
-		// Should fall back to defaults for invalid values
-		assert.Equal(t, DefaultMaxParentDepth, limits.MaxNestingDepth)
-		assert.Equal(t, DefaultMaxStringLength, limits.MaxStringLength)
+		// Should fall back to provider defaults for invalid values
+		assert.Equal(t, 20, limits.MaxNestingDepth)       // Provider default is 20
+		assert.Equal(t, 10485760, limits.MaxStringLength) // Provider default is 10MB
 	})
 }
 

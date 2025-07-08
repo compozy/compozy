@@ -14,9 +14,9 @@ import (
 )
 
 // validKeyPattern is a compiled regex for validating memory keys
-// Allow alphanumeric characters, hyphens, underscores, colons, dots, and @ symbols
+// Allow alphanumeric characters, hyphens, underscores, colons, dots, @ symbols, and asterisks
 // Length limit: 1-256 characters
-var validKeyPattern = regexp.MustCompile(`^[\w:\-@\.]{1,256}$`)
+var validKeyPattern = regexp.MustCompile(`^[\w:\-@\.\*]{1,256}$`)
 
 // ErrorType represents different types of memory errors
 type ErrorType string
@@ -298,7 +298,7 @@ func (mm *Manager) validateKey(key string) (string, error) {
 	if !validKeyPattern.MatchString(key) {
 		return "", fmt.Errorf(
 			"invalid memory key '%s': must contain only alphanumeric characters, "+
-				"hyphens, underscores, colons, dots, and @ symbols, and be 1-256 characters long",
+				"hyphens, underscores, colons, dots, @ symbols, and asterisks, and be 1-256 characters long",
 			key,
 		)
 	}
