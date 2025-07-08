@@ -62,7 +62,7 @@ func (a *GetCollectionResponse) Run(
 	// Process the collection task
 	executionError := a.processCollectionTask(ctx, input, taskConfig)
 	// Use task2 ResponseHandler for collection type
-	handler, err := a.task2Factory.CreateResponseHandler(task.TaskTypeCollection)
+	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeCollection)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create collection response handler: %w", err)
 	}

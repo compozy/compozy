@@ -64,7 +64,7 @@ func (a *GetParallelResponse) Run(
 	// Process the parallel task
 	executionError := a.processParallelTask(ctx, input, taskConfig)
 	// Use task2 ResponseHandler for parallel type
-	handler, err := a.task2Factory.CreateResponseHandler(task.TaskTypeParallel)
+	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeParallel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create parallel response handler: %w", err)
 	}

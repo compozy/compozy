@@ -113,7 +113,7 @@ func (a *ExecuteMemory) Run(ctx context.Context, input *ExecuteMemoryInput) (*ta
 		state.Output = output
 	}
 	// Use task2 ResponseHandler for memory type
-	handler, err := a.task2Factory.CreateResponseHandler(task.TaskTypeMemory)
+	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeMemory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create memory response handler: %w", err)
 	}

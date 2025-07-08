@@ -229,8 +229,8 @@ The `ParseMap` method recursively processes template expressions in complex data
 ```go
 data := map[string]any{
     "config": map[string]any{
-        "host": "{{ .env.DATABASE_HOST }}",
-        "port": "{{ .env.DATABASE_PORT | default \"5432\" }}",
+        "host": "{{ .env.DB_HOST }}",
+        "port": "{{ .env.DB_PORT | default \"5432\" }}",
         "nested": map[string]any{
             "timeout": "{{ .settings.timeout }}",
         },

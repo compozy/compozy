@@ -52,6 +52,7 @@ linters:
         - performance
         - style
         - experimental
+        - diagnostic
       disabled-tags:
         - opinionated
     gocyclo:

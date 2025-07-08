@@ -64,7 +64,7 @@ func (a *GetCompositeResponse) Run(
 	// Process the composite task
 	executionError := processParentTask(ctx, a.taskRepo, input.ParentState, taskConfig, task.TaskTypeComposite)
 	// Use task2 ResponseHandler for composite type
-	handler, err := a.task2Factory.CreateResponseHandler(task.TaskTypeComposite)
+	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeComposite)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create composite response handler: %w", err)
 	}

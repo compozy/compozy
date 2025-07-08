@@ -97,7 +97,7 @@ func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*ta
 		taskState.Output = output
 	}
 	// Use task2 ResponseHandler for router type
-	handler, err := a.task2Factory.CreateResponseHandler(task.TaskTypeRouter)
+	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeRouter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create router response handler: %w", err)
 	}

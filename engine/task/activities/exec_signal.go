@@ -99,7 +99,7 @@ func (a *ExecuteSignal) Run(ctx context.Context, input *ExecuteSignalInput) (*ta
 		}
 	}
 	// Use task2 ResponseHandler for signal type
-	handler, err := a.task2Factory.CreateResponseHandler(task.TaskTypeSignal)
+	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeSignal)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create signal response handler: %w", err)
 	}

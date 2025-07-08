@@ -3,10 +3,9 @@ package shared
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
 
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -103,10 +102,12 @@ type InputSanitizer struct {
 // NewInputSanitizer creates a new input sanitizer with configurable string length limit
 func NewInputSanitizer() *InputSanitizer {
 	maxStringLength := 10485760 // 10MB default
-	if envVal := os.Getenv("MAX_STRING_LENGTH"); envVal != "" {
-		if val, err := strconv.Atoi(envVal); err == nil && val > 0 {
-			maxStringLength = val
-		}
+	// Load configuration from environment
+	service := config.NewService()
+	ctx := context.Background()
+	appConfig, err := service.Load(ctx)
+	if err == nil && appConfig.Limits.MaxStringLength > 0 {
+		maxStringLength = appConfig.Limits.MaxStringLength
 	}
 	return &InputSanitizer{
 		maxStringLength: maxStringLength,

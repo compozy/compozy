@@ -95,7 +95,7 @@ func (a *ExecuteAggregate) Run(ctx context.Context, input *ExecuteAggregateInput
 	output, executionError := a.executeAggregateWithTimeout(ctx, normalizedConfig, workflowState, workflowConfig)
 	taskState.Output = output
 	// Use task2 ResponseHandler for aggregate type
-	handler, err := a.task2Factory.CreateResponseHandler(task.TaskTypeAggregate)
+	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeAggregate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create aggregate response handler: %w", err)
 	}

@@ -161,7 +161,7 @@ func TestExtendedFactory_CreateResponseHandler(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			handler, err := factory.CreateResponseHandler(tc.taskType)
+			handler, err := factory.CreateResponseHandler(context.Background(), tc.taskType)
 
 			// Assert
 			require.NoError(t, err)
@@ -172,7 +172,7 @@ func TestExtendedFactory_CreateResponseHandler(t *testing.T) {
 
 	t.Run("Should return error for unsupported task type", func(t *testing.T) {
 		// Act
-		handler, err := factory.CreateResponseHandler("unsupported_type")
+		handler, err := factory.CreateResponseHandler(context.Background(), "unsupported_type")
 
 		// Assert
 		assert.Error(t, err)
@@ -233,7 +233,7 @@ func TestExtendedFactory_CreateResponseHandler_WithoutRepositories(t *testing.T)
 		factory, cleanup := setupTestFactory(context.Background(), t)
 		defer cleanup()
 		// Act
-		handler, err := factory.CreateResponseHandler(task.TaskTypeBasic)
+		handler, err := factory.CreateResponseHandler(context.Background(), task.TaskTypeBasic)
 		// Assert
 		require.NoError(t, err)
 		assert.NotNil(t, handler)
@@ -277,7 +277,7 @@ func TestCreateResponseHandler_Memory(t *testing.T) {
 		defer cleanup()
 
 		// Act
-		handler, err := factory.CreateResponseHandler(task.TaskTypeMemory)
+		handler, err := factory.CreateResponseHandler(context.Background(), task.TaskTypeMemory)
 
 		// Assert
 		assert.NoError(t, err)
@@ -289,7 +289,7 @@ func TestCreateResponseHandler_Memory(t *testing.T) {
 		// Arrange
 		factory, cleanup := setupTestFactory(context.Background(), t)
 		defer cleanup()
-		handler, _ := factory.CreateResponseHandler(task.TaskTypeMemory)
+		handler, _ := factory.CreateResponseHandler(context.Background(), task.TaskTypeMemory)
 
 		input := &shared.ResponseInput{
 			TaskConfig: &task.Config{
@@ -333,7 +333,7 @@ func TestOutputTransformerAdapter_IndirectTesting(t *testing.T) {
 		defer cleanup()
 
 		// Test that factory creates response handlers that use output transformation
-		handler, err := factory.CreateResponseHandler(task.TaskTypeBasic)
+		handler, err := factory.CreateResponseHandler(ctx, task.TaskTypeBasic)
 
 		// Assert
 		require.NoError(t, err)
@@ -349,13 +349,13 @@ func TestOutputTransformerAdapter_IndirectTesting(t *testing.T) {
 		factory, cleanup := setupTestFactory(ctx, t)
 		defer cleanup()
 
-		collectionHandler, err := factory.CreateResponseHandler(task.TaskTypeCollection)
+		collectionHandler, err := factory.CreateResponseHandler(ctx, task.TaskTypeCollection)
 		require.NoError(t, err)
 
-		parallelHandler, err := factory.CreateResponseHandler(task.TaskTypeParallel)
+		parallelHandler, err := factory.CreateResponseHandler(ctx, task.TaskTypeParallel)
 		require.NoError(t, err)
 
-		basicHandler, err := factory.CreateResponseHandler(task.TaskTypeBasic)
+		basicHandler, err := factory.CreateResponseHandler(ctx, task.TaskTypeBasic)
 		require.NoError(t, err)
 
 		// Assert - Handlers are created successfully, indicating the output transformer
@@ -377,7 +377,7 @@ func TestOutputTransformerAdapter_IndirectTesting(t *testing.T) {
 		require.NoError(t, err)
 
 		// Act
-		handler, err := factory.CreateResponseHandler(task.TaskTypeBasic)
+		handler, err := factory.CreateResponseHandler(ctx, task.TaskTypeBasic)
 
 		// Assert
 		require.NoError(t, err)
@@ -409,7 +409,7 @@ func TestOutputTransformerAdapter_IndirectTesting(t *testing.T) {
 
 		// Act & Assert
 		for _, taskType := range taskTypes {
-			handler, err := factory.CreateResponseHandler(taskType)
+			handler, err := factory.CreateResponseHandler(ctx, taskType)
 			require.NoError(t, err, "Should create handler for task type %s", taskType)
 			assert.NotNil(t, handler, "Handler should not be nil for task type %s", taskType)
 			assert.Equal(t, taskType, handler.Type(), "Handler type should match for task type %s", taskType)
@@ -440,7 +440,7 @@ func TestOutputTransformerAdapter_TransformOutput(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create a basic response handler that uses the outputTransformerAdapter
-		handler, err := factory.CreateResponseHandler(task.TaskTypeBasic)
+		handler, err := factory.CreateResponseHandler(ctx, task.TaskTypeBasic)
 		require.NoError(t, err)
 
 		// Create test workflow and task states
@@ -512,7 +512,7 @@ func TestOutputTransformerAdapter_TransformOutput(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		handler, err := factory.CreateResponseHandler(task.TaskTypeBasic)
+		handler, err := factory.CreateResponseHandler(ctx, task.TaskTypeBasic)
 		require.NoError(t, err)
 
 		workflowExecID := core.MustNewID()
@@ -576,7 +576,7 @@ func TestOutputTransformerAdapter_TransformOutput(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		handler, err := factory.CreateResponseHandler(task.TaskTypeBasic)
+		handler, err := factory.CreateResponseHandler(ctx, task.TaskTypeBasic)
 		require.NoError(t, err)
 
 		workflowExecID := core.MustNewID()
@@ -637,7 +637,7 @@ func TestOutputTransformerAdapter_TransformOutput(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		handler, err := factory.CreateResponseHandler(task.TaskTypeBasic)
+		handler, err := factory.CreateResponseHandler(ctx, task.TaskTypeBasic)
 		require.NoError(t, err)
 
 		workflowExecID := core.MustNewID()
@@ -695,7 +695,7 @@ func TestOutputTransformerAdapter_TransformOutput(t *testing.T) {
 		require.NoError(t, err)
 
 		// Collection tasks defer output transformation
-		handler, err := factory.CreateResponseHandler(task.TaskTypeCollection)
+		handler, err := factory.CreateResponseHandler(ctx, task.TaskTypeCollection)
 		require.NoError(t, err)
 
 		workflowExecID := core.MustNewID()

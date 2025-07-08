@@ -55,8 +55,8 @@ func TestGetGlobalConfigLimits_ExtremeLoad(t *testing.T) {
 		// Verify global state is still valid
 		finalLimits := GetGlobalConfigLimits()
 		assert.NotNil(t, finalLimits)
-		assert.Equal(t, DefaultMaxParentDepth, finalLimits.MaxNestingDepth)
-		assert.Equal(t, DefaultMaxStringLength, finalLimits.MaxStringLength)
+		assert.Equal(t, 20, finalLimits.MaxNestingDepth)       // Provider default
+		assert.Equal(t, 10485760, finalLimits.MaxStringLength) // Provider default
 	})
 
 	t.Run("Should maintain data integrity under concurrent writes and reads", func(t *testing.T) {
@@ -118,8 +118,8 @@ func TestGetGlobalConfigLimits_MemoryPressure(t *testing.T) {
 		// Verify final state
 		finalLimits := GetGlobalConfigLimits()
 		require.NotNil(t, finalLimits)
-		assert.Equal(t, DefaultMaxParentDepth, finalLimits.MaxNestingDepth)
-		assert.Equal(t, DefaultMaxStringLength, finalLimits.MaxStringLength)
+		assert.Equal(t, 20, finalLimits.MaxNestingDepth)       // Provider default
+		assert.Equal(t, 10485760, finalLimits.MaxStringLength) // Provider default
 	})
 }
 

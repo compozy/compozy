@@ -129,6 +129,7 @@ func createTestActivities(
 		nil, // redisCache - not needed for basic test
 		memoryManager,
 		templateEngine,
+		nil, // appConfig - not needed for basic test
 	)
 }
 

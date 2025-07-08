@@ -1,6 +1,8 @@
 package task2
 
 import (
+	"context"
+
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/contracts"
 	"github.com/compozy/compozy/engine/task2/core"
@@ -20,7 +22,7 @@ type Factory interface {
 	CreateOutputTransformer() *core.OutputTransformer
 
 	// Response handler creation
-	CreateResponseHandler(taskType task.Type) (shared.TaskResponseHandler, error)
+	CreateResponseHandler(ctx context.Context, taskType task.Type) (shared.TaskResponseHandler, error)
 
 	// Domain service creation
 	CreateCollectionExpander() shared.CollectionExpander

@@ -5,6 +5,7 @@ globs:
   - "**/*.compozy.yaml"
 alwaysApply: false
 ---
+
 # Compozy Project Configuration Examples
 
 <configuration_overview type="project_config">
@@ -14,6 +15,7 @@ Project configuration defines the top-level settings for Compozy projects includ
 ## Basic Project Configuration
 
 <project_config_pattern type="basic">
+
 ```yaml
 name: project-name
 version: 0.1.0
@@ -28,11 +30,13 @@ runtime:
     - --allow-net
     - --allow-env
 ```
+
 </project_config_pattern>
 
 ## Project with Model Configuration
 
 <project_config_pattern type="with_models">
+
 ```yaml
 name: weather-agent
 version: "0.1.0"
@@ -61,11 +65,13 @@ runtime:
     - --allow-sys
     - --allow-write
 ```
+
 </project_config_pattern>
 
 ## Project with AutoLoad Configuration
 
 <project_config_pattern type="with_autoload">
+
 ```yaml
 name: project-name
 version: 0.1.0
@@ -91,16 +97,18 @@ runtime:
     - --allow-net
     - --allow-env
 ```
+
 </project_config_pattern>
 
 ## Environment Variable Patterns
 
 <environment_patterns type="api_keys">
+
 ```yaml
 # Environment variable references
 api_key: "{{ .env.GROQ_API_KEY }}"
 api_key: "{{ .env.OPENAI_API_KEY }}"
-database_url: "{{ .env.DATABASE_URL }}"
+database_url: "{{ .env.DB_URL }}"
 
 # MCP environment variables
 mcps:
@@ -110,4 +118,5 @@ mcps:
       API_KEY: "{{ .env.EXTERNAL_API_KEY }}"
       TIMEOUT: "{{ .env.REQUEST_TIMEOUT | default \"30s\" }}"
 ```
+
 </environment_patterns>
