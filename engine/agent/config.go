@@ -86,15 +86,12 @@ type Config struct {
 	// Unique identifier for the agent within the project scope.
 	// Used for referencing the agent in workflows and other configurations.
 	//
-	// **Examples:** `"code-assistant"`, `"data-analyst"`, `"customer-support"`
+	// - **Examples:** `"code-assistant"`, `"data-analyst"`, `"customer-support"`
 	ID string `json:"id"                       yaml:"id"                       mapstructure:"id"                       validate:"required"`
 	// LLM provider configuration defining which AI model to use and its parameters.
 	// Supports multiple providers including OpenAI, Anthropic, Google, and others.
 	//
-	// **Required fields:**
-	// - `provider`: The AI provider name (e.g., `"openai"`, `"anthropic"`)
-	// - `model`: The specific model identifier
-	// - `params`: Model-specific parameters like temperature, max_tokens
+	// $ref: schema://provider
 	Config core.ProviderConfig `json:"config"                   yaml:"config"                   mapstructure:"config"                   validate:"required"`
 	// System instructions that define the agent's personality, behavior, and constraints.
 	// These instructions guide how the agent interprets tasks and generates responses.
@@ -108,11 +105,28 @@ type Config struct {
 	// Structured actions the agent can perform with defined input/output schemas.
 	// Actions provide type-safe interfaces for specific agent capabilities.
 	//
-	// Each action includes:
-	// - `id`: Unique identifier for the action
-	// - `prompt`: Specific instructions for this action
-	// - `input`/`output`: JSON schemas for validation
-	// - `json_mode`: Whether to enforce JSON output
+	// **Example:**
+	// ```yaml
+	// actions:
+	//   - id: "review-code"
+	//     prompt: |
+	//       Analyze code {{.input.code}} for quality and improvements
+	//     json_mode: true
+	//     input:
+	//       type: "object"
+	//       properties:
+	//         code:
+	//           type: "string"
+	//           description: "The code to review"
+	//     output:
+	//       type: "object"
+	//       properties:
+	//         quality:
+	//           type: "string"
+	//           description: "The quality of the code"
+	// ```
+	//
+	// $ref: inline:#action-configuration
 	Actions []*ActionConfig `json:"actions,omitempty"        yaml:"actions,omitempty"        mapstructure:"actions,omitempty"`
 	// Default input parameters passed to the agent on every invocation.
 	// These values are merged with runtime inputs, with runtime values taking precedence.
@@ -141,6 +155,7 @@ type Config struct {
 	// - API integrations
 	// - Data processing utilities
 	// - Custom business logic
+	// $ref: schema://tools
 	Tools []tool.Config `json:"tools,omitempty"          yaml:"tools,omitempty"          mapstructure:"tools,omitempty"`
 	// Model Context Protocol (MCP) server configurations.
 	// MCPs provide standardized interfaces for extending agent capabilities
@@ -151,6 +166,7 @@ type Config struct {
 	// - Search engines
 	// - Knowledge bases
 	// - External APIs
+	// $ref: schema://mcp
 	MCPs []mcp.Config `json:"mcps,omitempty"           yaml:"mcps,omitempty"           mapstructure:"mcps,omitempty"`
 	// Maximum number of reasoning iterations the agent can perform.
 	// The agent may self-correct and refine its response across iterations.
@@ -356,7 +372,7 @@ func (a *Config) FromMap(data any) error {
 // The path can be absolute or relative to the provided working directory.
 // Supports YAML and JSON formats.
 //
-// Example:
+// - **Example**:
 //
 //	config, err := agent.Load(cwd, "agents/code-assistant.yaml")
 func Load(cwd *core.PathCWD, path string) (*Config, error) {
@@ -379,7 +395,7 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 // - Workflow inputs: {{.workflow.input.field_name}}
 // - Other context values provided by the evaluator
 //
-// Example:
+// - **Example**:
 //
 //	evaluator := ref.NewEvaluator(context)
 //	config, err := agent.LoadAndEval(cwd, "agents/dynamic-agent.yaml", evaluator)

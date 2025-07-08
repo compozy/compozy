@@ -337,7 +337,7 @@ type Config struct {
 	Resource string `json:"resource,omitempty"    yaml:"resource,omitempty"    mapstructure:"resource,omitempty"`
 	// Unique identifier for the workflow (required)
 	// Must be unique within the project scope. Used for referencing and execution.
-	// Example: "customer-support", "data-processing", "content-generation"
+	// - **Example**: "customer-support", "data-processing", "content-generation"
 	ID string `json:"id"                    yaml:"id"                    mapstructure:"id"`
 	// Version of the workflow for tracking changes
 	// Follows semantic versioning (e.g., "1.0.0", "2.1.3")
@@ -359,14 +359,17 @@ type Config struct {
 	// External tools that can be invoked by agents or tasks
 	// Define executable scripts or programs that perform specific operations
 	// Tools provide deterministic, non-AI functionality like API calls or data processing
+	// $ref: schema://tools
 	Tools []tool.Config `json:"tools,omitempty"       yaml:"tools,omitempty"       mapstructure:"tools,omitempty"`
 	// AI agents with specific instructions and capabilities
 	// Configure LLM-powered agents with custom prompts, tools access, and behavior
 	// Agents can be referenced by tasks using $use: agent(...) syntax
+	// $ref: schema://agents
 	Agents []agent.Config `json:"agents,omitempty"      yaml:"agents,omitempty"      mapstructure:"agents,omitempty"`
 	// Model Context Protocol servers for extending AI capabilities
 	// MCP servers provide specialized tools and knowledge to agents
 	// Enable integration with external services and domain-specific functionality
+	// $ref: schema://mcp
 	MCPs []mcp.Config `json:"mcps,omitempty"        yaml:"mcps,omitempty"        mapstructure:"mcps,omitempty"`
 	// Event triggers that can initiate workflow execution
 	// Define external events (webhooks, signals) that can start the workflow
@@ -375,10 +378,11 @@ type Config struct {
 	// Sequential tasks that define the workflow execution plan (required)
 	// Tasks are the core execution units, processed in order with conditional branching
 	// Each task uses either an agent or tool to perform its operation
+	// $ref: schema://tasks
 	Tasks []task.Config `json:"tasks"                 yaml:"tasks"                 mapstructure:"tasks"`
 	// Output mappings to structure the final workflow results
 	// Use template expressions to extract and transform task outputs
-	// Example: ticket_id: "{{ .tasks.create-ticket.output.id }}"
+	// - **Example**: ticket_id: "{{ .tasks.create-ticket.output.id }}"
 	Outputs *core.Output `json:"outputs,omitempty"     yaml:"outputs,omitempty"     mapstructure:"outputs,omitempty"`
 	// Schedule configuration for automated workflow execution
 	// Enable cron-based scheduling with timezone support and overlap policies

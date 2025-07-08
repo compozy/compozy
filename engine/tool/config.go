@@ -38,60 +38,49 @@ import (
 //
 // ## Example Configuration
 //
-// ```yaml
-// resource: "tool"
-// id: "file-reader"
-// description: "Read and parse various file formats"
-// timeout: "30s"
-// input:
-//
-//	type: "object"
-//	properties:
-//	  path:
-//	    type: "string"
-//	    description: "File path to read"
-//	  format:
-//	    type: "string"
-//	    enum: ["json", "yaml", "csv", "txt"]
-//
-// output:
-//
-//	type: "object"
-//	properties:
-//	  content:
-//	    type: "string"
-//	  metadata:
-//	    type: "object"
-//
-// with:
-//
-//	default_format: "json"
-//
-// env:
-//
-//	MAX_FILE_SIZE: "10MB"
-//
-// ```
+//	 resource: "tool"
+//	 id: "file-reader"
+//	 description: "Read and parse various file formats"
+//	 timeout: "30s"
+//	 input:
+//		type: "object"
+//		properties:
+//		  path:
+//		    type: "string"
+//		    description: "File path to read"
+//		  format:
+//		    type: "string"
+//		    enum: ["json", "yaml", "csv", "txt"]
+//	 output:
+//		type: "object"
+//		properties:
+//		  content:
+//		    type: "string"
+//		  metadata:
+//		    type: "object"
+//	 with:
+//		default_format: "json"
+//	 env:
+//		MAX_FILE_SIZE: "10MB"
 type Config struct {
 	// Resource identifier for the autoloader system (must be `"tool"`)
 	Resource string `json:"resource,omitempty"    yaml:"resource,omitempty"    mapstructure:"resource,omitempty"`
 	// Unique identifier for the tool, used in agent configurations and function calls.
 	// Must be **unique** within the project scope.
 	//
-	// **Examples:** `"file-reader"`, `"api-client"`, `"data-processor"`
+	// - **Examples:** `"file-reader"`, `"api-client"`, `"data-processor"`
 	ID string `json:"id,omitempty"          yaml:"id,omitempty"          mapstructure:"id,omitempty"`
 	// Human-readable description of what the tool does and its purpose.
 	// This description is used by AI agents to understand when to use the tool.
 	// Should clearly explain the tool's functionality and expected use cases.
 	//
-	// **Example:** `"Read and parse various file formats including JSON, YAML, and CSV"`
+	// - **Example:** `"Read and parse various file formats including JSON, YAML, and CSV"`
 	Description string `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description,omitempty"`
 	// Maximum execution time for the tool in **Go duration format**.
 	// If not specified, uses the global tool timeout from project configuration.
 	//
-	// **Examples:** `"30s"`, `"5m"`, `"1h"`, `"500ms"`
-	//
-	// ⚠️ **Note:** Zero or negative values are invalid and will cause validation errors
+	// - **Examples:** `"30s"`, `"5m"`, `"1h"`, `"500ms"`
+	// > **Note:** Zero or negative values are invalid and will cause validation errors
 	Timeout string `json:"timeout,omitempty"     yaml:"timeout,omitempty"     mapstructure:"timeout,omitempty"`
 	// JSON schema defining the expected input parameters for the tool.
 	// Used for validation and to generate LLM function call definitions.
@@ -108,9 +97,8 @@ type Config struct {
 	// Default input parameters to pass to the tool.
 	// These values are merged with runtime parameters provided by agents.
 	//
-	// **Precedence:** Runtime parameters take precedence over default values.
-	//
-	// **Use case:** Setting default configurations or API keys.
+	// - **Precedence:** Runtime parameters take precedence over default values.
+	// - **Use case:** Setting default configurations or API keys.
 	With *core.Input `json:"with,omitempty"        yaml:"with,omitempty"        mapstructure:"with,omitempty"`
 	// Environment variables available during tool execution.
 	// Used for configuration, API keys, and runtime settings.

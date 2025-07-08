@@ -1,0 +1,31 @@
+{
+  "plugins": [
+    "prettier-plugin-sh",
+    "prettier-plugin-multiline-arrays",
+    "prettier-plugin-organize-imports"
+  ],
+  "printWidth": 100,
+  "singleQuote": false,
+  "semi": true,
+  "tabWidth": 2,
+  "useTabs": false,
+  "trailingComma": "es5",
+  "bracketSpacing": true,
+  "bracketSameLine": false,
+  "arrowParens": "avoid",
+  "endOfLine": "lf",
+  "multilineArraysWrapThreshold": 0,
+  "multilineArraysLinePattern": "1",
+  "overrides": [
+    {
+      "files": [
+        "**/*.md",
+        "**/*.mdx"
+      ],
+      "options": {
+        "proseWrap": "preserve",
+        "printWidth": 80
+      }
+    }
+  ]
+}

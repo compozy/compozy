@@ -126,7 +126,7 @@ type Config struct {
 	Resource string `json:"resource"                    yaml:"resource"                    mapstructure:"resource"                    validate:"required,eq=memory"`
 	// ID is the **unique identifier** for this memory resource within the project.
 	// This ID is used by agents to reference the memory in their configuration.
-	// **Examples**: `"user_conversation"`, `"session_context"`, `"agent_workspace"`
+	// - **Examples**: `"user_conversation"`, `"session_context"`, `"agent_workspace"`
 	ID string `json:"id"                          yaml:"id"                          mapstructure:"id"                          validate:"required"`
 	// Description provides a **human-readable explanation** of the memory resource's purpose.
 	// This helps developers understand what kind of data this memory stores and
@@ -144,15 +144,18 @@ type Config struct {
 	// MaxTokens is the **hard limit** on the number of tokens this memory can hold.
 	// Only applicable when Type is `"token_based"`. When this limit is reached,
 	// the flushing strategy determines how to make room for new content.
-	// **Example**: `4000` (roughly equivalent to ~3000 words)
+	//
+	// - **Example**: `4000` (roughly equivalent to ~3000 words)
 	MaxTokens int `json:"max_tokens,omitempty"        yaml:"max_tokens,omitempty"        mapstructure:"max_tokens,omitempty"        validate:"omitempty,gt=0"`
 	// MaxMessages is the **hard limit** on the number of messages this memory can store.
 	// Applicable for `"message_count_based"` type or as a secondary limit for `"token_based"`.
-	// **Example**: `100` (keeps last 100 messages in conversation)
+	//
+	// - **Example**: `100` (keeps last 100 messages in conversation)
 	MaxMessages int `json:"max_messages,omitempty"      yaml:"max_messages,omitempty"      mapstructure:"max_messages,omitempty"      validate:"omitempty,gt=0"`
 	// MaxContextRatio specifies the **maximum portion** of an LLM's context window this memory should use.
 	// Value between 0 and 1. Dynamically calculates MaxTokens based on the model's context window.
-	// **Example**: `0.5` means use at most 50% of the model's context window for memory,
+	//
+	// - **Example**: `0.5` means use at most 50% of the model's context window for memory,
 	// leaving the rest for system prompts and current task context.
 	MaxContextRatio float64 `json:"max_context_ratio,omitempty" yaml:"max_context_ratio,omitempty" mapstructure:"max_context_ratio,omitempty" validate:"omitempty,gt=0,lte=1"`
 

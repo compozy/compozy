@@ -1003,7 +1003,7 @@ func SetupCommandContext(cmd *cobra.Command) (context.Context, *GlobalConfig, er
 Following the current `dev` command structure, here's the recommended pattern for new commands:
 
 ```go
-// Example: cli/commands/workflow/execute.go
+// - **Example**: cli/commands/workflow/execute.go
 package workflow
 
 import (

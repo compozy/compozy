@@ -3,5 +3,11 @@
   "description": "Command-line interface reference",
   "icon": "Terminal",
   "root": true,
-  "pages": ["overview", "project-commands", "workflow-commands", "execution-commands", "monitoring-commands"]
+  "pages": [
+    "overview",
+    "project-commands",
+    "workflow-commands",
+    "execution-commands",
+    "monitoring-commands"
+  ]
 }

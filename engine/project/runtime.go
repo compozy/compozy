@@ -40,15 +40,15 @@ type RuntimeConfig struct {
 	// Example entrypoint structure:
 	//
 	// ```ts
-	//	// tools.ts
-	//	export async function fetchWeatherData(params: { city: string }) {
-	//	  // Tool implementation
-	//	}
+	// // tools.ts
+	// export async function fetchWeatherData(params: { city: string }) {
+	//   // Tool implementation
+	// }
 	//
-	//	export async function analyzeData(params: { data: any[] }) {
-	//	  // Tool implementation
-	//	}
-	//```
+	// export async function analyzeData(params: { data: any[] }) {
+	//   // Tool implementation
+	// }
+	// ```
 	//
 	// **Security**: Must be a trusted file as it has access to all tool implementations
 	Entrypoint string `json:"entrypoint" yaml:"entrypoint" mapstructure:"entrypoint"`

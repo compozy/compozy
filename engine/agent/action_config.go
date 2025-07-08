@@ -65,7 +65,7 @@ type ActionConfig struct {
 	// Unique identifier for the action within the agent's scope.
 	// Used to invoke specific actions programmatically.
 	//
-	// **Examples:** `"analyze-code"`, `"generate-summary"`, `"validate-data"`
+	// - **Examples:** `"analyze-code"`, `"generate-summary"`, `"validate-data"`
 	ID string `json:"id"               yaml:"id"               mapstructure:"id"`
 	// Detailed instructions for the agent when executing this action.
 	// Should clearly define the expected behavior, output format, and any constraints.

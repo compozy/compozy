@@ -138,7 +138,7 @@ type Config struct {
 	//   - Cannot start with a number
 	//   - Maximum 63 characters
 	//
-	// Examples: `"customer-support-ai"`, `"data-pipeline"`, `"content-generator"`
+	// - **Examples**: `"customer-support-ai"`, `"data-pipeline"`, `"content-generator"`
 	Name string `json:"name" yaml:"name" mapstructure:"name"`
 
 	// Version specifies the semantic version of this project configuration.
@@ -157,7 +157,7 @@ type Config struct {
 	//   - Keep it concise (1-3 sentences)
 	//   - Avoid technical jargon for broader understanding
 	//
-	// Example: `"Multi-agent customer support system with automated ticket routing and response generation using GPT-4 and Claude models"`
+	// **Example**: `"Multi-agent customer support system with automated ticket routing"`
 	Description string `json:"description" yaml:"description" mapstructure:"description"`
 
 	// Author information for the project.
@@ -169,6 +169,8 @@ type Config struct {
 	Workflows []*WorkflowSourceConfig `json:"workflows" yaml:"workflows" mapstructure:"workflows"`
 
 	// Models configures the LLM providers and model settings available to this project.
+	//
+	// $ref: schema://provider
 	//
 	// **Multi-Model Support**:
 	//   - Configure multiple providers for redundancy
@@ -183,7 +185,7 @@ type Config struct {
 	//   - Ollama (Local models)
 	//   - Custom providers via API compatibility
 	//
-	// Example:
+	// **Example**:
 	//
 	// ```yaml
 	//models:
@@ -214,7 +216,7 @@ type Config struct {
 	//   - Self-documenting data contracts
 	//   - IDE autocomplete support
 	//
-	// Example:
+	// **Example**:
 	//
 	// ```yaml
 	//schemas:
@@ -244,35 +246,12 @@ type Config struct {
 
 	// CacheConfig enables and configures caching for improved performance and cost reduction.
 	//
-	// **Cache Benefits**:
-	//   - Reduce LLM API costs by caching responses
-	//   - Improve response times for repeated queries
-	//   - Cache workflow results for idempotent operations
-	//   - Development speed with cached test data
-	//
-	// **Redis Configuration**:
-	//
-	// ```yaml
-	//	cache:
-	//	  url: redis://localhost:6379/0
-	//	  password: "{{ .env.REDIS_PASSWORD }}"
-	//	  pool_size: 10
-	//	  max_retries: 3
-	//	  dial_timeout: 5s
-	//	  read_timeout: 3s
-	//	  write_timeout: 3s
-	// ```
-	//
-	// **TLS Support**:
-	//
-	// ```yaml
-	//	cache:
-	//	  url: rediss://secure-redis.example.com:6380/0
-	//	  tls_enabled: true
-	// ```
+	// $ref: inline:#cache-configuration
 	CacheConfig *cache.Config `json:"cache,omitempty" yaml:"cache,omitempty" mapstructure:"cache"`
 
 	// AutoLoad configures automatic loading and reloading of project resources during development.
+	//
+	// $ref: inline:#autoload-configuration
 	//
 	// **Development Benefits**:
 	//   - Hot-reload agents and workflows without restart
@@ -280,49 +259,26 @@ type Config struct {
 	//   - Faster iteration cycles
 	//   - Validation on file changes
 	//
-	// Example:
+	// **Example**:
 	//
 	// ```yaml
-	//	autoload:
-	//	  enabled: true
-	//	  strict: true              # Fail on validation errors
-	//	  watch_interval: 2s        # Check for changes every 2 seconds
-	//	  include:
-	//	    - "agents/**/*.yaml"
-	//	    - "workflows/**/*.yaml"
-	//	    - "memory/**/*.yaml"
-	//	  exclude:
-	//	    - "**/*.tmp"
-	//	    - "**/*~"
+	// autoload:
+	//   enabled: true
+	//   strict: true              # Fail on validation errors
+	//   watch_interval: 2s        # Check for changes every 2 seconds
+	//   include:
+	//     - "agents/**/*.yaml"
+	//     - "workflows/**/*.yaml"
+	//     - "memory/**/*.yaml"
+	//   exclude:
+	//     - "**/*.tmp"
+	//     - "**/*~"
 	// ```
 	AutoLoad *autoload.Config `json:"autoload,omitempty" yaml:"autoload,omitempty" mapstructure:"autoload,omitempty"`
 
-	// MonitoringConfig sets up observability, metrics collection, and performance monitoring.
+	// MonitoringConfig enables observability and metrics collection for performance tracking.
 	//
-	// **Observability Features**:
-	//   - Workflow execution tracking
-	//   - Agent performance metrics
-	//   - Token usage and cost tracking
-	//   - Error rates and alerting
-	//   - Custom business metrics
-	//
-	// Example:
-	//
-	// ```yaml
-	//	monitoring:
-	//	  enabled: true
-	//	  metrics:
-	//	    provider: prometheus
-	//	    endpoint: /metrics
-	//	    port: 9090
-	//	  tracing:
-	//	    provider: otlp
-	//	    endpoint: http://jaeger:4317
-	//	  custom_metrics:
-	//	    - name: workflow_completions
-	//	      type: counter
-	//	      labels: ["workflow_name", "status"]
-	// ```
+	// $ref: inline:#monitoring-configuration
 	MonitoringConfig *monitoring.Config `json:"monitoring,omitempty" yaml:"monitoring,omitempty" mapstructure:"monitoring"`
 
 	// filePath stores the absolute path to the configuration file for internal use

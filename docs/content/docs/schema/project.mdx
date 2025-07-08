@@ -10,6 +10,9 @@ import projectSchema from "@/schemas/project.json";
 import authorSchema from "@/schemas/author.json";
 import runtimeSchema from "@/schemas/runtime.json";
 import projectOptionsSchema from "@/schemas/project-options.json";
+import cacheSchema from "@/schemas/cache.json";
+import autoloadSchema from "@/schemas/autoload.json";
+import monitoringSchema from "@/schemas/monitoring.json";
 
 <SchemaParams
   schema={projectSchema}
@@ -43,6 +46,36 @@ import projectOptionsSchema from "@/schemas/project-options.json";
 
 <SchemaParams
   schema={projectOptionsSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Cache Configuration
+
+<SchemaParams
+  schema={cacheSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Autoload Configuration
+
+<SchemaParams
+  schema={autoloadSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Monitoring Configuration
+
+<SchemaParams
+  schema={monitoringSchema}
   title="Schema Definition"
   collapsible={true}
   defaultExpanded={true}

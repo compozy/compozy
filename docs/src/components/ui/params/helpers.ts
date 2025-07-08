@@ -18,17 +18,23 @@ export function getSchemaType(schema: JSONSchema): string {
  * Resolves a $ref reference in a JSON Schema
  */
 export function resolveRef(ref: string, rootSchema: JSONSchema): JSONSchema | null {
-  if (!ref.startsWith(UI_CONSTANTS.REF_PREFIX)) return null;
+  // Handle internal references (#/...)
+  if (ref.startsWith(UI_CONSTANTS.REF_PREFIX)) {
+    const path = ref.slice(UI_CONSTANTS.REF_PREFIX.length).split("/");
+    let current: any = rootSchema;
 
-  const path = ref.slice(UI_CONSTANTS.REF_PREFIX.length).split("/");
-  let current: any = rootSchema;
+    for (const segment of path) {
+      current = current?.[segment];
+      if (!current) return null;
+    }
 
-  for (const segment of path) {
-    current = current?.[segment];
-    if (!current) return null;
+    return current as JSONSchema;
   }
 
-  return current as JSONSchema;
+  // Handle external references (e.g., tool.json, mcp.json)
+  // For external refs, we need to load the schema dynamically
+  // This will be handled by the component that uses this function
+  return null;
 }
 
 /**

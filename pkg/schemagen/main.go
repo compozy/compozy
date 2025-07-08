@@ -5,19 +5,19 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"go/doc"
-	"go/parser"
-	"go/token"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"reflect"
-	"strings"
+	"regexp"
 	"syscall"
 	"time"
 
 	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/cache"
+	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
@@ -25,48 +25,9 @@ import (
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
-	"github.com/fsnotify/fsnotify"
 	"github.com/invopop/jsonschema"
+	"github.com/radovskyb/watcher"
 )
-
-// extractStructComment extracts the full documentation comment for a struct type
-func extractStructComment(packagePath, typeName string) (string, error) {
-	fset := token.NewFileSet()
-
-	// Parse the package
-	pkgs, err := parser.ParseDir(fset, packagePath, nil, parser.ParseComments)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse package %s: %w", packagePath, err)
-	}
-
-	// Find the package
-	for _, pkg := range pkgs {
-		// Create documentation
-		docPkg := doc.New(pkg, packagePath, doc.AllDecls)
-
-		// Find the type
-		for _, t := range docPkg.Types {
-			if t.Name == typeName {
-				// Clean up the documentation comment
-				comment := strings.TrimSpace(t.Doc)
-				if comment != "" {
-					return comment, nil
-				}
-			}
-		}
-	}
-
-	return "", nil
-}
-
-// getStructTypeName extracts the struct type name from a value
-func getStructTypeName(v any) string {
-	t := reflect.TypeOf(v)
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-	return t.Name()
-}
 
 // GenerateParserSchemas generates JSON schemas for parser structs and writes them to the output directory.
 func GenerateParserSchemas(ctx context.Context, outDir string) error {
@@ -88,15 +49,20 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 		packagePath string
 	}{
 		{"agent", &agent.Config{}, "engine/agent"},
+		{"action-config", &agent.ActionConfig{}, "engine/agent"},
 		{"author", &core.Author{}, "engine/core"},
 		{"project", &project.Config{}, "engine/project"},
 		{"project-options", &project.Opts{}, "engine/project"},
+		{"provider", &core.ProviderConfig{}, "engine/core"},
 		{"runtime", &project.RuntimeConfig{}, "engine/project"},
 		{"mcp", &mcp.Config{}, "engine/mcp"},
 		{"memory", &memory.Config{}, "engine/memory"},
 		{"task", &task.Config{}, "engine/task"},
 		{"tool", &tool.Config{}, "engine/tool"},
 		{"workflow", &workflow.Config{}, "engine/workflow"},
+		{"cache", &cache.Config{}, "engine/infra/cache"},
+		{"autoload", &autoload.Config{}, "engine/autoload"},
+		{"monitoring", &monitoring.Config{}, "engine/infra/monitoring"},
 	}
 
 	// Generate and write each schema
@@ -109,12 +75,12 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 			BaseSchemaID: jsonschema.ID(
 				baseSchemaURI,
 			), // Use custom base URI for cross-references
-			ExpandedStruct: true,                                  // Expand struct definitions to include full comments
-			FieldNameTag:   "json",                                // Use json tags for field names
-			IgnoredTypes:   []any{reflect.TypeOf(core.PathCWD{})}, // Ignore time.Time type
+			ExpandedStruct: true,                   // Expand struct definitions to include full comments
+			FieldNameTag:   "json",                 // Use json tags for field names
+			IgnoredTypes:   []any{&core.PathCWD{}}, // Ignore time.Time type
 		}
 
-		// Apply basic pointer handling for all schemas (no external references)
+		// Apply basic pointer handling for all schemas
 		schemaReflector.Mapper = func(t reflect.Type) *jsonschema.Schema {
 			// Handle pointer types
 			if t.Kind() == reflect.Ptr {
@@ -156,6 +122,103 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 			return fmt.Errorf("failed to marshal schema for %s: %w", s.name, err)
 		}
 
+		// Post-process schemas to fix cross-package references
+		var schemaMap map[string]any
+		if err := json.Unmarshal(schemaJSON, &schemaMap); err == nil {
+			updated := false
+
+			switch s.name {
+			case "agent":
+				// Fix references in agent schema
+				if props, ok := schemaMap["properties"].(map[string]any); ok {
+					if tools, ok := props["tools"].(map[string]any); ok {
+						if items, ok := tools["items"].(map[string]any); ok {
+							items["$ref"] = "tool.json"
+							updated = true
+						}
+					}
+					if mcps, ok := props["mcps"].(map[string]any); ok {
+						if items, ok := mcps["items"].(map[string]any); ok {
+							items["$ref"] = "mcp.json"
+							updated = true
+						}
+					}
+				}
+
+			case "workflow":
+				// Fix references in workflow schema
+				if props, ok := schemaMap["properties"].(map[string]any); ok {
+					// Fix tools array
+					if tools, ok := props["tools"].(map[string]any); ok {
+						if items, ok := tools["items"].(map[string]any); ok {
+							items["$ref"] = "tool.json"
+							updated = true
+						}
+					}
+					// Fix agents array
+					if agents, ok := props["agents"].(map[string]any); ok {
+						if items, ok := agents["items"].(map[string]any); ok {
+							items["$ref"] = "agent.json"
+							updated = true
+						}
+					}
+					// Fix mcps array
+					if mcps, ok := props["mcps"].(map[string]any); ok {
+						if items, ok := mcps["items"].(map[string]any); ok {
+							items["$ref"] = "mcp.json"
+							updated = true
+						}
+					}
+					// Fix tasks array
+					if tasks, ok := props["tasks"].(map[string]any); ok {
+						if items, ok := tasks["items"].(map[string]any); ok {
+							items["$ref"] = "task.json"
+							updated = true
+						}
+					}
+				}
+
+			case "task":
+				// Fix references in task schema
+				if props, ok := schemaMap["properties"].(map[string]any); ok {
+					// Fix agent pointer reference
+					if agent, ok := props["agent"].(map[string]any); ok {
+						agent["$ref"] = "agent.json"
+						updated = true
+					}
+					// Fix tool pointer reference
+					if tool, ok := props["tool"].(map[string]any); ok {
+						tool["$ref"] = "tool.json"
+						updated = true
+					}
+				}
+			case "project":
+				// Fix references in project schema
+				if props, ok := schemaMap["properties"].(map[string]any); ok {
+					// Fix cache reference
+					if cache, ok := props["cache"].(map[string]any); ok {
+						cache["$ref"] = "cache.json"
+						updated = true
+					}
+					// Fix autoload reference
+					if autoload, ok := props["autoload"].(map[string]any); ok {
+						autoload["$ref"] = "autoload.json"
+						updated = true
+					}
+					// Fix monitoring reference
+					if monitoring, ok := props["monitoring"].(map[string]any); ok {
+						monitoring["$ref"] = "monitoring.json"
+						updated = true
+					}
+				}
+			}
+
+			// Re-serialize if we made changes
+			if updated {
+				schemaJSON, _ = json.MarshalIndent(schemaMap, "", "  ")
+			}
+		}
+
 		// Write to file
 		filePath := filepath.Join(outDir, fmt.Sprintf("%s.json", s.name))
 		if err := os.WriteFile(filePath, schemaJSON, 0o600); err != nil {
@@ -169,54 +232,64 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 }
 
 // watchConfigFiles watches config files and regenerates schemas on changes
+//
+// This implementation uses the radovskyb/watcher library which provides:
+// 1. Native recursive directory watching
+// 2. Built-in glob pattern filtering
+// 3. Event debouncing capabilities
+// 4. Cross-platform compatibility with polling-based approach
+// 5. No manual directory tree walking required
+//
+// The library handles all the complexity of recursive watching and pattern matching.
 func watchConfigFiles(ctx context.Context, outDir string) error {
 	log := logger.FromContext(ctx)
 
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return fmt.Errorf("failed to create file watcher: %w", err)
-	}
-	defer watcher.Close()
+	// Create new watcher instance
+	w := watcher.New()
 
-	// Watch config files
-	configPaths := []string{
-		"engine/agent/config.go",
-		"engine/core/author.go",
-		"engine/mcp/config.go",
-		"engine/memory/config.go",
-		"engine/project/config.go",
-		"engine/task/config.go",
-		"engine/tool/config.go",
-		"engine/workflow/config.go",
+	// Set polling interval (optional, defaults to 100ms)
+	w.SetMaxEvents(1)
+	w.IgnoreHiddenFiles(true)
+
+	// Add recursive directory watching
+	if err := w.AddRecursive("engine"); err != nil {
+		return fmt.Errorf("failed to add recursive watch for engine directory: %w", err)
 	}
 
-	for _, path := range configPaths {
-		if err := watcher.Add(path); err != nil {
-			log.Warn("Failed to watch config file", "path", path, "error", err)
-		} else {
-			log.Debug("Watching config file", "path", path)
-		}
-	}
+	// Filter for only .go files
+	w.FilterOps(watcher.Write, watcher.Create)
+
+	// Add file filter for .go files
+	goFileRegex := regexp.MustCompile(`\.go$`)
+	w.AddFilterHook(watcher.RegexFilterHook(goFileRegex, false))
 
 	// Set up signal handling
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
-	log.Info("Watching config files for changes. Press Ctrl+C to exit.")
+	log.Info("Starting file watcher for config changes. Press Ctrl+C to exit.")
 
-	// Debounce timer to avoid rapid regeneration
+	// Start the watcher in a goroutine
+	go func() {
+		if err := w.Start(200 * time.Millisecond); err != nil {
+			log.Error("Failed to start watcher", "error", err)
+		}
+	}()
+
+	// Event debouncing to avoid rapid regeneration
 	var debounceTimer *time.Timer
 	const debounceDelay = 500 * time.Millisecond
 
 	for {
 		select {
-		case event, ok := <-watcher.Events:
+		case event, ok := <-w.Event:
 			if !ok {
 				return nil
 			}
 
-			if event.Op&fsnotify.Write == fsnotify.Write {
-				log.Debug("Config file modified", "file", event.Name)
+			// Only process Write and Create events for .go files
+			if event.Op == watcher.Write || event.Op == watcher.Create {
+				log.Debug("Config file modified", "file", event.Path, "op", event.Op)
 
 				// Reset debounce timer
 				if debounceTimer != nil {
@@ -224,7 +297,7 @@ func watchConfigFiles(ctx context.Context, outDir string) error {
 				}
 
 				debounceTimer = time.AfterFunc(debounceDelay, func() {
-					log.Info("Regenerating schemas due to config changes")
+					log.Info("Regenerating schemas due to config changes", "file", event.Path)
 					if err := GenerateParserSchemas(ctx, outDir); err != nil {
 						log.Error("Error regenerating schemas", "error", err)
 					} else {
@@ -233,7 +306,7 @@ func watchConfigFiles(ctx context.Context, outDir string) error {
 				})
 			}
 
-		case err, ok := <-watcher.Errors:
+		case err, ok := <-w.Error:
 			if !ok {
 				return nil
 			}
@@ -241,6 +314,7 @@ func watchConfigFiles(ctx context.Context, outDir string) error {
 
 		case <-sigCh:
 			log.Info("Received interrupt signal, shutting down...")
+			w.Close()
 			return nil
 		}
 	}

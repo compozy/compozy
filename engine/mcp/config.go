@@ -177,7 +177,7 @@ type Config struct {
 	// This identifier is used throughout the system to reference this specific MCP server.
 	// Choose descriptive IDs that reflect the server's purpose.
 	//
-	// **Examples**:
+	// - **Examples**:
 	// - `filesystem` - for file system operations
 	// - `postgres-db` - for PostgreSQL database access
 	// - `github-api` - for GitHub integration
@@ -190,7 +190,7 @@ type Config struct {
 	//
 	// **Format**: `http[s]://host[:port]/path`
 	//
-	// **Examples**:
+	// - **Examples**:
 	// ```yaml
 	// url: "http://localhost:3000/mcp"
 	// url: "https://api.example.com/v1/mcp"
@@ -204,7 +204,7 @@ type Config struct {
 	// Used for stdio transport to run MCP servers as child processes.
 	// Supports both direct executables and complex commands with arguments.
 	//
-	// **Examples**:
+	// - **Examples**:
 	// ```yaml
 	// # Simple executable
 	// command: "mcp-server-filesystem"
@@ -224,7 +224,7 @@ type Config struct {
 	// Only used when `command` is specified for spawning local processes.
 	// Useful for passing configuration, secrets, or runtime parameters.
 	//
-	// **Examples**:
+	// - **Examples**:
 	// ```yaml
 	// env:
 	//   DATABASE_URL: "postgres://user:pass@localhost/db"
@@ -263,7 +263,7 @@ type Config struct {
 	//
 	// **Default**: `sse`
 	//
-	// **Examples**:
+	// - **Examples**:
 	// ```yaml
 	// # Remote server with SSE
 	// transport: sse
@@ -284,7 +284,7 @@ type Config struct {
 	//
 	// **Default**: No timeout (waits indefinitely)
 	//
-	// **Examples**:
+	// - **Examples**:
 	// ```yaml
 	// start_timeout: 30s   # Wait up to 30 seconds
 	// start_timeout: 2m    # Wait up to 2 minutes
@@ -302,7 +302,7 @@ type Config struct {
 	// - `0` or negative: Unlimited sessions (default)
 	// - Positive number: Maximum concurrent sessions
 	//
-	// **Examples**:
+	// - **Examples**:
 	// ```yaml
 	// max_sessions: 10  # Allow up to 10 concurrent connections
 	// max_sessions: 1   # Single session only (useful for stateful servers)

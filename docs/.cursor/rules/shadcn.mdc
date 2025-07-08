@@ -66,7 +66,7 @@ npx shadcn-ui@latest add button card dialog
   </component_customization>
 
 ```typescript
-// Example: Extending Button with loading state
+// - **Example**: Extending Button with loading state
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
@@ -229,7 +229,7 @@ export function LoginForm() {
   return (
     <Form form={form}>
       <form
-        onSubmit={(e) => {
+        onSubmit={e => {
           e.preventDefault();
           e.stopPropagation();
           form.handleSubmit();
@@ -237,7 +237,7 @@ export function LoginForm() {
         className="space-y-4"
       >
         <FormField name="email">
-          {(field) => (
+          {field => (
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
@@ -246,7 +246,7 @@ export function LoginForm() {
                   placeholder="Enter your email"
                   value={field.state.value}
                   onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
+                  onChange={e => field.handleChange(e.target.value)}
                 />
               </FormControl>
               <FormMessage />

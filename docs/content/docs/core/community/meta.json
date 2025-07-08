@@ -2,5 +2,10 @@
   "title": "Community",
   "description": "Community resources and contributing",
   "icon": "Users",
-  "pages": ["contributing-guide", "community-resources", "documentation", "roadmap-changelog"]
+  "pages": [
+    "contributing-guide",
+    "community-resources",
+    "documentation",
+    "roadmap-changelog"
+  ]
 }

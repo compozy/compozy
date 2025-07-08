@@ -303,7 +303,7 @@ func (o *llmOrchestrator) storeResponseInMemoryAsync(
 				"agent_id", request.Agent.ID,
 				"action_id", request.Action.ID)
 			// Consider sending to a metrics/alerting system
-			// Example: metrics.RecordMemoryStorageFailure(request.Agent.ID, err)
+			// - **Example**: metrics.RecordMemoryStorageFailure(request.Agent.ID, err)
 		}
 		// Call async hook if configured
 		if o.config.AsyncHook != nil {

@@ -117,10 +117,12 @@ type BaseConfig struct {
 	// Agent configuration for AI-powered task execution
 	// Only used when the task needs to interact with an LLM agent
 	// Mutually exclusive with Tool field
+	// $ref: schema://agents
 	Agent *agent.Config `json:"agent,omitempty"      yaml:"agent,omitempty"      mapstructure:"agent,omitempty"`
 	// Tool configuration for executing specific tool operations
 	// Used when the task needs to execute a predefined tool
 	// Mutually exclusive with Agent field
+	// $ref: schema://tools
 	Tool *tool.Config `json:"tool,omitempty"       yaml:"tool,omitempty"       mapstructure:"tool,omitempty"`
 	// Schema definition for validating task input parameters
 	// Follows JSON Schema specification for type validation
@@ -136,15 +138,15 @@ type BaseConfig struct {
 	OutputSchema *schema.Schema `json:"output,omitempty"     yaml:"output,omitempty"     mapstructure:"output,omitempty"`
 	// Input parameters passed to the task at execution time
 	// Can include references to workflow inputs, previous task outputs, etc.
-	// Example: { "user_id": "{{ .workflow.input.user_id }}" }
+	// - **Example**: { "user_id": "{{ .workflow.input.user_id }}" }
 	With *core.Input `json:"with,omitempty"       yaml:"with,omitempty"       mapstructure:"with,omitempty"`
 	// Output mappings that define what data this task exposes to subsequent tasks
 	// Uses template expressions to transform task results
-	// Example: { "processed_data": "{{ .task.output.result }}" }
+	// - **Example**: { "processed_data": "{{ .task.output.result }}" }
 	Outputs *core.Input `json:"outputs,omitempty"    yaml:"outputs,omitempty"    mapstructure:"outputs,omitempty"`
 	// Environment variables available during task execution
 	// Can override or extend workflow-level environment variables
-	// Example: { "API_KEY": "{{ .env.SECRET_KEY }}" }
+	// - **Example**: { "API_KEY": "{{ .env.SECRET_KEY }}" }
 	Env *core.EnvMap `json:"env,omitempty"        yaml:"env,omitempty"        mapstructure:"env,omitempty"`
 	// Task execution control
 	// Defines what happens after successful task completion
@@ -176,7 +178,7 @@ type BaseConfig struct {
 	Retries int `json:"retries,omitempty"    yaml:"retries,omitempty"    mapstructure:"retries,omitempty"`
 	// CEL expression for conditional task execution or routing decisions
 	// Task only executes if condition evaluates to true
-	// Example: "input.status == 'approved' && input.amount > 1000"
+	// - **Example**: "input.status == 'approved' && input.amount > 1000"
 	Condition string `json:"condition,omitempty"  yaml:"condition,omitempty"  mapstructure:"condition,omitempty"`
 }
 
@@ -253,7 +255,7 @@ type Type string
 const (
 	// TaskTypeBasic executes a single action using an agent or tool
 	// This is the most common task type for individual operations
-	// Example:
+	// - **Example**:
 	//   type: basic
 	//   agent:
 	//     id: data-processor
@@ -261,7 +263,7 @@ const (
 	TaskTypeBasic Type = "basic"
 	// TaskTypeRouter conditionally routes to different tasks based on conditions
 	// Uses CEL expressions to evaluate routing logic
-	// Example:
+	// - **Example**:
 	//   type: router
 	//   condition: "input.status"
 	//   routes:
@@ -270,7 +272,7 @@ const (
 	TaskTypeRouter Type = "router"
 	// TaskTypeParallel executes multiple tasks concurrently
 	// Supports different strategies: wait_all, fail_fast, best_effort, race
-	// Example:
+	// - **Example**:
 	//   type: parallel
 	//   strategy: wait_all
 	//   max_workers: 5
@@ -280,7 +282,7 @@ const (
 	TaskTypeParallel Type = "parallel"
 	// TaskTypeCollection iterates over a list of items, executing tasks for each
 	// Can run in parallel or sequential mode with batching support
-	// Example:
+	// - **Example**:
 	//   type: collection
 	//   items: "{{ .workflow.input.users }}"
 	//   mode: parallel
@@ -296,7 +298,7 @@ const (
 	// TaskTypeComposite groups related tasks into a reusable unit
 	// Acts as a sub-workflow that can be referenced from other workflows
 	// Tasks within composite execute sequentially (always wait_all strategy)
-	// Example:
+	// - **Example**:
 	//   type: composite
 	//   tasks:
 	//     - id: step1
@@ -304,7 +306,7 @@ const (
 	TaskTypeComposite Type = "composite"
 	// TaskTypeSignal sends signals to other waiting tasks or workflows
 	// Enables event-driven coordination between workflow components
-	// Example:
+	// - **Example**:
 	//   type: signal
 	//   signal:
 	//     id: user-approved
@@ -312,7 +314,7 @@ const (
 	TaskTypeSignal Type = "signal"
 	// TaskTypeWait pauses execution until a condition is met or signal received
 	// Supports timeout and custom processing of received signals
-	// Example:
+	// - **Example**:
 	//   type: wait
 	//   wait_for: user-approved
 	//   condition: "signal.payload.user_id == input.user_id"
@@ -321,7 +323,7 @@ const (
 	TaskTypeWait Type = "wait"
 	// TaskTypeMemory performs operations on shared memory stores
 	// Supports read, write, append, delete, flush, health check, and stats operations
-	// Example:
+	// - **Example**:
 	//   type: memory
 	//   operation: write
 	//   memory_ref: user-session
@@ -457,7 +459,7 @@ const (
 type BasicTask struct {
 	// Action identifier that describes what this task does
 	// Used for logging and debugging purposes
-	// Example: "process-user-data", "send-notification"
+	// - **Example**: "process-user-data", "send-notification"
 	Action string `json:"action,omitempty" yaml:"action,omitempty" mapstructure:"action,omitempty"`
 }
 
@@ -687,7 +689,7 @@ type RouterTask struct {
 	// Values can be:
 	//   - Task ID (string): References an existing task
 	//   - Inline task config (object): Defines task configuration directly
-	// Example:
+	// - **Example**:
 	//   routes:
 	//     approved: "process-payment"  # Task ID reference
 	//     rejected:                    # Inline task config
@@ -1102,7 +1104,7 @@ type ParallelTask struct {
 	Strategy ParallelStrategy `json:"strategy,omitempty"    yaml:"strategy,omitempty"    mapstructure:"strategy,omitempty"`
 	// MaxWorkers limits the number of concurrent task executions
 	// 0 means no limit (all tasks run concurrently)
-	// Example: 5 means at most 5 tasks run at the same time
+	// - **Example**: 5 means at most 5 tasks run at the same time
 	MaxWorkers int `json:"max_workers,omitempty" yaml:"max_workers,omitempty" mapstructure:"max_workers,omitempty"`
 }
 
@@ -1457,15 +1459,15 @@ func ValidateCollectionMode(mode string) bool {
 type CollectionConfig struct {
 	// Items is a template expression that evaluates to an array
 	// The expression should resolve to a list of items to iterate over
-	// Example: "{{ .workflow.input.users }}" or "{{ range(1, 10) }}"
+	// - **Example**: "{{ .workflow.input.users }}" or "{{ range(1, 10) }}"
 	Items string `json:"items"               yaml:"items"               mapstructure:"items"`
 	// Filter is an optional CEL expression to filter items before processing
 	// Each item is available as 'item' in the expression
-	// Example: "item.status != 'inactive'" or "item.age > 18"
+	// - **Example**: "item.status != 'inactive'" or "item.age > 18"
 	Filter string `json:"filter,omitempty"    yaml:"filter,omitempty"    mapstructure:"filter,omitempty"`
 	// ItemVar is the variable name for the current item (default: "item")
 	// Available in task templates as {{ .item }} or custom name
-	// Example: Set to "user" to access as {{ .user }} in templates
+	// - **Example**: Set to "user" to access as {{ .user }} in templates
 	ItemVar string `json:"item_var,omitempty"  yaml:"item_var,omitempty"  mapstructure:"item_var,omitempty"`
 	// IndexVar is the variable name for the current index (default: "index")
 	// Available in task templates as {{ .index }} or custom name
@@ -1477,7 +1479,7 @@ type CollectionConfig struct {
 	Mode CollectionMode `json:"mode,omitempty"      yaml:"mode,omitempty"      mapstructure:"mode,omitempty"`
 	// Batch size for processing items in groups (0 = no batching)
 	// Useful for rate limiting or managing resource usage
-	// Example: 10 means process 10 items at a time
+	// - **Example**: 10 means process 10 items at a time
 	Batch int `json:"batch,omitempty"     yaml:"batch,omitempty"     mapstructure:"batch,omitempty"`
 }
 
@@ -1671,12 +1673,12 @@ type SignalTask struct {
 type SignalConfig struct {
 	// ID is the unique identifier for the signal
 	// Wait tasks with matching wait_for values will receive this signal
-	// Example: "user-approved", "payment-completed", "data-ready"
+	// - **Example**: "user-approved", "payment-completed", "data-ready"
 	ID string `json:"id"                yaml:"id"                mapstructure:"id"`
 	// Payload contains data to send with the signal
 	// This data is available to the receiving wait task for processing
 	// Can be any JSON-serializable data structure
-	// Example: { "user_id": "123", "status": "approved", "timestamp": "2024-01-01T00:00:00Z" }
+	// - **Example**: { "user_id": "123", "status": "approved", "timestamp": "2024-01-01T00:00:00Z" }
 	Payload map[string]any `json:"payload,omitempty" yaml:"payload,omitempty" mapstructure:"payload,omitempty"`
 }
 
@@ -1764,11 +1766,12 @@ type WaitTask struct {
 	// WaitFor specifies the signal ID to wait for
 	// The task will pause until a signal with this ID is received
 	// Must match the ID used in a SignalTask
-	// Example: "user-approved", "payment-completed"
+	// - **Example**: "user-approved", "payment-completed"
 	WaitFor string `json:"wait_for,omitempty"   yaml:"wait_for,omitempty"   mapstructure:"wait_for,omitempty"`
 	// Processor is an optional task configuration to process received signals
 	// Allows custom handling of signal data before continuing
 	// The processor receives the signal payload as input
+	// $ref: inline:#
 	Processor *Config `json:"processor,omitempty"  yaml:"processor,omitempty"  mapstructure:"processor,omitempty"`
 	// OnTimeout specifies the next task to execute if the wait times out
 	// Uses the timeout value from BaseConfig
@@ -1918,11 +1921,11 @@ type MemoryTask struct {
 	Operation MemoryOpType `json:"operation"     yaml:"operation"     mapstructure:"operation"`
 	// MemoryRef identifies which memory store to use
 	// References a memory configuration defined at the project level
-	// Example: "user-sessions", "workflow-state", "cache"
+	// - **Example**: "user-sessions", "workflow-state", "cache"
 	MemoryRef string `json:"memory_ref"    yaml:"memory_ref"    mapstructure:"memory_ref"`
 	// KeyTemplate is a template expression for the memory key
 	// Supports template variables for dynamic key generation
-	// Example: "user:{{ .workflow.input.user_id }}:profile"
+	// - **Example**: "user:{{ .workflow.input.user_id }}:profile"
 	KeyTemplate string `json:"key_template"  yaml:"key_template"  mapstructure:"key_template"`
 	// Payload data for write/append operations
 	// Can be any JSON-serializable data structure
@@ -1966,7 +1969,7 @@ type FlushConfig struct {
 	// Bypasses normal threshold checks
 	Force bool `json:"force"     yaml:"force"     mapstructure:"force"`
 	// Threshold (0-1) for triggering flush based on memory usage
-	// Example: 0.8 means flush when 80% full
+	// - **Example**: 0.8 means flush when 80% full
 	Threshold float64 `json:"threshold" yaml:"threshold" mapstructure:"threshold"`
 }
 
@@ -1986,7 +1989,7 @@ type StatsConfig struct {
 	// WARNING: May return large amounts of data
 	IncludeContent bool `json:"include_content" yaml:"include_content" mapstructure:"include_content"`
 	// GroupBy field for aggregating statistics
-	// Example: "user", "session", "workflow"
+	// - **Example**: "user", "session", "workflow"
 	// Groups stats by the specified field in stored data
 	GroupBy string `json:"group_by"        yaml:"group_by"        mapstructure:"group_by"`
 }
@@ -2236,10 +2239,12 @@ type Config struct {
 	// For parallel: tasks run concurrently
 	// For composite: tasks run sequentially
 	// For collection: not used (use Task field instead)
+	// $ref: inline:#
 	Tasks []Config `json:"tasks"          yaml:"tasks"          mapstructure:"tasks"`
 	// Task template for collection tasks
 	// This configuration is replicated for each item in the collection
 	// The item and index are available as template variables
+	// $ref: inline:#
 	Task *Config `json:"task,omitempty" yaml:"task,omitempty" mapstructure:"task,omitempty"`
 }
 

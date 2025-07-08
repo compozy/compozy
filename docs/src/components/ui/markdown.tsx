@@ -10,6 +10,8 @@ import {
 import { useTheme } from "next-themes";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { tv } from "tailwind-variants";
+import { cn } from "../../lib/utils";
 import { Code } from "./code";
 
 interface MarkdownProps {
@@ -31,14 +33,21 @@ function mapLanguage(lang: string): BundledLanguage {
   return (langMap[normalizedLang] || normalizedLang) as BundledLanguage;
 }
 
+const markdownVariants = tv({
+  slots: {
+    container: ["mt-2 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", "[&_li>p]:m-0"],
+  },
+});
+
 /**
  * Reusable Markdown component with Kibo-UI code block integration
  */
 export function Markdown({ children, className }: MarkdownProps) {
   const { resolvedTheme } = useTheme();
+  const styles = markdownVariants();
 
   return (
-    <div className={className}>
+    <div className={cn(className, styles.container())}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

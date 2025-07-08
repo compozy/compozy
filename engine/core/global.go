@@ -8,10 +8,18 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-// SuccessTransition represents a success transition configuration
+// SuccessTransition defines the next task to execute after successful completion.
+//
+// **Usage**:
+// - **Next**: ID of the task to execute next
+// - **With**: Optional input parameters to pass to the next task
 type SuccessTransition struct {
+	// ID of the next task to execute
+	// - **Example:** `"process-results"`, `"send-notification"`
 	Next *string `json:"next,omitempty" yaml:"next,omitempty" mapstructure:"next,omitempty"`
-	With *Input  `json:"with,omitempty" yaml:"with,omitempty" mapstructure:"with,omitempty"`
+	// Input parameters to pass to the next task
+	// - **Supports:** Template expressions like `{ "data": "{{ .output.result }}" }`
+	With *Input `json:"with,omitempty" yaml:"with,omitempty" mapstructure:"with,omitempty"`
 }
 
 // GetWith returns the With field of the transition
@@ -33,10 +41,19 @@ func (t *SuccessTransition) FromMap(data any) error {
 	return mergo.Merge(t, config, mergo.WithOverride)
 }
 
-// ErrorTransition represents an error transition configuration
+// ErrorTransition defines error handling behavior when a task fails.
+//
+// **Usage**:
+// - **Next**: ID of the error handler task
+// - **With**: Error context and recovery parameters
 type ErrorTransition struct {
+	// ID of the error handler task
+	//
+	// - **Example**: "handle-error", "retry-with-fallback"
 	Next *string `json:"next,omitempty" yaml:"next,omitempty" mapstructure:"next,omitempty"`
-	With *Input  `json:"with,omitempty" yaml:"with,omitempty" mapstructure:"with,omitempty"`
+	// Error context passed to the handler
+	// Includes error details: { "error": "{{ .error }}", "attempt": "{{ .retryCount }}" }
+	With *Input `json:"with,omitempty" yaml:"with,omitempty" mapstructure:"with,omitempty"`
 }
 
 // GetWith returns the With field of the transition
@@ -58,22 +75,69 @@ func (t *ErrorTransition) FromMap(data any) error {
 	return mergo.Merge(t, config, mergo.WithOverride)
 }
 
-// RetryPolicyConfig defines the retry behavior for a transition
+// RetryPolicyConfig defines automatic retry behavior for failed tasks.
+//
+// **Features**:
+// - **Exponential backoff**: Gradually increases delay between retries
+// - **Maximum attempts**: Prevents infinite retry loops
+// - **Error filtering**: Skip retries for specific error types
 type RetryPolicyConfig struct {
-	InitialInterval        string   `json:"initial_interval,omitempty"          yaml:"initial_interval,omitempty"          mapstructure:"initial_interval,omitempty"`
-	BackoffCoefficient     float64  `json:"backoff_coefficient,omitempty"       yaml:"backoff_coefficient,omitempty"       mapstructure:"backoff_coefficient,omitempty"`
-	MaximumAttempts        int32    `json:"maximum_attempts,omitempty"          yaml:"maximum_attempts,omitempty"          mapstructure:"maximum_attempts,omitempty"`
-	MaximumInterval        string   `json:"maximum_interval,omitempty"          yaml:"maximum_interval,omitempty"          mapstructure:"maximum_interval,omitempty"`
+	// Initial delay before first retry
+	// - **Default:** `"1s"`
+	// - **Example:** `"500ms"`, `"2s"`, `"1m"`
+	InitialInterval string `json:"initial_interval,omitempty"          yaml:"initial_interval,omitempty"          mapstructure:"initial_interval,omitempty"`
+	// Multiplier for exponential backoff
+	// - **Default:** `2.0` (doubles each time)
+	// - **Example:** `1.5`, `2.0`, `3.0`
+	BackoffCoefficient float64 `json:"backoff_coefficient,omitempty"       yaml:"backoff_coefficient,omitempty"       mapstructure:"backoff_coefficient,omitempty"`
+	// Maximum retry attempts
+	// - **Default:** `3`
+	// - **Example:** `5` for critical operations
+	MaximumAttempts int32 `json:"maximum_attempts,omitempty"          yaml:"maximum_attempts,omitempty"          mapstructure:"maximum_attempts,omitempty"`
+	// Maximum delay between retries
+	// - **Default:** `"1m"`
+	// - **Example:** `"30s"`, `"5m"`, `"1h"`
+	MaximumInterval string `json:"maximum_interval,omitempty"          yaml:"maximum_interval,omitempty"          mapstructure:"maximum_interval,omitempty"`
+	// Error types that should not trigger retries
+	// - **Example:** `["ValidationError", "AuthenticationError"]`
 	NonRetryableErrorTypes []string `json:"non_retryable_error_types,omitempty" yaml:"non_retryable_error_types,omitempty" mapstructure:"non_retryable_error_types,omitempty"`
 }
 
+// GlobalOpts contains workflow execution options that can be configured at multiple levels.
+//
+// **Hierarchy**: Project → Workflow → Task (each level overrides the previous)
+//
+// **Features**:
+// - **Error handling**: Define fallback behavior for failures
+// - **Retry policies**: Automatic retry with exponential backoff
+// - **Timeout controls**: Prevent hung tasks and enforce SLAs
 type GlobalOpts struct {
-	OnError                *ErrorTransition   `json:"on_error,omitempty"                  yaml:"on_error,omitempty"                  mapstructure:"on_error,omitempty"`
-	RetryPolicy            *RetryPolicyConfig `json:"retry_policy,omitempty"              yaml:"retry_policy,omitempty"              mapstructure:"retry_policy,omitempty"`
-	ScheduleToStartTimeout string             `json:"schedule_to_start_timeout,omitempty" yaml:"schedule_to_start_timeout,omitempty" mapstructure:"schedule_to_start_timeout,omitempty"`
-	StartToCloseTimeout    string             `json:"start_to_close_timeout,omitempty"    yaml:"start_to_close_timeout,omitempty"    mapstructure:"start_to_close_timeout,omitempty"`
-	ScheduleToCloseTimeout string             `json:"schedule_to_close_timeout,omitempty" yaml:"schedule_to_close_timeout,omitempty" mapstructure:"schedule_to_close_timeout,omitempty"`
-	HeartbeatTimeout       string             `json:"heartbeat_timeout,omitempty"         yaml:"heartbeat_timeout,omitempty"         mapstructure:"heartbeat_timeout,omitempty"`
+	// Error handler configuration
+	// Defines what happens when a task fails after all retries
+	OnError *ErrorTransition `json:"on_error,omitempty"                  yaml:"on_error,omitempty"                  mapstructure:"on_error,omitempty"`
+	// Retry configuration for transient failures
+	// Automatically retries failed tasks with exponential backoff
+	RetryPolicy *RetryPolicyConfig `json:"retry_policy,omitempty"              yaml:"retry_policy,omitempty"              mapstructure:"retry_policy,omitempty"`
+	// Maximum time to wait for a task to start executing
+	// Default: "1m"
+	//
+	// - **Example**: "30s", "5m", "1h"
+	ScheduleToStartTimeout string `json:"schedule_to_start_timeout,omitempty" yaml:"schedule_to_start_timeout,omitempty" mapstructure:"schedule_to_start_timeout,omitempty"`
+	// Maximum time for task execution once started
+	// Default: "5m"
+	//
+	// - **Example**: "30s", "10m", "1h"
+	StartToCloseTimeout string `json:"start_to_close_timeout,omitempty"    yaml:"start_to_close_timeout,omitempty"    mapstructure:"start_to_close_timeout,omitempty"`
+	// Total timeout from scheduling to completion
+	// Default: "6m"
+	//
+	// - **Example**: "1m", "15m", "2h"
+	ScheduleToCloseTimeout string `json:"schedule_to_close_timeout,omitempty" yaml:"schedule_to_close_timeout,omitempty" mapstructure:"schedule_to_close_timeout,omitempty"`
+	// Interval for task heartbeat signals
+	// Used for long-running tasks to indicate progress
+	//
+	// - **Example**: "10s", "30s", "1m"
+	HeartbeatTimeout string `json:"heartbeat_timeout,omitempty"         yaml:"heartbeat_timeout,omitempty"         mapstructure:"heartbeat_timeout,omitempty"`
 }
 
 // ResolvedActivityOptions contains the final resolved activity options

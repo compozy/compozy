@@ -504,7 +504,7 @@ if err != nil {
 Transform nodes before directive processing:
 
 ```go
-// Example: Environment variable expansion
+// - **Example**: Environment variable expansion
 preEval := func(node ref.Node) (ref.Node, error) {
     if str, ok := node.(string); ok {
         // Expand ${VAR} syntax

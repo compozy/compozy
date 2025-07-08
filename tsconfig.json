@@ -21,5 +21,11 @@
     "types": ["bun-types"]
   },
   "include": ["examples/**/*", "docs/**/*"],
-  "exclude": ["node_modules", "dist", ".compozy", "**/*.test.ts", "**/*.spec.ts"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    ".compozy",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
 }

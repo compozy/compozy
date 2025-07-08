@@ -1,0 +1,21 @@
+---
+title: Provider Schema
+description: JSON Schema for provider configuration
+icon: Server
+---
+
+import { SchemaParams } from "@/components/ui/params/schema-params";
+import providerSchema from "@/schemas/provider.json";
+
+<SchemaParams
+  schema={providerSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Resources
+
+- [JSON Schema Specification](https://json-schema.org/)
+- [JSON Schema Validator](https://www.jsonschemavalidator.net/)

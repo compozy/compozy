@@ -16,11 +16,39 @@ import { Param } from "./param";
 import { Params } from "./params";
 import { JSONSchema, hasConditionals, isArraySchema, isObjectSchema, isRefSchema } from "./types";
 
+// Pre-import all schemas that might be referenced
+import actionConfigSchema from "@/schemas/action-config.json";
+import agentSchema from "@/schemas/agent.json";
+import autoloadSchema from "@/schemas/autoload.json";
+import cacheSchema from "@/schemas/cache.json";
+import mcpSchema from "@/schemas/mcp.json";
+import memorySchema from "@/schemas/memory.json";
+import monitoringSchema from "@/schemas/monitoring.json";
+import providerSchema from "@/schemas/provider.json";
+import taskSchema from "@/schemas/task.json";
+import toolSchema from "@/schemas/tool.json";
+import workflowSchema from "@/schemas/workflow.json";
+
 const schemaParamsVariants = tv({
   slots: {
     wrapper: "flex flex-col",
   },
 });
+
+// Map of external schema references to their imported schemas
+const externalSchemas: Record<string, JSONSchema> = {
+  "tool.json": toolSchema as JSONSchema,
+  "mcp.json": mcpSchema as JSONSchema,
+  "action-config.json": actionConfigSchema as JSONSchema,
+  "agent.json": agentSchema as JSONSchema,
+  "task.json": taskSchema as JSONSchema,
+  "workflow.json": workflowSchema as JSONSchema,
+  "memory.json": memorySchema as JSONSchema,
+  "provider.json": providerSchema as JSONSchema,
+  "cache.json": cacheSchema as JSONSchema,
+  "autoload.json": autoloadSchema as JSONSchema,
+  "monitoring.json": monitoringSchema as JSONSchema,
+};
 
 interface SchemaParamProps {
   path: string;
@@ -39,7 +67,20 @@ function SchemaParam({
   paramType = UI_CONSTANTS.DEFAULT_PARAM_TYPE,
 }: SchemaParamProps) {
   // Resolve $ref if present
-  const resolvedSchema = isRefSchema(schema) ? resolveRef(schema.$ref, rootSchema) : schema;
+  let resolvedSchema: JSONSchema | null = null;
+
+  if (isRefSchema(schema)) {
+    // Try internal reference first
+    resolvedSchema = resolveRef(schema.$ref, rootSchema);
+
+    // If not found internally, try external schemas
+    if (!resolvedSchema && externalSchemas[schema.$ref]) {
+      resolvedSchema = externalSchemas[schema.$ref];
+    }
+  } else {
+    resolvedSchema = schema;
+  }
+
   if (!resolvedSchema) return null;
 
   // Merge the original schema's description with the resolved schema
@@ -58,6 +99,8 @@ function SchemaParam({
   if (isObjectSchema(schemaWithDescription) && schemaWithDescription.properties) {
     const requiredFields = getRequiredFields(schemaWithDescription);
     const properties = getSchemaProperties(schemaWithDescription);
+    // Check if the description contains an external schema reference
+    const hasExternalSchemaRef = description && description.includes("$ref:");
 
     return (
       <Param
@@ -68,7 +111,7 @@ function SchemaParam({
         paramType={paramType}
       >
         <ParameterDescription description={description} />
-        {properties.length > 0 && (
+        {properties.length > 0 && !hasExternalSchemaRef && (
           <Param.ExpandableRoot defaultValue={path === "" ? "properties" : undefined}>
             <Param.ExpandableItem value="properties" title={UI_CONSTANTS.PROPERTIES_TITLE}>
               {properties.map(([key, propSchema]) => (
@@ -95,6 +138,12 @@ function SchemaParam({
       ? schemaWithDescription.items[0]
       : schemaWithDescription.items;
 
+    // If the item is an external reference, we need to use the resolved schema as root
+    let itemRootSchema = rootSchema;
+    if (isRefSchema(itemSchema) && externalSchemas[itemSchema.$ref]) {
+      itemRootSchema = externalSchemas[itemSchema.$ref];
+    }
+
     return (
       <Param
         path={path}
@@ -109,7 +158,7 @@ function SchemaParam({
             <SchemaParam
               path={`${path}[0]`}
               schema={itemSchema}
-              rootSchema={rootSchema}
+              rootSchema={itemRootSchema}
               paramType={paramType}
             />
           </Param.ExpandableItem>

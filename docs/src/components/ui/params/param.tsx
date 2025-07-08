@@ -13,7 +13,7 @@ const paramVariants = tv({
     header: "flex items-start gap-4",
     content: "",
     path: "font-mono text-sm font-medium bg-transparent flex items-center gap-1",
-    type: "text-xs font-medium px-2 py-1 rounded-md bg-accent text-muted-foreground",
+    type: "text-xs font-medium px-2 py-1 rounded-md bg-accent/50 text-muted-foreground",
     badges: "flex items-center gap-2",
     badge: "text-xs px-2 py-0.5 rounded-full font-medium",
     description: "flex flex-col text-sm text-muted-foreground max-w-none",

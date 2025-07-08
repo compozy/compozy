@@ -42,17 +42,13 @@ export function ParameterDescription({ description }: ParameterDescriptionProps)
 
   // Add main description
   if (mainDescription) {
-    parts.push(
-      <Markdown key="desc" className="[&_p]:first:mt-0 [&_p]:last:mb-0">
-        {mainDescription}
-      </Markdown>
-    );
+    parts.push(<Markdown key="desc">{mainDescription}</Markdown>);
   }
 
   // Add external schema reference link if present
   if (referencedSchema) {
     parts.push(
-      <div key="external-ref" className="flex items-center gap-1 mt-2">
+      <div key="external-ref" className="flex items-center gap-1 mt-3">
         <Link className="size-3" /> <strong>Schema Reference:</strong>{" "}
         <a href={`/docs/schema/${referencedSchema}`} className="underline hover:no-underline">
           {referencedSchema}.json
@@ -64,7 +60,7 @@ export function ParameterDescription({ description }: ParameterDescriptionProps)
   // Add inline schema reference link if present
   if (inlineReference) {
     parts.push(
-      <div key="inline-ref" className="flex items-center gap-1 mt-2">
+      <div key="inline-ref" className="flex items-center gap-1 mt-3">
         <Link className="size-3" /> <strong>See also:</strong>{" "}
         <a href={`#${inlineReference}`} className="underline hover:no-underline">
           {inlineReference.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase())}

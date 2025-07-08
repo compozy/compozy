@@ -20,18 +20,19 @@
     "reinstall": "bun run clean:deps && bun install"
   },
   "devDependencies": {
-    "@types/bun": "latest",
-    "oxlint": "1.4.0",
+    "@types/bun": "1.2.18",
+    "oxlint": "1.6.0",
     "prettier": "3.6.2",
-    "prettier-plugin-organize-imports": "^4.1.0",
+    "prettier-plugin-multiline-arrays": "4.0.3",
+    "prettier-plugin-organize-imports": "4.1.0",
     "prettier-plugin-sh": "0.18.0",
-    "turbo": "^2.5.4",
+    "turbo": "2.5.4",
     "typescript": "5.8.3"
   },
   "dependencies": {
-    "openmeteo": "^1.1.4",
-    "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1"
+    "openmeteo": "1.2.0",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1"
   },
   "packageManager": "bun@1.2.18"
 }

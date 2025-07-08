@@ -62,7 +62,8 @@ type Resource struct {
 	MaxMessages int `yaml:"max_messages,omitempty"      json:"max_messages,omitempty"      validate:"omitempty,gt=0"`
 	// MaxContextRatio specifies the maximum portion of an LLM's context window this memory should aim to use.
 	// Value between 0 and 1. If set, overrides MaxTokens based on the model's context window.
-	// Example: 0.8 means use at most 80% of the model's context window.
+	//
+	// - **Example**: 0.8 means use at most 80% of the model's context window.
 	MaxContextRatio float64 `yaml:"max_context_ratio,omitempty" json:"max_context_ratio,omitempty" validate:"omitempty,gt=0,lte=1"`
 
 	// EvictionPolicyConfig defines how messages are selected for eviction when limits are reached.
