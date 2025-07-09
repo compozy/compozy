@@ -2,6 +2,7 @@
 description: Development phase backwards compatibility policy - no compatibility requirements during active development
 alwaysApply: true
 ---
+
 # Cursor Development Rules for Compozy
 
 ## Backwards Compatibility

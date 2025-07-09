@@ -50,3 +50,6 @@ swagger.yaml
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+.claude/commands/**
+.cursor/rules/**

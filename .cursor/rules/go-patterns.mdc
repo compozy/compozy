@@ -3,11 +3,13 @@ description: Core Go patterns and conventions required for Compozy development
 globs: **/*.go
 alwaysApply: true
 ---
+
 # Core Go Patterns & Conventions
 
 ## Concurrency Patterns
 
 <pattern type="thread_safe_structures">
+
 ```go
 // Thread-safe structs with embedded mutex
 type Status struct {
@@ -18,6 +20,7 @@ type Status struct {
 </pattern>
 
 <pattern type="concurrent_operations">
+
 ```go
 // Concurrent operations with errgroup
 g, ctx := errgroup.WithContext(ctx)
@@ -36,18 +39,23 @@ return g.Wait()
 </requirement>
 
 <pattern type="factory_implementation">
+
 ```go
-// ✅ Good: Extensible through interfaces
+// ✅ Good: Extensible through interfaces and easy to extend with new storage types
 type Storage interface {
     Save(ctx context.Context, data []byte) error
 }
 
 type StorageFactory struct{}
+
 func (f *StorageFactory) CreateStorage(storageType string) (Storage, error) {
     switch storageType {
-    case "redis": return NewRedisStorage(), nil
-    case "memory": return NewMemoryStorage(), nil
-    default: return nil, fmt.Errorf("unsupported storage type: %s", storageType)
+    case "redis":
+        return NewRedisStorage(), nil
+    case "memory":
+        return NewMemoryStorage(), nil
+    default:
+        return nil, fmt.Errorf("unsupported storage type: %s", storageType)
     }
 }
 
@@ -66,6 +74,7 @@ func NewStorage(config *StorageConfig) (Storage, error) {
 </requirement>
 
 <pattern type="configuration_defaults">
+
 ```go
 func NewService(config *Config) *Service {
     if config == nil {
@@ -74,15 +83,17 @@ func NewService(config *Config) *Service {
     return &Service{config: config}
 }
 ```
+
 </pattern>
 
 <pattern type="configuration_implementation">
+
 ```go
 // ✅ Good: Centralized configuration with defaults
 type ServiceConfig struct {
-    Port        int           `yaml:"port"`
-    Timeout     time.Duration `yaml:"timeout"`
-    MaxRetries  int           `yaml:"max_retries"`
+    Port       int           `yaml:"port"`
+    Timeout    time.Duration `yaml:"timeout"`
+    MaxRetries int           `yaml:"max_retries"`
 }
 
 func DefaultServiceConfig() *ServiceConfig {
@@ -99,6 +110,7 @@ func NewServiceFromConfig(cfg *ServiceConfig) *Service {
     }
     return &Service{config: cfg}
 }
+
 ```
 </pattern>
 
@@ -109,6 +121,7 @@ func NewServiceFromConfig(cfg *ServiceConfig) *Service {
 </requirement>
 
 <pattern type="graceful_shutdown">
+
 ```go
 quit := make(chan os.Signal, 1)
 signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -119,6 +132,7 @@ case <-quit:
     return shutdown(ctx)
 }
 ```
+
 </pattern>
 
 ## Middleware Pattern
@@ -128,6 +142,7 @@ case <-quit:
 </context>
 
 <pattern type="middleware_implementation">
+
 ```go
 func authMiddleware() gin.HandlerFunc {
     return func(c *gin.Context) {
@@ -149,20 +164,23 @@ func authMiddleware() gin.HandlerFunc {
 </context>
 
 <pattern type="resource_management">
+
 ```go
-// Connection limits
+// Enforce connection limits
 if len(m.clients) >= m.config.MaxConnections {
-    return fmt.Errorf("max connections reached")
+    return fmt.Errorf("maximum number of connections reached")
 }
 
-// Cleanup with defer
+// Ensure cleanup of resources
 defer func() {
     m.cancel()
     m.wg.Wait()
-    if closeErr := m.conn.Close(); closeErr != nil {
-        log.Error("failed to close connection", "error", closeErr)
+    if err := m.conn.Close(); err != nil {
+        logger := logger.FromContext(ctx)
+        logger.Error("failed to close connection", "error", err)
     }
 }()
+
 ```
 </pattern>
 
@@ -173,6 +191,7 @@ defer func() {
 </guideline>
 
 <pattern type="interface_segregation">
+
 ```go
 // ✅ Good: Small, focused interfaces
 type Reader interface {
@@ -207,6 +226,7 @@ type DataManager interface {
 </pattern>
 
 <pattern type="interface_definition">
+
 ```go
 // Small, focused interfaces for specific domains
 type Storage interface {
@@ -219,11 +239,12 @@ type Storage interface {
 
 <best_practices type="interface_organization">
 **Interface best practices:**
+
 - Define interfaces in separate files when used across packages
 - Keep interfaces small and focused on specific behavior
 - Use interface composition for complex behavior
 - Honor contracts consistently (LSP)
-</best_practices>
+  </best_practices>
 
 ## Constructor Patterns (DIP Implementation)
 
@@ -232,14 +253,19 @@ type Storage interface {
 </requirement>
 
 <pattern type="dependency_injection">
+
 ```go
 // ✅ Good: Depends on abstraction (DIP)
+// ✅ Good: Depends on abstraction (DIP)
 type WorkflowService struct {
-    taskRepo TaskRepository // interface
-    executor TaskExecutor  // interface
+    taskRepo  TaskRepository // interface
+    executor  TaskExecutor   // interface
 }
 
-func NewWorkflowService(taskRepo TaskRepository, executor TaskExecutor) *WorkflowService {
+func NewWorkflowService(
+    taskRepo TaskRepository,
+    executor TaskExecutor,
+) *WorkflowService {
     return &WorkflowService{
         taskRepo: taskRepo,
         executor: executor,
@@ -249,12 +275,14 @@ func NewWorkflowService(taskRepo TaskRepository, executor TaskExecutor) *Workflo
 // ❌ Bad: Depends on concrete implementation
 type WorkflowService struct {
     taskRepo *PostgreSQLTaskRepository // concrete
-    executor *DockerExecutor          // concrete
+    executor *DockerExecutor           // concrete
 }
+
 ```
 </pattern>
 
 <pattern type="service_constructor">
+
 ```go
 // ✅ Required pattern for all services
 type AgentService struct {
@@ -280,19 +308,31 @@ func NewAgentService(
 ## Single Responsibility Examples (SRP Implementation)
 
 <pattern type="srp_separation">
+
 ```go
 // ✅ Good: Single responsibility
 type UserValidator struct{}
-func (v *UserValidator) ValidateEmail(email string) error { /* validation logic */ }
+
+func (v *UserValidator) ValidateEmail(email string) error {
+    // validation logic
+    return nil
+}
 
 type UserRepository struct{}
-func (r *UserRepository) SaveUser(ctx context.Context, user *User) error { /* persistence logic */ }
+
+func (r *UserRepository) SaveUser(ctx context.Context, user *User) error {
+    // persistence logic
+    return nil
+}
 
 // ❌ Bad: Multiple responsibilities
 type UserService struct{}
+
 func (s *UserService) ValidateAndSaveUser(ctx context.Context, email string) error {
     // validation + persistence mixed
+    return nil
 }
+
 ```
 </pattern>
 
@@ -303,6 +343,7 @@ func (s *UserService) ValidateAndSaveUser(ctx context.Context, email string) err
 </requirement>
 
 <pattern type="context_propagation">
+
 ```go
 // ✅ Context as first parameter
 func (s *TaskService) ExecuteTask(ctx context.Context, task *core.Task) (*core.TaskResult, error) {
@@ -319,47 +360,53 @@ func (s *TaskService) ExecuteTask(ctx context.Context, task *core.Task) (*core.T
 ## Resource Management Patterns
 
 <pattern type="resource_cleanup">
+
 ```go
 // ✅ Proper resource cleanup
 func (s *Service) ProcessWithResources(ctx context.Context) error {
-    conn, err := s.acquireConnection()
-    if err != nil {
-        return fmt.Errorf("failed to acquire connection: %w", err)
-    }
-    defer func() {
-        if closeErr := conn.Close(); closeErr != nil {
-            log.Error("failed to close connection", "error", closeErr)
-        }
-    }()
-    return s.processWithConnection(ctx, conn)
+	conn, err := s.acquireConnection()
+	if err != nil {
+		return fmt.Errorf("failed to acquire connection: %w", err)
+	}
+	defer func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			log := logger.FromContext(ctx)
+			log.Error("failed to close connection", "error", closeErr)
+		}
+	}()
+	return s.processWithConnection(ctx, conn)
 }
 
 // ✅ Timeout handling with cleanup
 func (s *Service) ProcessWithTimeout(ctx context.Context, timeout time.Duration) error {
-    ctx, cancel := context.WithTimeout(ctx, timeout)
-    defer cancel() // Always cancel to free resources
-    done := make(chan error, 1)
-    go func() {
-        done <- s.heavyProcessing(ctx)
-    }()
-    select {
-    case err := <-done:
-        return err
-    case <-ctx.Done():
-        return fmt.Errorf("operation timed out: %w", ctx.Err())
-    }
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel() // Always cancel to free resources
+
+	done := make(chan error, 1)
+	go func() {
+		done <- s.heavyProcessing(ctx)
+	}()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("operation timed out: %w", ctx.Err())
+	}
 }
 
 // ✅ Multiple resource cleanup
 func (s *Service) ProcessMultipleResources(ctx context.Context) error {
-    file, err := os.Open("data.txt")
-    if err != nil {
-        return fmt.Errorf("failed to open file: %w", err)
-    }
-    defer file.Close()
-    lock := s.mutex.Lock()
-    defer s.mutex.Unlock()
-    return s.processFileWithLock(ctx, file)
+	file, err := os.Open("data.txt")
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	return s.processFileWithLock(ctx, file)
 }
+
 ```
 </pattern>

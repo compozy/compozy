@@ -3,40 +3,45 @@ description: API development standards and patterns for Compozy
 globs: **/*.go
 alwaysApply: true
 ---
+
 # API Development Standards
 
 ## Core Standards
 
 <core_standards type="api_design">
+
 - RESTful design with consistent responses
 - Proper error responses with structured format
 - Use middleware for cross-cutting concerns
 - Implement proper authentication/authorization
 - Rate limiting and request validation
-</core_standards>
+  </core_standards>
 
 ## Implementation Guidelines
 
 <implementation_guidelines type="api_conventions">
+
 - API versioned at `/api/v0/`
 - Use `gin-gonic/gin` for HTTP APIs
 - Consistent response formats across all endpoints
 - Proper HTTP status codes (200, 201, 400, 401, 403, 404, 500)
 - JSON response format with consistent error structure
-</implementation_guidelines>
+  </implementation_guidelines>
 
 ## Documentation Standards
 
 <documentation_standards type="swagger">
+
 - **MUST update** Swagger annotations for all API changes
 - Generate docs at `/swagger/index.html` using `swaggo/swag`
 - Include request/response examples in annotations
 - Document all parameters, headers, and error responses
-</documentation_standards>
+  </documentation_standards>
 
 ## Response Format
 
 <response_format type="standard">
+
 ```go
 // Success response
 {
@@ -50,4 +55,5 @@ alwaysApply: true
     "details": "Additional context"
 }
 ```
+
 </response_format>

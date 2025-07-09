@@ -3,6 +3,7 @@ description:
 globs:
 alwaysApply: true
 ---
+
 # Go Coding Standards
 
 <role>
@@ -51,6 +52,7 @@ You are an expert in Go, microservices architecture, and clean backend developme
 </unified_strategy>
 
 <examples type="implementation">
+
 ```go
 // ✅ INTERNAL: Use fmt.Errorf within domain
 func (s *userService) validateUser(ctx context.Context, user *User) error {
@@ -65,18 +67,27 @@ func (s *userService) validateUser(ctx context.Context, user *User) error {
 
 // ✅ DOMAIN BOUNDARY: Use core.NewError for public methods
 func (s *userService) CreateUser(ctx context.Context, req CreateUserRequest) (*User, error) {
-    user := &User{Email: req.Email, Name: req.Name}
+    user := &User{
+        Email: req.Email,
+        Name:  req.Name,
+    }
     if err := s.validateUser(ctx, user); err != nil {
-        return nil, core.NewError(err, "USER_VALIDATION_FAILED", map[string]any{
-            "email": req.Email,
-        })
+        return nil, core.NewError(
+            err,
+            "USER_VALIDATION_FAILED",
+            map[string]any{
+                "email": req.Email,
+            },
+        )
     }
     // ... rest of implementation using fmt.Errorf internally
 }
+
 ```
 </examples>
 
 <pattern type="transaction">
+
 ```go
 defer func() {
     if err != nil { tx.Rollback(ctx) } else { tx.Commit(ctx) }
@@ -90,24 +101,26 @@ defer func() {
 - Use interfaces to define behavior and enable testing
 
 <pattern type="interface_implementation">
+
 ```go
 // Define interface
 type Service interface {
-  DoSomething(ctx context.Context, param string) error
+	DoSomething(ctx context.Context, param string) error
 }
 
 // Implement interface
-type ServiceImpl struct {
-  dependency Dependency
+type serviceImpl struct {
+	dependency Dependency
 }
 
 // Constructor function
 func NewService(dependency Dependency) Service {
-  return &serviceImpl{
-    dependency: dependency,
-  }
+	return &serviceImpl{
+		dependency: dependency,
+	}
 }
 ```
+
 </pattern>
 
 ## Context and Concurrency
@@ -118,3 +131,4 @@ func NewService(dependency Dependency) Service {
 - Use the noctx linter to enforce context propagation
 - Ensure goroutines are properly managed and cleaned up
 </requirements>
+```
