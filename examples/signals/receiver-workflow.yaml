@@ -14,4 +14,4 @@ tasks:
     type: basic
     $use: tool(local::tools.#(id="log_tool"))
     with:
-      message: "Received: {{ .input.message | default \"manually started\" }}"
+      message: 'Received: {{ .input.message | default "manually started" }}'

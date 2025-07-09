@@ -1,0 +1,442 @@
+---
+globs: **/*.ts,**/*.tsx
+alwaysApply: false
+---
+
+# TypeScript Best Practices
+
+<core_configuration>
+**Essential TypeScript Configuration:**
+
+- Always use strict mode in tsconfig.json
+- Enable noUncheckedIndexedAccess for safer array/object access
+- Use moduleResolution: "Bundler" for modern bundlers
+- Configure exactOptionalPropertyTypes for precision
+  </core_configuration>
+
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "esModuleInterop": true
+  }
+}
+```
+
+## Type Inference vs Explicit Types
+
+<type_inference>
+**Strategic Type Declaration Guidelines:**
+
+- Be explicit at function boundaries (parameters and return types)
+- Let TypeScript infer local variables and internal logic
+- Use explicit types for complex objects and configurations
+- Prefer type inference for simple assignments
+  </type_inference>
+
+```typescript
+// ✅ Good: Explicit at boundaries, inferred internally
+function processUser(user: User): UserSummary {
+  const fullName = `${user.firstName} ${user.lastName}`; // inferred string
+  const isActive = user.lastLogin > Date.now() - 30 * 24 * 60 * 60 * 1000; // inferred boolean
+
+  return {
+    id: user.id,
+    fullName,
+    isActive,
+    membershipLevel: calculateMembershipLevel(user),
+  };
+}
+
+// ✅ Good: Complex configuration with explicit type
+const apiConfig: ApiConfiguration = {
+  baseUrl: process.env.API_URL,
+  timeout: 5000,
+  retries: 3,
+  headers: {
+    "Content-Type": "application/json",
+  },
+};
+
+// ❌ Bad: Unnecessary explicit typing
+const name: string = "John"; // Type is obvious
+const count: number = items.length; // Type is obvious
+```
+
+## Interfaces vs Types
+
+<interfaces_vs_types>
+**Strategic Type Definition Guidelines:**
+
+- Use interfaces for object shapes that might be extended
+- Use type aliases for unions, primitives, and computed types
+- Prefer interfaces for public APIs
+- Use types for internal utilities and complex transformations
+  </interfaces_vs_types>
+
+```typescript
+// ✅ Good: Interface for extensible object shapes
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+interface AdminUser extends User {
+  permissions: Permission[];
+  lastLogin: Date;
+}
+
+// ✅ Good: Type for unions and computed types
+type Status = "pending" | "approved" | "rejected";
+type UserWithStatus = User & { status: Status };
+type UserKeys = keyof User;
+type OptionalUser = Partial<User>;
+
+// ✅ Good: Type for complex transformations
+type ApiResponse<T> = {
+  data: T;
+  meta: {
+    page: number;
+    total: number;
+  };
+  errors?: string[];
+};
+```
+
+## Advanced Type Patterns
+
+<advanced_patterns>
+**Sophisticated Type System Usage:**
+
+- Use discriminated unions for type-safe state management
+- Implement branded types for type safety
+- Leverage template literal types for string validation
+- Use conditional types for flexible APIs
+  </advanced_patterns>
+
+```typescript
+// Discriminated unions for state management
+type AsyncState<T> =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "success"; data: T }
+  | { status: "error"; error: string };
+
+function handleAsyncState<T>(state: AsyncState<T>) {
+  switch (state.status) {
+    case "idle":
+      return "Not started";
+    case "loading":
+      return "Loading...";
+    case "success":
+      return state.data; // TypeScript knows data exists
+    case "error":
+      return `Error: ${state.error}`; // TypeScript knows error exists
+  }
+}
+
+// Branded types for type safety
+type UserId = string & { readonly brand: unique symbol };
+type PostId = string & { readonly brand: unique symbol };
+
+function createUserId(id: string): UserId {
+  return id as UserId;
+}
+
+function getUser(id: UserId): User {
+  // This function can only accept UserId, not any string
+  return users.find((user) => user.id === id);
+}
+
+// Template literal types
+type EventName = `on${Capitalize<string>}`;
+type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+type ApiEndpoint = `/api/${string}`;
+
+// Conditional types
+type NonNullable<T> = T extends null | undefined ? never : T;
+type ApiResult<T> = T extends string ? { message: T } : { data: T };
+```
+
+## Utility Types and Generics
+
+<utility_types>
+**Effective Generic Programming:**
+
+- Use built-in utility types before creating custom ones
+- Create reusable generic functions and components
+- Implement proper type constraints
+- Use generic type inference strategically
+  </utility_types>
+
+```typescript
+// ✅ Good: Using built-in utility types
+type CreateUserRequest = Omit<User, 'id' | 'createdAt'>
+type UpdateUserRequest = Partial<Pick<User, 'name' | 'email'>>
+type UserResponse = Required<Pick<User, 'id' | 'name'>>
+
+// ✅ Good: Generic function with constraints
+function groupBy<T, K extends keyof T>(
+  items: T[],
+  key: K
+): Record<string, T[]> {
+  return items.reduce((groups, item) => {
+    const groupKey = String(item[key])
+    groups[groupKey] = groups[groupKey] || []
+    groups[groupKey].push(item)
+    return groups
+  }, {} as Record<string, T[]>)
+}
+
+// ✅ Good: Generic component with proper typing
+interface TableProps<T> {
+  data: T[]
+  columns: Array<{
+    key: keyof T
+    label: string
+    render?: (value: T[keyof T], item: T) => React.ReactNode
+  }>
+  onRowClick?: (item: T) => void
+}
+
+function Table<T>({ data, columns, onRowClick }: TableProps<T>) {
+  return (
+    <table>
+      <thead>
+        <tr>
+          {columns.map(col => (
+            <th key={String(col.key)}>{col.label}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {data.map((item, index) => (
+          <tr key={index} onClick={() => onRowClick?.(item)}>
+            {columns.map(col => (
+              <td key={String(col.key)}>
+                {col.render ? col.render(item[col.key], item) : String(item[col.key])}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+```
+
+## Error Handling Patterns
+
+<error_handling>
+**Type-Safe Error Management:**
+
+- Create custom error classes with proper typing
+- Use Result/Either patterns for functional error handling
+- Implement proper error boundaries with typed errors
+- Handle async errors with proper type safety
+  </error_handling>
+
+```typescript
+// Custom error classes
+class ValidationError extends Error {
+  constructor(
+    message: string,
+    public field: string,
+    public value: unknown,
+  ) {
+    super(message);
+    this.name = "ValidationError";
+  }
+}
+
+class NotFoundError extends Error {
+  constructor(resource: string, id: string) {
+    super(`${resource} with id ${id} not found`);
+    this.name = "NotFoundError";
+  }
+}
+
+// Result pattern for functional error handling
+type Result<T, E = Error> = { success: true; data: T } | { success: false; error: E };
+
+async function safeApiCall<T>(apiCall: () => Promise<T>): Promise<Result<T>> {
+  try {
+    const data = await apiCall();
+    return { success: true, data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+}
+
+// Usage
+const result = await safeApiCall(() => fetchUser(userId));
+if (result.success) {
+  console.log(result.data.name); // TypeScript knows data exists
+} else {
+  console.error(result.error.message); // TypeScript knows error exists
+}
+```
+
+## Module and Path Mapping
+
+<module_mapping>
+**Organized Import Structure:**
+
+- Configure path aliases in both tsconfig and bundler
+- Use absolute imports for cross-feature dependencies
+- Keep relative imports for local files
+- Implement barrel exports strategically
+  </module_mapping>
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@/components/*": ["./src/components/*"],
+      "@/utils/*": ["./src/utils/*"],
+      "@/types/*": ["./src/types/*"],
+      "@/hooks/*": ["./src/hooks/*"]
+    }
+  }
+}
+```
+
+```typescript
+// ✅ Good: Barrel exports for related functionality
+// utils/index.ts
+export { formatDate, parseDate } from "./date";
+export { validateEmail, validatePassword } from "./validation";
+export { debounce, throttle } from "./performance";
+
+// ✅ Good: Clean imports with path aliases
+import { Button, Card } from "@/components/ui";
+import { useAuth } from "@/hooks/useAuth";
+import { ApiClient } from "@/utils/api";
+import type { User, Post } from "@/types/entities";
+
+// ✅ Good: Relative imports for local files
+import { PostCard } from "./PostCard";
+import { usePostFilters } from "./usePostFilters";
+```
+
+## Performance Considerations
+
+<performance_optimization>
+**Type System Performance:**
+
+- Avoid deeply nested conditional types
+- Use type assertions sparingly and safely
+- Implement proper type guards
+- Minimize complex union types in hot paths
+  </performance_optimization>
+
+```typescript
+// ✅ Good: Simple type guards
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+function isUser(obj: unknown): obj is User {
+  return typeof obj === "object" && obj !== null && "id" in obj && "name" in obj && "email" in obj;
+}
+
+// ✅ Good: Safe type assertions with validation
+function assertIsNumber(value: unknown): asserts value is number {
+  if (typeof value !== "number") {
+    throw new Error(`Expected number, got ${typeof value}`);
+  }
+}
+
+// ✅ Good: Efficient union types
+type EventType = "click" | "hover" | "focus"; // Small, efficient union
+
+// ❌ Avoid: Complex nested conditional types in hot paths
+type ComplexConditional<T> = T extends string
+  ? T extends `${infer U}Id`
+    ? U extends "user"
+      ? UserEvent
+      : U extends "post"
+        ? PostEvent
+        : never
+    : never
+  : never;
+```
+
+## Testing Types
+
+<type_testing>
+**Type-Level Testing Strategies:**
+
+- Use type-only imports for type testing
+- Implement type assertion tests
+- Test generic type behavior
+- Verify error cases with type checking
+  </type_testing>
+
+```typescript
+// Type-only testing utilities
+type Expect<T extends true> = T;
+type Equal<X, Y> =
+  (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
+
+// Test type behavior
+type TestGroupBy = Expect<
+  Equal<ReturnType<typeof groupBy<User, "status">>, Record<string, User[]>>
+>;
+
+// Test generic constraints
+function testGenericConstraints() {
+  const users: User[] = [];
+
+  // ✅ Should work
+  const groupedByStatus = groupBy(users, "status");
+
+  // ❌ Should fail type checking
+  // const groupedByInvalid = groupBy(users, 'invalidKey')
+}
+
+// Runtime type testing
+describe("Type Guards", () => {
+  test("isUser correctly identifies User objects", () => {
+    const validUser = { id: "1", name: "John", email: "john@example.com" };
+    const invalidUser = { id: "1", name: "John" }; // missing email
+
+    expect(isUser(validUser)).toBe(true);
+    expect(isUser(invalidUser)).toBe(false);
+    expect(isUser(null)).toBe(false);
+    expect(isUser("string")).toBe(false);
+  });
+});
+```
+
+<best_practices_summary>
+**Essential TypeScript Guidelines:**
+
+1. Configure strict mode and additional safety checks
+2. Use explicit types at boundaries, inference internally
+3. Prefer interfaces for objects, types for unions
+4. Implement discriminated unions for state management
+5. Use utility types before creating custom ones
+6. Create proper error handling with typed errors
+7. Configure path aliases for clean imports
+8. Implement type guards for runtime safety
+9. Test both runtime behavior and type correctness
+10. Keep type complexity reasonable for performance
+    </best_practices_summary>
+
+<enforcement_policy>
+**MANDATORY:** These patterns must be followed consistently across all TypeScript code and type definitions.
+</enforcement_policy>

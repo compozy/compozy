@@ -1,0 +1,13 @@
+{
+  "title": "Signals",
+  "description": "Signal system and event-driven patterns",
+  "icon": "Zap",
+  "pages": [
+    "signal-overview",
+    "signal-tasks",
+    "signal-triggers",
+    "wait-tasks",
+    "event-api",
+    "advanced-patterns"
+  ]
+}

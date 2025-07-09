@@ -59,98 +59,98 @@ Make sure you have these environment variables set:
 
 1. **User introduces themselves:**
 
-    ```bash
-    curl -X POST http://localhost:3001/api/v0/workflows/basic-memory/executions \
-        -H "Content-Type: application/json" \
-        -d '{
-        "input": {
-          "user_id": "john_doe",
-          "message": "Hi, I'\''m John and I live in San Francisco"
-        }
-      }'
-    ```
+   ```bash
+   curl -X POST http://localhost:3001/api/v0/workflows/basic-memory/executions \
+     -H "Content-Type: application/json" \
+     -d '{
+       "input": {
+         "user_id": "john_doe",
+         "message": "Hi, I'\''m John and I live in San Francisco"
+       }
+     }'
+   ```
 
 2. **Ask where you live (agent should remember):**
 
-    ```bash
-    curl -X POST http://localhost:3001/api/v0/workflows/basic-memory/executions \
-        -H "Content-Type: application/json" \
-        -d '{
-        "input": {
-          "user_id": "john_doe",
-          "message": "Where do I live?"
-        }
-      }'
-    ```
+   ```bash
+   curl -X POST http://localhost:3001/api/v0/workflows/basic-memory/executions \
+     -H "Content-Type: application/json" \
+     -d '{
+       "input": {
+         "user_id": "john_doe",
+         "message": "Where do I live?"
+       }
+     }'
+   ```
 
 ### Testing Direct Memory Tasks Workflow (`memory-task`)
 
 1. **Initialize user profile:**
 
-    ```bash
-    curl -X POST http://localhost:3001/api/v0/workflows/memory-task/executions \
-        -H "Content-Type: application/json" \
-        -d '{
-        "input": {
-          "user_id": "alice_123",
-          "session_id": "session_001",
-          "action": "initialize",
-          "user_data": {
-            "name": "Alice",
-            "email": "alice@example.com",
-            "preferences": {
-              "theme": "dark",
-              "language": "en"
-            }
-          }
-        }
-      }'
-    ```
+   ```bash
+   curl -X POST http://localhost:3001/api/v0/workflows/memory-task/executions \
+     -H "Content-Type: application/json" \
+     -d '{
+       "input": {
+         "user_id": "alice_123",
+         "session_id": "session_001",
+         "action": "initialize",
+         "user_data": {
+           "name": "Alice",
+           "email": "alice@example.com",
+           "preferences": {
+             "theme": "dark",
+             "language": "en"
+           }
+         }
+       }
+     }'
+   ```
 
 2. **Update user profile:**
 
-    ```bash
-    curl -X POST http://localhost:3001/api/v0/workflows/memory-task/executions \
-        -H "Content-Type: application/json" \
-        -d '{
-        "input": {
-          "user_id": "alice_123",
-          "session_id": "session_002",
-          "action": "update_profile",
-          "user_data": {
-            "email": "alice.new@example.com"
-          }
-        }
-      }'
-    ```
+   ```bash
+   curl -X POST http://localhost:3001/api/v0/workflows/memory-task/executions \
+     -H "Content-Type: application/json" \
+     -d '{
+       "input": {
+         "user_id": "alice_123",
+         "session_id": "session_002",
+         "action": "update_profile",
+         "user_data": {
+           "email": "alice.new@example.com"
+         }
+       }
+     }'
+   ```
 
 3. **Get memory statistics:**
 
-    ```bash
-    curl -X POST http://localhost:3001/api/v0/workflows/memory-task/executions \
-        -H "Content-Type: application/json" \
-        -d '{
-        "input": {
-          "user_id": "alice_123",
-          "session_id": "session_003",
-          "action": "get_stats"
-        }
-      }'
-    ```
+   ```bash
+   curl -X POST http://localhost:3001/api/v0/workflows/memory-task/executions \
+     -H "Content-Type: application/json" \
+     -d '{
+       "input": {
+         "user_id": "alice_123",
+         "session_id": "session_003",
+         "action": "get_stats"
+       }
+     }'
+   ```
 
 4. **Cleanup user data:**
 
-    ```bash
-    curl -X POST http://localhost:3001/api/v0/workflows/memory-task/executions \
-        -H "Content-Type: application/json" \
-        -d '{
-        "input": {
-          "user_id": "alice_123",
-          "session_id": "session_004",
-          "action": "cleanup"
-        }
-      }'
-    ```
+   ```bash
+   curl -X POST http://localhost:3001/api/v0/workflows/memory-task/executions \
+     -H "Content-Type: application/json" \
+     -d '{
+       "input": {
+         "user_id": "alice_123",
+         "session_id": "session_004",
+         "action": "cleanup"
+       }
+     }'
+   ```
 
 ## Expected Flows
 

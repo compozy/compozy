@@ -1,87 +1,119 @@
-# Template Engine Package
+# `tplengine` – _Enhanced Go Template Engine for Dynamic Configuration_
 
-The `tplengine` package provides a powerful template processing engine for Compozy that uses Go
-templates with enhanced functionality. It's designed to safely process dynamic configuration values
-with strict error handling and comprehensive template features.
+> **A powerful template processing engine that uses Go templates with enhanced functionality for safe processing of dynamic configuration values with strict error handling.**
 
-## Features
+---
 
-- **Go Template Processing**: Full Go template syntax support with `text/template`
-- **Sprig Functions**: Complete integration with
-  [Sprig template functions](https://masterminds.github.io/sprig/)
+## 📑 Table of Contents
+
+- [🎯 Overview](#-overview)
+- [💡 Motivation](#-motivation)
+- [⚡ Design Highlights](#-design-highlights)
+- [🚀 Getting Started](#-getting-started)
+- [📖 Usage](#-usage)
+- [🔧 Configuration](#-configuration)
+- [🎨 Examples](#-examples)
+- [📚 API Reference](#-api-reference)
+- [🧪 Testing](#-testing)
+- [📦 Contributing](#-contributing)
+- [📄 License](#-license)
+
+---
+
+## 🎯 Overview
+
+The `tplengine` package provides a powerful template processing engine for Compozy that uses Go templates with enhanced functionality. It's designed to safely process dynamic configuration values with strict error handling and comprehensive template features, enabling dynamic YAML/JSON configuration processing with type preservation and precision handling.
+
+The engine supports multiple output formats, includes all Sprig template functions, and provides object reference detection for seamless integration with Compozy's workflow orchestration system.
+
+---
+
+## 💡 Motivation
+
+- **Dynamic Configuration**: Enable template-based configuration processing for workflow orchestration
+- **Type Safety**: Preserve data types and numeric precision during template processing
+- **Error Prevention**: Strict error handling with `missingkey=error` to catch configuration issues early
+- **Cross-Component References**: Allow components to reference each other's outputs dynamically
+
+---
+
+## ⚡ Design Highlights
+
 - **Strict Error Handling**: `missingkey=error` prevents silent failures and catches typos early
-- **Multiple Output Formats**: Support for YAML, JSON, and plain text output
-- **Value Conversion**: Seamless conversion between YAML and JSON formats
+- **Multiple Output Formats**: Support for YAML, JSON, and plain text output with automatic parsing
+- **Sprig Integration**: Complete integration with Sprig template functions for enhanced functionality
 - **Object Reference Detection**: Smart handling of simple object references to preserve data types
-- **Map Processing**: Recursive template processing for complex data structures
+- **Numeric Precision**: Optional precision preservation for large numbers and decimals
+- **Concurrent Safety**: Thread-safe template engine for concurrent workflow processing
+- **XSS Protection**: Built-in HTML escaping functions for secure template rendering
 
-## Template Behavior
+---
 
-### Strict Error Handling with `missingkey=error`
+## 🚀 Getting Started
 
-The template engine is configured with `missingkey=error`, which means **any attempt to access a
-non-existent key will immediately fail** rather than silently rendering `<no value>`. This helps
-catch configuration errors early.
+### Prerequisites
 
-```go
-// ❌ This will FAIL if .user.age doesn't exist
-"{{ .user.age | default \"25\" }}"
+- Go 1.24+
+- Understanding of Go template syntax
 
-// ✅ This works - check existence first
-"{{ if hasKey .user \"age\" }}{{ .user.age }}{{ else }}25{{ end }}"
-
-// ✅ This works - ensure the key exists in your context
-context := map[string]any{
-    "user": map[string]any{
-        "age": 25, // Always provide the key
-    },
-}
-```
-
-### Why `missingkey=error`?
-
-This strict behavior helps you catch:
-
-1. **Typos**: `{{ .worklow.id }}` (should be `workflow`)
-2. **Missing configuration**: `{{ .tasks.nonexistent.output }}`
-3. **Schema mismatches**: `{{ .user.invalid_field }}`
-
-The trade-off is that you must be explicit about handling missing data, but this prevents bugs from
-silently slipping into production.
-
-## Basic Usage
-
-### Creating a Template Engine
+### Installation
 
 ```go
 import "github.com/compozy/compozy/pkg/tplengine"
-
-// Create engine with specific output format
-engine := tplengine.NewEngine(tplengine.FormatYAML)
-
-// Or change format later
-engine = engine.WithFormat(tplengine.FormatJSON)
 ```
 
-### Rendering Templates
+### Quick Start
 
 ```go
-// Simple string rendering
+// Create a template engine
+engine := tplengine.NewEngine(tplengine.FormatYAML)
+
+// Render a simple template
 result, err := engine.RenderString("Hello {{ .name }}!", map[string]any{
     "name": "World",
 })
-// Result: "Hello World!"
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(result) // Output: "Hello World!"
 
-// Check if string contains templates first
+// Check if string contains templates
 if tplengine.HasTemplate("{{ .name }}") {
     // Process template
 }
 ```
 
-### Processing Files
+---
+
+## 📖 Usage
+
+### Library
+
+#### Basic Template Rendering
 
 ```go
-// Process a template file
+// Create engine with specific output format
+engine := tplengine.NewEngine(tplengine.FormatYAML)
+
+// Simple string rendering
+result, err := engine.RenderString("Hello {{ .name }}!", map[string]any{
+    "name": "World",
+})
+
+// Process complex data structures
+data := map[string]any{
+    "config": map[string]any{
+        "host": "{{ .env.DB_HOST }}",
+        "port": "{{ .env.DB_PORT | default \"5432\" }}",
+    },
+}
+result, err := engine.ParseAny(data, context)
+```
+
+#### File Processing
+
+```go
+// Process template files
 result, err := engine.ProcessFile("config.yaml", context)
 if err != nil {
     log.Fatal(err)
@@ -93,9 +125,26 @@ fmt.Println("YAML:", result.YAML)
 fmt.Println("JSON:", result.JSON)
 ```
 
-## Output Formats
+#### Advanced Features
 
-The engine supports three output formats:
+```go
+// Add global values available in all templates
+engine.AddGlobalValue("version", "1.0.0")
+engine.AddGlobalValue("environment", "production")
+
+// Enable numeric precision preservation
+engine = engine.WithPrecisionPreservation(true)
+
+// Add named templates
+err := engine.AddTemplate("greeting", "Hello {{ .name }}!")
+result, err := engine.Render("greeting", context)
+```
+
+---
+
+## 🔧 Configuration
+
+### Output Formats
 
 ```go
 const (
@@ -103,367 +152,447 @@ const (
     FormatJSON EngineFormat = "json"  // Parse as JSON
     FormatText EngineFormat = "text"  // Plain text only
 )
+
+// Change format
+engine = engine.WithFormat(tplengine.FormatJSON)
 ```
 
-### ProcessResult Structure
+### Template Behavior
+
+The engine uses `missingkey=error` by default, which means any attempt to access a non-existent key will fail rather than silently render `<no value>`:
 
 ```go
-type ProcessResult struct {
-    Text string  // Always available - the rendered template
-    YAML any     // Available when format is FormatYAML
-    JSON any     // Available when format is FormatJSON
+// ❌ This will FAIL if .user.age doesn't exist
+"{{ .user.age | default \"25\" }}"
+
+// ✅ This works - check existence first
+"{{ if hasKey .user \"age\" }}{{ .user.age }}{{ else }}25{{ end }}"
+```
+
+### Security Features
+
+The engine includes XSS protection functions:
+
+```go
+// HTML escaping functions available in templates
+funcMap := map[string]any{
+    "htmlEscape":     html.EscapeString,
+    "htmlAttrEscape": html.EscapeString,
+    "jsEscape":       html_template.JSEscapeString,
 }
 ```
 
-## Template Syntax
+---
 
-### Basic Variables
+## 🎨 Examples
 
-```go
-context := map[string]any{
-    "name": "John",
-    "age":  30,
-}
-
-// Simple variable access
-"Hello {{ .name }}!"                    // "Hello John!"
-"Age: {{ .age }}"                       // "Age: 30"
-```
-
-### Nested Object Access
+### Basic Template Processing
 
 ```go
-context := map[string]any{
-    "user": map[string]any{
-        "profile": map[string]any{
-            "name": "John",
-            "email": "john@example.com",
-        },
-    },
-}
+engine := tplengine.NewEngine(tplengine.FormatText)
 
-// Nested access
-"Name: {{ .user.profile.name }}"        // "Name: John"
-"Email: {{ .user.profile.email }}"     // "Email: john@example.com"
-```
-
-### Safe Key Access
-
-Since `missingkey=error` is enabled, always check for key existence:
-
-```go
-// ✅ Safe approaches
-"{{ if hasKey .user \"age\" }}{{ .user.age }}{{ else }}unknown{{ end }}"
-"{{ if .user.age }}{{ .user.age }}{{ else }}0{{ end }}"  // if age might be nil/zero
-
-// ❌ Unsafe - will fail if key doesn't exist
-"{{ .user.missing_field | default \"fallback\" }}"
-```
-
-## Sprig Functions
-
-The engine includes all Sprig template functions. Here are common examples:
-
-### String Functions
-
-```go
-// String manipulation
-"{{ .name | upper }}"                   // Uppercase
-"{{ .name | lower }}"                   // Lowercase
-"{{ .text | trim }}"                    // Trim whitespace
-"{{ .text | replace \" \" \"_\" }}"     // Replace spaces with underscores
-
-// String testing
-"{{ contains \"world\" .message }}"     // Check if contains substring
-"{{ hasPrefix \"Hello\" .message }}"    // Check prefix
-"{{ hasSuffix \"!\" .message }}"        // Check suffix
-```
-
-### Conditional Logic
-
-```go
-// If-else statements
-"{{ if eq .status \"active\" }}Running{{ else }}Stopped{{ end }}"
-
-// Comparisons
-"{{ if gt .count 10 }}Many{{ else }}Few{{ end }}"
-"{{ if and .enabled (eq .status \"ready\") }}Available{{ end }}"
-
-// Default values (only works if key exists)
-"{{ .timeout | default \"30\" }}"
-```
-
-### Data Manipulation
-
-```go
-// Arrays/slices
-"{{ len .items }}"                      // Length
-"{{ index .items 0 }}"                  // First item
-
-// JSON/YAML conversion
-"{{ .config | toJson }}"                // Convert to JSON
-"{{ .data | toYaml }}"                  // Convert to YAML
-
-// Math operations
-"{{ add .count 1 }}"                    // Addition
-"{{ sub .total .used }}"                // Subtraction
-```
-
-### Date and Time
-
-```go
-// Current time
-"{{ now }}"                             // Current timestamp
-"{{ now | date \"2006-01-02\" }}"       // Formatted date
-
-// Duration
-"{{ duration \"1h30m\" }}"              // Parse duration
-```
-
-## Advanced Features
-
-### Map Processing
-
-The `ParseMap` method recursively processes template expressions in complex data structures:
-
-```go
-data := map[string]any{
-    "config": map[string]any{
-        "host": "{{ .env.DB_HOST }}",
-        "port": "{{ .env.DB_PORT | default \"5432\" }}",
-        "nested": map[string]any{
-            "timeout": "{{ .settings.timeout }}",
-        },
-    },
-    "items": []any{
-        "{{ .item1 }}",
-        "{{ .item2 }}",
-    },
-}
-
-result, err := engine.ParseMap(data, context)
-```
-
-### Object Reference Detection
-
-The engine can detect simple object references and preserve their original data types:
-
-```go
-// Simple object reference (preserves type)
-"{{ .tasks.processor.output.data }}"
-
-// Complex expression (returns string)
-"{{ .tasks.processor.output.data | upper }}"
-```
-
-### Global Values
-
-Add values that are available in all template contexts:
-
-```go
-engine.AddGlobalValue("version", "1.0.0")
-engine.AddGlobalValue("environment", "production")
-
-// Now available in all templates
-"Version: {{ .version }}"               // "Version: 1.0.0"
-```
-
-### Template Management
-
-```go
-// Add named templates
-err := engine.AddTemplate("greeting", "Hello {{ .name }}!")
-
-// Render by name
-result, err := engine.Render("greeting", context)
-```
-
-## Value Conversion
-
-The package includes utilities for converting between YAML and JSON:
-
-```go
-// Convert YAML node to JSON
-jsonStr, err := tplengine.YAMLNodeToJSON(yamlNode)
-
-// Convert JSON string to YAML node
-yamlNode, err := tplengine.JSONToYAMLNode(jsonStr)
-
-// Value converter for complex conversions
-converter := &tplengine.ValueConverter{}
-jsonValue, err := converter.YAMLToJSON(yamlNode)
-yamlNode, err := converter.JSONToYAML(jsonValue)
-```
-
-## Error Handling
-
-### Template Parsing Errors
-
-```go
-// Invalid template syntax
-_, err := engine.RenderString("{{ .name !", context)
-// Error: template parsing error
-
-// Missing closing brace
-_, err := engine.RenderString("{{ .name ", context)
-// Error: template parsing error
-```
-
-### Missing Key Errors
-
-```go
-// Missing key with missingkey=error
-_, err := engine.RenderString("{{ .nonexistent }}", map[string]any{})
-// Error: template execution error: map has no entry for key "nonexistent"
-
-// Nested missing key
-_, err := engine.RenderString("{{ .user.missing }}", map[string]any{
-    "user": map[string]any{"name": "John"},
-})
-// Error: template execution error: map has no entry for key "missing"
-```
-
-### Safe Error Handling Patterns
-
-```go
-// Always validate context before templating
-func safeRender(templateStr string, context map[string]any) (string, error) {
-    // Validate required keys exist
-    if _, ok := context["user"]; !ok {
-        return "", fmt.Errorf("required key 'user' missing from context")
-    }
-
-    return engine.RenderString(templateStr, context)
-}
-
-// Use conditional templates
-template := `
-{{ if hasKey . "optional" }}
-Optional value: {{ .optional }}
-{{ else }}
-No optional value provided
-{{ end }}
-`
-```
-
-## Best Practices
-
-### 1. Always Provide Complete Context
-
-```go
-// ✅ Good: Provide all required keys
 context := map[string]any{
     "user": map[string]any{
         "name":  "John",
         "email": "john@example.com",
-        "age":   30,  // Always provide expected keys
     },
     "settings": map[string]any{
         "timeout": "30s",
-        "debug":   false,
+        "debug":   true,
     },
 }
+
+// Simple variable access
+result, _ := engine.RenderString("Hello {{ .user.name }}!", context)
+// Result: "Hello John!"
+
+// With Sprig functions
+result, _ := engine.RenderString("{{ .user.name | upper }}", context)
+// Result: "JOHN"
 ```
 
-### 2. Use Defensive Templates
+### Safe Key Access Patterns
 
 ```go
-// ✅ Good: Check for existence
-"{{ if hasKey .user \"age\" }}Age: {{ .user.age }}{{ end }}"
+// ✅ Safe approaches for missing keys
+templates := []string{
+    // Check key existence
+    "{{ if hasKey .user \"age\" }}{{ .user.age }}{{ else }}unknown{{ end }}",
+    
+    // Conditional with default
+    "{{ if .user.age }}{{ .user.age }}{{ else }}0{{ end }}",
+    
+    // Nested conditionals
+    "{{ if hasKey . \"database\" }}{{ .database.host | default \"localhost\" }}{{ else }}localhost{{ end }}",
+}
 
-// ✅ Good: Provide fallbacks
-"{{ if .user.age }}{{ .user.age }}{{ else }}unknown{{ end }}"
-
-// ❌ Avoid: Assuming keys exist
-"{{ .user.age | default \"25\" }}"  // Fails if .user.age doesn't exist
-```
-
-### 3. Handle Different Data Types
-
-```go
-// Boolean handling
-"{{ if .enabled }}active{{ else }}inactive{{ end }}"
-
-// Number formatting
-"{{ printf \"%.2f\" .price }}"
-
-// String operations
-"{{ .name | default \"unnamed\" | title }}"
-```
-
-### 4. Use Meaningful Error Messages
-
-```go
-// Wrap template errors with context
-result, err := engine.RenderString(template, context)
-if err != nil {
-    return fmt.Errorf("failed to render config template for %s: %w", componentID, err)
+for _, tmpl := range templates {
+    result, err := engine.RenderString(tmpl, context)
+    if err != nil {
+        log.Printf("Template error: %v", err)
+    }
 }
 ```
 
-### 5. Validate Templates During Development
+### Complex Data Processing
 
 ```go
-// Test templates with sample data
-func TestTemplates(t *testing.T) {
-    engine := tplengine.NewEngine(tplengine.FormatText)
+// Process nested data structures
+data := map[string]any{
+    "services": map[string]any{
+        "web": map[string]any{
+            "host": "{{ .env.WEB_HOST }}",
+            "port": "{{ .env.WEB_PORT | default \"8080\" }}",
+        },
+        "db": map[string]any{
+            "host": "{{ .env.DB_HOST }}",
+            "port": "{{ .env.DB_PORT | default \"5432\" }}",
+        },
+    },
+    "features": []any{
+        "{{ if .flags.feature_a }}feature-a{{ end }}",
+        "{{ if .flags.feature_b }}feature-b{{ end }}",
+    },
+}
 
-    testCases := []struct {
+context := map[string]any{
+    "env": map[string]any{
+        "WEB_HOST": "localhost",
+        "DB_HOST":  "postgres.example.com",
+        "DB_PORT":  "5432",
+    },
+    "flags": map[string]any{
+        "feature_a": true,
+        "feature_b": false,
+    },
+}
+
+result, err := engine.ParseAny(data, context)
+```
+
+### Object Reference Detection
+
+```go
+// Simple object references preserve types
+context := map[string]any{
+    "tasks": map[string]any{
+        "processor": map[string]any{
+            "output": map[string]any{
+                "data": []int{1, 2, 3, 4, 5},
+            },
+        },
+    },
+}
+
+// This preserves the []int type
+result, _ := engine.RenderString("{{ .tasks.processor.output.data }}", context)
+// Result: []int{1, 2, 3, 4, 5}
+
+// This returns a string
+result, _ := engine.RenderString("{{ .tasks.processor.output.data | join \",\" }}", context)
+// Result: "1,2,3,4,5"
+```
+
+### Precision Preservation
+
+```go
+// Enable precision preservation for large numbers
+engine = engine.WithPrecisionPreservation(true)
+
+context := map[string]any{
+    "largeNumber": "12345678901234567890",
+    "precision":   "123.456789012345678901234567890",
+}
+
+result, _ := engine.RenderString("{{ .largeNumber }}", context)
+// Preserves as string to avoid precision loss
+
+result, _ := engine.RenderString("{{ .precision }}", context)
+// Converts to float64 only if no precision loss
+```
+
+---
+
+## 📚 API Reference
+
+### Core Types
+
+#### `TemplateEngine`
+
+Main template engine struct (thread-safe).
+
+```go
+type TemplateEngine struct {
+    // Private fields
+}
+
+// Create new engine
+func NewEngine(format EngineFormat) *TemplateEngine
+
+// Configuration methods
+func (e *TemplateEngine) WithFormat(format EngineFormat) *TemplateEngine
+func (e *TemplateEngine) WithPrecisionPreservation(enabled bool) *TemplateEngine
+```
+
+#### `EngineFormat`
+
+Output format enumeration.
+
+```go
+type EngineFormat string
+
+const (
+    FormatYAML EngineFormat = "yaml"
+    FormatJSON EngineFormat = "json"
+    FormatText EngineFormat = "text"
+)
+```
+
+### Template Processing
+
+#### `RenderString`
+
+```go
+func (e *TemplateEngine) RenderString(templateStr string, context map[string]any) (string, error)
+```
+
+Renders a template string with the given context.
+
+**Parameters:**
+- `templateStr`: Template string to render
+- `context`: Template context data
+
+**Returns:**
+- `string`: Rendered result
+- `error`: Rendering error if any
+
+#### `ParseAny`
+
+```go
+func (e *TemplateEngine) ParseAny(value any, ctxData map[string]any) (any, error)
+```
+
+Processes a value and resolves any templates within it recursively.
+
+**Parameters:**
+- `value`: Value to process (can be string, map, slice, etc.)
+- `ctxData`: Template context data
+
+**Returns:**
+- `any`: Processed value with templates resolved
+- `error`: Processing error if any
+
+#### `ProcessFile`
+
+```go
+func (e *TemplateEngine) ProcessFile(filePath string, context map[string]any) (string, error)
+```
+
+Processes a template file and returns the result.
+
+**Parameters:**
+- `filePath`: Path to template file
+- `context`: Template context data
+
+**Returns:**
+- `string`: Processed file content
+- `error`: Processing error if any
+
+### Template Management
+
+#### `AddTemplate`
+
+```go
+func (e *TemplateEngine) AddTemplate(name, templateStr string) error
+```
+
+Adds a named template to the engine.
+
+#### `Render`
+
+```go
+func (e *TemplateEngine) Render(name string, context map[string]any) (string, error)
+```
+
+Renders a template by name.
+
+#### `AddGlobalValue`
+
+```go
+func (e *TemplateEngine) AddGlobalValue(name string, value any) 
+```
+
+Adds a global value available in all template contexts.
+
+### Utility Functions
+
+#### `HasTemplate`
+
+```go
+func HasTemplate(template string) bool
+```
+
+Returns true if the string contains template markers.
+
+#### `YAMLNodeToJSON`
+
+```go
+func YAMLNodeToJSON(node *yaml.Node) (string, error)
+```
+
+Converts a YAML node to JSON string.
+
+#### `JSONToYAMLNode`
+
+```go
+func JSONToYAMLNode(jsonStr string) (*yaml.Node, error)
+```
+
+Converts a JSON string to YAML node.
+
+### Value Conversion
+
+#### `ValueConverter`
+
+```go
+type ValueConverter struct{}
+
+func (c *ValueConverter) YAMLToJSON(node *yaml.Node) (any, error)
+func (c *ValueConverter) JSONToYAML(value any) (*yaml.Node, error)
+```
+
+Provides methods to convert between YAML and JSON formats.
+
+#### `PrecisionConverter`
+
+```go
+type PrecisionConverter struct{}
+
+func NewPrecisionConverter() *PrecisionConverter
+func (pc *PrecisionConverter) ConvertWithPrecision(value any) any
+```
+
+Handles numeric conversion with precision preservation.
+
+---
+
+## 🧪 Testing
+
+### Unit Tests
+
+```go
+func TestTemplateEngine_RenderString(t *testing.T) {
+    engine := tplengine.NewEngine(tplengine.FormatText)
+    
+    tests := []struct {
+        name     string
         template string
         context  map[string]any
         expected string
+        wantErr  bool
     }{
         {
+            name:     "simple variable",
             template: "Hello {{ .name }}!",
             context:  map[string]any{"name": "World"},
             expected: "Hello World!",
+            wantErr:  false,
+        },
+        {
+            name:     "missing key error",
+            template: "{{ .nonexistent }}",
+            context:  map[string]any{},
+            expected: "",
+            wantErr:  true,
+        },
+        {
+            name:     "safe key access",
+            template: "{{ if hasKey . \"name\" }}{{ .name }}{{ else }}unknown{{ end }}",
+            context:  map[string]any{},
+            expected: "unknown",
+            wantErr:  false,
         },
     }
-
-    for _, tc := range testCases {
-        result, err := engine.RenderString(tc.template, tc.context)
-        assert.NoError(t, err)
-        assert.Equal(t, tc.expected, result)
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            result, err := engine.RenderString(tt.template, tt.context)
+            if tt.wantErr {
+                assert.Error(t, err)
+            } else {
+                assert.NoError(t, err)
+                assert.Equal(t, tt.expected, result)
+            }
+        })
     }
 }
 ```
 
-## Integration with Compozy
+### Integration Tests
 
-The template engine is used throughout Compozy for:
-
-- **Configuration normalization**: Processing dynamic values in YAML configurations
-- **Runtime value resolution**: Resolving template expressions with workflow context
-- **Cross-component communication**: Allowing components to reference each other's outputs
-- **Environment variable substitution**: Processing environment-specific configurations
-
-See the [normalizer package](../normalizer/README.md) for detailed examples of how templates are
-used in Compozy configurations.
-
-## Migration from `<no value>` Behavior
-
-If you're migrating from a system that allowed `<no value>` fallbacks:
-
-### Before (with silent failures)
-
-```yaml
-config:
-    host: '{{ .database.host | default "localhost" }}' # Silent if .database missing
-    port: '{{ .database.port | default "5432" }}' # Silent if .database missing
+```go
+func TestTemplateEngine_ParseAny(t *testing.T) {
+    engine := tplengine.NewEngine(tplengine.FormatYAML)
+    
+    data := map[string]any{
+        "config": map[string]any{
+            "host": "{{ .env.HOST }}",
+            "port": "{{ .env.PORT | default \"8080\" }}",
+        },
+        "items": []any{
+            "{{ .item1 }}",
+            "{{ .item2 }}",
+        },
+    }
+    
+    context := map[string]any{
+        "env": map[string]any{
+            "HOST": "localhost",
+            "PORT": "3000",
+        },
+        "item1": "first",
+        "item2": "second",
+    }
+    
+    result, err := engine.ParseAny(data, context)
+    assert.NoError(t, err)
+    
+    resultMap := result.(map[string]any)
+    config := resultMap["config"].(map[string]any)
+    assert.Equal(t, "localhost", config["host"])
+    assert.Equal(t, "3000", config["port"])
+}
 ```
 
-### After (with missingkey=error)
+### Performance Tests
 
-```yaml
-config:
-    # Option 1: Ensure keys exist in context
-    host: "{{ .database.host | default \"localhost\" }}" # Requires .database to exist
-    port: "{{ .database.port | default \"5432\" }}" # Requires .database to exist
-
-    # Option 2: Use conditional checks
-    host: "{{ if hasKey . \"database\" }}{{ .database.host | default \"localhost\" }}{{ else }}localhost{{ end }}"
-    port: "{{ if hasKey . \"database\" }}{{ .database.port | default \"5432\" }}{{ else }}5432{{ end }}"
+```go
+func BenchmarkTemplateEngine_RenderString(b *testing.B) {
+    engine := tplengine.NewEngine(tplengine.FormatText)
+    template := "Hello {{ .name }}! Your age is {{ .age }}."
+    context := map[string]any{
+        "name": "John",
+        "age":  30,
+    }
+    
+    b.ResetTimer()
+    for i := 0; i < b.N; i++ {
+        _, err := engine.RenderString(template, context)
+        if err != nil {
+            b.Fatal(err)
+        }
+    }
+}
 ```
 
-The `missingkey=error` behavior encourages better configuration practices by making missing data
-explicit rather than silently failing.
+---
+
+## 📦 Contributing
+
+See [CONTRIBUTING.md](../../CONTRIBUTING.md)
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](../../LICENSE)

@@ -1,23 +1,31 @@
 {
-    "compilerOptions": {
-        "target": "ES2022",
-        "module": "ESNext",
-        "moduleResolution": "bundler",
-        "allowImportingTsExtensions": true,
-        "noEmit": true,
-        "strict": true,
-        "skipLibCheck": true,
-        "forceConsistentCasingInFileNames": true,
-        "allowSyntheticDefaultImports": true,
-        "esModuleInterop": true,
-        "declaration": false,
-        "declarationMap": false,
-        "sourceMap": false,
-        "resolveJsonModule": true,
-        "isolatedModules": true,
-        "verbatimModuleSyntax": false,
-        "types": ["bun-types"]
-    },
-    "include": ["examples/**/*", "docs/**/*"],
-    "exclude": ["node_modules", "dist", ".compozy", "**/*.test.ts", "**/*.spec.ts"]
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": false,
+    "jsx": "react-jsx",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "types": ["bun-types"]
+  },
+  "include": ["examples/**/*", "docs/**/*"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    ".compozy",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
 }

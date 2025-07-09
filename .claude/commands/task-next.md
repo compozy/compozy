@@ -1,44 +1,86 @@
-Find and start the next available task automatically.
+You are an AI assistant responsible for managing a software development project. Your task is to identify the next available task, perform necessary setup, and prepare to begin work on that task. You will be provided with two key pieces of information:
 
-<critical>
-**MANDATORY REQUIREMENTS:**
-- **ALWAYS** check dependent files APIs before write tests to avoid write wrong code
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-    - Architecture patterns: `.cursor/rules/architecture.mdc`
-    - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-    - Testing requirements: `.cursor/rules/testing-standards.mdc`
-    - API standards: `.cursor/rules/api-standards.mdc`
-    - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test` before completing ANY subtask
-- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>
+<critical>@.cursor/rules/critical-validation.mdc</critical>
 
-**Process:**
-• Scan `tasks/prd-*/` directories for task files
-• Identify the next uncompleted task (first unchecked checkbox)
-• Read task definition, PRD, and tech spec for context
-• Provide the same setup as `/project:task-start` but automatically
+**YOU MUST USE** --think
 
-**Pre-Task Setup:**
-• Read task definition from `tasks/prd-$ARGUMENTS/_task.md`
-• Review PRD context: `tasks/prd-$ARGUMENTS/_prd.md`
-• Check tech spec requirements: `tasks/prd-$ARGUMENTS/_techspec.md`
-• Read `tasks/prd-$ARGUMENTS/[num]_task.md` file to understand what's need to be done in the task.
-• Understand dependencies from previous completed tasks
+<task_directories>$ARGUMENTS</task_directories>
+<project_rules>$ARGUMENTS</project_rules>
 
-**Important Notes:**
-• **ALWAYS** verify against PRD, tech specs and task file - NEVER make assumptions
-• **NEVER** use workarounds, especially in tests - implement proper solutions
-• **MUST** follow all established project standards:
-• **NEVER** finish the task without following the `.cursor/rules/task-review.mdc` process
+Please follow these steps to identify and prepare for the next available task:
 
-- Architecture patterns: @architecture.mdc
-- Go coding standards: @go-coding-standards.mdc
-- Testing requirements: @testing-standards.mdc
-- API standards: @api-standards.mdc
-- Security & quality: @quality-security.mdc
+1. Scan the task directories provided in <task_directories> for task files.
+2. Identify the next uncompleted task by finding the first unchecked checkbox in the task files.
+3. Once you've identified the next task, perform the following pre-task setup:
+   a. Read the task definition from `tasks/prd-$ARGUMENTS/_task.md`
+   b. Review the PRD context from `tasks/prd-$ARGUMENTS/_prd.md`
+   c. Check the tech spec requirements from `tasks/prd-$ARGUMENTS/_techspec.md`
+   d. Read the `tasks/prd-$ARGUMENTS/[num]_task.md` file to understand what needs to be done in the task
+   e. Understand dependencies from previously completed tasks
 
-**Usage:** `/task:next`
+4. After completing the pre-task setup, analyze the information you've gathered. Wrap your analysis in <task_analysis> tags, considering the following:
+   - List out the task files you found and quote relevant sections from each file
+   - The main objectives of the task
+   - How the task fits into the broader project context
+   - Any potential challenges, risks, or dependencies
+   - How the task aligns with the project rules and standards
+   - Brainstorm possible solutions or approaches to the task
+
+5. Provide a summary of the task and its requirements in the following format:
+
+<task_summary>
+Task ID: [Provide the task ID or number]
+Task Name: [Provide the name or brief description of the task]
+PRD Context: [Summarize key points from the PRD]
+Tech Spec Requirements: [List the main technical requirements]
+Dependencies: [List any dependencies on previous tasks]
+Main Objectives: [Outline the primary goals of the task]
+Potential Risks/Challenges: [List any identified risks or challenges]
+</task_summary>
+
+6. Next, provide a plan for approaching the task:
+
+<task_approach>
+1. [First step in approaching the task]
+2. [Second step in approaching the task]
+3. [Continue with additional steps as needed]
+</task_approach>
+
+Important Notes:
+
+- Always verify against the PRD, tech specs, and task file. Do not make assumptions.
+- Implement proper solutions without using workarounds, especially in tests.
+- Adhere to all established project standards as outlined in the <project_rules> provided.
+- Do not consider the task complete until you've followed the @.claude/commands/task-review.md process.
+
+After providing the task summary and approach, end your response with:
+
+<start_task>
+I am ready to begin working on this task. Please provide any additional instructions or context needed to proceed.
+</start_task>
+
+Example Output Structure (generic, without specific content):
+
+<task_analysis>
+[Your detailed analysis of the task, including file quotes, context, challenges, and brainstormed solutions]
+</task_analysis>
+
+<task_summary>
+Task ID: [ID]
+Task Name: [Name]
+PRD Context: [Context summary]
+Tech Spec Requirements: [Requirements list]
+Dependencies: [Dependencies list]
+Main Objectives: [Objectives list]
+Potential Risks/Challenges: [Risks/Challenges list]
+</task_summary>
+
+<task_approach>
+1. [Step 1]
+2. [Step 2]
+3. [Step 3]
+</task_approach>
+
+<start_task>
+[Ready to begin statement]
+</start_task>

@@ -1,0 +1,23 @@
+{
+  "name": "@compozy/example-memory",
+  "version": "0.1.0",
+  "description": "Simple conversational agent that remembers user information using memory",
+  "private": true,
+  "type": "module",
+  "main": "./entrypoint.ts",
+  "scripts": {
+    "build": "echo 'No build step required for Compozy examples'",
+    "lint": "oxlint *.ts",
+    "type-check": "tsc --noEmit",
+    "test": "echo 'No tests configured'",
+    "clean": "echo 'No clean step required'"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "oxlint": "^1.4.0",
+    "prettier": "^3.6.0"
+  },
+  "dependencies": {
+    "openmeteo": "^1.1.4"
+  }
+}

@@ -31,7 +31,7 @@ reviews:
     - "!test/testdata/**"
   path_instructions:
     - path: "**/*_test.go"
-      instructions: |
+      instructions: |-
         # Test Review Requirements
 
         ## Critical Patterns to ENFORCE:

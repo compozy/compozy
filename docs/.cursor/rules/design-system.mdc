@@ -1,0 +1,331 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+# Design System Rules
+
+<mandatory_design_token_usage>
+**CRITICAL: Always Use Design System Tokens for Theme Switching**
+
+To ensure the theme switching functionality works correctly across light and dark modes, you MUST always use design system tokens instead of explicit color values:
+
+✅ **Always use:** `bg-background`, `text-foreground`, `border-border`, `bg-primary`, `text-primary-foreground`
+❌ **Never use:** `bg-white`, `text-black`, `border-gray-200`, `bg-blue-500`, `text-green-400`
+
+**Why this matters:**
+
+- Design tokens automatically adapt to the current theme (light/dark)
+- Explicit values break theme switching and cause accessibility issues
+- Design tokens ensure consistent brand colors across all themes
+
+**Required tokens for common use cases:**
+
+- Backgrounds: `bg-background`, `bg-card`, `bg-muted`, `bg-popover`
+- Text: `text-foreground`, `text-muted-foreground`, `text-card-foreground`
+- Borders: `border-border`, `border-input`, `border-ring`
+- Actions: `bg-primary text-primary-foreground`, `bg-secondary text-secondary-foreground`
+- States: `bg-destructive text-destructive-foreground`, `bg-accent text-accent-foreground`
+  </mandatory_design_token_usage>
+
+<rule>
+This rule establishes the design system standards for the React web application, transforming it from a terminal/hacker aesthetic to a modern, professional SaaS interface.
+</rule>
+
+## Typography System
+
+<typography>
+The application uses Geist as the primary font family for both serif and sans-serif contexts, with specific semantic purposes:
+
+**Primary Fonts:**
+
+- `font-serif` (Geist): All headers, titles, display text, hero sections, and editorial content
+- `font-sans` (Geist): UI text (non-title), buttons, body content, and interface elements
+- `font-mono` (JetBrains Mono): Code blocks, technical data, and monospace content only
+
+**Typography Hierarchy:**
+
+- H1/Hero: `text-4xl md:text-6xl font-serif font-bold`
+- H2/Section: `text-2xl md:text-3xl font-serif font-semibold`
+- H3/Subsection: `text-xl font-serif font-medium`
+- H4/Component: `text-lg font-serif font-medium`
+- Body: `text-base font-sans`
+- Small: `text-sm font-sans`
+- Code: `font-mono text-sm`
+  </typography>
+
+<anti-pattern>
+❌ **Never do this:**
+```tsx
+<h1 className="font-mono text-green-400">[SYSTEM STATUS]</h1>
+<p className="font-mono text-green-300">Welcome to the command center...</p>
+<button className="font-mono">[EXECUTE]</button>
+```
+</anti-pattern>
+
+<best-practice>
+✅ **Do this instead:**
+```tsx
+<h1 className="text-4xl font-serif font-bold text-foreground">System Dashboard</h1>
+<p className="text-base font-sans text-muted-foreground">Welcome to your workspace...</p>
+<button className="font-sans font-medium">Execute Action</button>
+```
+</best-practice>
+
+## Color System
+
+<colors>
+**Semantic Color Usage:**
+- Use CSS variables: `text-foreground`, `bg-background`, `border-border`
+- Primary actions: `bg-primary text-primary-foreground`
+- Secondary actions: `bg-secondary text-secondary-foreground`
+- Destructive actions: `bg-destructive text-destructive-foreground`
+- Muted content: `text-muted-foreground bg-muted`
+
+**Forbidden Colors:**
+
+- Never use: `text-green-400`, `text-green-300`, `bg-black`, `border-green-400`
+- No terminal green (#00ff41) anywhere in the interface
+- No pure black backgrounds except for true dark mode
+  </colors>
+
+## Component Patterns
+
+<cards>
+**Modern Card System:**
+```tsx
+// Professional card with proper styling
+<Card className="border border-border bg-card shadow-xs hover:shadow-sm transition-shadow">
+  <CardHeader>
+    <CardTitle className="font-serif">Feature Title</CardTitle>
+    <CardDescription className="font-sans text-muted-foreground">
+      Brief description of the feature
+    </CardDescription>
+  </CardHeader>
+  <CardContent className="font-sans">
+    Main content area
+  </CardContent>
+</Card>
+```
+
+**Avoid terminal-style cards:**
+
+```tsx
+// ❌ Don't do this
+<Card className="bg-black border-green-400 border-2">
+  <CardTitle className="text-green-400 font-mono">[FEATURE]</CardTitle>
+</Card>
+```
+
+</cards>
+
+<buttons>
+**Button Variants:**
+- Primary: `<Button className="bg-primary text-primary-foreground font-sans font-medium">`
+- Secondary: `<Button variant="secondary" className="font-sans">`
+- Outline: `<Button variant="outline" className="font-sans">`
+- Ghost: `<Button variant="ghost" className="font-sans">`
+
+**Never use:**
+
+- Bracket notation: `[BUTTON TEXT]`
+- Terminal styling: `bg-green-600 text-black font-mono`
+- All caps text unless specifically needed for acronyms
+  </buttons>
+
+<forms>
+**Form Styling:**
+```tsx
+<div className="space-y-4">
+  <div className="space-y-2">
+    <Label className="font-sans font-medium">Email Address</Label>
+    <Input
+      type="email"
+      className="font-sans"
+      placeholder="Enter your email"
+    />
+  </div>
+</div>
+```
+
+**Form Validation:**
+
+- Error states: `text-destructive` with `border-destructive`
+- Success states: Use subtle green tints, not terminal green
+- Focus states: Use `ring-ring/50` and `border-ring`
+  </forms>
+
+## Layout & Spacing
+
+<layout>
+**Container Patterns:**
+- Main containers: `container mx-auto px-4 py-8`
+- Section spacing: `space-y-8` or `space-y-12`
+- Component spacing: `space-y-4` or `space-y-6`
+- Grid layouts: `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6`
+
+**Responsive Design:**
+
+- Mobile-first approach with `sm:`, `md:`, `lg:`, `xl:` breakpoints
+- Ensure all components work on mobile devices
+- Use responsive typography scaling
+  </layout>
+
+<spacing>
+**Consistent Spacing Scale:**
+- Use Tailwind's spacing scale: `p-2`, `p-4`, `p-6`, `p-8`
+- Consistent gaps: `gap-2`, `gap-4`, `gap-6`, `gap-8`
+- Margin/padding harmony: Don't mix arbitrary values
+</spacing>
+
+## Navigation & Headers
+
+<navigation>
+**Header Structure:**
+```tsx
+<header className="border-b border-border bg-background">
+  <div className="container mx-auto px-4 py-4">
+    <nav className="flex items-center justify-between">
+      <div className="text-xl font-serif font-bold">Brand Name</div>
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" className="font-sans">Features</Button>
+        <Button className="font-sans">Get Started</Button>
+      </div>
+    </nav>
+  </div>
+</header>
+```
+
+**Navigation Links:**
+
+- Use `hover:text-foreground transition-colors`
+- Avoid terminal-style brackets and monospace fonts
+- Clear visual hierarchy with proper contrast
+  </navigation>
+
+## Loading & States
+
+<loading>
+**Loading States:**
+```tsx
+// Modern loading spinner
+<div className="flex items-center justify-center p-8">
+  <div className="animate-spin rounded-full size-8 border-b-2 border-primary"></div>
+</div>
+
+// Loading text
+
+<p className="font-sans text-muted-foreground">Loading...</p>
+```
+
+**Avoid:**
+
+- Terminal-style loading: `[LOADING...]` with green text
+- Blinking cursors or terminal animations
+- Monospace fonts for loading states
+  </loading>
+
+## Accessibility
+
+<accessibility>
+**Requirements:**
+- All interactive elements must have proper focus states
+- Color contrast ratios must meet WCAG 2.1 AA standards
+- Use semantic HTML elements
+- Provide proper ARIA labels and descriptions
+- Ensure keyboard navigation works throughout the app
+
+**Focus States:**
+
+- Use `focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`
+- Ensure focus is visible on all interactive elements
+- Don't remove focus outlines without providing alternatives
+  </accessibility>
+
+## Animation & Transitions
+
+<animations>
+**Subtle Animations:**
+- Hover transitions: `transition-colors duration-200`
+- Shadow transitions: `transition-shadow duration-200`
+- Transform animations: Keep under 300ms
+- Use `ease-in-out` or `ease-out` timing functions
+
+**Examples:**
+
+```tsx
+<Button className="transition-all duration-200 hover:shadow-sm">
+  Action Button
+</Button>
+
+<Card className="transition-shadow duration-200 hover:shadow-lg">
+  Card Content
+</Card>
+```
+
+</animations>
+
+## Implementation Checklist
+
+<checklist>
+Before implementing any component, ensure:
+
+**Typography:**
+
+- [ ] Headers use `font-serif` (Geist)
+- [ ] UI text uses `font-sans` (Geist)
+- [ ] Code/technical content uses `font-mono` (JetBrains Mono)
+- [ ] No terminal brackets `[TEXT]` in user-facing content
+
+**Colors:**
+
+- [ ] Uses semantic color variables
+- [ ] No terminal green colors
+- [ ] Proper contrast ratios
+- [ ] Consistent with design system
+
+**Layout:**
+
+- [ ] Responsive design implemented
+- [ ] Proper spacing scale used
+- [ ] Mobile-first approach
+- [ ] Clean, modern appearance
+
+**Accessibility:**
+
+- [ ] Focus states implemented
+- [ ] Semantic HTML used
+- [ ] ARIA labels where needed
+- [ ] Keyboard navigation works
+
+**Professional Appearance:**
+
+- [ ] No terminal/hacker aesthetic elements
+- [ ] Clean, modern SaaS-style interface
+- [ ] Consistent with Shadcn/ui patterns
+- [ ] Professional color scheme
+      </checklist>
+
+## Testing Requirements
+
+<testing>
+**Before Deployment:**
+1. Test all components on mobile devices
+2. Verify color contrast with accessibility tools
+3. Test keyboard navigation
+4. Ensure responsive behavior works correctly
+5. Validate that no terminal-style elements remain
+6. Check font loading and fallbacks
+7. Test hover and focus states
+</testing>
+
+<migration-notes>
+**Migrating from Terminal Aesthetic:**
+- Replace all `font-mono` usage with `font-sans` (Geist) except for actual code
+- Remove bracket notation `[TEXT]` and replace with clean text
+- Change green terminal colors to semantic design system colors
+- Update card styling from terminal borders to modern shadows
+- Replace terminal loading states with modern spinners
+- Convert command-style buttons to professional button variants
+</migration-notes>

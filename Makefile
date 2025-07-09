@@ -12,6 +12,7 @@ BINARY_NAME=compozy
 BINARY_DIR=bin
 SRC_DIRS=./...
 LINTCMD=golangci-lint
+BUNCMD=bun
 
 # -----------------------------------------------------------------------------
 # Build Variables
@@ -28,7 +29,7 @@ LDFLAGS := -X 'github.com/compozy/compozy/engine/infra/monitoring.Version=$(VERS
 SWAGGER_DIR=./docs
 SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
 
-.PHONY: all test lint fmt clean build dev deps schemagen help integration-test
+.PHONY: all test lint fmt clean build dev deps schemagen schemagen-watch help integration-test
 .PHONY: tidy test-go start-docker stop-docker clean-docker reset-docker mcp-proxy rebuild-mcp-proxy
 .PHONY: swagger swagger-deps swagger-gen swagger-serve
 
@@ -51,6 +52,7 @@ build: swagger
 # Code Quality & Formatting
 # -----------------------------------------------------------------------------
 lint:
+	$(BUNCMD) run lint
 	$(LINTCMD) run --fix --allow-parallel-runners
 	@echo "Running modernize analyzer for min/max suggestions..."
 	# @go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest ./... 2>&1 | grep -E "\.go:[0-9]+:[0-9]+:" || echo "No modernization suggestions found"
@@ -58,8 +60,8 @@ lint:
 
 fmt:
 	@echo "Formatting code..."
+	$(BUNCMD) run format
 	$(LINTCMD) fmt
-	@deno task prettier:fix
 	@echo "Formatting completed successfully"
 
 # -----------------------------------------------------------------------------
@@ -109,6 +111,9 @@ swagger-validate:
 # -----------------------------------------------------------------------------
 schemagen:
 	$(GOCMD) run pkg/schemagen/main.go -out=./schemas
+
+schemagen-watch:
+	$(GOCMD) run pkg/schemagen/main.go -out=./schemas -watch
 
 # -----------------------------------------------------------------------------
 # Testing

@@ -21,7 +21,7 @@ const (
 )
 
 // Build variables to be set via ldflags during compilation
-// Example: go build -ldflags "-X 'github.com/compozy/compozy/engine/infra/monitoring.Version=v1.0.0'"
+// - **Example**: go build -ldflags "-X 'github.com/compozy/compozy/engine/infra/monitoring.Version=v1.0.0'"
 var (
 	Version    = defaultVersion
 	CommitHash = defaultCommit

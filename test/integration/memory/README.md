@@ -7,63 +7,63 @@ This directory contains comprehensive integration tests for the Compozy memory s
 ### Core Test Files
 
 1. **helpers.go** - Test environment setup and utilities
-    - `TestEnvironment` - Manages Redis, Temporal, and Memory Manager setup
-    - Automatic cleanup procedures
-    - Test memory configuration registration
+   - `TestEnvironment` - Manages Redis, Temporal, and Memory Manager setup
+   - Automatic cleanup procedures
+   - Test memory configuration registration
 
 2. **e2e_test.go** - End-to-end memory lifecycle tests
-    - Complete memory lifecycle testing
-    - Concurrent agent access scenarios
-    - Flush workflow integration
-    - Privacy metadata handling
-    - Memory expiration
+   - Complete memory lifecycle testing
+   - Concurrent agent access scenarios
+   - Flush workflow integration
+   - Privacy metadata handling
+   - Memory expiration
 
 3. **distributed_locking_test.go** - Distributed locking tests
-    - Concurrent append operations
-    - Concurrent clear operations
-    - Flush prevention with locks
-    - Mixed operations with lock isolation
-    - Lock timeout handling
+   - Concurrent append operations
+   - Concurrent clear operations
+   - Flush prevention with locks
+   - Mixed operations with lock isolation
+   - Lock timeout handling
 
 4. **flush_cleanup_test.go** - Flush and cleanup workflow tests
-    - Complete flush workflow with summarization
-    - Multiple flush strategies (FIFO, summarization)
-    - Cleanup workflow for expired memories
-    - Concurrent flush and cleanup interaction
+   - Complete flush workflow with summarization
+   - Multiple flush strategies (FIFO, summarization)
+   - Cleanup workflow for expired memories
+   - Concurrent flush and cleanup interaction
 
 5. **token_counting_test.go** - Token counting integration tests
-    - Multi-provider token counting
-    - Token counting consistency
-    - Token counting with flush operations
-    - Edge cases and concurrency
+   - Multi-provider token counting
+   - Token counting consistency
+   - Token counting with flush operations
+   - Edge cases and concurrency
 
 6. **resilience_test.go** - Resilience and failure handling tests
-    - Redis failure scenarios
-    - Timeout handling
-    - Concurrent failures
-    - Memory pressure scenarios
-    - Circuit breaker patterns
-    - Data corruption handling
-    - Privacy under failure conditions
+   - Redis failure scenarios
+   - Timeout handling
+   - Concurrent failures
+   - Memory pressure scenarios
+   - Circuit breaker patterns
+   - Data corruption handling
+   - Privacy under failure conditions
 
 ### Support Infrastructure
 
 7. **test_data.go** - Test data management
-    - `TestDataManager` - Tracks and cleans up test instances
-    - `StandardTestDataSets` - Common test scenarios
-    - Helper functions for populating and verifying memory
+   - `TestDataManager` - Tracks and cleans up test instances
+   - `StandardTestDataSets` - Common test scenarios
+   - Helper functions for populating and verifying memory
 
 8. **health_monitor.go** - Test environment health monitoring
-    - `HealthMonitor` - Monitors Redis, Temporal, Memory Manager
-    - Metrics collection and reporting
-    - Alert generation on failures
-    - Health check helpers for tests
+   - `HealthMonitor` - Monitors Redis, Temporal, Memory Manager
+   - Metrics collection and reporting
+   - Alert generation on failures
+   - Health check helpers for tests
 
 9. **debug_tools.go** - Debugging and maintenance utilities
-    - `DebugTools` - Captures Redis/memory state for debugging
-    - `MaintenanceTools` - Cleanup and leak detection
-    - `InteractiveDebugger` - Interactive debugging mode
-    - Test report generation
+   - `DebugTools` - Captures Redis/memory state for debugging
+   - `MaintenanceTools` - Cleanup and leak detection
+   - `InteractiveDebugger` - Interactive debugging mode
+   - Test report generation
 
 ## Running the Tests
 

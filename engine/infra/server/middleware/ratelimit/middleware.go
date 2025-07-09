@@ -173,7 +173,7 @@ func (m *Manager) keyGetter(c *gin.Context) string {
 
 // isExcludedKey determines if a key should be excluded from rate limiting
 func (m *Manager) isExcludedKey(key string) bool {
-	// Example: exclude certain admin users or internal services
+	// - **Example**: exclude certain admin users or internal services
 	// This can be extended based on requirements
 	return strings.HasPrefix(key, "internal:")
 }

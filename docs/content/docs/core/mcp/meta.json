@@ -1,0 +1,19 @@
+{
+  "title": "MCP Integration",
+  "description": "Model Context Protocol integration",
+  "icon": "Plug",
+  "pages": [
+    "mcp-overview",
+    "mcp-proxy-server",
+    "transport-configuration",
+    "admin-api",
+    "client-manager",
+    "security-authentication",
+    "tool-discovery",
+    "storage-backends",
+    "monitoring-metrics",
+    "integration-patterns",
+    "development-debugging",
+    "production-deployment"
+  ]
+}

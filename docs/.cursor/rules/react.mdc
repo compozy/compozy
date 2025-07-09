@@ -1,0 +1,569 @@
+---
+globs: **/*.ts,**/*.tsx,**/*.mdx
+alwaysApply: false
+---
+
+# React Best Practices
+
+<core_principles>
+**Modern React Development Philosophy:**
+
+- Build single-page applications with client-side routing
+- Optimize for performance with code splitting and lazy loading
+- Embrace React 19+ features to eliminate boilerplate
+- Keep bundle size small with tree shaking and dynamic imports
+  </core_principles>
+
+## Component Architecture
+
+<component_guidelines>
+**Essential Component Patterns:**
+
+- Use functional components exclusively - class components are legacy
+- Keep components small, focused on single responsibility
+- Co-locate related files by feature, not by type (components/hooks/utils together)
+- Structure components by feature/domain, not by technical layer
+  </component_guidelines>
+
+## State Management Hierarchy
+
+<state_management>
+**Recommended State Management Strategy:**
+
+1. **Local state** (useState/useReducer) for component-specific UI state
+2. **Zustand** for shared client state across components
+3. **TanStack Query** for server state and data synchronization
+4. **URL state** for shareable application state (with TanStack Router)
+   </state_management>
+
+## React 19+ Features
+
+<modern_features>
+**Leverage Latest React Capabilities:**
+
+- Use the `use()` hook for unwrapping promises in components
+- Adopt Actions for form submissions and data mutations
+- Leverage `useFormStatus()` and `useFormState()` for form handling
+- Implement `useOptimistic()` for instant UI updates with rollback
+  </modern_features>
+
+```typescript
+// React 19 Actions example
+function CreatePostForm() {
+  async function createPost(formData: FormData) {
+    'use server'
+    // Server action logic
+  }
+
+  return (
+    <form action={createPost}>
+      <input name="title" required />
+      <button type="submit">Create Post</button>
+    </form>
+  )
+}
+
+// Optimistic updates
+function PostList() {
+  const [optimisticPosts, addOptimisticPost] = useOptimistic(
+    posts,
+    (state, newPost) => [...state, newPost]
+  )
+
+  async function createPost(formData: FormData) {
+    addOptimisticPost({ title: formData.get('title'), id: 'temp' })
+    await submitPost(formData)
+  }
+
+  return (
+    <div>
+      {optimisticPosts.map(post => <PostItem key={post.id} post={post} />)}
+    </div>
+  )
+}
+```
+
+## TypeScript Integration
+
+<typescript_guidelines>
+**Type Safety Best Practices:**
+
+- Don't use React.FC - type props directly on the function
+- Use React.ComponentProps<'element'> for extending HTML elements
+- Leverage const type parameters for better type inference
+- Type your custom hooks' inputs and outputs explicitly
+  </typescript_guidelines>
+
+```typescript
+// Good: Direct prop typing
+interface ButtonProps extends React.ComponentProps<'button'> {
+  variant?: 'primary' | 'secondary'
+  loading?: boolean
+}
+
+function Button({ variant = 'primary', loading, children, ...props }: ButtonProps) {
+  return (
+    <button
+      className={`btn btn-${variant}`}
+      disabled={loading}
+      {...props}
+    >
+      {loading && <Spinner />}
+      {children}
+    </button>
+  )
+}
+
+// Custom hook with proper typing
+function useApi<T>(url: string): {
+  data: T | null
+  loading: boolean
+  error: Error | null
+} {
+  const [data, setData] = useState<T | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  // Implementation...
+
+  return { data, loading, error }
+}
+```
+
+## Performance Optimization
+
+<performance_guidelines>
+**Critical Performance Patterns:**
+
+- Implement code splitting with React.lazy() and dynamic imports
+- Use React.memo sparingly and only after profiling
+- Implement virtualization for long lists (TanStack Virtual)
+- Code-split at route level with TanStack Router
+- Preload critical resources with React 19 asset loading
+- Use Web Workers for heavy computations
+  </performance_guidelines>
+
+```typescript
+// Code splitting with React.lazy
+const Dashboard = lazy(() => import('./Dashboard'))
+const Profile = lazy(() => import('./Profile'))
+
+function App() {
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <Routes>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/profile" element={<Profile />} />
+      </Routes>
+    </Suspense>
+  )
+}
+
+// Virtualization for large lists
+import { useVirtualizer } from '@tanstack/react-virtual'
+
+function VirtualList({ items }: { items: Item[] }) {
+  const parentRef = useRef<HTMLDivElement>(null)
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 50,
+  })
+
+  return (
+    <div ref={parentRef} style={{ height: '400px', overflow: 'auto' }}>
+      <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
+        {virtualizer.getVirtualItems().map((virtualItem) => (
+          <div
+            key={virtualItem.index}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: `${virtualItem.size}px`,
+              transform: `translateY(${virtualItem.start}px)`,
+            }}
+          >
+            <ItemComponent item={items[virtualItem.index]} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+```
+
+## Data Fetching Patterns
+
+<data_fetching>
+**Modern Data Management:**
+
+- Use TanStack Query for all server state management
+- Implement optimistic updates for better UX
+- Use proper loading states with Suspense boundaries
+- Handle errors with Error Boundaries at strategic levels
+- Prefetch data on route/interaction predictions
+  </data_fetching>
+
+```typescript
+// TanStack Query with proper patterns
+function useUserProfile(userId: string) {
+  return useQuery({
+    queryKey: ["users", "profile", userId],
+    queryFn: () => fetchUserProfile(userId),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 3,
+  });
+}
+
+// Optimistic updates with mutations
+function useUpdateProfile() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: updateUserProfile,
+    onMutate: async (newProfile) => {
+      await queryClient.cancelQueries({ queryKey: ["users", "profile"] });
+
+      const previousProfile = queryClient.getQueryData(["users", "profile"]);
+
+      queryClient.setQueryData(["users", "profile"], newProfile);
+
+      return { previousProfile };
+    },
+    onError: (err, newProfile, context) => {
+      queryClient.setQueryData(["users", "profile"], context?.previousProfile);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["users", "profile"] });
+    },
+  });
+}
+```
+
+## Form Handling
+
+<form_guidelines>
+**Modern Form Management:**
+
+- Use React 19 Actions for form submissions
+- Integrate @tanstack/react-form with zod for complex forms
+- Implement optimistic updates for better UX
+- Always provide proper validation and error messages
+  </form_guidelines>
+
+```typescript
+// TanStack Form with Zod validation
+import { useForm } from '@tanstack/react-form'
+import { z } from 'zod'
+
+const userSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+})
+
+type UserFormData = z.infer<typeof userSchema>
+
+function UserForm() {
+  const form = useForm({
+    defaultValues: {
+      email: '',
+      password: '',
+      confirmPassword: '',
+    },
+    onSubmit: async ({ value }) => {
+      try {
+        await createUser(value)
+      } catch (error) {
+        // Handle error
+      }
+    },
+    validators: {
+      onChange: userSchema,
+    },
+  })
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        form.handleSubmit()
+      }}
+    >
+      <form.Field name="email">
+        {(field) => (
+          <>
+            <input
+              type="email"
+              placeholder="Email"
+              value={field.state.value}
+              onBlur={field.handleBlur}
+              onChange={(e) => field.handleChange(e.target.value)}
+            />
+            {field.state.meta.errors.length > 0 && (
+              <span>{field.state.meta.errors.join(', ')}</span>
+            )}
+          </>
+        )}
+      </form.Field>
+
+      <form.Subscribe
+        selector={(state) => [state.isSubmitting]}
+        children={([isSubmitting]) => (
+          <button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Creating...' : 'Create User'}
+          </button>
+        )}
+      />
+    </form>
+  )
+}
+```
+
+## Error Handling
+
+<error_handling>
+**Robust Error Management:**
+
+- Use Error Boundaries to catch and display errors gracefully
+- Implement fallback UI for error states
+- Log errors to monitoring service (Sentry, etc.)
+- Type your errors properly - never assume Error type
+  </error_handling>
+
+```typescript
+// Error Boundary component
+class ErrorBoundary extends Component<
+  { children: ReactNode; fallback?: ComponentType<{ error: Error }> },
+  { hasError: boolean; error?: Error }
+> {
+  constructor(props: any) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('Error caught by boundary:', error, errorInfo)
+    // Log to monitoring service
+  }
+
+  render() {
+    if (this.state.hasError) {
+      const FallbackComponent = this.props.fallback || DefaultErrorFallback
+      return <FallbackComponent error={this.state.error!} />
+    }
+
+    return this.props.children
+  }
+}
+
+// Usage
+function App() {
+  return (
+    <ErrorBoundary fallback={CustomErrorPage}>
+      <Router>
+        <Routes>
+          {/* Your routes */}
+        </Routes>
+      </Router>
+    </ErrorBoundary>
+  )
+}
+```
+
+## Testing Strategy
+
+<testing_guidelines>
+**Comprehensive Testing Approach:**
+
+- Test components as users interact with them
+- Use Jest + React Testing Library for unit/integration tests
+- Implement Playwright for E2E testing
+- Focus on behavior, not implementation details
+  </testing_guidelines>
+
+```typescript
+// Component testing example
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { UserProfile } from './UserProfile'
+
+describe('UserProfile', () => {
+  it('should update profile when form is submitted', async () => {
+    const mockUpdateProfile = jest.fn()
+
+    render(<UserProfile onUpdate={mockUpdateProfile} />)
+
+    fireEvent.change(screen.getByLabelText(/name/i), {
+      target: { value: 'John Doe' }
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith({
+        name: 'John Doe'
+      })
+    })
+  })
+})
+```
+
+## Accessibility (a11y)
+
+<accessibility_guidelines>
+**Essential Accessibility Practices:**
+
+- Use semantic HTML elements first
+- Ensure keyboard navigation works for all interactions
+- Test with screen readers regularly
+- Use Oxlint jsx-a11y rules for automated checks
+- Follow WCAG 2.2 guidelines
+  </accessibility_guidelines>
+
+```typescript
+// Accessible component example
+function Modal({ isOpen, onClose, title, children }: ModalProps) {
+  const titleId = useId()
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+      // Focus management
+      const focusableElements = modalRef.current?.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
+      focusableElements?.[0]?.focus()
+    }
+
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [isOpen])
+
+  if (!isOpen) return null
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      className="modal-overlay"
+      onClick={onClose}
+    >
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <h2 id={titleId}>{title}</h2>
+        {children}
+        <button onClick={onClose} aria-label="Close modal">
+          ×
+        </button>
+      </div>
+    </div>
+  )
+}
+```
+
+## Custom Hooks Guidelines
+
+<hooks_guidelines>
+**Custom Hook Best Practices:**
+
+- Extract non-visual logic into custom hooks
+- Keep hooks focused on single purpose
+- Use clear naming: useXxx pattern
+- Return arrays for state-like hooks, objects for complex returns
+- Document hook dependencies and return values
+  </hooks_guidelines>
+
+```typescript
+// Well-designed custom hook
+function useLocalStorage<T>(
+  key: string,
+  initialValue: T,
+): [T, (value: T | ((val: T) => T)) => void] {
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.error(`Error reading localStorage key "${key}":`, error);
+      return initialValue;
+    }
+  });
+
+  const setValue = useCallback(
+    (value: T | ((val: T) => T)) => {
+      try {
+        const valueToStore = value instanceof Function ? value(storedValue) : value;
+        setStoredValue(valueToStore);
+        window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      } catch (error) {
+        console.error(`Error setting localStorage key "${key}":`, error);
+      }
+    },
+    [key, storedValue],
+  );
+
+  return [storedValue, setValue];
+}
+```
+
+## Code Organization
+
+<organization_structure>
+**Recommended Project Structure:**
+
+```
+/src
+└── /features
+    ├── /products
+    │   ├── /components
+    │   ├── /hooks
+    │   ├── /api
+    │   ├── /types
+    │   └── index.ts  // Public API
+    └── /auth
+        ├── /components
+        ├── /actions
+        └── index.ts
+```
+
+</organization_structure>
+
+## Security Best Practices
+
+<security_guidelines>
+**Essential Security Measures:**
+
+- Sanitize user inputs to prevent XSS
+- Use environment variables for sensitive data
+- Implement proper authentication/authorization
+- Validate data on both client and server
+- Keep dependencies updated
+  </security_guidelines>
+
+## Modern Patterns to Adopt
+
+<modern_patterns>
+**Recommended Development Patterns:**
+
+- Compound components for flexible APIs
+- Render props sparingly, prefer composition
+- Use portals for modals and tooltips
+- Implement progressive enhancement
+- Design for mobile-first responsive layouts
+  </modern_patterns>
+
+<enforcement_policy>
+**MANDATORY:** These patterns must be followed consistently across all React components and applications.
+</enforcement_policy>

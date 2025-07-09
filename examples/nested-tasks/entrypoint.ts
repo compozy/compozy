@@ -6,6 +6,6 @@ import { echoTool } from "./echo_tool.ts";
 
 // Export tools with snake_case keys for Compozy runtime
 export default {
-    "counter_tool": counterTool,
-    "echo_tool": echoTool,
-}
+  counter_tool: counterTool,
+  echo_tool: echoTool,
+};

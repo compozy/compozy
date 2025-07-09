@@ -1,0 +1,15 @@
+{
+  "title": "Temporal",
+  "description": "Temporal workflow engine integration",
+  "icon": "Infinity",
+  "pages": [
+    "temporal-architecture",
+    "production-deployment",
+    "event-driven-workflows",
+    "schedule-management",
+    "monitoring-metrics",
+    "scaling-patterns",
+    "operational-runbooks",
+    "development-testing"
+  ]
+}

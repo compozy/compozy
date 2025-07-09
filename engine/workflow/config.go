@@ -18,76 +18,380 @@ import (
 	"github.com/compozy/compozy/pkg/ref"
 )
 
+// TriggerType defines the type of event that can initiate workflow execution.
+//
+// Triggers enable workflows to be initiated by external events rather than
+// being manually executed or scheduled. This allows for event-driven architectures
+// where workflows respond to system events, webhooks, or external signals.
 type TriggerType string
 
 const (
+	// TriggerTypeSignal represents external signal-based triggers.
+	// Signal triggers allow workflows to be initiated by external HTTP requests
+	// or system events, enabling webhook-style integrations and event-driven workflows.
 	TriggerTypeSignal TriggerType = "signal"
 )
 
-// OverlapPolicy defines how scheduled workflows handle overlapping executions
+// OverlapPolicy defines how scheduled workflows handle overlapping executions.
+//
+// When a workflow is scheduled to run at regular intervals, there may be cases
+// where a previous execution is still running when the next scheduled time arrives.
+// The overlap policy determines how Compozy handles these situations.
+//
+// **Example usage in schedule:**
+//
+//	schedule:
+//	  cron: "*/5 * * * *"  # Every 5 minutes
+//	  overlap_policy: buffer_one
 type OverlapPolicy string
 
 const (
-	// OverlapSkip skips the new execution if the previous one is still running
+	// OverlapSkip skips the new execution if the previous one is still running.
+	// This is the **default policy** and ensures only one instance runs at a time.
+	// Useful for workflows that should not have concurrent executions.
 	OverlapSkip OverlapPolicy = "skip"
-	// OverlapAllow allows multiple executions to run concurrently
+	// OverlapAllow allows multiple executions to run concurrently.
+	// Use this when workflow executions are independent and can safely run in parallel.
+	// Be cautious with resource consumption when using this policy.
 	OverlapAllow OverlapPolicy = "allow"
-	// OverlapBufferOne buffers one execution to run after the current one completes
+	// OverlapBufferOne buffers one execution to run after the current one completes.
+	// If multiple triggers occur while running, only the most recent is queued.
+	// Useful for workflows that should process the latest trigger but not skip it entirely.
 	OverlapBufferOne OverlapPolicy = "buffer_one"
-	// OverlapCancelOther cancels the running execution and starts a new one
+	// OverlapCancelOther cancels the running execution and starts a new one.
+	// Use this for workflows where the latest trigger invalidates previous executions.
+	// The canceled execution will be marked as canceled in the execution history.
 	OverlapCancelOther OverlapPolicy = "cancel_other"
 )
 
+// Trigger defines an external event that can initiate workflow execution.
+//
+// Triggers provide a way to start workflows based on external events such as
+// webhooks, API calls, or system signals. Each trigger has a unique name and
+// can optionally validate incoming data against a schema.
+//
+// **Example YAML configuration:**
+//
+//	triggers:
+//	  - type: signal
+//	    name: user-registration
+//	    schema:
+//	      type: object
+//	      properties:
+//	        userId:
+//	          type: string
+//	        email:
+//	          type: string
+//	          format: email
+//	      required: [userId, email]
 type Trigger struct {
-	Type   TriggerType    `json:"type"             yaml:"type"             mapstructure:"type"`
-	Name   string         `json:"name"             yaml:"name"             mapstructure:"name"`
+	// Type of trigger mechanism (e.g., "signal" for external signals)
+	Type TriggerType `json:"type"             yaml:"type"             mapstructure:"type"`
+	// Unique name for identifying this trigger
+	Name string `json:"name"             yaml:"name"             mapstructure:"name"`
+	// Schema for validating trigger input data (optional)
 	Schema *schema.Schema `json:"schema,omitempty" yaml:"schema,omitempty" mapstructure:"schema,omitempty"`
 }
 
-// Schedule defines when and how a workflow should be executed automatically
+// Schedule defines when and how a workflow should be executed automatically.
+//
+// Schedules enable workflows to run at predetermined times using cron expressions.
+// They support advanced features like timezone awareness, execution windows, jitter
+// for load distribution, and policies for handling overlapping runs.
+//
+// **Example YAML configurations:**
+//
+// Basic hourly schedule:
+//
+//	schedule:
+//	  cron: "0 * * * *"  # Every hour
+//
+// Advanced schedule with all options:
+//
+//	schedule:
+//	  cron: "0 9 * * MON-FRI"  # 9 AM on weekdays
+//	  timezone: "America/New_York"
+//	  enabled: true
+//	  jitter: "5m"  # Random delay up to 5 minutes
+//	  overlap_policy: skip
+//	  start_at: "2024-01-01T00:00:00Z"
+//	  end_at: "2024-12-31T23:59:59Z"
+//	  input:
+//	    mode: "scheduled"
+//	    priority: "normal"
 type Schedule struct {
 	// Cron expression for scheduling (required)
+	// Supports standard cron format: "minute hour day month weekday"
+	// Special strings: @yearly, @monthly, @weekly, @daily, @hourly
 	Cron string `yaml:"cron"                     json:"cron"                     validate:"required,cron"`
 	// Timezone for schedule execution (optional, default UTC)
+	// Uses IANA timezone names (e.g., "America/New_York", "Europe/London")
 	Timezone string `yaml:"timezone,omitempty"       json:"timezone,omitempty"`
 	// Whether the schedule is enabled (optional, default true)
+	// Set to false to temporarily disable scheduled runs without removing the configuration
 	Enabled *bool `yaml:"enabled,omitempty"        json:"enabled,omitempty"`
 	// Random delay to add to execution time (optional)
+	// Format: "5m", "1h", "30s" - helps distribute load when many workflows run at the same time
 	Jitter string `yaml:"jitter,omitempty"         json:"jitter,omitempty"`
 	// Policy for handling overlapping executions (optional, default skip)
+	// Options: skip, allow, buffer_one, cancel_other
 	OverlapPolicy OverlapPolicy `yaml:"overlap_policy,omitempty" json:"overlap_policy,omitempty"`
 	// Start date for the schedule (optional)
+	// Schedule will not run before this time
 	StartAt *time.Time `yaml:"start_at,omitempty"       json:"start_at,omitempty"`
 	// End date for the schedule (optional)
+	// Schedule will not run after this time
 	EndAt *time.Time `yaml:"end_at,omitempty"         json:"end_at,omitempty"`
 	// Default input values for scheduled runs (optional)
+	// These inputs are merged with any trigger inputs when the workflow executes
 	Input map[string]any `yaml:"input,omitempty"          json:"input,omitempty"`
 }
 
+// Opts defines workflow-specific configuration options.
+//
+// These options control the workflow's runtime behavior, input validation,
+// and environment configuration. They extend the global options with
+// workflow-specific settings.
+//
+// **Example YAML configuration:**
+//
+//	config:
+//	  # Input schema definition
+//	  input:
+//	    type: object
+//	    properties:
+//	      message:
+//	        type: string
+//	        description: Message to process
+//	      priority:
+//	        type: string
+//	        enum: [low, medium, high]
+//	        default: medium
+//	    required: [message]
+//	  # Environment variables
+//	  env:
+//	    API_KEY: "{{ .secrets.API_KEY }}"
+//	    DEBUG_MODE: "true"
+//	    MAX_RETRIES: "3"
 type Opts struct {
+	// Global options inherited from core configuration
+	// Includes provider settings, model configurations, and other global parameters
 	core.GlobalOpts `json:",inline" yaml:",inline" mapstructure:",squash"`
-	InputSchema     *schema.Schema `json:"input,omitempty" yaml:"input,omitempty" mapstructure:"input,omitempty"`
-	Env             *core.EnvMap   `json:"env,omitempty"   yaml:"env,omitempty"   mapstructure:"env,omitempty"`
+	// Input schema for validating workflow input parameters
+	// Uses JSON Schema format to define expected input structure and validation rules
+	InputSchema *schema.Schema `json:"input,omitempty" yaml:"input,omitempty" mapstructure:"input,omitempty"`
+	// Environment variables available to the workflow and its components
+	// These variables are accessible to all tasks, agents, and tools within the workflow
+	Env *core.EnvMap `json:"env,omitempty"   yaml:"env,omitempty"   mapstructure:"env,omitempty"`
 }
 
+// Config represents a workflow configuration in Compozy.
+//
+// Workflows in Compozy are **orchestration units** that define how AI agents, tools, and tasks
+// work together to accomplish complex objectives. A workflow acts as a blueprint that:
+//
+//   - **Defines a sequence of tasks** to be executed with conditional branching
+//   - **Coordinates AI agents** with specific instructions and capabilities
+//   - **Integrates external tools** and Model Context Protocol (MCP) servers
+//   - **Manages data flow** between tasks using Go template expressions
+//   - **Handles scheduling** and triggering of automated executions
+//   - **Validates inputs and outputs** according to defined JSON schemas
+//
+// ## Core Concepts
+//
+// **Tasks**: The building blocks of workflows. Each task performs a specific action
+// using either an agent (AI-powered) or tool (deterministic function).
+//
+// **Agents**: AI models with specific instructions that can use tools and perform
+// complex reasoning tasks.
+//
+// **Tools**: External programs or scripts that perform specific operations, like
+// data processing, API calls, or file manipulation.
+//
+// **MCP Servers**: Model Context Protocol servers that extend AI capabilities with
+// specialized tools and knowledge bases.
+//
+// **Data Flow**: Tasks can access outputs from previous tasks using template
+// expressions like `{{ .tasks.previous-task.output.field }}`.
+//
+// ## Complete Example Workflow
+//
+//	id: customer-support-workflow
+//	version: "1.0.0"
+//	description: "Automated customer support with ticket creation"
+//	author:
+//	  name: "Support Team"
+//	  email: "support@example.com"
+//
+//	# Input validation schema
+//	config:
+//	  input:
+//	    type: object
+//	    properties:
+//	      customer_email:
+//	        type: string
+//	        format: email
+//	      issue_description:
+//	        type: string
+//	        minLength: 10
+//	    required: [customer_email, issue_description]
+//	  env:
+//	    SUPPORT_API_KEY: "{{ .secrets.SUPPORT_API_KEY }}"
+//	    TICKET_SYSTEM_URL: "https://api.tickets.example.com"
+//
+//	# Reusable schemas
+//	schemas:
+//	  - id: ticket_schema
+//	    type: object
+//	    properties:
+//	      ticket_id:
+//	        type: string
+//	      priority:
+//	        type: string
+//	        enum: [low, medium, high, urgent]
+//
+//	# External tools
+//	tools:
+//	  - id: ticket-creator
+//	    description: "Creates support tickets via API"
+//	    execute: "./scripts/create-ticket.js"
+//	    env:
+//	      API_KEY: "{{ .workflow.env.SUPPORT_API_KEY }}"
+//
+//	# AI agents
+//	agents:
+//	  - id: support-agent
+//	    model: "gpt-4"
+//	    instructions: |
+//	      You are a helpful customer support agent. Analyze customer issues,
+//	      determine priority, and provide clear, empathetic responses.
+//	    temperature: 0.7
+//
+//	# MCP servers for extended capabilities
+//	mcps:
+//	  - id: knowledge-base
+//	    url: "http://localhost:3000/mcp"
+//	    proto: "2025-03-26"
+//
+//	# Event triggers
+//	triggers:
+//	  - type: signal
+//	    name: new-support-request
+//	    schema:
+//	      $ref: "local::config.input"
+//
+//	# Workflow tasks
+//	tasks:
+//	  - id: analyze-issue
+//	    type: basic
+//	    $use: agent(local::agents.#(id="support-agent"))
+//	    with:
+//	      prompt: |
+//	        Analyze this customer issue and determine:
+//	        1. Issue category
+//	        2. Priority level
+//	        3. Suggested resolution
+//
+//	        Customer: {{ .workflow.input.customer_email }}
+//	        Issue: {{ .workflow.input.issue_description }}
+//	    on_success:
+//	      next: create-ticket
+//	    on_error:
+//	      next: escalate-to-human
+//
+//	  - id: create-ticket
+//	    type: basic
+//	    $use: tool(local::tools.#(id="ticket-creator"))
+//	    with:
+//	      email: "{{ .workflow.input.customer_email }}"
+//	      description: "{{ .workflow.input.issue_description }}"
+//	      priority: "{{ .tasks.analyze-issue.output.priority }}"
+//	      category: "{{ .tasks.analyze-issue.output.category }}"
+//	    final: true
+//
+//	  - id: escalate-to-human
+//	    type: basic
+//	    $use: tool(local::tools.#(id="ticket-creator"))
+//	    with:
+//	      email: "{{ .workflow.input.customer_email }}"
+//	      description: "ESCALATED: {{ .workflow.input.issue_description }}"
+//	      priority: "urgent"
+//	      assign_to: "human-support-team"
+//	    final: true
+//
+//	# Output mapping
+//	outputs:
+//	  ticket_id: "{{ .tasks.create-ticket.output.ticket_id }}"
+//	  status: "{{ .tasks.create-ticket.output.status }}"
+//	  resolution: "{{ .tasks.analyze-issue.output.suggested_resolution }}"
+//
+//	# Automated schedule
+//	schedule:
+//	  cron: "0 */4 * * *"  # Every 4 hours
+//	  overlap_policy: buffer_one
+//	  input:
+//	    source: "scheduled_check"
 type Config struct {
-	Resource    string          `json:"resource,omitempty"    yaml:"resource,omitempty"    mapstructure:"resource,omitempty"`
-	ID          string          `json:"id"                    yaml:"id"                    mapstructure:"id"`
-	Version     string          `json:"version,omitempty"     yaml:"version,omitempty"     mapstructure:"version,omitempty"`
-	Description string          `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description,omitempty"`
-	Schemas     []schema.Schema `json:"schemas,omitempty"     yaml:"schemas,omitempty"     mapstructure:"schemas,omitempty"`
-	Opts        Opts            `json:"config"                yaml:"config"                mapstructure:"config"`
-	Author      *core.Author    `json:"author,omitempty"      yaml:"author,omitempty"      mapstructure:"author,omitempty"`
-	Tools       []tool.Config   `json:"tools,omitempty"       yaml:"tools,omitempty"       mapstructure:"tools,omitempty"`
-	Agents      []agent.Config  `json:"agents,omitempty"      yaml:"agents,omitempty"      mapstructure:"agents,omitempty"`
-	MCPs        []mcp.Config    `json:"mcps,omitempty"        yaml:"mcps,omitempty"        mapstructure:"mcps,omitempty"`
-	Triggers    []Trigger       `json:"triggers,omitempty"    yaml:"triggers,omitempty"    mapstructure:"triggers,omitempty"`
-	Tasks       []task.Config   `json:"tasks"                 yaml:"tasks"                 mapstructure:"tasks"`
-	Outputs     *core.Output    `json:"outputs,omitempty"     yaml:"outputs,omitempty"     mapstructure:"outputs,omitempty"`
-	Schedule    *Schedule       `json:"schedule,omitempty"    yaml:"schedule,omitempty"    mapstructure:"schedule,omitempty"`
+	// Resource reference for external workflow definitions
+	// Format: "compozy:workflow:<name>" - allows referencing pre-built workflows
+	Resource string `json:"resource,omitempty"    yaml:"resource,omitempty"    mapstructure:"resource,omitempty"`
+	// Unique identifier for the workflow (required)
+	// Must be unique within the project scope. Used for referencing and execution.
+	// - **Example**: "customer-support", "data-processing", "content-generation"
+	ID string `json:"id"                    yaml:"id"                    mapstructure:"id"`
+	// Version of the workflow for tracking changes
+	// Follows semantic versioning (e.g., "1.0.0", "2.1.3")
+	// Useful for managing workflow evolution and backwards compatibility
+	Version string `json:"version,omitempty"     yaml:"version,omitempty"     mapstructure:"version,omitempty"`
+	// Human-readable description of the workflow's purpose
+	// Should clearly explain what the workflow does and when to use it
+	Description string `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description,omitempty"`
+	// JSON schemas for validating data structures used in the workflow
+	// Define reusable schemas that can be referenced throughout the workflow
+	// using $ref syntax (e.g., $ref: local::schemas.#(id="user_schema"))
+	Schemas []schema.Schema `json:"schemas,omitempty"     yaml:"schemas,omitempty"     mapstructure:"schemas,omitempty"`
+	// Configuration options including input schema and environment variables
+	// Controls workflow behavior, validation, and runtime environment
+	Opts Opts `json:"config"                yaml:"config"                mapstructure:"config"`
+	// Author information for workflow attribution
+	// Helps track ownership and responsibility for workflow maintenance
+	Author *core.Author `json:"author,omitempty"      yaml:"author,omitempty"      mapstructure:"author,omitempty"`
+	// External tools that can be invoked by agents or tasks
+	// Define executable scripts or programs that perform specific operations
+	// Tools provide deterministic, non-AI functionality like API calls or data processing
+	// $ref: schema://tools
+	Tools []tool.Config `json:"tools,omitempty"       yaml:"tools,omitempty"       mapstructure:"tools,omitempty"`
+	// AI agents with specific instructions and capabilities
+	// Configure LLM-powered agents with custom prompts, tools access, and behavior
+	// Agents can be referenced by tasks using $use: agent(...) syntax
+	// $ref: schema://agents
+	Agents []agent.Config `json:"agents,omitempty"      yaml:"agents,omitempty"      mapstructure:"agents,omitempty"`
+	// Model Context Protocol servers for extending AI capabilities
+	// MCP servers provide specialized tools and knowledge to agents
+	// Enable integration with external services and domain-specific functionality
+	// $ref: schema://mcp
+	MCPs []mcp.Config `json:"mcps,omitempty"        yaml:"mcps,omitempty"        mapstructure:"mcps,omitempty"`
+	// Event triggers that can initiate workflow execution
+	// Define external events (webhooks, signals) that can start the workflow
+	// Each trigger can have its own input schema for validation
+	Triggers []Trigger `json:"triggers,omitempty"    yaml:"triggers,omitempty"    mapstructure:"triggers,omitempty"`
+	// Sequential tasks that define the workflow execution plan (required)
+	// Tasks are the core execution units, processed in order with conditional branching
+	// Each task uses either an agent or tool to perform its operation
+	// $ref: schema://tasks
+	Tasks []task.Config `json:"tasks"                 yaml:"tasks"                 mapstructure:"tasks"`
+	// Output mappings to structure the final workflow results
+	// Use template expressions to extract and transform task outputs
+	// - **Example**: ticket_id: "{{ .tasks.create-ticket.output.id }}"
+	Outputs *core.Output `json:"outputs,omitempty"     yaml:"outputs,omitempty"     mapstructure:"outputs,omitempty"`
+	// Schedule configuration for automated workflow execution
+	// Enable cron-based scheduling with timezone support and overlap policies
+	Schedule *Schedule `json:"schedule,omitempty"    yaml:"schedule,omitempty"    mapstructure:"schedule,omitempty"`
 
+	// Internal field for tracking the source file path
 	filePath string
-	CWD      *core.PathCWD
+	// Internal field for the current working directory context
+	CWD *core.PathCWD
 }
 
 func (w *Config) Component() core.ConfigType {

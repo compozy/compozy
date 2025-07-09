@@ -1,0 +1,12 @@
+{
+  "title": "Deployment",
+  "description": "Deployment options and strategies",
+  "icon": "Rocket",
+  "pages": [
+    "deployment-options",
+    "infrastructure",
+    "configuration",
+    "scaling",
+    "maintenance"
+  ]
+}

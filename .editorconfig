@@ -57,7 +57,7 @@ indent_size = 2
 
 [*.{ts,tsx,js,jsx,json,css,scss,html,md,sh}]
 indent_style = space
-indent_size = 4
+indent_size = 2
 
 [*.{go,proto,make}]
 indent_style = tab

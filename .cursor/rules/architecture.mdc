@@ -3,7 +3,7 @@ description: Comprehensive architectural standards and design principles followi
 globs:
 alwaysApply: true
 ---
-# Architecture & Design Principles
+
 # Architecture & Design Principles
 
 <goal>
@@ -19,7 +19,7 @@ Establish comprehensive architectural standards and design principles for buildi
 - Each module, class, or function should have only one reason to change
 - Separate business logic, data access, and presentation concerns
 - Use domain-specific packages: `engine/{agent,task,tool,workflow,runtime,infra}/`
-- *Implementation examples: see [go-patterns.mdc](mdc:.cursor/rules/go-patterns.mdc)*
+- *Implementation examples: see @.cursor/rules/go-patterns.mdc*
 </principle>
 
 <principle type="solid_ocp">
@@ -27,7 +27,7 @@ Establish comprehensive architectural standards and design principles for buildi
 - Open for extension, closed for modification
 - Use interfaces and composition over inheritance
 - Leverage factory patterns for extensible behavior
-- *Factory pattern implementation: see [go-patterns.mdc](mdc:.cursor/rules/go-patterns.mdc)*
+- *Factory pattern implementation: see @.cursor/rules/go-patterns.mdc*
 </principle>
 
 <principle type="solid_lsp">
@@ -35,7 +35,7 @@ Establish comprehensive architectural standards and design principles for buildi
 - Subtypes must be substitutable for their base types
 - Interface implementations must honor contracts
 - Ensure interface methods behave consistently
-- *Interface design patterns: see [go-patterns.mdc](mdc:.cursor/rules/go-patterns.mdc)*
+- *Interface design patterns: see @.cursor/rules/go-patterns.mdc*
 </principle>
 
 <principle type="solid_isp">
@@ -43,7 +43,7 @@ Establish comprehensive architectural standards and design principles for buildi
 - Clients should not depend on interfaces they don't use
 - Create small, focused interfaces
 - Use interface composition for complex behavior
-- *Interface composition examples: see [go-patterns.mdc](mdc:.cursor/rules/go-patterns.mdc)*
+- *Interface composition examples: see @.cursor/rules/go-patterns.mdc*
 </principle>
 
 <principle type="solid_dip">
@@ -51,13 +51,14 @@ Establish comprehensive architectural standards and design principles for buildi
 - Depend on abstractions, not concretions
 - Use dependency injection through constructors
 - High-level modules should not depend on low-level modules
-- *Constructor patterns: see [go-patterns.mdc](mdc:.cursor/rules/go-patterns.mdc)*
+- *Constructor patterns: see @.cursor/rules/go-patterns.mdc*
 </principle>
 
 ### DRY Principle (Don't Repeat Yourself)
 
 <dry_strategies type="code_reuse">
 **Code Reuse Strategies:**
+
 - Extract common functionality into shared packages
 - Use generic functions for similar operations
 - Create utility packages for cross-cutting concerns
@@ -84,16 +85,18 @@ func (v *TaskValidator) ValidateTitle(title string) error {
 
 <dry_strategies type="configuration_patterns">
 **Configuration Patterns:**
+
 - Centralize configuration with defaults
 - Use template engine for dynamic configurations
 - Avoid duplicating configuration logic
-- *Configuration implementation: see [go-patterns.mdc](mdc:.cursor/rules/go-patterns.mdc)*
+- _Configuration implementation: see @.cursor/rules/go-patterns.mdc_
 </dry_strategies>
 
 ### Clean Architecture
 
 <architecture_structure type="domain_driven">
 **Domain-Driven Design Structure:**
+
 ```
 engine/
 ├── agent/     # Agent domain logic
@@ -108,18 +111,21 @@ engine/
 
 <layer_separation>
 **Layer Separation:**
+
 - **Domain Layer** (`engine/core/`): Shared business entities, value objects, and cross-domain primitives
 - **Application Layer** (`engine/{agent,task,tool,workflow}/`): Domain-specific business logic, use cases, and port interfaces (repositories, external services)
 - **Infrastructure Layer** (`engine/infra/`): External concerns (DB, HTTP, etc.) and adapter implementations
 - **Runtime Layer** (`engine/runtime/`): Execution environment and system orchestration
 
 **Interface Ownership Clarification:**
+
 - **Port Interfaces** (e.g., Repository, ExternalService): Defined in Application Layer packages where they're used
 - **Domain Entities**: Defined in Domain Layer (`engine/core/`) for cross-domain sharing
 - **Adapter Implementations**: Defined in Infrastructure Layer, implementing Application Layer interfaces
 </layer_separation>
 
 <dependency_flow>
+
 ```go
 // ✅ Good: Dependencies flow inward
 package task
@@ -153,16 +159,19 @@ func (r *PostgreSQLTaskRepository) Save(ctx context.Context, task *core.Task) er
     // Implementation details
 }
 ```
+
 </dependency_flow>
 
 ### Clean Code Practices
 
 **Naming Conventions:**
+
 - Use intention-revealing names
 - Avoid mental mapping and abbreviations
 - Use searchable names for important concepts
 
 <example type="naming_conventions">
+
 ```go
 // ✅ Good: Clear, intention-revealing names
 type WorkflowExecutionResult struct {
@@ -172,23 +181,24 @@ type WorkflowExecutionResult struct {
 }
 
 func (w *WorkflowService) ExecuteWorkflowWithRetry(
-    ctx context.Context,
-    workflowID core.ID,
-    maxRetries int,
+ctx context.Context,
+workflowID core.ID,
+maxRetries int,
 ) (*WorkflowExecutionResult, error) {
-    // Implementation
+// Implementation
 }
 
 // ❌ Bad: Unclear, abbreviated names
 type WfExecRes struct {
-    TskRes []TskRes `json:"tr"`
-    ExecT  int64    `json:"et"`
-    Stat   int      `json:"s"`
+TskRes []TskRes `json:"tr"`
+ExecT int64 `json:"et"`
+Stat int `json:"s"`
 }
 
 func (w *WfSvc) ExecWf(ctx context.Context, id string, mr int) (*WfExecRes, error) {
-    // Implementation
+// Implementation
 }
+
 ```
 </example>
 
@@ -200,6 +210,7 @@ func (w *WfSvc) ExecWf(ctx context.Context, id string, mr int) (*WfExecRes, erro
 </function_design>
 
 <example type="function_design">
+
 ```go
 // ✅ Good: Small, focused function
 func (s *TaskService) ValidateTaskInput(task *core.Task) error {
@@ -222,14 +233,16 @@ func (s *TaskService) validateRequiredFields(task *core.Task) error {
     return nil
 }
 ```
+
 </example>
 
 <error_handling_architecture>
 **Error Handling Architecture:**
-Follow unified error handling strategy from [go-coding-standards.mdc](mdc:.cursor/rules/go-coding-standards.mdc)
+Follow unified error handling strategy from @.cursor/rules/go-coding-standards.mdc
 </error_handling_architecture>
 
 <example type="error_handling">
+
 ```go
 // ✅ Good: Structured error handling
 func (s *WorkflowService) ExecuteWorkflow(ctx context.Context, id core.ID) error {
@@ -246,6 +259,7 @@ func (s *WorkflowService) ExecuteWorkflow(ctx context.Context, id core.ID) error
     }
 
     return s.executeWorkflowTasks(ctx, workflow)
+
 }
 ```
 </example>
@@ -267,7 +281,7 @@ func (s *WorkflowService) ExecuteWorkflow(ctx context.Context, id core.ID) error
 **MANDATORY constructor pattern for all services**
 - Use dependency injection through constructors
 - Always provide nil-safe configuration handling
-- *Implementation examples: see [go-patterns.mdc](mdc:.cursor/rules/go-patterns.mdc)*
+- *Implementation examples: see @.cursor/rules/go-patterns.mdc*
 </constructor_pattern>
 
 ### Context Propagation
@@ -276,7 +290,7 @@ func (s *WorkflowService) ExecuteWorkflow(ctx context.Context, id core.ID) error
 **Context as first parameter in all functions**
 - Always handle context cancellation
 - Propagate context through call chains
-- *Context handling patterns: see [go-patterns.mdc](mdc:.cursor/rules/go-patterns.mdc)*
+- *Context handling patterns: see @.cursor/rules/go-patterns.mdc*
 </context_requirements>
 
 ### Resource Management
@@ -286,7 +300,7 @@ func (s *WorkflowService) ExecuteWorkflow(ctx context.Context, id core.ID) error
 - Use defer for cleanup operations
 - Handle cleanup errors appropriately
 - Implement timeout handling for long-running operations
-- *Resource management patterns: see [go-patterns.mdc](mdc:.cursor/rules/go-patterns.mdc)*
+- *Resource management patterns: see @.cursor/rules/go-patterns.mdc*
 </cleanup_patterns>
 
 ## Anti-Patterns to Avoid
@@ -297,9 +311,10 @@ func (s *WorkflowService) ExecuteWorkflow(ctx context.Context, id core.ID) error
 type MegaService struct {
     // Too many dependencies and responsibilities
 }
-```
+````
 
 ### Tight Coupling
+
 ```go
 // ❌ Avoid: Direct dependency on concrete types
 type Service struct {
@@ -308,11 +323,13 @@ type Service struct {
 ```
 
 ### Circular Dependencies
+
 ```go
 // ❌ Avoid: Package A imports B, B imports A
 ```
 
 ### Magic Numbers/Strings
+
 ```go
 // ❌ Avoid: Magic values
 if status == 1 { /* what does 1 mean? */ }
@@ -325,11 +342,13 @@ if status == StatusActive { /* clear meaning */ }
 ## Quality Metrics
 
 ### Code Quality Indicators
+
 - **Function complexity and length:** Follow limits defined in go-coding-standards.mdc
 - **Package Coupling:** Minimize cross-package dependencies
 - **Test Coverage:** Aim for 80%+ on business logic
 
 ### Architecture Health
+
 - **Dependency Direction:** Always inward toward domain
 - **Interface Usage:** High ratio of interfaces to concrete types
 - **Package Cohesion:** Related functionality grouped together

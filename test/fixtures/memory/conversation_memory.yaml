@@ -9,20 +9,20 @@ max_tokens: 4000
 max_messages: 100
 
 persistence:
-    type: redis
-    ttl: 24h
+  type: redis
+  ttl: 24h
 
 privacy_policy:
-    redact_patterns:
-        - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b' # Email
-        - '\b\d{3}-\d{2}-\d{4}\b' # SSN
-    non_persistable_message_types:
-        - system
-        - tool
-    default_redaction_string: "[REDACTED]"
+  redact_patterns:
+    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'  # Email
+    - '\b\d{3}-\d{2}-\d{4}\b'  # SSN
+  non_persistable_message_types:
+    - system
+    - tool
+  default_redaction_string: "[REDACTED]"
 
 flushing_strategy:
-    type: hybrid_summary
-    threshold: 0.8
-    summarize_threshold: 0.6
-    summary_tokens: 500
+  type: hybrid_summary
+  threshold: 0.8
+  summarize_threshold: 0.6
+  summary_tokens: 500

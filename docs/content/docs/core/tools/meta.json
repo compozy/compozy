@@ -1,0 +1,15 @@
+{
+  "title": "Tools",
+  "description": "TypeScript tools and integrations",
+  "icon": "Wrench",
+  "pages": [
+    "tools-overview",
+    "typescript-development",
+    "configuration-schemas",
+    "runtime-environment",
+    "external-integrations",
+    "testing-debugging",
+    "performance-security",
+    "advanced-patterns"
+  ]
+}

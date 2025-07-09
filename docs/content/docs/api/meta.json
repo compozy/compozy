@@ -1,0 +1,16 @@
+{
+  "title": "API Reference",
+  "description": "REST API documentation",
+  "icon": "Globe",
+  "root": true,
+  "pages": [
+    "api-overview",
+    "workflows-executions",
+    "events-signals",
+    "schedules-management",
+    "component-discovery",
+    "memory-api",
+    "admin-apis",
+    "system-health"
+  ]
+}

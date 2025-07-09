@@ -1,40 +1,52 @@
 {
-    "typescript.preferences.importModuleSpecifier": "relative",
-    "javascript.preferences.importModuleSpecifier": "relative",
-    "typescript.updateImportsOnFileMove.enabled": "always",
-    "javascript.updateImportsOnFileMove.enabled": "always",
-    "testing.automaticallyOpenPeekView": "never",
-    "makefile.makefilePath": "./Makefile",
-    "protoc": {
-        "path": "/opt/homebrew/bin/protoc",
-        "options": ["--proto_path=${workspaceRoot}/proto"],
-        "compile_on_save": false
-    },
-    "[proto3]": {
-        "editor.formatOnSave": false,
-        "editor.formatOnType": false
-    },
-    "[proto]": {
-        "editor.formatOnSave": false,
-        "editor.formatOnType": false
-    },
-    "[typescript]": {
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
-    },
-    "[javascript]": {
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
-    },
-    "files.associations": {
-        "examples/**/*.ts": "typescript",
-        "examples/**/*.tsx": "typescriptreact",
-        "examples/**/*.js": "javascript",
-        "examples/**/*.jsx": "javascriptreact",
-        "docs/**/*.ts": "typescript",
-        "docs/**/*.tsx": "typescriptreact",
-        "docs/**/*.js": "javascript",
-        "docs/**/*.jsx": "javascriptreact"
-    },
-    "typescript.preferences.includePackageJsonAutoImports": "on",
-    "typescript.suggest.autoImports": true,
-    "bun.runtime": "bun"
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "javascript.preferences.importModuleSpecifier": "relative",
+  "typescript.updateImportsOnFileMove.enabled": "always",
+  "javascript.updateImportsOnFileMove.enabled": "always",
+  "testing.automaticallyOpenPeekView": "never",
+  "makefile.makefilePath": "./Makefile",
+  "typescript.suggest.autoImports": true,
+  "bun.runtime": "bun",
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": true,
+  "editor.formatOnType": false,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit"
+  },
+  "prettier.requireConfig": true,
+  "prettier.useEditorConfig": false,
+  "typescript.preferences.quoteStyle": "double",
+  "javascript.preferences.quoteStyle": "double",
+  "npm.packageManager": "bun",
+  "typescript.preferences.includePackageJsonAutoImports": "on",
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[css]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[scss]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[mdx]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
 }

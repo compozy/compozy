@@ -20,7 +20,7 @@ func ValidateSchedule(cfg *Schedule) error {
 		// Validate cron expression with seconds support
 		// Compozy uses 6-field cron expressions:
 		// Format: "second minute hour day-of-month month day-of-week"
-		// Example: "0 0 9 * * 1-5" (Every weekday at 9:00:00 AM)
+		// - **Example**: "0 0 9 * * 1-5" (Every weekday at 9:00:00 AM)
 		parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 		if _, err := parser.Parse(cfg.Cron); err != nil {
 			// Provide more specific error message for field count issues
