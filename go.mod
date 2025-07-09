@@ -70,7 +70,9 @@ require (
 require (
 	github.com/go-viper/mapstructure/v2 v2.2.1
 	github.com/knadh/koanf/providers/env/v2 v2.0.0
+	github.com/knadh/koanf/providers/structs v1.0.0
 	github.com/knadh/koanf/v2 v2.2.1
+	github.com/radovskyb/watcher v1.0.7
 	github.com/romdo/go-debounce v0.1.0
 )
 
@@ -158,7 +160,6 @@ require (
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.11 // indirect
 	github.com/knadh/koanf/maps v0.1.2 // indirect
-	github.com/knadh/koanf/providers/structs v1.0.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
@@ -191,11 +192,9 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
-	github.com/radovskyb/watcher v1.0.7 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
 	github.com/sashabaranov/go-openai v1.40.3 // indirect
-	github.com/sean9999/go-fsnotify-recursively v0.1.3 // indirect
 	github.com/shirou/gopsutil/v4 v4.25.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/cast v1.9.2 // indirect
